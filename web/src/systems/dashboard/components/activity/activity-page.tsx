@@ -2,7 +2,7 @@ import { AlertCircle } from "@compozy/ui/icons";
 
 import { AgentAvatar, Empty, PillGroup, SearchInput, useTopbarSlot } from "@compozy/ui";
 
-import { agentAvatarAppearance, useAgentInstances } from "@/systems/agent";
+import { agentAvatarAppearance, humanizeAgentSlug } from "@/systems/agent";
 import { PROFILE_SPRITE_URL } from "@/systems/profiles";
 
 import { useActivityPage } from "../../hooks/use-activity-page";
@@ -15,9 +15,25 @@ const FILTERS: { value: ActivityFilter; label: string }[] = [
   { value: "unattended", label: "Nobody watching" },
 ];
 
+function agentMark(name: string, size: number) {
+  const label = humanizeAgentSlug(name);
+  return {
+    label,
+    avatar: (
+      <AgentAvatar
+        appearance={agentAvatarAppearance(undefined, name)}
+        label={label}
+        quietIdle
+        size={size}
+        spriteUrl={PROFILE_SPRITE_URL}
+        surfaceClassName="ring-card"
+      />
+    ),
+  };
+}
+
 export function ActivityPage({ onBack }: { onBack: () => void }) {
   const page = useActivityPage();
-  const instances = useAgentInstances();
 
   useTopbarSlot({
     crumb: "Activity",
@@ -36,24 +52,6 @@ export function ActivityPage({ onBack }: { onBack: () => void }) {
       </>
     ),
   });
-
-  const agentMark = (name: string, size: number) => {
-    const instance = instances.find(candidate => candidate.agent_name === name);
-    const label = instance?.label ?? name;
-    return {
-      label,
-      avatar: (
-        <AgentAvatar
-          appearance={agentAvatarAppearance(instance?.resolved_appearance, name)}
-          label={label}
-          quietIdle
-          size={size}
-          spriteUrl={PROFILE_SPRITE_URL}
-          surfaceClassName="ring-card"
-        />
-      ),
-    };
-  };
 
   if (page.error) {
     return (

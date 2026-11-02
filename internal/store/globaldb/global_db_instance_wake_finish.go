@@ -92,7 +92,7 @@ func validateInstanceWakeFinish(req *heartbeat.FinishRequest) error {
 		req.DeniedCalls < 0 {
 		return errors.New("invalid wake finalization")
 	}
-	if req.Source != "timer" && req.Source != "instance_check" {
+	if req.Source != "timer" && req.Source != instanceManualCheckSource {
 		return errors.New("invalid proactive wake source")
 	}
 	return nil
@@ -114,7 +114,7 @@ func instanceWakeStreaks(result string, quiet, failures int64) (int, int64, int6
 }
 
 func nextInstanceWake(req *heartbeat.FinishRequest, quiet, failures int64) time.Time {
-	if req.Source == "instance_check" || req.Result == instanceWakeCanceledResult {
+	if req.Source == instanceManualCheckSource || req.Result == instanceWakeCanceledResult {
 		return time.Time{}
 	}
 	if req.Interval <= 0 || req.MaxInterval <= 0 {

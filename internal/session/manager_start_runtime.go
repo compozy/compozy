@@ -41,10 +41,7 @@ func (m *Manager) resolveSessionStartRuntime(
 		return sessionStartRuntime{}, fmt.Errorf("session: resolve session agent %q: %w", spec.agentName, err)
 	}
 	if spec.sessionType == SessionTypeTriage {
-		provider := resolved.RuntimeProvider
-		if provider == "" {
-			provider = resolved.Provider
-		}
+		provider := resolved.Provider
 		if model := runtimeConfig.Agents.Heartbeat.TriageModels[provider]; model != "" {
 			spec.model, spec.provider = model, resolved.Provider
 			resolved, err = runtimeConfig.ResolveSessionAgentWithRuntime(agentDef, compozyconfig.RuntimeOverrides{

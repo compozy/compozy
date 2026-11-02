@@ -378,12 +378,12 @@ func (q *Queries) InsertHeartbeatSnapshot(ctx context.Context, arg InsertHeartbe
 
 const insertHeartbeatWakeEvent = `-- name: InsertHeartbeatWakeEvent :exec
 INSERT INTO agent_heartbeat_wake_events (
-  id, workspace_id, agent_name, session_id, policy_snapshot_id, source, result, reason,
+  id, workspace_id, agent_name, session_id, policy_snapshot_id, source, result, reason, detail,
   synthetic_prompt_id, created_at, expires_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11
+  ?5, ?6, ?7, ?8, ?9,
+  ?10, ?11, ?12
 )
 `
 
@@ -396,6 +396,7 @@ type InsertHeartbeatWakeEventParams struct {
 	Source            string         `json:"source"`
 	Result            string         `json:"result"`
 	Reason            string         `json:"reason"`
+	Detail            string         `json:"detail"`
 	SyntheticPromptID sql.NullString `json:"synthetic_prompt_id"`
 	CreatedAt         string         `json:"created_at"`
 	ExpiresAt         string         `json:"expires_at"`
@@ -411,6 +412,7 @@ func (q *Queries) InsertHeartbeatWakeEvent(ctx context.Context, arg InsertHeartb
 		arg.Source,
 		arg.Result,
 		arg.Reason,
+		arg.Detail,
 		arg.SyntheticPromptID,
 		arg.CreatedAt,
 		arg.ExpiresAt,

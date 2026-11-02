@@ -42,7 +42,9 @@ func (w *monitorSessionWaker) WakeSession(ctx context.Context, notification moni
 	sessionID := notification.Monitor.SessionID
 	info, err := sessions.Status(ctx, sessionID)
 	switch {
-	case errors.Is(err, session.ErrSessionNotFound), errors.Is(err, store.ErrSessionNotFound):
+	case errors.Is(err, session.ErrSessionNotFound),
+		errors.Is(err, store.ErrSessionNotFound),
+		errors.Is(err, store.ErrSessionSuperseded):
 		return fmt.Errorf("%w: %s", monitorpkg.ErrSessionGone, sessionID)
 	case err != nil:
 		return fmt.Errorf("daemon: read monitor session %q: %w", sessionID, err)
@@ -116,7 +118,7 @@ func (o monitorLifecycleObserver) release(sessionID string, shutdown bool) {
 }
 
 type monitorOwnerManager interface {
-	MonitorOwnerBinding(string) (string, error)
+	MonitorOwnerBinding(context.Context, string) (string, error)
 	ResumeMonitorOwner(context.Context, string, string) error
 }
 
@@ -134,12 +136,16 @@ func (o monitorSessionOwners) manager() (monitorOwnerManager, error) {
 	return manager, nil
 }
 
-func (o monitorSessionOwners) Binding(_ context.Context, sessionID string) (string, error) {
+func (o monitorSessionOwners) Binding(ctx context.Context, sessionID string) (string, error) {
 	manager, err := o.manager()
 	if err != nil {
 		return "", err
 	}
-	return manager.MonitorOwnerBinding(sessionID)
+	binding, err := manager.MonitorOwnerBinding(ctx, sessionID)
+	if errors.Is(err, store.ErrSessionSuperseded) {
+		return "", monitorpkg.ErrSessionGone
+	}
+	return binding, err
 }
 
 func (o monitorSessionOwners) Resume(ctx context.Context, sessionID, binding string) error {
@@ -153,7 +159,9 @@ func (o monitorSessionOwners) Resume(ctx context.Context, sessionID, binding str
 		return nil
 	case errors.Is(err, session.ErrMonitorOwnerStopped):
 		return monitorpkg.ErrOwnerStopped
-	case errors.Is(err, session.ErrSessionNotFound), errors.Is(err, store.ErrSessionNotFound):
+	case errors.Is(err, session.ErrSessionNotFound),
+		errors.Is(err, store.ErrSessionNotFound),
+		errors.Is(err, store.ErrSessionSuperseded):
 		return monitorpkg.ErrSessionGone
 	}
 	if ineligible, ok := errors.AsType[*session.MonitorOwnerIneligibleError](err); ok {

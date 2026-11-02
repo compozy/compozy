@@ -152,34 +152,12 @@ func (h *BaseHandlers) ListAgentInstances(c *gin.Context) {
 		h.respondError(c, 422, err)
 		return
 	}
-	rows, err := h.AgentInstances.Store.List(c.Request.Context(), query)
+	result, err := h.AgentInstances.ListPage(c.Request.Context(), query, actor)
 	if err != nil {
 		h.instanceError(c, err)
 		return
 	}
-	result, err := h.AgentInstances.ListResponse(c.Request.Context(), scope.ProfileID)
-	if err != nil {
-		h.instanceError(c, err)
-		return
-	}
-	for _, row := range rows {
-		if err := h.AgentInstances.Authority.Authorize(c.Request.Context(), actor, row, "list"); err != nil {
-			if errors.Is(err, agentinstance.ErrForbidden) {
-				continue
-			}
-			h.instanceError(c, err)
-			return
-		}
-		payload, err := h.AgentInstances.Payload(c.Request.Context(), row)
-		if err != nil {
-			h.instanceError(c, err)
-			return
-		}
-		result.Instances = append(result.Instances, payload)
-	}
-	if len(rows) == query.Limit {
-		result.NextCursor = rows[len(rows)-1].ID
-	}
+
 	c.JSON(200, result)
 }
 

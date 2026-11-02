@@ -33,6 +33,8 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 
 		if err := store.WriteSessionMeta(metaPath, &store.SessionMeta{
 			ID:            "sess-new",
+			InitiatorKind: "extension",
+			InitiatorID:   "ext-recovered",
 			ProfileID:     store.DefaultProfileID,
 			Name:          "New",
 			AgentName:     "coder",
@@ -69,6 +71,13 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 		}
 		if sessions[0].State != "stopped" {
 			t.Fatalf("sessions[0].State = %q, want stopped", sessions[0].State)
+		}
+		if sessions[0].InitiatorKind != "extension" || sessions[0].InitiatorID != "ext-recovered" {
+			t.Fatalf(
+				"reconciliation lost persisted initiator: %q/%q",
+				sessions[0].InitiatorKind,
+				sessions[0].InitiatorID,
+			)
 		}
 		if sessions[0].StopReason != store.StopUserCanceled {
 			t.Fatalf("sessions[0].StopReason = %q, want %q", sessions[0].StopReason, store.StopUserCanceled)

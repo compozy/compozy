@@ -80,6 +80,13 @@ export function throwSessionRequestError(
   );
 }
 
+export function isTerminalInputReadError(error: unknown): boolean {
+  return (
+    error instanceof SessionApiError &&
+    (error.status === 404 || error.status === 410 || error.code === "session_not_promptable")
+  );
+}
+
 export function isSessionUnavailable(error: unknown): boolean {
   return error instanceof SessionApiError && (error.status === 404 || error.status === 410);
 }

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/compozy/compozy/internal/redact"
 )
 
 const (
@@ -46,6 +48,7 @@ func fits(content string) bool {
 }
 
 func FormatEntry(now time.Time, scope, text, until string) (string, error) {
+	text = redact.String(text)
 	if utf8.RuneCountInString(text) > MaxEntryCharacters {
 		return "", ErrEntryTooLarge
 	}

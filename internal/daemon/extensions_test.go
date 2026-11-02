@@ -843,12 +843,23 @@ func TestExtensionLifecycleCoordinator(t *testing.T) {
 		if entries := health.Entries("tool-ext", "", "before-update"); len(entries) != 0 {
 			t.Fatalf("runtime health after update = %#v, want evicted", entries)
 		}
+		// Invariant: full package removal retires stale workspace observations, including resolved-before-Begin calls.
+		// Owner: daemon package lifecycle. Canonical suite: TestExtensionLifecycleCoordinator.
+		workspaceKey := health.ResolveKey(mcppkg.RuntimeHealthKey{
+			InstanceName: "tool-ext", WorkspaceID: "ws-old", BundleGeneration: "same-bundle", ServerName: "remote",
+		})
+		health.RecordFailure(health.Begin(workspaceKey), errors.New("old workspace failure"))
+
 		recordRuntimeHealthFailure(health, "tool-ext", "before-remove")
 		if _, err := service.Remove(t.Context(), "tool-ext", actor); err != nil {
 			t.Fatalf("Remove() error = %v", err)
 		}
 		if entries := health.Entries("tool-ext", "", "before-remove"); len(entries) != 0 {
 			t.Fatalf("runtime health after remove = %#v, want evicted", entries)
+		}
+		health.RecordFailure(health.Begin(workspaceKey), errors.New("late workspace failure"))
+		if entries := health.Entries("tool-ext", "ws-old", "same-bundle"); len(entries) != 0 {
+			t.Fatalf("workspace health after package remove = %v", entries)
 		}
 	})
 
@@ -2781,5 +2792,118 @@ func testConcurrentMarketplaceInstall(t *testing.T, foreign bool) {
 	attachments, err := registry.Installations(ctx, "tool-ext")
 	if err != nil || len(attachments) != 1 {
 		t.Fatalf("duplicate attachments: %v, %v", attachments, err)
+	}
+}
+
+func TestSupersededBundledDoctorScopes(t *testing.T) {
+	t.Parallel()
+	// Invariant: remediation targets actual retained attachment scopes and never labels an operator-owned package superseded.
+	// Owner: daemon registry diagnostics. Canonical suite: extensions_test.go.
+	for _, test := range []struct {
+		name   string
+		source extensionpkg.ExtensionSource
+		scope  extensionpkg.InstallationScope
+		orphan bool
+		multi  bool
+		want   string
+	}{
+		{name: "Should name the global removal command", source: extensionpkg.SourceBundled, want: "compozy extension remove dev-cycle --global"},
+		{name: "Should name the workspace and profile removal command", source: extensionpkg.SourceBundled, scope: extensionpkg.InstallationScope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-retained"}, want: "compozy --profile default extension remove dev-cycle --workspace ws-retained"},
+		{name: "Should report every global and workspace attachment", source: extensionpkg.SourceBundled,
+			scope: extensionpkg.InstallationScope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws-retained"}, multi: true,
+			want: "compozy --profile default extension remove dev-cycle --workspace ws-retained"},
+		{name: "Should diagnose an unattached superseded registration", source: extensionpkg.SourceBundled, orphan: true, want: "compozy extension remove dev-cycle --global"},
+		{name: "Should not label a user-owned old name superseded", source: extensionpkg.SourceUser},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			db := openDaemonTestGlobalDB(t)
+			registry := extensionpkg.NewRegistry(db.DB())
+			dir := installDaemonTestExtension(t, db, "dev-cycle", daemonTestExtensionOptions{}, true)
+			manifest, err := extensionpkg.LoadManifest(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			checksum, err := extensionpkg.ComputeDirectoryChecksum(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.scope.WorkspaceID != "" {
+				if _, err := db.DB().
+					ExecContext(t.Context(), `INSERT INTO workspaces (id, root_dir, name, created_at, updated_at)
+     VALUES ('ws-retained', '/ws-retained', 'retained', '2026-11-01T00:00:00Z', '2026-11-01T00:00:00Z')`); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := registry.Uninstall("dev-cycle"); err != nil {
+				t.Fatal(err)
+			}
+			if err := registry.Install(
+				manifest,
+				dir,
+				checksum,
+				extensionpkg.WithInstallSource(test.source),
+				extensionpkg.WithInstallScope(test.scope),
+			); err != nil {
+				t.Fatal(err)
+			}
+			if test.multi {
+				if err := registry.AttachInstallation(
+					t.Context(),
+					"dev-cycle",
+					extensionpkg.InstallationScope{},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			if test.orphan {
+				if _, err := db.DB().
+					ExecContext(t.Context(), `DELETE FROM extension_installations WHERE extension_name = 'dev-cycle'`); err != nil {
+					t.Fatal(err)
+				}
+			}
+			service := &daemonExtensionService{registry: registry}
+			items, err := service.SupersededBundledDiagnostics(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.want == "" {
+				if len(items) != 0 {
+					t.Fatalf("user-owned package diagnostics: %v", items)
+				}
+				return
+			}
+			if test.multi {
+				if len(items) != 2 || items[0].ID == items[1].ID {
+					t.Fatalf("multi-attachment diagnostics = %v", items)
+				}
+				for i := range items {
+					if items[i].Severity != contract.SeverityWarn {
+						t.Fatalf("multi-attachment severity = %v", items[i].Severity)
+					}
+				}
+
+				ids := []string{items[0].ID, items[1].ID}
+				if !slices.Contains(ids, "doctor.extension.dev-cycle.superseded") ||
+					!slices.Contains(
+						ids,
+						"doctor.extension.dev-cycle.superseded."+store.DefaultProfileID+".ws-retained",
+					) {
+					t.Fatalf("multi-attachment diagnostic IDs = %v", ids)
+				}
+
+				commands := []string{items[0].SuggestedCommand, items[1].SuggestedCommand}
+				if !slices.Contains(commands, test.want) ||
+					!slices.Contains(commands, "compozy extension remove dev-cycle --global") {
+					t.Fatalf("multi-attachment commands = %v", commands)
+				}
+				return
+			}
+
+			if len(items) != 1 || items[0].SuggestedCommand != test.want {
+				t.Fatalf("scope remediation = %v, want %s", items, test.want)
+			}
+		})
 	}
 }

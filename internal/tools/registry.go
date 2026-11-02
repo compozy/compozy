@@ -204,27 +204,6 @@ func (r *RuntimeRegistry) Get(ctx context.Context, scope Scope, id ToolID) (Tool
 	)
 }
 
-// DiagnosticProjection returns all indexed tools with effective diagnostics for the supplied scope.
-func (r *RuntimeRegistry) DiagnosticProjection(ctx context.Context, scope Scope) ([]ToolView, error) {
-	index, err := r.buildIndex(ctx, scope)
-	if err != nil {
-		return nil, err
-	}
-	evaluator, err := r.evaluatorFor(ctx, scope, index.ids())
-	if err != nil {
-		return nil, err
-	}
-	views := make([]ToolView, 0, len(index.entries))
-	for _, entry := range index.entries {
-		view, err := r.viewFor(ctx, scope, evaluator, entry)
-		if err != nil {
-			return nil, err
-		}
-		views = append(views, view)
-	}
-	return views, nil
-}
-
 // DiagnosticSearch filters the diagnostic projection without hiding denied tools.
 func (r *RuntimeRegistry) DiagnosticSearch(ctx context.Context, scope Scope, q SearchQuery) ([]ToolView, error) {
 	views, err := r.DiagnosticProjection(ctx, scope)
@@ -328,30 +307,6 @@ func (r *RuntimeRegistry) OperatorProjection(ctx context.Context, scope Scope) (
 // SessionProjection returns only callable tools for the effective session.
 func (r *RuntimeRegistry) SessionProjection(ctx context.Context, scope Scope) ([]ToolView, error) {
 	return r.sessionProjection(ctx, scope, nil, nil)
-}
-
-func (r *RuntimeRegistry) viewFor(
-	ctx context.Context,
-	scope Scope,
-	evaluator PolicyEvaluator,
-	entry *registryEntry,
-) (ToolView, error) {
-	availability := r.availabilityFor(ctx, scope, entry)
-	decision, err := evaluateIndexedDescriptor(ctx, scope, evaluator, entry.descriptor)
-	if err != nil {
-		return ToolView{}, err
-	}
-	decision = applyAvailabilityDecision(decision, availability)
-	descriptor := entry.descriptor
-	if !entry.owned {
-		// Shared native descriptors must not leak mutable fields; index-owned clones already are private.
-		descriptor = cloneDescriptor(descriptor)
-	}
-	return ToolView{
-		Descriptor:   descriptor,
-		Availability: availability,
-		Decision:     decision,
-	}, nil
 }
 
 func (r *RuntimeRegistry) availabilityFor(ctx context.Context, scope Scope, entry *registryEntry) Availability {

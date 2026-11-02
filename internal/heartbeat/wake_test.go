@@ -43,13 +43,20 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
 		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
-		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-latest", "ws-1", "coder", base, "Latest policy")}
+		// Invariant: the caller profile selects its own policy; owner: wake service, canonical decision suite.
+		scoped := wakeSnapshot(t, cfg, "hb-latest", "ws-1", "coder", base, "Latest policy")
+		scoped.ProfileID = "profile-marketing"
+		store.snapshots = []Snapshot{
+			scoped,
+			wakeSnapshot(t, cfg, "hb-default", "ws-1", "coder", base, "Default policy"),
+		}
 		health := newFakeWakeHealth()
 		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
 		prompter := &fakeWakePrompter{}
 		service := newTestWakeService(t, store, health, prompter, cfg, base)
 
 		decision, err := service.Wake(t.Context(), WakeRequest{
+			ProfileID:   " profile-marketing ",
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",

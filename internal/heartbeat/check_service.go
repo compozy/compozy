@@ -157,12 +157,13 @@ func (s *CheckService) checkTarget(
 		return CheckResult{Gate: "cooldown_active"}, err
 	}
 	skip := func(reason, detail string) (CheckResult, error) {
-		if manual || dryRun {
+		if dryRun || (manual && reason != "hook_cancelled") { //nolint:misspell // Persisted wake reason.
 			return CheckResult{Gate: reason}, nil
 		}
 		_, err := s.store.Skip(
 			ctx,
 			SkipRequest{
+				ManualCheck: manual,
 				InstanceID:  state.InstanceID,
 				ExpectedDue: state.NextWakeAt,
 				Reason:      reason,

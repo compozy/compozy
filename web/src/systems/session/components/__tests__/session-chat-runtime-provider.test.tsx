@@ -1,7 +1,15 @@
 import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useAui, useAuiState, type ThreadMessage } from "@assistant-ui/react";
+import {
+  AssistantRuntimeProvider,
+  INTERNAL,
+  useAssistantTool,
+  useAui,
+  useAuiState,
+  useExternalStoreRuntime,
+  type ThreadMessage,
+} from "@assistant-ui/react";
 import { StrictMode, Suspense, use, useEffect, useLayoutEffect, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -1104,6 +1112,80 @@ describe("SessionChatRuntimeProvider", () => {
       pipeTo.mockRestore();
     }
   });
+
+  // Invariant: a released tracker never leaves a dead one for the next owner of the
+  // message repository. Guards the core patch in patches/README.md.
+  it.each(["a new host after disposal", "the same host after re-enabling"])(
+    "Should run tools with a live tracker for %s",
+    async scenario => {
+      const repository = new INTERNAL.MessageRepository();
+      const onAddToolResult = vi.fn();
+      const toolCall: ThreadMessage = {
+        id: "assistant-tool",
+        role: "assistant",
+        createdAt: new Date(0),
+        status: { type: "requires-action", reason: "tool-calls" },
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "call-1",
+            toolName: "echo",
+            args: {},
+            argsText: "{}",
+          },
+        ],
+        metadata: {
+          unstable_state: null,
+          unstable_annotations: [],
+          unstable_data: [],
+          steps: [],
+          custom: {},
+        },
+      };
+      function Host({ enabled, messages }: { enabled: boolean; messages: ThreadMessage[] }) {
+        const runtime = useExternalStoreRuntime({
+          messages,
+          onAddToolResult,
+          onNew: async () => undefined,
+          unstable_enableToolInvocations: enabled,
+          unstable_messageRepositoryInstance: repository,
+        });
+        return (
+          <AssistantRuntimeProvider runtime={runtime}>
+            <EchoTool />
+          </AssistantRuntimeProvider>
+        );
+      }
+      function EchoTool() {
+        useAssistantTool({
+          toolName: "echo",
+          parameters: { type: "object", properties: {} },
+          execute: async () => "echoed",
+        });
+        return null;
+      }
+
+      const first = render(<Host enabled messages={[]} />);
+      if (scenario === "a new host after disposal") {
+        first.unmount();
+        await act(async () => {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        });
+        const second = render(<Host enabled messages={[]} />);
+        second.rerender(<Host enabled messages={[toolCall]} />);
+      } else {
+        first.rerender(<Host enabled={false} messages={[]} />);
+        first.rerender(<Host enabled messages={[]} />);
+        first.rerender(<Host enabled messages={[toolCall]} />);
+      }
+
+      await waitFor(() =>
+        expect(onAddToolResult).toHaveBeenCalledWith(
+          expect.objectContaining({ toolCallId: "call-1", result: "echoed" })
+        )
+      );
+    }
+  );
 
   it("Should still render from cache after fake timers advance beyond the old 5-minute gcTime default", async () => {
     vi.useFakeTimers();

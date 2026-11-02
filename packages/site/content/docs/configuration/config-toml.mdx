@@ -2764,7 +2764,7 @@ or start with `@` (`workspace_name_reserved`).
 requires a project returns `user_scope_unsupported`, or `user_scope_worktree_unsupported` for worktrees.
 See [User scope](/docs/user-scope) for the walkthrough.
 
-### Proactive checks
+## Proactive checks
 
 The `[agents.stays_on]` section bounds instance lifecycle and triage execution. These settings apply after a daemon restart.
 
@@ -2780,7 +2780,8 @@ Checks use `[agents.heartbeat]` for `max_concurrent_triage` (default 2, positive
 default interval, batch size, and wake event retention.
 Interrupted occurrences are finalized before the scheduler begins checking due instances.
 
-Consecutive quiet or failed timer checks double the delay up to `max_interval`. A reported
+Consecutive quiet timer checks double the delay up to `quiet_backoff_cap`; failed timer checks
+use `max_interval` as their ceiling. A reported
 outcome resets the delay to the resolved cadence. Explicit checks update streaks without
 moving the timer deadline. Retrying an already committed outcome does not increase the delay.
 

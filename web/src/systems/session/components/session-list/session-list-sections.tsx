@@ -29,6 +29,7 @@ import type { SessionFolderPayload, SessionListTarget, SessionPayload } from "..
 import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
 import { SessionListFolder } from "./session-list-folder";
 import { SessionListThread, type SessionThreadRootLayout } from "./session-list-thread";
+import type { SessionFoldSet, SessionSubagentFolds } from "../../lib/session-sidebar-scope";
 
 export interface SessionListSectionsProps {
   ownerOf?: (session: ProfileOwnerLabel) => ProfileOwner;
@@ -41,9 +42,9 @@ export interface SessionListSectionsProps {
   orderable: boolean;
   /** A filter is active: every surviving folder opens. */
   filtering: boolean;
-  collapsedThreads: ReadonlySet<string>;
-  subagentThreads: ReadonlySet<string>;
-  collapsedFolders: ReadonlySet<string>;
+  collapsedThreads: SessionFoldSet;
+  subagentThreads: SessionSubagentFolds;
+  collapsedFolders: SessionFoldSet;
   currentSessionId?: string;
   onThreadBranchChange: SessionThreadBranchChange;
   onToggleFolder: (folderId: string) => void;

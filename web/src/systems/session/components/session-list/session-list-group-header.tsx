@@ -4,11 +4,7 @@ import { StatusDot, cn } from "@compozy/ui";
 
 import { openContextMenuFromKeyboard } from "@/systems/os";
 import { ProfileOwnerTag } from "@/systems/profiles";
-import {
-  CreateDestinationPicker,
-  WorkspaceBadge,
-  workspaceWorkingLabel,
-} from "@/systems/workspace";
+import { CreateDestinationPicker, WorkspaceBadge } from "@/systems/workspace";
 
 import {
   useSessionListGroupFolderCreate,
@@ -18,6 +14,7 @@ import type { SessionDragHandlers, SessionDropPosition } from "../../hooks/use-s
 import type { SessionCreateOpenOptions } from "../../lib/session-create-target";
 import {
   sessionListGroupName,
+  sessionListGroupSignalLabel,
   sessionListGroupTarget,
   type SessionListGroupSpec,
 } from "../../lib/session-list-groups";
@@ -29,7 +26,7 @@ import { SessionListGroupProjectMenu } from "./session-list-group-project-menu";
 import { SessionListGroupToggle } from "./session-list-group-toggle";
 
 /** Collapsed header signal: needs-you outranks working; an open group shows its rows instead. */
-function GroupSignal({ group }: { group: SessionListGroupSpec }) {
+export function SessionListGroupSignal({ group }: { group: SessionListGroupSpec }) {
   const scope = group.kind === "project" ? sessionListGroupTarget(group).workspaceId : null;
   return (
     <>
@@ -40,27 +37,12 @@ function GroupSignal({ group }: { group: SessionListGroupSpec }) {
 }
 
 function SessionGroupSignal({ group }: { group: SessionListGroupSpec }) {
+  const label = sessionListGroupSignalLabel(group);
+  if (label === null) return null;
   if (group.needsYou > 0) {
-    return (
-      <StatusDot
-        tone="brand"
-        size="sm"
-        label={`${group.needsYou} need${group.needsYou === 1 ? "s" : ""} you`}
-        data-slot="session-group-needs-you"
-      />
-    );
+    return <StatusDot tone="brand" size="sm" label={label} data-slot="session-group-needs-you" />;
   }
-  if (group.working > 0) {
-    return (
-      <StatusDot
-        tone="success"
-        size="sm"
-        label={workspaceWorkingLabel(group.working)}
-        data-slot="session-group-working"
-      />
-    );
-  }
-  return null;
+  return <StatusDot tone="success" size="sm" label={label} data-slot="session-group-working" />;
 }
 
 /** A group's identity: the project badge, or the profile owner tag. */
@@ -204,7 +186,7 @@ export function SessionListGroupHeader({
             count={group.total}
             identity={<SessionListGroupIdentity group={group} />}
             onToggle={onToggle}
-            signal={<GroupSignal group={group} />}
+            signal={<SessionListGroupSignal group={group} />}
             testId={testId}
           />
           {staysOn ? (

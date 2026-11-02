@@ -462,7 +462,12 @@ daemon-managed system, coordinator, or spawned sessions. `compozy__session_archi
 stopped session; a live session is refused unless the input sets `stop: true`, which stops it
 through the normal stop path (canceling any active turn and cascading to subagents) and then
 archives it. A failed stop leaves the session unarchived with code `session_archive_stop_failed`.
-The CLI fallback is `compozy session archive <id> [--stop]`. Unarchive before prompting or
+Set `with_children: true` to also archive the session's child sessions in the session list,
+recursively, in one transaction; continued and forked sessions are never included, the walk stays
+inside the session's workspace and profile, `stop` and `processes` cover the included children, and
+a failed stop archives nothing. A tree containing the calling session is denied. Unarchive restores
+subagent families only, so restore other children one by one.
+The CLI fallback is `compozy session archive <id> [--stop] [--with-children]`. Unarchive before prompting or
 resuming a session. `compozy__session_later` moves a session to Later: it stops the session and
 its hierarchy children (forks and continues are not children), cancels their monitors and pending
 wakes, terminates their processes and terminals, and parks them with an optional one-line `reason`

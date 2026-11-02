@@ -63,7 +63,10 @@ describe("buildAgentTeam", () => {
   it("Should keep same-slug definitions apart and label them by origin", () => {
     const team = build(
       [
-        teamItemFixture({ definition_digest: "a" }, { definition_digest: "a" }),
+        teamItemFixture(
+          { definition_digest: "a" },
+          { definition_digest: "a", scopes: ["ws-compozy"] }
+        ),
         teamItemFixture(
           { definition_digest: "b" },
           { definition_digest: "b", scopes: ["ws-advos"] }
@@ -73,6 +76,16 @@ describe("buildAgentTeam", () => {
     );
     expect(team.map(member => member.origin)).toEqual(["compozy", "advos"]);
     expect(team.map(member => member.places.length)).toEqual([0, 1]);
+  });
+
+  it("Should not borrow an out-of-scope instance even with only one visible definition", () => {
+    const team = build(
+      [teamItemFixture({}, { scopes: ["ws-compozy"] })],
+      [agentInstanceFixture({ workspace_id: "ws-advos", needs_attention: true })]
+    );
+    expect(team[0]!.places).toEqual([]);
+    expect(team[1]!.agent).toBeNull();
+    expect(team[1]!.places).toHaveLength(1);
   });
 
   it("Should keep a card for an instance whose definition is gone", () => {
@@ -120,7 +133,7 @@ describe("buildAgentTeam", () => {
 describe("agent state across places", () => {
   it("Should let needs-you speak for an agent working elsewhere", () => {
     const member = build(
-      [teamItemFixture()],
+      [teamItemFixture({}, { scopes: ["ws-compozy", "ws-advos"] })],
       [
         agentInstanceFixture({ id: "one", activity: "working" }),
         agentInstanceFixture({ id: "two", needs_attention: true, workspace_id: "ws-advos" }),

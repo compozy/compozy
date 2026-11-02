@@ -78,7 +78,12 @@ export function sessionMentionToken(sessionId: string): string {
  * stays prompt text, and nothing starts or messages the agent (US-006.EC-1).
  */
 export function agentMentionToken(slug: string, label: string): string {
-  return `@agent:${slug} (${label})`;
+  const escaped = label.replace(/[\\()\r\n]/gu, character => {
+    if (character === "\r") return "\\r";
+    if (character === "\n") return "\\n";
+    return `\\${character}`;
+  });
+  return `@agent:${slug} (${escaped})`;
 }
 
 export function mentionDirectiveId({ kind, target }: SessionMentionTarget): string {

@@ -24,6 +24,8 @@ func (p AgentLifecyclePayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }
 
+func (p AgentInstancePayload) hookSessionContext() SessionContext { return p.SessionContext }
+
 func (p AgentHeartbeatWakeBeforePayload) hookSessionContext() SessionContext {
 	return p.SessionContext
 }

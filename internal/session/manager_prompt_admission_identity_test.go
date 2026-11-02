@@ -767,12 +767,36 @@ func TestStoppedInstanceSupersededPrompt(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			// Invariant: persisted supersession fences monitor recovery as well as prompt admission.
+			binding, err := h.manager.MonitorOwnerBinding(t.Context(), main.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
 			if _, err := database.DB().
 				ExecContext(t.Context(), "UPDATE agent_instances SET main_session_id=? WHERE id=?", next.ID, instance.ID); err != nil {
 				t.Fatal(err)
 			}
 			if err := h.manager.Stop(t.Context(), main.ID); err != nil {
 				t.Fatal(err)
+			}
+			if _, err := h.manager.MonitorOwnerBinding(
+				t.Context(),
+				main.ID,
+			); !errors.Is(
+				err,
+				store.ErrSessionSuperseded,
+			) {
+				t.Fatalf("superseded monitor binding = %v", err)
+			}
+			if err := h.manager.ResumeMonitorOwner(
+				t.Context(),
+				main.ID,
+				binding,
+			); !errors.Is(
+				err,
+				store.ErrSessionSuperseded,
+			) {
+				t.Fatalf("superseded monitor recovery = %v", err)
 			}
 			_, err = h.manager.SendPrompt(
 				t.Context(),

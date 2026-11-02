@@ -75,10 +75,10 @@ func (m *Manager) submitAdmittedGoalByTarget(
 	unlock := m.lockPromptAdmission(target.workspaceID, preparation.request.target, admissionReq.IdempotencyKey)
 	defer unlock()
 	replayed, found, err := m.replayPromptAdmission(ctx, admissionReq)
-	if err != nil || replayed != nil {
-		if err != nil {
-			return SendPromptResult{}, err
-		}
+	if err != nil {
+		return SendPromptResult{}, err
+	}
+	if replayed != nil {
 		return *replayed, nil
 	}
 	if !found {
@@ -125,14 +125,14 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		// park or a return; only delivery becomes a queued input.
 		admissionReq.Mode = string(BusyInputModeQueue)
 	}
-	admissionReq.DirectDispatch = !parked && !target.session.IsPrompting()
+	admissionReq.DirectDispatch = !parked && (target.session == nil || !target.session.IsPrompting())
 	unlock := m.lockPromptAdmission(target.workspaceID, preparation.request.target, admissionReq.IdempotencyKey)
 	defer unlock()
 	replayed, found, err := m.replayPromptAdmission(ctx, admissionReq)
-	if err != nil || replayed != nil {
-		if err != nil {
-			return SendPromptResult{}, err
-		}
+	if err != nil {
+		return SendPromptResult{}, err
+	}
+	if replayed != nil {
 		replayed.TargetInLater = parked && replayed.Status == store.SessionPromptResultStatusQueued
 		return *replayed, nil
 	}

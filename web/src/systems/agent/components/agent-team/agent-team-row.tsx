@@ -1,3 +1,4 @@
+import { useIntentPreload } from "@/hooks/use-intent-preload";
 /** The dense reading of the team, for scanning 100 agents. */
 import { ListingRow, Sparkline } from "@compozy/ui";
 
@@ -34,11 +35,13 @@ export function AgentTeamRow({
   actions: AgentTeamActions;
 }) {
   const staysOn = member.kind === "stays_on";
+  const preload = useIntentPreload(() => actions.onPreload?.(member), Boolean(actions.onPreload));
   return (
     <ListingRow data-testid={`agent-row-${member.name}`}>
       <ListingRow.Link
         render={
           <button
+            {...preload}
             aria-label={`Open ${member.label}`}
             data-testid={`agent-fleet-row-link-${member.name}`}
             onClick={() => actions.onOpen(member)}

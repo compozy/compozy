@@ -137,6 +137,12 @@ async function switchToKanban(frame: Locator) {
   await expect(frame.getByTestId("sessions-board")).toBeVisible();
 }
 
+/** Opens View options; its menu renders outside the window frame. */
+async function openHideChildren(page: Page, frame: Locator): Promise<Locator> {
+  await frame.getByTestId("sessions-board-view-options-trigger").click();
+  return page.getByTestId("sessions-board-hide-children");
+}
+
 function column(frame: Locator, id: BoardColumn): Locator {
   return frame.getByTestId(`sessions-board-column-${id}`);
 }
@@ -180,7 +186,8 @@ test("E2E-005: operator switches to Kanban, opens a card in the drawer over the 
   await expect(toggle.locator('[aria-pressed="true"]')).toHaveCount(1);
 
   await expectColumnCounts(frame, await boardFacets(runtime, workspace.id, "exclude"));
-  await frame.getByTestId("sessions-board-hide-children").click();
+  await (await openHideChildren(appPage, frame)).click();
+  await appPage.keyboard.press("Escape");
   await expectColumnCounts(frame, await boardFacets(runtime, workspace.id));
   const failedChild = seeded.children![0]!;
   const childCard = column(frame, "needs_you").getByTestId(`session-board-card-${failedChild}`);
@@ -306,8 +313,9 @@ test("E2E-007: child sessions start hidden under a highlighted rollup, and showi
   const { frame } = await openBoardPage(appPage, runtime, host);
   await switchToKanban(frame);
 
-  const hide = frame.getByTestId("sessions-board-hide-children");
-  await expect(hide).toHaveAttribute("aria-pressed", "true");
+  const hide = await openHideChildren(appPage, frame);
+  await expect(hide).toHaveAttribute("aria-checked", "true");
+  await appPage.keyboard.press("Escape");
   for (const id of children) {
     await expect(frame.getByTestId(`session-board-card-${id}`)).toHaveCount(0);
   }
@@ -317,15 +325,18 @@ test("E2E-007: child sessions start hidden under a highlighted rollup, and showi
   await expectColumnCounts(frame, await boardFacets(runtime, workspace.id, "exclude"));
   await browserArtifacts.captureScreenshot("sessions-board-children-hidden", appPage);
 
+  await openHideChildren(appPage, frame);
   await hide.click();
-  await expect(hide).toHaveAttribute("aria-pressed", "false");
+  await expect(hide).toHaveAttribute("aria-checked", "false");
+  await appPage.keyboard.press("Escape");
   await expect(
     column(frame, "needs_you").getByTestId(`session-board-card-parent-${children[0]}`)
   ).toHaveText("Board coordinator");
   await expectColumnCounts(frame, await boardFacets(runtime, workspace.id));
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  await expect(hide).toHaveAttribute("aria-pressed", "false");
+  await openHideChildren(appPage, frame);
+  await expect(hide).toHaveAttribute("aria-checked", "false");
 });
 
 test("E2E-008: operator multi-selects board cards and stops and archives them in one batch", async ({

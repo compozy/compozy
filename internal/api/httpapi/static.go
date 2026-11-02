@@ -54,6 +54,7 @@ func newLocalStaticFS(dir string) (staticSourceFS, error) {
 	if err != nil {
 		return staticSourceFS{}, fmt.Errorf("%s resolve %q: %w", webDistDirEnvVar, dir, err)
 	}
+	//nolint:gosec // dir is the operator-chosen web dist directory, not request input.
 	info, err := os.Stat(absDir)
 	if err != nil {
 		return staticSourceFS{}, fmt.Errorf("%s stat %q: %w", webDistDirEnvVar, absDir, err)
@@ -62,6 +63,7 @@ func newLocalStaticFS(dir string) (staticSourceFS, error) {
 		return staticSourceFS{}, fmt.Errorf("%s %q is not a directory", webDistDirEnvVar, absDir)
 	}
 	indexPath := filepath.Join(absDir, "index.html")
+	//nolint:gosec // dir is the operator-chosen web dist directory, not request input.
 	indexInfo, err := os.Stat(indexPath)
 	if err != nil {
 		return staticSourceFS{}, fmt.Errorf(
@@ -74,6 +76,7 @@ func newLocalStaticFS(dir string) (staticSourceFS, error) {
 	if indexInfo.IsDir() {
 		return staticSourceFS{}, fmt.Errorf("%s index.html at %q is a directory", webDistDirEnvVar, indexPath)
 	}
+	//nolint:gosec // dir is the operator-chosen web dist directory, not request input.
 	file, err := os.Open(indexPath)
 	if err != nil {
 		return staticSourceFS{}, fmt.Errorf("%s open index.html at %q: %w", webDistDirEnvVar, indexPath, err)

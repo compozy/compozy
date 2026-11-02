@@ -4,7 +4,11 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import { sessionFixtures } from "@/systems/session/mocks";
 
 import { agentFixtures, FIXTURE_AGENT_DEFINITION_DIGEST } from "./fixtures";
-import { instanceHandlers, resetAgentInstanceMock } from "./instance-handlers";
+import {
+  agentInstanceMockScopes,
+  instanceHandlers,
+  resetAgentInstanceMock,
+} from "./instance-handlers";
 import { memoryHandlers, resetAgentMemoryMock } from "./memory-handlers";
 import type { AgentHeartbeatPayload, AgentPayload, AgentSoulPayload } from "../types";
 
@@ -85,7 +89,9 @@ export function agentCatalogMockResponse(
           label: agent.label ?? agent.name,
           kind: agent.kind ?? "on_demand",
           definition_digest: agent.definition_digest ?? FIXTURE_AGENT_DEFINITION_DIGEST,
-          scopes: [],
+          scopes: [
+            ...new Set([agent.workspace_id || "@user", ...agentInstanceMockScopes(agent.name)]),
+          ],
           active: 0,
           agent,
         }))

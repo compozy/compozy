@@ -18,6 +18,7 @@ func registrySessionOperations() []OperationSpec {
 		deleteSessionOperationSpec(),
 		stopSessionOperationSpec(),
 		archiveSessionOperationSpec(),
+		sessionDescendantsOperationSpec(),
 		unarchiveSessionOperationSpec(),
 		moveSessionToLaterOperationSpec(),
 		resumeSessionFromLaterOperationSpec(),
@@ -197,10 +198,14 @@ func deleteSessionOperationSpec() OperationSpec {
 			sessionProcessPolicyParameter(),
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
+			boolQueryParam(
+				"with_children",
+				"Also delete the session's child sessions, recursively, deepest first; a failure leaves the rest in place",
+			),
 		),
 		Responses: []ResponseSpec{
 			{Status: 204, Description: specNoContentDescription},
-			{Status: 400, Description: "Invalid process policy", Body: contract.ErrorPayload{}},
+			{Status: 400, Description: "Invalid process policy or with_children value", Body: contract.ErrorPayload{}},
 			{Status: 409, Description: "Process cleanup could not be verified", Body: contract.ErrorPayload{}},
 			{
 				Status:      503,

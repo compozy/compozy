@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { createStore } from "@xstate/store";
+import { useSelector } from "@xstate/store-react";
+import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { notifyUser } from "@/lib/user-feedback";
 
@@ -75,16 +77,37 @@ function failedCheck(error: unknown): TryCheck {
   };
 }
 
+function createTryCheckStore() {
+  return createStore({
+    context: { state: IDLE as TryCheck, request: 0, occurrence: undefined as string | undefined },
+    on: {
+      started: context => ({
+        state: { phase: "running" } as TryCheck,
+        request: context.request + 1,
+        occurrence: undefined,
+      }),
+      finished: (context, event: { request: number; state: TryCheck; occurrence?: string }) =>
+        event.request === context.request
+          ? { ...context, state: event.state, occurrence: event.occurrence }
+          : context,
+      reset: context => ({ state: IDLE, request: context.request + 1, occurrence: undefined }),
+    },
+  });
+}
+
 /** Try it now, then Run it for real: a dry run first, then a real one polled until it finishes. */
 export function useTryCheck(ref: AgentInstanceRef | null) {
   const queryClient = useQueryClient();
   const id = ref?.id ?? null;
-  const [held, setHeld] = useState<{ id: string | null; state: TryCheck; occurrence?: string }>({
-    id,
-    state: IDLE,
-  });
-  const current = held.id === id ? held : { id, state: IDLE };
-  const put = (state: TryCheck, occurrence?: string) => setHeld({ id, state, occurrence });
+  const key = `${ref?.profile_name ?? ""}:${id ?? ""}`;
+  const { store } = useStoreBinding(key, createTryCheckStore);
+  const current = useSelector(store, snapshot => snapshot.context);
+  const begin = () => {
+    store.trigger.started();
+    const request = store.getSnapshot().context.request;
+    return (state: TryCheck, occurrence?: string) =>
+      store.trigger.finished({ request, state, occurrence });
+  };
 
   const occurrence = useQuery({
     ...agentInstanceOccurrenceOptions(ref ?? NO_INSTANCE, current.occurrence ?? ""),
@@ -94,7 +117,7 @@ export function useTryCheck(ref: AgentInstanceRef | null) {
 
   const tryIt = async () => {
     if (!ref) return;
-    put({ phase: "running" });
+    const put = begin();
     try {
       const { gate, digest } = await runAgentInstanceCheck(ref, true);
       put(
@@ -109,7 +132,7 @@ export function useTryCheck(ref: AgentInstanceRef | null) {
 
   const runForReal = async () => {
     if (!ref) return;
-    put({ phase: "running" });
+    const put = begin();
     try {
       const { gate, occurrence_id: started } = await runAgentInstanceCheck(ref, false);
       if (started) put({ phase: "running" }, started);
@@ -126,5 +149,5 @@ export function useTryCheck(ref: AgentInstanceRef | null) {
   } else if (current.occurrence && occurrence.error) {
     state = failedCheck(occurrence.error);
   }
-  return { state, tryIt, runForReal, reset: () => put(IDLE) };
+  return { state, tryIt, runForReal, reset: () => store.trigger.reset() };
 }

@@ -15,7 +15,7 @@ SSE template handles cancellation rejections itself. Keep the existing client
 abort regression and rerun `TestDaemonE2EAppSDK` with the public built package to
 verify that stopping an event reader leaves the host alive without replaying work.
 
-`@assistant-ui/core@0.3.22` starts `ToolInvocationTracker`'s stream pipeline in its
+`@assistant-ui/core@0.3.31` starts `ToolInvocationTracker`'s stream pipeline in its
 constructor and never disposes that pipeline. React can abandon the constructor's
 render before effects commit. Chromium's pending stream reader then retains the
 tracker, its adapter callbacks, and the old React tree. The same pipeline survives
@@ -28,6 +28,11 @@ disposal signal, and dispose it when the adapter disables tool invocations. Norm
 reset/cancellation remains reusable, including StrictMode replay. Late results from
 a permanently disposed tracker cannot update its former owner; genuine pipeline
 errors still use the existing error/restart path.
+
+Since 0.3.31 the tracker is retained per message repository and can move to a new
+host. A host that was already replaced no longer holds the tracker, so its disposal
+is a no-op. A disposing owner also drops the retained entry, so a later host builds
+a live tracker instead of adopting a disposed one.
 
 Remove this patch and its `patchedDependencies` entry when the pinned core provides
 both lazy stream creation and permanent pipeline disposal. Keep the lifecycle

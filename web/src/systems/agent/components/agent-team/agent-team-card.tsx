@@ -1,3 +1,4 @@
+import { useIntentPreload } from "@/hooks/use-intent-preload";
 /** The two ways to meet a teammate: a big stays-on card and a lighter on-demand card. */
 import { CatalogCard, Sparkline } from "@compozy/ui";
 
@@ -16,6 +17,7 @@ import {
 
 export interface AgentTeamActions {
   onOpen: (member: AgentTeamMember) => void;
+  onPreload?: (member: AgentTeamMember) => void | Promise<unknown>;
   onNewSession: (name: string) => void;
   newSessionDisabled: boolean;
   add: AgentAddPlaceActions;
@@ -26,13 +28,17 @@ function CardName({
   member,
   large = false,
   onOpen,
+  onPreload,
 }: {
   member: AgentTeamMember;
   large?: boolean;
   onOpen: (member: AgentTeamMember) => void;
+  onPreload?: (member: AgentTeamMember) => void | Promise<unknown>;
 }) {
+  const preload = useIntentPreload(() => onPreload?.(member), Boolean(onPreload));
   return (
     <button
+      {...preload}
       className={`min-w-0 text-left outline-none after:absolute after:inset-0 after:rounded-lg focus-visible:after:shadow-focus-ring ${large ? "text-heading" : ""}`}
       data-testid={`agent-fleet-row-link-${member.name}`}
       onClick={() => onOpen(member)}
@@ -91,7 +97,7 @@ export function AgentStaysOnCard({
         />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <div className="flex min-w-0 items-center gap-2">
-            <CardName large member={member} onOpen={actions.onOpen} />
+            <CardName large member={member} onOpen={actions.onOpen} onPreload={actions.onPreload} />
             <AgentFlags member={member} />
           </div>
           <CatalogCard.Description className="line-clamp-2">
@@ -130,7 +136,7 @@ export function AgentOnDemandCard({
         />
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex min-w-0 items-center gap-2">
-            <CardName member={member} onOpen={actions.onOpen} />
+            <CardName member={member} onOpen={actions.onOpen} onPreload={actions.onPreload} />
             <AgentFlags member={member} />
           </div>
           <CatalogCard.Description className="line-clamp-2">

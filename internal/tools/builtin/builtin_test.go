@@ -345,7 +345,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			assertSessionTargetMutationSchema(
 				t,
 				descriptors[toolspkg.ToolIDSessionArchive],
-				[]string{"processes", "profile", "session_id", "stop", "workspace"},
+				[]string{"processes", "profile", "session_id", "stop", "with_children", "workspace"},
 			)
 		})
 		t.Run("Should validate the session unarchive schema", func(t *testing.T) {

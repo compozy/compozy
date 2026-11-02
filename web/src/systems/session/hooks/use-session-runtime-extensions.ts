@@ -106,6 +106,7 @@ export function useSessionRuntimeExtensions({
     },
     rewindBlocked,
     sessionRunning: session.data ? isSessionRunning(session.data) : false,
+    profileName: session.data?.profile_name,
     transcript,
   };
 }

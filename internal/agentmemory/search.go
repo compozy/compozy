@@ -83,7 +83,7 @@ func (s *Store) Replace(key Key, match, text string) (Document, error) {
 		all := lines(old)
 		for i, line := range all {
 			if strings.Contains(line, match) {
-				replacement := strings.ReplaceAll(line, match, text)
+				replacement := redact.String(strings.ReplaceAll(line, match, text))
 				if entryCharacters(replacement) > MaxEntryCharacters {
 					return "", ErrEntryTooLarge
 				}

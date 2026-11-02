@@ -168,7 +168,7 @@ export class ViewRenderer {
         if (this.stack.at(-1) === entry) this.onCommit();
       },
     };
-    const reportError = (error: Error): void => {
+    const reportError = (error: unknown): void => {
       throw error;
     };
     const root = viewReconciler.createContainer(

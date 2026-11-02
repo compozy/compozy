@@ -528,6 +528,7 @@ func TestExtensionDistributionHandlers(t *testing.T) {
 }
 
 type extensionServiceStub struct {
+	supersededFn       func(context.Context) ([]contract.DiagnosticItem, error)
 	updateFn           func(context.Context, string, contract.UpdateExtensionRequest, taskpkg.ActorContext) (contract.ManagedExtensionUpdatePayload, error)
 	listFn             func(context.Context) ([]contract.ExtensionPayload, error)
 	searchFn           func(context.Context, contract.ExtensionSearchRequest) (contract.ExtensionSearchResponse, error)
@@ -549,6 +550,13 @@ type extensionServiceStub struct {
 	removeScopedFn     func(context.Context, string, taskpkg.ActorContext) (contract.ManagedExtensionRemovePayload, error)
 	commandsFn         func(context.Context, string) (contract.ExtensionCommandsResponse, error)
 	commandsScopedFn   func(context.Context, string, taskpkg.ActorContext) (contract.ExtensionCommandsResponse, error)
+}
+
+func (s extensionServiceStub) SupersededBundledDiagnostics(ctx context.Context) ([]contract.DiagnosticItem, error) {
+	if s.supersededFn == nil {
+		return nil, nil
+	}
+	return s.supersededFn(ctx)
 }
 
 func (s extensionServiceStub) Search(

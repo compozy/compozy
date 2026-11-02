@@ -13,6 +13,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+// Install validates acquisition and commits the package with selected-target runtime publication.
 func (s *daemonExtensionService) Install(
 	ctx context.Context,
 	req contract.InstallExtensionRequest,
@@ -75,6 +76,7 @@ func (s *daemonExtensionService) Install(
 	return item, err
 }
 
+// A target activation or publication failure compensates its registry, input and managed-file changes.
 func (s *daemonExtensionService) commitPreparedInstall(
 	ctx context.Context,
 	prepared preparedDaemonExtensionInstall,
@@ -117,7 +119,7 @@ func (s *daemonExtensionService) commitPreparedInstall(
 			return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 		}
 	}
-	if err := s.reload(ctx); err != nil {
+	if err := s.reloadExtensions(ctx, prepared.name); err != nil {
 		return s.rollbackFailedInstall(ctx, prepared.name, err, inputs)
 	}
 	var err error
@@ -195,6 +197,7 @@ func (s *daemonExtensionService) Update(
 	return items[0], nil
 }
 
+// UpdateBatch serializes selected packages while retaining successful outcomes from partial failures.
 func (s *daemonExtensionService) UpdateBatch(
 	ctx context.Context,
 	req contract.UpdateExtensionsRequest,
@@ -226,6 +229,7 @@ func (s *daemonExtensionService) UpdateBatch(
 	return items, err
 }
 
+// Each candidate binds reload to its own package so later broken targets cannot reject an earlier update.
 func (s *daemonExtensionService) updateBatchUnlocked(
 	ctx context.Context,
 	req contract.UpdateExtensionsRequest,
@@ -256,6 +260,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 		PolicyAllowsUnverified: cfg.Trust.AllowUnverified,
 		ResolveTrust:           s.marketplaceTrustResolver(),
 		ResolvePlugin:          s.resolveMarketplacePluginOrigin,
+		ReloadCandidate:        func(ctx context.Context, name string) error { return s.reloadExtensions(ctx, name) },
 	}
 	domainReq.ObserveDigestVerification = func(
 		trust *extensionpkg.MarketplaceTrustEvidence,
@@ -272,7 +277,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 		s.registry,
 		s.marketplaceSourceLoader(),
 		domainReq,
-		s.reload,
+		nil,
 	)
 	payloads, finalizeErr := s.finalizeMarketplaceUpdateBatch(ctx, actor, items, updateErr)
 	return payloads, errors.Join(
@@ -281,6 +286,7 @@ func (s *daemonExtensionService) updateBatchUnlocked(
 	)
 }
 
+// Remove validates operator or agent authority before entering the package removal coordinator.
 func (s *daemonExtensionService) Remove(
 	ctx context.Context,
 	name string,
@@ -295,10 +301,15 @@ func (s *daemonExtensionService) Remove(
 	return s.removeInstalledExtension(ctx, name, actor, "")
 }
 
+// Credential before-images remain available until package removal and allocation retirement commit.
 func (s *daemonExtensionService) removeManagedExtensionLocked(
-	ctx context.Context, name string, actor taskpkg.ActorContext, key extensionpkg.InstanceKey,
+	ctx context.Context, name string, actor taskpkg.ActorContext, key extensionpkg.InstanceKey, orphan bool,
 ) (contract.ManagedExtensionRemovePayload, error) {
-	retirement, retireErr := s.retireExtensionSecretBindings(ctx, key)
+	retire := s.retireExtensionSecretBindings
+	if orphan {
+		retire = s.retireOrphanSecretBindings
+	}
+	retirement, retireErr := retire(ctx, key)
 	if retireErr != nil {
 		return contract.ManagedExtensionRemovePayload{}, retireErr
 	}
@@ -318,19 +329,14 @@ func (s *daemonExtensionService) removeManagedExtensionLocked(
 			} else if !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
 				return err
 			}
-			return s.reload(reloadCtx)
+			return s.reloadExtensions(reloadCtx, name)
 		},
-		func(ctx context.Context) error {
-			if s.mcpAllocations == nil {
-				return nil
-			}
-			return s.mcpAllocations.DeleteWorkspace(ctx, name, key.WorkspaceID)
-		},
+		func(ctx context.Context) error { return s.deleteRemovedExtensionMCPAllocations(ctx, name, key, orphan) },
 	)
 	if removeErr != nil {
 		return contract.ManagedExtensionRemovePayload{}, errors.Join(removeErr, retirement.rollback(ctx, s))
 	}
-	s.evictExtensionMCPHealth(name, key.WorkspaceID)
+	s.mcpRuntimeHealth.EvictPackage(name)
 	item := contract.ManagedExtensionRemovePayload{
 		Name:           removed.Name,
 		Path:           removed.Path,
@@ -342,6 +348,7 @@ func (s *daemonExtensionService) removeManagedExtensionLocked(
 	return item, s.recordExtensionRemoveEvent(ctx, actor, item)
 }
 
+// Durable compensation proceeds before reload and does not depend on unrelated provider initialization.
 func (s *daemonExtensionService) rollbackFailedInstall(
 	ctx context.Context,
 	name string,
@@ -370,13 +377,14 @@ func (s *daemonExtensionService) rollbackFailedInstall(
 		)
 	}
 
-	if err := s.reload(rollbackCtx); err != nil {
+	if err := s.reloadExtensions(rollbackCtx, trimmedName); err != nil {
 		rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: reload after extension install rollback: %w", err))
 	}
 
 	return errors.Join(installErr, rollbackErr)
 }
 
+// Enablement is committed only after the selected package and its lifecycle evidence publish.
 func (s *daemonExtensionService) Enable(
 	ctx context.Context,
 	name string,
@@ -420,7 +428,7 @@ func (s *daemonExtensionService) Enable(
 		if enableErr := s.registry.Enable(name); enableErr != nil {
 			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, enableErr)
 		}
-		if reloadErr := s.reload(ctx); reloadErr != nil {
+		if reloadErr := s.reloadExtensions(ctx, name); reloadErr != nil {
 			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, reloadErr)
 		}
 		item, statusErr := s.Status(ctx, name)
@@ -443,6 +451,7 @@ func (s *daemonExtensionService) Enable(
 	return result, err
 }
 
+// Disabling a package does not require unrelated packages to initialize successfully.
 func (s *daemonExtensionService) Disable(
 	ctx context.Context,
 	name string,
@@ -464,7 +473,7 @@ func (s *daemonExtensionService) Disable(
 		if disableErr := s.registry.Disable(name); disableErr != nil {
 			return disableErr
 		}
-		if reloadErr := s.reload(ctx); reloadErr != nil {
+		if reloadErr := s.reloadExtensions(ctx, name); reloadErr != nil {
 			return s.rollbackGlobalExtensionLifecycle(ctx, name, snapshot, reloadErr)
 		}
 		s.evictExtensionMCPHealth(name, "")

@@ -48,7 +48,10 @@ function DetailsSection({
       <PropertyRow label="Does">{automationDoesWord(view.does)}</PropertyRow>
       {view.does === "agent" && target.kind === "agent" ? (
         <PropertyRow label="Agent">
-          <AgentIdentityChip name={target.agentName} />
+          <AgentIdentityChip
+            name={target.agentName}
+            agentScope={{ workspace: entity.workspace_id || null, profile: entity.profile_name }}
+          />
         </PropertyRow>
       ) : null}
       {target.kind === "loop" ? (

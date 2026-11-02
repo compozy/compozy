@@ -220,11 +220,19 @@ export function AutomationRuleDoes({
   return (
     <>
       <span className="flex min-w-0 items-center gap-2">
-        <AgentIdentityMark name={target.agentName} quietIdle size={20} />
+        <AgentIdentityMark
+          name={target.agentName}
+          agentScope={{ workspace: entity.workspace_id || null, profile: entity.profile_name }}
+          quietIdle
+          size={20}
+        />
         <span className="min-w-0 truncate text-form-input text-fg">
           Ask{" "}
           <b className="font-medium text-fg-strong">
-            <AgentIdentityLabel name={target.agentName} />
+            <AgentIdentityLabel
+              name={target.agentName}
+              agentScope={{ workspace: entity.workspace_id || null, profile: entity.profile_name }}
+            />
           </b>
         </span>
       </span>

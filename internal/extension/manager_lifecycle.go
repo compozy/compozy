@@ -26,7 +26,8 @@ func (m *Manager) Start(ctx context.Context) error {
 	return m.startLocked(ctx)
 }
 
-func (m *Manager) startLocked(ctx context.Context) error {
+// Unselected activation failures stay visible in snapshots while selected mutation errors propagate.
+func (m *Manager) startLocked(ctx context.Context, targets ...string) error {
 	if err := m.prepareStart(ctx); err != nil {
 		return err
 	}
@@ -69,7 +70,9 @@ func (m *Manager) startLocked(ctx context.Context) error {
 	var errs []error
 	for infoIndex := range infos {
 		if err := m.startInstalledPackage(ctx, &infos[infoIndex]); err != nil {
-			errs = append(errs, err)
+			if len(targets) == 0 || slices.Contains(targets, infos[infoIndex].Name) {
+				errs = append(errs, err)
+			}
 		}
 	}
 
@@ -82,7 +85,7 @@ func (m *Manager) startLocked(ctx context.Context) error {
 		}
 	}
 
-	return errors.Join(errs...)
+	return errors.Join(ctx.Err(), errors.Join(errs...))
 }
 
 func (m *Manager) prepareStart(ctx context.Context) error {
@@ -119,7 +122,8 @@ func (m *Manager) Stop(ctx context.Context) error {
 	return m.stopLocked(ctx)
 }
 
-func (m *Manager) stopLocked(ctx context.Context) error {
+// Manager-wide drain and cleanup failures remain fatal even when per-package shutdown errors are scoped.
+func (m *Manager) stopLocked(ctx context.Context, targets ...string) error {
 	m.mu.Lock()
 	if !m.started {
 		m.mu.Unlock()
@@ -151,7 +155,7 @@ func (m *Manager) stopLocked(ctx context.Context) error {
 		}
 
 		stopWG.Go(func() {
-			if err := m.stopManagedExtension(ctx, ext); err != nil {
+			if err := m.stopManagedForTargets(ctx, ext, targets); err != nil {
 				errCh <- err
 			}
 		})
@@ -162,7 +166,7 @@ func (m *Manager) stopLocked(ctx context.Context) error {
 			continue
 		}
 		stopWG.Go(func() {
-			if err := m.stopManagedExtension(ctx, ext); err != nil {
+			if err := m.stopManagedForTargets(ctx, ext, targets); err != nil {
 				errCh <- err
 			}
 		})
@@ -187,6 +191,18 @@ func (m *Manager) stopLocked(ctx context.Context) error {
 		errs = append(errs, pendingCleanupErr)
 	}
 	return errors.Join(errs...)
+}
+
+// Unrelated shutdown failures remain logged; manager-wide cleanup failures still abort reload.
+func (m *Manager) stopManagedForTargets(ctx context.Context, ext *managedExtension, targets []string) error {
+	err := m.stopManagedExtension(ctx, ext)
+	if err != nil {
+		m.logger.Error("extension.lifecycle.shutdown.failed", "extension", ext.info.Name, "error", err)
+	}
+	if len(targets) == 0 || slices.Contains(targets, ext.info.Name) {
+		return err
+	}
+	return nil
 }
 
 func (m *Manager) stopTargets() ([]string, []InstanceKey) {
@@ -247,6 +263,11 @@ func (m *Manager) stopManagedExtension(ctx context.Context, item *managedExtensi
 
 // Reload restarts the manager from the current registry state as one lifecycle operation.
 func (m *Manager) Reload(ctx context.Context) error {
+	return m.ReloadForExtensions(ctx, nil)
+}
+
+// ReloadForExtensions retains unrelated activation failures in status without aborting the selected mutation.
+func (m *Manager) ReloadForExtensions(ctx context.Context, names []string) error {
 	if ctx == nil {
 		return ErrContextRequired
 	}
@@ -256,7 +277,7 @@ func (m *Manager) Reload(ctx context.Context) error {
 
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
-	stopErr := m.stopLocked(ctx)
-	startErr := m.startLocked(ctx)
+	stopErr := m.stopLocked(ctx, names...)
+	startErr := m.startLocked(ctx, names...)
 	return errors.Join(stopErr, startErr)
 }

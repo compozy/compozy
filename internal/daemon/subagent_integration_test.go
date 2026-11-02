@@ -320,7 +320,10 @@ agent = "designer"
 		})
 		d.agentCatalog.Replace(d.agentCatalog.Revision()+1, records)
 		for _, profileID := range []string{profile.ID, store.DefaultProfileID} {
-			parent, err := manager.Create(t.Context(), new(session.CreateOpts{Workspace: workspace, ProfileID: profileID}))
+			parent, err := manager.Create(
+				t.Context(),
+				new(session.CreateOpts{Workspace: workspace, ProfileID: profileID}),
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -775,7 +778,10 @@ func TestSubagentNativeDaemonIntegration(t *testing.T) {
 	// Issue #766: the launch receipt arrives at once; the row runs until the provider answers the turn.
 	t.Run("Should run background native work until the turn ends", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
-		parent, err := manager.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
+		parent, err := manager.Create(
+			t.Context(),
+			new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -809,7 +815,10 @@ func TestSubagentNativeDaemonIntegration(t *testing.T) {
 	})
 	t.Run("Should persist native work without child sessions", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
-		parent, err := manager.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
+		parent, err := manager.Create(
+			t.Context(),
+			new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1055,12 +1064,18 @@ func TestSubagentPermissionDaemonIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		parent, caller := startSubagentIntegrationParent(t, manager, workspace, store.SessionPermissionPolicy{WorkspacePaths: []string{ws.RootDir}})
+		parent, caller := startSubagentIntegrationParent(
+			t,
+			manager,
+			workspace,
+			store.SessionPermissionPolicy{WorkspacePaths: []string{ws.RootDir}},
+		)
 		ceiling, err := json.Marshal(store.SessionPermissionPolicy{WorkspacePaths: []string{parent.Info().Workspace}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = d.registry.(instanceRepositoryProvider).Instances().Adopt(t.Context(), agentinstance.Instance{ProfileID: parent.Info().ProfileID, AgentName: parent.Info().AgentName, WorkspaceID: workspace, PermissionCeiling: string(ceiling), CreatedByKind: "human"}, parent.ID, 10)
+		_, err = d.registry.(instanceRepositoryProvider).Instances().
+			Adopt(t.Context(), agentinstance.Instance{ProfileID: parent.Info().ProfileID, AgentName: parent.Info().AgentName, WorkspaceID: workspace, PermissionCeiling: string(ceiling), CreatedByKind: "human"}, parent.ID, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1103,11 +1118,18 @@ func TestSubagentPermissionDaemonIntegration(t *testing.T) {
 		if err != nil || len(interactions) != 1 {
 			t.Fatal(interactions, err)
 		}
-		if interactions[0].SessionID != *row.ChildSessionID || interactions[0].ExpiresAt == nil || interactions[0].ExpiresAt.Sub(interactions[0].CreatedAt) <= 600*time.Second {
+		if interactions[0].SessionID != *row.ChildSessionID || interactions[0].ExpiresAt == nil ||
+			interactions[0].ExpiresAt.Sub(interactions[0].CreatedAt) <= 600*time.Second {
 			t.Fatalf("instance pending deadline: %#v", interactions[0])
 		}
 		nativeDone := make(chan error, 1)
-		bridge := newToolApprovalBridge(func() sessionPermissionRequester { return manager }, time.Minute, nil, nil, nil)
+		bridge := newToolApprovalBridge(
+			func() sessionPermissionRequester { return manager },
+			time.Minute,
+			nil,
+			nil,
+			nil,
+		)
 		bridge.permissionWaitResolver = instancePermissionWaitResolver(&bootState{registry: d.registry, cfg: d.config})
 		view := toolApprovalTestView()
 		call := toolApprovalTestCall(view.Descriptor.ID, workspace)
@@ -1116,11 +1138,29 @@ func TestSubagentPermissionDaemonIntegration(t *testing.T) {
 			nativeDone <- bridge.RequestToolApproval(t.Context(), toolspkg.Scope{SessionID: *row.ChildSessionID, WorkspaceID: workspace}, &call, &view)
 		}()
 		waitForRuntimeCondition(t, "provider and native approvals", 10*time.Second, func() bool {
-			rows, err := manager.DescendantPendingInteractions(t.Context(), parent.ID, []string{store.PendingInteractionStatusPending})
+			rows, err := manager.DescendantPendingInteractions(
+				t.Context(),
+				parent.ID,
+				[]string{store.PendingInteractionStatusPending},
+			)
 			return err == nil && len(rows) == 2
 		})
-		scope := toolspkg.Scope{SessionID: parent.ID, AgentName: parent.Info().AgentName, WorkspaceID: workspace, ProfileID: parent.Info().ProfileID}
-		nativeResult, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPendingInteractions, Input: jsonv1.RawMessage(fmt.Sprintf(`{"workspace":%q,"session_id":%q,"descendants":true}`, workspace, parent.ID))})
+		scope := toolspkg.Scope{
+			SessionID:   parent.ID,
+			AgentName:   parent.Info().AgentName,
+			WorkspaceID: workspace,
+			ProfileID:   parent.Info().ProfileID,
+		}
+		nativeResult, err := d.toolRegistry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionPendingInteractions,
+				Input: jsonv1.RawMessage(
+					fmt.Sprintf(`{"workspace":%q,"session_id":%q,"descendants":true}`, workspace, parent.ID),
+				),
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1135,10 +1175,24 @@ func TestSubagentPermissionDaemonIntegration(t *testing.T) {
 			if interaction.ProviderRequestID == interactions[0].ProviderRequestID {
 				continue
 			}
-			if interaction.SessionID != *row.ChildSessionID || interaction.ExpiresAt == nil || interaction.ExpiresAt.Sub(interaction.CreatedAt) <= 600*time.Second {
+			if interaction.SessionID != *row.ChildSessionID || interaction.ExpiresAt == nil ||
+				interaction.ExpiresAt.Sub(interaction.CreatedAt) <= 600*time.Second {
 				t.Fatalf("native deadline = %#v", interaction)
 			}
-			_, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionApprove, Input: jsonv1.RawMessage(fmt.Sprintf(`{"session_id":%q,"request_id":%q,"decision":"allow-once"}`, interaction.SessionID, interaction.ProviderRequestID))})
+			_, err := d.toolRegistry.Call(
+				t.Context(),
+				scope,
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionApprove,
+					Input: jsonv1.RawMessage(
+						fmt.Sprintf(
+							`{"session_id":%q,"request_id":%q,"decision":"allow-once"}`,
+							interaction.SessionID,
+							interaction.ProviderRequestID,
+						),
+					),
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1146,7 +1200,20 @@ func TestSubagentPermissionDaemonIntegration(t *testing.T) {
 		if err := <-nativeDone; err != nil {
 			t.Fatal(err)
 		}
-		_, err = d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionApprove, Input: jsonv1.RawMessage(fmt.Sprintf(`{"session_id":%q,"request_id":%q,"decision":"allow-once"}`, *row.ChildSessionID, interactions[0].ProviderRequestID))})
+		_, err = d.toolRegistry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionApprove,
+				Input: jsonv1.RawMessage(
+					fmt.Sprintf(
+						`{"session_id":%q,"request_id":%q,"decision":"allow-once"}`,
+						*row.ChildSessionID,
+						interactions[0].ProviderRequestID,
+					),
+				),
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2464,14 +2531,20 @@ func TestReplyWatchDaemonIntegration(t *testing.T) {
 		t.Run("Should reconcile real target edge "+action+" IT-008 IT-009 IT-010", func(t *testing.T) {
 			d, manager, workspace := newSubagentDaemonIntegration(t)
 			ctx := t.Context()
-			sender, err := manager.Create(ctx, new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
+			sender, err := manager.Create(
+				ctx,
+				new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}),
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
 			if err := manager.Stop(ctx, sender.ID); err != nil {
 				t.Fatal(err)
 			}
-			target, err := manager.Create(ctx, new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
+			target, err := manager.Create(
+				ctx,
+				new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}),
+			)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -4462,7 +4535,10 @@ func TestReplyWatchLongWaitIntegration(t *testing.T) {
 func TestBootStaleInputDispatchSweepDaemonIntegration(t *testing.T) {
 	t.Run("Should fail only the stranded dispatching lease on restart", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonIntegration(t)
-		target, err := manager.Create(t.Context(), new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}))
+		target, err := manager.Create(
+			t.Context(),
+			new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -4509,120 +4585,172 @@ func TestBootStaleInputDispatchSweepDaemonIntegration(t *testing.T) {
 }
 
 func TestInstanceNativeCreateJourney(t *testing.T) {
-	t.Run("Should retain a narrower childs ceiling through native creation and context replacement", func(t *testing.T) {
-		d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
-			path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
-			body, err := os.ReadFile(path)
+	t.Run(
+		"Should retain a narrower childs ceiling through native creation and context replacement",
+		func(t *testing.T) {
+			d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
+				path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
+				body, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				body = []byte(
+					strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: stays_on\n", 1),
+				)
+				if err := os.WriteFile(path, body, 0600); err != nil {
+					t.Fatal(err)
+				}
+			})
+			ws, err := d.registry.GetWorkspace(t.Context(), workspace)
 			if err != nil {
 				t.Fatal(err)
 			}
-			body = []byte(strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: stays_on\n", 1))
-			if err := os.WriteFile(path, body, 0600); err != nil {
+			parent, caller := startSubagentIntegrationParent(
+				t,
+				manager,
+				workspace,
+				store.SessionPermissionPolicy{WorkspacePaths: []string{ws.RootDir}},
+			)
+			allowed := []string{toolspkg.ToolIDAgentInstanceCreate.String(), toolspkg.ToolIDSessionStatus.String()}
+			child, err := d.SubagentService().
+				Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "hold parent", Title: "Instance creator", Mode: "async", Narrowing: &session.SubagentPermissionNarrowing{Tools: allowed}, PermissionMode: compozyconfig.PermissionModeApproveReads})
+			if err != nil || child.ChildSessionID == nil {
+				t.Fatalf("child: %#v %v", child, err)
+			}
+			waitForRuntimeCondition(
+				t,
+				"child ready to create an instance",
+				15*time.Second,
+				func() bool { current, ok := manager.Get(*child.ChildSessionID); return ok && current.IsPrompting() },
+			)
+			childInfo, err := manager.Status(t.Context(), *child.ChildSessionID)
+			if err != nil {
 				t.Fatal(err)
 			}
-		})
-		ws, err := d.registry.GetWorkspace(t.Context(), workspace)
-		if err != nil {
-			t.Fatal(err)
-		}
-		parent, caller := startSubagentIntegrationParent(t, manager, workspace, store.SessionPermissionPolicy{WorkspacePaths: []string{ws.RootDir}})
-		allowed := []string{toolspkg.ToolIDAgentInstanceCreate.String(), toolspkg.ToolIDSessionStatus.String()}
-		child, err := d.SubagentService().Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "hold parent", Title: "Instance creator", Mode: "async", Narrowing: &session.SubagentPermissionNarrowing{Tools: allowed}, PermissionMode: compozyconfig.PermissionModeApproveReads})
-		if err != nil || child.ChildSessionID == nil {
-			t.Fatalf("child: %#v %v", child, err)
-		}
-		waitForRuntimeCondition(t, "child ready to create an instance", 15*time.Second, func() bool { current, ok := manager.Get(*child.ChildSessionID); return ok && current.IsPrompting() })
-		childInfo, err := manager.Status(t.Context(), *child.ChildSessionID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(parent.Info().Lineage.PermissionPolicy.Tools) <= len(childInfo.Lineage.PermissionPolicy.Tools) {
-			t.Fatal("child is not narrower than root")
-		}
-		result, err := d.toolRegistry.Call(t.Context(), toolspkg.Scope{SessionID: childInfo.ID, WorkspaceID: workspace, ProfileID: childInfo.ProfileID, AgentName: childInfo.AgentName}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentInstanceCreate, Input: []byte(`{}`), ApprovalGranted: true, ToolCallID: "create-instance"})
-		if err != nil {
-			t.Fatalf("native create: %#v; workspace=%s profile=%s childWorkspace=%s", err, workspace, childInfo.ProfileID, childInfo.WorkspaceID)
-		}
-		var response compozycontract.AgentInstanceResponse
-		if err := json.Unmarshal(result.Structured, &response); err != nil {
-			t.Fatal(err)
-		}
-		id := response.Instance.MainSessionID
-		if id == "" {
-			t.Fatalf("missing main: %s", result.Structured)
-		}
-		waitForRuntimeCondition(t, "instance main active", 15*time.Second, func() bool {
-			info, err := manager.Status(t.Context(), id)
-			return err == nil && info.State == session.StateActive
-		})
-		info, err := manager.Status(t.Context(), id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := session.ValidatePermissionSubset(childInfo.Lineage.PermissionPolicy, info.Lineage.PermissionPolicy); err != nil {
-			t.Fatal(err)
-		}
-		if info.EffectivePermissions == string(compozyconfig.PermissionModeApproveAll) {
-			t.Fatal("instance bypasses approvals")
-		}
-		persistedCaller, callerErr := d.registry.(*globaldb.GlobalDB).Instances().InstanceCaller(t.Context(), id)
-		if callerErr != nil {
-			t.Fatal(callerErr)
-		}
-		if !reflect.DeepEqual(info.Lineage.PermissionPolicy, childInfo.Lineage.PermissionPolicy) || !reflect.DeepEqual(persistedCaller.PermissionPolicy, childInfo.Lineage.PermissionPolicy) {
-			t.Fatalf("instance lost child ceiling: runtime=%#v stored=%#v child=%#v", info.Lineage.PermissionPolicy, persistedCaller.PermissionPolicy, childInfo.Lineage.PermissionPolicy)
-		}
-		initialEvents, err := manager.Prompt(t.Context(), id, "child work")
-		if err != nil {
-			t.Fatal(err)
-		}
-		for event := range initialEvents {
-			if event.Type == acp.EventTypeError || event.ToolError() {
-				t.Fatalf("initial prompt failed: %#v", event)
+			if len(parent.Info().Lineage.PermissionPolicy.Tools) <= len(childInfo.Lineage.PermissionPolicy.Tools) {
+				t.Fatal("child is not narrower than root")
 			}
-		}
-		cleared, err := manager.ClearConversation(t.Context(), id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		waitForRuntimeCondition(t, "replacement main active", 15*time.Second, func() bool {
-			info, err := manager.Status(t.Context(), id)
-			return err == nil && (info.State == session.StateActive || info.Failure != nil)
-		})
-		replacement, err := manager.Status(t.Context(), id)
-		if err != nil || replacement.State != session.StateActive {
-			t.Fatalf("replacement failed: %#v %v", replacement, err)
-		}
-		if err := session.ValidatePermissionSubset(childInfo.Lineage.PermissionPolicy, cleared.Info().Lineage.PermissionPolicy); err != nil {
-			t.Fatal(err)
-		}
-		if !reflect.DeepEqual(cleared.Info().Lineage.PermissionPolicy, childInfo.Lineage.PermissionPolicy) {
-			t.Fatal("replacement changed child ceiling")
-		}
-		if cleared.Info().EffectivePermissions == string(compozyconfig.PermissionModeApproveAll) {
-			t.Fatal("replacement bypasses approvals")
-		}
-		events, err := manager.Prompt(t.Context(), id, "child work")
-		if err != nil {
-			t.Fatal(err)
-		}
-		for event := range events {
-			if event.Type == acp.EventTypeError || event.ToolError() {
-				t.Fatalf("replacement prompt failed: %#v", event)
+			result, err := d.toolRegistry.Call(
+				t.Context(),
+				toolspkg.Scope{
+					SessionID:   childInfo.ID,
+					WorkspaceID: workspace,
+					ProfileID:   childInfo.ProfileID,
+					AgentName:   childInfo.AgentName,
+				},
+				toolspkg.CallRequest{
+					ToolID:          toolspkg.ToolIDAgentInstanceCreate,
+					Input:           []byte(`{}`),
+					ApprovalGranted: true,
+					ToolCallID:      "create-instance",
+				},
+			)
+			if err != nil {
+				t.Fatalf(
+					"native create: %#v; workspace=%s profile=%s childWorkspace=%s",
+					err,
+					workspace,
+					childInfo.ProfileID,
+					childInfo.WorkspaceID,
+				)
 			}
-		}
-		retained, err := d.registry.(*globaldb.GlobalDB).Instances().Get(t.Context(), response.Instance.ID)
-		if err != nil || retained.MainSessionID != id {
-			t.Fatalf("instance after prompt: %#v %v", retained, err)
-		}
-	})
+			var response compozycontract.AgentInstanceResponse
+			if err := json.Unmarshal(result.Structured, &response); err != nil {
+				t.Fatal(err)
+			}
+			id := response.Instance.MainSessionID
+			if id == "" {
+				t.Fatalf("missing main: %s", result.Structured)
+			}
+			waitForRuntimeCondition(t, "instance main active", 15*time.Second, func() bool {
+				info, err := manager.Status(t.Context(), id)
+				return err == nil && info.State == session.StateActive
+			})
+			info, err := manager.Status(t.Context(), id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := session.ValidatePermissionSubset(
+				childInfo.Lineage.PermissionPolicy,
+				info.Lineage.PermissionPolicy,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if info.EffectivePermissions == string(compozyconfig.PermissionModeApproveAll) {
+				t.Fatal("instance bypasses approvals")
+			}
+			persistedCaller, callerErr := d.registry.(*globaldb.GlobalDB).Instances().InstanceCaller(t.Context(), id)
+			if callerErr != nil {
+				t.Fatal(callerErr)
+			}
+			if !reflect.DeepEqual(info.Lineage.PermissionPolicy, childInfo.Lineage.PermissionPolicy) ||
+				!reflect.DeepEqual(persistedCaller.PermissionPolicy, childInfo.Lineage.PermissionPolicy) {
+				t.Fatalf(
+					"instance lost child ceiling: runtime=%#v stored=%#v child=%#v",
+					info.Lineage.PermissionPolicy,
+					persistedCaller.PermissionPolicy,
+					childInfo.Lineage.PermissionPolicy,
+				)
+			}
+			initialEvents, err := manager.Prompt(t.Context(), id, "child work")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for event := range initialEvents {
+				if event.Type == acp.EventTypeError || event.ToolError() {
+					t.Fatalf("initial prompt failed: %#v", event)
+				}
+			}
+			cleared, err := manager.ClearConversation(t.Context(), id)
+			if err != nil {
+				t.Fatal(err)
+			}
+			waitForRuntimeCondition(t, "replacement main active", 15*time.Second, func() bool {
+				info, err := manager.Status(t.Context(), id)
+				return err == nil && (info.State == session.StateActive || info.Failure != nil)
+			})
+			replacement, err := manager.Status(t.Context(), id)
+			if err != nil || replacement.State != session.StateActive {
+				t.Fatalf("replacement failed: %#v %v", replacement, err)
+			}
+			if err := session.ValidatePermissionSubset(
+				childInfo.Lineage.PermissionPolicy,
+				cleared.Info().Lineage.PermissionPolicy,
+			); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(cleared.Info().Lineage.PermissionPolicy, childInfo.Lineage.PermissionPolicy) {
+				t.Fatal("replacement changed child ceiling")
+			}
+			if cleared.Info().EffectivePermissions == string(compozyconfig.PermissionModeApproveAll) {
+				t.Fatal("replacement bypasses approvals")
+			}
+			events, err := manager.Prompt(t.Context(), id, "child work")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for event := range events {
+				if event.Type == acp.EventTypeError || event.ToolError() {
+					t.Fatalf("replacement prompt failed: %#v", event)
+				}
+			}
+			retained, err := d.registry.(*globaldb.GlobalDB).Instances().Get(t.Context(), response.Instance.ID)
+			if err != nil || retained.MainSessionID != id {
+				t.Fatalf("instance after prompt: %#v %v", retained, err)
+			}
+		},
+	)
 }
 
 // IT-019/IT-020: full boot preserves expiry and reports interrupted decisions once.
 func assertB4CrashRecovery(t *testing.T, d *Daemon, checkpoint subagentCrashCheckpoint) {
 	t.Helper()
 	db := d.registry.(*globaldb.GlobalDB)
-	rows, err := db.ListPendingInteractions(t.Context(), *checkpoint.Row.ChildSessionID, []string{store.PendingInteractionStatusTimedOut, store.PendingInteractionStatusCanceled})
+	rows, err := db.ListPendingInteractions(
+		t.Context(),
+		*checkpoint.Row.ChildSessionID,
+		[]string{store.PendingInteractionStatusTimedOut, store.PendingInteractionStatusCanceled},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4641,15 +4769,21 @@ func assertB4CrashRecovery(t *testing.T, d *Daemon, checkpoint subagentCrashChec
 			continue
 		}
 		found[row.InteractionID] = true
-		result, err := d.sessions.ApprovePermission(t.Context(), row.SessionID, acp.ApproveRequest{RequestID: row.ProviderRequestID, Decision: "allow-once"})
-		if err != nil || result.Outcome != store.PendingInteractionOutcomeAlreadyResolved || result.ResolvedDecision != row.Resolution {
+		result, err := d.sessions.ApprovePermission(
+			t.Context(),
+			row.SessionID,
+			acp.ApproveRequest{RequestID: row.ProviderRequestID, Decision: "allow-once"},
+		)
+		if err != nil || result.Outcome != store.PendingInteractionOutcomeAlreadyResolved ||
+			result.ResolvedDecision != row.Resolution {
 			t.Fatalf("late approval = %#v, %v; want existing terminal decision %s", result, err, row.Resolution)
 		}
 	}
 	if len(found) != 2 {
 		t.Fatalf("recovered interactions = %#v", rows)
 	}
-	reports, err := db.InstanceReports().ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: checkpoint.InstanceID, Limit: 100})
+	reports, err := db.InstanceReports().
+		ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: checkpoint.InstanceID, Limit: 100})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4775,12 +4909,18 @@ func runInstanceApprovalCrashProcess(t *testing.T, handoff string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent, caller := startSubagentIntegrationParent(t, manager, workspace, store.SessionPermissionPolicy{WorkspacePaths: []string{ws.RootDir}})
+	parent, caller := startSubagentIntegrationParent(
+		t,
+		manager,
+		workspace,
+		store.SessionPermissionPolicy{WorkspacePaths: []string{ws.RootDir}},
+	)
 	ceiling, err := json.Marshal(store.SessionPermissionPolicy{WorkspacePaths: []string{parent.Info().Workspace}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	instance, err := d.registry.(instanceRepositoryProvider).Instances().Adopt(t.Context(), agentinstance.Instance{ProfileID: parent.Info().ProfileID, AgentName: parent.Info().AgentName, WorkspaceID: workspace, PermissionCeiling: string(ceiling), CreatedByKind: "human"}, parent.ID, 10)
+	instance, err := d.registry.(instanceRepositoryProvider).Instances().
+		Adopt(t.Context(), agentinstance.Instance{ProfileID: parent.Info().ProfileID, AgentName: parent.Info().AgentName, WorkspaceID: workspace, PermissionCeiling: string(ceiling), CreatedByKind: "human"}, parent.ID, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -4816,15 +4956,37 @@ func runInstanceApprovalCrashProcess(t *testing.T, handoff string) {
 	db := d.registry.(*globaldb.GlobalDB)
 	now := time.Now().UTC()
 	for _, id := range []string{"b4-expired", "b4-pending"} {
-		_, err := db.CreatePendingInteraction(t.Context(), store.PendingInteractionCreate{InteractionID: id, SessionID: child.ID, Kind: store.PendingInteractionKindPermission, ProviderRequestID: id, TurnID: child.CurrentTurnID(), CreatedAt: now, ExpiresAt: new(now.Add(time.Hour))})
+		_, err := db.CreatePendingInteraction(
+			t.Context(),
+			store.PendingInteractionCreate{
+				InteractionID:     id,
+				SessionID:         child.ID,
+				Kind:              store.PendingInteractionKindPermission,
+				ProviderRequestID: id,
+				TurnID:            child.CurrentTurnID(),
+				CreatedAt:         now,
+				ExpiresAt:         new(now.Add(time.Hour)),
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := db.TransitionPendingInteraction(t.Context(), store.PendingInteractionTransition{InteractionID: "b4-expired", Status: store.PendingInteractionStatusTimedOut, At: now, Resolution: "reject_once", ResolvedBy: "timeout"}); err != nil {
+	if _, err := db.TransitionPendingInteraction(
+		t.Context(),
+		store.PendingInteractionTransition{
+			InteractionID: "b4-expired",
+			Status:        store.PendingInteractionStatusTimedOut,
+			At:            now,
+			Resolution:    "reject_once",
+			ResolvedBy:    "timeout",
+		},
+	); err != nil {
 		t.Fatal(err)
 	}
-	data, err := json.Marshal(subagentCrashCheckpoint{InstanceID: instance.ID, Home: d.homePaths, Workspace: workspace, Row: row})
+	data, err := json.Marshal(
+		subagentCrashCheckpoint{InstanceID: instance.ID, Home: d.homePaths, Workspace: workspace, Row: row},
+	)
 	if err != nil {
 		t.Fatal(err)
 	}

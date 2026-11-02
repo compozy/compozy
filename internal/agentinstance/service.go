@@ -96,14 +96,14 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (Instance, bool
 	sessionID, err := s.starter.Start(ctx, StartMainSession{Instance: instance})
 	if err != nil {
 		if sessionID == "" {
-			err = errors.Join(err, s.store.DeleteUnstarted(context.WithoutCancel(ctx), instance.ID))
+			err = errors.Join(err, s.deleteUnstarted(ctx, instance.ID))
 		}
 		return instance, true, err
 	}
 	if sessionID == "" {
 		return instance, true, errors.Join(
 			errors.New("agentinstance: main session starter returned an empty session id"),
-			s.store.DeleteUnstarted(context.WithoutCancel(ctx), instance.ID),
+			s.deleteUnstarted(ctx, instance.ID),
 		)
 	}
 	instance, err = s.store.BindMain(ctx, instance.ID, sessionID)
@@ -111,6 +111,12 @@ func (s *Service) Create(ctx context.Context, req CreateRequest) (Instance, bool
 		s.notifyLifecycle(ctx, hooks.HookAgentInstanceCreated, instance)
 	}
 	return instance, true, err
+}
+
+func (s *Service) deleteUnstarted(ctx context.Context, id string) error {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+	defer cancel()
+	return s.store.DeleteUnstarted(cleanupCtx, id)
 }
 
 func (s *Service) Pause(ctx context.Context, id, reason string) (Instance, error) {

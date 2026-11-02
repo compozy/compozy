@@ -23,7 +23,12 @@ import {
 import type { SessionProcessPolicy } from "./session-processes-api";
 
 export { fetchSessions } from "./session-catalog-api";
-export { archiveSession, unarchiveSession } from "./session-archive-api";
+export {
+  archiveSession,
+  archiveSessionTree,
+  deleteSessionTree,
+  unarchiveSession,
+} from "./session-archive-api";
 export { compactSession } from "./session-compaction-api";
 export { fetchSessionCommands } from "./session-command-api";
 export { fetchSessionGoal, mutateSessionGoal } from "./session-goal-api";

@@ -271,6 +271,25 @@ describe("agent mentions", () => {
   it("Should leave an address that only looks like a mention as text", () => {
     expect(agentMentionDirectives("mail me@agent:x (Y)")).toEqual([]);
   });
+
+  // Invariant: every display name survives composer serialization and transcript parsing.
+  // Owner and canonical suite: session mention model.
+  it.each(["Builder (team)", "Line one\nLine two", "Path \\notes", "Carriage\rreturn"])(
+    "Should preserve the display name %s in a sent mention",
+    label => {
+      const item = buildMentionMenuModel({
+        ...empty,
+        agents: {
+          agents: [{ name: "code_implementer", label, resolved_appearance: null } as never],
+          status: "ready",
+        },
+      }).items[0]!;
+      const token = mentionDirectiveFormatter.serialize(item);
+      expect(agentMentionDirectives(token)).toEqual([
+        { kind: "agent", token, target: "code_implementer", label, start: 0, end: token.length },
+      ]);
+    }
+  );
 });
 
 describe("sessionMentionDirectives", () => {

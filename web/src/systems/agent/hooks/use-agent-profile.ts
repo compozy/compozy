@@ -47,7 +47,7 @@ import type { AgentAddPlaceActions } from "../components/agent-team/agent-team-p
 import {
   useAgentInstanceActions,
   useAgentInstanceCapacity,
-  useAgentInstances,
+  useAgentDefinitionInstances,
 } from "./use-agent-instances";
 import { useAgentSessions } from "./use-agent-sessions";
 import { useAgentWindowScope } from "./use-agent-window-scope";
@@ -148,7 +148,7 @@ export function useAgentProfile(input: {
   const { destination } = useProfileReadScope();
   const { workspace, projectId, bindingSearch } = useAgentWindowScope();
   const { openForAgent } = useSessionCreateActions();
-  const instances = useAgentInstances();
+  const instances = useAgentDefinitionInstances(agent);
   const capacity = useAgentInstanceCapacity();
   const actions = useAgentInstanceActions();
   const names = new Map(workspaces.map(item => [item.id, item.name]));

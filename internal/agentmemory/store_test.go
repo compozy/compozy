@@ -327,6 +327,29 @@ func TestStore(t *testing.T) {
 }
 
 func TestMemoryBoundaries(t *testing.T) {
+	// Invariant: persisted tool entries obey the text limit after redaction without partial writes.
+	// Owner: memory store; canonical suite: TestMemoryBoundaries.
+	t.Run("Should reject entries expanded beyond the budget by redaction", func(t *testing.T) {
+		t.Parallel()
+		s := NewStore(t.TempDir())
+		key := Key{ProfileID: "profile-1", Origin: "user", Agent: "triage"}
+		now := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+		before, err := s.Add(key, now, "Global", "replace me", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		text := strings.Repeat("password=x ", 70)
+		if _, err := s.Add(key, now, "Global", text, ""); !errors.Is(err, ErrEntryTooLarge) {
+			t.Fatalf("add=%v", err)
+		}
+		if _, err := s.Replace(key, "replace me", text); !errors.Is(err, ErrEntryTooLarge) {
+			t.Fatalf("replace=%v", err)
+		}
+		after, err := s.Read(key)
+		if err != nil || after.Digest != before.Digest {
+			t.Fatalf("write on rejection: %+v %v", after, err)
+		}
+	})
 	key := Key{ProfileID: "profile-1", Origin: "user", Agent: "triage"}
 	t.Run("Should archive oversized loaded files and tolerate interrupted archival", func(t *testing.T) {
 		t.Parallel()

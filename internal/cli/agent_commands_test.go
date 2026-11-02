@@ -1079,6 +1079,27 @@ func TestAgentDefinitionDaemonErrors(t *testing.T) {
 }
 
 func TestAgentIdentityFlags(t *testing.T) {
+	// Invariant: changing avatar modes clears incompatible fields; owner: CLI request construction.
+	t.Run("Should switch an existing icon to a valid generated avatar", func(t *testing.T) {
+		t.Parallel()
+		cmd := newAgentCreateCommand(commandDeps{})
+		if err := cmd.ParseFlags([]string{"--appearance-avatar", "generated"}); err != nil {
+			t.Fatal(err)
+		}
+		p := contract.CreateAgentPayload{
+			Name:       "triage",
+			Appearance: map[string]any{"version": 1, "avatar": "icon", "icon": "compass", "color": "#123456"},
+		}
+		applyAgentIdentityFlags(cmd, &p, agentDefinitionFlags{avatar: "generated"})
+		if p.Appearance["icon"] != nil || p.Appearance["emoji"] != nil || p.Appearance["seed"] != "triage" ||
+			p.Appearance["generation"] != 1 {
+			t.Fatalf("appearance=%v", p.Appearance)
+		}
+		overrides, err := duplicateAgentOverridesFromFlags(cmd, "copy", agentDefinitionFlags{avatar: "generated"})
+		if err != nil || overrides.Appearance["seed"] != "copy" {
+			t.Fatalf("duplicate=%+v %v", overrides, err)
+		}
+	})
 	t.Parallel()
 	t.Run("Should send explicit identity and emoji appearance flags", func(t *testing.T) {
 		t.Parallel()

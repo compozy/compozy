@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json/v2"
 	"errors"
 	"net/http"
 	"strconv"
@@ -201,29 +200,12 @@ func (h *BaseHandlers) ListAgentInstanceReports(c *gin.Context) {
 		query.AfterCreatedAt = at
 		query.AfterID = parts[2]
 	}
-	reports, err := h.AgentInstances.Reports.ListReports(c.Request.Context(), query)
+	result, err := h.AgentInstances.ReportsPage(c.Request.Context(), query)
 	if err != nil {
 		h.instanceError(c, err)
 		return
 	}
-	result := contract.AgentInstanceReportsResponse{
-		Reports: make([]contract.AgentInstanceReportPayload, 0, len(reports)),
-	}
-	for _, report := range reports {
-		var payload contract.AgentInstanceReportPayload
-		if err := json.Unmarshal(report.Payload, &payload); err != nil {
-			h.respondError(c, 500, err)
-			return
-		}
-		payload.ID, payload.Kind, payload.State, payload.CreatedAt = report.ID, report.Kind, report.State, report.CreatedAt
-		result.Reports = append(result.Reports, payload)
-	}
-	if len(reports) == limit {
-		last := reports[len(reports)-1]
-		result.NextCursor = base64.RawURLEncoding.EncodeToString(
-			[]byte(instance.ID + "\n" + last.CreatedAt.Format(time.RFC3339Nano) + "\n" + last.ID + "\n" + state),
-		)
-	}
+
 	c.JSON(http.StatusOK, result)
 }
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -1257,4 +1259,132 @@ func (c *mcpReliabilityTestClock) Advance(delta time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.now = c.now.Add(delta)
+}
+
+func TestMCPProjectionDiscoveryIsBounded(t *testing.T) {
+	t.Parallel()
+	for _, operator := range []bool{false, true} {
+		name := "Should discover once per batch for hosted sessions"
+		if operator {
+			name = "Should discover once per batch for operator diagnostics"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			descriptors := make([]MCPToolDescriptor, 114)
+			for i := range descriptors {
+				descriptors[i] = MCPToolDescriptor{
+					RawName:     fmt.Sprintf("tool%d", i),
+					ReadOnly:    true,
+					InputSchema: json.RawMessage(`{"type":"object"}`),
+				}
+			}
+			executor := newFakeMCPExecutor(descriptors)
+			provider := newTestMCPProvider(
+				t,
+				executor,
+				[]SourceRef{{Kind: SourceMCP, Owner: "probe", RawServerName: "probe"}},
+			)
+			inputs := DefaultPolicyInputs()
+			inputs.SystemPermissionMode = PermissionModeApproveAll
+			inputs.TrustedSources = []SourceGrant{{Kind: SourceMCP, Owner: "probe"}}
+			registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(inputs, ToolsetCatalog{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			scope := Scope{Operator: operator, SessionID: "probe"}
+			views, err := registry.List(t.Context(), scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(views) != 114 {
+				t.Fatalf("tools = %d, want 114", len(views))
+			}
+			executor.mu.Lock()
+			calls := len(executor.listedSources)
+			executor.mu.Unlock()
+			if calls > 2 {
+				t.Fatalf("upstream discovery calls = %d for one source, want bounded batch discovery", calls)
+			}
+			executor.setStatus(MCPAuthStatus{Status: "needs_login"})
+			views, err = registry.List(t.Context(), scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			executor.mu.Lock()
+			afterAuthCalls := len(executor.listedSources) - calls
+			executor.mu.Unlock()
+			if afterAuthCalls > 2 {
+				t.Fatalf(
+					"upstream discovery calls after auth withdrawal = %d, want bounded batch discovery",
+					afterAuthCalls,
+				)
+			}
+			if operator {
+				if len(views) != 114 {
+					t.Fatalf("diagnostic tools = %d, want 114", len(views))
+				}
+				for _, view := range views {
+					if view.Availability.Executable {
+						t.Fatal("auth withdrawal retained executable tool")
+					}
+					if !hasAnyReason(view.Availability.ReasonCodes, ReasonMCPAuthRequired) {
+						t.Fatalf("reason codes = %#v, want %q", view.Availability.ReasonCodes, ReasonMCPAuthRequired)
+					}
+				}
+				original := views[1].Availability.ReasonCodes[0]
+				views[0].Availability.ReasonCodes[0] = ReasonBackendUnhealthy
+				if views[1].Availability.ReasonCodes[0] != original {
+					t.Fatal("mutating one tool's reasons changed a sibling view")
+				}
+			} else if len(views) != 0 {
+				t.Fatal("auth withdrawal retained hosted tools")
+			}
+		})
+		t.Run(name+" and observe newly discovered tools", func(t *testing.T) {
+			t.Parallel()
+			executor := newFakeMCPExecutor(
+				[]MCPToolDescriptor{
+					{RawName: "early", ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object"}`)},
+				},
+			)
+			provider := newTestMCPProvider(
+				t,
+				executor,
+				[]SourceRef{{Kind: SourceMCP, Owner: "probe", RawServerName: "probe"}},
+			)
+			inputs := DefaultPolicyInputs()
+			inputs.TrustedSources = []SourceGrant{{Kind: SourceMCP, Owner: "probe"}}
+			registry, err := NewRegistry(WithProviders(provider), WithPolicyInputs(inputs, ToolsetCatalog{}))
+			if err != nil {
+				t.Fatal(err)
+			}
+			scope := Scope{Operator: operator, SessionID: "probe"}
+			first, err := registry.List(t.Context(), scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(first) != 1 {
+				t.Fatalf("initial tools=%d, want 1", len(first))
+			}
+			executor.mu.Lock()
+			executor.tools = append(
+				executor.tools,
+				MCPToolDescriptor{RawName: "late", ReadOnly: true, InputSchema: json.RawMessage(`{"type":"object"}`)},
+			)
+			executor.mu.Unlock()
+			next, err := registry.List(t.Context(), scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(next) != 2 {
+				t.Fatalf("fresh tools=%d, want 2", len(next))
+			}
+			if !slices.ContainsFunc(
+				next,
+				func(view ToolView) bool { return view.Descriptor.ID == "mcp__probe__late" },
+			) {
+				t.Fatalf("refreshed tools = %#v, want mcp__probe__late", next)
+			}
+		})
+	}
 }

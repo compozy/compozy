@@ -69,7 +69,11 @@ func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
 		mode := string(notification.Update.CurrentModeUpdate.CurrentModeId)
 		if p.executionPolicy == ExecutionPolicyTriage && triageReadOnlyMode(p.providerName, []string{mode}) == "" {
 			err := fmt.Errorf("%w: provider changed triage mode to %q", ErrTriageUnsupported, mode)
-			if active := p.currentPrompt(); active != nil {
+			p.promptMu.Lock()
+			p.triagePolicyErr = err
+			active := p.activePrompt
+			p.promptMu.Unlock()
+			if active != nil {
 				active.failIngest(err)
 			}
 			return err

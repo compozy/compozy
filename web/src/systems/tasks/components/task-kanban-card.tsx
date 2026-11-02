@@ -159,9 +159,16 @@ function TaskKanbanCardFooter({
         className="flex min-w-0 items-center gap-1.5"
         data-testid={`tasks-kanban-card-owner-${task.id}`}
       >
-        <TaskOwnerMark data-testid={`tasks-kanban-card-avatar-${task.id}`} owner={task.owner} />
+        <TaskOwnerMark
+          data-testid={`tasks-kanban-card-avatar-${task.id}`}
+          owner={task.owner}
+          agentScope={{ workspace: task.workspace_id || null, profile: task.profile_name }}
+        />
         <span className="min-w-0 truncate text-eyebrow text-muted-foreground">
-          <TaskOwnerName owner={task.owner} />
+          <TaskOwnerName
+            owner={task.owner}
+            agentScope={{ workspace: task.workspace_id || null, profile: task.profile_name }}
+          />
         </span>
         {profileOwner ? (
           <ProfileOwnerTag

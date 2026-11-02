@@ -73,14 +73,13 @@ type AgentInstanceCheckRequest struct {
 	DryRun bool `json:"dry_run"`
 }
 type AgentInstanceCheckResponse struct {
-	Gate         string                    `json:"gate,omitempty"`
-	OccurrenceID string                    `json:"occurrence_id,omitempty"`
-	Digest       *AgentInstanceCheckDigest `json:"digest,omitempty"`
+	Gate         string                     `json:"gate,omitempty"`
+	OccurrenceID string                     `json:"occurrence_id,omitempty"`
+	Digest       []AgentInstanceCheckDigest `json:"digest"`
 }
 type AgentInstanceCheckDigest struct {
-	ItemKeys    []string `json:"item_keys"`
-	Fingerprint string   `json:"fingerprint"`
-	Diagnostics []string `json:"diagnostics,omitempty"`
+	Key     string `json:"key"`
+	Summary string `json:"summary"`
 }
 
 type AgentInstanceUpdateRequest struct {
@@ -108,6 +107,7 @@ type AgentInstanceCheckInPayload struct {
 	ID        string    `json:"id"`
 	Result    string    `json:"result"`
 	Reason    string    `json:"reason"`
+	Detail    string    `json:"detail,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 

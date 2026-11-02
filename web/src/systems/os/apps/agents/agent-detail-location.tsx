@@ -15,7 +15,7 @@ import {
   AgentProfileHome,
   agentFromOrphanInstance,
   isAgentNotFound,
-  useAgentInstances,
+  useAgentInstanceInScope,
   useAgentMemorySummary,
   useAgentProfile,
   useAgentWindowScope,
@@ -113,10 +113,10 @@ function Home({
 export function AgentDetailLocation({ name, search }: { name: string; search: AgentDetailSearch }) {
   const page = useAgentDetail(name);
   const navigate = useNavigate();
-  const { bindingSearch } = useAgentWindowScope();
+  const { bindingSearch, workspace } = useAgentWindowScope();
   // Only a definition that's truly gone falls back: a failed read says it failed.
   const definitionGone = isAgentNotFound(page.agentError);
-  const orphan = useAgentInstances().find(instance => instance.agent_name === name);
+  const orphan = useAgentInstanceInScope(name, workspace);
   useAgentDetailTopbar(page, name);
 
   if (page.agentLoading) return <AgentDetailLoading />;

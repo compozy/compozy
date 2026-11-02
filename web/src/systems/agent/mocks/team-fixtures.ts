@@ -55,7 +55,7 @@ export function teamItemFixture(
 
 export function teamItems(): AgentGroupedCatalogItem[] {
   return [
-    teamItemFixture(),
+    teamItemFixture({}, { scopes: ["ws-compozy", "ws-advos"] }),
     teamItemFixture({
       name: "orchestrator",
       label: "Orchestrator",

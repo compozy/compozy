@@ -8,6 +8,7 @@ import type { SessionPayload } from "../types";
 import type { SessionListLayout } from "./use-session-folders";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
 import { useSessionListBulkSelection } from "./use-session-list-bulk-selection";
+import type { SessionFoldSet } from "../lib/session-sidebar-scope";
 
 /**
  * The list's one bulk selection. A flat list selects its own catalog in its
@@ -22,7 +23,7 @@ export function useSessionListSelection(input: {
   /** The flat list's sessions, visible threads, and folder layout. */
   sessions: readonly SessionPayload[];
   visibleThreads: readonly SessionThreadModel[];
-  collapsedThreads: ReadonlySet<string>;
+  collapsedThreads: SessionFoldSet;
   layout?: SessionListLayout;
   sessionActions: SessionLifecycleActionHandlers;
 }) {

@@ -31,7 +31,13 @@ func (r *InstanceRepo) ListCheckIns(
 		}
 		result = append(
 			result,
-			agentinstance.CheckIn{ID: row.ID, Result: row.Result, Reason: row.Reason, CreatedAt: at},
+			agentinstance.CheckIn{
+				ID:        row.ID,
+				Result:    row.Result,
+				Reason:    row.Reason,
+				Detail:    row.Detail,
+				CreatedAt: at,
+			},
 		)
 	}
 	return result, nil

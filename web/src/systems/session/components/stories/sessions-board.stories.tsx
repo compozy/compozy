@@ -285,6 +285,8 @@ function projectLane(workspaceId: string): SessionsBoardLane {
       lens: { profile: "default" },
       pair: null,
     },
+    collapsed: false,
+    onToggle: () => undefined,
     filters: { workspace_id: workspaceId, sort: "last_activity" },
   };
 }

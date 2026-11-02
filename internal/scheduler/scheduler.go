@@ -271,11 +271,6 @@ func (s *Scheduler) RunOnce(ctx context.Context) (CycleResult, error) {
 	now := s.clock.Now().UTC()
 	result := CycleResult{}
 	errs := s.sweepExpiredLeases(ctx, now, &result)
-	if s.proactiveChecks != nil {
-		if err := s.proactiveChecks(ctx); err != nil {
-			errs = append(errs, fmt.Errorf("scheduler: proactive checks: %w", err))
-		}
-	}
 
 	errs = append(errs, s.sweepExpiredTaskBlocks(ctx, now, &result)...)
 	if backstop, ok := s.tasks.(LoopCoordinatorBackstop); ok {
@@ -311,6 +306,11 @@ func (s *Scheduler) RunOnce(ctx context.Context) (CycleResult, error) {
 		return result, errors.Join(errs...)
 	}
 
+	if s.proactiveChecks != nil {
+		if err := s.proactiveChecks(ctx); err != nil {
+			errs = append(errs, fmt.Errorf("scheduler: proactive checks: %w", err))
+		}
+	}
 	selection := s.selectWakeTargets(now, pauseState.UpdatedAt, pending, sessions, active)
 	applySelection(&result, selection)
 	errs = append(errs, s.dispatchWakeTargets(ctx, now, selection.targets, &result)...)

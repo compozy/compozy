@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-var _ error = (*UsageError)(nil) //nolint:errcheck // Compile-time interface assertion, not an error result.
+var _ error = (*UsageError)(nil)
 
 func (e *UsageError) Error() string { return e.Message }
 

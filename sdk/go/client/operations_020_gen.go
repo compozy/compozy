@@ -49,6 +49,36 @@ func (c *Client) ListSessionClarifications(ctx context.Context, params ListSessi
 	return &out, nil
 }
 
+// ListSessionDescendantsParams carries the path, query, and header parameters.
+type ListSessionDescendantsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListSessionDescendants List a session's child sessions, recursively
+func (c *Client) ListSessionDescendants(ctx context.Context, params ListSessionDescendantsParams) (*SessionsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/descendants"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessionEventsParams carries the path, query, and header parameters.
 type ListSessionEventsParams struct {
 	WorkspaceID   string  `url:"workspace_id"`
@@ -415,35 +445,4 @@ func (c *Client) ListSessionTools(ctx context.Context, params ListSessionToolsPa
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ListSessionsParams carries the path, query, and header parameters.
-type ListSessionsParams struct {
-	WorkspaceID         *string   `url:"workspace_id"`
-	AllWorkspaces       *bool     `url:"all_workspaces"`
-	WorkspaceIds        *[]string `url:"workspace_ids"`
-	IncludeHealth       *bool     `url:"include_health"`
-	SkipTotal           *bool     `url:"skip_total"`
-	ExcludeInstanceMain *bool     `url:"exclude_instance_main"`
-	State               *string   `url:"state"`
-	Type                *string   `url:"type"`
-	Agent               *string   `url:"agent"`
-	Subagents           *string   `url:"subagents"`
-	Children            *string   `url:"children"`
-	Parent              *string   `url:"parent"`
-	Root                *string   `url:"root"`
-	Worktree            *string   `url:"worktree"`
-	Q                   *string   `url:"q"`
-	SearchFields        *string   `url:"search_fields"`
-	Resumable           *bool     `url:"resumable"`
-	Attention           *bool     `url:"attention"`
-	BoardColumn         *[]string `url:"board_column"`
-	Badge               *string   `url:"badge"`
-	Archive             *string   `url:"archive"`
-	Later               *string   `url:"later"`
-	Sort                *string   `url:"sort"`
-	Cursor              *string   `url:"cursor"`
-	Limit               *int      `url:"limit"`
-	Profile             *string   `url:"profile"`
-	AllProfiles         *bool     `url:"all_profiles"`
 }

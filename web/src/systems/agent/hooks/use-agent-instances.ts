@@ -1,3 +1,4 @@
+import { useAgentWindowScope } from "./use-agent-window-scope";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { notifyUser } from "@/lib/user-feedback";
@@ -11,10 +12,15 @@ import {
   resumeAgentInstance,
   type AgentInstancesRead,
 } from "../adapters/agent-instance-api";
-import { agentInstancesOptions, staysOnAgentsOptions } from "../lib/query-options";
+import {
+  agentInstancesOptions,
+  staysOnAgentsOptions,
+  agentTeamOptions,
+} from "../lib/query-options";
 import { agentKeys } from "../lib/query-keys";
 import { agentInstanceCapacity, agentInstanceHoldsSlot } from "../lib/agent-instance";
 import type {
+  AgentPayload,
   AgentInstancePayload,
   AgentInstanceWirePayload,
   CreateAgentInstanceParams,
@@ -111,4 +117,31 @@ export function useAgentInstanceActions() {
     add: add.mutate,
     ensureMain: ensureMain.mutateAsync,
   };
+}
+
+/** Instances must belong to the same profile and resolved definition as the open agent. */
+export function useAgentDefinitionInstances(agent: AgentPayload) {
+  const { destination } = useProfileReadScope();
+  const { workspace } = useAgentWindowScope();
+  const { data: team } = useQuery(agentTeamOptions("", destination));
+  const scopes = team?.find(
+    item => item.name === agent.name && item.definition_digest === agent.definition_digest
+  )?.scopes ?? [workspace || "@user"];
+  const ownedScopes = new Set(scopes);
+  return useAgentInstances().filter(
+    instance =>
+      instance.profile_name === destination &&
+      instance.agent_name === agent.name &&
+      ownedScopes.has(instance.workspace_id || "@user")
+  );
+}
+
+export function useAgentInstanceInScope(name: string, workspace: string | null) {
+  const { destination } = useProfileReadScope();
+  return useAgentInstances().find(
+    instance =>
+      instance.agent_name === name &&
+      instance.profile_name === destination &&
+      instance.workspace_id === (workspace === "@user" ? "" : (workspace ?? ""))
+  );
 }

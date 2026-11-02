@@ -8,7 +8,7 @@ export { SessionsBoard } from "./components/session-board/sessions-board";
 export { SessionsBoardSelection } from "./components/session-board/sessions-board-selection";
 // The board's loading shape also lives on its own light entry, `@/systems/session/skeleton`.
 export { SessionsBoardSkeleton } from "./components/session-board/sessions-board-skeleton";
-export { SessionGroupByMenu, SessionSortMenu } from "./components/session-order-menus";
+export { SessionViewOptionsMenu } from "./components/session-view-options-menu";
 export type { SessionBoardColumnId, SessionBoardPayload } from "./lib/session-board-contract";
 export { sessionWaitingOn, type SessionWaitingOn } from "./lib/session-pull-request";
 export { pullRequestPill, type PullRequestPill } from "./lib/pull-request-signal";

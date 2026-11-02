@@ -21,7 +21,7 @@ Introduced by issue #1053.
 Walk (2026-10-30, isolated lab on the branch daemon with `demo-seed` plus three acpmock
 sessions held running, All projects, light and dark): switch a session window to Kanban.
 Hover a card: its checkbox replaces the provider mark. Cmd-click a Working card: the selection
-bar replaces Group by / Sort by / Hide child sessions / New session and the board does not move.
+bar replaces View options / New session and the board does not move.
 Click a Done card, Shift-click two cards further down Done, click the Needs you card: the bar
 reads 6 selected and each column header shows all/some/none. Right-click a selected card: the
 "6 sessions" menu shows Stop 1 active, Stop and archive 6 sessions, Unarchive 0 archived.

@@ -236,6 +236,7 @@ func (s *Service) validateAdoptionIdentity(
 	if err != nil {
 		return adoptionIdentity{}, err
 	}
+	//nolint:gosec // Reads Git metadata to verify the identity of the operator-chosen worktree.
 	commonPointer, err := os.ReadFile(filepath.Join(adminGitDir, "commondir"))
 	linkedCommonPath := ""
 	switch {
@@ -259,6 +260,7 @@ func (s *Service) validateAdoptionIdentity(
 	if err != nil || linkedCommon != commonDir {
 		return adoptionIdentity{}, ErrAdoptionForeignRepo
 	}
+	//nolint:gosec // Reads Git metadata to verify the identity of the operator-chosen worktree.
 	backlink, err := os.ReadFile(filepath.Join(adminGitDir, "gitdir"))
 	if err != nil {
 		return adoptionIdentity{}, refusal(ErrAdoptionUnreadable, "linked-worktree backlink is unreadable")

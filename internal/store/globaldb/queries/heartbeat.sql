@@ -109,11 +109,11 @@ WHERE workspace_id = sqlc.arg(workspace_id)
 
 -- name: InsertHeartbeatWakeEvent :exec
 INSERT INTO agent_heartbeat_wake_events (
-  id, workspace_id, agent_name, session_id, policy_snapshot_id, source, result, reason,
+  id, workspace_id, agent_name, session_id, policy_snapshot_id, source, result, reason, detail,
   synthetic_prompt_id, created_at, expires_at
 ) VALUES (
   sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(agent_name), sqlc.narg(session_id),
-  sqlc.narg(policy_snapshot_id), sqlc.arg(source), sqlc.arg(result), sqlc.arg(reason),
+  sqlc.narg(policy_snapshot_id), sqlc.arg(source), sqlc.arg(result), sqlc.arg(reason), sqlc.arg(detail),
   sqlc.narg(synthetic_prompt_id), sqlc.arg(created_at), sqlc.arg(expires_at)
 );
 

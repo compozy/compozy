@@ -502,6 +502,7 @@ func TestAgentMemoryRoutes(t *testing.T) {
 			{"GET", "/agents/triage/memory", "", 200, "max_lines"},
 			{"POST", "/agents/triage/memory/entries", `{"text":"preview deploys"}`, 200, "preview deploys"},
 			{"GET", "/agents/triage/memory", "", 200, "preview deploys"},
+			{"GET", "/agents/triage/memory?workspace=%40user", "", 200, "preview deploys"},
 			{"PUT", "/agents/triage/memory", `{"content":"stale","expected_digest":"old"}`, 409, "agent_memory_conflict"},
 			{"POST", "/agents/triage/memory/search", `{"query":"preview"}`, 200, "preview deploys"},
 			{"PATCH", "/agents/triage/memory/entries", `{"match":"preview","text":"production"}`, 200, "production deploys"},

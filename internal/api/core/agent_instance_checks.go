@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/gin-gonic/gin"
 )
@@ -46,17 +48,7 @@ func (h *BaseHandlers) CheckAgentInstance(c *gin.Context) {
 		h.instanceError(c, err)
 		return
 	}
-	response := contract.AgentInstanceCheckResponse{Gate: result.Gate, OccurrenceID: result.OccurrenceID}
-	if result.Digest != nil {
-		response.Digest = &contract.AgentInstanceCheckDigest{
-			ItemKeys:    []string{},
-			Fingerprint: result.Digest.Fingerprint,
-			Diagnostics: result.Digest.Diagnostics,
-		}
-		for _, item := range result.Digest.Items {
-			response.Digest.ItemKeys = append(response.Digest.ItemKeys, item.Key)
-		}
-	}
+	response := AgentInstanceCheckResponse(result)
 	status := http.StatusOK
 	if result.OccurrenceID != "" {
 		status = http.StatusAccepted
@@ -131,4 +123,32 @@ func (h *BaseHandlers) GetAgentInstanceOccurrence(c *gin.Context) {
 			ReportID: result.ReportID,
 		},
 	)
+}
+
+// AgentInstanceCheckResponse projects the public check result for every transport.
+func AgentInstanceCheckResponse(result heartbeat.CheckResult) contract.AgentInstanceCheckResponse {
+	response := contract.AgentInstanceCheckResponse{
+		Gate:         result.Gate,
+		OccurrenceID: result.OccurrenceID,
+		Digest:       []contract.AgentInstanceCheckDigest{},
+	}
+	if result.Digest != nil {
+		response.Digest = make([]contract.AgentInstanceCheckDigest, 0, len(result.Digest.Items))
+		for _, item := range result.Digest.Items {
+			response.Digest = append(
+				response.Digest,
+				contract.AgentInstanceCheckDigest{Key: item.Key, Summary: agentCheckDigestSummary(item.Key)},
+			)
+		}
+	}
+	return response
+}
+
+func agentCheckDigestSummary(key string) string {
+	family, rest, _ := strings.Cut(key, ":")
+	label := map[string]string{
+		"task": "Blocked task", "run": "Queued run", "health": "Session health",
+		queryFilterIdleValue: "Idle session", "auto": "Failed automation", "monitor": "Fired monitor",
+	}[family]
+	return diagnostics.RedactAndBound(label+" "+strings.ReplaceAll(rest, ":", " · "), 200)
 }

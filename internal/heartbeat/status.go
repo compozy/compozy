@@ -246,6 +246,7 @@ func resolveStatusTargetForPolicy(target AuthoringTarget) (resolvedAuthoringTarg
 		return resolvedAuthoringTarget{}, err
 	}
 	return resolvedAuthoringTarget{
+		profileID:     normalized.profileID,
 		workspaceID:   normalized.workspaceID,
 		workspaceRoot: normalized.workspaceRoot,
 		agentName:     normalized.agentName,

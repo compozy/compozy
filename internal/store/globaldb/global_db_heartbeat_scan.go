@@ -214,6 +214,7 @@ func scanHeartbeatWakeEvent(scanner rowScanner) (heartbeat.WakeEvent, error) {
 		&source,
 		&result,
 		&reason,
+		&event.Detail,
 		&syntheticPromptID,
 		&createdRaw,
 		&expiresRaw,

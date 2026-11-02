@@ -337,8 +337,10 @@ export function SessionRail({
       style={{ width: SESSION_SIDEBAR_DEFAULT_WIDTH }}
     >
       <SessionListToolbar
+        allCollapsed={false}
         groupBy={flatRows ? "none" : "project"}
         groupByOptions={["none", "project"]}
+        onAllCollapsedChange={() => undefined}
         onGroupByChange={() => undefined}
         onNewFolder={() => undefined}
         onNewSession={() => undefined}

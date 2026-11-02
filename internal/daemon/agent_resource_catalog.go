@@ -83,6 +83,7 @@ func (c *resourceAgentCatalog) agentEntriesForWorkspace(
 		return strings.Compare(agentRecordSortKey(left), agentRecordSortKey(right))
 	})
 	lens := agentCatalogLensFor(resolved)
+	userSources := lens.userAgentSources(records)
 	type rankedEntry struct {
 		entry core.AgentCatalogEntry
 		rank  int
@@ -108,13 +109,7 @@ func (c *resourceAgentCatalog) agentEntriesForWorkspace(
 		if workspaceScoped {
 			origin = contract.AgentOriginWorkspace
 		}
-		memoryOrigin := string(TurnOriginUser)
-		if workspaceScoped {
-			memoryOrigin = "workspace-" + workspaceID
-		}
-		if record.Owner.Kind.Normalize() == extensionResourceOwnerKind {
-			memoryOrigin = "extension-" + record.Owner.ID
-		}
+		memoryOrigin := lens.memoryOrigin(&record, userSources)
 		merged[name] = rankedEntry{entry: core.AgentCatalogEntry{
 			MemoryOrigin: memoryOrigin, Def: cloneAgentDef(record.Spec), Origin: origin, WorkspaceID: workspaceID,
 			PackageOwned: record.Owner.Kind.Normalize() == extensionResourceOwnerKind,

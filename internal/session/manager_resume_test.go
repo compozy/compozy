@@ -245,7 +245,7 @@ func TestResumeMonitorOwner(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
-			binding, err := h.manager.MonitorOwnerBinding(target.ID)
+			binding, err := h.manager.MonitorOwnerBinding(t.Context(), target.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -319,7 +319,7 @@ func TestResumeMonitorOwnerChecksLiveOwnerBinding(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
-		binding, err := h.manager.MonitorOwnerBinding(target.ID)
+		binding, err := h.manager.MonitorOwnerBinding(t.Context(), target.ID)
 		if err != nil {
 			t.Fatal(err)
 		}

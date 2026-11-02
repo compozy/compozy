@@ -111,6 +111,10 @@ linters:
       - linters: [gosec]
         path: "^magefiles/"
         text: "G(101|122|306|703):"
+      # The catalog publisher only touches paths its operator passes on the command line.
+      - linters: [gosec]
+        path: "^cmd/compozy-catalog/"
+        text: "G703:"
       - linters:
           - dupl
           - errcheck

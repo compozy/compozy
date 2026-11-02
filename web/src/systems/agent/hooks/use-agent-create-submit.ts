@@ -54,21 +54,25 @@ export function useAgentCreateSubmit({
   };
 
   /** Starts the first instance, unless Decide later or a shown block says it can't start. */
-  const startFirstInstance = async (agent: AgentPayload): Promise<AgentCreateOutcome> => {
+  const startFirstInstance = async (
+    agent: AgentPayload,
+    definitionWorkspace?: string
+  ): Promise<AgentCreateOutcome> => {
     const provider = providerOptions.find(option => option.id === draft.provider);
     const skipped =
       draft.kind !== "stays_on" ||
       draft.place === AGENT_PLACE_LATER ||
       instanceCapacity.reached ||
       provider?.needs_auth === true;
-    if (skipped) return { agent, landing: "agent" };
+    if (skipped) return { agent, landing: "agent", workspace: definitionWorkspace || "@user" };
     try {
       await createInstance({ agent: agent.name, workspace: draft.place });
-      return { agent, landing: "sessions" };
+      return { agent, landing: "sessions", workspace: draft.place };
     } catch (cause) {
       return {
         agent,
         landing: "agent",
+        workspace: definitionWorkspace || "@user",
         startError: errorMessage(cause, "This agent couldn't start."),
       };
     }
@@ -87,7 +91,8 @@ export function useAgentCreateSubmit({
     dialogStore.trigger.submissionRequested({
       execute: async () =>
         startFirstInstance(
-          await duplicateAgent({ sourceName: source.name, params, profile: destination })
+          await duplicateAgent({ sourceName: source.name, params, profile: destination }),
+          params.workspace
         ),
       failureMessage: "Failed to duplicate agent.",
     });
@@ -102,7 +107,8 @@ export function useAgentCreateSubmit({
     );
     if (!params) return reject("Fix the highlighted fields before creating an agent.");
     dialogStore.trigger.submissionRequested({
-      execute: async () => startFirstInstance(await createAgent({ params, profile: destination })),
+      execute: async () =>
+        startFirstInstance(await createAgent({ params, profile: destination }), params.workspace),
       failureMessage: "Failed to create agent.",
     });
   };

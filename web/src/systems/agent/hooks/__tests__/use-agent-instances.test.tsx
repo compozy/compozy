@@ -9,13 +9,16 @@ import { resetProfileViews, setProfileView } from "@/systems/profiles";
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 
 import { fetchAgentInstanceCheckIns } from "../../adapters/agent-instance-api";
+import { useTryCheck } from "../use-agent-instance-checks";
 import { agentKeys } from "../../lib/query-keys";
+import { agentPayloadFixture, teamItemFixture } from "../../mocks/team-fixtures";
 import { agentInstanceFixture } from "../../mocks/instance-fixtures";
 import {
   applyAgentInstanceUpdate,
   useAgentInstanceActions,
   useAgentInstanceCapacity,
   useAgentInstances,
+  useAgentDefinitionInstances,
 } from "../use-agent-instances";
 
 const server = setupServer(...profileHandlers);
@@ -93,6 +96,56 @@ describe("instance routes and the selected profile", () => {
     return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
   }
 
+  // Invariant: a late check response cannot replace a newer request or another instance.
+  // Owner and canonical suite: agent instance interaction hooks, HTTP I/O boundary.
+  it.each([false, true])(
+    "Should ignore a stale check when switching instances is %s",
+    async switched => {
+      const replies: ((response: Response) => void)[] = [];
+      server.use(
+        http.post(
+          "*/api/agent-instances/:id/check",
+          () => new Promise<Response>(resolve => replies.push(resolve))
+        )
+      );
+      const { result, rerender } = renderHook(
+        ({ id }) => useTryCheck({ id, profile_name: "work" }),
+        {
+          initialProps: { id: "first" },
+          wrapper,
+        }
+      );
+      let first!: Promise<void>;
+      act(() => {
+        first = result.current.tryIt();
+      });
+      await waitFor(() => expect(replies).toHaveLength(1));
+      if (switched) rerender({ id: "second" });
+      let second!: Promise<void>;
+      act(() => {
+        second = result.current.tryIt();
+      });
+      await waitFor(() => expect(replies).toHaveLength(2));
+      await act(async () => {
+        replies[0]!(
+          HttpResponse.json({ gate: "would_run", digest: [{ key: "old", summary: "Old" }] })
+        );
+        await first;
+      });
+      expect(result.current.state.phase).toBe("running");
+      await act(async () => {
+        replies[1]!(
+          HttpResponse.json({ gate: "would_run", digest: [{ key: "new", summary: "New" }] })
+        );
+        await second;
+      });
+      expect(result.current.state).toEqual({
+        phase: "result",
+        digest: [{ key: "new", summary: "New" }],
+      });
+    }
+  );
+
   /** Serves each profile only its own rows, the way the daemon's id and list routes do. */
   function serveProfiles(rows: Record<string, ReturnType<typeof agentInstanceFixture>[]>) {
     const seen: string[] = [];
@@ -136,6 +189,36 @@ describe("instance routes and the selected profile", () => {
     await waitFor(() => expect(seen).toContain("POST create?profile=work"));
     expect(seen).toContain("GET /api/agent-instances?profile=work");
     expect(seen.some(entry => entry.endsWith("profile=default"))).toBe(false);
+  });
+
+  // Invariant: a definition sees only its destination profile and resolved project scopes.
+  // Owner: instance association hook; canonical agent instance route suite.
+  it("Should isolate same-named definitions across projects and profiles", async () => {
+    setProfileView({ kind: "aggregate" });
+    serveProfiles({
+      default: [
+        agentInstanceFixture({ id: "mine", workspace_id: "ws-compozy" }),
+        agentInstanceFixture({ id: "shadow", workspace_id: "ws-advos" }),
+      ],
+      marketing: [agentInstanceFixture({ id: "foreign", workspace_id: "ws-compozy" })],
+    });
+    const agent = agentPayloadFixture({ definition_digest: "mine" });
+    server.use(
+      http.get("*/api/agents/catalog", () =>
+        HttpResponse.json({
+          items: [
+            teamItemFixture(agent, { scopes: ["ws-compozy"], definition_digest: "mine" }),
+            teamItemFixture(
+              { definition_digest: "shadow" },
+              { scopes: ["ws-advos"], definition_digest: "shadow" }
+            ),
+          ],
+          page: { has_more: false, next_cursor: "" },
+        })
+      )
+    );
+    const { result } = renderHook(() => useAgentDefinitionInstances(agent), { wrapper });
+    await waitFor(() => expect(result.current.map(instance => instance.id)).toEqual(["mine"]));
   });
 
   it("Should report the destination profile's slots from the list envelope", async () => {

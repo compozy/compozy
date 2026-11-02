@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"reflect"
 	"strings"
@@ -2111,8 +2112,11 @@ func TestHeartbeatWakeCancellation(t *testing.T) {
 			if reason == "" {
 				reason = " maintenance_window "
 			}
+			// Invariant: durable debug audit redacts cancellation reasons; owner: hook telemetry.
+			writer := &captureHookRunWriter{}
 			hooks := newTestHooks(
 				t,
+				WithDebugPatchAudit(true),
 				WithNativeDeclarations(
 					[]HookDecl{
 						{
@@ -2139,9 +2143,18 @@ func TestHeartbeatWakeCancellation(t *testing.T) {
 				t.Fatal(err)
 			}
 			_, err := hooks.DispatchAgentHeartbeatWakeBefore(
-				t.Context(),
+				WithHookRunWriter(t.Context(), writer),
 				AgentHeartbeatWakeBeforePayload{Source: tc.source, DryRun: tc.dryRun},
 			)
+			record := writer.singleRecord(t)
+			var patch AgentHeartbeatWakePatch
+			if decodeErr := json.Unmarshal(record.PatchApplied, &patch); decodeErr != nil {
+				t.Fatal(decodeErr)
+			}
+			if !patch.Cancel || len(patch.Reason) > 300 || !utf8.ValidString(patch.Reason) ||
+				strings.Contains(patch.Reason, "compozy_claim_hook_secret") {
+				t.Fatalf("persisted patch=%+v", patch)
+			}
 			if errors.Is(err, ErrHeartbeatWakeCancelled) != tc.denied {
 				t.Fatalf("denied=%v error=%v", tc.denied, err)
 			}

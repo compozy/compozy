@@ -4,6 +4,13 @@ package client
 
 import "time"
 
+// SettingsMCPAuthBeginRequest is a daemon API value.
+type SettingsMCPAuthBeginRequest struct {
+	Mode                   SettingsMCPAuthBeginMode `json:"mode"`
+	ApprovedScopes         []string                 `json:"approved_scopes,omitempty"`
+	ApproveScopeEscalation bool                     `json:"approve_scope_escalation,omitzero"`
+}
+
 // SettingsMCPAuthBeginResponse is a daemon API value.
 type SettingsMCPAuthBeginResponse struct {
 	AuthorizationURL string    `json:"authorization_url"`
@@ -434,15 +441,3 @@ type SettingsRolesConfigPayload struct {
 	Coordinator SettingsCoordinatorRoleConfigPayload `json:"coordinator"`
 	AutoTitle   SettingsRoleConfigPayload            `json:"auto_title"`
 }
-
-// SettingsRolesResponse is a daemon API value.
-type SettingsRolesResponse struct {
-	Section         SettingsSectionName          `json:"section"`
-	Scope           SettingsWorkspaceScopeKind   `json:"scope"`
-	WorkspaceID     string                       `json:"workspace_id,omitempty"`
-	AvailableScopes []SettingsWorkspaceScopeKind `json:"available_scopes"`
-	Config          SettingsRolesConfigPayload   `json:"config"`
-}
-
-// SettingsScopeKind is a daemon API value.
-type SettingsScopeKind string

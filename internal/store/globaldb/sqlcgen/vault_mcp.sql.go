@@ -284,6 +284,62 @@ func (q *Queries) GetVaultSecret(ctx context.Context, ref string) (VaultSecret, 
 	return i, err
 }
 
+const listExtensionVaultMetadata = `-- name: ListExtensionVaultMetadata :many
+SELECT ref, kind, encrypted_value <> '' AS present, created_at, updated_at
+FROM vault_secrets
+WHERE (ref >= ?1 AND ref < ?2)
+ OR (ref >= 'vault:extensions/ws/' AND ref < 'vault:extensions/ws0'
+ AND substr(
+  substr(ref, length('vault:extensions/ws/') + 1),
+  instr(substr(ref, length('vault:extensions/ws/') + 1), '/') + 1,
+  length(?3) + 1
+ ) = ?3 || '/')
+ORDER BY ref
+`
+
+type ListExtensionVaultMetadataParams struct {
+	GlobalPrefix string `json:"global_prefix"`
+	GlobalEnd    string `json:"global_end"`
+	OwnerSegment any    `json:"owner_segment"`
+}
+
+type ListExtensionVaultMetadataRow struct {
+	Ref       string `json:"ref"`
+	Kind      string `json:"kind"`
+	Present   bool   `json:"present"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+func (q *Queries) ListExtensionVaultMetadata(ctx context.Context, arg ListExtensionVaultMetadataParams) ([]ListExtensionVaultMetadataRow, error) {
+	rows, err := q.db.QueryContext(ctx, listExtensionVaultMetadata, arg.GlobalPrefix, arg.GlobalEnd, arg.OwnerSegment)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListExtensionVaultMetadataRow{}
+	for rows.Next() {
+		var i ListExtensionVaultMetadataRow
+		if err := rows.Scan(
+			&i.Ref,
+			&i.Kind,
+			&i.Present,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMCPAuthTokenRefsByWorkspace = `-- name: ListMCPAuthTokenRefsByWorkspace :many
 SELECT access_token_ref, refresh_token_ref
 FROM mcp_auth_tokens

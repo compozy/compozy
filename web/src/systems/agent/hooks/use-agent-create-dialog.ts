@@ -112,13 +112,19 @@ function useAgentCreateNavigation(
 
   useEffect(() => {
     if (!navigationTarget) return;
-    const { agentName, attempt, landing } = navigationTarget;
+    const { agentName, attempt, landing, workspace } = navigationTarget;
     dialogStore.trigger.navigationRequested({
       attempt,
       draft: createDefaultAgentCreateDraft(Boolean(activeWorkspace), activeWorkspace?.id),
       execute: async () => {
-        if (landing === "sessions") await navigate({ to: "/sessions" });
-        else await navigate({ to: "/agents/$name", params: { name: agentName } });
+        if (landing === "sessions")
+          await navigate({ to: "/sessions", search: workspace ? { workspace } : undefined });
+        else
+          await navigate({
+            to: "/agents/$name",
+            params: { name: agentName },
+            search: workspace ? { workspace } : undefined,
+          });
       },
     });
   }, [activeWorkspace, dialogStore, navigate, navigationTarget]);

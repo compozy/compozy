@@ -7,10 +7,12 @@ import {
 
 import {
   archiveSession,
+  archiveSessionTree,
   clearSessionConversation,
   createSession,
   type CreateSessionParams,
   deleteSession,
+  deleteSessionTree,
   repairSession,
   renameSession,
   stopSession,
@@ -183,6 +185,8 @@ export interface DeleteSessionParams extends Pick<
 > {
   /** Stop or keep the processes the session left running; omitted keeps them. */
   processes?: SessionProcessPolicy;
+  /** The children known when asked; present opts into deleting the daemon's current tree. */
+  descendants?: readonly SessionPayload[];
 }
 
 /** Deletes the captured owner-scoped target and reconciles detail, catalog, and attention caches. */
@@ -194,8 +198,17 @@ export function useDeleteSession(
   // Capture ownership with the target, not the active profile/workspace at confirmation time.
   return useMutation({
     mutationKey: sessionKeys.deletions(),
-    mutationFn: ({ processes, ...session }: DeleteSessionParams) => {
+    mutationFn: ({ processes, descendants, ...session }: DeleteSessionParams) => {
       const workspaceId = sessionOwnerWorkspace(session.workspace_id);
+      if (descendants) {
+        return deleteSessionTree(
+          workspaceId,
+          session.id,
+          session.profile_name,
+          undefined,
+          processes
+        );
+      }
       // Omitted keeps the processes, the daemon default, so only an answer is sent.
       return processes
         ? deleteSession(workspaceId, session.id, session.profile_name, undefined, processes)
@@ -210,21 +223,30 @@ export function useDeleteSession(
       ]);
     },
     onSuccess: async (_data, session) => {
-      const { id, workspace_id } = session;
-      const successWorkspaceId = sessionOwnerWorkspace(workspace_id);
-      await options.onDeleteSuccess?.(session);
-      discardComposerDraftAttachments(id);
-      sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
-      queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, id) });
-      queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(id) });
+      const successWorkspaceId = sessionOwnerWorkspace(session.workspace_id);
+      const targets = [session, ...(session.descendants ?? [])];
+      await Promise.all(targets.map(target => options.onDeleteSuccess?.(target)));
+      for (const { id } of targets) {
+        discardComposerDraftAttachments(id);
+        sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
+        queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, id) });
+        queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(id) });
+      }
       void invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
       void queryClient.invalidateQueries({ queryKey: sessionKeys.workspaceLists("") });
       void queryClient.invalidateQueries({ queryKey: sessionKeys.attentionSummary() });
     },
-    onSettled: (_data, error, { id, workspace_id }) => {
+    onSettled: (_data, error, { id, workspace_id, descendants }) => {
       sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });
       if (error) {
-        void invalidateSessionMutationQueries(queryClient, sessionOwnerWorkspace(workspace_id), id);
+        // A failed tree delete can still have removed some of it.
+        for (const target of [{ id }, ...(descendants ?? [])]) {
+          void invalidateSessionMutationQueries(
+            queryClient,
+            sessionOwnerWorkspace(workspace_id),
+            target.id
+          );
+        }
       }
     },
   });
@@ -235,6 +257,8 @@ export interface ArchiveSessionParams extends SessionActionTarget {
   stop?: boolean;
   /** Stop or keep the processes the session left running; omitted keeps them. */
   processes?: SessionProcessPolicy;
+  /** The children known when asked; present opts into archiving the daemon's current tree. */
+  descendants?: readonly SessionPayload[];
 }
 
 /** Archives the supplied row without depending on the currently selected workspace. */
@@ -243,27 +267,32 @@ export function useArchiveSession() {
   const request = useAbortableMutationRequest();
 
   return useMutation({
-    mutationFn: ({ id, workspace_id, profile_name, stop, processes }: ArchiveSessionParams) =>
-      request(signal =>
-        processes
-          ? archiveSession(
-              sessionOwnerWorkspace(workspace_id),
-              id,
-              profile_name,
-              signal,
-              stop ?? false,
-              processes
-            )
-          : archiveSession(
-              sessionOwnerWorkspace(workspace_id),
-              id,
-              profile_name,
-              signal,
-              stop ?? false
-            )
-      ),
-    onSettled: (_data, _error, { id, workspace_id }) => {
-      void invalidateSessionMutationQueries(queryClient, sessionOwnerWorkspace(workspace_id), id);
+    mutationFn: ({
+      id,
+      workspace_id,
+      profile_name,
+      stop,
+      processes,
+      descendants,
+    }: ArchiveSessionParams) =>
+      request(signal => {
+        const workspace = sessionOwnerWorkspace(workspace_id);
+        if (descendants) {
+          return archiveSessionTree(workspace, id, profile_name, signal, stop ?? false, processes);
+        }
+        const archived = processes
+          ? archiveSession(workspace, id, profile_name, signal, stop ?? false, processes)
+          : archiveSession(workspace, id, profile_name, signal, stop ?? false);
+        return archived;
+      }),
+    onSettled: (_data, _error, { id, workspace_id, descendants }) => {
+      for (const target of [{ id }, ...(descendants ?? [])]) {
+        void invalidateSessionMutationQueries(
+          queryClient,
+          sessionOwnerWorkspace(workspace_id),
+          target.id
+        );
+      }
     },
   });
 }

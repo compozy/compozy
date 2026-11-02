@@ -48,7 +48,7 @@ describe("Topbar", () => {
   });
 
   it("Should let the surface name its own host context", () => {
-    const { container } = render(
+    const { container, rerender } = render(
       <TopbarSlotProvider>
         <Topbar leading={<span>window host</span>} title="Session" />
         <ProbeSlot label="slot" slot={{ leading: <span>compozy</span> }} />
@@ -57,6 +57,15 @@ describe("Topbar", () => {
     const leading = container.querySelector("[data-slot='topbar-leading']");
     expect(leading).toHaveTextContent("compozy");
     expect(leading).not.toHaveTextContent("window host");
+    // Invariant: a leading-only change republishes the slot; owner: shared topbar.
+    rerender(
+      <TopbarSlotProvider>
+        <Topbar leading={<span>window host</span>} title="Session" />
+        <ProbeSlot label="slot" slot={{ leading: <span>checkout-api</span> }} />
+      </TopbarSlotProvider>
+    );
+    expect(leading).toHaveTextContent("checkout-api");
+    expect(leading).not.toHaveTextContent("compozy");
   });
 
   it("Should render host context before the identity only when supplied", () => {

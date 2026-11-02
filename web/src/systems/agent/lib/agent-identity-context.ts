@@ -3,6 +3,7 @@ import { createContext } from "react";
 import type { AgentIdentitySource } from "./agent-identity";
 
 export interface AgentIdentityScope {
+  enabled?: boolean;
   /** The agent's workspace; `null` reads the user layer, absent reads the selected project. */
   workspace?: string | null;
   /** The owning profile when the surface knows it, e.g. a session row's. */
@@ -20,3 +21,6 @@ const noAgentCatalog: AgentIdentityCatalogHook = () => undefined;
  * and slug-derived faces, and `AgentIdentityProvider` at the app root gives them the cached catalog.
  */
 export const AgentIdentityCatalogContext = createContext<AgentIdentityCatalogHook>(noAgentCatalog);
+
+/** A surface may supply its recorded owner to every nested identity read. */
+export const AgentIdentityScopeContext = createContext<AgentIdentityScope>({});

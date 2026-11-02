@@ -89,7 +89,10 @@ function ActivityRow({ event, quiet }: { event: HomeActivityEvent; quiet?: boole
       >
         {event.agent_name ? (
           <span className="font-medium">
-            <AgentIdentityLabel name={event.agent_name} />
+            <AgentIdentityLabel
+              agentScope={{ workspace: event.workspace_id || null, profile: event.profile_name }}
+              name={event.agent_name}
+            />
           </span>
         ) : null}
         {event.agent_name ? " · " : ""}

@@ -83,6 +83,12 @@ func InstallBundledExtension(
 		if err := registry.ReconcileBundledProvenance(manifest); err != nil {
 			return fmt.Errorf("%s: reconcile bundled provenance: %w", name, err)
 		}
+		if err := registry.ReconcileSupersededBundled(registryContext(), name); err != nil {
+			if !errors.Is(err, errBundledMigrationRetained) {
+				return err
+			}
+			slog.Warn("bundled extension migration retained state", "extension", name, "error", err)
+		}
 		return nil
 	default:
 		return replaceBundledExtension(homePaths, registry, name, manifest, stagingDir, existing)

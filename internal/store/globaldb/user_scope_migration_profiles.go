@@ -129,6 +129,7 @@ func userScopeLayoutProfiles(ctx context.Context, homeDir, workspaceID string) (
 }
 
 func legacyJournalProfiles(ctx context.Context, path string) (profiles []string, resultErr error) {
+	// #nosec G703 -- the caller derives this legacy journal from the local home and persisted workspace identities.
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		return nil, nil
 	} else if err != nil {

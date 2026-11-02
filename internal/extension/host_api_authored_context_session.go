@@ -3,6 +3,7 @@ package extensionpkg
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
 	"fmt"
 
@@ -102,7 +103,34 @@ func (h *HostAPIHandler) resolveHostAPIAuthoredAgentTarget(
 	if h.workspaces == nil {
 		return hostAPIAuthoredAgentTarget{}, workspacepkg.ErrWorkspaceResolverUnavailable
 	}
-	resolved, err := h.workspaces.Resolve(ctx, ref)
+	var resolved workspacepkg.ResolvedWorkspace
+	var err error
+	profileID := hostAPIProfileID(ctx)
+	if profileID == hostAPIDefaultProfileID {
+		resolved, err = h.workspaces.Resolve(ctx, ref)
+	} else {
+		resolver, ok := h.workspaces.(workspacepkg.ProfileRuntimeResolver)
+		if !ok || h.profiles == nil {
+			return hostAPIAuthoredAgentTarget{}, errors.New(
+				"extension: profile-aware authored context resolution unavailable",
+			)
+		}
+		profiles, listErr := h.profiles.List(ctx)
+		if listErr != nil {
+			return hostAPIAuthoredAgentTarget{}, listErr
+		}
+		name := ""
+		for _, profile := range profiles {
+			if profile.ID == profileID {
+				name = profile.Name
+				break
+			}
+		}
+		if name == "" {
+			return hostAPIAuthoredAgentTarget{}, errors.New("extension: authored context profile not found")
+		}
+		resolved, err = resolver.ResolveForProfile(ctx, ref, name)
+	}
 	if err != nil {
 		return hostAPIAuthoredAgentTarget{}, err
 	}

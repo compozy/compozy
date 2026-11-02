@@ -91,6 +91,25 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 		delete(a, cliSeedKey)
 		delete(a, loopGenerationKey)
 	}
+	switch a[agentAppearanceAvatarKey] {
+	case "generated":
+		delete(a, agentAppearanceIconKey)
+		delete(a, agentAppearanceEmojiKey)
+		if a[cliSeedKey] == nil || a[cliSeedKey] == "" {
+			a[cliSeedKey] = p.Name
+		}
+		if a[loopGenerationKey] == nil {
+			a[loopGenerationKey] = 1
+		}
+	case agentAppearanceIconKey:
+		delete(a, agentAppearanceEmojiKey)
+		delete(a, cliSeedKey)
+		delete(a, loopGenerationKey)
+	case agentAppearanceEmojiKey:
+		delete(a, agentAppearanceIconKey)
+		delete(a, cliSeedKey)
+		delete(a, loopGenerationKey)
+	}
 	p.Appearance = a
 }
 

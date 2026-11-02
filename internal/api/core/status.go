@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-
 	"strings"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/doctor"
-
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/gin-gonic/gin"
@@ -59,6 +57,15 @@ func (h *BaseHandlers) statusPayload(
 	ctx context.Context,
 	workspaceID string,
 ) (contract.StatusPayload, error) {
+	return h.statusPayloadWithAggregate(ctx, workspaceID, h.sessionAggregate)
+}
+
+// Doctor can share its session snapshot without sharing probe error handling.
+func (h *BaseHandlers) statusPayloadWithAggregate(
+	ctx context.Context,
+	workspaceID string,
+	aggregate func(context.Context) (contract.SessionAggregatePayload, error),
+) (contract.StatusPayload, error) {
 	if err := h.validateStatusDependencies(ctx); err != nil {
 		return contract.StatusPayload{}, err
 	}
@@ -67,7 +74,7 @@ func (h *BaseHandlers) statusPayload(
 	if err != nil {
 		return contract.StatusPayload{}, fmt.Errorf("api: collect observer health: %w", err)
 	}
-	sessionSummary, err := h.sessionAggregate(ctx)
+	sessionSummary, err := aggregate(ctx)
 	if err != nil {
 		return contract.StatusPayload{}, err
 	}
@@ -151,6 +158,11 @@ func (h *BaseHandlers) sessionAggregate(ctx context.Context) (contract.SessionAg
 	if err != nil {
 		return contract.SessionAggregatePayload{}, fmt.Errorf("api: list sessions for status: %w", err)
 	}
+	return aggregateSessionInfos(infos), nil
+}
+
+// Both status and doctor aggregate the same immutable session snapshot.
+func aggregateSessionInfos(infos []*session.Info) contract.SessionAggregatePayload {
 	byStatus := make(map[string]int)
 	byBadge := make(map[string]int)
 	active := 0
@@ -177,7 +189,7 @@ func (h *BaseHandlers) sessionAggregate(ctx context.Context) (contract.SessionAg
 		Total:    len(infos),
 		ByStatus: byStatus,
 		ByBadge:  byBadge,
-	}, nil
+	}
 }
 
 func (h *BaseHandlers) providerStatusPayloads(ctx context.Context) ([]contract.ProviderStatusPayload, error) {

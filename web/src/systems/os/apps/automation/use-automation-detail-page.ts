@@ -67,7 +67,11 @@ export function useAutomationDetailPage(
   const runsQuery = useAutomationDetailRuns(kind, id, liveDataEnabled && Boolean(entity));
 
   const settingsQuery = useSettingsAutomation();
-  const identityOf = useAgentIdentityResolverView();
+  const identityOf = useAgentIdentityResolverView({
+    workspace: entity?.workspace_id || null,
+    profile: entity?.profile_name,
+    enabled: Boolean(entity),
+  });
   const timeZone = settingsQuery.data?.config?.timezone?.trim() || undefined;
   const runtimeUnavailable = automationUnavailableMessage(
     settingsQuery.data?.runtime ?? null,

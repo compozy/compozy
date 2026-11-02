@@ -272,9 +272,8 @@ type AgentInstanceAwayResponse struct {
 
 // AgentInstanceCheckDigest is a daemon API value.
 type AgentInstanceCheckDigest struct {
-	ItemKeys    []string `json:"item_keys"`
-	Fingerprint string   `json:"fingerprint"`
-	Diagnostics []string `json:"diagnostics,omitempty"`
+	Key     string `json:"key"`
+	Summary string `json:"summary"`
 }
 
 // AgentInstanceCheckInPayload is a daemon API value.
@@ -282,6 +281,7 @@ type AgentInstanceCheckInPayload struct {
 	ID        string    `json:"id"`
 	Result    string    `json:"result"`
 	Reason    string    `json:"reason"`
+	Detail    string    `json:"detail,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -298,9 +298,9 @@ type AgentInstanceCheckRequest struct {
 
 // AgentInstanceCheckResponse is a daemon API value.
 type AgentInstanceCheckResponse struct {
-	Gate         string                    `json:"gate,omitempty"`
-	OccurrenceID string                    `json:"occurrence_id,omitempty"`
-	Digest       *AgentInstanceCheckDigest `json:"digest,omitempty"`
+	Gate         string                     `json:"gate,omitempty"`
+	OccurrenceID string                     `json:"occurrence_id,omitempty"`
+	Digest       []AgentInstanceCheckDigest `json:"digest"`
 }
 
 // AgentInstanceCreateRequest is a daemon API value.

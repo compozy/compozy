@@ -307,3 +307,23 @@ hooks.
 - [Providers](/docs/agents/providers) lists the built-in provider commands.
 - [Session Lifecycle](/docs/sessions/lifecycle) explains how the spawned process is wrapped by a durable CompozyOS session.
 - [Safe Spawn](/docs/autonomy/safe-spawn) covers agent-initiated child sessions.
+
+### Cold npm adapter installs
+
+For `npx` package commands, CompozyOS prepares the package before starting the
+Agent Client Protocol (ACP) handshake. Preparation has a separate five-minute
+budget, including waiting behind another preparation. ACP initialize keeps its
+30-second deadline. The configured command, package version selector, working
+directory, and environment are preserved; `@latest` continues to track releases.
+
+Local binaries and `--no-install` commands retain npm's existing lookup behavior.
+Preparation uses npm's `--package` and `--call` options. Standard positional,
+`--package`/`-p`, and package-plus-`--call` forms are supported. Use `--option=value`
+for additional npm options; unfamiliar separate-value options pass through without
+preparation so existing commands retain their behavior.
+
+An interrupted install can leave an npm lock. Retry the session: npm can recover
+its abandoned lock within the preparation budget. Do not delete your npm cache.
+If initialization still times out, the session failure and `compozy doctor`
+include recovery guidance. Run the configured adapter command locally to diagnose
+registry or filesystem failures, then retry; no CompozyOS restart is needed.

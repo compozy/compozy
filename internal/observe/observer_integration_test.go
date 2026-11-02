@@ -115,7 +115,20 @@ func TestObserverIntegrationUnattendedPermissions(t *testing.T) {
 		sess.InitiatorKind, sess.InitiatorID = "daemon", "heartbeat"
 		h.observeSessionCreated(t, sess)
 		for _, actor := range []string{"timeout", "human"} {
-			h.observer.OnAgentEvent(t.Context(), sess.ID, acp.AgentEvent{Type: "permission", TurnID: "turn-" + actor, Timestamp: h.now, Action: "session/request_permission", Resource: h.workspace, Decision: "reject-once"}.WithResolvedBy(actor))
+			h.observer.OnAgentEvent(
+				t.Context(),
+				sess.ID,
+				acp.AgentEvent{
+					Type:      "permission",
+					TurnID:    "turn-" + actor,
+					Timestamp: h.now,
+					Action:    "session/request_permission",
+					Resource:  h.workspace,
+					Decision:  "reject-once",
+				}.WithResolvedBy(
+					actor,
+				),
+			)
 		}
 		rows, err := h.observer.QueryPermissionLog(t.Context(), store.PermissionLogQuery{SessionID: sess.ID})
 		if err != nil {
@@ -128,7 +141,15 @@ func TestObserverIntegrationUnattendedPermissions(t *testing.T) {
 		if len(rows) != 2 || counts["expired"] != 1 || counts["reject-once"] != 1 {
 			t.Fatalf("permissions=%+v", rows)
 		}
-		rollups, err := h.observer.QueryPermissionDailyRollups(t.Context(), store.PermissionRollupQuery{ReadScope: store.ReadScope{AllProfiles: true}, Unattended: true, Since: h.now.Add(-time.Hour), Until: h.now.Add(time.Hour)})
+		rollups, err := h.observer.QueryPermissionDailyRollups(
+			t.Context(),
+			store.PermissionRollupQuery{
+				ReadScope:  store.ReadScope{AllProfiles: true},
+				Unattended: true,
+				Since:      h.now.Add(-time.Hour),
+				Until:      h.now.Add(time.Hour),
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -149,7 +170,12 @@ func TestObserverIntegrationUnattendedPermissions(t *testing.T) {
 			sess.InitiatorKind, sess.InitiatorID = kind, "origin-"+kind
 			h.observeSessionCreated(t, sess)
 			h.observer.OnAgentEvent(t.Context(), sess.ID, acp.AgentEvent{
-				Type: "permission", TurnID: "turn-origin", Timestamp: h.now, Action: "session/request_permission", Resource: h.workspace, Decision: "allow",
+				Type:      "permission",
+				TurnID:    "turn-origin",
+				Timestamp: h.now,
+				Action:    "session/request_permission",
+				Resource:  h.workspace,
+				Decision:  "allow",
 			})
 		}
 		rows, err := h.observer.QueryPermissionLog(t.Context(), store.PermissionLogQuery{Unattended: true, Limit: 3})

@@ -57,6 +57,8 @@ export const sessionKeys = {
   byIdRoot: (id: string) => [...sessionKeys.all, "by-id", id.trim()] as const,
   byId: (id: string, profileKey: string) =>
     [...sessionKeys.byIdRoot(id), profileKey.trim()] as const,
+  descendants: (id: string, profile: string) =>
+    [...sessionKeys.byIdRoot(id), "descendants", profile.trim()] as const,
   detail: (workspace: string, id: string) =>
     [...sessionKeys.workspace(workspace), "detail", id] as const,
   events: (workspace: string, id: string) =>

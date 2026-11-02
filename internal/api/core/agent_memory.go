@@ -39,6 +39,9 @@ func (h *BaseHandlers) agentMemoryTarget(c *gin.Context) (agentmemory.Key, strin
 	if err != nil {
 		return agentmemory.Key{}, "", err
 	}
+	if ref == userScopeWorkspaceRef {
+		ref = ""
+	}
 	var entries workspaceAgentEntries
 	if ref == "" {
 		entries, err = h.globalAgentEntries(c.Request.Context(), scope.ProfileID, profileName)

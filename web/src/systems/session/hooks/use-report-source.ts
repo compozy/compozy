@@ -16,7 +16,12 @@ export function useReportSource(
     sessionScopedDetailOptions(sessionId ?? "", params, { enabled: Boolean(sessionId) })
   );
   const name = session?.agent_name ?? "";
-  const instance = instances.find(candidate => candidate.agent_name === name);
+  const instance = instances.find(
+    candidate =>
+      candidate.agent_name === name &&
+      candidate.profile_id === session?.profile_id &&
+      candidate.workspace_id === session?.workspace_id
+  );
   return {
     agent: reportAgent(instance, name || "An agent"),
     session: session?.name?.trim() || "another session",

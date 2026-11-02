@@ -1052,54 +1052,130 @@ func TestManagerWorkspaceScopedResourceSessionBindsOwningWorkspace(t *testing.T)
 func TestManagerStartContinuesAfterParseFailure(t *testing.T) {
 	t.Parallel()
 
-	withDaemonVersion(t, "0.5.0")
-	env := newRegistryTestEnv(t)
+	t.Run("Should preserve failures while reloading a healthy extension", func(t *testing.T) {
+		t.Parallel()
 
-	badFixture := createManagerTestExtension(t, managerTestManifest("ext-bad", managerManifestOptions{
-		command:      "fake-extension",
-		capabilities: []string{"tool.provider"},
-		permissions:  []string{"sessions/list"},
-	}), nil)
-	installManagerFixture(t, env.registry, badFixture, SourceUser, true)
-	writeFile(t, filepath.Join(badFixture.dir, manifestTOMLFileName), "not = [valid")
+		withDaemonVersion(t, "0.5.0")
+		env := newRegistryTestEnv(t)
 
-	goodFixture := createManagerTestExtension(t, managerTestManifest("ext-good", managerManifestOptions{
-		command:      "fake-extension",
-		capabilities: []string{"tool.provider"},
-		permissions:  []string{"sessions/list"},
-		withHooks:    true,
-	}), nil)
-	installManagerFixture(t, env.registry, goodFixture, SourceUser, true)
+		badFixture := createManagerTestExtension(t, managerTestManifest("ext-bad", managerManifestOptions{
+			command:      "fake-extension",
+			capabilities: []string{"tool.provider"},
+			permissions:  []string{"sessions/list"},
+		}), nil)
+		installManagerFixture(t, env.registry, badFixture, SourceUser, true)
+		writeFile(t, filepath.Join(badFixture.dir, manifestTOMLFileName), "not = [valid")
 
-	launcher := &fakeLauncher{queue: []*fakeProcess{newFakeProcess(202)}}
-	manager := NewManager(
-		env.registry,
-		withProcessLauncher(launcher.launch),
-		withHealthPollBounds(time.Millisecond, 2*time.Millisecond),
-	)
+		goodFixture := createManagerTestExtension(t, managerTestManifest("ext-good", managerManifestOptions{
+			command:      "fake-extension",
+			capabilities: []string{"tool.provider"},
+			permissions:  []string{"sessions/list"},
+			withHooks:    true,
+		}), nil)
+		installManagerFixture(t, env.registry, goodFixture, SourceUser, true)
 
-	err := manager.Start(testutil.Context(t))
-	if err == nil {
-		t.Fatal("Start() error = nil, want joined parse failure")
-	}
-	if !strings.Contains(err.Error(), `extension "ext-bad" parse`) {
-		t.Fatalf("Start() error = %v, want parse phase detail for ext-bad", err)
-	}
-	t.Cleanup(func() {
-		if stopErr := manager.Stop(testutil.Context(t)); stopErr != nil {
-			t.Fatalf("Stop() cleanup error = %v", stopErr)
+		launcher := &fakeLauncher{queue: []*fakeProcess{newFakeProcess(202)}}
+		manager := NewManager(
+			env.registry,
+			withProcessLauncher(launcher.launch),
+			withHealthPollBounds(time.Millisecond, 2*time.Millisecond),
+		)
+
+		err := manager.Start(testutil.Context(t))
+		if err == nil {
+			t.Fatal("Start() error = nil, want joined parse failure")
+		}
+		if !strings.Contains(err.Error(), `extension "ext-bad" parse`) {
+			t.Fatalf("Start() error = %v, want parse phase detail for ext-bad", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := manager.Stop(testutil.Context(t)); stopErr != nil {
+				t.Fatalf("Stop() cleanup error = %v", stopErr)
+			}
+		})
+
+		if got := launcher.launchCount(); got != 1 {
+			t.Fatalf("launch count = %d, want 1 for ext-good only", got)
+		}
+		launcher.queue = append(launcher.queue, newFakeProcess(303))
+		if err := manager.ReloadForExtensions(t.Context(), []string{"ext-good"}); err != nil {
+			t.Fatalf("unrelated parse failure blocked reload: %v", err)
+		}
+		if got := launcher.launchCount(); got != 2 {
+			t.Fatalf("selected reload launches = %d, want 2", got)
+		}
+
+		bad, err := manager.Get("ext-bad")
+		if err != nil || bad.Status.LastError == "" {
+			t.Fatalf("unrelated failure must remain visible: %#v, %v", bad, err)
+		}
+		good, err := manager.Get("ext-good")
+		if err != nil {
+			t.Fatalf("Get(ext-good) error = %v", err)
+		}
+		if good.Status.PID != 303 {
+			t.Fatalf("selected reload PID = %d, want 303", good.Status.PID)
+		}
+		if !good.Status.Active {
+			t.Fatalf("Get(ext-good).Status.Active = false, want true")
 		}
 	})
+}
 
-	if got := launcher.launchCount(); got != 1 {
-		t.Fatalf("launch count = %d, want 1 for ext-good only", got)
-	}
-	good, err := manager.Get("ext-good")
-	if err != nil {
-		t.Fatalf("Get(ext-good) error = %v", err)
-	}
-	if !good.Status.Active {
-		t.Fatalf("Get(ext-good).Status.Active = false, want true")
+func TestManagerSelectedReloadStopFailures(t *testing.T) {
+	t.Parallel()
+	for _, selectedFailure := range []bool{false, true} {
+		name := "Should keep an unrelated shutdown failure from aborting the selected reload"
+		if selectedFailure {
+			name = "Should return the selected extension shutdown failure"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			withDaemonVersion(t, "0.5.0")
+			env := newRegistryTestEnv(t)
+			for _, name := range []string{"a-bad-stop", "z-good-stop"} {
+				fixture := createManagerTestExtension(
+					t,
+					managerTestManifest(
+						name,
+						managerManifestOptions{command: "fake-extension", capabilities: []string{"tool.provider"}},
+					),
+					nil,
+				)
+				installManagerFixture(t, env.registry, fixture, SourceUser, true)
+			}
+			stopErr := errors.New("selected shutdown boundary failure")
+			bad := newFakeProcess(101)
+			bad.shutdownFn = func(context.Context) error { bad.close(nil); return stopErr }
+			launcher := &fakeLauncher{
+				queue: []*fakeProcess{bad, newFakeProcess(202), newFakeProcess(303), newFakeProcess(404)},
+			}
+			manager := NewManager(env.registry, withProcessLauncher(launcher.launch))
+			if err := manager.Start(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := manager.Stop(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			target := "z-good-stop"
+			if selectedFailure {
+				target = "a-bad-stop"
+			}
+			err := manager.ReloadForExtensions(t.Context(), []string{target})
+			if selectedFailure {
+				if !errors.Is(err, stopErr) {
+					t.Fatalf("selected stop failure = %v", err)
+				}
+			} else if err != nil {
+				t.Fatalf("unrelated stop rejected reload: %v", err)
+			}
+			good, err := manager.Get("z-good-stop")
+			if err != nil || !good.Status.Active || good.Status.PID != 404 {
+				t.Fatalf("healthy target was not relaunched: %#v, %v", good, err)
+			}
+		})
 	}
 }
 

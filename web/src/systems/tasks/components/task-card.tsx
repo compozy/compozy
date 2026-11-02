@@ -148,10 +148,16 @@ function TaskOwnerChip({ task }: { task: TaskListItem }) {
       <TooltipTrigger
         render={<span className="inline-flex" data-testid={`task-card-owner-${task.id}`} />}
       >
-        <TaskOwnerMark owner={task.owner} />
+        <TaskOwnerMark
+          owner={task.owner}
+          agentScope={{ workspace: task.workspace_id || null, profile: task.profile_name }}
+        />
       </TooltipTrigger>
       <TooltipContent>
-        <TaskOwnerName owner={task.owner} />
+        <TaskOwnerName
+          owner={task.owner}
+          agentScope={{ workspace: task.workspace_id || null, profile: task.profile_name }}
+        />
       </TooltipContent>
     </Tooltip>
   );

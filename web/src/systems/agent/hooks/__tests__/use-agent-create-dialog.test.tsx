@@ -280,6 +280,7 @@ describe("useAgentCreateDialog", () => {
       expect(mockNavigate).toHaveBeenCalledWith({
         to: "/agents/$name",
         params: { name: "release-captain" },
+        search: { workspace: "ws_alpha" },
       });
       expect(result.current.open).toBe(false);
     });
@@ -327,7 +328,10 @@ describe("useAgentCreateDialog", () => {
         agent: "release-captain",
         workspace: "ws_alpha",
       });
-      expect(mockNavigate).toHaveBeenCalledWith({ to: "/sessions" });
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/sessions",
+        search: { workspace: "ws_alpha" },
+      });
     });
     expect(mockCreateAgent.mock.calls[0]?.[0].params).toMatchObject({
       scope: "global",
@@ -348,6 +352,7 @@ describe("useAgentCreateDialog", () => {
       expect(mockNavigate).toHaveBeenCalledWith({
         to: "/agents/$name",
         params: { name: "release-captain" },
+        search: { workspace: "@user" },
       });
     });
     expect(mockCreateInstance).not.toHaveBeenCalled();
@@ -384,6 +389,7 @@ describe("useAgentCreateDialog", () => {
       expect(mockNavigate).toHaveBeenCalledWith({
         to: "/agents/$name",
         params: { name: "release-captain" },
+        search: { workspace: "@user" },
       });
     });
   });
@@ -598,6 +604,7 @@ describe("useAgentCreateDialog", () => {
       expect(mockNavigate).toHaveBeenCalledWith({
         to: "/agents/$name",
         params: { name: "release-captain-copy" },
+        search: { workspace: "ws_alpha" },
       });
     });
   });

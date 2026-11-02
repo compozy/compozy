@@ -31,6 +31,11 @@ import { SessionListSelectionFolders } from "./session-list-selection-folders";
 import { SessionListSkeleton } from "./session-list-skeleton";
 import { SessionListThreadList } from "./session-list-thread-list";
 import { SessionListToolbar } from "./session-list-toolbar";
+import {
+  sessionThreadFolds,
+  type SessionFoldSet,
+  type SessionSubagentFolds,
+} from "../../lib/session-sidebar-scope";
 
 export interface SessionListProps {
   sessions: readonly SessionPayload[];
@@ -109,9 +114,14 @@ export function SessionList({
   const grouped = view.groupBy !== "none";
   // Grouped lists read each group separately; the flat list is empty, so the groups own the count.
   const visibleCount = sessionListVisibleCount(view, threads, normalizedFilter);
-  const collapsedThreads = new Set(collapsedThreadIds);
-  const subagentThreads = new Set(subagentThreadIds);
   const filtering = normalizedFilter !== "";
+  const { collapsedThreads, subagentThreads } = sessionThreadFolds({
+    collapsedThreadIds,
+    openThreadIds: view.openThreadIds,
+    subagentThreadIds,
+    foldAll: view.foldAll,
+    filtering,
+  });
   const folders = useSessionListFolderLayout(view, threads, filtering);
   const { layout, sections } = folders;
   // A grouped list's groups each read their own page and publish their rows to it.
@@ -276,8 +286,8 @@ function SessionListFolderBody({
   view: SessionListViewModel;
   bulk: ReturnType<typeof useSessionListBulkSelection>;
   filtering: boolean;
-  collapsedThreads: ReadonlySet<string>;
-  subagentThreads: ReadonlySet<string>;
+  collapsedThreads: SessionFoldSet;
+  subagentThreads: SessionSubagentFolds;
   currentSessionId: SessionListProps["currentSessionId"];
   onThreadBranchChange: SessionListProps["onThreadBranchChange"];
   onSelectSession: SessionListProps["onSelectSession"];
@@ -351,6 +361,8 @@ function SessionListControls({
         onGroupByChange={view.setGroupBy}
         showEmptyProjects={view.showEmptyProjects}
         onShowEmptyProjectsChange={view.setShowEmptyProjects}
+        allCollapsed={view.foldAll === "collapsed"}
+        onAllCollapsedChange={collapsed => view.setFoldAll(collapsed ? "collapsed" : "expanded")}
         onNewSession={onNewSession}
         onNewFolder={onNewFolder}
         newFolderUnavailable={newFolderUnavailable}
@@ -398,8 +410,8 @@ function SessionListBody({
   | "testIdPrefix"
 > & {
   threads: ReturnType<typeof buildSessionListThreads>;
-  collapsedThreads: ReadonlySet<string>;
-  subagentThreads: ReadonlySet<string>;
+  collapsedThreads: SessionFoldSet;
+  subagentThreads: SessionSubagentFolds;
   normalizedFilter: string;
   selection: ReturnType<typeof useSessionListBulkSelection>["rowSelection"];
 }) {

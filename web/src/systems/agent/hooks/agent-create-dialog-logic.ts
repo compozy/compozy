@@ -10,6 +10,7 @@ export interface AgentCreateOutcome {
   agent: AgentPayload;
   /** The route the created agent lands on; on-demand agents open their page. */
   landing: "agent" | "sessions";
+  workspace?: string;
   startError?: string;
 }
 
@@ -33,6 +34,7 @@ type AgentCreateFlow =
             attempt: number;
             agentName: string;
             landing: AgentCreateOutcome["landing"];
+            workspace?: string;
             error: string;
           }
         | {
@@ -40,6 +42,7 @@ type AgentCreateFlow =
             attempt: number;
             agentName: string;
             landing: AgentCreateOutcome["landing"];
+            workspace?: string;
           }
         | { status: "navigating"; attempt: number; agentName: string }
       ));
@@ -66,6 +69,7 @@ type AgentCreateDialogEvents = {
     agentName: string;
     attempt: number;
     landing: AgentCreateOutcome["landing"];
+    workspace?: string;
     startError?: string;
   };
   startFailureAcknowledged: Record<never, never>;
@@ -133,8 +137,14 @@ export const agentCreateDialogLogic = createStoreLogic<
       const attempt = context.nextAttempt + 1;
       enqueue.effect(async ({ trigger }) => {
         try {
-          const { agent, landing, startError } = await event.execute();
-          trigger.submissionSucceeded({ agentName: agent.name, attempt, landing, startError });
+          const { agent, landing, startError, workspace } = await event.execute();
+          trigger.submissionSucceeded({
+            agentName: agent.name,
+            attempt,
+            landing,
+            startError,
+            workspace,
+          });
         } catch (cause) {
           trigger.submissionFailed({
             attempt,
@@ -146,10 +156,23 @@ export const agentCreateDialogLogic = createStoreLogic<
     },
     submissionSucceeded: (context, event) => {
       if (context.status !== "submitting" || context.attempt !== event.attempt) return;
-      const { agentName, landing, startError } = event;
+      const { agentName, landing, startError, workspace } = event;
       if (startError)
-        return { ...context, agentName, landing, error: startError, status: "start-failed" };
-      return { ...context, agentName, landing, status: "navigation-pending" };
+        return {
+          ...context,
+          agentName,
+          landing,
+          ...(workspace ? { workspace } : {}),
+          error: startError,
+          status: "start-failed",
+        };
+      return {
+        ...context,
+        agentName,
+        landing,
+        ...(workspace ? { workspace } : {}),
+        status: "navigation-pending",
+      };
     },
     startFailureAcknowledged: context => {
       if (context.status !== "start-failed") return;

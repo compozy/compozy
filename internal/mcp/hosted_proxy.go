@@ -103,7 +103,7 @@ func RunHostedProxy(ctx context.Context, client HostedProxyClient, opts HostedPr
 	mcpServer := sdkmcp.NewServer(
 		&sdkmcp.Implementation{Name: HostedServerName, Version: version},
 		&sdkmcp.ServerOptions{
-			Capabilities: &sdkmcp.ServerCapabilities{Tools: &sdkmcp.ToolCapabilities{}},
+			Capabilities: &sdkmcp.ServerCapabilities{Tools: &sdkmcp.ToolCapabilities{ListChanged: true}},
 		},
 	)
 	defer hostedServerToolFingerprints.Delete(mcpServer)

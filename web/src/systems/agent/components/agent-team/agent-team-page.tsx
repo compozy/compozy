@@ -87,7 +87,13 @@ export function AgentTeamPage({
   return (
     <div className="flex flex-col gap-8" data-testid="agent-fleet-list">
       {staysOn.length > 0 ? (
-        <AgentTeamSection actions={actions} label="Stays on" members={staysOn} view={view} />
+        <AgentTeamSection
+          actions={actions}
+          label="Stays on"
+          members={staysOn}
+          pageSize={ON_DEMAND_PAGE}
+          view={view}
+        />
       ) : unfiltered ? (
         <AgentStaysOnWelcome onCreate={() => onCreate({ staysOn: true })} />
       ) : null}

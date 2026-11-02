@@ -455,6 +455,83 @@ describe("useSessionSidebarState", () => {
     });
   });
 
+  // #1132: the fold is a window default, so ids it has never seen follow it and a reload keeps it.
+  describe("Collapse all / Expand all", () => {
+    it("Should fold ids it never saw, keep one-off exceptions, and restart them on the next choice", async () => {
+      const sidebar = await loadFreshSidebarState();
+      const result = renderInScope(sidebar, WINDOW_ONE);
+
+      act(() => {
+        result.current.toggleFolder("open-then-closed");
+        result.current.setThreadBranch("sess_a", "subagents");
+        result.current.setFoldAll("collapsed");
+      });
+      expect(result.current).toMatchObject({
+        foldAll: "collapsed",
+        collapsedThreadIds: [],
+        subagentThreadIds: [],
+        collapsedFolderIds: [],
+      });
+      expect(result.current.folderFolds.has("unseen")).toBe(true);
+      expect(result.current.groupFolds.has("unseen")).toBe(true);
+
+      act(() => {
+        result.current.toggleFolder("sfold-a");
+        result.current.toggleGroup("group-a");
+        result.current.setThreadBranch("sess_a", "children");
+      });
+      expect(result.current.folderFolds.has("sfold-a")).toBe(false);
+      expect(result.current.groupFolds.has("group-a")).toBe(false);
+      expect(result.current.openThreadIds).toEqual(["sess_a"]);
+
+      act(() => result.current.toggleGroup("group-a"));
+      expect(result.current.groupFolds.has("group-a")).toBe(true);
+      expect(result.current.collapsedGroupIds).toEqual([]);
+
+      act(() => result.current.setFoldAll("expanded"));
+      expect(result.current.folderFolds.has("sfold-a")).toBe(false);
+      expect(result.current.folderFolds.has("unseen")).toBe(false);
+      expect(result.current.openThreadIds).toEqual([]);
+    });
+
+    it("Should keep the choice per window across a reload without touching column folds", async () => {
+      const sidebar = await loadFreshSidebarState();
+      const one = renderInScope(sidebar, WINDOW_ONE);
+      const two = renderInScope(sidebar, WINDOW_TWO);
+      act(() => {
+        sidebar.sessionSidebarStore.trigger.boardColumnCollapsedChanged({
+          scopeId: WINDOW_ONE,
+          columnId: "done",
+          collapsed: true,
+        });
+        one.current.setFoldAll("collapsed");
+      });
+      expect(two.current.foldAll).toBeNull();
+
+      const reloaded = renderInScope(await loadFreshSidebarState(), WINDOW_ONE);
+      expect(reloaded.current.foldAll).toBe("collapsed");
+      const stored = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "{}");
+      expect(stored.context.byScope[WINDOW_ONE].collapsedBoardColumns).toEqual({ done: true });
+    });
+
+    it("Should load a window stored before Collapse all with its folds as they were", async () => {
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({
+          version: 3,
+          context: {
+            byScope: { [WINDOW_ONE]: { collapsedFolders: { "sfold-a": true } } },
+            partitionByScope: {},
+          },
+        })
+      );
+      const result = renderInScope(await loadFreshSidebarState(), WINDOW_ONE);
+      expect(result.current.foldAll).toBeNull();
+      expect(result.current.folderFolds.has("sfold-a")).toBe(true);
+      expect(result.current.folderFolds.has("sfold-b")).toBe(false);
+    });
+  });
+
   it("Should prune closed windows and keep live windows and the shell", async () => {
     const sidebar = await loadFreshSidebarState();
     const one = renderInScopeMounted(sidebar, WINDOW_ONE);

@@ -124,6 +124,7 @@ func heartbeatWakeEventFromGenerated(row sqlcgen.AgentHeartbeatWakeEvent) (heart
 		Source:            heartbeat.WakeSource(row.Source),
 		Result:            heartbeat.WakeResult(row.Result),
 		Reason:            heartbeat.WakeReason(row.Reason),
+		Detail:            row.Detail,
 		SyntheticPromptID: heartbeatNullStringValue(row.SyntheticPromptID),
 		CreatedAt:         createdAt,
 		ExpiresAt:         expiresAt,

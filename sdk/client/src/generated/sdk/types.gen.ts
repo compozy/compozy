@@ -231,13 +231,13 @@ export type AgentInstanceAwayResponse = {
 };
 
 export type AgentInstanceCheckDigest = {
-  diagnostics?: Array<string>;
-  fingerprint: string;
-  item_keys: Array<string>;
+  key: string;
+  summary: string;
 };
 
 export type AgentInstanceCheckInPayload = {
   created_at: string;
+  detail?: string;
   id: string;
   reason: string;
   result: string;
@@ -253,7 +253,7 @@ export type AgentInstanceCheckRequest = {
 };
 
 export type AgentInstanceCheckResponse = {
-  digest?: AgentInstanceCheckDigest | null;
+  digest: Array<AgentInstanceCheckDigest>;
   gate?: string;
   occurrence_id?: string;
 };
@@ -3362,6 +3362,7 @@ export type HeartbeatWakeDecisionPayload = {
 export type HeartbeatWakeEventPayload = {
   agent_name?: string;
   created_at: string;
+  detail?: string;
   expires_at: string;
   id: string;
   policy_snapshot_id?: string;
@@ -7535,6 +7536,10 @@ export type SessionWorkTimePayload = {
 export type SessionWorkspaceFacetsPayload = {
   facets: SessionCatalogFacetsPayload;
   workspace_id: string;
+};
+
+export type SessionsResponse = {
+  sessions: Array<SessionPayload>;
 };
 
 export type SetExtensionEnablementRequest = {
@@ -35170,6 +35175,10 @@ export type DeleteSessionData = {
      */
     processes?: "keep" | "terminate";
     /**
+     * Also delete the session's child sessions, recursively, deepest first; a failure leaves the rest in place
+     */
+    with_children?: boolean;
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -35179,7 +35188,7 @@ export type DeleteSessionData = {
 
 export type DeleteSessionErrors = {
   /**
-   * Invalid process policy
+   * Invalid process policy or with_children value
    */
   400: ErrorPayload;
   /**
@@ -35382,6 +35391,10 @@ export type ArchiveSessionData = {
      * Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived
      */
     stop?: boolean;
+    /**
+     * Also archive the session's child sessions, recursively, in one transaction; with stop=true their live members stop first and a failed stop archives nothing
+     */
+    with_children?: boolean;
     /**
      * Act as this profile by name
      */
@@ -35990,6 +36003,59 @@ export type PreviewSessionDeriveResponses = {
 
 export type PreviewSessionDeriveResponse =
   PreviewSessionDeriveResponses[keyof PreviewSessionDeriveResponses];
+
+export type ListSessionDescendantsData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/descendants";
+};
+
+export type ListSessionDescendantsErrors = {
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type ListSessionDescendantsError =
+  ListSessionDescendantsErrors[keyof ListSessionDescendantsErrors];
+
+export type ListSessionDescendantsResponses = {
+  /**
+   * OK
+   */
+  200: SessionsResponse;
+};
+
+export type ListSessionDescendantsResponse =
+  ListSessionDescendantsResponses[keyof ListSessionDescendantsResponses];
 
 export type ListSessionEventsData = {
   body?: never;

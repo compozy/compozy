@@ -4,19 +4,23 @@ package acp
 
 import (
 	"context"
+	"errors"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/workspacedb"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	terminaljournal "github.com/compozy/compozy/internal/terminal/journal"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-
-	compozyconfig "github.com/compozy/compozy/internal/config"
+	shellquote "github.com/kballard/go-shellquote"
 )
 
 func TestACPIntegrationReadTextFileRequest(t *testing.T) {
@@ -268,4 +272,126 @@ func newIntegrationTerminalDriver(t *testing.T, root string) (*Driver, string) {
 		}
 	})
 	return New(WithTerminalManager(manager)), identity.WorkspaceID
+}
+
+// Invariant: a real cold npm install and a canceled install recover before ACP initialize.
+// Owner: ACP launcher boundary; opt-in external integration suite.
+func TestACPIntegrationNPXColdCache(t *testing.T) {
+	t.Run("Should recover an interrupted cold install and initialize the real adapter", func(t *testing.T) {
+		t.Parallel()
+		if os.Getenv("COMPOZY_TEST_NPX_COLD") != "1" {
+			t.Skip("set COMPOZY_TEST_NPX_COLD=1 to allow an isolated npm registry install")
+		}
+		root := t.TempDir()
+		env := []string{"PATH=" + os.Getenv("PATH"), "HOME=" + root,
+			"npm_config_cache=" + filepath.Join(root, "npm-cache"), "npm_config_update_notifier=false"}
+		launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
+		spec, err := launcher.PrepareLaunch(t.Context(), LaunchSpec{
+			Command: "npx -y @agentclientprotocol/codex-acp@latest", Cwd: root, Env: env,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		finished := make(chan error, 1)
+		go func() { finished <- launcher.prepareNPX(ctx, spec) }()
+		deadline := time.NewTimer(time.Minute)
+		defer deadline.Stop()
+		ticker := time.NewTicker(time.Millisecond)
+		defer ticker.Stop()
+	waitForLock:
+		for {
+			select {
+			case err := <-finished:
+				t.Fatalf("installer exited before its lock could be interrupted: %v", err)
+			case <-deadline.C:
+				cancel()
+				err := <-finished
+				t.Fatalf("npm install lock was not observed: %v", err)
+			case <-ticker.C:
+				locks, err := filepath.Glob(filepath.Join(root, "npm-cache", "_npx", "*", "concurrency.lock"))
+				if err != nil {
+					cancel()
+					cleanupErr := <-finished
+					t.Fatalf("lock lookup = %v; cleanup = %v", err, cleanupErr)
+				}
+				if len(locks) > 0 {
+					break waitForLock
+				}
+			}
+		}
+		cancel()
+		if err := <-finished; !errors.Is(err, context.Canceled) {
+			t.Fatalf("interrupted install = %v, want caller cancellation", err)
+		}
+		t.Log("interrupted a real npm installation while its concurrency lock existed")
+		driver := New(WithStopTimeout(time.Second))
+		started := time.Now()
+		proc, err := driver.launchAgentProcess(t.Context(), StartOpts{
+			AgentName: "cold-cache", Command: spec.Command, Cwd: root, Env: env,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer stopProcess(t, driver, proc)
+		t.Logf("recovered adapter launch after interrupted install in %s", time.Since(started))
+		started = time.Now()
+		if err := driver.initializeConnection(t.Context(), proc, "cold-cache"); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("real ACP initialize completed in %s", time.Since(started))
+	})
+}
+
+// Invariant: a local binary need not share the name of its supplying npm package.
+// Owner: local launcher; canonical real npm integration suite.
+func TestACPIntegrationNPXLocalBinary(t *testing.T) {
+	t.Run("Should launch a differently named local package binary without resolution", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("Unix executable fixture; subprocess code is cross-built for Windows")
+		}
+		npx, err := exec.LookPath("npx")
+		if err != nil {
+			t.Skip("npx is unavailable")
+		}
+		root := t.TempDir()
+		binDir := filepath.Join(root, "node_modules", ".bin")
+		packageDir := filepath.Join(root, "node_modules", "different-package")
+		if err := os.MkdirAll(binDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(packageDir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(packageDir, "package.json"),
+			[]byte(`{"name":"different-package","bin":{"my-adapter":"adapter"}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		adapter := filepath.Join(packageDir, "adapter")
+		if err := os.WriteFile(adapter, []byte("#!/bin/sh\nprintf local-adapter-ok\n"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(adapter, filepath.Join(binDir, "my-adapter")); err != nil {
+			t.Fatal(err)
+		}
+		for _, flags := range [][]string{{"--no-install"}, {"--offline", "-y"}} {
+			launcher := newLocalLauncher(testDiscardLogger(), time.Second, 0)
+			args := append(flags, "my-adapter")
+			handle, err := launcher.Launch(t.Context(), LaunchSpec{
+				Command: shellquote.Join(append([]string{npx}, args...)...), Cwd: root,
+				Env: []string{"PATH=" + os.Getenv("PATH"), "HOME=" + root,
+					"npm_config_cache=" + filepath.Join(root, "cache")},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			output, readErr := io.ReadAll(handle.Stdout())
+			waitErr := handle.Wait()
+			if readErr != nil || waitErr != nil || string(output) != "local-adapter-ok" {
+				t.Fatalf("local launch = %q, read %v, wait %v", output, readErr, waitErr)
+			}
+		}
+	})
 }

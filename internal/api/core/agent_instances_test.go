@@ -117,7 +117,8 @@ func TestAgentInstanceReports(t *testing.T) {
 			t.Fatalf("changed cursor filter: %d", status)
 		}
 		status, next := read("/instances/" + first.ID + "/reports?limit=1&cursor=" + page.NextCursor)
-		if status != 200 || len(next.Reports) != 1 || next.Reports[0].ID == page.Reports[0].ID {
+		if status != 200 || len(next.Reports) != 1 || next.Reports[0].ID == page.Reports[0].ID ||
+			next.NextCursor != "" {
 			t.Fatalf("next page: %d %#v", status, next)
 		}
 		response := httptest.NewRecorder()
@@ -613,8 +614,15 @@ func TestAgentInstanceActivityReach(t *testing.T) {
 			fixture.Handlers.WorkspaceAccess = activityReachPolicy{}
 			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances()}
 			fixture.Engine.GET("/activity/:name", fixture.Handlers.GetAgentActivity)
-			for _, name := range []string{"coder", "empty"} {
-				req := httptest.NewRequestWithContext(t.Context(), "GET", "/activity/"+name, nil)
+			// Invariant: an explicit workspace restricts the already-authorized activity set.
+			for _, tc := range []struct {
+				name, query  string
+				wantActivity bool
+			}{
+				{"coder", "", true}, {"empty", "", false},
+				{"coder", "?workspace=allowed", true}, {"coder", "?workspace=denied", false},
+			} {
+				req := httptest.NewRequestWithContext(t.Context(), "GET", "/activity/"+tc.name+tc.query, nil)
 				req.Header.Set(agentidentity.HeaderSessionID, "caller")
 				req.Header.Set(agentidentity.HeaderAgent, "coder")
 				response := httptest.NewRecorder()
@@ -627,7 +635,7 @@ func TestAgentInstanceActivityReach(t *testing.T) {
 				if body.ReportsByDay == nil || body.BusyByHour == nil || body.CostByProject == nil {
 					t.Fatalf("null arrays: %+v", body)
 				}
-				if name == "coder" {
+				if tc.wantActivity {
 					if len(body.CostByProject) != 1 || body.CostByProject[0].Tokens != 10 ||
 						body.CostByProject[0].WorkspaceID != "allowed" {
 						t.Fatalf("scope leak: %+v", body)
@@ -641,6 +649,48 @@ func TestAgentInstanceActivityReach(t *testing.T) {
 }
 
 func TestAgentInstanceReadFacets(t *testing.T) {
+	// Invariant: authorized rows fill pages and only a visible successor creates a cursor.
+	// Owner: instance API projection; canonical suite: TestAgentInstanceReadFacets.
+	t.Run("Should page after authorization and omit a full terminal cursor", func(t *testing.T) {
+		t.Parallel()
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "pages.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, name := range []string{"one", "two", "three"} {
+			if _, _, err := db.Instances().
+				AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: name, PermissionCeiling: "{}", CreatedByKind: "human"}, 10); err != nil {
+				t.Fatal(err)
+			}
+		}
+		query := agentinstance.ListQuery{ProfileID: store.DefaultProfileID, Limit: 3}
+		rows, err := db.Instances().List(t.Context(), query)
+		if err != nil {
+			t.Fatal(err)
+		}
+		api := core.AgentInstanceAPI{
+			Store:     db.Instances(),
+			Authority: agentinstance.Authority{Callers: instanceAPIInputs{instance: rows[2]}},
+		}
+		operator, err := api.ListPage(t.Context(), query, workspaceaccess.ActorRef{Operator: true})
+		if err != nil || len(operator.Instances) != 3 || operator.NextCursor != "" {
+			t.Fatalf("operator=%+v error=%v", operator, err)
+		}
+		query.Limit = 1
+		caller, err := api.ListPage(
+			t.Context(),
+			query,
+			workspaceaccess.ActorRef{Kind: workspaceaccess.ActorAgentSession, SessionID: "caller"},
+		)
+		if err != nil || len(caller.Instances) != 1 || caller.Instances[0].ID != rows[2].ID || caller.NextCursor != "" {
+			t.Fatalf("caller=%+v error=%v", caller, err)
+		}
+	})
 	t.Run("Should count attention per instance and exclude main sessions from board counts", func(t *testing.T) {
 		t.Parallel()
 		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "facets.db"))
@@ -732,7 +782,7 @@ func TestAgentInstanceCheckIns(t *testing.T) {
 		}
 		for _, id := range []string{"event-a", "event-b"} {
 			_, err := db.DB().
-				ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,instance_id,source,result,reason,created_at,expires_at) VALUES (?,'','coder',?,'timer','skipped','quiet','2026-11-01T00:00:00Z','2026-11-02T00:00:00Z')`, id, instance.ID)
+				ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events (id,workspace_id,agent_name,instance_id,source,result,reason,detail,created_at,expires_at) VALUES (?,'','coder',?,'timer','skipped','quiet','Bounded audit detail','2026-11-01T00:00:00Z','2026-11-02T00:00:00Z')`, id, instance.ID)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -764,7 +814,8 @@ func TestAgentInstanceCheckIns(t *testing.T) {
 			if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
 				t.Fatal(err)
 			}
-			if response.Code != 200 || len(body.CheckIns) != 1 || body.CheckIns[0].ID != want {
+			if response.Code != 200 || len(body.CheckIns) != 1 || body.CheckIns[0].ID != want ||
+				body.CheckIns[0].Detail != "Bounded audit detail" {
 				t.Fatalf("response = %d %s", response.Code, response.Body.String())
 			}
 			cursor = body.NextCursor

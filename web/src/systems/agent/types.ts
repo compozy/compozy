@@ -139,31 +139,13 @@ export interface CreateAgentInstanceParams {
   workspace: string;
 }
 
-/** One wake event of `_dx.md`; `reason` is a stable code, `detail` is bounded free text. */
-export interface AgentInstanceCheckIn {
-  id: string;
-  result: string;
-  reason?: string;
-  detail?: string;
-  created_at: string;
-}
-
-export interface AgentInstanceCheckInsResponse {
-  check_ins: AgentInstanceCheckIn[];
-  next_cursor: string;
-}
-
-export interface AgentInstanceCheckDigestItem {
-  key: string;
-  summary: string;
-}
-
-/** A dry run answers `gate` and `digest`; a real run `occurrence_id`, or `gate` if one stopped it. */
-export interface AgentInstanceCheckResponse {
-  gate?: string;
-  digest?: AgentInstanceCheckDigestItem[];
-  occurrence_id?: string;
-}
+/** Persisted audit and dry-run projections share the generated transport contract. */
+export type AgentInstanceCheckInsResponse = OperationResponse<"listAgentInstanceCheckIns", 200>;
+export type AgentInstanceCheckIn = AgentInstanceCheckInsResponse["check_ins"][number];
+export type AgentInstanceCheckResponse = OperationResponse<"checkAgentInstance", 200>;
+export type AgentInstanceCheckDigestItem = NonNullable<
+  AgentInstanceCheckResponse["digest"]
+>[number];
 
 export interface AgentInstanceOccurrence {
   state: "running" | "finished";
@@ -175,17 +157,7 @@ export interface AgentInstanceOccurrence {
 export type DraftAgentInstructionsParams = OperationRequestBody<"draftAgentInstructions">;
 export type DraftAgentInstructionsResponse = OperationResponse<"draftAgentInstructions", 200>;
 
-/** `_dx.md` Agent activity. Hand-typed until the route lands in the OpenAPI document. */
-export interface AgentActivityPayload {
-  reports_by_day: { day: string; quiet: number; told: number; needed_you: number }[];
-  cost_by_project: {
-    workspace_id: string;
-    scope: string;
-    usd_estimate: number;
-    tokens: number;
-  }[];
-  busy_by_hour: { weekday: number; hour: number; events: number }[];
-}
+export type AgentActivityPayload = OperationResponse<"getAgentActivity", 200>;
 
 export type AgentInstanceReportKind =
   | "proposal"

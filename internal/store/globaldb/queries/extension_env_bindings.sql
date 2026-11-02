@@ -50,3 +50,8 @@ ORDER BY secret_ref ASC;
 -- name: DeleteExtensionEnvBindingsByWorkspace :execrows
 DELETE FROM extension_env_bindings
 WHERE workspace_id = sqlc.arg(workspace_id);
+
+-- name: ListExtensionEnvBindingScopes :many
+SELECT DISTINCT profile_id, workspace_id FROM extension_env_bindings
+WHERE extension_name = sqlc.arg(extension_name)
+ORDER BY profile_id, workspace_id;

@@ -8,6 +8,7 @@ import (
 type CheckIn struct {
 	ID        string
 	Result    string
+	Detail    string
 	Reason    string
 	CreatedAt time.Time
 }

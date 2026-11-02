@@ -17,7 +17,7 @@ func newSessionArchiveActionCommand(deps commandDeps, archived bool) *cobra.Comm
 		action = "unarchive"
 		short = "Restore an archived session"
 	}
-	var stop bool
+	var stop, withChildren bool
 	flags := processPolicyFlags{}
 	command := &cobra.Command{
 		Use:   action + " <id>",
@@ -30,7 +30,7 @@ func newSessionArchiveActionCommand(deps commandDeps, archived bool) *cobra.Comm
 			}
 			var record SessionRecord
 			if archived {
-				record, err = client.ArchiveSession(cmd.Context(), args[0], stop, flags.policy())
+				record, err = client.ArchiveSession(cmd.Context(), args[0], stop, withChildren, flags.policy())
 			} else {
 				record, err = client.UnarchiveSession(cmd.Context(), args[0])
 			}
@@ -47,6 +47,12 @@ func newSessionArchiveActionCommand(deps commandDeps, archived bool) *cobra.Comm
 			"stop",
 			false,
 			"Stop a live session through the normal stop path (canceling any active turn) before archiving it",
+		)
+		command.Flags().BoolVar(
+			&withChildren,
+			"with-children",
+			false,
+			"Also archive the session's child sessions, recursively; with --stop a failed stop archives nothing",
 		)
 	}
 	return command

@@ -52,8 +52,41 @@ func (h *BaseHandlers) finishProcessPolicy(
 	info *session.Info,
 	policy contract.SessionProcessPolicy,
 ) bool {
+	return h.finishTreeProcessPolicy(c, []*session.Info{info}, policy)
+}
+
+// finishTreeProcessPolicy attempts every member, whose session may be gone and
+// beyond any retry, then reports the first failure.
+func (h *BaseHandlers) finishTreeProcessPolicy(
+	c *gin.Context,
+	members []*session.Info,
+	policy contract.SessionProcessPolicy,
+) bool {
+	var failure *processPolicyFailure
+	for _, member := range members {
+		if current := h.settleProcessPolicy(c, member, policy); failure == nil {
+			failure = current
+		}
+	}
+	if failure != nil {
+		h.respondError(c, failure.status, failure.err)
+		return false
+	}
+	return true
+}
+
+type processPolicyFailure struct {
+	status int
+	err    error
+}
+
+func (h *BaseHandlers) settleProcessPolicy(
+	c *gin.Context,
+	info *session.Info,
+	policy contract.SessionProcessPolicy,
+) *processPolicyFailure {
 	if policy != contract.SessionProcessesTerminate {
-		return true
+		return nil
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 2*time.Minute)
 	defer cancel()
@@ -67,16 +100,17 @@ func (h *BaseHandlers) finishProcessPolicy(
 		},
 	)
 	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
-		return false
+		return &processPolicyFailure{status: http.StatusInternalServerError, err: err}
 	}
 	for _, r := range results {
 		if r.Outcome != "terminated" && r.Outcome != "already_exited" {
-			h.respondError(c, http.StatusConflict, fmt.Errorf("process %d termination is %s", r.PID, r.Outcome))
-			return false
+			return &processPolicyFailure{
+				status: http.StatusConflict,
+				err:    fmt.Errorf("process %d termination is %s", r.PID, r.Outcome),
+			}
 		}
 	}
-	return true
+	return nil
 }
 
 // A caller deadline does not cancel the accepted shared stop operation.

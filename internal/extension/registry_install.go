@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"slices"
 
 	"strings"
@@ -157,6 +158,7 @@ func loadVerifiedInstallManifest(
 	return resolvedManifest, manifestPath, actualChecksum, nil
 }
 
+// registryInstallInfo builds normalized package metadata and a fresh lifecycle token before enrollment.
 func registryInstallInfo(
 	r *Registry,
 	resolvedManifest *Manifest,
@@ -212,6 +214,7 @@ func registryInstallInfo(
 	}, nil
 }
 
+// Bundled successor enrollment and predecessor scope transfer share one durable transaction.
 func (r *Registry) persistInstalledInfo(
 	info *ExtensionInfo,
 	sourceText string,
@@ -278,6 +281,15 @@ func (r *Registry) persistInstalledInfo(
 				return fmt.Errorf("extension: persist default-profile enablement for %q: %w", info.Name, err)
 			}
 		}
+		if info.Source == SourceBundled {
+			if err := reconcileSupersededBundledTx(ctx, tx, info.Name, !existed); err != nil {
+				if !errors.Is(err, errBundledMigrationRetained) {
+					return err
+				}
+				slog.Warn("bundled extension migration retained state", "extension", info.Name, "error", err)
+			}
+		}
+
 		return nil
 	}); err != nil {
 		return err

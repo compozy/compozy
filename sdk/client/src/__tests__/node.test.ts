@@ -51,7 +51,9 @@ if (process.argv[3] === "stop") {
       }}));
     });
     server.listen(0, "127.0.0.1", () => {
-      fs.writeFileSync(file("daemon.json"), JSON.stringify({ pid: process.pid, port: server.address().port, http_host: "127.0.0.1" }));
+      // Publish like the real daemon: a poller must never read a partial record.
+      fs.writeFileSync(file("daemon.json.tmp"), JSON.stringify({ pid: process.pid, port: server.address().port, http_host: "127.0.0.1" }));
+      fs.renameSync(file("daemon.json.tmp"), file("daemon.json"));
     });
     process.on("SIGTERM", () => {
       fs.appendFileSync(file("terminations"), "SIGTERM\\n");

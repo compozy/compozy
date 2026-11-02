@@ -208,18 +208,16 @@ func daemonAgentSkillDeclarationProvider(
 				resources.ResourceScopeKindWorkspace,
 			)
 		}
-		if skillsRegistry != nil {
-			if err := appendProfiledSkillResources(
-				ctx,
-				&desired,
-				homePaths,
-				profileCatalog,
-				workspaceResolver,
-				workspaces,
-				skillsRegistry,
-			); err != nil {
-				return agentSkillDeclarations{}, err
-			}
+		if err := appendProfiledAgentSkillResources(
+			ctx,
+			&desired,
+			homePaths,
+			profileCatalog,
+			workspaceResolver,
+			workspaces,
+			skillsRegistry,
+		); err != nil {
+			return agentSkillDeclarations{}, err
 		}
 
 		return desired, nil

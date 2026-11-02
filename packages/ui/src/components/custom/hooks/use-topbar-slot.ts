@@ -67,6 +67,7 @@ function isSameTopbarSlot(a: TopbarSlotValue | null, b: TopbarSlotValue | null):
   if (a === b) return true;
   if (a == null || b == null) return false;
   return (
+    a.leading === b.leading &&
     a.crumb === b.crumb &&
     a.glyph === b.glyph &&
     a.glyphPresentation === b.glyphPresentation &&

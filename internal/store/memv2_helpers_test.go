@@ -161,3 +161,22 @@ func TestStoreMemV2OptionalHelpers(t *testing.T) {
 		}
 	})
 }
+
+func TestSessionFailureNPXOrigin(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve adapter failure origin through normalization and cloning", func(t *testing.T) {
+		t.Parallel()
+		for _, reason := range []FailureReasonCode{
+			FailureReasonNPXPrepare, FailureReasonNPXInitialize, FailureReasonNPXResolve,
+		} {
+			failure := &SessionFailure{Kind: FailureStartup, ReasonCode: reason}
+			if err := failure.Validate(); err != nil {
+				t.Fatal(err)
+			}
+			if got := CloneSessionFailure(failure); got.ReasonCode != reason {
+				t.Fatalf("reason = %q, want %q", got.ReasonCode, reason)
+			}
+		}
+	})
+}

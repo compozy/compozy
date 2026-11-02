@@ -72,6 +72,7 @@ export function AgentAddPlaceButton({
   member: AgentTeamMember;
   add: AgentAddPlaceActions;
 }) {
+  if (!member.agent) return null;
   const taken = new Set(member.places.map(place => place.scope));
   return (
     <AgentScopePicker

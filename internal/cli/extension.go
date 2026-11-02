@@ -208,6 +208,7 @@ func newExtensionInstallCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
+// newExtensionRemoveCommand resolves the selected profile before choosing the removal transport.
 func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 	var workspaceRef string
 	var global bool
@@ -220,6 +221,10 @@ func newExtensionRemoveCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if err := prepareExtensionProfileRead(cmd, deps, baseClient); err != nil {
+				return err
+			}
+
 			client, supportsDev := baseClient.(extensionDevClient)
 			if global || !supportsDev {
 				item, removeErr := baseClient.RemoveExtension(cmd.Context(), args[0])

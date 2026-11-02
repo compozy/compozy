@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
 import type { Filter, ListingViewMode } from "@compozy/ui";
@@ -11,6 +11,7 @@ import {
   AGENT_PLACE_LATER,
   GLOBAL_SCOPE,
   agentTeamOptions,
+  agentDetailOptions,
   buildAgentTeam,
   buildAgentTeamFilterFields,
   hasActiveAgentFleetFilters,
@@ -71,7 +72,7 @@ function useTeamMembers(enabled: boolean) {
   // All projects reads every project's definitions; a focused window reads its own.
   const scope = dataScope?.kind === "all" ? "" : focusedWorkspaceSelector(dataScope);
   const team = useQuery(agentTeamOptions(scope, destination, enabled));
-  const instances = useAgentInstances();
+  const instances = useAgentInstances().filter(instance => instance.profile_name === destination);
   const inWindow =
     dataScope?.kind === "project"
       ? instances.filter(
@@ -194,6 +195,15 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
   const navigate = useNavigate({ from: "/agents" });
   const onOpen = useOpenTeamMember(dataScope?.kind === "all");
+  const queryClient = useQueryClient();
+  const { destination } = useProfileReadScope();
+  const onPreload = (member: AgentTeamMember) => {
+    const workspace =
+      dataScope?.kind === "all"
+        ? member.agent?.workspace_id || GLOBAL_SCOPE
+        : focusedWorkspaceSelector(dataScope);
+    return queryClient.prefetchQuery(agentDetailOptions(member.name, workspace, destination));
+  };
   const openCreate = useOpenAgentCreate();
   const { openForAgent } = useSessionCreateActions();
   const hasActiveWorkspace = useSessionCreateHasActiveWorkspace();
@@ -258,6 +268,7 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
       newSessionDisabled: !hasActiveWorkspace,
       onNewSession: (name: string) => openForAgent(name),
       onOpen,
+      onPreload,
     },
     retryAgents: () => {
       void team.refetch();

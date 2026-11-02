@@ -76,6 +76,7 @@ const LOOP_START_KIND: Record<AutomationStart, LoopAutomationStartKind> = {
 
 export interface UseAutomationFormParams {
   activeWorkspaceId?: string | null;
+  profile?: string;
   draft: AutomationFormDraft;
   isPending: boolean;
   /** Set when a Loop page seeded the editor: Does stays on that Loop. */
@@ -141,6 +142,7 @@ function useFormLoopTarget(
 export function useAutomationForm({
   activeWorkspaceId,
   draft,
+  profile,
   isPending,
   lockedLoop,
   mode,
@@ -159,7 +161,10 @@ export function useAutomationForm({
   const workspaceName = (id: string) => resolvedWorkspaces.find(item => item.id === id)?.name;
 
   const timeZone = useAutomationTimeZone();
-  const identityOf = useAgentIdentityResolverView();
+  const identityOf = useAgentIdentityResolverView({
+    workspace: draft.workspace_id || null,
+    profile,
+  });
   const does = automationFormDoes(draft);
   const isWebhook = draft.start === "webhook";
   const { effectiveScope, loopCatalog, loopTarget, loopWorkspaceId } = useFormLoopTarget(

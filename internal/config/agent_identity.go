@@ -128,7 +128,7 @@ func ValidateAgentAppearance(a map[string]any) error {
 			return ErrAgentAppearanceInvalid
 		}
 	case "icon":
-		if !strings.Contains("\n"+LucideIconData, "\n"+icon+"\n") || emoji != "" {
+		if strings.ContainsAny(icon, "\r\n") || !strings.Contains("\n"+LucideIconData, "\n"+icon+"\n") || emoji != "" {
 			return ErrAgentAppearanceInvalid
 		}
 	case "emoji":

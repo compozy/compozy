@@ -2,6 +2,7 @@ import {
   setSessionWindowView,
   useSessionCreateActions,
   useSessionsBoard,
+  useSessionSidebarState,
   useSessionWindowOrder,
   useSessionWindowViewState,
   type SessionBoardPayload,
@@ -22,7 +23,7 @@ import { useSessionBoardDrawer } from "./use-session-board-drawer";
 /**
  * Board reads plus the card gestures: a card opens its session in this window's drawer
  * (#1052) — or focuses the window that already shows it, in List — and the card menus run
- * the session list's lifecycle verbs. Sort and Group by are this window's, shared with its List.
+ * the session list's lifecycle verbs. The View options are this window's, shared with its List.
  */
 export function useSessionBoardWindow(
   windowId: string,
@@ -33,11 +34,13 @@ export function useSessionBoardWindow(
   const { manager } = useOsShell();
   const view = useSessionWindowViewState();
   const order = useSessionWindowOrder();
+  const sidebar = useSessionSidebarState();
   const board = useSessionsBoard({
     scope,
     hideChildren: view.hideChildren,
     sort: order.sort,
     groupBy: order.groupBy,
+    showEmptyProjects: sidebar.showEmptyProjects,
   });
   const { openForAgent } = useSessionCreateActions();
   const openSession = useSessionWindowOpenSession({ windowId, sessionId: sessionId ?? undefined });
@@ -81,6 +84,7 @@ export function useSessionBoardWindow(
     view,
     setView,
     order,
+    sidebar,
     board,
     lifecycle,
     actions,

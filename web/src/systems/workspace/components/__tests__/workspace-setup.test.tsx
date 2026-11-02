@@ -324,19 +324,16 @@ describe("WorkspaceSetupDialog", () => {
     expect(screen.queryByTestId("workspace-setup-default-agent-select")).not.toBeInTheDocument();
   });
 
-  it("derives a display name from POSIX and Windows path separators", async () => {
+  it.each([
+    ["POSIX", "/Users/pedro/Dev/checkout-platform/"],
+    ["Windows", "C:\\Users\\pedro\\Dev\\checkout-platform\\"],
+  ])("derives a display name from %s path separators", async (_label, path) => {
     const user = userEvent.setup();
-    const cases = [
-      { path: "/Users/pedro/Dev/checkout-platform/", name: "checkout-platform" },
-      { path: "C:\\Users\\pedro\\Dev\\checkout-platform\\", name: "checkout-platform" },
-    ];
-
-    for (const testCase of cases) {
-      const view = renderDialog({ open: true });
-      await user.type(screen.getByTestId("workspace-setup-root-input"), testCase.path);
-      expect(screen.getByTestId("workspace-setup-name-input")).toHaveValue(testCase.name);
-      view.unmount();
-    }
+    renderDialog({ open: true });
+    // Typing before the dialog's deferred initial focus lands would lose keystrokes.
+    await waitFor(() => expect(screen.getByTestId("workspace-setup-dialog")).toHaveFocus());
+    await user.type(screen.getByTestId("workspace-setup-root-input"), path);
+    expect(screen.getByTestId("workspace-setup-name-input")).toHaveValue("checkout-platform");
   });
 
   it("blocks duplicate submits and the close route while the create is in flight", async () => {

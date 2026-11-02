@@ -278,25 +278,28 @@ describe("Check-ins", () => {
     expect(onAddToProject).toHaveBeenCalled();
   });
 
-  it("Should leave an instance from before checks off until it's turned on", async () => {
-    serveHeartbeat(heartbeatPayload());
-    seedAgentInstanceMock([
-      agentInstanceFixture({
-        agent_name: agent.name,
-        checks_enabled: false,
-        last_wake_at: "",
-        next_wake_at: "",
-      }),
-    ]);
-    const user = userEvent.setup();
-    renderEditor(<AgentCheckInsEditor {...props()} />);
-    await user.click(await screen.findByRole("button", { name: "Turn on check-ins" }));
-    await waitFor(() =>
-      expect(screen.getByRole("switch", { name: "Check-ins" }).getAttribute("aria-checked")).toBe(
-        "true"
-      )
-    );
-  });
+  it.each([null, "@user"])(
+    "Should enable its project checks from definition scope %s",
+    async workspace => {
+      serveHeartbeat(heartbeatPayload());
+      seedAgentInstanceMock([
+        agentInstanceFixture({
+          agent_name: agent.name,
+          checks_enabled: false,
+          last_wake_at: "",
+          next_wake_at: "",
+        }),
+      ]);
+      const user = userEvent.setup();
+      renderEditor(<AgentCheckInsEditor {...props({ workspace })} />);
+      await user.click(await screen.findByRole("button", { name: "Turn on check-ins" }));
+      await waitFor(() =>
+        expect(screen.getByRole("switch", { name: "Check-ins" }).getAttribute("aria-checked")).toBe(
+          "true"
+        )
+      );
+    }
+  );
 
   it("Should not claim a report for a real run that delivered nothing", async () => {
     serveHeartbeat(heartbeatPayload());

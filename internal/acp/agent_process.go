@@ -75,6 +75,7 @@ type AgentProcess struct {
 	unknownUpdates          map[string]struct{}
 	usageAliasWarning       sync.Once
 	usageRangeWarning       sync.Once
+	triagePolicyErr         error // Protected by promptMu; a mode violation permanently fences new prompts.
 	promptMu                sync.RWMutex
 	activePrompt            *activePromptState
 

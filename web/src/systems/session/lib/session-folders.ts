@@ -5,6 +5,7 @@ import {
   threadVisibleOrder,
   type SessionThreadModel,
 } from "./session-list-threads";
+import type { SessionFoldSet } from "./session-sidebar-scope";
 
 /** One folder with the provenance threads it holds on the current page. */
 export interface SessionFolderSection {
@@ -61,7 +62,7 @@ export function sessionHasOwnPlacement(session: SessionPayload): boolean {
 /** Threads on screen, in order: a collapsed folder hides its threads. */
 export function sectionsVisibleThreads(
   sections: SessionListSections,
-  collapsedFolders: ReadonlySet<string>,
+  collapsedFolders: SessionFoldSet,
   forceExpanded: boolean
 ): SessionThreadModel[] {
   return [
@@ -75,8 +76,8 @@ export function sectionsVisibleThreads(
 /** Row ids on screen in order across folders and the root. */
 export function sectionsVisibleOrder(
   sections: SessionListSections,
-  collapsedThreads: ReadonlySet<string>,
-  collapsedFolders: ReadonlySet<string>,
+  collapsedThreads: SessionFoldSet,
+  collapsedFolders: SessionFoldSet,
   forceExpanded: boolean
 ): string[] {
   return threadVisibleOrder(
@@ -86,7 +87,7 @@ export function sectionsVisibleOrder(
 }
 
 export interface VisibleSessionOrderOptions {
-  collapsedThreadIds: ReadonlySet<string>;
+  collapsedThreadIds: SessionFoldSet;
   /** The flat list's folders once loaded; without them the list renders flat. */
   folders?: readonly SessionFolderPayload[];
   /**
@@ -98,8 +99,8 @@ export interface VisibleSessionOrderOptions {
     sessions: readonly SessionPayload[];
     folders?: readonly SessionFolderPayload[];
   }>;
-  collapsedGroupKeys?: ReadonlySet<string>;
-  collapsedFolderIds?: ReadonlySet<string>;
+  collapsedGroupKeys?: SessionFoldSet;
+  collapsedFolderIds?: SessionFoldSet;
   /** The list shows the archive or Later rather than the active catalog. */
   shelved?: boolean;
   /** A search is narrowing the list, which opens every folder holding a match. */

@@ -3,7 +3,6 @@ package daemon
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"strings"
@@ -197,25 +196,11 @@ func nativeInstanceReports(
 		}
 		query.AfterID = parts[2]
 	}
-	rows, err := api.Reports.ListReports(ctx, query)
+	result, err := api.ReportsPage(ctx, query)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	result := contract.AgentInstanceReportsResponse{Reports: []contract.AgentInstanceReportPayload{}}
-	for _, report := range rows {
-		var payload contract.AgentInstanceReportPayload
-		if err := json.Unmarshal(report.Payload, &payload); err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		payload.ID, payload.Kind, payload.State, payload.CreatedAt = report.ID, report.Kind, report.State, report.CreatedAt
-		result.Reports = append(result.Reports, payload)
-	}
-	if len(rows) == input.Limit {
-		last := rows[len(rows)-1]
-		result.NextCursor = base64.RawURLEncoding.EncodeToString(
-			[]byte(id + "\n" + last.CreatedAt.Format(time.RFC3339Nano) + "\n" + last.ID + "\n" + input.State),
-		)
-	}
+
 	return structuredResult(result, "Instance reports")
 }
 
@@ -232,17 +217,7 @@ func nativeInstanceCheck(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	response := contract.AgentInstanceCheckResponse{Gate: result.Gate, OccurrenceID: result.OccurrenceID}
-	if result.Digest != nil {
-		response.Digest = &contract.AgentInstanceCheckDigest{
-			ItemKeys:    []string{},
-			Fingerprint: result.Digest.Fingerprint,
-			Diagnostics: result.Digest.Diagnostics,
-		}
-		for _, item := range result.Digest.Items {
-			response.Digest.ItemKeys = append(response.Digest.ItemKeys, item.Key)
-		}
-	}
+	response := core.AgentInstanceCheckResponse(result)
 	return structuredResult(response, "Instance check")
 }
 

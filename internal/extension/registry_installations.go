@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
 // InstallationScope selects an attachment; empty profile means all profiles, empty workspace means global.
@@ -161,6 +162,7 @@ func insertInstallation(ctx context.Context, tx *store.WriteTx, name string, ite
 	return nil
 }
 
+// replaceInstallations restores surviving owners without recreating deleted profiles or workspaces.
 func replaceInstallations(ctx context.Context, tx *store.WriteTx, name string, installations []Installation) error {
 	if _, err := tx.ExecContext(ctx, `DELETE FROM extension_installations WHERE extension_name = ?`, name); err != nil {
 		return err
@@ -183,4 +185,24 @@ func replaceInstallations(ctx context.Context, tx *store.WriteTx, name string, i
 		}
 	}
 	return nil
+}
+
+// EnvBindingScopes returns every persisted credential cell, including orphaned and inactive bindings.
+func (r *Registry) EnvBindingScopes(ctx context.Context, name string) ([]InstallationScope, error) {
+	if err := r.checkReady("list extension credential scopes"); err != nil {
+		return nil, err
+	}
+	name, err := normalizeExtensionName(name)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := globaldb.NewExtensionRegistryRepo(r.db).EnvBindingScopes(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]InstallationScope, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, InstallationScope{ProfileID: row.ProfileID, WorkspaceID: row.WorkspaceID})
+	}
+	return result, nil
 }

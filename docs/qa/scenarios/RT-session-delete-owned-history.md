@@ -94,3 +94,11 @@ Issue #1034 presence ownership regression: switching a watcher from A to a
 deleting B releases A's lease and does not acquire B's. The canonical presence
 hook suite owns this exact interleaving; the real deletion/rollback re-walk
 confirms the unchanged public lease lifecycle.
+
+## Child sessions — #1130
+
+Plain delete of a parent keeps its children reachable as top-level rows. `compozy session remove
+<parent> --with-children` removes the tree deepest first, including archived children and subagent
+sessions; continued and forked sessions remain. A failed member stops the walk: the sessions it did
+not reach remain, and the error names the child. The web dialog shows "Also delete {N} child
+session(s)" unchecked, and omits it for a session with no children.

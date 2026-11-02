@@ -87,11 +87,15 @@ func newSessionStopCommand(deps commandDeps) *cobra.Command {
 
 func newSessionRemoveCommand(deps commandDeps) *cobra.Command {
 	flags := processPolicyFlags{}
+	var withChildren bool
 	cmd := &cobra.Command{
 		Use:   "remove <id>",
 		Short: "Remove a session and its persisted history",
 		Example: `  # Remove a stopped session
-  compozy session remove sess_1234`,
+  compozy session remove sess_1234
+
+  # Remove a session and its child sessions
+  compozy session remove sess_1234 --with-children`,
 		Args: exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, err := clientFromDeps(deps)
@@ -102,13 +106,19 @@ func newSessionRemoveCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := client.DeleteSession(cmd.Context(), args[0], flags.policy()); err != nil {
+			if err := client.DeleteSession(cmd.Context(), args[0], withChildren, flags.policy()); err != nil {
 				return err
 			}
 			return writeCommandOutput(cmd, sessionBundle(&info, deps.now))
 		},
 	}
 	flags.bind(cmd)
+	cmd.Flags().BoolVar(
+		&withChildren,
+		"with-children",
+		false,
+		"Also remove the session's child sessions, recursively, deepest first; a failure leaves the rest in place",
+	)
 	return cmd
 }
 

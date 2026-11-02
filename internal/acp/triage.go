@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -52,18 +53,30 @@ func constrainTriageStart(opts StartOpts) (StartOpts, error) {
 	return opts, nil
 }
 
-func (p *AgentProcess) triagePermission(request acpsdk.RequestPermissionRequest) acpsdk.RequestPermissionResponse {
+func (p *AgentProcess) triagePermission(
+	ctx context.Context,
+	request acpsdk.RequestPermissionRequest,
+) (acpsdk.RequestPermissionResponse, error) {
 	decision := decisionRejectOnce
 	if request.ToolCall.Kind != nil && *request.ToolCall.Kind == acpsdk.ToolKindRead {
 		if _, err := p.permissions.resolvePathList(request.ToolCall.Locations); err == nil {
-			decision = decisionAllowOnce
+			if _, err := p.interceptProviderNativePermissionRequest(ctx, request); err != nil {
+				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+					return acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
+				}
+				if !errors.Is(err, ErrPermissionDenied) {
+					return acpsdk.RequestPermissionResponse{}, err
+				}
+			} else {
+				decision = decisionAllowOnce
+			}
 		}
 	}
 	if decision == decisionRejectOnce {
 		p.emitTriageDenial(string(request.ToolCall.ToolCallId))
 	}
 	outcome, _ := selectPermissionOutcome(request.Options, decision)
-	return acpsdk.RequestPermissionResponse{Outcome: outcome}
+	return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 }
 
 func (p *AgentProcess) emitTriageDenial(toolCallID string) {

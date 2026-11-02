@@ -268,6 +268,7 @@ type WakeEvent struct {
 	Source            WakeSource
 	Result            WakeResult
 	Reason            WakeReason
+	Detail            string
 	SyntheticPromptID string
 	CreatedAt         time.Time
 	ExpiresAt         time.Time

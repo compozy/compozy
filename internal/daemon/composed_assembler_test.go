@@ -922,6 +922,11 @@ func TestAgentMemoryStartup(t *testing.T) {
 				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-a"},
 				Spec:  local,
 			},
+			{
+				ID:    "inherited",
+				Scope: resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspace, ID: "ws-b"},
+				Spec:  agent,
+			},
 		})
 		global, err := agentMemoryKey(catalog, "profile-a", agent, nil)
 		if err != nil {
@@ -935,6 +940,15 @@ func TestAgentMemoryStartup(t *testing.T) {
 		}
 		if global.Origin != "user" || scoped.Origin != "workspace-ws-a" || global == scoped {
 			t.Fatalf("invalid keys: %+v %+v", global, scoped)
+		}
+		workspace.ID = "ws-b"
+		inherited, err := agentMemoryKey(catalog, "profile-a", agent, workspace)
+		if err != nil || inherited != global {
+			t.Fatalf("inherited definition must share global memory: key=%+v error=%v", inherited, err)
+		}
+		entries, err := agentCatalogDependency(catalog).ListAgentsForWorkspace(t.Context(), workspace)
+		if err != nil || len(entries) != 1 || entries[0].MemoryOrigin != global.Origin {
+			t.Fatalf("catalog memory differs from startup memory: entries=%+v error=%v", entries, err)
 		}
 		catalog.Replace(
 			2,

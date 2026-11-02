@@ -52,3 +52,12 @@ Add a note in a named project and confirm its source is the project name, not it
 opaque ID. Read, history, and mutation digests use `sha256:<hex>`; round-trip that
 complete value through edits and rollback. Owning suites: `TestAgentMemoryRoutes`,
 `TestAgentMemoryNativeTools`, and the real filesystem `TestStore` suite.
+
+2026-11-02 (PR 1134 repair validation): open the Memory editor from a user-level
+definition (`workspace=@user`) and confirm it loads. Add a note from a project
+that inherits that definition, then read it from User scope and another inheriting
+project. The content and digest must match even when the catalog republishes the
+resolved definition under each project's visibility scope. A repository override
+with the same name must retain a separate memory. `TestAgentMemoryRoutes` owns the
+explicit User selector; `TestAgentMemoryStartup` owns definition-origin identity
+and parity between catalog projection and startup memory.

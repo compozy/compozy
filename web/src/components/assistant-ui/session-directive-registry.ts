@@ -91,7 +91,7 @@ function mentionFrom(value: unknown): SessionMentionDirective | null {
   return { kind, token, target, label: recorded || target, start, end };
 }
 
-const AGENT_MENTION_RE = /(?<=^|\s)@agent:([A-Za-z0-9][\w.-]*) \(([^()\n]+)\)/gu;
+const AGENT_MENTION_RE = /(?<=^|\s)@agent:([A-Za-z0-9][\w.-]*) \(((?:\\[\\()rn]|[^\\()\r\n])+)\)/gu;
 
 /**
  * Agent mentions in sent text. The daemon verifies no agent token, so the chip comes from the
@@ -102,7 +102,11 @@ export function agentMentionDirectives(text: string): readonly SessionMentionDir
     kind: "agent" as const,
     token: match[0],
     target: match[1]!,
-    label: match[2]!,
+    label: match[2]!.replace(/\\([\\()rn])/gu, (_, character: string) => {
+      if (character === "r") return "\r";
+      if (character === "n") return "\n";
+      return character;
+    }),
     start: match.index,
     end: match.index + match[0].length,
   }));

@@ -1,4 +1,10 @@
-import { GLOBAL_SCOPE, useAgents, type AgentPayload } from "@/systems/agent";
+import { use } from "react";
+import {
+  GLOBAL_SCOPE,
+  useAgents,
+  AgentIdentityScopeContext,
+  type AgentPayload,
+} from "@/systems/agent";
 
 import type { SessionMentionSourceStatus } from "./use-session-file-search";
 
@@ -26,7 +32,11 @@ export function useSessionMentionAgents({
   query: string;
   enabled: boolean;
 }): SessionMentionAgentsView {
-  const catalog = useAgents(workspaceId === GLOBAL_SCOPE ? null : workspaceId, { enabled });
+  const scope = use(AgentIdentityScopeContext);
+  const catalog = useAgents(workspaceId === GLOBAL_SCOPE ? null : workspaceId, {
+    enabled: enabled && scope.enabled !== false,
+    profile: scope.profile ?? undefined,
+  });
   const needle = query.trim().toLowerCase();
   const agents = (catalog.data ?? [])
     .filter(agent => needle === "" || agentMatches(agent, needle))

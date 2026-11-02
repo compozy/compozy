@@ -328,7 +328,7 @@ func (q *Queries) ListInflightInstanceWakes(ctx context.Context) ([]AgentInstanc
 }
 
 const listInstanceCheckIns = `-- name: ListInstanceCheckIns :many
-SELECT e.id, e.result, e.reason, e.created_at FROM agent_heartbeat_wake_events e
+SELECT e.id, e.result, e.reason, e.detail, e.created_at FROM agent_heartbeat_wake_events e
 WHERE e.instance_id=?1
 AND (?2='' OR (e.created_at, e.id) <
  (SELECT c.created_at, c.id FROM agent_heartbeat_wake_events c WHERE c.instance_id=?1 AND c.id=?2))
@@ -345,6 +345,7 @@ type ListInstanceCheckInsRow struct {
 	ID        string `json:"id"`
 	Result    string `json:"result"`
 	Reason    string `json:"reason"`
+	Detail    string `json:"detail"`
 	CreatedAt string `json:"created_at"`
 }
 
@@ -361,6 +362,7 @@ func (q *Queries) ListInstanceCheckIns(ctx context.Context, arg ListInstanceChec
 			&i.ID,
 			&i.Result,
 			&i.Reason,
+			&i.Detail,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

@@ -197,32 +197,12 @@ func nativeInstanceList(
 	actor workspaceaccess.ActorRef,
 	query agentinstance.ListQuery,
 ) (toolspkg.ToolResult, error) {
-	rows, err := api.Store.List(ctx, query)
+	query.ProfileID = profileID
+	result, err := api.ListPage(ctx, query, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	result := contract.AgentInstanceListResponse{Instances: []contract.AgentInstancePayload{}}
-	for _, row := range rows {
-		if err := api.Authority.Authorize(ctx, actor, row, "list"); err != nil {
-			if errors.Is(err, agentinstance.ErrForbidden) {
-				continue
-			}
-			return toolspkg.ToolResult{}, err
-		}
-		payload, err := api.Payload(ctx, row)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
-		result.Instances = append(result.Instances, payload)
-	}
-	if len(rows) == query.Limit {
-		result.NextCursor = rows[len(rows)-1].ID
-	}
-	metadata, err := api.ListResponse(ctx, profileID)
-	if err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	result.MaxActiveInstances, result.ActiveCount = metadata.MaxActiveInstances, metadata.ActiveCount
+
 	return structuredResult(result, "Agent instances")
 }
 

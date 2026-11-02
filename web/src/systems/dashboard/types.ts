@@ -47,6 +47,7 @@ export type HomeSurfaceStatus = "loading" | "error" | "ready";
 export type HomeWorkingNowStatus = HomeSurfaceStatus | "partial";
 
 export interface HomeRunCardModel {
+  agentScope?: { workspace: string | null; profile?: string; enabled?: boolean };
   key: string;
   kind: "session" | "task_run";
   agentName: string;

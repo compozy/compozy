@@ -139,6 +139,10 @@ func TestManagerProfileLifecycle(t *testing.T) {
 			"building-2":        "building-complex",
 			"flip-horizontal-2": "triangles-centerline-dashed-horizontal",
 			"flip-vertical-2":   "triangles-centerline-dashed-vertical",
+			"music":             "eighth-notes",
+			"music-2":           "eighth-note",
+			"music-3":           "half-note",
+			"music-4":           "sixteenth-notes",
 			"trash-2":           "trash",
 		} {
 			created, err := manager.Create(ctx, CreateInput{Name: oldIcon, Icon: oldIcon})

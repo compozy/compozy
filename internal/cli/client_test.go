@@ -3160,11 +3160,11 @@ func TestUnixSocketClientMethods(t *testing.T) {
 	t.Run("Should archive and unarchive a session through the workspace routes", func(t *testing.T) {
 		t.Parallel()
 
-		archived, archiveErr := client.ArchiveSession(ctx, "sess-1", false, "")
+		archived, archiveErr := client.ArchiveSession(ctx, "sess-1", false, false, "")
 		if archiveErr != nil || archived.ArchivedAt == nil {
 			t.Fatalf("ArchiveSession() = %#v, %v, want archived session", archived, archiveErr)
 		}
-		stopped, stopArchiveErr := client.ArchiveSession(ctx, "sess-1", true, "")
+		stopped, stopArchiveErr := client.ArchiveSession(ctx, "sess-1", true, false, "")
 		if stopArchiveErr != nil || stopped.ArchivedAt == nil {
 			t.Fatalf("ArchiveSession(stop) = %#v, %v, want archived session", stopped, stopArchiveErr)
 		}
@@ -5549,6 +5549,16 @@ func TestUnixSocketClientSessionProcessPolicy(t *testing.T) {
 							if operation == "archive" && (query.Get("stop") == "true") != choice.flag {
 								t.Fatalf("archive stop query: %s", req.URL)
 							}
+							wantChildren := choice.flag
+							if operation == "archive" {
+								wantChildren = !choice.flag
+							}
+							if operation != "stop" && (query.Get("with_children") == "true") != wantChildren {
+								t.Fatalf("with_children query: %s", req.URL)
+							}
+							if operation != "stop" && !wantChildren && query.Has("with_children") {
+								t.Fatalf("with_children query without the opt-in: %s", req.URL)
+							}
 						}
 						if operation == "delete" {
 							return newHTTPResponse(http.StatusNoContent, ""), nil
@@ -5561,9 +5571,9 @@ func TestUnixSocketClientSessionProcessPolicy(t *testing.T) {
 				case "stop":
 					_, err = client.StopSession(t.Context(), "sess-1", choice.flag, policy)
 				case "archive":
-					_, err = client.ArchiveSession(t.Context(), "sess-1", choice.flag, policy)
+					_, err = client.ArchiveSession(t.Context(), "sess-1", choice.flag, !choice.flag, policy)
 				case "delete":
-					err = client.DeleteSession(t.Context(), "sess-1", policy)
+					err = client.DeleteSession(t.Context(), "sess-1", choice.flag, policy)
 				}
 				if err != nil || !mutated {
 					t.Fatalf("mutation: performed=%t error=%v", mutated, err)

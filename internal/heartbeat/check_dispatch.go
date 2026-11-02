@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 
@@ -107,12 +108,19 @@ func (s *CheckService) Recover(ctx context.Context) error {
 		if strings.HasPrefix(state.OccurrenceID, "instance_check-") {
 			source = "instance_check"
 		}
+		// Keep the cadence already committed at admission, including per-agent policy.
+		var nextWake time.Time
+		if state.NextWakeAt != "" {
+			nextWake, err = store.ParseTimestamp(state.NextWakeAt)
+			if err != nil {
+				return err
+			}
+		}
 		outcome := failedTriage("triage_interrupted")
 		if _, err := s.store.Finish(ctx, FinishRequest{
 			QuietBackoffCap: s.config.QuietBackoffCap,
 			FatigueLimit:    int64(s.config.FatigueLimit),
-			Interval:        s.config.Interval,
-			MaxInterval:     s.config.MaxInterval,
+			NextWakeAt:      nextWake,
 			InstanceID:      state.InstanceID,
 			OccurrenceID:    state.OccurrenceID,
 			Source:          source,

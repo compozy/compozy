@@ -212,7 +212,7 @@ func duplicateAgentRequestFromFlags(
 	if err != nil {
 		return contract.DuplicateAgentRequest{}, err
 	}
-	overrides, err := duplicateAgentOverridesFromFlags(cmd, flags)
+	overrides, err := duplicateAgentOverridesFromFlags(cmd, name, flags)
 	if err != nil {
 		return contract.DuplicateAgentRequest{}, err
 	}
@@ -338,9 +338,10 @@ func applyAgentDefinitionOverrides(
 
 func duplicateAgentOverridesFromFlags(
 	cmd *cobra.Command,
+	name string,
 	flags agentDefinitionFlags,
 ) (*contract.DuplicateAgentOverrides, error) {
-	var payload contract.CreateAgentPayload
+	payload := contract.CreateAgentPayload{Name: name}
 	if err := applyAgentDefinitionOverrides(cmd, &payload, flags); err != nil {
 		return nil, err
 	}

@@ -17,6 +17,11 @@ func archiveSessionOperationSpec() OperationSpec {
 			"stop",
 			"Stop a live session through the normal stop path before archiving it; a failed stop leaves it unarchived",
 		),
+		boolQueryParam(
+			"with_children",
+			"Also archive the session's child sessions, recursively, in one transaction; "+
+				"with stop=true their live members stop first and a failed stop archives nothing",
+		),
 	)
 	spec.Responses = append(spec.Responses,
 		ResponseSpec{Status: 400, Description: "Invalid archive request", Body: contract.ErrorPayload{}},
@@ -27,6 +32,34 @@ func archiveSessionOperationSpec() OperationSpec {
 		},
 	)
 	return spec
+}
+
+// sessionDescendantsOperationSpec lists what with_children would include, a
+// complete population the paginated catalog cannot provide.
+func sessionDescendantsOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        specWorkspaceSessionPath + "/descendants",
+		AppAccess:   AppAccessAllowed,
+		OperationID: "listSessionDescendants",
+		Summary:     "List a session's child sessions, recursively",
+		Tags:        []string{specSessionsKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: withProfileScope(
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+		),
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SessionsResponse{}},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{
+				Status:      503,
+				Description: specServiceUnavailableDependentServiceMissingDescription,
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
 }
 
 func unarchiveSessionOperationSpec() OperationSpec {

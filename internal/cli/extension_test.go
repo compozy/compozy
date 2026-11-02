@@ -750,6 +750,83 @@ func TestExtensionEnableDisableOffline(t *testing.T) {
 	}
 }
 
+func TestExtensionRemovalProfileSelection(t *testing.T) {
+	t.Parallel()
+	// Invariant: removal forwards the explicit profile before choosing global/workspace transport and refuses unknown profiles.
+	// Owner: CLI profile-selection boundary. Canonical suite: extension_test.go.
+	for _, test := range []struct {
+		name, flag, env, want string
+		invalid               bool
+	}{
+		{name: "Should carry a root profile selector through global removal", flag: "marketing", want: "marketing"},
+		{name: "Should carry an environment profile through global removal", env: "marketing", want: "marketing"},
+		{name: "Should prefer the explicit profile over the environment", flag: "work", env: "marketing", want: "work"},
+		{name: "Should reject an unknown profile before removing anything", flag: "missing-profile", invalid: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			removed := ""
+			removals := 0
+			client := &stubClient{
+				listProfilesFn: func(context.Context) ([]contract.Profile, error) {
+					return []contract.Profile{
+						{
+							ID:    "profile-marketing",
+							Name:  "marketing",
+							State: "active",
+						},
+						{ID: "profile-work", Name: "work", State: "active"},
+					}, nil
+				},
+				getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+					return WorkspaceDetailRecord{}, &workspacePathNotRegisteredError{path: ref}
+				},
+				removeExtensionFn: func(ctx context.Context, name string) (ManagedExtensionRemoveRecord, error) {
+					removals++
+					removed = profileQueryValues(ctx, nil).Get(profileFlagName)
+					if name != "dev-cycle" {
+						t.Fatalf("removed extension = %s", name)
+					}
+					return ManagedExtensionRemoveRecord{Name: name, Status: "removed"}, nil
+				},
+			}
+			deps, _ := newExtensionLocalDeps(t, client)
+			previousGetenv := deps.getenv
+			deps.getenv = func(key string) string {
+				if key == profileEnvName {
+					return test.env
+				}
+				return previousGetenv(key)
+			}
+			deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+				return compozydaemon.Info{PID: 101, StartedAt: fixedTestNow}, nil
+			}
+			deps.processAlive = func(int) bool { return true }
+			args := []string{"extension", "remove", "dev-cycle", "--global", "-o", "json"}
+			if test.flag != "" {
+				args = append([]string{"--profile", test.flag}, args...)
+			}
+			_, _, err := executeRootCommand(t, deps, args...)
+			if test.invalid {
+				typed, ok := errors.AsType[*profileCommandError](err)
+				if !ok || typed.payload.Error.Code != "profile_not_found" {
+					t.Fatalf("unknown profile error = %v", err)
+				}
+				if removals != 0 {
+					t.Fatalf("invalid profile removed attachment in %s", removed)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if removals != 1 || removed != test.want {
+				t.Fatalf("removal profile = %q, want %q", removed, test.want)
+			}
+		})
+	}
+}
+
 func TestExtensionScopedReadsResolveStableWorkspaceID(t *testing.T) {
 	t.Parallel()
 

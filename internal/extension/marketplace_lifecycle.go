@@ -102,6 +102,7 @@ type MarketplaceUpdateRequest struct {
 	PreflightCandidate        MarketplaceUpdatePreflight
 	CommitCandidate           MarketplaceUpdateCommit
 	RollbackCandidate         MarketplaceUpdateRollback
+	ReloadCandidate           func(context.Context, string) error
 	commitChange              func(*stagedExtensionDirChange) error
 	removeStaging             func(string) error
 }

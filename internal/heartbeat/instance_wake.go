@@ -30,6 +30,7 @@ type FinishRequest struct {
 	Report                                                   *agentinstance.ReportInput
 }
 type SkipRequest struct {
+	ManualCheck                             bool
 	InstanceID, ExpectedDue, Reason, Detail string
 	Now, NextWakeAt, ExpiresAt              time.Time
 }

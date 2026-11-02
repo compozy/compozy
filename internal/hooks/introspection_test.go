@@ -455,8 +455,11 @@ func TestHooksCatalogAllowsNilExecutorInSnapshot(t *testing.T) {
 	})
 }
 
-type captureTelemetrySink struct{}
+type captureTelemetrySink struct{ sessions chan string }
 
-func (*captureTelemetrySink) WriteHookRecord(context.Context, string, HookRunRecord) error {
+func (s *captureTelemetrySink) WriteHookRecord(_ context.Context, sessionID string, _ HookRunRecord) error {
+	if s.sessions != nil {
+		s.sessions <- sessionID
+	}
 	return nil
 }

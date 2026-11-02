@@ -56,7 +56,15 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 		CostByProject: []agentinstance.ActivityCost{},
 		BusyByHour:    []agentinstance.ActivityHour{},
 	}
+	requestedWorkspace, scoped, err := h.resolveAgentActivityWorkspace(c.Request.Context(), c.Query("workspace"))
+	if err != nil {
+		h.respondError(c, 422, err)
+		return
+	}
 	for workspace := range allowed {
+		if scoped && workspace != requestedWorkspace {
+			continue
+		}
 		visible, err := h.authorizeAgentActivityWorkspace(c.Request.Context(), actor, scope.ProfileID, workspace)
 		if err != nil {
 			h.respondError(c, 500, err)
@@ -78,19 +86,37 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 			h.respondError(c, 500, err)
 			return
 		}
-		label := "Global"
-		if workspace != "" {
-			resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspace)
-			if err != nil {
-				h.respondError(c, 500, err)
-				return
-			}
-			label = resolved.Name
+		label, err := h.agentActivityWorkspaceLabel(c.Request.Context(), workspace)
+		if err != nil {
+			h.respondError(c, 500, err)
+			return
 		}
 		mergeAgentActivity(&result, activity, label)
 	}
 	sortAgentActivity(&result)
 	c.JSON(http.StatusOK, result)
+}
+
+func (h *BaseHandlers) resolveAgentActivityWorkspace(ctx context.Context, ref string) (string, bool, error) {
+	if ref == "" || ref == userScopeWorkspaceRef {
+		return "", ref != "", nil
+	}
+	resolved, err := h.Workspaces.Resolve(ctx, ref)
+	if err != nil {
+		return "", true, err
+	}
+	return resolved.ID, true, nil
+}
+
+func (h *BaseHandlers) agentActivityWorkspaceLabel(ctx context.Context, id string) (string, error) {
+	if id == "" {
+		return "Global", nil
+	}
+	resolved, err := h.Workspaces.Resolve(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return resolved.Name, nil
 }
 
 func (h *BaseHandlers) authorizeAgentActivityWorkspace(

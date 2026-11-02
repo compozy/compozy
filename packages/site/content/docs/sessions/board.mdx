@@ -39,7 +39,7 @@ Archived sessions never appear in the columns; they live in the **Archive** bar 
 
    **Expected:** the window body becomes five columns. Each header shows its name and a count, for
    example `Needs you 2 · Working 5 · Waiting 1 · In review 3 · Done 128`. The header now reads **Sessions** and
-   offers **Group by**, **Sort by**, **Hide child sessions**, and **New session**.
+   offers **View options** and **New session**.
 
 3. Read a card. Each card has three rows:
    - the branch and PR number (`feat/forge-gql · #932`) with at most one status on the right;
@@ -139,7 +139,7 @@ The board selects cards the way the session list selects rows, and runs the same
    tick the checkbox that takes the place of its provider mark.
 
    **Expected:** the card turns selected, every card shows a checkbox, and the board header swaps
-   **Group by**, **Sort by**, **Hide child sessions**, and **New session** for the selection bar:
+   **View options** and **New session** for the selection bar:
    a select-all checkbox, `1 selected`, a delete button, **More actions**, and **Done**
    (<kbd>Esc</kbd>). The board itself does not move.
 
@@ -188,7 +188,7 @@ hidden`). Archived cards can be selected while the **Archive** bar is open; clos
 
 ## Group and sort the board
 
-Use **Group by** in the board header to split the board into one swimlane per project (under
+Open **View options** (the sliders icon) in the board header. Use **Group by** to split the board into one swimlane per project (under
 **All projects**) or per profile (under **All profiles**). Each swimlane keeps the four columns, with
 counts for that project or profile only. **Group by** shows only where a grouping applies, and starts
 at **None**. The **Archive** bar stays a single bar.
@@ -197,7 +197,11 @@ Use **Sort by** to order the cards inside every column: **Created**, **Name**, *
 **Attention first**. The list's **Manual** order belongs to its folders, so the board reads it as
 **Last activity**.
 
-Sort and grouping belong to the window and are shared by its **List** and **Kanban** views: group the
+Click a swimlane's header to fold it to its name and count; the columns come back when you click it again.
+**Collapse all** folds every swimlane at once, and the same item then reads **Expand all**. Grouped by
+project, **Show empty projects** adds a swimlane for each project with no sessions.
+
+Sort, grouping, project folds, and **Show empty projects** belong to the window and are shared by its **List** and **Kanban** views: group the
 board by project, switch to **List**, and the list is grouped by project too. Another window keeps
 its own choice. A window you have not changed yet starts from `shell.sessions.sort` and
 `shell.sessions.group_by` (`compozy config get shell.sessions.sort`).
@@ -237,12 +241,12 @@ the source's child count does not include it.
 created with a parent, subagents and recovery sessions) stay out of the columns and the counts, and
 their parent's count shows them. Forked and continued sessions stay on the board.
 
-1. Select **Hide child sessions** in the board header to turn it off.
+1. Open **View options** in the board header and clear **Hide child sessions**.
 
    **Expected:** every child session joins the columns, and the column counts rise to match. The
    choice is remembered for this window.
 
-2. Select it again to hide them.
+2. Check it again to hide them.
 
 ## Load more and the Archive bar
 

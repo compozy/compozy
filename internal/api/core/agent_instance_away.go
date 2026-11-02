@@ -156,6 +156,7 @@ func (api *AgentInstanceAPI) CheckIns(
 				ID:        row.ID,
 				Result:    row.Result,
 				Reason:    row.Reason,
+				Detail:    row.Detail,
 				CreatedAt: row.CreatedAt,
 			},
 		)

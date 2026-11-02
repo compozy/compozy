@@ -36,6 +36,11 @@ type SessionWorkspaceFacetsPayload struct {
 	Facets      SessionCatalogFacetsPayload `json:"facets"`
 }
 
+// SessionsResponse is a daemon API value.
+type SessionsResponse struct {
+	Sessions []SessionPayload `json:"sessions"`
+}
+
 // SetExtensionEnablementRequest is a daemon API value.
 type SetExtensionEnablementRequest struct {
 	Profile string `json:"profile"`
@@ -439,10 +444,3 @@ type SettingsLogTailEventPayload struct {
 
 // SettingsMCPAuthBeginMode is a daemon API value.
 type SettingsMCPAuthBeginMode string
-
-// SettingsMCPAuthBeginRequest is a daemon API value.
-type SettingsMCPAuthBeginRequest struct {
-	Mode                   SettingsMCPAuthBeginMode `json:"mode"`
-	ApprovedScopes         []string                 `json:"approved_scopes,omitempty"`
-	ApproveScopeEscalation bool                     `json:"approve_scope_escalation,omitzero"`
-}

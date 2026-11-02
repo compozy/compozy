@@ -170,6 +170,64 @@ func TestPermissionWaitResolution(t *testing.T) {
 }
 
 func TestTriagePolicy(t *testing.T) {
+	// Invariant: a read-only policy violation fences future prompts even while idle.
+	// Owner: ACP prompt admission; canonical suite: TestTriagePolicy.
+	t.Run("Should reject a later prompt after an idle mode violation", func(t *testing.T) {
+		t.Parallel()
+		p := &AgentProcess{SessionID: "provider", executionPolicy: ExecutionPolicyTriage}
+		err := p.handleSessionUpdate(
+			mustMarshalJSON(
+				map[string]any{
+					"sessionId": "provider",
+					"update":    map[string]any{"sessionUpdate": "current_mode_update", "currentModeId": "full-access"},
+				},
+			),
+		)
+		if !errors.Is(err, ErrTriageUnsupported) {
+			t.Fatal(err)
+		}
+		if active, err := p.beginPrompt("later", 16); !errors.Is(err, ErrTriageUnsupported) || active != nil {
+			t.Fatalf("later prompt=%v error=%v", active, err)
+		}
+	})
+	// Invariant: allowed reads still pass the authoritative pre-call gateway, with raw input.
+	// Owner: ACP tool execution boundary; canonical suite: TestTriagePolicy.
+	t.Run("Should apply gateway denial to a triage read", func(t *testing.T) {
+		t.Parallel()
+		policy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveReads, t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		calls := 0
+		p := &AgentProcess{
+			executionPolicy: ExecutionPolicyTriage,
+			permissions:     policy,
+			toolGateway: toolExecutionGatewayFunc(
+				func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
+					calls++
+					if req.ToolID != "Read" || !req.ReadOnly || !strings.Contains(string(req.Input), "notes.txt") {
+						t.Fatalf("gateway=%+v", req)
+					}
+					return ToolExecutionRequest{}, ErrPermissionDenied
+				},
+			),
+		}
+		active := beginObservedPrompt(t, p)
+		response, err := p.resolvePermissionRequest(
+			t.Context(),
+			acpsdk.RequestPermissionRequest{
+				ToolCall: acpsdk.ToolCallUpdate{
+					Kind:     new(acpsdk.ToolKindRead),
+					RawInput: map[string]any{"path": "notes.txt"},
+				},
+			},
+			"provider",
+		)
+		if err != nil || response.Outcome.Cancelled == nil || calls != 1 { //nolint:misspell // ACP SDK field.
+			t.Fatalf("response=%+v calls=%d error=%v", response, calls, err)
+		}
+		drainObservedPrompt(p, active)
+	})
 	t.Run("Should fail the active triage run when the provider leaves read only mode", func(t *testing.T) {
 		t.Parallel()
 		for _, mode := range []string{"default", "plan", "full-access", ""} {

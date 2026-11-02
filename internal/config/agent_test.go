@@ -1941,7 +1941,7 @@ func TestAgentIdentityContract(t *testing.T) {
 				t.Fatalf("accepted %#v", a)
 			}
 		}
-		for _, a := range []map[string]any{{"version": 1, "avatar": "icon", "icon": "not-a-lucide-icon", "color": "#123456"}, {"version": 1, "avatar": "emoji", "emoji": "🦊🦊", "color": "#123456"}, {"version": 1, "avatar": "icon", "icon": "compass", "emoji": "🦊", "color": "#123456"}, {"version": 1, "avatar": "icon", "icon": "compass", "color": "red"}} {
+		for _, a := range []map[string]any{{"version": 1, "avatar": "icon", "icon": "activity\nad", "color": "#123456"}, {"version": 1, "avatar": "icon", "icon": "not-a-lucide-icon", "color": "#123456"}, {"version": 1, "avatar": "emoji", "emoji": "🦊🦊", "color": "#123456"}, {"version": 1, "avatar": "icon", "icon": "compass", "emoji": "🦊", "color": "#123456"}, {"version": 1, "avatar": "icon", "icon": "compass", "color": "red"}} {
 			if ValidateAgentAppearance(a) == nil {
 				t.Fatalf("accepted %#v", a)
 			}

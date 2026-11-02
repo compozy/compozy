@@ -1316,6 +1316,41 @@ func seedHeartbeatLeasedRunningTaskRun(
 func TestManagedHeartbeatStatusService(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: external policy resolution preserves profile-specific persisted snapshots.
+	// Owner: heartbeat status; canonical suite: TestManagedHeartbeatStatusService.
+	t.Run("Should resolve external policy snapshots within the requested profile", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHeartbeatFixture(t)
+		target := fixture.target
+		target.WorkspaceID = ""
+		target.ProfileID = "profile-external"
+		written, err := fixture.authoring.Put(
+			fixture.ctx,
+			heartbeat.PutRequest{Target: target, Body: validHeartbeatBody("External policy", "Profile policy.")},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		service, err := heartbeat.NewManagedHeartbeatStatusService(
+			fixture.db,
+			heartbeat.WithHeartbeatStatusPolicyResolver(
+				heartbeatPolicyResolverFunc(
+					func(context.Context, heartbeat.AuthoringTarget) (heartbeat.ResolvedPolicy, bool, error) {
+						return written.Policy, true, nil
+					},
+				),
+			),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := service.Inspect(fixture.ctx, heartbeat.InspectRequest{Target: target})
+		if err != nil || got.Snapshot == nil || got.Snapshot.ID != written.Snapshot.ID ||
+			got.Snapshot.ProfileID != target.ProfileID {
+			t.Fatalf("inspect=%+v error=%v", got, err)
+		}
+	})
+
 	t.Run("Should reject nil status store", func(t *testing.T) {
 		t.Parallel()
 
@@ -1964,3 +1999,14 @@ func managedHeartbeatStaleSessionHealth(
 	health.IneligibilityReason = string(heartbeat.SessionHealthReasonStale)
 	return health
 }
+
+type heartbeatPolicyResolverFunc func(context.Context, heartbeat.AuthoringTarget) (heartbeat.ResolvedPolicy, bool, error)
+
+func (f heartbeatPolicyResolverFunc) ResolveHeartbeatPolicy(
+	ctx context.Context,
+	target heartbeat.AuthoringTarget,
+) (heartbeat.ResolvedPolicy, bool, error) {
+	return f(ctx, target)
+}
+
+var _ heartbeat.PolicyResolver = heartbeatPolicyResolverFunc(nil)

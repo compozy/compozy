@@ -807,6 +807,16 @@ CompozyOS has separate timeout concepts:
 
 A session may run indefinitely while fresh work exists and no explicit prompt budget is set.
 
+### Including child sessions
+
+Archiving a session archives its subagents and leaves its other child sessions in place. Add
+`--with-children` (`with_children=true` over HTTP and UDS, `with_children` on
+`compozy__session_archive`) to include every session nested under it in the session list, recursively,
+in one transaction. Continued and forked sessions are never included, and the walk stays inside the
+session's workspace and profile. With `--stop`, live children stop first and a failed stop archives
+nothing. `GET /api/workspaces/:workspace/sessions/:id/descendants` lists what the option includes.
+Unarchiving restores subagents with their parent; restore other children one by one.
+
 ## Stop reasons
 
 The session manager currently emits these persisted stop classifications:
@@ -847,6 +857,10 @@ Removal stops an active session first, deletes its durable catalog row and sessi
 emits a workspace-scoped catalog deletion signal. After a successful removal, later status or detail
 reads return session not found. If deletion fails before the directory is removed,
 CompozyOS preserves or restores catalog truth instead of reporting a partially deleted session.
+
+Removing a session leaves its child sessions in place as top-level sessions. Add `--with-children`
+(`with_children=true` over HTTP and UDS) to remove them too, deepest first. Removal is not atomic: on
+a failure, the sessions it did not reach remain and the error names the child that failed.
 
 ## Failure diagnostics
 

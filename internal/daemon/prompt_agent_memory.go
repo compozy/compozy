@@ -61,9 +61,10 @@ func agentMemoryKey(catalog *resourceCatalog[compozyconfig.AgentDef], profileID 
 		return agentmemory.Key{}, errors.New("daemon: agent memory profile mismatch")
 	}
 	lens.profileID = profileID
+	records := catalog.Snapshot()
 	var winner *resources.Record[compozyconfig.AgentDef]
 	winnerRank := -1
-	for _, record := range catalog.Snapshot() {
+	for _, record := range records {
 		if record.Spec.Name != agent.Name {
 			continue
 		}
@@ -80,18 +81,9 @@ func agentMemoryKey(catalog *resourceCatalog[compozyconfig.AgentDef], profileID 
 	if winner == nil || winner.Spec.SourcePath != agent.SourcePath {
 		return agentmemory.Key{}, errors.New("daemon: agent memory definition unavailable")
 	}
-	origin := string(TurnOriginUser)
-	workspaceID, workspaceScoped := lens.entryScope(winner.Scope)
-	if winner.Owner.Kind.Normalize() == extensionResourceOwnerKind {
-		if winner.Owner.ID == "" {
-			return agentmemory.Key{}, errors.New("daemon: agent memory extension identity unavailable")
-		}
-		origin = "extension-" + winner.Owner.ID
-	} else if workspaceScoped {
-		if workspaceID == "" {
-			return agentmemory.Key{}, errors.New("daemon: agent memory workspace identity unavailable")
-		}
-		origin = "workspace-" + workspaceID
+	origin := lens.memoryOrigin(winner, lens.userAgentSources(records))
+	if origin == "" {
+		return agentmemory.Key{}, errors.New("daemon: agent memory origin unavailable")
 	}
 	return agentmemory.Key{ProfileID: profileID, Origin: origin, Agent: agent.Name}, nil
 }

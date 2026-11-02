@@ -30,12 +30,13 @@ import { SessionGroupRowsSkeleton } from "./session-list-skeleton";
 import { SessionListThreadList } from "./session-list-thread-list";
 import type { SessionSelectionDrag } from "../../hooks/use-session-list-dnd";
 import type { SessionListPair } from "../../lib/session-list-groups";
+import type { SessionFoldSet, SessionSubagentFolds } from "../../lib/session-sidebar-scope";
 
 export interface GroupRowProps {
   view: SessionListViewModel;
   filtering: boolean;
-  collapsedThreads: ReadonlySet<string>;
-  subagentThreads: ReadonlySet<string>;
+  collapsedThreads: SessionFoldSet;
+  subagentThreads: SessionSubagentFolds;
   currentSessionId?: string;
   onThreadBranchChange: SessionThreadBranchChange;
   onSelectSession: (session: SessionListTarget) => void;

@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// SettingsRolesResponse is a daemon API value.
+type SettingsRolesResponse struct {
+	Section         SettingsSectionName          `json:"section"`
+	Scope           SettingsWorkspaceScopeKind   `json:"scope"`
+	WorkspaceID     string                       `json:"workspace_id,omitempty"`
+	AvailableScopes []SettingsWorkspaceScopeKind `json:"available_scopes"`
+	Config          SettingsRolesConfigPayload   `json:"config"`
+}
+
+// SettingsScopeKind is a daemon API value.
+type SettingsScopeKind string
+
 // SettingsSectionName is a daemon API value.
 type SettingsSectionName string
 

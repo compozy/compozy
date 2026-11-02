@@ -732,9 +732,13 @@ func TestInstanceHookDispatch(t *testing.T) {
 	for _, event := range []HookEvent{HookAgentInstanceCreated, HookAgentInstancePaused, HookAgentInstanceResumed, HookAgentInstanceArchived, HookAgentInstanceAdopted} {
 		t.Run("Should deliver an immutable payload for "+string(event), func(t *testing.T) {
 			t.Parallel()
+			// Invariant: instance lifecycle hooks retain their session in fallback telemetry.
+			// Owner: hook dispatch; canonical suite: TestInstanceHookDispatch.
 			seen := make(chan []byte, 1)
+			sink := &captureTelemetrySink{sessions: make(chan string, 1)}
 			runtime := newTestHooks(
 				t,
+				WithTelemetrySink(sink),
 				WithNativeDeclarations(
 					[]HookDecl{
 						{
@@ -798,6 +802,14 @@ func TestInstanceHookDispatch(t *testing.T) {
 				}
 			case <-time.After(time.Second):
 				t.Fatal("instance executor did not receive payload")
+			}
+			select {
+			case sessionID := <-sink.sessions:
+				if sessionID != "main" {
+					t.Fatalf("telemetry session=%q", sessionID)
+				}
+			case <-time.After(time.Second):
+				t.Fatal("instance telemetry was not persisted")
 			}
 		})
 	}

@@ -40,7 +40,10 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 				fixture := newSessionWorktreeRaceFixture(t, nil)
 				h := fixture.h
 				h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
-				created, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
+				created, err := h.manager.Create(
+					t.Context(),
+					new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}),
+				)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -102,7 +105,10 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 				opts.Lineage = &store.SessionLineage{TTLExpiresAt: new(time.Now().Add(time.Hour))}
 			}
 			if kind == SessionTypeSpawned {
-				parent, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
+				parent, err := h.manager.Create(
+					t.Context(),
+					new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}),
+				)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -370,7 +376,9 @@ func TestManagerIntegrationWorktreeBindingLifecycle(t *testing.T) {
 	t.Run("Should bind stopped sessions and leave a removed checkout", func(t *testing.T) {
 		fixture := newSessionWorktreeRaceFixture(t, nil)
 		h := fixture.h
-		h.manager.SetWorkSignalSources(WorkSignalSource{Kind: WorkSignalHeldPermission, Source: SignalSourceFunc(h.manager.heldPermissionSignals)})
+		h.manager.SetWorkSignalSources(
+			WorkSignalSource{Kind: WorkSignalHeldPermission, Source: SignalSourceFunc(h.manager.heldPermissionSignals)},
+		)
 		h.manager.worktreeResolver = sessionBindingIntegrationResolver{service: fixture.service}
 		ctx := testutil.Context(t)
 		created, err := h.manager.Create(ctx, new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))

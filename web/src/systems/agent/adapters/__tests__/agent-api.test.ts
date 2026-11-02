@@ -264,7 +264,7 @@ describe("createAgent", () => {
     await expect(
       createAgent({ ...request, agent: { ...request.agent, provider: undefined } })
     ).rejects.toThrow(
-      "Couldn't create this agent. No default provider is set. Choose a provider in Model and try again."
+      "Couldn't create this agent. No default model is set. Choose a model and try again."
     );
   });
 

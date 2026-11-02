@@ -125,6 +125,7 @@ func (h *HostAPIHandler) handleSessionsCreate(ctx context.Context, raw json.RawM
 	}
 
 	createOpts := session.CreateOpts{
+		ProfileID: hostAPIProfileID(ctx),
 		Origin: workspaceaccess.Origin{
 			Kind: workspaceaccess.ActorExtension,
 			ID:   hostAPIExtensionNameFromContext(ctx),

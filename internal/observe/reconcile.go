@@ -200,6 +200,8 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 	}
 	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
 	recovered := recoveredSession{
+		InitiatorKind:            meta.InitiatorKind,
+		InitiatorID:              meta.InitiatorID,
 		ID:                       meta.ID,
 		ProfileID:                meta.ProfileID,
 		Name:                     meta.Name,

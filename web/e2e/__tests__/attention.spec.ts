@@ -417,7 +417,7 @@ test.describe("E2E-015 sidebar badges and sort", () => {
     await expect(
       modal.getByTestId(`os-sessions-modal-session-${done.id}`).getByRole("img")
     ).toHaveAttribute("aria-label", "Session badge: done");
-    await modal.getByTestId("os-sessions-modal-sort-trigger").click();
+    await modal.getByTestId("os-sessions-modal-view-options-trigger").click();
     await page.getByTestId("os-sessions-modal-sort-attention").click();
 
     const first = modal.getByTestId(/^os-sessions-modal-session-/).first();
@@ -557,7 +557,7 @@ async function reloadShell(page: Page): Promise<void> {
 }
 
 async function groupSessionsByProject(page: Page, modal: Locator): Promise<void> {
-  await modal.getByTestId("os-sessions-modal-group-by-trigger").click();
+  await modal.getByTestId("os-sessions-modal-view-options-trigger").click();
   await page.getByTestId("os-sessions-modal-group-by-project").click();
   await page.keyboard.press("Escape");
 }

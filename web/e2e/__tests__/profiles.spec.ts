@@ -1122,7 +1122,7 @@ test.describe("Profiles", () => {
       await ui.switcherAll.click();
       const catalog = await openSessionsCatalog(appPage);
       // The list is flat by default; profile groups are an explicit Group by (AP ADR-004).
-      await catalog.getByTestId("os-sessions-modal-group-by-trigger").click();
+      await catalog.getByTestId("os-sessions-modal-view-options-trigger").click();
       await appPage.getByTestId("os-sessions-modal-group-by-profile").click();
       await appPage.keyboard.press("Escape");
       for (const record of records) {

@@ -27,7 +27,7 @@ import {
   useSetAgentInstanceChecks,
   useTryCheck,
 } from "./use-agent-instance-checks";
-import { useAgentInstanceActions, useAgentInstances } from "./use-agent-instances";
+import { useAgentInstanceActions, useAgentDefinitionInstances } from "./use-agent-instances";
 import { useEditorDocument } from "./use-editor-document";
 import { useMinuteClock } from "./use-minute-clock";
 
@@ -41,12 +41,9 @@ function pickInstance(
   placeId: string | null,
   workspace: string | null
 ): AgentInstancePayload | null {
-  return (
-    instances.find(item => item.id === placeId) ??
-    instances.find(item => matchesWorkspace(item, workspace)) ??
-    instances[0] ??
-    null
-  );
+  if (placeId) return instances.find(item => item.id === placeId) ?? null;
+  // The route selects the authored definition; its placements may be in other projects.
+  return instances.find(item => matchesWorkspace(item, workspace)) ?? instances[0] ?? null;
 }
 
 function useCheckInsDocument(
@@ -125,7 +122,7 @@ export function useCheckInsEditor(
 ) {
   const document = useCheckInsDocument(agent, workspace, payload);
 
-  const instances = useAgentInstances().filter(item => item.agent_name === agent.name);
+  const instances = useAgentDefinitionInstances(agent);
   const [placeId, setPlaceId] = useState<string | null>(null);
   const instance = pickInstance(instances, placeId, workspace);
 

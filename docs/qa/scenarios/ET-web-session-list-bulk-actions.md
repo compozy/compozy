@@ -123,3 +123,7 @@ grouped (Group by project under All projects).
    confirmation as the toolbar. No single-session verb appears.
 4. Right-click a row outside the selection (Finder convention): the selection becomes that one
    row, the bar reads "1 selected", and the per-session menu opens for it.
+5. Select a parent and its own child, plus a session with another child. Delete shows the child
+   count without the selected child and unchecked. Check it and confirm: the parent's tree goes in
+   one request, the selected child reads done without a second request, and a failure keeps its row
+   in the result list. Bulk archive asks once with the same count, checked by default.

@@ -21,6 +21,9 @@ func (c *Client) ArchiveSession(ctx context.Context, params ArchiveSessionParams
 	if params.Stop != nil {
 		query.Set("stop", strconv.FormatBool(*params.Stop))
 	}
+	if params.WithChildren != nil {
+		query.Set("with_children", strconv.FormatBool(*params.WithChildren))
+	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}

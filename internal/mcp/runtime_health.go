@@ -9,13 +9,17 @@ import (
 
 // RuntimeHealthKey identifies one extension-owned MCP server generation.
 type RuntimeHealthKey struct {
-	ResourceID       string
-	InstanceName     string
-	WorkspaceID      string
-	BundleGeneration string
-	ServerName       string
+	ResourceID           string
+	InstanceName         string
+	WorkspaceID          string
+	BundleGeneration     string
+	ServerName           string
+	resolvedEpoch        uint64
+	resolvedPackageEpoch uint64
+	resolved             bool
 }
 
+// normalize preserves lifecycle fences while canonicalizing server identity.
 func (k RuntimeHealthKey) normalize() RuntimeHealthKey {
 	return RuntimeHealthKey{
 		ResourceID:       strings.TrimSpace(k.ResourceID),
@@ -23,6 +27,7 @@ func (k RuntimeHealthKey) normalize() RuntimeHealthKey {
 		WorkspaceID:      strings.TrimSpace(k.WorkspaceID),
 		BundleGeneration: strings.TrimSpace(k.BundleGeneration),
 		ServerName:       strings.TrimSpace(k.ServerName),
+		resolvedEpoch:    k.resolvedEpoch, resolvedPackageEpoch: k.resolvedPackageEpoch, resolved: k.resolved,
 	}
 }
 
@@ -36,6 +41,7 @@ type runtimeHealthInstanceKey struct {
 	workspaceID string
 }
 
+// instanceKey groups all server generations belonging to the same workspace instance.
 func (k RuntimeHealthKey) instanceKey() runtimeHealthInstanceKey {
 	normalized := k.normalize()
 	return runtimeHealthInstanceKey{name: normalized.InstanceName, workspaceID: normalized.WorkspaceID}
@@ -43,9 +49,10 @@ func (k RuntimeHealthKey) instanceKey() runtimeHealthInstanceKey {
 
 // RuntimeHealthObservation fences one asynchronous call-site outcome.
 type RuntimeHealthObservation struct {
-	key      RuntimeHealthKey
-	sequence uint64
-	epoch    uint64
+	key          RuntimeHealthKey
+	sequence     uint64
+	epoch        uint64
+	packageEpoch uint64
 }
 
 // RuntimeHealthEntry is one redacted live failure.
@@ -66,6 +73,7 @@ type RuntimeHealthRegistry struct {
 	mu             sync.RWMutex
 	states         map[RuntimeHealthKey]runtimeHealthState
 	instanceEpochs map[runtimeHealthInstanceKey]uint64
+	packageEpochs  map[string]uint64
 }
 
 // NewRuntimeHealthRegistry creates an empty restart-local registry.
@@ -73,7 +81,29 @@ func NewRuntimeHealthRegistry() *RuntimeHealthRegistry {
 	return &RuntimeHealthRegistry{
 		states:         make(map[RuntimeHealthKey]runtimeHealthState),
 		instanceEpochs: make(map[runtimeHealthInstanceKey]uint64),
+		packageEpochs:  make(map[string]uint64),
 	}
+}
+
+// ResolveKey captures lifecycle ownership before a resolved server can start an exchange.
+func (r *RuntimeHealthRegistry) ResolveKey(key RuntimeHealthKey) RuntimeHealthKey {
+	key = key.normalize()
+	if r == nil || key.InstanceName == "" {
+		return key
+	}
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	key.resolved = true
+	key.resolvedEpoch = r.instanceEpochs[key.instanceKey()]
+	key.resolvedPackageEpoch = r.packageEpochs[key.InstanceName]
+	return key
+}
+
+// stateKey removes the resolution fence from the stable server identity.
+func (k RuntimeHealthKey) stateKey() RuntimeHealthKey {
+	k = k.normalize()
+	k.resolved, k.resolvedEpoch, k.resolvedPackageEpoch = false, 0, 0
+	return k
 }
 
 // Begin reserves a monotonic observation sequence before one exchange starts.
@@ -84,13 +114,19 @@ func (r *RuntimeHealthRegistry) Begin(key RuntimeHealthKey) RuntimeHealthObserva
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if key.resolved && (key.resolvedEpoch != r.instanceEpochs[key.instanceKey()] ||
+		key.resolvedPackageEpoch != r.packageEpochs[key.InstanceName]) {
+		return RuntimeHealthObservation{}
+	}
+	key = key.stateKey()
 	state := r.states[key]
 	state.nextSequence++
 	r.states[key] = state
 	return RuntimeHealthObservation{
-		key:      key,
-		sequence: state.nextSequence,
-		epoch:    r.instanceEpochs[key.instanceKey()],
+		key:          key,
+		sequence:     state.nextSequence,
+		epoch:        r.instanceEpochs[key.instanceKey()],
+		packageEpoch: r.packageEpochs[key.InstanceName],
 	}
 }
 
@@ -114,11 +150,13 @@ func (r *RuntimeHealthRegistry) RecordSuccess(observation RuntimeHealthObservati
 	r.apply(observation, "")
 }
 
+// apply rejects outcomes from retired lifecycles or older exchanges before changing live health.
 func (r *RuntimeHealthRegistry) apply(observation RuntimeHealthObservation, message string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	instance := observation.key.instanceKey()
-	if observation.epoch != r.instanceEpochs[instance] {
+	if observation.epoch != r.instanceEpochs[instance] ||
+		observation.packageEpoch != r.packageEpochs[observation.key.InstanceName] {
 		return
 	}
 	state := r.states[observation.key]
@@ -137,7 +175,7 @@ func (r *RuntimeHealthRegistry) Ready(key RuntimeHealthKey) bool {
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	state := r.states[key.normalize()]
+	state := r.states[key.stateKey()]
 	return state.appliedSequence != 0 && state.unhealthyMessage == ""
 }
 
@@ -191,4 +229,21 @@ func (r *RuntimeHealthRegistry) EvictInstance(instanceName string, workspaceID s
 		return key.instanceKey() == instance
 	})
 	r.mu.Unlock()
+}
+
+// EvictPackage clears every workspace and fences resolved and in-flight calls after package retirement.
+func (r *RuntimeHealthRegistry) EvictPackage(name string) {
+	if r == nil {
+		return
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.packageEpochs[name]++
+	maps.DeleteFunc(r.states, func(key RuntimeHealthKey, _ runtimeHealthState) bool {
+		return key.InstanceName == name
+	})
 }

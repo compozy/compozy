@@ -70,6 +70,12 @@ func registerSessionProcessRoutes(api gin.IRouter, handlers *Handlers) {
 	workspaceSessions.POST("/:session_id/processes/terminate", handlers.TerminateSessionProcesses)
 }
 
+// registerSessionTreeRoutes keeps the archive and its with_children read together.
+func registerSessionTreeRoutes(sessions gin.IRouter, handlers *Handlers) {
+	sessions.POST("/:session_id/archive", handlers.ArchiveSession)
+	sessions.GET("/:session_id/descendants", handlers.ListSessionDescendants)
+}
+
 func registerSessionReadRoutes(sessions gin.IRouter, handlers *Handlers) {
 	sessions.GET("/:session_id/stream", handlers.StreamSession)
 	sessions.GET("/:session_id/history", handlers.SessionHistory)
@@ -126,7 +132,7 @@ func registerSessionPromptRoutes(workspaceSessions gin.IRouter, handlers *Handle
 func registerSessionLifecycleRoutes(sessions gin.IRouter, handlers *Handlers) {
 	sessions.DELETE("/:session_id", handlers.DeleteSession)
 	sessions.POST("/:session_id/stop", handlers.StopSession)
-	sessions.POST("/:session_id/archive", handlers.ArchiveSession)
+	registerSessionTreeRoutes(sessions, handlers)
 	sessions.POST("/:session_id/later", handlers.MoveSessionToLater)
 	sessions.POST("/:session_id/resume-later", handlers.ResumeSessionFromLater)
 	sessions.POST("/:session_id/unarchive", handlers.UnarchiveSession)

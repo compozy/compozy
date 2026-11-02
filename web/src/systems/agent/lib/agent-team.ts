@@ -205,7 +205,7 @@ export function buildAgentTeam(input: {
     const shared = (definitions.get(item.name) ?? 0) > 1;
     const own = input.instances.filter(instance => {
       if (instance.agent_name !== item.name) return false;
-      return !shared || item.scopes.includes(instance.workspace_id || GLOBAL_SCOPE);
+      return item.scopes.includes(instance.workspace_id || GLOBAL_SCOPE);
     });
     for (const instance of own) placed.add(instance.id);
     const places = own.map(instance => agentPlaceFromInstance(instance, names));
@@ -355,7 +355,12 @@ export function agentUsageLine(
 const PULSE_DAYS = 14;
 
 /** Daily report counts for the card's sparkline, with the recap beside it. */
-export function agentPulse(activity: AgentActivityPayload | null | undefined) {
+export function agentPulse(
+  activity:
+    | (Pick<AgentActivityPayload, "reports_by_day"> & Partial<AgentActivityPayload>)
+    | null
+    | undefined
+) {
   if (!activity) return null;
   const days = activity.reports_by_day.slice(-PULSE_DAYS);
   const values = days.map(day => day.quiet + day.told + day.needed_you);

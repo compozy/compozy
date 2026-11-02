@@ -69,3 +69,17 @@ User-scope HTTP read/write/history/rollback, two-profile SQLite authoring tests 
 browser walk passed. Both agent kinds opened both editors under All projects. SOUL UI saves
 survived reload; missing HEARTBEAT showed 00:00 to 24:00 with all five sources checked. Evidence:
 `reports/2026-11-01-stays-on-b5-remediation.md`.
+
+PR 1134 regression checks:
+
+- With same-named definitions in two projects and profiles, each card, editor, report source,
+  task owner, automation and session mention uses its recorded owner. Activity pulses sum only
+  the definition's resolved projects. Hover or focus a card title and confirm the scoped detail
+  read starts before navigation.
+- Start a dry run for instance A, switch to B and start another. Complete A last; B retains its
+  own result. Repeat two requests for B in reverse completion order.
+- Create from another project's picker. A successful first start opens that project; Decide
+  later and a failed start open the saved definition's project or User scope.
+- Mention a display name containing parentheses and a newline; the transcript chip preserves
+  the full label. No session starts as a side effect.
+- Read check-ins through HTTP and native tools; bounded details survive the shared projection.

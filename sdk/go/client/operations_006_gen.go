@@ -10,6 +10,24 @@ import (
 	"strings"
 )
 
+// DeleteWorkspaceFolder Delete a workspace folder; its workspaces return to the root
+func (c *Client) DeleteWorkspaceFolder(ctx context.Context, params DeleteWorkspaceFolderParams) (*WorkspaceLayoutResponse, error) {
+	path := "/api/workspace-folders/{folder_id}"
+	path = strings.ReplaceAll(path, "{folder_id}", url.PathEscape(params.FolderID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorkspaceLayoutResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // DeliverGlobalWebhookParams carries the path, query, and header parameters.
 type DeliverGlobalWebhookParams struct {
 	Endpoint                  string  `url:"endpoint"`

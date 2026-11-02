@@ -50,8 +50,11 @@ export const SESSIONS_BOARD_COLUMNS_ROW = {
 } as const;
 
 /** Group-by swimlanes stacked on the canvas, each a header over its own row of columns. */
-export const SESSIONS_BOARD_LANES = "flex w-max min-w-full flex-col gap-6";
-export const SESSIONS_BOARD_LANE = "flex flex-col gap-2";
+export const SESSIONS_BOARD_LANES = "flex w-max min-w-full flex-col gap-2";
+/** An open lane keeps its distance from the next one; folded lanes stack as a tight list. */
+export const SESSIONS_BOARD_LANE = "flex flex-col gap-2 not-data-collapsed:pb-4";
+/** The select-all's place, held so a lane's chevron stays aligned with or without cards. */
+export const SESSIONS_BOARD_LANE_SELECT_SLOT = "size-4";
 export const SESSIONS_BOARD_LANE_HEADER = "flex h-7 items-center gap-2 px-1";
 export const SESSIONS_BOARD_LANE_COUNT = "text-small-body text-subtle tabular-nums";
 

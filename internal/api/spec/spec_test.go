@@ -3759,6 +3759,9 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 		{worktreePath + "/dismiss", "post", []any{boolQuery("delete_branch"), boolQuery("force")}},
 		// #908: optional stop-first opt-in on session archive.
 		{"/api/workspaces/{workspace_id}/sessions/{session_id}/archive", "post", []any{boolQuery("stop")}},
+		// #1130: optional child-session opt-in on session archive and delete.
+		{"/api/workspaces/{workspace_id}/sessions/{session_id}/archive", "post", []any{boolQuery("with_children")}},
+		{"/api/workspaces/{workspace_id}/sessions/{session_id}", "delete", []any{boolQuery("with_children")}},
 	} {
 		operation := paths[change.path].(map[string]any)[change.method].(map[string]any)
 		parameters := operation["parameters"].([]any)
@@ -5425,6 +5428,10 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 					node["required"].([]any),
 					func(a, b any) int { return strings.Compare(a.(string), b.(string)) },
 				)
+			}
+			if props, ok := node["properties"].(map[string]any); ok && props["synthetic_prompt_id"] != nil &&
+				props["policy_snapshot_id"] != nil && props["expires_at"] != nil && props["result"] != nil {
+				props["detail"] = map[string]any{"type": "string"}
 			}
 		}
 	}

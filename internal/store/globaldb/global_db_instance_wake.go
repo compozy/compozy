@@ -12,6 +12,8 @@ import (
 
 var _ heartbeat.InstanceWakeStore = (*InstanceRepo)(nil)
 
+const instanceManualCheckSource = "instance_check"
+
 func (r *InstanceRepo) WakeState(ctx context.Context, id string) (heartbeat.InstanceWakeState, error) {
 	row, err := r.queries.GetInstanceWakeState(ctx, id)
 	return instanceWakeState(row), err
@@ -70,7 +72,7 @@ func (r *InstanceRepo) BindTriage(ctx context.Context, id, occurrence, sessionID
 	return count == 1, err
 }
 func (r *InstanceRepo) Skip(ctx context.Context, req heartbeat.SkipRequest) (bool, error) {
-	if !req.NextWakeAt.After(req.Now) || !req.ExpiresAt.After(req.Now) {
+	if (!req.ManualCheck && !req.NextWakeAt.After(req.Now)) || !req.ExpiresAt.After(req.Now) {
 		return false, errors.New("invalid wake skip schedule")
 	}
 	changed := false
@@ -80,18 +82,23 @@ func (r *InstanceRepo) Skip(ctx context.Context, req heartbeat.SkipRequest) (boo
 		"skip instance wake",
 		func(ctx context.Context, tx *store.WriteTx) error {
 			q := sqlcgen.New(tx)
-			count, err := q.SkipInstanceWake(
-				ctx,
-				sqlcgen.SkipInstanceWakeParams{
-					InstanceID:  req.InstanceID,
-					ExpectedDue: req.ExpectedDue,
-					Now:         store.FormatTimestamp(req.Now),
-					NextWakeAt:  store.FormatTimestamp(req.NextWakeAt),
-				},
-			)
-			if err != nil || count == 0 {
-				return err
+			source := instanceManualCheckSource
+			if !req.ManualCheck {
+				source = "timer"
+				count, err := q.SkipInstanceWake(
+					ctx,
+					sqlcgen.SkipInstanceWakeParams{
+						InstanceID:  req.InstanceID,
+						ExpectedDue: req.ExpectedDue,
+						Now:         store.FormatTimestamp(req.Now),
+						NextWakeAt:  store.FormatTimestamp(req.NextWakeAt),
+					},
+				)
+				if err != nil || count == 0 {
+					return err
+				}
 			}
+
 			id, err := store.NewID("hwe")
 			if err != nil {
 				return err
@@ -101,7 +108,7 @@ func (r *InstanceRepo) Skip(ctx context.Context, req heartbeat.SkipRequest) (boo
 				sqlcgen.InsertInstanceWakeEventParams{
 					ID:         id,
 					InstanceID: req.InstanceID,
-					Source:     "timer",
+					Source:     source,
 					Result:     "skipped",
 					Reason:     req.Reason,
 					Detail:     req.Detail,

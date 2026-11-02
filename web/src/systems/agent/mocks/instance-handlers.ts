@@ -19,6 +19,13 @@ let reportsState: AgentInstanceReport[] = [];
 let awayState: AgentInstanceAway | null = null;
 let capacityLimit = 10;
 
+/** Catalog fixtures include the workspaces where their seeded instances resolve. */
+export function agentInstanceMockScopes(name: string): string[] {
+  return instancesState
+    .filter(instance => instance.agent_name === name)
+    .map(instance => instance.workspace_id || "@user");
+}
+
 export function resetAgentInstanceMock(): void {
   instancesState = [];
   checkInsState = [];

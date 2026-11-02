@@ -58,23 +58,35 @@ func newArchiveRequiresStoppedError(sessionID string, cause error) error {
 // failed stop leaves the session unarchived and reports ErrSessionArchiveStopFailed.
 func (m *Manager) ArchiveWithStop(ctx context.Context, workspaceID string, sessionID string) (*Info, error) {
 	sessionID = strings.TrimSpace(sessionID)
+	var info *Info
+	err := m.archiveStoppingLiveMembers(ctx, sessionID, func() error {
+		var archiveErr error
+		info, archiveErr = m.Archive(ctx, workspaceID, sessionID)
+		return archiveErr
+	})
+	return info, err
+}
+
+// archiveStoppingLiveMembers repeats archive, stopping the live member each
+// refusal names, until it stops refusing.
+func (m *Manager) archiveStoppingLiveMembers(ctx context.Context, sessionID string, archive func() error) error {
 	stopped := make(map[string]bool)
 	for {
-		info, err := m.Archive(ctx, workspaceID, sessionID)
+		err := archive()
 		refusal, ok := errors.AsType[*archiveRequiresStoppedError](err)
 		if !ok {
-			return info, err
+			return err
 		}
 		// Each member is stopped at most once, so a member that stays live after
 		// its stop fails the request instead of looping.
 		if stopped[refusal.member] {
-			return nil, fmt.Errorf("%w: %s: %w", ErrSessionArchiveStopFailed, sessionID, err)
+			return fmt.Errorf("%w: %s: %w", ErrSessionArchiveStopFailed, sessionID, err)
 		}
 		stopped[refusal.member] = true
 		// A member that finalized after the archive attempt is no longer live, so
 		// its missing runtime is not a stop failure; the next attempt decides.
 		if stopErr := m.Stop(ctx, refusal.member); stopErr != nil && !errors.Is(stopErr, ErrSessionNotFound) {
-			return nil, fmt.Errorf("%w: %s: %w", ErrSessionArchiveStopFailed, sessionID, stopErr)
+			return fmt.Errorf("%w: %s: %w", ErrSessionArchiveStopFailed, sessionID, stopErr)
 		}
 	}
 }
@@ -110,26 +122,36 @@ func (m *Manager) setArchived(
 		archived,
 	)
 	if err != nil {
-		switch {
-		case errors.Is(err, store.ErrSessionArchiveRequiresStopped):
-			return nil, newArchiveRequiresStoppedError(sessionID, err)
-		case errors.Is(err, store.ErrSessionArchived):
-			return nil, fmt.Errorf("%w: %s", ErrSessionArchived, sessionID)
-		default:
-			return nil, err
-		}
+		return nil, archiveStoreError(sessionID, err)
 	}
 	if archived {
-		if service := m.ReplyWatches(); service != nil {
-			service.OnTargetGone(ctx, sessionID)
-			if err := service.OnSenderGone(ctx, sessionID); err != nil {
-				return nil, err
-			}
+		if err := m.releaseArchivedSessionWatches(ctx, sessionID); err != nil {
+			return nil, err
 		}
 	}
 	info := sessionInfoFromCatalog(&stored)
 	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, info))
 	return info, nil
+}
+
+func archiveStoreError(sessionID string, err error) error {
+	switch {
+	case errors.Is(err, store.ErrSessionArchiveRequiresStopped):
+		return newArchiveRequiresStoppedError(sessionID, err)
+	case errors.Is(err, store.ErrSessionArchived):
+		return fmt.Errorf("%w: %s", ErrSessionArchived, sessionID)
+	default:
+		return err
+	}
+}
+
+func (m *Manager) releaseArchivedSessionWatches(ctx context.Context, sessionID string) error {
+	service := m.ReplyWatches()
+	if service == nil {
+		return nil
+	}
+	service.OnTargetGone(ctx, sessionID)
+	return service.OnSenderGone(ctx, sessionID)
 }
 
 func (m *Manager) setSessionArchivedWithResumeGuard(

@@ -39,6 +39,7 @@ func (s *daemonExtensionService) ListEnablement(
 	return items, nil
 }
 
+// SetEnablement compensates profile state when the selected package cannot be published.
 func (s *daemonExtensionService) SetEnablement(
 	ctx context.Context,
 	name string,
@@ -90,6 +91,7 @@ func (s *daemonExtensionService) SetEnablement(
 	return result, nil
 }
 
+// Profile enablement is restored if publishing the selected package or its lifecycle event fails.
 func (s *daemonExtensionService) applyProfileEnablement(
 	ctx context.Context, name, profileID, profileName string, enabled bool, actor taskpkg.ActorContext,
 ) error {
@@ -106,7 +108,7 @@ func (s *daemonExtensionService) applyProfileEnablement(
 	if err := s.registry.SetEnabledForProfile(name, profileID, enabled); err != nil {
 		return err
 	}
-	if err := s.reload(ctx); err != nil {
+	if err := s.reloadExtensions(ctx, name); err != nil {
 		return s.rollbackProfileEnablement(ctx, name, profileID, previous, err)
 	}
 	if err := s.recordExtensionEnablementChanged(
@@ -130,6 +132,7 @@ func (s *daemonExtensionService) applyProfileEnablement(
 	return nil
 }
 
+// bindExtensionEnablementActor resolves persisted workspace ownership before changing enablement.
 func (s *daemonExtensionService) bindExtensionEnablementActor(
 	ctx context.Context,
 	actor taskpkg.ActorContext,
@@ -156,6 +159,7 @@ func (s *daemonExtensionService) bindExtensionEnablementActor(
 	return actor, actor.Validate()
 }
 
+// Compensation preserves the profile cell without depending on another package initialization result.
 func (s *daemonExtensionService) rollbackProfileEnablement(
 	ctx context.Context,
 	name string,
@@ -172,7 +176,7 @@ func (s *daemonExtensionService) rollbackProfileEnablement(
 	if err := s.registry.SetEnabledForProfile(name, profileID, previous); err != nil {
 		rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: restore extension enablement: %w", err))
 	}
-	if err := s.reload(rollbackCtx); err != nil {
+	if err := s.reloadExtensions(rollbackCtx, name); err != nil {
 		rollbackErr = errors.Join(rollbackErr, fmt.Errorf("daemon: reload restored extension enablement: %w", err))
 	}
 	return errors.Join(operationErr, rollbackErr)

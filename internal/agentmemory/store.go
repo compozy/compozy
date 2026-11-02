@@ -74,17 +74,10 @@ func (s *Store) directory(key Key) (string, error) {
 }
 
 func readFile(path string) (string, error) {
-	info, err := os.Lstat(path)
+	data, _, err := fileutil.ReadRegularFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return "", nil
 	}
-	if err != nil {
-		return "", err
-	}
-	if !info.Mode().IsRegular() {
-		return "", errors.New("memory file must be regular")
-	}
-	data, err := os.ReadFile(path)
 	return string(data), err
 }
 

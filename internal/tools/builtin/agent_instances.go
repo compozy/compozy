@@ -1,6 +1,10 @@
 package builtin
 
-import toolspkg "github.com/compozy/compozy/internal/tools"
+import (
+	"strings"
+
+	toolspkg "github.com/compozy/compozy/internal/tools"
+)
 
 func agentInstanceDescriptors() []toolspkg.Descriptor {
 	var result []toolspkg.Descriptor
@@ -28,12 +32,23 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 		if operation.read {
 			risk = toolspkg.RiskRead
 		}
+		schema := agentInstanceInputSchema
+		required := ""
+		switch operation.id {
+		case toolspkg.ToolIDAgentInstanceChecks:
+			required = "enabled"
+		case toolspkg.ToolIDAgentInstanceOccurrence:
+			required = "occurrence_id"
+		}
+		if required != "" {
+			schema = strings.TrimSuffix(schema, "}") + `,"required":["` + required + `"]}`
+		}
 		result = append(result, nativeDescriptor(
 			operation.id,
 			"agent_instance_"+operation.name,
 			"Agent Instance "+operation.name,
 			"Manage the caller's stays-on agent instance: "+operation.name,
-			agentInstanceInputSchema,
+			schema,
 			risk,
 			operation.read,
 			operation.name == descriptorKeywordArchive,

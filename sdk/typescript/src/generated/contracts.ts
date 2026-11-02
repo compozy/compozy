@@ -2041,6 +2041,7 @@ export interface HeartbeatWakeEventPayload {
   source: HeartbeatWakeSource;
   result: HeartbeatWakeResult;
   reason: HeartbeatWakeReason;
+  detail?: string;
   synthetic_prompt_id?: string;
   created_at: ISODateTime;
   expires_at: ISODateTime;

@@ -27,6 +27,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
+	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/gateway"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 
@@ -1683,8 +1684,19 @@ func TestDrainAllowsActiveAutomationPromptToFinishBeforeJoinedShutdown(t *testin
 func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.T) {
 	// not parallel: integrationHomePaths isolates process environment with t.Setenv.
 	t.Run("Should retain healthy hooks and stop their runtime after a corrupt extension fails", func(t *testing.T) {
+		t.Setenv(RestartOperationEnvKey, "")
 		homePaths := integrationHomePaths(t)
 		cfg := testConfig(t, homePaths)
+
+		retiredDir := installExtensionForDaemonIntegration(
+			t,
+			homePaths.DatabaseFile,
+			"dev-cycle",
+			daemonTestExtensionOptions{
+				bundled: true, runtimeCommand: filepath.Join(t.TempDir(), "removed-internal-provider"),
+			},
+			false,
+		)
 
 		hookMarker := filepath.Join(t.TempDir(), "hook.json")
 		shutdownMarker := filepath.Join(t.TempDir(), "shutdown.txt")
@@ -1740,6 +1752,18 @@ func TestBootContinuesAfterCorruptExtensionAndKeepsHealthyExtensions(t *testing.
 				t.Fatalf("Shutdown() error = %v", err)
 			}
 		})
+
+		retiredRegistry := extensionpkg.NewRegistry(d.registry.(extensionDBSource).DB())
+		if _, err := retiredRegistry.Get("dev-cycle"); !errors.Is(err, extensionpkg.ErrExtensionNotFound) {
+			t.Fatalf("superseded entry survived boot: %v", err)
+		}
+		enabled, err := retiredRegistry.IsEnabledForProfile("spec-cycle", store.DefaultProfileID)
+		if err != nil || enabled {
+			t.Fatalf("upgraded enablement = %v, %v", enabled, err)
+		}
+		if _, err := os.Stat(filepath.Join(retiredDir, "extension.toml")); err != nil {
+			t.Fatalf("retained old package: %v", err)
+		}
 
 		if d.extensions == nil {
 			t.Fatal("boot() did not publish the extension runtime")
@@ -3819,7 +3843,10 @@ func TestBootRecoversInstanceReports(t *testing.T) {
 		if err := d.boot(t.Context()); err != nil {
 			t.Fatal(err)
 		}
-		main, err := d.sessions.Create(t.Context(), new(session.CreateOpts{AgentName: "coder", WorkspacePath: t.TempDir()}))
+		main, err := d.sessions.Create(
+			t.Context(),
+			new(session.CreateOpts{AgentName: "coder", WorkspacePath: t.TempDir()}),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3831,11 +3858,13 @@ func TestBootRecoversInstanceReports(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, main.ID, 10)
+		instance, err := db.Instances().
+			Adopt(t.Context(), agentinstance.Instance{ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, main.ID, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
-		report, err := db.InstanceReports().AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{SourceKey: "occ:boot-recovery", Kind: "failure", Payload: []byte(`{"reason":"failed","detail":"persisted before crash"}`)})
+		report, err := db.InstanceReports().
+			AppendReport(t.Context(), instance.ID, agentinstance.ReportInput{SourceKey: "occ:boot-recovery", Kind: "failure", Payload: []byte(`{"reason":"failed","detail":"persisted before crash"}`)})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3887,13 +3916,27 @@ func TestInstancePayloadIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
-			ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID, AgentName: "coder", PermissionCeiling: string(ceiling), CreatedByKind: "human",
+			ProfileID:         store.DefaultProfileID,
+			WorkspaceID:       workspace.ID,
+			AgentName:         "coder",
+			PermissionCeiling: string(ceiling),
+			CreatedByKind:     "human",
 		}, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
 		starter := instanceMainSessions{sessions: d.sessions.(*session.Manager), attempts: db.Instances()}
-		initial, err := d.sessions.Create(t.Context(), new(session.CreateOpts{InstanceID: instance.ID, ProfileID: instance.ProfileID, AgentName: "coder", Workspace: workspace.ID}))
+		initial, err := d.sessions.Create(
+			t.Context(),
+			new(
+				session.CreateOpts{
+					InstanceID: instance.ID,
+					ProfileID:  instance.ProfileID,
+					AgentName:  "coder",
+					Workspace:  workspace.ID,
+				},
+			),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3936,7 +3979,13 @@ func TestInstancePayloadIntegration(t *testing.T) {
 			sessions: d.sessions.(*session.Manager),
 		}
 		db := d.registry.(*globaldb.GlobalDB)
-		instance := agentinstance.Instance{ID: "missing-root-instance", ProfileID: store.DefaultProfileID, WorkspaceID: workspace.ID, AgentName: "coder", State: "paused"}
+		instance := agentinstance.Instance{
+			ID:          "missing-root-instance",
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: workspace.ID,
+			AgentName:   "coder",
+			State:       "paused",
+		}
 		payload, err := definitions.instancePayload(t.Context(), instance, db.Instances())
 		if err != nil {
 			t.Fatal(err)

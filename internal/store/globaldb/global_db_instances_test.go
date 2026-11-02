@@ -1938,125 +1938,147 @@ func (d *instanceRecoveryDispatcher) Stop(_ context.Context, id string) error {
 }
 
 func TestInstanceCheckRecovery(t *testing.T) {
-	t.Run("Should recover one interruption and never replay its committed outcome", func(t *testing.T) {
-		t.Parallel()
-		db := openTestGlobalDB(t)
-		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "wake-recovery", "sess-recovery-main")
-		repo := db.Instances()
-		instance, err := repo.Adopt(
-			t.Context(),
-			agentinstance.Instance{
-				ProfileID:         store.DefaultProfileID,
-				AgentName:         "coder",
-				WorkspaceID:       workspace,
-				PermissionCeiling: "{}",
-				CreatedByKind:     "human",
+	// Invariant: restart preserves admitted cadence and commits an interrupted outcome once.
+	// Owner: instance check service and SQLite persistence; canonical recovery suite.
+	for _, manual := range []bool{true, false} {
+		t.Run(
+			fmt.Sprintf("Should recover one interruption without replay or cadence drift (manual=%t)", manual),
+			func(t *testing.T) {
+				t.Parallel()
+				db := openTestGlobalDB(t)
+				workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "wake-recovery", "sess-recovery-main")
+				repo := db.Instances()
+				repo.now = func() time.Time { return time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC) }
+				occurrence := "timer-recovery"
+				if manual {
+					occurrence = "instance_check-recovery"
+				}
+				instance, err := repo.Adopt(
+					t.Context(),
+					agentinstance.Instance{
+						ProfileID:         store.DefaultProfileID,
+						AgentName:         "coder",
+						WorkspaceID:       workspace,
+						PermissionCeiling: "{}",
+						CreatedByKind:     "human",
+					},
+					main,
+					10,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+				if ok, err := repo.Admit(
+					t.Context(),
+					heartbeat.AdmitRequest{
+						InstanceID:    instance.ID,
+						OccurrenceID:  occurrence,
+						NextWakeAt:    now.Add(17 * time.Minute),
+						Now:           now,
+						ManualCheck:   manual,
+						MaxConcurrent: 2,
+					},
+				); err != nil ||
+					!ok {
+					t.Fatalf("admit=%v %v", ok, err)
+				}
+				if ok, err := repo.BindTriage(
+					t.Context(),
+					instance.ID,
+					occurrence,
+					"hidden",
+				); err != nil ||
+					!ok {
+					t.Fatalf("bind=%v %v", ok, err)
+				}
+				admitted, err := repo.WakeState(t.Context(), instance.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				dispatcher := &instanceRecoveryDispatcher{}
+				environment := &instanceCheckEnvironment{
+					target: heartbeat.CheckTarget{Instance: instance, Policy: heartbeat.ResolvedPolicy{Enabled: true}},
+				}
+				config := heartbeat.CheckConfig{
+					Enabled:       true,
+					Interval:      time.Hour,
+					MaxInterval:   24 * time.Hour,
+					Retention:     24 * time.Hour,
+					Timeout:       time.Minute,
+					MaxConcurrent: 2,
+					BatchSize:     10,
+				}
+				service, err := heartbeat.NewCheckService(
+					t.Context(),
+					repo,
+					environment,
+					dispatcher,
+					config,
+					func() time.Time { return now },
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := service.Shutdown(context.Background()); err != nil {
+						t.Error(err)
+					}
+				})
+				if err := service.Recover(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				if len(dispatcher.stopped) != 1 || dispatcher.stopped[0] != "hidden" {
+					t.Fatalf("stopped=%v", dispatcher.stopped)
+				}
+				if err := service.Recover(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				state, err := repo.WakeState(t.Context(), instance.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if state.OccurrenceID != "" || state.FailureStreak != 1 || state.LastDigest != "" ||
+					state.NextWakeAt != admitted.NextWakeAt {
+					t.Fatalf("recovered=%+v", state)
+				}
+				var count int
+				if err := db.DB().
+					QueryRowContext(t.Context(), "SELECT count(*) FROM agent_instance_reports WHERE source_key=?", "occ:"+occurrence).
+					Scan(&count); err != nil {
+					t.Fatal(err)
+				}
+				if count != 1 {
+					t.Fatalf("reports=%d", count)
+				}
+				if err := service.Tick(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				state, err = repo.WakeState(t.Context(), instance.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if state.NextWakeAt == "" || state.OccurrenceID != "" || state.FailureStreak != 1 {
+					t.Fatalf("empty digest changed outcome=%+v", state)
+				}
+				if err := service.Tick(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				if err := db.DB().
+					QueryRowContext(t.Context(), "SELECT count(*) FROM agent_heartbeat_wake_events WHERE reason='digest_empty' AND agent_name='coder'").
+					Scan(&count); err != nil {
+					t.Fatal(err)
+				}
+				wantSkips := 0
+				if manual {
+					wantSkips = 1
+				}
+				if count != wantSkips {
+					t.Fatalf("empty skips=%d want=%d", count, wantSkips)
+				}
 			},
-			main,
-			10,
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
-		if ok, err := repo.Admit(
-			t.Context(),
-			heartbeat.AdmitRequest{
-				InstanceID:    instance.ID,
-				OccurrenceID:  "instance_check-recovery",
-				Now:           now,
-				ManualCheck:   true,
-				MaxConcurrent: 2,
-			},
-		); err != nil ||
-			!ok {
-			t.Fatalf("admit=%v %v", ok, err)
-		}
-		if ok, err := repo.BindTriage(
-			t.Context(),
-			instance.ID,
-			"instance_check-recovery",
-			"hidden",
-		); err != nil ||
-			!ok {
-			t.Fatalf("bind=%v %v", ok, err)
-		}
-		dispatcher := &instanceRecoveryDispatcher{}
-		environment := &instanceCheckEnvironment{
-			target: heartbeat.CheckTarget{Instance: instance, Policy: heartbeat.ResolvedPolicy{Enabled: true}},
-		}
-		config := heartbeat.CheckConfig{
-			Enabled:       true,
-			Interval:      time.Hour,
-			MaxInterval:   24 * time.Hour,
-			Retention:     24 * time.Hour,
-			Timeout:       time.Minute,
-			MaxConcurrent: 2,
-			BatchSize:     10,
-		}
-		service, err := heartbeat.NewCheckService(
-			t.Context(),
-			repo,
-			environment,
-			dispatcher,
-			config,
-			func() time.Time { return now },
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := service.Shutdown(context.Background()); err != nil {
-				t.Error(err)
-			}
-		})
-		if err := service.Recover(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		if len(dispatcher.stopped) != 1 || dispatcher.stopped[0] != "hidden" {
-			t.Fatalf("stopped=%v", dispatcher.stopped)
-		}
-		if err := service.Recover(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		state, err := repo.WakeState(t.Context(), instance.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if state.OccurrenceID != "" || state.FailureStreak != 1 || state.LastDigest != "" {
-			t.Fatalf("recovered=%+v", state)
-		}
-		var count int
-		if err := db.DB().
-			QueryRowContext(t.Context(), "SELECT count(*) FROM agent_instance_reports WHERE source_key='occ:instance_check-recovery'").
-			Scan(&count); err != nil {
-			t.Fatal(err)
-		}
-		if count != 1 {
-			t.Fatalf("reports=%d", count)
-		}
-		if err := service.Tick(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		state, err = repo.WakeState(t.Context(), instance.ID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if state.NextWakeAt == "" || state.OccurrenceID != "" || state.FailureStreak != 1 {
-			t.Fatalf("empty digest changed outcome=%+v", state)
-		}
-		if err := service.Tick(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		if err := db.DB().
-			QueryRowContext(t.Context(), "SELECT count(*) FROM agent_heartbeat_wake_events WHERE reason='digest_empty' AND agent_name='coder'").
-			Scan(&count); err != nil {
-			t.Fatal(err)
-		}
-		if count != 1 {
-			t.Fatalf("empty skips=%d", count)
-		}
-	})
+	}
 }
 
 func TestInstanceCheckSlotPrefilter(t *testing.T) {
@@ -3232,9 +3254,26 @@ func TestInstanceCheckGates(t *testing.T) {
 				t.Fatal(err)
 			}
 			if tc.hook != "" {
+				// Invariant: manual veto audits once without changing cadence or admitting an occurrence (UT-039).
+				before, err := repo.WakeState(t.Context(), instance.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
 				result, err := service.Check(t.Context(), instance.ID, false)
 				if err != nil || result.Gate != hookCanceledReason || result.OccurrenceID != "" {
 					t.Fatalf("manual=%+v err=%v", result, err)
+				}
+				after, err := repo.WakeState(t.Context(), instance.ID)
+				if err != nil || !reflect.DeepEqual(before, after) {
+					t.Fatalf("manual veto changed cadence: %+v %+v %v", before, after, err)
+				}
+				var manualEvents int
+				if err := db.db.QueryRowContext(t.Context(), "SELECT count(*) FROM agent_heartbeat_wake_events WHERE instance_id=? AND source='instance_check' AND reason=? AND occurrence_id=''", instance.ID, hookCanceledReason).
+					Scan(&manualEvents); err != nil {
+					t.Fatal(err)
+				}
+				if manualEvents != 1 {
+					t.Fatalf("manual veto events=%d", manualEvents)
 				}
 			}
 			if err := service.Tick(t.Context()); err != nil {
@@ -3290,7 +3329,7 @@ func TestInstanceCheckGates(t *testing.T) {
 				}
 			}
 			var count int
-			if err := db.db.QueryRowContext(t.Context(), "SELECT count(*) FROM agent_heartbeat_wake_events WHERE instance_id=?", instance.ID).
+			if err := db.db.QueryRowContext(t.Context(), "SELECT count(*) FROM agent_heartbeat_wake_events WHERE instance_id=? AND source='timer'", instance.ID).
 				Scan(&count); err != nil {
 				t.Fatal(err)
 			}

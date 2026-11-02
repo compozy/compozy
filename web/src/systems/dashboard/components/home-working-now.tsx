@@ -36,7 +36,7 @@ export interface HomeWorkingNowProps {
 
 function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds: number }) {
   // An unnamed session falls back to its agent, which reads by label, never by slug.
-  const { label } = useAgentIdentityView(card.agentName);
+  const { label } = useAgentIdentityView(card.agentName, card.agentScope);
   const title = card.title === card.agentName ? label : card.title;
   const ticked =
     card.elapsedBaseSeconds + Math.max(0, nowSeconds - Math.floor(card.baseAtMs / 1000));
@@ -50,7 +50,13 @@ function HomeRunCard({ card, nowSeconds }: { card: HomeRunCardModel; nowSeconds:
       <div className="min-w-0">
         <div className={HOME_RUN_TITLE_CLASS}>
           <StateGlyph state="running" />
-          <AgentIdentityMark name={card.agentName} quietIdle size={20} state="working" />
+          <AgentIdentityMark
+            agentScope={card.agentScope}
+            name={card.agentName}
+            quietIdle
+            size={20}
+            state="working"
+          />
           <span className="truncate">{title}</span>
           {card.kind === "task_run" ? (
             <Pill size="xs" tone="neutral">

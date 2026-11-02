@@ -137,3 +137,15 @@ ORDER BY server_name ASC;
 DELETE FROM mcp_oauth_registrations
 WHERE scope = 'workspace'
   AND workspace_id = sqlc.arg(workspace_id);
+
+-- name: ListExtensionVaultMetadata :many
+SELECT ref, kind, encrypted_value <> '' AS present, created_at, updated_at
+FROM vault_secrets
+WHERE (ref >= sqlc.arg(global_prefix) AND ref < sqlc.arg(global_end))
+ OR (ref >= 'vault:extensions/ws/' AND ref < 'vault:extensions/ws0'
+ AND substr(
+  substr(ref, length('vault:extensions/ws/') + 1),
+  instr(substr(ref, length('vault:extensions/ws/') + 1), '/') + 1,
+  length(sqlc.arg(owner_segment)) + 1
+ ) = sqlc.arg(owner_segment) || '/')
+ORDER BY ref;

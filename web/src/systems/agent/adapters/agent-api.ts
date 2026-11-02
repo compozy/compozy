@@ -181,7 +181,7 @@ export async function createAgent(
       message.includes("agent provider is required;");
     throw new AgentApiError(
       missingDefault
-        ? "Couldn't create this agent. No default provider is set. Choose a provider in Model and try again."
+        ? "Couldn't create this agent. No default model is set. Choose a model and try again."
         : message,
       response.status
     );
