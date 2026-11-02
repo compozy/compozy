@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 type sessionWakeManagerStub struct {
@@ -290,6 +291,75 @@ func (stub *monitorWakeManagerStub) EnqueueSyntheticWake(
 	return store.SessionInputQueueEntry{ID: "inq-1"}, stub.enqueueErr
 }
 
+// Invariant: only a current successful lookup reaches the monitor as facts.
+func TestMonitorPullRequestObservation(t *testing.T) {
+	t.Parallel()
+
+	number, open := 7, "open"
+	facts := &worktree.ForgeStatus{
+		PRNumber: &number, PRState: &open, PRURL: "https://forge.test/pull/7", HeadSHA: "head-a",
+		Checks: &worktree.ForgeChecks{State: "failing", Failed: 1, FailedNames: []string{"lint"}},
+		Reviews: &worktree.ForgeReviews{
+			Items: []worktree.ForgeReview{
+				{ID: "r1", Author: "reviewer", State: "commented", Commit: "head-a"},
+			},
+			UnresolvedThreads: 2,
+		},
+	}
+	t.Run("Should map a current lookup", func(t *testing.T) {
+		t.Parallel()
+
+		got := monitorPullRequestObservation(worktree.PullRequestEntry{LookupState: "ok", Facts: facts}, nil)
+		if got.Lookup != monitorpkg.PullRequestFound || got.Number != 7 || got.Head != "head-a" ||
+			got.Checks == nil || got.Checks.Failed != 1 || got.Reviews == nil ||
+			got.Reviews.UnresolvedThreads != 2 || got.Reviews.Items[0].ID != "r1" {
+			t.Fatalf("observation = %+v", got)
+		}
+	})
+	t.Run("Should not trust the facts an error entry retains", func(t *testing.T) {
+		t.Parallel()
+
+		got := monitorPullRequestObservation(
+			worktree.PullRequestEntry{LookupState: "error", LookupCause: "rate_limited", Facts: facts}, nil)
+		if got.Lookup != monitorpkg.PullRequestFailed || got.Cause != "rate_limited" || got.Checks != nil {
+			t.Fatalf("observation = %+v", got)
+		}
+	})
+	t.Run("Should treat a refresh error as a failed lookup", func(t *testing.T) {
+		t.Parallel()
+
+		got := monitorPullRequestObservation(
+			worktree.PullRequestEntry{LookupState: "ok", Facts: facts},
+			errors.New("boom"),
+		)
+		if got.Lookup != monitorpkg.PullRequestFailed || got.Cause != "provider_failed" {
+			t.Fatalf("observation = %+v", got)
+		}
+	})
+	t.Run("Should wait while no pull request is known", func(t *testing.T) {
+		t.Parallel()
+
+		for _, entry := range []worktree.PullRequestEntry{
+			{LookupState: "pending"}, {LookupState: "incomplete"},
+			{LookupState: "ok", Facts: &worktree.ForgeStatus{}},
+		} {
+			if got := monitorPullRequestObservation(entry, nil); got.Lookup != monitorpkg.PullRequestAbsent {
+				t.Fatalf("entry %+v observed as %+v", entry, got)
+			}
+		}
+	})
+	t.Run("Should leave unknown checks and absent reviews unobservable", func(t *testing.T) {
+		t.Parallel()
+
+		partial := *facts
+		partial.Checks, partial.Reviews = &worktree.ForgeChecks{State: "unknown"}, nil
+		got := monitorPullRequestObservation(worktree.PullRequestEntry{LookupState: "ok", Facts: &partial}, nil)
+		if got.Lookup != monitorpkg.PullRequestFound || got.Checks != nil || got.Reviews != nil {
+			t.Fatalf("observation = %+v", got)
+		}
+	})
+}
+
 func TestMonitorSessionWaker(t *testing.T) {
 	t.Parallel()
 
@@ -322,6 +392,27 @@ func TestMonitorSessionWaker(t *testing.T) {
 		}
 		if !strings.Contains(manager.opts.Message, "NOT USER INPUT") {
 			t.Fatalf("wake message = %q, want automated-wake header", manager.opts.Message)
+		}
+	})
+
+	t.Run("Should give every pull_request fire its own message id", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &monitorWakeManagerStub{status: &session.Info{ID: "sess-1", State: session.StateActive}}
+		wake := monitorpkg.Notification{
+			Monitor: monitorpkg.Monitor{
+				ID: "mon-0123456789ab", SessionID: "sess-1", Kind: monitorpkg.KindPullRequest,
+				Description: "watch my PR", Branch: "feat/x", FireCount: 4,
+			},
+			Outcome:     monitorpkg.Outcome{Reason: monitorpkg.ReasonPullRequestChanged},
+			PullRequest: &monitorpkg.PullRequestChanges{Wake: true, Number: 7, State: "open"},
+		}
+		if err := wakerFor(manager).WakeSession(testutil.Context(t), wake); err != nil {
+			t.Fatalf("WakeSession() error = %v", err)
+		}
+		if manager.opts.MessageID != "monitor:mon-0123456789ab:4" ||
+			manager.opts.Metadata.Reason != "monitor_pull_request_changed" {
+			t.Fatalf("admission opts = %#v", manager.opts)
 		}
 	})
 

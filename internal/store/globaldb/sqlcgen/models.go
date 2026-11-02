@@ -1680,6 +1680,11 @@ type SessionMonitor struct {
 	OwnerBinding       string        `json:"owner_binding"`
 	OwnerCheckFailedAt string        `json:"owner_check_failed_at"`
 	Version            int64         `json:"version"`
+	Branch             string        `json:"branch"`
+	RepoKey            string        `json:"repo_key"`
+	PrCursor           string        `json:"pr_cursor"`
+	FireCount          int64         `json:"fire_count"`
+	LastFiredAt        string        `json:"last_fired_at"`
 }
 
 type SessionPendingInteraction struct {

@@ -1,6 +1,8 @@
 // Package monitor owns daemon-native session monitors: durable-for-the-daemon
 // watches that wake their owning agent session when a terminal exits, a
-// terminal prints a pattern, or a timer elapses. Provider-internal background
+// terminal prints a pattern, a timer elapses, or a pull request changes.
+// Terminal and timer monitors fire once; a pull_request monitor stays armed
+// across wakes. Provider-internal background
 // mechanisms (Claude Code Monitor/run_in_background, Codex background
 // terminals) cannot start a Compozy turn, so the daemon owns the wake.
 package monitor
@@ -20,6 +22,8 @@ const (
 	KindTerminal Kind = "terminal"
 	// KindTimer fires once after a delay.
 	KindTimer Kind = "timer"
+	// KindPullRequest watches a branch's pull request through the forge and fires on each meaningful change.
+	KindPullRequest Kind = "pull_request"
 )
 
 // Status is the lifecycle state of one monitor.
@@ -29,7 +33,8 @@ const (
 	StatusActive Status = "active"
 	// StatusDelivering means the monitor fired and its wake is retrying a transient refusal.
 	StatusDelivering Status = "delivering"
-	// StatusFired means the wake was admitted to the owning session's input queue.
+	// StatusFired means the final wake was admitted to the owning session's input queue. A pull_request
+	// monitor returns to active after every other admitted wake.
 	StatusFired    Status = "fired"
 	StatusCanceled Status = "canceled"
 	// StatusUndelivered means the monitor fired but its owning session could not be woken.
@@ -57,6 +62,12 @@ const (
 	ReasonSessionStopped = "session_stopped"
 	// ReasonOwnerPrefix prefixes the restart-eligibility reason that kept an owner from resuming.
 	ReasonOwnerPrefix = "owner_"
+	// Pull request wake reasons. A timed-out pull_request monitor reports ReasonTimeout.
+	ReasonPullRequestChanged = "pull_request_changed"
+	ReasonPullRequestMerged  = "pull_request_merged"
+	ReasonPullRequestClosed  = "pull_request_closed"
+	ReasonForgeUnavailable   = "forge_unavailable"
+	ReasonFireCapReached     = "fire_cap_reached"
 )
 
 // Bounds keep monitors cheap and prevent runaway wake loops.
@@ -68,8 +79,11 @@ const (
 	MaxActiveTotal         = 256
 	DefaultTerminalTimeout = 30 * time.Minute
 	MaxTerminalTimeout     = 6 * time.Hour
-	MinTimerDelay          = 5 * time.Second
-	MaxTimerDelay          = 24 * time.Hour
+	// DefaultPullRequestTimeout and MaxPullRequestTimeout bound a pull_request watch.
+	DefaultPullRequestTimeout = 6 * time.Hour
+	MaxPullRequestTimeout     = 24 * time.Hour
+	MinTimerDelay             = 5 * time.Second
+	MaxTimerDelay             = 24 * time.Hour
 	// Finished monitors stay listable for inspection, bounded per session and in time.
 	retainedFinishedPerSession = 16
 	finishedRetention          = time.Hour
@@ -104,7 +118,9 @@ type Spec struct {
 	TerminalID  string
 	Until       string
 	Pattern     string
-	// Timeout bounds terminal monitors; on expiry the monitor still fires with ReasonTimeout.
+	// Branch selects a pull_request monitor's pull request; empty means the session's branch.
+	Branch string
+	// Timeout bounds terminal and pull_request monitors; on expiry the monitor still fires with ReasonTimeout.
 	Timeout time.Duration
 	// Delay is the timer monitor duration.
 	Delay time.Duration
@@ -119,12 +135,16 @@ type Monitor struct {
 	TerminalID  string    `json:"terminal_id,omitempty"`
 	Until       string    `json:"until,omitempty"`
 	Pattern     string    `json:"pattern,omitempty"`
+	Branch      string    `json:"branch,omitempty"`
 	Status      Status    `json:"status"`
 	CreatedAt   time.Time `json:"created_at"`
 	DeadlineAt  time.Time `json:"deadline_at"`
 	FiredAt     time.Time `json:"fired_at,omitzero"`
 	Reason      string    `json:"reason,omitempty"`
 	ExitCode    *int      `json:"exit_code,omitempty"`
+	// FireCount and LastFiredAt track a repeating monitor's wakes; FiredAt stays the moment it ended.
+	FireCount   int       `json:"fire_count,omitempty"`
+	LastFiredAt time.Time `json:"last_fired_at,omitzero"`
 	// Reused marks a Create that returned an already-active identical terminal
 	// monitor instead of registering a duplicate wake. It is not part of the wire shape.
 	Reused bool `json:"-"`
@@ -147,6 +167,7 @@ func normalizeSpec(spec Spec) (Spec, error) {
 	spec.Description = strings.TrimSpace(spec.Description)
 	spec.TerminalID = strings.TrimSpace(spec.TerminalID)
 	spec.Until = strings.TrimSpace(spec.Until)
+	spec.Branch = strings.TrimSpace(spec.Branch)
 	if spec.SessionID == "" || spec.WorkspaceID == "" {
 		return Spec{}, invalid("session and workspace are required")
 	}
@@ -156,8 +177,10 @@ func normalizeSpec(spec Spec) (Spec, error) {
 	switch spec.Kind {
 	case KindTerminal:
 		return normalizeTerminalSpec(spec)
+	case KindPullRequest:
+		return normalizePullRequestSpec(spec)
 	case KindTimer:
-		if spec.TerminalID != "" || spec.Pattern != "" || spec.Until != "" {
+		if spec.TerminalID != "" || spec.Pattern != "" || spec.Until != "" || spec.Branch != "" {
 			return Spec{}, invalid("timer monitors accept only delay_seconds")
 		}
 		if spec.Delay < MinTimerDelay || spec.Delay > MaxTimerDelay {
@@ -166,13 +189,29 @@ func normalizeSpec(spec Spec) (Spec, error) {
 		spec.Timeout = 0
 		return spec, nil
 	default:
-		return Spec{}, invalid("kind must be terminal or timer")
+		return Spec{}, invalid("kind must be terminal, timer or pull_request")
 	}
+}
+
+func normalizePullRequestSpec(spec Spec) (Spec, error) {
+	if spec.TerminalID != "" || spec.Pattern != "" || spec.Until != "" || spec.Delay != 0 {
+		return Spec{}, invalid("pull_request monitors accept only branch and timeout_seconds")
+	}
+	if spec.Timeout == 0 {
+		spec.Timeout = DefaultPullRequestTimeout
+	}
+	if spec.Timeout < time.Millisecond || spec.Timeout > MaxPullRequestTimeout {
+		return Spec{}, invalid("pull_request timeout must be between 1 millisecond and 24 hours")
+	}
+	return spec, nil
 }
 
 func normalizeTerminalSpec(spec Spec) (Spec, error) {
 	if spec.TerminalID == "" || spec.ProfileID == "" {
 		return Spec{}, invalid("terminal monitors require terminal_id and a profile")
+	}
+	if spec.Branch != "" {
+		return Spec{}, invalid("terminal monitors do not accept branch")
 	}
 	if spec.Delay != 0 {
 		return Spec{}, invalid("terminal monitors do not accept delay_seconds")
@@ -207,3 +246,6 @@ func normalizeTerminalSpec(spec Spec) (Spec, error) {
 func invalid(message string) error {
 	return errors.Join(ErrInvalid, errors.New(message))
 }
+
+// InvalidSpec reports a refused monitor request whose static message guides the caller to correct it.
+func InvalidSpec(message string) error { return invalid(message) }

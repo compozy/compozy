@@ -1,11 +1,12 @@
 -- Daemon-native monitors survive a daemon restart: the definition, lifecycle status, and the owner
--- binding captured while the owner was live. Terminal output is never stored.
+-- binding captured while the owner was live. Terminal output is never stored. A pull_request monitor
+-- also keeps its forge target, its change cursor (JSON), and its fire sequence.
 CREATE TABLE session_monitors (
   id TEXT PRIMARY KEY NOT NULL,
   session_id TEXT NOT NULL,
   workspace_id TEXT NOT NULL,
   profile_id TEXT NOT NULL,
-  kind TEXT NOT NULL CHECK (kind IN ('terminal', 'timer')),
+  kind TEXT NOT NULL CHECK (kind IN ('terminal', 'timer', 'pull_request')),
   description TEXT NOT NULL,
   terminal_id TEXT NOT NULL DEFAULT '',
   until TEXT NOT NULL DEFAULT '',
@@ -20,7 +21,12 @@ CREATE TABLE session_monitors (
   owner_binding TEXT NOT NULL DEFAULT '',
   -- First transient owner-resume failure of a recovering monitor; anchors the retry horizon across boots.
   owner_check_failed_at TEXT NOT NULL DEFAULT '',
-  version INTEGER NOT NULL
+  version INTEGER NOT NULL,
+  branch TEXT NOT NULL DEFAULT '',
+  repo_key TEXT NOT NULL DEFAULT '',
+  pr_cursor TEXT NOT NULL DEFAULT '',
+  fire_count INTEGER NOT NULL DEFAULT 0,
+  last_fired_at TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX idx_session_monitors_session ON session_monitors (session_id);
 CREATE INDEX idx_session_monitors_status ON session_monitors (status, fired_at);

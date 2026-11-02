@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 )
 
@@ -41,7 +42,7 @@ func (s *Service) Recover(ctx context.Context) error {
 	verdicts := make(map[string]error)
 	var occupying []*entry
 	for _, record := range records {
-		item := entryFromRecord(record)
+		item := s.entryFromRecord(record)
 		if !item.occupies() {
 			if s.restoreHistory(item) {
 				restored[item.state.SessionID] = struct{}{}
@@ -67,16 +68,25 @@ func (s *Service) Recover(ctx context.Context) error {
 	return nil
 }
 
-func entryFromRecord(record Record) *entry {
+func (s *Service) entryFromRecord(record Record) *entry {
 	mon := record.Monitor
 	key := terminalKey(Spec{
 		Kind: mon.Kind, WorkspaceID: record.WorkspaceID, ProfileID: record.ProfileID, TerminalID: mon.TerminalID,
 	})
-	return &entry{
+	item := &entry{
 		state: mon, terminalKey: key, timeout: record.Timeout, workspaceID: record.WorkspaceID,
 		profileID: record.ProfileID, binding: record.OwnerBinding, version: record.Version,
 		ownerCheckFailedAt: record.OwnerCheckFailedAt,
 	}
+	if mon.Kind == KindPullRequest {
+		watch, err := decodePullRequestWatch(record.RepoKey, record.Cursor)
+		if err != nil {
+			s.logger.Log(s.ctx, slog.LevelWarn, "monitor.cursor_unreadable",
+				"event", "monitor.cursor_unreadable", "monitor_id", mon.ID, "session_id", mon.SessionID)
+		}
+		item.pullRequest = watch
+	}
+	return item
 }
 
 // restoreHistory keeps interrupted and delivered outcomes inspectable until retention ends and
@@ -318,6 +328,10 @@ func (s *Service) awaitConfirmed(ctx context.Context, item *entry) bool {
 }
 
 func (s *Service) runRecovered(ctx context.Context, mon Monitor, item *entry) {
+	if mon.Kind == KindPullRequest {
+		s.runPullRequest(ctx, item)
+		return
+	}
 	if mon.Status == StatusDelivering {
 		defer func() {
 			if ctx.Err() != nil {

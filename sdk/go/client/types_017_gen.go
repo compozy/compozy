@@ -365,12 +365,15 @@ type SessionMonitorPayload struct {
 	TerminalID  string     `json:"terminal_id,omitempty"`
 	Until       string     `json:"until,omitempty"`
 	Pattern     string     `json:"pattern,omitempty"`
+	Branch      string     `json:"branch,omitempty"`
 	Status      string     `json:"status"`
 	CreatedAt   time.Time  `json:"created_at"`
 	DeadlineAt  time.Time  `json:"deadline_at"`
 	FiredAt     *time.Time `json:"fired_at,omitempty"`
 	Reason      string     `json:"reason,omitempty"`
 	ExitCode    *int       `json:"exit_code,omitempty"`
+	FireCount   int        `json:"fire_count,omitempty"`
+	LastFiredAt *time.Time `json:"last_fired_at,omitempty"`
 }
 
 // SessionMonitorResponse is a daemon API value.

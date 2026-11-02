@@ -9,6 +9,10 @@ import (
 // run owns one monitor from watch to admitted wake. Every exit path is ctx
 // cancellation (cancel, session stop, shutdown) or a recorded terminal status.
 func (s *Service) run(ctx context.Context, item *entry, created Monitor, spec Spec, watch TerminalWatch) {
+	if spec.Kind == KindPullRequest {
+		s.runPullRequest(ctx, item)
+		return
+	}
 	defer func() {
 		if ctx.Err() != nil {
 			s.logInterrupted(item)
@@ -63,36 +67,56 @@ func (s *Service) observe(ctx context.Context, spec Spec, watch TerminalWatch) (
 	return outcome, true
 }
 
-// deliver admits the wake, retrying transient refusals with capped backoff
-// inside deliveryRetryWindow. The waker's message id is stable per monitor, so
-// a retry after an ambiguous failure cannot queue a second wake.
+// deliver admits a one-shot monitor's wake and records its end.
 func (s *Service) deliver(ctx context.Context, item *entry, notification Notification) {
+	switch s.admitWake(ctx, notification) {
+	case wakeAdmitted:
+		s.settle(item, StatusFired, "")
+	case wakeSessionGone:
+		s.settle(item, StatusUndelivered, causeSessionGone)
+	case wakeRetryExhausted:
+		s.settle(item, StatusUndelivered, causeRetryExhausted)
+	case wakeAbandoned:
+	}
+}
+
+type wakeResult int
+
+const (
+	wakeAbandoned wakeResult = iota
+	wakeAdmitted
+	wakeSessionGone
+	wakeRetryExhausted
+)
+
+// admitWake retries transient refusals with capped backoff inside
+// deliveryRetryWindow. The waker's message id is stable per wake, so a retry
+// after an ambiguous failure cannot queue a second one. Only ctx ending
+// abandons a wake, which a restart then replays.
+func (s *Service) admitWake(ctx context.Context, notification Notification) wakeResult {
 	mon := notification.Monitor
 	deadline := s.now().Add(deliveryRetryWindow)
 	backoff := deliveryRetryInitial
 	for {
 		err := s.waker.WakeSession(ctx, notification)
 		if err == nil {
-			s.settle(item, StatusFired, "")
-			return
+			return wakeAdmitted
 		}
 		if ctx.Err() != nil {
-			return
+			return wakeAbandoned
 		}
 		if errors.Is(err, ErrSessionGone) {
-			s.settle(item, StatusUndelivered, causeSessionGone)
-			return
+			return wakeSessionGone
 		}
 		if !s.now().Add(backoff).Before(deadline) {
-			s.settle(item, StatusUndelivered, causeRetryExhausted)
-			return
+			return wakeRetryExhausted
 		}
 		s.logLifecycle("monitor.wake_deferred", mon, "admission_retry")
 		timer := time.NewTimer(backoff)
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			return
+			return wakeAbandoned
 		case <-timer.C:
 		}
 		backoff = min(backoff*2, deliveryRetryMax)
@@ -165,7 +189,7 @@ func (s *Service) settle(item *entry, status Status, cause string) {
 	}
 	event := "monitor.wake_queued"
 	if status == StatusUndelivered {
-		event = "monitor.wake_failed"
+		event = eventWakeFailed
 	}
 	s.logLifecycleCause(event, item.state, item.state.Reason, cause)
 	record := s.decideLocked(item)

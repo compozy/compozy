@@ -1342,6 +1342,31 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse a pull_request monitor that carries another kind's fields", func(t *testing.T) {
+		t.Parallel()
+		service, err := monitorpkg.NewService(t.Context(), nil, &monitorSessionWaker{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+				t.Error(err)
+			}
+		})
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   nativeTestSessionManager("ws-1"),
+			Workspaces: nativeTestWorkspaceServiceWithRoot(t, t.TempDir()),
+			Monitors:   func() *monitorpkg.Service { return service },
+		}, nativeApproveAllPolicyInputs())
+		_, err = registry.Call(t.Context(), toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDMonitorCreate, Input: json.RawMessage(
+				`{"kind":"pull_request","description":"watch my PR","delay_seconds":5}`)})
+		detail, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || detail.Operator == nil || !strings.Contains(detail.Operator.Cause, "branch") {
+			t.Fatalf("monitor correction = %#v", detail)
+		}
+	})
+
 	t.Run("Should read assistant answers without hydrating tool payloads", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

@@ -25673,6 +25673,9 @@
       },
       "SessionMonitorPayload": {
         "properties": {
+          "branch": {
+            "type": "string"
+          },
           "created_at": {
             "format": "date-time",
             "type": "string"
@@ -25688,12 +25691,20 @@
             "nullable": true,
             "type": "integer"
           },
+          "fire_count": {
+            "type": "integer"
+          },
           "fired_at": {
             "format": "date-time",
             "nullable": true,
             "type": "string"
           },
           "kind": {
+            "type": "string"
+          },
+          "last_fired_at": {
+            "format": "date-time",
+            "nullable": true,
             "type": "string"
           },
           "monitor_id": {

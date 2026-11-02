@@ -8,6 +8,9 @@ export function monitorControlLabel(active: number): string {
 /** What one monitor waits for, in plain words. */
 export function monitorWatchLabel(monitor: SessionMonitorPayload): string {
   if (monitor.kind === "timer") return "Timer";
+  if (monitor.kind === "pull_request") {
+    return monitor.branch ? `Pull request on ${monitor.branch}` : "Pull request";
+  }
   if (monitor.until === "match" && monitor.pattern) {
     return `Terminal output matches ${monitor.pattern}`;
   }

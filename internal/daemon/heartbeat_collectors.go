@@ -48,7 +48,8 @@ func (c instanceDigestCollector) Collect(
 				heartbeat.MonitorFact{
 					ID:        item.ID,
 					SessionID: item.SessionID,
-					Fired:     item.Status == monitor.StatusFired,
+					// A pull_request wake already reached the session; it must not buy a check on top.
+					Fired: item.Status == monitor.StatusFired && item.Kind != monitor.KindPullRequest,
 				},
 			)
 		}
