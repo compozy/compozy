@@ -440,22 +440,29 @@ func appendSubagentSessionFilter(where []string, filter string) []string {
 
 func appendSessionCatalogSearch(where []string, args []any, query store.SessionCatalogPageQuery) ([]string, []any) {
 	if search := strings.ToLower(strings.TrimSpace(query.Search)); search != "" {
+		linked := ` OR EXISTS (SELECT 1 FROM session_work_links AS search_link
+ LEFT JOIN forge_pull_requests AS search_pr ON search_pr.workspace_id = search_link.workspace_id
+ AND search_pr.repo_key = search_link.repo_key AND search_pr.branch = search_link.branch
+ WHERE search_link.session_id = sessions.id AND search_link.workspace_id = sessions.workspace_id
+ AND search_link.unlinked = 0 AND (instr(lower(search_link.branch), ?) > 0
+ OR instr(CAST(COALESCE(search_link.pr_number, search_pr.pr_number) AS TEXT), ?) > 0))`
 		if query.SearchFields == "title_agent" {
 			search = store.LowerSessionCatalogSearchText(strings.TrimSpace(query.Search))
 			where = append(
 				where,
 				"(instr(compozy_unicode_lower("+sessionCatalogDisplayTitleExpression+"), ?) > 0 OR "+
-					"instr(compozy_unicode_lower(agent_name), ?) > 0)",
+					"instr(compozy_unicode_lower(agent_name), ?) > 0"+linked+")",
 			)
-			args = append(args, search, search)
+			args = append(args, search, search, strings.ToLower(strings.TrimSpace(query.Search)), strings.TrimPrefix(strings.TrimSpace(query.Search), "#"))
 		} else {
 			where = append(where, `(instr(lower(id), ?) > 0 OR
 			instr(lower(COALESCE(name, '')), ?) > 0 OR
 			instr(lower(agent_name), ?) > 0 OR
-			instr(lower(provider), ?) > 0)`)
+			instr(lower(provider), ?) > 0`+linked+`)`)
 			for range 4 {
 				args = append(args, search)
 			}
+			args = append(args, search, strings.TrimPrefix(search, "#"))
 		}
 	}
 	return where, args

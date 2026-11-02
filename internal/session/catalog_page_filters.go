@@ -3,6 +3,7 @@ package session
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -158,6 +159,19 @@ func sessionMatchesListQuery(info *Info, query ListQuery, now time.Time) bool {
 	search := strings.TrimSpace(query.Search)
 	if search == "" {
 		return true
+	}
+	for _, item := range info.linkedWork {
+		if item.SourceSessionID != "" {
+			continue
+		}
+		number := item.PRNumber
+		if number == 0 && item.PullRequest != nil {
+			number = item.PullRequest.Number
+		}
+		if strings.Contains(strings.ToLower(item.Branch), strings.ToLower(search)) ||
+			number > 0 && strings.Contains(strconv.Itoa(number), strings.TrimPrefix(search, "#")) {
+			return true
+		}
 	}
 	if query.SearchFields == sessionCatalogSearchTitleAgent {
 		search = store.LowerSessionCatalogSearchText(search)

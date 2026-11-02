@@ -59,6 +59,7 @@ type Info struct {
 	InitiatorID              string
 	LeaderKernelToken        string `json:"-"`
 	BoardColumn              BoardColumn
+	linkedWork               []LinkedWorkItem
 	ParentTitle              string
 	Children                 *store.SessionBoardCounts
 	runtimeStrategy          acp.RuntimeApplicationStrategy

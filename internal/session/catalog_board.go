@@ -38,6 +38,7 @@ func (m *Manager) activeBoardSessionCatalogRows(
 		return nil, nil, nil, err
 	}
 	for _, info := range visible {
+		info.linkedWork = linked[info.ID].Items
 		var state PullRequestState
 		if pr := views[info.ID].PullRequest; pr != nil {
 			state = pr.State

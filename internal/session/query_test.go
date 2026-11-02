@@ -4390,6 +4390,49 @@ func (r *pullRequestQueryReader) RepositoryKeys(context.Context, store.ReadScope
 
 func TestManagerBoardCatalog(t *testing.T) {
 	t.Parallel()
+	t.Run("Should search direct linked identities before paging active and durable rows", func(t *testing.T) {
+		t.Parallel()
+		for _, active := range []bool{false, true} {
+			manager := newWorkspaceSessionReadFixture(t, 6, 2)
+			catalog := manager.sessionCatalog.(*globaldb.GlobalDB)
+			const repo = "example.com/a/b"
+			reader := &pullRequestQueryReader{state: PullRequestOpen, repositories: map[string]string{"ws-read-00": repo, "ws-read-01": repo}}
+			manager.ConfigurePullRequests(reader, catalog)
+			for _, id := range []string{"sess-read-000", "sess-read-002", "sess-read-004", "sess-read-001"} {
+				ws := "ws-read-00"
+				if id == "sess-read-001" {
+					ws = "ws-read-01"
+				}
+				link := store.SessionWorkLink{SessionID: id, WorkspaceID: ws, Repository: repo, Branch: "feature-find", PRNumber: 42, Provenance: "user"}
+				if err := catalog.SaveSessionWorkLink(t.Context(), link, false); err != nil {
+					t.Fatal(err)
+				}
+				if id == "sess-read-004" {
+					if err := catalog.UnlinkSessionWork(t.Context(), link); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if active {
+				manager.sessions["sess-read-000"] = &Session{ID: "sess-read-000", WorkspaceID: "ws-read-00", ProfileID: store.DefaultProfileID, AgentName: "coder", State: StateActive, CreatedAt: benchmarkSessionTime, UpdatedAt: benchmarkSessionTime}
+			}
+			for _, fields := range []string{"", sessionCatalogSearchTitleAgent} {
+				for _, search := range []string{"#42", "42", "feature-find"} {
+					q := ListQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: "ws-read-00", SearchFields: fields, Search: search, Limit: 1}
+					page, err := manager.ListPage(t.Context(), q)
+					if err != nil || page.Total != 2 || len(page.Sessions) != 1 || !page.HasMore {
+						t.Fatalf("active=%v search=%s page=%+v err=%v", active, search, page, err)
+					}
+					q.Cursor = page.NextCursor
+					next, err := manager.ListPage(t.Context(), q)
+					if err != nil || len(next.Sessions) != 1 || next.Sessions[0].ID == page.Sessions[0].ID || next.HasMore {
+						t.Fatalf("next=%+v err=%v", next, err)
+					}
+				}
+			}
+		}
+	})
+
 	t.Run("Should discover old stopped PR branches outside the selected column and page", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
