@@ -1187,9 +1187,9 @@ func deterministicIDGenerator() func(prefix string) (string, error) {
 func findSession(t *testing.T, sessions []store.SessionInfo, id string) store.SessionInfo {
 	t.Helper()
 
-	for _, session := range sessions {
-		if session.ID == id {
-			return session
+	for i := range sessions {
+		if sessions[i].ID == id {
+			return sessions[i]
 		}
 	}
 	t.Fatalf("session %q not found in %#v", id, sessions)
