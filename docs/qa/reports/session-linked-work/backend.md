@@ -172,3 +172,21 @@ Final `make codegen-check` exited 0. The targeted rerun chain (session race test
 Remaining acceptance scope: live forge, linked-work transport journey and UI dogfood remain unrun here. No migration suite was repeated because this correction series changes no schema or migration bytes. The original slice's migration evidence above is historical. Concurrent frontend files remain outside these commits.
 
 Commit `test: exclude child work from parent catalog search` adds the matching-layer regression. Exact command `CGO_ENABLED=1 go test -race ./internal/session -run 'TestSessionMatchesListQuery'` passed (3.395s, exit 0). The repeated test-shape check retained the same nine pre-existing query-suite findings. Documentation formatter invocation exited 0 but the report path is ignored by formatter configuration; `git diff --check` remains the whitespace evidence.
+
+Final search consistency regression: `TestManagerBoardCatalog/Should search derived own work consistently across runtime and durable rows` first returned total zero for a durable session's `own-find` branch. Search now also covers the derived own branch/bound worktree, matching the existing projection, with repository-scoped cached PR numbers, default-branch exclusion and tombstone suppression. The search SQL moved into its cohesive owner file so production files remain under 500 lines. No forge call was added. Exact reproduction command: `go test ./internal/session -run 'TestManagerBoardCatalog/Should_search_derived'` (failed before repair).
+
+Commit `99225dde6` closes that derived-work search discrepancy. The new case also soft-unlinks the derived item and requires zero matches after the tombstone, for both active and durable paths. Final search/board/paging command passed (session 16.241s, globaldb 33.916s):
+
+```sh
+CGO_ENABLED=1 go test -race ./internal/session ./internal/store/globaldb -run 'TestManagerBoardCatalog|TestSessionMatchesListQuery|TestPageSessionsVisibilityExclusion|TestPageSessionsStableKeyset|TestSessionCatalogBoard'
+```
+
+After this final production change, the following build/vet/check chain was rerun:
+
+```sh
+go build ./internal/session ./internal/store/globaldb ./internal/api/core ./internal/api/spec
+go vet ./internal/session ./internal/store/globaldb ./internal/api/core ./internal/api/spec
+make codegen-check
+```
+
+The final build/vet/codegen-check chain exited 0 (daemon terminal term-e7db1834366a). All correction source and test changes are committed. The report is followed by a documentation-only evidence commit; remaining working-tree changes belong to the concurrent frontend task.
