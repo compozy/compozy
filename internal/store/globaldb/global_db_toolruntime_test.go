@@ -178,9 +178,9 @@ func TestGlobalDBSessionMonitorKindMigration(t *testing.T) {
 	t.Run("Should keep existing monitors and admit the new kind", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00173_schema.sql"))
+		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00174_schema.sql"))
 		if err != nil {
-			t.Fatalf("open prefix before 00173 error = %v", err)
+			t.Fatalf("open prefix before 00174 error = %v", err)
 		}
 		ctx := globalMigrationTestContext(t)
 		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO session_monitors (
@@ -188,14 +188,14 @@ func TestGlobalDBSessionMonitorKindMigration(t *testing.T) {
 			created_at, deadline_at, exit_code, owner_binding, version
 		) VALUES ('mon-aaaaaaaaaaaa', 'sess-1', 'ws-1', 'prof-1', 'terminal', 'wait for CI', 'term-1', 'exit', 60000,
 			'active', '2026-11-01T09:00:00Z', '2026-11-01T10:00:00Z', 3, 'binding', 4)`); err != nil {
-			t.Fatalf("seed monitor before 00173 error = %v", err)
+			t.Fatalf("seed monitor before 00174 error = %v", err)
 		}
 		if err := prefixDB.Close(); err != nil {
-			t.Fatalf("close prefix before 00173 error = %v", err)
+			t.Fatalf("close prefix before 00174 error = %v", err)
 		}
 		upgraded, err := openGlobalMigrationUpgrade(t, path)
 		if err != nil {
-			t.Fatalf("upgrade through 00173 error = %v", err)
+			t.Fatalf("upgrade through 00174 error = %v", err)
 		}
 		t.Cleanup(func() {
 			if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
@@ -209,7 +209,8 @@ func TestGlobalDBSessionMonitorKindMigration(t *testing.T) {
 		mon := records[0].Monitor
 		if mon.Kind != monitor.KindTerminal || mon.TerminalID != "term-1" || mon.ExitCode == nil || *mon.ExitCode != 3 ||
 			records[0].OwnerBinding != "binding" || records[0].Version != 4 || mon.FireCount != 0 ||
-			mon.Branch != "" {
+			mon.Branch != "" || mon.Until != "exit" || records[0].Timeout != time.Minute ||
+			mon.Status != monitor.StatusActive || !mon.DeadlineAt.Equal(time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)) {
 			t.Fatalf("migrated monitor = %+v", records[0])
 		}
 		if err := upgraded.SaveMonitor(ctx, monitor.Record{
@@ -297,6 +298,13 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 		}
 		if err := db.PruneFinishedMonitors(ctx, at.Add(time.Hour)); err != nil {
 			t.Fatal(err)
+		}
+		pruned, err := db.LoadMonitors(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if slices.ContainsFunc(pruned, func(r monitor.Record) bool { return r.Monitor.ID == watch.Monitor.ID }) {
+			t.Fatalf("PruneFinishedMonitors() kept %s", watch.Monitor.ID)
 		}
 	})
 	t.Run("Should apply newer versions and ignore stale and equal-version writes", func(t *testing.T) {

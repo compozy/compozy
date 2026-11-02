@@ -231,7 +231,10 @@ func (g *forkedAutoTitleGenerator) childTTL() time.Duration {
 
 func renderAutoTitlePrompt(request autoTitleRequest) string {
 	const promptTemplate = "Create a concise title for this session. " +
-		"Return only the title, with no quotes or commentary.\n\n" +
+		"Return only the title text itself, with no quotes or commentary. " +
+		"Do not prefix it with a label such as \"Title:\" or \"Suggested title:\", " +
+		"or the equivalent in any language. " +
+		"Write the title in the language of the conversation.\n\n" +
 		"User request:\n%s\n\nAssistant response:\n%s"
 	return fmt.Sprintf(
 		promptTemplate,
@@ -251,7 +254,9 @@ func boundAutoTitlePromptPart(value string) string {
 func autoTitlePromptOverlay() string {
 	return strings.TrimSpace(`
 You are an Compozy internal session-title generator.
-Return only one concise title of at most eight words.
+Return only one concise title of at most eight words, in the language of the conversation.
+Your output is the title text itself: never prefix it with a label such as "Title:" or
+"Suggested title:", or the equivalent in any language.
 Do not modify files, run commands, or include markdown or commentary.
 `)
 }

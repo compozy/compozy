@@ -972,6 +972,80 @@ func TestSubagentModelValidation(t *testing.T) {
 
 // UT-036/UT-037 lifecycle half: native tool identity owns one row and never owns a wake.
 func TestSubagentNativeLifecycle(t *testing.T) {
+	// Invariant: the launching call's input streams in, so a later event of the same call fills
+	// the model and subagent type the first one lacked, without erasing them afterwards.
+	t.Run("Should record the model and type a later streamed event names", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, _ := newSubagentTestService(t)
+			ev := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "streamed",
+				ToolName: "Agent", Title: "Map capabilities", SubagentType: "Explore", Status: "in_progress",
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+				t.Fatal(err)
+			}
+			id := subagentID("parent", ev.ProviderToolCallID)
+			if row := db.rows[id]; row.RuntimeModel != "" || row.Role != "Explore" {
+				t.Fatal(row)
+			}
+			ev.Model = "sonnet"
+			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+				t.Fatal(err)
+			}
+			ev.Model, ev.SubagentType = "", ""
+			if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+				t.Fatal(err)
+			}
+			if row := db.rows[id]; row.RuntimeModel != "sonnet" || row.Role != "Explore" {
+				t.Fatal(row)
+			}
+		})
+	})
+	// Invariant: usage is the provider's running total: it rises with progress, a stale frame
+	// never lowers it, and the final figure lands even after the row settled.
+	t.Run("Should keep a native subagent's running usage", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			s, db, _ := newSubagentTestService(t)
+			launch := NativeSubagentEvent{
+				WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "usage",
+				ToolName: "Agent", Title: "Map capabilities", Status: "in_progress",
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", launch); err != nil {
+				t.Fatal(err)
+			}
+			frame := func(tokens, tools int64) NativeSubagentEvent {
+				return NativeSubagentEvent{
+					WorkspaceID: "ws", ParentTurnID: "turn", ProviderToolCallID: "usage",
+					Task: &NativeSubagentTask{
+						Kind:  acp.NativeTaskKindProgress,
+						Usage: &acp.NativeTaskUsage{TotalTokens: tokens, ToolUses: tools},
+					},
+				}
+			}
+			id := subagentID("parent", launch.ProviderToolCallID)
+			for _, ev := range []NativeSubagentEvent{frame(900, 4), frame(100, 1)} {
+				if err := s.OnNativeToolEvent(t.Context(), "parent", ev); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if usage := db.rows[id].Usage; usage == nil || usage.TotalTokens != 900 || usage.ToolUses != 4 {
+				t.Fatal(usage)
+			}
+			done := launch
+			done.Status, done.Result = "completed", "answer"
+			if err := s.OnNativeToolEvent(t.Context(), "parent", done); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.OnNativeToolEvent(t.Context(), "parent", frame(1200, 3)); err != nil {
+				t.Fatal(err)
+			}
+			if usage := db.rows[id].Usage; usage == nil || usage.TotalTokens != 1200 || usage.ToolUses != 4 {
+				t.Fatal(usage)
+			}
+		})
+	})
 	t.Run("Should settle native work once without a wake", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {

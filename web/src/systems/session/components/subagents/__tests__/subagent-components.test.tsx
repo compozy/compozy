@@ -124,7 +124,7 @@ describe("SubagentCard", () => {
     const control = screen.getByRole("button", { name: `Open ${pending.title}` });
     fireEvent.click(control);
     expect(onOpen).toHaveBeenCalledWith(pending, { newWindow: false });
-    expect(within(control).getByText("opus-5.5 · high")).toBeVisible();
+    expect(within(control).getByText("Opus 5.5 high")).toBeVisible();
   });
   it("Should be a labeled button that opens the child, in a new window with ⌘ (UT-W05)", () => {
     const onOpen = vi.fn();
@@ -430,7 +430,8 @@ describe("SubagentComposerControl (issue #766)", () => {
     trigger.focus();
     await user.keyboard("{Enter}");
     const popover = await screen.findByRole("dialog");
-    expect(within(popover).getByText("Subagents · 1 running")).toBeInTheDocument();
+    expect(within(popover).getByText("Subagents")).toBeInTheDocument();
+    expect(within(popover).getByText("2 of 3 finished")).toBeInTheDocument();
     expect(
       within(popover)
         .getAllByRole("button", { name: /^Open / })
@@ -445,10 +446,136 @@ describe("SubagentComposerControl (issue #766)", () => {
     await waitFor(() => expect(trigger).toHaveFocus());
     await user.click(trigger);
     await user.click(await screen.findByRole("button", { name: "Open running subagent 0" }));
+    expect(onOpen).not.toHaveBeenCalled();
+    await user.click(await screen.findByRole("button", { name: "Open" }));
     expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: "sub-running-0" }), {
       newWindow: false,
     });
   });
+
+  // Invariant: the panel is one level deep; Escape steps back to the row that opened the subagent
+  // before it closes, and a modified click still goes straight to a new window.
+  it("Should drill into a subagent in place and step back to its row", async () => {
+    const user = userEvent.setup();
+    const onOpen = vi.fn();
+    const running = subagent({
+      id: "native",
+      origin: "provider_native",
+      child_session_id: null,
+      title: "Map capabilities",
+      role: "Explore",
+      runtime: {
+        agent: "general",
+        provider: "claude",
+        model: "sonnet",
+        reasoning_effort: "",
+        speed: "",
+      },
+      usage: { total_tokens: 38_200, tool_uses: 41 },
+    });
+    renderUI(
+      <SubagentComposerControl
+        subagents={[running]}
+        counts={counts(1, 1)}
+        onOpen={onOpen}
+        renderContent={row => <p>{`Activity of ${row.id}`}</p>}
+      />
+    );
+    await user.click(screen.getByRole("button", { name: "Subagents, 1 running" }));
+    const row = await screen.findByRole("button", { name: "Open Map capabilities" });
+    expect(within(row).getByText("Sonnet")).toBeInTheDocument();
+    expect(within(row).getByText("Explore")).toBeInTheDocument();
+    await user.click(row);
+    expect(await screen.findByText("Activity of native")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Map capabilities" })).toBeInTheDocument();
+    expect(screen.getByText("41")).toBeInTheDocument();
+    expect(screen.getByText("38.2k")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Back to subagents" })).toHaveFocus()
+    );
+    await user.keyboard("{Escape}");
+    const back = await screen.findByRole("button", { name: "Open Map capabilities" });
+    await waitFor(() => expect(back).toHaveFocus());
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    fireEvent.click(back, { metaKey: true });
+    expect(onOpen).toHaveBeenCalledWith(running, { newWindow: true });
+  });
+
+  // Invariant: the list unmounts behind the detail, yet coming back finds it unfolded as it was,
+  // with focus on the row; a selection that vanished does not cost an extra Escape.
+  it("Should return to a row past the first page and close from the list", async () => {
+    const user = userEvent.setup();
+    const rows = many(8, "running");
+    const { rerender } = renderUI(
+      <SubagentComposerControl subagents={rows} counts={counts(8, 8)} onOpen={vi.fn()} />
+    );
+    await user.click(screen.getByRole("button", { name: "Subagents, 8 running" }));
+    await user.click(await screen.findByRole("button", { name: "Show 2 more" }));
+    const last = rows.at(-1)!.title;
+    await user.click(await screen.findByRole("button", { name: `Open ${last}` }));
+    await user.click(await screen.findByRole("button", { name: "Back to subagents" }));
+    const row = await screen.findByRole("button", { name: `Open ${last}` });
+    await waitFor(() => expect(row).toHaveFocus());
+    await user.click(row);
+    await screen.findByRole("heading", { name: last });
+    rerender(
+      <TestUI>
+        <SubagentComposerControl
+          subagents={rows.slice(0, 7)}
+          counts={counts(7, 7)}
+          onOpen={vi.fn()}
+        />
+      </TestUI>
+    );
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  // Invariant: a subagent that finishes while its detail is open is still reachable on the way
+  // back, and the panel shows the row's error beside the host's content for every origin.
+  it.each([
+    ["provider_native", null],
+    ["delegated", null],
+    ["delegated", "sess-child"],
+  ] as const)(
+    "Should keep a finished %s row (child %s) in reach, with its error",
+    async (origin, child) => {
+      const user = userEvent.setup();
+      const [row, other] = many(2, "running");
+      const { rerender } = renderUI(
+        <SubagentComposerControl
+          subagents={[row!, other!]}
+          counts={counts(2, 2)}
+          onOpen={vi.fn()}
+          renderContent={() => <p>Transcript</p>}
+        />
+      );
+      await user.click(screen.getByRole("button", { name: "Subagents, 2 running" }));
+      await user.click(await screen.findByRole("button", { name: `Open ${row!.title}` }));
+      await screen.findByText("Transcript");
+      const finished = {
+        ...row!,
+        child_session_id: child,
+        origin,
+        status: "completed" as const,
+        error: "Row failure",
+      };
+      rerender(
+        <TestUI>
+          <SubagentComposerControl
+            subagents={[finished, other!]}
+            counts={counts(1, 2)}
+            onOpen={vi.fn()}
+            renderContent={() => <p>Transcript</p>}
+          />
+        </TestUI>
+      );
+      expect(await screen.findByText("Row failure")).toBeInTheDocument();
+      await user.keyboard("{Escape}");
+      const back = await screen.findByRole("button", { name: `Open ${row!.title}` });
+      await waitFor(() => expect(back).toHaveFocus());
+    }
+  );
 
   it("Should open previous rows when nothing runs and hold their place while they load", async () => {
     const user = userEvent.setup();
@@ -584,9 +711,6 @@ describe("SessionInspectorSubagentsSection (UT-W19)", () => {
     expect(row).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(onOpen).toHaveBeenCalledWith(native, { newWindow: false });
-    await waitFor(() =>
-      expect(document.querySelector('[data-slot="subagent-hover"]')).not.toBeNull()
-    );
   });
 
   it("Should offer Stop on live delegated rows only and toast when it fails", async () => {

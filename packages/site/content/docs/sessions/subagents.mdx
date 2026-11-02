@@ -67,7 +67,10 @@ Things you can do with the card:
 The composer's toolbar also has a subagents button, between the context ring and the paperclip. It
 stays a quiet icon while no subagent runs; while some do, it shows a small live dot and how many are
 running, such as `2`. Click it to see the same list as the inspector: the ones working now first,
-then **Previous subagents**. Clicking a row opens the same drawer.
+then **Previous subagents**. Each row names the model and what the subagent is doing. Clicking a row
+slides to that subagent inside the panel: what it was asked to do, the tools it ran, and, when the
+provider reports them, its tool and token counts. **Subagents** goes back, and **Open** shows the
+same drawer as the inspector.
 
 If the parent's turn ends while subagents are still running, a banner above the composer reads
 "Waiting on subagent Sol: diff panel default and base diff design" (or "Waiting on 2 subagents").

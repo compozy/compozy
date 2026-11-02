@@ -9481,6 +9481,7 @@ export type SubagentPayload = {
   subagent_id: string;
   title: string;
   updated_at: string;
+  usage?: SubagentUsagePayload | null;
   wait_timed_out: boolean;
   work_state: string;
   workspace_id: string;
@@ -9507,6 +9508,11 @@ export type SubagentSummaryPayload = {
   live: number;
   most_urgent: string;
   total: number;
+};
+
+export type SubagentUsagePayload = {
+  tool_uses: number;
+  total_tokens: number;
 };
 
 export type SubagentWorktreePayload = {

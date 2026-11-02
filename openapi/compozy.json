@@ -34057,6 +34057,19 @@
             "format": "date-time",
             "type": "string"
           },
+          "usage": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SubagentUsagePayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "wait_timed_out": {
             "type": "boolean"
           },
@@ -34194,6 +34207,23 @@
         "required": [
           "session_id",
           "subagent"
+        ],
+        "type": "object"
+      },
+      "SubagentUsagePayload": {
+        "properties": {
+          "tool_uses": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "total_tokens": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tool_uses",
+          "total_tokens"
         ],
         "type": "object"
       },

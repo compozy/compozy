@@ -10,6 +10,7 @@ import { notifyUser } from "@/lib/user-feedback";
 import { cn } from "@/lib/utils";
 import {
   SessionQueueStrip,
+  useSessionPromptRefusal,
   type QueuedPrompt,
   type SessionBusyInputMode,
   type SessionSendOutcome,
@@ -183,6 +184,7 @@ function SessionComposerEditor() {
   const state = useSessionComposerStateContext();
   const meta = useSessionComposerMetaContext();
   const mentionWorkspaceId = useMentionWorkspaceId();
+  const refusal = useSessionPromptRefusal(meta.sessionId);
   return (
     <ComposerPrimitive.Unstable_TriggerPopoverRoot>
       <SessionComposerCommandMenu
@@ -242,7 +244,13 @@ function SessionComposerEditor() {
               promptImageCapability={meta.promptImageCapability}
             />
             <SessionComposerInput />
-            {state.feedback ? <SessionComposerFeedbackNote feedback={state.feedback} /> : null}
+            {refusal ? (
+              <SessionComposerFeedbackNote
+                feedback={{ kind: "prompt-refusal", message: refusal }}
+              />
+            ) : state.feedback ? (
+              <SessionComposerFeedbackNote feedback={state.feedback} />
+            ) : null}
             <SessionComposerControls />
           </ComposerPrimitive.Root>
         </InputGroup>

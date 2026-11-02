@@ -1,4 +1,4 @@
-import { createContext } from "react";
+import { createContext, type ReactNode } from "react";
 import { createStoreLogic } from "@xstate/store";
 
 import type { SubagentView } from "../components/subagents/types";
@@ -31,4 +31,6 @@ export type SubagentDrawerStore = ReturnType<typeof subagentDrawerLogic.createSt
 export const SubagentDrawerContext = createContext<{
   store: SubagentDrawerStore;
   open: (subagent: SubagentView, options: SubagentOpenOptions, workspaceId: string) => void;
+  /** The subagent's own transcript, for surfaces that reveal it in place. */
+  content: (subagent: SubagentView, workspaceId: string) => ReactNode;
 } | null>(null);

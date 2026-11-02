@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Bot } from "@compozy/ui/icons";
 import { useReducedMotionConfig } from "motion/react";
 
@@ -7,7 +7,6 @@ import {
   InputGroupButton,
   Popover,
   PopoverContent,
-  PopoverTitle,
   PopoverTrigger,
   StatusDot,
   cn,
@@ -15,11 +14,11 @@ import {
 
 import {
   subagentComposerSignal,
-  subagentRosterTitle,
   type SubagentComposerSignal,
   type SubagentCounts,
 } from "./subagent-format";
-import { SubagentRoster, type SubagentRosterProps } from "./subagent-roster";
+import { SubagentPanel } from "./subagent-panel";
+import type { SubagentRosterProps } from "./subagent-roster";
 import { SubagentRosterSkeleton } from "./subagent-roster-skeleton";
 import type { SubagentView } from "./types";
 
@@ -39,8 +38,13 @@ export interface SubagentComposerControlProps {
   onStop?: SubagentRosterProps["onStop"];
   /** The popover opened or closed; the owner reads the roster while it is open. */
   onOpenChange?: (open: boolean) => void;
+  /** The opened subagent's activity; the host owns its transcript. */
+  renderContent?: (subagent: SubagentView) => ReactNode;
   /** Hold the live pulse still (rows the stream has not confirmed). */
   stale?: boolean;
+  /** Prototypes and stories start from one of the panel's states. */
+  defaultOpen?: boolean;
+  defaultSelectedId?: string;
 }
 
 /** The subagents icon, carrying the avatar's live dot while any subagent runs. */
@@ -97,53 +101,6 @@ function SubagentComposerPlaceholder({ loading, count }: { loading: boolean; cou
   );
 }
 
-type SubagentComposerPanelProps = Omit<SubagentComposerControlProps, "onOpenChange" | "stale"> & {
-  stale: boolean;
-};
-
-/** Popover body: the roster rows, a failed read beside any rows that did load, or a placeholder. */
-function SubagentComposerPanel({
-  subagents,
-  counts,
-  loading = false,
-  failed = false,
-  onRetry,
-  onOpen,
-  onStop,
-  stale,
-}: SubagentComposerPanelProps) {
-  const hasRows = subagents.length > 0;
-  return (
-    <>
-      <div className="flex items-baseline gap-2 px-0.5">
-        <PopoverTitle className="text-transcript-meta font-semibold text-fg-strong">
-          {subagentRosterTitle(counts.live)}
-        </PopoverTitle>
-        {counts.total > 0 ? (
-          <span className="ml-auto font-mono text-mono-id text-faint tabular-nums">
-            {counts.total}
-          </span>
-        ) : null}
-      </div>
-      {hasRows ? (
-        <SubagentRoster
-          subagents={subagents}
-          onOpen={onOpen}
-          onStop={onStop}
-          stale={stale}
-          hoverSide="right"
-          // Nothing runs: the previous rows are the whole answer, so they start open.
-          defaultPreviousOpen={counts.live === 0}
-        />
-      ) : null}
-      {failed ? <SubagentComposerFailure onRetry={onRetry} /> : null}
-      {hasRows || failed ? null : (
-        <SubagentComposerPlaceholder loading={loading} count={counts.total} />
-      )}
-    </>
-  );
-}
-
 /**
  * The composer's subagents control (issue #766): a quiet icon while nothing
  * runs; while subagents work, the icon takes their avatar's live dot and the
@@ -151,21 +108,43 @@ function SubagentComposerPanel({
  * then previous.
  */
 export function SubagentComposerControl({
+  subagents,
+  counts,
+  loading = false,
+  failed = false,
+  onRetry,
+  onOpen,
+  onStop,
   onOpenChange,
+  renderContent,
   stale = false,
-  ...panel
+  defaultOpen = false,
+  defaultSelectedId,
 }: SubagentComposerControlProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
+  const [selectedId, setSelectedId] = useState<string | null>(defaultSelectedId ?? null);
   const trigger = useRef<HTMLButtonElement>(null);
   const openingDetail = useRef(false);
-  const signal = subagentComposerSignal(panel.counts, panel.failed);
+  const signal = subagentComposerSignal(counts, failed);
   const live = signal.count !== null;
+  const hasRows = subagents.length > 0;
+  const close = () => {
+    setOpen(false);
+    onOpenChange?.(false);
+  };
 
   return (
     <Popover
       open={open}
-      onOpenChange={next => {
+      onOpenChange={(next, details) => {
+        // Escape steps back a level first; it closes only from the list.
+        const detailOpen = subagents.some(subagent => subagent.id === selectedId);
+        if (!next && detailOpen && details.reason === "escape-key") {
+          setSelectedId(null);
+          return;
+        }
         if (next) openingDetail.current = false;
+        else setSelectedId(null);
         setOpen(next);
         onOpenChange?.(next);
       }}
@@ -191,22 +170,34 @@ export function SubagentComposerControl({
         finalFocus={() => (openingDetail.current ? false : trigger.current)}
         side="top"
         align="start"
-        className="w-80 max-w-[calc(100vw-2rem)] gap-2"
+        className="w-[27rem] max-w-[calc(100vw-2rem)] gap-0 overflow-hidden p-0"
       >
-        <SubagentComposerPanel
-          {...panel}
-          stale={stale}
+        <SubagentPanel
+          counts={counts}
           onOpen={
-            panel.onOpen
+            onOpen
               ? (subagent, options) => {
                   openingDetail.current = true;
-                  setOpen(false);
-                  onOpenChange?.(false);
+                  setSelectedId(null);
+                  close();
                   trigger.current?.focus();
-                  panel.onOpen?.(subagent, options);
+                  onOpen(subagent, options);
                 }
               : undefined
           }
+          onSelect={setSelectedId}
+          onStop={onStop}
+          placeholder={
+            hasRows && !failed ? null : failed ? (
+              <SubagentComposerFailure onRetry={onRetry} />
+            ) : (
+              <SubagentComposerPlaceholder loading={loading} count={counts.total} />
+            )
+          }
+          renderContent={renderContent}
+          selectedId={selectedId}
+          stale={stale}
+          subagents={subagents}
         />
       </PopoverContent>
     </Popover>

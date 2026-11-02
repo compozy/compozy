@@ -3355,6 +3355,7 @@ export type {
   SubagentPullRequestPayload,
   SubagentRuntimePayload,
   SubagentSummaryPayload,
+  SubagentUsagePayload,
   SubagentWorktreePayload,
   SubmitTaskRunReviewVerdictData,
   SubmitTaskRunReviewVerdictError,

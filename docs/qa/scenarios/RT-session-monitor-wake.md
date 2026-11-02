@@ -92,8 +92,8 @@ the monitor is `interrupted` (visible, no wake). Owning automated evidence: `Tes
 `TestGlobalDBSessionMonitors`, and step 12.
 
 QA impact 2026-11-02 (`pull_request` monitor): a third monitor kind reads the forge through `PullRequestService`, stays
-armed across wakes on one durable row (migration `00173`), and wakes under `monitor:<id>:<seq>`. Terminal and timer
-monitors keep their exact behavior and message id. `gh pr checks --watch` now redirects to this kind. Owning automated
+armed across wakes on one durable row (migration `00174`), and wakes under `monitor:<id>:<seq>`. Terminal and timer
+monitors keep their exact behavior and message id. A bare `gh pr checks --watch` now redirects to this kind; naming a pull request or repository keeps the terminal redirect. Owning automated
 evidence: `TestDetectPullRequest`, `TestServicePullRequestMonitor`, `TestServicePullRequestMonitorRestart`,
 `TestProviderGraphQL`, `TestMonitorPullRequestObservation`, `TestGlobalDBSessionMonitorKindMigration`, and step 13.
 A wake that the queue refuses keeps its durable fire and id; a pull request first seen ended is history; thread

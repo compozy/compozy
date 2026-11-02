@@ -213,6 +213,21 @@ surface (additive, SD-013):** `GET .../sessions/{session_id}/subagents` gains op
 pages most urgent first so a waiting or failed row is never behind "Show more". No migration,
 config key, native tool, hook, extension SDK, or `skills/compozy/` change; isolation unchanged.
 
+## Subagent activity panel — 2026-11-02
+
+Owner: branch `feat/subagent-ui-proto`. Provider-native rows now keep the model and `subagent_type`
+that later streamed events of the launching call name, and a running `usage` total (migration
+`00173_schema.sql`, additive nullable columns). The composer panel drills into a subagent in place.
+
+- **Native tools / CLI / HTTP / UDS:** additive only. `SubagentPayload.usage` (omitempty) in
+  OpenAPI/SDKs and `compozy__subagent_status`/list results. A native row's `role` now carries its
+  `subagent_type` instead of the fixed `general`; delegated rows are unchanged. No new routes or IDs.
+- **Extensibility / hooks / config:** none; hook payloads keep their fields.
+- **Workspace data / isolation:** existing rows read NULL usage and keep their role; writes are
+  scoped to the row id and restricted to `provider_native`.
+- **Official skill / docs / QA:** `skills/compozy/references/{native-tools,runtime-operations}.md`,
+  `packages/site/content/docs/sessions/subagents.mdx`, `COPY.md`, `ET-web-subagent-card`.
+
 ## Subagent child activity and native task lifecycle — 2026-10-27
 
 Owner: branch `fix/subagent-status`. Delegated rows gain a persisted `child_activity`
@@ -5031,7 +5046,7 @@ Extensibility: the forge contract gains optional `reviews` on `ForgeStatusRespon
 with the commit each was opened on, and `reviews_unavailable` for a read that failed, in both SDKs. A provider that
 omits `reviews` still serves checks. The provider-side `failed_names` limit rises from 5 to 64; the display cache and the
 session payload still carry 5. Hooks and config keys are unchanged.
-Persisted data: migration `00173` rebuilds `session_monitors` to admit the kind and adds `branch`, `repo_key`,
+Persisted data: migration `00174` rebuilds `session_monitors` to admit the kind and adds `branch`, `repo_key`,
 `pr_cursor`, `fire_count` and `last_fired_at`, keeping every row; review activity is not stored in
 `forge_pull_requests`, which keeps its display semantics. Provider behavior: every open pull request refresh, display
 refreshes included, makes one more forge read for reviews.

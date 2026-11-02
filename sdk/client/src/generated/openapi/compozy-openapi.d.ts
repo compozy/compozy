@@ -17189,6 +17189,7 @@ export interface components {
       title: string;
       /** Format: date-time */
       updated_at: string;
+      usage?: components["schemas"]["SubagentUsagePayload"] | null;
       wait_timed_out: boolean;
       work_state: string;
       workspace_id: string;
@@ -17216,6 +17217,12 @@ export interface components {
     SubagentUpdatedEvent: {
       session_id: string;
       subagent: components["schemas"]["SubagentPayload"];
+    };
+    SubagentUsagePayload: {
+      /** Format: int64 */
+      tool_uses: number;
+      /** Format: int64 */
+      total_tokens: number;
     };
     SubagentWorktreePayload: {
       base_ref: string;

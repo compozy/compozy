@@ -132,6 +132,7 @@ export function subagentViewFromPayload(payload: SubagentPayload): SubagentView 
     result_truncated: payload.result_truncated,
     error: payload.error,
     runtime: payload.runtime,
+    usage: payload.usage,
     depth: payload.depth,
     started_at: payload.started_at,
     settled_at: payload.settled_at,

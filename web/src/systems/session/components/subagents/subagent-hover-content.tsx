@@ -60,6 +60,27 @@ function hoverFactTitle(fact: HoverFact): string | undefined {
   return undefined;
 }
 
+/** An isolated subagent's worktree facts, for the surfaces that reveal them. */
+export function SubagentWorktreeFactRows({ subagent }: { subagent: SubagentView }) {
+  const worktree = subagentWorktree(subagent);
+  if (!worktree) return null;
+  return (
+    <div className="flex flex-col gap-1" data-slot="subagent-worktree-facts">
+      {subagentWorktreeFacts(worktree).map(fact => (
+        <PropertyRow
+          key={fact.label}
+          variant="facts"
+          label={fact.label}
+          mono={fact.kind === "mono" || fact.kind === "base"}
+          valueTitle={hoverFactTitle(fact)}
+        >
+          {fact.kind === "mono" ? fact.value : <HoverFactValue fact={fact} />}
+        </PropertyRow>
+      ))}
+    </div>
+  );
+}
+
 export interface SubagentHoverContentProps {
   subagent: SubagentView;
   /** Child workspace/worktree; a row shows only where it differs from `parentLocation`. */

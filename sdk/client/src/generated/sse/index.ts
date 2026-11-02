@@ -158,6 +158,7 @@ export type {
   SubagentRuntimePayload,
   SubagentsSnapshotEvent,
   SubagentUpdatedEvent,
+  SubagentUsagePayload,
   SubagentWorktreePayload,
   TaskReferencePayload,
   TaskRunSummaryPayload,

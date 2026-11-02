@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+// TerminalRecordingRequest is a daemon API value.
+type TerminalRecordingRequest struct {
+	Action TerminalRecordingAction `json:"action"`
+}
+
+// TerminalRecordingResponse is a daemon API value.
+type TerminalRecordingResponse struct {
+	Recording TerminalRecordingPayload `json:"recording"`
+}
+
+// TerminalRecordingState is a daemon API value.
+type TerminalRecordingState string
+
 // TerminalRejectInputRequest is a daemon API value.
 type TerminalRejectInputRequest struct {
 	Reason string `json:"reason"`
@@ -434,13 +447,3 @@ type ToolsResponse struct {
 
 // ToolsetID is a daemon API value.
 type ToolsetID string
-
-// ToolsetPayload is a daemon API value.
-type ToolsetPayload struct {
-	ID            ToolsetID    `json:"id"`
-	Tools         []string     `json:"tools,omitempty"`
-	Toolsets      []ToolsetID  `json:"toolsets,omitempty"`
-	ExpandedTools []ToolID     `json:"expanded_tools,omitempty"`
-	Status        string       `json:"status"`
-	ReasonCodes   []ReasonCode `json:"reason_codes,omitempty"`
-}

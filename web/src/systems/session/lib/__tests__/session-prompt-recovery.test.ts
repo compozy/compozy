@@ -8,10 +8,11 @@
 // next page with its identity intact.
 // Owning layer: systems/session/lib prompt recovery lifecycle.
 import { describe, expect, it, vi } from "vitest";
+import type { AssistantRuntime } from "@assistant-ui/react";
 
 import { buildTerminalQuote } from "@/systems/terminal/parts";
 
-import { SessionPromptRecovery } from "../session-prompt-recovery";
+import { discardRefusedPromptMessage, SessionPromptRecovery } from "../session-prompt-recovery";
 import { composeQuotedPrompt } from "../session-terminal-quote-prompt";
 
 const SCOPE = { workspaceId: "workspace-atlas", sessionId: "session-primary" };
@@ -28,6 +29,25 @@ const messages = [
 ];
 
 describe("SessionPromptRecovery", () => {
+  // Invariant: a rejected runtime cleanup is observed without rejecting draft recovery.
+  // Owner: prompt recovery lifecycle; canonical suite: this file. Stub only the runtime I/O boundary.
+  it("Should contain a refused-message deletion failure", async () => {
+    const failure = new Error("runtime closed");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const runtime = {
+      thread: {
+        getState: () => ({ messages: [{ id: "refused" }] }),
+        getMessageById: () => ({ delete: () => Promise.reject(failure) }),
+      },
+    } as unknown as AssistantRuntime;
+    try {
+      await expect(discardRefusedPromptMessage(runtime, "refused")).resolves.toBeUndefined();
+      expect(warn).toHaveBeenCalledWith(expect.any(String), failure);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("Should restore the staged user text and files once", () => {
     const recovery = new SessionPromptRecovery();
     const listener = vi.fn();

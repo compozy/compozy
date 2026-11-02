@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// TaskDetailPayload is a daemon API value.
+type TaskDetailPayload struct {
+	Summary              TaskSummaryPayload               `json:"summary"`
+	Task                 TaskPayload                      `json:"task"`
+	Children             []TaskSummaryPayload             `json:"children,omitempty"`
+	Dependencies         []TaskDependencyPayload          `json:"dependencies,omitempty"`
+	DependencyReferences []TaskDependencyReferencePayload `json:"dependency_references,omitempty"`
+	Runs                 []TaskRunPayload                 `json:"runs,omitempty"`
+	DesignationRollups   []TaskDesignationRollupPayload   `json:"designation_rollups,omitempty"`
+	Events               []TaskEventPayload               `json:"events,omitempty"`
+}
+
 // TaskDetailResponse is a daemon API value.
 type TaskDetailResponse struct {
 	Task TaskDetailPayload `json:"task"`
@@ -435,16 +447,4 @@ type TaskRunReviewRequestResponse struct {
 // TaskRunReviewResponse is a daemon API value.
 type TaskRunReviewResponse struct {
 	Review TaskRunReviewPayload `json:"review"`
-}
-
-// TaskRunReviewVerdictResponse is a daemon API value.
-type TaskRunReviewVerdictResponse struct {
-	Review          TaskRunReviewPayload `json:"review"`
-	ContinuationRun *TaskRunPayload      `json:"continuation_run,omitzero"`
-	CircuitOpened   bool                 `json:"circuit_opened,omitzero"`
-}
-
-// TaskRunReviewsResponse is a daemon API value.
-type TaskRunReviewsResponse struct {
-	Reviews []TaskRunReviewPayload `json:"reviews"`
 }

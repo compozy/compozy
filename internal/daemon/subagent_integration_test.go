@@ -1618,7 +1618,7 @@ func TestSubagentFirstAdmissionRestartDaemonIntegration(t *testing.T) {
 			ParentTurnID: caller.TurnID, ParentToolCallID: caller.ToolCallID,
 			Origin: store.SubagentOriginDelegated, IdempotencyKey: "first-admission",
 			RequestFingerprint: "first-admission", Title: "Recover first admission", Role: "general",
-			TaskChars: len("slow child"), PendingTask: new("slow child"),
+			TaskChars: int32(len("slow child")), PendingTask: new("slow child"),
 			RuntimeAgent: "subagent-test", RuntimeProvider: acpmock.ProviderName,
 			Status: store.SubagentStatusQueued, WorkState: store.SubagentWorkStateWorking,
 			WakePolicy: store.SubagentWakePolicyAlways, Delivery: store.SubagentDeliveryNone,
@@ -1631,7 +1631,7 @@ func TestSubagentFirstAdmissionRestartDaemonIntegration(t *testing.T) {
 			ParentSessionID: parent.ID, ParentTurnID: caller.TurnID, AgentName: "subagent-test",
 			SpawnRole: "subagent", AutoStopOnParent: true, NotifyCreatorSet: true,
 			IdempotencyKey: row.ID,
-			Subagent:       &hookspkg.SubagentSpawnPayload{Title: row.Title, Role: row.Role, TaskChars: row.TaskChars},
+			Subagent:       &hookspkg.SubagentSpawnPayload{Title: row.Title, Role: row.Role, TaskChars: int(row.TaskChars)},
 		})
 		if err != nil {
 			t.Fatal(err)
