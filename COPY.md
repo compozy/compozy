@@ -872,3 +872,11 @@ parked on a wake source; its cards keep the chip that names the source ("Monitor
 and its empty state reads "Nothing waiting on a wake". A column's fold control is named
 "Collapse {column}"; its folded rail is named "Expand {column}" and shows the column mark,
 vertical name and count without extra words.
+
+### Session view options
+
+The List toolbar and the Kanban header share one sliders button named "View options". Its menu holds
+"Sort by", "Group by" (only where a grouping applies), "Show empty projects" (under Project), "Filter" with
+"Hide child sessions" (Kanban only, because the List has no such filter), and one
+action that reads "Collapse all", or "Expand all" once everything is collapsed. In the Kanban the action
+shows only while the board has swimlanes. An empty swimlane reads "No sessions in {project} yet."

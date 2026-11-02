@@ -991,6 +991,45 @@ describe("sessions board order and swimlanes", () => {
     return { client, ...renderHook(() => useSessionsBoard(input), { wrapper }) };
   }
 
+  // #1132: a lane's toggle moves the same fold the window's List reads.
+  it("Should fold a lane through its own toggle and read the facets on the board interval", async () => {
+    const facets = {
+      terminal_approvals: 0,
+      all: 1,
+      needs_you: 0,
+      working: 0,
+      finished: 1,
+      idle: 0,
+      board: { needs_you: 0, working: 0, waiting: 0, in_review: 0, done: 1 },
+    };
+    vi.mocked(fetchSessionFacets).mockResolvedValue({
+      facets,
+      by_workspace: [{ workspace_id: "ws-fold", facets }],
+      by_profile: [],
+      later: 0,
+    });
+    const { client, result } = renderBoard({
+      scope: { kind: "all" },
+      hideChildren: false,
+      sort: "created",
+      groupBy: "project",
+    });
+
+    await waitFor(() => expect(result.current.lanes).toHaveLength(1));
+    expect(result.current.lanes?.[0]?.collapsed).toBe(false);
+    act(() => result.current.lanes?.[0]?.onToggle());
+    expect(result.current.lanes?.[0]?.collapsed).toBe(true);
+    act(() => result.current.lanes?.[0]?.onToggle());
+    expect(result.current.lanes?.[0]?.collapsed).toBe(false);
+    const read = client
+      .getQueryCache()
+      .findAll()
+      .find(query => JSON.stringify(query.queryKey).includes("facets"));
+    const grouping = read?.observers.filter(observer => observer.options.enabled === true) ?? [];
+    expect(grouping).toHaveLength(1);
+    expect(grouping[0]?.options).toMatchObject({ refetchInterval: 60_000 });
+  });
+
   it("Should read every column in last-activity order while the stored sort is manual", async () => {
     const { client } = renderBoard({
       scope: ALPHA,

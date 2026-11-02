@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { useDebouncedInput } from "@/hooks/use-debounced-input";
 
@@ -32,7 +32,12 @@ import {
   useSessionListTotals,
   type SessionListTotals,
 } from "./use-session-list-groups";
-import { sessionSidebarStore, useSessionSidebarState } from "./use-session-sidebar-state";
+import { useSessionGroupFolds } from "./use-session-group-folds";
+import {
+  useSessionSidebarState,
+  type SessionFoldAll,
+  type SessionFoldSet,
+} from "./use-session-sidebar-state";
 import { useSessionWindowOrder } from "./use-session-window-order";
 import { useProjectFolderGroups, type WorkspaceLayout } from "./use-workspace-layout";
 
@@ -79,8 +84,13 @@ export interface SessionListViewModel {
   groups: SessionListGroupSpec[];
   groupsLoading: boolean;
   groupsError?: { retry: () => void };
-  collapsedGroupKeys: ReadonlySet<string>;
+  collapsedGroupKeys: SessionFoldSet;
   toggleGroup: (key: string) => void;
+  /** The last Collapse all or Expand all; shared with this window's Kanban. */
+  foldAll: SessionFoldAll;
+  setFoldAll: (foldAll: Exclude<SessionFoldAll, null>) => void;
+  /** Threads opened one by one, which stay open under Collapse all. */
+  openThreadIds: readonly string[];
   /** Filters every group query shares; each group adds its scope, lens, and order. */
   groupFilters: SessionListFilters;
   /** The aggregate is on — rows name their owner (US-011.AC-1). */
@@ -211,16 +221,11 @@ export function useSessionListView(
     options.pending === true
   );
   const selectionKey = JSON.stringify([scope, profile.key, groupBy]);
-  const foldLens = JSON.stringify([scope, profileFoldIdentity(profile), groupBy]);
-  const fallbackLens = JSON.stringify([scope, `name:${profile.key}`, groupBy]);
-  const resolvedProfile = !profile.aggregate && profile.destinationOwner !== null;
-  useEffect(() => {
-    if (resolvedProfile) {
-      sessionSidebarStore.trigger.groupLensResolved({ from: fallbackLens, to: foldLens });
-    }
-  }, [resolvedProfile, fallbackLens, foldLens]);
-  const groupId = (key: string) => sessionListGroupCollapseId(foldLens, key);
-  const collapsedGroupIds = new Set(sidebar.collapsedGroupIds);
+  const groupFolds = useSessionGroupFolds(scope, groupBy);
+  const searching = remoteSearch.trim() !== "";
+  const hiddenGroupKeys = new Set(
+    hiddenProjectGroupKeys(arranged.projectFolders?.tree, sidebar.folderFolds)
+  );
   // A group with no pair of its own splits along the other axis into pairs,
   // so only a flat aggregate leaves manual order and folders with no owner.
   const manualBlocked = flat && pair === null;
@@ -250,12 +255,18 @@ export function useSessionListView(
     groups,
     groupsLoading: awaiting.groupsLoading,
     groupsError: grouping.error,
-    collapsedGroupKeys: new Set([
-      ...groups.flatMap(group => (collapsedGroupIds.has(groupId(group.key)) ? [group.key] : [])),
-      // A collapsed project folder hides its projects: navigation skips them too.
-      ...hiddenProjectGroupKeys(arranged.projectFolders?.tree, sidebar.collapsedFolderIds),
-    ]),
-    toggleGroup: key => sidebar.toggleGroup(groupId(key)),
+    // A collapsed project folder hides its projects: navigation skips them too.
+    collapsedGroupKeys: {
+      // A search shows what it matches: no fold hides a result, like session folders.
+      has: key => !searching && (groupFolds.isCollapsed(key) || hiddenGroupKeys.has(key)),
+    },
+    // The group stays open for the search, so a fold there would land unseen when it clears.
+    toggleGroup: key => {
+      if (!searching) groupFolds.toggle(key);
+    },
+    foldAll: sidebar.foldAll,
+    setFoldAll: sidebar.setFoldAll,
+    openThreadIds: sidebar.openThreadIds,
     groupFilters,
     aggregate: profile.aggregate,
     scopeLabel: profile.scopeLabel,
@@ -268,12 +279,11 @@ export function useSessionListView(
 
 function hiddenProjectGroupKeys(
   tree: ProjectGroupTree | undefined,
-  collapsedFolderIds: readonly string[]
+  folderFolds: SessionFoldSet
 ): string[] {
   if (!tree) return [];
-  const collapsed = new Set(collapsedFolderIds);
   return tree.folders.flatMap(node =>
-    collapsed.has(node.folder.id) ? node.groups.map(group => group.key) : []
+    folderFolds.has(node.folder.id) ? node.groups.map(group => group.key) : []
   );
 }
 
@@ -323,26 +333,6 @@ function settledSearchCatalog<C extends { paging: boolean; next: boolean; previo
 
 function manualSortNote(sort: string, manualBlocked: boolean): string | null {
   return sort === "manual" && manualBlocked ? SESSION_LIST_MANUAL_SORT_NOTE : null;
-}
-
-/**
- * The profile half of a persisted fold's lens. Folds outlive the page, so they
- * name the profile by its immutable id: a rename keeps them, and a later
- * profile that reuses the old name does not inherit them. Until the profile
- * list resolves the id, the name stands in.
- */
-function profileFoldIdentity(profile: {
-  aggregate: boolean;
-  key: string;
-  destinationOwner: { id: string } | null;
-}): string {
-  if (profile.aggregate) return profile.key;
-  return profile.destinationOwner?.id ?? `name:${profile.key}`;
-}
-
-/** A group's collapse id: its key qualified by the list lens it renders under. */
-function sessionListGroupCollapseId(lens: string, groupKey: string): string {
-  return `${lens}\u0000${groupKey}`;
 }
 
 function newFolderUnavailableReason(

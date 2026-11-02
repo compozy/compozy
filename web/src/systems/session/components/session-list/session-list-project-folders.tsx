@@ -40,6 +40,8 @@ export interface SessionListProjectFoldersProps {
     arrange: SessionListGroupArrange | undefined
   ) => ReactNode;
   emptyMessage: string;
+  /** A search shows what it matches: no folder stays folded over a result. */
+  filtering: boolean;
   testIdPrefix: string;
 }
 
@@ -55,11 +57,11 @@ export function SessionListProjectFolders({
   onFolderDialog,
   renderGroup,
   emptyMessage,
+  filtering,
   testIdPrefix,
 }: SessionListProjectFoldersProps) {
   const dnd = useProjectFoldersDnd(layout, tree);
-  const { collapsedFolderIds, toggleFolder } = useSessionSidebarState();
-  const collapsed = new Set(collapsedFolderIds);
+  const { folderFolds: collapsed, toggleFolder } = useSessionSidebarState();
   const ranks = new Map(projectGroupTreeGroups(tree).map((group, index) => [group.key, index]));
   const draggingFoldered = dnd.dragging?.kind === "project" && dnd.dragging.folderId !== null;
   // Every folder takes a project, including one hidden because its projects are empty (#1085).
@@ -103,8 +105,10 @@ export function SessionListProjectFolders({
           folder={folder}
           count={groups.length}
           holds="projects"
-          expanded={!collapsed.has(folder.id)}
-          onToggle={() => toggleFolder(folder.id)}
+          expanded={filtering || !collapsed.has(folder.id)}
+          onToggle={() => {
+            if (!filtering) toggleFolder(folder.id);
+          }}
           onRename={() => onFolderDialog({ kind: "rename", folder })}
           onDelete={() => onFolderDialog({ kind: "delete", folder })}
           onMoveUp={index > 0 ? () => layout.moveFolder(folder.id, -1) : undefined}

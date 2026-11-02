@@ -596,6 +596,32 @@ describe("useSessionListView", () => {
     act(() => result.current.toggleGroup(key));
     resetProfileViews();
   });
+
+  // #1132: a search shows every result, and a click it cannot show does not change the fold.
+  it("Should open folded groups during a search and ignore toggles until it clears", async () => {
+    shell.group_by = "project";
+    act(() => enableAllProjects());
+    act(() => setProfileView({ kind: "profile", profile: marketingProfileFixture.name }));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    client.setQueryData(profilesListOptions().queryKey, [marketingProfileFixture]);
+    const { result } = renderHook(() => useSessionListView(), {
+      wrapper: clientWrapper(client),
+    });
+    await waitFor(() => expect(result.current.groups.length).toBeGreaterThan(0));
+    const key = result.current.groups[0]!.key;
+    act(() => result.current.toggleGroup(key));
+    expect(result.current.collapsedGroupKeys.has(key)).toBe(true);
+
+    act(() => result.current.setSearch?.("match"));
+    await waitFor(() => expect(result.current.collapsedGroupKeys.has(key)).toBe(false));
+    act(() => result.current.toggleGroup(key));
+
+    act(() => result.current.setSearch?.(""));
+    await waitFor(() => expect(result.current.collapsedGroupKeys.has(key)).toBe(true));
+    act(() => result.current.toggleGroup(key));
+    expect(result.current.collapsedGroupKeys.has(key)).toBe(false);
+    resetProfileViews();
+  });
 });
 
 describe("useWorkspaceWorkingSessions", () => {

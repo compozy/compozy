@@ -268,21 +268,12 @@ const meta: Meta<typeof SessionCatalogContract> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const SortMenu: Story = {
+/** One View options menu: sort, grouping where one applies, and the folds (#1132). */
+export const ViewOptionsMenu: Story = {
   args: { state: "sort" },
   play: async ({ canvasElement }) => {
     await userEvent.click(
-      within(canvasElement.ownerDocument.body).getByTestId("contract-catalog-sort-trigger")
-    );
-  },
-};
-
-/** Group by is its own control beside Sort, offered only where a grouping applies (#952). */
-export const GroupByMenu: Story = {
-  args: { state: "sort" },
-  play: async ({ canvasElement }) => {
-    await userEvent.click(
-      within(canvasElement.ownerDocument.body).getByTestId("contract-catalog-group-by-trigger")
+      within(canvasElement.ownerDocument.body).getByTestId("contract-catalog-view-options-trigger")
     );
   },
 };

@@ -1,14 +1,13 @@
-import { ListTree, Plus, SquareKanban } from "@compozy/ui/icons";
+import { Plus, SquareKanban } from "@compozy/ui/icons";
 import { lazy, Suspense, type ReactNode } from "react";
 
 import { Button, type TopbarSlotValue } from "@compozy/ui";
 
 import {
   SESSION_BOARD_SORTS,
-  SessionGroupByMenu,
   SessionsBoard,
   SessionsBoardSelection,
-  SessionSortMenu,
+  SessionViewOptionsMenu,
   SessionViewToggle,
   sessionBoardSort,
 } from "@/systems/session";
@@ -43,7 +42,7 @@ const SessionRenameDialog = lazy(() =>
 /**
  * The session window in Kanban mode (US-011): the body becomes the board for
  * the workspace / All projects scope and publishes its own head — "Sessions",
- * the view toggle, Group by, Sort by, "Hide child sessions" and "New session".
+ * the view toggle, View options and "New session".
  * A card opens its session in the drawer beside the board (#1052): the window keeps
  * that session as its own, so List, a reload and a restore all show the same one. Its
  * context menu and `…` run the same verbs as a session list row. Cards select like list
@@ -66,6 +65,7 @@ export function SessionBoardWindow({
     view,
     setView,
     order,
+    sidebar,
     board,
     lifecycle,
     actions,
@@ -81,29 +81,25 @@ export function SessionBoardWindow({
     overflow: <SessionViewToggle onValueChange={setView} value={view.view} />,
     actions: (
       <>
-        <SessionGroupByMenu
-          onValueChange={order.setGroupBy}
-          options={board.groupByOptions}
-          testId="sessions-board-group-by"
-          value={board.groupBy}
+        <SessionViewOptionsMenu
+          allCollapsed={sidebar.foldAll === "collapsed"}
+          groupBy={board.groupBy}
+          groupByOptions={board.groupByOptions}
+          hideChildren={view.hideChildren}
+          onAllCollapsedChange={
+            board.lanes === null
+              ? undefined
+              : collapsed => sidebar.setFoldAll(collapsed ? "collapsed" : "expanded")
+          }
+          onGroupByChange={order.setGroupBy}
+          onHideChildrenChange={view.setHideChildren}
+          onShowEmptyProjectsChange={sidebar.setShowEmptyProjects}
+          onSortChange={order.setSort}
+          showEmptyProjects={sidebar.showEmptyProjects}
+          sort={sessionBoardSort(order.sort)}
+          sortOptions={SESSION_BOARD_SORTS}
+          testId="sessions-board"
         />
-        <SessionSortMenu
-          onValueChange={order.setSort}
-          options={SESSION_BOARD_SORTS}
-          testId="sessions-board-sort"
-          value={sessionBoardSort(order.sort)}
-        />
-        <Button
-          aria-pressed={view.hideChildren}
-          data-testid="sessions-board-hide-children"
-          onClick={() => view.setHideChildren(!view.hideChildren)}
-          size="sm"
-          type="button"
-          variant="quiet"
-        >
-          <ListTree aria-hidden="true" data-icon="inline-start" />
-          Hide child sessions
-        </Button>
         <Button
           data-testid="sessions-board-new-session"
           onClick={() => openForAgent("")}

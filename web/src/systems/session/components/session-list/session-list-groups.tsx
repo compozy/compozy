@@ -98,6 +98,7 @@ export function SessionListGroups(props: GroupRowProps & SessionListProjectFolde
     return (
       <SessionListProjectFolders
         projectFolders={view.projectFolders}
+        filtering={props.filtering}
         onFolderDialog={onProjectFolderDialog}
         renderGroup={(group, path, arrange) => (
           <SessionListGroupSection

@@ -1,9 +1,7 @@
 import type { SessionThreadBranchChange } from "../../lib/session-thread-branch";
 import { useState } from "react";
 
-import { TriangleAlert, WifiOff } from "@compozy/ui/icons";
-
-import { Alert, AlertActions, AlertDescription, Button, SearchInput } from "@compozy/ui";
+import { Button, SearchInput } from "@compozy/ui";
 
 import { useSubagentContextSessions } from "../../hooks/use-subagent-context-sessions";
 import { buildSessionListThreads, countThreadSessions } from "../../lib/session-list-threads";
@@ -30,6 +28,12 @@ import { SessionListSelectionFolders } from "./session-list-selection-folders";
 import { SessionListSkeleton } from "./session-list-skeleton";
 import { SessionListThreadList } from "./session-list-thread-list";
 import { SessionListToolbar } from "./session-list-toolbar";
+import {
+  sessionThreadFolds,
+  type SessionFoldSet,
+  type SessionSubagentFolds,
+} from "../../lib/session-sidebar-scope";
+import { SessionListStatus } from "./session-list-status";
 
 export interface SessionListProps {
   sessions: readonly SessionPayload[];
@@ -108,9 +112,14 @@ export function SessionList({
   const grouped = view.groupBy !== "none";
   // Grouped lists read each group separately; the flat list is empty, so the groups own the count.
   const visibleCount = sessionListVisibleCount(view, threads, normalizedFilter);
-  const collapsedThreads = new Set(collapsedThreadIds);
-  const subagentThreads = new Set(subagentThreadIds);
   const filtering = normalizedFilter !== "";
+  const { collapsedThreads, subagentThreads } = sessionThreadFolds({
+    collapsedThreadIds,
+    openThreadIds: view.openThreadIds,
+    subagentThreadIds,
+    foldAll: view.foldAll,
+    filtering,
+  });
   const folders = useSessionListFolderLayout(view, threads, filtering);
   const { layout, sections } = folders;
   // A grouped list's groups each read their own page and publish their rows to it.
@@ -244,46 +253,6 @@ function listNewFolder(
   return { onNewFolder, newFolderUnavailable: onNewFolder ? null : view.newFolderUnavailable };
 }
 
-function SessionListStatus({
-  disconnected,
-  view,
-}: Pick<SessionListProps, "disconnected" | "view">) {
-  return (
-    <>
-      {disconnected ? (
-        <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
-          <WifiOff aria-hidden="true" />
-          <AlertDescription>
-            Can&apos;t get session updates right now. The sessions below may be out of date.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {view.catalog?.failed && (view.catalog.sessions.length ?? 0) === 0 ? (
-        <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
-          <TriangleAlert aria-hidden="true" />
-          <AlertDescription>Couldn&rsquo;t load sessions.</AlertDescription>
-          <AlertActions>
-            <Button size="xs" type="button" variant="secondary" onClick={view.catalog.retry}>
-              Retry
-            </Button>
-          </AlertActions>
-        </Alert>
-      ) : null}
-      {view.layoutError ? (
-        <Alert className="mx-3 my-1 w-auto px-2.5 py-2" role="status" variant="warning">
-          <TriangleAlert aria-hidden="true" />
-          <AlertDescription>Couldn&rsquo;t load folders.</AlertDescription>
-          <AlertActions>
-            <Button size="xs" type="button" variant="secondary" onClick={view.layoutError.retry}>
-              Retry
-            </Button>
-          </AlertActions>
-        </Alert>
-      ) : null}
-    </>
-  );
-}
-
 type SessionListFolderLayoutModel = ReturnType<typeof useSessionListFolderLayout>;
 
 /** The workspace list grouped into folders, with drag and folder verbs wired in. */
@@ -309,8 +278,8 @@ function SessionListFolderBody({
   view: SessionListViewModel;
   bulk: ReturnType<typeof useSessionListBulkSelection>;
   filtering: boolean;
-  collapsedThreads: ReadonlySet<string>;
-  subagentThreads: ReadonlySet<string>;
+  collapsedThreads: SessionFoldSet;
+  subagentThreads: SessionSubagentFolds;
   currentSessionId: SessionListProps["currentSessionId"];
   onThreadBranchChange: SessionListProps["onThreadBranchChange"];
   onSelectSession: SessionListProps["onSelectSession"];
@@ -384,6 +353,8 @@ function SessionListControls({
         onGroupByChange={view.setGroupBy}
         showEmptyProjects={view.showEmptyProjects}
         onShowEmptyProjectsChange={view.setShowEmptyProjects}
+        allCollapsed={view.foldAll === "collapsed"}
+        onAllCollapsedChange={collapsed => view.setFoldAll(collapsed ? "collapsed" : "expanded")}
         onNewSession={onNewSession}
         onNewFolder={onNewFolder}
         newFolderUnavailable={newFolderUnavailable}
@@ -420,8 +391,8 @@ function SessionListBody({
   | "testIdPrefix"
 > & {
   threads: ReturnType<typeof buildSessionListThreads>;
-  collapsedThreads: ReadonlySet<string>;
-  subagentThreads: ReadonlySet<string>;
+  collapsedThreads: SessionFoldSet;
+  subagentThreads: SessionSubagentFolds;
   normalizedFilter: string;
   selection: ReturnType<typeof useSessionListBulkSelection>["rowSelection"];
 }) {

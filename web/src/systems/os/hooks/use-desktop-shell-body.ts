@@ -9,6 +9,7 @@ import { cycleSessionBoardDrawer } from "../lib/session-board-drawer-cycle";
 import {
   useSessionSidebarState,
   sessionListVisibleOrder,
+  sessionThreadFolds,
   useWorkspaceWorkingSessions,
   type SessionListViewModel,
   type SessionPayload,
@@ -189,7 +190,6 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
   // Shell chrome renders under the focused window's scope: ⌘B, the palette
   // toggle, and session cycling act on the rail the operator is looking at.
   const sessionSidebar = useSessionSidebarState();
-  const { collapsedThreadIds, collapsedFolderIds } = sessionSidebar;
   const shortcutLabels = useDesktop(state => {
     const effective = state.windowManagerConfig?.effectiveShortcuts;
     const platform = typeof navigator === "undefined" ? "" : navigator.platform;
@@ -251,8 +251,11 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
       const visibleSessions = sessionListVisibleOrder(options.sessionListView, {
         queryClient,
         sessions: options.sessionListView.catalog?.sessions ?? attention.sessions,
-        collapsedThreadIds: new Set(collapsedThreadIds),
-        collapsedFolderIds: new Set(collapsedFolderIds),
+        collapsedThreadIds: sessionThreadFolds({
+          ...sessionSidebar,
+          filtering: (options.sessionListView.search ?? "").trim() !== "",
+        }).collapsedThreads,
+        collapsedFolderIds: sessionSidebar.folderFolds,
       });
       const target = adjacentShortcutItem<SessionPayload>(
         visibleSessions,

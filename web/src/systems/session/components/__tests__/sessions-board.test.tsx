@@ -499,6 +499,75 @@ describe("SessionsBoard swimlanes", () => {
       pair: null,
     },
     filters: { workspace_id: workspaceId, sort: "created" as const },
+    collapsed: false,
+    onToggle: vi.fn(),
+  });
+
+  // #1132: a folded lane keeps its name and count, and neither it nor an empty one reads columns.
+  it("Should fold a lane to its header and read no columns for folded or empty lanes", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchSessionCatalogPage).mockClear();
+    const folded = { ...lane("ws-alpha", 4), collapsed: true };
+    renderBoard({ ...board(), columns: [], lanes: [folded, lane("ws-beta", 0)] });
+
+    const header = screen.getByTestId("sessions-board-lane-project:ws-alpha-header");
+    expect(header).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("sessions-board-lane-project:ws-alpha-count")).toHaveTextContent("4");
+    expect(screen.getByTestId("sessions-board-lane-project:ws-beta-empty")).toHaveTextContent(
+      "No sessions in Beta yet."
+    );
+    expect(screen.queryByRole("region", { name: /Working/ })).toBeNull();
+    expect(fetchSessionCatalogPage).not.toHaveBeenCalled();
+
+    await user.click(header);
+    expect(folded.onToggle).toHaveBeenCalledOnce();
+  });
+
+  // #1132: the header's name replaces its content, so it must carry the folded lane's signal.
+  it("Should name a folded project lane's signal in its header", () => {
+    const folded = { ...lane("ws-alpha", 2), collapsed: true };
+    folded.group = { ...folded.group, needsYou: 1 };
+    renderBoard({ ...board(), columns: [], lanes: [folded] });
+
+    expect(screen.getByRole("button", { name: "Alpha project, 1 needs you" })).toHaveAttribute(
+      "aria-expanded",
+      "false"
+    );
+  });
+
+  // #1132: a failed project order read leaves the lanes on screen and offers its retry.
+  it("Should keep the lanes and offer a retry when the project order fails", async () => {
+    const user = userEvent.setup();
+    const retry = vi.fn();
+    renderBoard({
+      ...board(),
+      columns: [],
+      lanes: [{ ...lane("ws-alpha", 1), collapsed: true }],
+      layoutError: { retry },
+    });
+
+    expect(screen.getByTestId("sessions-board-lane-project:ws-alpha")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { state: "no lanes", lanes: {}, testId: "sessions-board-lanes-empty" },
+    {
+      state: "loading lanes",
+      lanes: { lanesLoading: true },
+      testId: "sessions-board-lanes-skeleton",
+    },
+    {
+      state: "failed lanes",
+      lanes: { lanesError: { retry: vi.fn() } },
+      testId: "sessions-board-lanes-error",
+    },
+  ])("Should offer the project order retry with $state", ({ lanes, testId }) => {
+    renderBoard({ ...board(), columns: [], lanes: [], layoutError: { retry: vi.fn() }, ...lanes });
+
+    expect(screen.getByTestId(testId)).toBeInTheDocument();
+    expect(screen.getByText("Couldn’t load folders.")).toBeInTheDocument();
   });
 
   it("Should render one lane per group, each reading the five columns in its own scope", async () => {
@@ -526,7 +595,7 @@ describe("SessionsBoard swimlanes", () => {
     renderBoard({
       ...board(),
       columns: [],
-      lanes: [lane("ws-alpha", 1), lane("ws-beta", 0)],
+      lanes: [lane("ws-alpha", 1), lane("ws-beta", 2)],
       workspaceNameOf: session => names.get(session.workspace_id ?? "") ?? null,
     });
 

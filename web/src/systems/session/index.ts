@@ -412,6 +412,7 @@ export { preloadSessionEntry } from "./lib/session-entry-preload";
 export { SessionSidebarSkeleton } from "./components/session-list/session-list-skeleton";
 export { SessionSidebar, type SessionSidebarProps } from "./components/session-sidebar";
 export { SessionSidebarLayout } from "./components/session-sidebar-layout";
+export { sessionThreadFolds } from "./lib/session-sidebar-scope";
 export {
   buildSessionTree,
   childSessionSignalState,

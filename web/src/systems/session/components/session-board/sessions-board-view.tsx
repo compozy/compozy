@@ -1,4 +1,7 @@
+import { TriangleAlert } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
+
+import { Alert, AlertActions, AlertDescription, Button } from "@compozy/ui";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionsBoardView as SessionsBoardModel } from "../../hooks/use-sessions-board";
@@ -68,7 +71,10 @@ export function SessionsBoardView({
             selectionRow={{ key: "board", rank: 0 }}
           />
         ) : (
-          <SessionsBoardLanes board={board} renderLane={renderLane} row={row} />
+          <>
+            <SessionsBoardLayoutWarning error={board.layoutError} />
+            <SessionsBoardLanes board={board} renderLane={renderLane} row={row} />
+          </>
         )}
       </div>
       <SessionsBoardShelfBar
@@ -86,6 +92,22 @@ export function SessionsBoardView({
         workspaceNameOf={board.workspaceNameOf}
       />
     </div>
+  );
+}
+
+/** The saved project order failed to load: the retry shows in every state of the lanes. */
+function SessionsBoardLayoutWarning({ error }: { error: SessionsBoardModel["layoutError"] }) {
+  if (!error) return null;
+  return (
+    <Alert className="mb-2 w-auto px-2.5 py-2" role="status" variant="warning">
+      <TriangleAlert aria-hidden="true" />
+      <AlertDescription>Couldn&rsquo;t load folders.</AlertDescription>
+      <AlertActions>
+        <Button onClick={error.retry} size="xs" type="button" variant="secondary">
+          Retry
+        </Button>
+      </AlertActions>
+    </Alert>
   );
 }
 

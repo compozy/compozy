@@ -7,6 +7,7 @@ import { sessionListGroupFilters, type SessionListGroupSpec } from "./session-li
 import { sessionCatalogScopedFilters } from "./session-catalog-scope";
 import type { SessionListSort } from "./session-list-preferences";
 import type { SessionListShelf } from "./session-list-shelf";
+import type { SessionFoldSet } from "./session-sidebar-scope";
 
 /** What the list renders right now, as the session view model reports it. */
 export interface SessionListOrderSource {
@@ -16,7 +17,7 @@ export interface SessionListOrderSource {
   groupBy: string;
   groupFilters: SessionListFilters;
   sort: SessionListSort;
-  collapsedGroupKeys: ReadonlySet<string>;
+  collapsedGroupKeys: SessionFoldSet;
   shelf: SessionListShelf;
   search?: string;
 }
@@ -33,8 +34,8 @@ export function sessionListVisibleOrder(
     queryClient: QueryClient;
     /** The page the flat list shows (falls back to the attention modal's page). */
     sessions: readonly SessionPayload[];
-    collapsedThreadIds: ReadonlySet<string>;
-    collapsedFolderIds: ReadonlySet<string>;
+    collapsedThreadIds: SessionFoldSet;
+    collapsedFolderIds: SessionFoldSet;
   }
 ): SessionPayload[] {
   const grouped = view.groupBy !== "none";
