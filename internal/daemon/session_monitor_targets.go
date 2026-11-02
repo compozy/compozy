@@ -46,54 +46,52 @@ func (t monitorSessionTargets) ReadTargets(ctx context.Context, spec monitorpkg.
 	return statuses
 }
 
+// settledTargetChecks is how many times a settled target's queue is read, each one after a state read.
+const settledTargetChecks = 2
+
+// readMonitorTarget keeps a target with queued input from reading as settled: between two turns its
+// badge is idle or done for a moment, but its next turn is already committed. An input stays pending
+// until its turn is active, so a turn that starts between reads shows in the next state read, and the
+// last queue read catches an input that arrived after the previous one.
 func readMonitorTarget(
 	ctx context.Context,
 	manager monitorTargetManager,
 	target string,
 ) monitorpkg.TargetStatus {
 	status := monitorpkg.TargetStatus{SessionID: target, State: monitorpkg.TargetStateUnknown}
-	info, err := manager.Status(ctx, target)
-	if err == nil && info != nil && settledBadgeState(monitorTargetState(info)) {
-		var queued string
-		if queued, info, err = rereadSettledTarget(ctx, manager, target); queued != "" {
-			status.State = queued
+	for check := 1; ; check++ {
+		info, err := manager.Status(ctx, target)
+		switch {
+		case errors.Is(err, session.ErrSessionNotFound),
+			errors.Is(err, store.ErrSessionNotFound),
+			errors.Is(err, store.ErrSessionSuperseded):
+			status.State = monitorpkg.TargetStateGone
+			return status
+		case err != nil || info == nil:
+			status.State = monitorpkg.TargetStateUnknown
+			return status
+		}
+		status.Name = info.Name
+		status.State = monitorTargetState(info)
+		if !settledBadgeState(status.State) {
+			return status
+		}
+		queue, err := manager.InputQueueSummary(ctx, target)
+		switch {
+		case err != nil:
+			status.State = monitorpkg.TargetStateUnknown
+			return status
+		case queue.PendingInputs > 0:
+			status.State = string(session.BadgeRunning)
+			return status
+		case check == settledTargetChecks:
 			return status
 		}
 	}
-	switch {
-	case errors.Is(err, session.ErrSessionNotFound),
-		errors.Is(err, store.ErrSessionNotFound),
-		errors.Is(err, store.ErrSessionSuperseded):
-		status.State = monitorpkg.TargetStateGone
-	case err == nil && info != nil:
-		status.Name = info.Name
-		status.State = monitorTargetState(info)
-	}
-	return status
 }
 
 func settledBadgeState(state string) bool {
 	return state == monitorpkg.TargetStateIdle || state == monitorpkg.TargetStateDone
-}
-
-// rereadSettledTarget keeps a target with queued input from reading as settled: between two turns its
-// badge is idle or done for a moment, but its next turn is already committed. An empty queue is not
-// proof either, because that turn may have started after the first read, so the state is read again.
-// A nonempty result is the state to report; otherwise the fresh read decides.
-func rereadSettledTarget(
-	ctx context.Context,
-	manager monitorTargetManager,
-	target string,
-) (string, *session.Info, error) {
-	queue, err := manager.InputQueueSummary(ctx, target)
-	switch {
-	case err != nil:
-		return monitorpkg.TargetStateUnknown, nil, nil
-	case queue.PendingInputs > 0:
-		return string(session.BadgeRunning), nil, nil
-	}
-	info, err := manager.Status(ctx, target)
-	return "", info, err
 }
 
 // monitorTargetState folds a stopped session to a final state: its badge can still describe why it

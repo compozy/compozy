@@ -36,6 +36,9 @@ const targetSweepInterval = 30 * time.Second
 // targetReadGap bounds reads driven by a busy target: every event of every target signals a change.
 const targetReadGap = time.Second
 
+// targetReadTimeout bounds one read of all targets, so a slow read cannot hold a monitor past its timeout.
+const targetReadTimeout = 5 * time.Second
+
 // errWatchQuiesced ends a session watch without an outcome; the monitor stays active for the next boot.
 var errWatchQuiesced = errors.New("monitor: session watches are quiesced")
 
@@ -180,11 +183,12 @@ func (s *Service) sessionWatch(spec Spec) Watch {
 			changes, stop = nil, func() {}
 		}
 		defer stop()
+		deadline := time.Now().Add(spec.Timeout)
 		timeout := time.NewTimer(spec.Timeout)
 		defer timeout.Stop()
 		sweep := time.NewTicker(targetSweepInterval)
 		defer sweep.Stop()
-		return s.followTargets(ctx, spec, changes, timeout.C, sweep.C)
+		return s.followTargets(ctx, spec, deadline, changes, timeout.C, sweep.C)
 	}
 }
 
@@ -192,7 +196,7 @@ func (s *Service) sessionWatch(spec Spec) Watch {
 // A recovered watch first waits for the gate: until sessions are resumed and supervised, a target's
 // state is not yet its real state.
 func (s *Service) followTargets(
-	ctx context.Context, spec Spec, changes <-chan struct{}, timeout, sweep <-chan time.Time,
+	ctx context.Context, spec Spec, deadline time.Time, changes <-chan struct{}, timeout, sweep <-chan time.Time,
 ) (Outcome, error) {
 	select {
 	case <-ctx.Done():
@@ -201,14 +205,17 @@ func (s *Service) followTargets(
 		return Outcome{}, errWatchQuiesced
 	case <-s.watchGate:
 	}
+	var last []TargetStatus
 	for {
-		marked, held, err := s.readTargets(ctx, spec)
+		budget := max(min(targetReadTimeout, time.Until(deadline)), time.Millisecond)
+		marked, held, err := s.readTargets(ctx, spec, budget, last)
 		if err != nil {
 			return Outcome{}, err
 		}
 		if held {
 			return Outcome{Reason: ReasonConditionMet, Targets: marked}, nil
 		}
+		last = marked
 		timedOut, closed, err := s.awaitTargetRead(ctx, changes, timeout, sweep)
 		if err != nil {
 			return Outcome{}, err
@@ -217,7 +224,7 @@ func (s *Service) followTargets(
 			changes = nil
 		}
 		if timedOut {
-			return s.finalTargetRead(ctx, spec)
+			return s.finalTargetRead(ctx, spec, last)
 		}
 	}
 }
@@ -250,8 +257,8 @@ func (s *Service) awaitTargetRead(
 
 // finalTargetRead settles a timeout from the targets as they are now, so a target that settled since
 // the last read is never reported as still working.
-func (s *Service) finalTargetRead(ctx context.Context, spec Spec) (Outcome, error) {
-	marked, held, err := s.readTargets(ctx, spec)
+func (s *Service) finalTargetRead(ctx context.Context, spec Spec, last []TargetStatus) (Outcome, error) {
+	marked, held, err := s.readTargets(ctx, spec, targetReadTimeout, last)
 	if err != nil {
 		return Outcome{}, err
 	}
@@ -261,10 +268,18 @@ func (s *Service) finalTargetRead(ctx context.Context, spec Spec) (Outcome, erro
 	return Outcome{Reason: ReasonTimeout, Targets: marked}, nil
 }
 
-// readTargets discards a read that overlaps quiescing: it may have observed a target the daemon itself
-// is stopping, which says nothing about that target's work.
-func (s *Service) readTargets(ctx context.Context, spec Spec) ([]TargetStatus, bool, error) {
-	statuses := s.targets.ReadTargets(ctx, spec)
+// readTargets reads every target within budget. A read cut short tells nothing about a target, so it
+// keeps the target's last known state. A read that overlaps quiescing is discarded: it may have
+// observed a target the daemon itself is stopping, which says nothing about that target's work.
+func (s *Service) readTargets(
+	ctx context.Context, spec Spec, budget time.Duration, last []TargetStatus,
+) ([]TargetStatus, bool, error) {
+	readCtx, cancel := context.WithTimeout(ctx, budget)
+	defer cancel()
+	statuses := s.targets.ReadTargets(readCtx, spec)
+	if readCtx.Err() != nil {
+		statuses = keepKnownTargets(statuses, last)
+	}
 	select {
 	case <-s.quiesced:
 		return nil, false, errWatchQuiesced
@@ -272,6 +287,22 @@ func (s *Service) readTargets(ctx context.Context, spec Spec) ([]TargetStatus, b
 	}
 	marked, held := evaluateTargets(spec, statuses)
 	return marked, held, nil
+}
+
+func keepKnownTargets(statuses, last []TargetStatus) []TargetStatus {
+	kept := slices.Clone(statuses)
+	for index, status := range kept {
+		if status.State != TargetStateUnknown {
+			continue
+		}
+		position := slices.IndexFunc(last, func(known TargetStatus) bool {
+			return known.SessionID == status.SessionID
+		})
+		if position >= 0 {
+			kept[index] = last[position]
+		}
+	}
+	return kept
 }
 
 // QuiesceSessionWatches stops evaluating session monitors. The daemon calls it before stopping sessions

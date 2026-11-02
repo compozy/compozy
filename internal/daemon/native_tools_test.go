@@ -1395,6 +1395,10 @@ func TestDaemonNativeTools(t *testing.T) {
 				}
 			})
 		}
+		_, err = call(`{"kind":"session","description":"wait","target_session_ids":["sess-1"]}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+		_, err = call(`{"kind":"timer","description":"wait","delay_seconds":5,"target_session_ids":["sess-foreign"]}`)
+		requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
 		if _, err := call(
 			`{"kind":"session","description":"wait","target_session_ids":["sess-2","sess-3"],"until":"any"}`,
 		); err != nil {

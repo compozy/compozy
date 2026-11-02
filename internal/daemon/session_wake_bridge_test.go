@@ -390,6 +390,21 @@ func TestMonitorSessionTargets(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep the name of a target that reads as running from its queue", func(t *testing.T) {
+		t.Parallel()
+
+		stub := &monitorTargetManagerStub{
+			reads:  map[string]int{},
+			infos:  map[string]*session.Info{"sess-a": {ID: "sess-a", Name: "Worker", State: session.StateActive}},
+			queues: map[string]int{"sess-a": 1},
+		}
+		targets := monitorSessionTargets{sessions: func() any { return stub }}
+		got := targets.ReadTargets(testutil.Context(t), monitorpkg.Spec{Targets: []string{"sess-a"}})
+		if got[0].Name != "Worker" || got[0].State != string(session.BadgeRunning) {
+			t.Fatalf("status = %+v, want the running target with its name", got[0])
+		}
+	})
+
 	t.Run("Should not report a settled state when the input queue cannot be read", func(t *testing.T) {
 		t.Parallel()
 
