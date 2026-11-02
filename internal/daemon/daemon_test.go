@@ -68,6 +68,7 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gofrs/flock"
 	"go.uber.org/goleak"
+	"golang.org/x/sys/execabs"
 )
 
 func TestAcquireLockSucceedsWithoutExistingLock(t *testing.T) {
@@ -11034,6 +11035,97 @@ func TestReadWorkspaceWorkLog(t *testing.T) {
 			}
 			if mode == "malformed" && !strings.Contains(logs.String(), "ignored line 3") {
 				t.Fatal(logs.String())
+			}
+		})
+	}
+}
+
+func TestWorkLogOpenAfterReplacement(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"outside symlink", "fifo"} {
+		t.Run("Should safely open a validated file replaced by "+mode, func(t *testing.T) {
+			t.Parallel()
+			if mode == "fifo" && runtime.GOOS == "windows" {
+				t.Skip("Windows has no filesystem FIFOs")
+			}
+			root := t.TempDir()
+			dir := filepath.Join(root, ".compozy")
+			if err := os.Mkdir(dir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(dir, "work-log.md")
+			if err := os.WriteFile(path, []byte("# Work log"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+				t.Fatalf("validated file=%v err=%v", info, err)
+			}
+			workspace, err := os.OpenRoot(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := workspace.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			if mode == "outside symlink" {
+				outside := filepath.Join(t.TempDir(), "private.md")
+				if err := os.WriteFile(outside, []byte("private"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, path); err != nil {
+					t.Fatal(err)
+				}
+				file, err := openWorkspaceWorkLogFile(workspace)
+				if err == nil {
+					if closeErr := file.Close(); closeErr != nil {
+						t.Error(closeErr)
+					}
+					t.Fatal("opened outside workspace")
+				}
+				return
+			}
+			if out, err := execabs.CommandContext(t.Context(), "mkfifo", path).CombinedOutput(); err != nil {
+				t.Fatalf("mkfifo: %v %s", err, out)
+			}
+			type opened struct {
+				file *os.File
+				err  error
+			}
+			done := make(chan opened, 1)
+			go func() { file, err := openWorkspaceWorkLogFile(workspace); done <- opened{file, err} }()
+			select {
+			case got := <-done:
+				if got.err != nil {
+					t.Fatal(got.err)
+				}
+				defer func() {
+					if err := got.file.Close(); err != nil {
+						t.Error(err)
+					}
+				}()
+				if info, err := got.file.Stat(); err != nil || info.Mode().IsRegular() {
+					t.Fatalf("special file=%v err=%v", info, err)
+				}
+			case <-time.After(2 * time.Second):
+				writer, err := os.OpenFile(path, os.O_WRONLY|syscall.O_NONBLOCK, 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := writer.Close(); err != nil {
+					t.Error(err)
+				}
+				got := <-done
+				if got.file != nil {
+					if err := got.file.Close(); err != nil {
+						t.Error(err)
+					}
+				}
+				t.Fatal("FIFO open waited for a writer")
 			}
 		})
 	}

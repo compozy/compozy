@@ -118,11 +118,13 @@ func CollectDigest(
 	}
 	slices.Sort(result.Diagnostics)
 	result.Diagnostics = slices.Compact(result.Diagnostics)
+	fingerprintItems := slices.Clone(result.Items)
+	slices.SortFunc(fingerprintItems, func(a, b DigestItem) int { return cmp.Compare(a.Key, b.Key) })
 	payload, err := json.Marshal(struct {
 		Items        []DigestItem
 		Policy       string
 		Instructions string
-	}{result.Items, policyDigest, strings.TrimSpace(instructions)})
+	}{fingerprintItems, policyDigest, strings.TrimSpace(instructions)})
 	if err != nil {
 		return CheckDigest{}, fmt.Errorf("encode heartbeat digest: %w", err)
 	}

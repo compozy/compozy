@@ -28,6 +28,7 @@ import (
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
@@ -5158,6 +5159,15 @@ func TestWorkLogCollectorIntegration(t *testing.T) {
 				)
 				if err != nil {
 					t.Fatal(err)
+				}
+				database := d.registry.(*globaldb.GlobalDB)
+				if _, err := database.DB().ExecContext(t.Context(), `INSERT INTO automation_runs (id,profile_id,workspace_id,status,ended_at) VALUES ('work-log-resolver-failure',?,?,'failed',?)`, parent.ProfileID, ws, store.FormatTimestamp(d.now())); err != nil {
+					t.Fatal(err)
+				}
+				collector := instanceDigestCollector{instances: repo, workspaces: &loopAPIWorkspaceResolverErrorStub{err: errors.New("workspace unavailable")}, logger: discardLogger()}
+				digest, err := collector.Collect(t.Context(), instance.ID, heartbeat.CollectorScope{Now: d.now()}, []string{"automations_failed", "work_log"}, "", "")
+				if err != nil || len(digest.Items) != 1 || digest.Items[0].Key != "auto:work-log-resolver-failure" {
+					t.Fatalf("unrelated facts after workspace resolution failure=%+v err=%v", digest, err)
 				}
 				workspace, err := d.registry.GetWorkspace(t.Context(), ws)
 				if err != nil {

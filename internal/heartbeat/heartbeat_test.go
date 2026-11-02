@@ -1167,8 +1167,39 @@ func TestWorkLogDigest(t *testing.T) {
 			if err != nil || len(digest.Items) != tc.want {
 				t.Fatalf("digest = %+v, %v", digest, err)
 			}
+			if tc.want == 1 && digest.Items[0].Key != "work:wl-20261102-01" {
+				t.Fatal(digest.Items)
+			}
 		})
 	}
+	t.Run("Should fingerprint a stale key set independently of acceptance ordering", func(t *testing.T) {
+		t.Parallel()
+		facts := []WorkLogFact{
+			{ID: "wl-20261102-01", AcceptedAt: now.Add(-time.Hour)},
+			{ID: "wl-20261102-02", AcceptedAt: now.Add(-2 * time.Hour)},
+		}
+		first, err := CollectDigest(
+			CollectorScope{WorkspaceID: "ws", Now: now},
+			CollectorFacts{WorkLog: facts},
+			[]string{"work_log"},
+			"",
+			"",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		facts[0].AcceptedAt, facts[1].AcceptedAt = facts[1].AcceptedAt, facts[0].AcceptedAt
+		second, err := CollectDigest(
+			CollectorScope{WorkspaceID: "ws", Now: now},
+			CollectorFacts{WorkLog: facts},
+			[]string{"work_log"},
+			"",
+			"",
+		)
+		if err != nil || first.Fingerprint != second.Fingerprint {
+			t.Fatalf("fingerprints=%q/%q err=%v", first.Fingerprint, second.Fingerprint, err)
+		}
+	})
 	t.Run("Should select the oldest nine deterministically and signal overflow", func(t *testing.T) {
 		t.Parallel()
 		var facts []WorkLogFact

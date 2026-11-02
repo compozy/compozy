@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/compozy/compozy/internal/heartbeat"
 )
@@ -50,7 +51,7 @@ func readWorkspaceWorkLog(root string, logger *slog.Logger) ([]heartbeat.WorkLog
 			logger.Warn("work_log: close workspace", "error", err)
 		}
 	}()
-	file, err := workspace.Open(".compozy/work-log.md")
+	file, err := openWorkspaceWorkLogFile(workspace)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, false
 	}
@@ -68,13 +69,14 @@ func readWorkspaceWorkLog(root string, logger *slog.Logger) ([]heartbeat.WorkLog
 		logger.Warn("work_log: unavailable regular file", "error", err)
 		return nil, false
 	}
-	content, err := io.ReadAll(io.LimitReader(file, workLogReadLimit))
+	content, err := io.ReadAll(io.LimitReader(file, workLogReadLimit+1))
 	if err != nil {
 		logger.Warn("work_log: read", "error", err)
 		return nil, false
 	}
-	truncated := info.Size() > workLogReadLimit
+	truncated := len(content) > workLogReadLimit
 	if truncated {
+		content = content[:workLogReadLimit]
 		if end := bytes.LastIndexByte(content, '\n'); end >= 0 {
 			content = content[:end+1]
 		} else {
@@ -86,4 +88,8 @@ func readWorkspaceWorkLog(root string, logger *slog.Logger) ([]heartbeat.WorkLog
 		logger.Warn(fmt.Sprintf("work_log: ignored line %d", line))
 	}
 	return facts, truncated
+}
+
+func openWorkspaceWorkLogFile(workspace *os.Root) (*os.File, error) {
+	return workspace.OpenFile(".compozy/work-log.md", os.O_RDONLY|syscall.O_NONBLOCK, 0)
 }
