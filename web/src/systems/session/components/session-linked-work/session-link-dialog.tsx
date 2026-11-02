@@ -324,7 +324,7 @@ export function SessionLinkDialog({
                 loading={loading}
                 onLoadMore={onLoadMore}
                 onToggle={onToggle}
-                outdated={outdated}
+                outdated={outdated || pending}
                 search={search}
                 selected={selected}
               />
