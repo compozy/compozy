@@ -13,6 +13,56 @@ extension contracts, and review behavior do not carry forward automatically.
 This guide uses v0.2.15 (`8f8908afd70c731b815e20282bacad05aa026827`) as the legacy baseline.
 Back up your global and workspace `.compozy/` directories before changing installations.
 
+<a id="spec-cycle-simplification"></a>
+
+## Spec delivery moves from Loops to agents
+
+This release upgrades in place, with no manual step. The daemon starts normally, nothing under
+`~/.compozy` needs deleting, and no file under `.compozy/tasks` changes. The `spec-cycle` extension now
+ships 4 agents and 2 skills, with no Loops and no tools. Older sections of this guide name these
+resources as they existed then.
+
+| Removed                                                                             | Use instead                               |
+| ----------------------------------------------------------------------------------- | ----------------------------------------- |
+| Loop `implement-tasks`                                                              | Agent `spec_conductor`                    |
+| Loop `review-and-fix`                                                               | Agent `reviewer`, then `code_implementer` |
+| Agent `review_fixer`                                                                | Agent `code_implementer`                  |
+| `ext__spec_cycle__import_tasks`                                                     | `_slices.md` read by `spec_conductor`     |
+| `ext__spec_cycle__write_review_artifacts`, `ext__spec_cycle__finalize_review_round` | Agent `reviewer` findings file            |
+| Skill `cy-create-tasks`                                                             | `_slices.md` in `cy-create-spec`          |
+| Skills `cy-execute-task`, `cy-final-verify`, `cy-workflow-memory`                   | Agent `code_implementer`                  |
+| Skill `cy-orchestrate-tasks`                                                        | Agent `spec_conductor`                    |
+| Skills `cy-review-round`, `cy-fix-reviews`                                          | Agents `reviewer` and `code_implementer`  |
+
+Deliver a spec by starting `spec_conductor`:
+
+```bash
+compozy session new --agent spec_conductor --workspace acme --name "Deliver billing-export"
+compozy session prompt <session-id> "Deliver .compozy/tasks/billing-export"
+```
+
+Hand small work to the stays-on `orchestrator`:
+
+```bash
+compozy agent instance create orchestrator --workspace acme
+compozy session prompt <main-session-id> "Fix the login redirect on expired sessions"
+```
+
+### What happens to saved references
+
+- **Automations and sessions stay.** An automation that targets a removed Loop or agent stays saved, and
+  its own run fails with a clear error. Sessions on a removed agent stay readable, and resuming one
+  fails with a clear error.
+- **Loop overrides stay.** A stored override for a removed Loop is kept and never read.
+- **Active runs finish.** A Loop run active during the upgrade continues from its saved definition.
+- **Same-name workspace Loops keep working.** Only the bundled definitions left.
+- **Stays-on instances pause.** An instance of a removed agent pauses as `definition_missing`.
+- **Batuta leaves the catalog.** An installed copy keeps loading, and only `batuta-deliver` fails when
+  run.
+
+Removed Loops return `loop_not_found`, removed agents return `agent_not_found`, and removed tools
+return `tool_not_found`.
+
 <a id="user-scope-and-all-projects"></a>
 
 ## User scope and All projects (v0.4.0)

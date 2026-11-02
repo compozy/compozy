@@ -5063,6 +5063,20 @@ preserves references to absent loops and fails locally on execution. Other valid
 remain errors. No extension resources or user task files are deleted. The official skill and
 Web source selector co-ship in B2/F1; release/scenario QA belongs to the integration slice.
 
+- **Owning spec.** `.compozy/tasks/spec-cycle-simplify/_spec.md`. Slices link to this entry and update only what they affect.
+- **Native tools.** `ext__spec_cycle__*` removed, a recorded hard cut. No `compozy__*` change.
+- **CLI/HTTP/UDS.** No route or DTO change; removed loops return `loop_not_found`.
+- **Extensibility and hooks.** `spec-cycle` drops `tool.provider`. Hooks unaffected. `HEARTBEAT.md` gains `work_log`.
+- **Config.** No `config.toml` change.
+- **Workspace data isolation.** The collector reads one file inside the workspace root and rejects paths outside it.
+- **User state.** `.compozy/tasks` is untouched. New optional `.compozy/work-log.md`. Stored overrides of removed loops stay inert. No SQLite change.
+- **Web.** Check-ins editor gains the `work_log` source; sample-name fixtures stay.
+- **Docs and official skill.** Update `skills/compozy/references/{tools-and-skills,loops,agent-definitions}.md`, site loop examples, extension docs, migration guide.
+- **SDKs.** Unaffected.
+- **Catalog.** Batuta removed, regenerated through `cmd/compozy-catalog`, with a release-note block.
+- **Repository tooling.** `scripts/postinstall.sh`, `.codex/scripts`, `CLAUDE.md`, and the authoring playbook change with the skill removal.
+- **QA.** New scenarios for conductor, orchestrator, authoring, upgrade and merge gate; existing spec-cycle scenarios updated.
+
 
 ## Spec-cycle resource-only cut — B2 (2026-11-02)
 

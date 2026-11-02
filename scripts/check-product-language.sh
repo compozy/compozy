@@ -25,7 +25,6 @@ else
     sdk
     catalog
     .env.example
-    .compozy/loops/implement-tasks/loop.yaml
     cmd/compozy
     cmd/compozy-codegen
     cmd/compozy-manifest-check

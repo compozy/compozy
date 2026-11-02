@@ -65,11 +65,11 @@ journey:
       expected_observable: "Success auto-clears the mark and restores normal cadence — no daemon restart, no manual revive control"
     - step: 5
       verb: "Enroll spec-cycle and inspect its managed-session skills"
-      expected_observable: "Exactly cy-create-spec, cy-create-tasks, cy-execute-task, cy-workflow-memory, cy-orchestrate-tasks, cy-review-round, cy-fix-reviews, cy-final-verify, and git-rebase project from immutable global resources; the extension also projects two Loops, four agents, and three tools; one workspace override does not change another workspace"
+      expected_observable: "Exactly cy-create-spec and git-rebase project from immutable global resources; the extension also projects four agents, no Loops, and no tools; one workspace override does not change another workspace"
   goal:
     observable: "Advertised set = runnable set; dead entity suppressed then self-recovered"
     side_effects: [dead-entity-mark-clear-events, catalog-rebuild]
-  true_end_state: "Fresh catalog, status, doctor, extension, and managed-session reads agree: gated skills are inactive-with-reason, the revived sidecar is ready, the spec-cycle inventory is two Loops, nine immutable skills, four agents, and three tools, no duplicate official skill exists, and the measured advertised-token count dropped on the gated fixture."
+  true_end_state: "Fresh catalog, status, doctor, extension, and managed-session reads agree: gated skills are inactive-with-reason, the revived sidecar is ready, the spec-cycle inventory is two immutable skills, four agents, no Loops, and no tools, no duplicate official skill exists, and the measured advertised-token count dropped on the gated fixture."
   exit:
     natural: "The agent proceeds with a truthful capability set; the operator trusts diagnostics over restarts."
   abandonment:

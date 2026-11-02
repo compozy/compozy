@@ -19,3 +19,5 @@ overlaps: LP-goal-command-judge; ET-spec-cycle-skill-bundle
 Retired — the standalone `orchestrate-tasks` catalog entry was hard-deleted. Its delegation contract
 is now owned by `LP-implement-tasks-orchestrated-mode`, reached through `implement-tasks` with
 `mode=orchestrated`. Historical reports keep this stable id for lookup.
+
+retired — 2026-11-02 spec-cycle simplification: the behavior left the product with `implement-tasks`. Spec delivery is owned by TA-spec-conductor-delivery.

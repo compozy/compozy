@@ -1,5 +1,9 @@
 # J-08 — Review and remediate: an agent-authored review Loop
 
+> Retired 2026-11-02: the bundled Loop below left the product. `J-deliver-through-agents` owns review
+> and repair. LP-031, LP-032 and LP-038 stay here as generic watch-source scenarios. The rest of this
+> file is history.
+
 The identity case is the bundled `review-and-fix` Loop. A reviewer agent inspects a named task and
 returns source-agnostic structured issues. The runtime writes those issues as inspectable artifacts,
 fans complete file batches to the fixer, finalizes only fully triaged rounds, and asks the reviewer

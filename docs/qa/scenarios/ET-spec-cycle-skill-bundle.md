@@ -62,3 +62,5 @@ executes the installed validator in a foreign Git repository (clean, untracked-w
 cases). Managed-install update coverage checks the replacement payload. This is
 focused product-artifact evidence; the provider-authored spec journey remains
 pending CI/authorized runtime QA. No daemon lab was started for this fix.
+
+retired — 2026-11-02 spec-cycle simplification: spec-cycle ships 4 agents, 2 skills, 0 Loops and 0 tools. `extensions/spec-cycle/embed_test.go` owns the inventory; RT-upgrade-spec-cycle-hard-cut owns the upgrade.

@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-08
 expected: Starting review-and-fix with task_name and optional reviewer, fixer, and auto_commit inputs launches the reviewer directly and exposes the same provider-free run through Web, CLI, HTTP, UDS, and native-tool surfaces.
 entry_points: web review-and-fix run form; compozy loop run --name review-and-fix; POST /loops/review-and-fix/run; compozy__loop_run
-qa_status: pass
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
@@ -17,3 +17,5 @@ overlaps: LP-029; TA-081
 ---
 
 Task07 2026-07-27: added for the agent-authored review hard cut; flag only, not retested.
+
+retired — 2026-11-02 spec-cycle simplification: the `review-and-fix` Loop left the product. Review and repair is owned by TA-spec-conductor-delivery.
