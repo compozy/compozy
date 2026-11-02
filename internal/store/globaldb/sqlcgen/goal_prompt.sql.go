@@ -54,16 +54,19 @@ func (q *Queries) AdvanceGoalTerminalCheckpoint(ctx context.Context, arg Advance
 
 const advanceRejectedGoalCheckpoint = `-- name: AdvanceRejectedGoalCheckpoint :execrows
 UPDATE loop_goal_checkpoints
-SET phase = 'preparing', prompt_attempt = ?1, queue_entry_id = NULL,
-    prompt_id = NULL, prompt_kind = NULL, updated_at = CAST(?2 AS TEXT)
-WHERE loop_run_id = ?3 AND generation = ?4
-  AND node_id = ?5 AND item_index = ?6
-  AND control_epoch = ?7 AND binding_epoch = ?8
-  AND phase = 'queued' AND task_run_id = ?9
-  AND queue_entry_id = ?10 AND prompt_id = ?11
+SET wait_deferrals = wait_deferrals + ?1,
+    pending_compaction = CASE WHEN prompt_kind = 'compact' THEN 1 ELSE pending_compaction END,
+    phase = 'preparing', prompt_attempt = ?2, queue_entry_id = NULL,
+    prompt_id = NULL, prompt_kind = NULL, updated_at = CAST(?3 AS TEXT)
+WHERE loop_run_id = ?4 AND generation = ?5
+  AND node_id = ?6 AND item_index = ?7
+  AND control_epoch = ?8 AND binding_epoch = ?9
+  AND phase = 'queued' AND task_run_id = ?10
+  AND queue_entry_id = ?11 AND prompt_id = ?12
 `
 
 type AdvanceRejectedGoalCheckpointParams struct {
+	WaitDeferred  int64          `json:"wait_deferred"`
 	PromptAttempt int64          `json:"prompt_attempt"`
 	UpdatedAt     string         `json:"updated_at"`
 	LoopRunID     string         `json:"loop_run_id"`
@@ -79,6 +82,7 @@ type AdvanceRejectedGoalCheckpointParams struct {
 
 func (q *Queries) AdvanceRejectedGoalCheckpoint(ctx context.Context, arg AdvanceRejectedGoalCheckpointParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, advanceRejectedGoalCheckpoint,
+		arg.WaitDeferred,
 		arg.PromptAttempt,
 		arg.UpdatedAt,
 		arg.LoopRunID,
@@ -103,7 +107,7 @@ SET control_epoch = control_epoch + 1, phase = 'terminal', goal_status = ?1,
     control_cause = ?2, control_actor_kind = ?3,
     control_actor_id = ?4,
     control_requested_at = CAST(?5 AS TEXT),
-    queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0,
+    queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0, wait_deferrals = 0,
     judge_attempt_id = NULL, report_prompt_id = NULL, report_status = NULL,
     report_evidence_ref = NULL, report_binding_epoch = NULL, report_actor_kind = NULL,
     report_actor_id = NULL, report_recorded_at = NULL, compaction_cancel_prompt_id = NULL,

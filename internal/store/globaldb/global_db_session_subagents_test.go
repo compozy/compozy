@@ -93,6 +93,61 @@ func finalizeSubagent(t *testing.T, s store.SubagentStore, id string, now time.T
 	}
 }
 func TestGlobalDBSubagents(t *testing.T) {
+	t.Run("Should retain a scoped wait until the subagent result is consumed or abandoned", func(t *testing.T) {
+		t.Parallel()
+		for _, disposition := range []string{"delivered", "acknowledged", "disposed"} {
+			t.Run(disposition, func(t *testing.T) {
+				t.Parallel()
+				db, workspace, parent, now := subagentFixture(t)
+				s := db.SessionRepo
+				ctx := t.Context()
+				assertPending := func(workspaceID, parentID string, want bool) {
+					t.Helper()
+					got, err := s.HasPendingSubagentWake(ctx, workspaceID, parentID)
+					if err != nil || got != want {
+						t.Fatalf("pending wake for %s/%s = %v, %v; want %v", workspaceID, parentID, got, err, want)
+					}
+				}
+				assertPending(workspace, parent, false)
+				reserveSubagent(t, s, workspace, parent, "child", now)
+				assertPending(workspace, parent, true)
+				assertPending("other-workspace", parent, false)
+				assertPending(workspace, "other-parent", false)
+				finalizeSubagent(t, s, "child", now)
+				// Finalization precedes wake planning; that handoff must retain the wait.
+				assertPending(workspace, parent, true)
+				if _, err := s.OpenOrJoinWake(ctx, parent, []string{"child"}, "wake"); err != nil {
+					t.Fatal(err)
+				}
+				if err := s.SetWakeInput(ctx, "wake", "queue", "wake-input"); err != nil {
+					t.Fatal(err)
+				}
+				assertPending(workspace, parent, true)
+				if err := s.MarkWakeDispatched(ctx, "wake"); err != nil {
+					t.Fatal(err)
+				}
+				assertPending(workspace, parent, true)
+				switch disposition {
+				case "delivered":
+					if _, err := s.SettleWake(ctx, "wake", false); err != nil {
+						t.Fatal(err)
+					}
+				case "acknowledged":
+					if _, _, err := s.Acknowledge(ctx, "child", "read-turn"); err != nil {
+						t.Fatal(err)
+					}
+				case "disposed":
+					if _, err := s.Dispose(
+						ctx,
+						store.SubagentDisposeFilter{ParentSessionID: parent, IDs: []string{"child"}},
+					); err != nil {
+						t.Fatal(err)
+					}
+				}
+				assertPending(workspace, parent, false)
+			})
+		}
+	})
 	// M6, m16: repository reads stay scoped and bounded.
 	t.Run("Should reject unscoped lists and cap pages while looking up exact ids", func(t *testing.T) {
 		t.Parallel()

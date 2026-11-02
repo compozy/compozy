@@ -342,7 +342,7 @@ func (q *Queries) ReadGoalSessionProjection(ctx context.Context, arg ReadGoalSes
 }
 
 const readLatestGoalSessionCheckpoint = `-- name: ReadLatestGoalSessionCheckpoint :one
-SELECT wait_started_at, loop_run_id, generation, node_id, item_index, control_epoch, control_actor_kind, control_actor_id, control_requested_at, phase, goal_status, turns_used, turn_limit, broken_streak, recovery_streak, task_run_id, queue_entry_id, prompt_id, prompt_kind, prompt_attempt, context_state, usage_sequence, usage_pending_after_sequence, session_id, binding_handle, binding_epoch, context_nudge_ratio, control_grant_id, control_grant_kind, control_grant_cause, control_grant_turn, control_grant_scope, control_grant_consumed, judge_attempt_id, compaction_cancel_prompt_id, compaction_cancel_cause, compaction_cancel_requested_at, report_prompt_id, report_status, report_evidence_ref, report_binding_epoch, report_actor_kind, report_actor_id, report_recorded_at, updated_at, control_cause, compaction_baseline_used, compaction_recovery_required
+SELECT wait_started_at, wait_deferrals, pending_compaction, loop_run_id, generation, node_id, item_index, control_epoch, control_actor_kind, control_actor_id, control_requested_at, phase, goal_status, turns_used, turn_limit, broken_streak, recovery_streak, task_run_id, queue_entry_id, prompt_id, prompt_kind, prompt_attempt, context_state, usage_sequence, usage_pending_after_sequence, session_id, binding_handle, binding_epoch, context_nudge_ratio, control_grant_id, control_grant_kind, control_grant_cause, control_grant_turn, control_grant_scope, control_grant_consumed, judge_attempt_id, compaction_cancel_prompt_id, compaction_cancel_cause, compaction_cancel_requested_at, report_prompt_id, report_status, report_evidence_ref, report_binding_epoch, report_actor_kind, report_actor_id, report_recorded_at, updated_at, control_cause, compaction_baseline_used, compaction_recovery_required
 FROM loop_goal_checkpoints
 WHERE loop_run_id = ?1
 ORDER BY generation DESC, updated_at DESC, node_id ASC, item_index ASC
@@ -354,6 +354,8 @@ func (q *Queries) ReadLatestGoalSessionCheckpoint(ctx context.Context, loopRunID
 	var i LoopGoalCheckpoint
 	err := row.Scan(
 		&i.WaitStartedAt,
+		&i.WaitDeferrals,
+		&i.PendingCompaction,
 		&i.LoopRunID,
 		&i.Generation,
 		&i.NodeID,

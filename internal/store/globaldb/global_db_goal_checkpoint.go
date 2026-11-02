@@ -137,6 +137,7 @@ func loadGoalCheckpointWithExecutor(
 	return checkpoint, nil
 }
 
+// validateGoalCheckpoint rejects incomplete lifecycle ownership, counters, and context freshness.
 func validateGoalCheckpoint(checkpoint goal.Checkpoint) error {
 	if err := checkpoint.Key.Validate(); err != nil {
 		return err
@@ -168,6 +169,7 @@ func validateGoalCheckpoint(checkpoint goal.Checkpoint) error {
 	return nil
 }
 
+// goalCheckpointPhaseValid recognizes the durable Goal lifecycle phases, including suspended waits.
 func goalCheckpointPhaseValid(phase string) bool {
 	switch strings.TrimSpace(phase) {
 	case goalCheckpointPhaseWaiting, goalCheckpointPhaseIdle,
@@ -185,6 +187,7 @@ func goalCheckpointPhaseValid(phase string) bool {
 	}
 }
 
+// goalStatusValid recognizes the persisted public Goal statuses.
 func goalStatusValid(status string) bool {
 	switch strings.TrimSpace(status) {
 	case goalStatusWaiting, goalStatusActive,

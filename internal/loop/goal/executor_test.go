@@ -3585,6 +3585,55 @@ func TestExecutorShouldRecoverAndControlWaits(t *testing.T) {
 }
 
 func TestExecutorShouldResumeAfterWaitInterruption(t *testing.T) {
+	t.Run("Should pause visibly when the interrupted parent cannot resume", func(t *testing.T) {
+		t.Parallel()
+		store := newFakeExecutorStore()
+		binder := newFakeManagedBinder(store)
+		judge := &fakeJudge{}
+		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
+		executor.waits = recoveringWaitReader{
+			waitReaderFunc: func(context.Context, loop.ActionSessionBinding) (bool, error) {
+				t.Fatal("unavailable session reached wait inspection")
+				return false, nil
+			},
+			recover: func(context.Context, loop.ActionSessionBinding) error {
+				return errors.New("parent recovery unavailable")
+			},
+		}
+		raw, err := executor.Execute(t.Context(), testGoalNode(3), testGoalInput(t))
+		if err != nil || raw.Control == nil || raw.Control.GoalStatus != goalStatusPaused ||
+			raw.Control.Cause != loop.ReasonCodeGoalWaitUnavailable {
+			t.Fatalf("recovery attention = %#v, %v", raw, err)
+		}
+		if len(binder.preparedRequests()) != 0 || judge.callCount() != 0 {
+			t.Fatal("failed session recovery started Goal work")
+		}
+	})
+
+	t.Run("Should restore the bound wait session before preparing work", func(t *testing.T) {
+		t.Parallel()
+		store := newFakeExecutorStore()
+		binder := newFakeManagedBinder(store, scriptedEndTurn("ready", 0))
+		judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 0)}}
+		executor := newTestExecutor(t, store, binder, judge, &fakeBudgetGuard{})
+		recoveries := 0
+		executor.waits = recoveringWaitReader{
+			waitReaderFunc: func(context.Context, loop.ActionSessionBinding) (bool, error) { return false, nil },
+			recover: func(_ context.Context, binding loop.ActionSessionBinding) error {
+				recoveries++
+				if binding.SessionID == "" || len(binder.preparedRequests()) != 0 {
+					t.Fatal("recovery lost the bound session or ran after prompt preparation")
+				}
+				return nil
+			},
+		}
+		raw, err := executor.Execute(t.Context(), testGoalNode(3), testGoalInput(t))
+		if err != nil || recoveries != 1 || raw.Control == nil ||
+			raw.Control.Disposition != loop.ActionDispositionSucceeded {
+			t.Fatalf("recovery=%d result=%#v, %v", recoveries, raw, err)
+		}
+	})
+
 	t.Run("Should recover a settled waiting turn without replay or a duplicate judge", func(t *testing.T) {
 		t.Parallel()
 		store := newFakeExecutorStore()
@@ -3647,5 +3696,132 @@ func TestExecutorShouldJudgeStructuredClaimsWithLiveWait(t *testing.T) {
 		if err != nil || raw.Control == nil || raw.Control.GoalStatus != goalStatusComplete || judge.callCount() != 1 {
 			t.Fatalf("completion = %#v, judges=%d, %v", raw, judge.callCount(), err)
 		}
+	})
+}
+
+// Owner: Goal wait state machine. Pending max-token recovery survives a wait/restart.
+func TestExecutorShouldDeferCompactionDuringWait(t *testing.T) {
+	t.Run("Should preserve the provider retry allowance after earlier wait deferrals", func(t *testing.T) {
+		t.Parallel()
+		store := newFakeExecutorStore()
+		executor := newTestExecutor(t, store, newFakeManagedBinder(store), &fakeJudge{}, &fakeBudgetGuard{})
+		node := testGoalNode(3)
+		node.Retry = &dsl.RetrySpec{MaxAttempts: 2}
+		segment, err := executor.initializeSegment(t.Context(), node, testGoalInput(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+		store.mu.Lock()
+		store.checkpoint.Phase, store.checkpoint.PromptAttempt, store.checkpoint.WaitDeferrals = checkpointPhasePreparing, 6, 5
+		store.mu.Unlock()
+		boundary, err := executor.retryRejectedPrompt(t.Context(), segment, loop.ActionPromptResult{
+			PromptID:   "unsubmitted",
+			Outcome:    loop.ActionPromptOutcomeRejectedBeforeSubmit,
+			ReasonCode: loop.ReasonCodeGoalPromptRequestFailed,
+		})
+		if err != nil || boundary != nil {
+			t.Fatalf("first provider retry after deferrals = %#v, %v", boundary, err)
+		}
+	})
+
+	t.Run("Should retain a deferred ticket retry after the provider retry allowance is used", func(t *testing.T) {
+		t.Parallel()
+		store := newFakeExecutorStore()
+		binder := newFakeManagedBinder(store, scriptedEndTurn("ready", 0))
+		executor := newTestExecutor(t, store, binder, &fakeJudge{}, &fakeBudgetGuard{})
+		segment, err := executor.initializeSegment(t.Context(), testGoalNode(3), testGoalInput(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+		store.mu.Lock()
+		store.checkpoint.Phase, store.checkpoint.PromptAttempt = checkpointPhasePreparing, 5
+		store.mu.Unlock()
+		boundary, err := executor.retryRejectedPrompt(t.Context(), segment, loop.ActionPromptResult{
+			PromptID:   "unsubmitted",
+			Outcome:    loop.ActionPromptOutcomeRejectedBeforeSubmit,
+			ReasonCode: loop.ReasonCodeGoalWaitDeferred,
+		})
+		if err != nil || boundary != nil || len(binder.preparedRequests()) != 0 {
+			t.Fatalf("deferred retry = %#v, %v", boundary, err)
+		}
+	})
+
+	t.Run("Should resume durable compaction after a max-token wait across executor replacement", func(t *testing.T) {
+		t.Parallel()
+		store := newFakeExecutorStore()
+		binder := newFakeManagedBinder(store, scriptedStop(loop.ActionStopMaxTokens),
+			scriptedStop(loop.ActionStopEndTurn), scriptedEndTurn("done", 1))
+		judge := &fakeJudge{results: []JudgeResult{judgeResult(gate.VerdictOutcomeApproved, 0)}}
+		health := &fakeContextHealth{usage: ContextUsage{Known: true, Used: 1, Size: 10, Sequence: 1}, hasCompact: true}
+		executor := newTestExecutorWithContext(t, store, binder, judge, &fakeBudgetGuard{}, health)
+		executor.waits = waitReaderFunc(func(context.Context, loop.ActionSessionBinding) (bool, error) {
+			return len(binder.preparedRequests()) > 0, nil
+		})
+		in := testGoalInput(t)
+		in.GoalContextNudgeRatio = new(0.0)
+		segment, err := executor.initializeSegment(t.Context(), testGoalNode(3), in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if boundary, err := executor.advanceSegment(t.Context(), segment); err != nil || boundary != nil {
+			t.Fatalf("yield = %#v, %v", boundary, err)
+		}
+		cp, turns, _ := store.snapshot()
+		if !cp.PendingCompaction || len(turns) != 1 || len(binder.preparedRequests()) != 1 || judge.callCount() != 0 {
+			t.Fatalf(
+				"pending recovery = %#v; prompts=%d turns=%d judges=%d",
+				cp,
+				len(binder.preparedRequests()),
+				len(turns),
+				judge.callCount(),
+			)
+		}
+		if _, err := store.SetWaitState(t.Context(), WaitCheckpointRequest{Checkpoint: cp, Waiting: true}); err != nil {
+			t.Fatal(err)
+		}
+		recovered := newTestExecutorWithContext(t, store, binder, judge, &fakeBudgetGuard{}, health)
+		recovered.waitInterval = time.Nanosecond
+		recovered.waits = waitReaderFunc(
+			func(context.Context, loop.ActionSessionBinding) (bool, error) { return false, nil },
+		)
+		raw, err := recovered.Execute(t.Context(), testGoalNode(3), in)
+		if err != nil || raw.Control == nil || raw.Control.Disposition != loop.ActionDispositionSucceeded {
+			t.Fatalf("recovered = %#v, %v", raw, err)
+		}
+		if got := promptKinds(
+			binder.preparedRequests(),
+		); !slices.Equal(
+			got,
+			[]string{promptKindWork, promptKindCompact, promptKindContinuation},
+		) {
+			t.Fatalf("prompt kinds = %v", got)
+		}
+		cp, turns, _ = store.snapshot()
+		if cp.PendingCompaction || len(turns) != 2 || judge.callCount() != 1 || len(binder.binds) != 2 {
+			t.Fatalf(
+				"compaction lost or reseeded: checkpoint=%#v turns=%d judges=%d bindings=%d",
+				cp,
+				len(turns),
+				judge.callCount(),
+				len(binder.binds),
+			)
+		}
+	})
+	t.Run("Should expire a wait at its deadline even with a longer recheck interval", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store := newFakeExecutorStore()
+			executor := newTestExecutor(t, store, newFakeManagedBinder(store), &fakeJudge{}, &fakeBudgetGuard{})
+			executor.now = time.Now
+			executor.waitInterval, executor.waitTimeout = time.Hour, 10*time.Second
+			executor.waits = waitReaderFunc(
+				func(context.Context, loop.ActionSessionBinding) (bool, error) { return true, nil },
+			)
+			started := time.Now()
+			raw, err := executor.Execute(t.Context(), testGoalNode(3), testGoalInput(t))
+			if err != nil || raw.Control == nil || raw.Control.Cause != loop.ReasonCodeGoalWaitTimeout ||
+				time.Since(started) != 10*time.Second {
+				t.Fatalf("deadline result = %#v, %v after %v", raw, err, time.Since(started))
+			}
+		})
 	})
 }

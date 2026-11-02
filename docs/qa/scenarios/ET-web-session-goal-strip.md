@@ -30,3 +30,6 @@ from the durable status stream, then changes back to Active when the wait ends. 
 failure or a wait exceeding 25 hours shows an attention state with its recorded reason. The
 post-fix rendered walk is pending; the canonical strip/header/control component suites cover the
 waiting label and pause affordance.
+
+For #1149 attention outcomes, verify that the paused strip displays the wait timeout or unavailable
+reason from the snapshot, with its recovery guidance, including after refresh.

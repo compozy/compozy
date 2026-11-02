@@ -13,6 +13,11 @@ const (
 	defaultWaitTimeout = 25 * time.Hour
 )
 
+// WaitSessionRecovery restores the existing bound runtime so queued wake input can run after restart.
+type WaitSessionRecovery interface {
+	RecoverWaitSession(context.Context, loop.ActionSessionBinding) error
+}
+
 // WaitReader inspects the bound session's daemon-owned monitors and delegated children.
 type WaitReader interface {
 	HasLiveWait(context.Context, loop.ActionSessionBinding) (bool, error)
@@ -29,6 +34,7 @@ type WaitStore interface {
 	SetWaitState(context.Context, WaitCheckpointRequest) (Checkpoint, error)
 }
 
+// hasLiveWait reads daemon authority rather than inferring a wait from model output.
 func (e *Executor) hasLiveWait(ctx context.Context, segment *segmentState) (bool, error) {
 	if e.waits == nil {
 		return false, nil
@@ -39,13 +45,16 @@ func (e *Executor) hasLiveWait(ctx context.Context, segment *segmentState) (bool
 // waitBeforeWork remains in the executor's cancelable lifetime. Public input and wake
 // delivery remain owned by the session queue and run independently while no Goal prompt exists.
 func (e *Executor) waitBeforeWork(ctx context.Context, segment *segmentState) (*turnBoundary, error) {
+	if err := e.recoverWaitSession(ctx, segment.binding); err != nil {
+		return e.waitFailureBoundary(ctx, segment, loop.ReasonCodeGoalWaitUnavailable)
+	}
 	for {
 		waiting, err := e.hasLiveWait(ctx, segment)
 		if err != nil {
 			return e.waitFailureBoundary(ctx, segment, loop.ReasonCodeGoalWaitUnavailable)
 		}
 		if !waiting {
-			if segment.checkpoint.Phase == checkpointPhaseWaiting {
+			if segment.checkpoint.Phase == checkpointPhaseWaiting || segment.checkpoint.WaitStartedAt != nil {
 				segment.checkpoint, err = e.store.SetWaitState(ctx, WaitCheckpointRequest{
 					Checkpoint: segment.checkpoint,
 				})
@@ -77,12 +86,9 @@ func (e *Executor) waitBeforeWork(ctx context.Context, segment *segmentState) (*
 			control, err := e.budgetBoundary(ctx, segment, decision)
 			return &turnBoundary{checkpoint: segment.checkpoint, control: control}, err
 		}
-		timer := time.NewTimer(e.waitInterval)
-		select {
-		case <-ctx.Done():
-			timer.Stop()
-			return nil, ctx.Err()
-		case <-timer.C:
+		remaining := segment.checkpoint.WaitStartedAt.Add(e.waitTimeout).Sub(e.now())
+		if err := waitForRecheck(ctx, min(e.waitInterval, remaining)); err != nil {
+			return nil, err
 		}
 		checkpoint, err := e.store.LoadCheckpoint(ctx, segment.key)
 		if err != nil {
@@ -97,6 +103,25 @@ func (e *Executor) waitBeforeWork(ctx context.Context, segment *segmentState) (*
 			return &turnBoundary{checkpoint: checkpoint, control: control}, err
 		}
 	}
+}
+
+func waitForRecheck(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+// recoverWaitSession keeps daemon session recovery outside the provider-neutral wait reader.
+func (e *Executor) recoverWaitSession(ctx context.Context, binding loop.ActionSessionBinding) error {
+	if recovery, ok := e.waits.(WaitSessionRecovery); ok {
+		return recovery.RecoverWaitSession(ctx, binding)
+	}
+	return nil
 }
 
 func (e *Executor) waitFailureBoundary(ctx context.Context, segment *segmentState,

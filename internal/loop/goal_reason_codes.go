@@ -1,6 +1,7 @@
 package loop
 
 const (
+	ReasonCodeGoalWaitDeferred         ReasonCode = "goal_wait_deferred"
 	ReasonCodeGoalWaitTimeout          ReasonCode = "goal_wait_timeout"
 	ReasonCodeGoalWaitUnavailable      ReasonCode = "goal_wait_unavailable"
 	ReasonCodeGoalNotActive            ReasonCode = "goal_not_active"

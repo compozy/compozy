@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/gate"
 )
 
+// advanceSegment recovers durable ownership and parks verified waits before allocating provider effects.
 func (e *Executor) advanceSegment(ctx context.Context, segment *segmentState) (*turnBoundary, error) {
 	checkpoint, err := e.store.LoadCheckpoint(ctx, segment.key)
 	if err != nil {
@@ -32,6 +33,9 @@ func (e *Executor) advanceSegment(ctx context.Context, segment *segmentState) (*
 		return &turnBoundary{checkpoint: segment.checkpoint, control: control}, err
 	}
 	checkpoint = segment.checkpoint
+	if checkpoint.PendingCompaction {
+		return e.recoverFromMaxTokens(ctx, segment, segment.lastResult)
+	}
 	if checkpoint.CompactionRecoveryRequired {
 		return e.reseedOrEscalate(ctx, segment, segment.lastResult)
 	}
@@ -249,6 +253,7 @@ func (e *Executor) settleBlockedReport(
 	return &turnBoundary{checkpoint: settled, result: result, control: control, completed: true}, err
 }
 
+// routeCompletedStop routes terminal claims, waits, budgets, and recovery by the provider stop reason.
 func (e *Executor) routeCompletedStop(
 	ctx context.Context,
 	segment *segmentState,
@@ -286,16 +291,7 @@ func (e *Executor) routeCompletedStop(
 		}
 		return e.judgeWorkTurn(ctx, segment, result)
 	case loop.ActionStopMaxTokens:
-		settled, err := e.completeTurn(ctx, segment, result, nil)
-		if err != nil {
-			return nil, err
-		}
-		segment.checkpoint = settled
-		if !postDecision.Allowed {
-			control, controlErr := e.budgetBoundary(ctx, segment, postDecision)
-			return &turnBoundary{checkpoint: settled, result: result, control: control, completed: true}, controlErr
-		}
-		return e.recoverFromMaxTokens(ctx, segment, result)
+		return e.settleMaxTokens(ctx, segment, result, postDecision)
 	case loop.ActionStopRefusal:
 		return e.settleFailureBoundary(ctx, segment, result, loop.ReasonCodeGoalAgentRefused)
 	case loop.ActionStopCancelled:
@@ -303,6 +299,28 @@ func (e *Executor) routeCompletedStop(
 	default:
 		return nil, fmt.Errorf("%w: Goal stop reason %q is not routable", loop.ErrValidation, result.StopReason)
 	}
+}
+
+// settleMaxTokens retains pending compaction while controls or external work defer recovery.
+func (e *Executor) settleMaxTokens(ctx context.Context, segment *segmentState,
+	result loop.ActionPromptResult, postDecision BudgetDecision) (*turnBoundary, error) {
+	settled, err := e.completeTurn(ctx, segment, result, nil)
+	if err != nil {
+		return nil, err
+	}
+	segment.checkpoint = settled
+	if !postDecision.Allowed {
+		control, controlErr := e.budgetBoundary(ctx, segment, postDecision)
+		return &turnBoundary{checkpoint: settled, result: result, control: control, completed: true}, controlErr
+	}
+	waiting, waitErr := e.hasLiveWait(ctx, segment)
+	if waitErr != nil {
+		return e.waitFailureBoundary(ctx, segment, loop.ReasonCodeGoalWaitUnavailable)
+	}
+	if waiting {
+		return nil, nil // Resume the durable compaction only after the wait gate.
+	}
+	return e.recoverFromMaxTokens(ctx, segment, result)
 }
 
 func (e *Executor) settlePromptForPendingPause(

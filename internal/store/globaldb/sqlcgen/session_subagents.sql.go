@@ -537,6 +537,26 @@ func (q *Queries) GetSubagentWake(ctx context.Context, wakeMessageID string) (Se
 	return i, err
 }
 
+const hasPendingSubagentWake = `-- name: HasPendingSubagentWake :one
+SELECT EXISTS (
+    SELECT 1 FROM session_subagents
+    WHERE workspace_id = ?1 AND parent_session_id = ?2
+      AND origin = 'delegated' AND delivery NOT IN ('delivered','acknowledged','disposed')
+)
+`
+
+type HasPendingSubagentWakeParams struct {
+	WorkspaceID     string `json:"workspace_id"`
+	ParentSessionID string `json:"parent_session_id"`
+}
+
+func (q *Queries) HasPendingSubagentWake(ctx context.Context, arg HasPendingSubagentWakeParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasPendingSubagentWake, arg.WorkspaceID, arg.ParentSessionID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const hasSubagentCommittedAdmission = `-- name: HasSubagentCommittedAdmission :one
 SELECT EXISTS(SELECT 1 FROM session_prompt_admissions WHERE workspace_id = ?1 AND session_id = ?2 AND idempotency_key = ?3 AND state IN ('dispatch_committed','indeterminate','completed'))
 `

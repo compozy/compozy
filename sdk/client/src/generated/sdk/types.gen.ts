@@ -2595,8 +2595,6 @@ export type GoalCommandResult = {
     | "stopped"
     | "error";
   reason_code:
-    | "goal_wait_timeout"
-    | "goal_wait_unavailable"
     | "goal_not_active"
     | "goal_replace_required"
     | "goal_replace_stale"
@@ -2630,7 +2628,10 @@ export type GoalCommandResult = {
     | "session_creation_identity_mismatch"
     | "continuous_binding_mismatch"
     | "goal_runtime_invalid"
-    | "goal_caller_unauthorized";
+    | "goal_caller_unauthorized"
+    | "goal_wait_deferred"
+    | "goal_wait_timeout"
+    | "goal_wait_unavailable";
   replaced_run_id: string | null;
   snapshot: GoalSnapshot | null;
 };
@@ -2687,8 +2688,6 @@ export type GoalPromptMeta = {
 export type GoalSnapshot = {
   bound_session_id: string;
   cause:
-    | "goal_wait_timeout"
-    | "goal_wait_unavailable"
     | "goal_not_active"
     | "goal_replace_required"
     | "goal_replace_stale"
@@ -2722,7 +2721,10 @@ export type GoalSnapshot = {
     | "session_creation_identity_mismatch"
     | "continuous_binding_mismatch"
     | "goal_runtime_invalid"
-    | "goal_caller_unauthorized";
+    | "goal_caller_unauthorized"
+    | "goal_wait_deferred"
+    | "goal_wait_timeout"
+    | "goal_wait_unavailable";
   context: GoalContextSnapshot;
   contract_summary: string;
   last_verdict: GoalVerdictSummary | null;
@@ -2746,13 +2748,13 @@ export type GoalSnapshot = {
     | "stalled"
     | "canceled";
   status:
-    | "waiting"
     | "active"
     | "paused"
     | "blocked"
     | "usage-limited"
     | "budget-limited"
-    | "complete";
+    | "complete"
+    | "waiting";
   turn_limit: number;
   turns_used: number;
 };
@@ -2773,8 +2775,6 @@ export type GoalTurn = {
   prompt_id: string;
   prompt_ref: string | null;
   reason_code:
-    | "goal_wait_timeout"
-    | "goal_wait_unavailable"
     | "goal_not_active"
     | "goal_replace_required"
     | "goal_replace_stale"
@@ -2808,7 +2808,10 @@ export type GoalTurn = {
     | "session_creation_identity_mismatch"
     | "continuous_binding_mismatch"
     | "goal_runtime_invalid"
-    | "goal_caller_unauthorized";
+    | "goal_caller_unauthorized"
+    | "goal_wait_deferred"
+    | "goal_wait_timeout"
+    | "goal_wait_unavailable";
   result_status: "completed" | "invalid-result" | "failed" | "ambiguous";
   seq: number;
   session_id: string;

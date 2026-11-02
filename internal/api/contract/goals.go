@@ -74,6 +74,7 @@ const (
 )
 
 const (
+	GoalReasonWaitDeferred               GoalReasonCode = "goal_wait_deferred"
 	GoalReasonWaitTimeout                GoalReasonCode = "goal_wait_timeout"
 	GoalReasonWaitUnavailable            GoalReasonCode = "goal_wait_unavailable"
 	GoalReasonNotActive                  GoalReasonCode = "goal_not_active"

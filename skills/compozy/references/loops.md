@@ -956,9 +956,17 @@ a judge verdict. The count then stays flat until the wait ends. A model's claim 
 is insufficient: the daemon checks its own monitor and child state.
 
 A delivered wake runs through the ordinary session input queue before the next Goal prompt and
-consumes no Goal turn. Cancellation, failed delivery, or a child stopping also releases the wait.
-The Goal rechecks durable wait state after restart. Pause, Stop, ordinary input, and budget limits
-remain effective; wall-clock budgets continue during the wait. A wait lasting 25 hours pauses for
+consumes no Goal turn. A delegated child keeps the Goal waiting through result delivery, including
+the handoff after the child stops. Delivery, acknowledgement, or disposal releases that wait.
+Monitor cancellation or failed delivery also releases its wait. A wait registered by an earlier
+queued input defers an already prepared Goal ticket before provider submission. That deferral
+consumes neither a started turn nor the provider retry allowance. Max-token compaction stays
+durable and resumes after the wait, including across restart.
+The Goal rechecks durable wait state after restart and revives its interrupted bound session so
+queued wake input can run, subject to the existing restart eligibility and automatic-continuation
+settings. Pause/resume preserves the original continuous-wait deadline. Pause, Stop, ordinary
+input, and budget limits remain effective; wall-clock budgets continue during the wait. A wait lasting 25 hours pauses for
 attention with `goal_wait_timeout`; unavailable wait inspection pauses with `goal_wait_unavailable`.
-Inspect the monitor or child before explicitly resuming the Goal. Completion and evidenced blocked
-reports keep their existing judge/control handling, including while another wait is live.
+Inspect the monitor or child before explicitly resuming the Goal. A deliberate daemon stop pauses
+the Goal and stops its session: resume the session first, then the Goal. Completion and evidenced
+blocked reports keep their existing judge/control handling, including while another wait is live.

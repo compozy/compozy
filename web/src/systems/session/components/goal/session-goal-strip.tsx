@@ -2,6 +2,8 @@ import { useId, useState } from "react";
 
 import { Eyebrow, Pill, Spinner, TranscriptDisclosure, type PillTone } from "@compozy/ui";
 
+import { describeGoalCommandFailure } from "../../lib/session-goal-chat-transport";
+
 import type { GoalComposerAffordance, SessionGoalSnapshot } from "./goal-status-types";
 import { SessionGoalControls, type SessionGoalControlsProps } from "./session-goal-controls";
 import { SessionGoalStripBody } from "./session-goal-strip-body";
@@ -12,6 +14,7 @@ export interface SessionGoalStripProps extends SessionGoalControlsProps {
   onPrefillComposer?: (text: string) => void;
 }
 
+/** Maps durable Goal and run state to the visible status and tone. */
 function goalState(snapshot: SessionGoalSnapshot): {
   state: string;
   label: string;
@@ -39,6 +42,25 @@ function goalState(snapshot: SessionGoalSnapshot): {
   return { state: "blocked", label: "Blocked", tone: "warning" };
 }
 
+/** Explains waiting, control transitions, and wait attention causes on the Goal surface. */
+function goalStateGuidance(state: string, cause: SessionGoalSnapshot["cause"]): string | null {
+  if (cause === "goal_wait_timeout" || cause === "goal_wait_unavailable") {
+    return describeGoalCommandFailure(cause);
+  }
+  switch (state) {
+    case "paused":
+      return "Goal paused. Resume it explicitly to continue.";
+    case "waiting":
+      return "Waiting for a registered monitor or delegated work. No new Goal turns start.";
+    case "stopped":
+      return "Goal ended. Your session and run history are kept.";
+    case "pausing":
+      return "Interrupting the current goal turn. No further goal turns will start.";
+    default:
+      return null;
+  }
+}
+
 const PENDING_LABEL = {
   pause: "Pausing…",
   resume: "Resuming…",
@@ -60,6 +82,7 @@ export function SessionGoalStrip({
   const moved = snapshot.bound_session_id !== snapshot.origin_session_id;
   const facts = `Step ${snapshot.turns_used} of ${snapshot.turn_limit}`;
   const pending = controls.pendingAction !== undefined || state.state === "pausing";
+  const guidance = goalStateGuidance(state.state, snapshot.cause);
   const label = controls.pendingAction ? PENDING_LABEL[controls.pendingAction] : state.label;
 
   return (
@@ -98,7 +121,9 @@ export function SessionGoalStrip({
         data-testid="goal-strip-line"
         expanded={open}
         label={
-          <span className="min-w-0 truncate text-small-body text-fg">{snapshot.objective}</span>
+          <span className="block max-w-full truncate text-small-body text-fg">
+            {snapshot.objective}
+          </span>
         }
         onToggle={() => setOpen(value => !value)}
         trailing={
@@ -112,20 +137,8 @@ export function SessionGoalStrip({
           </span>
         }
       />
-      {state.state === "paused" && !pending ? (
-        <p className="px-1 pt-1 text-transcript-caption text-subtle">
-          Goal paused. Resume it explicitly to continue.
-        </p>
-      ) : null}
-      {state.state === "stopped" ? (
-        <p className="px-1 pt-1 text-transcript-caption text-subtle">
-          Goal ended. Your session and run history are kept.
-        </p>
-      ) : null}
-      {state.state === "pausing" ? (
-        <p className="px-1 pt-1 text-transcript-caption text-subtle">
-          Interrupting the current goal turn. No further goal turns will start.
-        </p>
+      {guidance && (!pending || state.state === "pausing") ? (
+        <p className="px-1 pt-1 text-transcript-caption text-subtle">{guidance}</p>
       ) : null}
       {snapshot.context.diagnostic ? (
         <p role="status" className="px-1 pt-1 text-transcript-caption text-subtle">

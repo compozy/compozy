@@ -10072,8 +10072,6 @@ export interface components {
         | "error";
       /** @enum {string|null} */
       reason_code:
-        | "goal_wait_timeout"
-        | "goal_wait_unavailable"
         | "goal_not_active"
         | "goal_replace_required"
         | "goal_replace_stale"
@@ -10108,6 +10106,9 @@ export interface components {
         | "continuous_binding_mismatch"
         | "goal_runtime_invalid"
         | "goal_caller_unauthorized"
+        | "goal_wait_deferred"
+        | "goal_wait_timeout"
+        | "goal_wait_unavailable"
         | null;
       replaced_run_id: string | null;
       snapshot: components["schemas"]["GoalSnapshot"] | null;
@@ -10171,8 +10172,6 @@ export interface components {
       bound_session_id: string;
       /** @enum {string|null} */
       cause:
-        | "goal_wait_timeout"
-        | "goal_wait_unavailable"
         | "goal_not_active"
         | "goal_replace_required"
         | "goal_replace_stale"
@@ -10207,6 +10206,9 @@ export interface components {
         | "continuous_binding_mismatch"
         | "goal_runtime_invalid"
         | "goal_caller_unauthorized"
+        | "goal_wait_deferred"
+        | "goal_wait_timeout"
+        | "goal_wait_unavailable"
         | null;
       context: components["schemas"]["GoalContextSnapshot"];
       contract_summary: string;
@@ -10233,13 +10235,13 @@ export interface components {
         | "canceled";
       /** @enum {string} */
       status:
-        | "waiting"
         | "active"
         | "paused"
         | "blocked"
         | "usage-limited"
         | "budget-limited"
-        | "complete";
+        | "complete"
+        | "waiting";
       turn_limit: number;
       turns_used: number;
     };
@@ -10272,8 +10274,6 @@ export interface components {
       prompt_ref: string | null;
       /** @enum {string|null} */
       reason_code:
-        | "goal_wait_timeout"
-        | "goal_wait_unavailable"
         | "goal_not_active"
         | "goal_replace_required"
         | "goal_replace_stale"
@@ -10308,6 +10308,9 @@ export interface components {
         | "continuous_binding_mismatch"
         | "goal_runtime_invalid"
         | "goal_caller_unauthorized"
+        | "goal_wait_deferred"
+        | "goal_wait_timeout"
+        | "goal_wait_unavailable"
         | null;
       /** @enum {string|null} */
       result_status: "completed" | "invalid-result" | "failed" | "ambiguous" | null;

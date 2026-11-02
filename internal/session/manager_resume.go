@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -11,6 +12,22 @@ import (
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/store"
 )
+
+// ResumeWaitingSession reuses the settled prompt's durable binding without replaying that prompt.
+func (m *Manager) ResumeWaitingSession(ctx context.Context, id string) error {
+	meta, err := m.readMetaWithContext(ctx, id)
+	if err != nil {
+		return err
+	}
+	if meta.RestartBoundary == nil {
+		return &MonitorOwnerIneligibleError{Reason: "binding_unknown"}
+	}
+	data, err := json.Marshal(meta.RestartBoundary, json.Deterministic(true))
+	if err != nil {
+		return fmt.Errorf("session: encode waiting session binding: %w", err)
+	}
+	return m.ResumeMonitorOwner(ctx, id, string(data))
+}
 
 // Resume restarts a stopped session from its persisted metadata and event history.
 func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err error) {

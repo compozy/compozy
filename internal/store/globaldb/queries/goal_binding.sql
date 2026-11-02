@@ -85,7 +85,7 @@ WHERE loop_run_id = sqlc.arg(loop_run_id) AND handle = sqlc.arg(handle)
 
 -- name: ResetGoalRecoveryAfterBindingActivation :execrows
 UPDATE loop_goal_checkpoints
-SET recovery_streak = 0, compaction_baseline_used = NULL,
+SET pending_compaction = 0, recovery_streak = 0, compaction_baseline_used = NULL,
     compaction_recovery_required = 0, updated_at = CAST(sqlc.arg(updated_at) AS TEXT)
 WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
   AND node_id = sqlc.arg(node_id) AND item_index = sqlc.arg(item_index)

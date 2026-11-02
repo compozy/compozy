@@ -9,6 +9,7 @@ interface GoalAwareFetchOptions {
 type GoalCommandFailureReason = Exclude<SessionGoalCommandResult["reason_code"], null>;
 
 const GOAL_COMMAND_FAILURE_GUIDANCE = {
+  goal_wait_deferred: "The goal is waiting for registered external work to finish.",
   goal_wait_timeout:
     "The wait exceeded 25 hours. Check the monitor or child, then resume the goal.",
   goal_wait_unavailable:

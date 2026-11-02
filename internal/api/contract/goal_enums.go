@@ -21,8 +21,13 @@ func SessionGoalOperationValues() []string {
 // GoalStatusValues returns the closed public Goal lifecycle vocabulary.
 func GoalStatusValues() []string {
 	return []string{
-		string(GoalStatusWaiting), string(GoalStatusActive), string(GoalStatusPaused), string(GoalStatusBlocked),
-		string(GoalStatusUsageLimited), string(GoalStatusBudgetLimited), string(GoalStatusComplete),
+		string(GoalStatusActive),
+		string(GoalStatusPaused),
+		string(GoalStatusBlocked),
+		string(GoalStatusUsageLimited),
+		string(GoalStatusBudgetLimited),
+		string(GoalStatusComplete),
+		string(GoalStatusWaiting),
 	}
 }
 
@@ -66,10 +71,6 @@ func GoalSnapshotChangeCauseValues() []string {
 // GoalReasonCodeValues returns the stable public Goal reason vocabulary.
 func GoalReasonCodeValues() []string {
 	return []string{
-		string(
-			GoalReasonWaitTimeout,
-		),
-		string(GoalReasonWaitUnavailable),
 		string(GoalReasonNotActive),
 		string(GoalReasonReplaceRequired),
 		string(GoalReasonReplaceStale),
@@ -104,5 +105,8 @@ func GoalReasonCodeValues() []string {
 		string(GoalReasonContinuousBindingMismatch),
 		string(GoalReasonRuntimeInvalid),
 		string(GoalReasonCallerUnauthorized),
+		string(GoalReasonWaitDeferred),
+		string(GoalReasonWaitTimeout),
+		string(GoalReasonWaitUnavailable),
 	}
 }

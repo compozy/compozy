@@ -9701,8 +9701,6 @@
           },
           "reason_code": {
             "enum": [
-              "goal_wait_timeout",
-              "goal_wait_unavailable",
               "goal_not_active",
               "goal_replace_required",
               "goal_replace_stale",
@@ -9736,7 +9734,10 @@
               "session_creation_identity_mismatch",
               "continuous_binding_mismatch",
               "goal_runtime_invalid",
-              "goal_caller_unauthorized"
+              "goal_caller_unauthorized",
+              "goal_wait_deferred",
+              "goal_wait_timeout",
+              "goal_wait_unavailable"
             ],
             "nullable": true,
             "type": "string"
@@ -9947,8 +9948,6 @@
           },
           "cause": {
             "enum": [
-              "goal_wait_timeout",
-              "goal_wait_unavailable",
               "goal_not_active",
               "goal_replace_required",
               "goal_replace_stale",
@@ -9982,7 +9981,10 @@
               "session_creation_identity_mismatch",
               "continuous_binding_mismatch",
               "goal_runtime_invalid",
-              "goal_caller_unauthorized"
+              "goal_caller_unauthorized",
+              "goal_wait_deferred",
+              "goal_wait_timeout",
+              "goal_wait_unavailable"
             ],
             "nullable": true,
             "type": "string"
@@ -10043,13 +10045,13 @@
           },
           "status": {
             "enum": [
-              "waiting",
               "active",
               "paused",
               "blocked",
               "usage-limited",
               "budget-limited",
-              "complete"
+              "complete",
+              "waiting"
             ],
             "type": "string"
           },
@@ -10173,8 +10175,6 @@
           },
           "reason_code": {
             "enum": [
-              "goal_wait_timeout",
-              "goal_wait_unavailable",
               "goal_not_active",
               "goal_replace_required",
               "goal_replace_stale",
@@ -10208,7 +10208,10 @@
               "session_creation_identity_mismatch",
               "continuous_binding_mismatch",
               "goal_runtime_invalid",
-              "goal_caller_unauthorized"
+              "goal_caller_unauthorized",
+              "goal_wait_deferred",
+              "goal_wait_timeout",
+              "goal_wait_unavailable"
             ],
             "nullable": true,
             "type": "string"

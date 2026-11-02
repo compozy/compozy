@@ -40,7 +40,7 @@ WHERE id = sqlc.arg(id);
 
 -- name: InsertGoalCheckpoint :execrows
 INSERT INTO loop_goal_checkpoints (
-    wait_started_at,
+    wait_deferrals, pending_compaction, wait_started_at,
     loop_run_id, generation, node_id, item_index, control_epoch,
     control_actor_kind, control_actor_id, control_requested_at, phase, goal_status, control_cause,
     turns_used, turn_limit, broken_streak, recovery_streak, task_run_id,
@@ -53,7 +53,7 @@ INSERT INTO loop_goal_checkpoints (
     report_prompt_id, report_status, report_evidence_ref, report_binding_epoch,
     report_actor_kind, report_actor_id, report_recorded_at, updated_at
 ) VALUES (
-    CAST(sqlc.narg(wait_started_at) AS TEXT), sqlc.arg(loop_run_id), sqlc.arg(generation), sqlc.arg(node_id), sqlc.arg(item_index), sqlc.arg(control_epoch),
+    sqlc.arg(wait_deferrals), sqlc.arg(pending_compaction), CAST(sqlc.narg(wait_started_at) AS TEXT), sqlc.arg(loop_run_id), sqlc.arg(generation), sqlc.arg(node_id), sqlc.arg(item_index), sqlc.arg(control_epoch),
     sqlc.narg(control_actor_kind), sqlc.narg(control_actor_id), CAST(sqlc.narg(control_requested_at) AS TEXT),
     sqlc.arg(phase), sqlc.arg(goal_status), sqlc.narg(control_cause),
     sqlc.arg(turns_used), sqlc.arg(turn_limit), sqlc.arg(broken_streak), sqlc.arg(recovery_streak),
@@ -156,7 +156,7 @@ SET control_epoch = control_epoch + 1, phase = 'terminal', goal_status = 'paused
     control_cause = sqlc.narg(control_cause), control_actor_kind = sqlc.narg(control_actor_kind),
     control_actor_id = sqlc.narg(control_actor_id),
     control_requested_at = CAST(sqlc.arg(control_requested_at) AS TEXT),
-    queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0,
+    queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0, wait_deferrals = 0,
     judge_attempt_id = NULL, report_prompt_id = NULL, report_status = NULL,
     report_evidence_ref = NULL, report_binding_epoch = NULL, report_actor_kind = NULL,
     report_actor_id = NULL, report_recorded_at = NULL, compaction_cancel_prompt_id = NULL,
@@ -277,6 +277,6 @@ WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
   AND node_id = sqlc.arg(node_id) AND item_index = sqlc.arg(item_index)
   AND control_epoch = sqlc.arg(control_epoch) AND binding_epoch = sqlc.arg(binding_epoch)
   AND session_id = sqlc.arg(session_id) AND task_run_id = sqlc.arg(task_run_id)
-  AND phase = sqlc.arg(expected_phase) AND phase IN ('idle','waiting')
+  AND phase = sqlc.arg(expected_phase) AND phase IN ('idle','waiting','preparing')
   AND prompt_id IS NULL AND queue_entry_id IS NULL
   AND control_actor_kind IS NULL AND control_actor_id IS NULL;

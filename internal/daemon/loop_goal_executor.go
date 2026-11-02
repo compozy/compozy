@@ -21,6 +21,7 @@ type loopGoalRuntimePorts interface {
 	goalpkg.ContextHealth
 	goalpkg.PromptRecovery
 	goalpkg.WaitReader
+	goalpkg.WaitSessionRecovery
 }
 
 type loopGoalExecutorStore interface {

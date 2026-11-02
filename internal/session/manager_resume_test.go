@@ -216,13 +216,14 @@ func TestResumeInterruptedSession(t *testing.T) {
 // deliberate stop. Owner: session manager; canonical resume suite.
 func TestResumeMonitorOwner(t *testing.T) {
 	for _, tc := range []struct {
-		name       string
-		cause      StopCause
-		disabled   bool
-		changed    string
-		noBinding  bool
-		wantResume bool
-		wantErr    string
+		name         string
+		cause        StopCause
+		disabled     bool
+		changed      string
+		noBinding    bool
+		fromBoundary bool
+		wantResume   bool
+		wantErr      string
 	}{
 		{name: "Should readmit an idle owner interrupted by a restart", cause: CauseShutdown, wantResume: true},
 		{
@@ -233,6 +234,12 @@ func TestResumeMonitorOwner(t *testing.T) {
 		{name: "Should refuse a changed tool policy", cause: CauseShutdown, changed: "policy", wantErr: "permissions_changed"},
 		{name: "Should refuse a changed provider command", cause: CauseShutdown, changed: "route", wantErr: "route_changed"},
 		{name: "Should refuse an owner without a captured binding", cause: CauseShutdown, noBinding: true, wantErr: "binding_unknown"},
+		{name: "Should resume a settled waiting session from its durable prompt binding", cause: CauseShutdown, fromBoundary: true, wantResume: true},
+		{name: "Should honor restart opt-out for a settled waiting session", cause: CauseShutdown, fromBoundary: true, disabled: true, wantErr: "disabled"},
+		{name: "Should refuse a changed policy for a settled waiting session", cause: CauseShutdown, fromBoundary: true, changed: "policy", wantErr: "permissions_changed"},
+		{name: "Should refuse a changed route for a settled waiting session", cause: CauseShutdown, fromBoundary: true, changed: "route", wantErr: "route_changed"},
+		{name: "Should preserve explicit stop for a settled waiting session", cause: CauseUserRequested, fromBoundary: true, wantErr: ErrMonitorOwnerStopped.Error()},
+		{name: "Should refuse a waiting session without a durable binding", cause: CauseShutdown, fromBoundary: true, noBinding: true, wantErr: "binding_unknown"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			h := newHarness(
@@ -245,6 +252,13 @@ func TestResumeMonitorOwner(t *testing.T) {
 				t.Fatal(err)
 			}
 			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+			if tc.fromBoundary && !tc.noBinding {
+				stream, err := h.manager.Prompt(t.Context(), target.ID, "wait for external work")
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, stream)
+			}
 			binding, err := h.manager.MonitorOwnerBinding(t.Context(), target.ID)
 			if err != nil {
 				t.Fatal(err)
@@ -274,7 +288,11 @@ func TestResumeMonitorOwner(t *testing.T) {
 				}
 				h.resolver.mu.Unlock()
 			}
-			err = h.manager.ResumeMonitorOwner(t.Context(), target.ID, binding)
+			resume := func() error { return h.manager.ResumeMonitorOwner(t.Context(), target.ID, binding) }
+			if tc.fromBoundary {
+				resume = func() error { return h.manager.ResumeWaitingSession(t.Context(), target.ID) }
+			}
+			err = resume()
 			if tc.wantErr == "" {
 				if err != nil {
 					t.Fatal(err)
@@ -282,7 +300,7 @@ func TestResumeMonitorOwner(t *testing.T) {
 				if got := h.driver.startCalls[1].ResumeSessionID; got != originalACP {
 					t.Fatalf("resumed ACP = %q, want %q", got, originalACP)
 				}
-				if err := h.manager.ResumeMonitorOwner(t.Context(), target.ID, binding); err != nil {
+				if err := resume(); err != nil {
 					t.Fatalf("resuming a live owner error = %v, want nil", err)
 				}
 				if len(h.driver.startCalls) != 2 {

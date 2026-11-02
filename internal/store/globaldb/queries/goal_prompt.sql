@@ -145,7 +145,9 @@ WHERE id = sqlc.arg(id) AND loop_run_id = sqlc.narg(loop_run_id) AND prompt_id =
 
 -- name: AdvanceRejectedGoalCheckpoint :execrows
 UPDATE loop_goal_checkpoints
-SET phase = 'preparing', prompt_attempt = sqlc.arg(prompt_attempt), queue_entry_id = NULL,
+SET wait_deferrals = wait_deferrals + sqlc.arg(wait_deferred),
+    pending_compaction = CASE WHEN prompt_kind = 'compact' THEN 1 ELSE pending_compaction END,
+    phase = 'preparing', prompt_attempt = sqlc.arg(prompt_attempt), queue_entry_id = NULL,
     prompt_id = NULL, prompt_kind = NULL, updated_at = CAST(sqlc.arg(updated_at) AS TEXT)
 WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
   AND node_id = sqlc.arg(node_id) AND item_index = sqlc.arg(item_index)
@@ -192,7 +194,7 @@ SET control_epoch = control_epoch + 1, phase = 'terminal', goal_status = sqlc.ar
     control_cause = sqlc.narg(control_cause), control_actor_kind = sqlc.narg(control_actor_kind),
     control_actor_id = sqlc.narg(control_actor_id),
     control_requested_at = CAST(sqlc.arg(control_requested_at) AS TEXT),
-    queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0,
+    queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0, wait_deferrals = 0,
     judge_attempt_id = NULL, report_prompt_id = NULL, report_status = NULL,
     report_evidence_ref = NULL, report_binding_epoch = NULL, report_actor_kind = NULL,
     report_actor_id = NULL, report_recorded_at = NULL, compaction_cancel_prompt_id = NULL,

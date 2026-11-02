@@ -581,7 +581,7 @@ func TestLoopOpenAPIContract(t *testing.T) {
 			assertEnumValues(
 				t,
 				propertySchema(t, snapshot, "status"),
-				"active", "paused", "blocked", "usage-limited", "budget-limited", "complete",
+				"active", "paused", "blocked", "usage-limited", "budget-limited", "complete", "waiting",
 			)
 		}
 	})

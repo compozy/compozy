@@ -28,6 +28,10 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 		db := openLoopTestGlobalDB(t, "ws-wait", "ws-foreign")
 		insertGoalSchemaLoopRun(t, db, "run-wait", "ws-wait", "catalog", nil)
 		ctx := t.Context()
+		if _, err := db.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs
+			(loop_run_id,generation,node_id,item_index,status) VALUES ('run-wait',1,'goal',0,'running')`); err != nil {
+			t.Fatal(err)
+		}
 		now := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
 		key := goal.TurnKey{WorkspaceID: "ws-wait", LoopRunID: "run-wait", Generation: 1, NodeID: "goal"}
 		checkpoint, err := db.CreateCheckpoint(ctx, goal.CreateCheckpointRequest{Checkpoint: goal.Checkpoint{
@@ -42,7 +46,8 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if waiting.Status != "waiting" || waiting.Phase != "waiting" || waiting.WaitStartedAt == nil || waiting.TurnsUsed != 2 {
+		if waiting.Status != "waiting" || waiting.Phase != "waiting" || waiting.WaitStartedAt == nil ||
+			waiting.TurnsUsed != 2 {
 			t.Fatalf("wait = %#v", waiting)
 		}
 		replayed, err := db.SetWaitState(ctx, goal.WaitCheckpointRequest{Checkpoint: waiting, Waiting: true})
@@ -51,20 +56,62 @@ func TestGoalCheckpointControlIntegration(t *testing.T) {
 		}
 		foreign := waiting
 		foreign.ControlEpoch++
-		if _, err := db.SetWaitState(ctx, goal.WaitCheckpointRequest{Checkpoint: foreign}); !errors.Is(err, looppkg.ErrTransitionConflict) {
+		if _, err := db.SetWaitState(
+			ctx,
+			goal.WaitCheckpointRequest{Checkpoint: foreign},
+		); !errors.Is(
+			err,
+			looppkg.ErrTransitionConflict,
+		) {
 			t.Fatalf("foreign wait = %v", err)
 		}
 		foreign = waiting
 		foreign.Key.WorkspaceID = "ws-foreign"
-		if _, err := db.SetWaitState(ctx, goal.WaitCheckpointRequest{Checkpoint: foreign}); !errors.Is(err, looppkg.ErrRunNotFound) {
+		if _, err := db.SetWaitState(
+			ctx,
+			goal.WaitCheckpointRequest{Checkpoint: foreign},
+		); !errors.Is(
+			err,
+			looppkg.ErrRunNotFound,
+		) {
 			t.Fatalf("foreign scope = %v", err)
 		}
 		loaded, err := db.LoadCheckpoint(ctx, key)
 		if err != nil || loaded.WaitStartedAt == nil || !loaded.WaitStartedAt.Equal(*waiting.WaitStartedAt) {
 			t.Fatalf("read = %#v, %v", loaded, err)
 		}
+		if err := db.CheckpointControl(ctx, goal.ControlCheckpointRequest{
+			Key:                  key,
+			ExpectedControlEpoch: 1,
+			ExpectedBindingEpoch: 1,
+			ExpectedPhase:        "waiting",
+			TaskRunID:            "task-wait",
+			Disposition:          looppkg.ActionDispositionPaused,
+			Status:               "paused",
+			Cause:                "pause_boundary",
+			ActorKind:            "user",
+			ActorID:              "operator",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.GrantAndReactivate(ctx, goal.GrantRequest{
+			Key: key, ExpectedControlEpoch: 1, Kind: goal.ControlGrantPlainResume, Cause: "operator_resume", Turn: 2,
+			Scope: goal.ControlGrantScopeReactivate, ActorKind: "user", ActorID: "operator",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		reentered, err := db.LoadCheckpoint(ctx, key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resumed, err := db.SetWaitState(ctx, goal.WaitCheckpointRequest{Checkpoint: reentered, Waiting: true})
+		if err != nil || resumed.WaitStartedAt == nil || !resumed.WaitStartedAt.Equal(*waiting.WaitStartedAt) {
+			t.Fatalf("wait deadline after pause/resume = %#v, %v", resumed, err)
+		}
+		loaded = resumed
 		active, err := db.SetWaitState(ctx, goal.WaitCheckpointRequest{Checkpoint: loaded})
-		if err != nil || active.Phase != "idle" || active.Status != "active" || active.WaitStartedAt != nil || active.TurnsUsed != 2 {
+		if err != nil || active.Phase != "idle" || active.Status != "active" || active.WaitStartedAt != nil ||
+			active.TurnsUsed != 2 {
 			t.Fatalf("release = %#v, %v", active, err)
 		}
 	})

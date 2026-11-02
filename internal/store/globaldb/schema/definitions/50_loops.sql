@@ -306,6 +306,8 @@ CREATE TABLE loop_goal_binding_retry_witnesses (
 
 CREATE TABLE loop_goal_checkpoints (
 	wait_started_at TIMESTAMP,
+	wait_deferrals INTEGER NOT NULL DEFAULT 0 CHECK (wait_deferrals >= 0),
+	pending_compaction INTEGER NOT NULL DEFAULT 0 CHECK (pending_compaction IN (0,1)),
 	loop_run_id       TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
 	generation        INTEGER NOT NULL CHECK (generation >= 1),
 	node_id           TEXT NOT NULL CHECK (length(trim(node_id)) > 0),

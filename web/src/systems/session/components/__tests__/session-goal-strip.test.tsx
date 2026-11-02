@@ -57,6 +57,18 @@ function snapshot(overrides: Partial<SessionGoalSnapshot> = {}): SessionGoalSnap
 }
 
 describe("SessionGoalStrip", () => {
+  it.each([
+    ["goal_wait_timeout", "The wait exceeded 25 hours."],
+    ["goal_wait_unavailable", "Couldn't verify the goal's wait."],
+  ] as const)("Should explain the paused snapshot cause %s", (cause, message) => {
+    render(
+      <SessionGoalStrip
+        snapshot={snapshot({ status: "paused", run_status: "needs-approval", cause })}
+      />
+    );
+    expect(screen.getByText(message, { exact: false })).toBeInTheDocument();
+  });
+
   // Invariant: the audit list holds its place with placeholder lines while it loads, then hands
   // them to the real links. Owner: the goal strip's expanded body, canonical suite below.
   it("Should hold the audit list's place with placeholder lines until it arrives", async () => {

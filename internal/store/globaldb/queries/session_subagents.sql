@@ -248,3 +248,10 @@ UPDATE session_subagents SET git_head_sha = sqlc.narg(git_head_sha), git_commits
 
 -- name: HasSubagentCommittedAdmission :one
 SELECT EXISTS(SELECT 1 FROM session_prompt_admissions WHERE workspace_id = sqlc.arg(workspace_id) AND session_id = sqlc.arg(session_id) AND idempotency_key = sqlc.arg(subagent_id) AND state IN ('dispatch_committed','indeterminate','completed'));
+
+-- name: HasPendingSubagentWake :one
+SELECT EXISTS (
+    SELECT 1 FROM session_subagents
+    WHERE workspace_id = sqlc.arg(workspace_id) AND parent_session_id = sqlc.arg(parent_session_id)
+      AND origin = 'delegated' AND delivery NOT IN ('delivered','acknowledged','disposed')
+);

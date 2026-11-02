@@ -42,13 +42,13 @@ func (g *GoalRepo) SetWaitState(ctx context.Context, req goal.WaitCheckpointRequ
 		now := g.now().UTC()
 		if req.Waiting {
 			phase, status = goalCheckpointPhaseWaiting, goalStatusWaiting
-			if current.Phase != goalCheckpointPhaseWaiting {
+			if startedAt == nil {
 				startedAt = &now
 			}
 		} else {
 			startedAt = nil
 		}
-		if current.Phase == phase {
+		if current.Phase == phase && (req.Waiting || current.WaitStartedAt == nil) {
 			return nil
 		}
 		if err := persistGoalWaitTransition(ctx, exec, current, phase, status, startedAt, now); err != nil {
@@ -60,13 +60,16 @@ func (g *GoalRepo) SetWaitState(ctx context.Context, req goal.WaitCheckpointRequ
 	return updated, err
 }
 
+// goalWaitOwnerMatches fences wait transitions to an unsubmitted checkpoint under its exact owner.
 func goalWaitOwnerMatches(current, owner goal.Checkpoint) bool {
 	return current.ControlEpoch == owner.ControlEpoch && current.BindingEpoch == owner.BindingEpoch &&
 		current.SessionID == owner.SessionID && current.TaskRunID == owner.TaskRunID &&
 		current.Phase == owner.Phase && current.PromptID == "" && current.QueueEntryID == "" &&
-		(current.Phase == goalCheckpointPhaseIdle || current.Phase == goalCheckpointPhaseWaiting)
+		(current.Phase == goalCheckpointPhaseIdle || current.Phase == goalCheckpointPhaseWaiting ||
+			current.Phase == goalCheckpointPhasePreparing)
 }
 
+// persistGoalWaitTransition updates wait metadata, the public projection, and its durable status event together.
 func persistGoalWaitTransition(ctx context.Context, exec taskSQLExecutor, current goal.Checkpoint,
 	phase, status string, startedAt *time.Time, now time.Time) error {
 	affected, err := sqlcgen.New(exec).SetGoalCheckpointWait(ctx, sqlcgen.SetGoalCheckpointWaitParams{

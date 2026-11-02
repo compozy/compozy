@@ -71,7 +71,7 @@ const goalControlSnapshotSchema = `{
 		"objective":{"type":"string"},
 		"origin_session_id":{"type":"string"},
 		"bound_session_id":{"type":"string"},
-		"status":{"type":"string","enum":["active","paused","blocked","usage-limited","budget-limited","complete"]},
+		"status":{"type":"string","enum":["active","paused","blocked","usage-limited","budget-limited","complete","waiting"]},
 		"run_status":{"type":"string","enum":["queued","running","watching",` +
 	`"needs-approval","paused","done","no-op","blocked","failed","exhausted",` +
 	`"stalled","canceled"]},

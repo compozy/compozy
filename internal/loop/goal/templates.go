@@ -84,6 +84,7 @@ func stableDigest(value any) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
+// renderWorkPrompt combines the objective, prior evidence, and registered-wait guidance for one work turn.
 func renderWorkPrompt(segment *segmentState, turn int, kind string) (string, error) {
 	var prompt strings.Builder
 	prompt.WriteString("You are advancing a durable Goal.\n\nObjective:\n")

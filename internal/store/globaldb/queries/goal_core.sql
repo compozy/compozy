@@ -32,8 +32,8 @@ WHERE loop_run_id = sqlc.arg(loop_run_id) AND generation = sqlc.arg(generation)
 
 -- name: SettleGoalCompactionCheckpoint :execrows
 UPDATE loop_goal_checkpoints
-SET phase = 'idle', goal_status = 'active', control_cause = NULL,
-    queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0,
+SET pending_compaction = 0, phase = 'idle', goal_status = 'active', control_cause = NULL,
+    queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0, wait_deferrals = 0,
     context_state = sqlc.arg(context_state), usage_sequence = sqlc.narg(usage_sequence),
     usage_pending_after_sequence = sqlc.narg(usage_pending_after_sequence),
     compaction_baseline_used = sqlc.narg(compaction_baseline_used),
