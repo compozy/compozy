@@ -141,13 +141,18 @@ the replacement head must pass fresh required CI before delivery.
 | [Credential application order](https://github.com/compozy/compozy/pull/1141#discussion_r4439135779) | The same reverse-order defect was independently reported by CodeRabbit. The shared correction above addresses both comments; no duplicate production path or test suite was added. | [Usage/dashboard](usage-dashboard.md) |
 | [Retryable repository identity](https://github.com/compozy/compozy/pull/1141#discussion_r4439135789) | Fixed. A real Git start failure caused by a temporarily unavailable fixture root is not cached by `RepoKey`, but the listing had memoized its empty result. Only successful identities now enter the request-local map. Five canonical SQLite/Git cases pass, and the 64-row guard retains 2 workspace, 1 PR and 64 status reads. Stable negative caching remains unchanged. | [Worktree/workspace](worktree-workspace.md) |
 | [Independent Loop progress](https://github.com/compozy/compozy/pull/1141#discussion_r4439135799) | Fixed. The global completion barrier is replaced by one read and one pending bit per existing Query object, local to the subscription. Healthy briefing/catalog queries process a second event before a blocked sibling settles. Initial/disabled reads consume both wakes in one trailing read. All 32 canonical and eight independent controls pass, preserving the 100/3/0 burst result. | [Loop/scheduler](loop-loops.md) |
+| [PR-fact batch failure isolation](https://github.com/compozy/compozy/pull/1141#discussion_r4439472334) | Fixed after a real SQLite reproduction. One schema-valid but undecodable row made the batch omit all five valid siblings; the baseline retained them. Only a failed multi-key batch falls back once per key, respecting cancellation. Nine canonical cases pass under race; the normal 64-row guard still uses one PR batch. | [Worktree/workspace](worktree-workspace.md) |
+| [Same-query Loop recovery](https://github.com/compozy/compozy/pull/1141#discussion_r4439472344) | Fixed. The first pending wake arms one recovery timer using the existing 15-second Loop interval. Only the captured, still-current active cached read can be canceled; its existing drain starts one trailing read. Later frames do not postpone the timer. Initial, disabled, static and replaced reads retain their boundaries. All 39 canonical cases pass. | [Loop/scheduler](loop-loops.md) |
+| [Home aggregate barrier](https://github.com/compozy/compozy/pull/1141#pullrequestreview-5732161953) | Confirmed from the earlier unverified review hypothesis and fixed. A stalled overview kept the current inbox at revision 1 after later events; baseline reached revision 2. Real polling callbacks refreshed only the separately polled sibling. Home now uses the shared per-query coordinator with its existing 30-second interval; 16 canonical cases pass, including variants under one prefix and scope retirement. | [Usage/dashboard](usage-dashboard.md) |
 
 The credential follow-up preserves unrelated-profile isolation and cached-read allocation
 counts; overlapping timing ranges do not establish an additional speedup. The Loop burst
 still produces three reads and zero cancellations for 100 events and reaches revision 100.
-A stalled pre-event warm read can be canceled once. A pending read retains only its
+A stalled pre-event warm read can be canceled immediately. A pending read retains only its
 own query's reconciliation obligation; independent queries continue to process events.
-No arbitrary timeout, global cache or cross-system abstraction was introduced. Error assertions and ownership controls were
+The subsequent Loop/Home recovery uses one shared subscription-local helper and the existing
+15-second/30-second refresh intervals. No global HTTP deadline, shared authorization cache or
+cross-subscription scheduler was introduced. Error assertions and ownership controls were
 strengthened within existing suites; no test timeout or acceptance threshold was relaxed.
 
 Integrated follow-up checks passed after the production fixes:
@@ -245,3 +250,59 @@ There is no existing dedicated Playwright scenario for attachment multi-drop/que
 attachments; real attachment filesystem, HTTP handler, queue persistence, dispatch and
 startup-pin suites own those changed boundaries. A textual queue E2E is not counted as
 attachment upload evidence.
+
+## Bounded query recovery and batch-failure follow-up
+
+All 27 jobs in [CI run 41398958288](https://github.com/compozy/compozy/actions/runs/41398958288)
+passed on `862bf0fd0a4b37b6b902210bec48eba30e761202`, including runtime, desktop and
+all four Web E2E shards. That is historical evidence for the source before this final
+query-recovery and PR-batch correction; the PR delivery paragraph owns acceptance of
+the subsequent published head.
+
+The shared Loop/Home helper retains one accepted follow-up per Query object and bounds
+eligible stalled reads using each domain's existing refresh interval. Its 15-second
+negative control failed before the change for both active and disposed owners; the
+settled/replaced/initial/disabled/static controls already passed. The final 39 Loop
+cases and eight independent L1/scope/cleanup controls pass. A real QueryObserver probe
+confirmed that three polling callbacks did not recover the old implementation, while
+the corrected read restarts at 15,000 ms after the first pending wake and reaches
+revision 2 without releasing the blocked response. The 100-event fixture still has
+three reads, zero cancellations and final revision 100.
+
+Home passed 33 focused cases (16 live-stream and 17 model cases). Five repeated paired
+samples retain 300 to 6 requests and 297 to zero cancellations, with all three caches
+at revision 100. Same-prefix overview variants and separate aggregate families progress
+independently. The independent reviewer checked frozen hashes and receipts for both
+domains, with no concrete finding; that review did not execute another test or benchmark.
+Its [report](review-cache-loops.md) explicitly limits the recovery to an eligible restart,
+not guaranteed network completion or global deduplication.
+
+The real SQLite malformed-row reproduction recovered five valid PR rows after the fix.
+Nine canonical cases and the 64-row completeness/count guard passed under race; normal
+reads still perform two workspace resolutions, one PR batch and 64 status reads.
+Single-key failure and cancellation before/during fallback do not create extra retries.
+Existing worktree status and PR policies passed under race. The related Tasks triage
+confirmed two identical baseline/current lifecycle limits; its source and canonical
+suite remain unchanged, and [API/tasks](api-tasks.md) records the four negative probes
+and four positive controls without claiming a Task lifecycle fix.
+
+Final integrated local checks after the source freeze:
+
+- Scoped canonical Go lint passed normal and integration-tag worktree/GlobalDB lanes
+  with zero issues, plus formatting/source checks for all 87 changed Go files.
+  `recovery-go-lint-after.log` supersedes an initial formatter-only failure; the
+  canonical formatter changed only argument line breaks in the new test fixture.
+- Root Turbo `lint typecheck build --filter=./web --only` passed all three tasks in
+  37.765 s (`recovery-web-scoped-lint-types-build.log`). Lint had zero warnings/errors.
+  Existing generated-CSS, chunk-size and build-timing diagnostics remain visible;
+  no warning threshold or test assertion was relaxed.
+- React Doctor scanned 59 changed files in 4.5 s, scored 93/100 and reported no issues
+  (`react-doctor-recovery.log`). Repository-pinned CI owns its delivery acceptance.
+- A preceding Turbo invocation without `--only` reached a dependency's generated
+  linter check through the host Bun 1.4.4 launcher and failed before Web validation
+  (`recovery-web-lint-types-build.log`). Running that exact owning `build-lint.ts --check`
+  with repository-pinned Bun 1.4.0 passed (`recovery-pinned-linter-codegen.log`). No
+  generated artifact or toolchain pin was changed. The scoped Web result above is
+  separate from this failed dependency attempt; broad generation checks remain in CI.
+
+All local receipts above are under `.cache/performance/`. Full local gates were not run.

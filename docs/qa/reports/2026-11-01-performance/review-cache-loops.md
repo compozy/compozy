@@ -1,8 +1,66 @@
-# Independent review: package cache and Loop refresh
+# Independent review: package cache and Loop/Home refresh
 
-Reviewed the uncommitted performance diff against `de5ab2f4d` on 2026-11-02. This review changed no production or canonical test source. Only this report and temporary diagnostics under `.cache/performance/review-cache-loops/` were written. No daemon, browser, production state, full suite or gate was started.
+## Final shared coordinator review — 2026-11-02
 
-## Result
+**No concrete outstanding defect found in the frozen shared coordinator or its Loop/Home integrations.** This pass waited for both owners' freezes, verified their source hashes, read the installed TanStack Query 5.104.5 implementation, and inspected the owners' canonical tests, negative controls and receipts. It changed only this report. It did not execute tests, benchmarks, gates, a daemon or a browser.
+
+The earlier read-only assessment of the Loop-only coordinator `ef96bb09cbdd175d8392c12e9f53a72b8a200d5e35b758a6ed5dbc31511e41b2` and suite `41a81b16d3ee754e0cea52505ff7328c260f657166e52a433538d045bf205d4a` is **historical**. That revision removed the shared read barrier but had no bounded same-query recovery. The shared helper and Home migration below supersede that implementation and its review verdict.
+
+### Reviewed freeze
+
+| File | Verified SHA-256 |
+| --- | --- |
+| `web/src/lib/query-live-refresh-coordinator.ts` | `6a2a174355c4303d4f4a2133fb3b6963fc6a4a2da7180821df15ce342d3b74dd` |
+| `web/src/systems/loops/lib/loop-live-refresh-coordinator.ts` | `cd5c2f9b98605c5ffe8eae66e754666f1b696bfa76bf7f3fde6f2c5dc5bbf26f` |
+| `web/src/systems/loops/lib/query-options.ts` | `81e17cbab464fd903a477f0e048047dd93137052641206c8472e135e1b516f03` |
+| `web/src/systems/loops/hooks/__tests__/use-loop-stream.test.tsx` | `3b40471a6794d7ad0390f3b2ff2e0533b17cebb1a35eccbe69c56ec83c437bd4` |
+| `web/src/systems/dashboard/hooks/home-live-refresh-store.ts` | `bb7b67a44d8032c3c90e9af43c26cbd874e0dfa22f9317ee446a9ea7e317d76a` |
+| `web/src/systems/dashboard/hooks/use-home-live.ts` | `99d8937cb4cf4c71b5d86b4e049b5da0187adfbd35a7139314fc1bea42d2fdcf` |
+| `web/src/systems/dashboard/lib/query-options.ts` | `eaf167a2f9aa2171c2807697223f828fbbb895789bc4c48f9913603ffb57ed59` |
+| `web/src/systems/dashboard/lib/query-policy.ts` | `066bba419504370ef840aba72b0d9ff3c2a3dd5088e96b313b60b48366dab739` |
+| `web/src/systems/dashboard/__tests__/use-home-live.test.tsx` | `6d2fdefab2c6c19561cd3f16150beda661f66fe069749f65392a69f583c98723` |
+| `web/e2e/scripts/benchmark-home-live.ts` | `416823f8965a4d64f6412847e1649e2483e52c28bf892160e1eaddf4e60a91f8` |
+
+Home's owner freeze receipt is `.cache/performance/usage-dashboard/pr1141-home-freeze.json`. The Loop L1 and stalled-read receipts also record the shared-helper and facade hashes above. Source hashes matched the announced freezes when this review concluded.
+
+### Contracts and ordering
+
+- **Query identity and scope:** `refresh(queryKey)` selects with TanStack's existing partial-key matching, then tracks actual `Query` objects. Trailing invalidation selects that same object, preserving per-query custom hashes and avoiding accidental lookup through a default hash. Workspace/run/profile key shapes are unchanged. The Loop scope union remains microtask-batched; `runReads` includes the Goal-turn descendants. Home retains its existing overview/dashboard/inbox roots.
+- **Independent progress:** the persistent map belongs to one coordinator invocation, created per Loop subscription or Home effect/QueryClient. Busy queries receive one pending bit; settled siblings remain eligible immediately. Home no longer awaits one `Promise.all` before accepting the next lifecycle refresh. No global coordination registry or cross-scope response cache was introduced.
+- **L1 and pending consumption:** an initial, inactive or static pre-event fetch retains its trailing obligation. The drain waits with `allSettled`, clears the pending bit immediately before the fresh invalidation, and checks it again afterward. Thus wakes already accepted before that fresh read are consumed together, while wakes accepted during it request another read. Default active-only refetch leaves disabled/static queries invalidated without forcing a request. Read failure does not skip the pending drain, and `finally` releases the local entry.
+- **Bounded restart:** only the first pending wake arms a timer while an eligible read is running. Later frames do not renew it. Loop supplies its existing 15-second live-read interval; Home supplies its existing 30-second overview interval. At expiry, the callback checks the captured promise is still current, the follow-up remains owed, and the query is fetching, active, cached and nonstatic. Cancellation uses `revert: true` and releases the existing drain; it does not start a competing refresh queue. A timer for a replaced promise cannot cancel the replacement.
+- **Timer cleanup and settlement:** the drain clears the timer after the initial wait, after each trailing invalidation, and in `finally`. Timeout execution clears its own handle before checking eligibility. The synchronous reset/invalidate sequence consumes wakes before the new read; later callbacks cannot interleave between the final loop check and map deletion. Accepted work can outlive source closure, but a settled record leaves no coordinator timer behind.
+- **Disposal and ABA:** Loop retains its exact active-subscription-object fence and closed-store admission. Home retains an effect-local `active` flag in addition to the URL/lens scope gate; returning A→B→A cannot reauthorize a saved A1 handler. Each retired coordinator captures its original QueryClient. Its eventual settlement does not mutate a replacement effect's pending registry. Closing the source intentionally does not discard an already accepted freshness obligation.
+- **Home activity and pulse:** schema validation, scoped activity keys, duplicate suppression and the 30-entry cache limit are unchanged. Ordinary events still admit overview refresh at most once per minute; task lifecycle events still bypass that throttle and update its timestamp. The pure `query-policy.ts` move keeps one 30-second constant, consumed by query options, the live hook and the benchmark, with no compatibility alias or changed value.
+
+### Owner-run evidence inspected
+
+| Evidence | Observed result | Receipt |
+| --- | --- | --- |
+| Loop deadline negative control on the prior implementation | Active and disposed pending-cached cases fail; five boundary controls pass | `loop-loops/same-query-deadline-negative.txt` |
+| Loop canonical hook suite after extraction | **39/39 pass**, including first-dirty timing, no timer renewal, promise replacement during trailing refresh, disabled/initial/static reads and timer cleanup | `loop-loops/same-query-deadline-after.txt` |
+| Existing L1/replacement/cleanup diagnostic | **8/8 pass**, with unchanged assertions and loader updated for the extracted helper | `loop-loops/same-query-l1-recheck.txt` |
+| Loop delayed-I/O fixture | **100 frames → 3 reads / 0 cancellations / revision 100**; a stalled pending cached read restarts at the 15-second dirty deadline | `loop-loops/same-query-stall-after.txt` |
+| Loop/helper formatting and lint | Pass | `loop-loops/same-query-format.txt`, `same-query-lint.txt` |
+| Home independent-sibling negative control | Suspended overview leaves request counts `1/1/1/1`, failing required `1/2/2/2` | `usage-dashboard/pr1141-home-stall-before.log` |
+| Home canonical hook and dashboard suites | **33/33 pass**: 16 live-hook cases and 17 dashboard cases, including independent overview variants and saved retired A1 handler after A→B→A | `usage-dashboard/pr1141-home-live-final.log` |
+| Home 100-event fixture, five samples | Baseline **300 reads / 297 cancellations**; shared-helper integration **6 reads / 0 cancellations**, all three final revisions 100 in every sample | `usage-dashboard/pr1141-home-benchmark-before.log`, `pr1141-home-benchmark-after-final.log` |
+
+Receipt paths in this table are relative to `.cache/performance/`. The transient Home benchmark import failure in `pr1141-home-benchmark-after.log` did not run the fixture and is not accepted evidence; the final pure-policy import produced the passing receipt above. The benchmark uses the real helper and installed QueryClient/QueryObserver with controlled I/O, not mocked coordinator behavior. The counts establish bounded request amplification, not browser responsiveness or endpoint latency.
+
+### Limits
+
+The timer bounds when an eligible pending read can be restarted, subject to event-loop scheduling; it does not guarantee that the replacement network request completes within 15 or 30 seconds. Initial, disabled and static reads deliberately retain their settlement obligations without forced timer cancellation. A permanently unresolved one can retain its own local record, but it cannot hold healthy siblings behind a shared barrier.
+
+Coordination is local to each subscription/effect. Existing cache operations or simultaneous subscriptions can still replace the same underlying Query; this review does not claim global request deduplication. Timer identity prevents the old timeout from canceling a different promise. The tests use actual Query clients and controlled asynchronous I/O; this review did not add an independent execution, real-browser/provider test, or current-head CI verdict. Root owns integrated delivery validation. The package-cache/filesnap findings below were not re-executed in this final helper pass.
+
+## Historical audit before the shared helper
+
+The following sections preserve the earlier audit and its original receipts. Loop implementation descriptions and prior independently executed diagnostics below are historical, not assertions that the current shared-helper implementation has the former whole-round structure.
+
+Reviewed the uncommitted performance diff against `de5ab2f4d` on 2026-11-02. That earlier review changed no production or canonical test source. Only this report and temporary diagnostics under `.cache/performance/review-cache-loops/` were written. No daemon, browser, production state, full suite or gate was started.
+
+## Historical result
 
 **No outstanding actionable defect found in the reviewed diff.** The concrete pre-existing initial-fetch freshness limitation L1 was repaired by the owning worker after this review, and its disposition is independently verified below. The original reproduction and baseline control are retained as historical evidence.
 

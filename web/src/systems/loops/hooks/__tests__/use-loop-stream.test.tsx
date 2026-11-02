@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { loopsKeys, useLoopStream } from "@/systems/loops";
 import type { LoopRunEventFrame, LoopStreamEventSource } from "@/systems/loops";
+import { LIVE_REFETCH_INTERVAL } from "../../lib/query-options";
 
 const LOOP_EVENT_KINDS = [
   "node_running",
@@ -131,6 +132,141 @@ function buildFrame(overrides: Partial<LoopRunEventFrame> = {}): LoopRunEventFra
 }
 
 describe("useLoopStream", () => {
+  it.each(["active", "disposed", "settled", "replaced", "disabled", "initial", "static"])(
+    "Should bound a pending cached refresh while preserving the %s boundary",
+    async boundary => {
+      vi.useFakeTimers();
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false, gcTime: Infinity } },
+      });
+      const eventSource = new FakeLoopStreamEventSource();
+      const eventSourceFactory = () => eventSource;
+      let revision = 0;
+      let reads = 0;
+      let canceled = 0;
+      const releases: (() => void)[] = [];
+      const options = {
+        queryKey: loopsKeys.runBriefing("ws_1", "looprun_1"),
+        initialData: boundary === "initial" ? undefined : { revision: 0 },
+        staleTime: boundary === "static" ? ("static" as const) : Infinity,
+        queryFn: ({ signal }: { signal: AbortSignal }) => {
+          const readRevision = revision;
+          if (++reads > 1 && boundary !== "replaced") {
+            return Promise.resolve({ revision: readRevision });
+          }
+          return new Promise<{ revision: number }>((resolve, reject) => {
+            releases.push(() => resolve({ revision: readRevision }));
+            signal.addEventListener(
+              "abort",
+              () => {
+                canceled++;
+                reject(new DOMException("Aborted", "AbortError"));
+              },
+              { once: true }
+            );
+          });
+        },
+      };
+      const observer = new QueryObserver(queryClient, options);
+      const unsubscribe = observer.subscribe(() => undefined);
+      if (boundary === "static") void observer.refetch();
+      const { unmount } = renderHook(
+        () => useLoopStream("ws_1", "looprun_1", { eventSourceFactory }),
+        { wrapper: createWrapper(queryClient) }
+      );
+      const wake = (nextRevision: number) => {
+        revision = nextRevision;
+        eventSource.emitNamed("node_running", buildFrame({ kind: "node_running" }));
+      };
+      try {
+        await act(async () => {
+          wake(1);
+          await vi.advanceTimersByTimeAsync(0);
+          wake(2);
+          await vi.advanceTimersByTimeAsync(0);
+        });
+        expect(reads).toBe(1);
+        expect(canceled).toBe(0);
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(LIVE_REFETCH_INTERVAL / 2);
+          wake(3);
+          await vi.advanceTimersByTimeAsync(0);
+          if (boundary === "disposed") unmount();
+          if (boundary === "disabled") observer.setOptions({ ...options, enabled: false });
+          if (boundary === "settled") releases[0]?.();
+          if (boundary === "replaced") {
+            releases[0]?.();
+            await vi.advanceTimersByTimeAsync(0);
+            wake(3);
+            await vi.advanceTimersByTimeAsync(0);
+            void observer.refetch();
+          }
+          await vi.advanceTimersByTimeAsync(0);
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(LIVE_REFETCH_INTERVAL / 2 - 1);
+        });
+        const beforeDeadline = { reads, canceled };
+        if (!["settled", "replaced"].includes(boundary)) {
+          expect(beforeDeadline).toEqual({ reads: 1, canceled: 0 });
+        }
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1);
+        });
+        if (boundary === "active" || boundary === "disposed") {
+          expect(reads).toBe(2);
+          expect(canceled).toBe(1);
+          expect(observer.getCurrentResult().data).toEqual({ revision: 3 });
+        } else {
+          expect({ reads, canceled }).toEqual(beforeDeadline);
+          if (boundary === "replaced") {
+            // The trailing invalidate now awaits an external replacement. Its
+            // earlier deadline must not cancel that different promise.
+            await act(async () => {
+              await vi.advanceTimersByTimeAsync(LIVE_REFETCH_INTERVAL / 2);
+            });
+            expect({ reads, canceled }).toEqual(beforeDeadline);
+          }
+          await act(async () => {
+            for (const release of releases) {
+              release();
+              await vi.advanceTimersByTimeAsync(0);
+            }
+          });
+          if (boundary === "disabled" || boundary === "static") {
+            expect(reads).toBe(1);
+            expect(observer.getCurrentQuery().state.isInvalidated).toBe(true);
+            if (boundary === "disabled") {
+              await act(async () => {
+                observer.setOptions({ ...options, enabled: true });
+                await vi.advanceTimersByTimeAsync(0);
+              });
+            }
+          }
+          if (boundary !== "static") {
+            expect(observer.getCurrentResult().data).toEqual({ revision: 3 });
+          }
+          if (boundary === "initial" || boundary === "disabled" || boundary === "settled") {
+            expect(reads).toBe(2);
+            expect(canceled).toBe(0);
+          }
+        }
+        const reconciled = { reads, canceled };
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(LIVE_REFETCH_INTERVAL);
+        });
+        expect({ reads, canceled }).toEqual(reconciled);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        unmount();
+        unsubscribe();
+        queryClient.clear();
+        await vi.advanceTimersByTimeAsync(0);
+        vi.useRealTimers();
+      }
+    }
+  );
+
   it.each(["cached read only", "cached sibling", "initial sibling", "disabled prefetch sibling"])(
     "Should keep cached reads progressing while reconciling %s",
     async boundary => {

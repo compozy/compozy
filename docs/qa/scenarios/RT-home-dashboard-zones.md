@@ -87,3 +87,16 @@ trailing refresh. Connectivity-only reads use runtime identity; System still rea
 Focused evidence: dashboard stream/model suites and the reproducible QueryClient benchmark in
 `web/e2e/scripts/benchmark-home-live.ts`; these do not substitute for the isolated browser/daemon
 walk. See `../reports/2026-11-01-performance/usage-dashboard.md` for current verification status.
+
+2026-11-02 live-refresh review follow-up: suspend one overview response after Home
+has cached data, let task-dashboard, inbox and another overview window finish,
+then deliver another lifecycle event. Each settled query must refresh immediately;
+the suspended query must not hold a shared aggregate gate. An accepted pending
+change on an active cached query must recover using Home's existing 30-second live
+interval instead of waiting forever. Initial, disabled and static reads retain
+their settle-then-invalidate behavior. Closing or switching Home blocks old stream
+frames but preserves already accepted reconciliation through its original client.
+Repeat the 100-event burst: three leading and three trailing reads, zero cancellations
+when reads finish normally, and revision 100 in all three caches. The focused hook
+suite and shared coordinator suite own these boundaries; the broader browser/daemon
+scenario retains its existing verdict until a separate walk is recorded.

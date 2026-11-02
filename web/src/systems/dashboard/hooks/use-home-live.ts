@@ -3,12 +3,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@xstate/store-react";
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
+import { createQueryLiveRefreshCoordinator } from "@/lib/query-live-refresh-coordinator";
 
 import { buildHomeLogsStreamUrl } from "../adapters/overview-api";
 import { isTaskLifecycleEvent } from "../lib/activity-classes";
 import { homeActivityEventSchema } from "../lib/home-activity-schema";
 import { dashboardKeys } from "../lib/query-keys";
 import { HOME_ACTIVITY_LIMIT, homeActivityOptions } from "../lib/query-options";
+import { OVERVIEW_REFETCH_INTERVAL } from "../lib/query-policy";
 import type { HomeActivityEvent, HomeActivityFilter } from "../types";
 import { homeLiveRefreshLogic } from "./home-live-refresh-store";
 import { PROFILE_AGGREGATE, type ProfileScopeParams } from "@/systems/profiles";
@@ -73,18 +75,18 @@ function prependHomeActivityEvent(
   });
 }
 
-function invalidateTaskAggregates(queryClient: QueryClient): Promise<unknown[]> {
-  return Promise.all([
-    queryClient.invalidateQueries({ queryKey: dashboardKeys.overviewRoot() }),
-    queryClient.invalidateQueries({ queryKey: tasksKeys.dashboardRoot() }),
-    queryClient.invalidateQueries({ queryKey: tasksKeys.inboxRoot() }),
-  ]);
+function invalidateTaskAggregates(
+  coordinator: ReturnType<typeof createQueryLiveRefreshCoordinator>
+): void {
+  coordinator.refresh(dashboardKeys.overviewRoot());
+  coordinator.refresh(tasksKeys.dashboardRoot());
+  coordinator.refresh(tasksKeys.inboxRoot());
 }
 
 /**
  * One logs EventSource keeps the home dashboard live: every event lands in the
  * activity cache; task lifecycle events refresh attention/outcome aggregates
- * immediately, coalescing in-flight changes into one trailing read; everything
+ * immediately, coalescing in-flight changes per query into one trailing read; everything
  * else refreshes the overview at most once per minute
  * (the pulse heatmap moves slowly by design).
  */
@@ -117,6 +119,7 @@ export function useHomeLive({
     }
 
     const source = (customEventSourceFactory ?? defaultEventSourceFactory)(url);
+    const coordinator = createQueryLiveRefreshCoordinator(queryClient, OVERVIEW_REFETCH_INTERVAL);
     let active = true;
     const activityFilter = activityFilterFor(workspaceId, lensKey);
     // The url identifies workspace and lens together, so a frame still in flight
@@ -137,9 +140,8 @@ export function useHomeLive({
         prependHomeActivityEvent(queryClient, activityFilter, payload);
         refreshStore.trigger.activityReceived({
           at: Date.now(),
-          invalidateOverview: () =>
-            queryClient.invalidateQueries({ queryKey: dashboardKeys.overviewRoot() }),
-          invalidateTaskAggregates: () => invalidateTaskAggregates(queryClient),
+          invalidateOverview: () => coordinator.refresh(dashboardKeys.overviewRoot()),
+          invalidateTaskAggregates: () => invalidateTaskAggregates(coordinator),
           lifecycle: isTaskLifecycleEvent(payload),
           minimumIntervalMs: PULSE_INVALIDATE_MIN_INTERVAL_MS,
           scope: url,

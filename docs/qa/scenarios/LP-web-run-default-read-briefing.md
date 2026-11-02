@@ -79,3 +79,10 @@ before that roster request settles, then the roster must consume the accepted
 events without an extra redundant read. The strengthened canonical suite passes
 32 cases and the eight lifecycle controls still pass. The enclosing runtime/CI
 walk remains pending; evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA follow-up 2026-11-02 (pending-read recovery): keep an active cached briefing
+request pending and deliver another lifecycle event. It coalesces normally before
+the existing 15-second live refresh budget, then may cancel only that still-current
+request and read the latest revision. Initial/disabled/static reads keep their
+existing deferred behavior. The owning suite passes 39 cases; runtime/CI evidence
+remains with the enclosing audit. See `docs/qa/reports/2026-11-01-performance/loop-loops.md`.

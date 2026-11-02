@@ -27,6 +27,13 @@ state when a request is answered during an active read and the run view closes.
 Focused results and pending runtime/current-head CI evidence are tracked in
 `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
 
+QA follow-up 2026-11-02 (pending-read recovery): a later request event must not wait
+indefinitely behind an active cached read. After the existing 15-second budget,
+only the still-current request may be canceled; its accepted follow-up remains
+owned through stream disposal. Initial/disabled reads retain deferred invalidation.
+Focused deadline/cleanup checks pass; runtime/CI verification remains with the
+enclosing audit. Evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
 QA impact 2026-11-02 (stream freshness review): request events can restart an older
 active cached inventory read while preserving deferred invalidation for initial
 or disabled reads. Disposal still retains accepted reconciliation. The focused

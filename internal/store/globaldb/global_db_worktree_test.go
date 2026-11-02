@@ -19,6 +19,109 @@ import (
 func TestGlobalDBWorktreeStore(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: one unreadable cached PR cannot hide other rows, and cancellation stops fallback I/O.
+	// Owner: listing hydration over real SQLite; canonical worktree store suite.
+	for _, test := range []struct {
+		name         string
+		cancelAtRead int
+		wantFacts    int
+		wantReads    int
+	}{
+		{name: "Should retain valid PR facts when another cached row cannot be decoded", wantFacts: 5, wantReads: 7},
+		{name: "Should stop PR fallback after a canceled batch read", cancelAtRead: 1, wantReads: 1},
+		{name: "Should stop PR fallback when cancellation interrupts an individual read", cancelAtRead: 2, wantReads: 2},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			fixture, service := newWorktreeInspectionFixture(t, 3)
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			bad := worktreepkg.PullRequestKey{
+				WorkspaceID: "ws-bench-1", RepoKey: "github.com/acme/repo-1", Branch: "topic-2",
+			}
+			result, err := fixture.db.db.ExecContext(
+				ctx,
+				`UPDATE forge_pull_requests SET checks_failed_names='{}' WHERE workspace_id=? AND repo_key=? AND branch=?`,
+				bad.WorkspaceID,
+				bad.RepoKey,
+				bad.Branch,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if affected, err := result.RowsAffected(); err != nil || affected != 1 {
+				t.Fatalf("malformed cached rows = %d, %v", affected, err)
+			}
+			entries, readErr := fixture.WorktreeRepo.ReadPullRequests(ctx, []worktreepkg.PullRequestKey{
+				{WorkspaceID: "ws-bench-0", RepoKey: "github.com/acme/repo-0", Branch: "topic-0"}, bad,
+			})
+			if readErr == nil {
+				t.Fatal("malformed cached PR must fail decoding")
+			}
+			t.Logf("real batch decode error = %v; returned entries = %d", readErr, len(entries))
+			rows, err := fixture.ListAggregate(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if test.cancelAtRead > 0 {
+				fixture.beforePullRead = func() {
+					if fixture.pullReads == test.cancelAtRead {
+						cancel()
+					}
+				}
+			}
+			scope := store.ReadScope{ProfileID: store.DefaultProfileID}
+			allowed := map[string]bool{"ws-bench-0": true, "ws-bench-1": true}
+			listing, err := service.ListAggregate(ctx, scope, allowed)
+			if err != nil || listing == nil || len(listing.Worktrees) != 6 {
+				t.Fatalf("partial PR failure listing = %#v, %v", listing, err)
+			}
+			complete := 0
+			for index, item := range listing.Worktrees {
+				if item.Worktree.ID != rows[index].ID || item.Status == nil ||
+					item.Status.WorktreeID != item.Worktree.ID || item.Status.DirtyFiles == nil {
+					t.Fatalf("listing row %d lost order or local status: %#v", index, item)
+				}
+				if item.Worktree.WorkspaceID == bad.WorkspaceID && item.Worktree.Branch == bad.Branch {
+					if item.ForgeStatus != nil {
+						t.Fatal("malformed cached PR returned forge facts")
+					}
+					continue
+				}
+				if item.ForgeStatus != nil {
+					if item.ForgeStatus.PRNumber == nil || *item.ForgeStatus.PRNumber != *item.Status.DirtyFiles+1 {
+						t.Fatalf("listing row %d returned wrong PR facts: %#v", index, item)
+					}
+					complete++
+				}
+			}
+			if complete != test.wantFacts || fixture.pullReads != test.wantReads {
+				t.Fatalf("readable PR facts/reads = %d/%d, want %d/%d",
+					complete, fixture.pullReads, test.wantFacts, test.wantReads)
+			}
+		})
+	}
+
+	t.Run("Should not repeat a failed PR lookup for a single listing row", func(t *testing.T) {
+		t.Parallel()
+		fixture, service := newWorktreeInspectionFixture(t, 1)
+		ctx := t.Context()
+		if _, err := fixture.db.db.ExecContext(ctx,
+			`UPDATE forge_pull_requests SET checks_failed_names='{}' WHERE workspace_id='ws-bench-0'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		listing, err := service.ListAggregate(ctx, store.ReadScope{ProfileID: store.DefaultProfileID},
+			map[string]bool{"ws-bench-0": true})
+		if err != nil || listing == nil || len(listing.Worktrees) != 1 ||
+			listing.Worktrees[0].Status == nil || listing.Worktrees[0].ForgeStatus != nil {
+			t.Fatalf("failed single PR lookup = %#v, %v", listing, err)
+		}
+		if fixture.pullReads != 1 {
+			t.Fatalf("single PR reads = %d, want one failed attempt", fixture.pullReads)
+		}
+	})
+
 	// Invariant: batched display hydration preserves ordered, workspace-qualified cached facts.
 	// Owner: inspection service over the real SQLite repository; canonical worktree store suite.
 	t.Run("Should hydrate ordered worktree listings with workspace-qualified PR facts", func(t *testing.T) {
@@ -1679,6 +1782,7 @@ type worktreeInspectionStore struct {
 	db                               *GlobalDB
 	resolves, pullReads, statusReads int
 	resolveError                     func() error
+	beforePullRead                   func()
 }
 
 func (s *worktreeInspectionStore) ResolveWorktreeWorkspace(
@@ -1706,6 +1810,9 @@ func (s *worktreeInspectionStore) ReadPullRequests(
 	keys []worktreepkg.PullRequestKey,
 ) (map[worktreepkg.PullRequestKey]worktreepkg.PullRequestEntry, error) {
 	s.pullReads++
+	if s.beforePullRead != nil {
+		s.beforePullRead()
+	}
 	return s.WorktreeRepo.ReadPullRequests(ctx, keys)
 }
 func (s *worktreeInspectionStore) GetStatus(ctx context.Context, workspaceID, id string) (*worktreepkg.Status, error) {

@@ -1,4 +1,9 @@
-import { QueryClient, QueryClientProvider, QueryObserver } from "@tanstack/react-query";
+import {
+  QueryClient,
+  QueryClientProvider,
+  QueryObserver,
+  type QueryKey,
+} from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
@@ -58,26 +63,34 @@ function harness() {
   return { queryClient, sources, factory, wrapper };
 }
 
-function observeAggregateReads(queryClient: QueryClient, revision: () => number, seeded = true) {
+function observeAggregateReads(
+  queryClient: QueryClient,
+  revision: () => number,
+  seeded = true,
+  additionalKeys: QueryKey[] = []
+) {
   const keys = [
     homeOverviewOptions({ profile: "default" }).queryKey,
     tasksKeys.dashboardRoot(),
     tasksKeys.inboxRoot(),
+    ...additionalKeys,
   ];
-  const pending: ((error?: Error) => void)[] = [];
+  let pending: { index: number; settle: (error?: Error) => void }[] = [];
   let requests = 0;
   let cancellations = 0;
-  const observers = keys.map(queryKey => {
+  const requestsByQuery = keys.map(() => 0);
+  const observers = keys.map((queryKey, index) => {
     const observer = new QueryObserver(queryClient, {
       queryKey,
       initialData: seeded ? 0 : undefined,
       staleTime: Infinity,
       queryFn: ({ signal }) => {
         requests += 1;
+        requestsByQuery[index] += 1;
         const captured = revision();
         signal.addEventListener("abort", () => (cancellations += 1), { once: true });
         return new Promise<number>((resolve, reject) => {
-          pending.push(error => (error ? reject(error) : resolve(captured)));
+          pending.push({ index, settle: error => (error ? reject(error) : resolve(captured)) });
         });
       },
     });
@@ -85,13 +98,19 @@ function observeAggregateReads(queryClient: QueryClient, revision: () => number,
   });
   return {
     requests: () => requests,
+    requestsByQuery: () => [...requestsByQuery],
     cancellations: () => cancellations,
     values: () => keys.map(key => queryClient.getQueryData(key)),
     invalidated: () => keys.map(key => queryClient.getQueryState(key)?.isInvalidated),
     setEnabled: (enabled: boolean) => {
       observers.forEach(({ observer }) => observer.setOptions({ ...observer.options, enabled }));
     },
-    release: (error?: Error) => pending.splice(0).forEach(settle => settle(error)),
+    release: (error?: Error) => pending.splice(0).forEach(({ settle }) => settle(error)),
+    releaseQuery: (index: number) => {
+      const selected = pending.filter(read => read.index === index);
+      pending = pending.filter(read => read.index !== index);
+      selected.forEach(({ settle }) => settle());
+    },
     close: () => {
       observers.forEach(({ unsubscribe }) => unsubscribe());
       queryClient.clear();
@@ -100,6 +119,45 @@ function observeAggregateReads(queryClient: QueryClient, revision: () => number,
 }
 
 describe("useHomeLive", () => {
+  it("Should refresh settled aggregates while another overview variant remains pending", async () => {
+    const { queryClient, sources, factory, wrapper } = harness();
+    let revision = 1;
+    const reads = observeAggregateReads(queryClient, () => revision, true, [
+      homeOverviewOptions({ profile: "default", usageWindow: 7 }).queryKey,
+    ]);
+    const { unmount } = renderHook(
+      () => useHomeLive({ scope: SCOPED, eventSourceFactory: factory }),
+      { wrapper }
+    );
+    act(() => sources[0]?.emit(activityEvent("evt-first", "task.run_started")));
+    await act(async () => {
+      reads.releaseQuery(1);
+      reads.releaseQuery(2);
+      reads.releaseQuery(3);
+    });
+    expect(reads.values()).toEqual([0, 1, 1, 1]);
+
+    act(() => {
+      revision = 2;
+      sources[0]?.emit(activityEvent("evt-final", "task.run_completed"));
+    });
+    expect(reads.requestsByQuery()).toEqual([1, 2, 2, 2]);
+    await act(async () => {
+      reads.releaseQuery(1);
+      reads.releaseQuery(2);
+      reads.releaseQuery(3);
+    });
+    expect(reads.values()).toEqual([0, 2, 2, 2]);
+    expect(reads.cancellations()).toBe(0);
+
+    await act(async () => reads.releaseQuery(0));
+    expect(reads.requestsByQuery()).toEqual([2, 2, 2, 2]);
+    await act(async () => reads.releaseQuery(0));
+    expect(reads.values()).toEqual([2, 2, 2, 2]);
+    unmount();
+    reads.close();
+  });
+
   it("Should prepend stream events into the activity cache without duplicates", () => {
     const { queryClient, sources, factory, wrapper } = harness();
     const key = homeActivityOptions(SCOPED).queryKey;
@@ -417,7 +475,7 @@ describe("useHomeLive", () => {
     expect(sources[0]?.url).toBe("/api/logs/stream?all_profiles=true");
   });
 
-  it("Should re-open the stream on a profile switch and leave the old lens alone", () => {
+  it("Should fence retired activity frames across profile changes and returning to the same lens", () => {
     const { queryClient, sources, factory, wrapper } = harness();
     const scopedKey = homeActivityOptions(SCOPED).queryKey;
     const aggregateKey = homeActivityOptions(AGGREGATE).queryKey;
@@ -431,6 +489,7 @@ describe("useHomeLive", () => {
       wrapper,
     });
     expect(sources).toHaveLength(1);
+    const deliverRetired = sources[0]?.onmessage;
 
     scope = AGGREGATE;
     rerender();
@@ -450,6 +509,23 @@ describe("useHomeLive", () => {
     ]);
     // The profile the operator left keeps exactly what it had.
     expect(queryClient.getQueryData<HomeActivityEvent[]>(scopedKey)?.map(e => e.id)).toEqual([
+      "evt-1",
+    ]);
+
+    scope = SCOPED;
+    rerender();
+    expect(sources).toHaveLength(3);
+    expect(sources[2]?.url).toBe(sources[0]?.url);
+    act(() => {
+      deliverRetired?.(
+        new MessageEvent("message", {
+          data: JSON.stringify(activityEvent("evt-retired", "task.run_completed")),
+        })
+      );
+      sources[2]?.emit(activityEvent("evt-returned", "message"));
+    });
+    expect(queryClient.getQueryData<HomeActivityEvent[]>(scopedKey)?.map(e => e.id)).toEqual([
+      "evt-returned",
       "evt-1",
     ]);
   });

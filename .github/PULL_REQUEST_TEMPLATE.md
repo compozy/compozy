@@ -269,6 +269,11 @@ behavior; diagnostic panels keep the complete status operation.
   records the widened unsupported window and both baseline/current interleavings.
 - Single-toolset timings overlapped host noise and did not improve; all-workspace session
   timings also varied too much for a latency claim. Allocation measures remain separately reported.
+- Fault-injection checks also identified pre-existing Task coordination limits: a suspended
+  live query blocks its siblings, and disposal drops its pending follow-up. Identical baseline
+  and candidate reproductions plus release/no-dispose controls are recorded in
+  [API/tasks](../docs/qa/reports/2026-11-01-performance/api-tasks.md). The Task ownership
+  optimization does not claim to repair those existing lifecycle behaviors.
 - Rejected: query-hash indexing that could violate custom TanStack hashes; a facet CTE and
   additional session catalog reconciliation with no stable benefit; native process timestamp
   replacement without equivalent persisted identity; speculative pools and blanket goroutines.
@@ -295,17 +300,24 @@ The fix immediately binds the new identity and its loading state; it does not de
 finishing the departing conversation's animation. Existing keyed providers and scope guards remain.
 
 The [external review dispositions](../docs/qa/reports/2026-11-01-performance/validation.md#external-review-follow-up) record confirmed
-read/read credential ordering, transient workspace-resolution and stalled Loop-read defects, stronger error/identity
+read/read credential ordering, transient workspace-resolution, PR-fact batch failure isolation
+and stalled Loop/Home-read defects, stronger error/identity
 controls, and the evidence for retaining attachment ownership and per-sweep pause projection.
 Successful credential reads, including verified cached evidence, now fence older observations;
-failed validation does not advance that fence. Active cached Loop reads can restart immediately;
-each pending query retains its own trailing obligation while healthy queries continue to process
-later events. No additional speedup is inferred from the credential follow-up timings.
+failed validation does not advance that fence. Loop and Home share a subscription-local
+coordinator: each pending query retains its own trailing obligation while healthy queries
+continue to process later events. A pending active cached read can restart after the existing
+15-second Loop or 30-second Home refresh interval. The timer starts on the first pending wake,
+does not slide with later frames, and cannot cancel a replaced promise or an initial,
+disabled or static query. This is targeted reconciliation recovery, not a global HTTP deadline.
+No additional speedup is inferred from the credential follow-up timings.
 The reverse credential ordering also requires fresh evidence after a sequence-only mismatch
 collision: successful application order alone does not establish which observation was newer.
 This recheck preserves the existing error classification and stops new attempts on cancellation.
 Worktree hydration also leaves retryable repository-identity failures uncached within a listing;
-stable negative identities retain the existing repository service policy.
+stable negative identities retain the existing repository service policy. A failed PR-fact
+batch falls back once per key, preserving valid rows when another persisted row cannot decode.
+Cancellation and single-key reads do not fan out; successful listings still perform one batch.
 
 ## Verification boundaries
 

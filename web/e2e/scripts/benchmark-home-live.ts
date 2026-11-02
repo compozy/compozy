@@ -9,6 +9,8 @@
  */
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { homeLiveRefreshLogic } from "../../src/systems/dashboard/hooks/home-live-refresh-store";
+import { createQueryLiveRefreshCoordinator } from "../../src/lib/query-live-refresh-coordinator";
+import { OVERVIEW_REFETCH_INTERVAL } from "../../src/systems/dashboard/lib/query-policy";
 
 for (let sample = 0; sample < 5; sample++) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -41,8 +43,8 @@ for (let sample = 0; sample < 5; sample++) {
   });
   const store = homeLiveRefreshLogic.createStore();
   store.trigger.scopeActivated({ scope: "personal" });
-  const invalidate = () =>
-    Promise.all(keys.map(queryKey => queryClient.invalidateQueries({ queryKey })));
+  const coordinator = createQueryLiveRefreshCoordinator(queryClient, OVERVIEW_REFETCH_INTERVAL);
+  const invalidate = () => keys.forEach(queryKey => coordinator.refresh(queryKey));
   const start = performance.now();
   for (revision = 1; revision <= 100; revision++) {
     store.trigger.activityReceived({
@@ -63,6 +65,10 @@ for (let sample = 0; sample < 5; sample++) {
   const latest = keys.map(key => queryClient.getQueryData(key));
   if (latest.some(value => value !== 100))
     throw new Error("Final lifecycle revision was not reconciled");
+  if (requests !== 6 || cancellations !== 0)
+    throw new Error(
+      "Lifecycle burst must use one leading and trailing read per query without cancellation"
+    );
   console.log(JSON.stringify({ sample, requests, cancellations, burstMs, latest }));
   observers.forEach(unsubscribe => unsubscribe());
   queryClient.clear();

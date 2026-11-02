@@ -154,3 +154,34 @@ Final focused verification, with all control mutations removed:
 - The required Go test-shape checker reports only the existing `TestCreateSessionWorktreeBinding` direct-assertion finding; `review-test-conventions.log`. That function is byte-identical to the pre-edit `HEAD`, confirmed through the bounded runner in `review-test-conventions-baseline.log`. The newly strengthened case remains in the existing named parallel subtest.
 
 Frozen for root handoff: only the two existing test files and this report are owned changes for these review threads. No new production behavior, public contract, generated file, or QA journey change; no commit or full gate run by this worker.
+
+## Task refresh stalled-query triage — 2026-11-02
+
+Before temporary reproduction, the invariants are: a healthy active read for the same task continues to refresh while a sibling read remains pending; repeated frames do not cancel/restart the pending read; and disposal preserves a follow-up already admitted before cleanup while stopping new admission. The owning layer is Tasks live-query coordination, and the canonical suite is `web/src/systems/tasks/hooks/__tests__/use-task-stream.test.tsx`. This is a temporary reproduction against the current coordinator and the real `de5ab2f4d` baseline, with no production edit authorized yet. API Go sources remain frozen.
+
+**Conclusion: two pre-existing freshness limitations are confirmed in both the baseline and current Tasks coordinator. They are not regressions introduced by this performance patch.** Current source head for this comparison was `862bf0fd0`. The baseline coordinator was imported directly from the frozen checkout after verifying byte equality with `git show de5ab2f4d:<path>`; both implementations ran in the same root Turbo test invocation. Canonical task query-key source is also byte-identical across baseline/current. This compares the actual coordinator implementations, not a hand-recreated state machine or a full baseline application deployment.
+
+The temporary cases used real TanStack Query observers and caller-controlled deferred query results at the I/O boundary. Each fixture issued one initial event followed by 20 events while a read was pending. Observers remained active during the disposal case, modeling a surviving cache consumer when the stream owner closes. The negative assertion waited 250 ms for progress; this budget is a deterministic reproduction bound, not a user-latency measurement.
+
+| Condition | Current coordinator | Baseline `de5ab2f4d` | Interpretation |
+| --- | --- | --- | --- |
+| One healthy detail query and one pending run-detail query; 20 further events | Healthy reads 1, pending reads 1, aborts 0; healthy revision 1; phase `refreshing`, follow-up true | Identical | The pending sibling prevents the healthy query's second read. Both should-freshen assertions fail. |
+| Positive control: release the pending sibling before checking progress | Healthy reads 2, pending reads 2, aborts 0; revision 2; phase `idle` | Identical | The barrier, rather than an invalid fixture or query ownership, causes the stall. Twenty wakes coalesce into one follow-up. |
+| One pending detail query; 20 further events; dispose before releasing its old response | Reads 1, aborts 0; revision 1; phase `disposed`, follow-up false, `isInvalidated=false` | Identical | The accepted wake is discarded; the older response leaves the surviving observer's cache marked fresh. Both should-freshen assertions fail. |
+| Positive control: release that response without disposing the owner first | Reads 2, aborts 0; revision 2; phase `idle`, follow-up false | Identical | The queued follow-up works when disposal does not discard it. |
+
+The four negative cases failed specifically on healthy read count or revision; the four controls passed. Receipts are `.cache/performance/api-tasks/task-stall-reproducer.log` and `task-stall-control.log`. Commands used `python3 .cache/performance/run-bounded.py bunx turbo run test --filter=./web --only -- src/systems/tasks/hooks/__tests__/use-task-stream.test.tsx -t 'Temporary task stall triage' --maxWorkers=1` and the same command with the control-name filter. The 19 existing tests were deliberately skipped by those filters; these probes are not a replacement canonical-suite pass.
+
+Cause: `task-live-refresh-coordinator.ts:83–84` admits subsequent events only as one global bit while `refreshStarted` at lines 95–108 awaits every live invalidation. TanStack's `refetchQueries` itself waits for all matched fetch promises, so one pending result keeps the whole coordinator `refreshing`. Disposal at lines 127–141 reconciles only catalog queries and clears that bit; the later `refreshSettled` event is ignored outside `refreshing`. Both paths are unchanged from the real baseline; this patch changes only run-query ownership selection.
+
+Disposition coordinated with root: keep Tasks production frozen and report the limitation explicitly; do not expand this remediation into a Tasks coordinator redesign. A future owning change could follow Loops' per-Query admission and one-follow-up drain while preserving the accepted task/run selection, canonical logical keys, profile partitions, and cleanup ownership. It must independently address same-query hangs and must not restart a pending request on every frame. No deadline, pool, cross-domain helper, or production workaround was introduced here; the existing 100-to-2 task-read reduction remains unchanged.
+
+Evidence identities (SHA-256):
+
+- Baseline coordinator: `54025c519c272bda50964b585fee47254873e765ffda7ffdb335b3707914fb99`.
+- Current coordinator: `32141b10f00b9a5dc415e77a1e59647ca2dd9ac3f87b5e8d8e54e738433bc427`.
+- Negative probe snapshot: `4ff09d7c9f898c35cfc61733e47b75945a41db738b9220d039f18479f71899b0`.
+- Positive-control snapshot: `b7568b70733d4492746615c64b4c249c1de72b99879bf98080bbe7a755229859`.
+- Canonical suite after removing temporary probes: `7f12d13ea7543a9f5a4d811de9a286ef12d7db4797ecb9f8991108ad757d7a26`.
+
+Source/probe hashes are recorded in `task-stall-source-identity.log` and `task-stall-cleanup.log`. Reproducible probe snapshots and patches remain only under the ignored `.cache/performance/api-tasks/` evidence directory. The temporary import and cases were removed; the canonical suite and production coordinator are byte-identical to `HEAD`. This triage leaves only this report changed in the Tasks/API-owned paths and adds no tracked test that freezes the pre-existing failure.

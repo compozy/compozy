@@ -27,14 +27,19 @@ unchanged public and persisted shapes need no compatibility shim or migration.
   evidence, also fences older reads; validation errors do not. Failed workspace resolution
   and retryable repository identity are not cached across later display rows, preserving
   transient recovery while batching successes and retaining stable negative identity policy.
+  Failed PR-fact batches recover per key so a malformed persisted row cannot suppress valid
+  siblings; successful batches remain a single read, and cancellation stops fallback work.
   A sequence-only collision on a credential mismatch triggers fresh evidence outside the mutex;
   application order alone does not establish observation order. Error classification is unchanged.
   Attachment checks retain authoritative retention,
   pins, scope and content verification. Package availability reuse is bounded and keyed by
   digest plus held-file identity/change evidence; installation always rehashes.
 - **Web:** session/task/worktree invalidation avoids unrelated scopes; Dashboard/Loop bursts
-  retain authoritative trailing reads and lifecycle fences. Loop reconciliation belongs to
-  each existing Query, so one pending read cannot block updates to healthy queries.
+  retain authoritative trailing reads and lifecycle fences. Loop/Home reconciliation belongs
+  to each existing Query, so one pending read cannot block updates to healthy queries.
+  Their shared subscription-local helper bounds a pending active cached read with the existing
+  15-second/30-second refresh intervals, retaining promise identity and initial/disabled/static
+  boundaries. No global HTTP timeout, cache authority or cross-subscription scheduler is added.
   Closed selectors/About defer
   unused work; restart consumers observe only relevant status fields. Terminal pane state
   drops identities removed by the authoritative catalog. No UI redesign or product-copy change.

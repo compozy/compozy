@@ -51,3 +51,9 @@ QA follow-up 2026-11-02 (independent queries): a second event must refresh a hea
 run list while another affected query remains pending. Only the busy query's own
 follow-up waits for settlement. The canonical mixed-query controls pass; retain
 the enclosing runtime/CI walk. Evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA follow-up 2026-11-02 (pending-read recovery): an accepted later event may restart
+a still-pending active cached roster/list read after the existing 15-second budget.
+Normal bursts retain three reads and zero cancellations in the focused fixture;
+no per-frame restart is introduced. Runtime/CI verification remains with the
+enclosing audit. Evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.

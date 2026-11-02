@@ -45,7 +45,7 @@ import type {
 const DEFAULT_STALE_TIME = 15_000;
 const DEFAULT_REFETCH_INTERVAL = 30_000;
 const LIVE_STALE_TIME = 5_000;
-const LIVE_REFETCH_INTERVAL = 15_000;
+export const LIVE_REFETCH_INTERVAL = 15_000;
 /**
  * Roster and timeline page sizes. Both sit inside the daemon's 1-500 range. The
  * roster is deliberately generous: the DAG draws the whole topology, and a run

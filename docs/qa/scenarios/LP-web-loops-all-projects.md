@@ -41,3 +41,9 @@ aggregate/catalog while a sibling run read is pending. Refresh ownership is now
 per Query, preserving workspace/aggregate scope without waiting for unrelated
 requests. Focused controls pass; runtime/CI verification remains with the enclosing
 audit. Evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA follow-up 2026-11-02 (pending-read recovery): cached active aggregate reads use
+the same event-driven 15-second coalescing budget as other Loop reads. Recovery
+targets the captured Query/promise and retains the existing workspace/profile
+prefixes; disabled reads are not forced. Focused checks pass; the enclosing audit
+owns runtime/CI verification. See `docs/qa/reports/2026-11-01-performance/loop-loops.md`.

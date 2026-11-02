@@ -101,6 +101,18 @@ func (s *Service) hydrateDisplayPullRequests(ctx context.Context, inspections []
 		return
 	}
 	entries := s.pullRequests.Read(ctx, keys)
+	if entries == nil && len(keys) > 1 && ctx.Err() == nil {
+		entries = make(map[PullRequestKey]PullRequestEntry, len(keys))
+		for _, key := range keys {
+			if ctx.Err() != nil {
+				break
+			}
+			if _, attempted := entries[key]; attempted {
+				continue
+			}
+			entries[key] = s.pullRequests.Read(ctx, []PullRequestKey{key})[key]
+		}
+	}
 	for index := range inspections {
 		item := inspections[index].Worktree
 		key := PullRequestKey{item.WorkspaceID, repositories[item.WorkspaceID], item.Branch}
