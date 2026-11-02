@@ -70,7 +70,11 @@ dispatch() {
 }
 if [ "${OPENCODE_FIXTURE_NPM:-0}" = "1" ]; then
   if [ "$1" = "-y" ]; then shift; fi
-  case "$1" in opencode-ai*) shift;; *) echo "unexpected npm command: $*" >&2; exit 1;; esac
+  case "$1" in
+    --package=opencode-ai*) exit 0;;
+    opencode-ai*) shift;;
+    *) echo "unexpected npm command: $*" >&2; exit 1;;
+  esac
 fi
 dispatch "$@"
 `

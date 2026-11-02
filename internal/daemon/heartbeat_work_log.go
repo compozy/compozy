@@ -15,6 +15,24 @@ import (
 
 const workLogReadLimit = 64 * 1024
 
+// openValidatedWorkspaceRoot refuses a symlink swapped in after validation, which OpenRoot would follow.
+func openValidatedWorkspaceRoot(path string, validated os.FileInfo, logger *slog.Logger) (*os.Root, bool) {
+	workspace, err := os.OpenRoot(path)
+	if err != nil {
+		logger.Warn("work_log: open workspace", "error", err)
+		return nil, false
+	}
+	opened, err := workspace.Stat(".")
+	if err == nil && os.SameFile(validated, opened) {
+		return workspace, true
+	}
+	logger.Warn("work_log: path outside workspace", "error", err)
+	if closeErr := workspace.Close(); closeErr != nil {
+		logger.Warn("work_log: close workspace", "error", closeErr)
+	}
+	return nil, false
+}
+
 func readWorkspaceWorkLog(root string, logger *slog.Logger) ([]heartbeat.WorkLogFact, bool) {
 	if logger == nil {
 		logger = slog.Default()
@@ -46,9 +64,8 @@ func readWorkspaceWorkLog(root string, logger *slog.Logger) ([]heartbeat.WorkLog
 		logger.Warn("work_log: unavailable regular file", "error", err)
 		return nil, false
 	}
-	workspace, err := os.OpenRoot(resolvedRoot)
-	if err != nil {
-		logger.Warn("work_log: open workspace", "error", err)
+	workspace, ok := openValidatedWorkspaceRoot(resolvedRoot, validatedRoot, logger)
+	if !ok {
 		return nil, false
 	}
 	defer func() {
@@ -56,12 +73,6 @@ func readWorkspaceWorkLog(root string, logger *slog.Logger) ([]heartbeat.WorkLog
 			logger.Warn("work_log: close workspace", "error", err)
 		}
 	}()
-	// OpenRoot follows a symlink swapped in after validation, so the opened directory must be the validated one.
-	openedRoot, err := workspace.Stat(".")
-	if err != nil || !os.SameFile(validatedRoot, openedRoot) {
-		logger.Warn("work_log: path outside workspace", "error", err)
-		return nil, false
-	}
 	file, err := openWorkspaceWorkLogFile(workspace)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, false

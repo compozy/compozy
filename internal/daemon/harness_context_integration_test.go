@@ -584,7 +584,8 @@ func TestHarnessContextIntegrationMeasuresDeliveredSkillCatalogs(t *testing.T) {
 		cfg := testConfig(t, homePaths)
 		workspace := newHarnessIntegrationWorkspace(t, homePaths, cfg, filepath.Join(homePaths.HomeDir, "workspace"))
 		workspace.Agents[0].Model = "" // The receipt fixture advertises no selectable model.
-		expectedSkills := []string{"compozy"}
+		// The bundled spec-cycle extension contributes cy-create-spec and git-rebase to every workspace.
+		expectedSkills := []string{"compozy", "cy-create-spec", "git-rebase"}
 		for index := range 23 {
 			name := fmt.Sprintf("measured-skill-%02d", index)
 			expectedSkills = append(expectedSkills, name)

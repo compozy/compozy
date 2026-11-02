@@ -272,8 +272,8 @@ func TestAutomationLoopStarterRetiredDependencies(t *testing.T) {
 // requireLintFailure proves a negative classification kept the original lint failure.
 func requireLintFailure(t *testing.T, err error, nodeID, code string) {
 	t.Helper()
-	var lint *looppkg.LintFailedError
-	if !errors.As(err, &lint) {
+	lint, ok := errors.AsType[*looppkg.LintFailedError](err)
+	if !ok {
 		t.Fatalf("error = %v, want the original lint failure", err)
 	}
 	if code != "" && !slices.ContainsFunc(lint.Errors, func(entry looppkg.LintError) bool {

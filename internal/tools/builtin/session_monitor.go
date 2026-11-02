@@ -12,7 +12,49 @@ const (
 )
 
 func sessionMonitorDescriptors() []toolspkg.Descriptor {
-	create := nativeDescriptor(
+	create := monitorCreateDescriptor()
+	create.OutputSchema = json.RawMessage(monitorOutputSchema)
+
+	list := nativeDescriptor(
+		toolspkg.ToolIDMonitorList,
+		"monitor_list",
+		"Monitor List",
+		"List this session's monitors: active ones first, then delivering (wake retrying a full wake entry), "+
+			"fired, canceled, undelivered, or interrupted (a daemon restart ended the watch and its owner could not "+
+			"be resumed) ones from the last hour.",
+		emptyInputSchema,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, monitorKeyword},
+		[]string{"list monitors", "pending wakeups"},
+	)
+	list.OutputSchema = json.RawMessage(monitorListOutputSchema)
+	list.ConcurrencySafe = true
+
+	cancel := nativeDescriptor(
+		toolspkg.ToolIDMonitorCancel,
+		"monitor_cancel",
+		"Monitor Cancel",
+		"Cancel one active monitor owned by this session so it never wakes the session again. "+
+			"It does not stop the watched terminal process.",
+		monitorCancelInputSchema,
+		toolspkg.RiskMutating,
+		false,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
+		[]string{sessionsSessionsKey, monitorKeyword},
+		[]string{"cancel monitor", "cancel wakeup"},
+	)
+	cancel.OutputSchema = json.RawMessage(monitorOutputSchema)
+	return []toolspkg.Descriptor{create, list, cancel}
+}
+
+func monitorCreateDescriptor() toolspkg.Descriptor {
+	return nativeDescriptor(
 		toolspkg.ToolIDMonitorCreate,
 		"monitor_create",
 		"Monitor Create",
@@ -58,44 +100,6 @@ func sessionMonitorDescriptors() []toolspkg.Descriptor {
 			"wake when all sessions finish",
 		},
 	)
-	create.OutputSchema = json.RawMessage(monitorOutputSchema)
-
-	list := nativeDescriptor(
-		toolspkg.ToolIDMonitorList,
-		"monitor_list",
-		"Monitor List",
-		"List this session's monitors: active ones first, then delivering (wake retrying a full wake entry), "+
-			"fired, canceled, undelivered, or interrupted (a daemon restart ended the watch and its owner could not "+
-			"be resumed) ones from the last hour.",
-		emptyInputSchema,
-		toolspkg.RiskRead,
-		true,
-		false,
-		false,
-		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, monitorKeyword},
-		[]string{"list monitors", "pending wakeups"},
-	)
-	list.OutputSchema = json.RawMessage(monitorListOutputSchema)
-	list.ConcurrencySafe = true
-
-	cancel := nativeDescriptor(
-		toolspkg.ToolIDMonitorCancel,
-		"monitor_cancel",
-		"Monitor Cancel",
-		"Cancel one active monitor owned by this session so it never wakes the session again. "+
-			"It does not stop the watched terminal process.",
-		monitorCancelInputSchema,
-		toolspkg.RiskMutating,
-		false,
-		false,
-		false,
-		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
-		[]string{sessionsSessionsKey, monitorKeyword},
-		[]string{"cancel monitor", "cancel wakeup"},
-	)
-	cancel.OutputSchema = json.RawMessage(monitorOutputSchema)
-	return []toolspkg.Descriptor{create, list, cancel}
 }
 
 const monitorCreateInputSchema = `{
@@ -112,7 +116,8 @@ const monitorCreateInputSchema = `{
 		"branch":{"type":"string","minLength":1,"maxLength":255,
 			"description":"pull_request monitors only; defaults to this session's branch."},
 		"timeout_seconds":{"type":"integer","minimum":1,"maximum":86400,
-			"description":"Defaults: terminal 1800 (max 21600), session 7200 (max 21600), pull_request 21600 (max 86400). A timeout still wakes you."},
+			"description":"Defaults: terminal 1800 (max 21600), session 7200 (max 21600), ` +
+	`pull_request 21600 (max 86400). A timeout still wakes you."},
 		"delay_seconds":{"type":"integer","minimum":5,"maximum":86400,"description":"Timer monitors only."},
 		"target_session_ids":{"type":"array","minItems":1,"maxItems":32,
 			"items":{"type":"string","minLength":1},

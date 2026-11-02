@@ -371,16 +371,19 @@ func TestLoopGoalWaitSessionRecovery(t *testing.T) {
 			if sessions.calls != wantCalls {
 				t.Fatalf("resume calls=%d, want %d", sessions.calls, wantCalls)
 			}
-			if state == "resume failure" {
+			switch state {
+			case "resume failure":
 				if !errors.Is(err, resumeErr) {
 					t.Fatalf("resume error=%v", err)
 				}
-			} else if state == "explicit stop" {
+			case "explicit stop":
 				if err == nil || !strings.Contains(err.Error(), "stopped explicitly") {
 					t.Fatalf("explicit stop=%v", err)
 				}
-			} else if err != nil {
-				t.Fatal(err)
+			default:
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
 		})
 	}
