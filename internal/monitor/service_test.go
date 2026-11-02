@@ -2332,6 +2332,19 @@ func TestDetectPullRequest(t *testing.T) {
 			t.Fatalf("second wake: %+v", again)
 		}
 	})
+	t.Run("Should keep a burst flushed with no observation behind a refused wake", func(t *testing.T) {
+		t.Parallel()
+		carry := PullRequestChanges{
+			Wake: true, Number: 7, Head: "head-a", State: "open", Reviews: []PullRequestReview{{ID: "r1"}}, NewThreads: 1,
+		}
+		flushed := PullRequestChanges{
+			Wake: true, Number: 7, Head: "head-a", Reviews: []PullRequestReview{{ID: "r2"}}, NewThreads: 2,
+		}
+		merged := mergePullRequestChanges(carry, flushed)
+		if len(merged.Reviews) != 2 || merged.Reviews[1].ID != "r2" || merged.NewThreads != 3 || merged.State != "open" {
+			t.Fatalf("merged = %+v", merged)
+		}
+	})
 	t.Run("Should merge later changes and drop what a new head superseded", func(t *testing.T) {
 		t.Parallel()
 		first := PullRequestChanges{

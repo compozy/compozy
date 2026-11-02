@@ -254,9 +254,12 @@ func mergePullRequestChanges(carry, later PullRequestChanges) PullRequestChanges
 	if !carry.Wake {
 		return later
 	}
-	if later.State == "" { // No observation behind it: only the outage is news.
-		carry.ForgeDown, carry.Cause = carry.ForgeDown || later.ForgeDown, later.Cause
-		return carry
+	if later.State == "" { // No observation behind it: only an outage or a flushed burst is news.
+		carry.ForgeDown = carry.ForgeDown || later.ForgeDown
+		if later.Cause != "" {
+			carry.Cause = later.Cause
+		}
+		return mergeReviewActivity(carry, later, carry)
 	}
 	merged := later
 	for _, name := range carry.NewlyFailed {
@@ -264,9 +267,7 @@ func mergePullRequestChanges(carry, later PullRequestChanges) PullRequestChanges
 			merged.NewlyFailed = append(merged.NewlyFailed, name)
 		}
 	}
-	merged.Reviews = slices.Concat(carry.Reviews, later.Reviews)
-	merged.Reviews = merged.Reviews[max(len(merged.Reviews)-maxBurstReviews, 0):]
-	merged.NewThreads += carry.NewThreads
+	merged = mergeReviewActivity(carry, later, merged)
 	merged.FailureRose = merged.FailureRose || carry.FailureRose
 	merged.AllFinished = merged.AllFinished || carry.AllFinished
 	merged.ForgeDown = merged.ForgeDown || carry.ForgeDown
@@ -275,4 +276,12 @@ func mergePullRequestChanges(carry, later PullRequestChanges) PullRequestChanges
 		merged.Cause = carry.Cause
 	}
 	return merged
+}
+
+// mergeReviewActivity gives into the review activity of first and second together.
+func mergeReviewActivity(first, second, into PullRequestChanges) PullRequestChanges {
+	reviews := slices.Concat(first.Reviews, second.Reviews)
+	into.Reviews = reviews[max(len(reviews)-maxBurstReviews, 0):]
+	into.NewThreads = first.NewThreads + second.NewThreads
+	return into
 }
