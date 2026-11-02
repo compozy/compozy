@@ -13,11 +13,39 @@ import {
   type PullRequestExitPlanView,
 } from "../pull-request-actions";
 import { pullRequestChipModel, pullRequestPill } from "../pull-request-signal";
+import {
+  parseSessionLinkInput,
+  repositoryForgeName,
+  sessionLinkSearch,
+} from "../session-link-input";
+import {
+  groupLinks,
+  leadLink,
+  linkStatus,
+  linkOriginLabel,
+  linkSourceLabel,
+  linkTitle,
+  linkUnlinkedNote,
+  linkedCandidateKeys,
+  candidateIsLinked,
+  moreLabel,
+  needsYouCount,
+  summaryMoreLabel,
+  type SessionLinkedWorkItem,
+} from "../session-linked-work";
 import type {
   SessionPullRequest,
   SessionPullRequestFacts,
   SessionPullRequestLookup,
 } from "../session-pull-request";
+
+import {
+  SESSION_LINK_BRANCHES,
+  SESSION_LINK_PULL_REQUESTS,
+  SESSION_LINK_SETS,
+  SESSION_LINKS_DOZEN,
+  SESSION_LINKS_FIFTY,
+} from "../../mocks/session-links-fixtures";
 
 // The `_dx.md` §Session payload example: PR #932, draft, failing, review required.
 const DX_PR: SessionPullRequest = {
@@ -340,3 +368,177 @@ describe("agent prompts", () => {
     expect(address).toContain(DX_PR.url);
   });
 });
+
+// Invariant: linked work reads urgent first, the session's own work before what rolled up from its
+// children, and a summary never claims more than its counts say.
+describe("session linked work", () => {
+  const titles = (items: readonly SessionLinkedWorkItem[]) => items.map(linkTitle);
+
+  it("Should put what needs you first and keep the terminal items in Done", () => {
+    const groups = groupLinks(SESSION_LINKS_DOZEN);
+    expect(groups.map(group => group.id)).toEqual(["needs-you", "in-progress", "done"]);
+    expect(groups[0]?.items.map(item => item.pr_number)).toEqual([951, 957]);
+    expect(groups[2]?.items.every(item => item.pull_request?.state !== "open")).toBe(true);
+    expect(needsYouCount(SESSION_LINKS_DOZEN)).toBe(2);
+    expect(leadLink(SESSION_LINKS_DOZEN)?.pr_number).toBe(951);
+  });
+
+  it("Should hold fifty items in one pass over every group", () => {
+    const shown = groupLinks(SESSION_LINKS_FIFTY).flatMap(group => group.items);
+    expect(shown).toHaveLength(50);
+  });
+
+  it("Should lead a group with runs-here, then with what is closest to done", () => {
+    const inProgress = groupLinks(SESSION_LINK_SETS.runsHere).find(
+      group => group.id === "in-progress"
+    );
+    expect(inProgress?.items[0]?.runs_here).toBe(true);
+    const progress = groupLinks(SESSION_LINKS_DOZEN).find(group => group.id === "in-progress");
+    expect(progress?.items[0]?.pr_number).toBe(955);
+    expect(progress?.items.at(-1)?.pull_request).toBeNull();
+  });
+
+  it("Should sort direct items before rolled-up items within a group", () => {
+    const [direct, childOne, childTwo] = SESSION_LINK_SETS.rolledUp;
+    const group = groupLinks([childTwo!, childOne!, direct!]).find(
+      entry => entry.id === "in-progress"
+    );
+    expect(group?.items[0]).toBe(direct);
+    expect(group?.items.at(-1)).toBe(childTwo);
+  });
+
+  it("Should name the rolled-up source as a fact and say nothing about who added it", () => {
+    const rolled = SESSION_LINK_SETS.rolledUp[1]!;
+    expect(linkOriginLabel(rolled)).toBe("From Login redirect fix");
+    expect(linkSourceLabel({ ...rolled, provenance: "agent" }, "Claude")).toBeNull();
+    expect(linkOriginLabel(SESSION_LINK_SETS.rolledUp[0]!)).toBeNull();
+  });
+
+  it("Should say who added an item only for the exceptions", () => {
+    const [user, agent, created] = SESSION_LINK_SETS.addedBy;
+    expect(linkSourceLabel(user!, "Claude")).toBe("Added by you");
+    expect(linkSourceLabel(agent!, "Claude")).toBe("Added by Claude");
+    expect(linkSourceLabel(created!, "Claude")).toBeNull();
+  });
+
+  it.each([
+    ["all pull requests", SESSION_LINK_SETS.mixed, "+3 PRs"],
+    ["one more pull request", SESSION_LINK_SETS.runsHere, "+1 PR"],
+    ["a branch among them", SESSION_LINK_SETS.addedBy, "+3 more"],
+    ["a single item", SESSION_LINK_SETS.onePr, null],
+    ["nothing linked", SESSION_LINK_SETS.none, null],
+  ])("Should label the rest of the list with %s", (_name, items, label) => {
+    expect(moreLabel(items)).toBe(label);
+  });
+
+  it.each([
+    [{ total: 4, needs_you: 1, pull_requests: 4, lead: READY_ITEM() }, "+3 PRs"],
+    [{ total: 4, needs_you: 0, pull_requests: 3, lead: READY_ITEM() }, "+3 more"],
+    [{ total: 1, needs_you: 0, pull_requests: 1, lead: READY_ITEM() }, null],
+    [{ total: 4, needs_you: 0, pull_requests: 3, lead: BRANCH_ITEM() }, "+3 PRs"],
+  ])("Should read the same label from the catalog summary", (summary, label) => {
+    expect(summaryMoreLabel(summary)).toBe(label);
+  });
+
+  it("Should keep status words honest when facts are missing", () => {
+    const [failedLookup, stale] = SESSION_LINK_SETS.lookupFailed;
+    expect(linkStatus(failedLookup!)).toEqual({ label: "PR status unknown", tone: "neutral" });
+    expect(linkStatus(stale!).tone).toBe("neutral");
+    expect(linkStatus(SESSION_LINK_SETS.worktreeNoPr[0]!).label).toBe("No pull request yet");
+    expect(linkStatus({ ...failedLookup!, pull_request_lookup: null }).label).toBe(
+      "No pull request yet"
+    );
+  });
+
+  it("Should fall back to the branch when the forge sends no title", () => {
+    const item = SESSION_LINK_SETS.onePr[0]!;
+    const untitled = { ...item, pull_request: { ...item.pull_request!, title: undefined } };
+    expect(linkTitle(untitled)).toBe(item.branch);
+    expect(titles(SESSION_LINK_SETS.worktreeNoPr)).toEqual(["session-links"]);
+  });
+
+  it("Should reassure in the words of the forge that owns the pull request", () => {
+    expect(linkUnlinkedNote(SESSION_LINK_SETS.onePr[0]!)).toContain("still on GitHub");
+    expect(repositoryForgeName("git.acme.dev/team/app")).toBe("git.acme.dev");
+    expect(linkUnlinkedNote(SESSION_LINK_SETS.worktreeNoPr[0]!)).toContain("files are untouched");
+  });
+
+  it("Should mark direct items as linked and leave rolled-up ones pickable", () => {
+    const linked = linkedCandidateKeys(SESSION_LINK_SETS.rolledUp);
+    const pick = (number: number) =>
+      SESSION_LINK_PULL_REQUESTS.find(candidate => candidate.pr_number === number)!;
+    expect(candidateIsLinked(pick(944), linked)).toBe(true);
+    expect(candidateIsLinked(pick(951), linked)).toBe(false);
+  });
+
+  describe("link input", () => {
+    const search = {
+      repository: "github.com/compozy/compozy",
+      pullRequests: SESSION_LINK_PULL_REQUESTS,
+      branches: SESSION_LINK_BRANCHES,
+      searching: false,
+      refused: false,
+    };
+
+    it.each([
+      ["https://github.com/acme/app/pull/12", "github.com/acme/app", 12],
+      ["https://gitlab.com/acme/app/-/merge_requests/12", "gitlab.com/acme/app", 12],
+      ["https://bitbucket.org/acme/app/pull-requests/12/title", "bitbucket.org/acme/app", 12],
+    ])("Should read %s as one pull request", (url, repository, number) => {
+      expect(parseSessionLinkInput(url)).toEqual({ kind: "link", repository, number });
+    });
+
+    it("Should read a number and leave words alone", () => {
+      expect(parseSessionLinkInput(" #42 ")).toEqual({ kind: "number", number: 42 });
+      expect(parseSessionLinkInput("login fix")).toEqual({ kind: "text", text: "login fix" });
+    });
+
+    it("Should refuse a link from another repository before searching for it", () => {
+      expect(
+        sessionLinkSearch({ ...search, query: "https://github.com/acme/billing/pull/212" })
+      ).toEqual({ kind: "other-project", repository: "github.com/acme/billing", number: 212 });
+    });
+
+    it("Should treat the daemon's refusal as another project's", () => {
+      expect(
+        sessionLinkSearch({
+          ...search,
+          repository: null,
+          refused: true,
+          query: "https://github.com/acme/billing/pull/212",
+        }).kind
+      ).toBe("other-project");
+    });
+
+    it("Should say it can't find a number only once the read has answered", () => {
+      const empty = { ...search, pullRequests: [], branches: [] };
+      expect(sessionLinkSearch({ ...empty, query: "#99999" })).toEqual({
+        kind: "unknown",
+        query: "#99999",
+      });
+      expect(sessionLinkSearch({ ...empty, searching: true, query: "#99999" }).kind).toBe(
+        "results"
+      );
+    });
+
+    it("Should narrow a number to that pull request alone", () => {
+      const result = sessionLinkSearch({ ...search, query: "#963" });
+      expect(result).toMatchObject({ kind: "results", branches: [] });
+      expect(result.kind === "results" ? result.pullRequests : []).toHaveLength(1);
+    });
+
+    it("Should drop a branch whose pull request is already on screen", () => {
+      const branch = { repository: search.repository, branch: "feat/usage-report" };
+      const result = sessionLinkSearch({ ...search, query: "usage", branches: [branch] });
+      expect(result.kind === "results" ? result.branches : null).toEqual([]);
+    });
+  });
+});
+
+function READY_ITEM(): SessionLinkedWorkItem {
+  return SESSION_LINK_SETS.onePr[0]!;
+}
+
+function BRANCH_ITEM(): SessionLinkedWorkItem {
+  return SESSION_LINK_SETS.worktreeNoPr[0]!;
+}

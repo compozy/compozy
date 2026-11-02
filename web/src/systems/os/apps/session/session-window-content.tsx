@@ -16,7 +16,6 @@ import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "@/components/assistant-ui/
 import { SessionThread } from "./session-thread-lazy";
 import { loadSessionInspector } from "./session-window-module-loader";
 import { SessionPullRequestExitSurface } from "./session-pull-request-exit-surface";
-import { SessionLinkDialogHost } from "@/systems/session/components/session-linked-work/session-link-dialog-host";
 import { SessionWindowRowDialogs } from "./session-window-row-dialogs";
 import { useForkDeadSession } from "./use-fork-dead-session";
 import { useSessionWindowController } from "./use-session-window-controller";
@@ -31,6 +30,7 @@ import {
   SessionPromptRuntimeSelector,
   SessionClearContext,
   SessionDeriveHost,
+  SessionLinkDialogHost,
   SessionOriginContext,
   SessionReportSendContext,
   SessionResumeFailure,

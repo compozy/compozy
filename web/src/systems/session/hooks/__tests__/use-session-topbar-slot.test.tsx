@@ -8,14 +8,16 @@
 // Boundary IN: useSessionTopbarSlot and the real Topbar slot consumer.
 // Boundary OUT: daemon mutations and window manager behavior.
 
-import { fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar } from "@/test/render-with-topbar";
 import type { SessionPayload } from "../../types";
 
 import { primarySessionFixture } from "../../mocks/fixtures";
+import { SESSION_LINK_SETS } from "../../mocks/session-links-fixtures";
+import { leadLink, moreLabel, type SessionLinkedWorkItem } from "../../lib/session-linked-work";
 import { withSessionProcessSummary } from "../../mocks/process-fixtures";
 import { SessionWindowPresentationContext } from "../../contexts/session-window-presentation-context";
 import type { SessionLinkedWorkModel } from "../use-session-linked-work";
@@ -541,5 +543,139 @@ describe("useSessionTopbarSlot", () => {
 
     view.rerender(publisher(transport({})));
     expect(screen.queryByTestId("session-transport-chip")).not.toBeInTheDocument();
+  });
+
+  // Invariant: the header names the most urgent item and keeps the whole list one step away, at
+  // every width; only the session's own direct links can be unlinked from it.
+  // Owner: session document head; canonical suite: use-session-topbar-slot.
+  describe("linked work", () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    const model = (
+      items: readonly SessionLinkedWorkItem[],
+      overrides: Partial<SessionLinkedWorkModel> = {}
+    ): SessionLinkedWorkModel => ({
+      ...NO_LINKED_WORK,
+      items,
+      lead: leadLink(items),
+      more: moreLabel(items),
+      ...overrides,
+    });
+
+    const renderLinks = (linkedWork: SessionLinkedWorkModel, session?: SessionPayload) =>
+      renderWithTopbar(
+        <SessionPublisher linkedWork={linkedWork} onStop={vi.fn()} session={session} />
+      );
+
+    it("Should lead with the urgent item and open the list from +N PRs", async () => {
+      renderLinks(model(SESSION_LINK_SETS.mixed));
+      expect(screen.getByTestId("session-pull-request-chip")).toHaveTextContent("#951");
+      fireEvent.click(screen.getByTestId("session-links-more"));
+      const list = await screen.findByRole("dialog");
+      expect(list).toHaveTextContent("Linked work");
+      expect(list).toHaveTextContent("This session runs in compozy. Linking never moves it.");
+      expect(list.querySelectorAll('[data-slot="session-link-row"]')).toHaveLength(4);
+    });
+
+    it("Should say +N more when the rest are not all pull requests", () => {
+      renderLinks(model(SESSION_LINK_SETS.addedBy));
+      expect(screen.getByTestId("session-links-more")).toHaveTextContent("+3 more");
+    });
+
+    it("Should put the link actions in the chip menu of a single item", async () => {
+      const unlink = vi.fn();
+      renderLinks(model(SESSION_LINK_SETS.onePr, { unlink }));
+      expect(screen.queryByTestId("session-links-more")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("session-pull-request-chip"));
+      const menu = await screen.findByTestId("session-pull-request-menu");
+      expect(within(menu).getByText("Link another…")).toBeInTheDocument();
+      fireEvent.click(within(menu).getByText("Unlink from this session"));
+      expect(unlink).toHaveBeenCalledWith(SESSION_LINK_SETS.onePr[0]);
+    });
+
+    it("Should keep the session's own chip and actions when nothing is linked", async () => {
+      renderLinks(NO_LINKED_WORK, withPullRequest());
+      fireEvent.click(screen.getByTestId("session-pull-request-chip"));
+      const menu = await screen.findByTestId("session-pull-request-menu");
+      expect(within(menu).getByText("Fix failing checks")).toBeInTheDocument();
+      expect(within(menu).queryByText("Unlink from this session")).not.toBeInTheDocument();
+    });
+
+    it("Should not offer the session's delivery actions on another branch's item", async () => {
+      const onRefresh = vi.fn();
+      const refresh = vi.fn();
+      renderWithTopbar(
+        <SessionPublisher
+          linkedWork={model(SESSION_LINK_SETS.onePr, { refresh })}
+          onRefresh={onRefresh}
+          onStop={vi.fn()}
+          session={{ ...withPullRequest(), branch: "feat/somewhere-else" }}
+        />
+      );
+      fireEvent.click(screen.getByTestId("session-pull-request-chip"));
+      const menu = await screen.findByTestId("session-pull-request-menu");
+      fireEvent.click(within(menu).getByText("Refresh"));
+      expect(refresh).toHaveBeenCalledTimes(1);
+      expect(onRefresh).not.toHaveBeenCalled();
+    });
+
+    it("Should leave Unlink off a rolled-up row, whose target is the child session", async () => {
+      renderLinks(model(SESSION_LINK_SETS.rolledUp));
+      fireEvent.click(screen.getByTestId("session-links-more"));
+      const list = await screen.findByRole("dialog");
+      expect(list).toHaveTextContent("From Login redirect fix");
+      fireEvent.click(
+        within(list).getByRole("button", { name: "Actions for Fix the login redirect loop" })
+      );
+      const menu = await screen.findByTestId("session-pull-request-menu");
+      expect(within(menu).getByText("Open PR")).toBeInTheDocument();
+      expect(within(menu).queryByText("Unlink from this session")).not.toBeInTheDocument();
+      expect(within(menu).queryByText("Fix failing checks")).not.toBeInTheDocument();
+    });
+
+    it("Should unlink a direct row from its menu", async () => {
+      const unlink = vi.fn();
+      renderLinks(model(SESSION_LINK_SETS.mixed, { unlink }));
+      fireEvent.click(screen.getByTestId("session-links-more"));
+      const list = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(list).getByRole("button", { name: "Actions for Drop the old session cache" })
+      );
+      const menu = await screen.findByTestId("session-pull-request-menu");
+      fireEvent.click(within(menu).getByText("Unlink from this session"));
+      expect(unlink.mock.calls[0]?.[0]).toMatchObject({ pr_number: 939 });
+    });
+
+    it("Should keep the list reachable from the actions once the head clips the status", async () => {
+      let report: IntersectionObserverCallback = () => undefined;
+      vi.stubGlobal(
+        "IntersectionObserver",
+        class {
+          constructor(callback: IntersectionObserverCallback) {
+            report = callback;
+          }
+          observe() {}
+          disconnect() {}
+        }
+      );
+      const items = SESSION_LINK_SETS.mixed;
+      const setClipped = vi.fn();
+      const view = renderLinks(model(items, { setClipped }));
+      expect(screen.queryByTestId("session-links-narrow")).not.toBeInTheDocument();
+      act(() =>
+        report(
+          [{ intersectionRatio: 0.4 } as IntersectionObserverEntry],
+          {} as IntersectionObserver
+        )
+      );
+      expect(setClipped).toHaveBeenCalledWith(true);
+      view.rerender(
+        <SessionPublisher linkedWork={model(items, { clipped: true })} onStop={vi.fn()} />
+      );
+      const entry = screen.getByRole("button", { name: "4 linked to this session" });
+      expect(entry.closest('[data-slot="topbar-actions"]')).not.toBeNull();
+      fireEvent.click(entry);
+      expect(await screen.findByRole("dialog")).toHaveTextContent("Linked work");
+    });
   });
 });

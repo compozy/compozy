@@ -31,7 +31,7 @@ import {
   windowSlotRegistryVersion,
   windowSlotSnapshot,
 } from "../lib/window-slot-registry";
-import { composePaletteSessionPage } from "../lib/palette-session-filters";
+import { composePaletteSessionPage, keepServerSessions } from "../lib/palette-session-filters";
 import { applyPaletteWorktreeSelection } from "../lib/os-palette-worktree-selection";
 import { useDesktop } from "./use-desktop";
 import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
@@ -143,24 +143,6 @@ function rankEntityRows<T>(
   };
 }
 
-/**
- * The server searched facts the ranker can't see, such as a linked PR number or branch. Ranking
- * orders the rows it can read; every other row the server returned follows it, never dropped.
- */
-function keepServerSessions(
-  ranked: { rows: readonly OsPaletteSessionResult[]; total: number },
-  rows: readonly OsPaletteSessionResult[],
-  signals: CmdPaletteRankSignals | null
-): { rows: readonly OsPaletteSessionResult[]; total: number } {
-  if (signals === null) return ranked;
-  const seen = new Set(ranked.rows.map(row => row.sessionId));
-  const rest = rows.filter(row => !seen.has(row.sessionId));
-  return {
-    rows: [...ranked.rows, ...rest].slice(0, signals.weights.entity_section_visible_cap),
-    total: ranked.total + rest.length,
-  };
-}
-
 const LINK_COMMAND_LABEL = "Link a pull request or branch";
 
 /** The session the focused window shows, for commands that act on it. */
@@ -244,7 +226,7 @@ export function useOsPaletteEntities({
     destination
   );
   const rankedSessions = sessionSearchRan
-    ? keepServerSessions(rankedRows, sessionRows, signals)
+    ? keepServerSessions(rankedRows, sessionRows, signals?.weights.entity_section_visible_cap)
     : rankedRows;
   const linkCommand = rankEntityRows(
     !destination && focusedSession ? [focusedSession] : [],

@@ -1,6 +1,5 @@
 import { useSessionClearDialog } from "@/hooks/routes/use-session-clear-dialog";
 import { useSessionPageControls } from "@/hooks/routes/use-session-page-controls";
-import { useSessionLinkedWork } from "@/systems/session/hooks/use-session-linked-work";
 import { shallowEqual } from "@xstate/store";
 import { useSelector } from "@xstate/store-react";
 
@@ -16,6 +15,7 @@ import {
   useSessionCommands,
   useSessionGoalHeader,
   useSessionInspectorState,
+  useSessionLinkedWork,
   useSessionPromptRuntimeContext,
   sessionSuccessorId,
   useSessionTopbarSlot,

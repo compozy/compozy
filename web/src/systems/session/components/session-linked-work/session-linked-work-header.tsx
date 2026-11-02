@@ -100,14 +100,16 @@ function ChipLinkActions({
   runsIn,
   actions,
   worktreeAction,
-}: Pick<SessionLinkedWorkStatusProps, "lead" | "runsIn" | "actions" | "worktreeAction">) {
-  const openWorktree = lead ? worktreeAction?.(lead) : undefined;
+}: Pick<SessionLinkedWorkStatusProps, "runsIn" | "actions" | "worktreeAction"> & {
+  lead: SessionLinkedWorkItem;
+}) {
+  const openWorktree = worktreeAction?.(lead);
   return (
     <>
       <DropdownMenuLabel className="tracking-normal normal-case">
         This session runs in {runsIn.name}
       </DropdownMenuLabel>
-      {lead?.worktree_name && openWorktree ? (
+      {lead.worktree_name && openWorktree ? (
         <DropdownMenuItem onClick={openWorktree}>
           <Icon as={FolderGit2} size="sm" />
           Worktree {lead.worktree_name}
@@ -117,12 +119,12 @@ function ChipLinkActions({
         <Icon as={Link2} size="sm" />
         Link another…
       </DropdownMenuItem>
-      {lead && !isRolledUp(lead) ? (
+      {isRolledUp(lead) ? null : (
         <DropdownMenuItem onClick={() => actions.onUnlink(lead)}>
           <Icon as={Unlink} size="sm" />
           Unlink from this session
         </DropdownMenuItem>
-      ) : null}
+      )}
     </>
   );
 }
@@ -140,14 +142,14 @@ export function SessionLinkedWorkStatus(props: SessionLinkedWorkStatusProps) {
         defaultMenuOpen={props.chipMenuOpen}
         facts={lead ? linkFacts(lead) : ownFacts}
         menuFooter={
-          more ? undefined : (
+          lead && !more ? (
             <ChipLinkActions
               actions={actions}
               lead={lead}
               runsIn={props.runsIn}
               worktreeAction={props.worktreeAction}
             />
-          )
+          ) : undefined
         }
         onPrompt={actions.onPrompt ? (_kind, text) => actions.onPrompt?.(text) : undefined}
       />
