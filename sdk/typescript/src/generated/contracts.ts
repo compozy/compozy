@@ -1822,8 +1822,24 @@ export interface ForgeChecks {
   failed_names: string[];
 }
 
+export interface ForgeReview {
+  id: string;
+  author?: string;
+  is_bot?: boolean;
+  state: string;
+  submitted_at?: ISODateTime;
+  commit?: string;
+}
+
+export interface ForgeReviews {
+  items: ForgeReview[];
+  unresolved_threads: number;
+  truncated?: boolean;
+}
+
 export interface ForgeStatusResponse {
   checks?: ForgeChecks;
+  reviews?: ForgeReviews;
   review_decision?: string;
   mergeable?: string;
   updated_at?: ISODateTime;

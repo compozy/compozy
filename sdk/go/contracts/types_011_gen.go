@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+type InitializeRuntime struct {
+	HealthCheckIntervalMS int64 `json:"health_check_interval_ms"`
+	HealthCheckTimeoutMS  int64 `json:"health_check_timeout_ms"`
+	ShutdownTimeoutMS     int64 `json:"shutdown_timeout_ms"`
+	DefaultHookTimeoutMS  int64 `json:"default_hook_timeout_ms"`
+	DefaultViewTimeoutMS  int64 `json:"default_view_timeout_ms,omitempty"`
+}
+
+type InitializeSupports struct {
+	HealthCheck bool `json:"health_check"`
+}
+
 type InputAttachmentMetadata struct {
 	ID    string `json:"id"`
 	Name  string `json:"name"`
@@ -353,17 +365,4 @@ type LoopNodeTerminalPayload struct {
 	Target          string          `json:"target,omitempty"`
 	Error           string          `json:"error,omitempty"`
 	Details         json.RawMessage `json:"details,omitempty"`
-}
-
-type LoopObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type LoopProvenance struct {
-	RunID      string             `json:"run_id"`
-	LoopName   string             `json:"loop_name,omitempty"`
-	Role       LoopProvenanceRole `json:"role"`
-	Generation *int               `json:"generation,omitempty"`
-	NodeID     string             `json:"node_id,omitempty"`
-	ItemIndex  *int               `json:"item_index,omitempty"`
 }

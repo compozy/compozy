@@ -7,6 +7,42 @@ import (
 	"time"
 )
 
+type ModelSourceRow struct {
+	SourceID               string                        `json:"source_id"`
+	ProviderID             string                        `json:"provider_id"`
+	ModelID                string                        `json:"model_id"`
+	DisplayName            string                        `json:"display_name,omitempty"`
+	Priority               int                           `json:"priority,omitempty"`
+	Available              *bool                         `json:"available,omitempty"`
+	Stale                  bool                          `json:"stale,omitempty"`
+	RefreshedAt            time.Time                     `json:"refreshed_at"`
+	ExpiresAt              time.Time                     `json:"expires_at"`
+	ContextWindow          *int64                        `json:"context_window,omitempty"`
+	MaxInputTokens         *int64                        `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens        *int64                        `json:"max_output_tokens,omitempty"`
+	SupportsTools          *bool                         `json:"supports_tools,omitempty"`
+	SupportsReasoning      *bool                         `json:"supports_reasoning,omitempty"`
+	ReasoningEfforts       []Effort                      `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort *Effort                       `json:"default_reasoning_effort,omitempty"`
+	ConfigOptions          []ModelSourceOptionDescriptor `json:"config_options,omitempty"`
+	TransportBindings      []ModelSourceTransportBinding `json:"transport_bindings,omitempty"`
+	Cost                   *ModelCatalogCostPayload      `json:"cost,omitempty"`
+	Deprecated             *bool                         `json:"deprecated,omitempty"`
+	Hidden                 *bool                         `json:"hidden,omitempty"`
+	Featured               *bool                         `json:"featured,omitempty"`
+	ReleaseDate            *string                       `json:"release_date,omitempty"`
+	LastError              string                        `json:"last_error,omitempty"`
+}
+
+type ModelSourceTransportBinding struct {
+	TransportModelID string                       `json:"transport_model_id"`
+	Label            string                       `json:"label,omitempty"`
+	ReasoningEffort  *Effort                      `json:"reasoning_effort,omitempty"`
+	Fast             *bool                        `json:"fast,omitempty"`
+	Thinking         *bool                        `json:"thinking,omitempty"`
+	OptionSelections []ModelSourceOptionSelection `json:"option_selections,omitempty"`
+}
+
 type ModelsListParams struct {
 	ProviderID   string `json:"provider_id,omitempty"`
 	SourceID     string `json:"source_id,omitempty"`
@@ -222,19 +258,4 @@ type PermissionResolvedPayload struct {
 	DecisionClass  string             `json:"decision_class,omitempty"`
 	ToolInput      json.RawMessage    `json:"tool_input,omitempty"`
 	ToolCall       PermissionToolCall `json:"tool_call"`
-}
-
-type PermissionSet struct {
-	Tools          []string `json:"tools,omitempty"`
-	Skills         []string `json:"skills,omitempty"`
-	MCPServers     []string `json:"mcp_servers,omitempty"`
-	WorkspacePaths []string `json:"workspace_paths,omitempty"`
-}
-
-type PermissionToolCall struct {
-	ID        string         `json:"id,omitempty"`
-	Kind      string         `json:"kind,omitempty"`
-	Title     string         `json:"title,omitempty"`
-	Status    string         `json:"status,omitempty"`
-	Locations []ToolLocation `json:"locations,omitempty"`
 }

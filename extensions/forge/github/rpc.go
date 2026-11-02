@@ -89,5 +89,14 @@ func forgeStatusSDKResponse(response extensioncontract.ForgeStatusResponse) comp
 	if response.Checks != nil {
 		result.Checks = (*compozysdk.ForgeChecks)(response.Checks)
 	}
+	if response.Reviews != nil {
+		items := make([]compozysdk.ForgeReview, 0, len(response.Reviews.Items))
+		for i := range response.Reviews.Items {
+			items = append(items, compozysdk.ForgeReview(response.Reviews.Items[i]))
+		}
+		result.Reviews = &compozysdk.ForgeReviews{
+			Items: items, UnresolvedThreads: response.Reviews.UnresolvedThreads, Truncated: response.Reviews.Truncated,
+		}
+	}
 	return result
 }

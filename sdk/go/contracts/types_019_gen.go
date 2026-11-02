@@ -4,6 +4,13 @@ package contracts
 
 import "time"
 
+type SkillActivationPayload struct {
+	Active  bool                           `json:"active"`
+	Reasons []SkillActivationReasonPayload `json:"reasons,omitempty"`
+}
+
+type SkillActivationReasonCode string
+
 type SkillActivationReasonPayload struct {
 	Gate    string                    `json:"gate"`
 	Code    SkillActivationReasonCode `json:"code"`
@@ -271,14 +278,4 @@ type StuckTaskRun struct {
 	OriginKind OriginKind    `json:"origin_kind"`
 	SessionID  string        `json:"session_id,omitempty"`
 	AgeMillis  int64         `json:"age_ms"`
-}
-
-type SubagentObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type SubagentPullRequestPayload struct {
-	URL    string `json:"url"`
-	Number int    `json:"number"`
-	State  string `json:"state"`
 }

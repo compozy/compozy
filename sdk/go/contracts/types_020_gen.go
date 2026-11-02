@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type SubagentObservationPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
+type SubagentPullRequestPayload struct {
+	URL    string `json:"url"`
+	Number int    `json:"number"`
+	State  string `json:"state"`
+}
+
 type SubagentRuntimePayload struct {
 	Provider string `json:"provider"`
 	Model    string `json:"model"`
@@ -307,21 +317,4 @@ type TaskDashboardFreshnessPayload struct {
 	HasLiveWork      bool      `json:"has_live_work"`
 	Status           string    `json:"status"`
 	Stale            bool      `json:"stale"`
-}
-
-type TaskDashboardHealthPayload struct {
-	Status           string `json:"status"`
-	StuckRuns        int    `json:"stuck_runs"`
-	ActiveOrphanRuns int    `json:"active_orphan_runs"`
-	QueueBacklog     bool   `json:"queue_backlog"`
-}
-
-type TaskDashboardInProgressCardPayload struct {
-	Tasks        int    `json:"tasks"`
-	ActiveRuns   int    `json:"active_runs"`
-	RunningRuns  int    `json:"running_runs"`
-	StartingRuns int    `json:"starting_runs"`
-	ClaimedRuns  int    `json:"claimed_runs"`
-	QueuedRuns   int    `json:"queued_runs"`
-	HealthStatus string `json:"health_status"`
 }

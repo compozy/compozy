@@ -4,6 +4,21 @@ package contracts
 
 import "time"
 
+type PermissionSet struct {
+	Tools          []string `json:"tools,omitempty"`
+	Skills         []string `json:"skills,omitempty"`
+	MCPServers     []string `json:"mcp_servers,omitempty"`
+	WorkspacePaths []string `json:"workspace_paths,omitempty"`
+}
+
+type PermissionToolCall struct {
+	ID        string         `json:"id,omitempty"`
+	Kind      string         `json:"kind,omitempty"`
+	Title     string         `json:"title,omitempty"`
+	Status    string         `json:"status,omitempty"`
+	Locations []ToolLocation `json:"locations,omitempty"`
+}
+
 type PersistenceHealth struct {
 	Status             string `json:"status"`
 	GlobalDBSizeBytes  int64  `json:"global_db_size_bytes"`
@@ -150,7 +165,3 @@ type Resolution struct {
 }
 
 type ResolutionReason string
-
-type ResolutionStatus string
-
-type ResolvedWorktreeMode string

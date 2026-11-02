@@ -72,6 +72,7 @@ func (p daemonExtensionForgeProvider) Status(
 	}
 	return &worktree.ForgeStatus{
 		Checks:         checks,
+		Reviews:        forgeReviews(response.Reviews),
 		ReviewDecision: response.ReviewDecision,
 		Mergeable:      response.Mergeable,
 		UpdatedAt:      response.UpdatedAt,
@@ -88,6 +89,23 @@ func (p daemonExtensionForgeProvider) Status(
 		Draft:          response.Draft,
 		FetchedAt:      &response.FetchedAt,
 	}, nil
+}
+
+func forgeReviews(reviews *extensioncontract.ForgeReviews) *worktree.ForgeReviews {
+	if reviews == nil {
+		return nil
+	}
+	items := make([]worktree.ForgeReview, 0, len(reviews.Items))
+	for i := range reviews.Items {
+		item := &reviews.Items[i]
+		items = append(items, worktree.ForgeReview{
+			ID: item.ID, Author: item.Author, IsBot: item.IsBot, State: item.State,
+			SubmittedAt: item.SubmittedAt, Commit: item.Commit,
+		})
+	}
+	return &worktree.ForgeReviews{
+		Items: items, UnresolvedThreads: reviews.UnresolvedThreads, Truncated: reviews.Truncated,
+	}
 }
 
 func (p daemonExtensionForgeProvider) CreatePR(

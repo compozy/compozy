@@ -32,8 +32,28 @@ func validateForgeStatusFacts(value extensioncontract.ForgeStatusResponse) error
 		if !slices.Contains([]string{"passing", "failing", "pending", forgeFactNone, forgeFactUnknown}, checks.State) {
 			return errors.New("invalid checks state")
 		}
-		if checks.Passed < 0 || checks.Failed < 0 || checks.Pending < 0 || len(checks.FailedNames) > 5 {
+		if checks.Passed < 0 || checks.Failed < 0 || checks.Pending < 0 ||
+			len(checks.FailedNames) > extensioncontract.MaxForgeFailedNames {
 			return errors.New("invalid check counts or failed names")
+		}
+	}
+	return validateForgeReviews(value.Reviews)
+}
+
+func validateForgeReviews(reviews *extensioncontract.ForgeReviews) error {
+	if reviews == nil {
+		return nil
+	}
+	if reviews.UnresolvedThreads < 0 || len(reviews.Items) > extensioncontract.MaxForgeReviews {
+		return errors.New("invalid review counts")
+	}
+	states := []string{
+		extensioncontract.ForgeReviewApproved, extensioncontract.ForgeReviewChangesRequested,
+		extensioncontract.ForgeReviewCommented, extensioncontract.ForgeReviewDismissed,
+	}
+	for i := range reviews.Items {
+		if reviews.Items[i].ID == "" || !slices.Contains(states, reviews.Items[i].State) {
+			return errors.New("invalid review id or state")
 		}
 	}
 	return nil

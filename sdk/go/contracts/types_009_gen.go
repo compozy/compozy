@@ -4,6 +4,15 @@ package contracts
 
 import "time"
 
+type GridBody struct {
+	Sections []GridSection `json:"sections"`
+}
+
+type GridSection struct {
+	Title string     `json:"title,omitempty"`
+	Tiles []GridTile `json:"tiles"`
+}
+
 type GridTile struct {
 	ID       string            `json:"id"`
 	Title    string            `json:"title"`
@@ -190,21 +199,4 @@ type HeartbeatTimeWindowPayload struct {
 	Timezone string `json:"timezone"`
 	Start    string `json:"start"`
 	End      string `json:"end"`
-}
-
-type HeartbeatValidateRequest struct {
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	AgentName   string `json:"agent_name,omitempty"`
-	Body        string `json:"body"`
-}
-
-type HeartbeatWakeDecisionPayload struct {
-	WakeEventID       string                             `json:"wake_event_id,omitempty"`
-	Result            HeartbeatWakeResult                `json:"result"`
-	Reason            HeartbeatWakeReason                `json:"reason"`
-	PolicySnapshotID  string                             `json:"policy_snapshot_id,omitempty"`
-	PolicyDigest      string                             `json:"policy_digest,omitempty"`
-	ConfigDigest      string                             `json:"config_digest,omitempty"`
-	SyntheticPromptID string                             `json:"synthetic_prompt_id,omitempty"`
-	Diagnostics       []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
 }

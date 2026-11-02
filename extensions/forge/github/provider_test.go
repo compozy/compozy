@@ -618,6 +618,35 @@ func TestProvider(t *testing.T) {
 	})
 }
 
+const emptyGraphChecks = `{"data":{"repository":{"object":{"oid":"head-a"}}}}`
+
+func graphTopicRequest() extensioncontract.ForgeStatusRequest {
+	return extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"}
+}
+
+// graphServer answers the open pull request selection itself and every other query through respond.
+func graphServer(t *testing.T, respond func(string, map[string]any) string) (*Provider, func()) {
+	t.Helper()
+	return testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		var input struct {
+			Query     string
+			Variables map[string]any
+		}
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			t.Error(err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		body := `{"data":{"repository":{"pullRequests":{"nodes":[{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`
+		if !strings.Contains(input.Query, "$branch") {
+			body = respond(input.Query, input.Variables)
+		}
+		if _, err := w.Write([]byte(body)); err != nil {
+			t.Error(err)
+		}
+	})
+}
+
 // Invariant: canonical selection uses origin identity and immutable-head aggregate facts.
 // Owner: GitHub provider; canonical httptest provider suite.
 func TestProviderGraphQL(t *testing.T) {
@@ -664,8 +693,165 @@ func TestProviderGraphQL(t *testing.T) {
 			got.Checks.Failed != 1 ||
 			got.Checks.Pending != 1 ||
 			got.ReviewDecision != "approved" ||
-			calls.Load() != 2 {
+			calls.Load() != 3 {
 			t.Fatalf("observation=%#v %v calls=%d", got, err, calls.Load())
+		}
+	})
+	t.Run("Should page contexts until every failure on a long PR is named", func(t *testing.T) {
+		t.Parallel()
+		var checkCalls atomic.Int32
+		provider, closeServer := graphServer(t, func(query string, variables map[string]any) string {
+			if !strings.Contains(query, "$oid") {
+				return `{"data":{"repository":{"pullRequest":{}}}}`
+			}
+			checkCalls.Add(1)
+			page, next := `[{"name":"early","conclusion":"FAILURE"}]`, `true,"endCursor":"more"`
+			if variables["after"] != nil {
+				page, next = `[{"name":"late","conclusion":"TIMED_OUT"},{"context":"status","state":"FAILURE"}]`, `false`
+			}
+			return `{"data":{"repository":{"object":{"oid":"head-a","statusCheckRollup":{"contexts":{"totalCount":249,` +
+				`"checkRunCountsByState":[{"state":"SUCCESS","count":246},{"state":"FAILURE","count":2}],` +
+				`"statusContextCountsByState":[{"state":"FAILURE","count":1}],"nodes":` + page +
+				`,"pageInfo":{"hasNextPage":` + next + `}}}}}}}`
+		})
+		defer closeServer()
+		got, err := provider.Status(t.Context(), graphTopicRequest())
+		if err != nil || got.Checks == nil ||
+			!slices.Equal(got.Checks.FailedNames, []string{"early", "late", "status"}) ||
+			checkCalls.Load() != 2 {
+			t.Fatalf("checks = %+v err = %v calls = %d", got.Checks, err, checkCalls.Load())
+		}
+	})
+	t.Run("Should stop paging once its failures are named", func(t *testing.T) {
+		t.Parallel()
+		var checkCalls atomic.Int32
+		provider, closeServer := graphServer(t, func(query string, _ map[string]any) string {
+			if !strings.Contains(query, "$oid") {
+				return `{"data":{"repository":{"pullRequest":{}}}}`
+			}
+			checkCalls.Add(1)
+			return `{"data":{"repository":{"object":{"oid":"head-a","statusCheckRollup":{"contexts":{"totalCount":201,` +
+				`"checkRunCountsByState":[{"state":"SUCCESS","count":200},{"state":"FAILURE","count":1}],` +
+				`"statusContextCountsByState":[],"nodes":[{"name":"lint","conclusion":"FAILURE"}],` +
+				`"pageInfo":{"hasNextPage":true,"endCursor":"more"}}}}}}}`
+		})
+		defer closeServer()
+		got, err := provider.Status(t.Context(), graphTopicRequest())
+		if err != nil || got.Checks == nil || checkCalls.Load() != 1 {
+			t.Fatalf("checks = %+v err = %v calls = %d", got.Checks, err, checkCalls.Load())
+		}
+	})
+	t.Run("Should map submitted reviews and unresolved threads", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := graphServer(t, func(query string, variables map[string]any) string {
+			if strings.Contains(query, "$oid") {
+				return emptyGraphChecks
+			}
+			if variables["number"] != float64(2) {
+				t.Errorf("number = %v", variables["number"])
+			}
+			threads := `{"nodes":[{"isResolved":true},{"isResolved":false}],"pageInfo":{"hasNextPage":true,"endCursor":"p2"}}`
+			if variables["after"] != nil {
+				threads = `{"nodes":[{"isResolved":false}],"pageInfo":{"hasNextPage":false}}`
+			}
+			return `{"data":{"repository":{"pullRequest":{"reviews":{"nodes":[` +
+				`{"id":"r1","state":"CHANGES_REQUESTED","submittedAt":"2026-11-02T17:09:56Z","author":{"__typename":"Bot","login":"reviewer[bot]"},"commit":{"oid":"head-a"}},` +
+				`{"id":"r2","state":"COMMENTED","submittedAt":"2026-11-02T17:10:00Z","author":{"__typename":"User","login":"someone"},"commit":{"oid":"head-old"}},` +
+				`{"id":"r3","state":"APPROVED","submittedAt":"2026-11-02T17:11:00Z","author":null,"commit":null},` +
+				`{"id":"r4","state":"PENDING","author":{"__typename":"User","login":"viewer"}}` +
+				`],"pageInfo":{"hasPreviousPage":false}},"reviewThreads":` + threads + `}}}}`
+		})
+		defer closeServer()
+		got, err := provider.Status(t.Context(), graphTopicRequest())
+		if err != nil || got.Reviews == nil || got.Reviews.UnresolvedThreads != 2 || got.Reviews.Truncated ||
+			len(got.Reviews.Items) != 3 {
+			t.Fatalf("reviews = %+v err = %v", got.Reviews, err)
+		}
+		first := got.Reviews.Items[0]
+		if first.ID != "r1" || first.State != extensioncontract.ForgeReviewChangesRequested || !first.IsBot ||
+			first.Author != "reviewer[bot]" || first.Commit != "head-a" || first.SubmittedAt == nil {
+			t.Fatalf("first review = %+v", first)
+		}
+		if ghost := got.Reviews.Items[2]; ghost.Author != "" || ghost.IsBot || ghost.Commit != "" {
+			t.Fatalf("authorless review = %+v", ghost)
+		}
+		sdk := forgeStatusSDKResponse(got)
+		if sdk.Reviews == nil || sdk.Reviews.UnresolvedThreads != 2 || len(sdk.Reviews.Items) != 3 ||
+			sdk.Reviews.Items[0].ID != "r1" {
+			t.Fatalf("SDK reviews = %+v", sdk.Reviews)
+		}
+	})
+	t.Run("Should flag reviews it could not read whole", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := graphServer(t, func(query string, _ map[string]any) string {
+			if strings.Contains(query, "$oid") {
+				return emptyGraphChecks
+			}
+			return `{"data":{"repository":{"pullRequest":{"reviews":{"nodes":[],"pageInfo":{"hasPreviousPage":false}},` +
+				`"reviewThreads":{"nodes":[{"isResolved":false}],"pageInfo":{"hasNextPage":true,"endCursor":"more"}}}}}}`
+		})
+		defer closeServer()
+		got, err := provider.Status(t.Context(), graphTopicRequest())
+		if err != nil || got.Reviews == nil || !got.Reviews.Truncated ||
+			got.Reviews.UnresolvedThreads != maxReviewThreadPages {
+			t.Fatalf("reviews = %+v err = %v", got.Reviews, err)
+		}
+	})
+	t.Run("Should keep serving checks when review activity cannot be read", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := graphServer(t, func(query string, _ map[string]any) string {
+			if strings.Contains(query, "$oid") {
+				return emptyGraphChecks
+			}
+			return `{"errors":[{"type":"FORBIDDEN"}]}`
+		})
+		defer closeServer()
+		got, err := provider.Status(t.Context(), graphTopicRequest())
+		if err != nil || got.Cause != "" || got.Checks == nil || got.Reviews != nil {
+			t.Fatalf("status = %+v err = %v", got, err)
+		}
+		if forgeStatusSDKResponse(got).Reviews != nil {
+			t.Fatal("absent reviews became observable through the SDK")
+		}
+	})
+	t.Run("Should let a rate limit on reviews apply to the whole read", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := graphServer(t, func(query string, _ map[string]any) string {
+			if strings.Contains(query, "$oid") {
+				return emptyGraphChecks
+			}
+			return `{"errors":[{"type":"RATE_LIMITED"}]}`
+		})
+		defer closeServer()
+		got, err := provider.Status(t.Context(), graphTopicRequest())
+		if err != nil || got.Cause != extensioncontract.ForgeCauseRateLimited {
+			t.Fatalf("status = %+v err = %v", got, err)
+		}
+	})
+	t.Run("Should not read reviews of a pull request that ended", func(t *testing.T) {
+		t.Parallel()
+		var reviewCalls atomic.Int32
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			var input struct{ Query string }
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				t.Error(err)
+				return
+			}
+			body := `{"data":{"repository":{"pullRequests":{"nodes":[{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"MERGED","merged":true,"headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`
+			switch {
+			case strings.Contains(input.Query, "$oid"):
+				body = emptyGraphChecks
+			case strings.Contains(input.Query, "$number"):
+				reviewCalls.Add(1)
+			}
+			if _, err := w.Write([]byte(body)); err != nil {
+				t.Error(err)
+			}
+		})
+		defer closeServer()
+		got, err := provider.Status(t.Context(), graphTopicRequest())
+		if err != nil || got.PRState == nil || *got.PRState != "merged" || reviewCalls.Load() != 0 {
+			t.Fatalf("status = %+v err = %v review calls = %d", got, err, reviewCalls.Load())
 		}
 	})
 	t.Run("Should bound candidate pages without confirming an incomplete population", func(t *testing.T) {

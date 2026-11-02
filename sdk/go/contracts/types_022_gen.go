@@ -7,6 +7,32 @@ import (
 	"time"
 )
 
+type TaskNeedsAttentionPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
+	TaskID         string    `json:"task_id,omitempty"`
+	ParentTaskID   string    `json:"parent_task_id,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	WorkflowID     string    `json:"workflow_id,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	ActorKind      string    `json:"actor_kind,omitempty"`
+	ActorID        string    `json:"actor_id,omitempty"`
+	OriginKind     string    `json:"origin_kind,omitempty"`
+	OriginRef      string    `json:"origin_ref,omitempty"`
+	TaskStatus     string    `json:"task_status,omitempty"`
+	RunID          string    `json:"run_id,omitempty"`
+	ReleaseReason  string    `json:"release_reason,omitempty"`
+	ClaimTokenHash string    `json:"claim_token_hash,omitempty"`
+	Reason         string    `json:"reason,omitempty"`
+	Note           string    `json:"note,omitempty"`
+	At             time.Time `json:"at,omitzero"`
+}
+
+type TaskObservationPatch struct {
+	Labels map[string]string `json:"labels,omitempty"`
+}
+
 type TaskOwnerTotal struct {
 	OwnerKind OwnerKind `json:"owner_kind"`
 	OwnerRef  string    `json:"owner_ref"`
@@ -401,22 +427,4 @@ type TaskRunLeaseRecoveredPayload struct {
 	PreviousSessionID string    `json:"previous_session_id,omitempty"`
 	RecoveryAction    string    `json:"recovery_action,omitempty"`
 	RecoveryReason    string    `json:"recovery_reason,omitempty"`
-}
-
-type TaskRunObservationPatch struct {
-	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type TaskRunOperationalSummaryPayload struct {
-	LastActivityAt time.Time  `json:"last_activity_at"`
-	LastEventType  string     `json:"last_event_type,omitempty"`
-	ToolCallCount  *int64     `json:"tool_call_count,omitempty"`
-	TurnCount      *int64     `json:"turn_count,omitempty"`
-	InputTokens    *int64     `json:"input_tokens,omitempty"`
-	OutputTokens   *int64     `json:"output_tokens,omitempty"`
-	TotalTokens    *int64     `json:"total_tokens,omitempty"`
-	TotalCost      *float64   `json:"total_cost,omitempty"`
-	CostCurrency   *string    `json:"cost_currency,omitempty"`
-	CostStatus     CostStatus `json:"cost_status,omitempty"`
-	CostSource     CostSource `json:"cost_source,omitempty"`
 }

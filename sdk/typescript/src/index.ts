@@ -133,6 +133,8 @@ export type {
   ForgeCapabilitiesResponse,
   ForgePRCreateRequest,
   ForgePRCreateResponse,
+  ForgeReview,
+  ForgeReviews,
   ForgeStatusRequest,
   ForgeStatusResponse,
   ContextBlock,

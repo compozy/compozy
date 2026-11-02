@@ -4,6 +4,30 @@ package contracts
 
 import "time"
 
+type SessionPromptResult struct {
+	Disposition           Disposition       `json:"disposition,omitempty"`
+	SteerDelivery         SteerDeliveryMode `json:"steer_delivery,omitempty"`
+	EntryID               string            `json:"entry_id,omitempty"`
+	Status                string            `json:"status"`
+	Mode                  PromptMode        `json:"mode,omitempty"`
+	Delivery              PromptDelivery    `json:"delivery"`
+	MessageID             string            `json:"message_id"`
+	IdempotencyKey        string            `json:"idempotency_key"`
+	Replayed              bool              `json:"replayed"`
+	TurnID                string            `json:"turn_id,omitempty"`
+	QueueEntryID          string            `json:"queue_entry_id,omitempty"`
+	QueuePosition         int               `json:"queue_position,omitempty"`
+	QueueGeneration       int64             `json:"queue_generation,omitempty"`
+	EstimatedSendAt       *time.Time        `json:"estimated_send_at,omitempty"`
+	PreviousTurnID        string            `json:"previous_turn_id,omitempty"`
+	CanceledQueuedEntries int               `json:"canceled_queued_entries,omitempty"`
+}
+
+type SessionQueueSummaryPayload struct {
+	Entries int `json:"entries"`
+	Cap     int `json:"cap"`
+}
+
 type SessionRuntimeClearParams struct {
 	WorkspaceID      string `json:"workspace_id"`
 	SessionID        string `json:"session_id"`
@@ -234,10 +258,3 @@ type ShutdownRequest struct {
 type ShutdownResponse struct {
 	Acknowledged bool `json:"acknowledged"`
 }
-
-type SkillActivationPayload struct {
-	Active  bool                           `json:"active"`
-	Reasons []SkillActivationReasonPayload `json:"reasons,omitempty"`
-}
-
-type SkillActivationReasonCode string

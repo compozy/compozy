@@ -21,6 +21,12 @@ type ForgeStatusRequest = contracts.ForgeStatusRequest
 type ForgeStatusResponse = contracts.ForgeStatusResponse
 type ForgeChecks = contracts.ForgeChecks
 
+// ForgeReviews is optional review activity: submitted reviews and unresolved threads.
+type ForgeReviews = contracts.ForgeReviews
+
+// ForgeReview is one submitted review, without its body.
+type ForgeReview = contracts.ForgeReview
+
 // ForgePRCreateRequest asks a provider to create or find one pull request.
 type ForgePRCreateRequest = contracts.ForgePRCreateRequest
 

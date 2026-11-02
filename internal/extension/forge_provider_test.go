@@ -52,12 +52,28 @@ func TestManagerForgeProvider(t *testing.T) {
 			{Selection: "partial"},
 			{RetryAfter: new(time.Unix(2, 0))},
 			{Checks: &extensioncontract.ForgeChecks{State: "passing", Passed: -1}},
-			{Checks: &extensioncontract.ForgeChecks{State: "passing", FailedNames: []string{"a", "b", "c", "d", "e", "f"}}},
+			{Checks: &extensioncontract.ForgeChecks{
+				State: "failing", FailedNames: make([]string, extensioncontract.MaxForgeFailedNames+1),
+			}},
+			{Reviews: &extensioncontract.ForgeReviews{UnresolvedThreads: -1}},
+			{Reviews: &extensioncontract.ForgeReviews{Items: []extensioncontract.ForgeReview{{State: "approved"}}}},
+			{Reviews: &extensioncontract.ForgeReviews{Items: []extensioncontract.ForgeReview{{ID: "r", State: "pending"}}}},
+			{Reviews: &extensioncontract.ForgeReviews{Items: make([]extensioncontract.ForgeReview, extensioncontract.MaxForgeReviews+1)}},
 		} {
 			value.Provider, value.FetchedAt = base.Provider, base.FetchedAt
 			if err := validateForgeStatusResponse(value); err == nil {
 				t.Fatalf("accepted invalid facts: %#v", value)
 			}
+		}
+		reviewed := base
+		reviewed.Reviews = &extensioncontract.ForgeReviews{
+			Items: []extensioncontract.ForgeReview{
+				{ID: "r1", State: extensioncontract.ForgeReviewChangesRequested},
+			},
+			UnresolvedThreads: 2,
+		}
+		if err := validateForgeStatusResponse(reviewed); err != nil {
+			t.Fatalf("rejected review activity: %v", err)
 		}
 	})
 

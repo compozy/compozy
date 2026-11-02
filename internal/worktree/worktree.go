@@ -118,8 +118,24 @@ type ForgeChecks struct {
 	FailedNames             []string
 }
 
+// ForgeReview is one submitted review; forge text in it is untrusted.
+type ForgeReview struct {
+	ID, Author, State, Commit string
+	IsBot                     bool
+	SubmittedAt               *time.Time
+}
+
+// ForgeReviews is optional provider review activity; it is never cached, so only a
+// live Refresh carries it.
+type ForgeReviews struct {
+	Items             []ForgeReview
+	UnresolvedThreads int
+	Truncated         bool
+}
+
 type ForgeStatus struct {
 	Checks         *ForgeChecks
+	Reviews        *ForgeReviews
 	ReviewDecision string
 	Mergeable      string
 	UpdatedAt      *time.Time
