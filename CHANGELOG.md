@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.9 - 2026-11-02
+
+### Bug Fixes
+
+- Deliver late hosted MCP tools and bound projection discovery (#1135)
+- Recover cold npm adapter starts before ACP initialization (#1136)
+- Recover superseded extensions and interrupted installs (#1137)
+
+### Features
+
+- Let archive and delete include child sessions (#1131)
+- Add one View options menu with Collapse all and Kanban lane folds (#1133)
+
 ## 0.4.8 - 2026-11-01
 
 ### Bug Fixes
@@ -36,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Group session processes into trees (#1106)
 - Hide child sessions on the Kanban board by default (#1124)
 - Apply runtime selection changes to the live session immediately (#1108)
-- Redirect foreground shell waits to CompozyOS monitors (#1127)
+- Redirect foreground shell waits to Compozy monitors (#1127)
 - Make session monitors durable across daemon restarts and trace their lifecycle (#1129)
 
 ### Refactoring
@@ -1034,6 +1047,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.4.9]: https://github.com/compozy/compozy/compare/v0.4.8...v0.4.9
 [0.4.8]: https://github.com/compozy/compozy/compare/v0.4.7...v0.4.8
 [0.4.7]: https://github.com/compozy/compozy/compare/v0.4.6...v0.4.7
 [0.4.6]: https://github.com/compozy/compozy/compare/v0.4.5...v0.4.6
