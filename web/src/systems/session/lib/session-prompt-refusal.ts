@@ -13,11 +13,12 @@ export function sessionPromptRefusalReason(body: string): string | null {
     const payload: unknown = JSON.parse(trimmed);
     if (typeof payload === "object" && payload !== null && "error" in payload) {
       const reason = payload.error;
-      if (typeof reason === "string" && reason.trim().length > 0) return bounded(reason.trim());
+      if (typeof reason === "string" && reason.trim().length > 0)
+        return readableReason(reason.trim());
     }
     return null;
   } catch {
-    return bounded(trimmed);
+    return readableReason(trimmed);
   }
 }
 
@@ -34,4 +35,11 @@ export function notifySessionPromptNotSent(reason: string | null): void {
 function bounded(reason: string): string {
   if (reason.length <= MAX_REFUSAL_REASON_LENGTH) return reason;
   return `${reason.slice(0, MAX_REFUSAL_REASON_LENGTH - 1)}…`;
+}
+
+function readableReason(reason: string): string {
+  if (reason.includes("open prompt attachment") && reason.includes("attachment not found")) {
+    return "An attachment is no longer available. Send again to upload the retained file";
+  }
+  return bounded(reason);
 }

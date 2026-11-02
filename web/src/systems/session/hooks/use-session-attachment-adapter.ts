@@ -7,7 +7,6 @@ import type {
 import { useState } from "react";
 
 import {
-  deleteSessionAttachment,
   SessionAttachmentApiError,
   uploadSessionAttachment,
 } from "../adapters/session-attachment-api";
@@ -113,7 +112,7 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
       const uploaded = await upload;
       if (this.removedWhileUploading.has(id)) return;
       this.uploads.set(id, uploaded);
-      registerFileAliases(this.uploadedFiles, id, uploaded.id, file);
+      this.uploadedFiles.set(id, file);
       yield {
         ...base,
         contentType: uploaded.mime_type,
@@ -146,37 +145,23 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
     if (attachment.file) releaseComposerDraftFile(attachment.file);
     // Removal transfers the first-message handoff to the edited draft before upload cleanup awaits.
     sessionStore.trigger.firstPromptSent({ sessionId: this.sessionId });
-    if (consumeSubmittedComposerAttachment(attachment)) {
-      const uploaded = this.uploads.get(attachment.id);
-      this.uploads.delete(attachment.id);
-      if (uploaded) this.forgetUploadedFile(uploaded.id);
-      return;
-    }
+    consumeSubmittedComposerAttachment(attachment);
+    this.uploads.delete(attachment.id);
+    this.uploadedFiles.delete(attachment.id);
     const pending = this.inFlightUploads.get(attachment.id);
     if (pending) {
       this.removedWhileUploading.add(attachment.id);
       try {
-        const uploaded = await pending;
-        try {
-          await deleteSessionAttachment(this.workspaceId, this.sessionId, uploaded.id);
-          this.forgetUploadedFile(uploaded.id);
-        } catch (error) {
-          this.uploads.set(attachment.id, uploaded);
-          throw error;
-        }
-      } catch (error) {
-        if (this.uploads.has(attachment.id)) throw error;
-        return;
+        await pending;
+      } catch {
+        // A removed tile must not reappear when its upload fails.
       } finally {
         this.removedWhileUploading.delete(attachment.id);
       }
-      return;
     }
-    const uploaded = this.uploads.get(attachment.id);
-    if (!uploaded) return;
-    await deleteSessionAttachment(this.workspaceId, this.sessionId, uploaded.id);
-    this.uploads.delete(attachment.id);
-    this.forgetUploadedFile(uploaded.id);
+    // IDs are content-addressed within the session, shared by duplicate tiles,
+    // rebuilt runtimes and persisted messages. A tile cannot own DELETE;
+    // daemon retention and session deletion own durable byte cleanup.
   }
 
   public async send(attachment: PendingAttachment): Promise<CompleteAttachment> {
@@ -188,6 +173,7 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
       throw new Error(`Attachment "${attachment.name}" is not ready to send`);
     }
     this.uploads.delete(attachment.id);
+    this.uploadedFiles.delete(attachment.id);
     if (attachment.file) {
       releaseComposerDraftFile(attachment.file);
       registerFileAliases(this.sentFiles, attachment.id, uploaded.id, attachment.file);
@@ -227,11 +213,6 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
       this.forgetFile(file);
     }
     return [...files];
-  }
-
-  private forgetUploadedFile(uploadedID: string): void {
-    const file = this.uploadedFiles.get(uploadedID);
-    if (file) this.forgetFile(file);
   }
 
   private forgetFile(file: File): void {

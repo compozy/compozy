@@ -2115,6 +2115,41 @@ describe("SessionChatRuntimeProvider", () => {
     expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
   });
 
+  // Invariant (#1142): a missing attachment returns the complete draft, re-uploads
+  // its retained file, and renders recovery copy instead of the HTTP JSON envelope.
+  // Owner: chat runtime; canonical suite: this provider integration suite.
+  it("Should recover a missing image with a fresh upload and readable error", async () => {
+    promptResponsePromise = Promise.resolve(
+      jsonResponse(
+        {
+          error: 'session: open prompt attachment "image.png": attachments: attachment not found',
+        },
+        { status: 404 }
+      )
+    );
+    const user = userEvent.setup();
+    renderSessionThread({ includeToaster: true });
+    await screen.findByTestId("composer-input");
+    await setComposerText("Describe this image");
+    await act(async () => {
+      await requireComposerAui().composer.addAttachment(
+        new File(["image bytes"], "image.png", { type: "image/png" })
+      );
+    });
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(composerText()).toBe("Describe this image"));
+    expect(await screen.findByTestId("composer-attachment-tile")).toBeInTheDocument();
+    expect(await screen.findByText(/An attachment is no longer available/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('{"error"');
+    const uploads = fetchMock.mock.calls.filter(([input]) =>
+      getPathname(input).endsWith("/attachments")
+    );
+    expect(uploads).toHaveLength(2);
+    promptResponsePromise = null;
+    await user.click(screen.getByTestId("composer-send-button"));
+    await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(2));
+  });
+
   it("Should name the daemon's reason when it refuses a prompt", async () => {
     promptResponsePromise = Promise.resolve(
       jsonResponse({ error: "session is archived" }, { status: 409 })

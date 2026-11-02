@@ -38,3 +38,18 @@ No dedicated multiple-file drop Playwright test exists in the current `web/e2e/_
 Root's isolated browser walk must still drop at least two supported files, preserve preview order,
 send both refs together, then reload and read each persisted attachment. No new browser pass is
 claimed, and the historical verdict/evidence above remains unchanged until that receipt is added.
+
+QA impact 2026-11-02 (#1142): add the same PNG twice, remove one tile, switch
+sessions and return, then send the remaining image. Removing a tile must not
+DELETE content-addressed bytes shared with another tile or persisted message.
+Repeat removal while upload is in flight. Daemon retention owns abandoned bytes.
+
+Recovery probe: delete the uploaded image through the public attachment API in
+an isolated lab before Send. The refused prompt must keep its text, re-upload the
+retained File, and offer Send again with readable recovery copy (no JSON envelope).
+Retry must persist exactly one user message with the image. Repeat at narrow and
+wide composer widths; no operator runtime/session may be used for this probe.
+
+Focused proof: adapter duplicate/rebuild/removal cases and chat-runtime provider
+missing-image recovery/resend integration pass. A browser/daemon receipt for this
+new probe is required before replacing the historical QA verdict above.

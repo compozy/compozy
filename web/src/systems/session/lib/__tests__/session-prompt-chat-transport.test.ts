@@ -24,6 +24,32 @@ function streamResponse() {
 }
 
 describe("session prompt chat transport", () => {
+  // Invariant: HTTP error envelopes never become raw chat error text.
+  // Owner: prompt transport; canonical suite: this file.
+  it("renders missing attachment recovery copy instead of the JSON envelope", async () => {
+    const transport = createSessionPromptChatTransport({
+      api: "/prompt",
+      fetch: async () =>
+        Response.json(
+          {
+            error: 'session: open prompt attachment "image.png": attachments: attachment not found',
+          },
+          { status: 404 }
+        ),
+    });
+    await expect(
+      transport.sendMessages({
+        abortSignal: undefined,
+        chatId: "session-001",
+        messageId: undefined,
+        messages: [userMessage("missing-image")],
+        trigger: "submit-message",
+      })
+    ).rejects.toThrow(
+      "An attachment is no longer available. Send again to upload the retained file"
+    );
+  });
+
   it("sends the optimistic user id as message_id and retains one idempotency key for retries", async () => {
     const fetch = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
       async () => streamResponse()

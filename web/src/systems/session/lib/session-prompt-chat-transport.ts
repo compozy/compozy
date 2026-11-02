@@ -1,6 +1,8 @@
 import { AssistantChatTransport } from "@assistant-ui/react-ai-sdk";
 import type { UIMessage } from "ai";
 
+import { sessionPromptRefusalReason } from "./session-prompt-refusal";
+
 import { createClientId } from "@/lib/client-id";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
 import { attachmentsFromPromptMessageParts } from "./attachment-kinds";
@@ -50,7 +52,17 @@ export function createSessionPromptChatTransport({
 }: SessionPromptChatTransportOptions): AssistantChatTransport<UIMessage> {
   return new AssistantChatTransport<UIMessage>({
     api,
-    fetch,
+    fetch: async (input, init) => {
+      const response = await fetch(input, init);
+      if (response.ok) return response;
+      // The AI SDK renders non-2xx response text directly as its error message.
+      const reason = sessionPromptRefusalReason(await response.text());
+      return new Response(reason ?? "Couldn't send the message. Your draft was kept.", {
+        status: response.status,
+        statusText: response.statusText,
+        headers: { "content-type": "text/plain" },
+      });
+    },
     prepareSendMessagesRequest: ({ messages }) => {
       const raw = latestUserMessage(messages);
       const message = preparedUserMessages.get(raw.id) ?? prepareUserMessage?.(raw) ?? raw;

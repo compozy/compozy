@@ -50,7 +50,7 @@ describe("SessionAttachmentAdapter upload removal", () => {
     attachmentApiMocks.uploadSessionAttachment.mockReset();
   });
 
-  it("Should delete bytes when removal wins an in-flight upload", async () => {
+  it("Should leave shared bytes to daemon retention when removal wins an in-flight upload", async () => {
     const upload = deferred<SessionAttachment>();
     attachmentApiMocks.uploadSessionAttachment.mockReturnValue(upload.promise);
     attachmentApiMocks.deleteSessionAttachment.mockResolvedValue(undefined);
@@ -68,36 +68,39 @@ describe("SessionAttachmentAdapter upload removal", () => {
 
     await expect(removal).resolves.toBeUndefined();
     await expect(completion).resolves.toEqual({ done: true, value: undefined });
-    expect(attachmentApiMocks.deleteSessionAttachment).toHaveBeenCalledWith(
-      "ws-a",
-      "sess-a",
-      `att_${"a".repeat(64)}`
-    );
+    expect(attachmentApiMocks.deleteSessionAttachment).not.toHaveBeenCalled();
   });
 
-  it("Should retain the durable ref when in-flight cleanup fails so removal can retry", async () => {
-    const upload = deferred<SessionAttachment>();
-    attachmentApiMocks.uploadSessionAttachment.mockReturnValue(upload.promise);
-    attachmentApiMocks.deleteSessionAttachment
-      .mockRejectedValueOnce(new Error("delete unavailable"))
-      .mockResolvedValueOnce(undefined);
-    const adapter = new SessionAttachmentAdapter({ workspaceId: "ws-a", sessionId: "sess-a" });
-    const iterator = adapter.add({ file: pngFile() });
-    const running = await iterator.next();
-    if (running.done) throw new Error("attachment upload ended before yielding its pending state");
-
-    const completion = iterator.next();
-    await vi.waitFor(() =>
-      expect(attachmentApiMocks.uploadSessionAttachment).toHaveBeenCalledOnce()
-    );
-    const removal = adapter.remove(running.value);
-    upload.resolve(uploadedAttachment());
-
-    await expect(removal).rejects.toThrow("delete unavailable");
-    await expect(completion).resolves.toEqual({ done: true, value: undefined });
-    await expect(adapter.remove(running.value)).resolves.toBeUndefined();
-    expect(attachmentApiMocks.deleteSessionAttachment).toHaveBeenCalledTimes(2);
-  });
+  // Invariant: removing a local tile cannot invalidate a shared durable attachment.
+  // Owner: attachment adapter; canonical suite: this file. Durable cleanup belongs to retention.
+  it.each([false, true])(
+    "Should preserve a duplicate after removal across rebuilt adapters=%s",
+    async rebuilt => {
+      let available = true;
+      attachmentApiMocks.uploadSessionAttachment.mockImplementation(async () => {
+        available = true;
+        return uploadedAttachment();
+      });
+      attachmentApiMocks.deleteSessionAttachment.mockImplementation(async () => {
+        available = false;
+      });
+      const options = { workspaceId: "ws-a", sessionId: "sess-a" };
+      const adapter = new SessionAttachmentAdapter(options);
+      const file = pngFile();
+      const first = adapter.add({ file });
+      await first.next();
+      const ready = await first.next();
+      const other = rebuilt ? new SessionAttachmentAdapter(options) : adapter;
+      const duplicate = other.add({ file });
+      await duplicate.next();
+      const duplicateReady = await duplicate.next();
+      if (ready.done || duplicateReady.done) throw new Error("upload did not become ready");
+      await adapter.remove(ready.value);
+      const sent = await other.send(duplicateReady.value);
+      expect(sent.id).toBe(uploadedAttachment().id);
+      expect(available).toBe(true);
+    }
+  );
 
   it("Should not resurrect a failed tile after its in-flight upload is removed", async () => {
     const upload = deferred<SessionAttachment>();
