@@ -4,7 +4,6 @@ from pathlib import Path
 import json
 import re
 import shutil
-import tomllib
 
 ALLOWED_PROVIDER_FILES = ("auth.json", "installation_id", "version.json")
 PROVIDER_FILES = (*ALLOWED_PROVIDER_FILES, "skills", "plugins/cache")
@@ -106,6 +105,9 @@ def set_provider_usage(config_path: Path, enabled: bool) -> None:
         text = text[:section.start()] + body + text[section.end():]
     else:
         text += "\n[provider_usage]\n" + value
+    # Imported here because teardown also runs on the Python 3.10 of the packaged-desktop smoke host.
+    import tomllib
+
     parsed = tomllib.loads(text)
     if parsed.get("provider_usage", {}).get("enabled") is not enabled:
         raise RuntimeError("provider usage setting did not match the requested policy")
