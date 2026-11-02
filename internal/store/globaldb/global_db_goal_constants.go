@@ -1,6 +1,7 @@
 package globaldb
 
 const (
+	goalCheckpointPhaseWaiting         = "waiting"
 	goalCheckpointPhaseIdle            = "idle"
 	goalCheckpointPhasePreparing       = "preparing"
 	goalCheckpointPhaseQueued          = "queued"
@@ -12,6 +13,7 @@ const (
 	goalCheckpointPhaseTerminal        = "terminal"
 
 	goalStatusActive        = globalDBSessionStateActive
+	goalStatusWaiting       = "waiting"
 	goalStatusPaused        = "paused"
 	goalStatusBlocked       = "blocked"
 	goalStatusUsageLimited  = "usage-limited"

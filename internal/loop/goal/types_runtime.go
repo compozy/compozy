@@ -61,6 +61,7 @@ type BudgetGuard interface {
 
 // ExecutorStore is the durable Goal state needed by the convergence worker.
 type ExecutorStore interface {
+	WaitStore
 	TurnStore
 	JudgeStore
 }

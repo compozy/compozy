@@ -260,6 +260,35 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			output.AdditionalProperties {
 			t.Fatalf("Goal control output envelope = %#v, want closed required envelope", output)
 		}
+		compiled := compileNativeSchema(t, descriptor, descriptor.OutputSchema, "output")
+		if err := compiled.Validate(map[string]any{
+			"outcome": "status", "reason_code": nil, "replaced_run_id": nil,
+			"snapshot": map[string]any{
+				"run_id":            "run",
+				"node_id":           "goal",
+				"objective":         "wait",
+				"origin_session_id": "parent",
+				"bound_session_id":  "parent",
+				"status":            "waiting",
+				"run_status":        "running",
+				"cause":             nil,
+				"turns_used":        1,
+				"turn_limit":        8,
+				"live":              true,
+				"contract_summary":  "",
+				"last_verdict":      nil,
+				"context": map[string]any{
+					"state":       "unknown",
+					"used":        nil,
+					"size":        nil,
+					"ratio":       nil,
+					"nudge_ratio": 0.7,
+					"reported_at": nil,
+				},
+			},
+		}); err != nil {
+			t.Fatalf("strict waiting Goal output = %v", err)
+		}
 		var snapshot struct {
 			Type       []string                   `json:"type"`
 			Required   []string                   `json:"required"`

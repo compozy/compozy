@@ -94,9 +94,10 @@ FROM loop_runs WHERE id = sqlc.arg(id);
 
 -- name: UpdateGoalCheckpointAfterTurn :execrows
 UPDATE loop_goal_checkpoints
-SET phase = sqlc.arg(phase), goal_status = sqlc.arg(goal_status), control_cause = sqlc.narg(control_cause),
+SET pending_compaction = sqlc.arg(pending_compaction),
+    phase = sqlc.arg(phase), goal_status = sqlc.arg(goal_status), control_cause = sqlc.narg(control_cause),
     broken_streak = sqlc.arg(broken_streak), recovery_streak = sqlc.arg(recovery_streak),
-    queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0,
+    queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0, wait_deferrals = 0,
     judge_attempt_id = NULL, report_prompt_id = NULL, report_status = NULL,
     report_evidence_ref = NULL, report_binding_epoch = NULL, report_actor_kind = NULL,
     report_actor_id = NULL, report_recorded_at = NULL,

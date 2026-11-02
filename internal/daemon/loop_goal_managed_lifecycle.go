@@ -25,6 +25,7 @@ type loopGoalManagedRuntimeStore interface {
 }
 
 type loopGoalManagedInputLifecycle struct {
+	waits  goalpkg.WaitReader
 	store  loopGoalManagedRuntimeStore
 	binder *loopActionSessionBinder
 	now    func() time.Time
@@ -46,6 +47,7 @@ type managedGoalOperation struct {
 	taskRun    taskpkg.Run
 }
 
+// BeginSubmission rechecks waits and budget in the reserved session slot before any provider effect.
 func (l *loopGoalManagedInputLifecycle) BeginSubmission(
 	ctx context.Context,
 	claim session.ManagedInputClaim,
@@ -53,6 +55,20 @@ func (l *loopGoalManagedInputLifecycle) BeginSubmission(
 	operation, err := l.loadOperation(ctx, claim.Owner)
 	if err != nil {
 		return session.ManagedInputSubmission{}, l.effectError(claim.Owner, session.EffectKnownFalse, err)
+	}
+	if l.waits != nil {
+		waiting, waitErr := l.waits.HasLiveWait(ctx, looppkg.ActionSessionBinding{
+			WorkspaceID: operation.key.WorkspaceID, LoopRunID: operation.key.LoopRunID,
+			SessionID: claim.Owner.SessionID, ControlEpoch: claim.Owner.ControlEpoch,
+			BindingEpoch: claim.Owner.BindingEpoch,
+		})
+		if waiting || waitErr != nil {
+			return session.ManagedInputSubmission{}, &session.ManagedInputEffectError{
+				Owner: claim.Owner, Certainty: session.EffectKnownFalse,
+				ReasonCode: string(looppkg.ReasonCodeGoalWaitDeferred),
+				Err:        errors.Join(errors.New("goal submission deferred for external work"), waitErr),
+			}
+		}
 	}
 	base, reported := managedGoalUsageBase(operation.entry.OperationUsageBaseTokens)
 	boundary, turn := managedGoalReadyBoundary(&operation)

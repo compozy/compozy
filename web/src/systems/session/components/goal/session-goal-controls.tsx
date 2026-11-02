@@ -24,6 +24,7 @@ export interface SessionGoalControlsProps {
   onClear?: () => void;
 }
 
+/** Selects the permitted Goal control, retaining Pause while external work is live. */
 function primaryAction({
   snapshot,
   onPause,
@@ -77,7 +78,7 @@ function primaryAction({
       onAct: onPause,
       hint: "The current goal turn is being interrupted. No further goal turns will start.",
     };
-  return snapshot.status === "active" && onPause
+  return (snapshot.status === "active" || snapshot.status === "waiting") && onPause
     ? {
         action: "pause" as const,
         label: "Pause goal",
@@ -150,7 +151,11 @@ export function SessionGoalControls(props: SessionGoalControlsProps) {
   if (!primary && !stoppable) return null;
   const pending = props.pendingAction !== undefined;
   return (
-    <div className="flex shrink-0 items-center gap-1" aria-label="Goal controls" role="group">
+    <div
+      className="flex min-w-0 flex-wrap items-center gap-1"
+      aria-label="Goal controls"
+      role="group"
+    >
       {primary ? (
         <GoalPrimaryControl
           primary={primary}

@@ -49,23 +49,23 @@ use the same resolved values that the Run started with.
 
 ## Fields
 
-| Path                   | Required | Values                         | Contract                                                                                                   |
-| ---------------------- | -------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `id`                   | yes      | Loop node ID                   | Lowercase snake case. Continuous handle labels must remain unique across Goal nodes.                       |
-| `class`                | yes      | `action`                       | A Goal is a reserved first-party action kind.                                                              |
-| `kind`                 | yes      | `goal`                         | Selects the durable Goal executor rather than a tool-registry action.                                      |
-| `params.agent`         | yes      | Agent name or template         | Resolves the managed worker profile.                                                                       |
-| `params.objective`     | yes      | Non-empty string               | The convergence objective supplied to work and judge prompts.                                              |
-| `params.judge`         | yes      | One or more supported criteria | Evaluates each completed work turn. Criterion IDs are required and unique.                                 |
-| `params.max_turns`     | yes      | Positive integer               | Initial turn limit. An approved turn extension adds this pinned amount; it does not reset the counter.     |
-| `params.on_exhausted`  | no       | `halt` or `escalate`           | `halt` ends the Run `exhausted`; `escalate` parks the Run in `needs-approval`. Default: `halt`.            |
-| `params.output_schema` | yes      | JSON Schema                    | Its `status` property must include `blocked`, so the action can represent a truthful blocked result.       |
-| `params.runtime`       | no       | provider, model, reasoning     | Per-node runtime override for the Goal worker; omitted fields resolve from the normal runtime selection.   |
-| `session.mode`         | no       | `continuous`                   | Reuses one durable binding across turns. Default when `session` is absent.                                 |
-| `session.isolated`     | no       | `true`                         | Selects an isolated session instead of continuous mode. The two session strategies are mutually exclusive. |
-| `session.handle`       | no       | Display label                  | Continuous binding identity is hashed with node and fan-out item identity; the label is display metadata.  |
-| `retry.max_attempts`   | no       | Positive integer               | Total pre-submission attempts, including the first. This is not `retry.max`.                               |
-| `retry.on_failure`     | no       | `fresh_session`                | Valid only with continuous mode and `max_attempts >= 2`.                                                   |
+| Path                   | Required | Values                         | Contract                                                                                                          |
+| ---------------------- | -------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `id`                   | yes      | Loop node ID                   | Lowercase snake case. Continuous handle labels must remain unique across Goal nodes.                              |
+| `class`                | yes      | `action`                       | A Goal is a reserved first-party action kind.                                                                     |
+| `kind`                 | yes      | `goal`                         | Selects the durable Goal executor rather than a tool-registry action.                                             |
+| `params.agent`         | yes      | Agent name or template         | Resolves the managed worker profile.                                                                              |
+| `params.objective`     | yes      | Non-empty string               | The convergence objective supplied to work and judge prompts.                                                     |
+| `params.judge`         | yes      | One or more supported criteria | Evaluates completed work turns except a yield to a verified external wait. Criterion IDs are required and unique. |
+| `params.max_turns`     | yes      | Positive integer               | Initial turn limit. An approved turn extension adds this pinned amount; it does not reset the counter.            |
+| `params.on_exhausted`  | no       | `halt` or `escalate`           | `halt` ends the Run `exhausted`; `escalate` parks the Run in `needs-approval`. Default: `halt`.                   |
+| `params.output_schema` | yes      | JSON Schema                    | Its `status` property must include `blocked`, so the action can represent a truthful blocked result.              |
+| `params.runtime`       | no       | provider, model, reasoning     | Per-node runtime override for the Goal worker; omitted fields resolve from the normal runtime selection.          |
+| `session.mode`         | no       | `continuous`                   | Reuses one durable binding across turns. Default when `session` is absent.                                        |
+| `session.isolated`     | no       | `true`                         | Selects an isolated session instead of continuous mode. The two session strategies are mutually exclusive.        |
+| `session.handle`       | no       | Display label                  | Continuous binding identity is hashed with node and fan-out item identity; the label is display metadata.         |
+| `retry.max_attempts`   | no       | Positive integer               | Total pre-submission attempts, including the first. This is not `retry.max`.                                      |
+| `retry.on_failure`     | no       | `fresh_session`                | Valid only with continuous mode and `max_attempts >= 2`.                                                          |
 
 ### Judge criteria
 

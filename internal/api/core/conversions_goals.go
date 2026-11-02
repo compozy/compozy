@@ -198,10 +198,11 @@ func goalWarningsPayload(warnings []session.GoalDiagnosticWarning) []contract.Go
 	return payload
 }
 
+// goalStatusPayload validates persisted Goal states before exposing the closed public vocabulary.
 func goalStatusPayload(value string) (contract.GoalStatus, error) {
 	status := contract.GoalStatus(value)
 	switch status {
-	case contract.GoalStatusActive, contract.GoalStatusPaused, contract.GoalStatusBlocked,
+	case contract.GoalStatusWaiting, contract.GoalStatusActive, contract.GoalStatusPaused, contract.GoalStatusBlocked,
 		contract.GoalStatusUsageLimited, contract.GoalStatusBudgetLimited, contract.GoalStatusComplete:
 		return status, nil
 	default:

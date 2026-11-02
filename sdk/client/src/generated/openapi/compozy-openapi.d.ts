@@ -10106,6 +10106,9 @@ export interface components {
         | "continuous_binding_mismatch"
         | "goal_runtime_invalid"
         | "goal_caller_unauthorized"
+        | "goal_wait_deferred"
+        | "goal_wait_timeout"
+        | "goal_wait_unavailable"
         | null;
       replaced_run_id: string | null;
       snapshot: components["schemas"]["GoalSnapshot"] | null;
@@ -10203,6 +10206,9 @@ export interface components {
         | "continuous_binding_mismatch"
         | "goal_runtime_invalid"
         | "goal_caller_unauthorized"
+        | "goal_wait_deferred"
+        | "goal_wait_timeout"
+        | "goal_wait_unavailable"
         | null;
       context: components["schemas"]["GoalContextSnapshot"];
       contract_summary: string;
@@ -10228,7 +10234,14 @@ export interface components {
         | "stalled"
         | "canceled";
       /** @enum {string} */
-      status: "active" | "paused" | "blocked" | "usage-limited" | "budget-limited" | "complete";
+      status:
+        | "active"
+        | "paused"
+        | "blocked"
+        | "usage-limited"
+        | "budget-limited"
+        | "complete"
+        | "waiting";
       turn_limit: number;
       turns_used: number;
     };
@@ -10295,6 +10308,9 @@ export interface components {
         | "continuous_binding_mismatch"
         | "goal_runtime_invalid"
         | "goal_caller_unauthorized"
+        | "goal_wait_deferred"
+        | "goal_wait_timeout"
+        | "goal_wait_unavailable"
         | null;
       /** @enum {string|null} */
       result_status: "completed" | "invalid-result" | "failed" | "ambiguous" | null;

@@ -288,8 +288,8 @@ func (q *Queries) RecoverGoalQueueTerminal(ctx context.Context, arg RecoverGoalQ
 
 const settleGoalCompactionCheckpoint = `-- name: SettleGoalCompactionCheckpoint :execrows
 UPDATE loop_goal_checkpoints
-SET phase = 'idle', goal_status = 'active', control_cause = NULL,
-    queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0,
+SET pending_compaction = 0, phase = 'idle', goal_status = 'active', control_cause = NULL,
+    queue_entry_id = NULL, prompt_id = NULL, prompt_kind = NULL, prompt_attempt = 0, wait_deferrals = 0,
     context_state = ?1, usage_sequence = ?2,
     usage_pending_after_sequence = ?3,
     compaction_baseline_used = ?4,

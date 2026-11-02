@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
 
+	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -218,4 +220,186 @@ type retryMonitorWaker struct{}
 
 func (retryMonitorWaker) WakeSession(context.Context, monitor.Notification) error {
 	return errors.New("input queue full")
+}
+
+// Owner: daemon wait adapter. Each authoritative source independently parks Goal work.
+func TestLoopGoalWaitSources(t *testing.T) {
+	for _, source := range []string{"monitor", "child", "none", "inspection error"} {
+		t.Run("Should inspect "+source+" independently for Goal waits", func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			registry, err := openDaemonTestGlobalDBAtPath(ctx, filepath.Join(t.TempDir(), "compozy.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := registry.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			now := time.Now().UTC()
+			if err := registry.InsertWorkspace(
+				ctx,
+				workspace.Workspace{ID: "ws-wait", Name: "wait", RootDir: t.TempDir(), CreatedAt: now, UpdatedAt: now},
+			); err != nil {
+				t.Fatal(err)
+			}
+			paths := testHomePaths(t)
+			for _, id := range []string{"parent", "child"} {
+				if err := store.WriteSessionMeta(
+					store.SessionMetaFile(filepath.Join(paths.SessionsDir, id)),
+					&store.SessionMeta{
+						ID:            id,
+						ProfileID:     store.DefaultProfileID,
+						WorkspaceID:   "ws-wait",
+						AgentName:     "coder",
+						Provider:      "mock",
+						State:         string(session.StateActive),
+						RuntimeStatus: store.SessionRuntimeUnbound,
+						CreatedAt:     now,
+						UpdatedAt:     now,
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			manager, err := session.NewManager(session.WithHomePaths(paths), session.WithLogger(discardLogger()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := manager.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			monitors, err := monitor.NewService(ctx, nil, retryMonitorWaker{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := monitors.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			if source == "monitor" {
+				if _, err := monitors.Create(
+					ctx,
+					monitor.Spec{
+						WorkspaceID: "ws-wait",
+						SessionID:   "parent",
+						Kind:        monitor.KindTimer,
+						Description: "wait",
+						Delay:       time.Hour,
+					},
+				); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if source == "child" {
+				if err := registry.RegisterSession(ctx, &store.SessionInfo{
+					ID:            "child",
+					ProfileID:     store.DefaultProfileID,
+					WorkspaceID:   "ws-wait",
+					AgentName:     "coder",
+					Provider:      "mock",
+					State:         string(session.StateActive),
+					RuntimeStatus: store.SessionRuntimeUnbound,
+					SessionType:   string(session.SessionTypeSpawned),
+					CreatedAt:     now,
+					UpdatedAt:     now,
+					Lineage: &store.SessionLineage{
+						Kind:            store.LineageKindSpawn,
+						ParentSessionID: "parent",
+						RootSessionID:   "parent",
+						SpawnDepth:      1,
+						SpawnRole:       store.SubagentSpawnRole,
+					},
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			runtime := &loopGoalRuntime{
+				waitSources: &sessionWorkSources{
+					state:   &bootState{registry: registry, sessionMonitors: monitors},
+					manager: manager,
+					now:     time.Now,
+				},
+			}
+			if source == "inspection error" {
+				var cancel context.CancelFunc
+				ctx, cancel = context.WithCancel(ctx)
+				cancel()
+			}
+			got, err := runtime.HasLiveWait(
+				ctx,
+				looppkg.ActionSessionBinding{WorkspaceID: "ws-wait", SessionID: "parent"},
+			)
+			if source == "inspection error" {
+				if !errors.Is(err, context.Canceled) {
+					t.Fatalf("inspection error = %v", err)
+				}
+			} else if err != nil || got != (source != "none") {
+				t.Fatalf("live wait = %v, %v", got, err)
+			}
+		})
+	}
+}
+
+// Owner: Goal runtime recovery. A restart revives the exact parent without replaying Goal work.
+func TestLoopGoalWaitSessionRecovery(t *testing.T) {
+	for _, state := range []string{"active", "shutdown", "explicit stop", "resume failure"} {
+		t.Run("Should handle "+state+" when restoring a bound wait session", func(t *testing.T) {
+			t.Parallel()
+			sessions := &goalWaitRecoverySessions{info: &session.Info{ID: "parent", State: session.StateActive}}
+			if state != "active" {
+				sessions.info.State = session.StateStopped
+				sessions.info.StopReason = store.StopShutdown
+			}
+			if state == "explicit stop" {
+				sessions.info.StopReason = store.StopUserCanceled
+			}
+			resumeErr := errors.New("resume transport unavailable")
+			if state == "resume failure" {
+				sessions.err = resumeErr
+			}
+			runtime := &loopGoalRuntime{loopActionSessionBinder: &loopActionSessionBinder{sessions: sessions}}
+			err := runtime.RecoverWaitSession(t.Context(), looppkg.ActionSessionBinding{SessionID: "parent"})
+			wantCalls := 0
+			if state == "shutdown" || state == "resume failure" {
+				wantCalls = 1
+			}
+			if sessions.calls != wantCalls {
+				t.Fatalf("resume calls=%d, want %d", sessions.calls, wantCalls)
+			}
+			if state == "resume failure" {
+				if !errors.Is(err, resumeErr) {
+					t.Fatalf("resume error=%v", err)
+				}
+			} else if state == "explicit stop" {
+				if err == nil || !strings.Contains(err.Error(), "stopped explicitly") {
+					t.Fatalf("explicit stop=%v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+type goalWaitRecoverySessions struct {
+	loopPromptSessionManager
+	info  *session.Info
+	err   error
+	calls int
+}
+
+func (s *goalWaitRecoverySessions) Status(context.Context, string) (*session.Info, error) {
+	return s.info, nil
+}
+func (s *goalWaitRecoverySessions) ResumeWaitingSession(_ context.Context, id string) error {
+	if id != s.info.ID {
+		return errors.New("wrong resumed session")
+	}
+	s.calls++
+	return s.err
 }

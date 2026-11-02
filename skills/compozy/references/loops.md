@@ -946,3 +946,27 @@ reference forwards that exact original value to the child.
 Agent judges run as daemon-owned `system` sessions. Verdict-only judges are excluded from default session lists and operator attention; expand a Goal and choose **Verification sessions** for attributed transcript links, or use `compozy session list --all --type system --parent <bound-session-id> -o json`. New judges carry informational parent lineage to the bound Goal session (ordinary gates use the Loop origin); this grants no spawn governance. Older parentless judges remain available with `--type system` alone. Per-turn verdicts remain in Run history. Completed idle judges close with verified process exit without false cancellation escalation; genuine stop failures remain recorded.
 
 A stopped session reopens when you send an ordinary message. Control-only `/goal` commands do not reopen it. The Goal stays paused until an explicit Resume after the session is active.
+
+### Goals waiting for external work
+
+When a bound session has a live monitor or delegated child, the Goal shows `waiting` and admits
+no new work prompt, compaction, or judge call. A work turn that registers the wait still counts as
+one started turn; if it ends without an explicit `complete` or `blocked` claim, it settles without
+a judge verdict. The count then stays flat until the wait ends. A model's claim that it is waiting
+is insufficient: the daemon checks its own monitor and child state.
+
+A delivered wake runs through the ordinary session input queue before the next Goal prompt and
+consumes no Goal turn. A delegated child keeps the Goal waiting through result delivery, including
+the handoff after the child stops. Delivery, acknowledgement, or disposal releases that wait.
+Monitor cancellation or failed delivery also releases its wait. A wait registered by an earlier
+queued input defers an already prepared Goal ticket before provider submission. That deferral
+consumes neither a started turn nor the provider retry allowance. Max-token compaction stays
+durable and resumes after the wait, including across restart.
+The Goal rechecks durable wait state after restart and revives its interrupted bound session so
+queued wake input can run, subject to the existing restart eligibility and automatic-continuation
+settings. Pause/resume preserves the original continuous-wait deadline. Pause, Stop, ordinary
+input, and budget limits remain effective; wall-clock budgets continue during the wait. A wait lasting 25 hours pauses for
+attention with `goal_wait_timeout`; unavailable wait inspection pauses with `goal_wait_unavailable`.
+Inspect the monitor or child before explicitly resuming the Goal. A deliberate daemon stop pauses
+the Goal and stops its session: resume the session first, then the Goal. Completion and evidenced
+blocked reports keep their existing judge/control handling, including while another wait is live.

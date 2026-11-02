@@ -588,7 +588,7 @@ func (q *Queries) ReactivateGoalOriginBinding(ctx context.Context, arg Reactivat
 
 const resetGoalRecoveryAfterBindingActivation = `-- name: ResetGoalRecoveryAfterBindingActivation :execrows
 UPDATE loop_goal_checkpoints
-SET recovery_streak = 0, compaction_baseline_used = NULL,
+SET pending_compaction = 0, recovery_streak = 0, compaction_baseline_used = NULL,
     compaction_recovery_required = 0, updated_at = CAST(?1 AS TEXT)
 WHERE loop_run_id = ?2 AND generation = ?3
   AND node_id = ?4 AND item_index = ?5

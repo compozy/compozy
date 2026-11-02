@@ -196,6 +196,7 @@ func (e *Executor) cancelAndDrainCompaction(
 	return e.binder.AwaitActionPrompt(drainCtx, ticket)
 }
 
+// processCompactionResult validates the terminal and returns unsubmitted wait deferrals to the wait gate.
 func (e *Executor) processCompactionResult(
 	ctx context.Context,
 	segment *segmentState,
@@ -207,6 +208,17 @@ func (e *Executor) processCompactionResult(
 	if err := validatePromptTerminal(ticket.PromptID, result); err != nil {
 		return nil, err
 	}
+	if result.Outcome == loop.ActionPromptOutcomeRejectedBeforeSubmit &&
+		result.ReasonCode == loop.ReasonCodeGoalWaitDeferred {
+		return e.retryRejectedPrompt(ctx, segment, result)
+	}
+	return e.settleCompactionResult(ctx, segment, ticket, result, operationBase, beforeUsage)
+}
+
+// settleCompactionResult records compaction usage and settles its durable recovery outcome.
+func (e *Executor) settleCompactionResult(ctx context.Context, segment *segmentState,
+	ticket loop.ActionPromptTicket, result loop.ActionPromptResult,
+	operationBase int64, beforeUsage *ContextUsage) (*turnBoundary, error) {
 	segment.usage.observeOperation(operationBase, result.TokensUsed, result.TokensReported)
 	segment.lastResult = result
 	checkpoint, err := e.store.LoadCheckpoint(ctx, segment.key)

@@ -10,6 +10,7 @@ import (
 var _ loopManagedInputSessionManager = (*session.Manager)(nil)
 var _ loopManagedInputLifecycleInstaller = (*session.Manager)(nil)
 
+// newLoopGoalProductionRuntime composes binding, wait, context, and recovery ports before publishing the lifecycle.
 func newLoopGoalProductionRuntime(
 	goalStore loopGoalProductionStore,
 	sessions SessionManager,
@@ -31,7 +32,18 @@ func newLoopGoalProductionRuntime(
 		worktrees:  worktrees,
 		now:        now,
 	}
-	lifecycle := &loopGoalManagedInputLifecycle{store: goalStore, binder: binder, now: now}
+	contextRuntime := &loopGoalContextRuntime{sessions: sessions}
+	recovery := &loopGoalPromptRecovery{
+		store:    goalStore,
+		sessions: sessions,
+		binder:   binder,
+	}
+	runtime := &loopGoalRuntime{
+		loopActionSessionBinder: binder,
+		loopGoalContextRuntime:  contextRuntime,
+		loopGoalPromptRecovery:  recovery,
+	}
+	lifecycle := &loopGoalManagedInputLifecycle{store: goalStore, binder: binder, now: now, waits: runtime}
 	if installer, ok := sessions.(loopManagedInputLifecycleInstaller); ok && managedOK {
 		installer.SetManagedInputLifecycle(lifecycle)
 	} else if logger != nil {
@@ -40,15 +52,5 @@ func newLoopGoalProductionRuntime(
 			"dependency", "session_manager",
 		)
 	}
-	contextRuntime := &loopGoalContextRuntime{sessions: sessions}
-	recovery := &loopGoalPromptRecovery{
-		store:    goalStore,
-		sessions: sessions,
-		binder:   binder,
-	}
-	return &loopGoalRuntime{
-		loopActionSessionBinder: binder,
-		loopGoalContextRuntime:  contextRuntime,
-		loopGoalPromptRecovery:  recovery,
-	}
+	return runtime
 }

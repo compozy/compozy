@@ -228,7 +228,7 @@ func (e *Executor) bindSegment(ctx context.Context, segment *segmentState, targe
 			return fmt.Errorf("bind Goal session: %w", bindErr)
 		}
 		retryWithFreshSession := goalFreshSessionOnFailure(segment.node) &&
-			segment.checkpoint.PromptAttempt+1 < maxAttempts
+			segment.checkpoint.PromptAttempt-segment.checkpoint.WaitDeferrals+1 < maxAttempts
 		if err := e.binder.AdvanceActionSessionRetry(ctx, &loop.ActionSessionRetryRequest{
 			BindRequest:           request,
 			FailedBinding:         binding,

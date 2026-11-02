@@ -3536,6 +3536,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			t.Fatal("approved Later tool errors: no historical tool error enums found")
 		}
 	}
+	// #1149: additive Goal wait status and attention reasons; no existing value is removed.
+	if addGoalWaitSchemas(baseline) == 0 {
+		t.Fatal("approved Goal wait additions: no historical Goal enums found")
+	}
 	// #1015: optional Goal control/telemetry state and an additive Stop command.
 	if addGoalControlSchemas(baseline) == 0 {
 		t.Fatal("approved Goal control additions: no historical Goal schemas found")
@@ -5516,4 +5520,33 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 		stream["oneOf"].([]any),
 		map[string]any{"type": "object", "properties": props, "required": required},
 	)
+}
+
+func addGoalWaitSchemas(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addGoalWaitSchemas(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addGoalWaitSchemas(child)
+		}
+		if values, ok := node["enum"].([]any); ok {
+			if slices.Equal(
+				values,
+				[]any{"active", "paused", "blocked", "usage-limited", "budget-limited", "complete"},
+			) {
+				node["enum"] = append(values, "waiting")
+				count++
+			}
+			if slices.Contains(values, any("goal_not_active")) &&
+				slices.Contains(values, any("goal_replace_required")) {
+				node["enum"] = append(values, "goal_wait_deferred", "goal_wait_timeout", "goal_wait_unavailable")
+				count++
+			}
+		}
+	}
+	return count
 }

@@ -305,6 +305,9 @@ CREATE TABLE loop_goal_binding_retry_witnesses (
 	);
 
 CREATE TABLE loop_goal_checkpoints (
+	wait_started_at TIMESTAMP,
+	wait_deferrals INTEGER NOT NULL DEFAULT 0 CHECK (wait_deferrals >= 0),
+	pending_compaction INTEGER NOT NULL DEFAULT 0 CHECK (pending_compaction IN (0,1)),
 	loop_run_id       TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
 	generation        INTEGER NOT NULL CHECK (generation >= 1),
 	node_id           TEXT NOT NULL CHECK (length(trim(node_id)) > 0),
@@ -314,10 +317,10 @@ CREATE TABLE loop_goal_checkpoints (
 	control_actor_id  TEXT,
 	control_requested_at TIMESTAMP,
 	phase             TEXT NOT NULL CHECK (phase IN (
-		'idle','preparing','queued','prompting','compacting','judging','persisting','awaiting_control','terminal'
+		'idle','waiting','preparing','queued','prompting','compacting','judging','persisting','awaiting_control','terminal'
 	)),
 	goal_status       TEXT NOT NULL CHECK (goal_status IN (
-		'active','paused','blocked','usage-limited','budget-limited','complete'
+		'active','waiting','paused','blocked','usage-limited','budget-limited','complete'
 	)),
 	turns_used        INTEGER NOT NULL DEFAULT 0 CHECK (turns_used >= 0),
 	turn_limit        INTEGER NOT NULL CHECK (turn_limit >= 1),
