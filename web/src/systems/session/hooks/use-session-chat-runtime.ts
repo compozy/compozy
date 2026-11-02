@@ -25,7 +25,10 @@ import {
 } from "../lib/session-unconfirmed-send";
 import { discardSessionTerminalQuote } from "../lib/session-terminal-quote";
 import { applyTerminalQuoteToPromptMessage } from "../lib/session-terminal-quote-prompt";
-import type { SessionPromptRecovery } from "../lib/session-prompt-recovery";
+import {
+  discardRefusedPromptMessage,
+  type SessionPromptRecovery,
+} from "../lib/session-prompt-recovery";
 import {
   dismissSessionPromptNotSent,
   notifySessionPromptNotSent,
@@ -428,12 +431,7 @@ export function useSessionChatRuntime({
     }
     if (answered !== null && answered >= 400 && answered < 500) {
       // Only an authoritative refusal can evict the optimistic user message.
-      if (
-        messageId &&
-        runtime.thread.getState().messages.some(message => message.id === messageId)
-      ) {
-        void runtime.thread.getMessageById(messageId).delete();
-      }
+      void discardRefusedPromptMessage(runtime, messageId);
       promptOutcome.notSent(
         messageId,
         sessionPromptRefusalReason(error instanceof Error ? error.message : "")

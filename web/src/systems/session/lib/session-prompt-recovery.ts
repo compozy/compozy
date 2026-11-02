@@ -1,3 +1,4 @@
+import type { AssistantRuntime } from "@assistant-ui/react";
 import type { UIMessage } from "ai";
 
 import type { TerminalQuote } from "@/systems/terminal/parts";
@@ -186,4 +187,18 @@ export const sessionPromptRecovery = new SessionPromptRecovery();
 /** Clears the app-scoped recovery owner; test suites outside the session system use this seam. */
 export function resetSessionPromptRecovery(): void {
   sessionPromptRecovery.reset();
+}
+
+/** Removes only the refused local message without letting deletion failure lose its draft. */
+export async function discardRefusedPromptMessage(
+  runtime: AssistantRuntime,
+  messageId: string | null
+): Promise<void> {
+  try {
+    if (messageId && runtime.thread.getState().messages.some(message => message.id === messageId)) {
+      await runtime.thread.getMessageById(messageId).delete();
+    }
+  } catch (error) {
+    console.warn("Could not remove the refused message from the local runtime", error);
+  }
 }

@@ -50,28 +50,29 @@ describe("SessionAttachmentAdapter upload removal", () => {
     attachmentApiMocks.uploadSessionAttachment.mockReset();
   });
 
-  it("Should leave shared bytes to daemon retention when removal wins an in-flight upload", async () => {
-    const upload = deferred<SessionAttachment>();
-    attachmentApiMocks.uploadSessionAttachment.mockReturnValue(upload.promise);
-    attachmentApiMocks.deleteSessionAttachment.mockResolvedValue(undefined);
-    const adapter = new SessionAttachmentAdapter({ workspaceId: "ws-a", sessionId: "sess-a" });
-    const iterator = adapter.add({ file: pngFile() });
-    const running = await iterator.next();
-    if (running.done) throw new Error("attachment upload ended before yielding its pending state");
+  it.each([false, true])(
+    "Should remove an uploading tile before next generator read=%s",
+    async beforeNextRead => {
+      const upload = deferred<SessionAttachment>();
+      attachmentApiMocks.uploadSessionAttachment.mockReturnValue(upload.promise);
+      attachmentApiMocks.deleteSessionAttachment.mockResolvedValue(undefined);
+      const adapter = new SessionAttachmentAdapter({ workspaceId: "ws-a", sessionId: "sess-a" });
+      const iterator = adapter.add({ file: pngFile() });
+      const running = await iterator.next();
+      if (running.done)
+        throw new Error("attachment upload ended before yielding its pending state");
 
-    const completion = iterator.next();
-    await vi.waitFor(() =>
-      expect(attachmentApiMocks.uploadSessionAttachment).toHaveBeenCalledOnce()
-    );
-    const removal = adapter.remove(running.value);
-    // Removal is local: the tile must disappear before its network upload settles.
-    await expect(removal).resolves.toBeUndefined();
-    upload.resolve(uploadedAttachment());
+      const completion = beforeNextRead ? undefined : iterator.next();
+      const removal = adapter.remove(running.value);
+      // Removal is local: the tile must disappear before its network upload settles.
+      await expect(removal).resolves.toBeUndefined();
+      const finished = completion ?? iterator.next();
+      upload.resolve(uploadedAttachment());
 
-    await expect(removal).resolves.toBeUndefined();
-    await expect(completion).resolves.toEqual({ done: true, value: undefined });
-    expect(attachmentApiMocks.deleteSessionAttachment).not.toHaveBeenCalled();
-  });
+      await expect(finished).resolves.toEqual({ done: true, value: undefined });
+      expect(attachmentApiMocks.deleteSessionAttachment).not.toHaveBeenCalled();
+    }
+  );
 
   // Invariant: removing a local tile cannot invalidate a shared durable attachment.
   // Owner: attachment adapter; canonical suite: this file. Durable cleanup belongs to retention.

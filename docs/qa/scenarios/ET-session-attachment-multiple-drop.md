@@ -71,3 +71,9 @@ verified; image delivery to the mock agent was not directly observed. Multi-drop
 used a dispatched DataTransfer rather than an OS drag. Strict audit C12/C14 are
 report/gate artifact blockers, not observed behavior failures. The send-feedback
 wrapper follows COPY.md's composer send feedback contract and is retained.
+
+Review follow-up: the adapter also registers upload ownership before yielding the
+first running tile, covering removal before the next generator read. Its existing
+suite reproduces the earlier resurrection gap and covers both sides of that yield.
+Refused-message eviction awaits and observes runtime deletion failures while the
+draft remains recoverable; the recovery-owner suite covers that failure boundary.

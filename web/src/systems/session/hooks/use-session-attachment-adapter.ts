@@ -96,11 +96,6 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
       return;
     }
 
-    yield {
-      ...base,
-      status: { type: "running", reason: "uploading", progress: 0 },
-    };
-
     try {
       // A draft restored after a runtime rebuild reuses its upload instead of sending the bytes again.
       let upload = retainedComposerDraftUpload(this.workspaceId, this.sessionId, file);
@@ -109,6 +104,11 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
         retainComposerDraftUpload(this.workspaceId, this.sessionId, file, upload);
       }
       this.inFlightUploads.set(id, upload);
+      // Register ownership before exposing the running tile to a consumer.
+      yield {
+        ...base,
+        status: { type: "running", reason: "uploading", progress: 0 },
+      };
       const uploaded = await upload;
       if (this.removedWhileUploading.has(id)) return;
       this.uploads.set(id, uploaded);
