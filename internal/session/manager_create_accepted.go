@@ -11,7 +11,9 @@ import (
 // CreateAccepted durably creates an active logical user session. The ACP
 // process is intentionally left unbound until the first prompt supplies its
 // runtime snapshot.
-func (m *Manager) CreateAccepted(ctx context.Context, opts CreateAcceptedOpts) (*Info, error) {
+func (m *Manager) CreateAccepted(ctx context.Context, optsInput *CreateAcceptedOpts) (*Info, error) {
+	opts := *optsInput
+
 	if ctx == nil {
 		return nil, errors.New("session: create accepted context is required")
 	}

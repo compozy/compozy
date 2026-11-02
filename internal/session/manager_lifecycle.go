@@ -17,7 +17,9 @@ import (
 )
 
 // Create resolves an agent definition, opens the session store, and starts a new runtime session.
-func (m *Manager) Create(ctx context.Context, opts CreateOpts) (_ *Session, err error) {
+func (m *Manager) Create(ctx context.Context, optsInput *CreateOpts) (_ *Session, err error) {
+	opts := *optsInput
+
 	if ctx == nil {
 		return nil, errors.New("session: create context is required")
 	}

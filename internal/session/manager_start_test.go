@@ -39,11 +39,11 @@ func TestSessionStartDropsUnrestrictedAgentModeUnderRestrictedPermissions(t *tes
 			workspace.Config = h.cfg
 			h.resolver.upsert(&workspace)
 
-			created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			created, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 				AgentName:   "coder",
 				Workspace:   h.workspaceID,
 				Permissions: compozyconfig.PermissionModeApproveReads,
-			})
+			}))
 			if err != nil {
 				t.Fatalf("Create() error = %v", err)
 			}
@@ -73,11 +73,11 @@ func TestSessionStartDropsUnrestrictedAgentModeUnderRestrictedPermissions(t *tes
 		}
 		h.resolver.upsert(&workspace)
 
-		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		created, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:   "coder",
 			Workspace:   h.workspaceID,
 			Permissions: compozyconfig.PermissionModeApproveReads,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -116,9 +116,9 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		created, err := h.manager.CreateAccepted(t.Context(), CreateAcceptedOpts{Session: CreateOpts{
+		created, err := h.manager.CreateAccepted(t.Context(), new(CreateAcceptedOpts{Session: CreateOpts{
 			InstanceID: instance.ID, AgentName: "coder", Workspace: h.workspaceID,
-		}})
+		}}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -146,9 +146,9 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
@@ -218,9 +218,9 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		}
 		h.resolver.upsert(&resolved)
 
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
@@ -264,12 +264,12 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 
 		h := newHarness(t)
 
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{
 				AgentName: "coder",
 				Workspace: h.workspaceID,
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
@@ -307,9 +307,9 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
@@ -376,9 +376,9 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		h.driver.startHook = func(_ acp.StartOpts, _ int) (*fakeProcess, error) {
 			return nil, startErr
 		}
-		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(testutil.Context(t), new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("CreateAccepted() error = %v", err)
 		}
@@ -542,7 +542,7 @@ func TestCreatePreallocatedSessionIdentity(t *testing.T) {
 			h := newHarness(t)
 			created, err := h.manager.Create(
 				t.Context(),
-				CreateOpts{AgentName: "coder", DesiredSessionID: tc.id, Workspace: h.workspaceID},
+				new(CreateOpts{AgentName: "coder", DesiredSessionID: tc.id, Workspace: h.workspaceID}),
 			)
 			if !tc.valid {
 				if !errors.Is(err, ErrValidation) {
@@ -626,7 +626,7 @@ func TestCreateFallbackChain(t *testing.T) {
 		}
 		created, err := h.manager.Create(
 			testutil.Context(t),
-			CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+			new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}),
 		)
 		if err != nil {
 			t.Fatalf("Create(reviewer) error = %v", err)
@@ -700,7 +700,10 @@ func TestCreateFallbackChain(t *testing.T) {
 			fallbackSeatOne:  rateLimitRefusal(),
 			codexCommand:     rateLimitRefusal(),
 		})
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID})
+		_, err := h.manager.Create(
+			testutil.Context(t),
+			new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}),
+		)
 		if err == nil || !strings.Contains(err.Error(), "fallback chain exhausted after 3 attempt(s)") {
 			t.Fatalf("Create() error = %v, want deterministic exhaustion", err)
 		}
@@ -761,7 +764,7 @@ func TestCreateFallbackChain(t *testing.T) {
 		refuseWithProcess(h, map[string]bool{fallbackSeatZero: true, fallbackSeatOne: true}, stopErr)
 		created, err := h.manager.Create(
 			testutil.Context(t),
-			CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID},
+			new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}),
 		)
 		if err != nil {
 			t.Fatalf("Create(reviewer) error = %v, want the chain to continue past the cleanup failure", err)
@@ -802,7 +805,10 @@ func TestCreateFallbackChain(t *testing.T) {
 			map[string]bool{fallbackSeatZero: true, fallbackSeatOne: true, codexCommand: true},
 			stopErr,
 		)
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID})
+		_, err := h.manager.Create(
+			testutil.Context(t),
+			new(CreateOpts{AgentName: "reviewer", Workspace: h.workspaceID}),
+		)
 		if err == nil || !strings.Contains(err.Error(), "fallback chain exhausted after 3 attempt(s)") {
 			t.Fatalf("Create() error = %v, want deterministic exhaustion", err)
 		}
@@ -825,9 +831,9 @@ func TestCreateFallbackChain(t *testing.T) {
 		t.Parallel()
 		h, db := newLedgerHarness(t)
 		refuseStartCommands(h, map[string]error{fallbackSeatZero: rateLimitRefusal()})
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "reviewer", Workspace: h.workspaceID, ChainOwner: ChainOwnerCaller,
-		})
+		}))
 		if err == nil || StartAccepted(err) {
 			t.Fatalf("Create(ChainOwnerCaller) error = %v, want the refused primary", err)
 		}
@@ -865,9 +871,9 @@ func TestSessionWorkspaceGrant(t *testing.T) {
 			tc.origin.ID = "origin-1"
 			created, err := h.manager.CreateAccepted(
 				t.Context(),
-				CreateAcceptedOpts{
+				new(CreateAcceptedOpts{
 					Session: CreateOpts{Origin: tc.origin, AgentName: "coder", Workspace: h.workspaceID},
-				},
+				}),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -907,11 +913,11 @@ func TestSessionInitiatorInheritance(t *testing.T) {
 		h := newHarness(t)
 		parent, err := h.manager.Create(
 			t.Context(),
-			CreateOpts{
+			new(CreateOpts{
 				AgentName: "coder",
 				Workspace: h.workspaceID,
 				Origin:    workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, ID: "automation-1"},
-			},
+			}),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -921,13 +927,13 @@ func TestSessionInitiatorInheritance(t *testing.T) {
 		for range 2 {
 			child, err := h.manager.Create(
 				t.Context(),
-				CreateOpts{
+				new(CreateOpts{
 					AgentName:                 "coder",
 					Workspace:                 h.workspaceID,
 					Type:                      SessionTypeSystem,
 					ProvenanceParentSessionID: parent.ID,
 					Origin:                    workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, ID: "daemon"},
-				},
+				}),
 			)
 			if err != nil {
 				t.Fatal(err)

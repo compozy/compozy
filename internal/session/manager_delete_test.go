@@ -405,10 +405,10 @@ func TestManagerDelete(t *testing.T) {
 			run: func(t *testing.T) {
 				h := newHarness(t)
 				parent := createSession(t, h)
-				child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				child, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 					AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 					ProvenanceParentSessionID: parent.ID,
-				})
+				}))
 				if err != nil {
 					t.Fatalf("Create(system child) error = %v", err)
 				}
@@ -1106,9 +1106,9 @@ func TestManagerDelete(t *testing.T) {
 				}
 				created := make(chan createResult, 1)
 				go func() {
-					session, createErr := h.manager.Create(ctx, CreateOpts{
+					session, createErr := h.manager.Create(ctx, new(CreateOpts{
 						AgentName: "coder", Workspace: h.workspaceID,
-					})
+					}))
 					created <- createResult{session: session, err: createErr}
 				}()
 				select {

@@ -344,10 +344,10 @@ func TestPromptRuntimeKeepsRestrictedSessionAfterRuntimeChange(t *testing.T) {
 		}
 		workspace.Config = h.cfg
 		h.resolver.upsert(&workspace)
-		active, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		active, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID,
 			Permissions: compozyconfig.PermissionModeApproveReads,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -383,10 +383,10 @@ func TestPromptRuntimeRejectsUnrestrictedModeForPersistedRestrictedSession(t *te
 	}
 	workspace.Config = h.cfg
 	h.resolver.upsert(&workspace)
-	active, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	active, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder", Workspace: h.workspaceID,
 		Permissions: compozyconfig.PermissionModeApproveReads,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -455,9 +455,9 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			workspace.Agents[index].Model = "gpt-6.1-sol"
 		}
 		h.resolver.upsert(&workspace)
-		created, err := h.manager.CreateAccepted(ctx, CreateAcceptedOpts{
+		created, err := h.manager.CreateAccepted(ctx, new(CreateAcceptedOpts{
 			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
-		})
+		}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -910,11 +910,11 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		baseAt := time.Date(2026, 8, 15, 19, 0, 0, 0, time.UTC)
 		register := func(id string) {
 			t.Helper()
-			if err := catalog.RegisterSession(ctx, store.SessionInfo{
+			if err := catalog.RegisterSession(ctx, new(store.SessionInfo{
 				ID: id, Name: id, AgentName: "coder", ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID,
 				SessionType: string(SessionTypeUser), State: string(StateActive),
 				RuntimeStatus: store.SessionRuntimeReady, CreatedAt: baseAt, UpdatedAt: baseAt,
-			}); err != nil {
+			})); err != nil {
 				t.Fatalf("RegisterSession(%q) error = %v", id, err)
 			}
 		}
@@ -1167,11 +1167,11 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			return nil, startErr
 		}
 
-		_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Name:      "failed",
 			Workspace: h.workspaceID,
-		})
+		}))
 		if err == nil {
 			t.Fatal("Create() error = nil, want startup failure")
 		}
@@ -1664,11 +1664,11 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			})
 		}
 
-		managed, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		managed, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
 			Type:      SessionTypeSystem,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(system) error = %v", err)
 		}
@@ -1693,7 +1693,9 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
 		before := active.Info()
 		persistErr := errors.New("catalog rename unavailable")
-		catalog.registerHook = func(_ context.Context, info store.SessionInfo) error {
+		catalog.registerHook = func(_ context.Context, infoInput *store.SessionInfo) error {
+			info := *infoInput
+
 			if info.Name == "New name" {
 				return persistErr
 			}
@@ -2504,7 +2506,7 @@ func assertOrphanResolutionQueue(
 type recordingSessionCatalog struct {
 	mu              sync.Mutex
 	sessions        map[string]store.SessionInfo
-	registerHook    func(context.Context, store.SessionInfo) error
+	registerHook    func(context.Context, *store.SessionInfo) error
 	updateErr       error
 	updateHook      func(store.SessionStateUpdate) error
 	deleteErr       error
@@ -2518,11 +2520,13 @@ func newRecordingSessionCatalog() *recordingSessionCatalog {
 	return &recordingSessionCatalog{sessions: make(map[string]store.SessionInfo)}
 }
 
-func (c *recordingSessionCatalog) RegisterSession(ctx context.Context, session store.SessionInfo) error {
+func (c *recordingSessionCatalog) RegisterSession(ctx context.Context, sessionInput *store.SessionInfo) error {
+	session := *sessionInput
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.registerHook != nil {
-		if err := c.registerHook(ctx, session); err != nil {
+		if err := c.registerHook(ctx, &(session)); err != nil {
 			return err
 		}
 	}
@@ -2653,11 +2657,11 @@ func (c *recordingSessionCatalog) ListSessions(
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	out := make([]store.SessionInfo, 0, len(c.sessions))
-	for _, session := range c.sessions {
-		if query.WorkspaceID != "" && session.WorkspaceID != query.WorkspaceID {
+	for id := range c.sessions {
+		if query.WorkspaceID != "" && c.sessions[id].WorkspaceID != query.WorkspaceID {
 			continue
 		}
-		out = append(out, session)
+		out = append(out, c.sessions[id])
 	}
 	return out, nil
 }
@@ -2892,9 +2896,9 @@ func TestPromptRuntimePiStartupRecovery(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		const overlay = "Focus only on tests."
-		active, err := h.manager.Create(t.Context(), CreateOpts{
+		active, err := h.manager.Create(t.Context(), new(CreateOpts{
 			AgentName: "coder", Name: "session", Workspace: h.workspaceID, PromptOverlay: overlay,
-		})
+		}))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -27,12 +27,12 @@ func TestCreateWithProviderOverridePropagatesToSessionRuntime(t *testing.T) {
 		t.Fatalf("ResolveProvider(codex) error = %v", err)
 	}
 
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Name:      "provider-override",
 		Workspace: h.workspaceID,
 		Provider:  "codex",
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -347,12 +347,12 @@ func TestCreateWithInvalidProviderFailsBeforePersistenceAndLogs(t *testing.T) {
 	logs := newCaptureLogHandler()
 	h := newHarness(t, WithLogger(slog.New(logs)))
 
-	_, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	_, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Name:      "invalid-provider",
 		Workspace: h.workspaceID,
 		Provider:  "missing-provider",
-	})
+	}))
 	if err == nil {
 		t.Fatal("Create() error = nil, want invalid provider failure")
 	}

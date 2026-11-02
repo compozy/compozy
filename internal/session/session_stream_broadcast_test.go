@@ -324,12 +324,12 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		defer cancel()
 		sess, err := h.manager.Create(
 			ctx,
-			CreateOpts{
+			new(CreateOpts{
 				AgentName:   "coder",
 				Workspace:   h.workspaceID,
 				Type:        SessionTypeSystem,
 				RuntimeMode: RuntimeModeVerdictOnly,
-			},
+			}),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -657,12 +657,12 @@ func TestSessionCatalogBroadcaster(t *testing.T) {
 		ctx := testutil.Context(t)
 		at := time.Date(2026, 8, 15, 18, 2, 41, 0, time.UTC)
 		catalog := newRecordingSessionCatalog()
-		if err := catalog.RegisterSession(ctx, store.SessionInfo{
+		if err := catalog.RegisterSession(ctx, new(store.SessionInfo{
 			ID: "sess-attention", ProfileID: store.DefaultProfileID,
 			AgentName: "coder", WorkspaceID: "ws-attention",
 			SessionType: string(SessionTypeUser), State: string(StateActive),
 			CreatedAt: at.Add(-time.Hour), UpdatedAt: at.Add(-time.Minute),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 		manager, err := NewManager(

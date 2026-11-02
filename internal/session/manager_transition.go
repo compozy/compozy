@@ -45,7 +45,7 @@ func (m *Manager) persistSessionLifecycleStateLocked(ctx context.Context, sessio
 			}
 			return m.finishSessionCatalogPersistence(ctx, session)
 		}
-		if err := m.sessionCatalog.RegisterSession(ctx, sessionCatalogInfoFromRuntime(info)); err != nil {
+		if err := m.sessionCatalog.RegisterSession(ctx, new(sessionCatalogInfoFromRuntime(info))); err != nil {
 			return fmt.Errorf("session: register catalog state for %q: %w", session.ID, err)
 		}
 		return m.finishSessionCatalogPersistence(ctx, session)
@@ -86,7 +86,7 @@ func (m *Manager) persistSessionIdentitySnapshot(
 	if m.sessionCatalog == nil {
 		return nil
 	}
-	if err := m.sessionCatalog.RegisterSession(ctx, sessionCatalogInfoFromRuntime(info)); err != nil {
+	if err := m.sessionCatalog.RegisterSession(ctx, new(sessionCatalogInfoFromRuntime(info))); err != nil {
 		return fmt.Errorf("session: update catalog identity for %q: %w", meta.ID, err)
 	}
 	return nil
@@ -130,7 +130,7 @@ func (m *Manager) persistSessionCatalogSnapshot(
 	if identity := creationIdentityFromMeta(meta); identity != nil && m.creationStore != nil {
 		return m.registerSessionCreation(ctx, info, meta, *identity)
 	}
-	if err := m.sessionCatalog.RegisterSession(ctx, sessionCatalogInfoFromRuntime(info)); err != nil {
+	if err := m.sessionCatalog.RegisterSession(ctx, new(sessionCatalogInfoFromRuntime(info))); err != nil {
 		return fmt.Errorf("session: register catalog state from metadata for %q: %w", meta.ID, err)
 	}
 	return nil
@@ -157,7 +157,7 @@ func (m *Manager) registerSessionCreation(
 	}
 	if _, err := m.creationStore.RegisterSessionWithCreationIdentity(
 		ctx,
-		sessionCatalogInfoFromRuntime(info),
+		new(sessionCatalogInfoFromRuntime(info)),
 		identity,
 	); err != nil {
 		return fmt.Errorf("session: register creation identity for %q: %w", meta.ID, err)

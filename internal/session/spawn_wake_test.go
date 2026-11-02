@@ -537,9 +537,9 @@ func TestManagerEarlyStopSupervision(t *testing.T) {
 				ParentSessionID: parent.ID, RootSessionID: parent.ID, Kind: store.LineageKindProvenance,
 			}
 		}
-		child, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		child, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Name: "executor", Workspace: h.workspaceID, Lineage: lineage,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(child) error = %v", err)
 		}

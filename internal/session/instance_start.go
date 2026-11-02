@@ -11,7 +11,7 @@ import (
 type instanceSessionRegistrar interface {
 	RegisterInstanceSession(
 		context.Context,
-		store.SessionInfo,
+		*store.SessionInfo,
 		string,
 		*store.SessionCreationIdentity,
 	) (store.SessionCreationRegistration, error)
@@ -46,7 +46,7 @@ func (m *Manager) persistInstanceAcceptedStart(ctx context.Context, instanceID s
 	}
 	if _, err := registrar.RegisterInstanceSession(
 		ctx,
-		sessionCatalogInfoFromRuntime(session.Info()),
+		new(sessionCatalogInfoFromRuntime(session.Info())),
 		instanceID,
 		identity,
 	); err != nil {

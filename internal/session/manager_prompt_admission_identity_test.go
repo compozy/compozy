@@ -472,9 +472,9 @@ func TestInstanceReportsReachProvider(t *testing.T) {
 			if strings.HasPrefix(scenario, "startup_failure") {
 				created, err := h.manager.CreateAccepted(
 					t.Context(),
-					CreateAcceptedOpts{
+					new(CreateAcceptedOpts{
 						Session: CreateOpts{AgentName: "coder", Name: "session", Workspace: h.workspaceID},
-					},
+					}),
 				)
 				if err != nil {
 					t.Fatal(err)

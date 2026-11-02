@@ -41,22 +41,26 @@ type failingTakeOverCatalog struct {
 	armed atomic.Bool
 }
 
-func (c *failingTakeOverCatalog) RegisterSession(ctx context.Context, info store.SessionInfo) error {
+func (c *failingTakeOverCatalog) RegisterSession(ctx context.Context, infoInput *store.SessionInfo) error {
+	info := *infoInput
+
 	if c.armed.Load() && info.SessionType == string(SessionTypeUser) {
 		return errors.New("catalog unavailable")
 	}
-	return c.GlobalDB.RegisterSession(ctx, info)
+	return c.GlobalDB.RegisterSession(ctx, &(info))
 }
 
 func (c *failingTakeOverCatalog) RegisterSessionWithCreationIdentity(
 	ctx context.Context,
-	info store.SessionInfo,
+	infoInput *store.SessionInfo,
 	identity store.SessionCreationIdentity,
 ) (store.SessionCreationRegistration, error) {
+	info := *infoInput
+
 	if c.armed.Load() && info.SessionType == string(SessionTypeUser) {
 		return store.SessionCreationRegistration{}, errors.New("catalog unavailable")
 	}
-	return c.GlobalDB.RegisterSessionWithCreationIdentity(ctx, info, identity)
+	return c.GlobalDB.RegisterSessionWithCreationIdentity(ctx, &(info), identity)
 }
 
 // failingLineageCatalog cancels the request and refuses the lineage transaction,
@@ -94,7 +98,7 @@ func (h *reparentHarness) create(t *testing.T, parentID string) *Session {
 	if parentID != "" {
 		opts.Lineage = &store.SessionLineage{ParentSessionID: parentID}
 	}
-	created, err := h.manager.Create(testutil.Context(t), opts)
+	created, err := h.manager.Create(testutil.Context(t), &(opts))
 	if err != nil {
 		t.Fatalf("Create(parent=%q) error = %v", parentID, err)
 	}
@@ -112,13 +116,13 @@ func (h *reparentHarness) createStopped(t *testing.T, parentID string) *Session 
 
 func (h *reparentHarness) spawnParent(t *testing.T) *Session {
 	t.Helper()
-	parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	parent, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder", Name: "orchestrator", Workspace: h.workspaceID, Type: SessionTypeUser,
 		Lineage: &store.SessionLineage{
 			SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
 			PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{testToolRead}},
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create(spawn parent) error = %v", err)
 	}
@@ -442,7 +446,7 @@ func TestManagerAdoptSession(t *testing.T) {
 			Lineage: &store.SessionLineage{ParentSessionID: source.ID, RootSessionID: source.ID,
 				SpawnDepth: 1, Kind: store.LineageKindProvenance},
 		}
-		if err := h.db.RegisterSession(t.Context(), child); err != nil {
+		if err := h.db.RegisterSession(t.Context(), &(child)); err != nil {
 			t.Fatal(err)
 		}
 		_, err := h.manager.AdoptSession(t.Context(), h.workspaceID, source.ID, target.ID)
@@ -466,9 +470,9 @@ func TestManagerAdoptSession(t *testing.T) {
 		if _, err := h.manager.Archive(testutil.Context(t), h.workspaceID, archived.ID); err != nil {
 			t.Fatalf("Archive() error = %v", err)
 		}
-		system, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		system, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(system) error = %v", err)
 		}
@@ -810,13 +814,13 @@ func TestStopIfParentStopped(t *testing.T) {
 		dispatcher := &spyHookDispatcher{}
 		h := newHostedMCPHarness(t, WithHookSet(fullHookSet(dispatcher)))
 		ctx := testutil.Context(t)
-		parent, err := h.manager.Create(ctx, CreateOpts{
+		parent, err := h.manager.Create(ctx, new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeUser,
 			Lineage: &store.SessionLineage{
 				SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
 				PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{testToolRead}},
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(parent) error = %v", err)
 		}
@@ -853,13 +857,13 @@ func TestStopIfParentStopped(t *testing.T) {
 		dispatcher := &spyHookDispatcher{}
 		h := newHostedMCPHarness(t, WithHookSet(fullHookSet(dispatcher)))
 		ctx := testutil.Context(t)
-		parent, err := h.manager.Create(ctx, CreateOpts{
+		parent, err := h.manager.Create(ctx, new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeUser,
 			Lineage: &store.SessionLineage{
 				SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
 				PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{testToolRead}},
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(parent) error = %v", err)
 		}
