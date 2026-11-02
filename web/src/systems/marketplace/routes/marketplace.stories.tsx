@@ -118,7 +118,7 @@ export const NothingInstalled: Story = {
   parameters: {
     ...appRouteParameters("/marketplace"),
     ...marketplaceStoryHandlers({
-      catalog: [storyCatalog.repositoryOrientation, storyCatalog.batuta, storyCatalog.github],
+      catalog: [storyCatalog.repositoryOrientation, storyCatalog.grafana, storyCatalog.github],
       extensions: [],
     }),
   },
@@ -295,7 +295,7 @@ export const Installing: Story = {
   parameters: {
     ...appRouteParameters("/marketplace"),
     ...marketplaceStoryHandlers({
-      catalog: [storyCatalog.batuta, storyCatalog.github],
+      catalog: [storyCatalog.grafana, storyCatalog.github],
       extensions: [],
       installDelayMs: 60_000,
     }),
@@ -304,8 +304,10 @@ export const Installing: Story = {
   tags: ["play-fn"],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByRole("button", { name: "Install Batuta" }));
-    await expect(canvas.findByRole("button", { name: "Installing Batuta" })).resolves.toBeDefined();
+    await userEvent.click(await canvas.findByRole("button", { name: "Install Grafana" }));
+    await expect(
+      canvas.findByRole("button", { name: "Installing Grafana" })
+    ).resolves.toBeDefined();
   },
 };
 
@@ -470,7 +472,7 @@ export const InstalledUpdatesPartialProgress: Story = {
     ...appRouteParameters("/marketplace/installed"),
     ...marketplaceStoryHandlers({
       catalog: defaultCatalog,
-      pendingUpdates: ["batuta"],
+      pendingUpdates: ["grafana"],
       extensions: installedPartialUpdateExtensions,
     }),
   },

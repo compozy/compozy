@@ -233,7 +233,9 @@ func refreshGenerationOutputFromTaskStatus(
 		return refreshCompletedTaskRunOutput(parent, graph, output, run)
 	case task.TaskRunStatusFailed, task.TaskRunStatusCanceled:
 		output.Status = generationOutputFailed
-		if output.OutputRef == "" {
+		if failureRef, ok := ActionFailureOutputRefFromMetadata(run.Metadata); ok {
+			setGenerationOutputRef(&output, failureRef)
+		} else if output.OutputRef == "" {
 			reasonCode := failureReasonCode(run.Error)
 			if reasonCode != "" {
 				failure := NewActionFailure(reasonCode, reasonCode, "")

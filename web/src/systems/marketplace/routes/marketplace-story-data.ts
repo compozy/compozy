@@ -78,12 +78,11 @@ export const storyCatalog = {
     tier: "community",
     version: "0.3.3",
   }),
-  batuta: catalogEntry(otelBridge, {
-    author: "Francisross Soares",
-    description:
-      "Route CompozyOS spec-cycle work to the cheapest capable executor while preserving review and verification gates",
-    entry_id: "batuta",
-    name: "Batuta",
+  grafana: catalogEntry(otelBridge, {
+    author: "Grafana Labs",
+    description: "Query dashboards, alerts, and logs from your Grafana instance",
+    entry_id: "grafana",
+    name: "Grafana",
     tier: "community",
     version: "0.4.1",
   }),

@@ -19,6 +19,17 @@ link_skill() {
   ln -s "$source_path" "$target"
 }
 
+# The spec-cycle skills below left the repository in v0.5.0 and their ignore
+# lines went with them, so a checkout's old links would dangle and show as
+# untracked. Remove this block after v0.5.0.
+for retired in cy-execute-task cy-fix-reviews cy-review-round cy-workflow-memory; do
+  for retired_link in "$SOURCE_DIR/$retired" "$TARGET_DIR/$retired"; do
+    if [ -L "$retired_link" ] && [ ! -e "$retired_link" ]; then
+      rm "$retired_link"
+    fi
+  done
+done
+
 # Skills shipped inside the binary (skills/<name>) are also exposed to local
 # agents: each one is linked into .agents/skills with a relative symlink, so the
 # loop below picks it up and mirrors it into .claude/skills like any other skill.
@@ -44,40 +55,14 @@ if [ -d "$BUNDLED_DIR" ]; then
   echo "Linked $bundled_skills bundled skills from skills/ → .agents/skills"
 fi
 
-# Shared spec-cycle skills are canonical in extensions/spec-cycle/skills (the
-# extension embeds them into the binary); each listed one is linked into
-# .agents/skills so the loop below mirrors it into .claude/skills. Only
-# byte-identical shares belong in this list — cy-create-spec, cy-create-tasks,
-# and cy-final-verify keep intentionally divergent local variants (Compozy
-# tooling vs the portable extension copy) and must never be linked.
-SPEC_CYCLE_DIR="$ROOT_DIR/extensions/spec-cycle/skills"
-SPEC_CYCLE_SHARED_SKILLS=(
-  cy-execute-task
-  cy-fix-reviews
-  cy-review-round
-  cy-workflow-memory
-)
-
-if [ -d "$SPEC_CYCLE_DIR" ]; then
+# Expose the retained extension authoring skill to agents running in this checkout.
+authoring_source="$ROOT_DIR/extensions/spec-cycle/skills/cy-create-spec"
+authoring_link="$SOURCE_DIR/cy-create-spec"
+if [ -f "$authoring_source/SKILL.md" ]; then
   mkdir -p "$SOURCE_DIR"
-
-  spec_cycle_skills=0
-  for skill_name in "${SPEC_CYCLE_SHARED_SKILLS[@]}"; do
-    [ -f "$SPEC_CYCLE_DIR/$skill_name/SKILL.md" ] || continue
-
-    shared_link="$SOURCE_DIR/$skill_name"
-    if [ -L "$shared_link" ]; then
-      rm "$shared_link"
-    elif [ -e "$shared_link" ]; then
-      printf 'Refusing to replace non-symlink skill path: %s\n' "$shared_link" >&2
-      exit 1
-    fi
-
-    ln -s "../../extensions/spec-cycle/skills/$skill_name" "$shared_link"
-    spec_cycle_skills=$((spec_cycle_skills + 1))
-  done
-
-  echo "Linked $spec_cycle_skills spec-cycle skills from extensions/spec-cycle/skills → .agents/skills"
+  if [ ! -e "$authoring_link" ] || [ -L "$authoring_link" ]; then
+    ln -sfn "../../extensions/spec-cycle/skills/cy-create-spec" "$authoring_link"
+  fi
 fi
 
 if [ -d "$SOURCE_DIR" ]; then

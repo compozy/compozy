@@ -201,7 +201,7 @@ Follow **inspect → validate → dry-run → publish (with `expected_version`) 
 5. **run** — `compozy__loop_run`. Only now does the Loop spend tokens.
 
 New Loops start as a fork (`compozy__loop_create` with `fork_from_name`); there is no blank-canvas
-authoring. Read-only sources — including the default `spec-cycle` Loops — must be forked before you
+authoring. Read-only sources — including bundled Loops — must be forked before you
 adapt them; native mutation is `tool_denied`/`loop_source_immutable`.
 
 Deleting a workspace-authored Loop also removes its stored config override and editor annotations.
@@ -634,7 +634,7 @@ An exact template reference keeps its JSON type through materialization.
   class: action
   kind: run-loop
   params:
-    loop: implement-tasks
+    loop: example-delivery
     mode: await
     config_overrides:
       iteration_cap: 4
@@ -738,7 +738,7 @@ with migration guidance.
 ```bash
 compozy loop run \
   --workspace . \
-  --name implement-tasks \
+  --name example-delivery \
   --runtime worker=codex/gpt-5.4@high:speed=fast \
   --runtime type=frontend:claude/opus:speed=normal \
   --runtime id=task_03:-/gpt-5.5-codex@xhigh:speed=fast \
@@ -822,46 +822,9 @@ window `stalled` (reason `watch_source_silence`). Watch sources are extension-de
 `spec-cycle` extension does not publish one. Every `watch/poll` response must carry a stable
 `event_key`; missing, invalid UTF-8, or values over 256 bytes fail before admission, with no fallback.
 
-## Bundled Task Delivery Modes
+## Agent-led spec delivery
 
-The bundled `implement-tasks` Loop accepts `mode=per-task|orchestrated`; `per-task` is the default.
-The `implementer` input selects the worker Agent for both paths and defaults to `code_implementer`.
-The default path imports the task graph and runs one isolated action with that Agent per task. The
-orchestrated path runs the bundled `orchestrator` Agent continuously and instructs it to follow
-`cy-orchestrate-tasks`: start one bounded worker with the selected Agent per task, dispatch a
-blocking prompt, verify completion on disk and its evidence, and stop the worker on every path.
-
-Four optional runtime inputs select `orchestrator_runtime`, `backend_runtime`, `frontend_runtime`,
-and `default_runtime`. The category match uses exact task frontmatter type; all other types use the
-default. Empty inputs fall through to agent and config defaults. Task frontmatter runtime wins over
-the category input field by field. The conductor passes every supplied provider, model, reasoning,
-and speed value through `compozy spawn`.
-
-The task importer and extension completion judge share one YAML parser over the manifest's task
-files. Write `status: completed`; existing `complete`, `done`, and `finished` values also count as
-completed, ignoring case and surrounding whitespace. Only `pending` and `in_progress` are queued.
-Unknown or missing states fail validation before dispatch. Importing reads files without rewriting
-them, and rerunning a finished task set dispatches no task workers.
-
-`ext__spec_cycle__import_tasks` returns `tasks`, `count`, and `passed`; `passed` is true exactly when
-the valid task set contains no unfinished tasks. The Goal's extension judge consumes that verdict;
-a separate command judge checks that no conductor-created worker survives. The Goal JSON result
-uses `complete|blocked`, independently of task frontmatter.
-
-## Agent-Authored Review and Fix
-
-The bundled `review-and-fix` Loop reviews a named task without a pull-request provider. Start it with
-`compozy loop run --workspace <workspace-id> --name review-and-fix --input task_name=<task>`.
-Optional `reviewer` and `fixer` inputs select agents; `auto_commit` defaults to `false`.
-
-The reviewer returns source-agnostic structured issues. `ext__spec_cycle__write_review_artifacts`
-creates the next exclusive `.compozy/tasks/<task>/reviews-NNN/` round inside the authenticated
-workspace, validates file containment, and returns complete batches of issue-file paths. The fixer
-reads each batch and changes `status: pending` only to `valid`, `invalid`, `unresolved`, or `blocked`;
-it never creates, renames, timestamps, or resolves an issue file. The finalizer changes only a fixed
-`valid` issue to `resolved`, preserves invalid and open findings, and returns structured
-`{resolved, invalid, pending}` counts. The next generation reviews the task again; an empty `issues`
-array ends the run. Neither artifact tool input accepts a workspace root.
+`spec-cycle` is resource-only and ships no Loops or tool provider. Use `spec_conductor` for spec delivery, `orchestrator` for small work, and `reviewer` followed by `code_implementer` for remediation. Removed Loop/tool references fail where invoked; existing task files and saved overrides remain intact. Agent procedures own session monitoring and recovery.
 
 Scheduled watch Loops default to `catch_up_policy: coalesce`; other scheduled Loops default to
 `skip_missed`. Explicit recurring schedule policies are `skip_missed`, `coalesce`, `replay`, and
@@ -918,7 +881,7 @@ inputs:
     required: false
 # On the parent run-loop node:
 params:
-  loop: review-and-fix
+  loop: example-review
   mode: await
   inputs:
     task_name: "{{ .inputs.task_name }}"
@@ -927,7 +890,7 @@ params:
 
 The JSON string contains exactly `{worktree_id, include_paths, fingerprint}`: use the canonical
 worktree ID and the scoped plan's complete include set and SHA-256 fingerprint. The child declares
-that string input; bundled `review-and-fix` accepts it. CompozyOS persists the original proof in
+that string input. CompozyOS persists the original proof in
 child inputs and independently checks the registered worktree's repository, branch, HEAD, selected
 file contents and selected index state before adoption. Changed or absent proof, unavailable
 verification, rerunning producers, or a different child boundary require normal review execution.

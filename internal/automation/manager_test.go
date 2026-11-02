@@ -2846,3 +2846,114 @@ func TestManagerStartPreservesArchivedWorkspaceDefinitions(t *testing.T) {
 		t.Fatalf("reloaded trigger = %#v", gotTrigger)
 	}
 }
+
+func TestManagerSyncRetiredLoopTargets(t *testing.T) {
+	t.Parallel()
+	for _, unavailable := range []error{ErrLoopTargetUnavailable, ErrLoopTargetNotFound} {
+		for _, useResources := range []bool{false, true} {
+			t.Run(
+				fmt.Sprintf("Should retain saved %v targets with resource storage %t", unavailable, useResources),
+				func(t *testing.T) {
+					t.Parallel()
+					starter := &recordingLoopStarter{validateErr: unavailable}
+					var manager *Manager
+					var workspaceID string
+					if useResources {
+						h := newManagerResourceHarness(t)
+						workspaceID = h.workspace.ID
+						manager = h.newResourceManager(
+							t,
+							WithLoopStarter(starter),
+							WithResourceDefinitions(h.jobStore, h.triggerStore, h.actor, nil),
+						)
+					} else {
+						h := newManagerHarness(t)
+						workspaceID = h.workspace.ID
+						manager = h.newManager(t, compozyconfig.AutomationConfig{}, WithLoopStarter(starter))
+					}
+					job := testJob(AutomationScopeGlobal, "saved-loop", "")
+					job.AgentName, job.Prompt = "", ""
+					job.TargetKind, job.LoopTarget = TargetKindLoop, &LoopTarget{
+						WorkspaceID: workspaceID,
+						LoopName:    "retained",
+					}
+					trigger := testTrigger(AutomationScopeGlobal, "saved-loop-trigger", "")
+					trigger.AgentName, trigger.Prompt = "", ""
+					trigger.Event, trigger.WebhookID, trigger.EndpointSlug, trigger.WebhookSecretRef = "session.stopped", "", "", ""
+					trigger.TargetKind, trigger.LoopTarget = TargetKindLoop, job.LoopTarget
+					stats, err := manager.SyncManagedDefinitions(
+						t.Context(),
+						JobSourceConfig,
+						[]Job{job},
+						[]Trigger{trigger},
+					)
+					if err != nil || stats.JobsSynced != 1 || stats.TriggersSynced != 1 {
+						t.Fatalf("sync = %+v, %v", stats, err)
+					}
+					if _, err := manager.CreateJob(t.Context(), job); !errors.Is(err, unavailable) {
+						t.Fatalf("dynamic job = %v", err)
+					}
+					if _, err := manager.CreateTrigger(
+						t.Context(),
+						trigger,
+						WebhookSecretWrite{},
+					); !errors.Is(
+						err,
+						unavailable,
+					) {
+						t.Fatalf("dynamic trigger = %v", err)
+					}
+					if useResources {
+						actor := manager.resourceActorForSource(JobSourceConfig)
+						gotJob, err := manager.jobResources.Get(t.Context(), actor, job.ID)
+						if err != nil || gotJob.Spec.LoopTarget == nil ||
+							gotJob.Spec.LoopTarget.LoopName != "retained" {
+							t.Fatalf("retained job=%+v err=%v", gotJob, err)
+						}
+						gotTrigger, err := manager.triggerResources.Get(t.Context(), actor, trigger.ID)
+						if err != nil || gotTrigger.Spec.LoopTarget == nil ||
+							gotTrigger.Spec.LoopTarget.LoopName != "retained" {
+							t.Fatalf("retained trigger=%+v err=%v", gotTrigger, err)
+						}
+					} else {
+						if got, err := manager.GetJob(
+							t.Context(),
+							job.ID,
+						); err != nil || got.LoopTarget == nil ||
+							got.LoopTarget.LoopName != "retained" {
+							t.Fatalf("retained job=%+v err=%v", got, err)
+						}
+						if got, err := manager.GetTrigger(
+							t.Context(),
+							trigger.ID,
+						); err != nil || got.LoopTarget == nil ||
+							got.LoopTarget.LoopName != "retained" {
+							t.Fatalf("retained trigger=%+v err=%v", got, err)
+						}
+					}
+					malformed := errors.New("unrelated malformed loop")
+					starter.validateErr = malformed
+					if _, err := manager.SyncManagedDefinitions(
+						t.Context(),
+						JobSourceConfig,
+						[]Job{job},
+						nil,
+					); !errors.Is(
+						err,
+						malformed,
+					) {
+						t.Fatalf("malformed job target = %v", err)
+					}
+					if _, err := manager.SyncManagedDefinitions(
+						t.Context(),
+						JobSourceConfig,
+						nil,
+						[]Trigger{trigger},
+					); !errors.Is(err, malformed) {
+						t.Fatalf("malformed trigger target = %v", err)
+					}
+				},
+			)
+		}
+	}
+}

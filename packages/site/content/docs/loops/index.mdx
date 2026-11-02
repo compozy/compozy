@@ -60,20 +60,12 @@ not replace capabilities:
 
 ## Arrive and use
 
-The common path never touches a graph. On a fresh CompozyOS home, the bundled `spec-cycle` extension
-is installed enabled, so its two first-party Loops can run directly — supply a couple of inputs and
-go:
+A fresh CompozyOS home has no default delivery Loops. If you want to ship a spec or a small change,
+you don't need a Loop at all: use the [`spec_conductor`](/docs/examples/deliver-a-spec) or
+[`orchestrator`](/docs/examples/deliver-small-work) agent from the bundled `spec-cycle` extension.
 
-- **`implement-tasks`** — implements already-authored tasks in dependency order. Its default mode
-  uses sequential Loop actions; its orchestrated mode starts, checks, and stops one bounded worker
-  session per task.
-- **`review-and-fix`** — asks the configured reviewer agent to inspect a named task, records its
-  structured findings as `.compozy/tasks/<task>/reviews-NNN/issue_NNN.md` files, remediates complete
-  artifact batches, and repeats until a new review generation returns no issues.
-
-If you disable `spec-cycle`, those Loops, their default agents, and their artifact tools leave the
-catalog together. Later daemon starts and extension updates preserve that choice; CompozyOS does not
-silently re-enable it. Enabling it restores the package.
+Reach for a Loop when you want your own repeatable program. Write one, fork one, or run one that an
+extension ships, and supply a couple of inputs.
 
 Authoring, configuring, and forking are an opt-in power ceiling, never the entry toll.
 

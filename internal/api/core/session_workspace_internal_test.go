@@ -179,6 +179,11 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 	}{
 
 		{
+			name:       "Should map a removed agent to not found",
+			err:        skills.ErrAgentNotFound,
+			wantStatus: http.StatusNotFound,
+		},
+		{
 			name:       "Should map unsupported prompt images to unprocessable entity",
 			err:        session.ErrPromptImagesUnsupported,
 			wantStatus: http.StatusUnprocessableEntity,

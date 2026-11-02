@@ -2,10 +2,14 @@ package loop
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log/slog"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/compozy/compozy/internal/tools"
 
 	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -663,4 +667,122 @@ func snapshotEffectiveConfig() EffectiveConfig {
 		GateMaxRevisions:  1,
 		Lifecycle:         DefaultLifecycleConfig(),
 	}
+}
+
+func TestCoordinatorRunnerShouldFailRemovedPinnedTool(t *testing.T) {
+	t.Parallel()
+	t.Run("Should fail the resumed removed tool step and keep unrelated runs usable", func(t *testing.T) {
+		t.Parallel()
+		const toolID = "ext__spec_cycle__import_tasks"
+		definition := pinnedSnapshotDefinition()
+		definition.Graph = dsl.Graph{Nodes: []dsl.Node{{ID: "removed", Class: dsl.NodeClassAction, Kind: toolID}}}
+		resolved, err := NewCompiler(
+			WithCompilerToolSchemaSource(
+				snapshotToolSchemas{
+					toolID: {
+						ToolID:             toolID,
+						InputSchemaDigest:  "input-v1",
+						OutputSchemaDigest: "output-v1",
+						InputSchema:        []byte(`{"type":"object"}`),
+						OutputSchema:       []byte(`{"type":"object"}`),
+					},
+				},
+			),
+		).Compile(definition)
+		if err != nil {
+			t.Fatal(err)
+		}
+		registry, err := tools.NewRegistry()
+		if err != nil {
+			t.Fatal(err)
+		}
+		actions, err := NewActionRegistry(registry)
+		if err != nil {
+			t.Fatal(err)
+		}
+		run := Run{
+			ReattemptStrategy: ReattemptFailedOnly,
+			Origin:            &RunOrigin{Kind: RunOriginCatalog},
+			ID:                "removed-run",
+			WorkspaceID:       "ws",
+			LoopName:          "pinned",
+			Status:            StatusRunning,
+			Generation:        1,
+			Inputs:            map[string]any{"slug": "saved"},
+		}
+		coordinator := controlCoordinatorRun(run, 1)
+		outputs := coordinatorRunnerOutputs{
+			outputs: map[int][]GenerationOutput{
+				1: {{Generation: 1, NodeID: "removed", Status: generationOutputRunning, TaskRunID: "removed-step"}},
+			},
+		}
+		workers := map[string]task.Run{coordinator.ID: coordinator}
+		runner := newCoordinatorRunnerForTestWithResolvedDefinition(
+			t,
+			run,
+			coordinator,
+			workers,
+			outputs,
+			resolved,
+			WithCoordinatorActionRegistry(actions),
+		)
+		metadata, err := json.Marshal(coordinatorActionRunMetadata{Generation: 1, NodeID: "removed", Attempt: 1})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = runner.ExecuteActionRun(
+			t.Context(),
+			task.Run{
+				ID:        "removed-step",
+				RunKind:   task.RunKindWorker,
+				LoopRunID: string(run.ID),
+				Status:    task.TaskRunStatusClaimed,
+				Metadata:  metadata,
+			},
+			task.ActorContext{},
+		)
+		if !errors.Is(err, ErrActionUnknownKind) || !strings.Contains(err.Error(), toolID) {
+			t.Fatalf("removed tool error = %v", err)
+		}
+		failureMetadata, marshalErr := json.Marshal(
+			map[string]any{
+				"failure": NewActionFailure(string(ReasonCodeUnknownActionKind), err.Error(), "Restore the tool"),
+			},
+		)
+		if marshalErr != nil {
+			t.Fatal(marshalErr)
+		}
+		workers["removed-step"] = task.Run{
+			ID:       "removed-step",
+			Status:   task.TaskRunStatusFailed,
+			Error:    err.Error(),
+			Metadata: failureMetadata,
+		}
+		plan, err := runner.Run(t.Context(), task.RunID(coordinator.ID))
+		if err != nil || plan.Terminal == nil || plan.Terminal.Status != string(StatusFailed) ||
+			plan.NextCoordinator != nil {
+			t.Fatalf("failed run plan = %+v, %v", plan, err)
+		}
+		healthy := Run{
+			ID:          "healthy-run",
+			WorkspaceID: "ws",
+			LoopName:    "pinned",
+			Status:      StatusRunning,
+			Inputs:      map[string]any{"slug": "healthy"},
+		}
+		healthyCoordinator := controlCoordinatorRun(healthy, 1)
+		healthyRunner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			healthy,
+			healthyCoordinator,
+			nil,
+			coordinatorRunnerOutputs{},
+			pinnedSnapshotDefinition(),
+			WithCoordinatorActionRegistry(actions),
+		)
+		plan, err = healthyRunner.Run(t.Context(), task.RunID(healthyCoordinator.ID))
+		if err != nil || plan.Terminal == nil || plan.Terminal.Status != string(StatusDone) {
+			t.Fatalf("healthy run plan = %+v, %v", plan, err)
+		}
+	})
 }

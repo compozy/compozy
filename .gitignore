@@ -31,6 +31,7 @@ coverage/
 .claude/skills
 .compozy/runs
 .compozy/memory
+.compozy/work-log.md
 .compoz/runs
 $COMPOZY_HOME
 COMPOZY_HOME
@@ -48,10 +49,7 @@ ai-docs/
 .impeccable
 .coderabbit/reviews/
 .agents/skills/compozy
-.agents/skills/cy-execute-task
-.agents/skills/cy-fix-reviews
-.agents/skills/cy-review-round
-.agents/skills/cy-workflow-memory
+.agents/skills/cy-create-spec
 
 # Python
 __pycache__/

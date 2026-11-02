@@ -20,8 +20,8 @@ An explicit node environment wins over the Loop default. If neither exists, exec
 `run-agent` and `goal` accept node environments.
 
 With `worktree`, both agent sessions and workspace-relative extension tool actions use the selected
-ready Worktree. For example, the `spec-cycle` extension's `import_tasks` action reads a task pack
-from that Worktree. A direct extension-tool call without a Loop Worktree context still resolves from
+ready Worktree. For example, an extension action that reads a file finds it in that Worktree. A
+direct extension-tool call without a Loop Worktree context still resolves from
 the workspace root.
 
 Web authoring offers `root` and `worktree`, plus Inherit to remove an override. The API and CLI still

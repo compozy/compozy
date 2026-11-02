@@ -38,12 +38,12 @@ const bundledManifestSchema = z.object({
     description: z.string().min(1),
     min_compozy_version: z.string().min(1),
   }),
-  capabilities: z.object({ provides: z.array(z.string().min(1)).min(1) }),
+  capabilities: z.object({ provides: z.array(z.string().min(1)) }),
   resources: z.object({
     skills: resourcePathsSchema,
-    loops: resourcePathsSchema,
+    loops: resourcePathsSchema.default([]),
     agents: resourcePathsSchema,
-    tools: z.record(z.string(), toolSchema),
+    tools: z.record(z.string(), toolSchema).default({}),
   }),
 });
 

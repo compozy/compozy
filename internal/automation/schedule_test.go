@@ -650,6 +650,48 @@ func TestSchedulerReconcilesMissedRunOnceWithinGrace(t *testing.T) {
 	}
 }
 
+func TestSchedulerRefreshesRecoveredLoopCatchUpPolicy(t *testing.T) {
+	t.Parallel()
+	t.Run("Should refresh a resolved loop default without changing its schedule", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 4, 10, 12, 0, 0, 0, time.UTC)
+		storage := newMemorySchedulerStore()
+		job := testJob(AutomationScopeGlobal, "recovered-loop", "")
+		job.AgentName, job.Prompt = "", ""
+		job.TargetKind, job.LoopTarget = TargetKindLoop, &LoopTarget{WorkspaceID: "ws", LoopName: "recovered"}
+		job.Schedule = &ScheduleSpec{Mode: ScheduleModeEvery, Interval: "1m"}
+		policy := SchedulerCatchUpPolicySkipMissed
+		scheduler := newTestScheduler(
+			t,
+			newStubScheduleDispatcher(),
+			WithSchedulerStore(storage),
+			WithSchedulerClock(clockwork.NewFakeClockAt(now)),
+			WithSchedulerCatchUpPolicyResolver(
+				func(context.Context, Job) (SchedulerCatchUpPolicy, error) { return policy, nil },
+			),
+		)
+		first, err := scheduler.Register(t.Context(), job)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if first.CatchUpPolicy != SchedulerCatchUpPolicySkipMissed {
+			t.Fatal(first)
+		}
+		policy = SchedulerCatchUpPolicyCoalesce
+		second, err := scheduler.Update(t.Context(), job)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if second.CatchUpPolicy != policy {
+			t.Fatal(second)
+		}
+		stored, err := storage.GetSchedulerState(t.Context(), job.ID)
+		if err != nil || stored.CatchUpPolicy != policy {
+			t.Fatalf("stored=%+v err=%v", stored, err)
+		}
+	})
+}
+
 func TestSchedulerResetsExplicitReliabilityToTargetDefault(t *testing.T) {
 	t.Parallel()
 

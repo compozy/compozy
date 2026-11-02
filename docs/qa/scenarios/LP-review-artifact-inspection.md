@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-08
 expected: A non-empty reviewer result creates the next exclusive reviews-NNN directory with one deterministic issue file per finding, preserved source fields, and no files outside the authenticated task workspace.
 entry_points: workspace .compozy/tasks/<task>/reviews-NNN; loop run status; ext__spec_cycle__write_review_artifacts
-qa_status: pass
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status:
@@ -17,3 +17,5 @@ overlaps: LP-029; LP-agent-authored-review-run
 ---
 
 Task07 2026-07-27: added for on-disk artifact inspection; flag only, not retested.
+
+retired — 2026-11-02 spec-cycle simplification: `ext__spec_cycle__write_review_artifacts` left the product. The `reviewer` agent writes one findings file (TA-spec-conductor-delivery).

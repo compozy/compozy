@@ -29,20 +29,12 @@ The catalog does not show a start-binding badge. A badge derived from one bounde
 sample could claim that a Loop has no binding when the matching definition is on a later page.
 Open Loop detail for the authoritative, independently paged binding lists.
 
-Two first-party Loops ship through the bundled `spec-cycle` extension, which is enabled when CompozyOS
-installs it into a fresh home:
+A fresh home has no default delivery Loops: spec and small-work delivery run through the
+[`spec-cycle` agents](/docs/examples/deliver-a-spec). Loops reach the catalog when you write or fork
+one, or when an extension ships one.
 
-- **`implement-tasks`** — Engineering. Implements already-authored tasks in dependency order,
-  either through sequential Loop actions or a conductor with one bounded worker per task.
-- **`review-and-fix`** — Engineering. Runs the configured reviewer against a named task, writes
-  each finding under `.compozy/tasks/<task>/reviews-NNN/`, and dispatches the fixer over complete
-  artifact batches. A clean review generation ends the run.
-
-The **Workspace** group stays empty until you fork a Loop. A workspace with only the two
-`spec-cycle` Loops is the honest empty state — the catalog never invents extra Loops to look fuller;
-it shows the real runs of the Loops you have. Disabling `spec-cycle` removes those two Loops, their
-default agents, and their artifact tools together. That disabled state survives daemon restarts and
-extension updates until you enable it again.
+The **Workspace** group stays empty until you create or fork a Loop. An empty catalog is the honest
+state — it never invents extra Loops to look fuller; it shows the real runs of the Loops you have.
 
 <OperatorNote label="Derived metrics">
   Success rate and run counts are a derived read model computed over real runs — they are aggregates

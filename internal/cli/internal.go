@@ -6,7 +6,6 @@ import (
 	"github.com/compozy/compozy/extensions/connectivity/tailscale"
 	forgegithub "github.com/compozy/compozy/extensions/forge/github"
 	opendesign "github.com/compozy/compozy/extensions/open-design"
-	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	"github.com/compozy/compozy/internal/shellwait"
 	"github.com/spf13/cobra"
 )
@@ -56,8 +55,6 @@ func newInternalExtensionProviderCommand() *cobra.Command {
 				)
 			case opendesign.Name:
 				return opendesign.RunProvider(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout(), cmd.ErrOrStderr())
-			case speccycle.Name:
-				return speccycle.RunProvider(cmd.Context(), cmd.InOrStdin(), cmd.OutOrStdout())
 			default:
 				return fmt.Errorf("unknown internal extension provider %q", args[0])
 			}

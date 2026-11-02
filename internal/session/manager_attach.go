@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 // AttachSession acquires the durable attach lock before updating the live session snapshot.
@@ -35,6 +37,21 @@ func (m *Manager) AttachSession(
 	}
 	attach, err := m.sessionCatalog.AttachSession(ctx, normalized)
 	if err != nil {
+		if errors.Is(err, store.ErrSessionNotAttachable) {
+			resolved, resolveErr := m.resolveResumeWorkspace(ctx, &meta)
+			if resolveErr == nil {
+				_, agentErr := m.resolveWorkspaceAgentArtifactsForSession(
+					meta.AgentName,
+					Type(meta.SessionType),
+					&resolved,
+				)
+				if errors.Is(agentErr, skills.ErrAgentNotFound) ||
+					errors.Is(agentErr, workspacepkg.ErrAgentNotAvailable) {
+					return store.SessionAttach{}, fmt.Errorf("%w: agent %q is no longer available", err, meta.AgentName)
+				}
+			}
+			return store.SessionAttach{}, fmt.Errorf("%w: session %q is %s", err, normalized.SessionID, meta.State)
+		}
 		return store.SessionAttach{}, fmt.Errorf("session: attach %q: %w", normalized.SessionID, err)
 	}
 	if active, ok := m.Get(attach.SessionID); ok {

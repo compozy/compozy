@@ -17,8 +17,8 @@ overlaps: LP-run-agent-output-ownership; RT-loop-goal-origin-session-lineage; LP
 ---
 
 Added for GitHub issues #444 and #445. The acceptance walk starts a nested Loop from a real
-Batuta session, captures the `run-agent` worker session while it is active, and confirms its
+parent session, captures the `run-agent` worker session while it is active, and confirms its
 `parent_session_id` and `root_session_id` point to the nearest originating session without borrowing
 that session. After successful, failed, or canceled terminal settlement, fresh structured reads
-must show the worker stopped and unbound while the Batuta session remains active. A retry probe must
+must show the worker stopped and unbound while the parent session remains active. A retry probe must
 keep the exact worker binding active until the cell reaches a true terminal boundary.

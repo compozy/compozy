@@ -1,6 +1,6 @@
 # Test Specification Template
 
-Structure for `_tests.md` — the canonical test contract that ships alongside `_spec.md`. Every test case for the feature lives here with a stable ID: `cy-create-tasks` assigns each ID to exactly one task, implementers write exactly the assigned cases, and review rounds check the shipped suite against this document. Existing suite/gate/probe evidence may own a behavior without a new test ID.
+Structure for `_tests.md` — the canonical test contract that ships alongside `_spec.md`. Every test case for the feature lives here with a stable ID: each ID belongs to exactly one slice in `_slices.md`, implementers write exactly that slice's cases, and review rounds check the shipped suite against this document. Existing suite/gate/probe evidence may own a behavior without a new test ID.
 
 ## ID Rules
 

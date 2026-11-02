@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -508,6 +509,25 @@ func (r triageTestReports) RecentReports(
 		r.onRecent(instanceID, limit)
 	}
 	return r.reports, nil
+}
+
+func TestTriagePromptStatesProposalLimits(t *testing.T) {
+	t.Parallel()
+	t.Run("Should tell the provider the limits the reply parser enforces", func(t *testing.T) {
+		t.Parallel()
+		prompt, err := triagePrompt(nil, nil, "guidance")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := fmt.Sprintf(
+			"Keep each title within %d Unicode code points and each body within %d Unicode code points",
+			heartbeat.TriageTitleMaxRunes,
+			heartbeat.TriageBodyMaxRunes,
+		)
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt omits field limits %q: %q", want, prompt)
+		}
+	})
 }
 
 func TestTriageDispatcher(t *testing.T) {

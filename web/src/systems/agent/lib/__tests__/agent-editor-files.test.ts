@@ -134,7 +134,18 @@ describe("HEARTBEAT.md form", () => {
     expect(scheduleSummary(form, true)).toBe("Every 30 min, all day");
   });
 
-  it("Should keep every source off through a save instead of falling back to all five", () => {
+  it("Should show the work log source a HEARTBEAT.md includes and keep it through a save", () => {
+    const source = "---\ncontext:\n  include: [session_health, work_log]\n---\n";
+    const settings = settingsOf(source);
+    expect(settings.looksAt).toEqual(["session_health", "work_log"]);
+    expect(LOOK_AT_IDS).toContain("work_log");
+    expect(settingsOf(composeCheckInsFile(settings)).looksAt).toEqual([
+      "session_health",
+      "work_log",
+    ]);
+  });
+
+  it("Should keep every source off through a save instead of falling back to every source", () => {
     const form = settingsOf(CHECK_INS_FILE);
     const body = composeCheckInsFile({ ...form, looksAt: [] });
     expect(body).toContain("include: []");

@@ -23,3 +23,5 @@ cycle owns execution.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+retired — 2026-11-02 spec-cycle simplification: the checked installer path no longer exists. `extensions/spec-cycle/embed_test.go` owns the resource inventory.

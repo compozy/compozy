@@ -26,7 +26,7 @@ make cli-docs
 make cli-docs-check
 ```
 
-`make gate` selects required delivery lanes. The Turbo `generate:openapi → generate:content` graph owns generation; local `make site-dev` runs dev generators. After `source.config.ts` changes, regenerate and run the focused typecheck.
+CI owns delivery lanes. The Turbo `generate:openapi → generate:content` graph owns generation; local `make site-dev` runs dev generators. After `source.config.ts` changes, regenerate and run the focused typecheck.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

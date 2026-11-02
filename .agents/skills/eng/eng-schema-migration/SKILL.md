@@ -14,7 +14,7 @@ trigger: implicit
 4. Update affected static queries in the owning sqlc catalog. Keep generated `sqlcgen` types inside the owner package and map them to domain types at the repository boundary.
 5. Read `references/migration-test-patterns.md`. Run the canonical suites that own fresh apply, reopen/data preservation, ahead-version refusal, integrity, sequential history, and schema equivalence. Extend cases only for a new transformation or failure mode not already covered.
 6. If recovery or refusal guidance changes, move the whole stopped SQLite family (`.db`, `-wal`, `-shm`, and sibling databases) to cold storage; never move or edit one live file. Prefer a newer compatible binary for `schema_ahead` when state must be preserved.
-7. Run the owning scoped race-enabled migration checks and `make codegen-check`. Reuse their current evidence and the affected lint lane; root `make gate` applies before commit/push and required current-head CI before PR completion.
+7. Run the owning scoped race-enabled migration checks and `make codegen-check`. Reuse their current evidence and the affected lint lane; repository-wide gates run only in CI, per root `CLAUDE.md`.
 
 ## Error Handling
 

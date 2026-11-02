@@ -74,7 +74,7 @@ Verbatim canonical rules. Reviewers will quote these. Stay aligned.
 
 ## Commit gate
 
-- `make gate` is the local commit gate; exact-head PR CI is the delivery gate. If either is blocked by an external asset issue, report the verified blocker and hold.
+- Focused tests and lint are the local commit check; exact-head PR CI is the delivery gate. If either is blocked by an external asset issue, report the verified blocker and hold.
 - Test failures are production bugs. Fix production code; don't weaken assertions. The only exception is documenting an INVALID review item with concrete evidence.
 
 ## E2E follows runtime contract

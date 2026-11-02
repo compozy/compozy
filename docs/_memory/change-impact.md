@@ -5087,3 +5087,58 @@ step 13.
 
 - **Review repairs.** Instance pages authorize before filling the visible page; report cursors require a successor. Dry-run digests are arrays of bounded, redacted summaries, and check-in reads retain bounded audit details. Monitor recovery honors persisted supersession. Restart recovery preserves admitted cadence; manual hook vetoes audit without an occurrence or cadence change. Extension-authored context and Web identities use their recorded profile/workspace. Native diagnostic reads batch provider availability per session. No additional compatibility shim or state migration is needed for these repairs.
 - **Repair validation.** The User Memory editor accepts the explicit `@user` selector. Catalog publication includes personal and workspace profile definitions even without a skill registry, using canonical workspace IDs. Memory ownership follows the authored definition rather than a replicated visibility scope: user definitions share notes across projects, while repository overrides retain separate notes. API/native reads and startup projection use the same origin rule. Check-ins selects a placement belonging to the open definition when the definition itself is in User scope.
+
+## Spec-cycle QA remediation — 2026-11-02
+
+The existing B1/B2 audit below owns the wider change. Removed action kinds now terminalize their
+Loop run instead of repeatedly retrying into quarantine. Other failure quarantine stays unchanged.
+Durable errors name the absent ToolID. Prompt errors for missing agents map to HTTP/UDS 404;
+attachment refusals identify unavailable agents or the stored session state. No DTO, native ID,
+hook, config, SDK, SQLite, or workspace file shape changes. Web consumes existing error envelopes;
+the official skill needs no new operation. Upgrade scenario RT-upgrade-spec-cycle-hard-cut owns QA.
+The unreferenced Batuta archive is removed after validating the generated catalog publication.
+
+## Spec-cycle simplification B1 — 2026-11-02
+
+Owner: `spec-cycle-simplify` B1; evidence: `docs/qa/reports/2026-11-02-spec-cycle/B1.md`.
+Heartbeat adds `context.include: work_log` and read-only workspace work hints, without new native
+IDs, CLI verbs, HTTP/UDS DTOs, hooks, config.toml keys or SQLite shapes. Canonical workspace
+containment applies before reads; User/global scopes collect no file. Managed automation sync
+preserves references to absent loops and fails locally on execution. Other validation errors
+remain errors. No extension resources or user task files are deleted. The official skill and
+Web source selector co-ship in B2/F1; release/scenario QA belongs to the integration slice.
+
+- **Owning spec.** `.compozy/tasks/spec-cycle-simplify/_spec.md`. Slices link to this entry and update only what they affect.
+- **Native tools.** `ext__spec_cycle__*` removed, a recorded hard cut. No `compozy__*` change.
+- **CLI/HTTP/UDS.** No route or DTO change; removed loops fail with a not found error.
+- **Extensibility and hooks.** `spec-cycle` drops `tool.provider`. Hooks unaffected. `HEARTBEAT.md` gains `work_log`.
+- **Config.** No `config.toml` change.
+- **Workspace data isolation.** The collector reads one file inside the workspace root and rejects paths outside it.
+- **User state.** `.compozy/tasks` is untouched. New optional `.compozy/work-log.md`. Stored overrides of removed loops stay inert. No SQLite change.
+- **Web.** Check-ins editor gains the `work_log` source; sample-name fixtures stay.
+- **Docs and official skill.** Update `skills/compozy/references/{tools-and-skills,loops,agent-definitions}.md`, site loop examples, extension docs, migration guide.
+- **SDKs.** Unaffected.
+- **Catalog.** Batuta removed, regenerated through `cmd/compozy-catalog`, with a release-note block.
+- **Repository tooling.** `scripts/postinstall.sh`, `.codex/scripts`, `CLAUDE.md`, and the authoring playbook change with the skill removal.
+- **QA.** New scenarios for conductor, orchestrator, authoring, upgrade and merge gate; existing spec-cycle scenarios updated.
+
+
+## Spec-cycle resource-only cut — B2 (2026-11-02)
+
+Owner: `spec-cycle-simplify` B2; contract: `_spec.md`, `_dx.md`, ADR-001 through ADR-004 in the workspace-root spec directory.
+
+- Native tools: remove the three `ext__spec_cycle__*` tools, their provider and import-pattern adapter; retain generic extension workspace authority checks.
+- Extensibility: resource-only manifest; four self-contained agents, two skills, no loops, no tool provider. Hooks, SDKs and config shapes do not change.
+- Workspace isolation: implementers own isolated worktrees; an unbound conductor uses absolute spec paths and one `_run.md` owner. User task files are untouched; B1 owns persisted-reference upgrade coverage.
+- Catalog: delist Batuta through the publisher; installed copies are untouched. Keep historical archive bytes available, consistent with existing catalog delisting policy.
+- Official skill: update resource inventory and agent-led delivery guidance in `skills/compozy/references/`.
+- Web/site impact: F1 owns bundled catalog lists and site docs. I2 owns workspace skill removal, release notes, migration guidance and QA scenarios. QA-001/002 exercise prompt behavior after integration; this slice checks parsed resource contracts and real catalog publication.
+
+Owning suites: `extensions/spec-cycle/embed_test.go` (UT-008, UT-009, UT-012), `cmd/compozy-catalog/main_test.go` (UT-013), daemon extension-provider/schema suites and bundled publication/boot-rebuild integration suites. Full gates and live journeys remain integration/CI responsibilities.
+
+B2 repair round 2 (ASTRA-002): saved automation loading also defers missing-output-schema
+errors on the same retired-tool node (review respond and result contracts). Other nodes and
+independently malformed contracts remain strict. No wire, config, hook, SDK, Web, or official
+skill contract changes; persisted definitions and workspace files remain untouched. IT-005
+coverage extends the existing starter and daemon reopen suites; QA-004's
+`RT-upgrade-spec-cycle-hard-cut` includes these saved shapes and the malformed control.

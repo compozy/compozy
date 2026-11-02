@@ -58,7 +58,7 @@ func testDaemonE2EExtensionPublishedAgentSessionCommandsAndPrompt(t *testing.T) 
 	t.Parallel()
 
 	driverPath := acpmock.RequireDriver(t)
-	fixturePath := mockFixturePath(t, "review_and_fix_fixture.json")
+	fixturePath := mockFixturePath(t, "extension_agent_fixture.json")
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		ConfigSeed: e2etest.ConfigSeedOptions{
 			DefaultProvider: acpmock.ProviderName,
@@ -77,7 +77,7 @@ func testDaemonE2EExtensionPublishedAgentSessionCommandsAndPrompt(t *testing.T) 
 	configureExtensionAgentFixture(t, ctx, harness, extensionAgentFixtureConfig{
 		DriverPath:         driverPath,
 		FixturePath:        fixturePath,
-		FixtureAgentName:   "review_and_fix_invalid_reviewer",
+		FixtureAgentName:   "extension_reviewer",
 		ExtensionAgentName: "reviewer",
 		DiagnosticsPath:    diagnosticsPath,
 	})
@@ -109,9 +109,9 @@ func testDaemonE2EExtensionPublishedAgentSessionCommandsAndPrompt(t *testing.T) 
 	}
 	reviewerCommands := reviewerSkillCommands(t, catalog.Commands)
 	extensionCommands := extensionSkillCommands(t, reviewerCommands)
-	extensionCommand, ok := extensionCommands["cy-review-round"]
+	extensionCommand, ok := extensionCommands["cy-create-spec"]
 	if !ok {
-		t.Fatalf("HTTP extension session commands = %+v, want cy-review-round", catalog.Commands)
+		t.Fatalf("HTTP extension session commands = %+v, want cy-create-spec", catalog.Commands)
 	}
 	if strings.TrimSpace(extensionCommand.CanonicalToken) == "" {
 		t.Fatalf("spec-cycle command = %+v, want canonical token", extensionCommand)
@@ -254,9 +254,9 @@ func assertExtensionHostedMCPTools(
 	}
 	assertHostedSkillViewCatalog(t, "extension hosted skill_view", viewedSkills)
 
-	command, ok := commands["cy-review-round"]
+	command, ok := commands["cy-create-spec"]
 	if !ok {
-		t.Fatal("extension commands missing cy-review-round after exact-set assertion")
+		t.Fatal("extension commands missing cy-create-spec after exact-set assertion")
 	}
 	missingConfigMessage := assertExtensionHostedToolReason(
 		t,

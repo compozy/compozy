@@ -3,20 +3,6 @@
   "generated_at": "2026-09-12T10:00:00Z",
   "entries": [
     {
-      "entry_id": "batuta",
-      "name": "Batuta",
-      "description": "Route CompozyOS spec-cycle work to the cheapest capable executor while preserving review and verification gates",
-      "version": "0.1.0-beta.3",
-      "published_at": "2026-08-18T17:41:41Z",
-      "install_slug": "franciscpd/batuta-compozy",
-      "artifact_url": "https://raw.githubusercontent.com/compozy/compozy/main/catalog/artifacts/batuta-v0.1.0-beta.3.tar.gz",
-      "digest_sha256": "e5607681178f66b16731679b54a6145f2241ec7459fd450ae0958144656e7270",
-      "tier": "community",
-      "format": "compozy",
-      "author": "Francisross Soares de Oliveira",
-      "repository": "https://github.com/franciscpd/batuta-compozy"
-    },
-    {
       "entry_id": "herdr-bridge",
       "name": "herdr bridge",
       "description": "Follow CompozyOS agents and Loops in herdr with live status, readable messages, and automatic pane cleanup",

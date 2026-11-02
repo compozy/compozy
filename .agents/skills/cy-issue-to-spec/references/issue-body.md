@@ -25,7 +25,7 @@ The body is a summary that sends readers to the documents, not a replacement for
 
 8. **Surfaces.** The agent-manageability triple (CLI / HTTP+UDS / native tool), config keys, events, and the web surface count — from `_dx.md` and `_uiux.md`.
 
-9. **Build order.** The `_tasks.md` table, reduced to task number, phase, and scope. Mark the MVP boundary. Close with the test-contract count and its split by layer.
+9. **Build order.** The `_slices.md` table, reduced to slice, dependencies, and scope. Mark the MVP boundary. Close with the test-contract count and its split by layer.
 
 10. **Non-goals.** From Part I *Non-Goals*, each with the reason it was excluded. A non-goal that reads as a limitation instead of a decision is miswritten — say "excluded by construction" or "deferred, and here is what makes it cheap later" when that is what the spec decided.
 

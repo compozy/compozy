@@ -658,5 +658,5 @@ the agent's model. A more specific configuration layer replaces the map; an empt
 table clears it. Model IDs and provider names must be nonempty and trimmed.
 
 HEARTBEAT.md `context.include` selects proactive collectors. Omitting `context`
-uses all five collectors; an explicit `include: []` disables them and remains
+uses all six collectors; an explicit `include: []` disables them and remains
 empty after saving, reloading or rolling back the policy.

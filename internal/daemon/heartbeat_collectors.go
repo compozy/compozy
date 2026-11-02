@@ -3,7 +3,10 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
+
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/monitor"
@@ -12,10 +15,16 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
 
+type workLogWorkspaceResolver interface {
+	Resolve(context.Context, string) (workspacepkg.ResolvedWorkspace, error)
+}
+
 type instanceDigestCollector struct {
-	instances *globaldb.InstanceRepo
-	sessions  *session.Manager
-	monitors  *monitor.Service
+	workspaces workLogWorkspaceResolver
+	logger     *slog.Logger
+	instances  *globaldb.InstanceRepo
+	sessions   *session.Manager
+	monitors   *monitor.Service
 }
 
 func (c instanceDigestCollector) Collect(
@@ -44,6 +53,18 @@ func (c instanceDigestCollector) Collect(
 	if (include == nil || slices.Contains(include, "monitors_fired")) && scope.MainSessionID != "" {
 		for _, item := range c.monitors.List(scope.MainSessionID) {
 			facts.Monitors = append(facts.Monitors, monitorDigestFact(item))
+		}
+	}
+	if (include == nil || slices.Contains(include, "work_log")) && scope.WorkspaceID != "" {
+		workspace, err := c.workspaces.Resolve(ctx, scope.WorkspaceID)
+		if err != nil {
+			logger := c.logger
+			if logger == nil {
+				logger = slog.Default()
+			}
+			logger.Warn("work_log: resolve workspace", "workspace_id", scope.WorkspaceID, "error", err)
+		} else {
+			facts.WorkLog, facts.WorkLogTruncated = readWorkspaceWorkLog(workspace.RootDir, c.logger)
 		}
 	}
 	return heartbeat.CollectDigest(scope, facts, include, policy, instructions)

@@ -104,7 +104,10 @@ func (s *automationLoopStarter) ValidateLoopTarget(
 		InputMapping: req.InputMapping,
 	}
 	if err := looppkg.ValidateStartTarget(ctx, s.resolver, validation); err != nil {
-		return err
+		if errors.Is(err, looppkg.ErrDefinitionNotFound) {
+			return fmt.Errorf("%w: %w", automationpkg.ErrLoopTargetNotFound, err)
+		}
+		return classifyRetiredLoopTarget(err)
 	}
 	resolved, err := s.resolver.ResolveLoop(
 		ctx,
@@ -113,7 +116,10 @@ func (s *automationLoopStarter) ValidateLoopTarget(
 		validation.LoopName,
 	)
 	if err != nil {
-		return err
+		if errors.Is(err, looppkg.ErrDefinitionNotFound) {
+			return fmt.Errorf("%w: %w", automationpkg.ErrLoopTargetNotFound, err)
+		}
+		return classifyRetiredLoopTarget(err)
 	}
 	values := make(map[string]any, len(validation.Inputs))
 	origins := make(map[string]looppkg.InputOrigin, len(validation.Inputs))
@@ -147,7 +153,10 @@ func (s *automationLoopStarter) DefaultLoopCatchUpPolicy(
 		strings.TrimSpace(req.LoopName),
 	)
 	if err != nil {
-		return "", err
+		if errors.Is(err, looppkg.ErrDefinitionNotFound) {
+			return "", fmt.Errorf("%w: %w", automationpkg.ErrLoopTargetNotFound, err)
+		}
+		return "", classifyRetiredLoopTarget(err)
 	}
 	for _, node := range resolved.Definition.Graph.Nodes {
 		if node.Class == loopdsl.NodeClassSource && node.Kind == string(loopdsl.SourceWatchSource) {
@@ -241,4 +250,43 @@ func automationStartKindToLoopStartKind(kind automationpkg.LoopStartKind) (loopd
 	default:
 		return "", fmt.Errorf("daemon: unsupported automation loop start kind %q", kind)
 	}
+}
+
+// Only removed dependencies are deferred during saved automation loading. This
+// has no removal release: a saved definition stays invalid forever without it.
+func classifyRetiredLoopTarget(err error) error {
+	failure, ok := errors.AsType[*looppkg.LintFailedError](err)
+	if !ok || len(failure.Errors) == 0 {
+		return err
+	}
+	retiredNodes := make(map[loopdsl.NodeID]bool)
+	for _, diagnostic := range failure.Errors {
+		if diagnostic.Code != looppkg.CodeUnknownActionKind {
+			continue
+		}
+		for _, id := range []string{
+			"ext__spec_cycle__import_tasks",
+			"ext__spec_cycle__write_review_artifacts",
+			"ext__spec_cycle__finalize_review_round",
+		} {
+			if strings.Contains(diagnostic.Message, fmt.Sprintf("action ToolID %q ", id)) {
+				retiredNodes[diagnostic.NodeID] = true
+			}
+		}
+	}
+	for _, diagnostic := range failure.Errors {
+		if !retiredNodes[diagnostic.NodeID] {
+			return err
+		}
+		switch diagnostic.Code {
+		case looppkg.CodeUnknownActionKind, looppkg.CodeReviewRespondSchemaRequired:
+		case looppkg.CodeResultContractInvalid:
+			if diagnostic.Message != "result_contract requires a declared output schema" {
+				return err
+			}
+		default:
+			return err
+		}
+	}
+	return fmt.Errorf("%w: %w", automationpkg.ErrLoopTargetUnavailable, err)
 }

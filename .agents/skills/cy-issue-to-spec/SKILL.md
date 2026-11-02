@@ -24,9 +24,9 @@ Only when starting from a bare issue.
 
 Read the issue and restate its scope in one sentence. When it bundles separable features, split it first: retitle the original to the narrower scope, open a second issue for the remainder, and cross-link both — then spec one of them.
 
-Activate `cy-spec-preflight`, then `cy-create-spec`. Offer `cy-spec-peer-review` after the user approves the spec. Run `cy-create-tasks` last.
+Activate `cy-create-spec` with `docs/_memory/spec-authoring-playbook.md`. It writes `_slices.md` and offers peer review after the user approves the spec.
 
-*Done when:* `.compozy/tasks/<slug>/` holds `_spec.md` (or `_prd.md` + `_techspec.md`), its companions, `adrs/`, and `_tasks.md`, and the user has approved the spec.
+*Done when:* `.compozy/tasks/<slug>/` holds `_spec.md` (or `_prd.md` + `_techspec.md`), its companions, `adrs/`, and `_slices.md`, and the user has approved the spec.
 
 ## Step 1 — Stage the spec set
 

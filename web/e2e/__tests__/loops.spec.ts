@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Page } from "@playwright/test";
@@ -558,6 +558,28 @@ async function openInteractionEditor(appPage: Page, runtime: BrowserRuntime): Pr
     { waitUntil: "domcontentloaded" }
   );
   await expect(appPage.getByTestId("loop-editor")).toBeVisible();
+}
+
+/** A definition from outside the workspace is read-only; write one to the user layer. */
+async function openReadOnlyEditor(appPage: Page, runtime: BrowserRuntime): Promise<void> {
+  if (!runtime.paths) {
+    throw new Error("Read-only Loop editor test requires launch-mode runtime paths");
+  }
+  const name = `${loopEditorInteractionName}-read-only`;
+  const loopDir = path.join(runtime.paths.homeDir, "loops", name);
+  await mkdir(loopDir, { recursive: true });
+  const definition = {
+    ...loopEditorInteractionDefinition,
+    meta: { ...loopEditorInteractionDefinition.meta, name },
+  };
+  // YAML reads JSON as is, so the typed definition stays the one source for this file.
+  await writeFile(path.join(loopDir, "loop.yaml"), JSON.stringify(definition), "utf8");
+  await expect(async () => {
+    await appPage.goto(runtime.url(`/loops/${encodeURIComponent(name)}/editor`), {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(appPage.getByTestId("loop-editor-readonly-strip")).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
 }
 
 /** Opens the operator register on its Nodes lane, where lifecycle state lives. */
@@ -1164,10 +1186,7 @@ test("E2E-034: node menus and graph deletion preserve structural integrity", asy
   await expect(editorNode(appPage, "apply")).toHaveCount(0);
   await expect(edges).toHaveCount(0);
 
-  await appPage.goto(runtime.url("/loops/review-and-fix/editor"), {
-    waitUntil: "domcontentloaded",
-  });
-  await expect(appPage.getByTestId("loop-editor-readonly-strip")).toBeVisible();
+  await openReadOnlyEditor(appPage, runtime);
   await appPage.getByTestId("loop-editor-node").first().dispatchEvent("contextmenu", {
     bubbles: true,
     button: 2,

@@ -103,6 +103,9 @@ func (s *Scheduler) mergeSchedulerState(
 	scheduleChanged := !legacy && currentHash != desiredScheduleHash
 	zoneChanged := scheduleChanged && strings.HasPrefix(currentHash, definitionHash+":")
 	policyFallback := schedulerCatchUpPolicyOrDefault(state.CatchUpPolicy, defaultPolicy)
+	if job.IsLoopTarget() {
+		policyFallback = defaultPolicy
+	}
 	if scheduleChanged && !zoneChanged {
 		policyFallback = defaultPolicy
 		state.MisfireGraceSeconds = scheduleMisfireGraceSeconds(job.Schedule)

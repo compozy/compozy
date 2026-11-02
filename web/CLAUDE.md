@@ -27,7 +27,7 @@ Use `eng-design` for design-system/redesign work, `eng-ui-screenshot` for named-
 
 ## Validation
 
-Run from the repository root; `make gate` selects delivery lanes. During iteration:
+Run from the repository root; CI owns delivery lanes. During iteration:
 
 ```bash
 bunx turbo run typecheck --filter=./web

@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-01
 expected: Running implement-tasks with mode=orchestrated and implementer=custom_implementer uses the bundled orchestrator in one continuous Goal session, starts every worker with that exact Agent and its Agent-local sentinel skill, gives every task its category-selected runtime, proves completed task frontmatter on disk, stops every spawned worker, marks the per-task branch not_taken, and settles done. Omitting implementer selects code_implementer.
 entry_points: compozy loop run --name implement-tasks --input slug=<slug> --input mode=orchestrated --input implementer=custom_implementer; compozy loop status; compozy session list --parent <goal-session> --agent custom_implementer; web /loop-runs/:run_id detail
-qa_status: pass
+qa_status: skipped
 bug_ids: BUG-20260826-optional-runtime-run-fails; BUG-20261005-loop-staged-task-id-literal; BUG-20261005-goal-result-loses-fields
 fix_status: fixed
 retest_status: pass
@@ -116,3 +116,5 @@ Native sentinel calls, exact Agent/Profile/category runtimes, and one delegating
 The deterministic runtime fixture disables host-load admission explicitly so this journey tests
 orchestration within its existing deadline. `MS-daemon-host-load-governance` owns real host-pressure
 behavior; `TestSeedConfigPersistsDaemonLoadOverlay` proves that fixture policy survives config reload.
+
+retired — 2026-11-02 spec-cycle simplification: the `implement-tasks` Loop left the product. Spec delivery is owned by TA-spec-conductor-delivery.

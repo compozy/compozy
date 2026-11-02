@@ -16,7 +16,7 @@ charter:
   time_box_minutes: 30
   guidance:
     must_try:
-      - "Build the real Batuta source twice and compare generation hashes before validating the copied agent, loop, and skill resources."
+      - "Build a resource-only fixture extension twice and compare generation hashes before validating the copied agent, loop, and skill resources."
       - "Dev-link a minimal passive agent kit, read the agent through the workspace API, edit and reload it, then independently read the changed prompt."
       - "Break the agent definition, confirm reload fails and the prior generation remains readable, then remove the dev link and verify the workspace resource disappears."
       - "Run the existing code-backed authoring lifecycle as an adjacent compatibility canary."

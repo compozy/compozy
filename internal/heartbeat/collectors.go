@@ -41,10 +41,12 @@ type MonitorFact struct {
 	Fired         bool
 }
 type CollectorFacts struct {
-	Tasks       []TaskFact
-	Sessions    []SessionFact
-	Automations []AutomationFact
-	Monitors    []MonitorFact
+	Tasks            []TaskFact
+	Sessions         []SessionFact
+	Automations      []AutomationFact
+	Monitors         []MonitorFact
+	WorkLog          []WorkLogFact
+	WorkLogTruncated bool
 }
 type DigestItem struct {
 	Key string `json:"key"`
@@ -58,7 +60,14 @@ type CheckDigest struct {
 
 const collectorTask = "task"
 
-var collectorNames = []string{collectorTask, "session_health", "sessions_idle", "automations_failed", "monitors_fired"}
+var collectorNames = []string{
+	collectorTask,
+	"session_health",
+	"sessions_idle",
+	"automations_failed",
+	"monitors_fired",
+	"work_log",
+}
 
 // CollectDigest accepts daemon-owned facts; callers must fetch complete eligible populations before applying caps.
 func CollectDigest(
@@ -104,13 +113,18 @@ func CollectDigest(
 		}
 	}
 	slices.SortFunc(result.Items, func(a, b DigestItem) int { return cmp.Compare(a.Key, b.Key) })
+	if selected["work_log"] {
+		result.Items = append(result.Items, collectWorkLogFacts(scope, facts)...)
+	}
 	slices.Sort(result.Diagnostics)
 	result.Diagnostics = slices.Compact(result.Diagnostics)
+	fingerprintItems := slices.Clone(result.Items)
+	slices.SortFunc(fingerprintItems, func(a, b DigestItem) int { return cmp.Compare(a.Key, b.Key) })
 	payload, err := json.Marshal(struct {
 		Items        []DigestItem
 		Policy       string
 		Instructions string
-	}{result.Items, policyDigest, strings.TrimSpace(instructions)})
+	}{fingerprintItems, policyDigest, strings.TrimSpace(instructions)})
 	if err != nil {
 		return CheckDigest{}, fmt.Errorf("encode heartbeat digest: %w", err)
 	}

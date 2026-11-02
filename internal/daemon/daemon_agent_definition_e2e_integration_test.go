@@ -181,7 +181,7 @@ func assertSpecCycleE2ECatalogPresence(
 	}
 	skillPresent := false
 	for _, skill := range skills.Skills {
-		if skill.Name == "cy-execute-task" {
+		if skill.Name == "cy-create-spec" {
 			skillPresent = true
 		}
 	}
@@ -241,8 +241,8 @@ func assertSpecCycleE2ECatalogPresence(
 		}
 	}
 
-	if skillPresent != wantPresent || loopPresent != wantPresent ||
-		agentPresent != wantPresent || toolPresent != wantPresent {
+	if skillPresent != wantPresent || loopPresent ||
+		agentPresent != wantPresent || toolPresent {
 		t.Fatalf(
 			"spec-cycle catalogs skill=%t loop=%t agent=%t tool=%t, want all=%t",
 			skillPresent,

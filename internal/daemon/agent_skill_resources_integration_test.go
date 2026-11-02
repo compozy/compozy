@@ -36,17 +36,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var specCycleIntegrationSkillNames = []string{
-	"cy-create-spec",
-	"cy-create-tasks",
-	"cy-execute-task",
-	"cy-final-verify",
-	"cy-fix-reviews",
-	"cy-orchestrate-tasks",
-	"cy-review-round",
-	"cy-workflow-memory",
-	"git-rebase",
-}
+var specCycleIntegrationSkillNames = []string{"cy-create-spec", "git-rebase"}
 
 func TestAgentSkillPublicationAndBootRebuild(t *testing.T) {
 	t.Run("Should publish agent and skill resources and rebuild them on boot", func(t *testing.T) {
@@ -813,7 +803,10 @@ func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 			initialAgents,
 			initialSkills,
 			initialMCP,
-			nil,
+			&agentSkillIntegrationSidecars{
+				heartbeatCodec:   sidecarStores.heartbeatCodec,
+				heartbeatCatalog: newResourceCatalog(cloneHeartbeatResourceSpec),
+			},
 		)
 		syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
 			raw: kernel, agentStore: agentStore, agentCodec: agentCodec,
@@ -918,13 +911,13 @@ func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 			t.Fatal("cy-capture-decisions is available, want excluded from spec-cycle bundle")
 		}
 
-		executeA := findIntegrationSkill(skillsA, "cy-execute-task")
-		executeB := findIntegrationSkill(skillsB, "cy-execute-task")
+		executeA := findIntegrationSkill(skillsA, "cy-create-spec")
+		executeB := findIntegrationSkill(skillsB, "cy-create-spec")
 		if executeA.Source != skillspkg.SourceWorkspace {
-			t.Fatalf("workspace A cy-execute-task source = %v, want workspace", executeA.Source)
+			t.Fatalf("workspace A cy-create-spec source = %v, want workspace", executeA.Source)
 		}
 		if executeB.Source != skillspkg.SourceBundled || executeB.InstalledFromExtension != speccycle.Name {
-			t.Fatalf("workspace B cy-execute-task = %#v, want bundled spec-cycle source", executeB)
+			t.Fatalf("workspace B cy-create-spec = %#v, want bundled spec-cycle source", executeB)
 		}
 		contentA, err := rebuiltSkills.LoadContent(ctx, executeA)
 		if err != nil {
@@ -937,8 +930,8 @@ func TestSpecCycleBundledSkillPublicationAndBootRebuild(t *testing.T) {
 		if strings.TrimSpace(contentA) != "Workspace A execution override." {
 			t.Fatalf("workspace A content = %q, want local override", contentA)
 		}
-		if !strings.Contains(contentB, "# Execute Spec Task") {
-			t.Fatalf("workspace B bundled content = %q, want cy-execute-task body", contentB)
+		if !strings.Contains(contentB, "# Create Spec") {
+			t.Fatalf("workspace B bundled content = %q, want cy-create-spec body", contentB)
 		}
 
 		augmenter := newSkillsCatalogAugmenter(rebuiltSkills, nil, func() promptSkillsWorkspaceResolver {
@@ -1865,9 +1858,9 @@ func agentSkillIntegrationSkillWorkspace(t *testing.T, withOverride bool) string
 		skillsRoot := filepath.Join(root, compozyconfig.DirName, compozyconfig.SkillsDirName)
 		writeAgentSkillIntegrationFile(
 			t,
-			filepath.Join(skillsRoot, "overrides", "cy-execute-task", "SKILL.md"),
+			filepath.Join(skillsRoot, "overrides", "cy-create-spec", "SKILL.md"),
 			`---
-name: cy-execute-task
+name: cy-create-spec
 description: Workspace A execution override
 ---
 

@@ -251,7 +251,7 @@ types fail validation before the child starts.
   class: action
   kind: run-loop
   params:
-    loop: implement-tasks
+    loop: build-feature
     mode: await
     config_overrides:
       iteration_cap: 4
@@ -651,7 +651,7 @@ For a review child that may be adopted after recovery, reserve an optional JSON 
 Capture its canonical ID, complete selected file list and SHA-256 fingerprint from a scoped
 `compozy worktree exit --include` plan before the original review. Pass the JSON string through
 `run-loop.params.inputs.reviewed_worktree`; an exact template reference preserves its value.
-The child definition must declare this optional JSON string input, as bundled `review-and-fix` does.
+The child definition must declare this optional JSON string input.
 
 Adoption requires the original persisted child inputs to equal the rematerialized parent inputs,
 then an independent check of the registered worktree's repository, branch, HEAD, selected bytes

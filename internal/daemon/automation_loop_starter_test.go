@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -117,6 +118,145 @@ func TestAutomationLoopStarterDefaultCatchUpPolicyShouldCoalesceWatchLoops(t *te
 		}
 		if policy != automationpkg.SchedulerCatchUpPolicyCoalesce {
 			t.Fatalf("DefaultLoopCatchUpPolicy() = %q, want coalesce", policy)
+		}
+	})
+}
+
+func TestAutomationLoopStarterRetiredDependencies(t *testing.T) {
+	t.Parallel()
+	t.Run("Should classify a definition removed between validation and resolution", func(t *testing.T) {
+		t.Parallel()
+		definition, err := loopdsl.Parse(
+			[]byte(strings.ReplaceAll(testLoopYAML("vanishing", "Vanishing loop"), "kind: cli", "kind: schedule")),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved, err := looppkg.NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatal(err)
+		}
+		calls := 0
+		starter := &automationLoopStarter{
+			resolver: looppkg.DefinitionResolverFunc(
+				func(context.Context, looppkg.WorkspaceID, string, string) (*looppkg.ResolvedDefinition, error) {
+					calls++
+					if calls == 1 {
+						return resolved, nil
+					}
+					return nil, looppkg.ErrDefinitionNotFound
+				},
+			),
+		}
+		err = starter.ValidateLoopTarget(
+			t.Context(),
+			automationpkg.LoopTargetValidationRequest{
+				WorkspaceID: "ws",
+				ProfileID:   "default",
+				LoopName:    "vanishing",
+				Kind:        automationpkg.LoopStartKindSchedule,
+				Inputs:      map[string]any{"target": "fixture"},
+			},
+		)
+		if !errors.Is(err, automationpkg.ErrLoopTargetNotFound) {
+			t.Fatalf("second resolution = %v", err)
+		}
+	})
+	for _, tc := range []struct {
+		name  string
+		kind  string
+		extra string
+		want  bool
+	}{
+		{"import", "ext__spec_cycle__import_tasks", "", true},
+		{"artifacts", "ext__spec_cycle__write_review_artifacts", "", true},
+		{"finalize", "ext__spec_cycle__finalize_review_round", "", true},
+		{"unknown tool", "ext__other__missing", "", false},
+		{"reviewed output", "ext__spec_cycle__import_tasks", "\n      review: {decisions: [respond]}", true},
+		{"result contract", "ext__spec_cycle__import_tasks", "\n      result_contract: {failure_field: passed}", true},
+		{"malformed contract on retired node", "ext__spec_cycle__import_tasks", "\n      result_contract: {message_field: message}", false},
+		{"malformed review on retired node", "ext__spec_cycle__import_tasks", "\n      review: {decisions: [respond, invalid]}", false},
+		{"independent missing schema", "ext__spec_cycle__import_tasks", "\n    - id: independent\n      class: action\n      kind: transform\n      result_contract: {failure_field: passed}", false},
+	} {
+		t.Run("Should classify "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			definition, err := loopdsl.Parse(
+				[]byte(strings.ReplaceAll(
+					testLoopYAML("custom", "Custom loop"),
+					"kind: transform",
+					"kind: "+tc.kind+tc.extra,
+				)),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, compileErr := looppkg.NewCompiler().Compile(definition)
+			if compileErr == nil {
+				t.Fatal("expected unavailable action")
+			}
+			starter := &automationLoopStarter{
+				resolver: looppkg.DefinitionResolverFunc(
+					func(context.Context, looppkg.WorkspaceID, string, string) (*looppkg.ResolvedDefinition, error) {
+						return nil, compileErr
+					},
+				),
+			}
+			err = starter.ValidateLoopTarget(
+				t.Context(),
+				automationpkg.LoopTargetValidationRequest{
+					ProfileID:   "default",
+					WorkspaceID: "ws",
+					LoopName:    "custom",
+					Kind:        automationpkg.LoopStartKindSchedule,
+				},
+			)
+			want := tc.want
+			if err == nil || errors.Is(err, automationpkg.ErrLoopTargetUnavailable) != want {
+				t.Fatalf("validation error = %v", err)
+			}
+			_, err = starter.DefaultLoopCatchUpPolicy(
+				t.Context(),
+				automationpkg.LoopCatchUpPolicyRequest{
+					ProfileID:   "default",
+					WorkspaceID: "ws",
+					LoopName:    "custom",
+					Kind:        automationpkg.LoopStartKindSchedule,
+				},
+			)
+			if err == nil || errors.Is(err, automationpkg.ErrLoopTargetUnavailable) != want {
+				t.Fatalf("policy error = %v", err)
+			}
+		})
+	}
+	for _, code := range []string{looppkg.CodeReviewRespondSchemaRequired, looppkg.CodeResultContractInvalid} {
+		t.Run("Should reject independent schema diagnostic "+code, func(t *testing.T) {
+			t.Parallel()
+			err := &looppkg.LintFailedError{Errors: []looppkg.LintError{
+				{NodeID: "retired", Code: looppkg.CodeUnknownActionKind,
+					Message: `action ToolID "ext__spec_cycle__import_tasks" is not resolvable`},
+				{NodeID: "independent", Code: code, Message: "result_contract requires a declared output schema"},
+			}}
+			if got := classifyRetiredLoopTarget(
+				err,
+			); got == nil ||
+				errors.Is(got, automationpkg.ErrLoopTargetUnavailable) {
+				t.Fatal("independent schema error accepted")
+			}
+		})
+	}
+	t.Run("Should keep unrelated malformed definitions strict", func(t *testing.T) {
+		t.Parallel()
+		err := &looppkg.LintFailedError{
+			Errors: []looppkg.LintError{
+				{
+					Code:    looppkg.CodeUnknownActionKind,
+					Message: `action ToolID "ext__spec_cycle__import_tasks" is not resolvable`,
+				},
+				{Code: looppkg.CodeCycle},
+			},
+		}
+		if got := classifyRetiredLoopTarget(err); got == nil || errors.Is(got, automationpkg.ErrLoopTargetUnavailable) {
+			t.Fatal("malformed definition accepted")
 		}
 	})
 }

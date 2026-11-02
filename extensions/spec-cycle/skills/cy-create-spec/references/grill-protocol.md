@@ -4,6 +4,25 @@ Use when a product or design decision remains unresolved after the available evi
 
 Prefer concrete proposals and trade-offs. Investigate facts locally or through an authorized bounded explorer; do not ask the user questions the code answers. Continue independent work while awaiting a necessary answer. A feature that looks simple still gets the questions its unexamined assumptions need; skip a question because the evidence settles it, not because the feature is small.
 
+## Question format
+
+Ask every question in this format, in the user's language, without being asked. Batch related questions in one message, and tell the user to answer like `Q1 - a`.
+
+```markdown
+### Q1. Short plain question?
+
+**Why this matters:** what this decides, what happens today, and what changes with the answer. Explain any term the user may not know.
+
+- a) Option (Recommended). Its practical effect and main cost.
+- b) Option. Its practical effect and main cost.
+- c) Option. Its practical effect and main cost.
+```
+
+- Number questions across the whole interview, so an answer never becomes ambiguous.
+- Write for someone who has not read the code. Replace jargon and internal identifiers with what they do; keep an identifier only when it is the subject of the decision.
+- Give 2 to 4 real options, mark exactly one as recommended, and allow a free-text answer.
+- Accept short replies such as `q1 a`, and treat a question in a reply as a request to explain before deciding.
+
 ## Conduct
 
 - Chase a vague answer with the specific follow-up: "it depends" gets "on what?", "probably" gets pinned to a decision.

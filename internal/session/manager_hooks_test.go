@@ -396,3 +396,53 @@ func TestInstanceLaunchCeiling(t *testing.T) {
 		})
 	}
 }
+
+func TestInstanceCeilingManagedWorktree(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		outside bool
+		denied  bool
+	}{
+		{name: "Should admit a managed worktree of a workspace inside the ceiling"},
+		{name: "Should deny a managed worktree of a workspace outside the ceiling", outside: true, denied: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			worktree := t.TempDir()
+			h := newHarness(t, WithWorktreeResolver(&fakeSessionWorktreeResolver{id: "wt-ceiling", root: worktree}))
+			root := h.workspace
+			if tc.outside {
+				root = t.TempDir()
+			}
+			h.manager.SetInstanceCeilingReader(
+				func(context.Context, string, string) (*InstanceCeiling, error) {
+					return &InstanceCeiling{
+						Policy: store.SessionPermissionPolicy{WorkspacePaths: []string{root}},
+					}, nil
+				},
+			)
+			created, err := h.manager.Create(
+				t.Context(),
+				new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-ceiling"}),
+			)
+			if tc.denied {
+				if !errors.Is(err, ErrValidation) {
+					t.Fatalf("outside ceiling: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { reportSessionStop(t, h, created.ID) })
+			canonicalRoot, err := canonicalDirectory(worktree)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if h.driver.startCalls[0].Cwd != canonicalRoot {
+				t.Fatal(h.driver.startCalls[0].Cwd)
+			}
+		})
+	}
+}

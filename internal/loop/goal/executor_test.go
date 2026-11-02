@@ -6,10 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"math"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -840,7 +837,7 @@ func TestExecutorShouldProjectAuthoritativeTerminalStatus(t *testing.T) {
 			&fakeBudgetGuard{},
 		)
 		node := testGoalNode(1)
-		node.Params["output_schema"] = bundledImplementTasksGoalOutputSchema(t)
+		node.Params["output_schema"] = goalOutputSchema()
 
 		raw, err := executor.Execute(t.Context(), node, testGoalInput(t))
 		if err != nil {
@@ -858,10 +855,10 @@ func TestExecutorShouldProjectAuthoritativeTerminalStatus(t *testing.T) {
 	})
 }
 
-func TestAuthoritativeGoalStructuredResultShouldSatisfyBundledImplementTasksContract(t *testing.T) {
+func TestAuthoritativeGoalStructuredResultShouldSatisfyOutputContract(t *testing.T) {
 	t.Parallel()
 
-	schema := bundledImplementTasksGoalOutputSchema(t)
+	schema := goalOutputSchema()
 	tests := []struct {
 		name       string
 		result     loop.ActionPromptResult
@@ -888,7 +885,7 @@ func TestAuthoritativeGoalStructuredResultShouldSatisfyBundledImplementTasksCont
 			},
 		},
 		{
-			name: "Should project blocked through the same bundled contract",
+			name: "Should project blocked through the same output contract",
 			result: loop.ActionPromptResult{Structured: json.RawMessage(
 				`{"status":"complete","summary":"A worker could not be stopped."}`,
 			)},
@@ -925,36 +922,16 @@ func TestAuthoritativeGoalStructuredResultShouldSatisfyBundledImplementTasksCont
 	}
 }
 
-func bundledImplementTasksGoalOutputSchema(t *testing.T) dsl.Schema {
-	t.Helper()
-
-	path := filepath.Join("..", "..", "..", "extensions", "spec-cycle", "loops", "implement-tasks", "loop.yaml")
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("ReadFile(%q) error = %v", path, err)
+func goalOutputSchema() dsl.Schema {
+	return dsl.Schema{
+		"type":     "object",
+		"required": []any{"status"},
+		"properties": map[string]any{
+			"status":  map[string]any{"enum": []any{"complete", "blocked"}},
+			"summary": map[string]any{"type": "string"},
+			"tasks":   map[string]any{"type": "array"},
+		},
 	}
-	definition, err := dsl.Parse(data)
-	if err != nil {
-		t.Fatalf("dsl.Parse(%q) error = %v", path, err)
-	}
-	for _, node := range definition.Graph.Nodes {
-		if node.ID != "orchestrate" {
-			continue
-		}
-		decodable := make(dsl.NodeParams, len(node.Params))
-		maps.Copy(decodable, node.Params)
-		delete(decodable, "runtime")
-		var params dsl.GoalParams
-		if err := decodable.Decode(&params); err != nil {
-			t.Fatalf("Decode(orchestrate Goal params) error = %v", err)
-		}
-		if params.OutputSchema == nil {
-			t.Fatal("orchestrate output_schema = nil")
-		}
-		return *params.OutputSchema
-	}
-	t.Fatal("implement-tasks orchestrate Goal node missing")
-	return nil
 }
 
 func equalJSONValues(got any, want any) bool {
@@ -1888,7 +1865,7 @@ func TestExecutorShouldRestorePriorBlockingIssuesAfterRestart(t *testing.T) {
 	t.Run("Should expose the exact authored output contract in a Goal work prompt", func(t *testing.T) {
 		t.Parallel()
 
-		schema := bundledImplementTasksGoalOutputSchema(t)
+		schema := goalOutputSchema()
 		withoutContract, err := renderWorkPrompt(&segmentState{
 			params:     dsl.GoalParams{Objective: "Finish the durable objective"},
 			checkpoint: Checkpoint{TurnLimit: 5},

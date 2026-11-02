@@ -56,6 +56,7 @@ func (m *Manager) applyInstanceCeiling(
 	if err := ValidatePermissionSubset(ceiling.Policy, policy); err != nil {
 		return err
 	}
+	policy.WorkspacePaths = withManagedWorktree(ceiling.Policy, spec)
 	resolved.ToolPolicyEnforced = true
 	resolved.Tools = slices.Clone(policy.Tools)
 	resolved.Toolsets = nil
@@ -82,6 +83,22 @@ func (m *Manager) applyInstanceCeiling(
 	spec.origin = workspaceaccess.Origin{Kind: workspaceaccess.ActorDaemon, Ceiling: ceiling.Grant}
 	spec.effectiveWorkspaceAccess = workspaceaccess.NarrowGrant(spec.effectiveWorkspaceAccess, ceiling.Grant)
 	return nil
+}
+
+// withManagedWorktree admits a worktree of a workspace inside the ceiling. Managed worktrees belong
+// to their workspace, yet their default root sits outside it.
+func withManagedWorktree(ceiling store.SessionPermissionPolicy, spec *sessionStartSpec) []string {
+	if spec.worktreeRoot == "" || !withinCeiling(ceiling, spec.workspace.RootDir) {
+		return ceiling.WorkspacePaths
+	}
+	return append(slices.Clone(ceiling.WorkspacePaths), spec.worktreeRoot)
+}
+
+func withinCeiling(ceiling store.SessionPermissionPolicy, path string) bool {
+	return slices.ContainsFunc(ceiling.WorkspacePaths, func(root string) bool {
+		_, err := resolveContainedDirectory(root, path)
+		return err == nil
+	})
 }
 
 // instanceLevel keeps every instance-lineage session at or below the level configured for its own
@@ -124,14 +141,7 @@ func validateInstanceLaunch(spec *sessionStartSpec, before, after acp.StartOpts)
 	}
 	paths := append([]string{after.Cwd}, after.AdditionalDirs...)
 	for _, path := range paths {
-		allowed := false
-		for _, root := range spec.instancePermissionCeiling.WorkspacePaths {
-			if _, err := resolveContainedDirectory(root, path); err == nil {
-				allowed = true
-				break
-			}
-		}
-		if !allowed {
+		if !withinCeiling(*spec.instancePermissionCeiling, path) {
 			return fmt.Errorf("%w: instance execution path exceeds permission ceiling", ErrValidation)
 		}
 	}

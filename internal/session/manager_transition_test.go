@@ -1257,6 +1257,57 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		}
 	})
 
+	t.Run("Should explain attachment refusal for a stopped session", func(t *testing.T) {
+		t.Parallel()
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		active := createSession(t, h)
+		if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+			t.Fatal(err)
+		}
+		_, err := h.manager.AttachSession(
+			t.Context(),
+			store.SessionAttachRequest{
+				SessionID:  active.ID,
+				AttachedTo: "uds:operator",
+				Now:        time.Now(),
+				TTL:        time.Minute,
+			},
+		)
+		if !errors.Is(err, store.ErrSessionNotAttachable) || !strings.Contains(err.Error(), "stopped") {
+			t.Fatalf("AttachSession() error = %v, want refusal with stopped state", err)
+		}
+	})
+
+	t.Run("Should identify a removed agent when attachment is refused", func(t *testing.T) {
+		t.Parallel()
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		active := createSession(t, h)
+		if err := h.manager.Stop(t.Context(), active.ID); err != nil {
+			t.Fatal(err)
+		}
+		h.resolver.mu.Lock()
+		for key, resolved := range h.resolver.byRef {
+			resolved.Agents = nil
+			h.resolver.byRef[key] = resolved
+		}
+		h.resolver.mu.Unlock()
+		_, err := h.manager.AttachSession(
+			t.Context(),
+			store.SessionAttachRequest{
+				SessionID:  active.ID,
+				AttachedTo: "uds:operator",
+				Now:        time.Now(),
+				TTL:        time.Minute,
+			},
+		)
+		if !errors.Is(err, store.ErrSessionNotAttachable) ||
+			!strings.Contains(err.Error(), fmt.Sprintf("agent %q is no longer available", active.Info().AgentName)) {
+			t.Fatalf("AttachSession() error = %v, want refusal naming the removed agent", err)
+		}
+	})
+
 	t.Run("Should synchronize a successful attach CAS into the active session", func(t *testing.T) {
 		t.Parallel()
 

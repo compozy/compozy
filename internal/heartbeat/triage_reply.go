@@ -13,6 +13,13 @@ import (
 
 var ErrTriageOutputInvalid = errors.New("triage_output_invalid")
 
+const (
+	// TriageTitleMaxRunes bounds a proposal title.
+	TriageTitleMaxRunes = 120
+	// TriageBodyMaxRunes bounds a proposal body.
+	TriageBodyMaxRunes = 500
+)
+
 type TriageProposal struct {
 	Title    string   `json:"title"`
 	Body     string   `json:"body"`
@@ -75,7 +82,8 @@ func parseTriageProposal(value jsontext.Value) (TriageProposal, error) {
 		return TriageProposal{}, ErrTriageOutputInvalid
 	}
 	if strings.TrimSpace(*raw.Title) == "" || strings.TrimSpace(*raw.Body) == "" ||
-		utf8.RuneCountInString(*raw.Title) > 120 || utf8.RuneCountInString(*raw.Body) > 500 {
+		utf8.RuneCountInString(*raw.Title) > TriageTitleMaxRunes ||
+		utf8.RuneCountInString(*raw.Body) > TriageBodyMaxRunes {
 		return TriageProposal{}, ErrTriageOutputInvalid
 	}
 	return TriageProposal{Title: *raw.Title, Body: *raw.Body, ItemKeys: *raw.ItemKeys}, nil

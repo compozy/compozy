@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -846,8 +847,24 @@ func refreshMarketplaceUpgradeCatalog(t *testing.T, db *GlobalDB) {
 		t.Fatal(err)
 	}
 	page, err := catalog.BrowseSource(ctx, marketplace.CompozyCatalogSource, "", 0, 100)
-	if err != nil || page.Total != 19 || len(page.Entries) != 19 {
+	if err != nil || page.Total != 18 || len(page.Entries) != 18 {
 		t.Fatalf("v3 refresh after upgrade = %d/%d entries: %v", page.Total, len(page.Entries), err)
+	}
+	document, err := source.Fetch(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var wantIDs, gotIDs []string
+	for _, entry := range document.Entries {
+		wantIDs = append(wantIDs, entry.EntryID)
+	}
+	for _, entry := range page.Entries {
+		gotIDs = append(gotIDs, entry.EntryID)
+	}
+	slices.Sort(wantIDs)
+	slices.Sort(gotIDs)
+	if !slices.Equal(gotIDs, wantIDs) {
+		t.Fatalf("catalog IDs=%v, want %v", gotIDs, wantIDs)
 	}
 	if after := captureMarketplaceUpgradeState(t, db.db, []string{provenanceQuery}); !reflect.DeepEqual(before, after) {
 		t.Fatal("catalog refresh reclassified existing installations")

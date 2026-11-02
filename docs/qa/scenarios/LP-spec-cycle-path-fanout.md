@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-01
 expected: import_tasks returns ordered path and body_ref descriptors without body, each implementer opens the referenced task file, and a daemon restart during fan-out resumes the same tasks without duplicating embedded content, lanes, or completed work.
 entry_points: compozy loop run --name implement-tasks; ext__spec_cycle__import_tasks; Web loop run detail
-qa_status: pass
+qa_status: skipped
 bug_ids:
 fix_status:
 retest_status: pass
@@ -21,3 +21,5 @@ Run implement-tasks against a task set whose files are large enough that embeddi
 QA impact 2026-08-31: hard cut from embedded task bodies to path and body_ref descriptors.
 
 QA 2026-08-31: a public Loop invoked `ext__spec_cycle__import_tasks` against an authored task set. The result contained the ordered absolute `path` and content-addressed `body_ref`, serialized no `body`, and returned the same 365-byte descriptor payload after daemon restart. The canonical bundled-loop and coordinator suites own implementer prompt usage, fan-out ordering, and resumed output hydration.
+
+retired — 2026-11-02 spec-cycle simplification: the `implement-tasks` Loop and its import tool left the product. Children read spec files by absolute path (TA-spec-conductor-delivery).

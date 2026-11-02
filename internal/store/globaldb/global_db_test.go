@@ -7316,6 +7316,235 @@ func TestPermissionDailyRollups(t *testing.T) {
 	})
 }
 
+func TestReleasedSpecCycleReferenceUpgrade(t *testing.T) {
+	t.Run("Should preserve v0.4.8 references through the current migration stream", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00164_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := globalMigrationTestContext(t)
+		now := "2026-11-02T12:00:00Z"
+		statements := []struct {
+			query string
+			args  []any
+		}{
+			{
+				`INSERT INTO workspaces(id,root_dir,add_dirs,name,created_at,updated_at) VALUES('ws-upgrade',?,'[]','upgrade',?,?)`,
+				[]any{t.TempDir(), now, now},
+			},
+			{
+				`INSERT INTO sessions(id,name,agent_name,workspace_id,session_type,state,created_at,updated_at,profile_id) VALUES('sess-upgrade','Saved','review_fixer','ws-upgrade','user','stopped',?,?,?)`,
+				[]any{now, now, store.DefaultProfileID},
+			},
+			{
+				`INSERT INTO automation_jobs(id,profile_id,scope,name,agent_name,workspace_id,prompt,schedule,retry,fire_limit,source,created_at,updated_at) VALUES('job-upgrade',?,'workspace','Saved job','review_fixer','ws-upgrade','Saved prompt','{"mode":"every","interval":"24h"}','{"strategy":"none"}','{"max":12,"window":"1h"}','dynamic',?,?)`,
+				[]any{store.DefaultProfileID, now, now},
+			},
+			{
+				`INSERT INTO automation_triggers(id,profile_id,scope,name,agent_name,workspace_id,prompt,event,retry,fire_limit,source,target_kind,loop_workspace_id,loop_name,created_at,updated_at) VALUES('trg-upgrade',?,'workspace','Saved trigger','','ws-upgrade','','ext.saved','{"strategy":"none"}','{"max":12,"window":"1h"}','dynamic','loop','ws-upgrade','implement-tasks',?,?)`,
+				[]any{store.DefaultProfileID, now, now},
+			},
+			{
+				`INSERT INTO loop_config(workspace_id,profile_id,loop_name,iteration_cap) VALUES('ws-upgrade',?,'implement-tasks',17)`,
+				[]any{store.DefaultProfileID},
+			},
+		}
+		for _, statement := range statements {
+			if _, err := prior.ExecContext(ctx, statement.query, statement.args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, tc := range []struct{ query, want string }{
+			{`SELECT agent_name FROM sessions WHERE id='sess-upgrade'`, "review_fixer"},
+			{`SELECT agent_name FROM automation_jobs WHERE id='job-upgrade'`, "review_fixer"},
+			{`SELECT loop_name FROM automation_triggers WHERE id='trg-upgrade'`, "implement-tasks"},
+			{`SELECT loop_name FROM loop_config WHERE workspace_id='ws-upgrade'`, "implement-tasks"},
+		} {
+			var value string
+			if err := upgraded.db.QueryRowContext(ctx, tc.query).Scan(&value); err != nil {
+				t.Fatal(err)
+			}
+			if value != tc.want {
+				t.Fatalf("saved reference = %q, want %q", value, tc.want)
+			}
+		}
+		var kind, workspace, loopName string
+		if err := upgraded.db.QueryRowContext(ctx, `SELECT target_kind, loop_workspace_id, loop_name FROM automation_triggers WHERE id='trg-upgrade'`).
+			Scan(&kind, &workspace, &loopName); err != nil {
+			t.Fatal(err)
+		}
+		if kind != "loop" || workspace != "ws-upgrade" || loopName != "implement-tasks" {
+			t.Fatalf("saved trigger = %q/%q/%q", kind, workspace, loopName)
+		}
+	})
+}
+
+// Invariant: upgrading captures proven automation history ownership and preserves
+// orphan rows without exposing them through any profile-scoped catalog.
+// Owning layer: global migration stream; canonical suite: this file.
+func TestGlobalAutomationRunProfileMigrationTail(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve proven ownership and orphan history", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+		defer cancel()
+		db, err := openGlobalMigrationPrefixDatabase(t, filepath.Join(t.TempDir(), GlobalDatabaseName),
+			globalMigrationPrefixBefore(t, "00108_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		stream := MigrationStream()
+		const secondary = "01K00000000000000000000091"
+		if _, err := db.ExecContext(ctx, `INSERT INTO profiles (id, name, color, icon, state, created_at)
+ VALUES (?, 'history', '#8E8EB5', 'circle', 'active', '2026-09-10T00:00:00Z')`, secondary); err != nil {
+			t.Fatalf("seed secondary profile: %v", err)
+		}
+		for _, fixture := range []struct{ kind, id, profile string }{
+			{"automation.job", "job-history", store.DefaultProfileID},
+			{"automation.trigger", "trigger-history", secondary},
+		} {
+			if _, err := db.ExecContext(ctx, `INSERT INTO resource_records
+   (kind, id, version, scope_kind, owner_kind, owner_id, source_kind, source_id, spec_json, created_at, updated_at)
+   VALUES (?, ?, 1, 'user', 'operator', 'operator', 'dynamic', ?, json_object('profile_id', ?),
+    '2026-09-10T00:00:00Z', '2026-09-10T00:00:00Z')`, fixture.kind, fixture.id, fixture.id, fixture.profile); err != nil {
+				t.Fatalf("seed %s: %v", fixture.id, err)
+			}
+		}
+		if _, err := db.ExecContext(ctx, `INSERT INTO automation_runs (id, job_id, trigger_id, status, metadata_json)
+ VALUES ('run-job', 'job-history', NULL, 'completed', '{"preserved":true}'),
+        ('run-trigger', NULL, 'trigger-history', 'failed', '{"preserved":true}'),
+        ('run-orphan', 'deleted-job', NULL, 'completed', '{"preserved":true}')`); err != nil {
+			t.Fatalf("seed historical runs: %v", err)
+		}
+		if err := store.Apply(ctx, db, stream); err != nil {
+			t.Fatalf("Apply(global owner tail): %v", err)
+		}
+		if _, err := db.ExecContext(
+			ctx,
+			`DELETE FROM resource_records WHERE id IN ('job-history', 'trigger-history')`,
+		); err != nil {
+			t.Fatalf("delete historical parents: %v", err)
+		}
+		for _, fixture := range []struct{ id, profile, status string }{
+			{"run-job", store.DefaultProfileID, "completed"},
+			{"run-trigger", secondary, "failed"},
+			{"run-orphan", "", "completed"},
+		} {
+			var owner sql.NullString
+			var status, metadata string
+			if err := db.QueryRowContext(ctx, `SELECT profile_id, status, metadata_json FROM automation_runs WHERE id = ?`, fixture.id).
+				Scan(&owner, &status, &metadata); err != nil {
+				t.Fatalf("read %s: %v", fixture.id, err)
+			}
+			if owner.String != fixture.profile || owner.Valid != (fixture.profile != "") || status != fixture.status ||
+				metadata != `{"preserved":true}` {
+				t.Fatalf(
+					"run %s = %v/%s/%s; want owner %q and unchanged history",
+					fixture.id,
+					owner,
+					status,
+					metadata,
+					fixture.profile,
+				)
+			}
+		}
+		assertGlobalMigrationIntegrity(ctx, t, db)
+	})
+}
+
+func TestGlobalAgentSnapshotProfileMigrationConvergesUniqueKeyShapes(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name        string
+		autoindexed bool
+	}{
+		{name: "Should migrate a home carrying named unique indexes"},
+		{name: "Should migrate a home bootstrapped with autoindexed unique keys", autoindexed: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+			defer cancel()
+			db, err := openGlobalMigrationPrefixDatabase(t, filepath.Join(t.TempDir(), GlobalDatabaseName),
+				globalMigrationPrefixBefore(t, "00172_schema.sql"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			stream := MigrationStream()
+			if tc.autoindexed {
+				for _, name := range []string{
+					"agent_heartbeat_snapshots_workspace_id_agent_name_digest",
+					"agent_soul_snapshots_workspace_id_agent_name_digest",
+				} {
+					if _, err := db.ExecContext(ctx, `DROP INDEX `+name); err != nil {
+						t.Fatalf("drop %s: %v", name, err)
+					}
+				}
+			}
+			if _, err := db.ExecContext(ctx, `INSERT INTO agent_soul_snapshots
+ (id, workspace_id, agent_name, source_path, digest, created_at)
+ VALUES ('soul-1', '', 'general', '/home/agents/general/SOUL.md', 'digest-1', '2026-10-01T00:00:00Z')`); err != nil {
+				t.Fatalf("seed soul snapshot: %v", err)
+			}
+			if _, err := db.ExecContext(ctx, `INSERT INTO agent_heartbeat_snapshots
+ (id, workspace_id, agent_name, source_path, digest, config_digest, body, frontmatter_json, resolved_json,
+  diagnostics_json, created_at)
+ VALUES ('beat-1', '', 'general', '/home/agents/general/HEARTBEAT.md', 'digest-1', 'config-1', 'body', '{}', '{}',
+  '[]', '2026-10-01T00:00:00Z')`); err != nil {
+				t.Fatalf("seed heartbeat snapshot: %v", err)
+			}
+			if _, err := db.ExecContext(ctx, `INSERT INTO agent_heartbeat_revisions
+ (id, workspace_id, agent_name, source_path, operation, new_snapshot_id, actor_kind, actor_id, created_at)
+ VALUES ('revision-1', '', 'general', '/home/agents/general/HEARTBEAT.md', 'write', 'beat-1', 'system', 'qa',
+  '2026-10-01T00:00:00Z')`); err != nil {
+				t.Fatalf("seed heartbeat revision: %v", err)
+			}
+			if err := store.Apply(ctx, db, stream); err != nil {
+				t.Fatalf("Apply(global head): %v", err)
+			}
+			var snapshotID, owner string
+			if err := db.QueryRowContext(ctx, `SELECT r.new_snapshot_id, s.profile_id FROM agent_heartbeat_revisions r
+ JOIN agent_heartbeat_snapshots s ON s.id = r.new_snapshot_id WHERE r.id = 'revision-1'`).
+				Scan(&snapshotID, &owner); err != nil {
+				t.Fatalf("read migrated heartbeat snapshot: %v", err)
+			}
+			if snapshotID != "beat-1" || owner != store.DefaultProfileID {
+				t.Fatalf("heartbeat snapshot = %q/%q; want beat-1 owned by the default profile", snapshotID, owner)
+			}
+			if _, err := db.ExecContext(ctx, `INSERT INTO agent_soul_snapshots
+ (id, workspace_id, profile_id, agent_name, source_path, digest, created_at)
+ VALUES ('soul-2', '', '01K00000000000000000000091', 'general', '/other/SOUL.md', 'digest-1', '2026-10-02T00:00:00Z')`); err != nil {
+				t.Fatalf("same digest under another profile must be allowed: %v", err)
+			}
+			assertGlobalMigrationIntegrity(ctx, t, db)
+		})
+	}
+}
+
 // Invariant: widening Goal phases preserves every existing checkpoint across upgrade and reopen.
 // Owner: global user-state migration; canonical open/reopen suite.
 func TestGlobalDBGoalWaitMigration(t *testing.T) {

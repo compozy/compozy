@@ -1,0 +1,38 @@
+{
+    "version": 2,
+    "agents": [
+        {
+            "name": "extension_reviewer",
+            "provider": "acpmock",
+            "permissions": "approve-all",
+            "prompt": "You are a deterministic extension reviewer.",
+            "turns": [
+                {
+                    "name": "invalid-review-generation-one",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "Review the current workspace changes for task review-invalid.\nThis is review generation 1 for that task.\n\nRead the task artifacts and repository instructions before judging the implementation.\nReport only concrete defects, regressions, unsafe shortcuts, contract drift, and missing\nverification. Do not create, rename, timestamp, or edit review artifact files.\n\nReturn `issues` as source-agnostic structured records. Every issue must include a specific\ntitle, an evidence-backed body, and a severity. Include `file` and `line` when the finding\nbelongs to a specific location; omit them for general findings. Return an empty array only\nwhen the round is clean."
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"issues\":[{\"body\":\"The title is intentionally missing.\",\"severity\":\"high\"}]}"
+                        }
+                    ]
+                },
+                {
+                    "name": "invalid-review-schema-retry",
+                    "match": {
+                        "turn_source": "user"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "{\"issues\":[{\"body\":\"The title remains intentionally missing.\",\"severity\":\"high\"}]}"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

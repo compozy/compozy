@@ -25,6 +25,7 @@ export const LOOK_AT_IDS = [
   "sessions_idle",
   "automations_failed",
   "monitors_fired",
+  "work_log",
 ] as const;
 
 export const LUNCH: readonly [number, number] = [12, 13];

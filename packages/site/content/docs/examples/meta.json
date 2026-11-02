@@ -3,8 +3,8 @@
     "icon": "FlaskConical",
     "pages": [
         "index",
-        "review-and-fix-loop",
-        "implement-tasks-loop",
+        "deliver-small-work",
+        "deliver-a-spec",
         "morning-briefing-job",
         "webhook-to-agent-run",
         "react-to-session-end"

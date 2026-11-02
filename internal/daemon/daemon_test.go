@@ -68,6 +68,7 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gofrs/flock"
 	"go.uber.org/goleak"
+	"golang.org/x/sys/execabs"
 )
 
 func TestAcquireLockSucceedsWithoutExistingLock(t *testing.T) {
@@ -10978,4 +10979,218 @@ func (r *recordingRegistry) PermissionEntries(
 	store.PermissionEntriesQuery,
 ) ([]store.PermissionLogEntry, error) {
 	return nil, nil
+}
+
+func TestReadWorkspaceWorkLog(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"missing", "valid", "truncated", "symlink file", "symlink parent", "malformed"} {
+		t.Run("Should safely read work log with "+mode, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			dir := filepath.Join(root, ".compozy")
+			outside := t.TempDir()
+			if mode == "symlink parent" {
+				if err := os.Symlink(outside, dir); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := os.Mkdir(dir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(dir, "work-log.md")
+			content := "# Work log\n\n- [ ] wl-20261102-01 | 2026-11-02T14:00:00Z | Export\n"
+			if mode == "truncated" {
+				content += strings.Repeat(" ", 64*1024) + "\n- [ ] wl-20261102-02 | 2026-11-02T14:00:00Z | Hidden\n"
+			}
+			if mode == "malformed" {
+				content = "# Work log\n\nbad\n" + content
+			}
+			if mode == "symlink file" {
+				target := filepath.Join(outside, "work-log.md")
+				if err := os.WriteFile(target, []byte(content), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(target, path); err != nil {
+					t.Fatal(err)
+				}
+			} else if mode != "missing" {
+				if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var logs bytes.Buffer
+			facts, truncated := readWorkspaceWorkLog(root, slog.New(slog.NewTextHandler(&logs, nil)))
+			want := 1
+			if mode == "missing" || strings.HasPrefix(mode, "symlink") {
+				want = 0
+			}
+			if len(facts) != want || truncated != (mode == "truncated") {
+				t.Fatal(facts, truncated)
+			}
+			if strings.HasPrefix(mode, "symlink") &&
+				!strings.Contains(logs.String(), "work_log: path outside workspace") {
+				t.Fatal(logs.String())
+			}
+			if mode == "truncated" && strings.Contains(logs.String(), "ignored line") {
+				t.Fatal(logs.String())
+			}
+			if mode == "malformed" && !strings.Contains(logs.String(), "ignored line 3") {
+				t.Fatal(logs.String())
+			}
+		})
+	}
+}
+
+func TestWorkLogOpenAfterReplacement(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []string{"outside symlink", "fifo"} {
+		t.Run("Should safely open a validated file replaced by "+mode, func(t *testing.T) {
+			t.Parallel()
+			if mode == "fifo" && runtime.GOOS == "windows" {
+				t.Skip("Windows has no filesystem FIFOs")
+			}
+			root := t.TempDir()
+			dir := filepath.Join(root, ".compozy")
+			if err := os.Mkdir(dir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(dir, "work-log.md")
+			if err := os.WriteFile(path, []byte("# Work log"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if info, err := os.Stat(path); err != nil || !info.Mode().IsRegular() {
+				t.Fatalf("validated file=%v err=%v", info, err)
+			}
+			workspace, err := os.OpenRoot(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := workspace.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			if mode == "outside symlink" {
+				outside := filepath.Join(t.TempDir(), "private.md")
+				if err := os.WriteFile(outside, []byte("private"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, path); err != nil {
+					t.Fatal(err)
+				}
+				file, err := openWorkspaceWorkLogFile(workspace)
+				if err == nil {
+					if closeErr := file.Close(); closeErr != nil {
+						t.Error(closeErr)
+					}
+					t.Fatal("opened outside workspace")
+				}
+				return
+			}
+			if out, err := execabs.CommandContext(t.Context(), "mkfifo", path).CombinedOutput(); err != nil {
+				t.Fatalf("mkfifo: %v %s", err, out)
+			}
+			type opened struct {
+				file *os.File
+				err  error
+			}
+			done := make(chan opened, 1)
+			go func() { file, err := openWorkspaceWorkLogFile(workspace); done <- opened{file, err} }()
+			select {
+			case got := <-done:
+				if got.err != nil {
+					t.Fatal(got.err)
+				}
+				defer func() {
+					if err := got.file.Close(); err != nil {
+						t.Error(err)
+					}
+				}()
+				if info, err := got.file.Stat(); err != nil || info.Mode().IsRegular() {
+					t.Fatalf("special file=%v err=%v", info, err)
+				}
+			case <-time.After(2 * time.Second):
+				writer, err := os.OpenFile(path, os.O_WRONLY|syscall.O_NONBLOCK, 0)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := writer.Close(); err != nil {
+					t.Error(err)
+				}
+				got := <-done
+				if got.file != nil {
+					if err := got.file.Close(); err != nil {
+						t.Error(err)
+					}
+				}
+				t.Fatal("FIFO open waited for a writer")
+			}
+		})
+	}
+}
+
+func TestReadWorkspaceWorkLogReplacement(t *testing.T) {
+	t.Parallel()
+	for _, parent := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should contain reads during parent replacement %t", parent), func(t *testing.T) {
+			t.Parallel()
+			root, outside := t.TempDir(), t.TempDir()
+			dir := filepath.Join(root, ".compozy")
+			if err := os.Mkdir(dir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(
+				filepath.Join(outside, "work-log.md"),
+				[]byte("- [ ] wl-20261102-99 | 2026-11-02T14:00:00Z | Outside\n"),
+				0600,
+			); err != nil {
+				t.Fatal(err)
+			}
+			path, target := filepath.Join(dir, "work-log.md"), filepath.Join(outside, "work-log.md")
+			if err := os.WriteFile(path, []byte("# Work log\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if parent {
+				path, target = dir, outside
+			}
+			done := make(chan error, 1)
+			go func() {
+				for range 200 {
+					if err := os.Rename(path, path+".saved"); err != nil {
+						done <- err
+						return
+					}
+					if err := os.Symlink(target, path); err != nil {
+						done <- err
+						return
+					}
+					if err := os.Remove(path); err != nil {
+						done <- err
+						return
+					}
+					if err := os.Rename(path+".saved", path); err != nil {
+						done <- err
+						return
+					}
+				}
+				done <- nil
+			}()
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			leaked := false
+			for range 200 {
+				facts, _ := readWorkspaceWorkLog(root, logger)
+				if len(facts) != 0 {
+					leaked = true
+				}
+			}
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+			if leaked {
+				t.Fatal("read work log outside workspace during replacement")
+			}
+		})
+	}
 }
