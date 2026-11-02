@@ -1270,7 +1270,9 @@ func validUDSWindowManagerSettingsPayload() contract.SettingsWindowManagerConfig
 func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := &stubSessionManager{
-		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(_ context.Context, optsInput *session.CreateOpts) (*session.Session, error) {
+			opts := *optsInput
+
 			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "alpha" ||
 				opts.WorkspacePath != "" {
 				t.Fatalf("Create() opts = %#v", opts)
@@ -1307,7 +1309,9 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 func TestCreateSessionHandlerAllowsMissingAgent(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := &stubSessionManager{
-		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(_ context.Context, optsInput *session.CreateOpts) (*session.Session, error) {
+			opts := *optsInput
+
 			if opts.AgentName != "" {
 				t.Fatalf("Create() AgentName = %q, want empty", opts.AgentName)
 			}
@@ -2840,7 +2844,7 @@ func TestSessionErrorMappingUsesNotFoundAndConflict(t *testing.T) {
 		StatusFn: func(context.Context, string) (*session.Info, error) {
 			return nil, session.ErrSessionNotFound
 		},
-		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(context.Context, *session.CreateOpts) (*session.Session, error) {
 			return nil, session.ErrPromptInProgress
 		},
 	}

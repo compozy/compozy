@@ -67,7 +67,7 @@ func TestCreateGetResumeDeleteAndStopHandlersReturnExpectedErrors(t *testing.T) 
 
 			homePaths := newTestHomePaths(t)
 			manager := &stubSessionManager{
-				CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+				CreateFn: func(context.Context, *session.CreateOpts) (*session.Session, error) {
 					return nil, os.ErrNotExist
 				},
 				StatusFn: func(context.Context, string) (*session.Info, error) {
@@ -188,7 +188,7 @@ func TestWorkspaceHandlersReturnExpectedErrors(t *testing.T) {
 func TestCreateSessionHandlerMapsWorkspaceErrors(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	manager := &stubSessionManager{
-		CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(context.Context, *session.CreateOpts) (*session.Session, error) {
 			return nil, fmt.Errorf("session: resolve workspace %q: %w", "alpha", workspacepkg.ErrWorkspaceRootMissing)
 		},
 	}
