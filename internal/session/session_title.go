@@ -18,11 +18,26 @@ const (
 	automaticSessionTitleMaxWords = 8
 )
 
+// automaticTitleLabelPhrases holds the known label phrases, one language per entry.
+var automaticTitleLabelPhrases = []string{
+	`(?:(?:suggested|proposed|generated|session|conversation|chat)\s+)?title`,
+	`sugest[ãa]o\s+de\s+t[íi]tulo`,
+	`t[íi]tulo(?:\s+(?:sugerido|proposto|propuesto|gerado|generado|` +
+		`(?:d[aeo]|de\s+la|del|para\s+a|para\s+la)\s+(?:sess[ãa]o|sesi[óo]n|conversa|conversaci[óo]n|chat)))?`,
+	`titre(?:\s+(?:sugg[ée]r[ée]|propos[ée]|de\s+la\s+(?:session|conversation)))?`,
+	`(?:vorgeschlagener\s+|sitzungs)?titel`,
+	`titolo(?:\s+(?:suggerito|proposto|della\s+(?:sessione|conversazione)))?`,
+}
+
 var (
 	// automaticTitleBlockPrefix matches Markdown block markers before a title.
 	automaticTitleBlockPrefix = regexp.MustCompile(`^(?:#{1,6}\s+|>\s*|[-*+]\s+|\d+[.)]\s+)+`)
-	// automaticTitleLabel matches the label a model may put before its title.
-	automaticTitleLabel = regexp.MustCompile("(?i)^[*_`\"']*title[*_`\"']*\\s*:[*_`\"']*\\s*")
+	// automaticTitleLabel matches the label a model may put before its title. It
+	// lists whole label phrases, not "anything before a colon", because real
+	// titles contain colons and the word "title".
+	automaticTitleLabel = regexp.MustCompile(
+		"(?i)^[*_`\"']*(?:" + strings.Join(automaticTitleLabelPhrases, "|") + ")[*_`\"']*\\s*:[*_`\"']*\\s*",
+	)
 	// automaticTitleNoticeLine matches a line that opens as a notice, not a title.
 	automaticTitleNoticeLine = regexp.MustCompile(
 		"(?i)^[*_`~]*\\s*(?:notice|note|reminder|warning|disclaimer)\\s*[*_`~]*\\s*:",
