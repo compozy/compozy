@@ -156,6 +156,7 @@ type NativeSubagentEvent struct {
 	ToolName           string // Agent | Task
 	Title              string
 	Model              string
+	SubagentType       string // the call's `subagent_type`; empty until its input arrives
 	Status             string // ACP tool-call status: pending|in_progress|completed|failed
 	// Background reports a call the provider runs in the background: its
 	// completed tool result is a launch receipt, not the subagent's outcome.
@@ -184,6 +185,8 @@ type NativeSubagentTask struct {
 	Progress string
 	// Background is nil unless the observation reports the task's backgrounding.
 	Background *bool
+	// Usage is the provider's running total for the task; nil when absent.
+	Usage *acp.NativeTaskUsage
 }
 
 // SubagentService owns subagent records, delivery, and lifecycle. Transition

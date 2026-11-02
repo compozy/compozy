@@ -114,6 +114,9 @@ func subagentPayload(s *session.Subagent) map[string]any {
 	if full.ChildActivity != "" {
 		p["child_activity"] = string(full.ChildActivity)
 	}
+	if full.Usage != nil {
+		p["usage"] = full.Usage
+	}
 	if full.Worktree != nil {
 		p["worktree"] = full.Worktree
 	}

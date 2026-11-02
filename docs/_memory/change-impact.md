@@ -213,6 +213,21 @@ surface (additive, SD-013):** `GET .../sessions/{session_id}/subagents` gains op
 pages most urgent first so a waiting or failed row is never behind "Show more". No migration,
 config key, native tool, hook, extension SDK, or `skills/compozy/` change; isolation unchanged.
 
+## Subagent activity panel — 2026-11-02
+
+Owner: branch `feat/subagent-ui-proto`. Provider-native rows now keep the model and `subagent_type`
+that later streamed events of the launching call name, and a running `usage` total (migration
+`00173_schema.sql`, additive nullable columns). The composer panel drills into a subagent in place.
+
+- **Native tools / CLI / HTTP / UDS:** additive only. `SubagentPayload.usage` (omitempty) in
+  OpenAPI/SDKs and `compozy__subagent_status`/list results. A native row's `role` now carries its
+  `subagent_type` instead of the fixed `general`; delegated rows are unchanged. No new routes or IDs.
+- **Extensibility / hooks / config:** none; hook payloads keep their fields.
+- **Workspace data / isolation:** existing rows read NULL usage and keep their role; writes are
+  scoped to the row id and restricted to `provider_native`.
+- **Official skill / docs / QA:** `skills/compozy/references/{native-tools,runtime-operations}.md`,
+  `packages/site/content/docs/sessions/subagents.mdx`, `COPY.md`, `ET-web-subagent-card`.
+
 ## Subagent child activity and native task lifecycle — 2026-10-27
 
 Owner: branch `fix/subagent-status`. Delegated rows gain a persisted `child_activity`

@@ -429,6 +429,7 @@ type SubagentPayload struct {
 	WorkState          string                   `json:"work_state"`
 	ChildActivity      SubagentChildActivity    `json:"child_activity,omitempty"`
 	Runtime            SubagentRuntimePayload   `json:"runtime"`
+	Usage              *SubagentUsagePayload    `json:"usage,omitempty"`
 	Depth              int                      `json:"depth"`
 	Progress           string                   `json:"progress"`
 	Result             *string                  `json:"result"`

@@ -3738,6 +3738,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addSubagentChildActivity(baseline) == 0 {
 		t.Fatal("approved subagent child activity addition: no historical subagent row schemas found")
 	}
+	// Optional additive provider usage on subagent rows; no required/type/removal change.
+	if addSubagentUsage(baseline) == 0 {
+		t.Fatal("approved subagent usage addition: no historical subagent row schemas found")
+	}
 	// #993: optional urgency order on one parent's subagent list; the default
 	// order and existing parameters keep their meaning.
 	subagentList := paths["/api/workspaces/{workspace_id}/sessions/{session_id}/subagents"].(map[string]any)["get"].(map[string]any)
@@ -4717,6 +4721,38 @@ func addSubagentChildActivity(node any) int {
 		count := 0
 		for _, child := range value {
 			count += addSubagentChildActivity(child)
+		}
+		return count
+	default:
+		return 0
+	}
+}
+
+func addSubagentUsage(node any) int {
+	switch value := node.(type) {
+	case map[string]any:
+		count := 0
+		if properties, ok := value["properties"].(map[string]any); ok &&
+			properties["subagent_id"] != nil && properties["work_state"] != nil {
+			properties["usage"] = map[string]any{
+				"type":     "object",
+				"nullable": true,
+				"required": []any{"tool_uses", "total_tokens"},
+				"properties": map[string]any{
+					"total_tokens": map[string]any{"type": "integer", "format": "int64"},
+					"tool_uses":    map[string]any{"type": "integer", "format": "int64"},
+				},
+			}
+			count++
+		}
+		for _, child := range value {
+			count += addSubagentUsage(child)
+		}
+		return count
+	case []any:
+		count := 0
+		for _, child := range value {
+			count += addSubagentUsage(child)
 		}
 		return count
 	default:

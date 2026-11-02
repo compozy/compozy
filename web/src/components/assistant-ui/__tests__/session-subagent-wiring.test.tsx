@@ -336,6 +336,7 @@ describe("subagent card drill-in (UT-W16)", () => {
         <SubagentDrawerContext
           value={{
             store,
+            content: () => null,
             open: (subagent, _options, workspaceId) =>
               store.trigger.opened({ subagent, workspaceId, trigger: null }),
           }}

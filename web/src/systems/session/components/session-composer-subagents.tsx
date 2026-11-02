@@ -46,6 +46,9 @@ export function SessionComposerSubagents({ session, onOpen }: SessionComposerSub
           : onOpen
       }
       onStop={roster.stop}
+      renderContent={
+        drawer ? subagent => drawer.content(subagent, session.workspace_id ?? "") : undefined
+      }
       onOpenChange={setOpen}
     />
   );

@@ -38,10 +38,11 @@ func NativeSubagentEventFromStored(workspaceID string, stored store.SessionEvent
 	}
 	var input struct {
 		Model           string `json:"model"`
+		SubagentType    string `json:"subagent_type"`
 		RunInBackground bool   `json:"run_in_background"`
 	}
 	if json.Unmarshal(event.ToolInput(), &input) != nil {
-		input.Model, input.RunInBackground = "", false
+		input.Model, input.SubagentType, input.RunInBackground = "", "", false
 	}
 	status := event.ToolStatus()
 	if status == "" {
@@ -70,12 +71,13 @@ func NativeSubagentEventFromStored(workspaceID string, stored store.SessionEvent
 		Title: transcript.NativeSubagentTitle(
 			event,
 		),
-		Model:      input.Model,
-		Status:     status,
-		Background: input.RunInBackground || event.ProviderToolAsync(),
-		Result:     result,
-		Error:      detail,
-		At:         at,
+		Model:        input.Model,
+		SubagentType: input.SubagentType,
+		Status:       status,
+		Background:   input.RunInBackground || event.ProviderToolAsync(),
+		Result:       result,
+		Error:        detail,
+		At:           at,
 	}, true, nil
 }
 
@@ -113,6 +115,7 @@ func nativeTaskEventFromStored(
 			Error:            task.Error,
 			Progress:         progress,
 			Background:       task.Background,
+			Usage:            task.Usage,
 		},
 		At: at,
 	}, true

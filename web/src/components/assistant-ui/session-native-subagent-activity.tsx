@@ -16,14 +16,21 @@ import { SessionTimelineRows } from "./session-timeline-render";
 export function SessionNativeSubagentActivity({
   subagent,
   workspaceId,
+  embedded = false,
 }: {
   subagent: SubagentView;
   workspaceId: string;
+  /** Inside the subagent's own panel, the launching call only repeats the panel's header. */
+  embedded?: boolean;
 }) {
   const transcript = useSessionTranscriptThreadState();
   const store = useStore(timelineRowLogic, undefined);
   const expansion = useSelector(store, snapshot => snapshot.context);
-  const { prompt, activity, hasInvocation } = nativeActivity(transcript.messages, subagent.id);
+  const { prompt, activity, hasInvocation } = nativeActivity(
+    transcript.messages,
+    subagent.id,
+    embedded
+  );
   const { hasOlder, isFetchingOlder, isError, loadOlder } = transcript;
   useEffect(() => {
     if (!hasInvocation && hasOlder && !isFetchingOlder && !isError) void loadOlder();
@@ -40,8 +47,13 @@ export function SessionNativeSubagentActivity({
             className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4"
             data-testid="native-subagent-activity"
           >
-            {prompt ? <SessionMessageText text={prompt} authored /> : null}
-            <NativeOutcome subagent={subagent} />
+            {prompt ? (
+              <section className="flex flex-col gap-1.5">
+                <h4 className="text-transcript-meta text-muted-foreground">Asked to</h4>
+                <SessionMessageText text={prompt} authored />
+              </section>
+            ) : null}
+            <NativeOutcome embedded={embedded} subagent={subagent} />
             <NativeActivityRows
               transcript={transcript}
               rows={rows}
@@ -54,7 +66,7 @@ export function SessionNativeSubagentActivity({
   );
 }
 
-function nativeActivity(messages: readonly ThreadMessage[], subagentId: string) {
+function nativeActivity(messages: readonly ThreadMessage[], subagentId: string, embedded: boolean) {
   const parts = messages.flatMap(toTimelineParts);
   const owner = parts.map(subagentPartData).find(part => part?.subagent_id === subagentId);
   const toolId = owner?.tool_call_id;
@@ -69,7 +81,7 @@ function nativeActivity(messages: readonly ThreadMessage[], subagentId: string) 
   const activity = toolId
     ? parts.filter(
         part =>
-          (part.kind === "tool" && part.toolCallId === toolId) ||
+          (!embedded && part.kind === "tool" && part.toolCallId === toolId) ||
           descendsFrom(part.parentToolCallId, toolId, parents)
       )
     : [];
@@ -90,14 +102,14 @@ function descendsFrom(
   return false;
 }
 
-function NativeOutcome({ subagent }: { subagent: SubagentView }) {
+function NativeOutcome({ subagent, embedded }: { subagent: SubagentView; embedded: boolean }) {
   return (
     <>
       {subagent.result ? <SessionMessageText text={subagent.result} /> : null}
       {subagent.result_truncated ? (
         <p className="text-small-body text-muted-foreground">Result was truncated.</p>
       ) : null}
-      {subagent.error ? (
+      {subagent.error && !embedded ? (
         <p role="alert" className="text-small-body text-destructive">
           {subagent.error}
         </p>

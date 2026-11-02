@@ -3,7 +3,6 @@ import { Skeleton, SkeletonRegion, SkeletonText, cn } from "@compozy/ui";
 import {
   SUBAGENT_ROSTER_LIST_FRAME,
   SUBAGENT_ROSTER_MAIN_FRAME,
-  SUBAGENT_ROSTER_MAIN_PLAIN,
   SUBAGENT_ROSTER_ROW_FRAME,
 } from "./subagent-roster-frame";
 
@@ -32,8 +31,8 @@ export function SubagentRosterSkeleton({
       <ul aria-hidden="true" className="flex flex-col gap-px">
         {rows.map(position => (
           <li key={position} className={SUBAGENT_ROSTER_ROW_FRAME}>
-            <div className={cn(SUBAGENT_ROSTER_MAIN_FRAME, SUBAGENT_ROSTER_MAIN_PLAIN)}>
-              <Skeleton className="size-6 rounded-full" />
+            <div className={SUBAGENT_ROSTER_MAIN_FRAME}>
+              <Skeleton className="size-8 rounded-lg" />
               <SkeletonText
                 className={cn("text-transcript-meta", TITLE_WIDTHS[position % TITLE_WIDTHS.length])}
               />

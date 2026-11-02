@@ -13795,9 +13795,20 @@ func TestNativeSubagentBindings(t *testing.T) {
 		// The delegate/status tools advertise this payload shape; an emitted field must be declared.
 		row.Origin, row.Status = store.SubagentOriginDelegated, store.SubagentStatusCompleted
 		row.WorkState, row.Delivery = store.SubagentWorkStateResultAvailable, store.SubagentDeliveryNone
+		row.Usage = &store.SubagentUsage{TotalTokens: 900, ToolUses: 4}
 		encoded, err := json.Marshal(subagentPayload(&row))
 		if err != nil {
 			t.Fatal(err)
+		}
+		var emitted struct {
+			Usage *struct {
+				TotalTokens int64 `json:"total_tokens"`
+				ToolUses    int64 `json:"tool_uses"`
+			} `json:"usage"`
+		}
+		if err := json.Unmarshal(encoded, &emitted); err != nil || emitted.Usage == nil ||
+			emitted.Usage.TotalTokens != 900 || emitted.Usage.ToolUses != 4 {
+			t.Fatalf("usage = %+v, err = %v", emitted.Usage, err)
 		}
 		for _, descriptor := range builtintools.NativeDescriptors() {
 			if descriptor.ID == toolspkg.ToolIDSubagentDelegate || descriptor.ID == toolspkg.ToolIDSubagentStatus {
