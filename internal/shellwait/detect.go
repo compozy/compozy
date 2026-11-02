@@ -304,8 +304,8 @@ func isWatchCommand(argv []string) bool {
 	return false
 }
 
-// isPullRequestWatch reports a checks watch on this workspace's repository; another repository, which a
-// pull_request monitor cannot select, keeps the terminal redirect.
+// isPullRequestWatch reports a checks watch a pull_request monitor can select. Another repository, named by
+// a flag or inside a pull request URL, keeps the terminal redirect.
 func isPullRequestWatch(argv []string) bool {
 	if executableName(argv[0]) != "gh" {
 		return false
@@ -313,7 +313,7 @@ func isPullRequestWatch(argv []string) bool {
 	positional := make([]string, 0, 2)
 	for _, arg := range argv[1:] {
 		switch {
-		case arg == "-R", arg == "--repo", strings.HasPrefix(arg, "--repo="):
+		case arg == "-R", arg == "--repo", strings.HasPrefix(arg, "--repo="), strings.Contains(arg, "://"):
 			return false
 		case !strings.HasPrefix(arg, "-") && len(positional) < 2:
 			positional = append(positional, arg)

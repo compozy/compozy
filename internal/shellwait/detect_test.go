@@ -224,6 +224,8 @@ func TestDenyReason(t *testing.T) {
 		for _, command := range []string{
 			`gh pr checks 123 -R other/repo --watch`,
 			`gh pr checks 123 --repo=other/repo --watch`,
+			`gh pr checks https://github.com/other/repo/pull/123 --watch`,
+			`gh pr checks --interval 30 https://github.com/other/repo/pull/123 --watch`,
 		} {
 			finding, found := Detect(command)
 			if !found {
