@@ -32,11 +32,13 @@ export function notifySessionPromptNotSent(reason: string | null): void {
   });
 }
 
+/** Caps daemon refusal text before presenting it in a notification or chat error. */
 function bounded(reason: string): string {
   if (reason.length <= MAX_REFUSAL_REASON_LENGTH) return reason;
   return `${reason.slice(0, MAX_REFUSAL_REASON_LENGTH - 1)}…`;
 }
 
+/** Converts missing attachment diagnostics into recovery guidance for a retained draft. */
 function readableReason(reason: string): string {
   if (reason.includes("open prompt attachment") && reason.includes("attachment not found")) {
     return "An attachment is no longer available. Send again to upload the retained file";

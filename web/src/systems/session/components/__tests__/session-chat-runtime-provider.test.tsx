@@ -2127,6 +2127,28 @@ describe("SessionChatRuntimeProvider", () => {
         { status: 404 }
       )
     );
+    // Distinct boundary responses prove retry consumes the fresh upload result.
+    // A real content-addressed store normally returns the same ID for unchanged bytes.
+    let uploadCount = 0;
+    attachmentUploadResponse = async () => {
+      uploadCount += 1;
+      const response = await uploadedAttachmentResponse(
+        "image.png",
+        uploadCount === 1 ? "a" : "b"
+      ).json();
+      return jsonResponse(
+        {
+          attachment: {
+            ...response.attachment,
+            kind: "image",
+            mime_type: "image/png",
+            height: 10,
+            width: 10,
+          },
+        },
+        { status: 201 }
+      );
+    };
     const user = userEvent.setup();
     renderSessionThread({ includeToaster: true });
     await screen.findByTestId("composer-input");
@@ -2148,6 +2170,14 @@ describe("SessionChatRuntimeProvider", () => {
     promptResponsePromise = null;
     await user.click(screen.getByTestId("composer-send-button"));
     await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(2));
+    const prompts = fetchMock.mock.calls.filter(([input]) =>
+      getPathname(input).endsWith("/prompt")
+    );
+    const retryBody = JSON.parse(String(prompts[1]?.[1]?.body));
+    expect(retryBody.attachments).toEqual([
+      expect.objectContaining({ id: `att_${"b".repeat(64)}`, name: "image.png" }),
+    ]);
+    await screen.findByText("Live runtime answer before transcript reconciliation.");
   });
 
   it("Should name the daemon's reason when it refuses a prompt", async () => {
