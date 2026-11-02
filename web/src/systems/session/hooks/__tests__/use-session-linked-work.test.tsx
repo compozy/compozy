@@ -256,6 +256,30 @@ describe("useSessionLinkDialogModel", () => {
     expect(result.current.error).toBeNull();
   });
 
+  it("Should send a pasted link whole and show the daemon's refusal with nothing linked", async () => {
+    const pasted = "https://github.com/acme/billing/pull/212";
+    vi.mocked(fetchSessionLinkedWork).mockResolvedValue({ items: [] });
+    vi.mocked(searchSessionLinkCandidates).mockImplementation(async (_w, _s, query) => {
+      if (query.q === pasted) {
+        throw new SessionApiError("refused", 400, session.id, {
+          code: "session_link_repository_mismatch",
+        });
+      }
+      return { items: [], has_more: false, supports_pr_discovery: true };
+    });
+    const { result } = dialog();
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    act(() => result.current.onQueryChange(pasted));
+    await waitFor(() =>
+      expect(result.current.search).toEqual({
+        kind: "other-project",
+        repository: "github.com/acme/billing",
+        number: 212,
+      })
+    );
+    expect(result.current.offline).toBe(false);
+  });
+
   it("Should link a selection at bounded concurrency and name what failed", async () => {
     candidates(SESSION_LINK_PULL_REQUESTS.slice(0, 6));
     sessionLinkDialogStore.trigger.opened({ sessionId: session.id });

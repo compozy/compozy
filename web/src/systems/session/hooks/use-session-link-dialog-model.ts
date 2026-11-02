@@ -34,7 +34,7 @@ const LINK_CONCURRENCY = 3;
 
 /** The picker's two server searches for the settled query. */
 function useSessionLinkCandidates(workspaceId: string, sessionId: string, query: string) {
-  const term = sessionLinkSearchTerm(parseSessionLinkInput(query));
+  const term = sessionLinkSearchTerm(query);
   const pulls = useInfiniteQuery(
     sessionLinkCandidatesOptions(workspaceId, sessionId, "pull_requests", term)
   );
@@ -43,11 +43,14 @@ function useSessionLinkCandidates(workspaceId: string, sessionId: string, query:
   );
   const pages = pulls.data?.pages ?? [];
   const discovery = pages[0]?.supports_pr_discovery ?? true;
+  // The refusal answers both searches: it is about the link, not about the forge.
+  const refused = isRepositoryMismatch(pulls.error) || isRepositoryMismatch(branchReads.error);
   return {
     pullRequests: discovery ? pages.flatMap(page => page.items) : [],
     branches: branchReads.data?.pages.flatMap(page => page.items) ?? [],
     // A forge that can't answer leaves branches linkable; it is not a dead dialog.
-    offline: pulls.isError || !discovery,
+    offline: (pulls.isError && !refused) || !discovery,
+    refused,
     fetching: pulls.isFetching || branchReads.isFetching || pulls.isPlaceholderData,
     hasMore: pulls.hasNextPage || branchReads.hasNextPage,
     loadMore: () => {
@@ -166,7 +169,7 @@ export function useSessionLinkDialogModel({
       pullRequests,
       branches,
       searching,
-      refused,
+      refused: refused || candidates.refused,
     }),
     selected: selection.selected,
   };

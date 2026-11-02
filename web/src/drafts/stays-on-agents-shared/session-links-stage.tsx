@@ -46,7 +46,6 @@ import {
   repositoryShortName,
   sessionLinkExactMatch,
   sessionLinkSearch,
-  sessionLinkSearchTerm,
   parseSessionLinkInput,
 } from "@/systems/session/lib/session-link-input";
 import {
@@ -81,7 +80,8 @@ import { AgentTurn, DraftComposer, TranscriptColumn, UserTurn } from "./transcri
 
 /** What the server would answer, so the dialog's states read as they do in production. */
 function fixtureSearch(query: string, offline: boolean) {
-  const term = sessionLinkSearchTerm(parseSessionLinkInput(query)).toLowerCase();
+  const input = parseSessionLinkInput(query);
+  const term = input.kind === "text" ? input.text.toLowerCase() : String(input.number);
   const matches = (candidate: SessionWorkCandidate) =>
     [candidate.title, candidate.branch, String(candidate.pr_number ?? "")].some(value =>
       value?.toLowerCase().includes(term)

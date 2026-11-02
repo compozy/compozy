@@ -28,9 +28,10 @@ export function parseSessionLinkInput(query: string): SessionLinkInput {
   return number ? { kind: "number", number: Number(number[1]) } : { kind: "text", text };
 }
 
-/** What the server is asked: a pasted link or number searches by its number. */
-export function sessionLinkSearchTerm(input: SessionLinkInput): string {
-  return input.kind === "text" ? input.text : String(input.number);
+/** What the server is asked: a pasted link goes whole, because the daemon decides whose it is. */
+export function sessionLinkSearchTerm(query: string): string {
+  const input = parseSessionLinkInput(query);
+  return input.kind === "number" ? String(input.number) : query.trim();
 }
 
 export function sameRepository(left: string, right: string): boolean {
