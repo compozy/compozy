@@ -151,6 +151,25 @@ function focusedSessionId(state: Pick<OsDesktopRuntimeStore, "focusedId" | "wind
   return focused && osAppId(focused.app) === "session" ? focused.instanceKey : null;
 }
 
+/** The focused session, when the query can reach its link command from this page. */
+function usePaletteLinkCommand(
+  query: string,
+  destination: boolean,
+  signals: CmdPaletteRankSignals | null
+): string | null {
+  const focusedSession = useDesktop(focusedSessionId);
+  const candidates = !destination && focusedSession && query.trim() !== "" ? [focusedSession] : [];
+  const ranked = rankEntityRows(
+    candidates,
+    id => ({ id, label: LINK_COMMAND_LABEL, keywords: ["pull request", "branch", "link"] }),
+    "Session",
+    query,
+    signals,
+    false
+  );
+  return ranked.rows[0] ?? null;
+}
+
 /**
  * Entity rows the palette has always carried — sessions, open tabs and ready
  * worktrees — sourced for the projection.
@@ -204,7 +223,7 @@ export function useOsPaletteEntities({
   });
   const sessionSearchRan =
     remoteQuery !== "" && paletteEntityQueryEnabled(destination, remoteQuery, signals);
-  const focusedSession = useDesktop(focusedSessionId);
+  const linkSessionId = usePaletteLinkCommand(query, destination, signals);
   const tabs = usePaletteTabs(open, destinationWindowId, sessions.sessions);
 
   const worktrees = projectPaletteWorktrees(
@@ -228,14 +247,6 @@ export function useOsPaletteEntities({
   const rankedSessions = sessionSearchRan
     ? keepServerSessions(rankedRows, sessionRows, signals?.weights.entity_section_visible_cap)
     : rankedRows;
-  const linkCommand = rankEntityRows(
-    !destination && focusedSession && query.trim() !== "" ? [focusedSession] : [],
-    id => ({ id, label: LINK_COMMAND_LABEL, keywords: ["pull request", "branch", "link"] }),
-    "Session",
-    query,
-    signals,
-    false
-  );
   const rankedTabs = rankEntityRows(
     tabs,
     row => ({ id: row.windowId, label: row.label, keywords: [row.desktopName] }),
@@ -258,7 +269,7 @@ export function useOsPaletteEntities({
     tabTotal: rankedTabs.total,
     worktrees: rankedWorktrees.rows,
     worktreeTotal: rankedWorktrees.total,
-    linkSessionId: linkCommand.rows[0] ?? null,
+    linkSessionId,
     selectWorktree: entry =>
       applyPaletteWorktreeSelection({
         worktreeScopeId,

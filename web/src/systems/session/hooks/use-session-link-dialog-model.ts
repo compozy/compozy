@@ -114,24 +114,27 @@ export function useSessionLinkDialogModel({
     setPending(true);
     setError(null);
     const { selected } = selection;
-    const outcomes = await settleBounded(selected, LINK_CONCURRENCY, candidate =>
-      add.mutateAsync(linkRequest(candidate))
-    );
-    const failures = selected.flatMap((candidate, index): SessionLinkFailure[] => {
-      const outcome = outcomes[index];
-      return outcome?.status === "rejected" ? [{ candidate, cause: outcome.reason }] : [];
-    });
-    // A pasted link has its own "another project" state; anything else must say so in words.
-    const pastedLink = parseSessionLinkInput(query).kind === "link";
-    setRefused(failures.some(({ cause }) => isRepositoryMismatch(cause)));
-    setError(
-      linkFailureMessage(
-        pastedLink ? failures.filter(({ cause }) => !isRepositoryMismatch(cause)) : failures
-      )
-    );
-    setPending(false);
-    selection.keep(failures.map(({ candidate }) => candidate));
-    if (failures.length === 0) closeSessionLinkDialog();
+    try {
+      const outcomes = await settleBounded(selected, LINK_CONCURRENCY, candidate =>
+        add.mutateAsync(linkRequest(candidate))
+      );
+      const failures = selected.flatMap((candidate, index): SessionLinkFailure[] => {
+        const outcome = outcomes[index];
+        return outcome?.status === "rejected" ? [{ candidate, cause: outcome.reason }] : [];
+      });
+      // A pasted link has its own "another project" state; anything else must say so in words.
+      const pastedLink = parseSessionLinkInput(query).kind === "link";
+      setRefused(failures.some(({ cause }) => isRepositoryMismatch(cause)));
+      setError(
+        linkFailureMessage(
+          pastedLink ? failures.filter(({ cause }) => !isRepositoryMismatch(cause)) : failures
+        )
+      );
+      selection.keep(failures.map(({ candidate }) => candidate));
+      if (failures.length === 0) closeSessionLinkDialog();
+    } finally {
+      setPending(false);
+    }
   };
 
   return {

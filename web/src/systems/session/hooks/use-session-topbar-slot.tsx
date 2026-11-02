@@ -13,6 +13,7 @@ import {
   SessionLinkedWorkNarrowEntry,
   SessionLinkedWorkStatus,
   type SessionLinkedWorkListProps,
+  type SessionLinkedWorkStatusProps,
 } from "../components/session-linked-work/session-linked-work-header";
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import { SessionPrimaryAction } from "../components/session-primary-action";
@@ -108,28 +109,15 @@ function sessionTopbarActions({ session, isStopping, isUnarchiving }: UseSession
   };
 }
 
-/** Publishes lifecycle actions into the owning session window's topbar. */
-export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
-  const { session, worktreeBinding, transportChip } = input;
-  const actions = sessionTopbarActions(input);
-  const view = useSessionWindowViewState();
-  // Over the board the drawer owns its chrome: no rail to toggle, and the board is the view.
-  const inWindow = useSessionWindowPresentation() === "window";
-  // The slot consumer (the OS head) renders outside this window's session
-  // runtime provider, so a node that reads the transport — the chip — would
-  // see the default live snapshot there. The publisher runs inside the
-  // provider: it carries the window's own snapshot with the node, per window,
-  // no second stream (task_06 VC-01..05).
-  const transport = useSessionTransportState();
-  const { pullRequestExit, pullRequestRefresh, onSendPrompt, linkedWork } = input;
-  const glyphState = sessionBadgeSignal(sessionBadgeOf(session), sessionWaitingOn(session)).state;
-
-  // A main session is the agent's own conversation, so the agent names it.
-  const instance = useAgentInstances().find(row => row.main_session_id === session.id);
-  const { registeredWorkspaces } = useActiveWorkspace();
-  const workspaceNames = new Map(registeredWorkspaces.map(row => [row.id, row.name]));
+/** The linked work list's props: what it shows, where the session runs, what a row can do. */
+function useLinkedWorkList(
+  input: UseSessionTopbarSlotInput,
+  controllable: boolean,
+  workspaceNames: ReadonlyMap<string, string>
+): SessionLinkedWorkListProps {
+  const { session, worktreeBinding, linkedWork, pullRequestRefresh } = input;
   const { label: agentLabel } = useAgentIdentityView(session.agent_name);
-  const linkedList: SessionLinkedWorkListProps = {
+  return {
     items: linkedWork.items,
     runsIn: worktreeBinding
       ? { kind: "worktree", name: worktreeBinding.worktree?.name ?? worktreeBinding.worktreeId }
@@ -143,7 +131,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
         },
     agentLabel,
     actions: {
-      controllable: actions.lifecycleControllable,
+      controllable,
       isOwn: item => isOwnBranch(item, session),
       refreshing: linkedWork.refreshing,
       onLink: () => requestSessionLinkDialog(session.id),
@@ -154,9 +142,46 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
         if (pullRequestRefresh && isOwnBranch(item, session)) pullRequestRefresh.refresh();
         else linkedWork.refresh();
       },
-      onPrompt: onSendPrompt,
+      onPrompt: input.onSendPrompt,
     },
   };
+}
+
+/** The delivery actions a chip carries for the session's own branch. */
+function ownChipActions({
+  pullRequestExit,
+  pullRequestRefresh,
+}: UseSessionTopbarSlotInput): SessionLinkedWorkStatusProps["ownChip"] {
+  return {
+    exitPlan: pullRequestExit?.plan,
+    exitRunning: pullRequestExit?.running ?? false,
+    onExitAction: pullRequestExit?.onAction,
+    onRefresh: pullRequestRefresh?.refresh,
+    refreshing: pullRequestRefresh?.refreshing ?? false,
+  };
+}
+
+/** Publishes lifecycle actions into the owning session window's topbar. */
+export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
+  const { session, worktreeBinding, transportChip } = input;
+  const actions = sessionTopbarActions(input);
+  const view = useSessionWindowViewState();
+  // Over the board the drawer owns its chrome: no rail to toggle, and the board is the view.
+  const inWindow = useSessionWindowPresentation() === "window";
+  // The slot consumer (the OS head) renders outside this window's session
+  // runtime provider, so a node that reads the transport — the chip — would
+  // see the default live snapshot there. The publisher runs inside the
+  // provider: it carries the window's own snapshot with the node, per window,
+  // no second stream (task_06 VC-01..05).
+  const transport = useSessionTransportState();
+  const { linkedWork } = input;
+  const glyphState = sessionBadgeSignal(sessionBadgeOf(session), sessionWaitingOn(session)).state;
+
+  // A main session is the agent's own conversation, so the agent names it.
+  const instance = useAgentInstances().find(row => row.main_session_id === session.id);
+  const { registeredWorkspaces } = useActiveWorkspace();
+  const workspaceNames = new Map(registeredWorkspaces.map(row => [row.id, row.name]));
+  const linkedList = useLinkedWorkList(input, actions.lifecycleControllable, workspaceNames);
 
   useTopbarSlot({
     leading: inWindow ? (
@@ -187,13 +212,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
           lead={linkedWork.lead}
           more={linkedWork.more}
           onClippedChange={linkedWork.setClipped}
-          ownChip={{
-            exitPlan: pullRequestExit?.plan,
-            exitRunning: pullRequestExit?.running ?? false,
-            onExitAction: pullRequestExit?.onAction,
-            onRefresh: pullRequestRefresh?.refresh,
-            refreshing: pullRequestRefresh?.refreshing ?? false,
-          }}
+          ownChip={ownChipActions(input)}
           ownFacts={sessionPullRequestFacts(session)}
           worktreeAction={input.worktreeAction}
         />
