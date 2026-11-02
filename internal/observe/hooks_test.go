@@ -358,7 +358,7 @@ func registerObserverHookSessionOwner(
 	t.Helper()
 
 	now := time.Date(2026, 4, 9, 18, 55, 0, 0, time.UTC)
-	if err := registry.RegisterSession(testutil.Context(t), store.SessionInfo{
+	if err := registry.RegisterSession(testutil.Context(t), new(store.SessionInfo{
 		ProfileID:     store.DefaultProfileID,
 		ID:            sessionID,
 		AgentName:     "coder",
@@ -369,7 +369,7 @@ func registerObserverHookSessionOwner(
 		State:         "stopped",
 		CreatedAt:     now,
 		UpdatedAt:     now,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", sessionID, err)
 	}
 }

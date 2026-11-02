@@ -39,6 +39,7 @@ import {
   settingsUpdateApplyingFixture,
   settingsUpdateBothAvailableFixture,
 } from "@/systems/settings/mocks/settings-update-fixture";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
 
 const execFileAsync = promisify(execFile);
 const browserLifecycleAgent = "os-shell-agent";
@@ -933,12 +934,12 @@ test("E2E-008: palette stays global while RuntimeSelector owns scoped ⌘J", asy
   await appPage.keyboard.press("Escape");
   await expect(palette).toHaveCount(0);
 
-  await appPage.goto(runtime.url(`/agents/${browserLifecycleAgent}`), {
+  await appPage.goto(runtime.url(`/agents/${browserLifecycleAgent}?panel=model`), {
     waitUntil: "domcontentloaded",
   });
-  const agentsWin = appWindow(appPage, "agents");
-  await expect(agentsWin).toBeVisible();
-  const runtimeTrigger = agentsWin.getByTestId("agent-detail-runtime-select");
+  const runtimeTrigger = appPage
+    .getByTestId("agent-profile-panel")
+    .getByTestId("agent-settings-runtime-select");
   await expect(runtimeTrigger).toBeEnabled();
   await runtimeTrigger.focus();
   await appPage.keyboard.press("ControlOrMeta+J");
@@ -1503,7 +1504,7 @@ test("E2E-022: menubar traverses five menus and operates workspaces, sessions, D
   await createDialog.getByTestId("session-create-agent-select").click();
   await appPage.getByTestId(`agent-command-item-${browserLifecycleAgent}`).click();
   await expect(createDialog.getByTestId("session-create-agent-select")).toContainText(
-    browserLifecycleAgent
+    humanizeAgentSlug(browserLifecycleAgent)
   );
   const createResponsePromise = appPage.waitForResponse(
     response =>

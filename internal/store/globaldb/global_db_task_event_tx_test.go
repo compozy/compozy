@@ -1372,11 +1372,11 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		}
 		workspaceID := registerWorkspaceForGlobalTests(t, globalDB, "force-release-rollback", t.TempDir())
 		sessionID := "sess-force-release-event-rollback"
-		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
+		if err := globalDB.RegisterSession(ctx, new(store.SessionInfo{
 			ProfileID: store.DefaultProfileID,
 			ID:        sessionID, AgentName: "worker", WorkspaceID: workspaceID,
 			RuntimeStatus: store.SessionRuntimeUnbound, State: "active",
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 		claimed := run

@@ -251,7 +251,7 @@ func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
 
 		engine := newTestRouter(
 			t,
-			newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t)),
+			newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t)),
 		)
 		recorder := httptest.NewRecorder()
 		request := httptest.NewRequestWithContext(
@@ -278,7 +278,7 @@ func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
 	) {
 		t.Parallel()
 
-		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+		handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 		engine := gin.New()
 		RegisterRoutes(engine, handlers)
 		recorder := httptest.NewRecorder()
@@ -304,7 +304,7 @@ func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
 	t.Run("Should allow same-origin browser metadata for a loopback request Host", func(t *testing.T) {
 		t.Parallel()
 
-		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+		handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 		engine := gin.New()
 		RegisterRoutes(engine, handlers)
 		recorder := httptest.NewRecorder()
@@ -329,7 +329,7 @@ func TestBrowserRequestProtectionRouteBoundary(t *testing.T) {
 	t.Run("Should leave public webhooks outside browser CSRF middleware", func(t *testing.T) {
 		t.Parallel()
 
-		handlers := newTestHandlers(t, stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
+		handlers := newTestHandlers(t, &stubSessionManager{}, stubObserver{}, newTestHomePaths(t))
 		engine := gin.New()
 		RegisterRoutes(engine, handlers)
 		recorder := httptest.NewRecorder()

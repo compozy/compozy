@@ -26,6 +26,7 @@ describe("useAgentCatalogMetrics", () => {
 
   it("Should wait for scope resolution before querying the catalog by exact name", async () => {
     vi.mocked(fetchAgentCatalog).mockResolvedValue({
+      next_cursor: "",
       agents: [],
       facets: { active: 0, categories: [], idle: 0, total: 0 },
       page: { has_more: false, limit: 1, total: 0 },
@@ -61,9 +62,19 @@ describe("useAgentCatalogMetrics", () => {
     "Should expose exact catalog session aggregates in scope %s without page derivation",
     async workspaceId => {
       vi.mocked(fetchAgentCatalog).mockResolvedValue({
+        next_cursor: "",
         agents: [
           {
             agent: {
+              label: "Fraud Ops Agent",
+              kind: "on_demand",
+              resolved_appearance: {
+                version: 1,
+                avatar: "generated",
+                seed: "fraud-ops-agent",
+                generation: 1,
+                color: "#7c5cff",
+              },
               name: "fraud-ops-agent",
               provider: "claude",
               prompt: "p",
@@ -103,9 +114,19 @@ describe("useAgentCatalogMetrics", () => {
 
   it("Should report metrics unavailable when the exact agent name is absent from the page", async () => {
     vi.mocked(fetchAgentCatalog).mockResolvedValue({
+      next_cursor: "",
       agents: [
         {
           agent: {
+            label: "Other Agent",
+            kind: "on_demand",
+            resolved_appearance: {
+              version: 1,
+              avatar: "generated",
+              seed: "other-agent",
+              generation: 1,
+              color: "#7c5cff",
+            },
             name: "other-agent",
             provider: "claude",
             prompt: "p",

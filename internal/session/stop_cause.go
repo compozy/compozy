@@ -34,7 +34,7 @@ func (cause StopCause) String() string {
 	case CauseOwnerReleased:
 		return "owner_released"
 	case CauseFailed:
-		return "failed"
+		return string(BadgeFailed)
 	case CauseUserRequested:
 		return "user_requested"
 	case CauseShutdown:
@@ -46,7 +46,7 @@ func (cause StopCause) String() string {
 	case CauseInactivity:
 		return stopDetailInactivity
 	case CauseTimeout:
-		return "timeout"
+		return runtimeActivityKindTimeout
 	case CauseClearConversation:
 		return "clear_conversation"
 	case CauseConversationRewind:

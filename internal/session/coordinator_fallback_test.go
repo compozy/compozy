@@ -90,7 +90,7 @@ func TestBundledBuiltinSessionFallback(t *testing.T) {
 					SpawnRole:    string(SessionTypeCoordinator),
 					TTLExpiresAt: &ttl,
 				}
-				created, err := h.manager.Create(testutil.Context(t), tc.opts)
+				created, err := h.manager.Create(testutil.Context(t), &(tc.opts))
 				if created != nil || !errors.Is(err, ErrValidation) {
 					t.Fatalf("Create(coordinator %s) = (%#v, %v), want nil and ErrValidation", tc.name, created, err)
 				}
@@ -162,7 +162,7 @@ func TestBundledBuiltinSessionFallback(t *testing.T) {
 func createBundledCoordinatorSession(t *testing.T, h *harness) *Session {
 	t.Helper()
 
-	created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	created, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: compozyconfig.BuiltinCoordinatorAgentName,
 		Provider:  "claude",
 		Name:      "bundled-coordinator",
@@ -174,7 +174,7 @@ func createBundledCoordinatorSession(t *testing.T, h *harness) *Session {
 			}(),
 		},
 		Type: SessionTypeCoordinator,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create(coordinator) error = %v", err)
 	}

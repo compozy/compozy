@@ -6,6 +6,12 @@ import "fmt"
 type HookEventFamily string
 
 const (
+	HookAgentInstanceCreated  HookEvent = "agent.instance.created"
+	HookAgentInstancePaused   HookEvent = "agent.instance.paused"
+	HookAgentInstanceResumed  HookEvent = "agent.instance.resumed"
+	HookAgentInstanceArchived HookEvent = "agent.instance.archived"
+	HookAgentInstanceAdopted  HookEvent = "agent.instance.adopted"
+
 	HookEventFamilySession       HookEventFamily = "session"
 	HookEventFamilyInput         HookEventFamily = "input"
 	HookEventFamilyPrompt        HookEventFamily = "prompt"
@@ -159,6 +165,12 @@ type hookEventDefinition struct {
 }
 
 var baseHookEventDefinitions = []hookEventDefinition{
+	{event: HookAgentInstanceCreated, family: HookEventFamilyAgent, syncEligible: false},
+	{event: HookAgentInstancePaused, family: HookEventFamilyAgent, syncEligible: false},
+	{event: HookAgentInstanceResumed, family: HookEventFamilyAgent, syncEligible: false},
+	{event: HookAgentInstanceArchived, family: HookEventFamilyAgent, syncEligible: false},
+	{event: HookAgentInstanceAdopted, family: HookEventFamilyAgent, syncEligible: false},
+
 	{event: HookSubagentSettled, family: HookEventFamilySubagent, syncEligible: false},
 	{event: HookSessionPreCreate, family: HookEventFamilySession, syncEligible: true},
 	{event: HookSessionPostCreate, family: HookEventFamilySession, syncEligible: true},

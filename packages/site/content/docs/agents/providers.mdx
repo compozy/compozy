@@ -217,8 +217,8 @@ launch, and resolved values are registered with runtime secret redaction. Profil
 references must belong to the launching profile. Configuration and definition reads retain
 references, never resolved values. `compozy provider inspect codex -o json` reports presence and
 source; Settings → Providers → Technical details shows the same reference-only information.
-`compozy agent show <name> -o json` includes effective environment presence/source metadata,
-also shown in the agent's Configuration tab. Saving unrelated agent settings preserves authored
+`compozy agent show <name> -o json` includes effective environment presence/source metadata.
+Saving unrelated agent settings preserves authored
 environment declarations, including declarations on fallback routes.
 Saving other provider settings preserves an omitted `session_env`; send an explicit empty table
 to remove the provider declarations.

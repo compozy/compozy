@@ -98,7 +98,7 @@ func (h *BaseHandlers) bindTerminalHumanClient(
 	if clientWorkspace == "" {
 		clientWorkspace = workspaceID
 	}
-	if clientWorkspace == "" || clientWorkspace == "@user" {
+	if clientWorkspace == "" || clientWorkspace == userScopeWorkspaceRef {
 		clientWorkspace = "user"
 	}
 	if err := service.AuthorizeClient(

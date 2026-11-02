@@ -16,14 +16,23 @@ compozy agent update <name> [flags]
 ```
       --acp-option stringArray       ACP select option default (repeatable: id=value_id)
       --acp-toggle stringArray       ACP boolean option default (repeatable: id=true|false)
+      --appearance-avatar string     Avatar: generated, icon or emoji (default "generated")
+      --appearance-color string      Avatar color (#rrggbb) (default "#7c5cff")
+      --appearance-emoji string      One emoji
+      --appearance-generation int    Avatar generation (default 1)
+      --appearance-icon string       Lucide icon name
+      --appearance-seed string       Generated avatar seed (default: agent name)
       --category stringArray         Agent category path segment (repeatable)
       --clear-fallback-chain         Remove every fallback route from the agent definition
       --command string               Optional provider command override
       --deny-tool stringArray        Denied tool pattern (repeatable)
+      --description string           Agent purpose (up to 280 characters)
       --disable-skill stringArray    Disabled skill name (repeatable)
+      --display-name string          Agent display name (up to 80 characters)
       --expected-digest string       Definition digest from the last read
       --fallback-route stringArray   Fallback route provider=<p>,model=<m>[,reasoning_effort=<r>][,speed=<s>][,command=<c>] (repeatable, ordered; command must be last and takes the rest verbatim)
   -h, --help                         help for update
+      --kind string                  Agent kind: on_demand (default) or stays_on; fixed at creation
       --model string                 Optional provider model
       --permissions string           Optional permission mode
       --prompt string                Agent system prompt body

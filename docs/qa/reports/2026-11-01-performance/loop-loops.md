@@ -189,3 +189,118 @@ Affected QA scenarios for the parent integration walk: `LP-web-run-default-read-
 - This report and `docs/qa/scenarios/<id>.md` for the eight scenario IDs listed above. Scenario changes append QA impact only and preserve the existing frontmatter/history.
 
 No changes were retained in task, automation, their persistence queries, or the frontend automation system.
+
+## Main integration audit: `8c025ff8f`
+
+This additional audit covers the staged merge of Stays-on and agent identity into the performance candidate. Earlier `de5ab2f4d` measurements and review receipts above remain historical. The new `SessionSnapshot.ProfileID` changes the scheduler fixture's memory layout, so the scheduler comparison is repeated against a frozen `8c025ff8fdd3a9a79e4f0e63f54b3bd144a4773b` archive. No production or canonical test edits are planned for this integration audit; the shared live-refresh helper and its Loop integration remain frozen.
+
+### Owning invariants and canonical verification
+
+| Invariant | Owning layer and existing suite | Focused verification |
+| --- | --- | --- |
+| Instance authority preserves authenticated instance/agent/profile lineage and intersects permission ceilings; invalid reports cannot publish; report retries preserve source identity; rotation checks the current predecessor. | `internal/agentinstance`: `authority_test.go`, `reports_test.go`, `rotation_test.go` | Race run of the five named canonical tests. |
+| Concurrent creation admits one live identity/main session, active limits remain atomic, interrupted starts reconcile without duplication, failed starts clean up, and lifecycle notifications follow durable transitions. | `internal/store/globaldb/global_db_instances_test.go`, exercising the real instance service with SQLite and I/O-boundary runtime fakes | Selected admission, lifecycle, service recovery/concurrency, missing-main, cleanup, definition reconciliation, hook and resume-authority tests. Store-session's separately owned report/catalog/SQL checks are cited rather than repeated. |
+| Stable eligible wake selection, normalized scope, local scratch ownership, capacity/occupied-session decisions and pause behavior survive the auto-merge. Proactive checks receive the cycle context and their failure does not suppress task wakes. | `internal/scheduler/scheduler_test.go` | `TestRunOnce*`, `TestProactiveCheckTick`, and `TestMassStarvationKeepsWakeDispatchBounded`; identical 500-run/500-session benchmark against main. |
+| Automation dispatch retains definition attribution, profile/workspace authority, bounded admission and cancellation/cleanup through the pointer-based session-create API. | `internal/automation/dispatch_test.go`, `manager_test.go` | Selected existing dispatch, initiator identity, cancellation, capacity, profile-admission and actor-lifecycle tests. |
+| Goal maintenance respects context freshness, advertised compaction capability, budget fences and timeout recovery. Task inspect preserves session eligibility and persisted runtime facts while avoiding copied session records. | `internal/loop/goal/executor_test.go`; `internal/task/inspect_test.go`, `manager_integration_test.go` | Existing compaction/telemetry cases and `TestInspectTaskDiagnostics` / `TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration`. |
+| Identity labels do not change automation target slugs, mutation targets or Loop session selection; scope remains owned by the existing catalog. | Web automation's three changed component suites; Loop input's existing component suite | Root Turbo focused tests; no new copy-only or implementation-detail tests. |
+
+Results, per-file dispositions and inherited limits are recorded below. Root owns the integrated build, scenario walk and current-head CI for the merged candidate.
+
+### New package: `internal/agentinstance` (14 files)
+
+Every file in the new package was inspected. The package is byte-identical to main `8c025ff8f`; this owner retained its implementation rather than reimplementing the B1–B7 feature slices. There are no nested packages here.
+
+| File | Audit disposition |
+| --- | --- |
+| `activity.go` | Profile/agent/workspace/since-scoped activity DTO and read interface. No execution, retained cache or goroutine; SQL aggregation is owned by store-session. |
+| `authority.go` | Operator path and daemon-resolved instance/agent/profile checks remain explicit. Manual/fatigue resume and other unlisted verbs fail closed for agent callers. Permission categories normalize and intersect exact atoms; the nested membership scan is unmeasured and unchanged. |
+| `authority_test.go` | Canonical verb/ceiling and cross-instance/agent/profile isolation coverage retained; executed unchanged. |
+| `check_ins.go` | Count/list boundary carries instance identity, cursor and limit. Store enforces page bounds; no in-process complete-list cache. |
+| `errors.go` | Stable domain errors/codes and descriptions; no data loading or concurrency. |
+| `hooks.go` | Change notification and synchronous lifecycle hooks follow durable transitions. Hook failure is logged and does not roll back accepted lifecycle state. Caller context is propagated. |
+| `instance.go` | Lifecycle, ownership, main-session, ceiling and timestamp records remain authoritative; no derived runtime cache. |
+| `reconcile.go` | ID-keyset reconciliation pages of 100 preserve all records. Accepted starts bind the existing main; failed/stopped starts discard before cleanup; recent missing/pending starts remain recoverable. Missing definitions pause rather than delete. `EnsureMain` preserves current-main and archive/starting/manual-pause fences. |
+| `reports.go` | Input JSON is bounded to 64 KiB; proposal batches to 20; kind/source/required fields validate before persistence. Publication walks bounded pages in ID order, continues after one failure, marks only after durable publication, and retries failed reports on the next sweep. Writer must deduplicate by session/report identity. |
+| `reports_test.go` | Canonical input validation and one-row-page publication/retry ordering coverage retained; executed unchanged. |
+| `rotation.go` | Cleanup precedes eligibility, inactive/archived/missing-main instances do not rotate, and instance/predecessor identities must match the observed decision. Runtime rotation admission remains downstream. |
+| `rotation_test.go` | Canonical cleanup, ineligibility and stale-predecessor coverage retained; executed unchanged. |
+| `seen.go` | Seen-state storage carries operator and instance identity; local operator is explicit. No cache or background work. |
+| `service.go` | Store admission owns live-identity and active-cap atomicity. Repeated create returns the admitted instance without another start. Failed starts with no session use a detached, 10-second bounded cleanup; accepted session identities survive an interrupted bind for reconciliation. Archive stops the current/accepted main before durable archive. Resume/adopt retain admission and operator checks. |
+
+The cross-package trace includes `daemon/boot_agent_instances.go`, `agent_instance_report_sweep.go`, the scheduler session source/waker and `globaldb/global_db_instance_reconcile.go` / `global_db_instance_reports.go`. Store-session independently verified the immediate-transaction live identity/cap checks, list/report limit 1–100 and order, source-key deduplication, current-main publication guard and bounded maintenance. Its separate race receipt is `.cache/performance/store-session/main-integration-globaldb.txt`.
+
+Inherited limits are explicit: `Create`, `EnsureMain`, `Archive` and the whole reconciliation sweep share one mutex, including external admission/runtime/hook calls. Waiting for that mutex is not context-aware. Reconciliation and publication bound each page, but process the full backlog in one call and retain an error per failed row; this is not a constant-memory or fixed-duration sweep. Individual store/runtime calls receive context, the loops check cancellation between full pages, and start cleanup has its own timeout. The package adds no goroutines or global cache. The configured active-instance cap limits active work, not paused instances or retained reports. No workload evidence justified changing these inherited lifecycle semantics or adding parallel SQLite calls.
+
+### Existing package and system deltas (27 files)
+
+| File | Audit disposition |
+| --- | --- |
+| `internal/automation/dispatch.go` | Session creation boundary now takes `*session.CreateOpts`, matching the merged session manager. No extra dispatch or concurrency. |
+| `internal/automation/dispatch_context.go` | Origin now includes the definition ID with its existing automation kind/ceiling; profile and workspace fields remain unchanged. |
+| `internal/automation/dispatch_loop.go` | Loop-backed starts retain definition identity through the same context origin; no extra reads or start attempts. |
+| `internal/automation/dispatch_reservation.go` | Passes the locally owned create options by pointer. Existing reservation, cancellation and cleanup ordering remains intact. |
+| `internal/automation/dispatch_task_run.go` | Task-backed starts receive the same definition identity/ceiling; actor and scope remain authoritative. |
+| `internal/automation/dispatch_test.go` | Pointer-boundary fake copies its input; new main-provided initiator identity cases are retained with existing dispatch/cancellation tests. |
+| `internal/automation/manager_test.go` | Session fake adapts the pointer boundary and preserves its private copy; canonical manager actor-lifecycle test retained. |
+| `internal/loop/goal/compaction.go` | Uses `contextusage.DecideMaintenance` for the existing threshold/capability decision. Invalid/unknown context does not trigger speculative maintenance. Budget, context-sequence, prompt ownership, cancel/drain and recovery paths remain unchanged. |
+| `internal/scheduler/scheduler.go` | Proactive callback runs once after snapshots and the pause guard, before selection, even with no pending runs. Callback errors join cycle errors without suppressing wakes. No early selection return bypasses it. |
+| `internal/scheduler/scheduler_test.go` | Auto-merge retains both the performance benchmark/ordering-scope cases and new proactive callback/pause assertions. No invariant or assertion was weakened. |
+| `internal/scheduler/types.go` | Adds `SessionSnapshot.ProfileID` and the callback option. Grouping still uses normalized workspace; selected targets copy the full snapshot including profile. |
+| `internal/task/inspect.go` | Session eligibility/summary helpers borrow pointers to existing slice rows and do not mutate them. Authorization, filtering, diagnostics and read counts are unchanged. |
+| `internal/task/inspect_test.go` | Reader fake copies matched rows after inspecting by pointer; behavioral suite unchanged. |
+| `internal/task/manager_integration_test.go` | Existing real-SQLite runtime-detail fixture registers its session through the new pointer API. |
+| `web/src/systems/automation/components/__tests__/automation-detail-panel.test.tsx` | Main's humanized-label expectations retained; canonical detail actions/history coverage executes unchanged. |
+| `web/src/systems/automation/components/__tests__/automation-editor-dialog.test.tsx` | Main's fallback-label expectations retained; draft/submission behavior remains covered by the existing suite. |
+| `web/src/systems/automation/components/__tests__/automation-suggestions-card.test.tsx` | Main's humanized-label expectation retained; accepted/dismissed suggestion IDs stay unchanged. |
+| `web/src/systems/automation/components/automation-detail/automation-detail-panel.tsx` | Gist/delete copy resolves labels through the existing sentence context; target/mutation identities remain slugs and IDs. |
+| `web/src/systems/automation/components/automation-detail/automation-rail.tsx` | Agent chip uses the entity's workspace and owning profile. Same-owner rows share the catalog query. |
+| `web/src/systems/automation/components/automation-detail/automation-rule-does.tsx` | Agent mark/label use entity ownership. Extracted Loop rendering retains link/search/input semantics without another data loader. |
+| `web/src/systems/automation/components/automation-editor-dialog.tsx` | Edit profile or aggregate create destination is passed to identity rendering; no new mutation destination is introduced. |
+| `web/src/systems/automation/components/automation-form/automation-form.tsx` | Forwards profile to the existing form hook. |
+| `web/src/systems/automation/components/automation-suggestions-card.tsx` | Row extraction permits the identity hook per suggestion owner; pending/error/actions remain keyed by suggestion ID. Catalog queries deduplicate by owner, not by row. |
+| `web/src/systems/automation/hooks/use-automation-form.ts` | Display sentence uses a workspace/profile-scoped identity resolver; stored draft target remains the agent slug. |
+| `web/src/systems/automation/lib/automation-detail.ts` | Optional label resolver only changes deletion consequence copy; default preserves existing callers. |
+| `web/src/systems/automation/lib/automation-sentence.ts` | Optional label resolver affects display segments, preserving empty-target readiness and scheduling/prompt semantics. |
+| `web/src/systems/loops/components/input/loop-session-value-select.tsx` | Agent chip replaces the raw slug. Existing 100-row session catalog, scoped off-page selected detail, search/pagination and chosen session ID remain unchanged. |
+
+Automation, task, Goal and frontend deltas listed here are byte-identical to `8c025ff8f`; the scheduler additionally retains this PR's measured selection implementation and canonical benchmark. `ProfileID` propagates from the real session source into profile-aware heartbeat wake requests. A snapshot can precede a proactive check, but it is advisory: the synthetic prompt path uses `SkipIfBusy`, and a notification does not assign task ownership. The serial proactive collector adds its own bounded batch work before selection; this audit does not claim a bound on external callback latency.
+
+Identity reads reuse TanStack catalog keys for workspace/profile, and the existing resolver indexes each immutable catalog array in a weak map. This avoids one HTTP read or a full catalog scan per rendered identity; each chip still owns an observer. A Loop session chip supplies workspace but omits the session's recorded profile, so it inherits the current profile. That exact behavior is already in main `8c025ff8f`; cross-profile label ambiguity is an upstream observation, not a demonstrated regression from the performance merge. It was reported to root and left outside this integration's implementation scope.
+
+### Integration verification results
+
+All commands used the same bounded runner, pinned toolchain and shared serial slot. No test or production source was edited in this integration audit.
+
+| Receipt under `.cache/performance/loop-loops/` | Actual result |
+| --- | --- |
+| `main-integration-go-race.txt` | Focused race tests passed: `agentinstance` 1.383s; scheduler 1.513s; automation 3.318s; Goal 1.487s; task 1.431s. |
+| `main-integration-instance-sqlite.txt` | Thirteen named real-SQLite instance admission/lifecycle/service/cleanup/hook/resume tests passed with race, 11.671s. |
+| `main-integration-web.txt` | Root Turbo passed four canonical suites, **81/81**: detail 37, editor 29, suggestions 6, Loop input 9; 13.183s total. The receipt also retains an undefined `workspaces/list` fixture diagnostic and an `act(...)` warning in the All projects suggestion case. This is a test pass, not a clean-stderr claim. Neither diagnostic was silenced. |
+| `scheduler-main8c-paired.txt`, `scheduler-main8c-summary.json` | Five alternating before/after pairs passed with identical benchmark code, 200ms per case, two workspace populations. |
+| `main-integration-diff-check.txt` | Scoped `git diff --check HEAD` passed for all owned source paths and this report. |
+
+Exact focused Go selection:
+
+```sh
+python3 .cache/performance/run-bounded.py env CGO_ENABLED=1 go test -race ./internal/agentinstance ./internal/scheduler ./internal/automation ./internal/loop/goal ./internal/task -run '^(TestInstanceAuthority|TestInstanceAuthorityIsolation|TestReportPublisher|TestReportInput|TestMainSessionRotation|TestRunOnce.*|TestProactiveCheckTick|TestMassStarvationKeepsWakeDispatchBounded|TestDispatchInitiatorIdentity|TestDispatchWorkspaceAutomationUsesWorkspaceCreateOpts|TestDispatchGlobalAutomationUsesUserScope|TestDispatchTaskBackedJobDelegatesToTaskServiceWithoutSessionRuntime|TestDispatchLoopTargetJobDelegatesToLoopStarterWithoutSessionRuntime|TestDispatchLoopTargetWebhookTriggerPassesPayloadToLoopStarter|TestDispatchTaskBackedJobMarksRunCancelledForTaskServiceCancellation|TestDispatchStopsCreatedSessionWhenRunCompletes|TestDispatchStopsCreatedSessionWhenRunFails|TestDispatchRejectsWhenGlobalConcurrencyLimitIsReached|TestDispatchProfileAdmissionFailure|TestDispatchMarksRunCancelledWhenPromptIsCancelled|TestPersistenceContextSurvivesCancellationDuringFinalization|TestManagerSessionTaskActorLifecycle|TestExecutorShouldFenceBudgetAroundCompaction|TestExecutorShouldRecoverWithoutAnAdvertisedCompactionCommand|TestExecutorShouldApplyContextTelemetryPolicy|TestExecutorShouldSettleCompactionControlBoundaries|TestExecutorShouldRecoverPreparedErrorsAndTimedOutCompaction|TestInspectTaskDiagnostics|TestTaskManagerRunDetailUsesPersistedRuntimeDataIntegration)$' -count=1 -parallel=2
+python3 .cache/performance/run-bounded.py env CGO_ENABLED=1 go test -race ./internal/store/globaldb -run '^(TestInstanceAdmission|TestInstanceLifecycle|TestInstanceMissingMain|TestInstanceConcurrentLimit|TestInstanceServiceRecovery|TestInstanceServiceConcurrentCreate|TestInstanceServiceRetainedFailure|TestInstanceServiceRecreation|TestInstanceEmptyStartCleanup|TestInstanceDefinitionReconciliation|TestInstanceLifecycleHooks|TestInstanceAdoptionHooks|TestInstanceResumeAuthority)$' -count=1 -parallel=2
+```
+
+Frontend and benchmark commands:
+
+```sh
+python3 .cache/performance/run-bounded.py bunx turbo run test --filter=./web --only -- src/systems/automation/components/__tests__/automation-detail-panel.test.tsx src/systems/automation/components/__tests__/automation-editor-dialog.test.tsx src/systems/automation/components/__tests__/automation-suggestions-card.test.tsx src/systems/loops/components/__tests__/loop-run-input-field.test.tsx --maxWorkers=1
+python3 .cache/performance/run-bounded.py python3 .cache/performance/loop-loops/scheduler-main8c-paired.py
+```
+
+The benchmark compares the archived main source at `/private/tmp/compozy-performance-main8c-session-n5hikopt/source` with the merged candidate. A Go overlay adds only the extracted canonical benchmark to the archive; it does not edit baseline production or replace its tests. Both binaries use the new `ProfileID` field layout and 500 runs / 500 sessions. On the same Apple M4 Max host, median results are:
+
+| Workspaces | Main time | Candidate time | Main B/op | Candidate B/op | Main allocs/op | Candidate allocs/op |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 25,918,104 ns | 23,061,854 ns | 46,991,152 | 2,221,768 | 531 | 44 |
+| 50 | 10,223,390 ns | 1,040,479 ns | 46,991,103 | 2,316,122 | 531 | 291 |
+
+The retained selection change reduces median time **11.0%** for one workspace and **89.8%** for 50 workspaces, with **95.3% / 95.1%** fewer allocated bytes respectively. This revalidates selection cost after the layout change; it does not measure proactive collection, instance startup, provider latency or total daemon latency. No new speedup is claimed for the unmodified instance, automation, task, Goal or identity paths.
+
+This audit introduced only report/evidence updates. It made no native-tool, wire, hook, config, schema, workspace-isolation or official-skill changes beyond the already merged feature. The previously listed Loop/scheduler QA impacts remain owned by the enclosing integration walk. No broad gate, full suite, production runtime, commit or push was run by this owner. The exact 41-file delta inventory is `main-integration-owned-files.txt`; the freeze manifest is `main-integration-freeze.json`. The shared refresh helper and its canonical suite retain their previous frozen hashes.

@@ -114,12 +114,22 @@ const compozyCompactionDataSchema = z.looseObject({
   ended_at: z.string().optional(),
 });
 
+// `kind` and `payload` stay open: a report kind this client doesn't know keeps its transcript.
+const compozyReportDataSchema = z.looseObject({
+  report_id: z.string(),
+  instance_id: z.string(),
+  kind: z.string(),
+  payload: z.unknown(),
+  created_at: z.string(),
+});
+
 const unknownDataSchema = z.unknown();
 
 const knownDataSchemas: Record<string, z.ZodType<unknown>> = {
   "compozy-event": compozyEventDataSchema,
   "compozy-permission": compozyPermissionDataSchema,
   "compozy-compaction": compozyCompactionDataSchema,
+  "compozy-report": compozyReportDataSchema,
 };
 
 type SessionMessagePart = NonNullable<SessionMessage["parts"]>[number];

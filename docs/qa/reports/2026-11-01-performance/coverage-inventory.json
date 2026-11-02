@@ -9,7 +9,8 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "8bf50172b962773a2d84ff1fb98b73d53615ccea71fc3511786230fa8c8d4346"
+      "fileListSha256": "8bf50172b962773a2d84ff1fb98b73d53615ccea71fc3511786230fa8c8d4346",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "cmd/compozy",
@@ -18,7 +19,8 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "7a5821cb8f349fd2f27cad43d9da7136fbf9ee42c8c075a1107491c1a2bee0dd"
+      "fileListSha256": "7a5821cb8f349fd2f27cad43d9da7136fbf9ee42c8c075a1107491c1a2bee0dd",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "cmd/compozy-catalog",
@@ -27,7 +29,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "768af665c9596f82ad8ae5a9177c3f6fcbb91e1fa1590981fa34758b1078333a"
+      "fileListSha256": "768af665c9596f82ad8ae5a9177c3f6fcbb91e1fa1590981fa34758b1078333a",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "cmd/compozy-codegen",
@@ -36,7 +39,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "de21d04ca65dee8efbe7452e2bf1cc54b0f3e40b911d4ec12b41d26e73c40cfa"
+      "fileListSha256": "de21d04ca65dee8efbe7452e2bf1cc54b0f3e40b911d4ec12b41d26e73c40cfa",
+      "integrationChangedGoFiles": 1
     },
     {
       "directory": "cmd/compozy-desktop-release",
@@ -45,7 +49,8 @@
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
       "status": "Audited",
-      "fileListSha256": "5d1ffdef04a46f423c4d3ae2a99f3a38b67e86115303271e36dab680eaf46543"
+      "fileListSha256": "5d1ffdef04a46f423c4d3ae2a99f3a38b67e86115303271e36dab680eaf46543",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "cmd/compozy-manifest-check",
@@ -54,7 +59,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "2490eb89b82b83e9762ae548ac9f3526c0424dc3413c766036315a123767ff98"
+      "fileListSha256": "2490eb89b82b83e9762ae548ac9f3526c0424dc3413c766036315a123767ff98",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "desktop/e2e/fixtures/appstage",
@@ -63,7 +69,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "91c81737029a8f745040b21ffafb81abb82cb04a382207266e9903371aedd005"
+      "fileListSha256": "91c81737029a8f745040b21ffafb81abb82cb04a382207266e9903371aedd005",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "desktop/e2e/fixtures/runtimeupdate",
@@ -72,7 +79,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "09510609b50572747c53ffb0e18c220cf30f65dd752fff8302e05350dff3bef0"
+      "fileListSha256": "09510609b50572747c53ffb0e18c220cf30f65dd752fff8302e05350dff3bef0",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "desktop/schema",
@@ -81,7 +89,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "c7ead00087b1a9a85e72788f5f8d16dd8be99db0d328d02315ba29675dffadf7"
+      "fileListSha256": "c7ead00087b1a9a85e72788f5f8d16dd8be99db0d328d02315ba29675dffadf7",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "extensions/connectivity/tailscale",
@@ -90,7 +99,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "4640d3900f5c3653f423a018a809f0c873bc6adff573082c32f2e09ebf302134"
+      "fileListSha256": "4640d3900f5c3653f423a018a809f0c873bc6adff573082c32f2e09ebf302134",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "extensions/forge/github",
@@ -99,7 +109,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "8b4ac0a3b9c9d8bf61f541b8981230b93ce229c4adfdda16088ef015fb90b7be"
+      "fileListSha256": "8b4ac0a3b9c9d8bf61f541b8981230b93ce229c4adfdda16088ef015fb90b7be",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "extensions/open-design",
@@ -108,7 +119,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "23a8a722dec0a1433cad68ece278e9666d5e2129a55a839d80f37d52b1feaec4"
+      "fileListSha256": "23a8a722dec0a1433cad68ece278e9666d5e2129a55a839d80f37d52b1feaec4",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "extensions/open-design/scripts",
@@ -117,7 +129,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "4d51724ff27dc3fd2b50e53f78d52bb3230dfaea1abb631c82a56902b516564b"
+      "fileListSha256": "4d51724ff27dc3fd2b50e53f78d52bb3230dfaea1abb631c82a56902b516564b",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "extensions/spec-cycle",
@@ -126,16 +139,18 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "9fcaa60df6801d045ef4e51848a3db8d98111bddc762da5eee9d05b41f487e3f"
+      "fileListSha256": "9fcaa60df6801d045ef4e51848a3db8d98111bddc762da5eee9d05b41f487e3f",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/acp",
-      "goFiles": 116,
+      "goFiles": 118,
       "kind": "Runtime/library",
       "owner": "session_os",
       "report": "session-os.md",
       "status": "Audited",
-      "fileListSha256": "ecb5b5755f8593fe85a316e57b2a5bf1b36eda35304ed969b2be2130ffafc292"
+      "fileListSha256": "fcbd412155204e3d0a6e68a2357c8a216c48e23b5c17d0440bd61ab9c2463fbc",
+      "integrationChangedGoFiles": 23
     },
     {
       "directory": "internal/admission",
@@ -144,7 +159,8 @@
       "owner": "session_os",
       "report": "session-os.md",
       "status": "Audited",
-      "fileListSha256": "e33c5de429f4a2dee393f383c55a28b0e88c9521a41d2a37e685857c246c6c78"
+      "fileListSha256": "e33c5de429f4a2dee393f383c55a28b0e88c9521a41d2a37e685857c246c6c78",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/agentidentity",
@@ -153,25 +169,48 @@
       "owner": "session_os",
       "report": "session-os.md",
       "status": "Audited",
-      "fileListSha256": "01ab866626ee3d8b88801562b186e001e44db40a6f4dc045b32905fff477ac4a"
+      "fileListSha256": "01ab866626ee3d8b88801562b186e001e44db40a6f4dc045b32905fff477ac4a",
+      "integrationChangedGoFiles": 0
+    },
+    {
+      "directory": "internal/agentinstance",
+      "goFiles": 14,
+      "kind": "Runtime/library",
+      "owner": "loop_loops",
+      "report": "loop-loops.md",
+      "status": "Audited",
+      "fileListSha256": "c42792de596c2b4e3d93dac6c496e3be7a82c83aba9366b4adb147a62851ee5f",
+      "integrationChangedGoFiles": 14
+    },
+    {
+      "directory": "internal/agentmemory",
+      "goFiles": 5,
+      "kind": "Runtime/library",
+      "owner": "worktree_workspace",
+      "report": "worktree-workspace.md",
+      "status": "Audited",
+      "fileListSha256": "39e64e69d4d7ced0aa5833f6ce43dfc865dcb24ed6875ca298c0f9bea3a80f78",
+      "integrationChangedGoFiles": 5
     },
     {
       "directory": "internal/api/contract",
-      "goFiles": 160,
+      "goFiles": 165,
       "kind": "Runtime/library",
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "14344bacf500adae4eb4b4edee0ef0429ba872880d21e1d58e823c58d8f73a2f"
+      "fileListSha256": "3092bda36d9fa957abebbf1c7e914b319a3c6e8c10c33bab4d8f22af82f5ef94",
+      "integrationChangedGoFiles": 17
     },
     {
       "directory": "internal/api/core",
-      "goFiles": 456,
+      "goFiles": 474,
       "kind": "Runtime/library",
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "564a018e7a5e6cf237cce01081233784b6ea8006d83e5f8b77581bcc033b5043"
+      "fileListSha256": "f6dbce85652ec8877b65be3d5ac29d2aae4c22df80a0c1ae228078c8da7d3778",
+      "integrationChangedGoFiles": 87
     },
     {
       "directory": "internal/api/ginutil",
@@ -180,16 +219,18 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "ef5e3832b167cf13c7b49297cbdace4191c805b7b523a4fc43c50eb2d972e3fa"
+      "fileListSha256": "ef5e3832b167cf13c7b49297cbdace4191c805b7b523a4fc43c50eb2d972e3fa",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/api/httpapi",
-      "goFiles": 74,
+      "goFiles": 75,
       "kind": "Runtime/library",
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "9eb1274061067e7bd5783fdbf4f208088f6ead4d53ae1fe1e8a91bbd38fe080b"
+      "fileListSha256": "4719806b8827e009232ab13996c035d682644208fb6790c3f69b952321a04bbb",
+      "integrationChangedGoFiles": 25
     },
     {
       "directory": "internal/api/modelcatalogprojection",
@@ -198,16 +239,18 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "9989a2c1d0a17f0eb7da092cf7e6d82d1b32cc87cf09fb6525319ec625dd10ca"
+      "fileListSha256": "9989a2c1d0a17f0eb7da092cf7e6d82d1b32cc87cf09fb6525319ec625dd10ca",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/api/spec",
-      "goFiles": 157,
+      "goFiles": 160,
       "kind": "Runtime/library",
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "b97d923baad53a7dd2df8cc4698928413f78ac36b905f660a85a31afdeb89b86"
+      "fileListSha256": "0c050431069869974efbc592da34fdec8c3e1675e9d165d002de1c483e81f2ff",
+      "integrationChangedGoFiles": 11
     },
     {
       "directory": "internal/api/spec/testdata/componentnames/collision/session",
@@ -216,7 +259,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "e4b6b681914625e251eda3f20ee7ea1f414eb29d37df522a009a3237fb9d5628"
+      "fileListSha256": "e4b6b681914625e251eda3f20ee7ea1f414eb29d37df522a009a3237fb9d5628",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/api/spec/testdata/componentnames/session",
@@ -225,7 +269,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "43978368f175394480eecb79b4f64b5f39aacdf8b322dd4a311fc91721303670"
+      "fileListSha256": "43978368f175394480eecb79b4f64b5f39aacdf8b322dd4a311fc91721303670",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/api/spec/testdata/componentnames/task",
@@ -234,7 +279,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "4bd2ae0bf6b0b0f13934a8c5d72f7a55aa6be0c9e147f06d3dcaca93155b80e4"
+      "fileListSha256": "4bd2ae0bf6b0b0f13934a8c5d72f7a55aa6be0c9e147f06d3dcaca93155b80e4",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/api/testutil",
@@ -243,16 +289,18 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "5629352f2a37ed594f3689e457d4323f94ad4bbd96b0178fc3c7b6afc5174bbb"
+      "fileListSha256": "5629352f2a37ed594f3689e457d4323f94ad4bbd96b0178fc3c7b6afc5174bbb",
+      "integrationChangedGoFiles": 15
     },
     {
       "directory": "internal/api/udsapi",
-      "goFiles": 65,
+      "goFiles": 66,
       "kind": "Runtime/library",
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "3c51149692670e47726c71123f671a8e29ac50c330999d725aef06e72f5f9d59"
+      "fileListSha256": "e9cd087959c5f93f1fed1f69030bddacb2800be72c4d6ded3e6747aa36324ecf",
+      "integrationChangedGoFiles": 21
     },
     {
       "directory": "internal/appstatecontract",
@@ -261,7 +309,8 @@
       "owner": "store_session",
       "report": "store-session.md",
       "status": "Audited",
-      "fileListSha256": "4992a3a0c295bacbaf8bb2983831e4baefafb9beda4e429502282dfebe156215"
+      "fileListSha256": "4992a3a0c295bacbaf8bb2983831e4baefafb9beda4e429502282dfebe156215",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/attachments",
@@ -270,7 +319,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "91c5607f0c84315358c992bd20f6894782354224056e470c1e455f8051aa8700"
+      "fileListSha256": "91c5607f0c84315358c992bd20f6894782354224056e470c1e455f8051aa8700",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/automation",
@@ -279,7 +329,8 @@
       "owner": "loop_loops",
       "report": "loop-loops.md",
       "status": "Audited",
-      "fileListSha256": "93256fedeb14ee962a42baf29b35b6002f75f04dd18e649e5b1ad8092618d9f0"
+      "fileListSha256": "93256fedeb14ee962a42baf29b35b6002f75f04dd18e649e5b1ad8092618d9f0",
+      "integrationChangedGoFiles": 7
     },
     {
       "directory": "internal/automation/model",
@@ -288,16 +339,18 @@
       "owner": "loop_loops",
       "report": "loop-loops.md",
       "status": "Audited",
-      "fileListSha256": "4d97813753d74d98945d37245bf5fd7190ec964a24434babe1d6db2ca719580a"
+      "fileListSha256": "4d97813753d74d98945d37245bf5fd7190ec964a24434babe1d6db2ca719580a",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/cli",
-      "goFiles": 518,
+      "goFiles": 527,
       "kind": "Runtime/library",
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "62f0f63b6b72ae891cfa4fcbc6f146052dfe2879eae3a01fe1b907df6169bec6"
+      "fileListSha256": "a181c474068f765cba078a5fa6359130c774e519b4718e101bb16b9843e7134d",
+      "integrationChangedGoFiles": 43
     },
     {
       "directory": "internal/cli/docpost",
@@ -306,7 +359,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "8d950457e1ff526ad5d03d42e6e06ab88cc1fad9be95151c10d0f7f26e3bad44"
+      "fileListSha256": "8d950457e1ff526ad5d03d42e6e06ab88cc1fad9be95151c10d0f7f26e3bad44",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/clientstate",
@@ -315,7 +369,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "ed0abcaf2239289f14037868104181ec9cd469e2867a9f86f185f089d17e20ec"
+      "fileListSha256": "ed0abcaf2239289f14037868104181ec9cd469e2867a9f86f185f089d17e20ec",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/cmdpalette",
@@ -324,7 +379,8 @@
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "00b4400609cd1ebf2d5a58622c19ac2c7a10386eaf69fe37a3069033c890bf37"
+      "fileListSha256": "00b4400609cd1ebf2d5a58622c19ac2c7a10386eaf69fe37a3069033c890bf37",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/cmdpalette/corecmds",
@@ -333,7 +389,8 @@
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "129b5d64fb3ce5d5980338d67a4aae65dd3df908b01304bbe9d888f274c465d7"
+      "fileListSha256": "129b5d64fb3ce5d5980338d67a4aae65dd3df908b01304bbe9d888f274c465d7",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/codegen/hostapi",
@@ -342,7 +399,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "757ac3bf9749d8fcea50c65783f3c6e412927fa6927b3d7464f93b41ecf1c84f"
+      "fileListSha256": "757ac3bf9749d8fcea50c65783f3c6e412927fa6927b3d7464f93b41ecf1c84f",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/codegen/jsbin",
@@ -351,7 +409,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "f4949f9cd5908b6acd9b8c8aacdc1f8903d75d35b6d5bbf469c2159f20649bde"
+      "fileListSha256": "f4949f9cd5908b6acd9b8c8aacdc1f8903d75d35b6d5bbf469c2159f20649bde",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/codegen/openapits",
@@ -360,7 +419,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "0899d89e409110871146f147b019891f5d557d8abd3b644a8a711cd42f581e71"
+      "fileListSha256": "0899d89e409110871146f147b019891f5d557d8abd3b644a8a711cd42f581e71",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/codegen/sdkgo",
@@ -369,7 +429,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "bb7d407e8df76bfb0a8f8b32a40b707afcb643b841e186684b98146725322738"
+      "fileListSha256": "bb7d407e8df76bfb0a8f8b32a40b707afcb643b841e186684b98146725322738",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/codegen/sdkts",
@@ -378,7 +439,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "a66d2709bd1e6ee01c40632ab2b7d3727dd17fc4e4012a5fa0d3f859a5451cb6"
+      "fileListSha256": "a66d2709bd1e6ee01c40632ab2b7d3727dd17fc4e4012a5fa0d3f859a5451cb6",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/codegen/storeschema",
@@ -387,7 +449,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "dffd52de99587139ff76910bc2ea2e9b2eb7858c3a14c542119fc94ab81217f9"
+      "fileListSha256": "dffd52de99587139ff76910bc2ea2e9b2eb7858c3a14c542119fc94ab81217f9",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/command",
@@ -396,16 +459,18 @@
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "b1044dc8b160092b3397517e770c01075a79e5e55165b5343f93045089be89e4"
+      "fileListSha256": "b1044dc8b160092b3397517e770c01075a79e5e55165b5343f93045089be89e4",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/config",
-      "goFiles": 230,
+      "goFiles": 232,
       "kind": "Runtime/library",
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "226227c7139b9d29630f6096653bfe0c16b2fac755868c7b62e80aa472330a5b"
+      "fileListSha256": "3558a9a4ae458dfdbc0425af87a7eb9829bd1cadd43c6111c4e79657c40ef8ed",
+      "integrationChangedGoFiles": 17
     },
     {
       "directory": "internal/config/defaults",
@@ -414,7 +479,8 @@
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
       "status": "Audited",
-      "fileListSha256": "3854f0db0ee26b1f7f33f30da53b49e88ebfc649c964e977b710b5256494a87c"
+      "fileListSha256": "3854f0db0ee26b1f7f33f30da53b49e88ebfc649c964e977b710b5256494a87c",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/config/lifecycle",
@@ -423,7 +489,8 @@
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
       "status": "Audited",
-      "fileListSha256": "2ea21f6d4197284e9aaeb017067c0f66aaf50a4b67045d71654768fb6f068802"
+      "fileListSha256": "2ea21f6d4197284e9aaeb017067c0f66aaf50a4b67045d71654768fb6f068802",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/coordinator",
@@ -432,16 +499,18 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "3310ef40ada7bf4d4c840b2c24c8d7957d59861433d01e659ee5596aa8702610"
+      "fileListSha256": "3310ef40ada7bf4d4c840b2c24c8d7957d59861433d01e659ee5596aa8702610",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/daemon",
-      "goFiles": 826,
+      "goFiles": 854,
       "kind": "Runtime/library",
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "0bfaabebcb0b042394fdcc11a76e18714c9a3a1792167351319b56de3e3e471e"
+      "fileListSha256": "db62f5deca7b5c3fcf9fb80e54d4ca960ce170856468d4c6c8f05bab263458ab",
+      "integrationChangedGoFiles": 127
     },
     {
       "directory": "internal/deadentity",
@@ -450,7 +519,8 @@
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "7792695f835613d5fb730bc9cd63b1c51342ed9b8dbfef15e1ecd41168cc4734"
+      "fileListSha256": "7792695f835613d5fb730bc9cd63b1c51342ed9b8dbfef15e1ecd41168cc4734",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/demoseed",
@@ -459,7 +529,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "92874830d81a3e70bb38a57ae2eac265874760093027573d8cbf11f6b864680f"
+      "fileListSha256": "92874830d81a3e70bb38a57ae2eac265874760093027573d8cbf11f6b864680f",
+      "integrationChangedGoFiles": 1
     },
     {
       "directory": "internal/desktoprelease",
@@ -468,7 +539,8 @@
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
       "status": "Audited",
-      "fileListSha256": "8d8f3bcf75b3ccac368d65666d80d7f8cd3b72852e8589a0cb5a8e69d1936752"
+      "fileListSha256": "8d8f3bcf75b3ccac368d65666d80d7f8cd3b72852e8589a0cb5a8e69d1936752",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/diagnosticcontract",
@@ -477,7 +549,8 @@
       "owner": "store_session",
       "report": "store-session.md",
       "status": "Audited",
-      "fileListSha256": "5f7af350b225fe9574920f0ebb471622dc3383580dc3b932345dcd8663f44527"
+      "fileListSha256": "5f7af350b225fe9574920f0ebb471622dc3383580dc3b932345dcd8663f44527",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/diagnostics",
@@ -486,7 +559,8 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "5ef8349a54aa95a8cb7664e7fb387a0c215e05caca86b4e34c22a7568d068281"
+      "fileListSha256": "5ef8349a54aa95a8cb7664e7fb387a0c215e05caca86b4e34c22a7568d068281",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/doctor",
@@ -495,7 +569,8 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "4707b84bfdc0ca006252a21f8fa43684e5f107982b0a5e3151416bb09f2989cd"
+      "fileListSha256": "4707b84bfdc0ca006252a21f8fa43684e5f107982b0a5e3151416bb09f2989cd",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/e2elane",
@@ -504,7 +579,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "8d64aa43c53db88e460b5f4b2bb64cff3374c5f1957b114df90987e48483602d"
+      "fileListSha256": "8d64aa43c53db88e460b5f4b2bb64cff3374c5f1957b114df90987e48483602d",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/events",
@@ -513,7 +589,8 @@
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "99c065c288a59d5dc3bca03b7a993d0f88b9523931137ae78503b9b9c039b5e5"
+      "fileListSha256": "99c065c288a59d5dc3bca03b7a993d0f88b9523931137ae78503b9b9c039b5e5",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/extension",
@@ -522,7 +599,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "4510548aba3c3e382db1e3de5d27efe6957719975afd2553ce6a83edd825402c"
+      "fileListSha256": "4510548aba3c3e382db1e3de5d27efe6957719975afd2553ce6a83edd825402c",
+      "integrationChangedGoFiles": 7
     },
     {
       "directory": "internal/extension/agentplugin",
@@ -531,7 +609,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "505078fb49b145c3576a0351c4ae52f8ab6968fb02720dafc6067bf9c70a9c76"
+      "fileListSha256": "505078fb49b145c3576a0351c4ae52f8ab6968fb02720dafc6067bf9c70a9c76",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/extension/contract",
@@ -540,7 +619,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "4b6e47ed6cb6ac0c7f9f751633771e2b1eed5cc4da9bb45d709bbd0ba548b296"
+      "fileListSha256": "4b6e47ed6cb6ac0c7f9f751633771e2b1eed5cc4da9bb45d709bbd0ba548b296",
+      "integrationChangedGoFiles": 2
     },
     {
       "directory": "internal/extension/scaffold_templates/connectivity-provider-go",
@@ -549,7 +629,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "3b6654bb221e02b0d59169abcfca5f0ef68ee508efad03277f67a24a83c033b3"
+      "fileListSha256": "3b6654bb221e02b0d59169abcfca5f0ef68ee508efad03277f67a24a83c033b3",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/extension/scaffold_templates/loop-watch-source-go",
@@ -558,7 +639,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "8d65a9ccb78de0ad6d6003783379574057c0ca31c4d501e475dc3e751029cf33"
+      "fileListSha256": "8d65a9ccb78de0ad6d6003783379574057c0ca31c4d501e475dc3e751029cf33",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/extension/scaffold_templates/tool-provider-go",
@@ -567,7 +649,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "13c8cfce0346ce1945f49ef53d2ff3025fe1c892a86d27c369287796a45d1747"
+      "fileListSha256": "13c8cfce0346ce1945f49ef53d2ff3025fe1c892a86d27c369287796a45d1747",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/extension/surfaces",
@@ -576,7 +659,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "9ebadb7590dcfa9bf0c510cf4db0f801470ab327fe48ef5869e449fe6c6c28f9"
+      "fileListSha256": "9ebadb7590dcfa9bf0c510cf4db0f801470ab327fe48ef5869e449fe6c6c28f9",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/extension/testdata/command-fixture-go",
@@ -585,7 +669,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "9e240dfd6bf1aee8389fa2bf02048728f2cb9ab2de6c0d8d2f85861179a131e9"
+      "fileListSha256": "9e240dfd6bf1aee8389fa2bf02048728f2cb9ab2de6c0d8d2f85861179a131e9",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/extension/testdata/palette-fixture-go",
@@ -594,7 +679,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "eabcea40b676683c44dcaa8179e74598720dba174fe00ad793906f494695ccb3"
+      "fileListSha256": "eabcea40b676683c44dcaa8179e74598720dba174fe00ad793906f494695ccb3",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/extension/testdata/secret-guard",
@@ -603,7 +689,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "d17892a097c8478d7105ed53a411463a83d3e09854dc417cc4f9cf0ef8d8277b"
+      "fileListSha256": "d17892a097c8478d7105ed53a411463a83d3e09854dc417cc4f9cf0ef8d8277b",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/extensionenv",
@@ -612,7 +699,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "107b5fc8674a9bb09b9eb07671ce518eb373042628020bf97e91fbeaad5bda85"
+      "fileListSha256": "107b5fc8674a9bb09b9eb07671ce518eb373042628020bf97e91fbeaad5bda85",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/extensioninput",
@@ -621,7 +709,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "0cc86f20ddf216aab070191b11f185e5d315c6cb289351bd17331c6499c7faf8"
+      "fileListSha256": "0cc86f20ddf216aab070191b11f185e5d315c6cb289351bd17331c6499c7faf8",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/extensionmcp",
@@ -630,7 +719,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "fb142db466a2ee8c6ad793421bb857857d775d8b9e97d8aeae002ac1155b3777"
+      "fileListSha256": "fb142db466a2ee8c6ad793421bb857857d775d8b9e97d8aeae002ac1155b3777",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/extensionprotocol",
@@ -639,7 +729,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "7f4e4c07f15c7e04d7130c6e7af64ab1ac18e2cbb28b6f045623f54bcfddb5a7"
+      "fileListSha256": "7f4e4c07f15c7e04d7130c6e7af64ab1ac18e2cbb28b6f045623f54bcfddb5a7",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/filesnap",
@@ -648,7 +739,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "0a65a8d944f8061bd4820a0f97e1a36b206b83d969309c588e8c633e4b5b1fee"
+      "fileListSha256": "0a65a8d944f8061bd4820a0f97e1a36b206b83d969309c588e8c633e4b5b1fee",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/fileutil",
@@ -657,7 +749,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "6bcb75d9c993081845115f5426dee3169643be94bb0c04c12432099843a83235"
+      "fileListSha256": "6bcb75d9c993081845115f5426dee3169643be94bb0c04c12432099843a83235",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/frontmatter",
@@ -666,7 +759,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "41a7a6baddb18bba4ed98f552b03f7e297a7a86e3af0f503650c18a0c37fad8b"
+      "fileListSha256": "41a7a6baddb18bba4ed98f552b03f7e297a7a86e3af0f503650c18a0c37fad8b",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/gateway",
@@ -675,25 +769,28 @@
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
       "status": "Audited",
-      "fileListSha256": "002d9a1a0c354a766d4508343500301fdc7dae5f13f4f6478e196b165caca12a"
+      "fileListSha256": "002d9a1a0c354a766d4508343500301fdc7dae5f13f4f6478e196b165caca12a",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/heartbeat",
-      "goFiles": 29,
+      "goFiles": 36,
       "kind": "Runtime/library",
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "8981aae1246707411a32ff09da2ff18cd5fadff969559b6242bb456d53c8caec"
+      "fileListSha256": "2d360b0bb98b8a052b8e08d801a377af4702f531a5ebf16eee5670a37776fb84",
+      "integrationChangedGoFiles": 27
     },
     {
       "directory": "internal/hooks",
-      "goFiles": 115,
+      "goFiles": 116,
       "kind": "Runtime/library",
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "76b3f6533263d1e096fe04a8b5860aa8ebe74d18bd191d401f9ee1219876db71"
+      "fileListSha256": "eceb783660a15534e96db979dabb88a9937abfe4adb284a20e13d0594f7e7d9d",
+      "integrationChangedGoFiles": 14
     },
     {
       "directory": "internal/listcursor",
@@ -702,7 +799,8 @@
       "owner": "store_session",
       "report": "store-session.md",
       "status": "Audited",
-      "fileListSha256": "cd60f83cee4e60d9d66b676b4eb1dbe744721a671b562258790792db913c7a93"
+      "fileListSha256": "cd60f83cee4e60d9d66b676b4eb1dbe744721a671b562258790792db913c7a93",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/logger",
@@ -711,7 +809,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "d0fe1b72cffb8f355943974df2e7f5efa9016a7d373c13b1794d792090be437d"
+      "fileListSha256": "d0fe1b72cffb8f355943974df2e7f5efa9016a7d373c13b1794d792090be437d",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/loop",
@@ -720,7 +819,8 @@
       "owner": "loop_loops",
       "report": "loop-loops.md",
       "status": "Audited",
-      "fileListSha256": "6db9a4e1f573ae90549683c6e809b195a8553b3a8d0c8bf2db03cc1ad7c66724"
+      "fileListSha256": "6db9a4e1f573ae90549683c6e809b195a8553b3a8d0c8bf2db03cc1ad7c66724",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/loop/dsl",
@@ -729,7 +829,8 @@
       "owner": "loop_loops",
       "report": "loop-loops.md",
       "status": "Audited",
-      "fileListSha256": "c8f027da5c028d17f7d2418cdccb185c5bc473162da246efdb88ae359932ad84"
+      "fileListSha256": "c8f027da5c028d17f7d2418cdccb185c5bc473162da246efdb88ae359932ad84",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/loop/dsl/refs",
@@ -738,7 +839,8 @@
       "owner": "loop_loops",
       "report": "loop-loops.md",
       "status": "Audited",
-      "fileListSha256": "6e874fe9f95a0cdea23f2ced431b73fff35c19aea6c84753984b94a278e30727"
+      "fileListSha256": "6e874fe9f95a0cdea23f2ced431b73fff35c19aea6c84753984b94a278e30727",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/loop/gate",
@@ -747,7 +849,8 @@
       "owner": "loop_loops",
       "report": "loop-loops.md",
       "status": "Audited",
-      "fileListSha256": "f6a4a3357b684bbb1cc03ca5b0a34a492d41580c58d62df5175a3eba484a828d"
+      "fileListSha256": "f6a4a3357b684bbb1cc03ca5b0a34a492d41580c58d62df5175a3eba484a828d",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/loop/goal",
@@ -756,7 +859,8 @@
       "owner": "loop_loops",
       "report": "loop-loops.md",
       "status": "Audited",
-      "fileListSha256": "def0b05d5bafb880035e2a52c26cc70112bdf1ca588e79b21fc94c3c61ec96a5"
+      "fileListSha256": "def0b05d5bafb880035e2a52c26cc70112bdf1ca588e79b21fc94c3c61ec96a5",
+      "integrationChangedGoFiles": 1
     },
     {
       "directory": "internal/loop/watch",
@@ -765,7 +869,8 @@
       "owner": "loop_loops",
       "report": "loop-loops.md",
       "status": "Audited",
-      "fileListSha256": "0eb3a1ef4344f000a934b3738b6d792bc604810f135abe3f4729ad15cda4f532"
+      "fileListSha256": "0eb3a1ef4344f000a934b3738b6d792bc604810f135abe3f4729ad15cda4f532",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/managedsidecar",
@@ -774,7 +879,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "5d3d4bd039e6929ea9c6fd075a1d377b51ffac3aaaf748b68aacf9d1d71db9be"
+      "fileListSha256": "5d3d4bd039e6929ea9c6fd075a1d377b51ffac3aaaf748b68aacf9d1d71db9be",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/marketplace",
@@ -783,7 +889,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "0b243281ca74ff8a9a0a63d145ba93a45c4ba4ae83bea3ecc84b6d5b8221a500"
+      "fileListSha256": "0b243281ca74ff8a9a0a63d145ba93a45c4ba4ae83bea3ecc84b6d5b8221a500",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/marketplace/pluginsource",
@@ -792,7 +899,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "ee38ef7024f3714c251161a65229ec85e77f61bb33671197507511ab122cd121"
+      "fileListSha256": "ee38ef7024f3714c251161a65229ec85e77f61bb33671197507511ab122cd121",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/mcp",
@@ -801,7 +909,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "e98b94bcc0c42f96997207dcc4b699a54d0d253acb43a929e1b0362179446370"
+      "fileListSha256": "e98b94bcc0c42f96997207dcc4b699a54d0d253acb43a929e1b0362179446370",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/mcp/auth",
@@ -810,7 +919,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "ec05c0782d56b51b3efd5c4b95c7cf4ffce4575d4d9e985a6f671b57c39aafa9"
+      "fileListSha256": "ec05c0782d56b51b3efd5c4b95c7cf4ffce4575d4d9e985a6f671b57c39aafa9",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/mcp/securehttp",
@@ -819,7 +929,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "372aed9c3d1c18de0cec57f32784b0f8bf89a152cb6c82e7d4b3dd3790541d12"
+      "fileListSha256": "372aed9c3d1c18de0cec57f32784b0f8bf89a152cb6c82e7d4b3dd3790541d12",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/mcppolicy",
@@ -828,7 +939,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "d2c8874cccddfe341f8e650dd1e8a73d387c9ef4cbd55340892b2ffe6a54e725"
+      "fileListSha256": "d2c8874cccddfe341f8e650dd1e8a73d387c9ef4cbd55340892b2ffe6a54e725",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/mention",
@@ -837,7 +949,8 @@
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "93481bcf706f744241559118383d0a766f3ad6879fd9e9cfd1ef3fd17f62d03e"
+      "fileListSha256": "93481bcf706f744241559118383d0a766f3ad6879fd9e9cfd1ef3fd17f62d03e",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/modelcatalog",
@@ -846,16 +959,18 @@
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
       "status": "Audited",
-      "fileListSha256": "c7fed35862c0ba05df9625944e41ea8c867a868401c83e0f3cbb668cd5d2c311"
+      "fileListSha256": "c7fed35862c0ba05df9625944e41ea8c867a868401c83e0f3cbb668cd5d2c311",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/monitor",
-      "goFiles": 11,
+      "goFiles": 12,
       "kind": "Runtime/library",
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "cd2e441542aadc42053e7f05ae86b1a31ad779713570420cf3e9492494661128"
+      "fileListSha256": "9ac5a3d343fae23c64f796c6b9057eb2e42a1e07f9090c41cf1c8f20aa690184",
+      "integrationChangedGoFiles": 3
     },
     {
       "directory": "internal/notifications",
@@ -864,7 +979,8 @@
       "owner": "store_session",
       "report": "store-session.md",
       "status": "Audited",
-      "fileListSha256": "b5f73490ca5a5b2b345223866fe3776d937f04ac0284fcba744ab50c6360e876"
+      "fileListSha256": "b5f73490ca5a5b2b345223866fe3776d937f04ac0284fcba744ab50c6360e876",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/observe",
@@ -873,7 +989,8 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "8200b039e151a757ffd72d6bf68e5d7e1cacb1a3bf982b0dbd9381882a47f3ea"
+      "fileListSha256": "8200b039e151a757ffd72d6bf68e5d7e1cacb1a3bf982b0dbd9381882a47f3ea",
+      "integrationChangedGoFiles": 13
     },
     {
       "directory": "internal/observe/attention",
@@ -882,7 +999,8 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "7415b3a97d7bcd821988347a2ec666118a1523009461c8aaa41fb7da59a0eeb4"
+      "fileListSha256": "7415b3a97d7bcd821988347a2ec666118a1523009461c8aaa41fb7da59a0eeb4",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/outboundpolicy",
@@ -891,7 +1009,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "82d7c601bdb52688c864893655e379c4909f0d8cb53759eadd4d25ba07cc7566"
+      "fileListSha256": "82d7c601bdb52688c864893655e379c4909f0d8cb53759eadd4d25ba07cc7566",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/procutil",
@@ -900,7 +1019,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "d79330413b5f68cd6e8fdd78b4e22bf533925641e6dac9875e2e0c077135b4f1"
+      "fileListSha256": "d79330413b5f68cd6e8fdd78b4e22bf533925641e6dac9875e2e0c077135b4f1",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/profile",
@@ -909,7 +1029,8 @@
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "2bd106a8ca545d3c969862dba64ac657a8e3374095bc58757d867d63c949aab9"
+      "fileListSha256": "2bd106a8ca545d3c969862dba64ac657a8e3374095bc58757d867d63c949aab9",
+      "integrationChangedGoFiles": 9
     },
     {
       "directory": "internal/providerauth",
@@ -918,7 +1039,8 @@
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
       "status": "Audited",
-      "fileListSha256": "87964a7960a1aa8f44c764a3bab02c7c334a65e5f9209c06c950ced3fde6de89"
+      "fileListSha256": "87964a7960a1aa8f44c764a3bab02c7c334a65e5f9209c06c950ced3fde6de89",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/providerenv",
@@ -927,7 +1049,8 @@
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
       "status": "Audited",
-      "fileListSha256": "57aa3765c1b63155cfcf8d837693248371fc28cad8a436d3bc3053670edd0f81"
+      "fileListSha256": "57aa3765c1b63155cfcf8d837693248371fc28cad8a436d3bc3053670edd0f81",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/providerexec",
@@ -936,7 +1059,8 @@
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
       "status": "Audited",
-      "fileListSha256": "3afc949c8ac3067b58803068698186a3cbf11654cdf8fdb453bfac8690ebdf2d"
+      "fileListSha256": "3afc949c8ac3067b58803068698186a3cbf11654cdf8fdb453bfac8690ebdf2d",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/providers",
@@ -945,7 +1069,8 @@
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
       "status": "Audited",
-      "fileListSha256": "f5a7b82dd51a545998c6d67fe06e9e2f5ed2ab0bcb90992f42b934a5bfe4620d"
+      "fileListSha256": "f5a7b82dd51a545998c6d67fe06e9e2f5ed2ab0bcb90992f42b934a5bfe4620d",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/providerusage",
@@ -954,7 +1079,8 @@
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
       "status": "Audited",
-      "fileListSha256": "83980467fee1769214299daf484958849dc19ded4f854be5abfdcaf8a580b35e"
+      "fileListSha256": "83980467fee1769214299daf484958849dc19ded4f854be5abfdcaf8a580b35e",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/reasoning",
@@ -963,7 +1089,8 @@
       "owner": "session_os",
       "report": "session-os.md",
       "status": "Audited",
-      "fileListSha256": "c76685eadc9fb60b1541510d8c19e085a575915898f2343f313973fe19211867"
+      "fileListSha256": "c76685eadc9fb60b1541510d8c19e085a575915898f2343f313973fe19211867",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/redact",
@@ -972,7 +1099,8 @@
       "owner": "session_os",
       "report": "session-os.md",
       "status": "Audited",
-      "fileListSha256": "8e2c306623072b8fd0f1dbfadf9e33a97333cbbd512aa8e324228f8d202f43c7"
+      "fileListSha256": "8e2c306623072b8fd0f1dbfadf9e33a97333cbbd512aa8e324228f8d202f43c7",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/registry",
@@ -981,7 +1109,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "f331b1780d93f6a91e4d33bf2b7541172adf9677edd0e985f7e596b87e0a1c37"
+      "fileListSha256": "f331b1780d93f6a91e4d33bf2b7541172adf9677edd0e985f7e596b87e0a1c37",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/registry/github",
@@ -990,7 +1119,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "cac13960c82e170e98eca42d9bf884c6c93770169feace0b58c8542f8a49d231"
+      "fileListSha256": "cac13960c82e170e98eca42d9bf884c6c93770169feace0b58c8542f8a49d231",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/registry/gitsrc",
@@ -999,7 +1129,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "c9d6649bb918d5de40b48384943ed645a909d9c09e11f646eaf1ce15f8462c75"
+      "fileListSha256": "c9d6649bb918d5de40b48384943ed645a909d9c09e11f646eaf1ce15f8462c75",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/resources",
@@ -1008,7 +1139,8 @@
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
       "status": "Audited",
-      "fileListSha256": "3120dbacc08c7307292d4a90a55c909f6ccb3cc9388cf44e40fab4bacf5e0794"
+      "fileListSha256": "3120dbacc08c7307292d4a90a55c909f6ccb3cc9388cf44e40fab4bacf5e0794",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/retention",
@@ -1017,7 +1149,8 @@
       "owner": "session_os",
       "report": "session-os.md",
       "status": "Audited",
-      "fileListSha256": "82857b37913f4b4c8011b78cd14577fbc9e9e164c612e9563b89a07d7add111f"
+      "fileListSha256": "82857b37913f4b4c8011b78cd14577fbc9e9e164c612e9563b89a07d7add111f",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/retry",
@@ -1026,7 +1159,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "921388102a4eaed95b4155d58d34bc54f68caa6ad172404b8fb988b484f4d333"
+      "fileListSha256": "921388102a4eaed95b4155d58d34bc54f68caa6ad172404b8fb988b484f4d333",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/runtimeoption",
@@ -1035,7 +1169,8 @@
       "owner": "session_os",
       "report": "session-os.md",
       "status": "Audited",
-      "fileListSha256": "09fdc857ade9349c03bd5a05d7e6a5a8543f5e4de4b2fee3b0b4504fc06c5b3e"
+      "fileListSha256": "09fdc857ade9349c03bd5a05d7e6a5a8543f5e4de4b2fee3b0b4504fc06c5b3e",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/scheduler",
@@ -1044,25 +1179,28 @@
       "owner": "loop_loops",
       "report": "loop-loops.md",
       "status": "Audited",
-      "fileListSha256": "5e54cf290f0fe7a8165765b51bbc0b1e71c23b4b51058574177587b1a91d6f4a"
+      "fileListSha256": "5e54cf290f0fe7a8165765b51bbc0b1e71c23b4b51058574177587b1a91d6f4a",
+      "integrationChangedGoFiles": 3
     },
     {
       "directory": "internal/session",
-      "goFiles": 463,
+      "goFiles": 473,
       "kind": "Runtime/library",
       "owner": "session_os",
       "report": "session-os.md",
       "status": "Audited",
-      "fileListSha256": "ee92584eb34b7b8cbafb7522d1da20870754e582590798b76a790cbf0ab89562"
+      "fileListSha256": "eb39b5462f6b02b678a78e9ccb20f7ce44415883ecbc3c97ba5b9a78400ca611",
+      "integrationChangedGoFiles": 111
     },
     {
       "directory": "internal/session/contextusage",
-      "goFiles": 5,
+      "goFiles": 6,
       "kind": "Runtime/library",
       "owner": "session_os",
       "report": "session-os.md",
       "status": "Audited",
-      "fileListSha256": "74057316c57d04ba26c86b8f688d0515f91222ef395a16b3cb5b88d2e8afccc9"
+      "fileListSha256": "da76b46ac2b9b690940740b54352dd8b5611431dcb7ffb6ceb63496248dce5cd",
+      "integrationChangedGoFiles": 2
     },
     {
       "directory": "internal/session/inputqueue",
@@ -1071,7 +1209,8 @@
       "owner": "session_os",
       "report": "session-os.md",
       "status": "Audited",
-      "fileListSha256": "df664007c9d98777fbbeffd82fd901d0cdf801f3c84463c9208cec2fcbe62c36"
+      "fileListSha256": "df664007c9d98777fbbeffd82fd901d0cdf801f3c84463c9208cec2fcbe62c36",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/sessionprocess",
@@ -1080,7 +1219,8 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "d1c8dead14f81bd41fc272bdfbe55092dd0b187386c9ab473717fb430692c0c8"
+      "fileListSha256": "d1c8dead14f81bd41fc272bdfbe55092dd0b187386c9ab473717fb430692c0c8",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/settings",
@@ -1089,7 +1229,8 @@
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "dea791c8fc1a1cfb7360f11ea145efa547d3bb7369b4520d736d4a28925c0f49"
+      "fileListSha256": "dea791c8fc1a1cfb7360f11ea145efa547d3bb7369b4520d736d4a28925c0f49",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/shellwait",
@@ -1098,7 +1239,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "f565b7f6332e44a286ef27b2e96da8f4531b7ab7271abfff137cdf939877dd0c"
+      "fileListSha256": "f565b7f6332e44a286ef27b2e96da8f4531b7ab7271abfff137cdf939877dd0c",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/situation",
@@ -1107,7 +1249,8 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "9d709ef4c8f8495ce749adb064133afe5630951a10ed899bc0d0ee9e7ed20ac8"
+      "fileListSha256": "9d709ef4c8f8495ce749adb064133afe5630951a10ed899bc0d0ee9e7ed20ac8",
+      "integrationChangedGoFiles": 1
     },
     {
       "directory": "internal/skills",
@@ -1116,7 +1259,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "495b145d7ad3c5688d8fc9c9ac9bcb1cfff2fae965f0c69270ad5ace427c8bcc"
+      "fileListSha256": "495b145d7ad3c5688d8fc9c9ac9bcb1cfff2fae965f0c69270ad5ace427c8bcc",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/skillscan",
@@ -1125,7 +1269,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "19b09d2d11508ed23f86a63e233b7e45bf7f1381079041473f5303258bfd4519"
+      "fileListSha256": "19b09d2d11508ed23f86a63e233b7e45bf7f1381079041473f5303258bfd4519",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/soul",
@@ -1134,7 +1279,8 @@
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "0c157a99fb6deee4eaa3715cf57b498269ac434a1fcc2d791f66ef9baa0442df"
+      "fileListSha256": "0c157a99fb6deee4eaa3715cf57b498269ac434a1fcc2d791f66ef9baa0442df",
+      "integrationChangedGoFiles": 8
     },
     {
       "directory": "internal/speed",
@@ -1143,7 +1289,8 @@
       "owner": "session_os",
       "report": "session-os.md",
       "status": "Audited",
-      "fileListSha256": "48cfa53b6390429ec7dbd9e517b6eca53e6d7f2a158234b02a1572e84fef402e"
+      "fileListSha256": "48cfa53b6390429ec7dbd9e517b6eca53e6d7f2a158234b02a1572e84fef402e",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/sse",
@@ -1152,25 +1299,28 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "954294e9a2037c4992602646feccab1abdcc083ae8810d7e2c226d1e02f0dabf"
+      "fileListSha256": "954294e9a2037c4992602646feccab1abdcc083ae8810d7e2c226d1e02f0dabf",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/store",
-      "goFiles": 120,
+      "goFiles": 121,
       "kind": "Runtime/library",
       "owner": "store_session",
       "report": "store-session.md",
       "status": "Audited",
-      "fileListSha256": "5ab8fee52bfc078abaaee4f095b915ea482cfb3bf1ec7e615596110ed3a3c44f"
+      "fileListSha256": "7933203ca0445710b7da9d9ac3468a111b344571e4ffaa047bd91fa538b15899",
+      "integrationChangedGoFiles": 13
     },
     {
       "directory": "internal/store/globaldb",
-      "goFiles": 482,
+      "goFiles": 503,
       "kind": "Runtime/library",
       "owner": "store_session",
       "report": "store-session.md",
       "status": "Audited",
-      "fileListSha256": "fc9a79580ec29cb0e2600e4168d74a6dca02b0bc6aeb19220ca68099b1e29a52"
+      "fileListSha256": "3a5a4b62c70b2126b6619d61fed878ef45b70c2ad125f7ea01540c949406d515",
+      "integrationChangedGoFiles": 78
     },
     {
       "directory": "internal/store/globaldb/schema",
@@ -1179,16 +1329,18 @@
       "owner": "store_session",
       "report": "store-session.md",
       "status": "Audited",
-      "fileListSha256": "184f9b5e5bfac4517ece7a39df3dc8adca244cc6b01d61107cc23a3d929afdd9"
+      "fileListSha256": "184f9b5e5bfac4517ece7a39df3dc8adca244cc6b01d61107cc23a3d929afdd9",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/store/globaldb/sqlcgen",
-      "goFiles": 73,
+      "goFiles": 79,
       "kind": "Generated SQLite adapter",
       "owner": "store_session",
       "report": "store-session.md",
       "status": "Audited",
-      "fileListSha256": "14d070d432d835e3a7e4f0e0f6a6bc91168cc3d72e9386ac71b9b247293f87a2"
+      "fileListSha256": "633be77a25668c6a02d0a79a583c338ffecf7f39d4376ec8f56d7ad7e84b9da7",
+      "integrationChangedGoFiles": 12
     },
     {
       "directory": "internal/store/sessiondb",
@@ -1197,7 +1349,8 @@
       "owner": "store_session",
       "report": "store-session.md",
       "status": "Audited",
-      "fileListSha256": "e2a3a7013ed2c183b50feb4d7f20b93dc6b100021a3b25c2a6840b83402bb706"
+      "fileListSha256": "e2a3a7013ed2c183b50feb4d7f20b93dc6b100021a3b25c2a6840b83402bb706",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/store/sessiondb/schema",
@@ -1206,7 +1359,8 @@
       "owner": "store_session",
       "report": "store-session.md",
       "status": "Audited",
-      "fileListSha256": "8a62b7e74be13413b8958bee4861cbcd0eaa177744722aa0a7ab7cfdd23549cb"
+      "fileListSha256": "8a62b7e74be13413b8958bee4861cbcd0eaa177744722aa0a7ab7cfdd23549cb",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/store/sessiondb/sqlcgen",
@@ -1215,7 +1369,8 @@
       "owner": "store_session",
       "report": "store-session.md",
       "status": "Audited",
-      "fileListSha256": "095486de2b02b96225d3f9a70f64fea66b2faddc37440d746759f09f3e31029c"
+      "fileListSha256": "095486de2b02b96225d3f9a70f64fea66b2faddc37440d746759f09f3e31029c",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/store/workspacedb",
@@ -1224,7 +1379,8 @@
       "owner": "store_session",
       "report": "store-session.md",
       "status": "Audited",
-      "fileListSha256": "055946a9cd77d16507cd6ac1c0074c890fa16cbf588c720dee7c3fdb062f73a7"
+      "fileListSha256": "055946a9cd77d16507cd6ac1c0074c890fa16cbf588c720dee7c3fdb062f73a7",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/store/workspacedb/schema",
@@ -1233,7 +1389,8 @@
       "owner": "store_session",
       "report": "store-session.md",
       "status": "Audited",
-      "fileListSha256": "3e02e05e5fad5c95ece73b12616eee70ada37de6343257bb6fceca5e55856e70"
+      "fileListSha256": "3e02e05e5fad5c95ece73b12616eee70ada37de6343257bb6fceca5e55856e70",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/store/workspacedb/sqlcgen",
@@ -1242,7 +1399,8 @@
       "owner": "store_session",
       "report": "store-session.md",
       "status": "Audited",
-      "fileListSha256": "f1cb36ea2e39d0fd3a7e838fc6f77865761d474a41618b5fe4005fd21915ad89"
+      "fileListSha256": "f1cb36ea2e39d0fd3a7e838fc6f77865761d474a41618b5fe4005fd21915ad89",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/subagentid",
@@ -1251,7 +1409,8 @@
       "owner": "session_os",
       "report": "session-os.md",
       "status": "Audited",
-      "fileListSha256": "dc4b5c1ac0cc2213878c059bf1c32e7de291a1ddf76c3aa4b1446c891a1606e9"
+      "fileListSha256": "dc4b5c1ac0cc2213878c059bf1c32e7de291a1ddf76c3aa4b1446c891a1606e9",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/subprocess",
@@ -1260,7 +1419,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "fe01efc5846e9b7d67a48d5ed1229d86fec9ea373f53d40efd8b4210a0a5f09b"
+      "fileListSha256": "fe01efc5846e9b7d67a48d5ed1229d86fec9ea373f53d40efd8b4210a0a5f09b",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/support",
@@ -1269,7 +1429,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "2325edeeb4549389426f20e907e822f7b5ebcee6063ea999a61d5476e53ddb12"
+      "fileListSha256": "2325edeeb4549389426f20e907e822f7b5ebcee6063ea999a61d5476e53ddb12",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/task",
@@ -1278,7 +1439,8 @@
       "owner": "loop_loops",
       "report": "loop-loops.md",
       "status": "Audited",
-      "fileListSha256": "09cde44c7a7c9c6cd6d5273d5218fc6464ab4a1e5d7eca7af6df10834de992c2"
+      "fileListSha256": "09cde44c7a7c9c6cd6d5273d5218fc6464ab4a1e5d7eca7af6df10834de992c2",
+      "integrationChangedGoFiles": 3
     },
     {
       "directory": "internal/terminal",
@@ -1287,7 +1449,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "45d7a32a414032504972ff426d84ca8401d16dbfebb31e5b900857ba3fecbfa9"
+      "fileListSha256": "45d7a32a414032504972ff426d84ca8401d16dbfebb31e5b900857ba3fecbfa9",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/terminal/idgen",
@@ -1296,7 +1459,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "f5d9d6aa68f46051bc74768a77053b5793b4fdc5ccd4c354cd801c414e268265"
+      "fileListSha256": "f5d9d6aa68f46051bc74768a77053b5793b4fdc5ccd4c354cd801c414e268265",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/terminal/journal",
@@ -1305,7 +1469,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "f76dd9534a6a7b855be00c9b3cd2894f6167f3a490bfdfc07c5fc34e82eb6786"
+      "fileListSha256": "f76dd9534a6a7b855be00c9b3cd2894f6167f3a490bfdfc07c5fc34e82eb6786",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/terminal/pty",
@@ -1314,7 +1479,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "8c452c5398fbf3d8904294db0e841f4704612e858f4a35adc0b7097951b18c92"
+      "fileListSha256": "8c452c5398fbf3d8904294db0e841f4704612e858f4a35adc0b7097951b18c92",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/terminal/testdata/flood",
@@ -1323,7 +1489,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "8421d408a32fdeb7be7702baad7053f97b53b9e52129fb68f4bc43e663a5b17f"
+      "fileListSha256": "8421d408a32fdeb7be7702baad7053f97b53b9e52129fb68f4bc43e663a5b17f",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/terminal/testdata/hidden_echo",
@@ -1332,7 +1499,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "021e56e75b994da425e58dc82898f93b9080c5d63a4d9aebde94a9bfb5b98810"
+      "fileListSha256": "021e56e75b994da425e58dc82898f93b9080c5d63a4d9aebde94a9bfb5b98810",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/terminal/testdata/mid_escape",
@@ -1341,7 +1509,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "c75da43f95834329807b58f9ecfe80f768ef19050fdf8752a62af08028482b58"
+      "fileListSha256": "c75da43f95834329807b58f9ecfe80f768ef19050fdf8752a62af08028482b58",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/terminal/testdata/prompt",
@@ -1350,7 +1519,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "569fbd5bba026ac1e759ed6d13801aeb1fc230e2f4e97723fdd58786076056f8"
+      "fileListSha256": "569fbd5bba026ac1e759ed6d13801aeb1fc230e2f4e97723fdd58786076056f8",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/terminal/testdata/tui",
@@ -1359,7 +1529,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "973fd9bc13758fa9ee18bf98dc8eea74c17f1c3e5240c90d6a3e89b9f81d428a"
+      "fileListSha256": "973fd9bc13758fa9ee18bf98dc8eea74c17f1c3e5240c90d6a3e89b9f81d428a",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/terminal/vt",
@@ -1368,7 +1539,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "80c8f6df677098a09d6377a90821f98069eea30b5a126a7ee9d0bf10b5ce589b"
+      "fileListSha256": "80c8f6df677098a09d6377a90821f98069eea30b5a126a7ee9d0bf10b5ce589b",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/terminal/wire",
@@ -1377,7 +1549,8 @@
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
       "status": "Audited",
-      "fileListSha256": "1e73af08e08fe3d8c935137bffe878b47e6535801c1d077ecacbb370b00067c2"
+      "fileListSha256": "1e73af08e08fe3d8c935137bffe878b47e6535801c1d077ecacbb370b00067c2",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/testutil",
@@ -1386,7 +1559,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "e0c146ccdc488858d95589d9731da63a71e63e29b7bd7070ce1a65d5d5d3925f"
+      "fileListSha256": "e0c146ccdc488858d95589d9731da63a71e63e29b7bd7070ce1a65d5d5d3925f",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/testutil/acpmock",
@@ -1395,7 +1569,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "1c6def786cfef5d98070180cbb17e86c0936a0ecb4075c594660d68a9d2ffc8c"
+      "fileListSha256": "1c6def786cfef5d98070180cbb17e86c0936a0ecb4075c594660d68a9d2ffc8c",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/testutil/acpmock/cmd/acpmock-driver",
@@ -1404,7 +1579,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "3ec0e3e2bef6e419e187d4b15763fce13f07cd8123e5570cd486652db0a83ddd"
+      "fileListSha256": "3ec0e3e2bef6e419e187d4b15763fce13f07cd8123e5570cd486652db0a83ddd",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/testutil/e2e",
@@ -1413,7 +1589,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "52d6a9fffb39a9f9340e69e8076fb003332db838f1573e4fda8c50373f35a862"
+      "fileListSha256": "52d6a9fffb39a9f9340e69e8076fb003332db838f1573e4fda8c50373f35a862",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/testutil/mcpfixture",
@@ -1422,7 +1599,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "722310842e2cd13ef56f11d750e6f1be4b52ab40bddf4cb7d8376f88db8198f5"
+      "fileListSha256": "722310842e2cd13ef56f11d750e6f1be4b52ab40bddf4cb7d8376f88db8198f5",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/testutil/storeseed",
@@ -1431,7 +1609,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "125b4745fb5cc4ab7a3cfd225b14848eca0a842717fe63399913169a1372b895"
+      "fileListSha256": "125b4745fb5cc4ab7a3cfd225b14848eca0a842717fe63399913169a1372b895",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/testutil/storeseed/global",
@@ -1440,7 +1619,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "b2452668ac5d6fd0400b97c30e60c7694b66a3b516fb3a4f4eb9dd91788fbac8"
+      "fileListSha256": "b2452668ac5d6fd0400b97c30e60c7694b66a3b516fb3a4f4eb9dd91788fbac8",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/testutil/storeseed/internal/seedbase",
@@ -1449,7 +1629,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "2b3ba82be004d3ac408e17f159b0d668c8ad4bbeea4ff550bb2c40c139b7f9d4"
+      "fileListSha256": "2b3ba82be004d3ac408e17f159b0d668c8ad4bbeea4ff550bb2c40c139b7f9d4",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/toolmeta",
@@ -1458,7 +1639,8 @@
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "b5c5c0caa900727b7873e1db380f6ce6e00ea08771e5ddb23e5e58f386a11b7e"
+      "fileListSha256": "b5c5c0caa900727b7873e1db380f6ce6e00ea08771e5ddb23e5e58f386a11b7e",
+      "integrationChangedGoFiles": 2
     },
     {
       "directory": "internal/toolruntime",
@@ -1467,34 +1649,38 @@
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "678ed3aa853ca2db4a5f9b8e6da386f414c488a056bd064d497c77868c363432"
+      "fileListSha256": "678ed3aa853ca2db4a5f9b8e6da386f414c488a056bd064d497c77868c363432",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/tools",
-      "goFiles": 79,
+      "goFiles": 80,
       "kind": "Runtime/library",
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "fb8a2de4166c617ab91f4114c9a3f3105d1263d30ec20db4a762e1f850ad3e5f"
+      "fileListSha256": "82d3d5584689834ace31934dfac9a3e4a44a54dd883c83ecc619e5a4615ca5b8",
+      "integrationChangedGoFiles": 9
     },
     {
       "directory": "internal/tools/builtin",
-      "goFiles": 75,
+      "goFiles": 78,
       "kind": "Runtime/library",
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "1a039cf723355ad407b3a27018dfc137c1b6894ca2b76c1df561ea1d2a289ce6"
+      "fileListSha256": "6c2a1d16c70f35396507a65923a4fc8e22d90600b2c2454cc6cf07cc8c4b9da5",
+      "integrationChangedGoFiles": 13
     },
     {
       "directory": "internal/transcript",
-      "goFiles": 37,
+      "goFiles": 38,
       "kind": "Runtime/library",
       "owner": "session_os",
       "report": "session-os.md",
       "status": "Audited",
-      "fileListSha256": "4edf5bb28be533e269018e106a9d7ca6ad420be79a4d41bde0831bcafd76597e"
+      "fileListSha256": "2d013f576f5ce16529e4b7b69528c114eb88585adc4ee9228311e785a7af5004",
+      "integrationChangedGoFiles": 5
     },
     {
       "directory": "internal/update",
@@ -1503,7 +1689,8 @@
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
       "status": "Audited",
-      "fileListSha256": "56948e9f4305b367befe6ed17ef7f3954a64c4c790be45eec5f42dd1f8f1c857"
+      "fileListSha256": "56948e9f4305b367befe6ed17ef7f3954a64c4c790be45eec5f42dd1f8f1c857",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/vault",
@@ -1512,7 +1699,8 @@
       "owner": "events_settings",
       "report": "events-settings.md",
       "status": "Audited",
-      "fileListSha256": "95e08ea8d87e4480a2927bcd2b8c7d9223794f1819856edb58932dc08ca646ec"
+      "fileListSha256": "95e08ea8d87e4480a2927bcd2b8c7d9223794f1819856edb58932dc08ca646ec",
+      "integrationChangedGoFiles": 2
     },
     {
       "directory": "internal/version",
@@ -1521,7 +1709,8 @@
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
       "status": "Audited",
-      "fileListSha256": "e661697e1cb7592a2dd1373dd5507ae7d4122d214e006e0086825de26576a054"
+      "fileListSha256": "e661697e1cb7592a2dd1373dd5507ae7d4122d214e006e0086825de26576a054",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/windowmanager",
@@ -1530,7 +1719,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "8cde9bbc03987d2928e77b9811679454cd740720d15fbbcbfe48e312f504ebe0"
+      "fileListSha256": "8cde9bbc03987d2928e77b9811679454cd740720d15fbbcbfe48e312f504ebe0",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/workref",
@@ -1539,7 +1729,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "82447251cd7bc0dac8e236ac2759ded9a2f0fc5ba4ded6af78b0a698f9a81091"
+      "fileListSha256": "82447251cd7bc0dac8e236ac2759ded9a2f0fc5ba4ded6af78b0a698f9a81091",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/workspace",
@@ -1548,7 +1739,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "4fe2aeb09ca478b171bd70203b738bb976c7eae706dd317284f309a2ace34d59"
+      "fileListSha256": "4fe2aeb09ca478b171bd70203b738bb976c7eae706dd317284f309a2ace34d59",
+      "integrationChangedGoFiles": 1
     },
     {
       "directory": "internal/workspaceaccess",
@@ -1557,7 +1749,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "882dabca2127cfada92ab1af98a378f1b2c30085d6cffdee84a5fd3fac4cc80a"
+      "fileListSha256": "882dabca2127cfada92ab1af98a378f1b2c30085d6cffdee84a5fd3fac4cc80a",
+      "integrationChangedGoFiles": 1
     },
     {
       "directory": "internal/workspacefiles",
@@ -1566,7 +1759,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "276a64ad30fa11c7283dfbdc207d256547fc9db9f8f98dd6064dbfd573fd278b"
+      "fileListSha256": "276a64ad30fa11c7283dfbdc207d256547fc9db9f8f98dd6064dbfd573fd278b",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "internal/worktree",
@@ -1575,7 +1769,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "48f110722eb44748afba69e55043cbb4d2ca26256417fd90a63ca2c63a2e534e"
+      "fileListSha256": "48f110722eb44748afba69e55043cbb4d2ca26256417fd90a63ca2c63a2e534e",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "magefiles",
@@ -1584,7 +1779,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "b2bfc0d28a6855dcf338604812f782c52e68c1d09763d6a7f5adbe351db1d54a"
+      "fileListSha256": "b2bfc0d28a6855dcf338604812f782c52e68c1d09763d6a7f5adbe351db1d54a",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "scripts",
@@ -1593,7 +1789,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "057c0c945988319f1e72f24e30dee239eb932bc9c39cf1824fca4e160aa52fb0"
+      "fileListSha256": "057c0c945988319f1e72f24e30dee239eb932bc9c39cf1824fca4e160aa52fb0",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "scripts/air-state-dir",
@@ -1602,7 +1799,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "456b9093e50527faabb7eb9788b21055f113ebad2c313486d30e40c179b9a577"
+      "fileListSha256": "456b9093e50527faabb7eb9788b21055f113ebad2c313486d30e40c179b9a577",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "scripts/air-state-lock",
@@ -1611,7 +1809,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "4045958ffdd4ffcf922de80d48d9c70810080808f6f1bcdecd4c9f294c46ceb6"
+      "fileListSha256": "4045958ffdd4ffcf922de80d48d9c70810080808f6f1bcdecd4c9f294c46ceb6",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "scripts/demo-seed",
@@ -1620,7 +1819,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "66504153fcc55a2990feff8e0ee9ababab8fddff18a2e18dd0fcda1366c6ba93"
+      "fileListSha256": "66504153fcc55a2990feff8e0ee9ababab8fddff18a2e18dd0fcda1366c6ba93",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "scripts/dev-http-endpoint",
@@ -1629,7 +1829,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "9263bad8942c36bb7a2da71426cfa102cfda871d737dbd1b53d9dfc966400e19"
+      "fileListSha256": "9263bad8942c36bb7a2da71426cfa102cfda871d737dbd1b53d9dfc966400e19",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "scripts/devreadiness",
@@ -1638,7 +1839,8 @@
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
       "status": "Audited",
-      "fileListSha256": "08424a4810b75b35769b88996e3b3bfac97cf1da8d8eb3f4c33d9271669ec831"
+      "fileListSha256": "08424a4810b75b35769b88996e3b3bfac97cf1da8d8eb3f4c33d9271669ec831",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "sdk/examples/clarify-tool",
@@ -1647,7 +1849,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "54672a9f58124e9c879e626799ff80d7fe893e6508aea8fcea4bb4e79a9ec202"
+      "fileListSha256": "54672a9f58124e9c879e626799ff80d7fe893e6508aea8fcea4bb4e79a9ec202",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "sdk/examples/notes-commands",
@@ -1656,7 +1859,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "7eb46e0906f1162e1736307474606f2545b1a6e96147e8484bce96b48d7f50b5"
+      "fileListSha256": "7eb46e0906f1162e1736307474606f2545b1a6e96147e8484bce96b48d7f50b5",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "sdk/go",
@@ -1665,16 +1869,18 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "c00f2852fab55908d24045fed3724880b4cc23080a34646fc74f4dc6cf3319c1"
+      "fileListSha256": "c00f2852fab55908d24045fed3724880b4cc23080a34646fc74f4dc6cf3319c1",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "sdk/go/client",
-      "goFiles": 69,
+      "goFiles": 72,
       "kind": "Public SDK",
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "7c9cadac42c85cf14bc329261c1459de16777bb7cd14c85317c9edf455d7fd58"
+      "fileListSha256": "cb1aac5cc6f7739eb86bbc8bf5f450cfd45711ba6b2b8514803c9b6c6a7921f7",
+      "integrationChangedGoFiles": 63
     },
     {
       "directory": "sdk/go/contracts",
@@ -1683,7 +1889,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "b1b4f51519315f32b68f13fd4a4850f326ce8b503cfa6b3d9c7b0d711dd07206"
+      "fileListSha256": "b1b4f51519315f32b68f13fd4a4850f326ce8b503cfa6b3d9c7b0d711dd07206",
+      "integrationChangedGoFiles": 28
     },
     {
       "directory": "sdk/go/extensiontest",
@@ -1692,7 +1899,8 @@
       "owner": "api_tasks",
       "report": "api-tasks.md",
       "status": "Audited",
-      "fileListSha256": "c608a241cb77a8eb8a3fecb45be8a124e29f90b6a5aef249e371bbd5fb5f8f05"
+      "fileListSha256": "c608a241cb77a8eb8a3fecb45be8a124e29f90b6a5aef249e371bbd5fb5f8f05",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "skills",
@@ -1701,7 +1909,8 @@
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
       "status": "Audited",
-      "fileListSha256": "f3accc40adab7e3e36e1a6d75fe7a83ef9875549fe66af130d15605d08217c66"
+      "fileListSha256": "f3accc40adab7e3e36e1a6d75fe7a83ef9875549fe66af130d15605d08217c66",
+      "integrationChangedGoFiles": 1
     },
     {
       "directory": "web/e2e/fixtures/bundled-extension-seeder",
@@ -1710,7 +1919,8 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "1b78f09cfddae829033555d1817cff38498de10fea8d4b30ca94b1655281d782"
+      "fileListSha256": "1b78f09cfddae829033555d1817cff38498de10fea8d4b30ca94b1655281d782",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "web/e2e/fixtures/retained-loop-task-seeder",
@@ -1719,7 +1929,8 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "098e9163435352895395c9ae0e81bb5c88dc6b5af72c57f147bf1f27e3a50f45"
+      "fileListSha256": "098e9163435352895395c9ae0e81bb5c88dc6b5af72c57f147bf1f27e3a50f45",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "web/e2e/fixtures/retired-knowledge-window-seeder",
@@ -1728,7 +1939,8 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "e7d827b734e0142471e49de02f1032e438c342a82ed5af661d2762052940ad02"
+      "fileListSha256": "e7d827b734e0142471e49de02f1032e438c342a82ed5af661d2762052940ad02",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "web/e2e/fixtures/runtime-database-seeder",
@@ -1737,7 +1949,8 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "591fdbe0687dd36b97e5c9e76db25b97e5b76d8f5ae9269acc89f50fde50c964"
+      "fileListSha256": "591fdbe0687dd36b97e5c9e76db25b97e5b76d8f5ae9269acc89f50fde50c964",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "web/e2e/fixtures/session-pull-request-seeder",
@@ -1746,7 +1959,8 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "257bc2a9407c1600179107d0746f9645f934a533c8b8e0d602e99b137d23e3f3"
+      "fileListSha256": "257bc2a9407c1600179107d0746f9645f934a533c8b8e0d602e99b137d23e3f3",
+      "integrationChangedGoFiles": 0
     },
     {
       "directory": "web/e2e/fixtures/sessions-board-seeder",
@@ -1755,7 +1969,8 @@
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
       "status": "Audited",
-      "fileListSha256": "720e29b24ef9ec215a3a5677d94b46afafdece0e33ac3de7d1e530e5c3c78d01"
+      "fileListSha256": "720e29b24ef9ec215a3a5677d94b46afafdece0e33ac3de7d1e530e5c3c78d01",
+      "integrationChangedGoFiles": 1
     }
   ],
   "frontendSystems": [
@@ -1763,169 +1978,254 @@
       "directory": "web/src/systems/agent",
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 203,
+      "fileListSha256": "421fbf4801807868048db1af76d1979536560e56606dc6149c0680433e5ef36b",
+      "integrationChangedFiles": 136
     },
     {
       "directory": "web/src/systems/automation",
       "owner": "loop_loops",
       "report": "loop-loops.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 140,
+      "fileListSha256": "2e5dc55b00cf5fc135b5a0e0e73a0c159becaeb87caa2293e85897673652c924",
+      "integrationChangedFiles": 12
     },
     {
       "directory": "web/src/systems/dashboard",
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 65,
+      "fileListSha256": "ff318117b274588f9d084d050b290a232610c85edb740f105a2488011574867a",
+      "integrationChangedFiles": 21
     },
     {
       "directory": "web/src/systems/design-system",
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 2,
+      "fileListSha256": "74e94820899a4e82fc468ac632e3666089af5b8a109177412f6a7f8def8dddf6",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/extensions",
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 36,
+      "fileListSha256": "f940757055ea0cac8cb234e0e7752cf0b93b80e7fd84d53fd198420af72fd33a",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/gateway",
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 50,
+      "fileListSha256": "8112110fdb1f3047dc79fcdc1d583e67448b5e231cebcbdca1f69fc85851ef15",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/loops",
       "owner": "loop_loops",
       "report": "loop-loops.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 455,
+      "fileListSha256": "598971f5eece6ae0de2124c33ccd4c3e41097b7d4017d6ff66abb857e5225a89",
+      "integrationChangedFiles": 1
     },
     {
       "directory": "web/src/systems/marketplace",
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 90,
+      "fileListSha256": "aaccdfca218855b4d3548ceb051ceb74c55f289cf11ecc6d8aed7b0d7a96e4b4",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/model-catalog",
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 22,
+      "fileListSha256": "574a5f2b6ef63841aea90d39d2a04cf91f797cc8bdb3275f688c54e43ae33636",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/notifications",
       "owner": "store_session",
       "report": "store-session.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 5,
+      "fileListSha256": "41ba3e91b1fa0622b303439cf53585104c6a749395f9d82bc0130794617632c1",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/onboarding",
       "owner": "events_settings",
       "report": "events-settings.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 40,
+      "fileListSha256": "879dd49ccaa90d10ca636c771deaef27e3b73f28c63eb97f719db2d94409a4c2",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/os",
       "owner": "session_os",
       "report": "session-os.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 664,
+      "fileListSha256": "49482c569745f7a8c51d84b028e80d14ab015fc279b1edbb0e6f5e6acabbf40c",
+      "integrationChangedFiles": 54
     },
     {
       "directory": "web/src/systems/profiles",
       "owner": "events_settings",
       "report": "events-settings.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 71,
+      "fileListSha256": "e5151d3b2b85f0ab0a69dcc80a0baecd8b0e9ebaca5164e4939efeeb8541a3d6",
+      "integrationChangedFiles": 5
     },
     {
       "directory": "web/src/systems/provider-usage",
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 30,
+      "fileListSha256": "27f273d6868e22cea1f3c4e075319d22e1165d019571bed39571bb1bf6795aa8",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/providers",
       "owner": "usage_dashboard",
       "report": "usage-dashboard.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 6,
+      "fileListSha256": "96447ec27ad69b8581fbe2cb6419dbb308df3c0ac5220ee45e8b96606008d6d7",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/runtime",
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 32,
+      "fileListSha256": "40009dd94dd03ae25c1f9ba3716de1c3388fd2c97b248d2bdd51c96a68024107",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/scheduler",
       "owner": "loop_loops",
       "report": "loop-loops.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 18,
+      "fileListSha256": "67175cd7145e9e61a0c855fba8938672ccbaa0c7ea99ec868dad4df12805ed42",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/session",
       "owner": "store_session",
       "report": "store-session.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 838,
+      "fileListSha256": "c24ce1ee2d0eafb31083d30b7fc547302ecdf271cf63926b829b325eecd9e3f0",
+      "integrationChangedFiles": 140
     },
     {
       "directory": "web/src/systems/settings",
       "owner": "events_settings",
       "report": "events-settings.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 360,
+      "fileListSha256": "c279e093339ac8a51f01fa272289e364a06bece474fbe8eab9a210fb4647af62",
+      "integrationChangedFiles": 2
     },
     {
       "directory": "web/src/systems/skill",
       "owner": "extension_marketplace",
       "report": "extension-marketplace.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 25,
+      "fileListSha256": "3bb315e7b47589c66298cc67ee8caed06254a90d4a0f67b2abdfedfe051408ed",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/status",
       "owner": "daemon_runtime",
       "report": "daemon-runtime.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 16,
+      "fileListSha256": "d1949fe93490e30613f9f709f7831e8f5163e57c1eded245b79ef470790641eb",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/support",
       "owner": "api_tasks",
       "report": "api-tasks.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 7,
+      "fileListSha256": "756ac4658135964dd614f2139eec1c79c854c15a0882908f32a22e9c32d430a2",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/tasks",
       "owner": "api_tasks",
       "report": "api-tasks.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 276,
+      "fileListSha256": "829f2c37ae9157d4f48c30f51645ce5f395c96553e3074227371bf716eee377e",
+      "integrationChangedFiles": 13
     },
     {
       "directory": "web/src/systems/terminal",
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 137,
+      "fileListSha256": "d673c820e067a4c8f376ab83e69f8ba0f64d80e1d3848c7a54de6ea8d241cdd0",
+      "integrationChangedFiles": 3
     },
     {
       "directory": "web/src/systems/theme",
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 13,
+      "fileListSha256": "bee2bea64dfd26b85efccba98363343e5695d5bbf2e3fcfad2ce0fffa80b40a0",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/tool-approvals",
       "owner": "terminal_terminal",
       "report": "terminal-terminal.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 20,
+      "fileListSha256": "4816a0410143b60f372cad2514d56a81d371e1d9e9fac2421f5e21efc2fee329",
+      "integrationChangedFiles": 3
     },
     {
       "directory": "web/src/systems/vault",
       "owner": "events_settings",
       "report": "events-settings.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 40,
+      "fileListSha256": "f2c218545a0baa0848af785da966f7cc69eac9f939803e154edd6ac8c17a9985",
+      "integrationChangedFiles": 0
     },
     {
       "directory": "web/src/systems/workspace",
       "owner": "worktree_workspace",
       "report": "worktree-workspace.md",
-      "status": "Audited"
+      "status": "Audited",
+      "trackedFiles": 171,
+      "fileListSha256": "29ea1dda5fa6fb8dbb250e5050d14fbe5d70bca4f4a6f534eca6bc1809b8c131",
+      "integrationChangedFiles": 3
     }
-  ]
+  ],
+  "integrationBase": "8c025ff8fdd3a9a79e4f0e63f54b3bd144a4773b"
 }

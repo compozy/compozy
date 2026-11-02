@@ -108,6 +108,14 @@ func (m *Manager) archiveTreeWithResumeGuard(
 	if err != nil {
 		return store.SessionTreeArchive{}, err
 	}
+	if err := m.guardInstanceMain(ctx, sessionID); err != nil {
+		return store.SessionTreeArchive{}, err
+	}
+	for i := range descendants {
+		if err := m.guardInstanceMain(ctx, descendants[i].ID); err != nil {
+			return store.SessionTreeArchive{}, err
+		}
+	}
 	m.resumeLifecycle.mu.Lock()
 	defer m.resumeLifecycle.mu.Unlock()
 	if m.resumeLifecycle.runs[sessionID] != nil {
@@ -159,8 +167,8 @@ func (m *Manager) DeleteWithChildren(
 			}
 			return append(deleted, sessionID), nil
 		}
-		for _, descendant := range slices.Backward(descendants) {
-			id := descendant.ID
+		for i := range slices.Backward(descendants) {
+			id := descendants[i].ID
 			if err := m.Delete(ctx, id); err != nil {
 				if errors.Is(err, ErrSessionNotFound) {
 					continue

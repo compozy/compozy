@@ -213,7 +213,7 @@ func (s *subagentParityService) Summaries(_ context.Context, ids []string) (map[
 // subagentParityRouters gives HTTP and UDS the same workspace and profile authorization fixtures.
 func subagentParityRouters(t *testing.T, service *subagentParityService) (http.Handler, http.Handler) {
 	t.Helper()
-	manager := testutil.StubSessionManager{
+	manager := &testutil.StubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			if id == "missing" {
 				return nil, session.ErrSessionNotFound

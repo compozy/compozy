@@ -22,11 +22,30 @@ func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerAgentManagementRoutes(api gin.IRouter, handlers *Handlers) {
+	instances := api.Group("/agent-instances")
+	instances.POST("", handlers.CreateAgentInstance)
+	instances.GET("", handlers.ListAgentInstances)
+	instances.POST("/adopt", handlers.AdoptAgentInstance)
+	instances.GET("/:id", handlers.GetAgentInstance)
+	instances.GET("/:id/reports", handlers.ListAgentInstanceReports)
+	instances.POST("/:id/check", handlers.CheckAgentInstance)
+	instances.PATCH("/:id", handlers.UpdateAgentInstance)
+	instances.GET("/:id/occurrences/:occurrence", handlers.GetAgentInstanceOccurrence)
+	instances.GET("/:id/away", handlers.GetAgentInstanceAway)
+	instances.POST("/:id/away", handlers.MarkAgentInstanceSeen)
+	instances.GET("/:id/check-ins", handlers.ListAgentInstanceCheckIns)
+	instances.POST("/:id/pause", handlers.PauseAgentInstance)
+	instances.POST("/:id/resume", handlers.ResumeAgentInstance)
+	instances.POST("/:id/ensure-main", handlers.EnsureAgentInstanceMain)
+	instances.DELETE("/:id", handlers.ArchiveAgentInstance)
+
 	agents := api.Group("/agents")
+	handlers.RegisterAgentMemoryRoutes(agents)
 	agents.GET("", handlers.ListAgents)
 	agents.GET("/catalog", handlers.ListAgentCatalog)
 	agents.GET("/aggregate", handlers.ListAgentAggregate)
 	agents.POST("", handlers.CreateAgent)
+	agents.POST("/draft-instructions", handlers.DraftAgentInstructions)
 	agents.PUT("/:name", handlers.UpdateAgent)
 	agents.DELETE("/:name", handlers.DeleteAgent)
 	agents.POST("/:name/duplicate", handlers.DuplicateAgent)
@@ -44,5 +63,6 @@ func registerAgentManagementRoutes(api gin.IRouter, handlers *Handlers) {
 	agents.POST("/:name/heartbeat/rollback", handlers.RollbackAgentHeartbeat)
 	agents.GET("/:name/heartbeat/status", handlers.GetAgentHeartbeatStatus)
 	agents.POST("/:name/heartbeat/wake", handlers.WakeAgentHeartbeat)
+	agents.GET("/:name/activity", handlers.GetAgentActivity)
 	agents.GET("/:name", handlers.GetAgent)
 }

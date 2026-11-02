@@ -35,14 +35,14 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 		}
 		info := goalSessionInfoForTest("session-1", "ws-goal-identity", now)
 
-		created, err := globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), info, identity)
+		created, err := globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), &(info), identity)
 		if err != nil {
 			t.Fatalf("RegisterSessionWithCreationIdentity(create) error = %v", err)
 		}
 		if !created.Created || created.SessionID != info.ID || created.Identity != identity {
 			t.Fatalf("created registration = %#v, want created exact identity", created)
 		}
-		matched, err := globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), info, identity)
+		matched, err := globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), &(info), identity)
 		if err != nil {
 			t.Fatalf("RegisterSessionWithCreationIdentity(match) error = %v", err)
 		}
@@ -52,27 +52,27 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 
 		changed := identity
 		changed.CreationDigest = "creation-session-1-changed"
-		_, err = globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), info, changed)
+		_, err = globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), &(info), changed)
 		requireSessionCreationIdentityMismatch(t, err)
 
 		foreign := info
 		foreign.WorkspaceID = "ws-goal-foreign"
-		_, err = globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), foreign, identity)
+		_, err = globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), &(foreign), identity)
 		requireSessionCreationIdentityMismatch(t, err)
 
 		legacy := goalSessionInfoForTest("session-null-identity", "ws-goal-identity", now)
-		if err := globalDB.RegisterSession(testutil.Context(t), legacy); err != nil {
+		if err := globalDB.RegisterSession(testutil.Context(t), &(legacy)); err != nil {
 			t.Fatalf("RegisterSession(legacy) error = %v", err)
 		}
-		_, err = globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), legacy, identity)
+		_, err = globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), &(legacy), identity)
 		requireSessionCreationIdentityMismatch(t, err)
 
 		provisional := goalSessionInfoForTest("session-starting-identity", "ws-goal-identity", now)
 		provisional.State = globalDBSessionStateStarting
-		if err := globalDB.RegisterSession(testutil.Context(t), provisional); err != nil {
+		if err := globalDB.RegisterSession(testutil.Context(t), &(provisional)); err != nil {
 			t.Fatalf("RegisterSession(provisional) error = %v", err)
 		}
-		bound, err := globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), provisional, identity)
+		bound, err := globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), &(provisional), identity)
 		if err != nil {
 			t.Fatalf("RegisterSessionWithCreationIdentity(provisional) error = %v", err)
 		}
@@ -101,7 +101,7 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 		}
 		provisional := goalSessionInfoForTest("session-recovered", "ws-goal-recovery", now)
 		provisional.State = globalDBSessionStateStarting
-		if err := globalDB.RegisterSession(testutil.Context(t), provisional); err != nil {
+		if err := globalDB.RegisterSession(testutil.Context(t), &(provisional)); err != nil {
 			t.Fatalf("RegisterSession(provisional) error = %v", err)
 		}
 
@@ -110,7 +110,7 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 		recovered.UpdatedAt = now.Add(time.Second)
 		registration, err := globalDB.RegisterSessionWithCreationIdentity(
 			testutil.Context(t),
-			recovered,
+			&(recovered),
 			identity,
 		)
 		if err != nil {
@@ -140,10 +140,10 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 
 		settled := goalSessionInfoForTest("session-settled", "ws-goal-recovery", now)
 		settled.State = globalDBSessionStateStopped
-		if err := globalDB.RegisterSession(testutil.Context(t), settled); err != nil {
+		if err := globalDB.RegisterSession(testutil.Context(t), &(settled)); err != nil {
 			t.Fatalf("RegisterSession(settled) error = %v", err)
 		}
-		_, err = globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), settled, identity)
+		_, err = globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), &(settled), identity)
 		requireSessionCreationIdentityMismatch(t, err)
 	})
 }
@@ -314,7 +314,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 			registerGoalSessionIdentityForTest(
 				t,
 				globalDB,
-				goalSessionInfoForTest(creating.SessionID, workspaceID, now.Add(4*time.Second)),
+				new(goalSessionInfoForTest(creating.SessionID, workspaceID, now.Add(4*time.Second))),
 				store.SessionCreationIdentity{
 					CreationProfileRef: creating.CreationProfileRef,
 					PolicySpecDigest:   creating.PolicySpecDigest,
@@ -1303,7 +1303,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 				registerGoalSessionIdentityForTest(
 					t,
 					globalDB,
-					goalSessionInfoForTest(sessionID, "ws-action-binding", now),
+					new(goalSessionInfoForTest(sessionID, "ws-action-binding", now)),
 					identity,
 				)
 				return key
@@ -1425,7 +1425,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest(prepared.SessionID, workspaceID, now.Add(2*time.Second)),
+			new(goalSessionInfoForTest(prepared.SessionID, workspaceID, now.Add(2*time.Second))),
 			store.SessionCreationIdentity{
 				CreationProfileRef: prepared.CreationProfileRef,
 				PolicySpecDigest:   prepared.PolicySpecDigest,
@@ -1913,7 +1913,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest("origin-session", "ws-goal-binding", now),
+			new(goalSessionInfoForTest("origin-session", "ws-goal-binding", now)),
 			originIdentity,
 		)
 		originSessionID := "origin-session"
@@ -2040,7 +2040,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest("session-2", "ws-goal-binding", now.Add(3*time.Minute)),
+			new(goalSessionInfoForTest("session-2", "ws-goal-binding", now.Add(3*time.Minute))),
 			store.SessionCreationIdentity{
 				CreationProfileRef: "profile-v1",
 				PolicySpecDigest:   "policy-v1",
@@ -2143,7 +2143,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest("origin-reseed", "ws-goal-reseed-grant", now),
+			new(goalSessionInfoForTest("origin-reseed", "ws-goal-reseed-grant", now)),
 			originIdentity,
 		)
 		originSessionID := "origin-reseed"
@@ -2209,7 +2209,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest("session-reseed-successor", "ws-goal-reseed-grant", now.Add(time.Minute)),
+			new(goalSessionInfoForTest("session-reseed-successor", "ws-goal-reseed-grant", now.Add(time.Minute))),
 			newIdentity,
 		)
 		if _, err := globalDB.PrepareSessionBindingAttempt(ctx, goal.PrepareBindingAttemptRequest{
@@ -2306,7 +2306,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest("session-race", "ws-goal-binding-race", now),
+			new(goalSessionInfoForTest("session-race", "ws-goal-binding-race", now)),
 			identity,
 		)
 		originSessionID := "session-race"
@@ -2557,7 +2557,7 @@ func seedActiveGoalBindingWithIdentityForTest(
 	registerGoalSessionIdentityForTest(
 		t,
 		globalDB,
-		goalSessionInfoForTest(sessionID, workspaceID, now),
+		new(goalSessionInfoForTest(sessionID, workspaceID, now)),
 		identity,
 	)
 	if _, err := globalDB.db.ExecContext(
@@ -2587,12 +2587,14 @@ func seedActiveGoalBindingWithIdentityForTest(
 func registerGoalSessionIdentityForTest(
 	t *testing.T,
 	globalDB *GlobalDB,
-	info store.SessionInfo,
+	infoInput *store.SessionInfo,
 	identity store.SessionCreationIdentity,
 ) {
+	info := *infoInput
+
 	t.Helper()
 
-	if _, err := globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), info, identity); err != nil {
+	if _, err := globalDB.RegisterSessionWithCreationIdentity(testutil.Context(t), &(info), identity); err != nil {
 		t.Fatalf("RegisterSessionWithCreationIdentity(%q) error = %v", info.ID, err)
 	}
 }

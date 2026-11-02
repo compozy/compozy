@@ -57,12 +57,13 @@ func (m *Manager) prepareSessionStartSoul(
 	}
 	snapshot, err := m.persistResolvedSoul(
 		ctx,
-		spec.workspace.ID,
+		soulSnapshotWorkspaceID(&spec.workspace, artifacts.Agent),
 		spec.agentName,
 		&resolved,
 		spec.workspace.Config.Agents.Soul,
 		"session_start",
 		now,
+		spec.workspace.ProfileID,
 	)
 	if err != nil {
 		return err

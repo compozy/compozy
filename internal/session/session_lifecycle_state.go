@@ -116,6 +116,8 @@ func (s *Session) applyStopCauseLocked(cause StopCause, detail string) {
 
 func normalizeSessionType(sessionType Type) Type {
 	switch Type(strings.TrimSpace(string(sessionType))) {
+	case SessionTypeTriage:
+		return SessionTypeTriage
 	case SessionTypeSystem:
 		return SessionTypeSystem
 	case SessionTypeCoordinator:

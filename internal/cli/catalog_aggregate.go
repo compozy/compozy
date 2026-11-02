@@ -15,7 +15,7 @@ type aggregateCatalogClient interface {
 }
 
 func (c *daemonClient) ReadAggregateCatalog(ctx context.Context, path string, values url.Values, result any) error {
-	values.Set("all_workspaces", "true")
+	values.Set("all_workspaces", toolBoolTrue)
 	return c.doJSON(ctx, http.MethodGet, path, values, nil, result)
 }
 
@@ -104,7 +104,8 @@ func readAggregateAgents(
 		if err := reader.ReadAggregateCatalog(cmd.Context(), "/api/agents/aggregate", values, &response); err != nil {
 			return nil, nil, err
 		}
-		for _, item := range response.Agents {
+		for index := range response.Agents {
+			item := &response.Agents[index]
 			items = append(items, item.Agent)
 			rows = append(rows, []string{label(item.Agent.WorkspaceID), item.Agent.Name, item.Agent.Provider})
 		}
@@ -122,7 +123,7 @@ func addAllWorkspacesFlag(cmd *cobra.Command) {
 
 func wantsAllWorkspaces(cmd *cobra.Command) bool {
 	flag := cmd.Flags().Lookup("all-workspaces")
-	return flag != nil && flag.Value.String() == "true"
+	return flag != nil && flag.Value.String() == toolBoolTrue
 }
 
 type workspaceLister interface {

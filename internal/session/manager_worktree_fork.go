@@ -11,8 +11,10 @@ import (
 func (m *Manager) CreateWorktreeForkAccepted(
 	ctx context.Context,
 	originSessionID string,
-	opts CreateAcceptedOpts,
+	optsInput *CreateAcceptedOpts,
 ) (*Info, error) {
+	opts := *optsInput
+
 	if m == nil {
 		return nil, errors.New("session: manager is required")
 	}
@@ -24,7 +26,7 @@ func (m *Manager) CreateWorktreeForkAccepted(
 		return nil, err
 	}
 	defer origin.releaseWorktreeFork()
-	return m.CreateAccepted(ctx, opts)
+	return m.CreateAccepted(ctx, &(opts))
 }
 
 func (s *Session) reserveWorktreeFork() error {

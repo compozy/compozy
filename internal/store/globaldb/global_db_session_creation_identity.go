@@ -15,9 +15,11 @@ import (
 // RegisterSessionWithCreationIdentity atomically creates or refreshes one identity-matched session.
 func (g *SessionRepo) RegisterSessionWithCreationIdentity(
 	ctx context.Context,
-	session store.SessionInfo,
+	sessionInput *store.SessionInfo,
 	identity store.SessionCreationIdentity,
 ) (store.SessionCreationRegistration, error) {
+	session := *sessionInput
+
 	if err := g.checkReady(ctx, "register session with creation identity"); err != nil {
 		return store.SessionCreationRegistration{}, err
 	}
@@ -40,7 +42,7 @@ func (g *SessionRepo) RegisterSessionWithCreationIdentity(
 		Identity:  identity,
 	}
 	err := g.withImmediateTransaction(ctx, "register session creation identity", func(exec globalSQLExecutor) error {
-		created, err := g.registerSessionCreationTx(ctx, exec, normalized, identity)
+		created, err := g.registerSessionCreationTx(ctx, exec, &(normalized), identity)
 		registration.Created = created
 		return err
 	})
@@ -55,9 +57,11 @@ func (g *SessionRepo) RegisterSessionWithCreationIdentity(
 func (g *SessionRepo) registerSessionCreationTx(
 	ctx context.Context,
 	exec globalSQLExecutor,
-	normalized store.SessionInfo,
+	normalizedInput *store.SessionInfo,
 	identity store.SessionCreationIdentity,
 ) (bool, error) {
+	normalized := *normalizedInput
+
 	storedWorkspace, storedState, storedIdentity, found, err := readSessionCreationIdentity(
 		ctx,
 		exec,
@@ -74,7 +78,7 @@ func (g *SessionRepo) registerSessionCreationTx(
 			if storedIdentity != identity {
 				return false, sessionCreationIdentityMismatch(normalized.ID)
 			}
-			if err := g.admitSessionRegistration(ctx, exec, normalized); err != nil {
+			if err := g.admitSessionRegistration(ctx, exec, &(normalized)); err != nil {
 				return false, fmt.Errorf("store: refresh identity-matched session %q: %w", normalized.ID, err)
 			}
 			return false, nil
@@ -84,7 +88,7 @@ func (g *SessionRepo) registerSessionCreationTx(
 		}
 	}
 
-	if err := g.admitSessionRegistration(ctx, exec, normalized); err != nil {
+	if err := g.admitSessionRegistration(ctx, exec, &(normalized)); err != nil {
 		return false, fmt.Errorf("store: register or bind identity-bound session %q: %w", normalized.ID, err)
 	}
 	affected, err := sqlcgen.New(exec).SetSessionCreationIdentity(

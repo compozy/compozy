@@ -20,6 +20,7 @@ func (s *ManagedWakeService) currentTime() time.Time {
 
 func normalizeWakeRequest(req WakeRequest) (WakeRequest, error) {
 	normalized := WakeRequest{
+		ProfileID:            strings.TrimSpace(req.ProfileID),
 		WorkspaceID:          strings.TrimSpace(req.WorkspaceID),
 		AgentName:            strings.TrimSpace(req.AgentName),
 		SessionID:            strings.TrimSpace(req.SessionID),

@@ -1145,16 +1145,46 @@ describe("session actions", () => {
       expect(result.current.processDialog.processCount).toBe(0);
     });
 
-    it("does not archive when the child sessions cannot be read", async () => {
-      vi.mocked(listSessionDescendants).mockRejectedValue(new Error("Read failed"));
-      const { result } = renderHook(() => useSessionLifecycleActions(), {
-        wrapper: createWrapper(treeClient()),
-      });
-      act(() => result.current.actions.onArchive(createdSession));
-      await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Read failed"));
-      expect(archiveSession).not.toHaveBeenCalled();
-      expect(result.current.processDialog.open).toBe(false);
-    });
+    // Invariant: failed tree discovery blocks mutation and offers a retry with a fresh count.
+    // Owner and canonical suite: session lifecycle action hooks.
+    it.each(["archive", "delete"] as const)(
+      "retries a failed child read before %s",
+      async action => {
+        vi.mocked(listSessionDescendants).mockRejectedValue(new Error("Read failed"));
+        const { result } = renderHook(() => useSessionLifecycleActions(), {
+          wrapper: createWrapper(treeClient()),
+        });
+        act(() =>
+          action === "archive"
+            ? result.current.actions.onArchive(createdSession)
+            : result.current.actions.onDelete(createdSession)
+        );
+        const dialog = () =>
+          action === "archive" ? result.current.processDialog : result.current.deleteDialog;
+        await waitFor(() => expect(dialog().childSessions?.onRetryRead).toBeDefined());
+        expect(dialog().open).toBe(true);
+        expect(dialog().childSessions?.pending).toBe(true);
+        act(() =>
+          action === "archive"
+            ? result.current.processDialog.onChoose()
+            : result.current.deleteDialog.onConfirm()
+        );
+        expect(archiveSession).not.toHaveBeenCalled();
+        expect(deleteSession).not.toHaveBeenCalled();
+        vi.mocked(listSessionDescendants).mockResolvedValue([child]);
+        act(() => dialog().childSessions?.onRetryRead?.());
+        await waitFor(() => expect(dialog().childSessions?.pending).toBe(false));
+        expect(dialog().childSessions?.count).toBe(1);
+        act(() =>
+          action === "archive"
+            ? result.current.processDialog.onChoose()
+            : result.current.deleteDialog.onConfirm()
+        );
+        await waitFor(() =>
+          expect(action === "archive" ? archiveSessionTree : deleteSession).toHaveBeenCalledOnce()
+        );
+      }
+    );
 
     it("notifies only the children the daemon actually archived", async () => {
       const stayed = { ...createdSession, id: "sess-stayed" };

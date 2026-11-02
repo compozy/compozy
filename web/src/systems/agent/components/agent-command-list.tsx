@@ -3,13 +3,14 @@ import type { ReactNode } from "react";
 import { CommandEmpty, CommandItem, CommandList, CommandSelectGroup, Eyebrow } from "@compozy/ui";
 
 import { AgentCommandListSkeleton } from "./agent-command-list-skeleton";
-import { AgentIcon } from "./agent-icon";
+import { AgentMark } from "./agent-mark";
 import {
   buildAgentCategoryTree,
   formatCategoryLabel,
   type AgentCategoryFolderNode,
   type AgentCategoryNode,
 } from "../lib/agent-category";
+import { agentIdentityOf } from "../lib/agent-identity";
 import type { AgentPayload } from "../types";
 
 const ROOT_GROUP_HEADING = "Agents";
@@ -99,6 +100,7 @@ export function AgentCommandList({
           {group.agents.map(agent => {
             const selected = isSelected(agent);
             const categoryLabel = formatCategoryLabel(agent.category_path);
+            const identity = agentIdentityOf(agent);
             return (
               <CommandItem
                 key={agent.name}
@@ -108,13 +110,15 @@ export function AgentCommandList({
                 data-testid={itemTestId ? itemTestId(agent) : `agent-command-item-${agent.name}`}
               >
                 <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <AgentIcon
-                    className="shrink-0"
-                    provider={agent.provider}
-                    size="xs"
-                    tone="muted"
+                  <AgentMark
+                    aria-hidden="true"
+                    appearance={identity.appearance}
+                    label={identity.label}
+                    quietIdle
+                    size={16}
+                    state="unknown"
                   />
-                  <span className="truncate text-small-body text-fg">{agent.name}</span>
+                  <span className="truncate text-small-body text-fg">{identity.label}</span>
                   <Eyebrow
                     className="text-muted-foreground"
                     data-testid={`agent-command-provider-${agent.name}`}
@@ -140,7 +144,7 @@ export function AgentCommandList({
 }
 
 function agentSearchKey(agent: AgentPayload, categoryLabel: string): string {
-  const segments = [agent.name, agent.provider];
+  const segments = [agent.name, agentIdentityOf(agent).label, agent.provider];
   if (categoryLabel) segments.push(categoryLabel);
   return segments.join(" ");
 }

@@ -253,7 +253,7 @@ func TestWaitingBadgePrecedenceAndReasons(t *testing.T) {
 			signals := []WorkSignal{{Kind: WorkSignalKind(kind)}}
 			want := WaitingOnSessions
 			switch WorkSignalKind(kind) {
-			case WorkSignalAgentProgress, WorkSignalToolRunning:
+			case WorkSignalAgentProgress, WorkSignalToolRunning, WorkSignalHeldPermission:
 				want = ""
 			case WorkSignalScheduledWait, WorkSignalActiveMonitor:
 				want = WaitingOnMonitor

@@ -316,3 +316,65 @@ assertion passed in 0.880 s. Scoped canonical GlobalDB lint passed both normal a
 integration-tag lanes with zero issues (`pr-error-type-go-lint.log`). Production and
 benchmark sources remain byte-identical to `bfb1cc476`; their completed focused evidence
 is reused, while CI must still validate the newly published head.
+
+## Main integration and expanded coverage
+
+All 27 jobs in [CI run 41405892390](https://github.com/compozy/compozy/actions/runs/41405892390)
+passed on `e62862f48362b9cc6da311df0078b0be914a5734`. The repository-pinned React Doctor,
+catalog and marketplace-public-source workflows also passed. Greptile's summary explicitly
+reviewed that head at confidence 5/5, and all 19 existing inline threads had dispositions.
+These are historical receipts: main then advanced to `8c025ff8fdd3a9a79e4f0e63f54b3bd144a4773b`,
+so final acceptance requires a fresh run on the integrated PR head.
+
+The integration preserves both histories and all prior performance commits. Main adds
+Stays-on agents and identity across 1,586 files. There were 25 paths changed by both branches
+and two textual conflicts, both in existing tests. Both branches' assertions were retained:
+session catalog scope/relations plus instance-main exclusion, and GlobalDB board benchmarks
+plus pending-interaction descendants. The session registration fixture now supplies the
+incoming pointer argument. No assertion or test deadline was relaxed.
+
+The [coverage matrix](coverage.md) now enumerates **197 Go-containing directories**
+(7,301 Go files) and **28 frontend systems** (3,832 tracked files). These include the new
+`agentinstance` and `agentmemory` packages. All ten original owners reviewed their incoming
+deltas, covering 43 Go directories and 12 systems changed by main. Each owner report records
+source dispositions, focused canonical checks, and limitations. The inventory's file counts,
+file-list SHA-256 digests and report links were checked against the actual tracked paths.
+Source inspection, generated-file inventory and executed behavior remain distinct evidence.
+
+The new upstream instance/memory contracts, migrations and identity dependencies remain
+owned by that main commit. Static observations about its full-page hydration, identity
+observers, and scope placeholders are documented in the relevant reports; this integration
+does not claim to have optimized or recertified every new Stays-on journey. The original
+benchmark tables remain historical. Explicit main-to-merged comparisons use an immutable
+external archive and identical overlaid fixtures, with no production edits to the baseline.
+
+Root integration checks run through the serialized two-CPU runner:
+
+- Repository-pinned Bun 1.4.0 frozen installation passed. `make codegen-check` passed,
+  including generated SQLC/contracts/SDKs, native manifests, CLI/site parity and visual
+  generated assets (`main-integration-codegen-check.log`). No generated output was hand-edited.
+- Root Turbo `lint typecheck build` filtered to Web, client SDK and UI with `--only` passed
+  eight tasks (two cached) in 38.213 s (`main-integration-frontend-build.log`). Lint had zero warnings/errors;
+  existing Vite CSS, bundle-size and plugin-timing diagnostics remain in the build receipt.
+- The incoming Dashboard Activity view requires a router. Its existing eight-case window
+  fixture now uses the established real memory-router provider; the same assertions pass
+  without the missing-provider warning. No console diagnostic was suppressed.
+- The first scoped session lint exposed `infoLocked` growing from the combined snapshot
+  fields to 82 lines against the existing 80-line limit. This failed receipt is retained
+  separately; the integration extracts the coherent capability snapshot block and rechecks
+  behavior and allocations instead of relaxing the rule.
+  The final canonical Info race check passed in 2.914 s; all four benchmark byte/allocation
+  medians were unchanged. Scoped canonical session lint then passed both normal and integration
+  lanes with zero issues (`session-os/main8c-info-refactor-lint.txt`).
+- Root Turbo Web typecheck passed again uncached in 4.402 s after the router fixture repair
+  (`main-integration-final-web-types.log`).
+- The combined-source browser walk completed 64/64 selections, eight 600-chunk streams and
+  both teardowns, with zero errors (`main-integration-browser.log`). The [browser report](browser.md)
+  records exact inputs and its limit: it preceded the final behavior-preserving Go helper
+  extraction; final-head CI owns the committed runtime/Web acceptance.
+
+The incoming frontend CI job timeout increases from 35 to 45 minutes in main itself.
+The performance delta relative to that main changes only the runtime artifact uploader path
+in the workflow; it does not introduce that timeout change. Full local `make gate` and
+`make gate-full` remain unrun under the user's explicit CI authorization. The PR delivery
+record owns the exact final head, live checks and clean-worktree receipt.

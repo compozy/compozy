@@ -7506,11 +7506,11 @@ func seedLoopCancellationBindingForTest(
 ) {
 	t.Helper()
 	ctx := testutil.Context(t)
-	if err := globalDB.RegisterSession(ctx, storepkg.SessionInfo{
+	if err := globalDB.RegisterSession(ctx, new(storepkg.SessionInfo{
 		ProfileID: storepkg.DefaultProfileID,
 		ID:        sessionID, AgentName: "codex", RuntimeStatus: storepkg.SessionRuntimeUnbound,
 		WorkspaceID: workspaceID, State: "active", CreatedAt: at, UpdatedAt: at,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(cancellation) error = %v", err)
 	}
 	if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_session_bindings (
@@ -7535,7 +7535,7 @@ func seedLoopTaskRunSessionForTest(
 ) {
 	t.Helper()
 	ctx := testutil.Context(t)
-	if err := globalDB.RegisterSession(ctx, storepkg.SessionInfo{
+	if err := globalDB.RegisterSession(ctx, new(storepkg.SessionInfo{
 		ProfileID:     storepkg.DefaultProfileID,
 		ID:            sessionID,
 		AgentName:     "codex",
@@ -7544,7 +7544,7 @@ func seedLoopTaskRunSessionForTest(
 		State:         "active",
 		CreatedAt:     at,
 		UpdatedAt:     at,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(task run cancellation) error = %v", err)
 	}
 	if _, err := globalDB.db.ExecContext(

@@ -103,7 +103,7 @@ describe("AttentionBell sections", () => {
     expect(screen.getByTestId("os-bell-needs-you")).toBeInTheDocument();
     expect(screen.queryByTestId("os-bell-finished")).not.toBeInTheDocument();
     expect(screen.getByText("compozy")).toBeInTheDocument();
-    expect(screen.getByText("claude — Should I drop the legacy column?")).toBeInTheDocument();
+    expect(screen.getByText("Claude — Should I drop the legacy column?")).toBeInTheDocument();
   });
 
   it("Should wait in one busy region instead of saying all quiet while notifications load", () => {
@@ -278,7 +278,7 @@ describe("AttentionBell sections", () => {
 
     const row = screen.getByTestId(`os-attention-terminal-input-${TERMINAL_INPUT.id}`);
     expect(row).toHaveTextContent("Password requested");
-    expect(row).toHaveTextContent("claude-code — I need the staging database password");
+    expect(row).toHaveTextContent("Claude Code — I need the staging database password");
     expect(row).toHaveTextContent("atlas");
     expect(within(row).getByRole("time")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /open terminal/i })).not.toBeInTheDocument();

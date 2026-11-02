@@ -428,12 +428,17 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 			beta := descriptorWithID(ToolIDToolList, "List tools")
 			hidden := validDescriptor()
 			firstCalls, secondCalls := 0, 0
+			diagnostics := false
 			available := false
 			first := &projectionAvailabilityTestProvider{
 				registryTestProvider: providerWithDescriptors(alpha.Source, alpha, hidden),
 				availability: func(_ context.Context, scope Scope, ids []ToolID) map[ToolID]Availability {
 					firstCalls++
-					if scope.SessionID != "session-batch" || !slices.Equal(ids, []ToolID{alpha.ID}) {
+					expected := []ToolID{alpha.ID}
+					if diagnostics {
+						expected = []ToolID{hidden.ID, alpha.ID}
+					}
+					if scope.SessionID != "session-batch" || !slices.Equal(ids, expected) {
 						t.Fatalf("first provider batch scope = %#v, IDs = %#v", scope, ids)
 					}
 					return map[ToolID]Availability{alpha.ID: Available()}
@@ -473,12 +478,20 @@ func TestRuntimeRegistryProjections(t *testing.T) {
 			if firstCalls != 2 || secondCalls != 2 {
 				t.Fatalf("provider batch calls = %d, %d; want 2 each", firstCalls, secondCalls)
 			}
+			// Invariant: session diagnostics batch providers without changing operator diagnostic semantics.
+			// Owner: tool projections; canonical suite: TestRuntimeRegistryProjections.
+			diagnostics = true
+			views, err = registry.DiagnosticProjection(t.Context(), scope)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireToolIDs(t, views, alpha.ID, beta.ID, hidden.ID)
 			views, err = registry.OperatorProjection(t.Context(), Scope{Operator: true})
 			if err != nil {
 				t.Fatal(err)
 			}
 			requireToolIDs(t, views, alpha.ID, beta.ID, hidden.ID)
-			if firstCalls != 2 || secondCalls != 2 {
+			if firstCalls != 3 || secondCalls != 3 {
 				t.Fatal("operator diagnostics used session-only availability batches")
 			}
 		},

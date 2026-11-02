@@ -145,6 +145,8 @@ type DeleteProfileResponse struct {
 
 // ProfileRemovalSummary counts resources removed with a profile.
 type ProfileRemovalSummary struct {
+	AgentInstances      int `json:"agent_instances"`
+	AgentMemoryFiles    int `json:"agent_memory_files"`
 	Agents              int `json:"agents"`
 	Skills              int `json:"skills"`
 	Loops               int `json:"loops"`

@@ -207,8 +207,8 @@ func loopEntityCatalogChoices(
 			return nil, err
 		}
 		values := make([]string, 0, len(items))
-		for _, item := range items {
-			values = append(values, item.Name)
+		for index := range items {
+			values = append(values, items[index].Name)
 		}
 		return sortedUniqueStrings(values), nil
 	case dsl.EntityKindSkill:

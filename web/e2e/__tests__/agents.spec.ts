@@ -5,6 +5,7 @@ import { ensureAppWindow, openAppWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -66,23 +67,18 @@ test.describe("seeded agent detail", () => {
       await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/agent-detail-primary");
 
       await expect(appPage.getByTestId("agent-detail-page")).toBeVisible();
-      await expect(
-        appPage.getByRole("heading", { level: 1, name: "agent-detail-primary" })
-      ).toBeVisible();
-      await expect(appPage.getByTestId("agent-detail-tabs")).toBeVisible();
-      await expect(appPage.getByTestId("agent-overview-tab")).toBeVisible();
-      await expect(appPage.getByTestId("agent-stats-grid")).not.toContainText(
-        String.fromCharCode(0x2014)
+      await expect(appPage.getByTestId("agent-detail-header-name")).toHaveText(
+        "Agent Detail Primary"
       );
+      await expect(appPage.getByTestId("agent-profile-kind")).toHaveText("On demand");
+      await expect(appPage.getByTestId("agent-setup-check-ins")).toHaveCount(0);
 
-      await appPage.getByTestId("agent-tab-configuration").click();
-      await expect.poll(() => new URL(appPage.url()).searchParams.get("tab")).toBe("configuration");
-      await expect(appPage.getByTestId("agent-configuration-tab")).toBeVisible();
+      await appPage.getByTestId("agent-setup-tools").click();
+      await expect.poll(() => new URL(appPage.url()).searchParams.get("panel")).toBe("tools");
+      await expect(appPage.getByTestId("agent-profile-panel")).toBeVisible();
       await expect(appPage.getByTestId("agent-mcp-empty")).toBeVisible();
-
-      await appPage.getByTestId("agent-tab-sessions").click();
-      await expect.poll(() => new URL(appPage.url()).searchParams.get("tab")).toBe("sessions");
-      await expect(appPage.getByTestId("agent-sessions-empty")).toBeVisible();
+      await appPage.keyboard.press("Escape");
+      await expect(appPage.getByTestId("agent-profile-panel")).toHaveCount(0);
 
       await fleet.agentPageNewSession.click();
       const trigger = appPage.getByTestId("session-create-agent-select");
@@ -92,7 +88,7 @@ test.describe("seeded agent detail", () => {
       const secondary = appPage.getByTestId("agent-command-item-agent-detail-secondary");
       await expect(secondary).toBeVisible();
       await secondary.click();
-      await expect(trigger).toContainText("agent-detail-secondary");
+      await expect(trigger).toContainText(humanizeAgentSlug("agent-detail-secondary"));
 
       await trigger.click();
       await expect(secondary).toHaveAttribute("data-checked", "true");
@@ -120,7 +116,7 @@ test.describe("seeded agent detail", () => {
       await expect(appPage.getByTestId("agent-create-dialog")).toHaveCount(0);
     });
 
-    await test.step("operator edits agent settings, saves, and returns to overview", async () => {
+    await test.step("operator renames an agent in place and the slug stays", async () => {
       await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
       const ui = sessionLifecycleSelectors(appPage);
       await completeOnboardingIfPrompted(ui);
@@ -129,44 +125,25 @@ test.describe("seeded agent detail", () => {
       await fleet.agentRow("agent-detail-primary").click();
       await expect(appPage.getByTestId("agent-detail-page")).toBeVisible();
 
-      await appPage.getByTestId("agent-page-overflow").click();
-      await appPage.getByTestId("agent-page-edit-settings").click();
-      await expect
-        .poll(() => new URL(appPage.url()).pathname)
-        .toBe("/agents/agent-detail-primary/settings");
-      await expect(appPage.getByTestId("agent-settings-page")).toBeVisible();
-      await expect(appPage.getByTestId("agent-settings-basics")).toBeVisible();
-      await expect(appPage.getByTestId("agent-settings-name")).toHaveAttribute("readonly");
-
-      await appPage.getByTestId("agent-settings-nav-instructions").click();
-      await expect
-        .poll(() => new URL(appPage.url()).searchParams.get("section"))
-        .toBe("instructions");
-      const prompt = appPage.getByTestId("agent-settings-prompt");
-      await prompt.fill("Updated prompt for settings journey.");
-      await expect(appPage.getByTestId("agent-settings-unsaved")).toBeVisible();
-      await expect(appPage.getByTestId("agent-settings-save")).toBeEnabled();
-
-      await appPage.evaluate(() => window.history.back());
-      await expect(appPage.getByTestId("unsaved-guard-dialog")).toBeVisible();
-      await appPage.getByTestId("unsaved-guard-keep-editing").click();
-      await expect
-        .poll(() => new URL(appPage.url()).pathname)
-        .toBe("/agents/agent-detail-primary/settings");
-      await expect(prompt).toHaveValue("Updated prompt for settings journey.");
-
+      await appPage.getByRole("button", { name: /^Edit name:/ }).click();
       const saveResponse = appPage.waitForResponse(
         response =>
           response.request().method() === "PUT" &&
           response.url().includes("/api/agents/agent-detail-primary")
       );
-      await appPage.getByRole("button", { name: "Save changes" }).click();
+      await appPage.getByRole("textbox", { name: "Name" }).fill("Primary Captain");
+      await appPage.keyboard.press("Enter");
       expect((await saveResponse).ok()).toBe(true);
-      await expect(appPage.getByTestId("agent-settings-unsaved")).toHaveCount(0);
-
-      await appPage.getByRole("button", { name: "Close settings" }).click();
+      await expect(appPage.getByTestId("agent-detail-header-name")).toHaveText("Primary Captain");
       await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/agent-detail-primary");
-      await expect(appPage.getByTestId("agent-overview-tab")).toBeVisible();
+    });
+
+    await test.step("an old settings link opens its side panel", async () => {
+      await appPage.goto(runtime.url("/agents/agent-detail-primary/settings?section=runtime"), {
+        waitUntil: "domcontentloaded",
+      });
+      await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
+      await expect(appPage.getByTestId("agent-profile-panel")).toBeVisible();
     });
 
     await test.step("operator creates an agent with a persisted model and reasoning default", async () => {
@@ -199,7 +176,10 @@ test.describe("seeded agent detail", () => {
       await expect(runtimeTrigger).toContainText(reasoningCatalogModelLabel);
       await expect(runtimeTrigger).toContainText("High");
 
-      await appPage.getByTestId("agent-create-prompt").fill("Keep runtime selection truthful.");
+      await appPage
+        .getByTestId("agent-create-prompt")
+        .locator('[contenteditable="true"]')
+        .fill("Keep runtime selection truthful.");
 
       const createRequestPromise = appPage.waitForRequest(
         request => request.method() === "POST" && new URL(request.url()).pathname === "/api/agents"
@@ -250,7 +230,7 @@ test.describe("seeded agent detail", () => {
       });
     });
 
-    await test.step("operator deletes an agent from settings basics with typed confirm", async () => {
+    await test.step("operator deletes an agent from the overflow with typed confirm", async () => {
       await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
       const ui = sessionLifecycleSelectors(appPage);
       await completeOnboardingIfPrompted(ui);
@@ -258,8 +238,7 @@ test.describe("seeded agent detail", () => {
       const fleet = sessionLifecycleSelectors(agentsWin);
       await fleet.agentRow("agent-detail-secondary").click();
       await appPage.getByTestId("agent-page-overflow").click();
-      await appPage.getByTestId("agent-page-edit-settings").click();
-      await appPage.getByTestId("agent-settings-delete").click();
+      await appPage.getByTestId("agent-page-delete").click();
       await expect(appPage.getByTestId("agent-delete-dialog")).toBeVisible();
       await expect(appPage.getByTestId("agent-delete-confirm")).toBeDisabled();
       await appPage.getByTestId("agent-delete-confirm-typing").fill("agent-detail-secondary");
@@ -293,7 +272,7 @@ test.describe("fleet scan journey", () => {
     },
   });
 
-  test("operator lands on /agents, searches, filters by category, clears, and opens an agent", async ({
+  test("operator lands on /agents, searches, filters by maker, clears, and opens an agent", async ({
     appPage,
   }) => {
     const ui = sessionLifecycleSelectors(appPage);
@@ -305,13 +284,12 @@ test.describe("fleet scan journey", () => {
     await expect(fleet.agentRow("fleet-release")).toBeVisible();
     await expect(fleet.agentRow("fleet-ops")).toBeVisible();
 
-    await appPage.getByTestId("listing-view-cards").click();
-    await expect.poll(() => new URL(appPage.url()).searchParams.get("view")).toBe("cards");
-    await expect(appPage.getByTestId("agent-fleet-card-grid")).toBeVisible();
-    await expect(appPage.getByTestId("agent-fleet-card-fleet-release")).toBeVisible();
+    await expect(appPage.getByTestId("agents-section-on-demand")).toBeVisible();
     await appPage.getByTestId("listing-view-rows").click();
-    await expect.poll(() => new URL(appPage.url()).searchParams.get("view")).toBeNull();
+    await expect.poll(() => new URL(appPage.url()).searchParams.get("view")).toBe("rows");
     await expect(fleet.agentRow("fleet-release")).toBeVisible();
+    await appPage.getByTestId("listing-view-cards").click();
+    await expect.poll(() => new URL(appPage.url()).searchParams.get("view")).toBeNull();
 
     await appPage.getByTestId("agent-fleet-search").fill("release");
     await expect.poll(() => new URL(appPage.url()).searchParams.get("q")).toBe("release");
@@ -320,11 +298,9 @@ test.describe("fleet scan journey", () => {
 
     const search = appPage.getByTestId("agent-fleet-search");
     await appPage.getByTestId("agent-fleet-filters-add").click();
-    await appPage.getByRole("option", { name: "Category" }).click();
-    await appPage.getByRole("option", { name: "Engineering / Release" }).click();
-    await expect
-      .poll(() => new URL(appPage.url()).searchParams.get("category"))
-      .toBe("Engineering / Release");
+    await appPage.getByRole("option", { name: "Made by" }).click();
+    await appPage.getByRole("option", { name: "An extension" }).click();
+    await expect.poll(() => new URL(appPage.url()).searchParams.get("owner")).toBe("extension");
 
     await search.fill("ops");
     await expect(search).toHaveValue("ops");

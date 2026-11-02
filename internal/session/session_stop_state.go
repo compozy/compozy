@@ -18,6 +18,9 @@ func (s *Session) beginPromptSetup() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.rotationSuperseded {
+		return store.ErrSessionSuperseded
+	}
 	if s.State != StateActive {
 		return fmt.Errorf("%w: %s", ErrSessionNotActive, s.ID)
 	}
@@ -51,6 +54,9 @@ func (s *Session) beginExclusivePromptSetup() (*AgentProcess, error) {
 }
 
 func (s *Session) beginExclusivePromptSetupLocked() (*AgentProcess, error) {
+	if s.rotationSuperseded {
+		return nil, store.ErrSessionSuperseded
+	}
 	if s.worktreeTransition != nil && s.worktreeTransition.Pending {
 		return nil, ErrRecoveryPersistence
 	}

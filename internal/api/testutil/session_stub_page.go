@@ -10,7 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 )
 
-func (s StubSessionManager) ListForWorkspace(ctx context.Context, workspaceID string) ([]*session.Info, error) {
+func (s *StubSessionManager) ListForWorkspace(ctx context.Context, workspaceID string) ([]*session.Info, error) {
 	if s.ListForWorkspaceFn != nil {
 		return s.ListForWorkspaceFn(ctx, workspaceID)
 	}

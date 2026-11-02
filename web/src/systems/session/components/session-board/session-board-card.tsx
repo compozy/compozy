@@ -3,6 +3,7 @@ import { Checkbox } from "@compozy/ui";
 import { cn } from "@/lib/utils";
 
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
+import { useSessionCreator } from "../../hooks/use-session-creator";
 import { useSessionEntryPreload } from "../../hooks/use-session-entry-preload";
 import { useSessionRowRuntimeLabel } from "../../hooks/use-session-row-runtime-label";
 import { useSessionHasDraft } from "../../hooks/use-session-store";
@@ -11,6 +12,7 @@ import type { SessionBoardPayload } from "../../lib/session-board-contract";
 import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { SessionRowActions } from "../session-row-actions";
 import { SessionRowContextMenu } from "../session-row-context-menu";
+import { StaysOnCreatorBadge } from "../stays-on/stays-on-signals";
 import { SessionBoardCardView } from "./session-board-card-view";
 import { SessionsBoardSelectionMenu } from "./sessions-board-selection-menu";
 import { SESSION_BOARD_CARD_CHECKBOX } from "./sessions-board-frame";
@@ -100,10 +102,14 @@ function SessionBoardCardButton({
   // A click inside an open selection toggles, so it never warms the session's entry.
   const preloadHandlers = useSessionEntryPreload(props.session, !props.current && !selection?.mode);
   const runtime = useSessionRowRuntimeLabel(props.session);
+  const creator = useSessionCreator(props.session);
   const draft = useSessionHasDraft(props.session.id);
   return (
     <SessionBoardCardView
       {...props}
+      creatorBadge={
+        creator ? <StaysOnCreatorBadge creator={creator} surface="ring-card" /> : undefined
+      }
       {...preloadHandlers}
       onActivate={
         selection

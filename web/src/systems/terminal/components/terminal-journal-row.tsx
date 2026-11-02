@@ -11,6 +11,9 @@ import {
   TooltipTrigger,
 } from "@compozy/ui";
 
+import { AgentMark } from "@/systems/agent/components/agent-mark";
+import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
+
 import { terminalApprovalCopy, terminalExitCopy } from "../lib/terminal-copy";
 import { terminalJournalActorLabel } from "../lib/terminal-journal-actor";
 import { formatTerminalJournalClock } from "../lib/terminal-journal-clock";
@@ -37,6 +40,34 @@ export interface TerminalJournalRowProps {
  * beneath it. Everything else is an attribute. Rows are calm at rest — the one
  * warning on this screen marks a guess, never a failure.
  */
+/** An id that is a machine id has no agent to name, so the kind label keeps standing in. */
+function TerminalJournalActor({ actor }: { actor: TerminalJournalEntry["actor"] }) {
+  const identity = useAgentIdentityView(actor.id);
+  const label = terminalJournalActorLabel(actor);
+  if (actor.kind !== "agent") {
+    return (
+      <>
+        <OwnerAvatar name={label} ownerId={actor.id} ownerKind={actor.kind} size="sm" />
+        <span className="truncate text-form-input text-fg">{label}</span>
+      </>
+    );
+  }
+  return (
+    <>
+      <AgentMark
+        appearance={identity.appearance}
+        label={identity.known ? identity.label : label}
+        quietIdle
+        size={20}
+        state="unknown"
+      />
+      <span className="truncate text-form-input text-fg">
+        {identity.known ? identity.label : label}
+      </span>
+    </>
+  );
+}
+
 export function TerminalJournalRow({
   entry,
   selected,
@@ -51,7 +82,6 @@ export function TerminalJournalRow({
     code: entry.exit_code,
     signal: entry.signal,
   });
-  const actorLabel = terminalJournalActorLabel(entry.actor);
   return (
     <TableRow
       aria-selected={selected}
@@ -91,13 +121,7 @@ export function TerminalJournalRow({
           {/* The actor's kind is the daemon's own: a system action is not a
               person, and folding it into `human` would put a face on the
               runtime. */}
-          <OwnerAvatar
-            name={actorLabel}
-            ownerId={entry.actor.id}
-            ownerKind={entry.actor.kind}
-            size="sm"
-          />
-          <span className="truncate text-form-input text-fg">{actorLabel}</span>
+          <TerminalJournalActor actor={entry.actor} />
           {showOwner ? (
             <Pill
               data-testid={`terminal-journal-owner-${entry.command_id}`}

@@ -44,7 +44,7 @@ func (b *loopActionSessionBinder) resolveEffectiveCreationProfile(
 	if err != nil {
 		return store.SessionCreationProfile{}, session.CreateOpts{}, nil, err
 	}
-	return b.validateLoopCreationProfile(ctx, req, pinnedProfileRef, opts, &resolution, materialized)
+	return b.validateLoopCreationProfile(ctx, req, pinnedProfileRef, &(opts), &resolution, materialized)
 }
 
 func (b *loopActionSessionBinder) resolvePinnedCreationProfile(
@@ -85,18 +85,20 @@ func (b *loopActionSessionBinder) resolvePinnedCreationProfile(
 	}
 	opts.CWD = pinnedCWD
 	opts.Worktree = pinnedWorktree
-	return b.validateLoopCreationProfile(ctx, req, pinnedProfileRef, opts, &resolution, nil)
+	return b.validateLoopCreationProfile(ctx, req, pinnedProfileRef, &(opts), &resolution, nil)
 }
 
 func (b *loopActionSessionBinder) validateLoopCreationProfile(
 	ctx context.Context,
 	req looppkg.ActionSessionBindRequest,
 	pinnedProfileRef string,
-	opts session.CreateOpts,
+	optsInput *session.CreateOpts,
 	resolution *loopSessionPolicyResolution,
 	materialized *worktree.Worktree,
 ) (store.SessionCreationProfile, session.CreateOpts, *worktree.Worktree, error) {
-	profile := profileFromPolicyResolution(opts, resolution)
+	opts := *optsInput
+
+	profile := profileFromPolicyResolution(&(opts), resolution)
 	profileRef, err := profile.Ref()
 	if err != nil {
 		return store.SessionCreationProfile{}, session.CreateOpts{}, nil,
@@ -130,7 +132,11 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 ) session.CreateOpts {
 	runtime := req.RuntimeValue()
 	opts := session.CreateOpts{
-		Origin:          workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: req.GrantCeiling},
+		Origin: workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAutomation,
+			ID:      string(req.LoopRunID),
+			Ceiling: req.GrantCeiling,
+		},
 		ProfileID:       strings.TrimSpace(req.ProfileID),
 		AgentName:       strings.TrimSpace(agent),
 		Provider:        strings.TrimSpace(runtime.Provider),
@@ -176,7 +182,9 @@ func validatePinnedRuntime(runtime looppkg.RuntimeSpec, profile store.SessionCre
 	return nil
 }
 
-func appliedRuntimeFromCreateOptions(opts session.CreateOpts) looppkg.RuntimeSpec {
+func appliedRuntimeFromCreateOptions(optsInput *session.CreateOpts) looppkg.RuntimeSpec {
+	opts := *optsInput
+
 	return looppkg.RuntimeSpec{
 		Provider:   strings.TrimSpace(opts.Provider),
 		Model:      strings.TrimSpace(opts.Model),
@@ -212,7 +220,11 @@ func createOptionsFromProfile(
 		AllowedToolsOverride: append([]string(nil), profile.AllowedTools...),
 		DeniedToolsOverride:  mergeLoopActionDeniedTools(profile.DeniedTools, loopActionTerminalTools()),
 		// A pinned recreation keeps the loop run's persisted grant ceiling (USW BR-9).
-		Origin: workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, Ceiling: req.GrantCeiling},
+		Origin: workspaceaccess.Origin{
+			Kind:    workspaceaccess.ActorAutomation,
+			ID:      string(req.LoopRunID),
+			Ceiling: req.GrantCeiling,
+		},
 	}
 	if profile.WorkspaceID == workspaceaccess.UserSelector {
 		opts.Scope = workspacepkg.ScopeUser
@@ -222,9 +234,11 @@ func createOptionsFromProfile(
 }
 
 func profileFromPolicyResolution(
-	opts session.CreateOpts,
+	optsInput *session.CreateOpts,
 	resolution *loopSessionPolicyResolution,
 ) store.SessionCreationProfile {
+	opts := *optsInput
+
 	permissions := strings.TrimSpace(string(opts.Permissions))
 	if permissions == "" {
 		permissions = strings.TrimSpace(resolution.agent.Permissions)
@@ -255,9 +269,11 @@ func profileFromPolicyResolution(
 
 func bindingCreationIdentity(
 	profile store.SessionCreationProfile,
-	opts session.CreateOpts,
+	optsInput *session.CreateOpts,
 	sessionID string,
 ) (store.SessionCreationIdentity, error) {
+	opts := *optsInput
+
 	profileRef, err := profile.Ref()
 	if err != nil {
 		return store.SessionCreationIdentity{}, err
@@ -266,7 +282,7 @@ func bindingCreationIdentity(
 	if err != nil {
 		return store.SessionCreationIdentity{}, err
 	}
-	creationDigest, err := profile.CreationDigest(bindingCreationOptions(opts, sessionID))
+	creationDigest, err := profile.CreationDigest(bindingCreationOptions(&(opts), sessionID))
 	if err != nil {
 		return store.SessionCreationIdentity{}, err
 	}
@@ -277,7 +293,9 @@ func bindingCreationIdentity(
 	}, nil
 }
 
-func bindingCreationOptions(opts session.CreateOpts, sessionID string) store.SessionCreationOptions {
+func bindingCreationOptions(optsInput *session.CreateOpts, sessionID string) store.SessionCreationOptions {
+	opts := *optsInput
+
 	return store.SessionCreationOptions{
 		SessionID: strings.TrimSpace(sessionID),
 		Name:      opts.Name,

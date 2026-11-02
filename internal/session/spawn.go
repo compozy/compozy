@@ -113,9 +113,10 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 		}
 	}
 
-	child, err := m.Create(ctx, CreateOpts{
+	child, err := m.Create(ctx, new(CreateOpts{
 		Origin: workspaceaccess.Origin{
 			Kind:    workspaceaccess.ActorAgentSession,
+			ID:      parent.ID,
 			Ceiling: parent.EffectiveWorkspaceAccess,
 		},
 		DesiredSessionID:    desiredID,
@@ -140,7 +141,7 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 		Command:             normalized.Command,
 		SessionEnv:          compozyconfig.MergeSessionEnv(nil, normalized.SessionEnv),
 		ChainOwner:          normalized.ChainOwner,
-	})
+	}))
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +162,9 @@ func (m *Manager) prepareSpawn(
 	parent, err := m.spawnParent(ctx, normalized.ParentSessionID)
 	if err != nil {
 		return SpawnOpts{}, nil, nil, err
+	}
+	if parent.Type == SessionTypeTriage {
+		return SpawnOpts{}, nil, nil, acp.ErrPermissionDenied
 	}
 	if normalized.SpawnRole == store.SubagentSpawnRole {
 		if err := m.validateSubagentSpawn(parent, &normalized); err != nil {

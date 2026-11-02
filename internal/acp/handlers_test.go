@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -505,17 +506,21 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 		}
 		for _, event := range collectEventsUntilCount(t, active.events, 8) {
 			if event.Type != EventTypePermission || event.Decision != "canceled" ||
-				event.ResolvedByValue() != "system" || event.RequestIDValue() == "" {
+				event.ResolvedByValue() != "provider" || event.RequestIDValue() == "" {
 				t.Fatalf("connection death event = %#v, want attributed terminal cancellation", event)
 			}
 		}
 	})
 	for _, test := range []struct {
-		name  string
-		cause error
+		name   string
+		cause  error
+		native bool
+		actor  string
 	}{
-		{name: "Should close the permission event when the caller cancels", cause: context.Canceled},
-		{name: "Should close the permission event when the caller deadline expires", cause: context.DeadlineExceeded},
+		{name: "Should close the permission event when the caller cancels", cause: context.Canceled, actor: "provider"},
+		{name: "Should close the permission event when the caller deadline expires", cause: context.DeadlineExceeded, actor: "provider"},
+		{name: "Should attribute native approval deadlines to timeout", cause: context.DeadlineExceeded, native: true, actor: "timeout"},
+		{name: "Should preserve system attribution for a canceled native approval", cause: context.Canceled, native: true, actor: "system"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
@@ -529,7 +534,13 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 			defer cancel(context.Canceled)
 			result := make(chan error, 1)
 			go func() {
-				response, err := proc.handleRequestPermission(ctx, request)
+				var response acpsdk.RequestPermissionResponse
+				var err error
+				if test.native {
+					response, err = proc.RequestPermission(ctx, request)
+				} else {
+					response, err = proc.handleRequestPermission(ctx, request)
+				}
 				if err == nil &&
 					response.Outcome.Cancelled == nil { //nolint:misspell // ACP SDK field uses British spelling.
 					err = errors.New("permission did not return a canceled outcome")
@@ -545,7 +556,7 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 				t.Fatal(err)
 			}
 			terminal := collectEventsUntilCount(t, active.events, 1)[0]
-			if terminal.Decision != "canceled" || terminal.ResolvedByValue() != "system" ||
+			if terminal.Decision != "canceled" || terminal.ResolvedByValue() != test.actor ||
 				terminal.RequestIDValue() != pending.RequestIDValue() {
 				t.Fatalf("terminal permission = %#v, want cancellation of %q", terminal, pending.RequestIDValue())
 			}
@@ -556,8 +567,76 @@ func TestPermissionBoundsAndConnectionDeath(t *testing.T) {
 	}
 }
 
+func TestPermissionExpiryOwnership(t *testing.T) {
+	for _, operatorFirst := range []bool{false, true} {
+		name := "Should reject answers after expiry wins"
+		if operatorFirst {
+			name = "Should preserve an operator answer that wins before expiry"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+			id, pending, err := proc.registerPendingPermission("turn", acpsdk.RequestPermissionRequest{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			answer := ApproveRequest{RequestID: id, Decision: string(decisionAllowOnce)}
+			if operatorFirst {
+				if err := proc.ResolvePermission(answer); err != nil {
+					t.Fatal(err)
+				}
+			}
+			decision, actor := proc.expirePendingPermission(pending, decisionRejectOnce, "timeout")
+			if operatorFirst {
+				if decision != decisionAllowOnce || actor != "operator" {
+					t.Fatalf("winner = %s/%s", decision, actor)
+				}
+			} else if decision != decisionRejectOnce || actor != "timeout" {
+				t.Fatalf("winner = %s/%s", decision, actor)
+			}
+			if err := proc.ResolvePermission(answer); !errors.Is(err, ErrPendingPermissionNotFound) {
+				t.Fatalf("late answer = %v", err)
+			}
+		})
+	}
+}
+
 func TestHandleInboundPermissionRequestTimeout(t *testing.T) {
 	t.Parallel()
+	t.Run("Should close expiry without a provider rejection option", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		proc.permissionTimeout = time.Nanosecond
+		active, err := proc.beginPrompt("turn-no-reject", 2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		response, err := proc.handleRequestPermission(t.Context(), acpsdk.RequestPermissionRequest{
+			SessionId: "sess-direct",
+			ToolCall:  acpsdk.ToolCallUpdate{ToolCallId: "write", Kind: new(acpsdk.ToolKindEdit)},
+			Options:   []acpsdk.PermissionOption{{OptionId: "allow", Kind: acpsdk.PermissionOptionKindAllowOnce}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if response.Outcome.Selected != nil {
+			t.Fatal("expired request was allowed")
+		}
+		events := collectEventsUntilCount(t, active.events, 2)
+		terminal := events[1]
+		if terminal.Decision != "canceled" || terminal.ResolvedByValue() != "timeout" {
+			t.Fatalf("terminal = %#v", terminal)
+		}
+		if err := proc.ResolvePermission(
+			ApproveRequest{RequestID: terminal.RequestIDValue(), Decision: string(decisionAllowOnce)},
+		); !errors.Is(
+			err,
+			ErrPendingPermissionNotFound,
+		) {
+			t.Fatalf("late answer = %v", err)
+		}
+	})
 	t.Run("Should attribute automatic rejection to timeout", func(t *testing.T) {
 		t.Parallel()
 
@@ -1656,6 +1735,29 @@ func TestAccessorsAndValidationHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve interaction expiry across event copies without sharing mutable values", func(t *testing.T) {
+		t.Parallel()
+		expiry := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		original := (AgentEvent{}).WithExpiresAt(expiry)
+		copied := original.WithResolvedBy("owner").WithRequestID("request")
+		got := copied.ExpiresAtValue()
+		if got == nil || !got.Equal(expiry) {
+			t.Fatalf("copied expiry = %v", got)
+		}
+		*got = expiry.Add(time.Hour)
+		retained := original.ExpiresAtValue()
+		if retained == nil || !retained.Equal(expiry) {
+			t.Fatalf("original expiry = %v", retained)
+		}
+		replaced := copied.WithExpiresAt(expiry.Add(2 * time.Hour))
+		if !replaced.ExpiresAtValue().Equal(expiry.Add(2*time.Hour)) || !copied.ExpiresAtValue().Equal(expiry) {
+			t.Fatal("replacing expiry mutated another event")
+		}
+		if (AgentEvent{}).ExpiresAtValue() != nil {
+			t.Fatal("empty event has an expiry")
+		}
+	})
+
 	t.Run("Should isolate Goal metadata across event copies and preserve unrelated payloads", func(t *testing.T) {
 		t.Parallel()
 		source := &GoalPromptMeta{Kind: GoalPromptKindWork, RunID: "run-goal", NodeID: "node-goal",
@@ -2697,5 +2799,114 @@ func TestClaudeAgentSubagentContract(t *testing.T) {
 			got[1].ToolStatus() != "in_progress" {
 			t.Fatalf("refinement = %#v", got[1])
 		}
+	})
+}
+
+func TestPermissionSameRequestFirstWinner(t *testing.T) {
+	t.Parallel()
+	t.Run("Should accept exactly one of two clients answering the same request", func(t *testing.T) {
+		t.Parallel()
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		id, pending, err := proc.registerPendingPermission(
+			"turn-race",
+			acpsdk.RequestPermissionRequest{ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "tool-race"}},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		type result struct {
+			decision string
+			err      error
+		}
+		start := make(chan struct{})
+		results := make(chan result, 2)
+		for _, decision := range []string{string(decisionAllowOnce), string(decisionRejectOnce)} {
+			go func() {
+				<-start
+				results <- result{decision, proc.ResolvePermission(ApproveRequest{RequestID: id, Decision: decision})}
+			}()
+		}
+		close(start)
+		var winner string
+		rejected := 0
+		for range 2 {
+			result := <-results
+			if result.err == nil {
+				if winner != "" {
+					t.Fatal("both clients won")
+				}
+				winner = result.decision
+			} else {
+				if !errors.Is(result.err, ErrPendingPermissionNotFound) {
+					t.Fatalf("losing answer = %v", result.err)
+				}
+				rejected++
+			}
+		}
+		if winner == "" || rejected != 1 {
+			t.Fatalf("winner = %q, rejected = %d", winner, rejected)
+		}
+		if decision := <-pending.response; string(decision) != winner {
+			t.Fatalf("delivered = %q, winner = %q", decision, winner)
+		}
+		if proc.HasPendingPermission() {
+			t.Fatal("winning request remained pending")
+		}
+		if err := proc.ResolvePermission(
+			ApproveRequest{RequestID: id, Decision: string(decisionAllowOnce)},
+		); err == nil {
+			t.Fatal("late answer accepted")
+		}
+	})
+}
+
+// IT-018 timing invariant: instance provider approvals remain answerable beyond 600 seconds.
+// Owner: ACP permission lifecycle; canonical suite: handlers_test.go.
+func TestInstancePermissionBeyondDefaultTimeout(t *testing.T) {
+	t.Run("Should accept an instance approval after eleven minutes", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+			proc.permissionWaitResolver = func(string) time.Duration { return 12 * time.Hour }
+			active, err := proc.beginPrompt("instance-turn", 8)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer proc.endPrompt(active)
+			done := make(chan acpsdk.RequestPermissionResponse, 1)
+			errs := make(chan error, 1)
+			go func() {
+				response, err := proc.handleRequestPermission(t.Context(), acpsdk.RequestPermissionRequest{
+					SessionId: "sess-direct",
+					Options: []acpsdk.PermissionOption{
+						{OptionId: "allow-once", Name: "allow", Kind: acpsdk.PermissionOptionKindAllowOnce},
+						{OptionId: "reject-once", Name: "reject", Kind: acpsdk.PermissionOptionKindRejectOnce},
+					},
+					ToolCall: acpsdk.ToolCallUpdate{ToolCallId: "instance-edit", Kind: new(acpsdk.ToolKindEdit)},
+				})
+				errs <- err
+				done <- response
+			}()
+			<-active.events
+			time.Sleep(11 * time.Minute)
+			synctest.Wait()
+			select {
+			case response := <-done:
+				t.Fatalf("approval expired before instance deadline: %#v", response)
+			default:
+			}
+			if err := proc.ResolvePermission(
+				ApproveRequest{TurnID: "instance-turn", Decision: "allow-once"},
+			); err != nil {
+				t.Fatal(err)
+			}
+			if err := <-errs; err != nil {
+				t.Fatal(err)
+			}
+			response := <-done
+			if response.Outcome.Selected == nil || response.Outcome.Selected.OptionId != "allow-once" {
+				t.Fatalf("response = %#v", response)
+			}
+		})
 	})
 }

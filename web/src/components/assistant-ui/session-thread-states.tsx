@@ -12,6 +12,8 @@ import type {
 import { formatMessageError } from "./session-thread-error";
 import { SessionTranscriptSkeleton } from "./session-thread-skeleton";
 import { useSessionThreadReadOnly } from "./hooks/use-session-thread-read-only";
+import { AgentIdentityLabel } from "@/systems/agent/components/agent-identity-mark";
+import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 const STATE_PANE_FRAME = "flex min-h-full w-full min-w-0 flex-1 items-center justify-center py-12";
 const RUNTIME_RECOVERY_FAILURE_KINDS = new Set<SessionFailurePayload["kind"]>([
@@ -34,7 +36,9 @@ function ThreadEmpty({ agentName }: { agentName: string }) {
         {readOnly ? (
           "No messages in this history."
         ) : (
-          <>Send {agentName} a message to get started.</>
+          <>
+            Send <AgentIdentityLabel name={agentName} /> a message to get started.
+          </>
         )}
       </p>
     </div>
@@ -42,6 +46,7 @@ function ThreadEmpty({ agentName }: { agentName: string }) {
 }
 
 function ThreadStarting({ agentName }: { agentName: string }) {
+  const { label } = useAgentIdentityView(agentName);
   return (
     <Empty
       aria-live="polite"
@@ -51,7 +56,7 @@ function ThreadStarting({ agentName }: { agentName: string }) {
       icon={<Spinner aria-hidden="true" className="size-3.75 text-info" />}
       role="status"
       size="compact"
-      title={`Getting ${agentName} ready…`}
+      title={`Getting ${label} ready…`}
     />
   );
 }
@@ -63,6 +68,7 @@ function ThreadStartupFailure({
   agentName: string;
   failure: SessionFailurePayload;
 }) {
+  const { label } = useAgentIdentityView(agentName);
   const detail = failure.summary?.trim() || "The agent didn't start.";
   return (
     <Empty
@@ -90,7 +96,7 @@ function ThreadStartupFailure({
       icon={AlertCircle}
       role="alert"
       size="compact"
-      title={`${agentName} couldn't start`}
+      title={`${label} couldn't start`}
     />
   );
 }

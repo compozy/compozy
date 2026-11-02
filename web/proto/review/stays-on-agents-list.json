@@ -1,0 +1,213 @@
+{
+    "version": 3,
+    "key": "stays-on-agents-list",
+    "sequence": 3,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
+    },
+    "events": [],
+    "comments": [
+        {
+            "id": "stays-on-agents-list-1",
+            "slug": "stays-on-agents-list",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:20:22.454Z",
+            "updatedAt": "2026-11-01T03:47:28.254Z",
+            "resolvedAt": "2026-11-01T03:47:28.254Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "cards",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "div:nth-of-type(2) > div > div > div > div > div:nth-of-type(1) > div:nth-of-type(1)",
+                "testId": null,
+                "tag": "div",
+                "text": "Stays on 4",
+                "source": "src/drafts/stays-on-agents-list/team-section.tsx:38:5",
+                "sourceChain": [
+                    "src/drafts/stays-on-agents-list/team-section.tsx:38:5",
+                    "src/drafts/stays-on-agents-shared/agents-page.tsx:177:15",
+                    "src/drafts/stays-on-agents-shared/agents-page.tsx:175:11",
+                    "src/drafts/stays-on-agents-shared/agents-page.tsx:160:7",
+                    "src/systems/os/components/os-window-frame.tsx:92:5",
+                    "src/systems/os/components/os-window-frame.tsx:184:9",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:194:11",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:192:9"
+                ],
+                "rect": {
+                    "x": 104.5,
+                    "y": 173,
+                    "width": 1248,
+                    "height": 37
+                },
+                "rectNormalized": {
+                    "x": 0.0748567335243553,
+                    "y": 0.24963924963924963,
+                    "width": 0.8939828080229226,
+                    "height": 0.05339105339105339
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "725765fc-71a1-4566-a50a-04f3893ecc1d",
+                    "at": "2026-11-01T03:20:22.558Z",
+                    "editedAt": null,
+                    "body": "esse title aqui não ficou legal, era bom ter um icone e não está seguindo o padrão também",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "ff2ea48a-3ae4-43fd-84cb-71b46de7603d",
+                    "at": "2026-11-01T03:47:28.253Z",
+                    "editedAt": null,
+                    "body": "The group title now uses the real Section component with its icon and count, replacing ListGroup, in team-section.tsx. Stays on gets an infinity icon, On demand a message icon. Verified by screenshot in the cards state at 1396 dark and in columns light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "stays-on-agents-list-2",
+            "slug": "stays-on-agents-list",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:22:07.321Z",
+            "updatedAt": "2026-11-01T03:47:28.763Z",
+            "resolvedAt": "2026-11-01T03:47:28.763Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "cards",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "[data-testid=\"listing-view-toggle\"]",
+                "testId": "listing-view-toggle",
+                "tag": "div",
+                "text": "View mode",
+                "source": "src/drafts/stays-on-agents-shared/agents-page.tsx:151:11",
+                "sourceChain": [
+                    "src/drafts/stays-on-agents-shared/agents-page.tsx:151:11",
+                    "src/drafts/stays-on-agents-shared/agents-page.tsx:147:9",
+                    "src/drafts/stays-on-agents-shared/agents-page.tsx:122:7",
+                    "src/systems/os/components/os-window-frame.tsx:67:5",
+                    "src/systems/os/components/os-window-frame.tsx:183:9",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:194:11",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:192:9",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:188:7"
+                ],
+                "rect": {
+                    "x": 1233.5234375,
+                    "y": 109.5,
+                    "width": 150.4765625,
+                    "height": 26
+                },
+                "rectNormalized": {
+                    "x": 0.8836127775787965,
+                    "y": 0.15800865800865802,
+                    "width": 0.10779123388252149,
+                    "height": 0.03751803751803752
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "84341a63-9b01-4eb0-be47-068acf007704",
+                    "at": "2026-11-01T03:22:07.337Z",
+                    "editedAt": "2026-11-01T03:24:58.883Z",
+                    "body": "crie como uma variaçõa para que eu possa comparar: ao invés de ter opção de rows e card aqui, acho que é melhor ter só rows, e dividir em duas colunas de rows, uma coluna de stays on e outra de on demand, é claro ajustando a responsividade em telas menores para ficar uma coluna só; mas faça com vários agentes, load more e etc para eu ver como vai ser, por exemplo uma coluna muito cheia e outra mais vazia e etc",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "8e25b6c9-0607-4877-9ef6-3a633b1783bc",
+                    "at": "2026-11-01T03:47:28.763Z",
+                    "editedAt": null,
+                    "body": "Added seven 'Two columns' states to compare: The team; 100 agents, Load more; Stays on full, On demand nearly empty; On demand full, Stays on nearly empty; Nobody stays on yet; Search empties one column; Narrow window, one column. They use rows only with no Rows/Cards toggle. Cards and Rows states stay. The split follows the window width by container query, so a tiled window collapses too; below about 1030 px wide it is one column. Load more uses the production 'Load more agents' button, 12 at a time, also now on the Cards view. The narrow state is a 720 px frame. Verified at 1396 dark and light, 900 px one column, clicked Load more (12 to 24) and Needs you filter.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "stays-on-agents-list-3",
+            "slug": "stays-on-agents-list",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:26:01.117Z",
+            "updatedAt": "2026-11-01T03:47:29.735Z",
+            "resolvedAt": "2026-11-01T03:47:29.735Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "add-scope-auth",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section > div:nth-of-type(2) > div > div",
+                "testId": null,
+                "tag": "div",
+                "text": "Stays on 4 Orchestrator Delegates each spec task to a dedicated worker Handing out the next 3 tasks in compozy 118 repo…",
+                "source": "src/drafts/stays-on-agents-shared/agents-page.tsx:160:7",
+                "sourceChain": [
+                    "src/drafts/stays-on-agents-shared/agents-page.tsx:160:7",
+                    "src/systems/os/components/os-window-frame.tsx:92:5",
+                    "src/systems/os/components/os-window-frame.tsx:184:9",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:194:11",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:192:9",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:188:7",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:159:5",
+                    "src/drafts/stays-on-agents-shared/agents-page.tsx:159:5"
+                ],
+                "rect": {
+                    "x": 61,
+                    "y": 145,
+                    "width": 1335,
+                    "height": 548
+                },
+                "rectNormalized": {
+                    "x": 0.04369627507163324,
+                    "y": 0.20923520923520925,
+                    "width": 0.9563037249283668,
+                    "height": 0.7907647907647908
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "a2ab09fa-af93-4db8-9aa1-046f7d90a755",
+                    "at": "2026-11-01T03:26:01.136Z",
+                    "editedAt": null,
+                    "body": "não tem padding no bottom aqui no shell",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "f4907a73-8012-442f-b295-62152baa6e40",
+                    "at": "2026-11-01T03:47:29.734Z",
+                    "editedAt": null,
+                    "body": "Root cause was in ListingPage in packages/ui, not the draft: the page content could shrink inside the scroller, so the 80 px bottom padding stopped at the scroller's height and the content ran past it. Added shrink-0 there, which fixes every state and every production listing that uses ListingPage. Checked no listing relies on an inner scroll. Measured add-scope-auth, many-rows and columns-many scrolled to the end at 1396: 80 px below the last item, was 0.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        }
+    ]
+}

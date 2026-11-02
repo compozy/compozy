@@ -226,7 +226,7 @@ func (c *resourceAgentCatalog) ResolveHeartbeatPolicy(
 		return heartbeat.ResolvedPolicy{}, false, err
 	}
 	config := target.Config
-	if config == (compozyconfig.HeartbeatConfig{}) {
+	if config.IsZero() {
 		config = compozyconfig.DefaultHeartbeatConfig()
 	}
 	workspace := &workspacepkg.ResolvedWorkspace{

@@ -4,8 +4,8 @@ area: ET
 title: Agent detail tab panelbox and content contracts
 persona: Bruno
 journey: J-31
-expected: Overview Setup panel lists Model (live selector) and Permissions in plain language (no Command row, no At a glance rail); Instructions AGENT.md renders markdown prose without a meta strip and SOUL/HEARTBEAT tabs carry no missing-file warning pills; Configuration Runtime shows "Defined in" with layer/override provenance, Access lists Allowed/Blocked tools and Tool groups as neutral pills, and MCP uses hairline rows; Sessions empty New session opens the launch dialog and, after creation, navigates through the created session owner workspace to its composer.
-entry_points: web /agents/$name?tab=overview|instructions|configuration|sessions
+expected: The agent profile opens focused Model, What it can use, What it does, Check-ins, Memory, and Where it works pages. Each page retains its profile/project binding. Saves honor digest conflicts and the unsaved guard. Starting instructions remain editable when no SOUL.md exists; check-ins distinguish dry-run summaries from a real occurrence and expose bounded audit details.
+entry_points: web /agents/$name and /agents/$name/$page
 qa_status: skipped
 bug_ids:
 fix_status:
@@ -69,3 +69,12 @@ user-only or count probes. A per-window worktree filter remains outside route in
 The existing route-preloading and agent-session deep-link suites own scope/cache parity;
 targeted real-daemon rendering is recorded in
 `docs/qa/reports/2026-10-28-tanstack-data-loading.md`.
+
+QA impact 2026-11-01 (stays-on F2): the fleet, the four tabs and the settings modal are gone, replaced
+by the team list and the agent's home. See `ET-web-agents-team-profile`; old `?tab=` and
+`settings?section=` links land on the matching panel or page. Status remains untested; no QA replay
+ran for this scenario.
+
+2026-11-02 scope update: the focused editor routes replace the four-tab contract above. Historic
+receipts remain historical. Repeat the profile and editor walk against the merged PR before
+claiming current verification; include same-named definitions in two projects and two profiles.

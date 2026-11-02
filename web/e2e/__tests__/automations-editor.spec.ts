@@ -9,6 +9,7 @@ import { openAppWindow } from "../fixtures/os-navigation";
 import { automationOperatorSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
 
 // Suite: Automations editor (S3) — the one dialog creates a job or a trigger.
 // Journeys: E2E-001 create steps (schedule), E2E-004 create steps (event) and E2E-005 (Loop entry).
@@ -90,7 +91,9 @@ test("operator creates a scheduled automation from the one editor", async ({
   await dialog.getByTestId("automation-prompt-input").fill("Summarize yesterday.");
 
   const sentence = dialog.getByTestId("automation-editor-sentence");
-  await expect(sentence).toContainText(`Every weekday at 09:00 UTC, ask ${agentName}`);
+  await expect(sentence).toContainText(
+    `Every weekday at 09:00 UTC, ask ${humanizeAgentSlug(agentName)}`
+  );
   await expect(dialog.getByTestId("automation-editor-status")).toHaveText("Ready");
   await expect(dialog.getByTestId("automation-destination")).toContainText("Creates in");
 

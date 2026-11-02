@@ -2,6 +2,8 @@
 
 Baseline: `de5ab2f4d`. Worktree: `responsiveness-audit-20261101`.
 
+The original measurements below retain that baseline. The final section records the separate integration audit and local-board comparison against incoming main `8c025ff8f`; it does not reinterpret the historical numbers as measurements of the new Stays-on surfaces.
+
 ## Test ownership
 
 - Exact session query invalidation must retain the same workspace/session/profile scope, invalidate inactive entries, refetch active entries, and preserve custom Query hash configuration. Owning layer: frontend session Query cache. Canonical suite: `web/src/systems/session/lib/__tests__/query-options.test.ts`; existing catalog/live-tail hook suites own trailing reads and post-stop transcript reconciliation.
@@ -111,3 +113,78 @@ Extension registry batching is owned and measured in [extension/marketplace](ext
 - `internal/store/globaldb/global_db_session_board.go` and existing `global_db_session_index_test.go`: skip impossible PR joins, preserve repository classification with behavioral coverage, and measure local-board reads.
 - `web/src/systems/session/lib/session-query-invalidation.ts` and existing `lib/__tests__/query-options.test.ts`: compare exact keys from the tail while preserving logical equality, scoped invalidation, active refetch and custom hashes.
 - This report. No catalog reconciliation hook diff, facet CTE, schema, generated-file, dependency, pool-size, or goroutine change remains in this lane.
+
+## Main integration delta — 2026-11-02
+
+Reviewed the uncommitted merge of performance head `e62862f48362b9cc6da311df0078b0be914a5734` with main `8c025ff8fdd3a9a79e4f0e63f54b3bd144a4773b`, using `.cache/performance/main-integration-paths.json` as the delta inventory. No concrete integration defect was found in this lane. This is a targeted integration review, not a new audit or performance claim for the entire upstream Stays-on implementation.
+
+The sole textual conflict in `global_db_session_index_test.go` was an append/append conflict. Resolution removed only the conflict markers and retained both complete authorities: `BenchmarkSessionCatalogLocalBoard` plus its plan logger, and incoming `TestPendingInteractionDescendants`. No assertion was weakened. The already-merged pointer arguments to `RegisterSession` and the incoming instance-main facet case were preserved. `global_db_worktree_test.go` was explicitly owned by the worktree/workspace lane and was not edited here.
+
+Before resolving the test conflict, the invariants and owners were identified: repository-less board classification/counts/paging remain owned by `TestSessionCatalogBoard`; original descendant session/request identities, expiry, and exclusion of unrelated sessions remain owned by `TestPendingInteractionDescendants`, both in the existing real-SQLite globaldb suite. Existing suites own the additional integration checks; no new test file or duplicate assertion was added.
+
+### Delta map and compatibility
+
+| Delta area | Inspected integration boundary | Result and limit |
+| --- | --- | --- |
+| Store contracts and session registration | `SessionInfo`, metadata, catalog/creation/derivation interfaces, runtime option accessors, initiator fields and permission audit contracts | Incoming pointer signatures and identity fields remain authoritative. The package compiled with the merged tests. This lane did not change registration or migration policy. |
+| Global session page, scan, facets and board source | `global_db_session_{page,scan,facets,board}.go`; `BoardExcludedIDs`; triage visibility; page/count filters and bound argument order | The three selected identity columns match the scanner order. The fast path still selects `sessions.*`, so it retains instance/initiator fields while substituting only `board_pr_state`. `BoardExcludedIDs` changes board counts independently of total badge counts, with its bind parameters preceding source/filter arguments. Main-session page exclusion stays a server-owned population decision. Real SQLite checks passed for both old board rules and the incoming facet rule. |
+| Instance lifecycle and authority | `global_db_instances.go`, `global_db_instance_{session,authority,adopt,lifecycle,reconcile,rotation}.go`, owning SQL | Live identity and active-cap admission remain transactional; registration/adoption stamp matching profile, workspace and agent identity; current-main guards protect archive/delete and rotation publication. List/reconciliation reads use a 1–100 row bound and stable ID continuation. These new upstream paths add no dependency to the repository-less board projection or fold cache. Runtime/service review is complementary in the Loop lane. |
+| Instance reports, pending interactions and prompt admission | Instance report repository; pending/prompt report mapping; input clear/cancel/replacement; descendant interaction scan | Source-key deduplication, current-main publication, 20-report reservation/dispatch bounds, and transactional release paths remain upstream-owned. Public report pages are bounded and ordered by `(created_at,id)`; report decoding parses timestamps and copies the bounded payload. Recursive descendant reads retain session and provider request identity and restrict profile/workspace reach. The new expiry column matches every owning scanner. |
+| Wake, collectors, activity and seen | Instance wake/check/dedupe/finish repositories; heartbeat collectors; activity/check-in/seen reads | Due/reconciliation/public history pages are bounded. Inflight recovery and collector populations intentionally remain complete scoped reads; they are not relabeled as paginated UI history. Activity uses grouped aggregates, and seen writes use a monotonic `(instance,operator)` record. No additional cache, worker or concurrency policy was introduced. |
+| Authoring, schema and generated SQL | Profile-aware soul/heartbeat mapping and rollback queries; workspace archive/deletion guards; migrations 164–172; generated globaldb mappings | Incoming profile authority, instance/archive protection, nullable fields and declarative schema were retained. Main adds six SQL files and 67 named queries; merged globaldb has 77 SQL files / 878 named queries, versus main's 76 / 875. The remaining difference is the existing extension visibility and task-event batching from this branch. No schema or generated artifact was edited by hand; root owns regeneration/equivalence checks. |
+| Frontend catalog/list/board | Normalized `exclude_instance_main` filter, canonical list keys, shelf/group/board hooks, resident groups, attention counts and Stays-on rows | Population filters survive normalization and therefore participate in both request and cache identity. Counts remain served facets; row flattening stays at the view boundary. The new instance stream listener is detached with the existing subscription. Our exact-key comparator is unchanged and still compares logical flat keys; catalog/detail prefix families retain scope and per-query custom-hash behavior. |
+| Frontend session identity and reports | Runtime provider's `AgentIdentityScopeContext`, report source reads, relayed asks, scoped agent identity, superseded-session lookup | Runtime identity uses the loaded session profile/workspace. Report source reads use the profile-aware by-ID factory; relayed asks use the existing detail-key subtree and preserve descendant `session_id`. New report payload rendering accepts unknown report kinds without discarding the retained transcript. This lane made no new navigation, loading or provider-lifetime change. |
+| Transcript folds and new report entries | `session_event_write.go` dispatch, fold cache, incoming `EntryKindReport` projection, retained transcript consumers | Only assistant entries enter `projectAssistantEntry`; reports use `ProjectAssignedEntry` and do not close the active assistant boundary. Clearing evicted pointers does not change this routing. Sessiondb projection/archive race checks passed; the session/OS lane additionally ran the existing `TestReportProjection` race case. |
+| Other previously audited store packages | `sessiondb` schema/generated queries, `workspacedb` and its nested packages | No incoming source delta. Existing ownership and the historical evidence remain unchanged; no repeat full-package audit or benchmark was performed. |
+
+The frontend inventory contains two adapter files, 70 component/test/story files, 28 hook/test files, 31 library/test files, five mock files and four system entry/type files. Review concentrated on the data and lifecycle boundaries above; identity-only presentation changes and their incoming tests were inventoried rather than treated as new optimization opportunities.
+
+### Merge validation
+
+All commands used the shared bounded runner. No gate, full suite, daemon or browser was started by this lane.
+
+| Check | Result | Receipt |
+| --- | --- | --- |
+| Globaldb real-SQLite race: board, visibility, stable keyset, paging index, descendant interactions; instance registration/adoption/isolation/activity/seen/check-ins/reports; initiator migration | Passed, 13 named top-level groups, 20.305 s | `.cache/performance/store-session/main-integration-globaldb.txt` |
+| Root Turbo Web `--only`, one worker: query options, catalog streams, list groups, sessions hook, board, runtime provider, Stays-on signals, report part and relayed approvals | 256/256 tests passed across nine existing suites; Turbo 39.172 s | `.cache/performance/store-session/main-integration-frontend.txt` |
+| Sessiondb real-SQLite race: `TestSessionDBTranscriptProjection` and `TestSessionDBArchivesEventRangesWithoutDeletingHistory` | Passed, 3.478 s | `.cache/performance/store-session/main-integration-sessiondb.txt` |
+| Incoming `TestReportProjection` race, executed by session/OS owner | Passed within transcript package, 1.435 s; reused without rerunning | `.cache/performance/session-os/main8c-go-focused.txt` |
+| Existing Go test-shape heuristic | Same five historical top-level-test findings listed above; exit 1, no new finding from the conflict resolution | `.cache/performance/store-session/main-integration-conventions.txt` |
+| Read-only `gofmt -l` on the resolved Go test | Passed, no file listed | `.cache/performance/store-session/main-integration-format.txt` |
+
+The frontend log includes React `act` notices, incoming board fixtures without a RouterProvider, an undefined mocked facet response, and the expected failed-approval diagnostic. The passing test result is not a zero-warning claim. Production data boundaries were not changed to suppress fixture diagnostics.
+
+### Main-based local-board comparison
+
+The session row hydration, triage predicate and facet work changed upstream, so the earlier `de5ab2f4d` timings cannot establish the incremental gain on main. A separate short comparison uses the frozen main checkout and the exact same 77-line local-board benchmark/plan harness through Go's overlay mechanism. Baseline production and test files remain unchanged; the baseline board/page/facet/scan/test bytes were checked against `8c025ff8f`. Both variants seed 4096 stopped global sessions and request the same 50-row Done page; only the Page sub-benchmark is timed.
+
+The sequence was **main, merge, merge, main**, three samples per process with `-benchtime=200ms -count=3`, Go 1.27.3, `GOMAXPROCS=2`, `GOFLAGS='-p=2 -buildvcs=false'`, Darwin/arm64 on the same Apple M4 Max. The benchmark selector was `-run '^$' -bench '^BenchmarkSessionCatalogLocalBoard$/Page$' -v`. Every process ran serially through `run-bounded.py`.
+
+| Page metric | Main `8c025ff8f` | Merged working tree |
+| --- | ---: | ---: |
+| Median, six samples | 7.173808 ms | 5.720850 ms |
+| Range | 7.063201–7.284372 ms | 5.688211–5.953339 ms |
+| Median allocated bytes/op | 304,561 | 298,193.5 |
+| Median allocations/op | 2,309 | 2,288 |
+
+The incremental median reduction is **20.25%**. All six merged page samples are faster than all six main samples. Main's count plan includes the three LEFT JOIN probes and correlated default-branch subquery; the merged plan retains the same session catalog index and removes those impossible joins. This establishes the local-board store-call improvement on the new main baseline. It does not quantify the upstream change from `de5ab2f4d`, facet speed, HTTP latency, navigation latency, or new Stays-on workloads.
+
+Receipts: `.cache/performance/store-session/main-integration-local-board-{before-1-canonical,after-1,after-2,before-2}.txt` and `main-integration-local-board-summary.json`. The test overlay is `main8c-local-board-overlay.json` and its isolated replacement file is `main8c-local-board-test.go` in the same receipt directory. Harness SHA-256: `db5fc2eab2ec2a10e16e641e6c3592c18ee6da94055946e72fda58432cf38540`. The original frozen test file remains SHA-256 `2d8ace62f957dff24eb69eae0bc006c885ba99327a22d73c57e4a7b73e345089`.
+
+The first overlay invocation used macOS's `/tmp` spelling while Go canonicalized the package directory to `/private/tmp`; the overlay was not applied and no benchmark ran. That successful empty test process supplies no measurement (`main-integration-local-board-before-1.txt`). The overlay was corrected to the canonical source path before collecting samples.
+
+### Reviewed source freeze
+
+This lane's merge edits are limited to the resolved test conflict and this report. The three optimized production modules remain byte-identical to the performance parent. Selected integration hashes are stored in `.cache/performance/store-session/main-integration-source-hashes.json`; the primary freeze is:
+
+| File | SHA-256 |
+| --- | --- |
+| `internal/store/globaldb/global_db_session_index_test.go` | `0052a1b59d30a35cf91f58ec8e9ff8fcc610a8cf6a54a449f110360d552534aa` |
+| `internal/store/globaldb/global_db_session_board.go` | `e4f8ba150b02745da85c05163989b97345c26db9501c2078d43a74dc40f22e95` |
+| `internal/store/sessiondb/transcript_fold_cache.go` | `01ddc83c90c8b53ed701e1ce85291adeb52c79c5d5e2531bac63c500a127c3df` |
+| `web/src/systems/session/lib/session-query-invalidation.ts` | `82e58ae01a32939cc3867d0a77c12bd8237227936c65d4141865221adf0592f0` |
+| `web/src/systems/session/lib/__tests__/query-options.test.ts` | `ed2ac05ba3871adc7d4f20e1c2034bf1e44e78d6423bcd9d6b5bcf56368611b4` |
+
+### Scope of the integration conclusion
+
+This lane added no public surface, schema, native tool, hook/config or official skill change beyond the incoming upstream contract; the root change-impact audit owns their combined accounting. Existing QA authorities are the catalog/board/streaming scenarios listed above plus incoming `MS-web-stays-on-placement`, `MS-web-stays-on-reports` and `RT-session-attention-catalog`. No scenario expectation needed a merge-specific edit here. Final integrated browser behavior, generated equivalence, gates and current-head CI remain root-owned. Historical navigation traces and per-package microbenchmarks are not presented as measurements of the merged Stays-on UI.

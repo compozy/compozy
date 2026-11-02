@@ -115,10 +115,11 @@ func (n *daemonNativeTools) sessionCreate(
 		}
 		opts.Origin = workspaceaccess.Origin{
 			Kind:    workspaceaccess.ActorAgentSession,
+			ID:      creator.ID,
 			Ceiling: creator.EffectiveWorkspaceAccess,
 		}
 	}
-	info, err := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{Session: opts})
+	info, err := acceptance.CreateAccepted(ctx, new(session.CreateAcceptedOpts{Session: opts}))
 	if err != nil {
 		return toolspkg.ToolResult{}, errors.Join(err, n.rollbackNativeSessionWorktree(ctx, worktreeTarget))
 	}

@@ -66,7 +66,7 @@ func forbiddenOwner(key string) string {
 	case "scheduler", "schedule", "schedules", "cadence", "interval", "every",
 		"default_interval", "sweep", "wake_loop", "run_loop", "loop", "cron":
 		return "scheduler config"
-	case "task", "tasks", "task_runs", "task_run", "claim_next_run", "claimnextrun",
+	case collectorTask, "tasks", "task_runs", "task_run", "claim_next_run", "claimnextrun",
 		"claim", "claim_token", "claim_token_hash", "ownership", "owner", "queue", "queues":
 		return "task runtime and ClaimNextRun"
 	case "lease", "leases", "lease_duration", "task_lease", "lease_heartbeat",

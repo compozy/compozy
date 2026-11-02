@@ -14,6 +14,8 @@ func sessionInfoFromSession(info *session.Info) store.SessionInfo {
 	}
 
 	result := store.SessionInfo{
+		InitiatorKind:     info.InitiatorKind,
+		InitiatorID:       info.InitiatorID,
 		ID:                info.ID,
 		ProfileID:         info.ProfileID,
 		Name:              info.Name,

@@ -102,7 +102,7 @@ func agentFamilyHookEventDescriptors() map[HookEvent]EventDescriptor {
 			Family:        HookEventFamilyAgent,
 			SyncEligible:  true,
 			PayloadSchema: "AgentHeartbeatWakeBeforePayload",
-			PatchSchema:   introspectionAuthoredContextObservationPatchValue,
+			PatchSchema:   "AgentHeartbeatWakePatch",
 		},
 		HookAgentHeartbeatWakeAfter: {
 			Event:         HookAgentHeartbeatWakeAfter,

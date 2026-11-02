@@ -15,7 +15,7 @@ type HeartbeatTimeWindowPayload struct {
 
 // HeartbeatContextProjectionPayload captures authored context projection hints.
 type HeartbeatContextProjectionPayload struct {
-	Include []string `json:"include,omitempty"`
+	Include []string `json:"include,omitzero"`
 }
 
 // HeartbeatFrontmatterPreferencesPayload captures authored preference hints before config bounds.
@@ -303,6 +303,7 @@ type HeartbeatWakeEventPayload struct {
 	Source            HeartbeatWakeSource `json:"source"`
 	Result            HeartbeatWakeResult `json:"result"`
 	Reason            HeartbeatWakeReason `json:"reason"`
+	Detail            string              `json:"detail,omitempty"`
 	SyntheticPromptID string              `json:"synthetic_prompt_id,omitempty"`
 	CreatedAt         time.Time           `json:"created_at"`
 	ExpiresAt         time.Time           `json:"expires_at"`

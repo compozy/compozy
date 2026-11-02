@@ -262,7 +262,7 @@ describe("AutomationDetailPanel", () => {
       const { rerenderPanel } = renderPanel(morningDigestJob);
 
       const does = screen.getByTestId("automation-rule-does");
-      expect(does).toHaveTextContent("Ask summarizer");
+      expect(does).toHaveTextContent("Ask Summarizer");
       expect(does).toHaveTextContent("word for word");
       expect(screen.getByTestId("automation-prompt-preview")).toHaveAttribute(
         "data-expanded",
@@ -573,7 +573,7 @@ describe("AutomationDetailPanel", () => {
 
       const rail = screen.getByTestId("automation-rail");
       expect(within(rail).getByTestId("automation-rail-details")).toHaveTextContent(
-        "StartsOn a scheduleDoesAsk an agentAgentsummarizerLocationProject checkout-apiSourceYou created this"
+        "StartsOn a scheduleDoesAsk an agentAgentSummarizerLocationProject checkout-apiSourceYou created this"
       );
       const schedule = within(rail).getByTestId("automation-rail-schedule");
       expect(schedule).toHaveTextContent("RepeatsEvery weekday at 09:00 UTC");

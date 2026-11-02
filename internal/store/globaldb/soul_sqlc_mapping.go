@@ -15,7 +15,7 @@ func soulSnapshotFromGenerated(row sqlcgen.AgentSoulSnapshot) (soul.Snapshot, er
 		return soul.Snapshot{}, fmt.Errorf("store: parse soul snapshot created_at: %w", err)
 	}
 	snapshot := soul.Snapshot{
-		ID: row.ID, WorkspaceID: row.WorkspaceID, AgentName: row.AgentName,
+		ID: row.ID, WorkspaceID: row.WorkspaceID, ProfileID: row.ProfileID, AgentName: row.AgentName,
 		SourcePath: row.SourcePath, Digest: row.Digest, ProfileJSON: json.RawMessage(row.ProfileJson),
 		Body: row.Body, Truncated: row.Truncated != 0, CreatedAt: createdAt,
 	}
@@ -31,7 +31,7 @@ func soulRevisionFromGenerated(row sqlcgen.AgentSoulRevision) (soul.Revision, er
 		return soul.Revision{}, fmt.Errorf("store: parse soul revision created_at: %w", err)
 	}
 	revision := soul.Revision{
-		ID: row.ID, WorkspaceID: row.WorkspaceID, AgentName: row.AgentName,
+		ID: row.ID, WorkspaceID: row.WorkspaceID, ProfileID: row.ProfileID, AgentName: row.AgentName,
 		SourcePath: row.SourcePath, Action: soul.RevisionAction(row.Action),
 		PreviousDigest: row.PreviousDigest, NewDigest: row.NewDigest, Body: row.Body,
 		DiagnosticsJSON: json.RawMessage(row.DiagnosticsJson), ActorKind: row.ActorKind,

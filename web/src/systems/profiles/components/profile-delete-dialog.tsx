@@ -29,6 +29,8 @@ interface RemovalRow {
 // keeps for its own bookkeeping stay out of the confirmation.
 const REMOVAL_ROWS: readonly RemovalRow[] = [
   { key: "agents", label: "Agents", icon: UserRound },
+  { key: "agent_instances", label: "Archived agent instances", icon: UserRound },
+  { key: "agent_memory_files", label: "Agent memory files", icon: Blocks },
   { key: "skills", label: "Skills", icon: Wrench },
   { key: "loops", label: "Loops", icon: Blocks },
   { key: "mcp_servers", label: "MCP servers", icon: Blocks },

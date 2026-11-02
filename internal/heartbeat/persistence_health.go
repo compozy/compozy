@@ -3,6 +3,8 @@ package heartbeat
 import (
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/diagnostics"
 )
 
 // Normalize trims session health metadata fields.
@@ -106,6 +108,7 @@ func (e WakeEvent) Normalize() WakeEvent {
 	e.Result = WakeResult(strings.TrimSpace(string(e.Result)))
 	e.Reason = WakeReason(strings.TrimSpace(string(e.Reason)))
 	e.SyntheticPromptID = strings.TrimSpace(e.SyntheticPromptID)
+	e.Detail = diagnostics.RedactAndBound(strings.TrimSpace(e.Detail), 300)
 	return e
 }
 

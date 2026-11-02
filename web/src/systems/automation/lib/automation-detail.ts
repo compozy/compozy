@@ -142,7 +142,10 @@ export function automationPauseLine(start: AutomationStart): string {
 }
 
 /** What stops happening once the automation is deleted; history always stays. */
-export function automationDeleteConsequence(entity: AutomationEntity): string {
+export function automationDeleteConsequence(
+  entity: AutomationEntity,
+  agentLabel: (name: string) => string = name => name
+): string {
   if (automationStartOf(entity) !== "schedule") {
     return "Matching events will stop starting it. Past runs stay in the log.";
   }
@@ -152,7 +155,7 @@ export function automationDeleteConsequence(entity: AutomationEntity): string {
       ? "creating tasks"
       : target.kind === "loop"
         ? `starting the Loop ${target.loopName}`
-        : `asking ${target.agentName}`;
+        : `asking ${agentLabel(target.agentName)}`;
   return `Its schedule will stop ${stops}. Past runs stay in the log.`;
 }
 

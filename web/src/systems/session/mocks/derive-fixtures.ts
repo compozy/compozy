@@ -42,6 +42,15 @@ function deriveAgent(
   extra: Partial<AgentPayload> = {}
 ): AgentPayload {
   return {
+    label: name,
+    kind: "on_demand",
+    resolved_appearance: {
+      version: 1,
+      avatar: "generated",
+      seed: name,
+      generation: 1,
+      color: "#7c5cff",
+    },
     name,
     provider,
     prompt: `${name} agent`,

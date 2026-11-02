@@ -31,6 +31,7 @@ export function TriggerMenuRow({
   item,
   flatIndex,
   icon,
+  mark,
   className,
   children,
   trailing,
@@ -39,7 +40,9 @@ export function TriggerMenuRow({
 }: Omit<ComponentProps<typeof ComposerPrimitive.Unstable_TriggerPopoverItem>, "item" | "index"> & {
   item: Unstable_TriggerItem;
   flatIndex: number;
-  icon: LucideIcon;
+  icon?: LucideIcon;
+  /** Stands in for `icon` where the row has a face of its own. */
+  mark?: ReactNode;
   /**
    * False keeps the row on screen and clickable but out of keyboard reach: it
    * is never highlighted, so Enter/Tab cannot commit it. The `@` menu uses it
@@ -81,7 +84,7 @@ export function TriggerMenuRow({
           "group-data-[highlighted]/trigger-row:text-fg"
         )}
       >
-        {createElement(icon, { className: "size-3.5", "aria-hidden": "true" })}
+        {icon ? createElement(icon, { className: "size-3.5", "aria-hidden": "true" }) : mark}
       </span>
       <span className={TRIGGER_MENU_ROW_LABEL}>{children}</span>
       {trailing ? (

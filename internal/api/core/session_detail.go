@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -30,8 +29,7 @@ func (h *BaseHandlers) GetSessionByID(c *gin.Context) {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
-	if !readScope.Matches(info.ProfileID) {
-		h.respondError(c, http.StatusNotFound, errors.New("session not found"))
+	if !h.requireSessionInProfile(c, info, readScope) {
 		return
 	}
 	includeHealth, err := parseBoolQuery(c, "include_health")

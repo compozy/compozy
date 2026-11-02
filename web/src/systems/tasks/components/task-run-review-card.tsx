@@ -2,6 +2,7 @@ import { StatusCard, Time } from "@compozy/ui";
 
 import { taskRunReviewPresentation } from "../lib/task-run-presentation";
 import type { TaskRunReview } from "../types";
+import { AgentIdentityLabel } from "@/systems/agent/components/agent-identity-mark";
 
 /**
  * Run-detail review card: one StatusCard per review round — outcome
@@ -29,7 +30,7 @@ export function TaskRunReviewCard({ review }: { review: TaskRunReview }) {
       {review.reviewer_agent_name ? (
         <StatusCard.Footer>
           <span className="text-form-hint text-subtle">
-            Reviewed by {review.reviewer_agent_name}
+            Reviewed by <AgentIdentityLabel name={review.reviewer_agent_name} />
           </span>
         </StatusCard.Footer>
       ) : null}

@@ -47,27 +47,13 @@ function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
 }
 
 describe("validateAgentDetailSearch", () => {
-  it("Should default invalid tab/file/filter values", () => {
-    expect(validateAgentDetailSearch({})).toEqual({
-      tab: "overview",
-      file: "agent",
-      filter: "all",
-    });
-    expect(validateAgentDetailSearch({ tab: "nope", file: "x", filter: "zzz" })).toEqual({
-      tab: "overview",
-      file: "agent",
-      filter: "all",
-    });
+  it("Should default to the home with no panel", () => {
+    expect(validateAgentDetailSearch({})).toEqual({});
   });
 
-  it("Should accept valid deep-link params", () => {
-    expect(
-      validateAgentDetailSearch({
-        tab: "instructions",
-        file: "soul",
-        filter: "failed",
-      })
-    ).toEqual({ tab: "instructions", file: "soul", filter: "failed" });
+  it("Should accept a known panel and drop anything else", () => {
+    expect(validateAgentDetailSearch({ panel: "tools" })).toEqual({ panel: "tools" });
+    expect(validateAgentDetailSearch({ panel: "nope", tab: "overview" })).toEqual({});
   });
 });
 

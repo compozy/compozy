@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"time"
 
@@ -24,6 +25,7 @@ const (
 
 // DaemonClient is the CLI transport surface for talking to the CompozyOS daemon over UDS.
 type DaemonClient interface {
+	PermissionRollup(context.Context, PermissionRollupQuery) (contract.PermissionRollupResponse, error)
 	Status(ctx context.Context) (StatusRecord, error)
 	ObserveOverview(ctx context.Context, query ObserveOverviewQuery) (contract.ObserveOverviewResponse, error)
 	Doctor(ctx context.Context, query DoctorQuery) (DoctorRecord, error)
@@ -81,6 +83,7 @@ type DaemonClient interface {
 	DeleteAgent(ctx context.Context, name string, workspace string) (contract.DeleteAgentResponse, error)
 	DuplicateAgent(ctx context.Context, name string, request contract.DuplicateAgentRequest) (AgentRecord, error)
 	RolesClient
+	AgentMemory(ctx context.Context, name string, query AgentQuery, operation string, body any) (json.RawMessage, error)
 	GetAgentSoul(ctx context.Context, name string, query AgentQuery) (AgentSoulRecord, error)
 	ValidateAgentSoul(ctx context.Context, name string, request AgentSoulValidateRequest) (AgentSoulRecord, error)
 	PutAgentSoul(ctx context.Context, name string, request AgentSoulPutRequest) (AgentSoulMutationRecord, error)

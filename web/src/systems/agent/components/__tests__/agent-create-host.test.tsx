@@ -8,7 +8,7 @@ import { useAgentCreateHost } from "../../hooks/use-agent-create-host";
 function CreateHostProbe() {
   const { openDialog } = useAgentCreateHost();
   return (
-    <button data-testid="probe-open" onClick={openDialog} type="button">
+    <button data-testid="probe-open" onClick={() => openDialog()} type="button">
       Open
     </button>
   );

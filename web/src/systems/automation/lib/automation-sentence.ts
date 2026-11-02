@@ -64,6 +64,8 @@ export interface SentenceContext {
   timeZone?: string;
   /** Resolves a workspace id to its project name; falls back to the id. */
   workspaceName?: (workspaceId: string) => string | null | undefined;
+  /** Resolves an agent slug to its label; falls back to the slug. */
+  agentLabel?: (name: string) => string;
 }
 
 const PROMPT_CLAUSE_MAX = 60;
@@ -204,7 +206,10 @@ function loopBranch(inputs: Readonly<Record<string, unknown>> | undefined): stri
   return typeof branch === "string" && branch.trim() !== "" ? branch.trim() : null;
 }
 
-function doesSegments(target: AutomationDraft["target"]): AutomationSentenceSegment[] {
+function doesSegments(
+  target: AutomationDraft["target"],
+  ctx: SentenceContext
+): AutomationSentenceSegment[] {
   switch (target.kind) {
     case "loop": {
       const name = target.loopName?.trim();
@@ -229,7 +234,11 @@ function doesSegments(target: AutomationDraft["target"]): AutomationSentenceSegm
       const agent = target.agentName?.trim();
       if (!agent) return [missing("ask an agent")];
       const clause = promptClause(target.prompt);
-      return [plain("ask "), strong(agent), ...(clause ? [plain(` to ${clause}`)] : [])];
+      return [
+        plain("ask "),
+        strong(ctx.agentLabel?.(agent) ?? agent),
+        ...(clause ? [plain(` to ${clause}`)] : []),
+      ];
     }
     default:
       return [missing("do something")];
@@ -393,7 +402,7 @@ export function describeAutomation(
   ctx: SentenceContext = {}
 ): AutomationSentence {
   const source = toSource(input);
-  const does = doesSegments(source.target);
+  const does = doesSegments(source.target, ctx);
   switch (source.start) {
     case "schedule":
       return [...scheduleSegments(source.schedule, ctx), plain(", "), ...does, plain(".")];

@@ -185,6 +185,15 @@ describe("agent-create-draft disclosure tiers", () => {
 
 describe("duplicate draft mapping", () => {
   const source: AgentPayload = {
+    label: "Release Captain",
+    kind: "on_demand",
+    resolved_appearance: {
+      version: 1,
+      avatar: "generated",
+      seed: "release-captain",
+      generation: 1,
+      color: "#7c5cff",
+    },
     name: "release-captain",
     provider: "codex",
     prompt: "Own release readiness.",

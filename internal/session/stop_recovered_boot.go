@@ -62,5 +62,5 @@ func (m *Manager) RecoverStaleInputDispatches(ctx context.Context) (int, error) 
 	if err != nil {
 		return failed, fmt.Errorf("session: recover stale input dispatches: %w", err)
 	}
-	return failed, nil
+	return failed, m.publishIndeterminateReportNotes(ctx)
 }

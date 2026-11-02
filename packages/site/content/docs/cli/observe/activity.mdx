@@ -1,0 +1,53 @@
+---
+title: "compozy observe activity"
+description: "Show daily permission decisions by agent"
+---
+
+## compozy observe activity
+
+Show daily permission decisions by agent
+
+```
+compozy observe activity [flags]
+```
+
+### Examples
+
+```
+  compozy observe activity --days 7 --unattended -o json
+```
+
+### Options
+
+```
+      --agent string   Filter by agent name
+      --all-profiles   Read across every profile and include owner labels
+      --days int       UTC calendar days including today (1–90) (default 30)
+  -h, --help           help for activity
+      --unattended     Include only automation, daemon and extension initiators
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy observe activity -o json
+```

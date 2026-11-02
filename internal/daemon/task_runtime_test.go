@@ -4661,7 +4661,7 @@ type taskBridgeCreateErrorSessionManager struct {
 
 type taskBridgeNilStatusSessionManager struct{}
 
-func (m *taskBridgeCreateErrorSessionManager) Create(context.Context, session.CreateOpts) (*session.Session, error) {
+func (m *taskBridgeCreateErrorSessionManager) Create(context.Context, *session.CreateOpts) (*session.Session, error) {
 	return nil, m.err
 }
 
@@ -4678,7 +4678,7 @@ func (m *taskBridgeCreateErrorSessionManager) StopWithCause(
 	return nil
 }
 
-func (m *taskBridgeNilStatusSessionManager) Create(context.Context, session.CreateOpts) (*session.Session, error) {
+func (m *taskBridgeNilStatusSessionManager) Create(context.Context, *session.CreateOpts) (*session.Session, error) {
 	return &session.Session{ID: "unused"}, nil
 }
 
@@ -4695,7 +4695,7 @@ func (m *taskBridgeNilStatusSessionManager) StopWithCause(
 	return nil
 }
 
-func (m *taskBridgeStopOnlySessionManager) Create(context.Context, session.CreateOpts) (*session.Session, error) {
+func (m *taskBridgeStopOnlySessionManager) Create(context.Context, *session.CreateOpts) (*session.Session, error) {
 	return nil, nil
 }
 
@@ -5038,7 +5038,7 @@ func newDetachedHarnessTaskRuntimeForTest(
 			UpdatedAt:     time.Now().UTC(),
 		}
 
-		if err := db.RegisterSession(testutil.Context(t), storedInfo); err != nil {
+		if err := db.RegisterSession(testutil.Context(t), &(storedInfo)); err != nil {
 			t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
 		}
 	}

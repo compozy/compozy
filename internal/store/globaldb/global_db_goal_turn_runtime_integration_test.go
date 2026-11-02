@@ -1653,7 +1653,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			db := openLoopTestGlobalDB(t, "ws-cancel")
 			now := time.Date(2026, 9, 14, 12, 0, 0, 0, time.UTC)
 			for _, sessionID := range []string{"session-origin", "session-bound"} {
-				registerGoalSessionIdentityForTest(t, db, goalSessionInfoForTest(sessionID, "ws-cancel", now),
+				registerGoalSessionIdentityForTest(t, db, new(goalSessionInfoForTest(sessionID, "ws-cancel", now)),
 					store.SessionCreationIdentity{CreationProfileRef: "profile-" + sessionID,
 						PolicySpecDigest: "policy-" + sessionID, CreationDigest: "creation-" + sessionID})
 			}
@@ -3346,7 +3346,7 @@ func seedGoalTurnRuntime(
 	registerGoalSessionIdentityForTest(
 		t,
 		globalDB,
-		goalSessionInfoForTest("session-goal-runtime", "ws-goal-runtime", now),
+		new(goalSessionInfoForTest("session-goal-runtime", "ws-goal-runtime", now)),
 		store.SessionCreationIdentity{
 			CreationProfileRef: "profile-runtime",
 			PolicySpecDigest:   "policy-runtime",

@@ -148,6 +148,9 @@ func (m *Manager) recordEventWithWriter(
 		return m.handleAttentionTranscriptFailure(ctx, session, event, attentionCommitted, err)
 	}
 
+	if err := m.reportExhaustedContext(ctx, session.ID, event); err != nil {
+		return fmt.Errorf("session: report exhausted context: %w", err)
+	}
 	m.recordPromptTokenUsageProjection(ctx, session, recorder, event)
 	if err := m.persistAdvertisedCommandsFromEvent(ctx, session, event); err != nil {
 		return m.handleAttentionTranscriptFailure(ctx, session, event, attentionCommitted, err)
@@ -228,6 +231,9 @@ func (m *Manager) recordPromptInputWithAuthoredText(
 	}
 	if !inserted {
 		return false, nil
+	}
+	if err := m.reportExhaustedContext(ctx, session.ID, event); err != nil {
+		return false, fmt.Errorf("session: report exhausted context: %w", err)
 	}
 	m.recordPromptTokenUsageProjection(ctx, session, recorder, event)
 	if err := m.persistAdvertisedCommandsFromEvent(ctx, session, event); err != nil {

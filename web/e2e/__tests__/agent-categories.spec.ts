@@ -5,6 +5,7 @@ import { openAppWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -57,7 +58,6 @@ test("categorized agents surface on the fleet page and group inside the session-
 
   await expect(fleet.agentRow(categorizedAgent)).toBeVisible();
   await expect(fleet.agentRow(flatAgent)).toBeVisible();
-  await expect(fleet.agentRow(categorizedAgent)).toContainText("Marketing / Sales");
 
   await fleet.agentRow(flatAgent).click();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${flatAgent}`);
@@ -74,7 +74,7 @@ test("categorized agents surface on the fleet page and group inside the session-
   await expect(groupedHeading).toBeVisible();
   await expect(groupedHeading).toContainText(categorizedAgentCategory.join(" / "));
   await categorizedItem.click();
-  await expect(trigger).toContainText(categorizedAgent);
+  await expect(trigger).toContainText(humanizeAgentSlug(categorizedAgent));
 
   await appPage.keyboard.press("Escape");
   await expect(appPage.getByTestId("session-create-dialog")).toHaveCount(0);

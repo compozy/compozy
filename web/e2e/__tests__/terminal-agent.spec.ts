@@ -246,7 +246,7 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     await expect(harness.sessionUI.permissionPrompt).toBeVisible({ timeout: 30_000 });
     const exactApproval = String.raw`/bin/sh -c 'printf '\''agent-live-1\n'\''; sleep 2; printf '\''agent-live-2\n'\'''`;
     await expect(harness.sessionWin.getByTestId("terminal-approval-command")).toHaveText(
-      exactApproval
+      `$ ${exactApproval}`
     );
 
     await harness.sessionWin.getByRole("button", { name: "Close window" }).click();

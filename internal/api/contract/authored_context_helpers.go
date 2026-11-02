@@ -3,6 +3,7 @@ package contract
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -88,7 +89,7 @@ func heartbeatFrontmatterPayload(front heartbeatpkg.Frontmatter) HeartbeatFrontm
 			QuietWindows: heartbeatTimeWindowsPayload(front.Preferences.QuietWindows),
 		},
 		Context: HeartbeatContextProjectionPayload{
-			Include: normalizeAuthoredStrings(front.Context.Include),
+			Include: slices.Clone(front.Context.Include),
 		},
 	}
 }
@@ -99,7 +100,7 @@ func heartbeatPreferencesPayload(preferences heartbeatpkg.Preferences) Heartbeat
 		ActiveHours:  heartbeatTimeWindowsPayload(preferences.ActiveHours),
 		QuietWindows: heartbeatTimeWindowsPayload(preferences.QuietWindows),
 		Context: HeartbeatContextProjectionPayload{
-			Include: normalizeAuthoredStrings(preferences.Context.Include),
+			Include: slices.Clone(preferences.Context.Include),
 		},
 	}
 }
@@ -143,7 +144,7 @@ func heartbeatPromptContributionPayload(
 		MaxBodyBytes:     prompt.MaxBodyBytes,
 		Diagnostics:      diagnostics,
 		Context: HeartbeatContextProjectionPayload{
-			Include: normalizeAuthoredStrings(prompt.Context.Include),
+			Include: slices.Clone(prompt.Context.Include),
 		},
 	}
 }

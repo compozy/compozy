@@ -38,7 +38,7 @@ Keep context tight.
 			t.Fatalf("NewConfigProvenance() error = %v", err)
 		}
 		createdAt := time.Date(2026, 5, 2, 9, 30, 0, 0, time.UTC)
-		snapshot, err := SnapshotFromResolved("snap-1", "ws-1", "coder", &resolved, provenance, createdAt)
+		snapshot, err := SnapshotFromResolved("snap-1", "ws-1", "coder", &resolved, provenance, createdAt, "")
 		if err != nil {
 			t.Fatalf("SnapshotFromResolved() error = %v", err)
 		}

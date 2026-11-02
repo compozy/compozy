@@ -24,6 +24,53 @@ import (
 func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should keep user scoped snapshots and history separate across profiles", func(t *testing.T) {
+		t.Parallel()
+		fixture := newAuthoringFixture(t)
+		first := fixture.target
+		first.WorkspaceID = ""
+		first.ProfileID = "profile-authoring-first"
+		second := first
+		second.ProfileID = "profile-authoring-second"
+		second.WorkspaceRoot = t.TempDir()
+		second.AgentPath = writeAgentDefinition(t, second.WorkspaceRoot, "coder")
+		body := validSoulBody("coder", "Separate profile history.")
+		one, err := fixture.service.Put(fixture.ctx, soul.PutRequest{Target: first, Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		two, err := fixture.service.Put(fixture.ctx, soul.PutRequest{Target: second, Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if one.Snapshot.ID == two.Snapshot.ID || one.Snapshot.ProfileID != first.ProfileID ||
+			two.Snapshot.ProfileID != second.ProfileID {
+			t.Fatalf("profile snapshots collided: %#v %#v", one.Snapshot, two.Snapshot)
+		}
+		for _, target := range []soul.AuthoringTarget{first, second} {
+			history, err := fixture.service.History(fixture.ctx, soul.HistoryRequest{Target: target})
+			if err != nil || len(history.Revisions) != 1 || history.Revisions[0].ProfileID != target.ProfileID {
+				t.Fatalf("profile history: %#v %v", history, err)
+			}
+		}
+		if err := fixture.service.PurgeAgentHistory(
+			fixture.ctx,
+			soul.WorkspaceRef{ProfileID: first.ProfileID},
+			"coder",
+			first.AgentPath,
+		); err != nil {
+			t.Fatal(err)
+		}
+		empty, err := fixture.service.History(fixture.ctx, soul.HistoryRequest{Target: first})
+		if err != nil || len(empty.Revisions) != 0 {
+			t.Fatalf("purged history: %#v %v", empty, err)
+		}
+		kept, err := fixture.service.History(fixture.ctx, soul.HistoryRequest{Target: second})
+		if err != nil || len(kept.Revisions) != 1 || kept.Revisions[0].ID != two.Revision.ID {
+			t.Fatalf("other profile history: %#v %v", kept, err)
+		}
+	})
+
 	t.Run("Should preserve context cancellation across validation parsing", func(t *testing.T) {
 		t.Parallel()
 
@@ -91,6 +138,7 @@ func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 			"",
 			"coder",
 			"agents/coder/SOUL.md",
+			"",
 		); err == nil || !strings.Contains(err.Error(), "requires workspace id, agent name, and source path") {
 			t.Fatalf("DeleteSoulAgentHistory(empty workspace) error = %v", err)
 		}
@@ -154,9 +202,9 @@ func TestManagedSoulAuthoringServicePutValidateAndCAS(t *testing.T) {
 				wantError: "store is required",
 			},
 			{
-				name: "missing workspace", service: fixture.service, ctx: fixture.ctx,
+				name: "missing workspace and profile", service: fixture.service, ctx: fixture.ctx,
 				agentName: "coder", sourcePath: fixture.agentPath,
-				wantError: "workspace id is required",
+				wantError: "workspace id or profile id is required",
 			},
 			{
 				name: "missing agent", service: fixture.service, ctx: fixture.ctx,
@@ -782,7 +830,7 @@ func TestManagedSoulAuthoringServiceSafetyBoundaries(t *testing.T) {
 			SoulSnapshotID: first.Snapshot.ID,
 			SoulDigest:     first.Soul.Digest,
 		}
-		if err := fixture.db.RegisterSession(fixture.ctx, session); err != nil {
+		if err := fixture.db.RegisterSession(fixture.ctx, &(session)); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 		claimedBy := taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: session.ID}
@@ -1139,9 +1187,9 @@ func deterministicIDGenerator() func(prefix string) (string, error) {
 func findSession(t *testing.T, sessions []store.SessionInfo, id string) store.SessionInfo {
 	t.Helper()
 
-	for _, session := range sessions {
-		if session.ID == id {
-			return session
+	for i := range sessions {
+		if sessions[i].ID == id {
+			return sessions[i]
 		}
 	}
 	t.Fatalf("session %q not found in %#v", id, sessions)

@@ -6,6 +6,7 @@ import { waitForSeedSessionActive } from "../fixtures/runtime";
 import { sessionLifecycleSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace } from "../fixtures/workspace";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
 
 const browserLifecycleFixture = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -76,7 +77,9 @@ test("Start session preselects the registered workspace default agent", async ({
   // The empty desktop starts sessions from its own composer (shell-rail P7):
   // the project's default agent is already picked before anything is typed.
   const desk = appPage.getByTestId("os-desk-hint");
-  await expect(desk.getByTestId("os-desk-agent-select")).toContainText(browserLifecycleAgent);
+  await expect(desk.getByTestId("os-desk-agent-select")).toContainText(
+    humanizeAgentSlug(browserLifecycleAgent)
+  );
   const createResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
@@ -121,7 +124,7 @@ test("operator can onboard, create a session, submit work, approve a permission 
 
   await expect(appPage.getByTestId("session-create-dialog")).toBeVisible();
   await expect(appPage.getByTestId("session-create-agent-select")).toContainText(
-    browserLifecycleAgent
+    humanizeAgentSlug(browserLifecycleAgent)
   );
 
   const createResponsePromise = appPage.waitForResponse(

@@ -20,6 +20,7 @@ import { SessionContinueFields } from "./session-continue-fields";
 import { SessionDerivePlacementField } from "./session-derive-placement";
 import { SessionDeriveSubmitOutcome } from "./session-derive-committed-child";
 import { SessionDerivePreviewLine } from "./session-derive-preview";
+import { AgentIdentityLabel } from "@/systems/agent/components/agent-identity-mark";
 
 export interface SessionContinueDialogProps {
   source: SessionPayload;
@@ -116,7 +117,7 @@ export function SessionContinueDialog({
             hint={
               <span className="truncate" data-testid="session-continue-source-note">
                 From <b className="font-medium text-fg">{getSessionDisplayTitle(source)}</b> ·{" "}
-                {source.agent_name}
+                <AgentIdentityLabel name={source.agent_name} />
               </span>
             }
             isSaving={model.isSubmitting}

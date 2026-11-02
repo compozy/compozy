@@ -163,8 +163,8 @@ func (m *Service) inspectSessionState(
 		return nil, false, 0, err
 	}
 	eligible := 0
-	for _, session := range sessions {
-		if inspectSessionCanClaim(session) {
+	for i := range sessions {
+		if inspectSessionCanClaim(&sessions[i]) {
 			eligible++
 		}
 	}
@@ -191,7 +191,7 @@ func (m *Service) inspectSession(
 	if len(sessions) == 0 {
 		return &InspectSessionSummary{SessionID: trimmedID, State: inspectSessionMissingState}, nil
 	}
-	return new(inspectSessionSummaryFromStore(sessions[0])), nil
+	return new(inspectSessionSummaryFromStore(&sessions[0])), nil
 }
 
 func (m *Service) inspectSchedulerState(ctx context.Context) (InspectSchedulerState, error) {
@@ -361,7 +361,7 @@ func truncateClaimTokenHash(value string) string {
 	return trimmed[:inspectHashTruncatedLength]
 }
 
-func inspectSessionSummaryFromStore(session store.SessionInfo) InspectSessionSummary {
+func inspectSessionSummaryFromStore(session *store.SessionInfo) InspectSessionSummary {
 	failureKind := ""
 	if session.Failure != nil {
 		failureKind = string(session.Failure.Kind)
@@ -396,7 +396,7 @@ func inspectEventSummariesFromStore(events []store.EventSummary) []InspectEventS
 	return summaries
 }
 
-func inspectSessionCanClaim(session store.SessionInfo) bool {
+func inspectSessionCanClaim(session *store.SessionInfo) bool {
 	state := strings.ToLower(strings.TrimSpace(session.State))
 	if state != managerActiveKey {
 		return false

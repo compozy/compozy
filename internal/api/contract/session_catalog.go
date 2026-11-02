@@ -47,13 +47,14 @@ type SessionAttentionEventPayload struct {
 // SessionCatalogFacetsPayload counts the entire eligible scope, independently
 // of the selected badge and text query used to page visible rows.
 type SessionCatalogFacetsPayload struct {
-	Board             SessionBoardCountsPayload `json:"board"`
-	All               int                       `json:"all"`
-	NeedsYou          int                       `json:"needs_you"`
-	Working           int                       `json:"working"`
-	Finished          int                       `json:"finished"`
-	Idle              int                       `json:"idle"`
-	TerminalApprovals int                       `json:"terminal_approvals"`
+	InstancesNeedingAttention int                       `json:"instances_needing_attention"`
+	Board                     SessionBoardCountsPayload `json:"board"`
+	All                       int                       `json:"all"`
+	NeedsYou                  int                       `json:"needs_you"`
+	Working                   int                       `json:"working"`
+	Finished                  int                       `json:"finished"`
+	Idle                      int                       `json:"idle"`
+	TerminalApprovals         int                       `json:"terminal_approvals"`
 }
 
 type SessionWorkspaceFacetsPayload struct {

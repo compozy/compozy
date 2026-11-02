@@ -55,6 +55,9 @@ func (g *providerNativeToolGateway) Intercept(
 			acp.ErrPermissionDenied,
 		)
 	}
+	if g.session.Info().Type == SessionTypeTriage && (!req.ReadOnly || req.Execute) {
+		return acp.ToolExecutionRequest{}, acp.ErrPermissionDenied
+	}
 	if g.shellWaitGuard && req.Execute {
 		if finding, found := shellwait.DetectToolInput(req.Input); found {
 			return acp.ToolExecutionRequest{}, fmt.Errorf(
@@ -82,6 +85,9 @@ func (g *providerNativeToolGateway) Intercept(
 		return acp.ToolExecutionRequest{}, fmt.Errorf("%w: %w", acp.ErrPermissionDenied, err)
 	}
 
+	if g.session.Info().Type == SessionTypeTriage && (!payload.ReadOnly || payload.ToolID != req.ToolID) {
+		return acp.ToolExecutionRequest{}, acp.ErrPermissionDenied
+	}
 	return acp.ToolExecutionRequest{
 		ToolID:   strings.TrimSpace(payload.ToolID),
 		ReadOnly: payload.ReadOnly,

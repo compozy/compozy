@@ -127,7 +127,7 @@ func (m *Manager) recordRefusedAttemptMarker(
 		transcriptMarkerEvidenceSourceKey: "fallback_chain",
 		"phase":                           seq.phase,
 		"attempt":                         attempt,
-		"provider":                        strings.TrimSpace(route.Provider),
+		runtimeChangedEvidenceProviderKey: strings.TrimSpace(route.Provider),
 		"model":                           strings.TrimSpace(route.Model),
 	}
 	if failure != nil {

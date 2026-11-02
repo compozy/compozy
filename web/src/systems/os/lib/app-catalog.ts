@@ -1,8 +1,8 @@
 import {
   Bot,
   Gauge,
-  Home,
   KeyRound,
+  LayoutDashboard,
   ListChecks,
   MessagesSquare,
   Plus,
@@ -51,9 +51,9 @@ export function matchTerminalInstance(pathname: string): string | null {
 export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
   dashboard: {
     id: "dashboard",
-    title: "Home",
-    icon: Home,
-    paths: ["/"],
+    title: "Dashboard",
+    icon: LayoutDashboard,
+    paths: ["/", "/activity"],
     dock: { group: 1 },
   },
   session: {
@@ -159,6 +159,15 @@ export const OS_WINDOW_CONSERVATIVE_MINIMUM: PixelSize = {
 export function getOsAppMinimum(id: OsAppId): PixelSize {
   const minimum = OS_APP_DESCRIPTORS[id].minimumSize ?? OS_WINDOW_CONSERVATIVE_MINIMUM;
   return { width: minimum.width, height: minimum.height };
+}
+
+/** The rail's order: catalog order by group, with the Sessions launcher in the first group. */
+export function dockStripDescriptors(): OsAppDescriptor[] {
+  const group = ({ dock }: OsAppDescriptor) =>
+    dock === "sessions-launcher" ? 1 : (dock?.group ?? 0);
+  return Object.values(OS_APP_DESCRIPTORS)
+    .filter(app => app.dock !== null)
+    .sort((left, right) => group(left) - group(right));
 }
 
 /** Dock strip order: group 1..4 in catalog order. */

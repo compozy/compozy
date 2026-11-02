@@ -132,7 +132,7 @@ type HostAPIHandler struct {
 type hostAPIMethodFunc func(context.Context, json.RawMessage) (any, error)
 
 type hostAPISessionManager interface {
-	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
+	Create(ctx context.Context, opts *session.CreateOpts) (*session.Session, error)
 	ListAll(ctx context.Context) ([]*session.Info, error)
 	Status(ctx context.Context, id string) (*session.Info, error)
 	Events(ctx context.Context, id string, query store.EventQuery) ([]store.SessionEvent, error)
@@ -145,7 +145,7 @@ type hostAPIProfileReader interface {
 }
 
 type hostAPISessionAcceptanceManager interface {
-	CreateAccepted(ctx context.Context, opts session.CreateAcceptedOpts) (*session.Info, error)
+	CreateAccepted(ctx context.Context, opts *session.CreateAcceptedOpts) (*session.Info, error)
 }
 
 type hostAPISessionArchiveManager interface {

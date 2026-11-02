@@ -264,7 +264,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 
 		const profileID = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
 		h := newHarness(t, WithProfileNameResolver(profileNameResolverMap{profileID: "marketing"}))
-		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		parent, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			ProfileID: profileID,
 			AgentName: "coder",
 			Workspace: h.workspaceID,
@@ -272,7 +272,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 			Lineage: &store.SessionLineage{
 				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 1, MaxDepth: 1},
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(profile parent) error = %v", err)
 		}
@@ -434,7 +434,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		}
 		worktreeResolver := &fakeSessionWorktreeResolver{id: "wt-spawn", root: worktreeRoot}
 		h := newHostedMCPHarness(t, WithWorktreeResolver(worktreeResolver))
-		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		parent, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Name:      "bound parent",
 			Workspace: h.workspaceID,
@@ -442,7 +442,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 			Lineage: &store.SessionLineage{
 				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(bound parent) error = %v", err)
 		}
@@ -528,14 +528,14 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		t.Parallel()
 
 		h := newHarness(t)
-		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		parent, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Speed:     speedpkg.SpeedFast,
 			Workspace: h.workspaceID,
 			Lineage: &store.SessionLineage{
 				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 2, MaxDepth: 1},
 			},
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(parent) error = %v", err)
 		}
@@ -964,10 +964,10 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 		h := newHarness(t)
 		root := createSession(t, h)
 		cleanupSessionStop(t, h, root.ID)
-		goal, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		goal, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 			ProvenanceParentSessionID: root.ID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(system provenance parent) error = %v", err)
 		}
@@ -995,10 +995,10 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 
 		h := newHarness(t)
 		root := createSession(t, h)
-		goal, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		goal, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 			ProvenanceParentSessionID: root.ID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(system provenance parent) error = %v", err)
 		}
@@ -1029,23 +1029,26 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 
 		h := newHarness(t)
 		root := createSession(t, h)
-		goal, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		goal, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 			ProvenanceParentSessionID: root.ID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(system provenance parent) error = %v", err)
 		}
 		cleanupSessionStop(t, h, goal.ID)
 
 		ttl := time.Now().Add(time.Minute)
-		spec, err := h.manager.prepareCreateStart(testutil.Context(t), spawnedCreateOpts(goal.ID, &store.SessionLineage{
-			ParentSessionID: goal.ID,
-			RootSessionID:   root.ID,
-			SpawnDepth:      2,
-			SpawnRole:       "coder",
-			TTLExpiresAt:    &ttl,
-		}))
+		spec, err := h.manager.prepareCreateStart(
+			testutil.Context(t),
+			new(spawnedCreateOpts(goal.ID, &store.SessionLineage{
+				ParentSessionID: goal.ID,
+				RootSessionID:   root.ID,
+				SpawnDepth:      2,
+				SpawnRole:       "coder",
+				TTLExpiresAt:    &ttl,
+			})),
+		)
 		if err != nil {
 			t.Fatalf("prepareCreateStart() error = %v", err)
 		}
@@ -1072,10 +1075,10 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 		root := createSession(t, h)
 		cleanupSessionStop(t, h, root.ID)
 		for range store.DefaultSpawnMaxChildren {
-			goal, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			goal, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 				AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 				ProvenanceParentSessionID: root.ID,
-			})
+			}))
 			if err != nil {
 				t.Fatalf("Create(system provenance child) error = %v", err)
 			}
@@ -1099,18 +1102,18 @@ func TestSpawnGovernanceUsesOnlyContiguousSpawnedLineage(t *testing.T) {
 		h := newHarness(t)
 		root := createSession(t, h)
 		cleanupSessionStop(t, h, root.ID)
-		firstGoal, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		firstGoal, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 			ProvenanceParentSessionID: root.ID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(first Goal) error = %v", err)
 		}
 		cleanupSessionStop(t, h, firstGoal.ID)
-		secondGoal, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		secondGoal, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder", Workspace: h.workspaceID, Type: SessionTypeSystem,
 			ProvenanceParentSessionID: root.ID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(second Goal) error = %v", err)
 		}
@@ -1149,7 +1152,7 @@ func createSpawnParent(
 ) *Session {
 	t.Helper()
 
-	parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	parent, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Name:      "parent",
 		Workspace: h.workspaceID,
@@ -1158,7 +1161,7 @@ func createSpawnParent(
 			SpawnBudget:      budget,
 			PermissionPolicy: policy,
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create(parent) error = %v", err)
 	}
@@ -1307,7 +1310,7 @@ func TestSpawnProviderCommandPrecedence(t *testing.T) {
 				},
 			)
 			h.resolver.upsert(&workspace)
-			parent, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "parent", Workspace: h.workspaceID})
+			parent, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "parent", Workspace: h.workspaceID}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1380,10 +1383,10 @@ func TestSpawnProviderRouteOriginInheritance(t *testing.T) {
 		}}
 		h.resolver.upsert(&workspace)
 
-		parent, err := h.manager.Create(testutil.Context(t), CreateOpts{
+		parent, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName: "coder",
 			Workspace: h.workspaceID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -1448,7 +1451,7 @@ func TestSpawnProviderRouteDiagnostics(t *testing.T) {
 				compozyconfig.AgentDef{Name: "parent", Provider: "claude", Command: command, Prompt: "Delegate."},
 				compozyconfig.AgentDef{Name: "child", Provider: "claude", Prompt: "Review."})
 			h.resolver.upsert(&workspace)
-			parent, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "parent", Workspace: h.workspaceID})
+			parent, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "parent", Workspace: h.workspaceID}))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1528,7 +1531,7 @@ func TestManagerSpawnRunsAgentFallbackChain(t *testing.T) {
 
 	spawnReviewer := func(t *testing.T, h *harness) (*Session, error) {
 		t.Helper()
-		parent, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+		parent, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
 		if err != nil {
 			t.Fatalf("Create(parent) error = %v", err)
 		}
@@ -1613,7 +1616,7 @@ func TestSubagentSpawn(t *testing.T) {
 			h := newHostedMCPHarness(t, WithWorktreeResolver(resolver), WithHookSet(HookSet{Spawn: hooks}))
 			parent, err := h.manager.Create(
 				t.Context(),
-				CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-parent"},
+				new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID, Worktree: "wt-parent"}),
 			)
 			if err != nil {
 				t.Fatal(err)
@@ -1995,12 +1998,12 @@ func TestManagerSpawnReportsTheExhaustedBudget(t *testing.T) {
 
 				h := newHarness(t)
 				ttl := time.Now().UTC().Add(time.Hour)
-				coordinator, err := h.manager.Create(testutil.Context(t), CreateOpts{
+				coordinator, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 					AgentName: "coder", Name: "coordinator", Workspace: h.workspaceID, Type: SessionTypeCoordinator,
 					Lineage: &store.SessionLineage{
 						SpawnRole: string(SessionTypeCoordinator), TTLExpiresAt: &ttl, SpawnBudget: tt.budget,
 					},
-				})
+				}))
 				if err != nil {
 					t.Fatalf("Create(coordinator) error = %v", err)
 				}

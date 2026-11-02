@@ -3,12 +3,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { sessionsListOptions } from "@/systems/session";
 
 import { resolveActiveWorkspaceSelection, settleRouteQueries } from "./-route-preload";
-import {
-  agentAggregateOptions,
-  agentCatalogOptions,
-  type AgentCatalogStableFilter,
-  agentDetailOptions,
-} from "@/systems/agent";
+import { agentCatalogOptions, agentDetailOptions, agentTeamOptions } from "@/systems/agent";
 import { settingsProvidersListOptions } from "@/systems/settings";
 import {
   dataScopeFromSelector,
@@ -23,22 +18,12 @@ async function resolveRouteScope(queryClient: QueryClient, routeWorkspaceId?: st
   return bound ?? (await resolveActiveWorkspaceSelection(queryClient)).dataScope;
 }
 
-export async function preloadAgentsRoute(
-  queryClient: QueryClient,
-  filters: AgentCatalogStableFilter
-): Promise<void> {
+export async function preloadAgentsRoute(queryClient: QueryClient): Promise<void> {
   const dataScope = (await resolveActiveWorkspaceSelection(queryClient))?.dataScope ?? null;
   if (!dataScope) return;
   const profile = readActingProfile(queryClient);
-  // All projects reads the aggregate (User + every project); otherwise the
-  // project's catalog, or User's through `@user`.
-  await settleRouteQueries([
-    dataScope.kind === "all"
-      ? queryClient.ensureInfiniteQueryData(agentAggregateOptions([], { ...filters, profile }))
-      : queryClient.ensureInfiniteQueryData(
-          agentCatalogOptions(focusedWorkspaceSelector(dataScope), { ...filters, profile })
-        ),
-  ]);
+  const scope = dataScope.kind === "all" ? "" : focusedWorkspaceSelector(dataScope);
+  await settleRouteQueries([queryClient.ensureQueryData(agentTeamOptions(scope, profile))]);
 }
 
 export async function preloadAgentSettingsRoute(
@@ -76,8 +61,7 @@ export async function preloadAgentDetailRoute(
   const workspaceScope = workspaceId ? { workspace_id: workspaceId } : { all_workspaces: true };
 
   const profile = readActingProfile(queryClient);
-  // These are the detail page's real consumers: exact catalog metrics and both
-  // session shelves. Count probes and user-only lists are different cache entries.
+  // These are the home's real consumers: exact catalog metrics and recent work.
   await settleRouteQueries([
     queryClient.query({ ...agentDetailOptions(name, workspaceId, profile), staleTime: "static" }),
     queryClient.infiniteQuery({
@@ -89,16 +73,6 @@ export async function preloadAgentDetailRoute(
         ...workspaceScope,
         agent: name,
         sort: "last_activity",
-        ...profileScope,
-      }),
-      staleTime: "static",
-    }),
-    queryClient.infiniteQuery({
-      ...sessionsListOptions({
-        ...workspaceScope,
-        agent: name,
-        sort: "last_activity",
-        archive: "only",
         ...profileScope,
       }),
       staleTime: "static",

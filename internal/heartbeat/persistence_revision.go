@@ -9,6 +9,10 @@ import (
 func (r Revision) Normalize() Revision {
 	r.ID = strings.TrimSpace(r.ID)
 	r.WorkspaceID = strings.TrimSpace(r.WorkspaceID)
+	r.ProfileID = strings.TrimSpace(r.ProfileID)
+	if r.ProfileID == "" && r.WorkspaceID != "" {
+		r.ProfileID = "00000000000000000000000000"
+	}
 	r.AgentName = strings.TrimSpace(r.AgentName)
 	r.SourcePath = strings.TrimSpace(r.SourcePath)
 	r.Operation = RevisionOperation(strings.TrimSpace(string(r.Operation)))
@@ -26,7 +30,7 @@ func (r Revision) Validate() error {
 	switch {
 	case normalized.ID == "":
 		return fmt.Errorf("%w: id is required", ErrInvalidRevision)
-	case normalized.WorkspaceID == "":
+	case normalized.WorkspaceID == "" && normalized.ProfileID == "":
 		return fmt.Errorf("%w: workspace id is required", ErrInvalidRevision)
 	case normalized.AgentName == "":
 		return fmt.Errorf("%w: agent name is required", ErrInvalidRevision)
@@ -66,7 +70,7 @@ func (q RevisionListQuery) Validate() error {
 // Validate ensures rollback lookup identifiers are complete.
 func (q RollbackLookup) Validate() error {
 	switch {
-	case strings.TrimSpace(q.WorkspaceID) == "":
+	case strings.TrimSpace(q.WorkspaceID) == "" && strings.TrimSpace(q.ProfileID) == "":
 		return fmt.Errorf("%w: workspace id is required", ErrInvalidRevision)
 	case strings.TrimSpace(q.AgentName) == "":
 		return fmt.Errorf("%w: agent name is required", ErrInvalidRevision)

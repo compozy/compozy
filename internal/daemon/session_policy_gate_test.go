@@ -97,7 +97,7 @@ func TestSessionPolicyGateBuildsConcreteTaskRoleCreateOpts(t *testing.T) {
 			t.Fatalf("taskRoleCreateOpts() error = %v", err)
 		}
 		want := session.CreateOpts{
-			Origin:        workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation},
+			Origin:        workspaceaccess.Origin{Kind: workspaceaccess.ActorAutomation, ID: "task-parity"},
 			AgentName:     "frontend-engineer",
 			Provider:      "claude",
 			Model:         "sonnet",

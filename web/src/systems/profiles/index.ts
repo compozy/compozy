@@ -131,8 +131,11 @@ export {
 export { useProfile, useProfileOperations, useProfiles } from "./hooks/use-profiles";
 export {
   useActiveProfileView,
+  useCurrentProfileName,
   useRememberedProfile,
   useSwitchProfile,
+  useProfilePerProfileScope,
+  type ProfilePerProfileScope,
 } from "./hooks/use-profile-selection";
 export { useArchivePlan, useDeletePlan, useRenamePlan } from "./hooks/use-profile-plans";
 export {
@@ -206,3 +209,4 @@ export {
   ProfileOwnerBanner,
   type ProfileOwnerBannerProps,
 } from "./components/profile-owner-banner";
+export { useProfileIconCatalog } from "./hooks/use-profile-icon-catalog";

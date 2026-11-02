@@ -56,6 +56,7 @@ func TestLoopRespondPayloadShouldMatchDecisionContract(t *testing.T) {
 }
 
 type stubClient struct {
+	permissionRollupFn            func(context.Context, PermissionRollupQuery) (contract.PermissionRollupResponse, error)
 	changeSessionWorktreeFn       func(context.Context, string, string, string) (SessionRecord, error)
 	listMarketplaceSourcesFn      func(context.Context) (contract.MarketplaceSourcesResponse, error)
 	getSessionUsageTurnsFn        func(context.Context, string) (contract.SessionUsageTurnsResponse, error)
@@ -146,32 +147,33 @@ type stubClient struct {
 	archiveSessionFn          func(
 		context.Context, string, bool, bool, contract.SessionProcessPolicy,
 	) (SessionRecord, error)
-	unarchiveSessionFn           func(context.Context, string) (SessionRecord, error)
-	moveSessionToLaterFn         func(context.Context, string, contract.MoveSessionToLaterRequest) (SessionRecord, error)
-	resumeSessionFromLaterFn     func(context.Context, string, bool) (SessionRecord, error)
-	renameSessionFn              func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
-	setSessionParentFn           func(context.Context, string, SetSessionParentRequest) (SessionRecord, error)
-	clearSessionParentFn         func(context.Context, string) (SessionRecord, error)
-	deleteSessionFn              func(context.Context, string, bool, contract.SessionProcessPolicy) error
-	resumeSessionFn              func(context.Context, string) (SessionRecord, error)
-	uploadSessionAttachmentFn    func(context.Context, string, string) (SessionAttachmentRecord, error)
-	setSessionRuntimeFn          func(context.Context, string, SetSessionRuntimeRequest) (SessionRecord, error)
-	clearSessionRuntimeFn        func(context.Context, string, int64) (SessionRecord, error)
-	sessionRecapFn               func(context.Context, string, int) (SessionRecapRecord, error)
-	repairSessionFn              func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
-	getSessionTranscriptFn       func(context.Context, string) (SessionTranscriptRecord, error)
-	getSessionOwnerFn            func(context.Context, string) (contract.SessionOwner, error)
-	previewSessionDeriveFn       func(context.Context, SessionDeriveTarget) (SessionDerivePreviewRecord, error)
-	rewindSessionFn              func(context.Context, string, SessionRewindRequest) (SessionRewindRecord, error)
-	continueSessionFn            func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error)
-	forkSessionFn                func(context.Context, SessionDeriveTarget, SessionForkRequest) (SessionDeriveRecord, error)
-	approveSessionFn             func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
-	listSessionClarificationsFn  func(context.Context, string) (ClarificationsRecord, error)
-	listSessionInteractionsFn    func(context.Context, string, []string) (SessionInteractionsRecord, error)
-	getSessionAttentionSummaryFn func(context.Context) (SessionAttentionSummaryRecord, error)
-	waitSessionFn                func(context.Context, string, string, SessionWaitRequest) (SessionWaitRecord, error)
-	cancelSessionPromptFn        func(context.Context, string) (SessionPromptCancelRecord, error)
-	answerSessionClarificationFn func(
+	unarchiveSessionFn               func(context.Context, string) (SessionRecord, error)
+	moveSessionToLaterFn             func(context.Context, string, contract.MoveSessionToLaterRequest) (SessionRecord, error)
+	resumeSessionFromLaterFn         func(context.Context, string, bool) (SessionRecord, error)
+	renameSessionFn                  func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
+	setSessionParentFn               func(context.Context, string, SetSessionParentRequest) (SessionRecord, error)
+	clearSessionParentFn             func(context.Context, string) (SessionRecord, error)
+	deleteSessionFn                  func(context.Context, string, bool, contract.SessionProcessPolicy) error
+	resumeSessionFn                  func(context.Context, string) (SessionRecord, error)
+	uploadSessionAttachmentFn        func(context.Context, string, string) (SessionAttachmentRecord, error)
+	setSessionRuntimeFn              func(context.Context, string, SetSessionRuntimeRequest) (SessionRecord, error)
+	clearSessionRuntimeFn            func(context.Context, string, int64) (SessionRecord, error)
+	sessionRecapFn                   func(context.Context, string, int) (SessionRecapRecord, error)
+	repairSessionFn                  func(context.Context, string, SessionRepairQuery) (SessionRepairRecord, error)
+	getSessionTranscriptFn           func(context.Context, string) (SessionTranscriptRecord, error)
+	getSessionOwnerFn                func(context.Context, string) (contract.SessionOwner, error)
+	previewSessionDeriveFn           func(context.Context, SessionDeriveTarget) (SessionDerivePreviewRecord, error)
+	rewindSessionFn                  func(context.Context, string, SessionRewindRequest) (SessionRewindRecord, error)
+	continueSessionFn                func(context.Context, SessionDeriveTarget, SessionContinueRequest) (SessionDeriveRecord, error)
+	forkSessionFn                    func(context.Context, SessionDeriveTarget, SessionForkRequest) (SessionDeriveRecord, error)
+	approveSessionFn                 func(context.Context, string, SessionApprovalRequest) (SessionApprovalRecord, error)
+	listSessionClarificationsFn      func(context.Context, string) (ClarificationsRecord, error)
+	listSessionPendingInteractionsFn func(context.Context, string, bool) (SessionInteractionsRecord, error)
+	listSessionInteractionsFn        func(context.Context, string, []string) (SessionInteractionsRecord, error)
+	getSessionAttentionSummaryFn     func(context.Context) (SessionAttentionSummaryRecord, error)
+	waitSessionFn                    func(context.Context, string, string, SessionWaitRequest) (SessionWaitRecord, error)
+	cancelSessionPromptFn            func(context.Context, string) (SessionPromptCancelRecord, error)
+	answerSessionClarificationFn     func(
 		context.Context,
 		string,
 		string,
@@ -3757,4 +3759,35 @@ func (s *stubClient) ChangeSessionWorktree(ctx context.Context, id, ref, expecte
 		return SessionRecord{}, errors.New("unexpected ChangeSessionWorktree call")
 	}
 	return s.changeSessionWorktreeFn(ctx, id, ref, expected)
+}
+
+func (s *stubClient) AgentMemory(
+	_ context.Context,
+	_ string,
+	_ AgentQuery,
+	_ string,
+	_ any,
+) (json.RawMessage, error) {
+	return nil, errors.New("unexpected AgentMemory call")
+}
+
+func (s *stubClient) ListSessionPendingInteractions(
+	ctx context.Context,
+	id string,
+	descendants bool,
+) (SessionInteractionsRecord, error) {
+	if s.listSessionPendingInteractionsFn != nil {
+		return s.listSessionPendingInteractionsFn(ctx, id, descendants)
+	}
+	return SessionInteractionsRecord{}, errors.New("unexpected ListSessionPendingInteractions call")
+}
+
+func (s *stubClient) PermissionRollup(
+	ctx context.Context,
+	q PermissionRollupQuery,
+) (contract.PermissionRollupResponse, error) {
+	if s.permissionRollupFn != nil {
+		return s.permissionRollupFn(ctx, q)
+	}
+	return contract.PermissionRollupResponse{}, nil
 }

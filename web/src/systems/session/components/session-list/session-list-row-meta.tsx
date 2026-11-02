@@ -17,15 +17,17 @@ import type { SessionPayload } from "../../types";
  * the light theme, so the agent and a neutral word take the steps above them.
  */
 export function SessionListRowWho({
+  agentLabel,
   session,
   meta,
 }: {
-  session: Pick<SessionPayload, "agent_name" | "badge">;
+  agentLabel: string;
+  session: Pick<SessionPayload, "badge">;
   meta: Pick<RowMeta, "attention" | "notes">;
 }) {
   const { tone } = sessionBadgeSignal(session.badge);
   const parts: { key: string; kind: "agent" | "attention" | "note"; text: string }[] = [];
-  if (session.agent_name) parts.push({ key: "agent", kind: "agent", text: session.agent_name });
+  if (agentLabel) parts.push({ key: "agent", kind: "agent", text: agentLabel });
   meta.attention.forEach((text, index) =>
     parts.push({ key: `attention-${index}`, kind: "attention", text })
   );

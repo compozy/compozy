@@ -167,10 +167,12 @@ func (q *Queries) InsertAppMetadataIfAbsent(ctx context.Context, arg InsertAppMe
 
 const insertPermissionLog = `-- name: InsertPermissionLog :exec
 INSERT INTO permission_log (
-  id, session_id, agent_name, action, resource, decision, policy_used, timestamp
+  id, session_id, agent_name, action, resource, decision, policy_used, timestamp, initiator_kind, initiator_id
 ) VALUES (
   ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8
+  ?5, ?6, ?7, ?8,
+ COALESCE((SELECT initiator_kind FROM sessions WHERE id = ?2), ''),
+ COALESCE((SELECT initiator_id FROM sessions WHERE id = ?2), '')
 )
 `
 

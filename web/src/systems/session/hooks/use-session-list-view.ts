@@ -6,6 +6,7 @@ import { useProfileReadScope, type ProfileOwner, type ProfileOwnerLabel } from "
 import {
   useActiveWorkspace,
   workspaceBadgeIdentity,
+  workspaceSelectorOrAll,
   type DataScope,
   type WorkspaceBadgeIdentity,
 } from "@/systems/workspace";
@@ -100,6 +101,9 @@ export interface SessionListViewModel {
    * the empty state; the create target is deliberately not used there.
    */
   scopeLabel: string | null;
+  /** The list's one concrete scope: a workspace id or `@user`; `null` under All projects. */
+  focusedWorkspaceId: string | null;
+  focusedScopeName: string;
   /** Resolves a row's owner tag. Only called while `aggregate` is true. */
   ownerOf: (session: ProfileOwnerLabel) => ProfileOwner;
   /** Resolves a row's project badge; present only under All projects (BR-10). */
@@ -232,8 +236,9 @@ export function useSessionListView(
   const flatLayout = flat && pair !== null;
 
   return {
-    layout: flatLayout ? folders.layout : undefined,
-    layoutError: flatLayout ? folders.loadError : arranged.loadError,
+    ...(flatLayout
+      ? { layout: folders.layout, layoutError: folders.loadError }
+      : { layout: undefined, layoutError: arranged.loadError }),
     projectFolders: arranged.projectFolders,
     worktreeId: options.worktreeId,
     catalog: awaiting.catalog,
@@ -270,11 +275,21 @@ export function useSessionListView(
     groupFilters,
     aggregate: profile.aggregate,
     scopeLabel: profile.scopeLabel,
+    focusedWorkspaceId: scope ? workspaceSelectorOrAll(scope) : null,
+    focusedScopeName: focusedScopeName(scope, workspaces),
     ownerOf: profile.ownerOf,
     badgeOf: breadth.allProjects ? sessionBadgeResolver(workspaces) : undefined,
     selectionKey,
     totals,
   };
+}
+
+function focusedScopeName(
+  scope: DataScope | null,
+  workspaces: readonly { id: string; name: string }[]
+) {
+  if (scope?.kind !== "project") return "Global";
+  return workspaces.find(workspace => workspace.id === scope.workspaceId)?.name ?? "this project";
 }
 
 function hiddenProjectGroupKeys(

@@ -10,6 +10,7 @@ import (
 
 // WorkspaceRef identifies the workspace scope that owns managed authoring history.
 type WorkspaceRef struct {
+	ProfileID   string
 	WorkspaceID string
 }
 
@@ -33,8 +34,8 @@ func (s *ManagedSoulAuthoringService) PurgeAgentHistory(
 		return err
 	}
 	switch {
-	case workspaceID == "":
-		return fmt.Errorf("soul: purge agent history workspace id is required")
+	case workspaceID == "" && strings.TrimSpace(ref.ProfileID) == "":
+		return fmt.Errorf("soul: purge agent history workspace id or profile id is required")
 	case name == "":
 		return fmt.Errorf("soul: purge agent history agent name is required")
 	case path == "":
@@ -42,7 +43,7 @@ func (s *ManagedSoulAuthoringService) PurgeAgentHistory(
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if err := s.store.DeleteSoulAgentHistory(ctx, workspaceID, name, path); err != nil {
+	if err := s.store.DeleteSoulAgentHistory(ctx, workspaceID, name, path, ref.ProfileID); err != nil {
 		return fmt.Errorf("soul: purge agent history: %w", err)
 	}
 	return nil

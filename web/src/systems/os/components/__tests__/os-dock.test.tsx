@@ -534,8 +534,8 @@ describe("OsDock", () => {
     const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
 
     expect(result.current.entries.map(entry => entry.id)).toEqual([
-      "session",
       "dashboard",
+      "session",
       "terminal",
       "agents",
       "tasks",

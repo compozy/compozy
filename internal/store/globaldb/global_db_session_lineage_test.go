@@ -31,7 +31,7 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 		now := time.Date(2026, 4, 26, 12, 0, 0, 0, time.UTC)
 		ttl := now.Add(90 * time.Minute)
 
-		if err := globalDB.RegisterSession(ctx, SessionInfo{
+		if err := globalDB.RegisterSession(ctx, new(SessionInfo{
 			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-root",
 			AgentName:     "coder",
@@ -42,10 +42,10 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 			State:         "active",
 			CreatedAt:     now,
 			UpdatedAt:     now,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession(root) error = %v", err)
 		}
-		if err := globalDB.RegisterSession(ctx, SessionInfo{
+		if err := globalDB.RegisterSession(ctx, new(SessionInfo{
 			ProfileID:     store.DefaultProfileID,
 			ID:            "sess-child",
 			AgentName:     "coder",
@@ -78,7 +78,7 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 			State:     "active",
 			CreatedAt: now.Add(time.Minute),
 			UpdatedAt: now.Add(time.Minute),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession(child) error = %v", err)
 		}
 		if err := globalDB.Close(ctx); err != nil {
@@ -213,7 +213,7 @@ func TestGlobalDBSessionLineagePersistsAfterReopenAndFilters(t *testing.T) {
 		child := children[0]
 		child.Lineage.NotifyCreator = false
 		child.UpdatedAt = time.Date(2026, 8, 16, 9, 1, 0, 0, time.UTC)
-		if err := upgraded.RegisterSession(ctx, child); err != nil {
+		if err := upgraded.RegisterSession(ctx, &(child)); err != nil {
 			t.Fatalf("RegisterSession(opt out) error = %v", err)
 		}
 		status, err := store.Status(ctx, upgraded.db, MigrationStream())
@@ -254,7 +254,7 @@ func TestGlobalDBUpdateSessionLineages(t *testing.T) {
 	register := func(t *testing.T, globalDB *GlobalDB, workspaceID string, id string, lineage *store.SessionLineage) {
 		t.Helper()
 		now := time.Date(2026, 10, 22, 9, 0, 0, 0, time.UTC)
-		if err := globalDB.RegisterSession(testutil.Context(t), SessionInfo{
+		if err := globalDB.RegisterSession(testutil.Context(t), new(SessionInfo{
 			ProfileID:     store.DefaultProfileID,
 			ID:            id,
 			AgentName:     "coder",
@@ -266,7 +266,7 @@ func TestGlobalDBUpdateSessionLineages(t *testing.T) {
 			Lineage:       lineage,
 			CreatedAt:     now,
 			UpdatedAt:     now,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession(%s) error = %v", id, err)
 		}
 	}
@@ -408,16 +408,16 @@ func TestGlobalDBSessionDerivationReceipts(t *testing.T) {
 				CreatedAt: now,
 			}
 		}
-		if err := globalDB.RegisterSession(ctx, SessionInfo{
+		if err := globalDB.RegisterSession(ctx, new(SessionInfo{
 			ProfileID: store.DefaultProfileID, ID: "sess-source", AgentName: "codex", Provider: "codex",
 			RuntimeStatus: store.SessionRuntimeUnbound, WorkspaceID: workspaceID, SessionType: "user",
 			State: "active", CreatedAt: now, UpdatedAt: now,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession(source) error = %v", err)
 		}
 
 		if err := globalDB.RegisterDerivedSession(
-			ctx, derivedInfo("sess-child"), identity, receiptFor("sess-child"),
+			ctx, new(derivedInfo("sess-child")), identity, receiptFor("sess-child"),
 		); err != nil {
 			t.Fatalf("RegisterDerivedSession(first) error = %v", err)
 		}
@@ -439,7 +439,7 @@ func TestGlobalDBSessionDerivationReceipts(t *testing.T) {
 			t.Fatalf("GetSessionCreationIdentity(child) = %#v, %v; want committed identity", gotIdentity, err)
 		}
 
-		err = globalDB.RegisterDerivedSession(ctx, derivedInfo("sess-racer"), identity, receiptFor("sess-racer"))
+		err = globalDB.RegisterDerivedSession(ctx, new(derivedInfo("sess-racer")), identity, receiptFor("sess-racer"))
 		if !errors.Is(err, store.ErrSessionDerivationExists) {
 			t.Fatalf("RegisterDerivedSession(duplicate key) error = %v, want ErrSessionDerivationExists", err)
 		}
@@ -513,7 +513,7 @@ func TestGlobalDBUserDerivationReceipts(t *testing.T) {
 					FirstPrompt: store.SessionDerivationFirstPromptStaged,
 				},
 			}
-			if err := db.RegisterDerivedSession(ctx, info, identity, receipt); err != nil {
+			if err := db.RegisterDerivedSession(ctx, &(info), identity, receipt); err != nil {
 				t.Fatal(err)
 			}
 		}

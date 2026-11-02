@@ -3,10 +3,9 @@ import { AlertCircle, RefreshCw } from "@compozy/ui/icons";
 import { Button, Empty, ListingPage } from "@compozy/ui";
 
 import { agentFleetListStatus, isAgentsErrorEmpty } from "./agents-catalog-view";
-import { listPaginationStatus } from "./list-pagination-status";
 import { useAgentsFleetPage } from "./use-agents-catalog";
 import { useAgentsCatalogTopbar } from "./use-agents-catalog-topbar";
-import { AgentFleetList, type AgentsFleetSearch } from "@/systems/agent";
+import { AgentTeamPage, type AgentsFleetSearch } from "@/systems/agent";
 
 function AgentFleetErrorState({ onRetry }: { onRetry: () => void }) {
   return (
@@ -44,17 +43,13 @@ export function AgentsCatalogLocation({ search }: { search: AgentsFleetSearch })
       {isAgentsErrorEmpty(page) ? (
         <AgentFleetErrorState onRetry={page.retryAgents} />
       ) : (
-        <AgentFleetList
-          status={agentFleetListStatus(page)}
-          newSessionStatus={page.newSessionDisabled ? "disabled" : "enabled"}
+        <AgentTeamPage
+          actions={page.actions}
+          members={page.members}
           onClearFilters={page.clearFilters}
-          onCreateAgent={page.openCreate}
-          onNewSession={page.openNewSession}
-          onOpenAgent={page.openAgent}
-          paginationStatus={listPaginationStatus(page.isLoadingMore, page.hasMore)}
-          onLoadMore={page.loadMore}
-          rows={page.rows}
-          sessionDataStatus={page.sessionsPartial ? "partial" : "available"}
+          onCreate={page.openCreate}
+          status={agentFleetListStatus(page)}
+          unfiltered={page.unfiltered}
           view={page.view}
         />
       )}

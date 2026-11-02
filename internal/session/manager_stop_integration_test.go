@@ -350,10 +350,10 @@ func TestManagerIntegrationResumeReplayRestoresLoadUnsupportedContext(t *testing
 	}
 	h.manager = newManagerWithHarness(t, h, WithDriver(newRuntimeDriver()))
 
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "resume-replay",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -515,10 +515,10 @@ func TestManagerIntegrationCreateAndResumeWithWorkspaceResolver(t *testing.T) {
 		}
 		cleanupTestManager(t, manager)
 
-		session, err := manager.Create(testutil.Context(t), CreateOpts{
+		session, err := manager.Create(testutil.Context(t), new(CreateOpts{
 			AgentName:     "coder",
 			WorkspacePath: workspaceRoot,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
@@ -1175,7 +1175,7 @@ func TestManagerIntegrationSpawnProviderCommandRouting(t *testing.T) {
 			{Name: "explicit", Provider: acpmock.ProviderName, Command: commands["c"], Prompt: "Review."},
 		}
 		h.resolver.upsert(&workspace)
-		parent, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "parent", Workspace: h.workspaceID})
+		parent, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "parent", Workspace: h.workspaceID}))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1271,7 +1271,7 @@ func TestManagerIntegrationStalledACPStartup(t *testing.T) {
 			h.manager = newManagerWithHarness(t, h, WithDriver(NewACPDriverAdapter(driver)))
 			created := make(chan error, 1)
 			go func() {
-				_, err := h.manager.Create(t.Context(), CreateOpts{AgentName: "coder", Workspace: h.workspaceID})
+				_, err := h.manager.Create(t.Context(), new(CreateOpts{AgentName: "coder", Workspace: h.workspaceID}))
 				created <- err
 			}()
 			childPID := waitForSessionStopWrapperChildPID(t, requestFile)

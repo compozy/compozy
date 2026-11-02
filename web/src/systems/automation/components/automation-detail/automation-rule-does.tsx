@@ -13,6 +13,10 @@ import type { AutomationView } from "../../lib/automation-view";
 import type { AutomationJob } from "../../types";
 import { useClampOverflow } from "../../hooks/use-clamp-overflow";
 import { AutomationValueBadge } from "./automation-value-badge";
+import {
+  AgentIdentityLabel,
+  AgentIdentityMark,
+} from "@/systems/agent/components/agent-identity-mark";
 
 type TargetChipProps = Omit<ComponentProps<"span">, "children"> & { children: ReactNode };
 
@@ -154,6 +158,49 @@ function TaskDoes({ job }: { job: AutomationJob }) {
   );
 }
 
+function LoopDoes({
+  target,
+  workspaceName,
+  missing,
+}: {
+  target: LoopTargetProjection;
+  workspaceName: string | null;
+  missing: boolean;
+}) {
+  const workspaceLabel = workspaceName ?? target.workspaceId;
+  return (
+    <>
+      <span className="flex min-w-0 items-center gap-2">
+        <TargetChip>
+          <Repeat2 className="size-3" />
+        </TargetChip>
+        <b className="min-w-0 truncate text-form-input font-medium text-fg-strong">
+          Start the Loop{" "}
+          {missing ? (
+            <span data-testid="automation-loop-name">{target.loopName}</span>
+          ) : (
+            <Link
+              className="rounded-xs underline underline-offset-2 transition-colors duration-base ease-out hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
+              data-testid="automation-loop-link"
+              params={{ name: target.loopName }}
+              search={target.workspaceId ? { workspace: target.workspaceId } : {}}
+              to="/loops/$name"
+            >
+              {target.loopName}
+            </Link>
+          )}
+        </b>
+      </span>
+      <RuleSub>
+        {missing
+          ? "This Loop no longer exists."
+          : `Starts a Loop run in ${workspaceLabel} with these inputs:`}
+      </RuleSub>
+      <LoopInputs target={target} />
+    </>
+  );
+}
+
 interface AutomationRuleDoesProps {
   entity: AutomationEntity;
   view: AutomationView;
@@ -177,38 +224,7 @@ export function AutomationRuleDoes({
   const target = projectAutomationTarget(entity);
 
   if (target.kind === "loop") {
-    const workspaceLabel = loopWorkspaceName ?? target.workspaceId;
-    return (
-      <>
-        <span className="flex min-w-0 items-center gap-2">
-          <TargetChip>
-            <Repeat2 className="size-3" />
-          </TargetChip>
-          <b className="min-w-0 truncate text-form-input font-medium text-fg-strong">
-            Start the Loop{" "}
-            {loopMissing ? (
-              <span data-testid="automation-loop-name">{target.loopName}</span>
-            ) : (
-              <Link
-                className="rounded-xs underline underline-offset-2 transition-colors duration-base ease-out hover:text-fg focus-visible:shadow-focus-ring focus-visible:outline-none"
-                data-testid="automation-loop-link"
-                params={{ name: target.loopName }}
-                search={target.workspaceId ? { workspace: target.workspaceId } : {}}
-                to="/loops/$name"
-              >
-                {target.loopName}
-              </Link>
-            )}
-          </b>
-        </span>
-        <RuleSub>
-          {loopMissing
-            ? "This Loop no longer exists."
-            : `Starts a Loop run in ${workspaceLabel} with these inputs:`}
-        </RuleSub>
-        <LoopInputs target={target} />
-      </>
-    );
+    return <LoopDoes target={target} workspaceName={loopWorkspaceName} missing={loopMissing} />;
   }
 
   const templated = view.start !== "schedule";
@@ -216,9 +232,20 @@ export function AutomationRuleDoes({
   return (
     <>
       <span className="flex min-w-0 items-center gap-2">
-        <TargetChip>{target.agentName.charAt(0)}</TargetChip>
+        <AgentIdentityMark
+          name={target.agentName}
+          agentScope={{ workspace: entity.workspace_id || null, profile: entity.profile_name }}
+          quietIdle
+          size={20}
+        />
         <span className="min-w-0 truncate text-form-input text-fg">
-          Ask <b className="font-medium text-fg-strong">{target.agentName}</b>
+          Ask{" "}
+          <b className="font-medium text-fg-strong">
+            <AgentIdentityLabel
+              name={target.agentName}
+              agentScope={{ workspace: entity.workspace_id || null, profile: entity.profile_name }}
+            />
+          </b>
         </span>
       </span>
       <RuleSub>

@@ -9,6 +9,7 @@ import {
 import { formatHomeTokens } from "../lib/home-formatters";
 import { HomeProfileShare } from "./home-profile-share";
 import { HOME_USAGE_HEADLINE_CLASS } from "./home-zone-shape";
+import { humanizeAgentSlug } from "@/systems/agent";
 
 export interface HomeUsageChartProps {
   /** The aggregate read is on — the labeled per-profile breakdown belongs. */
@@ -127,7 +128,7 @@ function HomeAgentShare({ share }: { share: HomeOverview["usage"]["agent_share"]
     return null;
   }
   const label = share
-    .map(entry => `${entry.agent_name} ${Math.round(entry.fraction * 100)}%`)
+    .map(entry => `${humanizeAgentSlug(entry.agent_name)} ${Math.round(entry.fraction * 100)}%`)
     .join(", ");
 
   return (
@@ -162,7 +163,7 @@ function HomeAgentShare({ share }: { share: HomeOverview["usage"]["agent_share"]
               className="size-2 rounded-xs"
               style={{ background: SHARE_RAMP[Math.min(index, SHARE_RAMP.length - 1)] }}
             />
-            {entry.agent_name}{" "}
+            {humanizeAgentSlug(entry.agent_name)}{" "}
             <span className="text-eyebrow tabular-nums text-subtle">
               {Math.round(entry.fraction * 100)}% · {formatHomeTokens(entry.tokens)}
             </span>

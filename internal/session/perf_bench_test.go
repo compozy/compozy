@@ -85,11 +85,11 @@ func BenchmarkManagerPersistSessionHealth(b *testing.B) {
 	target := &Session{
 		ID: "sess-health-bench", AgentName: "coder", WorkspaceID: "ws-health-bench", State: StateActive,
 	}
-	if err := database.RegisterSession(ctx, store.SessionInfo{
+	if err := database.RegisterSession(ctx, new(store.SessionInfo{
 		ID: target.ID, ProfileID: store.DefaultProfileID, AgentName: target.AgentName,
 		Provider: "claude", WorkspaceID: target.WorkspaceID, State: "active",
 		RuntimeStatus: store.SessionRuntimeUnbound,
-	}); err != nil {
+	})); err != nil {
 		b.Fatal(err)
 	}
 	manager := &Manager{sessionHealthStore: database, now: func() time.Time { return benchmarkSessionTime }}
@@ -351,7 +351,7 @@ func BenchmarkManagerListAllActiveCatalog(b *testing.B) {
 			CreatedAt: benchmarkSessionTime, UpdatedAt: benchmarkSessionTime,
 		}
 		manager.sessions[target.ID] = target
-		if err := database.RegisterSession(ctx, sessionCatalogInfoFromRuntime(target.Info())); err != nil {
+		if err := database.RegisterSession(ctx, new(sessionCatalogInfoFromRuntime(target.Info()))); err != nil {
 			b.Fatal(err)
 		}
 		meta := target.Meta()

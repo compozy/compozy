@@ -36,3 +36,8 @@ All-projects A4 backend coverage (2026-10-21): For the backend aggregate, create
 Targeted evidence: `docs/qa/reports/2026-10-21-all-projects-user-scope.md`. The integrated Web walk remains owned by the orchestration QA slice.
 
 All-projects AW4 (2026-10-21): reset to untested for the Web half of the A4 aggregate. Walk: same-named agent in User and two projects → three rows with badges; Project filter to one project; open the ws_b row → the agent window shows the ws_b chrome badge and its sessions; switch to Sessions tab and Settings and back — still ws_b. PR screenshots: aggregate agents list with badges; bound agent window.
+
+QA impact 2026-11-01 (stays-on F2): the fleet, the four tabs and the settings modal are gone, replaced
+by the team list and the agent's home. See `ET-web-agents-team-profile`; old `?tab=` and
+`settings?section=` links land on the matching panel or page. Status remains untested; no QA replay
+ran for this scenario.

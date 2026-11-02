@@ -8,6 +8,7 @@ import (
 // Operations returns the complete transport-neutral operation registry.
 func Operations() []OperationSpec {
 	ops := cloneOperationSpecs(operationRegistry)
+	ops = append(ops, agentInstanceOperations()...)
 	ops = append(ops, appTokenOperations()...)
 	ops = append(ops, openAPIDocumentOperation())
 	ops = append(ops, runtimeStatusOperations()...)
@@ -18,6 +19,7 @@ func Operations() []OperationSpec {
 	ops = append(ops, sessionNavigationOperations()...)
 	ops = append(ops, attentionNotificationOperations()...)
 	ops = append(ops, authoredContextOperations()...)
+	ops = append(ops, agentMemoryOperations()...)
 	ops = append(ops, append(loopsOperations(), goalOperations()...)...)
 	ops = applyLoopAutomationContract(ops)
 	ops = append(ops, modelCatalogOperations()...)

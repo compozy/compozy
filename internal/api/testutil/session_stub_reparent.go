@@ -7,7 +7,7 @@ import (
 )
 
 // AdoptSession delegates to AdoptSessionFn or reports a missing session.
-func (s StubSessionManager) AdoptSession(
+func (s *StubSessionManager) AdoptSession(
 	ctx context.Context,
 	workspaceID string,
 	sessionID string,
@@ -20,7 +20,7 @@ func (s StubSessionManager) AdoptSession(
 }
 
 // DetachSession delegates to DetachSessionFn or reports a missing session.
-func (s StubSessionManager) DetachSession(
+func (s *StubSessionManager) DetachSession(
 	ctx context.Context,
 	workspaceID string,
 	sessionID string,

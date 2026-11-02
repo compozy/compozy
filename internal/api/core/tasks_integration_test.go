@@ -71,7 +71,7 @@ func TestTaskHandlersCreateTaskAndListFiltersReachManagerIntegration(t *testing.
 
 	fixture := newHandlerFixtureWithTasks(
 		t,
-		testutil.StubSessionManager{},
+		&testutil.StubSessionManager{},
 		testutil.StubObserver{},
 		tasks,
 		workspaces,

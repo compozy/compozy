@@ -183,7 +183,7 @@ func (n *daemonNativeTools) skillView(
 	if file != "" {
 		payload["file"] = file
 	}
-	result, err := structuredResult(payload, content)
+	result, err := structuredResult(payload, "Skill content")
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

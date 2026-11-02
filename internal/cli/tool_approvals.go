@@ -77,7 +77,7 @@ func newToolApprovalsSetCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&workspaceID, "workspace", "", "Override workspace (ID, name, or path)")
-	cmd.Flags().StringVar(&decision, "decision", "", "Remembered decision: allow or reject")
+	cmd.Flags().StringVar(&decision, loopDecisionKey, "", "Remembered decision: allow or reject")
 	cmd.Flags().StringVar(&scope, "scope", "", "Wider scope: agent or tool")
 	cmd.Flags().StringVar(&agentName, "agent", "", "Agent name required by agent scope")
 	configureProfileMutationCommand(cmd, deps)
@@ -171,14 +171,22 @@ func toolApprovalGrantListBundle(response ToolApprovalGrantListRecord) outputBun
 		response,
 		response.Grants,
 		"Remembered Tool Approvals",
-		[]string{"ID", cliProfileHeader, toolOperatorToolIDHeader, "AGENT", "DECISION", "INPUT DIGEST", "LAST USED"},
+		[]string{
+			"ID",
+			cliProfileHeader,
+			toolOperatorToolIDHeader,
+			cliAgentHeader,
+			"DECISION",
+			"INPUT DIGEST",
+			"LAST USED",
+		},
 		"tool_approval_grants",
 		[]string{
 			"id",
 			profileNameOutputKey,
 			toolOperatorToolIDKey,
 			installAgentNameKey,
-			"decision",
+			loopDecisionKey,
 			"input_digest",
 			"last_used_at",
 		},
@@ -228,7 +236,7 @@ func toolApprovalGrantSetBundle(grant ToolApprovalGrantRecord) outputBundle {
 			return renderToonObject(
 				"tool_approval_grant",
 				[]string{
-					"id", taskWorkspaceIDKey, "tool_id", "decision", cliOutputScopeKey, installAgentNameKey,
+					"id", taskWorkspaceIDKey, "tool_id", loopDecisionKey, cliOutputScopeKey, installAgentNameKey,
 				},
 				[]string{
 					grant.ID,

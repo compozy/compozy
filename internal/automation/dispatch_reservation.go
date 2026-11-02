@@ -47,7 +47,7 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 	}
 
 	createOpts := d.createOpts(req)
-	createdSession, createErr := d.sessions.Create(ctx, createOpts)
+	createdSession, createErr := d.sessions.Create(ctx, &(createOpts))
 	if createErr != nil {
 		return d.finishUnstartedSessionRun(ctx, req, scheduledRun, createErr)
 	}

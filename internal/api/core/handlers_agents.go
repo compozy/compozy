@@ -19,6 +19,7 @@ import (
 type workspaceAgentEntries struct {
 	Entries       []AgentCatalogEntry
 	WorkspaceID   string
+	WorkspaceName string
 	WorkspaceRoot string
 	Config        compozyconfig.Config
 	Diagnostics   []workspacepkg.AgentDiagnostic
@@ -117,6 +118,7 @@ func (h *BaseHandlers) workspaceAgentEntriesWithDiagnostics(
 	return workspaceAgentEntries{
 		Entries:       entries,
 		WorkspaceID:   workspaceID,
+		WorkspaceName: resolved.Name,
 		WorkspaceRoot: strings.TrimSpace(resolved.RootDir),
 		Config:        resolved.Config,
 		Diagnostics:   publicAgentDiagnostics(resolved.AgentDiagnostics),
@@ -150,9 +152,10 @@ func (h *BaseHandlers) workspaceAgentDef(
 	if err != nil {
 		return AgentCatalogEntry{}, compozyconfig.Config{}, err
 	}
-	for _, entry := range resolved.Entries {
+	for i := range resolved.Entries {
+		entry := &resolved.Entries[i]
 		if strings.TrimSpace(entry.Def.Name) == trimmedName {
-			return entry, resolved.Config, nil
+			return *entry, resolved.Config, nil
 		}
 	}
 	workspaceLabel := workspaceDisplay(resolved.WorkspaceRoot, workspaceRef)
@@ -176,7 +179,8 @@ func (h *BaseHandlers) respondAgentEntries(
 		diagnosticCount += len(group)
 	}
 	agents := make([]contract.AgentPayload, 0, len(entries)+diagnosticCount)
-	for _, entry := range entries {
+	for i := range entries {
+		entry := &entries[i]
 		agents = append(agents, AgentPayloadFromEntryWithConfig(entry, cfg))
 	}
 	for _, group := range diagnostics {

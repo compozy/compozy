@@ -1,15 +1,16 @@
 import { createStoreLogic } from "@xstate/store";
 
+import { buildTerminalQuote, type TerminalQuote } from "@/systems/terminal/lib/terminal-quote";
 import {
-  buildTerminalQuote,
   clearChooseSessionTerminalQuote,
+  takeChooseSessionTerminalQuote,
+} from "@/systems/terminal/lib/terminal-quote-choose";
+import {
   clearPendingTerminalQuote,
   holdPendingTerminalQuote,
   peekPendingTerminalQuote,
-  takeChooseSessionTerminalQuote,
   takePendingTerminalQuote,
-  type TerminalQuote,
-} from "@/systems/terminal/parts";
+} from "@/systems/terminal/lib/terminal-quote-pending";
 
 /**
  * The terminal excerpt waiting in a session's composer.

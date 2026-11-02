@@ -328,7 +328,7 @@ test.describe("Profiles", () => {
     await ui.switcher.click();
     await ui.switcherOption("release-drafts").click();
     await expect(ui.switcher).toHaveAccessibleName("Profile: release-drafts");
-    await openAppWindow(appPage, "Home", "dashboard");
+    await openAppWindow(appPage, "Dashboard", "dashboard");
 
     const plan = await runtime.requestJSON<{ revision: string }>(
       "/api/profiles/release-drafts/delete-plan"
@@ -914,7 +914,7 @@ test.describe("Profiles", () => {
     await recordDefaultProfileUsage(runtime, await activeWorkspaceId(runtime));
     await appPage.reload({ waitUntil: "domcontentloaded" });
 
-    const home = await openAppWindow(appPage, "Home", "dashboard");
+    const home = await openAppWindow(appPage, "Dashboard", "dashboard");
     const scoped = profilesOperatorSelectors(appPage, home);
     // Scoped: figures cover this profile only, so no breakdown is offered.
     await expect(scoped.usageProfileShare).toHaveCount(0);

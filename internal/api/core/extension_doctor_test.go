@@ -37,7 +37,7 @@ func TestDoctorExtensionFilterReportsDistinctRuntimeFailures(t *testing.T) {
 		handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 			Config:   compozyconfig.DefaultWithHome(homePaths),
 			Observer: apitestutil.StubObserver{},
-			Sessions: apitestutil.StubSessionManager{},
+			Sessions: &apitestutil.StubSessionManager{},
 			Extensions: extensionServiceStub{supersededFn: func(context.Context) ([]contract.DiagnosticItem, error) {
 				return []contract.DiagnosticItem{diagnostics.NewItem(diagnostics.ItemSpec{
 					ID:            "doctor.extension.dev-cycle.superseded",

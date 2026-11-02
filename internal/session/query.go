@@ -98,6 +98,9 @@ func (m *Manager) readPersistedSessionInfos(
 			continue
 		}
 		if info := activeByID[id]; info != nil {
+			if row, ok := rows[id]; ok {
+				info.InstanceID = row.InstanceID
+			}
 			infos = append(infos, info)
 			seen[id] = struct{}{}
 			continue
@@ -133,7 +136,11 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 	}
 
 	if session, ok := m.Get(target); ok {
-		return normalizeExpiredSessionAttach(m.sessionInfoForRead(session), m.now()), nil
+		info := normalizeExpiredSessionAttach(m.sessionInfoForRead(session), m.now())
+		if err := m.populateInstanceMetadata(ctx, info); err != nil {
+			return nil, err
+		}
+		return info, nil
 	}
 
 	meta, err := m.readMetaWithContext(ctx, target)
@@ -147,6 +154,9 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 	}
 	info := m.sessionInfoFromMeta(ctx, &meta)
 	if err := m.hydrateSessionInfoAttention(ctx, info); err != nil {
+		return nil, err
+	}
+	if err := m.populateInstanceMetadata(ctx, info); err != nil {
 		return nil, err
 	}
 	if err := m.populateCatalogMetadata(ctx, info); err != nil {

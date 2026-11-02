@@ -2,9 +2,7 @@ package core
 
 import (
 	"context"
-
 	"fmt"
-
 	"path/filepath"
 	"strings"
 
@@ -16,6 +14,8 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
+
+const authoredAgentProfileLayer = "profile"
 
 // resolveAuthoredAgentTargetForRequest uses the request Profile to locate authored agent resources.
 func (h *BaseHandlers) resolveAuthoredAgentTargetForRequest(
@@ -61,7 +61,17 @@ func (h *BaseHandlers) resolveAuthoredAgentTargetForProfile(
 	if h.Workspaces == nil {
 		return authoredAgentTarget{}, workspacepkg.ErrWorkspaceResolverUnavailable
 	}
-	resolved, err := resolveWorkspaceAgentProfile(ctx, h.Workspaces, ref, profileName)
+	var resolved workspacepkg.ResolvedWorkspace
+	var err error
+	if workspacepkg.ParseRef(ref).Kind == workspacepkg.RefUser {
+		userResolver, ok := h.Workspaces.(workspacepkg.UserRuntimeResolver)
+		if !ok {
+			return authoredAgentTarget{}, workspacepkg.ErrUserScopeUnsupported
+		}
+		resolved, err = userResolver.ResolveUser(ctx, scope.ProfileID)
+	} else {
+		resolved, err = resolveWorkspaceAgentProfile(ctx, h.Workspaces, ref, profileName)
+	}
 	if err != nil {
 		return authoredAgentTarget{}, err
 	}
@@ -87,6 +97,12 @@ func (t authoredAgentTarget) withAgentArtifacts(
 	agentName string,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) authoredAgentTarget {
+	for _, agent := range resolved.Agents {
+		if agent.Name == agentName {
+			t.agentLayer = agent.SourceLayer
+			break
+		}
+	}
 	if catalog == nil {
 		return t
 	}
@@ -101,6 +117,7 @@ func (t authoredAgentTarget) withAgentArtifacts(
 	if sourcePath := strings.TrimSpace(artifacts.Agent.SourcePath); sourcePath != "" {
 		t.agentPath = sourcePath
 	}
+	t.agentLayer = artifacts.Agent.SourceLayer
 	t.packageOwned = artifacts.PackageOwned
 	t.soulSourcePath = strings.TrimSpace(artifacts.SoulSourcePath)
 	t.soulBody = artifacts.SoulBody
@@ -111,8 +128,9 @@ func (t authoredAgentTarget) withAgentArtifacts(
 
 func (t authoredAgentTarget) soulAuthoringTarget() soul.AuthoringTarget {
 	return soul.AuthoringTarget{
-		WorkspaceID:   t.storageWorkspaceID(),
-		WorkspaceRoot: authoredContextSourceRoot(t.workspaceRoot, t.agentPath),
+		ProfileID:     t.profileID,
+		WorkspaceID:   t.authoringWorkspaceID(),
+		WorkspaceRoot: t.authoringRoot(),
 		AgentName:     t.agentName,
 		AgentPath:     t.agentPath,
 		Config:        t.soulConfig,
@@ -125,12 +143,34 @@ func (t authoredAgentTarget) heartbeatAuthoringTarget() heartbeat.AuthoringTarge
 	return heartbeat.AuthoringTarget{
 		ProfileID:     t.profileID,
 		ProfileName:   t.profileName,
-		WorkspaceID:   t.storageWorkspaceID(),
-		WorkspaceRoot: authoredContextSourceRoot(t.workspaceRoot, t.agentPath),
+		WorkspaceID:   t.authoringWorkspaceID(),
+		WorkspaceRoot: t.authoringRoot(),
 		AgentName:     t.agentName,
 		AgentPath:     t.agentPath,
 		Config:        t.heartbeatConfig,
 	}
+}
+
+func (t authoredAgentTarget) authoringRoot() string {
+	if t.agentLayer == userScopeValue || t.agentLayer == authoredAgentProfileLayer {
+		if root := trustedRootFromAgentSourcePath(t.agentPath); root != "" {
+			return root
+		}
+	}
+	return authoredContextSourceRoot(t.workspaceRoot, t.agentPath)
+}
+
+func (t authoredAgentTarget) authoringWorkspaceID() string {
+	switch t.agentLayer {
+	case userScopeValue, authoredAgentProfileLayer:
+		return ""
+	case "project", "project_profile":
+		return t.storageWorkspaceID()
+	}
+	if t.workspaceID == "" || !pathWithinRoot(t.workspaceRoot, t.agentPath) {
+		return ""
+	}
+	return t.storageWorkspaceID()
 }
 
 func (t authoredAgentTarget) storageWorkspaceID() string {

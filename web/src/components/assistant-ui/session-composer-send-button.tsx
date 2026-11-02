@@ -7,10 +7,10 @@ import { InputGroupButton } from "@compozy/ui";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 
 import {
-  composeQuotedPrompt,
   discardSessionTerminalQuote,
   peekSessionTerminalQuote,
-} from "@/systems/session";
+} from "@/systems/session/lib/session-terminal-quote";
+import { composeQuotedPrompt } from "@/systems/session/lib/session-terminal-quote-prompt";
 
 import { sessionComposerSendBlocker } from "./hooks/use-session-composer-send-gate";
 import { sessionAttachmentTileState } from "./session-attachment-tile-model";

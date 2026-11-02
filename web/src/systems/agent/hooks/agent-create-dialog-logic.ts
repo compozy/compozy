@@ -5,6 +5,15 @@ import { notifyUser } from "@/lib/user-feedback";
 import type { AgentCreateDialogDraft } from "../lib/agent-create-draft";
 import type { AgentPayload } from "../types";
 
+/** What a submit produced; `startError` keeps the screen open on an agent that couldn't start. */
+export interface AgentCreateOutcome {
+  agent: AgentPayload;
+  /** The route the created agent lands on; on-demand agents open their page. */
+  landing: "agent" | "sessions";
+  workspace?: string;
+  startError?: string;
+}
+
 type AgentCreateMode = { kind: "create" } | { kind: "duplicate"; source: AgentPayload };
 
 interface AgentCreateFlowBase {
@@ -20,7 +29,21 @@ type AgentCreateFlow =
         | { status: "editing" }
         | { status: "submitting"; attempt: number }
         | { status: "failed"; error: string }
-        | { status: "navigation-pending"; attempt: number; agentName: string }
+        | {
+            status: "start-failed";
+            attempt: number;
+            agentName: string;
+            landing: AgentCreateOutcome["landing"];
+            workspace?: string;
+            error: string;
+          }
+        | {
+            status: "navigation-pending";
+            attempt: number;
+            agentName: string;
+            landing: AgentCreateOutcome["landing"];
+            workspace?: string;
+          }
         | { status: "navigating"; attempt: number; agentName: string }
       ));
 
@@ -39,10 +62,17 @@ type AgentCreateDialogEvents = {
   submissionFailed: { attempt: number; error: string };
   submissionRejected: { error: string };
   submissionRequested: {
-    execute: () => Promise<AgentPayload>;
+    execute: () => Promise<AgentCreateOutcome>;
     failureMessage: string;
   };
-  submissionSucceeded: { agentName: string; attempt: number };
+  submissionSucceeded: {
+    agentName: string;
+    attempt: number;
+    landing: AgentCreateOutcome["landing"];
+    workspace?: string;
+    startError?: string;
+  };
+  startFailureAcknowledged: Record<never, never>;
 };
 
 export interface AgentCreateDialogLogicInput {
@@ -107,8 +137,14 @@ export const agentCreateDialogLogic = createStoreLogic<
       const attempt = context.nextAttempt + 1;
       enqueue.effect(async ({ trigger }) => {
         try {
-          const agent = await event.execute();
-          trigger.submissionSucceeded({ agentName: agent.name, attempt });
+          const { agent, landing, startError, workspace } = await event.execute();
+          trigger.submissionSucceeded({
+            agentName: agent.name,
+            attempt,
+            landing,
+            startError,
+            workspace,
+          });
         } catch (cause) {
           trigger.submissionFailed({
             attempt,
@@ -120,7 +156,28 @@ export const agentCreateDialogLogic = createStoreLogic<
     },
     submissionSucceeded: (context, event) => {
       if (context.status !== "submitting" || context.attempt !== event.attempt) return;
-      return { ...context, agentName: event.agentName, status: "navigation-pending" };
+      const { agentName, landing, startError, workspace } = event;
+      if (startError)
+        return {
+          ...context,
+          agentName,
+          landing,
+          ...(workspace ? { workspace } : {}),
+          error: startError,
+          status: "start-failed",
+        };
+      return {
+        ...context,
+        agentName,
+        landing,
+        ...(workspace ? { workspace } : {}),
+        status: "navigation-pending",
+      };
+    },
+    startFailureAcknowledged: context => {
+      if (context.status !== "start-failed") return;
+      const { error: _error, ...rest } = context;
+      return { ...rest, landing: "agent" as const, status: "navigation-pending" as const };
     },
     submissionFailed: (context, event, enqueue) => {
       if (context.status !== "submitting" || context.attempt !== event.attempt) return;
@@ -162,8 +219,10 @@ export const agentCreateDialogLogic = createStoreLogic<
   },
 });
 
-function errorMessage(error: unknown, fallback: string): string {
+export function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message.trim().length > 0 ? error.message : fallback;
 }
+
+export type AgentCreateDialogStore = ReturnType<typeof agentCreateDialogLogic.createStore>;
 
 export type { AgentCreateFlow, AgentCreateMode };

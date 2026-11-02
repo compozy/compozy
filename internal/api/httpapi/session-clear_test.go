@@ -22,7 +22,7 @@ func TestClearSessionConversationHandler(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			ClearFn: func(_ context.Context, id string) (*session.Session, error) {
 				if id != "sess-123" {
 					t.Fatalf("ClearConversation() id = %q, want sess-123", id)
@@ -60,7 +60,7 @@ func TestClearSessionConversationHandler(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			ClearFn: func(context.Context, string) (*session.Session, error) {
 				return nil, session.ErrPromptInProgress
 			},
@@ -85,7 +85,7 @@ func TestRewindSessionConversationHandler(t *testing.T) {
 		t.Parallel()
 
 		homePaths := newTestHomePaths(t)
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				info := newSessionInfo(id)
 				info.WorkspaceID = "ws-workspace"
@@ -131,7 +131,7 @@ func TestRewindSessionConversationHandler(t *testing.T) {
 		t.Parallel()
 
 		called := false
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				info := newSessionInfo(id)
 				info.WorkspaceID = "ws-workspace"
@@ -177,9 +177,9 @@ func continueTestManager(
 	t *testing.T,
 	workspaceID string,
 	continueFn func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error),
-) stubSessionManager {
+) *stubSessionManager {
 	t.Helper()
-	return stubSessionManager{
+	return &stubSessionManager{
 		// Derive routes never read the source through Status: it repairs an inactive
 		// session's metadata, and ownership is validated by the manager's
 		// non-repairing snapshot after receipt replay (ADR-007).

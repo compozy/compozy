@@ -36,6 +36,7 @@ function resolvedRow(
   overrides: Partial<SessionInteractionRecord> = {}
 ): SessionInteractionRecord {
   return {
+    session_id: "sess-1",
     interaction_id: "int-123",
     kind: "permission",
     provider_request_id: "req-123",

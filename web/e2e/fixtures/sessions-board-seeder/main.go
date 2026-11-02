@@ -79,7 +79,7 @@ func seedRows(
 	base := time.Now().UTC().Add(-time.Hour)
 	result := seeded{Done: []string{}, Archived: []string{}}
 	register := func(info store.SessionInfo) error {
-		if err := database.RegisterSession(ctx, info); err != nil {
+		if err := database.RegisterSession(ctx, &info); err != nil {
 			return fmt.Errorf("register seeded session %q: %w", info.ID, err)
 		}
 		return writeMeta(sessionsDir, &info)

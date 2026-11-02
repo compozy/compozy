@@ -42,6 +42,7 @@ func (s *ManagedSoulAuthoringService) persistPostWrite(
 		&resolved,
 		provenance,
 		now,
+		target.profileID,
 	)
 	if err != nil {
 		return MutationResult{}, err
@@ -99,6 +100,7 @@ func (s *ManagedSoulAuthoringService) appendRevision(
 	revision := Revision{
 		ID:              revisionID,
 		WorkspaceID:     target.workspaceID,
+		ProfileID:       target.profileID,
 		AgentName:       target.agentName,
 		SourcePath:      target.sourcePath,
 		Action:          action,

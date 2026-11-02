@@ -286,10 +286,10 @@ func TestRestartSessionDaemonProcess(t *testing.T) {
 	if phase == "first" {
 		workspace := resolveDaemonWorkspace(t, d.workspaceResolver, filepath.Join(root, "project"))
 		for i := range 3 {
-			active, err := d.sessions.Create(t.Context(), session.CreateOpts{
+			active, err := d.sessions.Create(t.Context(), new(session.CreateOpts{
 				AgentName: "restart-lab", Workspace: workspace.ID, Type: session.SessionTypeUser,
 				DesiredSessionID: fmt.Sprintf("sess-restart-lab-%d", i),
-			})
+			}))
 			if err != nil {
 				t.Fatal(err)
 			}

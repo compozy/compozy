@@ -92,6 +92,13 @@ function loadingDashboardModel(): HomeDashboardModel {
 }
 
 describe("Home dashboard loading shapes", () => {
+  it("Should name an unnamed session's agent by label, never by slug", () => {
+    const card = { ...RUN_CARD, agentName: "night-scout", title: "night-scout" };
+    render(<HomeWorkingNow cards={[card]} status="ready" total={1} />);
+    expect(screen.getByText("Night Scout")).toBeInTheDocument();
+    expect(screen.queryByText("night-scout")).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
     dashboardModel.current = loadingDashboardModel();
   });

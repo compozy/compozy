@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"strings"
+	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 )
@@ -58,6 +59,10 @@ func (p *AgentProcess) interceptWriteTextFileRequest(
 	ctx context.Context,
 	request acpsdk.WriteTextFileRequest,
 ) (acpsdk.WriteTextFileRequest, error) {
+	if p != nil && p.executionPolicy == ExecutionPolicyTriage {
+		p.emitTriageDenial("")
+		return acpsdk.WriteTextFileRequest{}, ErrPermissionDenied
+	}
 	if p == nil || p.toolGateway == nil {
 		request.Path = strings.TrimSpace(request.Path)
 		return request, nil
@@ -98,6 +103,10 @@ func (p *AgentProcess) interceptCreateTerminalRequest(
 	ctx context.Context,
 	request acpsdk.CreateTerminalRequest,
 ) (acpsdk.CreateTerminalRequest, error) {
+	if p != nil && p.executionPolicy == ExecutionPolicyTriage {
+		p.emitTriageDenial("")
+		return acpsdk.CreateTerminalRequest{}, ErrPermissionDenied
+	}
 	if p == nil || p.toolGateway == nil {
 		request.Command = strings.TrimSpace(request.Command)
 		request.Args = cloneNonEmptyStringSlice(request.Args)
@@ -155,6 +164,7 @@ func (p *AgentProcess) emitPermissionEvent(
 	decision permissionDecision,
 	resolvedBy string,
 	raw json.RawMessage,
+	expiresAt ...time.Time,
 ) {
 	event := AgentEvent{
 		Type:       EventTypePermission,
@@ -168,5 +178,8 @@ func (p *AgentProcess) emitPermissionEvent(
 		Decision:   string(decision),
 		Raw:        CloneRawMessage(raw),
 	}.WithRequestID(requestID).WithResolvedBy(resolvedBy)
+	if len(expiresAt) > 0 {
+		event = event.WithExpiresAt(expiresAt[0])
+	}
 	p.emitPromptEvent(event)
 }

@@ -78,6 +78,9 @@ Unarchive restores availability but does not re-enable paused automations, inclu
 profile owns no work, and structured or non-interactive use requires `--yes`. Jobs and triggers
 count as owned work even while paused, including configuration and extension definitions. Remove
 them through their owning automation surface before deleting the profile.
+Unarchived agent instances also block deletion. The delete plan inventories archived agent
+instances and profile-owned agent memory files; deletion removes those rows and files through
+the recoverable lifecycle operation, preserving every other profile's memory.
 
 ```bash
 compozy profile rename <old> <new> --repos none

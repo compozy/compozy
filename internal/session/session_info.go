@@ -21,15 +21,10 @@ func (s *Session) Info() *Info {
 
 // infoLocked returns a session snapshot; the caller must hold s.mu for reading or writing.
 func (s *Session) infoLocked() *Info {
-	var acpCaps acp.Caps
-	acpCapsKnown := s.ACPCapsKnown
+	acpCaps, acpCapsKnown := s.capabilitiesSnapshotLocked()
 	var leaderKernelToken string
 	if s.process != nil {
 		leaderKernelToken = s.process.KernelToken
-		acpCaps = s.process.CapsSnapshot()
-		acpCapsKnown = true
-	} else {
-		acpCaps = cloneCaps(s.ACPCaps)
 	}
 	pendingPermission := s.process != nil && s.process.HasPendingPermission()
 	resolution := speedpkg.CloneResolution(s.SpeedResolution)
@@ -38,6 +33,8 @@ func (s *Session) infoLocked() *Info {
 	}
 
 	return &Info{
+		InstanceID:    s.InstanceID,
+		InitiatorKind: s.InitiatorKind, InitiatorID: s.InitiatorID,
 		LeaderKernelToken:        leaderKernelToken,
 		runtimeStrategy:          s.runtimeStrategyLocked(),
 		Supervision:              CloneSupervisionState(s.supervisionState),
@@ -101,6 +98,13 @@ func (s *Session) infoLocked() *Info {
 		CreatedAt:                s.CreatedAt,
 		UpdatedAt:                s.UpdatedAt,
 	}
+}
+
+func (s *Session) capabilitiesSnapshotLocked() (acp.Caps, bool) {
+	if s.process != nil {
+		return s.process.CapsSnapshot(), true
+	}
+	return cloneCaps(s.ACPCaps), s.ACPCapsKnown
 }
 
 // RequestedRuntime returns the persisted intent of the current or last binding.

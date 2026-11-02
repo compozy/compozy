@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { sessionSubagentRosterOptions } from "../lib/query-options";
+import { sessionSubagentRosterOptions } from "../lib/subagent-query-options";
 import { EMPTY_SUBAGENT_ROSTER, type SubagentRoster } from "../lib/subagent-roster";
 
 /** The parent's roster as the session stream last wrote it; empty until the snapshot arrives. */

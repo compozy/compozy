@@ -1385,7 +1385,7 @@ func TestDevelopmentExtensionHandlersBindTrustedWorkspace(t *testing.T) {
 			called := false
 			service := extensionServiceStub{}
 			testCase.configure(&service, &called)
-			sessions := testutil.StubSessionManager{
+			sessions := &testutil.StubSessionManager{
 				StatusFn: func(_ context.Context, id string) (*sessionpkg.Info, error) {
 					return &sessionpkg.Info{
 						ID: id, ProfileID: store.DefaultProfileID, AgentName: "coder", State: sessionpkg.StateActive,

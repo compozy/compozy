@@ -21,11 +21,11 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 
 		at := time.Date(2026, 8, 15, 20, 30, 0, 0, time.UTC)
 		catalog := newRecordingSessionCatalog()
-		if err := catalog.RegisterSession(testutil.Context(t), store.SessionInfo{
+		if err := catalog.RegisterSession(testutil.Context(t), new(store.SessionInfo{
 			ID: "sess-hook", AgentName: "coder", WorkspaceID: "ws-hook",
 			SessionType: string(SessionTypeUser), State: string(StateActive),
 			CreatedAt: at.Add(-time.Hour), UpdatedAt: at.Add(-time.Minute),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 		attentionStore := &committingAttentionStore{
@@ -86,11 +86,11 @@ func TestManagerAttentionHookRunsAfterCanonicalCommitAndFailsOpen(t *testing.T) 
 		ctx := testutil.Context(t)
 		at := time.Date(2026, 8, 15, 20, 35, 0, 0, time.UTC)
 		catalog := newRecordingSessionCatalog()
-		if err := catalog.RegisterSession(ctx, store.SessionInfo{
+		if err := catalog.RegisterSession(ctx, new(store.SessionInfo{
 			ID: "sess-transcript-failure", AgentName: "coder", WorkspaceID: "ws-hook",
 			SessionType: string(SessionTypeUser), State: string(StateActive),
 			CreatedAt: at.Add(-time.Hour), UpdatedAt: at.Add(-time.Minute),
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
 		attentionStore := &committingAttentionStore{

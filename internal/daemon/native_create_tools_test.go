@@ -20,6 +20,41 @@ import (
 
 func TestNativeAgentCreate(t *testing.T) {
 	t.Parallel()
+	t.Run("Should author identity through the native registry", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := compozyconfig.DefaultWithHome(home)
+		cfg.Defaults.Provider = "claude"
+		cfg.Providers["claude"] = compozyconfig.ProviderConfig{Command: "claude"}
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				HomePaths:   home,
+				Workspaces:  nativeTestWorkspaceService(t),
+				Config:      cfg,
+				AgentSkills: agentSkillPublisherFunc(func(context.Context) error { return nil }),
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		_, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{Operator: true},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentCreate,
+				Input: json.RawMessage(
+					`{"name":"triage","scope":"global","prompt":"Triage.","display_name":"Triage Lead","description":"Watch issues","kind":"stays_on","appearance":{"version":1,"avatar":"icon","icon":"compass","color":"#123456"}}`,
+				),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		agent, err := compozyconfig.LoadAgentDef("triage", home)
+		if err != nil || agent.Label() != "Triage Lead" || agent.Kind != "stays_on" ||
+			agent.Appearance["icon"] != "compass" {
+			t.Fatalf("native identity: %#v %v", agent, err)
+		}
+	})
 
 	t.Run("Should reject a grant authored by an agent before writing", func(t *testing.T) {
 		t.Parallel()

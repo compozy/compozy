@@ -248,7 +248,7 @@ func newSessionFilesHandlerEngine(
 	}
 	infos["sess-other-profile"].ProfileID = "prof-other"
 	log := workingDirCallLog{calls: make(chan string, 64), logs: &bytes.Buffer{}}
-	manager := testutil.StubSessionManager{
+	manager := &testutil.StubSessionManager{
 		StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			info, ok := infos[id]
 			if !ok {

@@ -9,7 +9,11 @@ import type {
   SessionStopAttribution,
 } from "@/systems/session/lib/session-working-status";
 import type { SessionPayload } from "@/systems/session/types";
-import { isAgentEventPayload, messageHasCompactionPart } from "@/systems/session/lib/message-parts";
+import {
+  isAgentEventPayload,
+  messageHasCompactionPart,
+  messageHasReportPart,
+} from "@/systems/session/lib/message-parts";
 import {
   isSessionCancellationEvent,
   isSessionErrorEvent,
@@ -46,8 +50,12 @@ const STEER_FALLBACK_MARKER = "transcript_marker.prompt_steered";
 // A compaction message (the item the agent's own compaction projects) is carried
 // as an assistant message but belongs to no turn: it is never the reply, never the
 // end of the last turn, and never splits a turn in two, so the scans step over it.
+// A report is the same: it lands beside turns and is never one.
 function isCompactionMessage(message: ThreadStatusMessage | undefined): boolean {
-  return message !== undefined && messageHasCompactionPart(message.content);
+  return (
+    message !== undefined &&
+    (messageHasCompactionPart(message.content) || messageHasReportPart(message.content))
+  );
 }
 
 function lastAssistant(messages: readonly ThreadStatusMessage[]): ThreadStatusMessage | null {

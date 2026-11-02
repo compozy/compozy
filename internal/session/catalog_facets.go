@@ -16,13 +16,7 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 	if ctx == nil {
 		return store.SessionCatalogFacetResult{}, fmt.Errorf("%w: context is required", ErrListQueryInvalid)
 	}
-	query.Search = ""
-	query.Badges = nil
-	query.Columns = nil
-	query.AttentionOnly = false
-	query.Cursor = ""
-	query.Limit = DefaultListLimit
-	normalized, err := normalizeListQuery(query)
+	normalized, err := normalizeCatalogFacetQuery(query)
 	if err != nil {
 		return store.SessionCatalogFacetResult{}, err
 	}
@@ -35,6 +29,7 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 		return store.SessionCatalogFacetResult{}, err
 	}
 	durableQuery := sessionCatalogPageQuery(normalized, nil, activeIDs)
+	durableQuery.BoardExcludedIDs = query.BoardExcludedIDs
 	durableQuery.RepositoryKeys = m.catalogRepositoryKeys(ctx, normalized)
 	durableQuery.DefaultBranches = m.catalogDefaultBranches(ctx, normalized)
 	if err := m.refreshCatalogPullRequests(ctx, durableQuery); err != nil {
@@ -60,13 +55,19 @@ func (m *Manager) CatalogFacets(ctx context.Context, query ListQuery) (store.Ses
 		}
 		facets := workspaces[info.WorkspaceID]
 		addSessionFacet(&facets, BadgeForInfo(info))
-		facets.Board.Add(string(info.BoardColumn), 1)
+		if !slices.Contains(query.BoardExcludedIDs, info.ID) {
+			facets.Board.Add(string(info.BoardColumn), 1)
+		}
 		addSessionFacet(&durable.Facets, BadgeForInfo(info))
-		durable.Facets.Board.Add(string(info.BoardColumn), 1)
+		if !slices.Contains(query.BoardExcludedIDs, info.ID) {
+			durable.Facets.Board.Add(string(info.BoardColumn), 1)
+		}
 		workspaces[info.WorkspaceID] = facets
 		profile := profiles[info.ProfileID]
 		addSessionFacet(&profile, BadgeForInfo(info))
-		profile.Board.Add(string(info.BoardColumn), 1)
+		if !slices.Contains(query.BoardExcludedIDs, info.ID) {
+			profile.Board.Add(string(info.BoardColumn), 1)
+		}
 		profiles[info.ProfileID] = profile
 	}
 	durable.ByWorkspace = make([]store.WorkspaceSessionCatalogFacets, 0, len(workspaces))
@@ -105,4 +106,14 @@ func addSessionFacet(facets *store.SessionCatalogFacets, badge Badge) {
 	if badge == BadgeIdle {
 		facets.Idle++
 	}
+}
+
+func normalizeCatalogFacetQuery(query ListQuery) (ListQuery, error) {
+	query.Search = ""
+	query.Badges = nil
+	query.Columns = nil
+	query.AttentionOnly = false
+	query.Cursor = ""
+	query.Limit = DefaultListLimit
+	return normalizeListQuery(query)
 }

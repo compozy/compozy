@@ -816,7 +816,7 @@ describe("cross-workspace session deep-link router integration", () => {
 
   it("Should resolve direct agent detail through the index leaf that owns its search", async () => {
     const { router, agentDetailRoute } = buildSessionDeepLinkRouter({
-      initialEntry: "/agents/general?tab=sessions&filter=nope",
+      initialEntry: "/agents/general?panel=model&workspace=%20project-a%20",
     });
     renderRouter(router);
 
@@ -824,15 +824,14 @@ describe("cross-workspace session deep-link router integration", () => {
     expect(router.state.location.pathname).toBe("/agents/general");
     expect(router.state.matches.at(-1)?.routeId).toBe(agentDetailRoute.id);
     expect(router.state.matches.at(-1)?.search).toEqual({
-      tab: "sessions",
-      file: "agent",
-      filter: "all",
+      panel: "model",
+      workspace: "project-a",
     });
   });
 
   it("Should resolve the agents fleet through its own index leaf below a layout that mounts descendants", async () => {
     const { router, agentsFleetRoute } = buildSessionDeepLinkRouter({
-      initialEntry: "/agents?q=%20fraud%20&status=nope&view=rows",
+      initialEntry: "/agents?q=%20fraud%20&focus=nope&view=rows",
     });
     renderRouter(router);
 

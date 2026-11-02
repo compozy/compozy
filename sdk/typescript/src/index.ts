@@ -119,6 +119,7 @@ export type {
   AuthoredContextDiagnosticPayload,
   AuthoredContextLimitsPayload,
   AuthoredContextObservationPatch,
+  AgentHeartbeatWakePatch,
   AuthoredContextProvenance,
   CapabilitiesConfig,
   Chip,

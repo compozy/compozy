@@ -6,6 +6,7 @@ import { humanizeToolId } from "@/systems/session";
 
 import { toolApprovalDecisionTone } from "../lib/decision-tone";
 import type { ToolApprovalGrant } from "../types";
+import { AgentIdentityChip } from "@/systems/agent/components/agent-identity-mark";
 
 export interface ToolApprovalGrantRowProps {
   grant: ToolApprovalGrant;
@@ -58,7 +59,7 @@ export function ToolApprovalGrantRow({ grant, onRevoke }: ToolApprovalGrantRowPr
           <ListingRow.MetaDot />
           {grant.agent_name ? (
             <>
-              <span>{grant.agent_name}</span>
+              <AgentIdentityChip name={grant.agent_name} />
               <ListingRow.MetaDot />
             </>
           ) : null}

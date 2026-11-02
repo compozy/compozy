@@ -103,7 +103,7 @@ func TestDaemonLoopInputEntityCatalogShouldRejectSessionsOutsideTheActingProfile
 			engineeringSess  = "session-engineering"
 			otherProfileSess = "session-other-profile"
 		)
-		sessions := apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+		sessions := &apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			switch id {
 			case engineeringSess:
 				return &session.Info{ID: id, ProfileID: engineeringID, WorkspaceID: workspaceID}, nil

@@ -1,0 +1,15 @@
+{
+    "title": "Memory",
+    "pages": [
+        "index",
+        "add",
+        "history",
+        "inspect",
+        "remove",
+        "replace",
+        "rollback",
+        "search",
+        "validate",
+        "write"
+    ]
+}

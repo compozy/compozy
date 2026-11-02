@@ -121,9 +121,11 @@ func (a hostAPISessionManagerAdapter) ClearRuntimeSelection(
 
 func (a hostAPISessionAcceptance) CreateAccepted(
 	ctx context.Context,
-	opts session.CreateAcceptedOpts,
+	optsInput *session.CreateAcceptedOpts,
 ) (*session.Info, error) {
-	info, err := a.acceptance.CreateAccepted(ctx, opts)
+	opts := *optsInput
+
+	info, err := a.acceptance.CreateAccepted(ctx, &(opts))
 	if err != nil {
 		return nil, fmt.Errorf("daemon: host api CreateAccepted: %w", err)
 	}
@@ -133,13 +135,15 @@ func (a hostAPISessionAcceptance) CreateAccepted(
 func (a hostAPISessionAcceptance) CreateWorktreeForkAccepted(
 	ctx context.Context,
 	originSessionID string,
-	opts session.CreateAcceptedOpts,
+	optsInput *session.CreateAcceptedOpts,
 ) (*session.Info, error) {
+	opts := *optsInput
+
 	acceptance, ok := a.acceptance.(core.SessionWorktreeForkAcceptanceManager)
 	if !ok {
 		return nil, errors.New("daemon: atomic worktree fork acceptance is unavailable")
 	}
-	info, err := acceptance.CreateWorktreeForkAccepted(ctx, originSessionID, opts)
+	info, err := acceptance.CreateWorktreeForkAccepted(ctx, originSessionID, &(opts))
 	if err != nil {
 		return nil, fmt.Errorf("daemon: host api CreateWorktreeForkAccepted: %w", err)
 	}

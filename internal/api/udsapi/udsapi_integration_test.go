@@ -1282,7 +1282,7 @@ func TestUDSShutdownWaitsForInflightRequests(t *testing.T) {
 		WithConfig(&cfg),
 		WithSocketPath(socketPath),
 		WithLogger(discardLogger()),
-		WithSessionManager(stubSessionManager{
+		WithSessionManager(&stubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				entered <- struct{}{}
 				<-release
@@ -1383,7 +1383,7 @@ func TestUDSShutdownCancelsPersistentStreams(t *testing.T) {
 			WithConfig(&cfg),
 			WithSocketPath(socketPath),
 			WithLogger(discardLogger()),
-			WithSessionManager(stubSessionManager{
+			WithSessionManager(&stubSessionManager{
 				SubscribeCatalogFn: func(context.Context, session.CatalogScope) (<-chan session.CatalogEvent, func(), error) {
 					return events, func() {}, nil
 				},

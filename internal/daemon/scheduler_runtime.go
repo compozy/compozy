@@ -59,6 +59,10 @@ func (d *Daemon) bootScheduler(ctx context.Context, state *bootState, cleanup *b
 		workspaces: state.workspaceResolver,
 		agents:     agentCatalogDependency(state.agentCatalog),
 	}
+	var checkOptions []schedulerpkg.Option
+	if state.runtimeWorkers.proactiveChecks != nil {
+		checkOptions = append(checkOptions, schedulerpkg.WithProactiveChecks(state.runtimeWorkers.proactiveChecks.Tick))
+	}
 	runtime, err := newSchedulerRuntime(
 		ctx,
 		state.tasks,
@@ -68,6 +72,7 @@ func (d *Daemon) bootScheduler(ctx context.Context, state *bootState, cleanup *b
 		spawner,
 		starvationThresholdsFromConfig(state.cfg.Autonomy.Scheduler),
 		logger,
+		checkOptions...,
 	)
 	if err != nil {
 		if shutdownErr := waker.shutdown(context.Background()); shutdownErr != nil {
@@ -135,6 +140,7 @@ func newSchedulerRuntime(
 	spawner starvationSpawner,
 	thresholds schedulerpkg.StarvationThresholds,
 	logger *slog.Logger,
+	options ...schedulerpkg.Option,
 ) (*schedulerRuntime, error) {
 	if ctx == nil {
 		return nil, errors.New("daemon: scheduler context is required")
@@ -178,33 +184,27 @@ func newSchedulerRuntime(
 		},
 		schedulerSessionSource{sessions: sessions, situation: situation, logger: logger},
 		waker,
-		schedulerpkg.WithLogger(logger),
-		schedulerpkg.WithInterval(defaultMechanicalSchedulerInterval),
-		schedulerpkg.WithSweepReason(mechanicalSchedulerSweepReason),
-		schedulerpkg.WithWakeReason(mechanicalSchedulerWakeReason),
-		schedulerpkg.WithSweepLimit(defaultMechanicalSchedulerSweepLimit),
-		schedulerpkg.WithPauseStore(pauseStore),
-		schedulerpkg.WithStarvationAge(thresholds.MinQueuedAge),
-		schedulerpkg.WithStarvationThresholds(thresholds),
-		schedulerpkg.WithStarvationStore(starvationStore),
-		schedulerpkg.WithEscalationActor(escalationActorAdapter{
-			manager: manager,
-			actor:   escalationActor,
-			tasks:   tasks,
-			spawner: spawner,
-		}),
+		append(options, schedulerpkg.WithLogger(logger),
+			schedulerpkg.WithInterval(defaultMechanicalSchedulerInterval),
+			schedulerpkg.WithSweepReason(mechanicalSchedulerSweepReason),
+			schedulerpkg.WithWakeReason(mechanicalSchedulerWakeReason),
+			schedulerpkg.WithSweepLimit(defaultMechanicalSchedulerSweepLimit),
+			schedulerpkg.WithPauseStore(pauseStore),
+			schedulerpkg.WithStarvationAge(thresholds.MinQueuedAge),
+			schedulerpkg.WithStarvationThresholds(thresholds),
+			schedulerpkg.WithStarvationStore(starvationStore),
+			schedulerpkg.WithEscalationActor(escalationActorAdapter{
+				manager: manager,
+				actor:   escalationActor,
+				tasks:   tasks,
+				spawner: spawner,
+			}))...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create scheduler: %w", err)
 	}
 	manager.SetSchedulerCountersReader(func() taskpkg.SchedulerCounters {
-		stats := scheduler.Stats()
-		return taskpkg.SchedulerCounters{
-			Cycles: stats.Cycles, WakeAttempts: stats.WakeAttempts, WakeSkipped: stats.WakeSkipped,
-			WakeSucceeded: stats.WakeSucceeded, WakeFailed: stats.WakeFailed,
-			CapacityWaitingRuns: stats.CapacityWaitingRuns, SpawnRequested: stats.SpawnRequested,
-			NeedsAttention: stats.NeedsAttention, LastCycleAt: stats.LastCycleAt,
-		}
+		return schedulerTaskCounters(scheduler.Stats())
 	})
 	return &schedulerRuntime{scheduler: scheduler, waker: waker}, nil
 }
@@ -311,4 +311,13 @@ func (s schedulerTaskSource) GetRunStatus(
 		return taskpkg.TaskRunStatusUnknown, false, fmt.Errorf("daemon: scheduler read run status %q: %w", runID, err)
 	}
 	return run.Status, true, nil
+}
+
+func schedulerTaskCounters(stats schedulerpkg.Stats) taskpkg.SchedulerCounters {
+	return taskpkg.SchedulerCounters{
+		Cycles: stats.Cycles, WakeAttempts: stats.WakeAttempts, WakeSkipped: stats.WakeSkipped,
+		WakeSucceeded: stats.WakeSucceeded, WakeFailed: stats.WakeFailed,
+		CapacityWaitingRuns: stats.CapacityWaitingRuns, SpawnRequested: stats.SpawnRequested,
+		NeedsAttention: stats.NeedsAttention, LastCycleAt: stats.LastCycleAt,
+	}
 }

@@ -53,6 +53,9 @@ A delegated coding, research, or review assignment can use its authorized provid
 
 ## Reference Index
 
+For explicit stays-on memory reads or writes, also read `references/agent-memory.md`.
+
+- references/agent-memory.md - explicit stays-on agent notes, identity boundaries, budgets, revisions, and memory tools.
 - references/runtime-operations.md - daemon, session, Gateway profile/SSH, background-role, operations, lifecycle diagnostics, and runtime troubleshooting.
 - references/desktop.md - desktop app commands, attachment and ownership, runtime and app updates, diagnostics, and recovery.
 - references/window-management.md - daemon-authoritative desktops, windows, layouts, revisions, clients, resources, hooks, recovery, and public surfaces.

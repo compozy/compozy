@@ -109,7 +109,7 @@ func (h *BaseHandlers) CreateSession(c *gin.Context) {
 		return
 	}
 	opts.Origin = origin
-	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), session.CreateAcceptedOpts{Session: opts})
+	info, err := h.SessionAcceptance.CreateAccepted(c.Request.Context(), new(session.CreateAcceptedOpts{Session: opts}))
 	if err != nil {
 		status := StatusForSessionError(err)
 		err = errors.Join(err, h.rollbackMaterializedSessionWorktree(c.Request.Context(), worktreeTarget))
@@ -166,6 +166,7 @@ func (h *BaseHandlers) createSessionOrigin(c *gin.Context) (workspaceaccess.Orig
 	}
 	return workspaceaccess.Origin{
 		Kind:    workspaceaccess.ActorAgentSession,
+		ID:      creator.ID,
 		Ceiling: creator.EffectiveWorkspaceAccess,
 	}, true
 }

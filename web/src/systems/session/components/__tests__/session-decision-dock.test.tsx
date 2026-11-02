@@ -328,6 +328,7 @@ describe("SessionDecisionDock", () => {
 
   it("Should not dock a permission the daemon expired at a restart, and count only live asks", async () => {
     const expired: SessionInteractionRecord = {
+      session_id: "sess-1",
       interaction_id: "int-1",
       kind: "permission",
       provider_request_id: "req-expired",

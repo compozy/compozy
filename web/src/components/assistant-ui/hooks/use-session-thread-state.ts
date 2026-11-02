@@ -34,8 +34,12 @@ export function useSessionThreadState({
   const promptDispatch = useSessionPromptDispatch();
   const renderedComposer = promptDispatch.canceled ? { ...composer, isRunning: false } : composer;
   const runtimeRunning = isSessionRunning || renderedComposer.isRunning || promptDispatch.pending;
+  // A canceled session never failed: a daemon stop before the first turn resumes on the next prompt.
   const startupFailed =
-    sessionState === "stopped" && Boolean(sessionFailure) && !acpSessionId?.trim().length;
+    sessionState === "stopped" &&
+    Boolean(sessionFailure) &&
+    sessionFailure?.kind !== "cancellation" &&
+    !acpSessionId?.trim().length;
   const lifecycleCanPrompt =
     !readOnly && canPrompt && sessionState !== "starting" && !startupFailed;
   useSessionFirstPrompt({ canPrompt: lifecycleCanPrompt, sessionId });

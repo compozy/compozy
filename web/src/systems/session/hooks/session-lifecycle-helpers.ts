@@ -1,15 +1,19 @@
 import { toast } from "@compozy/ui";
+import type { QueryClient } from "@tanstack/react-query";
 
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
 import type { SessionBatchResult } from "../lib/session-batch";
 import { isSessionUnavailable } from "../adapters/session-api-errors";
 import {
   sessionChildrenChoice,
-  type SessionChildrenScope,
+  sessionChildrenScope,
+  readSessionChoiceTargets,
+  SessionTreeReadError,
   type SessionTrees,
 } from "../lib/session-tree";
 import type { SessionPayload } from "../types";
-import type { SessionLifecycleAction } from "./session-lifecycle-types";
+import type { SessionLifecycleAction, SessionProcessChoice } from "./session-lifecycle-types";
+import { sessionsRunningProcesses } from "../lib/session-processes";
 
 /**
  * Archive always uses the daemon's stop-first operation: a live session stops
@@ -49,19 +53,70 @@ export async function settleTreeTarget(
 
 /** The process dialog's child choice, and the sessions its process count covers. */
 export function sessionArchiveChoiceState(
-  processChoice: { sessions: readonly SessionPayload[]; scope?: SessionChildrenScope } | null,
+  processChoice: SessionProcessChoice | null,
   included: boolean,
   onIncludedChange: (included: boolean) => void
 ) {
   const scope = processChoice?.scope;
   const archiveChoice = scope
-    ? sessionChildrenChoice(scope, included, onIncludedChange)
+    ? sessionChildrenChoice(scope, included, onIncludedChange, processChoice?.read)
     : undefined;
   const processTargets = [
     ...(processChoice?.sessions ?? []),
     ...(archiveChoice?.included ? (scope?.reached ?? []) : []),
   ];
   return { archiveChoice, processTargets };
+}
+
+/** An unreadable tree remains a retryable confirmation, never an empty tree. */
+export async function loadSessionProcessChoice(
+  queryClient: QueryClient,
+  action: "stop" | "archive",
+  sessions: readonly SessionPayload[],
+  run: (
+    processes?: SessionProcessPolicy,
+    errors?: ReadonlyMap<string, unknown>,
+    trees?: SessionTrees
+  ) => void,
+  onChoice: (choice: SessionProcessChoice | null) => void,
+  isCurrent: () => boolean
+): Promise<void> {
+  try {
+    const { current, trees } = await readSessionChoiceTargets(queryClient, action, sessions);
+    if (!isCurrent()) return;
+    const runChecked = (processes?: SessionProcessPolicy, withChildren = false) =>
+      run(processes, current.errors, withChildren ? trees : undefined);
+    const scope = sessionChildrenScope("archive", current.sessions, trees);
+    if (sessionsRunningProcesses(current.sessions) === 0 && scope.members.length === 0) {
+      onChoice(null);
+      runChecked();
+    } else {
+      onChoice({ action, sessions: current.sessions, scope, run: runChecked });
+    }
+  } catch (error) {
+    if (!isCurrent()) return;
+    if (action !== "archive" || !(error instanceof SessionTreeReadError)) {
+      reportActionError(action, error);
+      return;
+    }
+    const failed: SessionProcessChoice = {
+      action,
+      sessions,
+      scope: sessionChildrenScope("archive", sessions, new Map()),
+      read: { pending: true },
+      run: () => {},
+    };
+    onChoice({
+      ...failed,
+      read: {
+        pending: true,
+        onRetry: () => {
+          onChoice(failed);
+          void loadSessionProcessChoice(queryClient, action, sessions, run, onChoice, isCurrent);
+        },
+      },
+    });
+  }
 }
 
 /** Preserve the daemon message, falling back only when the failure has no useful text. */

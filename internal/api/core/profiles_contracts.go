@@ -95,6 +95,7 @@ func placementContracts(values []profilepkg.PlacementRef) []contract.ProfilePlac
 
 func removalContract(value profilepkg.RemovalSummary) contract.ProfileRemovalSummary {
 	return contract.ProfileRemovalSummary{
+		AgentInstances: value.AgentInstances, AgentMemoryFiles: value.AgentMemoryFiles,
 		Agents: value.Agents, Skills: value.Skills, Loops: value.Loops, MCPServers: value.MCPServers,
 		ConfigKeys: value.ConfigKeys, CredentialOverrides: value.CredentialOverrides,
 		DesktopPartitions: value.DesktopPartitions,

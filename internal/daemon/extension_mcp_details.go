@@ -65,7 +65,7 @@ func (d *extensionMCPDetails) populate(
 		if item.Status == "disabled" {
 			continue
 		}
-		item.Status = "stopped"
+		item.Status = daemonStoppedValue
 		for _, record := range records {
 			owner := record.Owner.Normalize()
 			if owner.Kind != extensionResourceOwnerKind || owner.ID != key.Name || record.Spec.Name != item.Name {
@@ -133,6 +133,6 @@ func marketplaceMCPRuntimeStatus(state settingspkg.MCPServerRuntimeState) string
 		settingspkg.MCPServerRuntimeStateAuthInvalid, settingspkg.MCPServerRuntimeStateAuthRefreshFailed:
 		return "needs_authorization"
 	default:
-		return "stopped"
+		return daemonStoppedValue
 	}
 }

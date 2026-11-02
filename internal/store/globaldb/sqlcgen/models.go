@@ -12,6 +12,7 @@ import (
 type AgentHeartbeatRevision struct {
 	ID             string         `json:"id"`
 	WorkspaceID    string         `json:"workspace_id"`
+	ProfileID      string         `json:"profile_id"`
 	AgentName      string         `json:"agent_name"`
 	SourcePath     string         `json:"source_path"`
 	Operation      string         `json:"operation"`
@@ -27,6 +28,7 @@ type AgentHeartbeatRevision struct {
 type AgentHeartbeatSnapshot struct {
 	ID              string `json:"id"`
 	WorkspaceID     string `json:"workspace_id"`
+	ProfileID       string `json:"profile_id"`
 	AgentName       string `json:"agent_name"`
 	SourcePath      string `json:"source_path"`
 	SchemaVersion   int64  `json:"schema_version"`
@@ -48,6 +50,10 @@ type AgentHeartbeatWakeEvent struct {
 	Source            string         `json:"source"`
 	Result            string         `json:"result"`
 	Reason            string         `json:"reason"`
+	Detail            string         `json:"detail"`
+	DeniedCalls       int64          `json:"denied_calls"`
+	OccurrenceID      string         `json:"occurrence_id"`
+	InstanceID        string         `json:"instance_id"`
 	SyntheticPromptID sql.NullString `json:"synthetic_prompt_id"`
 	CreatedAt         string         `json:"created_at"`
 	ExpiresAt         string         `json:"expires_at"`
@@ -66,9 +72,72 @@ type AgentHeartbeatWakeState struct {
 	UpdatedAt        string         `json:"updated_at"`
 }
 
+type AgentInstance struct {
+	ID                string         `json:"id"`
+	ProfileID         string         `json:"profile_id"`
+	AgentName         string         `json:"agent_name"`
+	WorkspaceID       string         `json:"workspace_id"`
+	State             string         `json:"state"`
+	PauseReason       string         `json:"pause_reason"`
+	MainSessionID     sql.NullString `json:"main_session_id"`
+	GrantCeiling      string         `json:"grant_ceiling"`
+	PermissionCeiling string         `json:"permission_ceiling"`
+	ChecksEnabled     int64          `json:"checks_enabled"`
+	Depth             int64          `json:"depth"`
+	CreatedByKind     string         `json:"created_by_kind"`
+	CreatedByID       string         `json:"created_by_id"`
+	CreatedAt         string         `json:"created_at"`
+	UpdatedAt         string         `json:"updated_at"`
+	ArchivedAt        sql.NullString `json:"archived_at"`
+}
+
+type AgentInstanceReport struct {
+	ID                string         `json:"id"`
+	InstanceID        string         `json:"instance_id"`
+	SourceKey         string         `json:"source_key"`
+	Kind              string         `json:"kind"`
+	Payload           string         `json:"payload"`
+	Fingerprint       string         `json:"fingerprint"`
+	State             string         `json:"state"`
+	PromptAdmissionID string         `json:"prompt_admission_id"`
+	EventSessionID    string         `json:"event_session_id"`
+	EventSeq          int64          `json:"event_seq"`
+	CreatedAt         string         `json:"created_at"`
+	DeliveredAt       sql.NullString `json:"delivered_at"`
+	RecoveryNoted     int64          `json:"recovery_noted"`
+}
+
+type AgentInstanceRotationWait struct {
+	InstanceID    string `json:"instance_id"`
+	MainSessionID string `json:"main_session_id"`
+	StartedAt     string `json:"started_at"`
+}
+
+type AgentInstanceSeen struct {
+	InstanceID string `json:"instance_id"`
+	OperatorID string `json:"operator_id"`
+	LastSeenAt string `json:"last_seen_at"`
+}
+
+type AgentInstanceWakeState struct {
+	InstanceID          string `json:"instance_id"`
+	NextWakeAt          string `json:"next_wake_at"`
+	LastWakeAt          string `json:"last_wake_at"`
+	LastDigest          string `json:"last_digest"`
+	LastDigestAt        string `json:"last_digest_at"`
+	AutomationCursor    string `json:"automation_cursor"`
+	QuietStreak         int64  `json:"quiet_streak"`
+	FailureStreak       int64  `json:"failure_streak"`
+	OccurrenceID        string `json:"occurrence_id"`
+	TriageSessionID     string `json:"triage_session_id"`
+	OccurrenceStartedAt string `json:"occurrence_started_at"`
+	OccurrenceCancelled int64  `json:"occurrence_cancelled"`
+}
+
 type AgentSoulRevision struct {
 	ID              string `json:"id"`
 	WorkspaceID     string `json:"workspace_id"`
+	ProfileID       string `json:"profile_id"`
 	AgentName       string `json:"agent_name"`
 	SourcePath      string `json:"source_path"`
 	Action          string `json:"action"`
@@ -86,6 +155,7 @@ type AgentSoulRevision struct {
 type AgentSoulSnapshot struct {
 	ID          string `json:"id"`
 	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
 	AgentName   string `json:"agent_name"`
 	SourcePath  string `json:"source_path"`
 	Digest      string `json:"digest"`
@@ -1270,14 +1340,16 @@ type NotificationCursor struct {
 }
 
 type PermissionLog struct {
-	ID         string `json:"id"`
-	SessionID  string `json:"session_id"`
-	AgentName  string `json:"agent_name"`
-	Action     string `json:"action"`
-	Resource   string `json:"resource"`
-	Decision   string `json:"decision"`
-	PolicyUsed string `json:"policy_used"`
-	Timestamp  string `json:"timestamp"`
+	InitiatorKind string `json:"initiator_kind"`
+	InitiatorID   string `json:"initiator_id"`
+	ID            string `json:"id"`
+	SessionID     string `json:"session_id"`
+	AgentName     string `json:"agent_name"`
+	Action        string `json:"action"`
+	Resource      string `json:"resource"`
+	Decision      string `json:"decision"`
+	PolicyUsed    string `json:"policy_used"`
+	Timestamp     string `json:"timestamp"`
 }
 
 type Profile struct {
@@ -1382,6 +1454,9 @@ type SchedulerPause struct {
 }
 
 type Session struct {
+	InitiatorKind            string         `json:"initiator_kind"`
+	InitiatorID              string         `json:"initiator_id"`
+	InstanceID               sql.NullString `json:"instance_id"`
 	Branch                   string         `json:"branch"`
 	EffectiveWorkspaceAccess string         `json:"effective_workspace_access"`
 	ID                       string         `json:"id"`
@@ -1617,6 +1692,7 @@ type SessionPendingInteraction struct {
 	PayloadJson       string         `json:"payload_json"`
 	Status            string         `json:"status"`
 	CreatedAt         string         `json:"created_at"`
+	ExpiresAt         sql.NullString `json:"expires_at"`
 	ResolvedAt        sql.NullString `json:"resolved_at"`
 	Resolution        string         `json:"resolution"`
 	ResolvedBy        string         `json:"resolved_by"`

@@ -2,6 +2,7 @@ package vault
 
 import (
 	"encoding/hex"
+	"strings"
 	"testing"
 )
 
@@ -44,8 +45,13 @@ func TestExtensionSecretRefUsesInstanceQualifiedCollisionSafeNames(t *testing.T)
 		for _, name := range []string{"kit", "encoded-literal", "My Extension!"} {
 			for _, workspace := range []string{"", "Workspace One"} {
 				ref := ExtensionProfileSecretRef(name, "profile-one", workspace, "TOKEN")
-				if got, err := ExtensionSecretRefOwner(ref); err != nil || got != name {
-					t.Fatalf("owner = %q, %v, want %q", got, err, name)
+				for _, persisted := range []string{ref, strings.Replace(ref, "/global/", "/user/", 1)} {
+					if got, err := ExtensionSecretRefOwner(persisted); err != nil || got != name {
+						t.Fatalf("owner = %q, %v, want %q", got, err, name)
+					}
+					if err := ValidateExtensionSecretRefOwner(persisted, name); err != nil {
+						t.Fatal(err)
+					}
 				}
 			}
 		}

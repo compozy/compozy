@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentmemory"
+
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -28,6 +30,7 @@ type TaskActorContextResolver func(c *gin.Context, action string) (taskpkg.Actor
 
 // BaseHandlerConfig configures a shared handler set for one transport.
 type BaseHandlerConfig struct {
+	AgentInstances               *AgentInstanceAPI
 	TransportName                string
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
@@ -82,6 +85,7 @@ type BaseHandlerConfig struct {
 	ProviderACPProbe            func(context.Context, acp.SessionInspectionRequest) error
 	AgentContextService         AgentContextService
 	SoulAuthoring               SoulAuthoringService
+	AgentMemory                 *agentmemory.Store
 	SoulHistoryPurger           SoulHistoryPurger
 	SoulRefresher               SoulRefresher
 	HeartbeatAuthoring          HeartbeatAuthoringService
@@ -118,6 +122,7 @@ type BaseHandlerConfig struct {
 
 // BaseHandlers contains the shared transport-independent API handler logic.
 type BaseHandlers struct {
+	AgentInstances               *AgentInstanceAPI
 	TransportName                string
 	MaskInternalErrors           bool
 	IncludeSessionWorkspaceInSSE bool
@@ -170,6 +175,7 @@ type BaseHandlers struct {
 	ProviderACPProbe             func(context.Context, acp.SessionInspectionRequest) error
 	AgentContextService          AgentContextService
 	SoulAuthoring                SoulAuthoringService
+	AgentMemory                  *agentmemory.Store
 	SoulHistoryPurger            SoulHistoryPurger
 	SoulRefresher                SoulRefresher
 	HeartbeatAuthoring           HeartbeatAuthoringService
@@ -234,6 +240,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 
 func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults) *BaseHandlers {
 	return &BaseHandlers{
+		AgentInstances:               cfg.AgentInstances,
 		TransportName:                strings.TrimSpace(cfg.TransportName),
 		MaskInternalErrors:           cfg.MaskInternalErrors,
 		IncludeSessionWorkspaceInSSE: cfg.IncludeSessionWorkspaceInSSE,
@@ -382,6 +389,7 @@ func (h *BaseHandlers) applyAuthoredContextConfig(cfg *BaseHandlerConfig) {
 		return
 	}
 	h.SoulAuthoring = cfg.SoulAuthoring
+	h.AgentMemory = cfg.AgentMemory
 	h.SoulRefresher = cfg.SoulRefresher
 	h.HeartbeatAuthoring = cfg.HeartbeatAuthoring
 	h.HeartbeatStatus = cfg.HeartbeatStatus

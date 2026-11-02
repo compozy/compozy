@@ -31,6 +31,10 @@ func validateAgentResourceSpec(
 
 	normalized := AgentDef{
 		WorkspaceAccess: spec.WorkspaceAccess,
+		DisplayName:     spec.DisplayName,
+		Description:     spec.Description,
+		Kind:            spec.Kind,
+		Appearance:      CloneAgentAppearance(spec.Appearance),
 		Name:            strings.TrimSpace(spec.Name),
 		Provider:        strings.TrimSpace(spec.Provider),
 		Command:         strings.TrimSpace(spec.Command),

@@ -43,13 +43,20 @@ func TestManagedWakeServiceDecision(t *testing.T) {
 		base := time.Date(2026, 5, 2, 12, 0, 0, 0, time.UTC)
 		cfg := compozyconfig.DefaultHeartbeatConfig()
 		store := newFakeWakeStore(t)
-		store.snapshots = []Snapshot{wakeSnapshot(t, cfg, "hb-latest", "ws-1", "coder", base, "Latest policy")}
+		// Invariant: the caller profile selects its own policy; owner: wake service, canonical decision suite.
+		scoped := wakeSnapshot(t, cfg, "hb-latest", "ws-1", "coder", base, "Latest policy")
+		scoped.ProfileID = "profile-marketing"
+		store.snapshots = []Snapshot{
+			scoped,
+			wakeSnapshot(t, cfg, "hb-default", "ws-1", "coder", base, "Default policy"),
+		}
 		health := newFakeWakeHealth()
 		health.rows["sess-1"] = eligibleWakeHealth("sess-1", "ws-1", "coder", base)
 		prompter := &fakeWakePrompter{}
 		service := newTestWakeService(t, store, health, prompter, cfg, base)
 
 		decision, err := service.Wake(t.Context(), WakeRequest{
+			ProfileID:   " profile-marketing ",
 			WorkspaceID: "ws-1",
 			AgentName:   "coder",
 			SessionID:   "sess-1",
@@ -934,7 +941,14 @@ func wakeSnapshotFromContent(
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
 	}
-	snapshot, err := SnapshotFromResolved(id, workspaceID, agentName, &resolved, createdAt)
+	snapshot, err := SnapshotFromResolved(
+		id,
+		workspaceID,
+		agentName,
+		&resolved,
+		createdAt,
+		"00000000000000000000000000",
+	)
 	if err != nil {
 		t.Fatalf("SnapshotFromResolved() error = %v", err)
 	}
@@ -1017,7 +1031,11 @@ func (s *fakeWakeStore) GetLatestValidHeartbeatSnapshot(
 	_ context.Context,
 	workspaceID string,
 	agentName string,
+	profileID string,
 ) (Snapshot, error) {
+	if profileID == "" {
+		profileID = "00000000000000000000000000"
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -1026,7 +1044,7 @@ func (s *fakeWakeStore) GetLatestValidHeartbeatSnapshot(
 		return cmp.Or(b.CreatedAt.Compare(a.CreatedAt), cmp.Compare(b.ID, a.ID))
 	})
 	for _, snapshot := range candidates {
-		if snapshot.WorkspaceID != workspaceID || snapshot.AgentName != agentName {
+		if snapshot.WorkspaceID != workspaceID || snapshot.AgentName != agentName || snapshot.ProfileID != profileID {
 			continue
 		}
 		envelope, err := snapshot.ResolvedEnvelope()

@@ -256,6 +256,7 @@ func execHeartbeatWakeEventInsert(ctx context.Context, exec globalSQLExecutor, e
 		Source:            string(event.Source),
 		Result:            string(event.Result),
 		Reason:            string(event.Reason),
+		Detail:            event.Detail,
 		SyntheticPromptID: nullableHeartbeatString(event.SyntheticPromptID),
 		CreatedAt:         store.FormatTimestamp(event.CreatedAt),
 		ExpiresAt:         store.FormatTimestamp(event.ExpiresAt),
@@ -300,7 +301,7 @@ func (g *HeartbeatRepo) ListHeartbeatWakeEvents(
 
 	// dynamic-sql: optional profile and wake-event filters plus the caller limit change the statement shape.
 	sqlQuery := `SELECT id, workspace_id, agent_name, session_id, policy_snapshot_id, source, result, reason,
-			synthetic_prompt_id, created_at, expires_at
+			detail, synthetic_prompt_id, created_at, expires_at
 		FROM agent_heartbeat_wake_events`
 	where, args := store.BuildClauses(
 		store.StringClause("workspace_id", query.WorkspaceID),

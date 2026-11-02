@@ -53,6 +53,9 @@ func (d *Driver) ConfigureRuntime(ctx context.Context, process *AgentProcess, co
 	if process == nil {
 		return errors.New("acp: agent process is required")
 	}
+	if process.executionPolicy == ExecutionPolicyTriage {
+		return ErrPermissionDenied
+	}
 	if process.conn == nil {
 		return errProcessConnectionUninitialized
 	}

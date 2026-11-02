@@ -1,0 +1,47 @@
+---
+title: "compozy agent memory"
+description: "Inspect and manage agent memory (experimental)"
+---
+
+## compozy agent memory
+
+Inspect and manage agent memory (experimental)
+
+### Options
+
+```
+  -h, --help   help for memory
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                          | Description           |
+| ---------------------------------------------------------------- | --------------------- |
+| [compozy agent memory add](/docs/cli/agent/memory/add)           | Add agent memory      |
+| [compozy agent memory history](/docs/cli/agent/memory/history)   | History agent memory  |
+| [compozy agent memory inspect](/docs/cli/agent/memory/inspect)   | Inspect agent memory  |
+| [compozy agent memory remove](/docs/cli/agent/memory/remove)     | Remove agent memory   |
+| [compozy agent memory replace](/docs/cli/agent/memory/replace)   | Replace agent memory  |
+| [compozy agent memory rollback](/docs/cli/agent/memory/rollback) | Rollback agent memory |
+| [compozy agent memory search](/docs/cli/agent/memory/search)     | Search agent memory   |
+| [compozy agent memory validate](/docs/cli/agent/memory/validate) | Validate agent memory |
+| [compozy agent memory write](/docs/cli/agent/memory/write)       | Write agent memory    |

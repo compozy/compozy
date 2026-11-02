@@ -152,7 +152,7 @@ func newSkillsHandlerFixture(
 
 	handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{
 		TransportName:  "skills-test",
-		Sessions:       testutil.StubSessionManager{},
+		Sessions:       &testutil.StubSessionManager{},
 		Observer:       testutil.StubObserver{},
 		Workspaces:     workspaces,
 		SkillsRegistry: registry,

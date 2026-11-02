@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 
 	"github.com/compozy/compozy/internal/store"
@@ -56,4 +57,27 @@ func replayPromptAdmissionClaim(
 		err = sqlcgen.New(exec).RearmFailedReplyWatch(ctx, admission.ID)
 	}
 	return admission, err
+}
+
+func reserveReplayPromptReports(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	admission *store.SessionPromptAdmission,
+	req *store.SessionPromptAdmissionRequest,
+) error {
+	if admission.State != store.SessionPromptAdmissionReserved || !req.HumanIngress ||
+		req.Operation != store.SessionPromptOperationPrompt {
+		return nil
+	}
+	reports, err := queries.ListPromptReports(ctx, admission.ID)
+	if err != nil {
+		return err
+	}
+	if len(reports) == 0 {
+		return queries.ReservePromptReports(ctx, sqlcgen.ReservePromptReportsParams{
+			AdmissionID: admission.ID,
+			SessionID:   sql.NullString{String: req.SessionID, Valid: true},
+		})
+	}
+	return nil
 }

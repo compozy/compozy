@@ -23,6 +23,7 @@ import type { BrowserRuntime } from "../fixtures/runtime";
 import { browserAutomationOperatorFlowScenario } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
+import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
 
 const execFileAsync = promisify(execFile);
 const automationFixture = path.resolve(
@@ -214,7 +215,7 @@ test("operator manages a dynamic job and verifies scheduled execution across dae
     await ui.nameInput.fill(initialName);
     await ui.agentInput.click();
     await appPage.getByTestId(`agent-command-item-${automationAgentName}`).click();
-    await expect(ui.agentInput).toContainText(automationAgentName);
+    await expect(ui.agentInput).toContainText(humanizeAgentSlug(automationAgentName));
     await ui.promptInput.fill(browserAutomationOperatorFlowScenario.job.prompt);
     await enableCronExpressionEditing(ui);
     await ui.scheduleExpr.fill("");

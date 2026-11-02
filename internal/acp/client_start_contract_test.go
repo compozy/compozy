@@ -2405,3 +2405,55 @@ func TestStartFinalizesRuntimeGuidance(t *testing.T) {
 		}
 	})
 }
+
+func TestTriageStartup(t *testing.T) {
+	for _, tc := range []struct {
+		name, provider, scenario string
+		allowed                  bool
+	}{
+		{"Should select the verified Claude planning mode", "claude", "mode_mapping", true},
+		{"Should confirm a config-only planning mode", "opencode", "triage_config_mode", true},
+		{"Should reject an unverified Kimi planning mode", "kimi-cli", "triage_config_mode", false},
+		{"Should reject an unconfirmed planning mode", "opencode", "triage_config_unconfirmed", false},
+		{"Should reject an unknown providers planning mode", "unknown", "triage_config_mode", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+			process, err := driver.Start(t.Context(), StartOpts{
+				ProviderConfig: &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
+				AgentName:      "helper", ProviderName: tc.provider, Command: helperCommand(t), Cwd: t.TempDir(),
+				Env: helperEnv(tc.scenario, ""), ExecutionPolicy: ExecutionPolicyTriage,
+				Permissions: compozyconfig.PermissionModeApproveAll,
+			})
+			if process != nil {
+				defer stopProcess(t, driver, process)
+			}
+			if (err == nil) != tc.allowed {
+				t.Fatalf("triage startup: %v", err)
+			}
+			if tc.allowed && tc.scenario == "triage_config_mode" {
+				option, ok := findSelectConfigOption(process.CapsSnapshot().ConfigOptions, "mode")
+				if !ok || option.CurrentValueID != "plan" {
+					t.Fatalf("confirmed mode = %+v", option)
+				}
+			}
+		})
+	}
+	t.Run("Should reject a provider without an explicit read only mode", func(t *testing.T) {
+		t.Parallel()
+		driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+		process, err := driver.Start(t.Context(), StartOpts{
+			ProviderConfig: &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
+			AgentName:      "helper", ProviderName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
+			Env: helperEnv("mode_mapping", ""), ExecutionPolicy: ExecutionPolicyTriage,
+			Permissions: compozyconfig.PermissionModeApproveAll,
+		})
+		if process != nil {
+			stopProcess(t, driver, process)
+		}
+		if !errors.Is(err, ErrTriageUnsupported) {
+			t.Fatalf("startup error=%v, want triage_unsupported", err)
+		}
+	})
+}

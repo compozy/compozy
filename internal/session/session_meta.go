@@ -77,6 +77,7 @@ func (s *Session) metaLocked() store.SessionMeta {
 	meta.SetACPOptions(storeOptionSelectionsFromACP(s.ACPOptions))
 	meta.SetRuntimeRecovery(s.RuntimeRecovery)
 	meta.EffectiveWorkspaceAccess = s.EffectiveWorkspaceAccess
+	meta.InitiatorKind, meta.InitiatorID = s.InitiatorKind, s.InitiatorID
 	meta.SetEffectivePermissions(s.EffectivePermissions)
 	meta.SetEffectiveProviderAuthMode(string(s.effectiveProviderAuthMode))
 	meta.SetWorktreeID(s.WorktreeID)

@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/session"
@@ -43,6 +44,7 @@ type nativeToolPolicyAgentResolver interface {
 }
 
 type nativeToolPolicyResolver struct {
+	instanceCallers   agentinstance.CallerReader
 	cfg               *compozyconfig.Config
 	sessions          nativeToolPolicySessionReader
 	workspaceResolver nativeToolPolicyWorkspaceResolver
@@ -72,7 +74,7 @@ func newNativeToolPolicyResolver(deps nativeToolPolicyResolverDeps) (*nativeTool
 }
 
 func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyResolver, error) {
-	return newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+	resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
 		Config:            &state.cfg,
 		Sessions:          state.sessions,
 		WorkspaceResolver: state.workspaceResolver,
@@ -87,6 +89,13 @@ func newNativeToolPolicyResolverForBoot(state *bootState) (*nativeToolPolicyReso
 			return operatorAuthorizedMCPSourceGrants(ctx, state, scope)
 		},
 	})
+	if err != nil {
+		return nil, err
+	}
+	if provider, ok := state.registry.(instanceRepositoryProvider); ok {
+		resolver.instanceCallers = provider.Instances()
+	}
+	return resolver, nil
 }
 
 func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.Scope) (toolspkg.PolicyInputs, error) {
@@ -122,6 +131,9 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 		return toolspkg.PolicyInputs{}, err
 	}
 	if err := applyLoopExtensionOwnerGrant(ctx, &inputs, resolvedScope); err != nil {
+		return toolspkg.PolicyInputs{}, err
+	}
+	if err := r.applyInstanceToolPolicy(ctx, &inputs, info); err != nil {
 		return toolspkg.PolicyInputs{}, err
 	}
 	if err := applySessionToolPolicy(&inputs, info); err != nil {
@@ -371,6 +383,12 @@ func applySessionToolPolicy(inputs *toolspkg.PolicyInputs, info *session.Info) e
 	if info == nil {
 		return nil
 	}
+	if info.Type == session.SessionTypeTriage {
+		inputs.TriageReadOnly = true
+		inputs.ApprovalAvailable = false
+		inputs.SystemPermissionMode = toolspkg.PermissionModeApproveReads
+		return nil
+	}
 	switch info.Type {
 	case session.SessionTypeSpawned, session.SessionTypeCoordinator:
 	default:
@@ -380,15 +398,23 @@ func applySessionToolPolicy(inputs *toolspkg.PolicyInputs, info *session.Info) e
 	if lineage == nil {
 		return nil
 	}
-	policy := store.NormalizeSessionPermissionPolicy(lineage.PermissionPolicy)
+	return applyConcreteSessionToolPolicy(inputs, info.ID, lineage.PermissionPolicy)
+}
+
+func applyConcreteSessionToolPolicy(
+	inputs *toolspkg.PolicyInputs,
+	sessionID string,
+	ceiling store.SessionPermissionPolicy,
+) error {
+	policy := store.NormalizeSessionPermissionPolicy(ceiling)
 	filtered, dropped := toolspkg.DropRetiredToolReferences(toolspkg.ToolPolicy{Tools: policy.Tools})
-	toolspkg.WarnRetiredToolReferences("session:"+info.ID, dropped)
+	toolspkg.WarnRetiredToolReferences("session:"+sessionID, dropped)
 	policy.Tools = filtered.Tools
 	ids := make([]toolspkg.ToolID, 0, len(policy.Tools))
 	for i, raw := range policy.Tools {
 		id := toolspkg.ToolID(strings.TrimSpace(raw))
 		if err := id.Validate(); err != nil {
-			return fmt.Errorf("daemon: session %q lineage tools[%d]: %w", info.ID, i, err)
+			return fmt.Errorf("daemon: session %q lineage tools[%d]: %w", sessionID, i, err)
 		}
 		ids = append(ids, id)
 	}
@@ -427,4 +453,23 @@ func fillToolPolicyScopeFromSession(scope toolspkg.Scope, info *session.Info) to
 		scope.AgentName = strings.TrimSpace(info.AgentName)
 	}
 	return scope
+}
+
+func (r *nativeToolPolicyResolver) applyInstanceToolPolicy(
+	ctx context.Context,
+	inputs *toolspkg.PolicyInputs,
+	info *session.Info,
+) error {
+	if info != nil && r.instanceCallers != nil {
+		caller, err := r.instanceCallers.InstanceCaller(ctx, info.ID)
+		if err != nil {
+			return err
+		}
+		if caller.InstanceID != "" {
+			if err := applyConcreteSessionToolPolicy(inputs, info.ID, caller.PermissionPolicy); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

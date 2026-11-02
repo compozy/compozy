@@ -63,7 +63,7 @@ func TestBundlesRenderHumanAndToon(t *testing.T) {
 		{
 			name: "agent",
 			bundle: agentBundle(
-				AgentRecord{Name: "coder", Provider: "fake", Prompt: "You are coder.", Tools: []string{"shell"}},
+				&AgentRecord{Name: "coder", Provider: "fake", Prompt: "You are coder.", Tools: []string{"shell"}},
 			),
 		},
 		{name: "session", bundle: sessionBundle(&sessionInfo, func() time.Time { return fixedTestNow })},

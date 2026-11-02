@@ -199,6 +199,20 @@ export const appRouteStories = [
     storyName: "Default",
   },
   {
+    system: "runtime",
+    routePath: "/activity",
+    storybookPath: "/activity",
+    title: "systems/runtime/routes/Activity",
+    storyName: "Default",
+  },
+  {
+    system: "agent",
+    routePath: "/agents/$name/$page",
+    storybookPath: `/agents/${storyAgentNames.fraud}/memory`,
+    title: "systems/agent/routes/AgentPage",
+    storyName: "Memory",
+  },
+  {
     system: "agent",
     routePath: "/agents/$name/settings",
     storybookPath: `/agents/${storyAgentNames.fraud}/settings`,

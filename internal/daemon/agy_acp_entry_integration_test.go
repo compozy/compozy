@@ -365,11 +365,11 @@ func TestAgyACPBuiltInEntry(t *testing.T) {
 			resolvedWorkspace,
 			driver,
 		)
-		created, err := manager.Create(testutil.Context(t), session.CreateOpts{
+		created, err := manager.Create(testutil.Context(t), new(session.CreateOpts{
 			AgentName: "coder",
 			Name:      "agy entry session",
 			Workspace: resolvedWorkspace.ID,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}

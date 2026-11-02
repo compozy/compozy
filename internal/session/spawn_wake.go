@@ -151,6 +151,10 @@ func (m *Manager) dispatchSpawnWakeForTurn(ctx context.Context, info *Info, badg
 	if m == nil || info == nil || m.spawnWakeNotifier == nil {
 		return
 	}
+	// A triage run reports through its check; waking the main session would spend a turn.
+	if info.Type == SessionTypeTriage {
+		return
+	}
 	lineage := store.NormalizeSessionLineage(info.ID, info.Lineage)
 	creatorSessionID := strings.TrimSpace(lineage.ParentSessionID)
 	if creatorSessionID == "" {

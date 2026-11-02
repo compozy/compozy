@@ -186,3 +186,159 @@ The reproduction used the same command with `dashboard-before` as the output dir
 changing the interceptor. This is focused real-daemon/browser evidence for connection recovery
 and overview retention, not full-shard or current-head CI success. Root owns the subsequent
 integrated lint/typecheck/build and publication. Scenario `RT-039` records this bounded re-walk.
+
+## Main integration audit: `8c025ff8f` (2026-11-02)
+
+The incoming baseline is `8c025ff8fdd3a9a79e4f0e63f54b3bd144a4773b`. The earlier measurements
+above remain historical; they do not measure this Stays-on/identity contract. This review owns
+201 incoming paths: ACP (23), session (111), nested contextusage (2), transcript (5), and OS (60).
+The eight overlapping paths are session `catalog_page.go`, `manager.go`, `manager_test.go`,
+`perf_bench_test.go`, `query_test.go`, `session_info.go`, OS dashboard's window test, and
+`session-window-view.tsx`. Generated contracts and wider API/store/agent authorities belong to
+the other integration owners; this is not a claim of line-by-line review of all incoming tests.
+
+The query conflict adds independent cases to `TestManagerListPageOverlaysActiveAndBindsCursor`.
+Both additions are retained: the new active/durable instance-main exclusion case and the two
+performance cases rejecting stale durable rows/relations after a live workspace/profile change.
+Only conflict separators were removed and our registration argument was updated to the incoming
+`*store.SessionInfo` API; assertions were not weakened.
+
+Validation invariants and owning suites before execution:
+
+- Session snapshots retain isolated capabilities and the new instance/initiator identity; the
+  existing session info, manager activity and catalog query suites own snapshot/scope behavior.
+- The manager catalog excludes triage and instance mains before totals and keeps the correct
+  live/durable relation overlay; the existing query and permission suites own these rules.
+- ACP read-only triage and permission expiry keep their pending-request ownership; the existing
+  ACP start/permission/handler suites own this boundary. Context usage maintenance and report
+  projection remain in their existing package suites.
+- OS keeps urgent session navigation, stale-content guards, shared connection identity, About
+  gating and live-window eligibility while preserving incoming instance/history UI; existing
+  OS session, dashboard, About, interaction and incoming agent-location suites own these flows.
+
+Re-measurement uses a fresh external `git archive` of the incoming commit at
+`/private/tmp/compozy-performance-main8c-session-n5hikopt/source`, with the same benchmark source supplied
+to both revisions via Go overlays. The 128-option capability, 1,024-session/32-workspace catalog,
+and 256-session process-demand fixtures retain their assertions. A fixture-only optional
+interface selects the available production demand path: the old full `List` reduction or the
+new scalar `ProcessActivity`. Both sides use that identical fixture and the shared two-CPU
+bounded runner. No production file in the archived baseline is edited. This isolates the
+incremental optimization from upstream changes; it does not measure API instance-facet
+enumeration/hydration newly added by Stays-on.
+
+### Delta dispositions
+
+| Area | Incoming paths | Review and integration disposition |
+| --- | ---: | --- |
+| `internal/acp` | 23: 19 production, 4 tests | Inspected execution-policy propagation, read-only triage negotiation and tool/file/terminal guards, mode-change prompt fencing, permission timeout resolution and first-winner ownership, event expiry, and parent-cancellation diagnostics. `CapsSnapshot` still returns an isolated capability graph; the session clone reduction does not remove that boundary. No production overlap or repair. |
+| `internal/session` | 111: 75 production, 36 tests | Reviewed catalog filters/facets/cursor population, authoritative instance metadata, pointer-based create/register contracts, initiator propagation, instance ceiling/launch checks, main-session lifecycle guards/rotation, report dispatch/recovery, triage cleanup, permission activity and soul profile ownership. The six overlapping session files retain the performance paths and incoming contracts. Test-only pointer migrations map to their existing lifecycle/query/permission suites; they are not claimed as independent line-by-line test reviews. |
+| `internal/session/contextusage` | 2: 1 production, 1 test | Reviewed the new maintenance decision boundary for unknown usage, invalid size/threshold and compact-versus-rotate selection. The owning decision suite passes; no optimization or integration repair. |
+| `internal/transcript` | 5: 4 production, 1 test | Reviewed report classification, assigned identity, redacted data-part projection and preservation of an in-flight assistant boundary. `TestReportProjection` passes with the race detector. Reports remain outside the assistant fold cache; the store owner separately checked that dispatch boundary. No repair. |
+| `web/src/systems/os` | 60: 39 production, 17 tests, 4 stories; six removals included | Reviewed agent team/profile/editor routing and legacy destinations, window-scoped selection, instance history/report composition, activity navigation, create-screen wiring, identity labels/notifications, dock ordering and tab-view extraction. Removed detail/settings files and tests are mapped to the incoming agent profile/editor authority. Stories follow those component authorities; no screenshot-equivalence claim. The overlapping session view keeps the incoming superseded/history branch and the urgent-identity boundary. The overlapping dashboard test retains connection gating and incoming Activity props. |
+
+The scope filter still runs under each session's read lock, and excluded live IDs still suppress
+durable rows and relationships. Incoming triage filtering and `ExcludeInstanceMain` remain in
+the final population rules. `InstanceID`, `InitiatorKind`, and `InitiatorID` remain in `Info`;
+catalog projection still applies authoritative instance metadata. The new held-permission work
+signal is retained in manager initialization, while process sampling continues to read only
+liveness/activity scalars. No new goroutine, cache or lifecycle owner was introduced here.
+
+OS's two-owner live-data budget, closed-About gating and lightweight connection identity are
+unchanged. Urgent route identity and the stale-session archive guard survive alongside the
+incoming instance-history surface. New agent-team/instance queries and identity rendering are
+upstream workload changes; the earlier selector/browser measurements do not establish their
+overall cost. API instance-facet enumeration and per-row hydration remain outside the internal
+catalog fixture, as confirmed by the API integration owner.
+
+The first OS run passed all tests but exposed a fixture mismatch: the incoming Activity
+navigation calls `useNavigate`, while the old dashboard unit harness lacked a router. The
+existing dashboard suite now renders a real memory `RouterProvider`, matching the nearby
+Settings suite. Its original eight assertions remain unchanged and pass without the prior
+router-context warnings. Integrated Go lint then found `infoLocked` had grown to 82 lines,
+exceeding its 80-line limit after the new identity fields. The capability selection/copy block
+is now the small `capabilitiesSnapshotLocked` helper. The same session read lock covers both
+calls; live capabilities still use the process-owned snapshot and stored capabilities still
+receive one defensive clone. All `Info` fields remain unchanged. These two fixture repairs
+and this extraction are the only integration repairs in this ownership.
+
+### Current comparison against incoming main
+
+Five samples per case, `-benchtime=200ms`, same Darwin/arm64 host and bounded two-CPU controls.
+Numbers are sample medians, not application latency or a whole-Stays-on performance claim.
+
+| Fixture | Main `8c` ns/op | Merged ns/op | Main B/op | Merged B/op | Main allocations | Merged allocations |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Live capability snapshot, 128 model options | 3,924 | 1,469 | 34,512 | 12,400 | 12 | 6 |
+| Active catalog, one workspace out of 32 / 1,024 sessions | 4,982,295 | 130,352 | 37,073,752 | 593,608 | 13,391 | 314 |
+| Active catalog, all 1,024 sessions | 5,150,044 | 2,281,060 | 37,645,570 | 15,002,880 | 15,377 | 9,233 |
+| Process sampling demand, 256 idle active sessions | 1,059,006 | 3,032 | 8,839,680 | 2,304 | 3,074 | 1 |
+
+The process-demand pair compares the complete old `List` path to the merged scalar projection;
+it includes the effect of the retained capability optimization. It is intentionally distinct
+from the historical incremental demand measurement above, whose baseline already had that
+capability change. New incoming fields and other upstream changes are present on both sides
+of this current pair.
+
+Identical benchmark-source SHA-256:
+`f0bd9f72802241b51036089ff7cda4b19ff6ea2a7020708c0e2099b25cef4caa`.
+Raw receipts: `.cache/performance/session-os/main8c-bench-before-canonical.txt` and
+`main8c-bench-after-refactor.txt`; all 20 samples per revision and derived medians are retained in
+`main8c-bench-final-summary.json`. The earlier merged run remains in `main8c-bench-after.txt`
+and `main8c-bench-summary.json`; all four final allocation/byte medians are unchanged by the
+helper extraction. Source/overlay paths are in `main8c-baseline.json`. Both commands
+use the bounded runner and this shared selection:
+
+```sh
+go test [-C <baseline-source>] -overlay <revision-overlay.json> ./internal/session \
+  -run '^$' -bench 'Benchmark(SessionInfoLiveCapabilities|ManagerActiveCatalogScope|ManagerProcessDemand)$' \
+  -benchmem -benchtime=200ms -count=5
+```
+
+The first baseline attempt used macOS's `/tmp` alias in the overlay, so Go did not discover the
+added benchmarks. That PASS-only receipt (`main8c-bench-before.txt`) contains no measurements
+and is excluded. The accepted baseline uses canonical `/private/tmp` paths and discovers every
+named benchmark. No benchmark population, assertion or budget was changed to obtain results.
+
+### Focused integration verification
+
+- Race-enabled Go selection passes in session (16.470 s), ACP (4.733 s), contextusage (1.463 s)
+  and transcript (1.435 s). `main8c-go-focused.txt` covers the conflict's three cases, capability
+  isolation, demand transitions, workspace/public filtering, instance permissions, triage policy
+  and startup, permission expiry/first winner, report prompt delivery, superseded prompt refusal,
+  maintenance decisions and report projection. Real SQLite and existing deterministic process
+  fixtures are used where the owning suites require them.
+- Root Turbo focused OS validation passes **278/278 tests in 13 suites** (30.46 s), including
+  session identity/visibility/history, content/controller composition, About, live-data owner
+  selection, dashboard connection gating, agent routes/topbar, attention, deck, automation and
+  registry. Receipt: `main8c-os-focused.txt`. After adding the real dashboard router fixture, the
+  changed suite passes again **8/8** (3.47 s) without router warnings:
+  `main8c-dashboard-final.txt`. Unchanged suites were not repeated.
+- A source comparison confirms both conflict-addition blocks survive (with only the required
+  pointer adaptation) and the prior capability/activity assertion functions are unchanged.
+- After the helper extraction, `TestSessionInfoCopiesCapabilities` passes again with race
+  detection (2.914 s), and the four existing benchmark cases pass with five samples each
+  (5.354 s). Receipts: `main8c-info-refactor-test.txt` and `main8c-bench-after-refactor.txt`.
+- Bounded `make go-lint`, scoped to `./internal/session/...` with formatting restricted to
+  `session_info.go`, passes source policy and both normal/integration build-tag lanes with
+  zero issues (`main8c-info-refactor-lint.txt`). The earlier dashboard Oxfmt/Oxlint checks and
+  query gofmt check pass (`main8c-final-style.txt`). The standalone test-shape heuristic reports
+  the same nine pre-existing inline-case diagnostics in both the incoming and merged query
+  suite; it is not presented as a clean heuristic run or repaired outside this scope.
+
+Final owned-source freeze at `2026-11-02T08:31:09Z`:
+`main8c-owner-freeze.json` records 211 paths (the 201 incoming paths plus ten prior owned
+changes). Its sorted path/hash-map SHA-256 is
+`4c44c9cf214ce9429d4aee0fd551574a2294cb96650084451a467afa55b0fa31`.
+The final `session_info.go` SHA-256 is
+`6b080e669d67154e5d8426604019222682817faafdedce254dc3140a2b1d131f`.
+Only that file differs from the preserved pre-extraction owner freeze
+(`main8c-owner-before-info-extraction.json`). No source edits followed the final checks.
+
+These are focused merge-integration checks on the worktree above `e62862f48362b9cc6da311df0078b0be914a5734`,
+not a new full-suite, platform-parity, browser-latency or current-head CI verdict. Root owns
+the merged runtime/browser run, generated-contract checks, integrated delivery gates and commit.
+Root reports its integrated browser walk passed 64/64 selections and eight streams with 600
+chunks and no errors on the preceding source snapshot recorded in
+`.cache/performance/main-integration-source-freeze.json`. That walk was not repeated after
+this behavior-preserving extraction; the final focused Info/benchmark checks above cover the
+changed function, and final-head CI remains the enclosing delivery authority.

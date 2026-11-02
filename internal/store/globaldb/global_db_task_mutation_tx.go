@@ -220,6 +220,9 @@ func (s *taskMutationTxStore) InvalidateForceRunInputs(
 	if err != nil {
 		return taskpkg.ForceRunInputInvalidation{}, fmt.Errorf("store: cancel force-run session inputs: %w", err)
 	}
+	if err := queries.ReleaseCanceledSessionReports(ctx, target); err != nil {
+		return taskpkg.ForceRunInputInvalidation{}, fmt.Errorf("store: release force-run reports: %w", err)
+	}
 	return taskpkg.ForceRunInputInvalidation{
 		QueueGeneration: generation,
 		CanceledInputs:  int(rows),

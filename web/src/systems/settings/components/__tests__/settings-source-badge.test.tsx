@@ -119,7 +119,7 @@ describe("SettingsSourceBadge", () => {
       />
     );
     expect(screen.getByTestId("badge-effective")).toHaveTextContent(
-      "From project agent file · reviewer · ws_alpha"
+      "From project agent file · Reviewer · ws_alpha"
     );
   });
 });

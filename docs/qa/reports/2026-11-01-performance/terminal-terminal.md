@@ -229,3 +229,88 @@ independent concurrent stores would require shared coordination across sweep, pu
 and recovery; introducing that behavior is outside this finding. No new lock or ownership
 contract was added. Existing pinned content may also intentionally exceed ordinary sweep
 bounds; this triage does not reinterpret retention as an unconditional absolute cap.
+
+## Main integration delta audit — 2026-11-02
+
+Scope: incoming `8c025ff8fdd3a9a79e4f0e63f54b3bd144a4773b`, composed with the performance
+branch after its prior CI run. The ownership inventory is
+`.cache/performance/main-integration-paths.json`: three incoming terminal files and three
+tool-approval files, with no overlapping performance edits in those six paths. This is an
+integration audit, not a new optimization or a general review of the incoming feature.
+
+Validation invariants, layers and canonical suites identified before execution:
+
+- Exact approval command, risk disclosure, unchanged grant identity and individual revoke belong
+  to the terminal presentation layer and `components/__tests__/terminal-approvals.test.tsx`.
+- Journal selection, aggregate owner attribution and actor identity belong to the terminal
+  journal presentation layer and `components/__tests__/terminal-journal-panel.test.tsx`.
+- Workspace-bound remembered decisions, wider-rule restrictions and revoke targets belong to
+  the tool-approval component/view-model boundary and
+  `components/__tests__/tool-approval-grants-section.test.tsx`.
+- Pane reclamation and foreign-scope isolation remain owned by the unchanged
+  `stores/__tests__/terminal-store.test.ts` and
+  `components/__tests__/terminal-window-app.test.tsx`; their focused rerun checks composition
+  against the newly exported UI and identity dependencies.
+
+The initial composed snapshot passed all five suites through bounded root Turborepo:
+5 files, 106 tests, 10.08 s. Receipt:
+`.cache/performance/terminal-terminal/main-integration-focused-before.txt`.
+No new benchmark, Go suite, gate or browser walk was run for these presentational deltas.
+
+| Incoming file | Composition audit and disposition |
+| --- | --- |
+| `web/src/systems/terminal/components/terminal-approval-detail.tsx` | The exact command is passed to the existing `CodeBlock` as `code`; its copy action receives the same string, and the prompt glyph is presentation only. Irreversible/unclassifiable signals still come from the server detail. No permission, terminal output, replay or ring state is written. Existing approval tests pass. Retain incoming change. |
+| `web/src/systems/terminal/components/terminal-grant-row.tsx` | Adds only optional display `agentLabel`; grant ID, digest and the original grant passed to revoke remain unchanged. The default preserves standalone callers. Exact-command revocation test passes. Retain incoming change. |
+| `web/src/systems/terminal/components/terminal-journal-row.tsx` | Adds agent identity resolution while human/system retain their actor-kind presentation. Selection, command IDs, replay callbacks and row owner badges are unchanged. The resolver defaults to the selected profile, although each journal entry records `profile_name`; this static limitation is identical in incoming `8c025ff8f` and the merge, not introduced by the performance composition. Existing journal tests pass. Retain incoming change; no independent identity repair in this delivery. No ring/output path changed. |
+| `web/src/systems/tool-approvals/components/tool-approval-grant-row.tsx` | Replaces only the agent display with `AgentIdentityChip`; permission scope, decision, input digest and revoke callback still use the source grant. The view uses the selected workspace's cached identity catalog and a network-free fallback outside the app provider. Existing grant interactions pass. Retain incoming change. |
+| `web/src/systems/tool-approvals/components/tool-approval-grants-section.tsx` | Humanizes terminal labels and confirmation copy while preserving literal "any agent". Terminal grouping still carries the original source grant into revoke; workspace binding, query envelope/total and wider-rule admission stay in the unchanged view model. Existing scope, failure and revoke cases pass. Retain incoming change. |
+| `web/src/systems/tool-approvals/components/__tests__/tool-approval-grants-section.test.tsx` | The only incoming assertion changes are `claude-code`/`cursor` to their humanized display labels. The suite still checks distinct server scopes, exact-input identity, mutation payloads and failures; it does not replace those checks with display-only assertions. All 13 existing cases pass. Retain incoming change. |
+
+Read-only supporting inventory outside Go packages and Web systems:
+
+- `sdk/react/`: no incoming files in the integration inventory. No serializer, reconciler, React
+  view runtime or SDK React fixture was changed or rerun for this delta.
+- `sdk/client/src/generated/sdk/types.gen.ts`, `sse/types.gen.ts` and
+  `sdk/typescript/src/generated/contracts.ts`: textual declaration comparison against the
+  pre-merge HEAD found respectively 170, 19 and 15 terminal/approval/actor declarations unchanged.
+  `sdk.gen.ts` retains all 24 matching client methods and `openapi/compozy-openapi.d.ts` all 27
+  matching operation blocks. Generated index additions and the new
+  `AgentHeartbeatWakePatch` export in `sdk/typescript/src/index.ts` concern the incoming agent
+  feature; terminal frame/offset/actor and tool-grant contracts are unchanged. Generator and
+  whole-repository contract validation remain root-owned.
+- All 17 incoming `packages/ui/` paths were inspected. `package.json`, `asset-modules.d.ts`,
+  `agent-avatar.tsx`, `hooks/use-document-theme.ts`, `lib/agent-avatar.ts`,
+  `lib/agent-avatar-tones.ts`, `exports/conversation.ts`, the avatar test and story introduce the
+  shared identity rendering used by the new journal/grant leaves. Its theme observer disconnects
+  on unmount; the terminal leaves use `state="unknown"`, so they do not claim live process state
+  or activate the working animation. Catalog lookup is indexed by stable catalog array identity;
+  these additions do not create a terminal output subscription or retain terminal pane IDs.
+- The remaining UI deltas are `hooks/use-topbar-slot.ts`, `topbar.tsx` and its test (optional
+  leading host context with equality/publication support), `listing-page.tsx` (nonshrinking
+  scroll content), `markdown-editor.tsx`, its test and `exports/editors.ts` (optional tall editor,
+  compact default retained), and additive `icons.ts` exports. No terminal approval/journal
+  fixture requires changed props. These files were not edited, and this inspection makes no
+  visual or browser-latency claim for the incoming UI feature.
+
+The six incoming files are byte-identical to `8c025ff8f` after composition. The journal identity
+dependency chain is also unchanged against that commit: `agent/hooks/use-agent-identity-view.ts`,
+`agent/hooks/use-agent-identity.ts`, `agent/lib/agent-identity-context.ts`,
+`terminal/components/terminal-journal-panel.tsx` and `os/apps/terminal/terminal-window.tsx`.
+Consequently, the possible same-slug attribution to the selected profile is an upstream
+limitation, not a regression caused by the performance changes. The journal payload carries
+profile ownership but no workspace ID; workspace is held by its query/host. The root owner
+explicitly kept that independent identity work outside this integration. No new test or UI
+change was added, and no all-profile identity browser claim is made here.
+
+Focused validation command:
+
+```sh
+python3 .cache/performance/run-bounded.py bunx turbo run test --filter=./web --only -- src/systems/terminal/stores/__tests__/terminal-store.test.ts src/systems/terminal/components/__tests__/terminal-window-app.test.tsx src/systems/terminal/components/__tests__/terminal-approvals.test.tsx src/systems/terminal/components/__tests__/terminal-journal-panel.test.tsx src/systems/tool-approvals/components/__tests__/tool-approval-grants-section.test.tsx --maxWorkers=1
+```
+
+Final integration disposition: no repair required in this ownership. `internal/terminal` has
+no incoming diff against the performance HEAD, including the measured ring implementation.
+Frontend pane-reconciliation source and its original tests remain intact. The only worker edit
+for this integration is this report; root owns the merged CI, code generation and consolidated
+coverage. The 106 passing focused cases are composition evidence, not a replacement for those
+delivery checks or a browser rewalk.

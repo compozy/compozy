@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import { SESSION_LIST_BAR_CLASS } from "../../lib/session-list-bar-class";
 import type { SessionListGroupBy, SessionListSort } from "../../lib/session-list-preferences";
 import { SessionViewOptionsMenu } from "../session-view-options-menu";
@@ -29,6 +31,8 @@ export interface SessionListToolbarProps {
   onNewFolder?: () => void;
   /** Why this list cannot hold folders; New folder shows disabled with it. */
   newFolderUnavailable?: string | null;
+  /** Replaces the plain `+`: the live list's menu with Add stays-on agent. */
+  createMenu?: ReactNode;
   testIdPrefix: string;
 }
 
@@ -60,6 +64,7 @@ export function SessionListToolbar({
   onNewSession,
   onNewFolder,
   newFolderUnavailable,
+  createMenu,
   testIdPrefix,
 }: SessionListToolbarProps) {
   return (
@@ -88,12 +93,14 @@ export function SessionListToolbar({
         sort={sort}
         testId={testIdPrefix}
       />
-      <SessionListCreateMenu
-        onNewSession={onNewSession}
-        onNewFolder={onNewFolder}
-        newFolderUnavailable={newFolderUnavailable}
-        testId={testIdPrefix}
-      />
+      {createMenu ?? (
+        <SessionListCreateMenu
+          onNewSession={onNewSession}
+          onNewFolder={onNewFolder}
+          newFolderUnavailable={newFolderUnavailable}
+          testId={testIdPrefix}
+        />
+      )}
     </div>
   );
 }

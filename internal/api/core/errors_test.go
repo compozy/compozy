@@ -342,6 +342,15 @@ func TestErrorPayloadForError(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose superseded sessions as a structured conflict", func(t *testing.T) {
+		t.Parallel()
+		err := fmt.Errorf("admission: %w", store.ErrSessionSuperseded)
+		payload := ErrorPayloadForError(err)
+		if StatusForSessionError(err) != http.StatusConflict || payload.Code != "session_superseded" {
+			t.Fatalf("superseded refusal = %#v", payload)
+		}
+	})
+
 	t.Run("Should expose the observed turn in a stale prompt fence refusal", func(t *testing.T) {
 		t.Parallel()
 		err := &session.ActiveTurnMismatchError{ExpectedTurnID: "turn-old", CurrentTurnID: "turn-live"}

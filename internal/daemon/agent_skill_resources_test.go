@@ -23,6 +23,60 @@ import (
 
 func TestAppendProfiledSkillResources(t *testing.T) {
 	t.Parallel()
+	t.Run("Should publish profile agents and workspace overrides without a skill registry", func(t *testing.T) {
+		t.Parallel()
+		home, err := compozyconfig.ResolveHomePathsFrom(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		path := filepath.Join(home.ProfilesDir, "marketing", "agents", "triage", "AGENT.md")
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		personal, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
+			Name: "triage", Kind: "stays_on", Provider: "codex", Prompt: "Personal profile agent",
+		}, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		local := personal
+		local.SourcePath = filepath.Join(t.TempDir(), ".compozy", "agents", "triage", "AGENT.md")
+		local.Prompt = "Workspace profile agent"
+		profile := profilepkg.WithCounts{ID: "pf-marketing", Name: "marketing", State: profilepkg.StateActive}
+		workspace := workspacepkg.ResolvedWorkspace{
+			ID: "ws-marketing", ProfileID: profile.ID, ProfileName: profile.Name,
+			WorkspaceID: "runtime-workspace-key", Agents: []compozyconfig.AgentDef{local},
+		}
+		desired := agentSkillDeclarations{}
+		if err := appendProfiledAgentSkillResources(t.Context(), &desired, home,
+			skillProfileCatalogStub{profiles: []profilepkg.WithCounts{profile}},
+			&skillProfileWorkspaceResolver{resolved: workspace}, []workspacepkg.ResolvedWorkspace{workspace}, nil,
+		); err != nil {
+			t.Fatal(err)
+		}
+		records := make([]resources.Record[compozyconfig.AgentDef], 0, len(desired.agents))
+		for _, declaration := range desired.agents {
+			records = append(records, resources.Record[compozyconfig.AgentDef]{
+				ID: declaration.sourceKey, Scope: declaration.scope, Spec: declaration.spec,
+			})
+		}
+		catalog := newResourceCatalog(cloneAgentDef)
+		catalog.Replace(1, records)
+		dependency := agentCatalogDependency(catalog)
+		for _, tc := range []struct {
+			workspace      workspacepkg.ResolvedWorkspace
+			prompt, origin string
+		}{
+			{workspace, local.Prompt, "workspace-ws-marketing"},
+			{workspacepkg.ResolvedWorkspace{ProfileID: profile.ID, ProfileName: profile.Name}, personal.Prompt, "user"},
+		} {
+			entries, err := dependency.ListAgentsForWorkspace(t.Context(), &tc.workspace)
+			if err != nil || len(entries) != 1 || entries[0].Def.Prompt != tc.prompt ||
+				entries[0].MemoryOrigin != tc.origin {
+				t.Fatalf("profile agents: entries=%+v error=%v", entries, err)
+			}
+		}
+	})
 	t.Run("Should publish profiled skills under their owning scopes", func(t *testing.T) {
 		t.Parallel()
 
@@ -64,7 +118,7 @@ func TestAppendProfiledSkillResources(t *testing.T) {
 		}
 		registry := skillspkg.NewRegistry(skillspkg.RegistryConfig{})
 		desired := agentSkillDeclarations{}
-		if err := appendProfiledSkillResources(
+		if err := appendProfiledAgentSkillResources(
 			t.Context(),
 			&desired,
 			homePaths,
@@ -76,7 +130,7 @@ func TestAppendProfiledSkillResources(t *testing.T) {
 			}},
 			registry,
 		); err != nil {
-			t.Fatalf("appendProfiledSkillResources() error = %v", err)
+			t.Fatalf("appendProfiledAgentSkillResources() error = %v", err)
 		}
 
 		scopesByName := make(map[string]resources.ResourceScope)

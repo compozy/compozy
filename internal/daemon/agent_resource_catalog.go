@@ -61,8 +61,10 @@ func (c *resourceAgentCatalog) GetAgent(ctx context.Context, name string) (core.
 	if target == "" {
 		return core.AgentCatalogEntry{}, errors.New("agent name is required")
 	}
-	for _, entry := range c.agentEntriesForWorkspace(nil) {
-		if strings.TrimSpace(entry.Def.Name) == target {
+	entries := c.agentEntriesForWorkspace(nil)
+	for i := range entries {
+		if strings.TrimSpace(entries[i].Def.Name) == target {
+			entry := entries[i]
 			entry.Def = cloneAgentDef(entry.Def)
 			return entry, nil
 		}
@@ -81,6 +83,7 @@ func (c *resourceAgentCatalog) agentEntriesForWorkspace(
 		return strings.Compare(agentRecordSortKey(left), agentRecordSortKey(right))
 	})
 	lens := agentCatalogLensFor(resolved)
+	userSources := lens.userAgentSources(records)
 	type rankedEntry struct {
 		entry core.AgentCatalogEntry
 		rank  int
@@ -106,8 +109,9 @@ func (c *resourceAgentCatalog) agentEntriesForWorkspace(
 		if workspaceScoped {
 			origin = contract.AgentOriginWorkspace
 		}
+		memoryOrigin := lens.memoryOrigin(&record, userSources)
 		merged[name] = rankedEntry{entry: core.AgentCatalogEntry{
-			Def: cloneAgentDef(record.Spec), Origin: origin, WorkspaceID: workspaceID,
+			MemoryOrigin: memoryOrigin, Def: cloneAgentDef(record.Spec), Origin: origin, WorkspaceID: workspaceID,
 			PackageOwned: record.Owner.Kind.Normalize() == extensionResourceOwnerKind,
 		}, rank: rank, key: sortKey}
 	}
@@ -137,7 +141,9 @@ func (c *resourceAgentCatalog) ListAgentDefinitions(
 			merged[agent.Name] = cloneAgentDef(agent)
 		}
 	}
-	for _, entry := range c.agentEntriesForWorkspace(resolved) {
+	entries := c.agentEntriesForWorkspace(resolved)
+	for i := range entries {
+		entry := &entries[i]
 		merged[entry.Def.Name] = entry.Def
 	}
 	agents := make([]compozyconfig.AgentDef, 0, len(merged))

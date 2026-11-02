@@ -6,17 +6,21 @@ and real-app walks are recorded below. [PR #1141](https://github.com/compozy/com
 owns final current-head CI status. The initial browser timings did not establish a stable
 overall navigation gain; the later one-factor experiment isolates the stale identity defect.
 
-Branch: `perf/responsiveness-audit-20261101`. Baseline: `de5ab2f4d`.
+Branch: `perf/responsiveness-audit-20261101`. Original baseline: `de5ab2f4d`.
+Integrated main: `8c025ff8f` (Stays-on agents and agent identity).
 The worktree is isolated from the primary checkout and production runtime state.
 
 ## Scope and evidence
 
-The [complete coverage matrix](coverage.md) lists **195/195 tracked Go-containing
-directories** (161 internal, 34 elsewhere) and **28/28 frontend systems**, with a named
+The [complete coverage matrix](coverage.md) lists **197/197 tracked Go-containing
+directories** (163 internal, 34 elsewhere) and **28/28 frontend systems**, with a named
 owner, report and disposition for every entry. The [machine-readable inventory](coverage-inventory.json)
-includes file counts and per-directory file-list digests. SDK modules, command entrypoints,
+includes file counts and Go/system file-list digests. SDK modules, command entrypoints,
 tooling, embedded contracts and fixtures are included. This supersedes the initial 92-root
 summary, whose grouping did not demonstrate exhaustive nested/outside-internal coverage.
+The final main integration adds `agentinstance` and `agentmemory`; both have complete source
+audits, and all 43 existing/new Go directories and 12 systems changed by that incoming
+commit have owner delta reviews. Unchanged directories retain their original inspections.
 
 **Audited means documented source inspection, not a benchmark or executed test for every
 directory.** The owner reports distinguish retained measured changes, unchanged code,
@@ -35,6 +39,9 @@ No change may claim user-facing latency improvements based only on a unit benchm
 
 ## Retained improvements
 
+Unless explicitly labeled as a main-integration rerun, the tables retain measurements
+against the original `de5ab2f4d` baseline and the intermediate revisions identified in each
+owner report. They are historical experiments, not new measurements of Stays-on behavior.
 The tables report comparable fixture medians or exact operation counts, with the unit
 shown for each row. They are not additive: several optimizations affect the same request.
 The linked reports include population sizes, controls, sample counts, ranges, allocation
@@ -91,6 +98,30 @@ Connection-only status/home consumers also share the existing bounded identity e
 instead of enabling full diagnostics. No route or DTO was added. The real-query suite
 verifies one shared initial identity read, zero full-status reads and unchanged refresh/error
 behavior; diagnostic panels keep the complete status operation.
+
+## Main-integration paired measurements
+
+These measurements compare immutable main `8c025ff8f` with the combined source, using
+identical benchmark fixtures supplied through Go overlays and two CPUs. Sample counts and
+200 ms budgets are recorded in the owner reports (six samples per side for the SQLite board).
+They measure the incremental performance changes after Stays-on landed; the broader instance
+API hydration and production traffic are outside these fixtures.
+
+| Workload | Main `8c025ff8f` | Integrated candidate | Evidence |
+| --- | ---: | ---: | --- |
+| Session Info, 128 options | 3.924 µs; 34,512 B; 12 allocations | 1.469 µs; 12,400 B; 6 allocations | [Session/OS](session-os.md) |
+| Scoped catalog, 1,024 sessions / 32 workspaces | 4.982 ms; 37,073,752 B | 0.130 ms; 593,608 B | [Session/OS](session-os.md) |
+| All-workspace catalog, same population | 5.150 ms; 37,645,570 B | 2.281 ms; 15,002,880 B | [Session/OS](session-os.md) |
+| Process-demand read, 256 sessions | 1.059 ms; 8,839,680 B | 3.032 µs; 2,304 B | [Session/OS](session-os.md) |
+| Terminal-exec approval descriptor, expanded catalog | 561.680 µs; 1,079,899 B; 6,058 allocations | 3.131 µs; 3,560 B; 32 allocations | [Events/settings](events-settings.md) |
+| SQLite local-board page, 4,096 rows | 7.174 ms; three PR/repository joins | 5.721 ms; those joins removed | [Store/session](store-session.md); same page/count assertions |
+| Scheduler selection, 500 runs / 50 workspaces | 10.223 ms; 46,991,103 B | 1.040 ms; 2,316,122 B | [Loop/scheduler](loop-loops.md); same 500 targets |
+| Scheduler selection, single-workspace control | 25.918 ms; 46,991,152 B | 23.062 ms; 2,221,768 B | [Loop/scheduler](loop-loops.md) |
+
+The final capability-helper extraction preserves every allocation/byte median above. A new
+combined-source [browser walk](browser.md#main-integration-correctness-walk) completed 64/64
+selections and all eight streams without errors; its timings are observation only, not a
+paired speed comparison with new main. Final CI owns acceptance after the helper extraction.
 
 ## Tradeoffs, limits and rejected ideas
 
@@ -189,7 +220,7 @@ correctness invariants, attempted ideas and outcomes needed to assess each chang
 | Requirement | Authoritative evidence | Current state |
 | --- | --- | --- |
 | New isolated worktree | Git branch/worktree inventory | Created from `de5ab2f4d` |
-| Per-package/system delegated audit | Exhaustive coverage matrix, machine-readable inventory and ten worker reports | 195/195 Go directories and 28/28 systems audited; zero pending directory audits; static inspection and runtime evidence separated |
+| Per-package/system delegated audit | Exhaustive coverage matrix, machine-readable inventory and ten worker reports | 197/197 Go directories and 28/28 systems audited; zero pending directory audits; static inspection and runtime evidence separated |
 | Database/query improvements | Real SQLite plans and owning benchmarks/tests | Measured and focused suites passed |
 | Frontend loading/state/memory improvements | Real Query observers, component suites and browser runs | Focused suites and real browser passed; causal navigation fix retained; general timing variation prevents a population browser-latency claim |
 | Safe concurrency review | Package reports, ownership/cancellation analysis and race tests | No new production goroutines; focused race and independent reviews passed |

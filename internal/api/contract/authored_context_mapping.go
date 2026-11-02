@@ -256,6 +256,7 @@ func HeartbeatWakeEventPayloadFromDomain(event heartbeatpkg.WakeEvent) (Heartbea
 		Source:            source,
 		Result:            result,
 		Reason:            reason,
+		Detail:            normalized.Detail,
 		SyntheticPromptID: normalized.SyntheticPromptID,
 		CreatedAt:         normalized.CreatedAt.UTC(),
 		ExpiresAt:         normalized.ExpiresAt.UTC(),

@@ -37,7 +37,7 @@ func TestStreamSessionHandlerPollsForNewEvents(t *testing.T) {
 	homePaths := newTestHomePaths(t)
 	done := make(chan struct{})
 	callCount := 0
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		StatusFn: func(context.Context, string) (*session.Info, error) {
 			return newSessionInfo("sess-123"), nil
 		},
@@ -98,7 +98,7 @@ func TestStreamSessionHandlerStopsWhenSessionIsAlreadyStopped(t *testing.T) {
 	t.Parallel()
 
 	homePaths := newTestHomePaths(t)
-	manager := stubSessionManager{
+	manager := &stubSessionManager{
 		StatusFn: func(context.Context, string) (*session.Info, error) {
 			info := newSessionInfo("sess-123")
 			info.State = session.StateStopped
@@ -145,7 +145,7 @@ func TestStreamSessionHandlerEmitsTerminalErrorWhenTranscriptInitializationFails
 
 		initErr := errors.New("transcript projection unavailable")
 		pageCalls := 0
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			StatusFn: func(context.Context, string) (*session.Info, error) {
 				return newSessionInfo("sess-123"), nil
 			},
@@ -235,7 +235,7 @@ func TestStreamLogsPollsForNewEvents(t *testing.T) {
 			}
 		},
 	}
-	handlers := newTestHandlers(t, stubSessionManager{}, observer, homePaths)
+	handlers := newTestHandlers(t, &stubSessionManager{}, observer, homePaths)
 	handlers.setStreamDone(done)
 	engine := newTestRouter(t, handlers)
 
@@ -286,7 +286,7 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 				}}, nil
 			},
 		}
-		handlers := newTestHandlers(t, stubSessionManager{}, observer, homePaths)
+		handlers := newTestHandlers(t, &stubSessionManager{}, observer, homePaths)
 		handlers.setStreamDone(done)
 		engine := newTestRouter(t, handlers)
 
@@ -324,7 +324,7 @@ func TestStreamLogsReplayFalseLifecycle(t *testing.T) {
 				return nil, nil
 			},
 		}
-		handlers := newTestHandlers(t, stubSessionManager{}, observer, homePaths)
+		handlers := newTestHandlers(t, &stubSessionManager{}, observer, homePaths)
 		handlers.setStreamDone(done)
 		engine := newTestRouter(t, handlers)
 
@@ -367,7 +367,7 @@ func TestStreamLogsCarriesHarnessLifecyclePayloads(t *testing.T) {
 			}}, nil
 		},
 	}
-	handlers := newTestHandlers(t, stubSessionManager{}, observer, homePaths)
+	handlers := newTestHandlers(t, &stubSessionManager{}, observer, homePaths)
 	handlers.setStreamDone(done)
 	engine := newTestRouter(t, handlers)
 
@@ -431,7 +431,7 @@ func TestStreamLogsCarriesProfileLifecyclePayloads(t *testing.T) {
 				}, json.RawMessage(`{"name":"profile.selection_changed","profile_id":"01J9","profile_name":"marketing"}`))}, nil
 			},
 		}
-		handlers := newTestHandlers(t, stubSessionManager{}, observer, homePaths)
+		handlers := newTestHandlers(t, &stubSessionManager{}, observer, homePaths)
 		handlers.setStreamDone(done)
 		engine := newTestRouter(t, handlers)
 

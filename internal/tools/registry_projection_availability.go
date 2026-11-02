@@ -74,7 +74,9 @@ func (r *RuntimeRegistry) DiagnosticProjection(ctx context.Context, scope Scope)
 	}
 	candidates := make([]sessionProjectionEntry, 0, len(index.entries))
 	for _, entry := range index.entries {
-		if _, ok := entry.provider.(*MCPProvider); ok {
+		_, sessionBatch := entry.provider.(ProjectionAvailabilityProvider)
+		_, operatorBatch := entry.provider.(*MCPProvider)
+		if sessionBatch && (!scope.Operator || operatorBatch) {
 			candidates = append(candidates, sessionProjectionEntry{entry: entry})
 		}
 	}

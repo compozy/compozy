@@ -1,0 +1,213 @@
+{
+    "version": 3,
+    "key": "agent-profile",
+    "sequence": 3,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
+    },
+    "events": [],
+    "comments": [
+        {
+            "id": "agent-profile-1",
+            "slug": "agent-profile",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:13:46.109Z",
+            "updatedAt": "2026-11-01T04:43:58.065Z",
+            "resolvedAt": "2026-11-01T04:43:58.065Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "stays-on",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section > section > div > div > div > div",
+                "testId": null,
+                "tag": "div",
+                "text": "Triage Lead Stays on Watches issues and proposes the next step Sorting 14 new issues in compozy Open session Where it's…",
+                "source": "src/drafts/agent-profile/profile-home.tsx:191:5",
+                "sourceChain": [
+                    "src/drafts/agent-profile/profile-home.tsx:191:5",
+                    "src/drafts/agent-profile/index.proto.tsx:105:7",
+                    "src/drafts/stays-on-agents-shared/agent-page.tsx:108:9",
+                    "src/drafts/stays-on-agents-shared/agent-page.tsx:107:7",
+                    "src/systems/os/components/os-window-frame.tsx:92:5",
+                    "src/systems/os/components/os-window-frame.tsx:184:9",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:194:11",
+                    "src/drafts/stays-on-agents-shared/draft-shell.tsx:192:9"
+                ],
+                "rect": {
+                    "x": 188.5,
+                    "y": 129,
+                    "width": 1080,
+                    "height": 1522.34375
+                },
+                "rectNormalized": {
+                    "x": 0.13502865329512895,
+                    "y": 0.18614718614718614,
+                    "width": 0.7736389684813754,
+                    "height": 2.196744227994228
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "31ab046a-7b6e-46c8-98f3-a4e1936fe54b",
+                    "at": "2026-11-01T03:13:46.127Z",
+                    "editedAt": null,
+                    "body": "o conteúdo está bom até, mas aqui a formatação e estilo de componentes de title, boxes, etc me parece estar totalmente desalinhado com outras telas do sistemas que tem os mesmo componentes, explore para entender e poder igualar",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "a3714756-851c-4355-95f9-6d656b8deb39",
+                    "at": "2026-11-01T04:43:58.064Z",
+                    "editedAt": null,
+                    "body": "Titles and boxes now use the production Section and Panel, and rows use the Dashboard Home row classes, so they match Home. Checked stays-on and needs-you in dark and light, including a full-height capture in dark.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "agent-profile-2",
+            "slug": "agent-profile",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:14:49.388Z",
+            "updatedAt": "2026-11-01T04:43:59.240Z",
+            "resolvedAt": "2026-11-01T04:43:59.240Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "needs-you",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section:nth-of-type(3) > div > div > button",
+                "testId": null,
+                "tag": "button",
+                "text": "Claude, Max 20x, Weekly · Opus 88% used, resets in 3d 2h",
+                "source": "src/systems/provider-usage/components/provider-usage-row.tsx:123:7",
+                "sourceChain": [
+                    "src/systems/provider-usage/components/provider-usage-row.tsx:123:7",
+                    "src/systems/provider-usage/components/provider-usage-row.tsx:115:5",
+                    "src/drafts/agent-profile/profile-activity.tsx:177:7",
+                    "src/drafts/agent-profile/profile-activity.tsx:176:5",
+                    "src/drafts/agent-profile/profile-home.tsx:221:32",
+                    "src/drafts/agent-profile/profile-home.tsx:218:9",
+                    "src/drafts/agent-profile/profile-home.tsx:206:7",
+                    "src/drafts/agent-profile/profile-home.tsx:191:5"
+                ],
+                "rect": {
+                    "x": 916.5,
+                    "y": 229.8671875,
+                    "width": 352,
+                    "height": 31
+                },
+                "rectNormalized": {
+                    "x": 0.6565186246418339,
+                    "y": 0.33169868326118324,
+                    "width": 0.2521489971346705,
+                    "height": 0.044733044733044736
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "68efdc28-6bd6-41a1-a270-50d81526146d",
+                    "at": "2026-11-01T03:14:49.425Z",
+                    "editedAt": null,
+                    "body": "espaçamento bem ruim",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "7140a4de-0fb7-40f1-b203-0488280c2586",
+                    "at": "2026-11-01T04:43:59.239Z",
+                    "editedAt": null,
+                    "body": "The usage row now sits alone in a Panel using the production ProviderUsageRow frame, in Your plan and the Model drawer. Checked needs-you and deep-link in dark and light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        },
+        {
+            "id": "agent-profile-3",
+            "slug": "agent-profile",
+            "status": "resolved",
+            "createdAt": "2026-11-01T03:17:12.484Z",
+            "updatedAt": "2026-11-01T04:44:00.670Z",
+            "resolvedAt": "2026-11-01T04:44:00.670Z",
+            "context": {
+                "commit": "ff1853a832d6b148412e90fa3502123b02bff484",
+                "state": "deep-link",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section:nth-of-type(4) > div > div > div:nth-of-type(1)",
+                "testId": null,
+                "tag": "div",
+                "text": "Name and look Name, picture and description",
+                "source": "src/drafts/agent-profile/profile-setup.tsx:35:5",
+                "sourceChain": [
+                    "src/drafts/agent-profile/profile-setup.tsx:35:5",
+                    "src/drafts/agent-profile/profile-setup.tsx:83:9",
+                    "src/drafts/agent-profile/profile-setup.tsx:82:7",
+                    "src/drafts/agent-profile/profile-setup.tsx:77:5",
+                    "src/drafts/agent-profile/profile-home.tsx:222:11",
+                    "src/drafts/agent-profile/profile-home.tsx:218:9",
+                    "src/drafts/agent-profile/profile-home.tsx:206:7",
+                    "src/drafts/agent-profile/profile-home.tsx:191:5"
+                ],
+                "rect": {
+                    "x": 916.5,
+                    "y": 303.671875,
+                    "width": 352,
+                    "height": 65.1953125
+                },
+                "rectNormalized": {
+                    "x": 0.6565186246418339,
+                    "y": 0.4381989538239538,
+                    "width": 0.2521489971346705,
+                    "height": 0.09407693001443002
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "a57110f0-c6c8-433f-b6bf-208ec170ec76",
+                    "at": "2026-11-01T03:17:12.496Z",
+                    "editedAt": null,
+                    "body": "ao invés de ter isso aqui e abrir um drawer só para fazer essa edição com 3 campos, era melhor que isso fosse editavel no próprio header do agente aonde mostrar as informações",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "4451a899-fea1-4903-9888-b6a98844de62",
+                    "at": "2026-11-01T04:44:00.668Z",
+                    "editedAt": null,
+                    "body": "The Name and look panel is gone. Name, description and avatar are edited in place in the agent header. Checked identity, identity-avatar and identity-invalid in dark, and identity and identity-avatar in light.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
+        }
+    ]
+}

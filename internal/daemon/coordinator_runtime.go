@@ -30,7 +30,7 @@ type coordinatorTaskStore interface {
 }
 
 type coordinatorSessionManager interface {
-	Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error)
+	Create(ctx context.Context, opts *session.CreateOpts) (*session.Session, error)
 	ListAll(ctx context.Context) ([]*session.Info, error)
 	PromptSynthetic(ctx context.Context, id string, opts session.SyntheticPromptOpts) (<-chan acp.AgentEvent, error)
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error

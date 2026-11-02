@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -588,7 +590,7 @@ func seedDaemonHeartbeatWakePolicyWithConfig(
 	}); err != nil {
 		t.Fatalf("InsertWorkspace() error = %v", err)
 	}
-	if err := db.RegisterSession(ctx, store.SessionInfo{
+	if err := db.RegisterSession(ctx, new(store.SessionInfo{
 		ProfileID:     store.DefaultProfileID,
 		ID:            sessionID,
 		AgentName:     agentName,
@@ -597,7 +599,7 @@ func seedDaemonHeartbeatWakePolicyWithConfig(
 		RuntimeStatus: store.SessionRuntimeUnbound,
 		CreatedAt:     createdAt,
 		UpdatedAt:     createdAt,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 	resolved, err := heartbeat.Parse(ctx, heartbeat.ParseRequest{
@@ -623,6 +625,7 @@ Inspect /agent/context before acting.
 		agentName,
 		&resolved,
 		createdAt,
+		"",
 	)
 	if err != nil {
 		t.Fatalf("SnapshotFromResolved() error = %v", err)
@@ -645,7 +648,7 @@ func registerDaemonHeartbeatSession(
 ) {
 	t.Helper()
 
-	if err := db.RegisterSession(ctx, store.SessionInfo{
+	if err := db.RegisterSession(ctx, new(store.SessionInfo{
 		ID:            sessionID,
 		ProfileID:     store.DefaultProfileID,
 		AgentName:     agentName,
@@ -654,7 +657,7 @@ func registerDaemonHeartbeatSession(
 		RuntimeStatus: store.SessionRuntimeUnbound,
 		CreatedAt:     createdAt,
 		UpdatedAt:     createdAt,
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(%s) error = %v", sessionID, err)
 	}
 }
@@ -757,4 +760,85 @@ func assertDaemonHeartbeatWakeEventResults(
 	if len(events) != wantTotal {
 		t.Fatalf("wake events = %d, want %d: %#v", len(events), wantTotal, events)
 	}
+}
+
+func TestTimerPolicy(t *testing.T) {
+	t.Run("Should default a user-level agent that lives outside the workspace", func(t *testing.T) {
+		t.Parallel()
+		agentDir := t.TempDir()
+		path := filepath.Join(agentDir, "AGENT.md")
+		if err := os.WriteFile(path, []byte("Agent"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		cfg := compozyconfig.DefaultHeartbeatConfig()
+		cfg.Enabled = true
+		policy, err := resolveTimerPolicy(
+			t.Context(),
+			nil,
+			heartbeat.AuthoringTarget{WorkspaceRoot: t.TempDir(), AgentPath: path, Config: cfg},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !policy.Enabled || policy.Present {
+			t.Fatalf("policy=%+v", policy)
+		}
+	})
+
+	t.Run("Should default an absent timer policy without changing legacy resolution", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		path := filepath.Join(root, "AGENT.md")
+		if err := os.WriteFile(path, []byte("Agent"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		cfg := compozyconfig.DefaultHeartbeatConfig()
+		cfg.Enabled = true
+		target := heartbeat.AuthoringTarget{WorkspaceRoot: root, AgentPath: path, Config: cfg}
+		timer, err := resolveTimerPolicy(t.Context(), nil, target)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !timer.Enabled || timer.Present {
+			t.Fatalf("timer=%+v", timer)
+		}
+		legacy, err := heartbeat.Resolve(
+			t.Context(),
+			heartbeat.ResolveRequest{WorkspaceRoot: root, AgentPath: path, Config: cfg},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if legacy.Present || legacy.Active {
+			t.Fatalf("legacy=%+v", legacy)
+		}
+	})
+	t.Run("Should preserve an explicitly disabled policy", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		path := filepath.Join(root, "AGENT.md")
+		if err := os.WriteFile(path, []byte("Agent"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(root, "HEARTBEAT.md"),
+			[]byte("---\nversion: 1\nenabled: false\n---\n"),
+			0600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		cfg := compozyconfig.DefaultHeartbeatConfig()
+		cfg.Enabled = true
+		policy, err := resolveTimerPolicy(
+			t.Context(),
+			nil,
+			heartbeat.AuthoringTarget{WorkspaceRoot: root, AgentPath: path, Config: cfg},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if policy.Enabled || !policy.Present {
+			t.Fatalf("policy=%+v", policy)
+		}
+	})
 }

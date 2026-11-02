@@ -65,9 +65,9 @@ describe("TaskCard", () => {
     expect(screen.getByTestId("task-card-task_001")).toBeInTheDocument();
     expect(screen.getByText("TASK-1")).toBeInTheDocument();
     expect(screen.getByText("Summarize feedback")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Agent Coder" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Coder" })).toBeInTheDocument();
     expect(screen.getByTestId("task-card-owner-task_001")).toContainElement(
-      screen.getByRole("img", { name: "Agent Coder" })
+      screen.getByRole("img", { name: "Coder" })
     );
     expect(screen.getByTestId("task-card-attempt-task_001")).toHaveTextContent("attempt 2 of 3");
     expect(screen.getByTestId("task-card-children-task_001")).toHaveTextContent("2 subtasks");

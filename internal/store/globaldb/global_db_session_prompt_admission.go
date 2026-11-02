@@ -154,7 +154,7 @@ func (g *SessionRepo) CompleteSessionPromptAdmission(
 			return completeErr
 		}
 		admission = completed
-		return nil
+		return sqlcgen.New(exec).ReleasePromptReports(ctx, completed.ID)
 	})
 	if err != nil {
 		return store.SessionPromptAdmission{}, err
@@ -207,7 +207,16 @@ func (g *SessionRepo) MarkSessionPromptAdmissionIndeterminate(
 			if affected != 1 {
 				return promptAdmissionCASFailure(ctx, exec, workspaceID, sessionID, idempotencyKey)
 			}
-			return nil
+			admission, err := sqlcgen.New(exec).GetSessionPromptAdmissionByIdempotencyKey(ctx,
+				sqlcgen.GetSessionPromptAdmissionByIdempotencyKeyParams{
+					WorkspaceID:    workspaceID,
+					SessionID:      sessionID,
+					IdempotencyKey: idempotencyKey,
+				})
+			if err != nil {
+				return err
+			}
+			return sqlcgen.New(exec).FailPromptReports(ctx, admission.ID)
 		},
 	)
 }
@@ -226,11 +235,18 @@ func claimSessionPromptAdmission(
 	)
 	if err == nil {
 		admission, err := replayPromptAdmissionClaim(ctx, exec, &existing, req)
+		if err == nil {
+			err = reserveReplayPromptReports(ctx, queries, &admission, &req)
+		}
 		return admission, false, err
 	}
 	if !errors.Is(err, sql.ErrNoRows) {
 		return store.SessionPromptAdmission{}, false, err
 	}
+	if err := checkSessionSuperseded(ctx, queries, req.SessionID); err != nil {
+		return store.SessionPromptAdmission{}, false, err
+	}
+
 	message, err := queries.GetSessionPromptAdmissionByMessageID(
 		ctx,
 		sqlcgen.GetSessionPromptAdmissionByMessageIDParams{
@@ -248,35 +264,28 @@ func claimSessionPromptAdmission(
 	if !errors.Is(err, sql.ErrNoRows) {
 		return store.SessionPromptAdmission{}, false, err
 	}
-	nowRaw := store.FormatTimestamp(req.Now)
-	skillInvocations := append([]commandpkg.Invocation{}, req.SkillInvocations...)
-	skillInvocationsJSON, err := json.Marshal(skillInvocations)
-	if err != nil {
-		return store.SessionPromptAdmission{}, false, fmt.Errorf(
-			"store: encode session prompt admission skill invocations: %w",
-			err,
-		)
-	}
-	attachmentsJSON, runtimeOptionsJSON, err := encodeSessionPromptAdmissionPayload(req)
-	if err != nil {
+	if err := insertPromptAdmissionClaim(ctx, queries, &req); err != nil {
 		return store.SessionPromptAdmission{}, false, err
 	}
-	if err := queries.InsertSessionPromptAdmission(ctx, sqlcgen.InsertSessionPromptAdmissionParams{
-		ID: req.ID, WorkspaceID: req.WorkspaceID, SessionID: req.SessionID,
-		MessageID: req.MessageID, IdempotencyKey: req.IdempotencyKey, Operation: req.Operation,
-		FingerprintVersion: req.FingerprintVersion, RequestFingerprint: req.RequestFingerprint,
-		State: store.SessionPromptAdmissionReserved, Mode: req.Mode, AuthoredText: req.AuthoredText,
-		SkillInvocationsJson: string(skillInvocationsJSON),
-		MentionsJson:         store.NormalizeMentionsJSON(req.MentionsJSON),
-		HumanIngress:         boolToInt64(req.HumanIngress),
-		OriginJson:           sql.NullString{String: string(req.Origin), Valid: len(req.Origin) > 0},
-		AttachmentsJson:      attachmentsJSON,
-		RuntimeProvider:      req.Runtime.Provider, RuntimeModel: req.Runtime.Model,
-		RuntimeReasoningEffort: req.Runtime.ReasoningEffort, RuntimeSpeed: req.Runtime.Speed,
-		RuntimeAcpOptionsJson: runtimeOptionsJSON,
-		TurnID:                req.TurnID, EventID: req.EventID, CreatedAt: nowRaw, UpdatedAt: nowRaw,
-	}); err != nil {
-		return store.SessionPromptAdmission{}, false, fmt.Errorf("store: insert session prompt admission: %w", err)
+	if req.HumanIngress && req.Operation == store.SessionPromptOperationPrompt {
+		if err := queries.ResetMainInstanceQuietStreak(
+			ctx,
+			sql.NullString{String: req.SessionID, Valid: true},
+		); err != nil {
+			return store.SessionPromptAdmission{}, false, fmt.Errorf("store: reset instance quiet streak: %w", err)
+		}
+	}
+	if req.HumanIngress && req.Operation == store.SessionPromptOperationPrompt &&
+		(req.DirectDispatch || req.Mode != store.SessionInputQueueModeSteer) {
+		if err := queries.ReservePromptReports(
+			ctx,
+			sqlcgen.ReservePromptReportsParams{
+				AdmissionID: req.ID,
+				SessionID:   sql.NullString{String: req.SessionID, Valid: true},
+			},
+		); err != nil {
+			return store.SessionPromptAdmission{}, false, fmt.Errorf("store: reserve prompt reports: %w", err)
+		}
 	}
 	created, err := queries.GetSessionPromptAdmissionByIdempotencyKey(
 		ctx,
@@ -438,4 +447,42 @@ func promptAdmissionCASFailure(
 		return store.ErrSessionPromptDispatchIndeterminate
 	}
 	return store.ErrSessionPromptAdmissionInProgress
+}
+
+func insertPromptAdmissionClaim(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	req *store.SessionPromptAdmissionRequest,
+) error {
+	nowRaw := store.FormatTimestamp(req.Now)
+	skillInvocations := append([]commandpkg.Invocation{}, req.SkillInvocations...)
+	skillInvocationsJSON, err := json.Marshal(skillInvocations)
+	if err != nil {
+		return fmt.Errorf(
+			"store: encode session prompt admission skill invocations: %w",
+			err,
+		)
+	}
+	attachmentsJSON, runtimeOptionsJSON, err := encodeSessionPromptAdmissionPayload(*req)
+	if err != nil {
+		return err
+	}
+	if err := queries.InsertSessionPromptAdmission(ctx, sqlcgen.InsertSessionPromptAdmissionParams{
+		ID: req.ID, WorkspaceID: req.WorkspaceID, SessionID: req.SessionID,
+		MessageID: req.MessageID, IdempotencyKey: req.IdempotencyKey, Operation: req.Operation,
+		FingerprintVersion: req.FingerprintVersion, RequestFingerprint: req.RequestFingerprint,
+		State: store.SessionPromptAdmissionReserved, Mode: req.Mode, AuthoredText: req.AuthoredText,
+		SkillInvocationsJson: string(skillInvocationsJSON),
+		MentionsJson:         store.NormalizeMentionsJSON(req.MentionsJSON),
+		HumanIngress:         boolToInt64(req.HumanIngress),
+		OriginJson:           sql.NullString{String: string(req.Origin), Valid: len(req.Origin) > 0},
+		AttachmentsJson:      attachmentsJSON,
+		RuntimeProvider:      req.Runtime.Provider, RuntimeModel: req.Runtime.Model,
+		RuntimeReasoningEffort: req.Runtime.ReasoningEffort, RuntimeSpeed: req.Runtime.Speed,
+		RuntimeAcpOptionsJson: runtimeOptionsJSON,
+		TurnID:                req.TurnID, EventID: req.EventID, CreatedAt: nowRaw, UpdatedAt: nowRaw,
+	}); err != nil {
+		return fmt.Errorf("store: insert session prompt admission: %w", err)
+	}
+	return nil
 }

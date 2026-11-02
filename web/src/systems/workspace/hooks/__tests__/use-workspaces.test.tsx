@@ -128,6 +128,15 @@ describe("workspace hooks", () => {
     vi.mocked(fetchWorkspace).mockResolvedValue({
       agents: [
         {
+          label: "Coder",
+          kind: "on_demand",
+          resolved_appearance: {
+            version: 1,
+            avatar: "generated",
+            seed: "coder",
+            generation: 1,
+            color: "#7c5cff",
+          },
           name: "coder",
           prompt: "code",
           provider: "openai",

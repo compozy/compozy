@@ -50,6 +50,7 @@ type AuthoringService interface {
 
 // AuthoringTarget identifies the workspace and agent whose SOUL.md is managed.
 type AuthoringTarget struct {
+	ProfileID     string
 	WorkspaceID   string
 	WorkspaceRoot string
 	AgentName     string
@@ -367,6 +368,7 @@ func (s *ManagedSoulAuthoringService) History(
 	}
 	revisions, err := s.store.ListSoulRevisions(ctx, RevisionListQuery{
 		WorkspaceID: target.workspaceID,
+		ProfileID:   target.profileID,
 		AgentName:   target.agentName,
 		SourcePath:  target.sourcePath,
 		Limit:       req.Limit,
@@ -398,6 +400,7 @@ func (s *ManagedSoulAuthoringService) Rollback(
 	}
 	selected, err := s.store.FindSoulRevisionForRollback(ctx, RollbackLookup{
 		WorkspaceID: target.workspaceID,
+		ProfileID:   target.profileID,
 		AgentName:   target.agentName,
 		SourcePath:  target.sourcePath,
 		RevisionID:  strings.TrimSpace(req.RevisionID),

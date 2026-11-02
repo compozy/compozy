@@ -116,3 +116,11 @@ observer recorded no old chat node under a new window instance. This covers the
 concurrent-navigation addition, not a new verdict on the complete historical
 two-window or real-provider journey. The negative control, focused suites and
 timings are in the [navigation investigation](../reports/2026-11-01-performance/review-session-navigation.md).
+
+Integration re-walk 2026-11-02: composing main `8c025ff8f` with performance parent
+`e62862f48` passed the unchanged 32-active/eight-stream/640-retained fixture: 64/64
+selections, all 600 chunks per stream, zero browser errors and complete teardown.
+This is the concurrent-navigation slice only. It preceded a behavior-preserving
+capability-helper extraction verified by the owning Info race/benchmark checks;
+current-head CI owns the final committed runtime/Web verdict. See the
+[main-integration browser receipt](../reports/2026-11-01-performance/browser.md#main-integration-correctness-walk).

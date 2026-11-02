@@ -15,7 +15,7 @@ type sessionManagerStub struct {
 	DeliveriesFn        func(context.Context, string) ([]session.DeliveryEventEnvelope, error)
 	CompactionsFn       func(context.Context, string) ([]session.CompactionEnvelope, error)
 	LatestSettledTurnFn func(context.Context, string) (session.SettledTurn, error)
-	create              func(context.Context, session.CreateOpts) (*session.Session, error)
+	create              func(context.Context, *session.CreateOpts) (*session.Session, error)
 	list                func() []*session.Info
 	listAll             func(context.Context) ([]*session.Info, error)
 	listForWorkspace    func(context.Context, string) ([]*session.Info, error)
@@ -79,9 +79,11 @@ func (s sessionManagerStub) ContextEvents(ctx context.Context, id string) (sessi
 	return result, err
 }
 
-func (s sessionManagerStub) Create(ctx context.Context, opts session.CreateOpts) (*session.Session, error) {
+func (s sessionManagerStub) Create(ctx context.Context, optsInput *session.CreateOpts) (*session.Session, error) {
+	opts := *optsInput
+
 	if s.create != nil {
-		return s.create(ctx, opts)
+		return s.create(ctx, &(opts))
 	}
 	return nil, session.ErrSessionNotFound
 }

@@ -57,7 +57,7 @@ func appendScopedSkillResources(
 	}
 }
 
-func appendProfiledSkillResources(
+func appendProfiledAgentSkillResources(
 	ctx context.Context,
 	desired *agentSkillDeclarations,
 	homePaths compozyconfig.HomePaths,
@@ -66,7 +66,7 @@ func appendProfiledSkillResources(
 	workspaces []workspacepkg.ResolvedWorkspace,
 	registry *skillspkg.Registry,
 ) error {
-	if profiles == nil || registry == nil {
+	if profiles == nil {
 		return nil
 	}
 	listed, err := profiles.List(ctx)
@@ -77,10 +77,10 @@ func appendProfiledSkillResources(
 		if profile.State != profilepkg.StateActive {
 			continue
 		}
-		if err := appendPersonalProfileSkills(ctx, desired, homePaths, profile, registry); err != nil {
+		if err := appendPersonalProfileResources(ctx, desired, homePaths, profile, registry); err != nil {
 			return err
 		}
-		if err := appendWorkspaceProfileSkills(
+		if err := appendWorkspaceProfileResources(
 			ctx, desired, profile, workspaceResolver, workspaces, registry,
 		); err != nil {
 			return err
@@ -89,7 +89,7 @@ func appendProfiledSkillResources(
 	return nil
 }
 
-func appendPersonalProfileSkills(
+func appendPersonalProfileResources(
 	ctx context.Context,
 	desired *agentSkillDeclarations,
 	homePaths compozyconfig.HomePaths,
@@ -103,6 +103,16 @@ func appendPersonalProfileSkills(
 	resolved := &workspacepkg.ResolvedWorkspace{
 		ProfileID: profile.ID, ProfileName: profile.Name,
 		ProfileRoot: filepath.Join(homePaths.ProfilesDir, profile.Name), Config: cfg,
+	}
+	agents, err := compozyconfig.LoadWorkspaceAgentDefs("", nil, homePaths, profile.Name)
+	if err != nil {
+		return fmt.Errorf("daemon: discover profile %q agents: %w", profile.Name, err)
+	}
+	appendAgentResources(desired,
+		resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: profile.ID},
+		"config/profile/"+profile.ID, agents)
+	if registry == nil {
+		return nil
 	}
 	skills, _, err := registry.DiscoverWorkspace(ctx, resolved)
 	if err != nil {
@@ -118,7 +128,7 @@ func appendPersonalProfileSkills(
 	return nil
 }
 
-func appendWorkspaceProfileSkills(
+func appendWorkspaceProfileResources(
 	ctx context.Context,
 	desired *agentSkillDeclarations,
 	profile profilepkg.WithCounts,
@@ -131,18 +141,25 @@ func appendWorkspaceProfileSkills(
 		return nil
 	}
 	for index := range workspaces {
-		workspaceID := strings.TrimSpace(workspaces[index].WorkspaceID)
+		workspaceID := strings.TrimSpace(workspaces[index].ID)
 		if workspaceID == "" {
-			workspaceID = strings.TrimSpace(workspaces[index].ID)
+			workspaceID = strings.TrimSpace(workspaces[index].WorkspaceID)
 		}
 		resolved, err := profileResolver.ResolveForProfile(ctx, workspaceID, profile.Name)
 		if err != nil {
 			return fmt.Errorf(
-				"daemon: resolve workspace %q for profile %q skill sync: %w",
+				"daemon: resolve workspace %q for profile %q resource sync: %w",
 				workspaceID,
 				profile.Name,
 				err,
 			)
+		}
+		appendAgentResources(desired,
+			resources.ResourceScope{Kind: resources.ResourceScopeKindWorkspaceProfile,
+				ID: workspaceID + "@pf:" + profile.Name},
+			"config/workspace/"+workspaceID+"/profile/"+profile.ID, resolved.Agents)
+		if registry == nil {
+			continue
 		}
 		skills, _, err := registry.DiscoverWorkspace(ctx, &resolved)
 		if err != nil {

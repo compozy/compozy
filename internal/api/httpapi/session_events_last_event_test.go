@@ -16,7 +16,7 @@ func TestSessionEventsLastEventIDHeader(t *testing.T) {
 		t.Parallel()
 
 		var gotQuery store.EventQuery
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			EventsFn: func(_ context.Context, _ string, query store.EventQuery) ([]store.SessionEvent, error) {
 				gotQuery = query
 				return nil, nil

@@ -3,6 +3,7 @@ package heartbeat
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -846,4 +847,290 @@ func diagnosticsContain(list []Diagnostic, needle string) bool {
 		}
 	}
 	return false
+}
+
+func TestCollectDigest(t *testing.T) {
+	t.Run("Should report sessions crossing the idle threshold after the previous check", func(t *testing.T) {
+		t.Parallel()
+		lastEvent := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)
+		facts := CollectorFacts{
+			Sessions: []SessionFact{{ID: "session", ProfileID: "p", LastEventAt: lastEvent, LastSeq: 7}},
+		}
+		scope := CollectorScope{ProfileID: "p", Now: lastEvent.Add(30 * time.Minute)}
+		first, err := CollectDigest(scope, facts, []string{"sessions_idle"}, "", "")
+		if err != nil || len(first.Items) != 0 {
+			t.Fatalf("early digest = %+v, %v", first, err)
+		}
+		scope.LastCompletedAt, scope.Now = scope.Now, lastEvent.Add(90*time.Minute)
+		second, err := CollectDigest(scope, facts, []string{"sessions_idle"}, "", "")
+		if err != nil || !slices.Equal(second.Items, []DigestItem{{Key: "idle:session:7"}}) {
+			t.Fatalf("newly idle digest = %+v, %v", second, err)
+		}
+		scope.LastCompletedAt = scope.Now
+		third, err := CollectDigest(scope, facts, []string{"sessions_idle"}, "", "")
+		if err != nil || len(third.Items) != 0 {
+			t.Fatalf("repeated idle digest = %+v, %v", third, err)
+		}
+	})
+
+	t.Run("Should use all five collectors when the policy omits context", func(t *testing.T) {
+		t.Parallel()
+		root, source := heartbeatWorkspace(t)
+		policy, err := Parse(
+			t.Context(),
+			ParseRequest{
+				SourcePath:    source,
+				WorkspaceRoot: root,
+				Content:       []byte("Check pending work."),
+				Config:        compozyconfig.DefaultHeartbeatConfig(),
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		scope := CollectorScope{ProfileID: "p", MainSessionID: "main", Now: now}
+		facts := CollectorFacts{
+			Tasks: []TaskFact{
+				{ID: "task", ProfileID: "p", OwnerKind: "agent_session", OwnerSessionID: "main", Status: "blocked"},
+			},
+			Sessions: []SessionFact{
+				{ID: "session", ProfileID: "p", Health: "stale", LastEventAt: now.Add(-2 * time.Hour), LastSeq: 1},
+			},
+			Automations: []AutomationFact{{ID: "auto", ProfileID: "p", Status: "failed", Cursor: "1"}},
+			Monitors:    []MonitorFact{{ID: "monitor", SessionID: "main", Fired: true}},
+		}
+		digest, err := CollectDigest(scope, facts, policy.Preferences.Context.Include, "policy", "Check pending work.")
+		if err != nil {
+			t.Fatal(err)
+		}
+		keys := make([]string, 0, len(digest.Items))
+		for _, item := range digest.Items {
+			keys = append(keys, item.Key)
+		}
+		for _, key := range []string{"task:task:blocked", "health:session:stale", "idle:session:1", "auto:auto", "monitor:monitor"} {
+			if !slices.Contains(keys, key) {
+				t.Fatalf("missing %s in %v", key, keys)
+			}
+		}
+	})
+	t.Run("Should enforce scope and exclude the instance chain and hidden sessions", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		scope := CollectorScope{ProfileID: "p", MainSessionID: "main", ChainSessionIDs: []string{"old"}, Now: now}
+		facts := CollectorFacts{
+			Tasks: []TaskFact{
+				{ID: "owned", ProfileID: "p", OwnerKind: "agent_session", OwnerSessionID: "old", Status: "blocked"},
+				{ID: "pool", ProfileID: "p", Status: "blocked"},
+				{ID: "foreign", ProfileID: "q", OwnerKind: "agent_session", OwnerSessionID: "old", Status: "blocked"},
+			},
+			Sessions: []SessionFact{
+				{ID: "main", ProfileID: "p", Health: "dead"},
+				{ID: "old", ProfileID: "p", Health: "dead"},
+				{ID: "hidden", ProfileID: "p", Health: "dead", Hidden: true},
+				{ID: "visible", ProfileID: "p", Health: "stale", LastEventAt: now.Add(-2 * time.Hour), LastSeq: 4},
+				{ID: "workspace", ProfileID: "p", WorkspaceID: "w", Health: "dead"},
+			},
+			Monitors: []MonitorFact{
+				{ID: "own", SessionID: "main", Fired: true},
+				{ID: "other", SessionID: "old", Fired: true},
+			},
+		}
+		got, err := CollectDigest(scope, facts, nil, "policy", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := []DigestItem{
+			{Key: "health:visible:stale"},
+			{Key: "idle:visible:4"},
+			{Key: "monitor:own"},
+			{Key: "task:owned:blocked"},
+		}
+		if !slices.Equal(got.Items, want) {
+			t.Fatalf("items=%v want=%v", got.Items, want)
+		}
+		scope.Unrestricted = true
+		scope.ReachableWorkspaces = []string{"w"}
+		expanded, err := CollectDigest(scope, facts, []string{"session_health", "unknown"}, "policy", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(expanded.Items) != 2 || len(expanded.Diagnostics) != 1 {
+			t.Fatalf("expanded=%+v", expanded)
+		}
+		scope.WorkspaceID = "w"
+		restricted, err := CollectDigest(scope, facts, []string{"session_health"}, "policy", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(restricted.Items) != 1 || restricted.Items[0].Key != "health:workspace:dead" {
+			t.Fatalf("restricted=%+v", restricted)
+		}
+	})
+	t.Run("Should cap failures oldest first and advance only through included facts", func(t *testing.T) {
+		t.Parallel()
+		scope := CollectorScope{ProfileID: "p"}
+		facts := CollectorFacts{}
+		for i := 15; i > 0; i-- {
+			id := fmt.Sprintf("%02d", i)
+			facts.Automations = append(
+				facts.Automations,
+				AutomationFact{ID: id, ProfileID: "p", Status: "failed", Cursor: id},
+			)
+		}
+		first, err := CollectDigest(scope, facts, nil, "p", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(first.Items) != 10 || first.AutomationCursor != "10" {
+			t.Fatalf("first=%+v", first)
+		}
+		slices.Reverse(facts.Automations)
+		reordered, err := CollectDigest(scope, facts, nil, "p", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if first.Fingerprint != reordered.Fingerprint {
+			t.Fatal("input ordering changed fingerprint")
+		}
+		scope.AutomationCursor = first.AutomationCursor
+		second, err := CollectDigest(scope, facts, nil, "p", "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(second.Items) != 5 || second.AutomationCursor != "15" {
+			t.Fatalf("second=%+v", second)
+		}
+		changed, err := CollectDigest(scope, facts, nil, "p", "new standing instruction")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if changed.Fingerprint == second.Fingerprint {
+			t.Fatal("instructions must change fingerprint")
+		}
+	})
+}
+
+func TestParseTriageReply(t *testing.T) {
+	t.Run("Should honor every supported proposal limit", func(t *testing.T) {
+		t.Parallel()
+		proposals := make([]string, 21)
+		for i := range proposals {
+			proposals[i] = fmt.Sprintf(`{"title":"Proposal %d","body":"Review work","item_keys":[]}`, i)
+		}
+		reply := `{"proposals":[` + strings.Join(proposals, ",") + `]}`
+		for limit := 1; limit <= 20; limit++ {
+			got, err := ParseTriageReply(reply, CheckDigest{}, limit)
+			if err != nil || len(got) != limit {
+				t.Fatalf("limit %d: proposals=%v, error=%v", limit, got, err)
+			}
+		}
+	})
+
+	for _, tc := range []struct {
+		name    string
+		title   string
+		body    string
+		wantErr bool
+	}{
+		{"Should accept character limits with multibyte text", strings.Repeat("界", 120), strings.Repeat("界", 500), false},
+		{"Should reject oversized titles", strings.Repeat("界", 121), "details", true},
+		{"Should reject oversized bodies", "title", strings.Repeat("界", 501), true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			reply := `{"proposals":[{"title":"` + tc.title + `","body":"` + tc.body + `","item_keys":[]}]}`
+			proposals, err := ParseTriageReply(reply, CheckDigest{}, 1)
+			if tc.wantErr {
+				if !errors.Is(err, ErrTriageOutputInvalid) {
+					t.Fatalf("error=%v", err)
+				}
+				return
+			}
+			if err != nil || len(proposals) != 1 || proposals[0].Title != tc.title || proposals[0].Body != tc.body {
+				t.Fatalf("proposals=%+v error=%v", proposals, err)
+			}
+		})
+	}
+	t.Run("Should discard malformed proposals beyond the limit", func(t *testing.T) {
+		t.Parallel()
+		for _, extra := range []string{`{}`, `{"title":42}`, `null`, `"invalid"`} {
+			proposals, err := ParseTriageReply(
+				`{"proposals":[{"title":"first","body":"details","item_keys":[]},`+extra+`]}`,
+				CheckDigest{}, 1,
+			)
+			if err != nil || len(proposals) != 1 || proposals[0].Title != "first" {
+				t.Fatalf("extra=%s proposals=%+v error=%v", extra, proposals, err)
+			}
+		}
+	})
+	t.Run("Should reject responses outside the proposal contract", func(t *testing.T) {
+		t.Parallel()
+		for _, reply := range []string{`{"proposals":[]}`, "```json\n{\"proposals\":[]}\n```", "", "nothing_to_report", "[]", "null", "{}", `{"proposals":null}`, `{"proposals":[{"title":"x"}]}`, `{"proposals":[],"extra":true}`, `{"proposals":[]} {"proposals":[]}`, "Explanation\nNOTHING_TO_REPORT", `{"proposals":[],"proposals":[]}`} {
+			if _, err := ParseTriageReply(reply, CheckDigest{}, 2); !errors.Is(err, ErrTriageOutputInvalid) {
+				t.Errorf("reply %q: %v", reply, err)
+			}
+		}
+	})
+	t.Run("Should accept the quiet sentinel", func(t *testing.T) {
+		t.Parallel()
+		for _, reply := range []string{"NOTHING_TO_REPORT", "  NOTHING_TO_REPORT\n"} {
+			proposals, err := ParseTriageReply(reply, CheckDigest{}, 2)
+			if err != nil || len(proposals) != 0 {
+				t.Fatalf("proposals=%v error=%v", proposals, err)
+			}
+		}
+	})
+	t.Run("Should cap proposals and retain only unique digest keys", func(t *testing.T) {
+		t.Parallel()
+		digest := CheckDigest{Items: []DigestItem{{Key: "b"}, {Key: "a"}}}
+		proposals, err := ParseTriageReply(
+			`{"proposals":[{"title":"first","body":"details","item_keys":["b","foreign","a","b"]},{"title":"second","body":"ignored","item_keys":[]}]}`,
+			digest,
+			1,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(proposals) != 1 || proposals[0].Title != "first" ||
+			!slices.Equal(proposals[0].ItemKeys, []string{"a", "b"}) {
+			t.Fatalf("proposals=%+v", proposals)
+		}
+	})
+}
+
+func TestTriageReplyOutcome(t *testing.T) {
+	for _, tc := range []struct{ name, reply, result, reason string }{
+		{"Should accept one JSON fence containing proposals", "```json\n{\"proposals\":[{\"title\":\"Review\",\"body\":\"Inspect task\",\"item_keys\":[]}]}\n```", "reported", "reported"},
+		{"Should finish silence without a report", "NOTHING_TO_REPORT", "quiet", "quiet"},
+		{"Should publish valid proposals", `{"proposals":[{"title":"Investigate","body":"A task is blocked.","item_keys":[]}]}`, "reported", "reported"},
+		{"Should reject an empty proposal array as silence", `{"proposals":[]}`, "failed", "triage_output_invalid"},
+		{"Should report malformed output as failure", "not json", "failed", "triage_output_invalid"},
+		{"Should reject oversized report payloads", `{"proposals":[{"title":"Title","body":"` + strings.Repeat("x", 65536) + `","item_keys":[]}]}`, "failed", "triage_output_invalid"},
+		{"Should reject empty proposal text before persistence", `{"proposals":[{"title":" ","body":"details","item_keys":[]}]}`, "failed", "triage_output_invalid"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			outcome := TriageReplyOutcome(tc.reply, CheckDigest{}, 2)
+			if outcome.Result != tc.result || outcome.Reason != tc.reason {
+				t.Fatalf("outcome=%+v", outcome)
+			}
+			if tc.result == "quiet" {
+				if outcome.Report != nil {
+					t.Fatal("quiet result produced a report")
+				}
+				return
+			}
+			if outcome.Report == nil {
+				t.Fatal("missing report")
+			}
+			outcome.Report.SourceKey = "occ:test"
+			if err := outcome.Report.Validate(); err != nil {
+				t.Fatalf("unpersistable report: %v", err)
+			}
+			if tc.result == "failed" && !strings.Contains(string(outcome.Report.Payload), tc.reason) {
+				t.Fatalf("failure reason lost: %s", outcome.Report.Payload)
+			}
+		})
+	}
 }

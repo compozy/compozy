@@ -42,6 +42,7 @@ const (
 
 // Snapshot is the immutable storage row for a resolved Soul profile.
 type Snapshot struct {
+	ProfileID   string
 	ID          string
 	WorkspaceID string
 	AgentName   string
@@ -77,6 +78,7 @@ type ConfigProvenance struct {
 
 // SnapshotListQuery filters persisted Soul snapshot rows.
 type SnapshotListQuery struct {
+	ProfileID   string
 	WorkspaceID string
 	AgentName   string
 	Digest      string
@@ -85,6 +87,7 @@ type SnapshotListQuery struct {
 
 // Revision is one append-only managed SOUL.md authoring history row.
 type Revision struct {
+	ProfileID       string
 	ID              string
 	WorkspaceID     string
 	AgentName       string
@@ -103,6 +106,7 @@ type Revision struct {
 
 // RevisionListQuery filters managed Soul authoring revision history.
 type RevisionListQuery struct {
+	ProfileID   string
 	WorkspaceID string
 	AgentName   string
 	SourcePath  string
@@ -112,6 +116,7 @@ type RevisionListQuery struct {
 
 // RollbackLookup selects the prior revision body used by managed rollback.
 type RollbackLookup struct {
+	ProfileID   string
 	WorkspaceID string
 	AgentName   string
 	SourcePath  string
@@ -151,6 +156,7 @@ func SnapshotFromResolved(
 	resolved *ResolvedSoul,
 	configProvenance ConfigProvenance,
 	createdAt time.Time,
+	profileID string,
 ) (Snapshot, error) {
 	if resolved == nil {
 		return Snapshot{}, fmt.Errorf("%w: resolved soul is required", ErrInvalidSnapshot)
@@ -173,6 +179,7 @@ func SnapshotFromResolved(
 	snapshot := Snapshot{
 		ID:          id,
 		WorkspaceID: workspaceID,
+		ProfileID:   profileID,
 		AgentName:   agentName,
 		SourcePath:  firstNonEmpty(resolved.SourcePath, resolved.Profile.SourcePath, resolved.ReadModel.SourcePath),
 		Digest:      firstNonEmpty(resolved.Digest, resolved.Profile.Digest, resolved.ReadModel.Digest),
@@ -232,6 +239,10 @@ func DiagnosticsJSON(diagnostics []Diagnostic) (json.RawMessage, error) {
 func (s Snapshot) Normalize() Snapshot {
 	s.ID = strings.TrimSpace(s.ID)
 	s.WorkspaceID = strings.TrimSpace(s.WorkspaceID)
+	s.ProfileID = strings.TrimSpace(s.ProfileID)
+	if s.ProfileID == "" && s.WorkspaceID != "" {
+		s.ProfileID = "00000000000000000000000000"
+	}
 	s.AgentName = strings.TrimSpace(s.AgentName)
 	s.SourcePath = strings.TrimSpace(s.SourcePath)
 	s.Digest = strings.TrimSpace(s.Digest)
@@ -247,7 +258,7 @@ func (s Snapshot) Validate() error {
 	switch {
 	case normalized.ID == "":
 		return fmt.Errorf("%w: id is required", ErrInvalidSnapshot)
-	case normalized.WorkspaceID == "":
+	case normalized.WorkspaceID == "" && normalized.ProfileID == "":
 		return fmt.Errorf("%w: workspace id is required", ErrInvalidSnapshot)
 	case normalized.AgentName == "":
 		return fmt.Errorf("%w: agent name is required", ErrInvalidSnapshot)
@@ -278,6 +289,10 @@ func (q SnapshotListQuery) Validate() error {
 func (r Revision) Normalize() Revision {
 	r.ID = strings.TrimSpace(r.ID)
 	r.WorkspaceID = strings.TrimSpace(r.WorkspaceID)
+	r.ProfileID = strings.TrimSpace(r.ProfileID)
+	if r.ProfileID == "" && r.WorkspaceID != "" {
+		r.ProfileID = "00000000000000000000000000"
+	}
 	r.AgentName = strings.TrimSpace(r.AgentName)
 	r.SourcePath = strings.TrimSpace(r.SourcePath)
 	r.Action = RevisionAction(strings.TrimSpace(string(r.Action)))
@@ -299,7 +314,7 @@ func (r Revision) Validate() error {
 	switch {
 	case normalized.ID == "":
 		return fmt.Errorf("%w: id is required", ErrInvalidRevision)
-	case normalized.WorkspaceID == "":
+	case normalized.WorkspaceID == "" && normalized.ProfileID == "":
 		return fmt.Errorf("%w: workspace id is required", ErrInvalidRevision)
 	case normalized.AgentName == "":
 		return fmt.Errorf("%w: agent name is required", ErrInvalidRevision)
@@ -336,7 +351,7 @@ func (q RevisionListQuery) Validate() error {
 // Validate ensures rollback lookup has a deterministic target revision.
 func (q RollbackLookup) Validate() error {
 	switch {
-	case strings.TrimSpace(q.WorkspaceID) == "":
+	case strings.TrimSpace(q.WorkspaceID) == "" && strings.TrimSpace(q.ProfileID) == "":
 		return fmt.Errorf("soul: rollback workspace id is required")
 	case strings.TrimSpace(q.AgentName) == "":
 		return fmt.Errorf("soul: rollback agent name is required")

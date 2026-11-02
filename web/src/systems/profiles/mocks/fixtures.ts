@@ -136,6 +136,8 @@ export const deletePlanFixture: DeleteProfilePlan = {
     credential_overrides: 0,
     desktop_partitions: 1,
     event_summaries: 0,
+    agent_instances: 0,
+    agent_memory_files: 0,
     palette_usage: 2,
     palette_query_hits: 3,
     palette_pins: 1,

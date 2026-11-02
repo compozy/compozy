@@ -107,7 +107,7 @@ type SessionDerivationStore interface {
 	// ErrSessionDerivationExists; nothing is written on that path.
 	RegisterDerivedSession(
 		ctx context.Context,
-		info SessionInfo,
+		info *SessionInfo,
 		identity SessionCreationIdentity,
 		receipt SessionDerivationReceipt,
 	) error

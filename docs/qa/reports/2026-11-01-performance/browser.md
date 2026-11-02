@@ -98,3 +98,26 @@ closed-selector SSR experiment measures that separate population.
 
 Baseline screenshot: [real app after completed streams](evidence/browser-baseline.png).
 Initial published candidate screenshot: [same workload after completed streams](evidence/browser-candidate.png).
+
+## Main-integration correctness walk
+
+After composing main `8c025ff8f` with performance parent `e62862f48`, the unchanged
+non-instrumented harness completed **64/64 selections**, all eight 600-chunk streams,
+and both browser/runtime teardown operations. It used 32 active plus 640 retained
+sessions, Bun 1.4.0 and Chromium 156.0.8078.4. No browser or stream error was reported.
+The [integrated screenshot](evidence/browser-main-integration.png) and an additional
+run in [the measurement artifact](evidence/browser-measurements.json) retain the result.
+
+The 48 warm selections had median **296.68 ms** and p95 **375.76 ms** including Playwright
+actionability, assertions and two animation frames. This is one correctness walk of the
+combined UI, not a paired speed comparison against new main, and it does not replace the
+earlier causal diagnostic. The broader Stays-on UI differs from the original baseline.
+
+Raw receipts are `.cache/performance/main-integration-browser.log` and
+`browser-main-integration/{measurements.json,sessions.png,teardown.json}`. The exact binary
+SHA-256 is `747aa4d830af0098d57b156955d2325574c2bca2b4c860c67418ceda593232a7`;
+`main-integration-source-freeze.json` records the 13,518 tracked source/config input hashes.
+This walk preceded the final internal capability-helper extraction needed for the merged
+function-size lint limit. That extraction retains the snapshot semantics and is checked by
+the canonical Info race test and benchmark reruns. Final current-head CI, including runtime
+and Web E2E, owns acceptance of the committed source after that extraction.

@@ -24,7 +24,7 @@ func TestGoalSessionOutboxIntegration(t *testing.T) {
 		for _, id := range []string{"session-deleted", "session-stopped", "session-bound"} {
 			info := goalSessionInfoForTest(id, "ws-goal-outbox", now)
 			info.State = "stopped"
-			if err := globalDB.RegisterSession(ctx, info); err != nil {
+			if err := globalDB.RegisterSession(ctx, &(info)); err != nil {
 				t.Fatalf("RegisterSession(%q) error = %v", id, err)
 			}
 		}
@@ -73,7 +73,7 @@ func TestGoalSessionOutboxIntegration(t *testing.T) {
 		}
 		if err := globalDB.RegisterSession(
 			ctx,
-			goalSessionInfoForTest("session-deleted", "ws-goal-outbox", now),
+			new(goalSessionInfoForTest("session-deleted", "ws-goal-outbox", now)),
 		); err != nil {
 			t.Fatalf("RegisterSession(restored origin) error = %v", err)
 		}
@@ -94,7 +94,7 @@ func TestGoalSessionOutboxIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest("session-origin", "ws-goal-outbox", now),
+			new(goalSessionInfoForTest("session-origin", "ws-goal-outbox", now)),
 			store.SessionCreationIdentity{
 				CreationProfileRef: "profile-origin",
 				PolicySpecDigest:   "policy-origin",
@@ -104,7 +104,7 @@ func TestGoalSessionOutboxIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest("session-bound", "ws-goal-outbox", now),
+			new(goalSessionInfoForTest("session-bound", "ws-goal-outbox", now)),
 			store.SessionCreationIdentity{
 				CreationProfileRef: "profile-bound",
 				PolicySpecDigest:   "policy-bound",
@@ -216,7 +216,7 @@ func TestGoalSessionOutboxIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest("session-origin-clear", "ws-goal-outbox-clear", now),
+			new(goalSessionInfoForTest("session-origin-clear", "ws-goal-outbox-clear", now)),
 			store.SessionCreationIdentity{
 				CreationProfileRef: "profile-origin-clear",
 				PolicySpecDigest:   "policy-origin-clear",
@@ -257,7 +257,7 @@ func TestGoalSessionOutboxIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest("session-origin", "ws-goal-outbox", now),
+			new(goalSessionInfoForTest("session-origin", "ws-goal-outbox", now)),
 			store.SessionCreationIdentity{
 				CreationProfileRef: "profile-origin",
 				PolicySpecDigest:   "policy-origin",
@@ -298,7 +298,7 @@ func TestGoalSessionOutboxIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest("session-foreign-bound", "ws-foreign", now),
+			new(goalSessionInfoForTest("session-foreign-bound", "ws-foreign", now)),
 			store.SessionCreationIdentity{
 				CreationProfileRef: "profile-foreign",
 				PolicySpecDigest:   "policy-foreign",
@@ -336,7 +336,7 @@ func TestGoalSessionOutboxIntegration(t *testing.T) {
 		registerGoalSessionIdentityForTest(
 			t,
 			globalDB,
-			goalSessionInfoForTest("session-signal", "ws-goal-signal", now),
+			new(goalSessionInfoForTest("session-signal", "ws-goal-signal", now)),
 			store.SessionCreationIdentity{
 				CreationProfileRef: "profile-signal",
 				PolicySpecDigest:   "policy-signal",

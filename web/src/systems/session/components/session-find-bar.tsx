@@ -23,6 +23,7 @@ import {
 } from "../lib/session-navigation";
 import type { SessionTranscriptSearchMatch } from "../types";
 import type { SessionFindModel } from "../hooks/use-session-navigation";
+import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 /** An icon control that names itself and its shortcut in a tooltip. */
 function FindIconButton({
@@ -355,6 +356,7 @@ function SessionFindMatchRow({
   timeMs: number | null;
   onJump: () => void;
 }) {
+  const { label } = useAgentIdentityView(agentName);
   const time = timeMs === null ? "" : formatMessageTimestamp(timeMs);
   return (
     <button
@@ -373,7 +375,7 @@ function SessionFindMatchRow({
       )}
     >
       <span className="w-14 shrink-0 truncate text-eyebrow text-subtle">
-        {findMatchSpeaker(match.role, agentName)}
+        {findMatchSpeaker(match.role, agentName ? label : "")}
       </span>
       <span className="min-w-0 flex-1 truncate">
         {findSnippetSegments(match.snippet, query).map((segment, index) =>

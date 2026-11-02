@@ -224,3 +224,317 @@ Focused Mage lint passed with **zero issues** in 19.756 seconds: `python3 .cache
 Receipts: `.cache/performance/daemon-runtime/hosted-mcp-ci-56176/focused.log` and its retained `artifacts/`; `.cache/performance/daemon-runtime/hosted-mcp-retention/{before,after,mage-lint,path-check}.log`, plus the temporary `probe-overlay.json`/`magefile-retention-probe.go`. The initial run is the only real daemon E2E executed in this follow-up; the before/after retention probe uses the existing manifest-only harness test and starts no daemon.
 
 This follow-up changes diagnostic retention only, so native-tool/public/config/Web behavior and QA scenario verdicts remain unchanged. The applicable product journey is `ET-compozy-native-tool-invocation`; the focused result is not a replacement for its full cross-surface verification. Current-head CI remains the acceptance boundary, and a repeat timeout must be diagnosed from the newly retained artifacts rather than labeled fixed by this change.
+
+
+## Integration delta: main `8c025ff8f` into the performance branch
+
+This review covers the incoming delta from merge base `de5ab2f4d5703f933f3134d2cf6844d99eb39b9f` to main `8c025ff8fdd3a9a79e4f0e63f54b3bd144a4773b`, composed with performance head `e62862f48362b9cc6da311df0078b0be914a5734` in the uncommitted merge. It is an integration review of the assigned paths, not a repeat of the upstream B1–B7 delivery audit. No production or test change was required or made by this worker. Only this report was updated.
+
+The owned inventory contains **172 incoming paths**: `internal/daemon` 127, `internal/heartbeat` 27, `internal/monitor` 3, `internal/observe` 13, `internal/situation` 1, and `web/e2e/fixtures/sessions-board-seeder` 1. Every path is listed below with its disposition. New production files were read in full; existing-file incoming hunks and their relevant call sites were inspected. Test changes were inspected for their exercised boundary and compatibility with the merged implementation; only the named focused cases below were executed. Inspection does not establish runtime coverage for the other paths.
+
+### Overlap and retained behavior
+
+| Overlapping path | Integration disposition |
+| --- | --- |
+| `internal/daemon/scheduler_session_source.go` | The merged source retains `CapabilitiesForSession(ctx, info)` and known/unknown capability certainty. The incoming `ProfileID` is copied from the same session snapshot into `scheduler.SessionSnapshot`; `scheduler_waker.go` carries it into `heartbeat.WakeRequest`. The full-context/task/soul/budget reads removed by the performance change are not reintroduced. Context cancellation still aborts the sweep rather than silently producing partial capability certainty. |
+| `internal/daemon/tool_approval_bridge_test.go` | Both the retained deterministic terminal-descriptor cases and upstream live wait-resolver cases remain. `TestToolApprovalWaitResolver` checks resolver rereads and default fallback; `TestInstanceNativeApprovalBeyondDefaultTimeout` advances the fake clock beyond the former default while preserving the instance deadline. The production bridge resolves a timeout per request, and `terminal_permissions.go` still uses the selective `builtintools.TerminalDescriptor` factory. |
+| `internal/situation/service_test.go` | The upstream edit supplies the new profile argument to `soul.SnapshotFromResolved`. The retained narrow capability parity/cancellation tests and exact nil-info diagnostic remain. The capability-only implementation is unchanged by incoming main. |
+
+The incoming lifecycle adds instance admission, reconciliation, rotation, reports, memory, and proactive checks. The inspected native boundaries retain profile/workspace/actor authority and instance permission ceilings. Approval waiting reads the current persisted instance association rather than caching it across requests. Rotation keeps its monitor-creation fence around publication and joins existing session/store authorities before replacing the main pointer. The retained scheduler task-pause snapshot and its live transactional claim authority are unchanged.
+
+The scheduler owner separately inspected the composed proactive callback: it runs after cycle snapshot loading and the global pause guard, before target selection, independent of whether pending runs are empty. Errors are aggregated without suppressing ordinary wakes. This is static call-path evidence, not a new callback benchmark.
+
+No measured algorithm owned by this report changed during this integration. The retained scheduler capability projection, per-sweep effective-pause memoization, process-activity projection, selective terminal descriptor lookup, and scoped observe audit batching were not replaced. Earlier tables remain measurements of their recorded baseline/candidate revisions and fixtures; they are **not** relabeled as main `8c025ff8f` versus this merged tree. New upstream instance/check/report work has not been benchmarked here.
+
+### Concurrency and data-loading disposition
+
+The new upstream instance-maintenance worker uses the existing periodic-worker lifecycle, is independent of session supervision, receives cancellation, and is joined during shutdown. Its report publication uses batches of 100 and terminal-report retention uses batches of 1,000. The focused maintenance test verifies that blocked reconciliation cannot prevent its own cancellation/join. Keeping this separate owned worker is appropriate for that blocking lifecycle boundary; this review adds no goroutine.
+
+Proactive `CheckService.Tick` reads a configured due batch and evaluates targets sequentially. Dispatch goroutines are started only after persisted admission with `MaxConcurrent`, are tracked by the service wait group, and use the service lifetime plus the configured timeout. Shutdown closes admission, cancels that lifetime, and waits. Completion has its existing bounded settlement timeout and retains failed finish requests for the next flush; recovery occurs before checks are exposed. These are inspected bounds and ownership rules, not a proof of end-to-end latency under load. No per-session fanout, new polling loop, or extra parallel SQL was introduced by this merge review.
+
+Digest collection still performs scoped catalog reads and a latest-event metadata read per eligible session; that incoming cost was inspected but not measured or optimized in this integration-only scope. Monitor retirement holds the existing mutex across publication to serialize against monitor creation; moving that publication outside the lock would break its authority boundary. The incoming permission resolver's live reads and profile-aware heartbeat persistence are retained for freshness and isolation. No additional cache or goroutine is justified by the available integration evidence.
+
+### Focused validation
+
+No test was added or edited. The existing owning suites were selected for these invariants:
+
+| Invariant | Owning layer and canonical suites |
+| --- | --- |
+| Snapshot capability certainty, cancellation, task projection, and profile-bearing heartbeat wake remain compatible. | Daemon scheduler: `TestSchedulerSessionSourcePreservesCapabilityCertainty`, `TestSchedulerTaskProjection`, `TestSchedulerHeartbeatWakeIntegration`; situation: `TestCapabilitiesForSession*`. |
+| Native approval keeps deterministic descriptor failure behavior and rereads the current instance wait policy. | Daemon approval bridge: `TestToolApprovalBridgeDeterministicErrors`, `TestToolApprovalWaitResolver`, `TestInstanceNativeApprovalBeyondDefaultTimeout`. |
+| Instance authority, rotation publication, and maintenance shutdown preserve their admission/lifecycle boundaries. | Daemon: `TestNativeInstanceAuthority`, `TestInstanceRotationFlow`, `TestInstanceMaintenanceWorker`, `TestBootAgentInstances`; monitor: `TestSessionRotation`, `TestSessionRotationConcurrentCreate`. |
+| Scoped task metrics exclude unrelated corrupt rows; unattended permission activity distinguishes timeout from an operator refusal. | Observe: `TestQueryTaskSummaryKeepsProfileReadsIsolated`; integration suite `TestObserverIntegrationUnattendedPermissions` over real SQLite. |
+| Heartbeat profile snapshots/history remain separate, omitted versus empty collectors remain distinct, and wake prompts use the persisted policy snapshot. | Heartbeat: `TestManagedHeartbeatAuthoringServicePutValidateAndCAS`, `TestManagedHeartbeatStatusService`, `TestManagedWakeServiceDecision`, `TestCollectDigest`, `TestParseTriageReply`, `TestTriageReplyOutcome`. |
+| Catalog publication, scoped memory ownership, active startup snapshots, pending-interaction identity, hidden triage, and timer-policy defaults remain compatible. | Daemon: `TestInstanceCatalogReconciliation`, `TestAppendProfiledSkillResources`, `TestAgentMemoryStartup`, `TestAgentMemoryNativeTools`, `TestNativeSessionPending`, `TestNativeHiddenTriage`, `TestTimerPolicy`. |
+
+All commands ran through `.cache/performance/run-bounded.py` with `GOMAXPROCS=2`, `GOFLAGS=-p=2`, `CGO_ENABLED=1`, `-race`, `-count=1`, and `-timeout=3m`. The wrapper serialized them with sibling validation. The commands executed inside the compact log wrapper were:
+
+```sh
+go test -race ./internal/daemon ./internal/heartbeat ./internal/monitor ./internal/observe ./internal/situation \
+  -run '^(TestSchedulerSessionSourcePreservesCapabilityCertainty|TestSchedulerTaskProjection|TestToolApprovalBridgeDeterministicErrors|TestToolApprovalWaitResolver|TestInstanceNativeApprovalBeyondDefaultTimeout|TestSchedulerHeartbeatWakeIntegration|TestInstanceMaintenanceWorker|TestBootAgentInstances|TestNativeInstanceAuthority|TestInstanceRotationFlow|TestSessionRotation|TestSessionRotationConcurrentCreate|TestQueryTaskSummaryKeepsProfileReadsIsolated|TestCapabilitiesForSession.*|TestCollectDigest|TestParseTriageReply|TestTriageReplyOutcome)$' \
+  -count=1 -timeout=3m
+
+go test -race -tags=integration ./internal/heartbeat ./internal/observe \
+  -run '^(TestManagedHeartbeatAuthoringServicePutValidateAndCAS|TestManagedHeartbeatStatusService|TestManagedWakeServiceDecision|TestObserverIntegrationUnattendedPermissions)$' \
+  -count=1 -timeout=3m
+
+go test -race ./internal/daemon \
+  -run '^(TestInstanceCatalogReconciliation|TestAppendProfiledSkillResources|TestAgentMemoryStartup|TestAgentMemoryNativeTools|TestNativeSessionPending|TestNativeHiddenTriage|TestTimerPolicy)$' \
+  -count=1 -timeout=3m
+```
+
+| Receipt under `.cache/performance/daemon-runtime/main-integration/` | Result | Measured command duration after acquiring the slot |
+| --- | --- | --- |
+| `focused-race.log` | Passed: daemon 6.518 s; heartbeat 2.705 s; monitor 1.306 s; observe 3.730 s; situation 1.461 s. | 53.106 s |
+| `profile-permission-race.log` | Passed: heartbeat 6.718 s; observe 3.459 s, including the existing real-SQLite integration case. | 7.579 s |
+| `catalog-memory-race.log` | Passed: daemon 5.447 s. | 11.763 s |
+
+These durations are validation receipts, not before/after performance results. No heavy daemon/browser E2E, provider run, full package suite, gate, commit, or push was performed in this integration review. The root owns integrated acceptance and current-head CI. No new product behavior was authored here, so this worker did not change scenario verdicts or duplicate upstream Stays-on scenario execution. Native tools, hooks/config, profile/workspace isolation, Web projections, and official-skill behavior were considered at their inspected integration boundaries; upstream co-shipped surfaces remain the root integration's responsibility.
+
+### Exact incoming-path inventory and disposition
+
+Each block below lists exact paths. Its preceding disposition applies to every path in that block; test files are identified separately from production source. All dispositions are retain unchanged: no concrete integration regression was demonstrated.
+
+**Daemon instance lifecycle and heartbeat adapters (18 paths).** New production files read in full. Instance authority, ceilings, report publication, rotation, live approval waiting, collector scope, and proactive environment/hooks/policy remain compatible with the retained scheduler and native-tool paths. No new optimization or runtime coverage claim for the unexecuted branches.
+
+```text
+internal/daemon/agent_instance_admission.go
+internal/daemon/agent_instance_ceiling.go
+internal/daemon/agent_instance_definition.go
+internal/daemon/agent_instance_main.go
+internal/daemon/agent_instance_permission.go
+internal/daemon/agent_instance_reach.go
+internal/daemon/agent_instance_reads.go
+internal/daemon/agent_instance_report.go
+internal/daemon/agent_instance_report_sweep.go
+internal/daemon/agent_instance_rotation.go
+internal/daemon/agent_instance_rotation_deferral.go
+internal/daemon/agent_instance_rotation_publish.go
+internal/daemon/agent_instance_rotation_start.go
+internal/daemon/agent_instance_sessions.go
+internal/daemon/heartbeat_check_environment.go
+internal/daemon/heartbeat_check_hooks.go
+internal/daemon/heartbeat_check_policy.go
+internal/daemon/heartbeat_collectors.go
+```
+
+**Daemon boot, scheduler, and runtime wiring (16 paths).** Incoming production hunks and owning lifecycle call paths inspected; new boot files read in full. Keep instance maintenance/proactive recovery and shutdown wiring, profile propagation, narrow scheduler capability reads, and the existing session-factory API. No integration source edit.
+
+```text
+internal/daemon/boot.go
+internal/daemon/boot_agent_instances.go
+internal/daemon/boot_components.go
+internal/daemon/boot_proactive_checks.go
+internal/daemon/boot_session_supervision.go
+internal/daemon/runtime_dependencies.go
+internal/daemon/runtime_deps.go
+internal/daemon/runtime_workers.go
+internal/daemon/scheduler_runtime.go
+internal/daemon/scheduler_session_source.go
+internal/daemon/scheduler_waker.go
+internal/daemon/server_options.go
+internal/daemon/session_manager_deps.go
+internal/daemon/session_manager_factory.go
+internal/daemon/tool_approval_boot.go
+internal/daemon/tool_approval_bridge.go
+```
+
+**Daemon catalogs and authored resources (7 paths).** Incoming production hunks inspected, including profile/workspace precedence and the new authored-memory origin mapping. Retain late catalog resolution, reconciliation/invalidation callbacks, profile agents without a skill registry, and the existing snapshot representation. No catalog-throughput measurement was performed.
+
+```text
+internal/daemon/agent_catalog_scope.go
+internal/daemon/agent_probes.go
+internal/daemon/agent_resource_catalog.go
+internal/daemon/agent_skill_catalog.go
+internal/daemon/agent_skill_desired_resources.go
+internal/daemon/agent_skill_publisher.go
+internal/daemon/agent_skill_source_scopes.go
+```
+
+**Daemon native tools and memory startup (23 paths).** Incoming production hunks and new files inspected. Preserve profile/workspace/actor checks, instance ceilings, pending-interaction IDs/deadlines, hidden-triage refusal, identity-authoring inputs, memory ownership, and startup snapshot boundaries. Bindings and dependency additions match their consumers; retain the selective terminal descriptor path.
+
+```text
+internal/daemon/native_agent_activity.go
+internal/daemon/native_agent_catalog.go
+internal/daemon/native_agent_draft.go
+internal/daemon/native_agent_instance_access.go
+internal/daemon/native_agent_instances.go
+internal/daemon/native_agent_memory.go
+internal/daemon/native_create_tools.go
+internal/daemon/native_session_mutation.go
+internal/daemon/native_session_pending.go
+internal/daemon/native_session_reply_access.go
+internal/daemon/native_terminal_io.go
+internal/daemon/native_tool_authored_paths.go
+internal/daemon/native_tool_binding_groups.go
+internal/daemon/native_tool_bindings.go
+internal/daemon/native_tool_dependencies.go
+internal/daemon/native_tool_entity_binding_groups.go
+internal/daemon/native_tool_registry_skills.go
+internal/daemon/native_tool_scope.go
+internal/daemon/native_tool_session_calls.go
+internal/daemon/native_tools.go
+internal/daemon/native_tools_dependencies_builder.go
+internal/daemon/prompt_agent_memory.go
+internal/daemon/tool_policy_resolver.go
+```
+
+**Daemon orchestration and session adapters (23 paths).** Incoming production hunks inspected. These adapt the pointer-based session creation API, carry run-origin identity, route late child wakeups to the current main, and preserve task/loop/harness/workspace/terminal boundaries. Keep value copies at adapters where prior caller-owned input semantics require them; no per-row concurrency was added.
+
+```text
+internal/daemon/coordinator_runtime.go
+internal/daemon/coordinator_runtime_session.go
+internal/daemon/extension_mcp_details.go
+internal/daemon/harness_context.go
+internal/daemon/harness_reentry_bridge.go
+internal/daemon/harness_reentry_decision.go
+internal/daemon/harness_reentry_queue.go
+internal/daemon/host_api_session_adapter.go
+internal/daemon/loop_action_policy.go
+internal/daemon/loop_coordinator_activation.go
+internal/daemon/loop_managed_binding.go
+internal/daemon/loop_managed_binding_profile.go
+internal/daemon/loop_managed_binding_projection.go
+internal/daemon/loop_runtime_adapters.go
+internal/daemon/review_router.go
+internal/daemon/review_router_selection.go
+internal/daemon/session_monitor_bridge.go
+internal/daemon/session_work_sources.go
+internal/daemon/subagent_worktrees.go
+internal/daemon/task_role_runtime.go
+internal/daemon/task_role_sessions.go
+internal/daemon/task_session_bridge.go
+internal/daemon/terminal_hooks.go
+```
+
+**Daemon canonical tests and integration fixtures (40 paths).** Incoming changed assertions and fixture/interface updates inspected, including the full new instance-admission suite. Retain upstream lifecycle, profile, memory, approval-restart, and native-instance cases alongside the performance cases. Only the named focused selections above ran; the daemon-boot, mock-provider, crash/restart, and other integration cases listed here were not executed in this review.
+
+```text
+internal/daemon/agent_instance_admission_test.go
+internal/daemon/agent_skill_resources_integration_test.go
+internal/daemon/agent_skill_resources_refac_test.go
+internal/daemon/agent_skill_resources_test.go
+internal/daemon/agy_acp_entry_integration_test.go
+internal/daemon/authored_context_transport_test.go
+internal/daemon/bounded_rebuild_integration_test.go
+internal/daemon/composed_assembler_test.go
+internal/daemon/coordinator_runtime_test.go
+internal/daemon/daemon_integration_test.go
+internal/daemon/daemon_test.go
+internal/daemon/harness_context_integration_test.go
+internal/daemon/harness_context_test.go
+internal/daemon/heartbeat_wake_runtime_test.go
+internal/daemon/loop_effect_relay_test.go
+internal/daemon/loop_goal_command_test.go
+internal/daemon/loop_goal_managed_runtime_integration_test.go
+internal/daemon/loop_input_entity_catalog_test.go
+internal/daemon/loop_runtime_adapters_test.go
+internal/daemon/native_automation_tools_integration_test.go
+internal/daemon/native_compaction_integration_test.go
+internal/daemon/native_create_tools_test.go
+internal/daemon/native_extension_tools_integration_test.go
+internal/daemon/native_tools_test.go
+internal/daemon/native_worktree_tools_test.go
+internal/daemon/notifier_test.go
+internal/daemon/prompt_input_composite_integration_test.go
+internal/daemon/restart_integration_test.go
+internal/daemon/review_router_test.go
+internal/daemon/session_files_integration_test.go
+internal/daemon/session_mention_references_integration_test.go
+internal/daemon/session_mention_references_test.go
+internal/daemon/session_policy_gate_test.go
+internal/daemon/session_work_sources_test.go
+internal/daemon/subagent_integration_test.go
+internal/daemon/task_role_runtime_test.go
+internal/daemon/task_runtime_test.go
+internal/daemon/tool_approval_bridge_test.go
+internal/daemon/tools_transport_parity_test.go
+internal/daemon/workspace_access_integration_test.go
+```
+
+**Heartbeat production (23 paths).** Incoming production hunks and all seven new files read. Profile IDs are threaded through authoring/status/history/snapshot/wake storage; explicit empty collector selection survives persistence. Proactive admission is persisted before tracked dispatch, digest/proposal processing is bounded by its existing limits, and shutdown/recovery ownership remains intact. The new worker workload is unbenchmarked.
+
+```text
+internal/heartbeat/authoring.go
+internal/heartbeat/authoring_persist.go
+internal/heartbeat/authoring_revision.go
+internal/heartbeat/authoring_store.go
+internal/heartbeat/authoring_target.go
+internal/heartbeat/check_dispatch.go
+internal/heartbeat/check_service.go
+internal/heartbeat/check_settings.go
+internal/heartbeat/collectors.go
+internal/heartbeat/heartbeat.go
+internal/heartbeat/history_purge.go
+internal/heartbeat/instance_wake.go
+internal/heartbeat/persistence.go
+internal/heartbeat/persistence_health.go
+internal/heartbeat/persistence_revision.go
+internal/heartbeat/persistence_snapshot.go
+internal/heartbeat/proposal_fingerprint.go
+internal/heartbeat/source_path.go
+internal/heartbeat/status.go
+internal/heartbeat/triage_reply.go
+internal/heartbeat/wake.go
+internal/heartbeat/wake_decision.go
+internal/heartbeat/wake_helpers.go
+```
+
+**Heartbeat canonical suites (4 paths).** Incoming assertions and signature changes inspected. Retain profile isolation, snapshot-policy use, empty collector selection, digest scope/order/cursor bounds, and triage output validation. Selected cases above passed; remaining cases were not rerun.
+
+```text
+internal/heartbeat/authoring_status_test.go
+internal/heartbeat/heartbeat_test.go
+internal/heartbeat/persistence_test.go
+internal/heartbeat/wake_test.go
+```
+
+**Monitor (3 paths).** The new retirement publication implementation and existing service hunks were read, together with their test additions. Retain the mutex fence against concurrent creation and refusal of live/delivering monitors. Both existing rotation suites passed with race; no new goroutine or lock restructuring.
+
+```text
+internal/monitor/service.go
+internal/monitor/service_test.go
+internal/monitor/session_rotation.go
+```
+
+**Observe (13 paths).** Production hunks and test changes inspected. Initiator identity is preserved in live projection and reconciliation; timeout decisions remain distinct from operator refusal; profile filters retain the existing task-metrics boundary. The scoped metrics and unattended-permission suites passed, with the latter using real SQLite. The prior batched task-audit implementation remains unchanged.
+
+```text
+internal/observe/health.go
+internal/observe/helpers_test.go
+internal/observe/hooks_test.go
+internal/observe/observer.go
+internal/observe/observer_event_persistence.go
+internal/observe/observer_integration_test.go
+internal/observe/observer_session_events.go
+internal/observe/observer_test.go
+internal/observe/query.go
+internal/observe/reconcile.go
+internal/observe/reconcile_test.go
+internal/observe/session_projection.go
+internal/observe/tasks_filters.go
+```
+
+**Situation (1 path).** The single incoming test hunk adds the required profile argument for the soul snapshot API. Existing capability-only projection and exact nil-info/cancellation controls remain; its selected canonical cases passed with race. No other incoming situation production change.
+
+```text
+internal/situation/service_test.go
+```
+
+**Sessions-board seeder (1 path).** The only incoming hunk changes registration from a value to a pointer, matching the store API. Its one-shot sequential catalog/metadata fixture role remains as audited above. Static inspection only in this merge review; it was not run or counted as an application performance gain.
+
+```text
+web/e2e/fixtures/sessions-board-seeder/main.go
+```
+
+### Frozen review inputs
+
+The 172 reviewed incoming files had no unstaged source/test edits at freeze. Per-path SHA-256 values are retained in `.cache/performance/daemon-runtime/main-integration/freeze.json`; hashing the ordered `sha256 + two spaces + path + newline` manifest yields `0af8a6b4775ea625b5701d7d9013008cd6de7eef25363409209e585ed6769080`. This identifies the reviewed working-tree content without claiming that the uncommitted merge has a final commit hash.
+
+| Critical auto-merged file | SHA-256 at freeze |
+| --- | --- |
+| `internal/daemon/scheduler_session_source.go` | `131d238a196e8b1550e416c140e95fb58ceb6ebcd175388e18f3a389254db34c` |
+| `internal/daemon/tool_approval_bridge_test.go` | `70d0ba5e89fe26f1c31cedc1802ab6cb844509f2d411bf0f36017480596b4538` |
+| `internal/situation/service_test.go` | `9256456cfccedde2163ef854d9148f196e5fddce2135ca93dc3d7ba982bfd3af` |
+
+Review disposition: **no demonstrated integration regression; retain the merged source**. Existing benchmark receipts stay historical. This worker is frozen after its report update; root-owned merge resolution, integrated validation, and current-head CI remain separate.

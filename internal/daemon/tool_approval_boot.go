@@ -71,13 +71,15 @@ func newBootToolApprovalBridge(
 	approvalTokens toolspkg.ApprovalTokenConsumer,
 	approvalGrants toolspkg.ApprovalGrantStore,
 ) *toolApprovalBridge {
-	return newToolApprovalBridge(
+	bridge := newToolApprovalBridge(
 		sessionPermissionRequesterProvider(state),
 		state.cfg.Tools.Policy.ApprovalTimeout(),
 		approvalTokens,
 		approvalGrants,
 		state.logger,
 	)
+	bridge.permissionWaitResolver = instancePermissionWaitResolver(state)
+	return bridge
 }
 
 func sessionPermissionRequesterProvider(state *bootState) func() sessionPermissionRequester {

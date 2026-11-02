@@ -47,7 +47,7 @@ func TestWorkspaceUnknownConfigKeys(t *testing.T) {
 			if configErr == nil {
 				t.Fatal("expected invalid workspace configuration")
 			}
-			fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{},
+			fixture := newHandlerFixture(t, &testutil.StubSessionManager{}, testutil.StubObserver{},
 				testutil.StubWorkspaceService{
 					RegisterFn: func(context.Context, workspacepkg.RegisterOptions) (workspacepkg.Workspace, error) {
 						return workspacepkg.Workspace{}, configErr
@@ -161,7 +161,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 				return resolved, nil
 			},
 		}
-		manager := testutil.StubSessionManager{
+		manager := &testutil.StubSessionManager{
 			ListForWorkspaceFn: func(_ context.Context, workspaceID string) ([]*session.Info, error) {
 				if workspaceID != workspace.ID {
 					t.Fatalf("ListForWorkspace id = %q, want %q", workspaceID, workspace.ID)
@@ -231,7 +231,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 		}
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			workspaces,
 		)
@@ -402,7 +402,7 @@ func TestWorkspaceHandlersDelegateToService(t *testing.T) {
 		t.Parallel()
 
 		fixture, workspace, _, _, deleteCalled, _, _, _ := setup(t)
-		fixture.Handlers.Sessions = testutil.StubSessionManager{
+		fixture.Handlers.Sessions = &testutil.StubSessionManager{
 			ListAllFn: func(context.Context) ([]*session.Info, error) {
 				t.Fatal("DeleteWorkspace() called Sessions.ListAll")
 				return nil, nil
@@ -460,7 +460,7 @@ func TestWorkspaceUpdateSupportsAddDirsAndDefaultAgent(t *testing.T) {
 				return nil
 			},
 		}
-		fixture := newHandlerFixture(t, testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces)
+		fixture := newHandlerFixture(t, &testutil.StubSessionManager{}, testutil.StubObserver{}, workspaces)
 
 		resp := performRequest(
 			t,
@@ -488,7 +488,7 @@ func TestUserWorkspaceReferenceGuard(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -514,17 +514,17 @@ func TestUserWorkspaceReferenceGuard(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
 		router := gin.New()
 		router.Use(fixture.Handlers.WorkspaceReferenceGuard)
-		for _, path := range []string{"/agents", "/agents/:name", "/tasks", "/automation/runs", "/observe/overview"} {
+		for _, path := range []string{"/agents", "/agents/:name", "/agent-instances", "/tasks", "/automation/runs", "/observe/overview"} {
 			router.GET(path, func(c *gin.Context) { c.Status(http.StatusNoContent) })
 		}
 		for _, target := range []string{
-			"/agents?workspace=@user", "/agents/coder?workspace=@user", "/tasks?workspace=@user",
+			"/agents?workspace=@user", "/agents/coder?workspace=@user", "/agent-instances?workspace=@user", "/tasks?workspace=@user",
 			"/automation/runs?workspace_id=@user", "/observe/overview?workspace=@user",
 		} {
 			if resp := performRequest(t, router, http.MethodGet, target, nil); resp.Code != http.StatusNoContent {
@@ -543,7 +543,7 @@ func TestUserWorkspaceReferenceGuard(t *testing.T) {
 			t.Parallel()
 			fixture := newHandlerFixture(
 				t,
-				testutil.StubSessionManager{},
+				&testutil.StubSessionManager{},
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{},
 			)
@@ -568,7 +568,7 @@ func TestUserSessionWorktreeReference(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -592,7 +592,7 @@ func TestUserSessionScopeConflict(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -612,8 +612,10 @@ func TestUserSessionScopeConflict(t *testing.T) {
 func TestUserSessionCreate(t *testing.T) {
 	t.Run("Should create a User session without resolving a registered workspace", func(t *testing.T) {
 		t.Parallel()
-		manager := testutil.StubSessionManager{
-			CreateAcceptedFn: func(_ context.Context, opts session.CreateAcceptedOpts) (*session.Info, error) {
+		manager := &testutil.StubSessionManager{
+			CreateAcceptedFn: func(_ context.Context, optsInput *session.CreateAcceptedOpts) (*session.Info, error) {
+				opts := *optsInput
+
 				if opts.Session.Scope != workspacepkg.ScopeUser || opts.Session.Workspace != "" ||
 					opts.Session.WorkspacePath != "" {
 					t.Fatalf("opts=%+v", opts)
@@ -649,7 +651,7 @@ func TestUserLogsReferenceGuard(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{},
 		)
@@ -677,7 +679,7 @@ func TestUserSessionRouteAllProfilesRead(t *testing.T) {
 	t.Parallel()
 	t.Run("Should read one User session under the all-profiles lens through its own profile", func(t *testing.T) {
 		t.Parallel()
-		manager := testutil.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+		manager := &testutil.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			if id != "sess-user" {
 				return nil, session.ErrSessionNotFound
 			}
@@ -707,7 +709,7 @@ func TestWorkspaceArchiveHandlers(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				SetArchivedFn: func(_ context.Context, ref string, archived bool) (workspacepkg.Workspace, error) {
@@ -733,7 +735,7 @@ func TestWorkspaceArchiveHandlers(t *testing.T) {
 		at := time.Date(2026, 10, 28, 0, 0, 0, 0, time.UTC)
 		fixture := newHandlerFixture(
 			t,
-			testutil.StubSessionManager{},
+			&testutil.StubSessionManager{},
 			testutil.StubObserver{},
 			testutil.StubWorkspaceService{
 				ListFn: func(context.Context) ([]workspacepkg.Workspace, error) {

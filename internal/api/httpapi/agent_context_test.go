@@ -31,7 +31,7 @@ func TestAgentContextHTTPIdentity(t *testing.T) {
 		sessionInfo.Workspace = "/workspace/http"
 		sessionInfo.State = session.StateActive
 
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				if id != sessionInfo.ID {
 					t.Fatalf("Status() id = %q, want %q", id, sessionInfo.ID)
@@ -99,7 +99,7 @@ func TestAgentContextHTTPIdentity(t *testing.T) {
 	t.Run("Should reject missing HTTP agent session identity", func(t *testing.T) {
 		t.Parallel()
 
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				t.Fatalf("Status() id = %q, want no lookup without session identity", id)
 				return nil, nil
@@ -130,7 +130,7 @@ func TestAgentContextHTTPIdentity(t *testing.T) {
 	t.Run("Should reject stale HTTP agent session identity", func(t *testing.T) {
 		t.Parallel()
 
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				if id != "sess-stale" {
 					t.Fatalf("Status() id = %q, want stale identity lookup", id)
@@ -181,7 +181,7 @@ func TestAgentCrossWorkspaceHTTPIdentityMapping(t *testing.T) {
 			sourceWorkspaceID = "ws-source"
 			targetWorkspaceID = "ws-target"
 		)
-		manager := stubSessionManager{
+		manager := &stubSessionManager{
 			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 				if id != "sess-approve-reads" && id != "sess-approve-all" {
 					return nil, session.ErrSessionNotFound

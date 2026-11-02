@@ -95,6 +95,29 @@ func TestHostAPIHandlerAuthoredContextSoulGrantsAndManagedWrites(t *testing.T) {
 	}
 }
 
+// Invariant: extension-authored documents resolve through their bound profile.
+// Owner: Host API authored context; canonical suite: authored-context grants and managed writes.
+func TestHostAPIAuthoredContextProfile(t *testing.T) {
+	t.Run("Should resolve the bound profile before choosing an authored document", func(t *testing.T) {
+		t.Parallel()
+		env := newHostAPITestEnv(t)
+		env.workspace.ProfileID = env.marketingID
+		env.workspaces.upsert(&env.workspace)
+		ctx := withHostAPIInstanceKey(t.Context(), InstanceKey{Name: "ext-profile-soul", ProfileID: env.marketingID})
+		target, err := env.handler.resolveHostAPIAuthoredAgentTarget(ctx, env.workspaceID, "coder")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if target.profileName != "marketing" || target.profileID != env.marketingID {
+			t.Fatalf("authored target profile = %q %q", target.profileName, target.profileID)
+		}
+		env.handler.profiles = nil
+		if _, err := env.handler.resolveHostAPIAuthoredAgentTarget(ctx, env.workspaceID, "coder"); err == nil {
+			t.Fatal("missing profile reader fell back to default")
+		}
+	})
+}
+
 func TestHostAPIHandlerSessionsSoulRefreshRequiresWorkspaceOwnership(t *testing.T) {
 	t.Parallel()
 

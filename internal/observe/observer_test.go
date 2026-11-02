@@ -236,7 +236,7 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 
 				if err := h.registry.RegisterSession(
 					testutil.Context(t),
-					sessionInfoFromSession(sess.Info()),
+					new(sessionInfoFromSession(sess.Info())),
 				); err != nil {
 					t.Fatalf("RegisterSession(live source) error = %v", err)
 				}
@@ -257,7 +257,7 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 
 				if err := h.registry.RegisterSession(
 					testutil.Context(t),
-					sessionInfoFromSession(sess.Info()),
+					new(sessionInfoFromSession(sess.Info())),
 				); err != nil {
 					t.Fatalf("RegisterSession() error = %v", err)
 				}
@@ -283,7 +283,7 @@ func TestOnAgentEventRecoversSessionSnapshot(t *testing.T) {
 
 				if err := h.registry.RegisterSession(
 					testutil.Context(t),
-					sessionInfoFromSession(sess.Info()),
+					new(sessionInfoFromSession(sess.Info())),
 				); err != nil {
 					t.Fatalf("RegisterSession(stopped) error = %v", err)
 				}
@@ -1279,7 +1279,7 @@ func TestHealthIncludesLifecycleFailuresAndAgentProbes(t *testing.T) {
 
 	h := newHarness(t)
 	ctx := testutil.Context(t)
-	if err := h.registry.RegisterSession(ctx, store.SessionInfo{
+	if err := h.registry.RegisterSession(ctx, new(store.SessionInfo{
 		ID:            "sess-protocol",
 		ProfileID:     store.DefaultProfileID,
 		Name:          "Protocol",
@@ -1295,10 +1295,10 @@ func TestHealthIncludesLifecycleFailuresAndAgentProbes(t *testing.T) {
 		},
 		CreatedAt: h.now,
 		UpdatedAt: h.now.Add(time.Minute),
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(protocol) error = %v", err)
 	}
-	if err := h.registry.RegisterSession(ctx, store.SessionInfo{
+	if err := h.registry.RegisterSession(ctx, new(store.SessionInfo{
 		ID:            "sess-crash",
 		ProfileID:     store.DefaultProfileID,
 		Name:          "Crashed",
@@ -1315,7 +1315,7 @@ func TestHealthIncludesLifecycleFailuresAndAgentProbes(t *testing.T) {
 		},
 		CreatedAt: h.now,
 		UpdatedAt: h.now.Add(2 * time.Minute),
-	}); err != nil {
+	})); err != nil {
 		t.Fatalf("RegisterSession(crash) error = %v", err)
 	}
 	h.observer.agentProbeSource = func(context.Context) ([]acp.ProbeTarget, error) {
@@ -1378,7 +1378,7 @@ func TestHealthStatusDegradesForLifecycleFailures(t *testing.T) {
 
 		h := newHarness(t)
 		ctx := testutil.Context(t)
-		if err := h.registry.RegisterSession(ctx, store.SessionInfo{
+		if err := h.registry.RegisterSession(ctx, new(store.SessionInfo{
 			ID:            "sess-user-canceled",
 			ProfileID:     store.DefaultProfileID,
 			Name:          "User Canceled",
@@ -1394,7 +1394,7 @@ func TestHealthStatusDegradesForLifecycleFailures(t *testing.T) {
 			},
 			CreatedAt: h.now,
 			UpdatedAt: h.now,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession(canceled) error = %v", err)
 		}
 
@@ -1424,7 +1424,7 @@ func TestHealthStatusDegradesForLifecycleFailures(t *testing.T) {
 
 		h := newHarness(t)
 		ctx := testutil.Context(t)
-		if err := h.registry.RegisterSession(ctx, store.SessionInfo{
+		if err := h.registry.RegisterSession(ctx, new(store.SessionInfo{
 			ID:            "sess-failure-only",
 			ProfileID:     store.DefaultProfileID,
 			Name:          "Failure Only",
@@ -1440,7 +1440,7 @@ func TestHealthStatusDegradesForLifecycleFailures(t *testing.T) {
 			},
 			CreatedAt: h.now,
 			UpdatedAt: h.now,
-		}); err != nil {
+		})); err != nil {
 			t.Fatalf("RegisterSession(failure) error = %v", err)
 		}
 
@@ -1469,7 +1469,7 @@ type harness struct {
 
 func (h *harness) observeSessionCreated(t *testing.T, sess *session.Session) {
 	t.Helper()
-	if err := h.registry.RegisterSession(testutil.Context(t), sessionInfoFromSession(sess.Info())); err != nil {
+	if err := h.registry.RegisterSession(testutil.Context(t), new(sessionInfoFromSession(sess.Info()))); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", sess.ID, err)
 	}
 	h.observer.OnSessionCreated(testutil.Context(t), sess)

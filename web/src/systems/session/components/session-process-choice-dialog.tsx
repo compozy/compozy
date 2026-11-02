@@ -62,7 +62,9 @@ export function SessionProcessChoiceDialog({
           if (!pending || next) onOpenChange(next);
         }}
         title={childrenCopy.title}
-        description={childrenCopy.description}
+        description={
+          childSessions.pending ? "Read child sessions before archiving." : childrenCopy.description
+        }
         confirmLabel={childrenCopy.confirmLabel}
         cancelLabel="Cancel"
         tone="warning"
@@ -70,7 +72,10 @@ export function SessionProcessChoiceDialog({
         isPending={pending}
         className="sm:max-w-lg"
         contentProps={{ "data-testid": "session-process-choice-dialog" }}
-        confirmButtonProps={{ "data-testid": "session-children-confirm" }}
+        confirmButtonProps={{
+          "data-testid": "session-children-confirm",
+          disabled: pending || childSessions.pending,
+        }}
         cancelButtonProps={{ "data-testid": "session-process-choice-cancel" }}
         body={childrenBody}
         onConfirm={() => onChoose()}
@@ -97,12 +102,18 @@ export function SessionProcessChoiceDialog({
       isPending={pending}
       className="sm:max-w-lg"
       contentProps={{ "data-testid": "session-process-choice-dialog" }}
-      confirmButtonProps={{ "data-testid": "session-process-choice-terminate" }}
+      confirmButtonProps={{
+        "data-testid": "session-process-choice-terminate",
+        disabled: pending || childSessions?.pending,
+      }}
       cancelButtonProps={{ "data-testid": "session-process-choice-cancel" }}
       alternateAction={{
         label: copy.keepLabel,
         onSelect: () => onChoose("keep"),
-        buttonProps: { "data-testid": "session-process-choice-keep" },
+        buttonProps: {
+          "data-testid": "session-process-choice-keep",
+          disabled: childSessions?.pending,
+        },
       }}
       onConfirm={() => onChoose("terminate")}
     />

@@ -78,7 +78,7 @@ func (o *Observer) reconcileRecoveredSessionCreation(
 	}
 	registration, err := creationStore.RegisterSessionWithCreationIdentity(
 		ctx,
-		recovered.SessionInfo,
+		&(recovered.SessionInfo),
 		*recovered.creationIdentity,
 	)
 	if err != nil {
@@ -200,6 +200,8 @@ func recoveredSessionFromMeta(meta *store.SessionMeta) recoveredSession {
 	}
 	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelectionValue())
 	recovered := recoveredSession{
+		InitiatorKind:            meta.InitiatorKind,
+		InitiatorID:              meta.InitiatorID,
 		ID:                       meta.ID,
 		ProfileID:                meta.ProfileID,
 		Name:                     meta.Name,

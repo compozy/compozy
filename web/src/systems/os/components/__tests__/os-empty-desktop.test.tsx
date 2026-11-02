@@ -226,7 +226,7 @@ describe("OsEmptyDesktop", () => {
     expect(screen.getByRole("region", { name: "Desktop 2" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "What should we work on?" })).toBeInTheDocument();
     expect(screen.getByTestId("os-desk-status")).toHaveTextContent("Press ⌘K to open anything");
-    expect(screen.getByTestId("os-desk-agent-select")).toHaveTextContent("general");
+    expect(screen.getByTestId("os-desk-agent-select")).toHaveTextContent("General");
     expect(screen.getByTestId("composer-attach-button")).toBeInTheDocument();
     expect(screen.getByTestId("session-prompt-runtime-select")).toBeInTheDocument();
     await send("Fix the flaky login test", "enter");
@@ -296,8 +296,8 @@ describe("OsEmptyDesktop", () => {
     renderDesktop();
 
     await user.click(screen.getByTestId("os-desk-agent-select"));
-    await user.click(await screen.findByRole("option", { name: /reviewer/ }));
-    expect(screen.getByTestId("os-desk-agent-select")).toHaveTextContent("reviewer");
+    await user.click(await screen.findByRole("option", { name: /Reviewer/ }));
+    expect(screen.getByTestId("os-desk-agent-select")).toHaveTextContent("Reviewer");
 
     await send("Review the open diff");
 

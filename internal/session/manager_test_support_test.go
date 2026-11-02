@@ -224,11 +224,11 @@ func cleanupTestManager(t *testing.T, manager *Manager) {
 func createSession(t *testing.T, h *harness) *Session {
 	t.Helper()
 
-	session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+	session, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 		AgentName: "coder",
 		Name:      "session",
 		Workspace: h.workspaceID,
-	})
+	}))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}

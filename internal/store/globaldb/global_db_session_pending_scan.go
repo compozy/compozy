@@ -24,6 +24,7 @@ type pendingInteractionRow struct {
 	resolvedAt        sql.NullString
 	resolution        string
 	resolvedBy        string
+	expiresAt         sql.NullString
 }
 
 func getPendingInteraction(
@@ -32,7 +33,7 @@ func getPendingInteraction(
 	interactionID string,
 ) (store.PendingInteraction, error) {
 	row := exec.QueryRowContext(ctx, `SELECT interaction_id, session_id, kind, provider_request_id,
-turn_id, title, payload_json, status, created_at, resolved_at, resolution, resolved_by
+turn_id, title, payload_json, status, created_at, resolved_at, resolution, resolved_by, expires_at
 FROM session_pending_interactions WHERE interaction_id = ?`, interactionID)
 	interaction, err := scanPendingInteraction(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -56,6 +57,7 @@ func scanPendingInteraction(scanner rowScanner) (store.PendingInteraction, error
 		&row.resolvedAt,
 		&row.resolution,
 		&row.resolvedBy,
+		&row.expiresAt,
 	); err != nil {
 		return store.PendingInteraction{}, err
 	}
@@ -87,6 +89,13 @@ func scanPendingInteraction(scanner rowScanner) (store.PendingInteraction, error
 		}
 		interaction.ResolvedAt = &resolvedAt
 	}
+	if row.expiresAt.Valid {
+		at, err := store.ParseTimestamp(row.expiresAt.String)
+		if err != nil {
+			return store.PendingInteraction{}, fmt.Errorf("store: parse pending interaction expires_at: %w", err)
+		}
+		interaction.ExpiresAt = &at
+	}
 	return store.SanitizePendingInteraction(interaction), nil
 }
 
@@ -102,5 +111,6 @@ func pendingInteractionFromCreate(req store.PendingInteractionCreate) store.Pend
 		Payload:           normalized.Payload,
 		Status:            store.PendingInteractionStatusPending,
 		CreatedAt:         normalized.CreatedAt,
+		ExpiresAt:         normalized.ExpiresAt,
 	}
 }

@@ -65,6 +65,7 @@ type harnessReentrySessionManager interface {
 }
 
 type harnessWakeTargetSnapshot struct {
+	ProfileID   string
 	SessionID   string
 	AgentName   string
 	Type        session.Type
@@ -85,6 +86,7 @@ type harnessSyntheticWake struct {
 	taskID            string
 	runID             string
 	targetSessionID   string
+	targetProfileID   string
 	targetAgentName   string
 	targetWorkspaceID string
 	reason            string

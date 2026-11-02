@@ -1,3 +1,4 @@
+import { AgentIdentityScopeContext } from "@/systems/agent";
 import type { UIMessage } from "ai";
 import { useEffect, useState, type ReactNode } from "react";
 import {
@@ -142,6 +143,7 @@ function SessionRuntimeExtensions({
     resetRuntime,
     rewindBlocked,
     sessionRunning,
+    profileName,
     transcript,
   } = useSessionRuntimeExtensions({
     eventSourceFactory,
@@ -152,33 +154,41 @@ function SessionRuntimeExtensions({
   });
 
   return (
-    <SessionRuntimeRenderProvider
-      durableMessageIds={transcript.durableMessageIds}
-      expiredInteractions={expiredInteractions}
-      resolvedInteractions={resolvedInteractions}
-      resetRuntime={resetRuntime}
-      sendDetachedPrompt={sendDetachedPrompt}
-      rewindBlocked={rewindBlocked}
-      sessionRunning={sessionRunning}
-      sessionId={sessionId}
-      workspaceId={workspaceId}
+    <AgentIdentityScopeContext
+      value={{
+        workspace: workspaceId || null,
+        profile: profileName,
+        enabled: Boolean(profileName),
+      }}
     >
-      <SessionTranscriptThreadProvider
-        liveMessages={transcript.liveMessages}
-        messages={transcript.messages}
-        status={transcript.status}
-        error={transcript.error}
-        hasOlder={transcript.hasOlder}
-        isFetchingOlder={transcript.isFetchingOlder}
-        loadOlder={transcript.loadOlder}
-        retry={transcript.retry}
-        transport={{ ...transcript.transport, retry: transcript.retry }}
+      <SessionRuntimeRenderProvider
+        durableMessageIds={transcript.durableMessageIds}
+        expiredInteractions={expiredInteractions}
+        resolvedInteractions={resolvedInteractions}
+        resetRuntime={resetRuntime}
+        sendDetachedPrompt={sendDetachedPrompt}
+        rewindBlocked={rewindBlocked}
+        sessionRunning={sessionRunning}
+        sessionId={sessionId}
+        workspaceId={workspaceId}
       >
-        <CompozyPermissionDataUI />
-        <CompozyEventDataUI />
-        {children}
-      </SessionTranscriptThreadProvider>
-    </SessionRuntimeRenderProvider>
+        <SessionTranscriptThreadProvider
+          liveMessages={transcript.liveMessages}
+          messages={transcript.messages}
+          status={transcript.status}
+          error={transcript.error}
+          hasOlder={transcript.hasOlder}
+          isFetchingOlder={transcript.isFetchingOlder}
+          loadOlder={transcript.loadOlder}
+          retry={transcript.retry}
+          transport={{ ...transcript.transport, retry: transcript.retry }}
+        >
+          <CompozyPermissionDataUI />
+          <CompozyEventDataUI />
+          {children}
+        </SessionTranscriptThreadProvider>
+      </SessionRuntimeRenderProvider>
+    </AgentIdentityScopeContext>
   );
 }
 

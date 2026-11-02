@@ -116,6 +116,7 @@ function restartExpired(
   overrides: Partial<SessionInteractionRecord> = {}
 ): SessionInteractionRecord {
   return {
+    session_id: "sess-1",
     interaction_id: "int-1",
     kind: "permission",
     provider_request_id: "req-1",

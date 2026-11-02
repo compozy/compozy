@@ -29,7 +29,7 @@ func newObserveCommand(deps commandDeps) *cobra.Command {
 		Use:   observeCommandKey,
 		Short: "Inspect runtime observability read models",
 	}
-	cmd.AddCommand(newObserveOverviewCommand(deps))
+	cmd.AddCommand(newObserveOverviewCommand(deps), newObserveActivityCommand(deps))
 	return cmd
 }
 

@@ -17,7 +17,7 @@ func TestRegisterRoutesLeavesResourceSurfaceDisabledWithoutOperatorAuth(t *testi
 	homePaths := newTestHomePaths(t)
 	engine := newTestRouter(
 		t,
-		newTestHandlersWithResources(t, stubSessionManager{}, stubObserver{}, stubResourceService{}, homePaths),
+		newTestHandlersWithResources(t, &stubSessionManager{}, stubObserver{}, stubResourceService{}, homePaths),
 	)
 
 	routes := routeSet(engine)
@@ -44,7 +44,7 @@ func TestRegisterRoutesExposesResourceSurfaceWhenOperatorAuthPresent(t *testing.
 		t,
 		newTestHandlersWithResourcesAndAuth(
 			t,
-			stubSessionManager{},
+			&stubSessionManager{},
 			stubObserver{},
 			stubResourceService{
 				PutFn: func(_ context.Context, draft resources.RawDraft) (resources.RawRecord, error) {
@@ -118,7 +118,7 @@ func TestResourceMutationRoutesRemainUnavailableWithoutOperatorAuth(t *testing.T
 		t,
 		newTestHandlersWithResources(
 			t,
-			stubSessionManager{},
+			&stubSessionManager{},
 			stubObserver{},
 			stubResourceService{
 				PutFn: func(context.Context, resources.RawDraft) (resources.RawRecord, error) {

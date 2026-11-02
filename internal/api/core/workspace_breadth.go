@@ -157,7 +157,7 @@ func defaultActiveWorkspaceIDs(ctx context.Context, getter WorkspaceGetter, ids 
 	if err != nil {
 		return nil, err
 	}
-	active := []string{"@user"}
+	active := []string{userScopeWorkspaceRef}
 	hasArchived := false
 	for _, ws := range workspaces {
 		if ws.ArchivedAt != nil {

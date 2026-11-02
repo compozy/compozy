@@ -6,6 +6,9 @@ WHERE id = sqlc.arg(id);
 SELECT 'session' AS kind, s.id, s.name FROM sessions s
 WHERE s.workspace_id = sqlc.arg(workspace_id) AND state <> 'stopped'
 UNION ALL
+SELECT 'instance' AS kind, i.id, i.agent_name AS name FROM agent_instances i
+WHERE i.workspace_id = sqlc.arg(workspace_id) AND i.archived_at IS NULL
+UNION ALL
 SELECT 'loop' AS kind, r.id, r.loop_name AS name FROM loop_runs r
 WHERE r.workspace_id = sqlc.arg(workspace_id)
   AND status IN ('queued', 'running', 'watching', 'needs-approval', 'paused')

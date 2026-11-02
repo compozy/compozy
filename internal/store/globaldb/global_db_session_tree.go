@@ -66,12 +66,25 @@ func (g *SessionRepo) ArchiveSessionTree(
 		if e != nil {
 			return e
 		}
-		ids := make([]string, 0, len(descendants)+1)
-		for _, member := range append([]store.SessionInfo{root}, descendants...) {
-			if member.State != globalDBSessionStateStopped {
-				return &store.SessionArchiveLiveMemberError{SessionID: member.ID}
+		q := sqlcgen.New(exec)
+		if e := guardInstanceMainArchive(ctx, q, root.ID); e != nil {
+			return e
+		}
+		for i := range descendants {
+			if e := guardInstanceMainArchive(ctx, q, descendants[i].ID); e != nil {
+				return e
 			}
-			ids = append(ids, member.ID)
+		}
+		if root.State != globalDBSessionStateStopped {
+			return &store.SessionArchiveLiveMemberError{SessionID: root.ID}
+		}
+		ids := make([]string, 1, len(descendants)+1)
+		ids[0] = root.ID
+		for i := range descendants {
+			if descendants[i].State != globalDBSessionStateStopped {
+				return &store.SessionArchiveLiveMemberError{SessionID: descendants[i].ID}
+			}
+			ids = append(ids, descendants[i].ID)
 		}
 		encoded, e := subagentIDsJSON(ids)
 		if e != nil {

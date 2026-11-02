@@ -1145,6 +1145,7 @@ func TestRunOnceSchedulerPause(t *testing.T) {
 			sessionSnapshot("sess-idle", "ws-1", "active", false, nil, base),
 		}}
 		waker := &fakeWaker{}
+		checkCalls := 0
 		scheduler := newTestScheduler(
 			t,
 			source,
@@ -1152,6 +1153,10 @@ func TestRunOnceSchedulerPause(t *testing.T) {
 			waker,
 			WithClock(clockwork.NewFakeClockAt(base)),
 			WithPauseStore(fakePauseStore{state: taskpkg.SchedulerPauseState{Paused: true}}),
+			WithProactiveChecks(func(context.Context) error {
+				checkCalls++
+				return nil
+			}),
 		)
 
 		result, err := scheduler.RunOnce(testutil.Context(t))
@@ -1163,6 +1168,9 @@ func TestRunOnceSchedulerPause(t *testing.T) {
 		}
 		if got := len(waker.targetsSnapshot()); got != 0 {
 			t.Fatalf("wake targets = %d, want 0 while paused", got)
+		}
+		if checkCalls != 0 {
+			t.Fatalf("proactive checks = %d, want 0 while paused", checkCalls)
 		}
 		if got := len(source.recoveryCallsSnapshot()); got != 1 {
 			t.Fatalf("recovery calls = %d, want sweep to continue while paused", got)
@@ -1967,4 +1975,49 @@ func TestMassStarvationKeepsWakeDispatchBounded(t *testing.T) {
 			t.Fatalf("session %s woke %d times", id, count)
 		}
 	}
+}
+
+func TestProactiveCheckTick(t *testing.T) {
+	t.Run("Should tick once per cycle and preserve task wakes when checks fail", func(t *testing.T) {
+		t.Parallel()
+		base := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		source := &fakeTaskSource{}
+		sessions := &fakeSessionSource{
+			sessions: []SessionSnapshot{sessionSnapshot("sess-1", "ws-1", "active", false, nil, base)},
+		}
+		waker := &fakeWaker{}
+		failure := errors.New("check storage unavailable")
+		calls := 0
+		scheduler := newTestScheduler(
+			t,
+			source,
+			sessions,
+			waker,
+			WithClock(clockwork.NewFakeClockAt(base)),
+			WithWakeCooldown(0),
+			WithProactiveChecks(func(ctx context.Context) error {
+				if ctx != t.Context() {
+					t.Error("tick lost cycle context")
+				}
+				calls++
+				return failure
+			}),
+		)
+		for i := range 2 {
+			setPendingRunsForWakeCooldownContract(
+				source,
+				workSnapshot("task-1", fmt.Sprintf("run-%d", i), taskpkg.ScopeWorkspace, "ws-1", nil, base),
+			)
+			result, err := scheduler.RunOnce(t.Context())
+			if !errors.Is(err, failure) {
+				t.Fatalf("cycle error=%v", err)
+			}
+			if result.WakeSucceeded != 1 {
+				t.Fatalf("check failure prevented task wake: %+v", result)
+			}
+		}
+		if calls != 2 {
+			t.Fatalf("ticks=%d", calls)
+		}
+	})
 }
