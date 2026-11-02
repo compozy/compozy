@@ -1555,6 +1555,11 @@ func TestApplyAutomaticSessionTitleOwnsGeneratedIdentity(t *testing.T) {
 			{name: "Portuguese label", output: "Título: Localizar resenhas", want: "Localizar resenhas"},
 			{name: "unaccented label", output: "Titulo: Localizar resenhas", want: "Localizar resenhas"},
 			{
+				name:   "title suggestion label in Portuguese",
+				output: "Sugestão de título: Localizar resenhas",
+				want:   "Localizar resenhas",
+			},
+			{
 				name:   "suggested label in Portuguese",
 				output: "Título sugerido: Localizar resenhas",
 				want:   "Localizar resenhas",
