@@ -175,11 +175,19 @@ func (m *Manager) SessionLinkedWork(ctx context.Context, infos []*Info) (map[str
 
 func linkedWorkUrgency(item LinkedWorkItem) int {
 	pr := item.PullRequest
-	if item.Lookup.State == LookupError || pr != nil && pr.State == PullRequestOpen && (pr.Checks.State == ChecksFailing || pr.ReviewDecision == ReviewChangesRequested || pr.Mergeable == MergeableConflicting || pr.ReadyToMerge) {
-		return 0
+	if pr != nil && (pr.State == PullRequestMerged || pr.State == PullRequestClosed) {
+		return 4
 	}
-	if pr == nil || pr.State == PullRequestOpen {
-		return 1
+	if item.Lookup.State != LookupOK || item.Lookup.Stale {
+		return 3
+	}
+	if pr != nil && pr.State == PullRequestOpen {
+		if pr.Checks.State == ChecksFailing || pr.ReviewDecision == ReviewChangesRequested || pr.Mergeable == MergeableConflicting {
+			return 0
+		}
+		if pr.ReadyToMerge && pr.Draft != nil && !*pr.Draft {
+			return 1
+		}
 	}
 	return 2
 }

@@ -4358,14 +4358,18 @@ type pullRequestQueryReader struct {
 	repositories map[string]string
 	calls        int
 	keys         []BranchKey
+	views        map[BranchKey]PullRequestView
 }
 
 func (r *pullRequestQueryReader) PullRequests(_ context.Context, keys []BranchKey) map[BranchKey]PullRequestView {
 	r.calls++
 	r.keys = keys
+	if r.views != nil {
+		return r.views
+	}
 	result := make(map[BranchKey]PullRequestView)
 	for _, key := range keys {
-		result[key] = PullRequestView{PullRequest: &PullRequest{Number: 42, State: r.state}}
+		result[key] = PullRequestView{Lookup: PullRequestLookup{State: LookupOK}, PullRequest: &PullRequest{Number: 42, State: r.state}}
 	}
 	return result
 }
@@ -4736,6 +4740,54 @@ func (r *catalogBranchReadCounter) SessionCatalogBranches(
 // Owner: session projection; canonical pull-request query suite.
 func TestSessionLinkedWorkProjection(t *testing.T) {
 	t.Parallel()
+	t.Run("Should sort fresh decisions before ready work and unknown lookups", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name string
+			view PullRequestView
+			rank int
+		}{
+			{"failing", PullRequestView{Lookup: PullRequestLookup{State: LookupOK}, PullRequest: &PullRequest{State: PullRequestOpen, Checks: PullRequestChecks{State: ChecksFailing}}}, 0},
+			{"changes", PullRequestView{Lookup: PullRequestLookup{State: LookupOK}, PullRequest: &PullRequest{State: PullRequestOpen, ReviewDecision: ReviewChangesRequested}}, 0},
+			{"conflicts", PullRequestView{Lookup: PullRequestLookup{State: LookupOK}, PullRequest: &PullRequest{State: PullRequestOpen, Mergeable: MergeableConflicting}}, 0},
+			{"ready", PullRequestView{Lookup: PullRequestLookup{State: LookupOK}, PullRequest: &PullRequest{State: PullRequestOpen, ReadyToMerge: true, Draft: new(false)}}, 1},
+			{"open", PullRequestView{Lookup: PullRequestLookup{State: LookupOK}, PullRequest: &PullRequest{State: PullRequestOpen}}, 2},
+			{"branch", PullRequestView{Lookup: PullRequestLookup{State: LookupOK}}, 2},
+			{"stale", PullRequestView{Lookup: PullRequestLookup{State: LookupOK, Stale: true}, PullRequest: &PullRequest{State: PullRequestOpen, Checks: PullRequestChecks{State: ChecksFailing}, ReadyToMerge: true}}, 3},
+			{"error", PullRequestView{Lookup: PullRequestLookup{State: LookupError}}, 3},
+			{"merged", PullRequestView{Lookup: PullRequestLookup{State: LookupOK}, PullRequest: &PullRequest{State: PullRequestMerged}}, 4},
+			{"closed", PullRequestView{Lookup: PullRequestLookup{State: LookupOK}, PullRequest: &PullRequest{State: PullRequestClosed}}, 4},
+		}
+		reader := &pullRequestQueryReader{repositories: map[string]string{"ws": "example.com/a/b"}, views: map[BranchKey]PullRequestView{}}
+		branches := &linkedWorkQueryStore{links: map[string][]store.SessionWorkLink{}}
+		for i, c := range cases {
+			if c.view.PullRequest != nil {
+				c.view.PullRequest.Number = i + 1
+			}
+			reader.views[BranchKey{"ws", c.name}] = c.view
+			branches.links["root"] = append(branches.links["root"], store.SessionWorkLink{Repository: "example.com/a/b", Branch: c.name})
+			if got := linkedWorkUrgency(LinkedWorkItem{PullRequestView: c.view}); got != c.rank {
+				t.Errorf("%s rank=%d want=%d", c.name, got, c.rank)
+			}
+		}
+		manager := &Manager{}
+		manager.ConfigurePullRequests(reader, branches)
+		got, err := manager.SessionLinkedWork(t.Context(), []*Info{{ID: "root", WorkspaceID: "ws"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		view := got["root"]
+		if view.Summary.Total != len(cases) || view.Summary.NeedsYou != 3 || view.Summary.Lead.Branch != "changes" {
+			t.Fatalf("summary=%+v", view.Summary)
+		}
+		for i := 1; i < len(view.Items); i++ {
+			if linkedWorkUrgency(view.Items[i-1]) > linkedWorkUrgency(view.Items[i]) {
+				t.Fatalf("items out of order: %+v", view.Items)
+			}
+		}
+
+	})
+
 	t.Run("Should prefer direct work and exclude rolled up work from board state", func(t *testing.T) {
 		t.Parallel()
 		reader := &pullRequestQueryReader{state: PullRequestOpen, repositories: map[string]string{"ws": "example.com/a/b"}}
@@ -4770,7 +4822,7 @@ func TestSessionLinkedWorkProjection(t *testing.T) {
 			t.Fatal(err)
 		}
 		view = got["root"]
-		if view.DirectOpen || view.Summary.Total != 2 || view.Items[0].Lookup.Cause != "pr_identity_changed" || view.Items[0].PullRequest != nil {
+		if view.DirectOpen || view.Summary.Total != 2 || view.Items[1].Lookup.Cause != "pr_identity_changed" || view.Items[1].PullRequest != nil {
 			t.Fatalf("identity fence=%+v", view)
 		}
 	})
