@@ -238,7 +238,7 @@ function SessionBoardCardMetaRow({
   status: SessionBoardCardStatus | null;
   extra?: ReactNode;
 }) {
-  if (meta.shape === null && meta.workspaceName === null && status === null) return null;
+  if (meta.shape === null && meta.workspaceName === null && status === null && !extra) return null;
   const Icon = meta.shape ? SHAPE_ICON[meta.shape] : null;
   return (
     <span className={SESSION_BOARD_CARD_META_ROW}>

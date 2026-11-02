@@ -43,6 +43,7 @@ import { fetchSessionCatalogPage, fetchSessionFacets } from "../../adapters/sess
 import type { SessionLifecycleActionHandlers } from "../../hooks/use-session-lifecycle-actions";
 import type { SessionsBoardColumnView, SessionsBoardView } from "../../hooks/use-sessions-board";
 import type { SessionBoardColumnId } from "../../lib/session-board-contract";
+import { SESSION_LINK_SETS } from "../../mocks/session-links-fixtures";
 import { primarySessionFixture, resetSessionBoardColumnFolds } from "../../testing";
 import type { SessionPayload } from "../../types";
 import { renderWithTopbar } from "@/test/render-with-topbar";
@@ -231,6 +232,16 @@ describe("SessionsBoard", () => {
     expect(rollup).toHaveTextContent("3");
     expect(rollup).toHaveAttribute("data-needs-you", "true");
     expect(screen.getByTestId("session-board-card-status-child")).toHaveTextContent("Input");
+  });
+
+  it("Should keep the linked work count on a card whose lead is only a branch", () => {
+    const lead = SESSION_LINK_SETS.worktreeNoPr[0]!;
+    const session = card("links", {
+      branch: "",
+      linked_work: { total: 3, pull_requests: 2, needs_you: 0, lead },
+    });
+    renderBoard(board({ working: { sessions: [session], count: 1 } }));
+    expect(screen.getByTestId("session-board-card-meta-links")).toHaveTextContent("+2 PRs");
   });
 
   it("Should name a fork's source as provenance, not as its parent", () => {
