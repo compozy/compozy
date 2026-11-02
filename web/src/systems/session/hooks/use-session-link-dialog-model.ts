@@ -153,6 +153,7 @@ export function useSessionLinkDialogModel({
   return {
     error,
     forge: repositoryForgeName(hosted),
+    forgeless: repository !== null && hosted === null,
     forks,
     hasMore: candidates.hasMore,
     linked: linkedCandidateKeys(items),

@@ -146,6 +146,8 @@ export interface SessionLinkDialogProps {
   offline: boolean;
   /** The forge's name for copy, from the repository's host. */
   forge: string;
+  /** This project has no hosted forge at all, so nothing here is waiting to come back. */
+  forgeless?: boolean;
   /** Pull requests the last confirm was refused because they come from a fork. */
   forks: readonly number[];
   /** The session project's short name for copy. */
@@ -169,6 +171,7 @@ export function SessionLinkDialog({
   loading,
   offline,
   forge,
+  forgeless = false,
   forks,
   project,
   linked,
@@ -205,9 +208,13 @@ export function SessionLinkDialog({
           <div className="flex flex-col gap-3 px-5 pt-4 pb-3">
             {offline ? (
               <Alert variant="warning">
-                <AlertTitle>{forge} isn't connected</AlertTitle>
+                <AlertTitle>
+                  {forgeless ? "Pull requests aren't available here" : `${forge} isn't connected`}
+                </AlertTitle>
                 <AlertDescription>
-                  You can still link a branch. Its pull request shows up once {forge} is back.
+                  {forgeless
+                    ? "This project isn't on a hosted service. You can still link a branch."
+                    : `You can still link a branch. Its pull request shows up once ${forge} is back.`}
                 </AlertDescription>
               </Alert>
             ) : null}

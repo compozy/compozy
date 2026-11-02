@@ -168,6 +168,31 @@ describe("useSessionLinkedWork", () => {
     );
   });
 
+  it("Should keep Undo on the session it came from after a switch", async () => {
+    vi.mocked(removeSessionWorkLink).mockResolvedValue({ items });
+    vi.mocked(addSessionWorkLink).mockResolvedValue({ items });
+    const { wrapper } = harness();
+    const { result, rerender } = renderHook(
+      ({ current }) =>
+        useSessionLinkedWork({ session: current, workspaceId: WORKSPACE, enabled: true }),
+      { initialProps: { current: session }, wrapper }
+    );
+    await waitFor(() => expect(result.current.items).toHaveLength(4));
+
+    act(() => result.current.unlink(first!));
+    await waitFor(() => expect(toast.message).toHaveBeenCalled());
+    rerender({ current: { ...session, id: "sess-other" } });
+    const undo = vi.mocked(toast.message).mock.calls[0]?.[1]?.action as { onClick: () => void };
+    act(() => undo.onClick());
+
+    await waitFor(() => expect(addSessionWorkLink).toHaveBeenCalledTimes(1));
+    expect(addSessionWorkLink).toHaveBeenCalledWith(
+      WORKSPACE,
+      session.id,
+      expect.objectContaining({ branch: first!.branch })
+    );
+  });
+
   it("Should toast and undo every unlink of a burst", async () => {
     const answers = new Map<string, (value: { items: typeof items }) => void>();
     vi.mocked(removeSessionWorkLink).mockImplementation(
@@ -312,6 +337,7 @@ describe("useSessionLinkDialogModel", () => {
     const { result } = dialog();
     await waitFor(() => expect(result.current.linked.size).toBeGreaterThan(0));
     expect(result.current.forge).toBe("The forge");
+    expect(result.current.forgeless).toBe(true);
     expect(result.current.project).toBe("compozy");
   });
 

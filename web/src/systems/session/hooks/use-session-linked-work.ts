@@ -30,13 +30,14 @@ export function useSessionLinkMutations(workspaceId: string, sessionId: string) 
   const queryClient = useQueryClient();
   const queryKey = sessionKeys.linkedWork(workspaceId, sessionId);
   const reread = () => invalidateSessionMutationQueries(queryClient, workspaceId, sessionId);
+  const settle = (response: SessionLinkedWorkResponse) => {
+    queryClient.setQueryData(queryKey, response);
+    return reread();
+  };
   const add = useMutation({
     mutationFn: (request: SessionWorkLinkRequest) =>
       addSessionWorkLink(workspaceId, sessionId, request),
-    onSuccess: response => {
-      queryClient.setQueryData(queryKey, response);
-      return reread();
-    },
+    onSuccess: settle,
   });
   const remove = useMutation({
     mutationFn: (item: SessionLinkedWorkItem) =>
@@ -67,10 +68,13 @@ export function useSessionLinkMutations(workspaceId: string, sessionId: string) 
         description: linkUnlinkedNote(item),
         action: {
           label: "Undo",
+          // A toast outlives a session switch, so Undo stays on the session it came from.
           onClick: () => {
-            add.mutateAsync(linkRequest(item)).catch(() => {
-              toast.error(`Couldn't link ${linkShortName(item)} again.`);
-            });
+            addSessionWorkLink(workspaceId, sessionId, linkRequest(item))
+              .then(settle)
+              .catch(() => {
+                toast.error(`Couldn't link ${linkShortName(item)} again.`);
+              });
           },
         },
       });
