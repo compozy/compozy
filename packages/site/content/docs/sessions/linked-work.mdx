@@ -15,6 +15,8 @@ hand, unlinked it and undone that, and done the same from the terminal.
 - CompozyOS is running and the Web UI is open on a project that has a Git remote. This page uses a
   project named `checkout-api`.
 - To search pull requests, the project's forge is connected. Without it you can still link branches.
+  A project with no hosted remote, such as a local-only repository, links branches the same way, and
+  its rows show no pull request status.
 
 You don't turn anything on. A worktree a session creates with its tools shows up on that session by
 itself, with its branch and pull request.
@@ -44,6 +46,13 @@ choose **Link**. The agent keeps running where it is.
 
 A pull request from another project can't be linked here: the dialog names the project it belongs
 to. Open a session in that project instead.
+
+A pull request from a fork can't be linked yet, because its branch lives in another repository and
+CompozyOS can't read its status from this one. The dialog names it, and the rest of your selection
+still links.
+
+A branch holds one pull request. Linking a second pull request on a branch that is already linked
+replaces the first, because status follows the branch.
 
 ## Step 3: Unlink, and undo it
 
@@ -81,6 +90,9 @@ Add `-o json` to any of these for structured output.
 An orchestrator's pull requests usually come from its child sessions, so they show up on the parent
 too, after the parent's own items in each group. Such a row reads **From** and the child's title, and
 clicking it opens the child. You manage it there: it has no Unlink on the parent.
+
+Only pull requests roll up. A child's branch with no pull request stays on the child until it has one.
+Forks and continued sessions aren't children, so their work stays on them.
 
 The same pull request on both sessions shows once.
 
