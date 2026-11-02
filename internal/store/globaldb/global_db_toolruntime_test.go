@@ -209,10 +209,13 @@ func TestGlobalDBSessionMonitorKindMigration(t *testing.T) {
 		mon := records[0].Monitor
 		if mon.Kind != monitor.KindTerminal || mon.TerminalID != "term-1" || mon.ExitCode == nil || *mon.ExitCode != 3 ||
 			records[0].OwnerBinding != "binding" || records[0].Version != 4 || mon.FireCount != 0 ||
-			mon.Branch != "" || mon.Until != "exit" || records[0].Timeout != time.Minute ||
-			mon.Status != monitor.StatusActive ||
-			!mon.DeadlineAt.Equal(time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)) {
+			mon.Branch != "" {
 			t.Fatalf("migrated monitor = %+v", records[0])
+		}
+		deadline := time.Date(2026, 11, 1, 10, 0, 0, 0, time.UTC)
+		if mon.Until != "exit" || records[0].Timeout != time.Minute || mon.Status != monitor.StatusActive ||
+			!mon.DeadlineAt.Equal(deadline) {
+			t.Fatalf("migrated wait = %+v", records[0])
 		}
 		if err := upgraded.SaveMonitor(ctx, monitor.Record{
 			Monitor: monitor.Monitor{
