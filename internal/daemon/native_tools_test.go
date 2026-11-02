@@ -15524,6 +15524,58 @@ func TestDaemonNativeSessionResultsMatchOutputSchemas(t *testing.T) {
 	}
 }
 
+// Invariant: session_inputs_list and session_inputs_clear results validate for every row shape, including
+// a coalesced wake and attachment-only operator input.
+func TestDaemonNativeSessionInputResultsMatchOutputSchemas(t *testing.T) {
+	t.Parallel()
+	descriptors := make(map[toolspkg.ToolID]toolspkg.Descriptor)
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		descriptors[descriptor.ID] = descriptor
+	}
+	enqueuedAt := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+	boolValue := true
+	inputs := []contract.SessionInputPayload{
+		core.SessionInputPayloadFromSession(session.PendingInput{
+			ID: "inq-wake", SessionID: "sess-1", OwnerKind: "synthetic", MessageID: "monitor:mon-1",
+			Status: "queued", Mode: session.BusyInputModeQueue, Delivery: "after_turn",
+			Text: "[COMPOZY MONITOR - NOT USER INPUT]", EnqueuedAt: enqueuedAt, CoalescedWakes: 3,
+		}),
+		core.SessionInputPayloadFromSession(session.PendingInput{
+			ID: "inq-operator", SessionID: "sess-1", Status: "queued", Mode: session.BusyInputModeQueue,
+			Delivery: "after_turn", EnqueuedAt: enqueuedAt,
+			Runtime: &session.RuntimeSelection{
+				Provider:   "codex",
+				ACPOptions: []acp.SessionConfigOptionSelection{{ID: "sandbox", BoolValue: &boolValue}},
+			},
+			Attachments: []session.AttachmentMeta{{ID: "att-1", Name: "a.png", MIMEType: "image/png"}},
+		}),
+	}
+	for name, testCase := range map[string]struct {
+		toolID  toolspkg.ToolID
+		payload any
+	}{
+		"Should accept the list with its queue summary": {
+			toolspkg.ToolIDSessionInputsList,
+			contract.SessionInputListResponse{
+				Inputs: inputs, Queue: &contract.SessionQueueSummaryPayload{Entries: 2, Cap: 10},
+			},
+		},
+		"Should accept cleared rows": {
+			toolspkg.ToolIDSessionInputsClear,
+			map[string]any{"inputs": inputs, "cleared_count": 2, "queue_generation": 1},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			encoded, err := json.Marshal(testCase.payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireNativeOutputSchemaAccepts(t, descriptors[testCase.toolID], encoded)
+		})
+	}
+}
+
 func requireNativeOutputSchemaAccepts(t *testing.T, descriptor toolspkg.Descriptor, payload []byte) {
 	t.Helper()
 	schema, err := jsonschema.UnmarshalJSON(bytes.NewReader(descriptor.OutputSchema))

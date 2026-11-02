@@ -78,6 +78,12 @@ func (w *monitorSessionWaker) WakeSession(ctx context.Context, notification moni
 			Summary:     notification.Monitor.Description,
 			WakeEventID: notification.Monitor.ID,
 		},
+		CoalesceKey: monitorpkg.CoalescedWakeKey,
+		Coalesce: &store.SessionInputCoalesce{
+			CompactText:  notification.CompactMessage(),
+			MaxFullBytes: monitorpkg.MaxCoalescedWakeBytes,
+			MaxMembers:   monitorpkg.MaxCoalescedWakes,
+		},
 	}); err != nil {
 		return fmt.Errorf("daemon: deliver monitor wake to %q: %w", sessionID, err)
 	}

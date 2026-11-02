@@ -287,10 +287,10 @@ func (m *Manager) newQueuedInputPromptRequest(
 		req.delivery = PromptDelivery(entry.syntheticPrompt.Delivery)
 		req.turnSource = TurnSourceSynthetic
 		req.meta = acp.PromptMeta{TurnSource: acp.PromptTurnSourceSynthetic}
-		if err := json.Unmarshal(entry.syntheticPrompt.Metadata, &req.meta.Synthetic); err != nil {
+		var err error
+		if req.meta.Synthetic, err = syntheticPromptMeta(entry.syntheticPrompt); err != nil {
 			return req, fmt.Errorf("session: decode synthetic input metadata: %w", err)
 		}
-		var err error
 		req.meta, err = normalizePromptMeta(TurnSourceSynthetic, req.meta, promptSubmissionPathSynthetic)
 		if err != nil {
 			return req, err

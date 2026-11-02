@@ -148,6 +148,7 @@ func SessionInputPayloadFromSession(input session.PendingInput) contract.Session
 		Delivery: contract.PromptDelivery(input.Delivery), Text: input.Text,
 		SteerDelivery:   input.SteerDelivery,
 		QueueGeneration: input.QueueGeneration, EnqueuedAt: input.EnqueuedAt,
+		CoalescedWakes: input.CoalescedWakes,
 	}
 	if input.Runtime != nil {
 		payload.Runtime = contract.PromptRuntimeSelectionPayloadFromSelection(input.Runtime)

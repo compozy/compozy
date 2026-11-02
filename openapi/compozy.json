@@ -25411,6 +25411,9 @@
             },
             "type": "array"
           },
+          "coalesced_wakes": {
+            "type": "integer"
+          },
           "delivery": {
             "type": "string"
           },

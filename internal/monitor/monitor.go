@@ -106,6 +106,13 @@ const (
 	deliveryRetryWindow  = 15 * time.Minute
 	deliveryRetryInitial = 2 * time.Second
 	deliveryRetryMax     = time.Minute
+	// Wakes pending for one session coalesce into a single queue row, outside the input capacity pools.
+	// Past MaxCoalescedWakeBytes a wake keeps its outcome and drops its output tail; past
+	// MaxCoalescedWakes it stays delivering and retries like any other refusal, until the row is
+	// delivered or deliveryRetryWindow leaves it undelivered.
+	CoalescedWakeKey      = "monitor"
+	MaxCoalescedWakes     = 64
+	MaxCoalescedWakeBytes = 64 << 10
 )
 
 var (

@@ -22,6 +22,7 @@ func (s *Service) EnqueueSynthetic(
 	insert.SyntheticPrompt = prompt.Clone()
 	insert.TurnID = turnID
 	insert.TaskRunID = taskRunID
+	insert.Coalesce = req.Coalesce
 	entry, _, err := s.store.EnqueueSessionInput(ctx, insert)
 	return entry, err
 }

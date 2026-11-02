@@ -98,12 +98,14 @@ and `canceled` statuses. A client that loses an acknowledgment retains the origi
 as an unconfirmed send. Retrying that identity resolves the recorded outcome without another dispatch.
 
 The queue list and session status include `queue: {entries, cap}`, so clients can show the limit
-before a send is refused. A full queue returns HTTP/UDS `409 queue_full` with `queue_cap` and
+before a send is refused. `entries` counts every pending row; `cap` bounds operator input, which
+agent messages and daemon wakes never consume. A full queue returns HTTP/UDS `409 queue_full` with `queue_cap` and
 `queue_count` in diagnostic evidence. Steering and interrupt replacements remain admitted at cap.
 An interrupt with no text or attachments only stops the active turn; it adds no replacement.
 
 Daemon-authored follow-ups use this same durable queue with `owner_kind: "synthetic"`. They retain
-their prompt metadata through restart and share the dispatch order with human follow-ups. Goal-engine
+their prompt metadata through restart and share the dispatch order with human follow-ups. Monitor
+wakes pending for one session merge into one row that reports `coalesced_wakes`. Goal-engine
 prompts remain internal: queue reads and entry counts exclude them, and queue clear, edit, promote,
 and remove actions cannot control them. Use the dedicated Goal controls to pause or stop Goal work.
 

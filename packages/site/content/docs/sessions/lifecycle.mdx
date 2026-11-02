@@ -335,7 +335,8 @@ session's transcript.
 An active session still processes one prompt turn at a time, but CompozyOS accepts explicit busy-input
 modes so operators and agents do not have to guess what happens when a prompt is already running.
 `session.busy_input.default_mode` defaults to `steer`; `session.busy_input.queue_cap` bounds
-the persisted queue.
+operator input in the persisted queue, and agent messages hold a separate pool of the same size.
+Monitor wakes merge into one row per session, so they never refuse the operator.
 
 The Web composer is available for active and eligible stopped `user`, `system`, `coordinator`, and
 `spawned` sessions. While one of these sessions is busy, the Web controls can queue a prompt, steer

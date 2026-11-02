@@ -20,6 +20,9 @@ type SyntheticPromptOpts struct {
 	TurnID                  string
 	SkipIfBusy              bool
 	InterruptIfAgentWaiting bool
+	// CoalesceKey merges this wake into the session's open wake row of the same key, under Coalesce.
+	CoalesceKey string
+	Coalesce    *store.SessionInputCoalesce
 }
 
 // PromptSynthetic admits daemon-owned work to the shared durable queue.
@@ -184,5 +187,6 @@ func (m *Manager) EnqueueSyntheticWake(
 		return store.SessionInputQueueEntry{}, err
 	}
 	m.startNextQueuedInputPrompt(session.ID)
+	m.schedulePromoteLongTurnQueuedInputs(session)
 	return entry, nil
 }

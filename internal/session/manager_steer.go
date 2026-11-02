@@ -154,7 +154,7 @@ func (m *Manager) activateSteerFallback(
 func (m *Manager) agentSteerYieldsToOperator(
 	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry,
 ) bool {
-	if entry.OriginClass != store.SessionInputOriginClassAgent {
+	if store.IsHumanSessionInputOriginClass(entry.OriginClass) {
 		return false
 	}
 	entries, err := m.inputQueue.List(ctx, session.ID)
@@ -293,9 +293,19 @@ func (m *Manager) injectedSteerInputRequest(
 	if err != nil {
 		return promptRequest{}, err
 	}
+	meta, turnSource := acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser, Origin: origin}, TurnSourceUser
+	if entry.SyntheticPrompt != nil {
+		// A promoted wake stays a daemon wake in the transcript instead of reading as operator input.
+		synthetic, err := syntheticPromptMeta(entry.SyntheticPrompt)
+		if err != nil {
+			return promptRequest{}, err
+		}
+		meta, turnSource = acp.PromptMeta{TurnSource: acp.PromptTurnSourceSynthetic, Synthetic: synthetic},
+			TurnSourceSynthetic
+	}
 	return promptRequest{
-		meta:   acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser, Origin: origin},
-		target: session.ID, turnID: entry.TargetTurnID, turnSource: TurnSourceUser,
+		meta:   meta,
+		target: session.ID, turnID: entry.TargetTurnID, turnSource: turnSource,
 		message: entry.Text, authoredMessage: entry.Text,
 		messageID: entry.MessageID, idempotencyKey: entry.IdempotencyKey, eventID: entry.EventID,
 		runtime: runtimeSelectionFromStore(entry.Runtime), skillInvocations: entry.SkillInvocations,

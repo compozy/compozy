@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Button, OwnerAvatar, Skeleton, Spinner } from "@compozy/ui";
 
 import {
+  coalescedWakesLabel,
   isQueuedPromptMutable,
   type QueuedPrompt,
   type QueuedPromptAttachmentSummary,
@@ -381,7 +382,9 @@ export function SessionQueueEntryRow({
       <ListPlus aria-hidden="true" className="size-3 shrink-0 text-faint" />
       {prompt.owner ? <SessionQueuedOwner owner={prompt.owner} /> : null}
       {prompt.attachments ? <SessionQueuedAttachmentWell summary={prompt.attachments} /> : null}
-      <SessionQueuedPreview text={prompt.text} />
+      <SessionQueuedPreview
+        text={prompt.coalescedWakes ? coalescedWakesLabel(prompt.coalescedWakes) : prompt.text}
+      />
       {dispatching ? (
         <SessionQueuedState spinning testId="composer-queued-state">
           Sending…
