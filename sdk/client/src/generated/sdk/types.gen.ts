@@ -7066,7 +7066,10 @@ export type SessionMonitorPayload = {
   pattern?: string;
   reason?: string;
   session_id: string;
+  states?: Array<string>;
   status: string;
+  target_session_ids?: Array<string>;
+  targets?: Array<SessionMonitorTargetPayload>;
   terminal_id?: string;
   until?: string;
 };
@@ -7077,6 +7080,13 @@ export type SessionMonitorResponse = {
 
 export type SessionMonitorSummaryPayload = {
   active: number;
+};
+
+export type SessionMonitorTargetPayload = {
+  matched: boolean;
+  name?: string;
+  session_id: string;
+  state: string;
 };
 
 export type SessionMonitorsResponse = {

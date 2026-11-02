@@ -1367,6 +1367,75 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should watch same-workspace sessions and refuse any other target", func(t *testing.T) {
+		t.Parallel()
+		sessions := nativeTestSessionManager("ws-1")
+		targets := monitorSessionTargets{sessions: func() any { return sessions }}
+		service, err := monitorpkg.NewService(t.Context(), nil, &monitorSessionWaker{},
+			monitorpkg.WithSessionTargets(targets))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+				t.Error(err)
+			}
+		})
+		status := sessions.StatusFn
+		sessions.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+			info, err := status(ctx, id)
+			if err == nil && id == "sess-other" {
+				info.WorkspaceID = "ws-2"
+			}
+			if err == nil && id == "sess-foreign" {
+				info.ProfileID = "profile-other"
+			}
+			if err == nil {
+				info.State = session.StateStarting
+			}
+			return info, err
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   sessions,
+			Workspaces: nativeTestWorkspaceServiceWithRoot(t, t.TempDir()),
+			Monitors:   func() *monitorpkg.Service { return service },
+		}, nativeApproveAllPolicyInputs())
+		call := func(input string) (toolspkg.ToolResult, error) {
+			return registry.Call(t.Context(), toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1"},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDMonitorCreate, Input: json.RawMessage(input)})
+		}
+		for _, tc := range []struct {
+			name, target string
+			code         toolspkg.ErrorCode
+		}{
+			{"Should refuse a target in another workspace", "sess-other", toolspkg.ErrorCodeDenied},
+			{"Should refuse a target in another profile", "sess-foreign", toolspkg.ErrorCodeDenied},
+			{"Should refuse the calling session", "sess-1", toolspkg.ErrorCodeDenied},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := call(`{"kind":"session","description":"wait","target_session_ids":["` + tc.target + `"]}`)
+				requireToolCode(t, err, tc.code)
+				if len(service.List("sess-1")) != 0 {
+					t.Fatal("refused target created a monitor")
+				}
+			})
+		}
+		_, err = call(`{"kind":"session","description":"wait","target_session_ids":["sess-1"]}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+		_, err = call(`{"kind":"timer","description":"wait","delay_seconds":5,"target_session_ids":["sess-foreign"]}`)
+		requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
+		if _, err := call(
+			`{"kind":"session","description":"wait","target_session_ids":["sess-2","sess-3"],"until":"any"}`,
+		); err != nil {
+			t.Fatalf("Call() error = %v", err)
+		}
+		listed := service.List("sess-1")
+		if len(listed) != 1 || listed[0].Kind != monitorpkg.KindSession || listed[0].Until != monitorpkg.UntilAny ||
+			!slices.Equal(listed[0].TargetSessionIDs, []string{"sess-2", "sess-3"}) {
+			t.Fatalf("monitors = %+v, want the session monitor", listed)
+		}
+	})
+
 	t.Run("Should read assistant answers without hydrating tool payloads", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

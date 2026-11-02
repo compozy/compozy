@@ -83,7 +83,8 @@ func (s *Service) entryFromRecord(record Record) (*entry, error) {
 	})
 	item := &entry{
 		state: mon, terminalKey: key, timeout: record.Timeout, workspaceID: record.WorkspaceID,
-		profileID: record.ProfileID, binding: record.OwnerBinding, version: record.Version,
+		sessionKey: sessionKey(Spec{Kind: mon.Kind, Targets: mon.TargetSessionIDs, States: mon.States}),
+		profileID:  record.ProfileID, binding: record.OwnerBinding, version: record.Version,
 		ownerCheckFailedAt: record.OwnerCheckFailedAt,
 	}
 	if mon.Kind == KindPullRequest {
@@ -345,7 +346,9 @@ func (s *Service) runRecovered(ctx context.Context, mon Monitor, item *entry) {
 		}()
 		s.deliver(ctx, item, Notification{
 			Monitor: mon,
-			Outcome: Outcome{Reason: mon.Reason, ExitCode: mon.ExitCode, OutputLost: mon.Kind == KindTerminal},
+			Outcome: Outcome{
+				Reason: mon.Reason, ExitCode: mon.ExitCode, OutputLost: mon.Kind == KindTerminal, Targets: mon.Targets,
+			},
 		})
 		return
 	}
@@ -353,20 +356,35 @@ func (s *Service) runRecovered(ctx context.Context, mon Monitor, item *entry) {
 	spec := Spec{
 		WorkspaceID: item.workspaceID, ProfileID: item.profileID, SessionID: mon.SessionID, Kind: mon.Kind,
 		Description: mon.Description, TerminalID: mon.TerminalID, Until: mon.Until, Pattern: mon.Pattern,
+		Targets: mon.TargetSessionIDs, States: mon.States,
 	}
-	var watch TerminalWatch
-	if mon.Kind == KindTimer {
+	var watch Watch
+	switch mon.Kind {
+	case KindTimer:
 		spec.Delay = remaining
-	} else {
+	case KindSession:
+		spec.Timeout = max(remaining, recoveredMinTerminalWait)
+		watch = s.recoveredSessionWatch(spec)
+	case KindTerminal:
 		spec.Timeout = max(remaining, recoveredMinTerminalWait)
 		watch = s.recoveredWatch(ctx, spec)
 	}
 	s.run(ctx, item, mon, spec, watch)
 }
 
+// recoveredSessionWatch re-evaluates the targets as they are now, so a target that changed while the
+// daemon was down is not lost. A daemon without a target reader cannot evaluate them, so the monitor
+// reports a timeout instead of waiting for a condition it can never observe.
+func (s *Service) recoveredSessionWatch(spec Spec) Watch {
+	if s.targets != nil {
+		return s.sessionWatch(spec)
+	}
+	return func(context.Context) (Outcome, error) { return Outcome{Reason: ReasonTimeout}, nil }
+}
+
 // recoveredWatch re-attaches to a terminal that still exists; a missing terminal
 // reports unavailable instead of rerunning anything.
-func (s *Service) recoveredWatch(ctx context.Context, spec Spec) TerminalWatch {
+func (s *Service) recoveredWatch(ctx context.Context, spec Spec) Watch {
 	if s.terminals != nil {
 		if watch, err := s.terminals.WatchTerminal(ctx, spec); err == nil {
 			return watch

@@ -20,7 +20,7 @@ func detectPullRequest(cur prCursor, obs PullRequestObservation, now time.Time) 
 	case PullRequestAbsent:
 		next.OutageSince, next.OutageReported = time.Time{}, false
 		if burstDue(next.Burst, now) {
-			return flushBurst(PullRequestChanges{Number: cur.Number, Head: cur.Head}, next)
+			return flushBurst(PullRequestChanges{Number: cur.Number, URL: cur.URL, Head: cur.Head}, next)
 		}
 		return PullRequestChanges{}, next
 	}
@@ -34,6 +34,7 @@ func detectPullRequest(cur prCursor, obs PullRequestObservation, now time.Time) 
 	}
 	changes := PullRequestChanges{Number: obs.Number, URL: obs.URL, State: obs.State, Head: obs.Head}
 	next = resetForNewPullRequest(next, obs)
+	next.URL = obs.URL
 	if terminal {
 		changes.Terminal, changes.Wake = obs.State, true
 		return flushBurst(changes, next)

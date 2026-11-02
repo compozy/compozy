@@ -3,6 +3,7 @@ package globaldb
 import (
 	"errors"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"testing"
 	"time"
@@ -178,9 +179,9 @@ func TestGlobalDBSessionMonitorKindMigration(t *testing.T) {
 	t.Run("Should keep existing monitors and admit the new kind", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00174_schema.sql"))
+		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00175_schema.sql"))
 		if err != nil {
-			t.Fatalf("open prefix before 00174 error = %v", err)
+			t.Fatalf("open prefix before 00175 error = %v", err)
 		}
 		ctx := globalMigrationTestContext(t)
 		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO session_monitors (
@@ -188,14 +189,14 @@ func TestGlobalDBSessionMonitorKindMigration(t *testing.T) {
 			created_at, deadline_at, exit_code, owner_binding, version
 		) VALUES ('mon-aaaaaaaaaaaa', 'sess-1', 'ws-1', 'prof-1', 'terminal', 'wait for CI', 'term-1', 'exit', 60000,
 			'active', '2026-11-01T09:00:00Z', '2026-11-01T10:00:00Z', 3, 'binding', 4)`); err != nil {
-			t.Fatalf("seed monitor before 00174 error = %v", err)
+			t.Fatalf("seed monitor before 00175 error = %v", err)
 		}
 		if err := prefixDB.Close(); err != nil {
-			t.Fatalf("close prefix before 00174 error = %v", err)
+			t.Fatalf("close prefix before 00175 error = %v", err)
 		}
 		upgraded, err := openGlobalMigrationUpgrade(t, path)
 		if err != nil {
-			t.Fatalf("upgrade through 00174 error = %v", err)
+			t.Fatalf("upgrade through 00175 error = %v", err)
 		}
 		t.Cleanup(func() {
 			if closeErr := upgraded.Close(testutil.Context(t)); closeErr != nil {
@@ -250,6 +251,90 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 		WorkspaceID: "ws-1", ProfileID: "prof-1", Timeout: time.Hour, OwnerBinding: `{"turn_id":""}`, Version: 1,
 		OwnerCheckFailedAt: at.Add(time.Minute),
 	}
+	t.Run("Should store session targets and record their fired states", func(t *testing.T) {
+		watch := monitor.Record{
+			Monitor: monitor.Monitor{
+				ID: "mon-cccccccccccc", SessionID: "sess-2", Kind: monitor.KindSession, Description: "wait for workers",
+				Until: monitor.UntilAll, Status: monitor.StatusActive, CreatedAt: at, DeadlineAt: at.Add(time.Hour),
+				TargetSessionIDs: []string{"sess-a", "sess-b"}, States: []string{monitor.TargetStateIdle},
+			},
+			WorkspaceID: "ws-1", ProfileID: "prof-1", Timeout: time.Hour, Version: 1,
+		}
+		if err := db.SaveMonitor(ctx, watch); err != nil {
+			t.Fatal(err)
+		}
+		watch.Monitor.Status = monitor.StatusDelivering
+		watch.Monitor.FiredAt = at.Add(time.Minute)
+		watch.Monitor.Reason = monitor.ReasonConditionMet
+		watch.Monitor.Targets = []monitor.TargetStatus{
+			{SessionID: "sess-a", Name: "Worker A", State: monitor.TargetStateIdle, Matched: true},
+			{SessionID: "sess-b", State: monitor.TargetStateGone, Matched: true},
+		}
+		watch.Version = 2
+		if err := db.SaveMonitor(ctx, watch); err != nil {
+			t.Fatal(err)
+		}
+		got, err := db.LoadMonitors(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		index := slices.IndexFunc(
+			got,
+			func(record monitor.Record) bool { return record.Monitor.ID == watch.Monitor.ID },
+		)
+		if index < 0 || !reflect.DeepEqual(got[index].Monitor, watch.Monitor) {
+			t.Fatalf("LoadMonitors() = %+v; want %+v", got, watch.Monitor)
+		}
+		if _, err := db.DB().
+			ExecContext(ctx, `DELETE FROM session_monitors WHERE id = ?`, watch.Monitor.ID); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should preserve terminal and timer monitors across the session kind migration", func(t *testing.T) {
+		upgradePath := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefix, err := openGlobalMigrationPrefixDatabase(
+			t,
+			upgradePath,
+			globalMigrationPrefixBefore(t, "00174_schema.sql"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		const seed = `INSERT INTO session_monitors
+   (id,session_id,workspace_id,profile_id,kind,description,terminal_id,until,timeout_ms,status,created_at,deadline_at,owner_binding,version)
+   VALUES (?,'sess-1','ws-1','prof-1',?,'wait',?,?,3600000,'active','2026-11-01T09:00:00Z','2026-11-01T10:00:00Z','binding',3)`
+		_, terminalErr := prefix.ExecContext(ctx, seed, "mon-terminal", "terminal", "term-1", "exit")
+		_, timerErr := prefix.ExecContext(ctx, seed, "mon-timer", "timer", "", "")
+		if err := errors.Join(terminalErr, timerErr, prefix.Close()); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, upgradePath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := upgraded.LoadMonitors(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 2 || got[0].Monitor.ID != "mon-terminal" || got[0].Monitor.TerminalID != "term-1" ||
+			got[0].Monitor.Until != "exit" || got[0].OwnerBinding != "binding" || got[0].Version != 3 ||
+			got[1].Monitor.ID != "mon-timer" || got[1].Monitor.Kind != monitor.KindTimer ||
+			got[0].Monitor.TargetSessionIDs != nil {
+			t.Fatalf("migrated monitors = %+v", got)
+		}
+		if err := upgraded.SaveMonitor(ctx, monitor.Record{
+			Monitor: monitor.Monitor{
+				ID: "mon-session", SessionID: "sess-1", Kind: monitor.KindSession, Description: "wait",
+				Status: monitor.StatusActive, CreatedAt: at, DeadlineAt: at, TargetSessionIDs: []string{"sess-a"},
+			},
+			WorkspaceID: "ws-1", ProfileID: "prof-1", Version: 1,
+		}); err != nil {
+			t.Fatalf("SaveMonitor(session) error = %v, want the widened kind accepted", err)
+		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+	})
 	t.Run("Should round-trip the definition, owner binding, and version across a reopen", func(t *testing.T) {
 		if err := db.SaveMonitor(ctx, active); err != nil {
 			t.Fatal(err)
@@ -260,10 +345,11 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 		// The reopened handle belongs to the suite, not this subtest, so later subtests keep using it.
 		db = openGlobalDBForTest(suite, path)
 		got, err := db.LoadMonitors(ctx)
-		if err != nil || len(got) != 1 || got[0].Monitor != active.Monitor || got[0].Timeout != time.Hour ||
-			got[0].OwnerBinding != active.OwnerBinding ||
+		if err != nil || len(got) != 1 || !reflect.DeepEqual(got[0].Monitor, active.Monitor) ||
+			got[0].Timeout != time.Hour || got[0].OwnerBinding != active.OwnerBinding ||
 			!got[0].OwnerCheckFailedAt.Equal(active.OwnerCheckFailedAt) ||
-			got[0].WorkspaceID != "ws-1" || got[0].ProfileID != "prof-1" || got[0].Version != active.Version {
+			got[0].WorkspaceID != "ws-1" || got[0].ProfileID != "prof-1" ||
+			got[0].Version != active.Version {
 			t.Fatalf("LoadMonitors() = %+v, %v; want %+v", got, err, active)
 		}
 	})
@@ -291,7 +377,7 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 			t.Fatal(err)
 		}
 		index := slices.IndexFunc(records, func(r monitor.Record) bool { return r.Monitor.ID == watch.Monitor.ID })
-		if index < 0 || records[index].Monitor != fired.Monitor || records[index].RepoKey != watch.RepoKey ||
+		if index < 0 || !reflect.DeepEqual(records[index].Monitor, fired.Monitor) || records[index].RepoKey != watch.RepoKey ||
 			records[index].Cursor != fired.Cursor {
 			t.Fatalf("LoadMonitors() = %+v, want %+v", records, fired)
 		}

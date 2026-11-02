@@ -1,8 +1,8 @@
 // Package monitor owns daemon-native session monitors: durable-for-the-daemon
 // watches that wake their owning agent session when a terminal exits, a
-// terminal prints a pattern, a timer elapses, or a pull request changes.
-// Terminal and timer monitors fire once; a pull_request monitor stays armed
-// across wakes. Provider-internal background
+// terminal prints a pattern, a timer elapses, other sessions reach a state, or a
+// pull request changes. Only a pull_request monitor fires more than once: it stays
+// armed across wakes. Provider-internal background
 // mechanisms (Claude Code Monitor/run_in_background, Codex background
 // terminals) cannot start a Compozy turn, so the daemon owns the wake.
 package monitor
@@ -24,6 +24,8 @@ const (
 	KindTimer Kind = "timer"
 	// KindPullRequest watches a branch's pull request through the forge and fires on each meaningful change.
 	KindPullRequest Kind = "pull_request"
+	// KindSession watches other sessions until any or all of them reach a state.
+	KindSession Kind = "session"
 )
 
 // Status is the lifecycle state of one monitor.
@@ -50,6 +52,12 @@ const (
 	UntilMatch = "match"
 )
 
+// Session wait conditions accepted by session monitors.
+const (
+	UntilAny = "any"
+	UntilAll = "all"
+)
+
 // Outcome reasons reported to the woken agent.
 const (
 	ReasonExit           = "exit"
@@ -58,6 +66,8 @@ const (
 	ReasonStalled        = "stalled"
 	ReasonTimerElapsed   = "timer_elapsed"
 	ReasonTerminalFailed = "terminal_unavailable"
+	// ReasonConditionMet marks a session monitor whose any or all condition held.
+	ReasonConditionMet = "condition_met"
 	// ReasonSessionStopped marks a monitor canceled because its owner was stopped on purpose.
 	ReasonSessionStopped = "session_stopped"
 	// ReasonOwnerPrefix prefixes the restart-eligibility reason that kept an owner from resuming.
@@ -84,6 +94,9 @@ const (
 	MaxPullRequestTimeout     = 24 * time.Hour
 	MinTimerDelay             = 5 * time.Second
 	MaxTimerDelay             = 24 * time.Hour
+	MaxSessionTargets         = 32
+	DefaultSessionTimeout     = 2 * time.Hour
+	MaxSessionTimeout         = 6 * time.Hour
 	// Finished monitors stay listable for inspection, bounded per session and in time.
 	retainedFinishedPerSession = 16
 	finishedRetention          = time.Hour
@@ -124,6 +137,10 @@ type Spec struct {
 	Timeout time.Duration
 	// Delay is the timer monitor duration.
 	Delay time.Duration
+	// Targets are the sessions a session monitor watches.
+	Targets []string
+	// States are the target states that satisfy a session monitor. Empty selects the default set.
+	States []string
 }
 
 // Monitor is the observable state of one monitor.
@@ -145,6 +162,12 @@ type Monitor struct {
 	// FireCount and LastFiredAt track a repeating monitor's wakes; FiredAt stays the moment it ended.
 	FireCount   int       `json:"fire_count,omitempty"`
 	LastFiredAt time.Time `json:"last_fired_at,omitzero"`
+	// TargetSessionIDs and States define a session monitor.
+	TargetSessionIDs []string `json:"target_session_ids,omitempty"`
+	States           []string `json:"states,omitempty"`
+	// Targets is each target's state when a session monitor fired. It is stored with the monitor, so
+	// a wake re-delivered after a restart reports what fired it.
+	Targets []TargetStatus `json:"targets,omitempty"`
 	// Reused marks a Create that returned an already-active identical terminal
 	// monitor instead of registering a duplicate wake. It is not part of the wire shape.
 	Reused bool `json:"-"`
@@ -158,6 +181,8 @@ type Outcome struct {
 	Output string
 	// OutputLost marks a wake re-delivered after a restart: the terminal output it carried was not retained.
 	OutputLost bool
+	// Targets is each target's state for a session monitor.
+	Targets []TargetStatus
 }
 
 func normalizeSpec(spec Spec) (Spec, error) {
@@ -168,6 +193,9 @@ func normalizeSpec(spec Spec) (Spec, error) {
 	spec.TerminalID = strings.TrimSpace(spec.TerminalID)
 	spec.Until = strings.TrimSpace(spec.Until)
 	spec.Branch = strings.TrimSpace(spec.Branch)
+	if spec.Kind != KindSession && (len(spec.Targets) != 0 || len(spec.States) != 0) {
+		return Spec{}, invalid("target_session_ids and states require kind session")
+	}
 	if spec.SessionID == "" || spec.WorkspaceID == "" {
 		return Spec{}, invalid("session and workspace are required")
 	}
@@ -188,8 +216,10 @@ func normalizeSpec(spec Spec) (Spec, error) {
 		}
 		spec.Timeout = 0
 		return spec, nil
+	case KindSession:
+		return normalizeSessionSpec(spec)
 	default:
-		return Spec{}, invalid("kind must be terminal, timer or pull_request")
+		return Spec{}, invalid("kind must be terminal, timer, session or pull_request")
 	}
 }
 

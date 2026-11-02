@@ -143,6 +143,36 @@ describe("MonitorComposerControl", () => {
     expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
   });
 
+  it("Should describe a session monitor by how many sessions it waits on", async () => {
+    const user = userEvent.setup();
+    renderControl({
+      active: 2,
+      monitors: [
+        monitor({
+          kind: "session",
+          description: "Wait for the migration workers",
+          until: "all",
+          target_session_ids: ["sess-a", "sess-b"],
+        }),
+        monitor({
+          monitor_id: "mon-2",
+          kind: "session",
+          description: "Wait for the first worker",
+          until: "any",
+          target_session_ids: ["sess-a"],
+        }),
+      ],
+    });
+    await user.click(screen.getByRole("button", { name: "Monitors, 2 active" }));
+
+    expect(screen.getByTestId("composer-monitor-mon-1")).toHaveTextContent(
+      /All of 2 sessions·gives up/
+    );
+    expect(screen.getByTestId("composer-monitor-mon-2")).toHaveTextContent(
+      /Any of 1 session·gives up/
+    );
+  });
+
   it("Should keep cached monitors visible and offer a retry when a refresh fails", async () => {
     const user = userEvent.setup();
     const onRetry = vi.fn();

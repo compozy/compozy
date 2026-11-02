@@ -18,8 +18,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from qa_skill_paths import real_scenario_script
+from qa_provider_resources import prepare_provider_home, set_provider_usage
 
-ALLOWED_PROVIDER_FILES = ("auth.json", "installation_id", "version.json")
 MAX_UNIX_SOCKET_PATH_BYTES = 103
 
 
@@ -138,42 +138,7 @@ def detect_browser_mode(codex_home: Path) -> tuple[str, str]:
     return "blocked", "Neither browser-use nor agent-browser CLI is available"
 
 
-def safe_symlink(target: Path, link: Path) -> None:
-    link.parent.mkdir(parents=True, exist_ok=True)
-    if link.exists() or link.is_symlink():
-        if link.is_symlink() and link.resolve() == target.resolve():
-            return
-        if link.is_dir() and not link.is_symlink():
-            shutil.rmtree(link)
-        else:
-            link.unlink()
-    link.symlink_to(target)
-
-
-def prepare_provider_home(global_codex_home: Path, provider_home: Path) -> Path:
-    provider_home.mkdir(parents=True, exist_ok=True)
-    provider_codex_home = provider_home / ".codex"
-    provider_codex_home.mkdir(parents=True, exist_ok=True)
-
-    for filename in ALLOWED_PROVIDER_FILES:
-        source = global_codex_home / filename
-        if source.is_file():
-            shutil.copy2(source, provider_codex_home / filename)
-
-    safe_symlink(global_codex_home / "skills", provider_codex_home / "skills")
-    safe_symlink(global_codex_home / "plugins" / "cache", provider_codex_home / "plugins" / "cache")
-
-    config_path = provider_codex_home / "config.toml"
-    if not config_path.exists():
-        config_path.write_text(
-            "# Isolated QA provider config.\n"
-            "# Keep this minimal so provider launches do not inherit user-global hooks or loop state.\n",
-            encoding="utf-8",
-        )
-    return provider_codex_home
-
-
-def write_runtime_config(compozy_home: Path, http_port: str, uds_path: str) -> None:
+def write_runtime_config(compozy_home: Path, http_port: str, uds_path: str, provider_usage: bool = False) -> None:
     config_path = compozy_home / "config.toml"
     config_path.write_text(
         "[http]\n"
@@ -181,7 +146,9 @@ def write_runtime_config(compozy_home: Path, http_port: str, uds_path: str) -> N
         f"port = {http_port}\n"
         "\n"
         "[daemon]\n"
-        f"socket = {json.dumps(uds_path)}\n",
+        f"socket = {json.dumps(uds_path)}\n"
+        "\n[provider_usage]\n"
+        f"enabled = {str(provider_usage).lower()}\n",
         encoding="utf-8",
     )
 
@@ -601,7 +568,7 @@ def seed_qa_evidence_contracts(
     else:
         write_json_if_absent(
             charter_path,
-            build_charter_skeleton(scenario_slug, provider_required=requested_profile != "targeted"),
+            build_charter_skeleton(scenario_slug, provider_required="provider" in scenario_contract["minimums"]["surfaces_required"]),
         )
     if not journey_log_path.exists():
         journey_log_path.write_text("", encoding="utf-8")
@@ -658,6 +625,8 @@ def main() -> int:
         default=[],
         help="Surface required by a targeted profile; repeat for every surface in scope.",
     )
+    parser.add_argument("--enable-provider-usage", action="store_true",
+                        help="Allow provider usage collection in a live-provider scenario")
     args = parser.parse_args()
 
     repo_root = Path(args.repo_root).resolve()
@@ -756,7 +725,14 @@ def main() -> int:
                     "short QA runtime paths still exceed Unix socket limits: " + "; ".join(followup_violations)
                 )
 
-    provider_codex_home = prepare_provider_home(global_codex_home, provider_home)
+    contract = load_json(evidence_paths["SCENARIO_CONTRACT"])
+    live_provider = "provider" in contract["minimums"]["surfaces_required"]
+    provider_usage = args.enable_provider_usage
+    if reused_lab and existing_manifest is not None:
+        provider_usage = provider_usage or existing_manifest.get("provider_access", {}).get("usage_enabled", False)
+    if provider_usage and not live_provider:
+        parser.error("--enable-provider-usage requires a live-provider scenario")
+    provider_codex_home = prepare_provider_home(global_codex_home, provider_home, live_provider)
 
     env_block: dict[str, str]
     if reused_lab and existing_manifest is not None:
@@ -790,7 +766,10 @@ def main() -> int:
             "KICKOFF_POSTED": "false",
             "KICKOFF_TIMESTAMP": "",
         }
-        write_runtime_config(compozy_home, env_block["COMPOZY_HTTP_PORT"], env_block["COMPOZY_UDS_PATH"])
+        write_runtime_config(compozy_home, env_block["COMPOZY_HTTP_PORT"], env_block["COMPOZY_UDS_PATH"], provider_usage)
+
+    if reused_lab:
+        set_provider_usage(compozy_home / "config.toml", provider_usage)
 
     env_block["SCENARIO_SLUG"] = workspace_info["SCENARIO_SLUG"]
     env_block["WORKSPACE_PATH"] = str(workspace_path)
@@ -851,6 +830,12 @@ def main() -> int:
             "provider_attempt": str(evidence_paths["PROVIDER_ATTEMPT"]),
             "audit_command": str(evidence_paths["AUDIT_COMMAND"]),
             "teardown_command": env_block["TEARDOWN_COMMAND"],
+        },
+        "provider_access": {
+            "live_provider": live_provider,
+            "resources_enabled": live_provider,
+            "usage_enabled": provider_usage,
+            "reason": "scenario requires provider" if live_provider else "no provider surface required",
         },
         "project_contract": project_contract,
     }

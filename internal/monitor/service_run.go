@@ -8,7 +8,7 @@ import (
 
 // run owns one monitor from watch to admitted wake. Every exit path is ctx
 // cancellation (cancel, session stop, shutdown) or a recorded terminal status.
-func (s *Service) run(ctx context.Context, item *entry, created Monitor, spec Spec, watch TerminalWatch) {
+func (s *Service) run(ctx context.Context, item *entry, created Monitor, spec Spec, watch Watch) {
 	if spec.Kind == KindPullRequest {
 		s.runPullRequest(ctx, item)
 		return
@@ -46,7 +46,7 @@ func (s *Service) logInterrupted(item *entry) {
 	s.mu.Unlock()
 }
 
-func (s *Service) observe(ctx context.Context, spec Spec, watch TerminalWatch) (Outcome, bool) {
+func (s *Service) observe(ctx context.Context, spec Spec, watch Watch) (Outcome, bool) {
 	if spec.Kind == KindTimer {
 		timer := time.NewTimer(spec.Delay)
 		defer timer.Stop()
@@ -58,7 +58,7 @@ func (s *Service) observe(ctx context.Context, spec Spec, watch TerminalWatch) (
 		}
 	}
 	outcome, err := watch(ctx)
-	if ctx.Err() != nil {
+	if ctx.Err() != nil || errors.Is(err, errWatchQuiesced) {
 		return Outcome{}, false
 	}
 	if err != nil {
@@ -115,6 +115,7 @@ func (s *Service) markFired(item *entry, outcome Outcome) (Monitor, Record, bool
 	item.state.FiredAt = s.now()
 	item.state.Reason = outcome.Reason
 	item.state.ExitCode = outcome.ExitCode
+	item.state.Targets = outcome.Targets
 	s.logLifecycle("monitor.fired", item.state, outcome.Reason)
 	state, record := item.state, s.decideLocked(item)
 	s.mu.Unlock()

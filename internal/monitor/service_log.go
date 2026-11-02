@@ -146,7 +146,7 @@ func (s *Service) logLifecycleCause(event string, mon Monitor, reason, cause str
 	case "registered", "requested", "session_stopped", "daemon_shutdown", "admission_retry",
 		ReasonExit, ReasonMatch, ReasonTimeout, ReasonStalled, ReasonTimerElapsed, ReasonTerminalFailed,
 		ReasonPullRequestChanged, ReasonPullRequestMerged, ReasonPullRequestClosed, ReasonForgeUnavailable,
-		ReasonFireCapReached:
+		ReasonFireCapReached, ReasonConditionMet, "sweep_only":
 	default:
 		// Owner restart-eligibility reasons come from a fixed vocabulary, never from user input.
 		if !strings.HasPrefix(reason, ReasonOwnerPrefix) {

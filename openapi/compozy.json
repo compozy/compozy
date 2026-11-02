@@ -25719,8 +25719,26 @@
           "session_id": {
             "type": "string"
           },
+          "states": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "status": {
             "type": "string"
+          },
+          "target_session_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "targets": {
+            "items": {
+              "$ref": "#/components/schemas/SessionMonitorTargetPayload"
+            },
+            "type": "array"
           },
           "terminal_id": {
             "type": "string"
@@ -25759,6 +25777,28 @@
         },
         "required": [
           "active"
+        ],
+        "type": "object"
+      },
+      "SessionMonitorTargetPayload": {
+        "properties": {
+          "matched": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "matched",
+          "session_id",
+          "state"
         ],
         "type": "object"
       },

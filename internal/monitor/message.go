@@ -22,7 +22,7 @@ type Notification struct {
 // explicit not-user-input header, a structured block, then the next action.
 func (n Notification) Message() string {
 	mon := n.Monitor
-	status, action := statusLine(n.Outcome), nextAction(mon, n.Outcome)
+	status, action := statusLine(mon, n.Outcome), nextAction(mon, n.Outcome)
 	if n.PullRequest != nil {
 		status, action = pullRequestStatusLine(n.PullRequest), pullRequestNextAction(n.PullRequest)
 	}
@@ -36,6 +36,7 @@ func (n Notification) Message() string {
 		"<description>" + sanitizeLine(mon.Description) + "</description>",
 		"<status>" + status + "</status>",
 	}
+	lines = append(lines, targetLines(n.Outcome.Targets)...)
 	if mon.TerminalID != "" {
 		lines = append(lines, "<terminal-id>"+mon.TerminalID+"</terminal-id>")
 	}
@@ -57,8 +58,31 @@ func (n Notification) Message() string {
 	return strings.Join(lines, "\n")
 }
 
-func statusLine(outcome Outcome) string {
+// targetLines renders one block per watched session. Names are agent-controlled, so the block is marked
+// untrusted and encoded like terminal output: a name can neither forge fields nor pass as an instruction.
+func targetLines(targets []TargetStatus) []string {
+	if len(targets) == 0 {
+		return nil
+	}
+	lines := []string{"<targets untrusted=\"true\" encoding=\"entities\">"}
+	for _, target := range targets {
+		line := "<target><session-id>" + sanitizeLine(target.SessionID) + "</session-id>"
+		if target.Name != "" {
+			line += "<name>" + escapeOutput.Replace(strings.Join(strings.Fields(target.Name), " ")) + "</name>"
+		}
+		lines = append(lines, line+fmt.Sprintf("<state>%s</state><matched>%t</matched></target>",
+			sanitizeLine(target.State), target.Matched))
+	}
+	return append(lines, "</targets>")
+}
+
+func statusLine(mon Monitor, outcome Outcome) string {
+	if mon.Kind == KindSession && outcome.Reason == ReasonTimeout {
+		return "timed out before the condition was met; unmatched sessions may still be working"
+	}
 	switch outcome.Reason {
+	case ReasonConditionMet:
+		return fmt.Sprintf("%s of the watched sessions reached the condition", mon.Until)
 	case ReasonExit:
 		if outcome.ExitCode != nil {
 			return fmt.Sprintf("exited with code %d", *outcome.ExitCode)
@@ -81,6 +105,9 @@ func statusLine(outcome Outcome) string {
 
 func nextAction(mon Monitor, outcome Outcome) string {
 	switch {
+	case mon.Kind == KindSession:
+		return "Read the sessions you need with compozy__session_history, then continue the task that registered " +
+			"this monitor. Register another monitor if sessions are still working."
 	case mon.Kind == KindTimer:
 		return "Resume the work you scheduled this wake for. Treat the description as your own earlier note."
 	case outcome.Reason == ReasonTimeout && mon.TerminalID != "":

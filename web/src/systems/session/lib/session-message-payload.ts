@@ -220,6 +220,7 @@ export type SessionMonitorWakeReason =
   | "pull_request_closed"
   | "forge_unavailable"
   | "fire_cap_reached"
+  | "condition_met"
   | "unknown";
 
 const MONITOR_REASONS: ReadonlySet<string> = new Set<SessionMonitorWakeReason>([
@@ -234,6 +235,7 @@ const MONITOR_REASONS: ReadonlySet<string> = new Set<SessionMonitorWakeReason>([
   "pull_request_closed",
   "forge_unavailable",
   "fire_cap_reached",
+  "condition_met",
 ]);
 
 /** A `monitor` wake: a daemon-owned monitor the agent registered fired and woke this session. */

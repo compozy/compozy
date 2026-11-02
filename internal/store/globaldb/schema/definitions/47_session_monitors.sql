@@ -6,7 +6,7 @@ CREATE TABLE session_monitors (
   session_id TEXT NOT NULL,
   workspace_id TEXT NOT NULL,
   profile_id TEXT NOT NULL,
-  kind TEXT NOT NULL CHECK (kind IN ('terminal', 'timer', 'pull_request')),
+  kind TEXT NOT NULL CHECK (kind IN ('terminal', 'timer', 'pull_request', 'session')),
   description TEXT NOT NULL,
   terminal_id TEXT NOT NULL DEFAULT '',
   until TEXT NOT NULL DEFAULT '',
@@ -26,7 +26,11 @@ CREATE TABLE session_monitors (
   repo_key TEXT NOT NULL DEFAULT '',
   pr_cursor TEXT NOT NULL DEFAULT '',
   fire_count INTEGER NOT NULL DEFAULT 0,
-  last_fired_at TEXT NOT NULL DEFAULT ''
+  last_fired_at TEXT NOT NULL DEFAULT '',
+  -- Session monitors: the watched sessions and accepted states, and each target's state when it fired.
+  target_session_ids TEXT NOT NULL DEFAULT '[]',
+  states TEXT NOT NULL DEFAULT '[]',
+  targets TEXT NOT NULL DEFAULT '[]'
 );
 CREATE INDEX idx_session_monitors_session ON session_monitors (session_id);
 CREATE INDEX idx_session_monitors_status ON session_monitors (status, fired_at);

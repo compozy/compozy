@@ -147,6 +147,7 @@ const MONITOR_WAKE_OUTCOME: Record<SessionMonitorWakeReason, string> = {
   pull_request_closed: "Pull request closed",
   forge_unavailable: "Pull request unavailable",
   fire_cap_reached: "Wake limit reached",
+  condition_met: "Sessions settled",
   unknown: "Fired",
 };
 

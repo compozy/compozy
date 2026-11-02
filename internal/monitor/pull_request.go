@@ -124,6 +124,7 @@ type pullRequestWatch struct {
 // is durable in the same write and stays until admission or until the monitor ends undelivered.
 type prCursor struct {
 	Number      int      `json:"number,omitempty"`
+	URL         string   `json:"url,omitempty"`
 	Head        string   `json:"head,omitempty"`
 	Failed      int      `json:"failed,omitempty"`
 	FailedNames []string `json:"failed_names,omitempty"`
@@ -248,7 +249,10 @@ func (e *entry) sameWatch(candidate *entry) bool {
 	if e.pullRequest != nil && candidate.pullRequest != nil {
 		return e.target() == candidate.target()
 	}
-	return e.terminalKey != "" && e.terminalKey == candidate.terminalKey &&
+	if e.terminalKey == "" && e.sessionKey == "" {
+		return false
+	}
+	return e.terminalKey == candidate.terminalKey && e.sessionKey == candidate.sessionKey &&
 		e.state.Until == candidate.state.Until && e.state.Pattern == candidate.state.Pattern &&
 		e.timeout == candidate.timeout && e.state.Description == candidate.state.Description
 }

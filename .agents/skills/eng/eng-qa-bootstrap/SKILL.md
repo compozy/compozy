@@ -15,6 +15,8 @@ not prove runtime behavior; downstream QA owns journeys and verdicts.
 - **scenario-slug** (optional): short lab context; defaults to `release-candidate`.
 - **--playbook <ref>**: required when called by `eng-real-scenario-qa`; omitted for generic `qa-execution` infrastructure.
 - **--profile targeted --required-surface <surface>**: use for a bounded non-agent journey; repeat the surface flag for every CLI/API/Web/runtime/provider plane in scope.
+- Provider resources are opt-in through the scenario contract: `feature`, `broad`, and playbook profiles require live providers; targeted labs opt in only with `--required-surface provider`. Other targeted labs receive no copied login or global Codex skills/cache links.
+- Provider usage collection is disabled before daemon startup in every profile. Pass `--enable-provider-usage` only when a live-provider scenario explicitly needs account usage collection.
 
 ## Procedure
 
@@ -59,7 +61,7 @@ not prove runtime behavior; downstream QA owns journeys and verdicts.
 
 1. On PASS, FAIL, BLOCKED, or abort, run the manifest's exact `TEARDOWN_COMMAND`; only a confirmed continuation of the same loop may defer it.
 2. The teardown must stop the daemon, tmux server, registered PIDs, lab-root processes, and lab-port listeners without touching unrelated labs.
-3. Cite `<QA_OUTPUT_PATH>/qa/teardown.json` with `"clean": true`. Survivors are a blocking failure.
+3. Cite `<QA_OUTPUT_PATH>/qa/teardown.json` with `"clean": true`. Teardown removes copied provider files and global skills/cache links; process survivors or provider resource removal errors are blocking failures.
 4. Reserve `make qa-reap` for intentional stale-lab recovery across the machine, not normal cleanup of one active run.
 
 *Done when:* the current lab's teardown evidence is clean and no process owned by this pass remains alive.

@@ -11,6 +11,11 @@ export function monitorWatchLabel(monitor: SessionMonitorPayload): string {
   if (monitor.kind === "pull_request") {
     return monitor.branch ? `Pull request on ${monitor.branch}` : "Pull request";
   }
+  if (monitor.kind === "session") {
+    const count = monitor.target_session_ids?.length ?? 0;
+    const noun = count === 1 ? "session" : "sessions";
+    return monitor.until === "any" ? `Any of ${count} ${noun}` : `All of ${count} ${noun}`;
+  }
   if (monitor.until === "match" && monitor.pattern) {
     return `Terminal output matches ${monitor.pattern}`;
   }

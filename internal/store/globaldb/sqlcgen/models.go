@@ -1685,6 +1685,9 @@ type SessionMonitor struct {
 	PrCursor           string        `json:"pr_cursor"`
 	FireCount          int64         `json:"fire_count"`
 	LastFiredAt        string        `json:"last_fired_at"`
+	TargetSessionIds   string        `json:"target_session_ids"`
+	States             string        `json:"states"`
+	Targets            string        `json:"targets"`
 }
 
 type SessionPendingInteraction struct {

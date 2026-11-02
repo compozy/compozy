@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/json/v2"
 	"fmt"
 	"time"
 
@@ -33,6 +34,10 @@ func (g *SessionMonitorRepo) SaveMonitor(ctx context.Context, record monitor.Rec
 	if !mon.LastFiredAt.IsZero() {
 		lastFiredAt = mon.LastFiredAt.UTC().Format(time.RFC3339Nano)
 	}
+	targetSessionIDs, states, targets, err := encodeMonitorTargets(mon)
+	if err != nil {
+		return err
+	}
 	if err := g.queries.UpsertSessionMonitor(ctx, sqlcgen.UpsertSessionMonitorParams{
 		ID: mon.ID, SessionID: mon.SessionID, WorkspaceID: record.WorkspaceID, ProfileID: record.ProfileID,
 		Kind: string(mon.Kind), Description: mon.Description, TerminalID: mon.TerminalID, Until: mon.Until,
@@ -42,6 +47,7 @@ func (g *SessionMonitorRepo) SaveMonitor(ctx context.Context, record monitor.Rec
 		FiredAt:    firedAt, Reason: mon.Reason, ExitCode: exitCode, OwnerBinding: record.OwnerBinding,
 		OwnerCheckFailedAt: checkFailedAt, Version: record.Version, Branch: mon.Branch, RepoKey: record.RepoKey,
 		PrCursor: record.Cursor, FireCount: int64(mon.FireCount), LastFiredAt: lastFiredAt,
+		TargetSessionIds: targetSessionIDs, States: states, Targets: targets,
 	}); err != nil {
 		return fmt.Errorf("store: save session monitor: %w", err)
 	}
@@ -109,16 +115,52 @@ func sessionMonitorRecord(row sqlcgen.SessionMonitor) (monitor.Record, error) {
 	if row.ExitCode.Valid {
 		exitCode = new(int(row.ExitCode.Int64))
 	}
+	mon := monitor.Monitor{
+		ID: row.ID, SessionID: row.SessionID, Kind: monitor.Kind(row.Kind), Description: row.Description,
+		TerminalID: row.TerminalID, Until: row.Until, Pattern: row.Pattern, Status: monitor.Status(row.Status),
+		CreatedAt: created, DeadlineAt: deadline, FiredAt: fired, Reason: row.Reason, ExitCode: exitCode,
+		Branch: row.Branch, FireCount: int(row.FireCount), LastFiredAt: lastFired,
+	}
+	if err := decodeMonitorTargets(row, &mon); err != nil {
+		return monitor.Record{}, err
+	}
 	return monitor.Record{
-		Monitor: monitor.Monitor{
-			ID: row.ID, SessionID: row.SessionID, Kind: monitor.Kind(row.Kind), Description: row.Description,
-			TerminalID: row.TerminalID, Until: row.Until, Pattern: row.Pattern, Status: monitor.Status(row.Status),
-			CreatedAt: created, DeadlineAt: deadline, FiredAt: fired, Reason: row.Reason, ExitCode: exitCode,
-			Branch: row.Branch, FireCount: int(row.FireCount), LastFiredAt: lastFired,
-		},
-		WorkspaceID: row.WorkspaceID, ProfileID: row.ProfileID,
+		Monitor: mon, WorkspaceID: row.WorkspaceID, ProfileID: row.ProfileID,
 		Timeout:      time.Duration(row.TimeoutMs) * time.Millisecond,
 		OwnerBinding: row.OwnerBinding, OwnerCheckFailedAt: checkFailed, Version: row.Version,
 		RepoKey: row.RepoKey, Cursor: row.PrCursor,
 	}, nil
+}
+
+// encodeMonitorTargets renders the session monitor columns; other kinds store empty arrays.
+func encodeMonitorTargets(mon monitor.Monitor) (targetSessionIDs, states, targets string, err error) {
+	values := []any{mon.TargetSessionIDs, mon.States, mon.Targets}
+	encoded := make([]string, len(values))
+	for index, value := range values {
+		data, err := json.Marshal(value)
+		if err != nil {
+			return "", "", "", fmt.Errorf("store: encode session monitor %s targets: %w", mon.ID, err)
+		}
+		encoded[index] = string(data)
+	}
+	return encoded[0], encoded[1], encoded[2], nil
+}
+
+func decodeMonitorTargets(row sqlcgen.SessionMonitor, mon *monitor.Monitor) error {
+	if row.Kind != string(monitor.KindSession) {
+		return nil
+	}
+	if err := json.Unmarshal([]byte(row.TargetSessionIds), &mon.TargetSessionIDs); err != nil {
+		return fmt.Errorf("store: parse session monitor %s target_session_ids: %w", row.ID, err)
+	}
+	if err := json.Unmarshal([]byte(row.States), &mon.States); err != nil {
+		return fmt.Errorf("store: parse session monitor %s states: %w", row.ID, err)
+	}
+	if err := json.Unmarshal([]byte(row.Targets), &mon.Targets); err != nil {
+		return fmt.Errorf("store: parse session monitor %s targets: %w", row.ID, err)
+	}
+	if len(mon.Targets) == 0 {
+		mon.Targets = nil
+	}
+	return nil
 }
