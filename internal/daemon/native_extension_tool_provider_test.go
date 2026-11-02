@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -14,6 +11,8 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+const fixtureExtensionToolID toolspkg.ToolID = "ext__fixture__read"
 
 func TestDaemonExtensionToolProvider(t *testing.T) {
 	t.Parallel()
@@ -41,7 +40,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		if got, want := len(views), 1; got != want {
 			t.Fatalf("len(bootstrap tools) = %d, want %d: %#v", got, want, views)
 		}
-		if got, want := views[0].Descriptor.ID, specCycleImportTasksToolID; got != want {
+		if got, want := views[0].Descriptor.ID, fixtureExtensionToolID; got != want {
 			t.Fatalf("bootstrap tool = %q, want %q", got, want)
 		}
 	})
@@ -95,7 +94,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 					!errors.Is(err, tc.cause) {
 					t.Fatalf("List() error = %v, want wrapped cause %v", err, tc.cause)
 				}
-				if _, _, err := provider.Resolve(t.Context(), scope, specCycleImportTasksToolID); err == nil ||
+				if _, _, err := provider.Resolve(t.Context(), scope, fixtureExtensionToolID); err == nil ||
 					!strings.Contains(err.Error(), tc.message) {
 					t.Fatalf("Resolve() error = %v, want registration validation error containing %q", err, tc.message)
 				} else if tc.cause != nil && !errors.Is(err, tc.cause) {
@@ -113,22 +112,22 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 					t.Fatal("provider does not expose projection availability")
 				}
 				availability := batch.ProjectionAvailability(t.Context(), scope,
-					[]toolspkg.ToolID{specCycleImportTasksToolID})[specCycleImportTasksToolID]
+					[]toolspkg.ToolID{fixtureExtensionToolID})[fixtureExtensionToolID]
 				if availability.Executable ||
 					!slices.Contains(availability.ReasonCodes, toolspkg.ReasonBackendUnhealthy) {
 					t.Fatalf("ProjectionAvailability() = %#v, want unavailable backend", availability)
 				}
-				handle, ok, err := provider.Resolve(t.Context(), toolspkg.Scope{}, specCycleImportTasksToolID)
+				handle, ok, err := provider.Resolve(t.Context(), toolspkg.Scope{}, fixtureExtensionToolID)
 				if err != nil || !ok {
 					t.Fatalf("Resolve(unscoped) = %v, %v, want handle", ok, err)
 				}
 				_, err = handle.Call(t.Context(), toolspkg.CallRequest{
-					ToolID: specCycleImportTasksToolID, WorkspaceID: scope.WorkspaceID,
+					ToolID: fixtureExtensionToolID, WorkspaceID: scope.WorkspaceID,
 					Input: json.RawMessage(`{"pattern":"task_*.md"}`),
 				})
 				toolErr, matched := errors.AsType[*toolspkg.ToolError](err)
 				if !matched || toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
-					toolErr.ToolID != specCycleImportTasksToolID ||
+					toolErr.ToolID != fixtureExtensionToolID ||
 					!containsReason(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
 					t.Fatalf("Call() error = %v, want invalid-input ToolError with scope mismatch", err)
 				}
@@ -187,7 +186,7 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		if !ok {
 			t.Fatal("provider does not expose projection availability")
 		}
-		ids := []toolspkg.ToolID{specCycleImportTasksToolID}
+		ids := []toolspkg.ToolID{fixtureExtensionToolID}
 		availability := batch.ProjectionAvailability(t.Context(), scope, ids)
 		if !availability[ids[0]].Executable || inner.availabilityScope != canonical ||
 			!slices.Equal(inner.availabilityIDs, ids) {
@@ -240,15 +239,15 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 		scope := toolspkg.Scope{WorkspaceID: "workspace-identity", ProfileID: "profile-1"}
 		availability := batch.ProjectionAvailability(t.Context(), scope,
-			[]toolspkg.ToolID{specCycleImportTasksToolID})
+			[]toolspkg.ToolID{fixtureExtensionToolID})
 		scope.WorkspaceID = "workspace-registration"
-		if !availability[specCycleImportTasksToolID].Executable || inner.resolveScope != scope {
+		if !availability[fixtureExtensionToolID].Executable || inner.resolveScope != scope {
 			t.Fatalf("ProjectionAvailability() = %#v with scope %#v, want executable and %#v",
 				availability, inner.resolveScope, scope)
 		}
 	})
 
-	t.Run("Should attach resolved workspace authority to workspace-bound spec-cycle calls", func(t *testing.T) {
+	t.Run("Should attach resolved workspace authority to workspace-bound extension calls", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -261,8 +260,8 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 		provider := newDaemonScopedExtensionToolProvider(inner, resolver)
 		for _, toolID := range []toolspkg.ToolID{
-			specCycleWriteReviewArtifactsToolID,
-			specCycleFinalizeReviewRoundToolID,
+			toolspkg.ToolID("ext__fixture__write"),
+			toolspkg.ToolID("ext__fixture__finalize"),
 		} {
 			handle, ok, err := provider.Resolve(
 				t.Context(),
@@ -289,370 +288,6 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 			if got, want := inner.handle.request.TrustedWorkspaceRoot, root; got != want {
 				t.Fatalf("%s request.TrustedWorkspaceRoot = %q, want %q", toolID, got, want)
 			}
-		}
-	})
-
-	t.Run("Should require authenticated workspace scope for review artifact calls", func(t *testing.T) {
-		t.Parallel()
-
-		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
-		provider := newDaemonScopedExtensionToolProvider(inner, &daemonExtensionWorkspaceResolverStub{})
-		handle, ok, err := provider.Resolve(t.Context(), toolspkg.Scope{}, specCycleFinalizeReviewRoundToolID)
-		if err != nil {
-			t.Fatalf("Resolve() error = %v", err)
-		}
-		if !ok {
-			t.Fatal("Resolve() ok = false, want true")
-		}
-		_, err = handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID: specCycleFinalizeReviewRoundToolID,
-			Input:  json.RawMessage(`{"task_name":"delivery","round":1}`),
-		})
-		if err == nil {
-			t.Fatal("Call() error = nil, want workspace scope error")
-		}
-		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
-		if !toolErrMatched || !containsReason(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
-			t.Fatalf("Call() error = %v, want scope mismatch", err)
-		}
-		if inner.handle.called {
-			t.Fatal("inner handle called without trusted workspace scope")
-		}
-	})
-
-	t.Run("Should anchor spec-cycle import task patterns to workspace root", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
-		resolver := &daemonExtensionWorkspaceResolverStub{
-			resolved: workspacepkg.ResolvedWorkspace{
-				ID: "ws-1", RootDir: root,
-				WorkspaceID: "ws-1",
-			},
-		}
-		provider := newDaemonScopedExtensionToolProvider(inner, resolver)
-		handle, ok, err := provider.Resolve(
-			t.Context(),
-			toolspkg.Scope{WorkspaceID: "ws-1"},
-			specCycleImportTasksToolID,
-		)
-		if err != nil {
-			t.Fatalf("Resolve() error = %v", err)
-		}
-		if !ok {
-			t.Fatal("Resolve() ok = false, want true")
-		}
-
-		result, err := handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID:      specCycleImportTasksToolID,
-			WorkspaceID: "ws-1",
-			Input:       json.RawMessage(`{"pattern":".compozy/tasks/loops-refac/task_*.md"}`),
-		})
-		if err != nil {
-			t.Fatalf("Call() error = %v", err)
-		}
-		if len(result.Structured) == 0 {
-			t.Fatal("Call() returned empty structured result")
-		}
-
-		var input struct {
-			Pattern string `json:"pattern"`
-		}
-		if err := json.Unmarshal(inner.handle.request.Input, &input); err != nil {
-			t.Fatalf("Unmarshal(patched input) error = %v", err)
-		}
-		want := filepath.Join(root, ".compozy", "tasks", "loops-refac", "task_*.md")
-		if input.Pattern != want {
-			t.Fatalf("patched pattern = %q, want %q", input.Pattern, want)
-		}
-	})
-
-	t.Run("Should anchor spec-cycle import task patterns to the trusted worktree root", func(t *testing.T) {
-		t.Parallel()
-
-		workspaceRoot := t.TempDir()
-		worktreeRoot := t.TempDir()
-		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
-		resolver := &daemonExtensionWorkspaceResolverStub{
-			resolved: workspacepkg.ResolvedWorkspace{
-				ID: "ws-1", RootDir: workspaceRoot,
-				WorkspaceID: "ws-1",
-			},
-		}
-		provider := newDaemonScopedExtensionToolProvider(inner, resolver)
-		handle, ok, err := provider.Resolve(
-			t.Context(),
-			toolspkg.Scope{WorkspaceID: "ws-1"},
-			specCycleImportTasksToolID,
-		)
-		if err != nil {
-			t.Fatalf("Resolve() error = %v", err)
-		}
-		if !ok {
-			t.Fatal("Resolve() ok = false, want true")
-		}
-
-		_, err = handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID:               specCycleImportTasksToolID,
-			WorkspaceID:          "ws-1",
-			TrustedWorkspaceRoot: worktreeRoot,
-			Input:                json.RawMessage(`{"pattern":".compozy/tasks/example/task_*.md"}`),
-		})
-		if err != nil {
-			t.Fatalf("Call() error = %v", err)
-		}
-
-		var input struct {
-			Pattern string `json:"pattern"`
-		}
-		if err := json.Unmarshal(inner.handle.request.Input, &input); err != nil {
-			t.Fatalf("Unmarshal(patched input) error = %v", err)
-		}
-		want := filepath.Join(worktreeRoot, ".compozy", "tasks", "example", "task_*.md")
-		if input.Pattern != want {
-			t.Fatalf("patched pattern = %q, want trusted worktree pattern %q", input.Pattern, want)
-		}
-		if got := inner.handle.request.TrustedWorkspaceRoot; got != worktreeRoot {
-			t.Fatalf("TrustedWorkspaceRoot = %q, want %q", got, worktreeRoot)
-		}
-	})
-
-	t.Run("Should reject relative spec-cycle import task patterns that escape the workspace root", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
-		resolver := &daemonExtensionWorkspaceResolverStub{
-			resolved: workspacepkg.ResolvedWorkspace{
-				ID: "ws-1", RootDir: root,
-				WorkspaceID: "ws-1",
-			},
-		}
-		provider := newDaemonScopedExtensionToolProvider(inner, resolver)
-		handle, ok, err := provider.Resolve(
-			t.Context(),
-			toolspkg.Scope{WorkspaceID: "ws-1"},
-			specCycleImportTasksToolID,
-		)
-		if err != nil {
-			t.Fatalf("Resolve() error = %v", err)
-		}
-		if !ok {
-			t.Fatal("Resolve() ok = false, want true")
-		}
-
-		result, err := handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID:      specCycleImportTasksToolID,
-			WorkspaceID: "ws-1",
-			Input:       json.RawMessage(`{"pattern":"../outside/task_*.md"}`),
-		})
-		if err == nil {
-			t.Fatalf("Call() result = %#v, want error", result)
-		}
-
-		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
-		if !toolErrMatched {
-			t.Fatalf("Call() error = %T %[1]v, want *tools.ToolError", err)
-		}
-		if toolErr.Code != toolspkg.ErrorCodeInvalidInput {
-			t.Fatalf("ToolError.Code = %q, want %q", toolErr.Code, toolspkg.ErrorCodeInvalidInput)
-		}
-		if !containsReason(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
-			t.Fatalf("ToolError.ReasonCodes = %#v, want scope_mismatch", toolErr.ReasonCodes)
-		}
-		if inner.handle.called {
-			t.Fatal("inner handle was called for escaping pattern")
-		}
-	})
-
-	t.Run("Should reject spec-cycle import task patterns that escape through a workspace symlink", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		outsideTasks := filepath.Join(t.TempDir(), "escaped-tasks", "delivery")
-		if err := os.MkdirAll(outsideTasks, 0o750); err != nil {
-			t.Fatalf("MkdirAll(outside tasks) error = %v", err)
-		}
-		compozyDir := filepath.Join(root, ".compozy")
-		if err := os.MkdirAll(compozyDir, 0o750); err != nil {
-			t.Fatalf("MkdirAll(.compozy) error = %v", err)
-		}
-		if err := os.Symlink(filepath.Dir(outsideTasks), filepath.Join(compozyDir, "tasks")); err != nil {
-			t.Skipf("create workspace tasks symlink: %v", err)
-		}
-		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
-		resolver := &daemonExtensionWorkspaceResolverStub{
-			resolved: workspacepkg.ResolvedWorkspace{
-				ID: "ws-1", RootDir: root,
-				WorkspaceID: "ws-1",
-			},
-		}
-		provider := newDaemonScopedExtensionToolProvider(inner, resolver)
-		handle, ok, err := provider.Resolve(
-			t.Context(),
-			toolspkg.Scope{WorkspaceID: "ws-1"},
-			specCycleImportTasksToolID,
-		)
-		if err != nil {
-			t.Fatalf("Resolve() error = %v", err)
-		}
-		if !ok {
-			t.Fatal("Resolve() ok = false, want true")
-		}
-
-		result, err := handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID:      specCycleImportTasksToolID,
-			WorkspaceID: "ws-1",
-			Input:       json.RawMessage(`{"pattern":".compozy/tasks/delivery/task_*.md"}`),
-		})
-		if err == nil {
-			t.Fatalf("Call() result = %#v, want symlink escape error", result)
-		}
-
-		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
-		if !toolErrMatched {
-			t.Fatalf("Call() error = %T %[1]v, want *tools.ToolError", err)
-		}
-		if !containsReason(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
-			t.Fatalf("ToolError.ReasonCodes = %#v, want scope_mismatch", toolErr.ReasonCodes)
-		}
-		if inner.handle.called {
-			t.Fatal("inner handle was called for symlink-escaping pattern")
-		}
-	})
-
-	t.Run("Should reject empty spec-cycle import task patterns before extension dispatch", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
-		resolver := &daemonExtensionWorkspaceResolverStub{
-			resolved: workspacepkg.ResolvedWorkspace{
-				ID: "ws-1", RootDir: root,
-				WorkspaceID: "ws-1",
-			},
-		}
-		provider := newDaemonScopedExtensionToolProvider(inner, resolver)
-		handle, ok, err := provider.Resolve(
-			t.Context(),
-			toolspkg.Scope{WorkspaceID: "ws-1"},
-			specCycleImportTasksToolID,
-		)
-		if err != nil {
-			t.Fatalf("Resolve() error = %v", err)
-		}
-		if !ok {
-			t.Fatal("Resolve() ok = false, want true")
-		}
-
-		result, err := handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID:      specCycleImportTasksToolID,
-			WorkspaceID: "ws-1",
-			Input:       json.RawMessage(`{"pattern":""}`),
-		})
-		if err == nil {
-			t.Fatalf("Call() result = %#v, want empty-pattern error", result)
-		}
-
-		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
-		if !toolErrMatched {
-			t.Fatalf("Call() error = %T %[1]v, want *tools.ToolError", err)
-		}
-		if !containsReason(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
-			t.Fatalf("ToolError.ReasonCodes = %#v, want scope_mismatch", toolErr.ReasonCodes)
-		}
-		if inner.handle.called {
-			t.Fatal("inner handle was called for empty pattern")
-		}
-	})
-
-	t.Run("Should reject absolute spec-cycle import task patterns", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
-		resolver := &daemonExtensionWorkspaceResolverStub{
-			resolved: workspacepkg.ResolvedWorkspace{
-				ID: "ws-1", RootDir: root,
-				WorkspaceID: "ws-1",
-			},
-		}
-		provider := newDaemonScopedExtensionToolProvider(inner, resolver)
-		handle, ok, err := provider.Resolve(
-			t.Context(),
-			toolspkg.Scope{WorkspaceID: "ws-1"},
-			specCycleImportTasksToolID,
-		)
-		if err != nil {
-			t.Fatalf("Resolve() error = %v", err)
-		}
-		if !ok {
-			t.Fatal("Resolve() ok = false, want true")
-		}
-
-		result, err := handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID:      specCycleImportTasksToolID,
-			WorkspaceID: "ws-1",
-			Input:       json.RawMessage(fmt.Sprintf(`{"pattern":%q}`, filepath.Join(root, "task_*.md"))),
-		})
-		if err == nil {
-			t.Fatalf("Call() result = %#v, want error", result)
-		}
-
-		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
-		if !toolErrMatched {
-			t.Fatalf("Call() error = %T %[1]v, want *tools.ToolError", err)
-		}
-		if toolErr.Code != toolspkg.ErrorCodeInvalidInput {
-			t.Fatalf("ToolError.Code = %q, want %q", toolErr.Code, toolspkg.ErrorCodeInvalidInput)
-		}
-		if !containsReason(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
-			t.Fatalf("ToolError.ReasonCodes = %#v, want scope_mismatch", toolErr.ReasonCodes)
-		}
-		if inner.handle.called {
-			t.Fatal("inner handle was called for absolute pattern")
-		}
-	})
-
-	t.Run("Should reject spec-cycle import task calls without workspace scope", func(t *testing.T) {
-		t.Parallel()
-
-		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
-		resolver := &daemonExtensionWorkspaceResolverStub{}
-		provider := newDaemonScopedExtensionToolProvider(inner, resolver)
-		handle, ok, err := provider.Resolve(
-			t.Context(),
-			toolspkg.Scope{},
-			specCycleImportTasksToolID,
-		)
-		if err != nil {
-			t.Fatalf("Resolve() error = %v", err)
-		}
-		if !ok {
-			t.Fatal("Resolve() ok = false, want true")
-		}
-
-		result, err := handle.Call(t.Context(), toolspkg.CallRequest{
-			ToolID: specCycleImportTasksToolID,
-			Input:  json.RawMessage(`{"pattern":".compozy/tasks/task_*.md"}`),
-		})
-		if err == nil {
-			t.Fatalf("Call() result = %#v, want error", result)
-		}
-
-		toolErr, toolErrMatched := errors.AsType[*toolspkg.ToolError](err)
-		if !toolErrMatched {
-			t.Fatalf("Call() error = %T %[1]v, want *tools.ToolError", err)
-		}
-		if toolErr.Code != toolspkg.ErrorCodeInvalidInput {
-			t.Fatalf("ToolError.Code = %q, want %q", toolErr.Code, toolspkg.ErrorCodeInvalidInput)
-		}
-		if !containsReason(toolErr.ReasonCodes, toolspkg.ReasonScopeMismatch) {
-			t.Fatalf("ToolError.ReasonCodes = %#v, want scope_mismatch", toolErr.ReasonCodes)
-		}
-		if inner.handle.called {
-			t.Fatal("inner handle was called without workspace scope")
 		}
 	})
 }
@@ -690,7 +325,7 @@ var _ toolspkg.Provider = (*daemonExtensionProviderStub)(nil)
 var _ toolspkg.ProjectionGenerationProvider = (*daemonExtensionProviderStub)(nil)
 
 func (p *daemonExtensionProviderStub) ID() toolspkg.SourceRef {
-	return toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "spec-cycle"}
+	return toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "fixture"}
 }
 
 func (p *daemonExtensionProviderStub) ProjectionGeneration(_ context.Context, scope toolspkg.Scope) (string, bool) {
@@ -724,14 +359,14 @@ var _ toolspkg.Handle = (*daemonExtensionHandleStub)(nil)
 
 func (h *daemonExtensionHandleStub) Descriptor() toolspkg.Descriptor {
 	return toolspkg.Descriptor{
-		ID: specCycleImportTasksToolID,
+		ID: fixtureExtensionToolID,
 		Source: toolspkg.SourceRef{
 			Kind:  toolspkg.SourceExtension,
-			Owner: "spec-cycle",
+			Owner: "fixture",
 		},
 		Backend: toolspkg.BackendRef{
 			Kind:        toolspkg.BackendExtensionHost,
-			ExtensionID: "spec-cycle",
+			ExtensionID: "fixture",
 			Handler:     "import_tasks",
 		},
 		ToolPresentation: toolspkg.NewToolPresentation("Import tasks", "", ""),

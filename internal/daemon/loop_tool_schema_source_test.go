@@ -4,20 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io/fs"
-	"path/filepath"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	apicore "github.com/compozy/compozy/internal/api/core"
 
-	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	compozyconfig "github.com/compozy/compozy/internal/config"
-	extensionpkg "github.com/compozy/compozy/internal/extension"
-	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	looppkgdsl "github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/subprocess"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -77,7 +71,7 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		if _, ok := source.Snapshot("not a valid tool id"); ok {
 			t.Fatal("Snapshot(invalid id) ok = true, want false")
 		}
-		if _, ok := source.Snapshot("ext__spec_cycle__missing"); ok {
+		if _, ok := source.Snapshot("ext__fixture__missing"); ok {
 			t.Fatal("Snapshot(unknown id) ok = true, want false")
 		}
 	})
@@ -87,7 +81,7 @@ func TestLoopToolSchemaSource(t *testing.T) {
 
 		first := loopToolSchemaDescriptor(t)
 		second := first
-		second.ID = toolspkg.ToolID("ext__spec_cycle__second")
+		second.ID = toolspkg.ToolID("ext__fixture__second")
 		listCalls := 0
 		getCalls := 0
 		source := newLoopToolSchemaSource(t.Context(), loopToolSchemaRegistry{
@@ -270,38 +264,6 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		}
 	})
 
-	t.Run("Should compile implement-tasks through registry backed spec-cycle schemas", func(t *testing.T) {
-		t.Parallel()
-
-		source := newBundledSpecCycleLoopSchemaSource(t)
-		data, err := fs.ReadFile(speccycle.FS(), "loops/implement-tasks/loop.yaml")
-		if err != nil {
-			t.Fatalf("ReadFile(implement-tasks loop) error = %v", err)
-		}
-		linter := newLoopLinterWithSchemaSource(source)
-		spec, def, err := looppkg.ParseResource(data, looppkg.ResourceParseOptions{
-			Source:                 looppkg.SourceMarketplace,
-			Dir:                    "loops/implement-tasks",
-			FilePath:               "loops/implement-tasks/loop.yaml",
-			InstalledFromExtension: speccycle.Name,
-			Linter:                 linter,
-		})
-		if err != nil {
-			t.Fatalf("ParseResource(implement-tasks) error = %v", err)
-		}
-		if got, want := spec.Name, "implement-tasks"; got != want {
-			t.Fatalf("spec.Name = %q, want %q", got, want)
-		}
-
-		resolved, err := newLoopCompilerWithSchemaSource(source).Compile(def)
-		if err != nil {
-			t.Fatalf("Compile(implement-tasks) error = %v", err)
-		}
-		if _, ok := resolved.Templates["nodes.implement.collection"]; !ok {
-			t.Fatal("Compile(implement-tasks) missing implement collection template")
-		}
-	})
-
 	t.Run("Should call only tools owned by the extension that installed the Loop", func(t *testing.T) {
 		t.Parallel()
 
@@ -431,140 +393,6 @@ func loopActionNode(id toolspkg.ToolID) looppkgdsl.Node {
 	}
 }
 
-type specCycleLoopSchemaRuntime struct {
-	extension   *extensionpkg.Extension
-	descriptors []toolspkg.ExtensionToolRuntimeDescriptor
-}
-
-var _ extensionpkg.ExtensionToolRuntime = (*specCycleLoopSchemaRuntime)(nil)
-
-func (r *specCycleLoopSchemaRuntime) Get(name string) (*extensionpkg.Extension, error) {
-	if name != speccycle.Name {
-		return nil, extensionpkg.ErrExtensionNotFound
-	}
-	extension := *r.extension
-	return &extension, nil
-}
-
-func (r *specCycleLoopSchemaRuntime) ProvideTools(
-	context.Context,
-	string,
-) ([]toolspkg.ExtensionToolRuntimeDescriptor, error) {
-	descriptors := make([]toolspkg.ExtensionToolRuntimeDescriptor, len(r.descriptors))
-	for i := range r.descriptors {
-		descriptors[i] = r.descriptors[i]
-		descriptors[i].Capabilities = append([]string(nil), r.descriptors[i].Capabilities...)
-	}
-	return descriptors, nil
-}
-
-func (r *specCycleLoopSchemaRuntime) CallTool(
-	context.Context,
-	string,
-	toolspkg.ExtensionToolCallRequest,
-) (toolspkg.ToolResult, error) {
-	return toolspkg.ToolResult{}, errors.New("unexpected spec-cycle tool call")
-}
-
-func newBundledSpecCycleLoopSchemaSource(t *testing.T) looppkg.ToolSchemaSource {
-	t.Helper()
-
-	homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
-	if err != nil {
-		t.Fatalf("ResolveHomePathsFrom() error = %v", err)
-	}
-	globalDB, err := openDaemonTestGlobalDBAtPath(t.Context(), homePaths.DatabaseFile)
-	if err != nil {
-		t.Fatalf("OpenGlobalDB() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := globalDB.Close(context.Background()); err != nil {
-			t.Fatalf("Close(globalDB) error = %v", err)
-		}
-	})
-
-	extensionRegistry := extensionpkg.NewRegistry(globalDB.DB())
-	if err := speccycle.EnsureManagedInstall(homePaths, extensionRegistry); err != nil {
-		t.Fatalf("EnsureManagedInstall() error = %v", err)
-	}
-	if err := extensionRegistry.Enable(speccycle.Name); err != nil {
-		t.Fatalf("registry.Enable(%q) error = %v", speccycle.Name, err)
-	}
-	runtime := newSpecCycleLoopSchemaRuntime(t, extensionRegistry)
-	provider, err := extensionpkg.NewExtensionToolProvider(extensionRegistry, func() extensionpkg.ExtensionToolRuntime {
-		return runtime
-	})
-	if err != nil {
-		t.Fatalf("NewExtensionToolProvider() error = %v", err)
-	}
-	toolRegistry, err := toolspkg.NewRegistry(
-		toolspkg.WithProviders(provider),
-		toolspkg.WithPolicyInputs(extensionToolPolicyAllowAll(), toolspkg.ToolsetCatalog{}),
-	)
-	if err != nil {
-		t.Fatalf("toolspkg.NewRegistry() error = %v", err)
-	}
-	return newLoopToolSchemaSource(t.Context(), toolRegistry)
-}
-
-func newSpecCycleLoopSchemaRuntime(
-	t *testing.T,
-	registry *extensionpkg.Registry,
-) *specCycleLoopSchemaRuntime {
-	t.Helper()
-
-	info, err := registry.Get(speccycle.Name)
-	if err != nil {
-		t.Fatalf("registry.Get(%q) error = %v", speccycle.Name, err)
-	}
-	manifest, err := extensionpkg.LoadManifest(filepath.Dir(info.ManifestPath))
-	if err != nil {
-		t.Fatalf("LoadManifest(%q) error = %v", info.ManifestPath, err)
-	}
-	toolDescriptors, err := extensionpkg.ResolveManifestToolDescriptors(manifest)
-	if err != nil {
-		t.Fatalf("ResolveManifestToolDescriptors() error = %v", err)
-	}
-	runtimeDescriptors := make([]toolspkg.ExtensionToolRuntimeDescriptor, 0, len(toolDescriptors))
-	for i := range toolDescriptors {
-		runtimeDescriptors = append(runtimeDescriptors, toolDescriptors[i].RuntimeDescriptor)
-	}
-
-	return &specCycleLoopSchemaRuntime{
-		extension: &extensionpkg.Extension{
-			Info:     *info,
-			Manifest: manifest,
-			RootDir:  filepath.Dir(info.ManifestPath),
-			InitializeResult: &subprocess.InitializeResponse{
-				AcceptedCapabilities: subprocess.AcceptedCapabilities{
-					Provides: []string{extensionprotocol.CapabilityToolProvider},
-				},
-				ImplementedMethods: []string{
-					string(extensionprotocol.ExtensionServiceMethodProvideTools),
-					string(extensionprotocol.ExtensionServiceMethodToolsCall),
-				},
-			},
-			Status: extensionpkg.ExtensionStatus{
-				Name:    speccycle.Name,
-				Version: info.Version,
-				Source:  info.Source,
-				Enabled: true,
-				Active:  true,
-				Healthy: true,
-			},
-		},
-		descriptors: runtimeDescriptors,
-	}
-}
-
-func extensionToolPolicyAllowAll() toolspkg.PolicyInputs {
-	return toolspkg.PolicyInputs{
-		SystemPermissionMode: toolspkg.PermissionModeApproveAll,
-		ExternalDefault:      toolspkg.ExternalDefaultEnabled,
-		ApprovalAvailable:    true,
-	}
-}
-
 type loopToolSchemaRegistry struct {
 	views            map[toolspkg.ToolID]toolspkg.ToolView
 	listCalls        *int
@@ -632,7 +460,7 @@ func loopToolSchemaDescriptor(t *testing.T) toolspkg.Descriptor {
 	t.Helper()
 
 	descriptor := toolspkg.Descriptor{
-		ID:               "ext__spec_cycle__finalize_review_round",
+		ID:               "ext__fixture__finalize",
 		ToolPresentation: toolspkg.NewToolPresentation("Finalize review round", "", ""),
 		Description:      "Resolve triaged review issue artifacts.",
 		InputSchema: json.RawMessage(
@@ -643,11 +471,11 @@ func loopToolSchemaDescriptor(t *testing.T) toolspkg.Descriptor {
 		),
 		Backend: toolspkg.BackendRef{
 			Kind:       toolspkg.BackendNativeGo,
-			NativeName: "finalize_review_round",
+			NativeName: "finalize",
 		},
 		Source: toolspkg.SourceRef{
 			Kind:  toolspkg.SourceExtension,
-			Owner: "spec-cycle",
+			Owner: "fixture",
 		},
 		Visibility:            toolspkg.VisibilityModel,
 		Risk:                  toolspkg.RiskMutating,

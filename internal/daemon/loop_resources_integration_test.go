@@ -159,10 +159,10 @@ func TestLoopSourceSyncerIntegrationShouldProjectFSPrecedence(t *testing.T) {
 	})
 }
 
-func TestDaemonE2ESpecCycleEnrollmentShouldPublishAndToggleLoops(t *testing.T) {
+func TestDaemonE2ESpecCycleEnrollmentShouldKeepLoopCatalogEmpty(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should auto-enroll spec-cycle and remove or restore its loops when disabled or enabled", func(t *testing.T) {
+	t.Run("Should keep resource-only spec-cycle loops absent across enablement", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -442,7 +442,7 @@ func assertSpecCycleLoopCatalog(
 		}
 		return
 	}
-	wantNames := []string{"implement-tasks", "review-and-fix"}
+	wantNames := []string{}
 	if got, want := len(found), len(wantNames); got != want {
 		t.Fatalf("spec-cycle loops = %#v, want exactly %d bundled loops", found, want)
 	}

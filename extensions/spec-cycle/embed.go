@@ -5,7 +5,7 @@ import (
 	"io/fs"
 )
 
-//go:embed extension.json loops agents skills
+//go:embed extension.json agents skills
 var bundledFS embed.FS
 
 // FS returns the embedded spec-cycle extension payload.

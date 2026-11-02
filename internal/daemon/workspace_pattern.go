@@ -9,58 +9,6 @@ import (
 	"strings"
 )
 
-func workspaceRelativePattern(root string, pattern string) (string, error) {
-	rootAbs, err := filepath.Abs(strings.TrimSpace(root))
-	if err != nil {
-		return "", fmt.Errorf("workspace root: %w", err)
-	}
-	resolvedRoot, err := filepath.EvalSymlinks(rootAbs)
-	if err != nil {
-		return "", fmt.Errorf("resolve workspace root %q: %w", rootAbs, err)
-	}
-	patternAbs, err := filepath.Abs(filepath.Join(rootAbs, strings.TrimSpace(pattern)))
-	if err != nil {
-		return "", fmt.Errorf("pattern: %w", err)
-	}
-	if err := requirePathWithinResolvedRoot(rootAbs, patternAbs); err != nil {
-		return "", fmt.Errorf("relative pattern %q escapes %q: %w", pattern, rootAbs, err)
-	}
-
-	anchor, err := realpathDeepestExistingPath(globStaticDirectory(patternAbs))
-	if err != nil {
-		return "", fmt.Errorf("resolve pattern directory %q: %w", patternAbs, err)
-	}
-	if err := requirePathWithinResolvedRoot(resolvedRoot, anchor); err != nil {
-		return "", fmt.Errorf("pattern directory %q escapes workspace root %q: %w", anchor, resolvedRoot, err)
-	}
-	matches, err := filepath.Glob(patternAbs)
-	if err != nil {
-		return "", fmt.Errorf("glob pattern %q: %w", patternAbs, err)
-	}
-	for _, match := range matches {
-		resolvedMatch, resolveErr := filepath.EvalSymlinks(match)
-		if resolveErr != nil {
-			return "", fmt.Errorf("resolve glob match %q: %w", match, resolveErr)
-		}
-		if err := requirePathWithinResolvedRoot(resolvedRoot, resolvedMatch); err != nil {
-			return "", fmt.Errorf("glob match %q escapes workspace root %q: %w", match, resolvedRoot, err)
-		}
-	}
-	return patternAbs, nil
-}
-
-func globStaticDirectory(pattern string) string {
-	meta := strings.IndexAny(pattern, "*?[")
-	if meta < 0 {
-		return filepath.Dir(pattern)
-	}
-	prefix := pattern[:meta]
-	if strings.HasSuffix(prefix, string(filepath.Separator)) {
-		return filepath.Clean(prefix)
-	}
-	return filepath.Dir(prefix)
-}
-
 func realpathDeepestExistingPath(target string) (string, error) {
 	current := filepath.Clean(target)
 	suffix := make([]string, 0, 4)

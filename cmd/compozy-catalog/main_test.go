@@ -64,7 +64,7 @@ func TestPublishCatalog(t *testing.T) {
 	if err := run(t.Context(), []string{"publish", source, output}, io.Discard); err != nil {
 		t.Fatal(err)
 	}
-	t.Run("Should emit only the current catalog family with nineteen extensions [UT-054]", func(t *testing.T) {
+	t.Run("Should emit only the current catalog family with eighteen extensions [UT-054]", func(t *testing.T) {
 		t.Parallel()
 		files, err := os.ReadDir(output)
 		if err != nil {
@@ -83,7 +83,7 @@ func TestPublishCatalog(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if document.ManifestVersion != 3 || len(document.Entries) != 19 {
+		if document.ManifestVersion != 3 || len(document.Entries) != 18 {
 			t.Fatalf("v3 version/count = %d/%d", document.ManifestVersion, len(document.Entries))
 		}
 		for _, entry := range document.Entries {
@@ -108,7 +108,10 @@ func TestPublishCatalog(t *testing.T) {
 		t.Parallel()
 		original := readPublishedExtensions(t, source)
 		published := readPublishedExtensions(t, output)
-		for _, name := range []string{"batuta", "herdr-bridge"} {
+		if _, exists := published["batuta"]; exists {
+			t.Fatal("retired batuta is published")
+		}
+		for _, name := range []string{"herdr-bridge"} {
 			before, existed := original[name]
 			after, exists := published[name]
 			if !existed || !exists || !reflect.DeepEqual(before, after) {
@@ -137,7 +140,7 @@ func TestPublishCatalog(t *testing.T) {
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(
-			filepath.Join(changedSource, "packages", "batuta", "README.md"),
+			filepath.Join(changedSource, "packages", "herdr-bridge", "README.md"),
 			[]byte("Changed publication content.\n"),
 			0o600,
 		); err != nil {
@@ -147,8 +150,8 @@ func TestPublishCatalog(t *testing.T) {
 		if err := run(t.Context(), []string{"publish", changedSource, changedOutput}, io.Discard); err != nil {
 			t.Fatal(err)
 		}
-		before := readPublishedExtensions(t, source)["batuta"]
-		after := readPublishedExtensions(t, changedOutput)["batuta"]
+		before := readPublishedExtensions(t, source)["herdr-bridge"]
+		after := readPublishedExtensions(t, changedOutput)["herdr-bridge"]
 		if after.DigestSHA256 == "" || after.DigestSHA256 == before.DigestSHA256 {
 			t.Fatal("changed package did not publish a new artifact digest")
 		}
@@ -247,7 +250,7 @@ func TestPublishCatalog(t *testing.T) {
 		if err := os.CopyFS(oversizedSource, os.DirFS(source)); err != nil {
 			t.Fatal(err)
 		}
-		entry := readPublishedExtensions(t, source)["batuta"]
+		entry := readPublishedExtensions(t, source)["herdr-bridge"]
 		filename, err := curatedArtifactFilename(entry.ArtifactURL)
 		if err != nil {
 			t.Fatal(err)

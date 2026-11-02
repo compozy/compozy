@@ -2,20 +2,12 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"strings"
 
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
-)
-
-const (
-	specCycleImportTasksToolID          toolspkg.ToolID = "ext__spec_cycle__import_tasks"
-	specCycleWriteReviewArtifactsToolID toolspkg.ToolID = "ext__spec_cycle__write_review_artifacts"
-	specCycleFinalizeReviewRoundToolID  toolspkg.ToolID = "ext__spec_cycle__finalize_review_round"
 )
 
 type daemonExtensionWorkspaceResolver interface {
@@ -201,66 +193,10 @@ func (h *daemonExtensionToolHandle) workspaceScopedCallRequest(
 	ctx context.Context,
 	req toolspkg.CallRequest,
 ) (toolspkg.CallRequest, error) {
-	switch req.ToolID {
-	case specCycleImportTasksToolID:
-		return h.workspaceScopedImportTasksCallRequest(ctx, req)
-	case specCycleWriteReviewArtifactsToolID, specCycleFinalizeReviewRoundToolID:
-		return h.attachTrustedWorkspace(ctx, req)
-	default:
-		if strings.TrimSpace(req.WorkspaceID) == "" {
-			return req, nil
-		}
-		return h.attachTrustedWorkspace(ctx, req)
+	if strings.TrimSpace(req.WorkspaceID) == "" {
+		return req, nil
 	}
-}
-
-func (h *daemonExtensionToolHandle) workspaceScopedImportTasksCallRequest(
-	ctx context.Context,
-	req toolspkg.CallRequest,
-) (toolspkg.CallRequest, error) {
-	scoped, err := h.attachTrustedWorkspace(ctx, req)
-	if err != nil {
-		return toolspkg.CallRequest{}, err
-	}
-	req = scoped
-	var input struct {
-		Pattern string `json:"pattern"`
-	}
-	if err := json.Unmarshal(req.Input, &input); err != nil {
-		return toolspkg.CallRequest{}, toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput,
-			req.ToolID,
-			fmt.Sprintf("tool %q input is invalid", req.ToolID),
-			fmt.Errorf("%w: decode input: %w", toolspkg.ErrToolInvalidInput, err),
-			toolspkg.ReasonSchemaInvalid,
-		)
-	}
-	pattern := strings.TrimSpace(input.Pattern)
-	if pattern == "" {
-		return toolspkg.CallRequest{}, importTasksScopeError(
-			req.ToolID,
-			fmt.Sprintf("tool %q pattern is required", req.ToolID),
-			fmt.Errorf("%w: pattern is required", toolspkg.ErrToolInvalidInput),
-		)
-	}
-	if filepath.IsAbs(pattern) {
-		return toolspkg.CallRequest{}, importTasksScopeError(
-			req.ToolID,
-			fmt.Sprintf("tool %q pattern must be workspace-relative", req.ToolID),
-			fmt.Errorf("%w: absolute pattern %q", toolspkg.ErrToolInvalidInput, pattern),
-		)
-	}
-	absolute, err := h.resolveImportTasksPattern(req.ToolID, req.TrustedWorkspaceRoot, pattern)
-	if err != nil {
-		return toolspkg.CallRequest{}, err
-	}
-	input.Pattern = absolute
-	encoded, err := json.Marshal(input)
-	if err != nil {
-		return toolspkg.CallRequest{}, fmt.Errorf("daemon: encode workspace-scoped extension tool input: %w", err)
-	}
-	req.Input = encoded
-	return req, nil
+	return h.attachTrustedWorkspace(ctx, req)
 }
 
 // attachTrustedWorkspace validates registration and fills a missing trusted root before extension dispatch.
@@ -321,38 +257,6 @@ func extensionWorkspaceRegistrationID(ws workspacepkg.Workspace) (string, error)
 		return "", errors.New("daemon: resolved workspace registry id is empty")
 	}
 	return workspaceID, nil
-}
-
-func (h *daemonExtensionToolHandle) resolveImportTasksPattern(
-	toolID toolspkg.ToolID,
-	root string,
-	pattern string,
-) (string, error) {
-	absolute, err := workspaceRelativePattern(root, pattern)
-	if err != nil {
-		return "", toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput,
-			toolID,
-			fmt.Sprintf("tool %q pattern escapes workspace root", toolID),
-			fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
-			toolspkg.ReasonScopeMismatch,
-		)
-	}
-	return absolute, nil
-}
-
-func importTasksScopeError(
-	toolID toolspkg.ToolID,
-	message string,
-	cause error,
-) error {
-	return toolspkg.NewToolError(
-		toolspkg.ErrorCodeInvalidInput,
-		toolID,
-		message,
-		cause,
-		toolspkg.ReasonScopeMismatch,
-	)
 }
 
 func extensionWorkspaceScopeError(

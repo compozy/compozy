@@ -5062,3 +5062,17 @@ containment applies before reads; User/global scopes collect no file. Managed au
 preserves references to absent loops and fails locally on execution. Other validation errors
 remain errors. No extension resources or user task files are deleted. The official skill and
 Web source selector co-ship in B2/F1; release/scenario QA belongs to the integration slice.
+
+
+## Spec-cycle resource-only cut — B2 (2026-11-02)
+
+Owner: `spec-cycle-simplify` B2; contract: `_spec.md`, `_dx.md`, ADR-001 through ADR-004 in the workspace-root spec directory.
+
+- Native tools: remove the three `ext__spec_cycle__*` tools, their provider and import-pattern adapter; retain generic extension workspace authority checks.
+- Extensibility: resource-only manifest; four self-contained agents, two skills, no loops, no tool provider. Hooks, SDKs and config shapes do not change.
+- Workspace isolation: implementers own isolated worktrees; an unbound conductor uses absolute spec paths and one `_run.md` owner. User task files are untouched; B1 owns persisted-reference upgrade coverage.
+- Catalog: delist Batuta through the publisher; installed copies are untouched. Keep historical archive bytes available, consistent with existing catalog delisting policy.
+- Official skill: update resource inventory and agent-led delivery guidance in `skills/compozy/references/`.
+- Web/site impact: F1 owns bundled catalog lists and site docs. I2 owns workspace skill removal, release notes, migration guidance and QA scenarios. QA-001/002 exercise prompt behavior after integration; this slice checks parsed resource contracts and real catalog publication.
+
+Owning suites: `extensions/spec-cycle/embed_test.go` (UT-008, UT-009, UT-012), `cmd/compozy-catalog/main_test.go` (UT-013), daemon extension-provider/schema suites and bundled publication/boot-rebuild integration suites. Full gates and live journeys remain integration/CI responsibilities.

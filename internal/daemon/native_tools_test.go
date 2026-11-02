@@ -21,7 +21,6 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
-	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/agentmemory"
@@ -3424,10 +3423,10 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		const skillContent = "Review changes carefully."
 		reviewSkill := &skills.Skill{
-			Meta:                   skills.SkillMeta{Name: "cy-review-round", Description: "Review changes."},
+			Meta:                   skills.SkillMeta{Name: "cy-create-spec", Description: "Review changes."},
 			Source:                 skills.SourceBundled,
 			InstalledFromExtension: "spec-cycle",
-			FilePath:               "/extensions/spec-cycle/skills/cy-review-round/SKILL.md",
+			FilePath:               "/extensions/spec-cycle/skills/cy-create-spec/SKILL.md",
 			Enabled:                true,
 		}
 		skillRegistry := nativeExtensionAgentSkillsRegistry{
@@ -3458,7 +3457,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(extension skill_list) error = %v", err)
 		}
-		requireNativeStructuredContains(t, listResult, []byte(`"cy-review-round"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"cy-create-spec"`))
 
 		searchResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDSkillSearch,
@@ -3467,11 +3466,11 @@ func TestDaemonNativeTools(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(extension skill_search) error = %v", err)
 		}
-		requireNativeStructuredContains(t, searchResult, []byte(`"cy-review-round"`))
+		requireNativeStructuredContains(t, searchResult, []byte(`"cy-create-spec"`))
 
 		viewResult, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDSkillView,
-			Input:  json.RawMessage(`{"name":"cy-review-round"}`),
+			Input:  json.RawMessage(`{"name":"cy-create-spec"}`),
 		})
 		if err != nil {
 			t.Fatalf("Registry.Call(extension skill_view) error = %v", err)
@@ -3487,7 +3486,7 @@ func TestDaemonNativeTools(t *testing.T) {
 		registryErr := fmt.Errorf("%w: reviewer", skills.ErrAgentLocalInvalid)
 		skillRegistry := nativeExtensionAgentSkillsRegistry{
 			skills: []*skills.Skill{{
-				Meta:    skills.SkillMeta{Name: "cy-review-round", Description: "Review changes."},
+				Meta:    skills.SkillMeta{Name: "cy-create-spec", Description: "Review changes."},
 				Enabled: true,
 			}},
 			nameErr: registryErr,
@@ -10985,154 +10984,6 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		}
 	})
 
-	t.Run("Should allow enabled bundled extension tools while enforcing permission ceiling", func(t *testing.T) {
-		t.Parallel()
-
-		ctx := t.Context()
-		deps, extensionRegistry, _, _ := newNativeExtensionToolDeps(t)
-		cfg := testConfig(t, deps.HomePaths)
-		if err := speccycle.EnsureManagedInstall(deps.HomePaths, extensionRegistry); err != nil {
-			t.Fatalf("EnsureManagedInstall(spec-cycle) error = %v", err)
-		}
-		if err := extensionRegistry.Enable(speccycle.Name); err != nil {
-			t.Fatalf("registry.Enable(%q) error = %v", speccycle.Name, err)
-		}
-		runtime := &nativeBundledSpecCycleToolRuntime{
-			specCycleLoopSchemaRuntime: newSpecCycleLoopSchemaRuntime(t, extensionRegistry),
-		}
-		provider, err := extensionpkg.NewExtensionToolProvider(
-			extensionRegistry,
-			func() extensionpkg.ExtensionToolRuntime {
-				return runtime
-			},
-		)
-		if err != nil {
-			t.Fatalf("NewExtensionToolProvider() error = %v", err)
-		}
-		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
-			Config:            &cfg,
-			ExtensionRegistry: extensionRegistry,
-			ApprovalAvailable: true,
-		})
-		if err != nil {
-			t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
-		}
-		toolsets, err := builtintools.ToolsetCatalog()
-		if err != nil {
-			t.Fatalf("ToolsetCatalog() error = %v", err)
-		}
-		registry, err := toolspkg.NewRegistry(
-			toolspkg.WithProviders(provider),
-			toolspkg.WithPolicyInputResolver(resolver, toolsets),
-		)
-		if err != nil {
-			t.Fatalf("NewRegistry() error = %v", err)
-		}
-		const (
-			importTasksToolID toolspkg.ToolID = "ext__spec_cycle__import_tasks"
-			writeReviewToolID toolspkg.ToolID = "ext__spec_cycle__write_review_artifacts"
-		)
-
-		views, err := registry.SessionProjection(ctx, toolspkg.Scope{})
-		if err != nil {
-			t.Fatalf("SessionProjection(extension tools) error = %v", err)
-		}
-		requireNativeViewContains(t, views, importTasksToolID)
-		requireNativeViewContains(t, views, writeReviewToolID)
-
-		result, err := registry.Call(ctx, toolspkg.Scope{}, toolspkg.CallRequest{
-			ToolID: importTasksToolID,
-			Input:  json.RawMessage(`{"pattern":"*.md"}`),
-		})
-		if err != nil {
-			t.Fatalf("Registry.Call(import_tasks) error = %v", err)
-		}
-		requireNativeStructuredContains(t, result, []byte(`"count":0`))
-		if len(runtime.calls) != 1 {
-			t.Fatalf("runtime calls = %d, want 1", len(runtime.calls))
-		}
-		if got := runtime.calls[0].extensionID; got != speccycle.Name {
-			t.Fatalf("runtime extension id = %q, want %q", got, speccycle.Name)
-		}
-		if got := runtime.calls[0].request.ToolID; got != importTasksToolID {
-			t.Fatalf("runtime tool id = %q, want %q", got, importTasksToolID)
-		}
-		_, err = registry.Call(ctx, toolspkg.Scope{}, toolspkg.CallRequest{
-			ToolID: writeReviewToolID,
-			Input:  json.RawMessage(`{"task_name":"review-policy","issues":[]}`),
-		})
-		if err != nil {
-			t.Fatalf("Registry.Call(write_review_artifacts) error = %v", err)
-		}
-		if len(runtime.calls) != 2 {
-			t.Fatalf("runtime calls = %d, want 2", len(runtime.calls))
-		}
-
-		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveReads
-		views, err = registry.SessionProjection(ctx, toolspkg.Scope{})
-		if err != nil {
-			t.Fatalf("SessionProjection(extension tools approve-reads) error = %v", err)
-		}
-		writeView := nativeToolViewByID(views, writeReviewToolID)
-		if writeView == nil {
-			t.Fatalf("projection does not contain %q: %#v", writeReviewToolID, views)
-		}
-		if !writeView.Decision.Callable || !writeView.Decision.ApprovalRequired {
-			t.Fatalf("write review decision = %#v, want callable with approval", writeView.Decision)
-		}
-		_, err = registry.Call(ctx, toolspkg.Scope{}, toolspkg.CallRequest{
-			ToolID: writeReviewToolID,
-			Input:  json.RawMessage(`{"task_name":"review-policy","issues":[]}`),
-		})
-		if !errors.Is(err, toolspkg.ErrToolApprovalRequired) {
-			t.Fatalf(
-				"Registry.Call(write_review_artifacts approve-reads) error = %v, want ErrToolApprovalRequired",
-				err,
-			)
-		}
-		if len(runtime.calls) != 2 {
-			t.Fatalf("runtime calls after approval-required dispatch = %d, want 2", len(runtime.calls))
-		}
-
-		inputs, err := resolver.Resolve(ctx, toolspkg.Scope{})
-		if err != nil {
-			t.Fatalf("Resolve(bundled enabled) error = %v", err)
-		}
-		bundledGrant := toolspkg.SourceGrant{Kind: toolspkg.SourceExtension, Owner: speccycle.Name}
-		if !sourceGrantExists(inputs.TrustedSources, bundledGrant) {
-			t.Fatalf("enabled trusted sources = %#v, want %#v", inputs.TrustedSources, bundledGrant)
-		}
-		if !sourceGrantExists(inputs.AllowSources, bundledGrant) {
-			t.Fatalf("enabled allowed sources = %#v, want %#v", inputs.AllowSources, bundledGrant)
-		}
-		if err := extensionRegistry.Disable(speccycle.Name); err != nil {
-			t.Fatalf("Disable(spec-cycle) error = %v", err)
-		}
-		inputs, err = resolver.Resolve(ctx, toolspkg.Scope{})
-		if err != nil {
-			t.Fatalf("Resolve(bundled disabled) error = %v", err)
-		}
-		if sourceGrantExists(inputs.TrustedSources, bundledGrant) {
-			t.Fatalf("disabled trusted sources = %#v, want bundled grant removed", inputs.TrustedSources)
-		}
-		if sourceGrantExists(inputs.AllowSources, bundledGrant) {
-			t.Fatalf("disabled allowed sources = %#v, want bundled grant removed", inputs.AllowSources)
-		}
-		if err := extensionRegistry.Enable(speccycle.Name); err != nil {
-			t.Fatalf("Enable(spec-cycle) error = %v", err)
-		}
-		inputs, err = resolver.Resolve(ctx, toolspkg.Scope{})
-		if err != nil {
-			t.Fatalf("Resolve(bundled re-enabled) error = %v", err)
-		}
-		if !sourceGrantExists(inputs.TrustedSources, bundledGrant) {
-			t.Fatalf("re-enabled trusted sources = %#v, want %#v", inputs.TrustedSources, bundledGrant)
-		}
-		if !sourceGrantExists(inputs.AllowSources, bundledGrant) {
-			t.Fatalf("re-enabled allowed sources = %#v, want %#v", inputs.AllowSources, bundledGrant)
-		}
-	})
-
 	t.Run("Should return diagnostic status for tools denied by explicit agent policy", func(t *testing.T) {
 		t.Parallel()
 
@@ -11441,41 +11292,6 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireNativeViewExcludes(t, childViews, toolspkg.ToolIDSessionArchive)
 		requireNativeViewExcludes(t, childViews, toolspkg.ToolIDSessionList)
 	})
-}
-
-type nativeBundledSpecCycleToolRuntime struct {
-	*specCycleLoopSchemaRuntime
-	calls []nativeBundledSpecCycleToolCall
-}
-
-type nativeBundledSpecCycleToolCall struct {
-	extensionID string
-	request     toolspkg.ExtensionToolCallRequest
-}
-
-func (r *nativeBundledSpecCycleToolRuntime) CallTool(
-	ctx context.Context,
-	extensionID string,
-	req toolspkg.ExtensionToolCallRequest,
-) (toolspkg.ToolResult, error) {
-	if err := ctx.Err(); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	r.calls = append(r.calls, nativeBundledSpecCycleToolCall{
-		extensionID: extensionID,
-		request:     req,
-	})
-	structured := json.RawMessage(`{"tasks":[],"count":0}`)
-	if req.ToolID == "ext__spec_cycle__write_review_artifacts" {
-		structured = json.RawMessage(
-			`{"task_name":"review-policy","round":1,"files":[],"batches":[],"issues":[],"count":0}`,
-		)
-	}
-	return toolspkg.ToolResult{
-		Structured: structured,
-		Preview:    string(structured),
-		Bytes:      int64(len(structured)),
-	}, nil
 }
 
 func newDaemonNativeRegistry(

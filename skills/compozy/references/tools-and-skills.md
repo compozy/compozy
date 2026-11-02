@@ -327,7 +327,7 @@ result as terminal and read the catalog again.
 
 The bundled `compozy` skill ships `SKILL.md` plus flat `references/*.md` resources.
 
-Bundled `spec-cycle` globally publishes exactly `cy-create-spec`, `cy-create-tasks`, `cy-execute-task`, `cy-orchestrate-tasks`, `cy-workflow-memory`, `cy-review-round`, `cy-fix-reviews`, `cy-final-verify`, and `git-rebase` to managed sessions. Operators inspect them with `compozy skill list|view`; managed sessions use the native skill tools. Workspace definitions shadow only locally.
+Bundled `spec-cycle` globally publishes exactly `cy-create-spec` and `git-rebase` to managed sessions. It provides the stays-on `orchestrator` and on-demand `spec_conductor`, `code_implementer`, and `reviewer` agents, with no tools or Loops. Agents carry their own delivery procedure and require no skill. Operators inspect skills with `compozy skill list|view`; managed sessions use native skill tools. Workspace definitions shadow only locally.
 
 ## Skill Provenance And Shadows
 
