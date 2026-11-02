@@ -188,3 +188,23 @@ This lane's merge edits are limited to the resolved test conflict and this repor
 ### Scope of the integration conclusion
 
 This lane added no public surface, schema, native tool, hook/config or official skill change beyond the incoming upstream contract; the root change-impact audit owns their combined accounting. Existing QA authorities are the catalog/board/streaming scenarios listed above plus incoming `MS-web-stays-on-placement`, `MS-web-stays-on-reports` and `RT-session-attention-catalog`. No scenario expectation needed a merge-specific edit here. Final integrated browser behavior, generated equivalence, gates and current-head CI remain root-owned. Historical navigation traces and per-package microbenchmarks are not presented as measurements of the merged Stays-on UI.
+
+## Session-list keyboard diagnostic on `895d8a5d7` — 2026-11-02
+
+The root's bounded changed-file diagnostic found a concrete failure in `session-list.test.tsx`: “Should nest through the keyboard menu using only eligible parent choices” sent Enter after finding Destination in the DOM, but `onAdopt` received no call. This failure has **no demonstrated causal connection to the separate frontend CI timeout**. The original test, session row actions, choice construction hook and shared dropdown primitive were byte-identical between main `8c025ff8f` and `895d8a5d72840c92e01015bf313a2e2340cb084d`.
+
+The invariant was named before editing: keyboard nesting must invoke adoption with the original source and eligible destination, while excluding a different profile. Owner: session-list interaction. Canonical suite: `web/src/systems/session/components/__tests__/session-list.test.tsx`; its existing case owns this behavior.
+
+An isolated unchanged run passed. Passive capture in the full canonical suite then distinguished the two orderings without changing keyboard actions or assertions. In the passing control, Destination was present while the active element was still “Nest under…”, but the scheduled focus transfer completed before the Enter keydown; Destination received the key and adoption ran once. In the failing buffered capture, both the active element and the Enter event target remained “Nest under…”, and adoption remained at zero. Installed Base UI 1.9.0's `useListNavigation` delegates this handoff to `enqueueFocus`, which schedules `requestAnimationFrame`; DOM presence is not keyboard readiness. The neighboring folder-menu case already waits for focus inside its submenu.
+
+The minimal correction retains the Destination element and waits for `expect(destination).toHaveFocus()` before the same Enter. Destination presence, Foreign exclusion and the final `onAdopt(source, target)` assertion remain intact. There is no programmatic focus, sleep, action retry, increased timeout, production edit or retained instrumentation. The new focus assertion also verifies the automatic handoff instead of bypassing it.
+
+| Evidence | Result | Receipt under `.cache/performance/store-session/` |
+| --- | --- | --- |
+| Unchanged isolated case through root Turbo `--only`, one worker | Passed, 1 selected / 136 skipped; Turbo 3.403 s | `session-list-keyboard-isolated-before.txt` |
+| Passive full-suite control | 137/137 passed; Destination received Enter after the focus handoff | `session-list-keyboard-focus-diagnostic.txt` |
+| Buffered capture before correction | Existing adoption assertion failed; Enter targeted “Nest under…” and adoption count was zero | `session-list-keyboard-focus-buffered.txt` |
+| Corrected full canonical suite through root Turbo `--only --force`, one worker | 137/137 passed; Turbo 9.643 s | `session-list-keyboard-after.txt` |
+| Targeted Oxfmt check and Oxlint with `--deny-warnings` | Both passed | `session-list-keyboard-format.txt`, `session-list-keyboard-lint.txt` |
+
+All executions used `run-bounded.py`. An attempted runtime comparison in the frozen main export could not start because its `node_modules` were no longer present (`vitest: command not found`, exit 127, `session-list-keyboard-main8c-before.txt`); it supplies no test result. The main comparison here is source equality, while the causal failing/passing traces and corrected canonical suite ran on the current checkout. Existing React `act` notices remain visible in the suite log. No further repetitions or broader local checks were run after the canonical suite passed. Root owns full current-head CI with continuous command logs.

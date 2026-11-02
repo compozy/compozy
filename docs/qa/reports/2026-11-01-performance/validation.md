@@ -374,7 +374,46 @@ Root integration checks run through the serialized two-CPU runner:
   extraction; final-head CI owns the committed runtime/Web acceptance.
 
 The incoming frontend CI job timeout increases from 35 to 45 minutes in main itself.
-The performance delta relative to that main changes only the runtime artifact uploader path
-in the workflow; it does not introduce that timeout change. Full local `make gate` and
+The performance delta retains that deadline; the workflow changes the runtime artifact
+uploader path and now streams frontend task logs as explained below. Full local `make gate` and
 `make gate-full` remain unrun under the user's explicit CI authorization. The PR delivery
 record owns the exact final head, live checks and clean-worktree receipt.
+
+## Frontend CI deadline and keyboard readiness
+
+[CI run 41414334118](https://github.com/compozy/compozy/actions/runs/41414334118) on
+`895d8a5d72840c92e01015bf313a2e2340cb084d` passed 25 jobs, including all eight Go race
+shards, four Web E2E shards, runtime/desktop E2E, platform checks and code generation.
+The frontend job reached its existing 45-minute deadline, and the Verify aggregate
+failed because of that cancellation. This head is not a complete delivery pass.
+
+The completed job log shows lint and the other package checks finishing; Web typecheck
+finished at 08:44:03 UTC. Turbo's grouped output never flushed the Web test task before
+the job was cancelled at 09:22:31 UTC. This establishes non-completion inside frontend
+verification, but does not identify the hanging test or prove a production defect.
+The workflow now uses `--log-order=stream` for the same typecheck/test command. It keeps
+the same packages, test set, worker policy, assertions and job deadline.
+
+A serialized diagnostic selected the 98 Web test files changed since the original
+baseline. The first run stopped at an existing SessionList keyboard assertion after
+312 passing tests. A separate run of the remaining 96 files passed all 1,924 tests in
+210.14 seconds, with each file's queued, collected and finished events recorded. The
+suspected fork-dialog collection stall did not reproduce; all 96 files finished. An
+isolated AgentProfileHome import-cycle probe also passed all six cases. These focused
+checks do not replace the full Web suite or identify the CI deadline's root cause.
+
+The keyboard failure had an independent causal reproduction: the Destination menu item
+was mounted while focus remained on the parent submenu trigger. Enter therefore reached
+the trigger and never called `onAdopt`. In the passing control, the scheduled focus
+handoff completed before Enter. The existing canonical test now waits for Destination
+to own focus before sending the same Enter, retaining the foreign-parent exclusion and
+the exact adoption arguments. No production behavior, manual focus, sleep, assertion or
+timeout was substituted. The [store/session report](store-session.md) owns the controls
+and final focused result. There is no demonstrated connection between this fixture race
+and the CI non-completion.
+
+Receipts under `.cache/performance/`: `main-integration-frontend-ci-timeout.log`,
+`main-integration-web-changed-diagnostic.log`,
+`main-integration-web-remaining-diagnostic.log`, and
+`usage-dashboard/ci-hang-agent-profile-home.log`. Final acceptance requires CI on the
+newly published head; the earlier 25 successful jobs are not substituted for that run.

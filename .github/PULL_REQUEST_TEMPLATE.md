@@ -355,6 +355,17 @@ stable negative identities retain the existing repository service policy. A fail
 batch falls back once per key, preserving valid rows when another persisted row cannot decode.
 Cancellation and single-key reads do not fan out; successful listings still perform one batch.
 
+## Frontend verification follow-up
+
+The integrated `895d8a5d7` CI run passed 25 jobs but reached the existing 45-minute
+frontend deadline. A one-worker diagnostic passed 96 changed suites and 1,924 tests;
+it did not reproduce that non-completion. A separate SessionList keyboard race was
+causally reproduced and repaired in its existing test by awaiting submenu focus before
+the same Enter. The workflow now streams the same frontend task logs so cancellation
+cannot hide all in-progress test output. Coverage, assertions and deadlines remain intact.
+The [validation record](../docs/qa/reports/2026-11-01-performance/validation.md#frontend-ci-deadline-and-keyboard-readiness)
+keeps these findings separate; PR #1141 owns acceptance of the subsequent current head.
+
 ## Verification boundaries
 
 Real SQLite/Git/filesystem checks, focused race and frontend suites, canonical codegen,
