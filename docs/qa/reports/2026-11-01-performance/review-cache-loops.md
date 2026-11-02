@@ -86,9 +86,28 @@ Limits: native runtime evidence is Darwin/arm64. Linux and Windows helpers were 
 
 Reviewed the new coordinator, `use-loop-stream.ts`, `loop-stream-lifecycle-store.ts`, query keys/options, and the existing hook tests.
 
+These observations describe the initial implementation. The per-query follow-up below
+supersedes its global read-completion barrier while preserving scope and cleanup contracts.
+
 - The pending set contains at most four scope labels. Each round drains it; events received during a round request one follow-up. Request/catalog extras are retained in the union. When a run refresh includes goal-turn events, the `runReads` prefix covers the goal-turn descendant key, so suppressing a redundant exact key does not omit it.
 - Cleanup closes event admission while retaining already accepted pending work. The scheduled and in-flight state transitions both preserve the final reconciliation; a closed store rejects later refresh requests. With inactive/disabled observers and no pending query fetch, invalidation leaves data stale for the next enabled observer without forcing a disabled read.
 - `handleFrame` compares the exact active subscription object at `use-loop-stream.ts:148`, not only workspace/run strings. Each opening creates a new object and increments generation. An old A callback remains rejected after A→B→A; returning to equal IDs cannot reauthorize that object. Cleanup also removes listeners where supported, nulls callbacks and closes the source. Previously accepted A work can still invalidate A keys after disposal, intentionally; it does not apply old frame payloads to B.
 - Existing tests exercise cached-data bursts, scheduled/in-flight disposal, stream error, failed reads with a pending follow-up, listener cleanup, and a late A callback after A→B. The subsequent independent recheck exercises actual coordinator instances through A1→B→A2 and rejects a late refresh from closed A1. The hook's frame-identity fence is statically reviewed; this review did not mount an additional React test or run a browser.
 
 Subscription-local coordinators can still cancel or duplicate reads over shared aggregate keys across simultaneous subscriptions or rapid replacement; the owning report already limits its coordination claim accordingly. No new cross-subscription scheduler was proposed by this review.
+
+## Per-query Loop refresh follow-up — 2026-11-02
+
+An independent read-only review checked the final coordinator SHA-256
+`ef96bb09cbdd175d8392c12e9f53a72b8a200d5e35b758a6ed5dbc31511e41b2` and canonical
+suite SHA-256 `41a81b16d3ee754e0cea52505ff7328c260f657166e52a433538d045bf205d4a`.
+No concrete defect was found in scope selection, custom hashing, initial/disabled-read
+freshness, pending consumption, error settlement or disposal. One local registry entry
+and pending bit belong to each existing Query; an indefinitely pending request retains
+only its own accepted obligation and cannot block healthy queries.
+
+The reviewer inspected the owner's 32/32 canonical cases, unchanged 8/8 independent
+controls, failing-before mixed-query controls and preserved 100-event / 3-read /
+zero-cancellation fixture. This follow-up was source review and receipt inspection,
+not another test, benchmark or browser run. Cross-subscription coordination and a
+network response deadline remain outside the implementation's claims.

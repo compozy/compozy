@@ -32,3 +32,9 @@ active cached inventory read while preserving deferred invalidation for initial
 or disabled reads. Disposal still retains accepted reconciliation. The focused
 hook suite and lifecycle controls pass; runtime/CI verification remains with the
 enclosing audit. Evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA follow-up 2026-11-02 (independent queries): later request events must refresh
+ready inventory/provenance reads while a different read is still pending. Accepted
+work continues after disposal and disabled reads remain invalidated until enabled.
+Focused controls pass; retain the enclosing runtime/CI walk. Evidence:
+`docs/qa/reports/2026-11-01-performance/loop-loops.md`.

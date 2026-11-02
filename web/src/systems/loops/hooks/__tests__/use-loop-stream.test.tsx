@@ -131,8 +131,8 @@ function buildFrame(overrides: Partial<LoopRunEventFrame> = {}): LoopRunEventFra
 }
 
 describe("useLoopStream", () => {
-  it.each(["cached read only", "initial sibling", "disabled prefetch sibling"])(
-    "Should replace a pre-event cached read while reconciling %s",
+  it.each(["cached read only", "cached sibling", "initial sibling", "disabled prefetch sibling"])(
+    "Should keep cached reads progressing while reconciling %s",
     async boundary => {
       vi.useFakeTimers();
       const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -170,7 +170,8 @@ describe("useLoopStream", () => {
       const siblingOptions = {
         queryKey: loopsKeys.runRoster("ws_1", "looprun_1"),
         queryKeyHashFn: (key: readonly unknown[]) => JSON.stringify(["custom", key]),
-        enabled: boundary === "initial sibling",
+        enabled: boundary === "initial sibling" || boundary === "cached sibling",
+        initialData: boundary === "cached sibling" ? { revision: 0 } : undefined,
         staleTime: Infinity,
         queryFn: ({ signal }: { signal: AbortSignal }) => {
           const readRevision = revision;
@@ -196,6 +197,17 @@ describe("useLoopStream", () => {
           : undefined;
       const unrelatedKey = loopsKeys.runBriefing("ws_2", "looprun_2");
       queryClient.setQueryData(unrelatedKey, { revision: 0 });
+      let catalogReads = 0;
+      const catalogObserver = new QueryObserver(queryClient, {
+        queryKey: loopsKeys.catalogByWorkspace("ws_1"),
+        initialData: { revision: 0 },
+        staleTime: Infinity,
+        queryFn: async () => {
+          catalogReads++;
+          return { revision };
+        },
+      });
+      const unsubscribeCatalog = catalogObserver.subscribe(() => undefined);
       const { unmount } = renderHook(
         () => useLoopStream("ws_1", "looprun_1", { eventSourceFactory }),
         { wrapper: createWrapper(queryClient) }
@@ -214,6 +226,21 @@ describe("useLoopStream", () => {
         expect(canceled).toBe(1);
         expect(siblingReads).toBe(boundary === "cached read only" ? 0 : 1);
         expect(siblingCanceled).toBe(0);
+        expect(catalogReads).toBe(0);
+        await act(async () => {
+          revision = 2;
+          eventSource.emitNamed("status_changed", buildFrame({ kind: "status_changed" }));
+          await vi.advanceTimersByTimeAsync(1);
+        });
+        // A later event must reach both ready queries while the sibling's
+        // initial, cached, or disabled read is still blocked.
+        expect(observer.getCurrentResult().data).toEqual({ revision: 2 });
+        expect(reads).toBe(3);
+        expect(canceled).toBe(1);
+        expect(catalogObserver.getCurrentResult().data).toEqual({ revision: 2 });
+        expect(catalogReads).toBe(1);
+        expect(siblingReads).toBe(boundary === "cached read only" ? 0 : 1);
+        expect(siblingCanceled).toBe(0);
         await act(async () => {
           releaseSiblingRead();
           await vi.advanceTimersByTimeAsync(1);
@@ -229,17 +256,11 @@ describe("useLoopStream", () => {
         }
         if (boundary !== "cached read only") {
           expect(siblingReads).toBe(2);
-          expect(siblingObserver.getCurrentResult().data).toEqual({ revision: 1 });
+          expect(siblingObserver.getCurrentResult().data).toEqual({ revision: 2 });
         }
-        expect(reads).toBe(2);
-        await act(async () => {
-          revision = 2;
-          eventSource.emitNamed("status_changed", buildFrame({ kind: "status_changed" }));
-          await vi.advanceTimersByTimeAsync(1);
-        });
-        expect(observer.getCurrentResult().data).toEqual({ revision: 2 });
         expect(reads).toBe(3);
         expect(canceled).toBe(1);
+        expect(catalogReads).toBe(1);
         expect(queryClient.getQueryState(unrelatedKey)?.isInvalidated).toBe(false);
       } finally {
         unmount();
@@ -247,6 +268,7 @@ describe("useLoopStream", () => {
         releaseSiblingRead();
         unsubscribe();
         unsubscribeSibling();
+        unsubscribeCatalog();
         queryClient.clear();
         await olderRead;
         vi.useRealTimers();

@@ -78,10 +78,12 @@ scenario re-walk remains pending. Evidence and limits: [API and Tasks audit](../
 and [worktree audit](../reports/2026-11-01-performance/worktree-workspace.md).
 
 2026-11-02 review follow-up: if one row encounters a transient workspace lookup
-failure, later rows for that workspace must retry resolution and retain available
+or uncached repository-identity failure, later rows must retry resolution and retain available
 forge facts; after success, subsequent rows share that resolution. The existing
 `TestGlobalDBWorktreeStore` fixture verifies three ordered rows using real SQLite
 and Git, with a controlled lookup failure at the I/O boundary. It fails before the
-correction and passes under race afterward. The aggregate benchmark also checks
+correction and passes under race afterward. The repository variant makes the temporary
+fixture root unavailable to the real Git runner, then restores it for the next row.
+Stable negative identity caching remains unchanged. The aggregate benchmark also checks
 local and forge status on every one of its 64 rows. These checks do not replace
 the enclosing transport journey or alter its historical verdict.

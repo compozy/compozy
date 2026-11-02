@@ -35,3 +35,9 @@ active cached aggregate reads without waiting for their pre-event request. Initi
 and disabled reads keep their trailing freshness obligation. Workspace/aggregate
 prefixes are unchanged. Focused hook checks pass; the enclosing audit retains the
 runtime/CI walk. Evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA follow-up 2026-11-02 (independent queries): include a second event for a healthy
+aggregate/catalog while a sibling run read is pending. Refresh ownership is now
+per Query, preserving workspace/aggregate scope without waiting for unrelated
+requests. Focused controls pass; runtime/CI verification remains with the enclosing
+audit. Evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.

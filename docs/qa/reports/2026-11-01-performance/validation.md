@@ -14,7 +14,7 @@ home. No live provider credentials were copied or used.
 | `make go-lint` with explicit changed-package scopes and concurrency 2 | Passed, zero issues in normal and integration-tag lanes; changed-file formatter and source policies passed. Uses repository pin golangci-lint 2.15.0. |
 | Root Turbo Web `lint typecheck build --filter=./web --only` | All three tasks passed. Lint: zero warnings/errors. SDK dependency built first through root Turbo. Build retains existing CSS/chunk-size/plugin-timing diagnostics; no threshold or assertion was weakened. |
 | Changed concurrent Go owners | Focused race checks passed; real SQLite, real Git, real filesystem and loopback I/O are identified in each owner report. |
-| Changed frontend owners | Canonical QueryObserver/component suites passed, including 63 dashboard tests, 31 Loop stream tests and 68 OS interaction tests after review/lint follow-ups. Other focused counts are in the reports; overlapping suites are not summed. |
+| Changed frontend owners | Canonical QueryObserver/component suites passed, including 63 dashboard tests, 32 Loop stream tests and 68 OS interaction tests after review/lint follow-ups. Other focused counts are in the reports; overlapping suites are not summed. |
 | Real worktree lifecycle integration subset | Passed under race in 10.959 s: truthful status corruption/recovery, upstream divergence, refusal of dirty/unpushed loss, and external commit reread. |
 | Independent cross-reviews | Five reports; UW-001 and RD-001 reproduced before and resolved after; L1 initial-fetch freshness hole resolved with 28 canonical and eight independent checks. Extension precedence: 4,608 independent SQLite combinations passed. |
 | Source size and whitespace | Changed production sources remain at most 500 lines; final diff check passed. Test files reuse existing suites except the absent scheduler-action hook suite. |
@@ -138,13 +138,16 @@ the replacement head must pass fresh required CI before delivery.
 | [Nil-session diagnostic](https://github.com/compozy/compozy/pull/1141#discussion_r4438977550) | Accepted. The existing guard test requires its exact nil-input diagnostic while retaining cancellation and dependency-error assertions. | [Daemon/runtime](daemon-runtime.md) |
 | [Pre-event Loop read](https://github.com/compozy/compozy/pull/1141#discussion_r4438977553) | Fixed. Active cached reads invalidate immediately; only initial/inactive/static reads retain a trailing obligation. Three failing-before cases cover a warm query alone and mixed prefixes with initial or disabled-prefetch siblings, including a custom query hash. All 31 canonical and eight independent controls pass. | [Loop/scheduler](loop-loops.md) |
 | [Reverse credential observation order](https://github.com/compozy/compozy/pull/1141#discussion_r4439116140) | Fixed after reproducing against `56176f829`. A mismatch that collides only with a newer validation sequence now obtains fresh evidence outside the mutex; application order cannot establish observation order. Existing ownership guards, per-attempt cancellation and the exact validation error classification remain. | [Usage/dashboard](usage-dashboard.md) |
+| [Credential application order](https://github.com/compozy/compozy/pull/1141#discussion_r4439135779) | The same reverse-order defect was independently reported by CodeRabbit. The shared correction above addresses both comments; no duplicate production path or test suite was added. | [Usage/dashboard](usage-dashboard.md) |
+| [Retryable repository identity](https://github.com/compozy/compozy/pull/1141#discussion_r4439135789) | Fixed. A real Git start failure caused by a temporarily unavailable fixture root is not cached by `RepoKey`, but the listing had memoized its empty result. Only successful identities now enter the request-local map. Five canonical SQLite/Git cases pass, and the 64-row guard retains 2 workspace, 1 PR and 64 status reads. Stable negative caching remains unchanged. | [Worktree/workspace](worktree-workspace.md) |
+| [Independent Loop progress](https://github.com/compozy/compozy/pull/1141#discussion_r4439135799) | Fixed. The global completion barrier is replaced by one read and one pending bit per existing Query object, local to the subscription. Healthy briefing/catalog queries process a second event before a blocked sibling settles. Initial/disabled reads consume both wakes in one trailing read. All 32 canonical and eight independent controls pass, preserving the 100/3/0 burst result. | [Loop/scheduler](loop-loops.md) |
 
 The credential follow-up preserves unrelated-profile isolation and cached-read allocation
 counts; overlapping timing ranges do not establish an additional speedup. The Loop burst
 still produces three reads and zero cancellations for 100 events and reaches revision 100.
-A stalled pre-event warm read can now be canceled once; initial/inactive or newly started
-reads still keep their coalesced round open until settlement. No arbitrary timeout or
-additional coordinator was introduced. Error assertions and ownership controls were
+A stalled pre-event warm read can be canceled once. A pending read retains only its
+own query's reconciliation obligation; independent queries continue to process events.
+No arbitrary timeout, global cache or cross-system abstraction was introduced. Error assertions and ownership controls were
 strengthened within existing suites; no test timeout or acceptance threshold was relaxed.
 
 Integrated follow-up checks passed after the production fixes:
@@ -168,6 +171,21 @@ overlapping timing ranges do not support another speedup claim. An independent s
 review checked both orderings, repeated collisions, ABA/cache and lifecycle/error cases
 against the frozen source and the owner's receipts, with no further concrete finding.
 That review did not execute another suite; see [its scope and limits](review-usage-worktree.md).
+
+The per-query Loop correction received a separate read-only review of scopes, custom
+hashes, L1, pending consumption and disposal, with no concrete finding. Its 32 canonical
+and eight independent results were inspected, not rerun by that reviewer. The repository
+identity correction passed five SQLite/Git cases and the complete benchmark guard under
+race (6.538 s), plus existing worktree status/identity policies (1.989 s). Stable error
+caching and cancellation are unchanged; the one benchmark iteration proves counts and
+completeness, not a new timing improvement.
+
+Integrated checks after those two corrections passed: scoped canonical worktree/GlobalDB
+lint reported zero issues in normal and integration-tag lanes, with all 87 changed Go
+files passing formatting/source checks (`repository-key-go-lint.log`). Root Turbo Web
+lint/typecheck/build passed all three tasks in 70.795 s (`query-refresh-web-lint-types-build.log`).
+React Doctor inspected 57 changed sources, scored 93/100 and reported no issues
+(`react-doctor-query-refresh.log`). Receipts are under `.cache/performance/`.
 
 ## Runtime CI deadline and artifact retention
 
@@ -199,6 +217,11 @@ After: one complete manifest and daemon log survived the child process, pass in
 checks for all changed Go files. See [daemon/runtime](daemon-runtime.md) for commands,
 receipts, caller/path checks and the remaining uncertainty. The next head must pass
 fresh CI; an isolated local pass does not replace that acceptance.
+
+The subsequent [runtime E2E job on `e8046c842`](https://github.com/compozy/compozy/actions/runs/41396361725/job/125118571350)
+passed with the original test assertions/deadline and the artifact-retaining runner.
+This is an actual CI pass for that head, not proof of the earlier timeout's root cause.
+The later repository/Loop corrections still require CI on their published head.
 
 ## Browser and CI delivery
 

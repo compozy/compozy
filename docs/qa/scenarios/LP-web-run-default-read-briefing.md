@@ -72,3 +72,10 @@ invalidation; a disabled read refreshes only on activation. The canonical hook
 suite passes 31 cases and the eight existing lifecycle controls pass. The enclosing
 audit owns runtime/CI verification; the focused evidence and remaining dependence
 on read settlement are recorded in `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA follow-up 2026-11-02 (independent queries): emit a second lifecycle event while
+the roster read is still pending. The healthy briefing and catalog must advance
+before that roster request settles, then the roster must consume the accepted
+events without an extra redundant read. The strengthened canonical suite passes
+32 cases and the eight lifecycle controls still pass. The enclosing runtime/CI
+walk remains pending; evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.

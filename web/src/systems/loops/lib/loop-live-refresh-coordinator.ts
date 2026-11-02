@@ -1,5 +1,5 @@
 import { createStore } from "@xstate/store";
-import type { QueryClient, QueryKey } from "@tanstack/react-query";
+import type { Query, QueryClient, QueryKey } from "@tanstack/react-query";
 
 import { LOOP_AGGREGATE_KEY, loopsKeys } from "./query-keys";
 
@@ -8,15 +8,18 @@ type LoopLiveRefreshScope = "run" | "catalog" | "request" | "goal-turns";
 interface LoopLiveRefreshContext {
   closed: boolean;
   pending: LoopLiveRefreshScope[];
-  phase: "idle" | "scheduled" | "refreshing";
+  phase: "idle" | "scheduled";
 }
 
 type LoopLiveRefreshEvents = {
   disposed: Record<never, never>;
   refreshRequested: { scope: LoopLiveRefreshScope };
-  refreshSettled: Record<never, never>;
   refreshStarted: Record<never, never>;
 };
+
+interface LoopQueryRefresh {
+  followUpRequired: boolean;
+}
 
 function refreshKeys(
   workspaceId: string,
@@ -52,39 +55,78 @@ function refreshKeys(
   return keys;
 }
 
-async function refreshLoopQuery(queryClient: QueryClient, queryKey: QueryKey): Promise<void> {
-  // Active cached reads can restart immediately. Other in-flight reads must
-  // settle before trailing invalidation so they cannot erase an accepted wake.
-  const trailingReads = queryClient
-    .getQueryCache()
-    .findAll({ queryKey, fetchStatus: "fetching" })
-    .flatMap(query => {
-      const read = query.promise;
-      return read && (query.state.data === undefined || !query.isActive() || query.isStatic())
-        ? [{ query, read }]
-        : [];
-    });
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey }),
-    ...trailingReads.map(async ({ query, read }) => {
-      await Promise.allSettled([read]);
-      // Preserve the matched query's identity, including custom key hashing.
-      // Default active-only refetch leaves disabled observers stale until enabled.
-      await queryClient.invalidateQueries({ predicate: candidate => candidate === query });
-    }),
-  ]);
+function reportRefreshError(error: unknown): void {
+  console.error("Failed to refresh loop live data", error);
+}
+
+async function drainLoopQueryRefresh(
+  queryClient: QueryClient,
+  query: Query,
+  refresh: LoopQueryRefresh,
+  refreshes: Map<Query, LoopQueryRefresh>
+): Promise<void> {
+  try {
+    const read = query.state.fetchStatus === "fetching" ? query.promise : undefined;
+    if (read) await Promise.allSettled([read]);
+    while (refresh.followUpRequired) {
+      // This fresh read consumes every wake accepted before it starts, including
+      // those received while an older initial read or disabled prefetch settled.
+      refresh.followUpRequired = false;
+      await queryClient
+        .invalidateQueries({ predicate: candidate => candidate === query })
+        .catch(reportRefreshError);
+    }
+  } finally {
+    refreshes.delete(query);
+  }
+}
+
+function refreshLoopQuery(
+  queryClient: QueryClient,
+  queryKey: QueryKey,
+  refreshes: Map<Query, LoopQueryRefresh>
+): void {
+  const busy = new Set<Query>();
+  const started = new Map<Query, LoopQueryRefresh>();
+  for (const query of queryClient.getQueryCache().findAll({ queryKey })) {
+    const current = refreshes.get(query);
+    if (current) {
+      current.followUpRequired = true;
+      busy.add(query);
+      continue;
+    }
+    const refresh = {
+      // Active cached reads can restart now. Other pre-event reads must settle
+      // before trailing invalidation so their response cannot erase this wake.
+      followUpRequired:
+        query.state.fetchStatus === "fetching" &&
+        (query.state.data === undefined || !query.isActive() || query.isStatic()),
+    };
+    refreshes.set(query, refresh);
+    started.set(query, refresh);
+  }
+  void queryClient
+    .invalidateQueries({
+      queryKey,
+      ...(busy.size > 0 ? { predicate: (query: Query) => !busy.has(query) } : {}),
+    })
+    .catch(reportRefreshError);
+  for (const [query, refresh] of started) {
+    void drainLoopQueryRefresh(queryClient, query, refresh, refreshes).catch(reportRefreshError);
+  }
 }
 
 /**
- * Uses the task stream's microtask/in-flight reconciliation pattern. Frames stay
- * immediate; one burst starts one read round and arrivals during it merge into
- * one follow-up. Closing the subscription preserves that final pending read.
+ * Frames stay immediate and synchronous wakes share one microtask. Each existing
+ * Query owns one read and one pending follow-up, so unrelated reads can progress.
+ * Closing the subscription preserves every already accepted reconciliation.
  */
 export function createLoopLiveRefreshStore(
   queryClient: QueryClient,
   workspaceId: string,
   runId: string
 ) {
+  const refreshes = new Map<Query, LoopQueryRefresh>();
   return createStore<LoopLiveRefreshContext, LoopLiveRefreshEvents>({
     context: { closed: false, pending: [], phase: "idle" },
     on: {
@@ -107,24 +149,10 @@ export function createLoopLiveRefreshStore(
       refreshStarted: (context, _event, enqueue) => {
         if (context.phase !== "scheduled") return;
         const keys = refreshKeys(workspaceId, runId, context.pending);
-        enqueue.effect(async ({ trigger }) => {
-          try {
-            await Promise.all(keys.map(queryKey => refreshLoopQuery(queryClient, queryKey)));
-          } catch (error) {
-            console.error("Failed to refresh loop live data", error);
-          } finally {
-            trigger.refreshSettled();
-          }
+        enqueue.effect(() => {
+          for (const queryKey of keys) refreshLoopQuery(queryClient, queryKey, refreshes);
         });
-        return { ...context, pending: [], phase: "refreshing" };
-      },
-      refreshSettled: (context, _event, enqueue) => {
-        if (context.phase !== "refreshing") return;
-        if (context.pending.length === 0) return { ...context, phase: "idle" };
-        enqueue.effect(({ trigger }) => {
-          queueMicrotask(() => trigger.refreshStarted());
-        });
-        return { ...context, phase: "scheduled" };
+        return { ...context, pending: [], phase: "idle" };
       },
       disposed: context => ({ ...context, closed: true }),
     },

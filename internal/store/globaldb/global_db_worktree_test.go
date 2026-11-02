@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -96,46 +97,76 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		}
 	})
 
-	// Invariant: a transient resolver failure does not hide later rows' cached PR facts.
+	// Invariant: transient workspace or repository failures do not hide later rows' cached PR facts.
 	// Owner: inspection hydration over the real SQLite repository; canonical worktree store suite.
-	t.Run("Should resolve later listing rows after a transient workspace failure", func(t *testing.T) {
-		t.Parallel()
-		fixture, service := newWorktreeInspectionFixture(t, 3)
-		fixture.resolveError = func() error {
-			if fixture.resolves == 1 {
-				return errors.New("workspace temporarily unavailable")
-			}
-			return nil
-		}
-		listing, err := service.ListAggregate(
-			t.Context(),
-			store.ReadScope{ProfileID: store.DefaultProfileID},
-			map[string]bool{"ws-bench-0": true},
-		)
-		if err != nil || listing == nil || len(listing.Worktrees) != 3 {
-			t.Fatalf("transient resolution listing = %#v, %v", listing, err)
-		}
-		for index, item := range listing.Worktrees {
-			if item.Worktree.WorkspaceID != "ws-bench-0" || item.Status == nil ||
-				item.Status.WorktreeID != item.Worktree.ID || item.Status.DirtyFiles == nil {
-				t.Fatalf("listing row %d lost its cached local status: %#v", index, item)
-			}
-			if index == 0 {
-				if item.ForgeStatus != nil {
-					t.Fatalf("unresolved row has forge facts: %#v", item)
+	for _, lookup := range []string{"workspace", "repository"} {
+		t.Run("Should resolve later listing rows after a transient "+lookup+" failure", func(t *testing.T) {
+			t.Parallel()
+			fixture, service := newWorktreeInspectionFixture(t, 3)
+			fixture.resolveError = func() error {
+				if fixture.resolves == 1 {
+					return errors.New("workspace temporarily unavailable")
 				}
-				continue
+				return nil
 			}
-			if item.ForgeStatus == nil || item.ForgeStatus.PRNumber == nil ||
-				*item.ForgeStatus.PRNumber != *item.Status.DirtyFiles+1 {
-				t.Fatalf("listing row %d lost its cached PR after resolver recovery: %#v", index, item)
+			if lookup == "repository" {
+				workspace, err := fixture.db.GetWorkspace(t.Context(), "ws-bench-0")
+				if err != nil {
+					t.Fatal(err)
+				}
+				root, unavailable := workspace.RootDir, workspace.RootDir+".unavailable"
+				t.Cleanup(func() {
+					if _, err := os.Stat(unavailable); errors.Is(err, os.ErrNotExist) {
+						return
+					} else if err != nil {
+						t.Errorf("inspect unavailable root cleanup: %v", err)
+						return
+					}
+					if err := os.Rename(unavailable, root); err != nil {
+						t.Errorf("restore unavailable root cleanup: %v", err)
+					}
+				})
+				fixture.resolveError = func() error {
+					switch fixture.resolves {
+					case 1:
+						return os.Rename(root, unavailable)
+					case 2:
+						return os.Rename(unavailable, root)
+					default:
+						return nil
+					}
+				}
 			}
-		}
-		if fixture.resolves != 2 || fixture.pullReads != 1 || fixture.statusReads != 3 {
-			t.Fatalf("recovered listing reads = workspace:%d PR:%d status:%d",
-				fixture.resolves, fixture.pullReads, fixture.statusReads)
-		}
-	})
+			listing, err := service.ListAggregate(
+				t.Context(),
+				store.ReadScope{ProfileID: store.DefaultProfileID},
+				map[string]bool{"ws-bench-0": true},
+			)
+			if err != nil || listing == nil || len(listing.Worktrees) != 3 {
+				t.Fatalf("transient resolution listing = %#v, %v", listing, err)
+			}
+			for index, item := range listing.Worktrees {
+				if item.Worktree.WorkspaceID != "ws-bench-0" || item.Status == nil ||
+					item.Status.WorktreeID != item.Worktree.ID || item.Status.DirtyFiles == nil {
+					t.Fatalf("listing row %d lost its cached local status: %#v", index, item)
+				}
+				if index == 0 {
+					if item.ForgeStatus != nil {
+						t.Fatalf("unresolved row has forge facts: %#v", item)
+					}
+					continue
+				}
+				if item.ForgeStatus == nil || item.ForgeStatus.PRNumber == nil ||
+					*item.ForgeStatus.PRNumber != *item.Status.DirtyFiles+1 {
+					t.Fatalf("listing row %d lost its cached PR after resolver recovery: %#v", index, item)
+				}
+			}
+			if fixture.resolves != 2 || fixture.pullReads != 1 || fixture.statusReads != 3 {
+				t.Fatalf("recovered listing reads = workspace:%d PR:%d status:%d",
+					fixture.resolves, fixture.pullReads, fixture.statusReads)
+			}
+		})
+	}
 
 	t.Run("Should exclude unauthorized workspaces and profiles before inspection", func(t *testing.T) {
 		t.Parallel()

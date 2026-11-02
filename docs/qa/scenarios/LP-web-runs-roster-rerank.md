@@ -46,3 +46,8 @@ an older pending read when a lifecycle event arrives. Its active cached read can
 restart immediately; initial or disabled sibling reads still reconcile after
 settlement. Focused hook checks pass; runtime/CI verification remains with the
 enclosing audit. Evidence and limits: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.
+
+QA follow-up 2026-11-02 (independent queries): a second event must refresh a healthy
+run list while another affected query remains pending. Only the busy query's own
+follow-up waits for settlement. The canonical mixed-query controls pass; retain
+the enclosing runtime/CI walk. Evidence: `docs/qa/reports/2026-11-01-performance/loop-loops.md`.

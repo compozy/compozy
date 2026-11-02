@@ -25,14 +25,17 @@ unchanged public and persisted shapes need no compatibility shim or migration.
   move outside the shared mutex with identity/publication fences; a late read cannot publish
   or clear another ownership generation. Positive read evidence, including unchanged-file
   evidence, also fences older reads; validation errors do not. Failed workspace resolution
-  is not cached across later display rows, preserving transient recovery while batching successes.
+  and retryable repository identity are not cached across later display rows, preserving
+  transient recovery while batching successes and retaining stable negative identity policy.
   A sequence-only collision on a credential mismatch triggers fresh evidence outside the mutex;
   application order alone does not establish observation order. Error classification is unchanged.
   Attachment checks retain authoritative retention,
   pins, scope and content verification. Package availability reuse is bounded and keyed by
   digest plus held-file identity/change evidence; installation always rehashes.
 - **Web:** session/task/worktree invalidation avoids unrelated scopes; Dashboard/Loop bursts
-  retain authoritative trailing reads and lifecycle fences. Closed selectors/About defer
+  retain authoritative trailing reads and lifecycle fences. Loop reconciliation belongs to
+  each existing Query, so one pending read cannot block updates to healthy queries.
+  Closed selectors/About defer
   unused work; restart consumers observe only relevant status fields. Terminal pane state
   drops identities removed by the authoritative catalog. No UI redesign or product-copy change.
   Accepted session retargets bind the new conversation or its loading state immediately,

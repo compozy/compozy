@@ -299,11 +299,13 @@ read/read credential ordering, transient workspace-resolution and stalled Loop-r
 controls, and the evidence for retaining attachment ownership and per-sweep pause projection.
 Successful credential reads, including verified cached evidence, now fence older observations;
 failed validation does not advance that fence. Active cached Loop reads can restart immediately;
-initial/inactive/static reads retain their trailing obligation and may still keep a round open
-until settlement. No additional speedup is inferred from the credential follow-up timings.
+each pending query retains its own trailing obligation while healthy queries continue to process
+later events. No additional speedup is inferred from the credential follow-up timings.
 The reverse credential ordering also requires fresh evidence after a sequence-only mismatch
 collision: successful application order alone does not establish which observation was newer.
 This recheck preserves the existing error classification and stops new attempts on cancellation.
+Worktree hydration also leaves retryable repository-identity failures uncached within a listing;
+stable negative identities retain the existing repository service policy.
 
 ## Verification boundaries
 
