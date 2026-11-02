@@ -1,4 +1,4 @@
-import { notifyUser } from "@/lib/user-feedback";
+import { toast } from "@compozy/ui";
 
 const MAX_REFUSAL_REASON_LENGTH = 400;
 
@@ -23,13 +23,18 @@ export function sessionPromptRefusalReason(body: string): string | null {
 }
 
 /** Tells the operator a prompt never became a turn; the draft itself is restored separately. */
-export function notifySessionPromptNotSent(reason: string | null): void {
-  notifyUser({
-    message: reason
+export function notifySessionPromptNotSent(reason: string | null, sessionId: string): void {
+  toast.error(
+    reason
       ? `Message not sent: ${reason}. Your draft was kept.`
       : "Couldn't confirm the message was sent. Your draft was kept.",
-    tone: "error",
-  });
+    { id: `session-prompt-refusal-${sessionId}` }
+  );
+}
+
+/** Clears only this session's obsolete refusal after a prompt is accepted. */
+export function dismissSessionPromptNotSent(sessionId: string): void {
+  toast.dismiss(`session-prompt-refusal-${sessionId}`);
 }
 
 /** Caps daemon refusal text before presenting it in a notification or chat error. */

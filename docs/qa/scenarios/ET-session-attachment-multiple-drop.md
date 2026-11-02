@@ -53,3 +53,21 @@ wide composer widths; no operator runtime/session may be used for this probe.
 Focused proof: adapter duplicate/rebuild/removal cases and chat-runtime provider
 missing-image recovery/resend integration pass. A browser/daemon receipt for this
 new probe is required before replacing the historical QA verdict above.
+
+Rendered QA follow-up (#1142, initial fix): the orchestrator exercised 1118px and
+399px viewports. Duplicate removal, in-flight removal without resurrection,
+ready-plus-in-flight duplicate removal, draft restoration, exact inline recovery
+copy and multi-file drop passed. Retry failed visually: the daemon recorded one
+user message, but the refused optimistic bubble remained with a broken image.
+The runtime now evicts that refused local message by ID, dismisses the session's
+refusal toast on acceptance, and removes uploading tiles immediately. Repeat
+recovery and retry at both widths; require zero refused bubbles before retry,
+exactly one bubble after acceptance, preserved draft text and no stale toast.
+These changed states remain pending rendered re-verification.
+
+The lab enabled image capability on acpmock using a build overlay. The mock records
+text only, so daemon admission, persisted file metadata and byte reads were
+verified; image delivery to the mock agent was not directly observed. Multi-drop
+used a dispatched DataTransfer rather than an OS drag. Strict audit C12/C14 are
+report/gate artifact blockers, not observed behavior failures. The send-feedback
+wrapper follows COPY.md's composer send feedback contract and is retained.

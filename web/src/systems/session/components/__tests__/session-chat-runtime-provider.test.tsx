@@ -2163,6 +2163,12 @@ describe("SessionChatRuntimeProvider", () => {
     expect(await screen.findByTestId("composer-attachment-tile")).toBeInTheDocument();
     expect(await screen.findByText(/An attachment is no longer available/)).toBeInTheDocument();
     expect(document.body.textContent).not.toContain('{"error"');
+    // A refused prompt belongs only in the recovered draft, never in the thread.
+    const sentImageBubbles = () =>
+      screen
+        .queryAllByTestId("user-message-bubble")
+        .filter(bubble => bubble.textContent?.includes("Describe this image"));
+    await waitFor(() => expect(sentImageBubbles()).toHaveLength(0));
     const uploads = fetchMock.mock.calls.filter(([input]) =>
       getPathname(input).endsWith("/attachments")
     );
@@ -2182,6 +2188,10 @@ describe("SessionChatRuntimeProvider", () => {
       expect.objectContaining({ id: `att_${"b".repeat(64)}`, name: "image.png" }),
     ]);
     await screen.findByText("Live runtime answer before transcript reconciliation.");
+    await waitFor(() => expect(sentImageBubbles()).toHaveLength(1));
+    await waitFor(() =>
+      expect(screen.queryByText(/Message not sent: An attachment/)).not.toBeInTheDocument()
+    );
   });
 
   it("Should name the daemon's reason when it refuses a prompt", async () => {

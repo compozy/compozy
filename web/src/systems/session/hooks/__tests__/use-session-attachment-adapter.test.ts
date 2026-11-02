@@ -64,6 +64,8 @@ describe("SessionAttachmentAdapter upload removal", () => {
       expect(attachmentApiMocks.uploadSessionAttachment).toHaveBeenCalledOnce()
     );
     const removal = adapter.remove(running.value);
+    // Removal is local: the tile must disappear before its network upload settles.
+    await expect(removal).resolves.toBeUndefined();
     upload.resolve(uploadedAttachment());
 
     await expect(removal).resolves.toBeUndefined();

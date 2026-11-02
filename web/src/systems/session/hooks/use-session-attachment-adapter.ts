@@ -137,6 +137,7 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
       };
     } finally {
       this.inFlightUploads.delete(id);
+      this.removedWhileUploading.delete(id);
     }
   }
 
@@ -148,16 +149,8 @@ export class SessionAttachmentAdapter implements AttachmentAdapter {
     consumeSubmittedComposerAttachment(attachment);
     this.uploads.delete(attachment.id);
     this.uploadedFiles.delete(attachment.id);
-    const pending = this.inFlightUploads.get(attachment.id);
-    if (pending) {
+    if (this.inFlightUploads.has(attachment.id)) {
       this.removedWhileUploading.add(attachment.id);
-      try {
-        await pending;
-      } catch {
-        // A removed tile must not reappear when its upload fails.
-      } finally {
-        this.removedWhileUploading.delete(attachment.id);
-      }
     }
     // IDs are content-addressed within the session, shared by duplicate tiles,
     // rebuilt runtimes and persisted messages. A tile cannot own DELETE;
