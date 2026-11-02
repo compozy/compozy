@@ -467,7 +467,7 @@ func openHookRunSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, sessi
 		closeErr := registry.Close(ctx)
 		t.Fatalf("InsertWorkspace() error = %v; Close() error = %v", err, closeErr)
 	}
-	if err := registry.RegisterSession(ctx, store.SessionInfo{
+	if err := registry.RegisterSession(ctx, new(store.SessionInfo{
 		ProfileID:     store.DefaultProfileID,
 		ID:            sessionID,
 		AgentName:     "coder",
@@ -478,7 +478,7 @@ func openHookRunSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, sessi
 		State:         "stopped",
 		CreatedAt:     now,
 		UpdatedAt:     now,
-	}); err != nil {
+	})); err != nil {
 		closeErr := registry.Close(ctx)
 		t.Fatalf("RegisterSession(%q) error = %v; Close() error = %v", sessionID, err, closeErr)
 	}

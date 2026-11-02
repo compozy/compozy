@@ -1693,7 +1693,9 @@ func TestCreateSessionHandlerReturnsSessionID(t *testing.T) {
 
 	homePaths := newTestHomePaths(t)
 	manager := &stubSessionManager{
-		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(_ context.Context, optsInput *session.CreateOpts) (*session.Session, error) {
+			opts := *optsInput
+
 			if opts.AgentName != "coder" || opts.Name != "demo" || opts.Workspace != "alpha" ||
 				opts.WorkspacePath != "" {
 				t.Fatalf("Create() opts = %#v", opts)
@@ -1732,7 +1734,9 @@ func TestCreateSessionHandlerAllowsMissingAgent(t *testing.T) {
 
 	homePaths := newTestHomePaths(t)
 	manager := &stubSessionManager{
-		CreateFn: func(_ context.Context, opts session.CreateOpts) (*session.Session, error) {
+		CreateFn: func(_ context.Context, optsInput *session.CreateOpts) (*session.Session, error) {
+			opts := *optsInput
+
 			if opts.AgentName != "" {
 				t.Fatalf("Create() AgentName = %q, want empty", opts.AgentName)
 			}

@@ -138,9 +138,9 @@ func TestHTTPStoppedSystemSessionWorkspaceLifecycle(t *testing.T) {
 	t.Run("Should read and remove persisted stopped system sessions in their owning workspace", func(t *testing.T) {
 		t.Parallel()
 		runtime := newIntegrationRuntime(t)
-		created, err := runtime.manager.Create(t.Context(), session.CreateOpts{
+		created, err := runtime.manager.Create(t.Context(), new(session.CreateOpts{
 			AgentName: "coder", Workspace: "ws-workspace", Type: session.SessionTypeSystem,
-		})
+		}))
 		if err != nil {
 			t.Fatalf("Create(system) error = %v", err)
 		}
