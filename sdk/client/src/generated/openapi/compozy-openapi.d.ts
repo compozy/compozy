@@ -14695,6 +14695,7 @@ export interface components {
     };
     SessionInputPayload: {
       attachments?: components["schemas"]["PromptAttachmentRef"][];
+      coalesced_wakes?: number;
       delivery: string;
       /** Format: date-time */
       enqueued_at: string;
@@ -14758,20 +14759,27 @@ export interface components {
       ttl_expires_at?: string | null;
     };
     SessionMonitorPayload: {
+      branch?: string;
       /** Format: date-time */
       created_at: string;
       /** Format: date-time */
       deadline_at: string;
       description: string;
       exit_code?: number | null;
+      fire_count?: number;
       /** Format: date-time */
       fired_at?: string | null;
       kind: string;
+      /** Format: date-time */
+      last_fired_at?: string | null;
       monitor_id: string;
       pattern?: string;
       reason?: string;
       session_id: string;
+      states?: string[];
       status: string;
+      target_session_ids?: string[];
+      targets?: components["schemas"]["SessionMonitorTargetPayload"][];
       terminal_id?: string;
       until?: string;
     };
@@ -14780,6 +14788,12 @@ export interface components {
     };
     SessionMonitorSummaryPayload: {
       active: number;
+    };
+    SessionMonitorTargetPayload: {
+      matched: boolean;
+      name?: string;
+      session_id: string;
+      state: string;
     };
     SessionMonitorsResponse: {
       monitors: components["schemas"]["SessionMonitorPayload"][];
@@ -17201,6 +17215,7 @@ export interface components {
       title: string;
       /** Format: date-time */
       updated_at: string;
+      usage?: components["schemas"]["SubagentUsagePayload"] | null;
       wait_timed_out: boolean;
       work_state: string;
       workspace_id: string;
@@ -17228,6 +17243,12 @@ export interface components {
     SubagentUpdatedEvent: {
       session_id: string;
       subagent: components["schemas"]["SubagentPayload"];
+    };
+    SubagentUsagePayload: {
+      /** Format: int64 */
+      tool_uses: number;
+      /** Format: int64 */
+      total_tokens: number;
     };
     SubagentWorktreePayload: {
       base_ref: string;

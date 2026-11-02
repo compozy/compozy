@@ -3856,6 +3856,190 @@ func TestGlobalDBReplyWatchConstraints(t *testing.T) {
 // Invariant: a synthetic wake counts as admitted from enqueue through sent, so a replayed wake whose
 // queue entry was already delivered is not admitted twice; unknown message ids are not admitted.
 // Owning layer/canonical suite: globaldb session input queue persistence.
+// Invariant: pending monitor wakes share one row that reports every outcome, spends no input capacity,
+// and keeps each wake in the admission ledger.
+func TestGlobalDBSessionInputCoalescedWakes(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 2, 9, 0, 0, 0, time.UTC)
+	wake := func(sessionID, id, text string, bound store.SessionInputCoalesce) store.SessionInputQueueInsert {
+		return store.SessionInputQueueInsert{
+			ID: "inq-" + id, SessionID: sessionID, MessageID: "monitor:" + id, Priority: 1,
+			OwnerKind: store.SessionInputOwnerSynthetic, Text: text, TurnID: "turn-" + id,
+			Mode: store.SessionInputQueueModeQueue, Delivery: store.SessionInputDeliveryAfterTurn,
+			QueueCap: 1, Now: now, Coalesce: &bound,
+			SyntheticPrompt: &store.SessionInputSyntheticPrompt{
+				RunID: "run-" + id, Metadata: []byte(`{"kind":"monitor"}`), CoalesceKey: "monitor",
+			},
+		}
+	}
+	bound := store.SessionInputCoalesce{MaxFullBytes: 1 << 10, MaxMembers: 16}
+	mustWake := func(t *testing.T, db *GlobalDB, insert store.SessionInputQueueInsert) store.SessionInputQueueEntry {
+		t.Helper()
+		entry, _, err := db.EnqueueSessionInput(t.Context(), insert)
+		if err != nil {
+			t.Fatalf("EnqueueSessionInput(%s) error = %v", insert.MessageID, err)
+		}
+		return entry
+	}
+
+	t.Run("Should merge more wakes than the cap and leave operator input accepted", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		var entry store.SessionInputQueueEntry
+		for _, id := range []string{"a", "b", "c", "b"} {
+			entry = mustWake(t, db, wake(sessionID, id, "outcome "+id, bound))
+		}
+		if entry.SyntheticPrompt.CoalescedWakes() != 3 {
+			t.Fatalf("wakes = %d, want 3 with the replayed wake deduplicated", entry.SyntheticPrompt.CoalescedWakes())
+		}
+		for _, want := range []string{"outcome a", "outcome b", "outcome c"} {
+			if strings.Count(entry.Text, want) != 1 {
+				t.Fatalf("text = %q, want %q exactly once", entry.Text, want)
+			}
+		}
+		for _, id := range []string{"monitor:a", "monitor:b", "monitor:c"} {
+			if admitted, err := db.SyntheticSessionInputAdmitted(t.Context(), sessionID, id); err != nil || !admitted {
+				t.Fatalf("%s admitted = %v, %v; want true", id, admitted, err)
+			}
+		}
+		if _, _, err := db.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+			ID: "inq-operator", SessionID: sessionID, Mode: store.SessionInputQueueModeQueue,
+			Text: "operator", QueueCap: 1, Now: now,
+		}); err != nil {
+			t.Fatalf("operator input error = %v, want it accepted", err)
+		}
+		if _, _, err := db.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+			ID: "inq-agent", SessionID: sessionID, Mode: store.SessionInputQueueModeQueue, Text: "agent", QueueCap: 1,
+			Now: now, Origin: json.RawMessage(`{"kind":"session","session_id":"sess-a","workspace_id":"ws","hop":1}`),
+		}); err != nil {
+			t.Fatalf("agent input error = %v, want the wake row outside its pool", err)
+		}
+	})
+
+	t.Run("Should open a new row once the waiting row was claimed", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		first := mustWake(t, db, wake(sessionID, "a", "outcome a", bound))
+		claimed, ok, err := db.ClaimNextSessionInput(t.Context(), sessionID, now)
+		if err != nil || !ok || claimed.ID != first.ID {
+			t.Fatalf("claim = %+v, %v, %v", claimed, ok, err)
+		}
+		second := mustWake(t, db, wake(sessionID, "b", "outcome b", bound))
+		if second.ID == first.ID || strings.Contains(claimed.Text, "outcome b") {
+			t.Fatalf("second = %+v, want its own row behind the claimed one", second)
+		}
+	})
+
+	t.Run("Should drop the output past the byte budget and refuse past the member bound", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		small := store.SessionInputCoalesce{CompactText: "compact b", MaxFullBytes: 16, MaxMembers: 2}
+		mustWake(t, db, wake(sessionID, "a", "outcome a", small))
+		merged := mustWake(t, db, wake(sessionID, "b", strings.Repeat("x", 64), small))
+		if !strings.Contains(merged.Text, "compact b") || strings.Contains(merged.Text, "xxx") {
+			t.Fatalf("text = %q, want the compact outcome", merged.Text)
+		}
+		_, _, err := db.EnqueueSessionInput(t.Context(), wake(sessionID, "c", "outcome c", small))
+		if !errors.Is(err, store.ErrSessionInputQueueFull) {
+			t.Fatalf("error = %v, want ErrSessionInputQueueFull at the member bound", err)
+		}
+	})
+
+	t.Run("Should keep a row queued before coalescing shipped as its own entry", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		legacy := wake(sessionID, "old", "outcome old", bound)
+		legacy.Coalesce, legacy.SyntheticPrompt.CoalesceKey = nil, ""
+		old := mustWake(t, db, legacy)
+		merged := mustWake(t, db, wake(sessionID, "new", "outcome new", bound))
+		if merged.ID == old.ID {
+			t.Fatal("a new wake merged into a legacy row")
+		}
+		pending, err := db.ListPendingSessionInputs(t.Context(), sessionID)
+		if err != nil || len(pending) != 2 {
+			t.Fatalf("pending = %d, %v; want both rows delivered separately", len(pending), err)
+		}
+	})
+
+	t.Run("Should requeue an unconfirmed promoted wake on boot recovery", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		entry := mustWake(t, db, wake(sessionID, "a", "outcome a", bound))
+		_, promoted, err := db.PromoteQueuedAgentSessionInputToSteer(t.Context(), sessionID, entry.ID, "turn-live", now)
+		if err != nil || !promoted {
+			t.Fatalf("promote = %v, %v; want promoted", promoted, err)
+		}
+		if _, reserved, err := db.ReserveSessionSteer(t.Context(), sessionID, entry.ID, now); err != nil || !reserved {
+			t.Fatalf("reserve = %v, %v; want reserved", reserved, err)
+		}
+		if _, err := db.FailStaleDispatchingSessionInputs(t.Context(), now); err != nil {
+			t.Fatal(err)
+		}
+		recovered, err := db.GetSessionInputQueueEntry(t.Context(), sessionID, entry.ID)
+		if err != nil || recovered.Status != store.SessionInputQueueStatusQueued ||
+			recovered.Mode != store.SessionInputQueueModeQueue || !recovered.Dispatchable {
+			t.Fatalf("recovered = %+v, %v; want plain queued delivery", recovered, err)
+		}
+	})
+
+	t.Run("Should requeue a promoted wake left pending injection on boot recovery", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		entry := mustWake(t, db, wake(sessionID, "a", "outcome a", bound))
+		_, promoted, err := db.PromoteQueuedAgentSessionInputToSteer(t.Context(), sessionID, entry.ID, "turn-live", now)
+		if err != nil || !promoted {
+			t.Fatalf("promote = %v, %v; want promoted", promoted, err)
+		}
+		if _, reserved, err := db.ReserveSessionSteer(t.Context(), sessionID, entry.ID, now); err != nil || !reserved {
+			t.Fatalf("reserve = %v, %v; want reserved", reserved, err)
+		}
+		sent, err := db.ResolveSessionSteer(t.Context(), sessionID, entry.ID, store.SteerDeliveryPendingInjection, now)
+		if err != nil || sent.Status != store.SessionInputQueueStatusSent {
+			t.Fatalf("resolve = %+v, %v; want sent pending injection", sent, err)
+		}
+		if _, err := db.FailStaleDispatchingSessionInputs(t.Context(), now); err != nil {
+			t.Fatal(err)
+		}
+		recovered, err := db.GetSessionInputQueueEntry(t.Context(), sessionID, entry.ID)
+		if err != nil || recovered.Status != store.SessionInputQueueStatusQueued ||
+			recovered.Mode != store.SessionInputQueueModeQueue || !recovered.Dispatchable ||
+			recovered.SteerDelivery != "" || recovered.TurnID != "" || recovered.SentAt != nil {
+			t.Fatalf("recovered = %+v, %v; want plain queued delivery", recovered, err)
+		}
+	})
+
+	t.Run("Should fail an ordinary steer stranded by a restart", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		sessionID := registerInputQueueSession(t, db)
+		entry, _, err := db.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+			ID: "ordinary-steer", SessionID: sessionID, Text: "steer", TargetTurnID: "turn-live",
+			Mode: store.SessionInputQueueModeSteer, Delivery: store.SessionInputDeliveryInterruptThenPrompt,
+			QueueCap: 3, Now: now,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, reserved, err := db.ReserveSessionSteer(t.Context(), sessionID, entry.ID, now); err != nil || !reserved {
+			t.Fatalf("reserve = %v, %v; want reserved", reserved, err)
+		}
+		failed, err := db.FailStaleDispatchingSessionInputs(t.Context(), now)
+		if err != nil || failed != 1 {
+			t.Fatalf("FailStaleDispatchingSessionInputs() = %d, %v; want 1", failed, err)
+		}
+		stranded, err := db.GetSessionInputQueueEntry(t.Context(), sessionID, entry.ID)
+		if err != nil || stranded.Status != store.SessionInputQueueStatusFailed {
+			t.Fatalf("stranded = %+v, %v; want failed by restart recovery", stranded, err)
+		}
+	})
+}
+
 func TestGlobalDBSyntheticSessionInputAdmitted(t *testing.T) {
 	t.Parallel()
 	t.Run("Should report queued and sent synthetic inputs as admitted", func(t *testing.T) {

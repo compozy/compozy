@@ -21,6 +21,7 @@ import {
 
 import { deriveSessionRows, type SessionRow } from "./session-timeline.logic";
 import { CHANGED_FILES_VISIBLE_CAP } from "./session-timeline-changed-files";
+import { approvalCount } from "./session-timeline-permissions";
 import { toTimelineParts } from "@/systems/session/lib/timeline-message-parts";
 
 // Single source of truth for the virtualizer's fallback row estimate.
@@ -62,7 +63,8 @@ function rowEstimate(row: SessionRow): number {
     }
     return (
       ROW_KIND_ESTIMATE.work * Math.max(1, row.entries.length) +
-      (row.summary ? ROW_KIND_ESTIMATE.work : 0)
+      (row.summary ? ROW_KIND_ESTIMATE.work : 0) +
+      ROW_KIND_ESTIMATE.data * approvalCount(row.approvals)
     );
   }
   if (row.kind === "live-tool") {

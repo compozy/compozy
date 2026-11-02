@@ -1683,6 +1683,14 @@ type SessionMonitor struct {
 	OwnerBinding       string        `json:"owner_binding"`
 	OwnerCheckFailedAt string        `json:"owner_check_failed_at"`
 	Version            int64         `json:"version"`
+	Branch             string        `json:"branch"`
+	RepoKey            string        `json:"repo_key"`
+	PrCursor           string        `json:"pr_cursor"`
+	FireCount          int64         `json:"fire_count"`
+	LastFiredAt        string        `json:"last_fired_at"`
+	TargetSessionIds   string        `json:"target_session_ids"`
+	States             string        `json:"states"`
+	Targets            string        `json:"targets"`
 }
 
 type SessionPendingInteraction struct {
@@ -1829,6 +1837,8 @@ type SessionSubagent struct {
 	PrUrl                  sql.NullString `json:"pr_url"`
 	PrNumber               sql.NullInt64  `json:"pr_number"`
 	ChildActivity          string         `json:"child_activity"`
+	UsageTotalTokens       sql.NullInt64  `json:"usage_total_tokens"`
+	UsageToolUses          sql.NullInt64  `json:"usage_tool_uses"`
 }
 
 type SessionSubagentWake struct {

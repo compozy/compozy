@@ -274,6 +274,9 @@ func (g *SessionRepo) FailStaleDispatchingSessionInputs(ctx context.Context, now
 	if _, err := g.queries.RecoverStagedSessionSteers(ctx, store.FormatTimestamp(now.UTC())); err != nil {
 		errs = append(errs, fmt.Errorf("store: recover staged session steers: %w", err))
 	}
+	if _, err := g.queries.RecoverUnconfirmedWakeSteers(ctx, store.FormatTimestamp(now.UTC())); err != nil {
+		errs = append(errs, fmt.Errorf("store: recover unconfirmed wake steers: %w", err))
+	}
 	for _, row := range rows {
 		if err := g.MarkSessionInputFailed(
 			ctx, row.SessionID, row.ID, store.SessionInputStaleDispatchSummary, now,

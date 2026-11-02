@@ -35,6 +35,8 @@ export type QueuedPromptEditOutcome = "replaced" | "handed_off" | "failed";
 
 export interface QueuedPrompt {
   attachments?: QueuedPromptAttachmentSummary;
+  /** Daemon wakes merged into this row; absent for every other entry. */
+  coalescedWakes?: number;
   id: string;
   mode?: string;
   /** Another actor's entry; `null` for the operator's own rows. */
@@ -118,10 +120,24 @@ export function queuedPromptsFromInputs(
       position: index + 1,
       status: input.status,
       text: input.text,
+      ...(input.coalesced_wakes ? { coalescedWakes: input.coalesced_wakes } : {}),
       ...(attachments ? { attachments } : {}),
       ...(sender ? { sender } : {}),
     };
   });
+}
+
+/**
+ * Rows counted against `queue.cap`. The cap bounds operator input only: agent
+ * messages and daemon wakes hold their own capacity and never refuse the operator.
+ */
+export function operatorQueuedCount(prompts: readonly QueuedPrompt[]): number {
+  return prompts.filter(prompt => prompt.owner === null && prompt.sender === undefined).length;
+}
+
+/** The row label for merged wakes, whose text is agent-facing. */
+export function coalescedWakesLabel(wakes: number): string {
+  return wakes === 1 ? "1 monitor fired" : `${wakes} monitors fired`;
 }
 
 /**

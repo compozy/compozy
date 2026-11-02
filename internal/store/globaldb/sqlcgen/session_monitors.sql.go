@@ -11,7 +11,7 @@ import (
 )
 
 const listSessionMonitors = `-- name: ListSessionMonitors :many
-SELECT id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, pattern, timeout_ms, status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version FROM session_monitors ORDER BY created_at, id
+SELECT id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, pattern, timeout_ms, status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version, branch, repo_key, pr_cursor, fire_count, last_fired_at, target_session_ids, states, targets FROM session_monitors ORDER BY created_at, id
 `
 
 func (q *Queries) ListSessionMonitors(ctx context.Context) ([]SessionMonitor, error) {
@@ -43,6 +43,14 @@ func (q *Queries) ListSessionMonitors(ctx context.Context) ([]SessionMonitor, er
 			&i.OwnerBinding,
 			&i.OwnerCheckFailedAt,
 			&i.Version,
+			&i.Branch,
+			&i.RepoKey,
+			&i.PrCursor,
+			&i.FireCount,
+			&i.LastFiredAt,
+			&i.TargetSessionIds,
+			&i.States,
+			&i.Targets,
 		); err != nil {
 			return nil, err
 		}
@@ -70,8 +78,9 @@ func (q *Queries) PruneFinishedSessionMonitors(ctx context.Context, firedAt stri
 const upsertSessionMonitor = `-- name: UpsertSessionMonitor :exec
 INSERT INTO session_monitors (
   id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, pattern, timeout_ms,
-  status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version,
+  branch, repo_key, pr_cursor, fire_count, last_fired_at, target_session_ids, states, targets
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   status = excluded.status,
   fired_at = excluded.fired_at,
@@ -79,7 +88,11 @@ ON CONFLICT(id) DO UPDATE SET
   exit_code = excluded.exit_code,
   owner_binding = excluded.owner_binding,
   owner_check_failed_at = excluded.owner_check_failed_at,
-  version = excluded.version
+  targets = excluded.targets,
+  version = excluded.version,
+  pr_cursor = excluded.pr_cursor,
+  fire_count = excluded.fire_count,
+  last_fired_at = excluded.last_fired_at
 WHERE excluded.version > session_monitors.version
 `
 
@@ -103,6 +116,14 @@ type UpsertSessionMonitorParams struct {
 	OwnerBinding       string        `json:"owner_binding"`
 	OwnerCheckFailedAt string        `json:"owner_check_failed_at"`
 	Version            int64         `json:"version"`
+	Branch             string        `json:"branch"`
+	RepoKey            string        `json:"repo_key"`
+	PrCursor           string        `json:"pr_cursor"`
+	FireCount          int64         `json:"fire_count"`
+	LastFiredAt        string        `json:"last_fired_at"`
+	TargetSessionIds   string        `json:"target_session_ids"`
+	States             string        `json:"states"`
+	Targets            string        `json:"targets"`
 }
 
 func (q *Queries) UpsertSessionMonitor(ctx context.Context, arg UpsertSessionMonitorParams) error {
@@ -126,6 +147,14 @@ func (q *Queries) UpsertSessionMonitor(ctx context.Context, arg UpsertSessionMon
 		arg.OwnerBinding,
 		arg.OwnerCheckFailedAt,
 		arg.Version,
+		arg.Branch,
+		arg.RepoKey,
+		arg.PrCursor,
+		arg.FireCount,
+		arg.LastFiredAt,
+		arg.TargetSessionIds,
+		arg.States,
+		arg.Targets,
 	)
 	return err
 }

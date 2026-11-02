@@ -11,7 +11,7 @@ import {
   type ThreadMessage,
 } from "@assistant-ui/react";
 import { StrictMode, Suspense, use, useEffect, useLayoutEffect, useState } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { observeGatewayAccess, type GatewayAccessSignal } from "@/lib/gateway-access-signal";
 import { resetGatewayStreamAuth } from "@/lib/gateway-stream-auth";
@@ -58,6 +58,7 @@ const SESSION_STREAM_QUERY = "frames=transcript";
 // app-scoped: nothing one test leaves pending may reach the next.
 afterEach(() => {
   sessionPromptRecovery.reset();
+  sessionStore.trigger.composerPromptRefusalDismissed({ sessionId: primarySessionFixture.id });
   discardComposerDraftAttachments(primarySessionFixture.id);
   toast.dismiss();
 });
@@ -2114,6 +2115,152 @@ describe("SessionChatRuntimeProvider", () => {
     expect(composerText()).toBe("");
     expect(screen.queryByTestId("composer-attachment-tile")).not.toBeInTheDocument();
   });
+
+  // Invariant (#1142): a missing attachment returns the complete draft, re-uploads
+  // its retained file, and renders recovery copy instead of the HTTP JSON envelope.
+  // Owner: chat runtime; canonical suite: this provider integration suite.
+  it.each(["retry", "remove", "clear", "reopen", "remove-pending"])(
+    "Should recover a missing image with persistent feedback until %s",
+    async outcome => {
+      promptResponsePromise = Promise.resolve(
+        jsonResponse(
+          {
+            error: 'session: open prompt attachment "image.png": attachments: attachment not found',
+          },
+          { status: 404 }
+        )
+      );
+      // Distinct boundary responses prove retry consumes the fresh upload result.
+      // A real content-addressed store normally returns the same ID for unchanged bytes.
+      // Node Request cannot encode JSDOM Files; observe the actual multipart file boundary.
+      const multipartAppend = vi.spyOn(FormData.prototype, "append");
+      onTestFinished(() => multipartAppend.mockRestore());
+      let uploadCount = 0;
+      const delayedUpload = createDeferred<Response>();
+      let recoveredResponse: Response | undefined;
+      attachmentUploadResponse = async () => {
+        uploadCount += 1;
+        const response = await uploadedAttachmentResponse(
+          "image.png",
+          uploadCount === 1 ? "a" : "b"
+        ).json();
+        const reply = jsonResponse(
+          {
+            attachment: {
+              ...response.attachment,
+              kind: "image",
+              mime_type: "image/png",
+              height: 10,
+              width: 10,
+            },
+          },
+          { status: 201 }
+        );
+        if (uploadCount === 2 && outcome === "remove-pending") {
+          recoveredResponse = reply;
+          return delayedUpload.promise;
+        }
+        return reply;
+      };
+      const user = userEvent.setup();
+      const view = renderSessionThread({ includeToaster: true });
+      await screen.findByTestId("composer-input");
+      await setComposerText("Describe this image");
+      await act(async () => {
+        await requireComposerAui().composer.addAttachment(
+          new File(["image bytes"], "image.png", { type: "image/png" })
+        );
+      });
+      await user.click(screen.getByTestId("composer-send-button"));
+      await waitFor(() => expect(composerText()).toBe("Describe this image"));
+      expect(await screen.findByTestId("composer-attachment-tile")).toBeInTheDocument();
+      await waitFor(() => expect(uploadCount).toBe(2));
+      const uploads = fetchMock.mock.calls.filter(([input]) =>
+        getPathname(input).endsWith("/attachments")
+      );
+      expect(uploads).toHaveLength(2);
+      const fileParts = multipartAppend.mock.calls.filter(([field]) => field === "file");
+      const retryFile = fileParts[1]![1] as File;
+      expect(retryFile.name).toBe("image.png");
+      const retryBytes = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsText(retryFile);
+      });
+      expect(retryBytes).toBe("image bytes");
+      if (outcome === "remove-pending") {
+        await waitFor(() => expect(uploadCount).toBe(2));
+        await act(async () => {
+          const attachment = requireComposerAui().composer.getState().attachments[0]!;
+          await requireComposerAui().composer.attachment({ id: attachment.id }).remove();
+        });
+        await act(async () => {
+          delayedUpload.resolve(recoveredResponse!);
+        });
+        expect(screen.queryByTestId("composer-feedback-note")).not.toBeInTheDocument();
+        return;
+      }
+      const feedback = await screen.findByTestId("composer-feedback-note");
+      expect(feedback).toHaveTextContent(
+        "An attachment is no longer available. Send again to upload the retained file"
+      );
+      await act(async () => {
+        toast.dismiss();
+      });
+      expect(feedback).toBeInTheDocument();
+      expect(document.body.textContent).not.toContain('{"error"');
+      // A refused prompt belongs only in the recovered draft, never in the thread.
+      const sentImageBubbles = () =>
+        screen
+          .queryAllByTestId("user-message-bubble")
+          .filter(bubble => bubble.textContent?.includes("Describe this image"));
+      await waitFor(() => expect(sentImageBubbles()).toHaveLength(0));
+      if (outcome === "reopen") {
+        view.unmount();
+        renderSessionThread({ includeToaster: true });
+        await screen.findByTestId("composer-attachment-tile");
+        expect(await screen.findByTestId("composer-feedback-note")).toHaveTextContent(
+          "An attachment is no longer available"
+        );
+      }
+      if (outcome === "remove" || outcome === "clear") {
+        if (outcome === "clear")
+          await act(async () => {
+            await requireComposerAui().composer.reset();
+          });
+        else
+          await act(async () => {
+            const attachment = requireComposerAui().composer.getState().attachments[0]!;
+            await requireComposerAui().composer.attachment({ id: attachment.id }).remove();
+          });
+        await waitFor(() =>
+          expect(screen.queryByTestId("composer-feedback-note")).not.toBeInTheDocument()
+        );
+        return;
+      }
+      promptResponsePromise = null;
+      await user.click(screen.getByTestId("composer-send-button"));
+      await waitFor(() => expect(countPromptFetches(fetchMock)).toBe(2));
+      const prompts = fetchMock.mock.calls.filter(([input]) =>
+        getPathname(input).endsWith("/prompt")
+      );
+      const initialBody = JSON.parse(String(prompts[0]?.[1]?.body));
+      expect(initialBody.attachments).toEqual([
+        expect.objectContaining({ id: `att_${"a".repeat(64)}`, name: "image.png" }),
+      ]);
+      const retryBody = JSON.parse(String(prompts[1]?.[1]?.body));
+      expect(retryBody.attachments).toEqual([
+        expect.objectContaining({ id: `att_${"b".repeat(64)}`, name: "image.png" }),
+      ]);
+      await screen.findByText("Live runtime answer before transcript reconciliation.");
+      await waitFor(() => expect(sentImageBubbles()).toHaveLength(1));
+      expect(screen.queryByTestId("composer-feedback-note")).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.queryByText(/Message not sent: An attachment/)).not.toBeInTheDocument()
+      );
+    }
+  );
 
   it("Should name the daemon's reason when it refuses a prompt", async () => {
     promptResponsePromise = Promise.resolve(

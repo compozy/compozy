@@ -1342,6 +1342,100 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse a pull_request monitor that carries another kind's fields", func(t *testing.T) {
+		t.Parallel()
+		service, err := monitorpkg.NewService(t.Context(), nil, &monitorSessionWaker{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+				t.Error(err)
+			}
+		})
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   nativeTestSessionManager("ws-1"),
+			Workspaces: nativeTestWorkspaceServiceWithRoot(t, t.TempDir()),
+			Monitors:   func() *monitorpkg.Service { return service },
+		}, nativeApproveAllPolicyInputs())
+		_, err = registry.Call(t.Context(), toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1"},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDMonitorCreate, Input: json.RawMessage(
+				`{"kind":"pull_request","description":"watch my PR","delay_seconds":5}`)})
+		detail, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || detail.Operator == nil || !strings.Contains(detail.Operator.Cause, "branch") {
+			t.Fatalf("monitor correction = %#v", detail)
+		}
+	})
+
+	t.Run("Should watch same-workspace sessions and refuse any other target", func(t *testing.T) {
+		t.Parallel()
+		sessions := nativeTestSessionManager("ws-1")
+		targets := monitorSessionTargets{sessions: func() any { return sessions }}
+		service, err := monitorpkg.NewService(t.Context(), nil, &monitorSessionWaker{},
+			monitorpkg.WithSessionTargets(targets))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.WithoutCancel(t.Context())); err != nil {
+				t.Error(err)
+			}
+		})
+		status := sessions.StatusFn
+		sessions.StatusFn = func(ctx context.Context, id string) (*session.Info, error) {
+			info, err := status(ctx, id)
+			if err == nil && id == "sess-other" {
+				info.WorkspaceID = "ws-2"
+			}
+			if err == nil && id == "sess-foreign" {
+				info.ProfileID = "profile-other"
+			}
+			if err == nil {
+				info.State = session.StateStarting
+			}
+			return info, err
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions:   sessions,
+			Workspaces: nativeTestWorkspaceServiceWithRoot(t, t.TempDir()),
+			Monitors:   func() *monitorpkg.Service { return service },
+		}, nativeApproveAllPolicyInputs())
+		call := func(input string) (toolspkg.ToolResult, error) {
+			return registry.Call(t.Context(), toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-1"},
+				toolspkg.CallRequest{ToolID: toolspkg.ToolIDMonitorCreate, Input: json.RawMessage(input)})
+		}
+		for _, tc := range []struct {
+			name, target string
+			code         toolspkg.ErrorCode
+		}{
+			{"Should refuse a target in another workspace", "sess-other", toolspkg.ErrorCodeDenied},
+			{"Should refuse a target in another profile", "sess-foreign", toolspkg.ErrorCodeDenied},
+			{"Should refuse the calling session", "sess-1", toolspkg.ErrorCodeDenied},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				_, err := call(`{"kind":"session","description":"wait","target_session_ids":["` + tc.target + `"]}`)
+				requireToolCode(t, err, tc.code)
+				if len(service.List("sess-1")) != 0 {
+					t.Fatal("refused target created a monitor")
+				}
+			})
+		}
+		_, err = call(`{"kind":"session","description":"wait","target_session_ids":["sess-1"]}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+		_, err = call(`{"kind":"timer","description":"wait","delay_seconds":5,"target_session_ids":["sess-foreign"]}`)
+		requireToolCode(t, err, toolspkg.ErrorCodeInvalidInput)
+		if _, err := call(
+			`{"kind":"session","description":"wait","target_session_ids":["sess-2","sess-3"],"until":"any"}`,
+		); err != nil {
+			t.Fatalf("Call() error = %v", err)
+		}
+		listed := service.List("sess-1")
+		if len(listed) != 1 || listed[0].Kind != monitorpkg.KindSession || listed[0].Until != monitorpkg.UntilAny ||
+			!slices.Equal(listed[0].TargetSessionIDs, []string{"sess-2", "sess-3"}) {
+			t.Fatalf("monitors = %+v, want the session monitor", listed)
+		}
+	})
+
 	t.Run("Should read assistant answers without hydrating tool payloads", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -13795,9 +13889,20 @@ func TestNativeSubagentBindings(t *testing.T) {
 		// The delegate/status tools advertise this payload shape; an emitted field must be declared.
 		row.Origin, row.Status = store.SubagentOriginDelegated, store.SubagentStatusCompleted
 		row.WorkState, row.Delivery = store.SubagentWorkStateResultAvailable, store.SubagentDeliveryNone
+		row.Usage = &store.SubagentUsage{TotalTokens: 900, ToolUses: 4}
 		encoded, err := json.Marshal(subagentPayload(&row))
 		if err != nil {
 			t.Fatal(err)
+		}
+		var emitted struct {
+			Usage *struct {
+				TotalTokens int64 `json:"total_tokens"`
+				ToolUses    int64 `json:"tool_uses"`
+			} `json:"usage"`
+		}
+		if err := json.Unmarshal(encoded, &emitted); err != nil || emitted.Usage == nil ||
+			emitted.Usage.TotalTokens != 900 || emitted.Usage.ToolUses != 4 {
+			t.Fatalf("usage = %+v, err = %v", emitted.Usage, err)
 		}
 		for _, descriptor := range builtintools.NativeDescriptors() {
 			if descriptor.ID == toolspkg.ToolIDSubagentDelegate || descriptor.ID == toolspkg.ToolIDSubagentStatus {
@@ -14079,6 +14184,12 @@ type nativeSubagentServiceStub struct {
 
 var _ session.SubagentService = (*nativeSubagentServiceStub)(nil)
 
+func (s *nativeSubagentServiceStub) PermissionLimit(
+	_ context.Context, parent *session.Info, _ session.SubagentTarget,
+) (session.SubagentPermissionLimit, error) {
+	return session.SubagentPermissionLimit{Mode: compozyconfig.PermissionMode(parent.EffectivePermissions)}, nil
+}
+
 func (s *nativeSubagentServiceStub) Capabilities(
 	c context.Context,
 	r session.SubagentCaller,
@@ -14157,6 +14268,32 @@ func TestNativeSubagentPermissionBoundary(t *testing.T) {
 				PermissionMode: compozyconfig.PermissionModeDenyAll,
 				Narrowing:      &session.SubagentPermissionNarrowing{Tools: []string{}, Skills: []string{"review"}},
 			},
+		); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should compare the requested mode with the child's level in an instance lineage", func(t *testing.T) {
+		t.Parallel()
+		limiter := &subagentLimitStub{limit: session.SubagentPermissionLimit{
+			Mode: compozyconfig.PermissionModeApproveReads, ChildOwnsLevel: true,
+		}}
+		n := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			Sessions: &apitest.StubSessionManager{
+				StatusFn: func(context.Context, string) (*session.Info, error) {
+					return &session.Info{EffectivePermissions: "approve-all"}, nil
+				},
+			},
+			Subagents: func() session.SubagentService { return limiter },
+		}}
+		err := n.validateSubagentPermissions(
+			t.Context(), session.SubagentRequest{PermissionMode: compozyconfig.PermissionModeApproveAll},
+		)
+		detail, ok := errors.AsType[*session.SubagentError](err)
+		if !ok || detail.Code != "permission_escalation_denied" {
+			t.Fatalf("error = %v", err)
+		}
+		if err := n.validateSubagentPermissions(
+			t.Context(), session.SubagentRequest{PermissionMode: compozyconfig.PermissionModeApproveReads},
 		); err != nil {
 			t.Fatal(err)
 		}
@@ -15387,6 +15524,58 @@ func TestDaemonNativeSessionResultsMatchOutputSchemas(t *testing.T) {
 	}
 }
 
+// Invariant: session_inputs_list and session_inputs_clear results validate for every row shape, including
+// a coalesced wake and attachment-only operator input.
+func TestDaemonNativeSessionInputResultsMatchOutputSchemas(t *testing.T) {
+	t.Parallel()
+	descriptors := make(map[toolspkg.ToolID]toolspkg.Descriptor)
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		descriptors[descriptor.ID] = descriptor
+	}
+	enqueuedAt := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+	boolValue := true
+	inputs := []contract.SessionInputPayload{
+		core.SessionInputPayloadFromSession(session.PendingInput{
+			ID: "inq-wake", SessionID: "sess-1", OwnerKind: "synthetic", MessageID: "monitor:mon-1",
+			Status: "queued", Mode: session.BusyInputModeQueue, Delivery: "after_turn",
+			Text: "[COMPOZY MONITOR - NOT USER INPUT]", EnqueuedAt: enqueuedAt, CoalescedWakes: 3,
+		}),
+		core.SessionInputPayloadFromSession(session.PendingInput{
+			ID: "inq-operator", SessionID: "sess-1", Status: "queued", Mode: session.BusyInputModeQueue,
+			Delivery: "after_turn", EnqueuedAt: enqueuedAt,
+			Runtime: &session.RuntimeSelection{
+				Provider:   "codex",
+				ACPOptions: []acp.SessionConfigOptionSelection{{ID: "sandbox", BoolValue: &boolValue}},
+			},
+			Attachments: []session.AttachmentMeta{{ID: "att-1", Name: "a.png", MIMEType: "image/png"}},
+		}),
+	}
+	for name, testCase := range map[string]struct {
+		toolID  toolspkg.ToolID
+		payload any
+	}{
+		"Should accept the list with its queue summary": {
+			toolspkg.ToolIDSessionInputsList,
+			contract.SessionInputListResponse{
+				Inputs: inputs, Queue: &contract.SessionQueueSummaryPayload{Entries: 2, Cap: 10},
+			},
+		},
+		"Should accept cleared rows": {
+			toolspkg.ToolIDSessionInputsClear,
+			map[string]any{"inputs": inputs, "cleared_count": 2, "queue_generation": 1},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			encoded, err := json.Marshal(testCase.payload)
+			if err != nil {
+				t.Fatal(err)
+			}
+			requireNativeOutputSchemaAccepts(t, descriptors[testCase.toolID], encoded)
+		})
+	}
+}
+
 func requireNativeOutputSchemaAccepts(t *testing.T, descriptor toolspkg.Descriptor, payload []byte) {
 	t.Helper()
 	schema, err := jsonschema.UnmarshalJSON(bytes.NewReader(descriptor.OutputSchema))
@@ -16336,4 +16525,15 @@ func (m *nativeTreeSessions) ArchiveWithChildren(
 
 func (m *nativeTreeSessions) DeleteWithChildren(context.Context, string, string) ([]string, error) {
 	return nil, nil
+}
+
+type subagentLimitStub struct {
+	session.SubagentService
+	limit session.SubagentPermissionLimit
+}
+
+func (s *subagentLimitStub) PermissionLimit(
+	context.Context, *session.Info, session.SubagentTarget,
+) (session.SubagentPermissionLimit, error) {
+	return s.limit, nil
 }

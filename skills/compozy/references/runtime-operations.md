@@ -761,14 +761,17 @@ with the actor identity. A lost transcript projection is repaired from the durab
 Busy input order is operator input, then messages from other sessions, then synthetic wakes
 (reply wakes, subagent wakes), then enqueue time within each class. `queue_cap` applies separately to
 operator and agent/wake entries, so agents cannot exhaust the operator's slots; `queue_position` is
-the real rank in that order. An agent-origin `steer` never interrupts: when injection is unavailable
+the real rank in that order. Monitor wakes pending for one session merge into one row, which sits
+outside both pools and reports `coalesced_wakes`; it keeps every outcome, drops output tails past
+64 KiB, and accepts 64 wakes, after which the next monitor stays `delivering` until the row is
+delivered. An agent-origin `steer` never interrupts: when injection is unavailable
 or operator input waits it is queued behind that input, and steer supersede is scoped per sender, so
 it cannot cancel an operator steer.
 Consecutive agent messages and reply wakes (up to 8) dispatch as one turn, each keeping its own origin
 and reply watch; operator input is never merged. A message from another session that waits on a
 target in the same turn longer than `session.messaging.queue_promote_after` (default `2m`, `0s`
-disables) is injected as steer when the target supports injection and no operator input waits. The
-operator can promote (Steer) an agent-authored row but not edit it. `session.messaging` also holds
+disables) is injected as steer when the target supports injection and no operator input waits;
+a coalesced monitor wake promotes the same way. The operator can promote (Steer) an agent-authored row but not edit it. `session.messaging` also holds
 `rate_limit_messages` (default 30, `-1` disables), `rate_limit_window` (default `10m`) and
 `reply_watch_ttl` (default `24h`, `0s` never expires); see `references/configuration.md`.
 A long-turn promotion whose injection fails returns to ordinary after-turn queue delivery; it is never
@@ -779,7 +782,8 @@ A hop counts forwarding depth: answering the session that drives your current tu
 session adds one, and the ninth hop returns `message_hop_limit`. Each sender→target pair is also
 bounded by the rate budget; `message_rate_limited` names the limit, window and retry delay.
 `in_reply_to` never releases the sender's reply watch, so its completion wake still arrives.
-Queue list and session status include `queue: {entries, cap}`. A full queue returns `queue_full`
+Queue list and session status include `queue: {entries, cap}`: `entries` counts every pending row
+and `cap` bounds operator input. A full queue returns `queue_full`
 with `queue_cap` and `queue_count` diagnostic evidence; steering and interrupt remain admitted.
 An interrupt with empty text and no attachments only cancels the active turn. Daemon-authored
 synthetic follow-ups share the durable queue and retain their metadata across restart.
@@ -1112,8 +1116,10 @@ session.
 
 A subagent is a delegated child session that an agent creates with `compozy__subagent_delegate` from
 inside an active turn (protocol in `references/native-tools.md`). Its durable record lives on the
-parent: subagent id, parent turn, child session, runtime, status, `work_state`, `child_activity`, result,
-and delivery. `child_activity` (`working`, `idle`, `stopped`; absent when unknown or provider-native)
+parent: subagent id, parent turn, child session, runtime, status, `work_state`, `child_activity`,
+`usage`, result, and delivery. `usage` (`total_tokens`, `tool_uses`) is the provider's running total
+for a provider-native row and is absent until reported. On those rows `role` is the launching call's
+`subagent_type`. `child_activity` (`working`, `idle`, `stopped`; absent when unknown or provider-native)
 tracks the child session after the delegation settles: the status stays terminal while the child can
 still be prompted again.
 Subagent children set `notify_creator=false`; the subagent wake replaces the creator wake for them, and

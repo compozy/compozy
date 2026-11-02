@@ -67,6 +67,9 @@ func (s *subagentService) ingestNative(ctx context.Context, parent string, ev Na
 	if err != nil {
 		return false, err
 	}
+	if err := s.updateNativeRuntime(ctx, &row, &ev); err != nil {
+		return false, err
+	}
 	call := s.rememberNativeCall(parent, ev)
 	if store.IsSubagentStatusTerminal(row.Status) {
 		return created, nil
@@ -217,6 +220,29 @@ func (s *subagentService) updateNativeTitle(
 	return row, nil
 }
 
+// updateNativeRuntime records what the launching call names. Its input streams
+// in: the first tool_call event usually lacks `model` and a later one adds it.
+func (s *subagentService) updateNativeRuntime(
+	ctx context.Context, row *store.SessionSubagent, ev *NativeSubagentEvent,
+) error {
+	if ev.Model == "" && ev.SubagentType == "" {
+		return nil
+	}
+	at := ev.At
+	if at.IsZero() {
+		at = s.now().UTC()
+	}
+	updated, changed, err := s.store.UpdateNativeSubagentRuntime(ctx, row.ID, ev.Model, ev.SubagentType, at)
+	if err != nil {
+		return err
+	}
+	*row = updated
+	if changed {
+		s.publish(ctx, updated)
+	}
+	return nil
+}
+
 func (s *subagentService) interruptNative(ctx context.Context, parent, turn string) error {
 	rows, err := s.parentRows(ctx, parent)
 	if err != nil {
@@ -293,7 +319,7 @@ func (s *subagentService) reserveNative(
 		IdempotencyKey:     ev.ProviderToolCallID,
 		RequestFingerprint: "provider_native:" + ev.ProviderToolCallID,
 		Title:              title,
-		Role:               "general",
+		Role:               cmp.Or(ev.SubagentType, "general"),
 		Depth:              depth + 1,
 		Status:             store.SubagentStatusRunning,
 		WorkState:          store.SubagentWorkStateWorking,

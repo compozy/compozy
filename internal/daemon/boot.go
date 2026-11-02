@@ -83,6 +83,8 @@ type bootState struct {
 	sessions              SessionManager
 	sessionWakeBridge     *sessionWakeBridge
 	sessionMonitors       *monitorpkg.Service
+	monitorPullRequests   *sessionMonitorPullRequests
+	sessionWatchGate      chan struct{}
 	sessionProcesses      *sessionprocess.Service
 	hostedMCP             *mcppkg.HostedService
 	providerVault         *vault.Service

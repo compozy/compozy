@@ -7008,6 +7008,7 @@ export type SessionInputMentionPayload = {
 
 export type SessionInputPayload = {
   attachments?: Array<PromptAttachmentRef>;
+  coalesced_wakes?: number;
   delivery: string;
   enqueued_at: string;
   id: string;
@@ -7069,17 +7070,23 @@ export type SessionLineagePayload = {
 };
 
 export type SessionMonitorPayload = {
+  branch?: string;
   created_at: string;
   deadline_at: string;
   description: string;
   exit_code?: number | null;
+  fire_count?: number;
   fired_at?: string | null;
   kind: string;
+  last_fired_at?: string | null;
   monitor_id: string;
   pattern?: string;
   reason?: string;
   session_id: string;
+  states?: Array<string>;
   status: string;
+  target_session_ids?: Array<string>;
+  targets?: Array<SessionMonitorTargetPayload>;
   terminal_id?: string;
   until?: string;
 };
@@ -7090,6 +7097,13 @@ export type SessionMonitorResponse = {
 
 export type SessionMonitorSummaryPayload = {
   active: number;
+};
+
+export type SessionMonitorTargetPayload = {
+  matched: boolean;
+  name?: string;
+  session_id: string;
+  state: string;
 };
 
 export type SessionMonitorsResponse = {
@@ -9494,6 +9508,7 @@ export type SubagentPayload = {
   subagent_id: string;
   title: string;
   updated_at: string;
+  usage?: SubagentUsagePayload | null;
   wait_timed_out: boolean;
   work_state: string;
   workspace_id: string;
@@ -9520,6 +9535,11 @@ export type SubagentSummaryPayload = {
   live: number;
   most_urgent: string;
   total: number;
+};
+
+export type SubagentUsagePayload = {
+  tool_uses: number;
+  total_tokens: number;
 };
 
 export type SubagentWorktreePayload = {

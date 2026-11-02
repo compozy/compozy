@@ -9,6 +9,9 @@ const (
 	redirectLead = "CompozyOS refused this shell wait: it keeps the turn busy and Compozy cannot supervise it. "
 	redirectTail = " Then keep working on steps that do not depend on it, or end your turn if nothing else remains: " +
 		"Compozy wakes this session when the monitor fires."
+	pullRequestRedirect = `Call compozy__monitor_create {"kind":"pull_request","description":"<what you will do on wake>"}, ` +
+		`adding "branch" when the pull request is not on this session's branch. It reports failed checks, finished ` +
+		`checks, new reviews, and the merge or close, and it stays armed across wakes.`
 	terminalMonitorInput = `{"kind":"terminal","terminal_id":"<returned id>","until":"exit",` +
 		`"description":"<what you are waiting for>"}`
 )
@@ -27,6 +30,9 @@ func DenyReason(finding Finding) string {
 	default:
 		if finding.Source != "" && !finding.Exact {
 			return redirectLead + terminalRedirect(pollInvocation(finding)) + redirectTail
+		}
+		if finding.PullRequest {
+			return redirectLead + pullRequestRedirect + redirectTail
 		}
 		return redirectLead + terminalRedirect(finding.Argv) + redirectTail
 	}

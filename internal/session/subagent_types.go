@@ -122,6 +122,14 @@ type SubagentProviderOption struct {
 	Constraints     []string
 }
 
+// SubagentPermissionLimit is the broadest mode one delegation may request.
+type SubagentPermissionLimit struct {
+	Mode compozyconfig.PermissionMode
+	// ChildOwnsLevel is set in an instance lineage, where the child's own configured level sets the
+	// limit and an unset mode resolves from that level instead of the caller's.
+	ChildOwnsLevel bool
+}
+
 // SubagentCapabilities answers compozy__subagent_capabilities.
 type SubagentCapabilities struct {
 	ParentSessionID string
@@ -156,6 +164,7 @@ type NativeSubagentEvent struct {
 	ToolName           string // Agent | Task
 	Title              string
 	Model              string
+	SubagentType       string // the call's `subagent_type`; empty until its input arrives
 	Status             string // ACP tool-call status: pending|in_progress|completed|failed
 	// Background reports a call the provider runs in the background: its
 	// completed tool result is a launch receipt, not the subagent's outcome.
@@ -184,11 +193,14 @@ type NativeSubagentTask struct {
 	Progress string
 	// Background is nil unless the observation reports the task's backgrounding.
 	Background *bool
+	// Usage is the provider's running total for the task; nil when absent.
+	Usage *acp.NativeTaskUsage
 }
 
 // SubagentService owns subagent records, delivery, and lifecycle. Transition
 // owners are called from the session manager call sites listed in the spec.
 type SubagentService interface {
+	PermissionLimit(context.Context, *Info, SubagentTarget) (SubagentPermissionLimit, error)
 	Capabilities(ctx context.Context, caller SubagentCaller) (SubagentCapabilities, error)
 	Delegate(ctx context.Context, req SubagentRequest) (Subagent, error)
 	Status(ctx context.Context, caller SubagentCaller, id string) (Subagent, error)

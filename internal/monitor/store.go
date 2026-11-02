@@ -18,7 +18,10 @@ type Record struct {
 	// OwnerCheckFailedAt is when a recovering monitor's owner check first failed transiently; zero
 	// otherwise. It anchors the retry horizon across restarts.
 	OwnerCheckFailedAt time.Time
-	Version            int64
+	// RepoKey and Cursor restore a pull_request watch; Cursor is JSON owned by this package.
+	RepoKey string
+	Cursor  string
+	Version int64
 }
 
 // Store persists monitors so they survive a daemon restart.

@@ -26,10 +26,12 @@ function SubagentTranscript({
   subagent,
   workspaceId,
   navigation,
+  embedded,
 }: {
   subagent: SubagentView;
   workspaceId: string;
   navigation: SubagentNavigation;
+  embedded: boolean;
 }) {
   const childId =
     subagent.origin === "provider_native"
@@ -39,7 +41,7 @@ function SubagentTranscript({
   if (!childId)
     return (
       <p role="status" className="p-4 text-small-body text-muted-foreground">
-        {subagent.error ||
+        {(!embedded && subagent.error) ||
           (subagent.status === "queued" || subagent.status === "running"
             ? "Waiting for the subagent session to start."
             : "No session was created for this subagent.")}
@@ -72,6 +74,7 @@ function SubagentTranscript({
       >
         <SessionNativeSubagentActivity
           key={subagent.id}
+          embedded={embedded}
           subagent={subagent}
           workspaceId={workspaceId}
         />
@@ -98,6 +101,29 @@ function SubagentTranscript({
         subagentNavigation={navigation}
       />
     </SessionChatRuntimeProvider>
+  );
+}
+
+function SubagentContent({
+  subagent,
+  workspaceId,
+  navigation,
+  embedded = false,
+}: {
+  subagent: SubagentView;
+  workspaceId: string;
+  navigation: SubagentNavigation;
+  embedded?: boolean;
+}) {
+  return (
+    <AuiProvider extends={null} config={AuiConfig({})}>
+      <SubagentTranscript
+        embedded={embedded}
+        navigation={navigation}
+        subagent={subagent}
+        workspaceId={workspaceId}
+      />
+    </AuiProvider>
   );
 }
 
@@ -173,15 +199,11 @@ function SubagentDrawerSelection({
       }
       content={
         subagent && selected ? (
-          <>
-            <AuiProvider extends={null} config={AuiConfig({})}>
-              <SubagentTranscript
-                subagent={subagent}
-                workspaceId={selected.workspaceId}
-                navigation={navigation}
-              />
-            </AuiProvider>
-          </>
+          <SubagentContent
+            subagent={subagent}
+            workspaceId={selected.workspaceId}
+            navigation={navigation}
+          />
         ) : null
       }
     >
@@ -203,6 +225,20 @@ export function SessionSubagentDrawer({
     <SubagentDrawerContext
       value={{
         store,
+        content: (subagent, workspaceId) => (
+          <div
+            className={
+              subagent.origin === "provider_native" ? "flex flex-col" : "flex h-96 flex-col"
+            }
+          >
+            <SubagentContent
+              subagent={subagent}
+              workspaceId={workspaceId}
+              navigation={{ openSession }}
+              embedded
+            />
+          </div>
+        ),
         open: (subagent, options, workspaceId) => {
           const target = subagentNavigationTarget(subagent, workspaceId);
           if (options.newWindow && subagent.origin !== "provider_native") {

@@ -8,38 +8,33 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
   StateGlyph,
   cn,
 } from "@compozy/ui";
 
-import { SubagentAvatar } from "./subagent-avatar";
 import { SubagentBranch, type SubagentOpenOptions } from "./subagent-card";
+import { SubagentElapsed } from "./subagent-elapsed";
 import {
   SUBAGENT_ROW_STOP_FAILED,
   isSubagentStoppable,
   subagentDisplay,
+  subagentElapsedClock,
   subagentRosterGroups,
 } from "./subagent-format";
-import { SubagentHoverContent } from "./subagent-hover-content";
 import {
+  SUBAGENT_ROSTER_FIRST_PAGE,
   SUBAGENT_ROSTER_LIST_FRAME,
-  SUBAGENT_ROSTER_MAIN_BRANCH,
   SUBAGENT_ROSTER_MAIN_FRAME,
-  SUBAGENT_ROSTER_MAIN_PLAIN,
   SUBAGENT_ROSTER_ROW_FRAME,
 } from "./subagent-roster-frame";
-import { SubagentPullRequestLink, SubagentRowTrail } from "./subagent-row-trail";
+import { SubagentPullRequestLink } from "./subagent-row-trail";
+import { subagentLiveLine } from "./subagent-row-format";
+import { SubagentTile } from "./subagent-tile";
 import { subagentPullRequest, subagentWorktree } from "./subagent-worktree-format";
 import type { SubagentView } from "./types";
 import { useSubagentStop } from "./use-subagent-stop";
 
-const SUBAGENT_ROSTER_FIRST_PAGE = 6;
 const SUBAGENT_ROSTER_PAGE = 12;
-
-type SubagentHoverSide = "left" | "right";
 
 export interface SubagentRosterProps {
   /** Direct children of this session; grandchildren are reached by opening a child. */
@@ -48,10 +43,16 @@ export interface SubagentRosterProps {
   /** Cancels one live delegated subagent. */
   onStop?: (subagent: SubagentView) => Promise<unknown>;
   defaultPreviousOpen?: boolean;
+  /** How far the list is unfolded, for a host that unmounts it and comes back. */
+  view?: SubagentRosterView;
+  onViewChange?: (view: SubagentRosterView) => void;
   stale?: boolean;
-  /** Where a row's hover card opens: away from the host's edge. */
-  hoverSide?: SubagentHoverSide;
   className?: string;
+}
+
+export interface SubagentRosterView {
+  limit: number;
+  previousOpen: boolean;
 }
 
 interface RosterRowProps {
@@ -59,34 +60,45 @@ interface RosterRowProps {
   onOpen?: SubagentRosterProps["onOpen"];
   onStop?: SubagentRosterProps["onStop"];
   stale: boolean;
-  hoverSide: SubagentHoverSide;
 }
 
-interface RosterRowLabelProps {
+/** Title, then the model and kind, then what it is doing now; settled titles dim in place. */
+function RosterRowLabel({
+  subagent,
+  stale,
+  settled,
+}: {
   subagent: SubagentView;
-  branch: string | undefined;
+  stale: boolean;
   settled: boolean;
-}
-
-// Isolated rows grow a branch line (S5) under the title; settled titles dim in place.
-function RosterRowLabel({ subagent, branch, settled }: RosterRowLabelProps) {
-  const title = (
-    <span className={cn("truncate text-transcript-meta", settled && "text-muted-foreground")}>
-      {subagent.title}
-    </span>
-  );
+}) {
+  const line = subagentLiveLine(subagent, { stale });
+  const branch = subagentWorktree(subagent)?.branch;
   return (
     <>
-      <SubagentAvatar
-        agent={subagent.runtime.agent}
-        provider={subagent.runtime.provider}
-        size="sm"
-        surface="rail"
-        className={branch ? "mt-px" : undefined}
-      />
-      <span className="flex min-w-0 flex-col gap-px">
-        {title}
+      <SubagentTile stale={stale} subagent={subagent} />
+      <span className="flex min-w-0 flex-col gap-0.5">
+        <span
+          className={cn(
+            "truncate text-small-body font-medium",
+            settled ? "text-fg-2" : "text-fg-strong"
+          )}
+        >
+          {subagent.title}
+        </span>
         <SubagentRuntimeMeta subagent={subagent} providerMark={false} />
+        {line ? (
+          <span
+            className={cn(
+              "truncate text-transcript-meta",
+              line.tone === "destructive" ? "text-destructive" : "text-muted-foreground"
+            )}
+            data-slot="subagent-live-line"
+          >
+            {line.verb ? <span className="text-success">{line.verb} </span> : null}
+            {line.text}
+          </span>
+        ) : null}
         {branch ? <SubagentBranch branch={branch} className="min-w-0 text-micro" /> : null}
       </span>
     </>
@@ -113,7 +125,7 @@ function RosterRowStop({ pending, onStop }: { pending: boolean; onStop: () => vo
   );
 }
 
-function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProps) {
+function RosterRow({ subagent, onOpen, onStop, stale }: RosterRowProps) {
   const selected = useSubagentDrawerSelected(subagent.id);
   const stoppable = isSubagentStoppable(subagent) && onStop !== undefined;
   const { pending, stop } = useSubagentStop(
@@ -121,16 +133,10 @@ function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProp
     SUBAGENT_ROW_STOP_FAILED,
     [subagent]
   );
-  const drillable = onOpen !== undefined;
   const display = subagentDisplay(subagent, { stale });
-  const word = display.word;
-  // Isolated rows grow a branch line (S5); the PR link stays a sibling of the open control.
-  const branch = subagentWorktree(subagent)?.branch;
+  const clock = subagentElapsedClock(subagent, { stale });
   const pullRequest = subagentPullRequest(subagent);
-  const mainClass = cn(
-    SUBAGENT_ROSTER_MAIN_FRAME,
-    branch ? SUBAGENT_ROSTER_MAIN_BRANCH : SUBAGENT_ROSTER_MAIN_PLAIN
-  );
+  const label = <RosterRowLabel settled={display.settled} stale={stale} subagent={subagent} />;
 
   const handleOpen = (event: MouseEvent<HTMLButtonElement>) => {
     onOpen?.(subagent, { newWindow: event.metaKey || event.ctrlKey });
@@ -142,55 +148,51 @@ function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProp
       data-status={subagent.status}
       data-state={display.glyph}
       data-stopping={pending ? "true" : undefined}
+      data-subagent-id={subagent.id}
       className={cn(
         SUBAGENT_ROSTER_ROW_FRAME,
         selected && "bg-selected ring-1 ring-inset ring-line-strong"
       )}
     >
-      {/* Remount when the trigger switches between button and group row, so the
-          hover listeners bind to the live element. */}
-      <HoverCard key={drillable ? "drill" : "static"}>
-        <HoverCardTrigger
-          render={
-            drillable ? (
-              <button
-                type="button"
-                aria-label={`Open ${subagent.title}`}
-                aria-description={word}
-                aria-current={selected ? "true" : undefined}
-                className={mainClass}
-                onClick={handleOpen}
-              />
-            ) : (
-              // Not drillable, still reachable: focus opens the hover card (S3).
-              <div
-                role="group"
-                tabIndex={0}
-                aria-label={`${subagent.title}, ${word}`}
-                className={mainClass}
-              />
-            )
-          }
+      {onOpen ? (
+        <button
+          type="button"
+          aria-label={`Open ${subagent.title}`}
+          aria-description={display.word}
+          aria-current={selected ? "true" : undefined}
+          className={SUBAGENT_ROSTER_MAIN_FRAME}
+          onClick={handleOpen}
         >
-          <RosterRowLabel subagent={subagent} branch={branch} settled={display.settled} />
-        </HoverCardTrigger>
-        <HoverCardContent side={hoverSide} align="start">
-          <SubagentHoverContent subagent={subagent} stale={stale} />
-        </HoverCardContent>
-      </HoverCard>
-      <span
-        className={cn("inline-flex shrink-0 items-center gap-1", branch && "self-start pt-1.5")}
-      >
+          {label}
+        </button>
+      ) : (
+        // Not drillable, still reachable: the row names its state to the keyboard.
+        <div
+          role="group"
+          tabIndex={0}
+          aria-label={`${subagent.title}, ${display.word}`}
+          className={SUBAGENT_ROSTER_MAIN_FRAME}
+        >
+          {label}
+        </div>
+      )}
+      <span className="inline-flex shrink-0 items-center gap-1 pt-2">
         {pullRequest ? <SubagentPullRequestLink pr={pullRequest} size="row" /> : null}
-        <SubagentRowTrail
-          subagent={subagent}
-          stale={stale}
-          glyph
-          className={cn(
-            stoppable && "group-hover/roster-row:hidden group-has-focus-visible/roster-row:hidden",
-            pending && "hidden"
-          )}
+        <SubagentElapsed
+          className="font-sans text-transcript-meta text-muted-foreground"
+          clock={clock}
         />
+        {onOpen ? (
+          <ChevronRight
+            aria-hidden="true"
+            className={cn(
+              "size-3.5 shrink-0 text-subtle",
+              stoppable &&
+                "group-hover/roster-row:hidden group-has-focus-visible/roster-row:hidden",
+              pending && "hidden"
+            )}
+          />
+        ) : null}
         {stoppable ? <RosterRowStop pending={pending} onStop={stop} /> : null}
       </span>
     </li>
@@ -201,19 +203,27 @@ function RosterRow({ subagent, onOpen, onStop, stale, hoverSide }: RosterRowProp
  * One session's subagent rows (nav VC-01/03): failed pinned on top, then live
  * (waiting first), then the collapsible `Previous subagents (N)`. Six rows
  * first, then `Show 12 more` per page. The inspector section and the composer
- * popover host it.
+ * panel host it.
  */
 export function SubagentRoster({
   subagents,
   onOpen,
   onStop,
   defaultPreviousOpen = false,
+  view,
+  onViewChange,
   stale = false,
-  hoverSide = "left",
   className,
 }: SubagentRosterProps) {
-  const [limit, setLimit] = useState(SUBAGENT_ROSTER_FIRST_PAGE);
-  const [previousOpen, setPreviousOpen] = useState(defaultPreviousOpen);
+  const [ownView, setOwnView] = useState<SubagentRosterView>({
+    limit: SUBAGENT_ROSTER_FIRST_PAGE,
+    previousOpen: defaultPreviousOpen,
+  });
+  const { limit, previousOpen } = view ?? ownView;
+  const changeView = (next: SubagentRosterView) => {
+    setOwnView(next);
+    onViewChange?.(next);
+  };
 
   const groups = subagentRosterGroups(subagents);
   const pinned = [...groups.failed, ...groups.live];
@@ -228,18 +238,20 @@ export function SubagentRoster({
       onOpen={onOpen}
       onStop={onStop}
       stale={stale}
-      hoverSide={hoverSide}
     />
   );
 
   return (
     <>
-      <div className={cn(SUBAGENT_ROSTER_LIST_FRAME, className)}>
+      <div className={cn(SUBAGENT_ROSTER_LIST_FRAME, className)} data-slot="subagent-roster-list">
         {shownPinned.length > 0 ? (
           <ul className="flex flex-col gap-px">{shownPinned.map(row)}</ul>
         ) : null}
         {groups.previous.length > 0 ? (
-          <Collapsible open={previousOpen} onOpenChange={setPreviousOpen}>
+          <Collapsible
+            open={previousOpen}
+            onOpenChange={open => changeView({ limit, previousOpen: open })}
+          >
             <CollapsibleTrigger
               render={
                 <button
@@ -266,7 +278,7 @@ export function SubagentRoster({
           variant="ghost"
           size="xs"
           className="self-start"
-          onClick={() => setLimit(current => current + SUBAGENT_ROSTER_PAGE)}
+          onClick={() => changeView({ limit: limit + SUBAGENT_ROSTER_PAGE, previousOpen })}
         >
           Show {Math.min(SUBAGENT_ROSTER_PAGE, remaining)} more
         </Button>

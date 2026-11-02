@@ -7,6 +7,45 @@ import (
 	"time"
 )
 
+type TaskTreeParams struct {
+	ID string `json:"id"`
+}
+
+type TaskTriageStatePayload struct {
+	TaskID             string        `json:"task_id"`
+	Actor              ActorIdentity `json:"actor"`
+	Read               bool          `json:"read"`
+	Archived           bool          `json:"archived"`
+	Dismissed          bool          `json:"dismissed"`
+	LastSeenActivityAt *time.Time    `json:"last_seen_activity_at,omitempty"`
+	UpdatedAt          time.Time     `json:"updated_at"`
+}
+
+type TaskUnblockedPayload struct {
+	Event          HookEvent       `json:"event"`
+	Timestamp      time.Time       `json:"timestamp"`
+	ProfileID      string          `json:"profile_id,omitempty"`
+	TaskID         string          `json:"task_id,omitempty"`
+	ParentTaskID   string          `json:"parent_task_id,omitempty"`
+	WorkspaceID    string          `json:"workspace_id,omitempty"`
+	WorkflowID     string          `json:"workflow_id,omitempty"`
+	AgentName      string          `json:"agent_name,omitempty"`
+	ActorKind      string          `json:"actor_kind,omitempty"`
+	ActorID        string          `json:"actor_id,omitempty"`
+	OriginKind     string          `json:"origin_kind,omitempty"`
+	OriginRef      string          `json:"origin_ref,omitempty"`
+	TaskStatus     string          `json:"task_status,omitempty"`
+	RunID          string          `json:"run_id,omitempty"`
+	ReleaseReason  string          `json:"release_reason,omitempty"`
+	ClaimTokenHash string          `json:"claim_token_hash,omitempty"`
+	BlockID        string          `json:"block_id,omitempty"`
+	Kind           string          `json:"kind,omitempty"`
+	Reason         string          `json:"reason,omitempty"`
+	Details        json.RawMessage `json:"details,omitempty"`
+	ClearedAt      time.Time       `json:"cleared_at,omitzero"`
+	ClearNote      string          `json:"clear_note,omitempty"`
+}
+
 type TaskUpdateParams struct {
 	ID                 string           `json:"id"`
 	Title              *string          `json:"title,omitempty"`
@@ -285,43 +324,3 @@ type ToolContent struct {
 }
 
 type ToolID string
-
-type ToolLocation struct {
-	Path      string `json:"path,omitempty"`
-	StartLine int    `json:"start_line,omitempty"`
-	EndLine   int    `json:"end_line,omitempty"`
-}
-
-type ToolPostCallPayload struct {
-	Event          HookEvent       `json:"event"`
-	Timestamp      time.Time       `json:"timestamp"`
-	ProfileID      string          `json:"profile_id,omitempty"`
-	SessionID      string          `json:"session_id,omitempty"`
-	SessionName    string          `json:"session_name,omitempty"`
-	SessionType    string          `json:"session_type,omitempty"`
-	AgentName      string          `json:"agent_name,omitempty"`
-	WorkspaceID    string          `json:"workspace_id,omitempty"`
-	Workspace      string          `json:"workspace,omitempty"`
-	WorktreeID     string          `json:"worktree_id,omitempty"`
-	ACPSessionID   string          `json:"acp_session_id,omitempty"`
-	State          string          `json:"state,omitempty"`
-	SoulSnapshotID string          `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string          `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
-	TurnID         string          `json:"turn_id,omitempty"`
-	ToolCallID     string          `json:"tool_call_id,omitempty"`
-	ToolID         string          `json:"tool_id,omitempty"`
-	ReadOnly       bool            `json:"read_only,omitempty"`
-	Title          string          `json:"title,omitempty"`
-	ToolInput      json.RawMessage `json:"tool_input,omitempty"`
-	ToolResult     json.RawMessage `json:"tool_result,omitempty"`
-}
-
-type ToolPostErrorPatch struct {
-	Deny       bool            `json:"deny,omitempty"`
-	DenyReason string          `json:"deny_reason,omitempty"`
-	Title      *string         `json:"title,omitempty"`
-	ToolResult json.RawMessage `json:"tool_result,omitempty"`
-	Error      *string         `json:"error,omitempty"`
-}

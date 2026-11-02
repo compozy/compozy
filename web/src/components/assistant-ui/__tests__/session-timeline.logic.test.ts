@@ -10,9 +10,12 @@ import claudeGoalLive from "./fixtures/claude-goal-live.json";
 import {
   deriveSessionRows,
   sessionRowEqual,
+  type SessionRow,
+  type SessionTimelineDataPart,
   type SessionTimelinePart,
   type SessionTimelineToolPart,
 } from "../session-timeline.logic";
+import { estimateMessageSize } from "../timeline-row-estimates";
 
 function tool(
   index: number,
@@ -2003,5 +2006,154 @@ describe("session timeline sent messages", () => {
       { foldSettledTurns: true }
     );
     expect(rows.map(row => row.kind)).toEqual(["turn-fold", "session-message", "text"]);
+  });
+});
+
+// Invariant: an allowed permission travels with its tool, without changing persisted parts or
+// counts. Owner: transcript-to-timeline derivation; canonical suite: this file (#1155).
+describe("allowed permission receipts", () => {
+  function permission(
+    id: string,
+    toolCallId: string | undefined,
+    decision: string | null = "allow-once",
+    turnId = "turn-1"
+  ): SessionTimelineDataPart {
+    return {
+      kind: "data",
+      id,
+      name: "data-compozy-permission",
+      data: {
+        type: "permission",
+        request_id: id,
+        turn_id: turnId,
+        title: "Read",
+        ...(toolCallId === undefined ? {} : { tool_call_id: toolCallId }),
+        ...(decision === null ? {} : { decision }),
+      },
+      turnId,
+      timestamp: "2026-07-07T12:00:01Z",
+      state: "done",
+    };
+  }
+
+  const workRows = (rows: readonly SessionRow[]) => rows.filter(row => row.kind === "work");
+
+  it.each([
+    ["before its tool", ["p", 1, 2, 3, 4]],
+    ["after its tool", [1, "p", 2, 3, 4]],
+    ["between two runs", [1, 2, "p", 3, 4]],
+  ])("Should not split the run when the permission arrives %s", (_, order) => {
+    const approval = permission("p", "tool-call-1");
+    const rows = deriveSessionRows(order.map(item => (item === "p" ? approval : tool(+item))));
+
+    expect(rows.map(row => row.kind)).toEqual(["work"]);
+    const [work] = rows;
+    if (work?.kind !== "work") throw new Error("expected one work row");
+    expect(work.summary?.label).toBe("Read 4 files");
+    expect(work.approvals?.get("tool-call-1")).toEqual([approval]);
+  });
+
+  it.each([
+    ["rejected", permission("p", "tool-call-1", "reject-once")],
+    ["pending or expired", permission("p", "tool-call-1", null)],
+    ["without an id", permission("p", undefined)],
+    ["with a blank id", permission("p", "  ")],
+    ["with no matching tool", permission("p", "tool-call-9")],
+    ["from another turn", permission("p", "tool-call-1", "allow-once", "turn-0")],
+  ])("Should keep a permission %s standalone", (_, standing) => {
+    const rows = deriveSessionRows([tool(1), standing, tool(2)]);
+
+    expect(rows.map(row => row.kind)).toEqual(["work", "data", "work"]);
+    expect(workRows(rows).every(row => row.approvals === undefined)).toBe(true);
+  });
+
+  it("Should keep the opened group when a pending permission between runs becomes allowed", () => {
+    const openedId = "work:turn-1:tool-call-3";
+    const anchors = new Map([
+      [
+        "work:turn-1:tool-call-1",
+        {
+          groupId: "work:turn-1:tool-call-1",
+          turnId: "turn-1",
+          anchorEntryId: "tool-call-1",
+        },
+      ],
+      [openedId, { groupId: openedId, turnId: "turn-1", anchorEntryId: "tool-call-3" }],
+    ]);
+    const options = { expandedWorkGroupIds: new Set([openedId]), workGroupAnchors: anchors };
+    const runs = (between: SessionTimelinePart) =>
+      deriveSessionRows([tool(1), tool(2), between, tool(3), tool(4)], options);
+
+    const pending = runs(permission("p", "tool-call-3", null));
+    expect(pending.map(row => row.kind)).toEqual(["work", "data", "work"]);
+    expect(pending[2]).toMatchObject({ id: openedId, expanded: true });
+
+    const allowed = runs(permission("p", "tool-call-3"));
+    expect(allowed.map(row => row.kind)).toEqual(["work"]);
+    expect(allowed[0]).toMatchObject({ id: openedId, expanded: true });
+  });
+
+  it("Should show the receipt of a running call once it stops running", () => {
+    const approval = permission("p", "tool-call-1");
+    const running = deriveSessionRows([tool(1, { status: "running" }), approval], {
+      activeTurnId: "turn-1",
+    });
+    expect(running.map(row => row.kind)).toEqual(["live-tool"]);
+
+    const settled = deriveSessionRows([tool(1), approval], { activeTurnId: "turn-1" });
+    expect(settled.map(row => row.kind)).toEqual(["work"]);
+    expect(workRows(settled)[0]?.approvals?.get("tool-call-1")).toEqual([approval]);
+  });
+
+  it("Should keep a settled receipt behind the turn fold with its tool", () => {
+    const rows = deriveSessionRows(
+      [tool(1), permission("p", "tool-call-1"), tool(2), text("answer", "Done", "turn-1")],
+      { foldSettledTurns: true }
+    );
+
+    expect(rows.map(row => row.kind)).toEqual(["turn-fold", "text"]);
+    const [fold] = rows;
+    if (fold?.kind !== "turn-fold") throw new Error("expected a fold");
+    expect(workRows(fold.rows)[0]?.approvals?.has("tool-call-1")).toBe(true);
+  });
+
+  it("Should not join prose across a receipt that left the flow", () => {
+    const rows = deriveSessionRows([
+      tool(1),
+      text("before", "Before", "turn-1"),
+      permission("p", "tool-call-1"),
+      text("after", "After", "turn-1"),
+    ]);
+
+    expect(rows.map(row => row.kind)).toEqual(["work", "text", "text"]);
+  });
+
+  it("Should treat a changed receipt as a row update", () => {
+    const parts = [tool(1), tool(2)];
+    const [bare] = deriveSessionRows(parts);
+    const [approved] = deriveSessionRows([...parts, permission("p", "tool-call-1")]);
+    const [always] = deriveSessionRows([...parts, permission("p", "tool-call-1", "allow-always")]);
+    if (!bare || !approved || !always) throw new Error("expected work rows");
+
+    expect(sessionRowEqual(bare, approved)).toBe(false);
+    expect(sessionRowEqual(approved, always)).toBe(false);
+    expect(sessionRowEqual(approved, approved)).toBe(true);
+  });
+
+  it("Should reserve height for a receipt the row shows", () => {
+    const content = (...extra: unknown[]) => ({
+      id: "turn-1",
+      role: "assistant",
+      content: [
+        { type: "tool-call", toolCallId: "call-1", toolName: "Read", result: "done" },
+        ...extra,
+      ],
+    });
+    const receipt = {
+      type: "data-compozy-permission",
+      data: { type: "permission", request_id: "p", tool_call_id: "call-1", decision: "allow-once" },
+    };
+
+    expect(estimateMessageSize(content(receipt))).toBeGreaterThan(estimateMessageSize(content()));
   });
 });

@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+// ToolsetPayload is a daemon API value.
+type ToolsetPayload struct {
+	ID            ToolsetID    `json:"id"`
+	Tools         []string     `json:"tools,omitempty"`
+	Toolsets      []ToolsetID  `json:"toolsets,omitempty"`
+	ExpandedTools []ToolID     `json:"expanded_tools,omitempty"`
+	Status        string       `json:"status"`
+	ReasonCodes   []ReasonCode `json:"reason_codes,omitempty"`
+}
+
 // ToolsetResponse is a daemon API value.
 type ToolsetResponse struct {
 	Toolset ToolsetPayload `json:"toolset"`

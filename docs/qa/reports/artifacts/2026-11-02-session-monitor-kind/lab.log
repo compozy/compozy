@@ -1,0 +1,39 @@
+{"error":"workspace: register workspace \"/Users/pedronauck/dev/qa-labs/compozy-session-monitor-kind-20261102-150548-331198-lab\": workspace path already registered"}
+targets sess-299e187961982b52 sess-a7489fd783bc1c59 sess-d8ee3620d0f470b5 sess-91097de03d7e2689 sess-3ac29d442596aa3b sess-4f72aa0be65c19cd ws=ws_b88da6021184c761
+--- badges: T1=running T3=running
+=== A all
+A after register: [{"monitor_id":"mon-1ad7be85980a","kind":"session","status":"active","reason":null,"until":"all","targets":null}] badge=waiting
+A after T1 settled (done): [{"monitor_id":"mon-1ad7be85980a","kind":"session","status":"active","reason":null,"until":"all","targets":null}] badge=waiting
+A after T2 settled: [{"monitor_id":"mon-1ad7be85980a","kind":"session","status":"fired","reason":"condition_met","until":"all","targets":[{"session_id":"sess-299e187961982b52","state":"done","matched":true},{"session_id":"sess-a7489fd783bc1c59","state":"done","matched":true}]}]
+A wakes=1; badge=done
+=== B any + operator stop
+B: [{"monitor_id":"mon-45d7d376dcd8","kind":"session","status":"fired","reason":"condition_met","until":"any","targets":[{"session_id":"sess-91097de03d7e2689","state":"running","matched":false},{"session_id":"sess-d8ee3620d0f470b5","state":"stopped","matched":true}]}]
+=== E queued second turn
+E before: [{"monitor_id":"mon-2fa3e4fd587a","kind":"session","status":"active","reason":null,"until":"all","targets":null}] T7=running
+E after first turn ended (must stay active): [{"monitor_id":"mon-2fa3e4fd587a","kind":"session","status":"active","reason":null,"until":"all","targets":null}] T7=running
+E after second turn: [{"monitor_id":"mon-2fa3e4fd587a","kind":"session","status":"fired","reason":"condition_met","until":"all","targets":[{"session_id":"sess-ba981d2681f8b6c1","state":"done","matched":true}]}] wakes=1
+=== D timeout
+D: [{"monitor_id":"mon-de17e93d3b00","kind":"session","status":"fired","reason":"timeout","until":"all","targets":[{"session_id":"sess-4f72aa0be65c19cd","state":"running","matched":false}]}]
+=== C restart
+C before: [{"monitor_id":"mon-37f2f070d290","kind":"session","status":"active","reason":null,"until":"all","targets":null}] T5=running
+T8 before restart: waiting own=[{"monitor_id":"mon-4ae077eb3222","kind":"timer","status":"active","reason":null,"until":null,"targets":null}]
+G before restart (must stay active): [{"monitor_id":"mon-4c964a7c9940","kind":"session","status":"active","reason":null,"until":"all","targets":null}]
+restart op 6be9e87e-3ef8-4f93-9c60-bc8c32b2c58f
+restart status=ready
+id                session_id             kind     status  reason         fired_at                   
+----------------  ---------------------  -------  ------  -------------  ---------------------------
+mon-a8e2e1280d82  sess-e9ac72e2b166c379  session  fired   condition_met  2026-11-02T15:16:01.602443Z
+mon-297db16a5aab  sess-2b3b1421404f0c63  session  fired   condition_met  2026-11-02T15:16:05.704511Z
+mon-e3ab2dcaa7a9  sess-5d6e9f6e9e1496c2  session  fired   timeout        2026-11-02T15:16:09.357906Z
+mon-b385a6593334  sess-7dfd8210732664e1  session  fired   condition_met  2026-11-02T15:16:42.915888Z
+mon-1ad7be85980a  sess-2c011e8596ef5c5e  session  fired   condition_met  2026-11-02T15:39:37.172142Z
+mon-45d7d376dcd8  sess-f2c2613a55558a9c  session  fired   condition_met  2026-11-02T15:39:42.309893Z
+mon-2fa3e4fd587a  sess-1a51955f1b54877d  session  fired   condition_met  2026-11-02T15:39:55.080663Z
+mon-de17e93d3b00  sess-94e66d9c5c8aa543  session  fired   timeout        2026-11-02T15:39:58.968783Z
+mon-37f2f070d290  sess-36f47d292fafbd76  session  fired   condition_met  2026-11-02T15:40:37.499929Z
+mon-4ae077eb3222  sess-df93bcc73e051ef1  timer    active                                            
+mon-4c964a7c9940  sess-61378f57cc62e710  session  active                                            
+C after boot: [{"monitor_id":"mon-37f2f070d290","kind":"session","status":"fired","reason":"condition_met","until":"all","targets":[{"session_id":"sess-3ac29d442596aa3b","state":"done","matched":true}]}] T5=done C=done wakes=1
+G after boot (must stay active): [{"monitor_id":"mon-4c964a7c9940","kind":"session","status":"active","reason":null,"until":"all","targets":null}] T8=waiting wakes=0
+A wakes=1 B wakes=1 D wakes=1
+DONE

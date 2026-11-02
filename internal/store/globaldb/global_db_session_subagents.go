@@ -257,6 +257,50 @@ func (g *SessionRepo) UpdateNativeSubagentTitle(
 	return out, changed, err
 }
 
+func (g *SessionRepo) UpdateNativeSubagentRuntime(
+	ctx context.Context,
+	id, model, role string,
+	at time.Time,
+) (out store.SessionSubagent, changed bool, err error) {
+	err = g.withImmediateTransaction(ctx, "update native subagent runtime", func(exec globalSQLExecutor) error {
+		q := sqlcgen.New(exec)
+		n, e := q.UpdateNativeSubagentRuntime(ctx, sqlcgen.UpdateNativeSubagentRuntimeParams{
+			ID: id, RuntimeModel: model, Role: role, UpdatedAt: store.FormatTimestamp(at),
+		})
+		if e != nil {
+			return e
+		}
+		out, e = readSubagent(ctx, q, id)
+		changed = n == 1
+		return e
+	})
+	return out, changed, err
+}
+
+func (g *SessionRepo) UpdateSubagentUsage(
+	ctx context.Context,
+	id string,
+	usage store.SubagentUsage,
+	at time.Time,
+) (out store.SessionSubagent, changed bool, err error) {
+	err = g.withImmediateTransaction(ctx, "update subagent usage", func(exec globalSQLExecutor) error {
+		q := sqlcgen.New(exec)
+		n, e := q.UpdateSubagentUsage(ctx, sqlcgen.UpdateSubagentUsageParams{
+			ID:          id,
+			TotalTokens: usage.TotalTokens,
+			ToolUses:    usage.ToolUses,
+			UpdatedAt:   store.FormatTimestamp(at),
+		})
+		if e != nil {
+			return e
+		}
+		out, e = readSubagent(ctx, q, id)
+		changed = n == 1
+		return e
+	})
+	return out, changed, err
+}
+
 func (g *SessionRepo) UpdateSubagentChildActivity(
 	ctx context.Context, id string, activity store.SubagentChildActivity, at time.Time,
 ) (out store.SessionSubagent, changed bool, err error) {

@@ -201,6 +201,23 @@ WHERE id = sqlc.arg(input_id) AND session_id = sqlc.arg(parent_id)
 UPDATE session_subagents SET title = @title, updated_at = @updated_at
 WHERE id = @id AND origin = 'provider_native' AND title <> @title;
 
+-- name: UpdateNativeSubagentRuntime :execrows
+UPDATE session_subagents SET
+ runtime_model = CASE WHEN @runtime_model <> '' THEN @runtime_model ELSE runtime_model END,
+ role = CASE WHEN @role <> '' THEN @role ELSE role END,
+ updated_at = MAX(updated_at, @updated_at)
+WHERE id = @id AND origin = 'provider_native'
+ AND ((@runtime_model <> '' AND runtime_model <> @runtime_model) OR (@role <> '' AND role <> @role));
+
+-- name: UpdateSubagentUsage :execrows
+UPDATE session_subagents SET
+ usage_total_tokens = MAX(COALESCE(usage_total_tokens, 0), @total_tokens),
+ usage_tool_uses = MAX(COALESCE(usage_tool_uses, 0), @tool_uses),
+ updated_at = MAX(updated_at, @updated_at)
+WHERE id = @id AND origin = 'provider_native'
+ AND (usage_total_tokens IS NULL OR usage_total_tokens < @total_tokens
+  OR usage_tool_uses IS NULL OR usage_tool_uses < @tool_uses);
+
 -- name: ListSubagentWakesByParent :many
 SELECT * FROM session_subagent_wakes
 WHERE parent_session_id = sqlc.arg(parent_id)

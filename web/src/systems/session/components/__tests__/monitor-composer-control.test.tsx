@@ -78,6 +78,17 @@ describe("MonitorComposerControl", () => {
     expect(onCancel).toHaveBeenCalledExactlyOnceWith("mon-1");
   });
 
+  it("Should show which branch a pull request monitor watches", async () => {
+    const user = userEvent.setup();
+    renderControl({
+      monitors: [monitor({ kind: "pull_request", branch: "feat/retry-budget" })],
+    });
+    await user.click(screen.getByRole("button", { name: "Monitors, 1 active" }));
+    const row = screen.getByTestId("composer-monitor-mon-1");
+    expect(row).toHaveTextContent("Pull request on feat/retry-budget");
+    expect(row).toHaveTextContent(/gives up in/);
+  });
+
   it("Should show a fired monitor as waking the session without a cancel action", async () => {
     const user = userEvent.setup();
     renderControl({ onCancel: vi.fn(), monitors: [monitor({ status: "delivering" })] });
@@ -130,6 +141,36 @@ describe("MonitorComposerControl", () => {
     expect(screen.getByText("This session is no longer available.")).toBeInTheDocument();
     expect(screen.queryByTestId("composer-monitor-mon-1")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+  });
+
+  it("Should describe a session monitor by how many sessions it waits on", async () => {
+    const user = userEvent.setup();
+    renderControl({
+      active: 2,
+      monitors: [
+        monitor({
+          kind: "session",
+          description: "Wait for the migration workers",
+          until: "all",
+          target_session_ids: ["sess-a", "sess-b"],
+        }),
+        monitor({
+          monitor_id: "mon-2",
+          kind: "session",
+          description: "Wait for the first worker",
+          until: "any",
+          target_session_ids: ["sess-a"],
+        }),
+      ],
+    });
+    await user.click(screen.getByRole("button", { name: "Monitors, 2 active" }));
+
+    expect(screen.getByTestId("composer-monitor-mon-1")).toHaveTextContent(
+      /All of 2 sessions·gives up/
+    );
+    expect(screen.getByTestId("composer-monitor-mon-2")).toHaveTextContent(
+      /Any of 1 session·gives up/
+    );
   });
 
   it("Should keep cached monitors visible and offer a retry when a refresh fails", async () => {

@@ -26,6 +26,7 @@ import { SessionChangedFilesRowView } from "./session-changed-files-row";
 import { SessionLiveToolRowView } from "./session-live-tool-row";
 import { SessionWorkEntryView } from "./session-work-entry";
 import { SessionToolGroupRow } from "./session-tool-group-row";
+import { isCompozyPermissionData } from "./session-timeline-permissions";
 import { rowContainsPart, rowsContainPart } from "./session-timeline-reveal";
 import { SessionTurnFoldRowView } from "./session-turn-fold-row";
 import { SessionSubagentRowView } from "./session-subagent-row";
@@ -45,7 +46,6 @@ import {
 } from "./session-timeline.logic";
 import {
   ClarificationDataPart,
-  type CompozyPermissionData,
   type GoalPromptMeta,
   isAgentEventPayload,
   isClarifyEventData,
@@ -61,10 +61,6 @@ import {
 // Rows inside a failed turn's open fold know their turn failed, so the failed
 // call earns the danger glyph (ADR-009); everywhere else a failure is absorbed.
 const TurnFailedContext = createContext(false);
-
-function isCompozyPermissionData(value: unknown): value is CompozyPermissionData {
-  return isAgentEventPayload(value) && typeof value.request_id === "string";
-}
 
 // `data-part-index` names the projected part each row renders, so a find jump
 // can land on the matched content rather than the message's top edge.
@@ -151,6 +147,7 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
         <SessionWorkEntryView
           key={`${entry.kind}:${entry.id}`}
           entry={entry}
+          approvals={row.approvals}
           active={row.active}
           turnFailed={turnFailed}
         />

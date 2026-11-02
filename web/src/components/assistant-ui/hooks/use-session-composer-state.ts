@@ -149,12 +149,21 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
   }, [aui, draftText, sessionId, syncStore]);
 
   useEffect(() => {
+    if (
+      !isRunning &&
+      !composerText &&
+      !draftText &&
+      composerAttachments.length === 0 &&
+      composerDraftAttachmentFiles(sessionId).length === 0
+    ) {
+      sessionStore.trigger.composerPromptRefusalDismissed({ sessionId });
+    }
     syncStore.trigger.composerObserved({
       composerText,
       draftText,
       persist: text => sessionStore.trigger.composerDraftChanged({ sessionId, text }),
     });
-  }, [composerText, draftText, sessionId, syncStore]);
+  }, [composerText, composerAttachments.length, draftText, isRunning, sessionId, syncStore]);
 
   // The runtime is rebuilt per session, so unsent attachments re-enter the new
   // composer through the native adapter, which reuses their uploads.

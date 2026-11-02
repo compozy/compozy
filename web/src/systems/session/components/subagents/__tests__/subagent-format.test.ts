@@ -23,6 +23,7 @@ import {
   subagentWorktreeFacts,
   SUBAGENT_BRANCH_MAX_CHARS,
 } from "../subagent-worktree-format";
+import { subagentLiveLine, subagentModelLabel, subagentTokenLabel } from "../subagent-row-format";
 import type { SubagentStatus, SubagentView, SubagentWorktreeView } from "../types";
 
 // Suite: subagent presentation rules (pure).
@@ -106,6 +107,56 @@ describe("subagentCardLines (UT-W05)", () => {
 
 // Invariant: one derived display state per row (glyph, word, tone, settled, clock) drives every
 // subagent surface; running and completed never share a glyph or a word.
+describe("subagent row facts", () => {
+  it.each([
+    ["sonnet", "Sonnet"],
+    ["claude-sonnet-5-5", "Sonnet 5.5"],
+    ["claude-opus-5-5[1m]", "Opus 5.5"],
+    ["claude-sonnet-4-20250514", "Sonnet 4"],
+    ["sonnet-custom", "sonnet-custom"],
+    ["gpt-6-astra", "gpt-6-astra"],
+  ])("Should name the model %s as %s", (model, label) => {
+    expect(subagentModelLabel(model)).toBe(label);
+  });
+
+  it("Should separate a live verb from its object, and fall back to the status word", () => {
+    expect(subagentLiveLine(subagent({ progress: "Running git status" }))).toEqual({
+      verb: "Running",
+      text: "git status",
+      tone: "default",
+    });
+    expect(subagentLiveLine(subagent({ status: "queued" }))?.text).toBe("Queued");
+  });
+
+  it("Should show a failure's first line and nothing once a row is done", () => {
+    expect(subagentLiveLine(subagent({ status: "failed", error: "Stopped\nmore" }))).toMatchObject({
+      text: "Stopped",
+      tone: "destructive",
+    });
+    expect(subagentLiveLine(subagent({ status: "completed" }))).toBeNull();
+  });
+
+  it("Should fall back to the result, and let a resumed child read as working", () => {
+    expect(
+      subagentLiveLine(subagent({ status: "failed", error: null, result_preview: "Partial" }))
+    ).toMatchObject({ text: "Partial", tone: "destructive" });
+    expect(
+      subagentLiveLine(
+        subagent({
+          status: "failed",
+          error: "Old",
+          child_activity: "working",
+          progress: "Reading a",
+        })
+      )
+    ).toEqual({ verb: "", text: "Working", tone: "default" });
+  });
+
+  it("Should compact token counts", () => {
+    expect(subagentTokenLabel(38_200)).toBe("38.2k");
+  });
+});
+
 describe("subagentDisplay", () => {
   const settled = (overrides: Partial<SubagentView>) =>
     subagent({ settled_at: at(125), ...overrides });

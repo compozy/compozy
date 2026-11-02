@@ -89,6 +89,29 @@ The bootstrap helper additionally writes the following under `WORKSPACE_PATH`:
 - Repair that same-session lab in place before rebuilding when only derived files are missing.
 - Rebuild when the requested manifest is missing, unreadable, or points at missing directories.
 
+## Provider access
+
+The manifest's `provider_access` object records `live_provider`, `resources_enabled`,
+`usage_enabled` and the decision `reason`. The persisted scenario contract owns this
+decision on reuse, including legacy manifests. `feature`, `broad` and playbooks
+require the provider surface. Targeted labs opt in only through
+`--required-surface provider`; other targeted labs never copy operator provider files
+or link global Codex skills/cache. `PROVIDER_CODEX_HOME` still exists as an empty,
+isolated config home so manifest consumers and strict auditing keep working.
+
+Live-provider labs copy only `auth.json`, `installation_id`, and `version.json`
+with mode `0600`, and link global skills/cache. The operator originals are never
+modified. Native CLI commands with `home_policy=operator` still preserve operator
+HOME/login; isolated/brokered commands use the manifest's provider home.
+Bootstrap does not change those launch lanes.
+
+`[provider_usage] enabled = false` is written before the first daemon launch,
+including live-provider labs. `--enable-provider-usage` explicitly enables it and
+requires the provider surface; this choice persists on same-session reuse. Reuse
+of a legacy lab disables collection by default and removes unnecessary copied
+resources. Stop an already-running legacy daemon before upgrading/reusing its lab,
+then restart with the manifest config; bootstrap cannot undo earlier account calls.
+
 ## Mandatory launch rules
 
 - Bound-secret, brokered, or explicitly isolated-home provider commands: `HOME="$PROVIDER_HOME" CODEX_HOME="$PROVIDER_CODEX_HOME" <cmd>`
@@ -110,6 +133,8 @@ Use `make qa-reap` only for intentional machine-wide stale-lab recovery, not nor
 
 - The teardown stops the daemon gracefully first (`compozy daemon stop` under the lab `COMPOZY_HOME`), kills the lab tmux server, then sweeps survivors (registered PIDs, cmdline references, lab-port listeners, open files under the runtime/provider homes).
 - It writes `<QA_OUTPUT_PATH>/qa/teardown.json` and stamps a `teardown` block into the manifest. `"clean": true` in that block is the required completion evidence.
+- It always removes copied provider files and global Codex skills/cache links, without `PURGE=1`. Evidence lists `provider_resources_removed` and `provider_resource_errors`; a failed removal makes `clean` false and exits 1. Dry-run preserves resources.
+- For leftover copies from earlier labs, run targeted teardown with that lab's manifest, or intentionally run `make qa-reap` for all stale labs. Bare short runtime roots are included. Never remove the operator originals; inspect only path existence, not credential contents. Do not run machine-wide reap while unrelated labs are active.
 - Exception: a lab may stay alive ONLY while the same active session/loop continues using it (reuse policy above). A continuation that ends without reusing the lab inherits the teardown obligation.
 - Exit code `1` (survivors remain) is a blocking failure: diagnose the survivors, do not ignore them.
 - Classify survivors from the final process-liveness check after escalation. An earlier signal permission error remains blocking only while that PID is still alive; a terminated PID must never appear in both `killed` and `survivors`.

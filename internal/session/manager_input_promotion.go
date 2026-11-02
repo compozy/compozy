@@ -8,8 +8,8 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-// promoteLongTurnQueuedInputs delivers queued messages from other sessions into a target whose turn
-// has outlived session.messaging.queue_promote_after, as injected steering. A long Goal or
+// promoteLongTurnQueuedInputs delivers queued messages from other sessions, and coalesced wakes, into a
+// target whose turn has outlived session.messaging.queue_promote_after, as injected steering. A long Goal or
 // orchestration turn may never reach "after the turn", so without this the message would wait for
 // as long as the turn runs. Promotion keeps each entry's identity, so its reply watch still binds to
 // the turn that consumes it. It never runs while operator input waits and never interrupts the turn:
@@ -63,7 +63,11 @@ func (m *Manager) promoteLongTurnQueuedInputs(ctx context.Context, session *Sess
 }
 
 func promotableQueuedInput(entry *store.SessionInputQueueEntry) bool {
-	return entry.OwnerKind == "" && entry.OriginClass == store.SessionInputOriginClassAgent &&
+	eligible := entry.OwnerKind == "" && entry.OriginClass == store.SessionInputOriginClassAgent
+	if entry.OwnerKind == store.SessionInputOwnerSynthetic {
+		eligible = entry.SyntheticPrompt.CoalescedWakes() > 0
+	}
+	return eligible &&
 		entry.Mode == store.SessionInputQueueModeQueue && entry.Status == store.SessionInputQueueStatusQueued &&
 		len(entry.SkillInvocations) == 0 && !hasStoredMentions(entry.MentionsJSON)
 }
@@ -86,14 +90,18 @@ func (m *Manager) promoteQueuedInput(
 	// The same input.pre_submit review an ordinary dispatch applies, only once the promotion is staged: a
 	// refusal returns the message to the queue for that dispatch to settle, and a rewrite is what the
 	// provider receives.
+	turnSource := TurnSourceUser
+	if entry.OwnerKind == store.SessionInputOwnerSynthetic {
+		turnSource = TurnSourceSynthetic
+	}
 	message, err := m.dispatchInputPreSubmit(
 		ctx,
 		session,
 		turnID,
-		TurnSourceUser,
-		entry.Text,
-		attachmentMetaFromStore(entry.Attachments),
-		storedMentions(entry.MentionsJSON),
+		turnSource,
+		staged.Text,
+		attachmentMetaFromStore(staged.Attachments),
+		storedMentions(staged.MentionsJSON),
 	)
 	if err != nil {
 		session.promotionDeclined.Store(entryID, turnID)
@@ -103,7 +111,7 @@ func (m *Manager) promoteQueuedInput(
 		return "", false
 	}
 	providerText := ""
-	if message != entry.Text {
+	if message != staged.Text {
 		providerText = message
 	}
 	session.promotedSteers.Store(entryID, struct{}{})

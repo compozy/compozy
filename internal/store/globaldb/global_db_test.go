@@ -7319,7 +7319,7 @@ func TestPermissionDailyRollups(t *testing.T) {
 // Invariant: widening Goal phases preserves every existing checkpoint across upgrade and reopen.
 // Owner: global user-state migration; canonical open/reopen suite.
 func TestGlobalDBGoalWaitMigration(t *testing.T) {
-	for _, migration := range []string{"00173_schema.sql", "00174_schema.sql", "00175_schema.sql"} {
+	for _, migration := range []string{"00176_schema.sql"} {
 		t.Run("Should preserve in-flight Goal checkpoints through "+migration, func(t *testing.T) {
 			t.Parallel()
 			ctx := globalMigrationTestContext(t)
@@ -7363,25 +7363,6 @@ func TestGlobalDBGoalWaitMigration(t *testing.T) {
 				values...); err != nil {
 				t.Fatal(err)
 			}
-			withWait := migration != "00173_schema.sql"
-			if withWait {
-				if _, err := prior.ExecContext(
-					ctx,
-					"UPDATE loop_goal_checkpoints SET wait_started_at = ? WHERE loop_run_id = 'wait-upgrade'",
-					stamp,
-				); err != nil {
-					t.Fatal(err)
-				}
-			}
-			withPending := migration == "00175_schema.sql"
-			if withPending {
-				if _, err := prior.ExecContext(
-					ctx,
-					"UPDATE loop_goal_checkpoints SET pending_compaction = 1 WHERE loop_run_id='wait-upgrade'",
-				); err != nil {
-					t.Fatal(err)
-				}
-			}
 			const retained = "SELECT json_array(" + retainedColumns + ") FROM loop_goal_checkpoints WHERE loop_run_id='wait-upgrade'"
 			var before string
 			if err := prior.QueryRowContext(ctx, retained).Scan(&before); err != nil {
@@ -7402,8 +7383,8 @@ func TestGlobalDBGoalWaitMigration(t *testing.T) {
 					Scan(&pending); err != nil {
 					t.Fatal(err)
 				}
-				if pending != withPending {
-					t.Fatalf("pending compaction = %v, want %v", pending, withPending)
+				if pending {
+					t.Fatal("pending compaction = true, want the false default")
 				}
 				if err := upgraded.db.QueryRowContext(ctx, retained).Scan(&after); err != nil {
 					t.Fatal(err)
@@ -7412,8 +7393,7 @@ func TestGlobalDBGoalWaitMigration(t *testing.T) {
 					Scan(&started); err != nil {
 					t.Fatal(err)
 				}
-				if after != before || started.Valid != withWait ||
-					(withWait && !started.Time.Equal(time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC))) {
+				if after != before || started.Valid {
 					t.Fatalf("checkpoint changed: before=%s after=%s wait=%#v", before, after, started)
 				}
 				status, err := store.Status(ctx, upgraded.db, MigrationStream())

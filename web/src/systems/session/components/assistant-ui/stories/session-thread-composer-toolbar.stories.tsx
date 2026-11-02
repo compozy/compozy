@@ -128,6 +128,17 @@ const STORY_MONITORS: readonly SessionMonitorPayload[] = [
     created_at: new Date().toISOString(),
     deadline_at: IN_TWELVE_MINUTES,
   },
+  {
+    monitor_id: "mon-3",
+    session_id: primarySessionFixture.id,
+    kind: "session",
+    description: "Wait for the migration workers",
+    status: "active",
+    until: "all",
+    target_session_ids: ["sess-worker-1", "sess-worker-2", "sess-worker-3"],
+    created_at: new Date().toISOString(),
+    deadline_at: IN_TWELVE_MINUTES,
+  },
 ];
 
 /** The monitors popover with its rows: what each one watches, when it fires or gives up, Cancel. */

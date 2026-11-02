@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type ResolutionReason string
+
+type ResolutionStatus string
+
+type ResolvedWorktreeMode string
+
 type ResourceGetParams struct {
 	Kind ResourceKind `json:"kind"`
 	ID   string       `json:"id"`
@@ -147,16 +153,3 @@ type RunDesignationSummary struct {
 	Index int    `json:"index"`
 	Brief string `json:"brief,omitempty"`
 }
-
-type RunStatus string
-
-type RuntimeSelectionPayload struct {
-	Provider        string                    `json:"provider"`
-	Model           string                    `json:"model,omitempty"`
-	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
-	Speed           Speed                     `json:"speed,omitempty"`
-	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
-	SpeedResolution *Resolution               `json:"speed_resolution,omitempty"`
-}
-
-type ScheduleMode string

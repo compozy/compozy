@@ -14,6 +14,15 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+// PermissionLimit returns the broadest mode a delegation from parent to target may request.
+func (s *subagentService) PermissionLimit(
+	ctx context.Context,
+	parent *Info,
+	target SubagentTarget,
+) (SubagentPermissionLimit, error) {
+	return s.runtime.PermissionLimit(ctx, parent, target)
+}
+
 func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Subagent, error) {
 	req, err := normalizeSubagentRequest(req)
 	if err != nil {
@@ -23,7 +32,11 @@ func (s *subagentService) Delegate(ctx context.Context, req SubagentRequest) (Su
 	if err != nil {
 		return Subagent{}, err
 	}
-	mode, policy, err := subagentPermissions(snap.Info, req)
+	limit, err := s.runtime.PermissionLimit(ctx, snap.Info, req.Target)
+	if err != nil {
+		return Subagent{}, err
+	}
+	mode, policy, err := subagentPermissions(snap.Info, req, limit)
 	if err != nil {
 		return Subagent{}, &SubagentError{Code: "permission_escalation_denied", Message: err.Error(), Err: err}
 	}
@@ -108,7 +121,7 @@ func subagentSpawnOptions(row store.SessionSubagent, target SubagentTarget,
 		Subagent: &hookspkg.SubagentSpawnPayload{
 			Title:     row.Title,
 			Role:      row.Role,
-			TaskChars: row.TaskChars,
+			TaskChars: int(row.TaskChars),
 			Isolation: row.Isolation,
 		},
 	}
@@ -342,11 +355,12 @@ func (s *subagentService) reserveDelegation(
 	if req.Mode == SubagentModeWait {
 		policyName = store.SubagentWakePolicySettledOnly
 	}
+	taskChars := int32(utf8.RuneCountInString(req.Task)) //nolint:gosec // a task is far below 2^31 runes
 	return s.store.ReserveSubagent(ctx, store.SessionSubagent{
 		Isolation: req.Isolation, ID: id, WorkspaceID: req.Caller.WorkspaceID, ParentSessionID: req.Caller.SessionID,
 		ParentTurnID: req.Caller.TurnID, ParentToolCallID: req.Caller.ToolCallID,
 		Origin: store.SubagentOriginDelegated, IdempotencyKey: req.IdempotencyKey, RequestFingerprint: fingerprint,
-		Title: req.Title, Role: req.Role, TaskChars: utf8.RuneCountInString(req.Task), PendingTask: &req.Task,
+		Title: req.Title, Role: req.Role, TaskChars: taskChars, PendingTask: &req.Task,
 		RuntimeAgent: target.Agent, RuntimeProvider: target.Provider, RuntimeModel: target.Model,
 		RuntimeEffort: target.ReasoningEffort, RuntimeSpeed: target.Speed, Depth: depth + 1,
 		Status: store.SubagentStatusQueued, WorkState: store.SubagentWorkStateWorking,

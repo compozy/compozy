@@ -46,6 +46,8 @@ type InputRequest struct {
 	// HumanIngress records human operator authorship; it selects the session-references form at dispatch.
 	HumanIngress bool
 	Attachments  []store.SessionInputAttachment
+	// Coalesce merges a synthetic wake into the session's open row of its key.
+	Coalesce *store.SessionInputCoalesce
 }
 
 // ErrInputTextRequired reports a queued input without text or attachments.

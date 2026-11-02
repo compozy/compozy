@@ -56,7 +56,7 @@ func (w *monitorSessionWaker) WakeSession(ctx context.Context, notification moni
 	if info.State == session.StateStopping || info.State == session.StateStopped {
 		return fmt.Errorf("%w: %s is %s", monitorpkg.ErrSessionGone, sessionID, info.State)
 	}
-	messageID := "monitor:" + notification.Monitor.ID
+	messageID := notification.WakeMessageID()
 	// The queue only dedupes entries that are still queued or dispatching; a wake that was already sent
 	// before a restart must not start a second turn.
 	if ledger, ok := sessions.(monitorWakeLedger); ok {
@@ -77,6 +77,12 @@ func (w *monitorSessionWaker) WakeSession(ctx context.Context, notification moni
 			Reason:      "monitor_" + notification.Outcome.Reason,
 			Summary:     notification.Monitor.Description,
 			WakeEventID: notification.Monitor.ID,
+		},
+		CoalesceKey: monitorpkg.CoalescedWakeKey,
+		Coalesce: &store.SessionInputCoalesce{
+			CompactText:  notification.CompactMessage(),
+			MaxFullBytes: monitorpkg.MaxCoalescedWakeBytes,
+			MaxMembers:   monitorpkg.MaxCoalescedWakes,
 		},
 	}); err != nil {
 		return fmt.Errorf("daemon: deliver monitor wake to %q: %w", sessionID, err)
@@ -181,7 +187,7 @@ type monitorTerminalWatcher struct {
 func (w *monitorTerminalWatcher) WatchTerminal(
 	ctx context.Context,
 	spec monitorpkg.Spec,
-) (monitorpkg.TerminalWatch, error) {
+) (monitorpkg.Watch, error) {
 	manager := w.terminals()
 	if manager == nil {
 		return nil, fmt.Errorf("terminal service is unavailable: %w", terminalpkg.ErrServiceUnavailable)
@@ -206,6 +212,7 @@ func (w *monitorTerminalWatcher) WatchTerminal(
 }
 
 func newSessionMonitorService(ctx context.Context, state *bootState) (*monitorpkg.Service, error) {
+	state.sessionWatchGate = make(chan struct{})
 	logger := state.logger
 	if logger == nil {
 		logger = slog.Default()
@@ -233,6 +240,11 @@ func newSessionMonitorService(ctx context.Context, state *bootState) (*monitorpk
 	opts := []monitorpkg.Option{
 		monitorpkg.WithLogger(logger), monitorpkg.WithObserver(publish),
 		monitorpkg.WithOwners(monitorSessionOwners{sessions: func() any { return state.sessions }}),
+		monitorpkg.WithPullRequests(lateMonitorPullRequests{source: func() *sessionMonitorPullRequests {
+			return state.monitorPullRequests
+		}}),
+		monitorpkg.WithSessionTargets(monitorSessionTargets{sessions: func() any { return state.sessions }}),
+		monitorpkg.WithSessionWatchGate(state.sessionWatchGate),
 	}
 	if persistence, ok := state.registry.(monitorpkg.Store); ok {
 		opts = append(opts, monitorpkg.WithStore(persistence))

@@ -1,4 +1,5 @@
-import { notifyUser } from "@/lib/user-feedback";
+import { sessionStore } from "../stores/session-store";
+import { toast } from "@compozy/ui";
 
 const MAX_REFUSAL_REASON_LENGTH = 400;
 
@@ -13,25 +14,41 @@ export function sessionPromptRefusalReason(body: string): string | null {
     const payload: unknown = JSON.parse(trimmed);
     if (typeof payload === "object" && payload !== null && "error" in payload) {
       const reason = payload.error;
-      if (typeof reason === "string" && reason.trim().length > 0) return bounded(reason.trim());
+      if (typeof reason === "string" && reason.trim().length > 0)
+        return readableReason(reason.trim());
     }
     return null;
   } catch {
-    return bounded(trimmed);
+    return readableReason(trimmed);
   }
 }
 
 /** Tells the operator a prompt never became a turn; the draft itself is restored separately. */
-export function notifySessionPromptNotSent(reason: string | null): void {
-  notifyUser({
-    message: reason
+export function notifySessionPromptNotSent(reason: string | null, sessionId: string): void {
+  toast.error(
+    reason
       ? `Message not sent: ${reason}. Your draft was kept.`
       : "Couldn't confirm the message was sent. Your draft was kept.",
-    tone: "error",
-  });
+    { id: `session-prompt-refusal-${sessionId}` }
+  );
 }
 
+/** Clears only this session's obsolete refusal after a prompt is accepted. */
+export function dismissSessionPromptNotSent(sessionId: string): void {
+  toast.dismiss(`session-prompt-refusal-${sessionId}`);
+  sessionStore.trigger.composerPromptRefusalDismissed({ sessionId });
+}
+
+/** Caps daemon refusal text before presenting it in a notification or chat error. */
 function bounded(reason: string): string {
   if (reason.length <= MAX_REFUSAL_REASON_LENGTH) return reason;
   return `${reason.slice(0, MAX_REFUSAL_REASON_LENGTH - 1)}…`;
+}
+
+/** Converts missing attachment diagnostics into recovery guidance for a retained draft. */
+function readableReason(reason: string): string {
+  if (reason.includes("open prompt attachment") && reason.includes("attachment not found")) {
+    return "An attachment is no longer available. Send again to upload the retained file";
+  }
+  return bounded(reason);
 }

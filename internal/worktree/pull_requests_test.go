@@ -15,6 +15,38 @@ import (
 // Owner: PullRequestService; this is its canonical suite (new subsystem).
 func TestPullRequestService(t *testing.T) {
 	t.Parallel()
+	t.Run("Should leave the forge alone while a watcher's retry-after holds", func(t *testing.T) {
+		t.Parallel()
+		cache := newPullRequestMemoryStore()
+		now := statusTestClock()
+		retry := now.Add(time.Hour)
+		key := PullRequestKey{"ws", "github.com/acme/repo", "limited"}
+		if err := cache.SavePullRequest(t.Context(), PullRequestEntry{
+			Key: key, LookupState: "error", LookupCause: "rate_limited", RetryAfter: &retry,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		var calls atomic.Int32
+		provider := pullRequestTestForge{status: func(context.Context, ForgeStatusRequest) (*ForgeStatus, error) {
+			calls.Add(1)
+			return &ForgeStatus{Reviews: &ForgeReviews{UnresolvedThreads: 1}}, nil
+		}}
+		service := NewPullRequestService(t.Context(), cache, provider, nil, nil)
+		t.Cleanup(service.Close)
+		service.now = func() time.Time { return now }
+		held, err := service.RefreshDue(t.Context(), key)
+		if err != nil || held.LookupState != "error" || calls.Load() != 0 {
+			t.Fatalf("held = %+v err = %v calls = %d", held, err, calls.Load())
+		}
+		service.now = func() time.Time { return retry.Add(time.Second) }
+		due, err := service.RefreshDue(t.Context(), key)
+		if err != nil || due.LookupState != "ok" || calls.Load() != 1 {
+			t.Fatalf("due = %+v err = %v calls = %d", due, err, calls.Load())
+		}
+		if due.Facts == nil || due.Facts.Reviews == nil || due.Facts.Reviews.UnresolvedThreads != 1 {
+			t.Fatalf("live entry lost review activity: %+v", due.Facts)
+		}
+	})
 	t.Run("Should bypass backoff when joining a queued automatic flight", func(t *testing.T) {
 		t.Parallel()
 		cache := newPullRequestMemoryStore()

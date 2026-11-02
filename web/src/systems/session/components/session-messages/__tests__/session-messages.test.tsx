@@ -183,6 +183,11 @@ describe("session message payload adapter", () => {
     ).toBe("timer_elapsed");
     expect(
       sessionMonitorWakeMeta({
+        custom: { synthetic: { ...synthetic, reason: "monitor_pull_request_merged" } },
+      })?.reason
+    ).toBe("pull_request_merged");
+    expect(
+      sessionMonitorWakeMeta({
         custom: { synthetic: { ...synthetic, reason: "monitor_exploded" } },
       })?.reason
     ).toBe("unknown");

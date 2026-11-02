@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// TaskRunReviewVerdictResponse is a daemon API value.
+type TaskRunReviewVerdictResponse struct {
+	Review          TaskRunReviewPayload `json:"review"`
+	ContinuationRun *TaskRunPayload      `json:"continuation_run,omitzero"`
+	CircuitOpened   bool                 `json:"circuit_opened,omitzero"`
+}
+
+// TaskRunReviewsResponse is a daemon API value.
+type TaskRunReviewsResponse struct {
+	Reviews []TaskRunReviewPayload `json:"reviews"`
+}
+
 // TaskRunSessionPayload is a daemon API value.
 type TaskRunSessionPayload struct {
 	SessionID   string    `json:"session_id"`
@@ -435,16 +447,3 @@ type TerminalRecordingPayload struct {
 	Bytes      int64                  `json:"bytes"`
 	ExpiresAt  time.Time              `json:"expires_at"`
 }
-
-// TerminalRecordingRequest is a daemon API value.
-type TerminalRecordingRequest struct {
-	Action TerminalRecordingAction `json:"action"`
-}
-
-// TerminalRecordingResponse is a daemon API value.
-type TerminalRecordingResponse struct {
-	Recording TerminalRecordingPayload `json:"recording"`
-}
-
-// TerminalRecordingState is a daemon API value.
-type TerminalRecordingState string

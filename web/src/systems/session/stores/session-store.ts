@@ -24,6 +24,7 @@ export interface SessionFirstPrompt {
 
 export interface SessionStoreContext {
   drafts: Record<string, string>;
+  promptRefusals: Record<string, string>;
   firstPrompts: Record<string, SessionFirstPrompt>;
   goalFeedback: Record<string, SessionGoalFeedback>;
   liveTailSuppressions: Record<string, number>;
@@ -99,6 +100,7 @@ function writePersistedDrafts(drafts: Record<string, string>): void {
 
 const initialSessionContext: SessionStoreContext = {
   drafts: readPersistedDrafts(),
+  promptRefusals: {},
   firstPrompts: {},
   goalFeedback: {},
   liveTailSuppressions: {},
@@ -117,11 +119,23 @@ export const sessionStore = createStore({
       enqueue.emit.goalDraftCompleted(event);
       return context;
     },
+    composerPromptRefused: (context, event: { sessionId: string; reason: string }) => ({
+      ...context,
+      promptRefusals: { ...context.promptRefusals, [event.sessionId]: event.reason },
+    }),
+    composerPromptRefusalDismissed: (context, event: { sessionId: string }) => {
+      const promptRefusals = withoutSessionValue(context.promptRefusals, event.sessionId);
+      if (promptRefusals === context.promptRefusals) return;
+      return { ...context, promptRefusals };
+    },
     allDraftsDiscarded: context => {
-      if (Object.keys(context.drafts).length === 0) {
+      if (
+        Object.keys(context.drafts).length === 0 &&
+        Object.keys(context.promptRefusals).length === 0
+      ) {
         return;
       }
-      return { ...context, drafts: {} };
+      return { ...context, drafts: {}, promptRefusals: {} };
     },
     composerDraftChanged: (context, event: { sessionId: string; text: string }) => {
       if (!event.text) {
@@ -261,14 +275,16 @@ export const sessionStore = createStore({
       const drafts = withoutSessionValue(context.drafts, event.sessionId);
       const firstPrompts = withoutSessionValue(context.firstPrompts, event.sessionId);
       const goalFeedback = withoutSessionValue(context.goalFeedback, event.sessionId);
+      const promptRefusals = withoutSessionValue(context.promptRefusals, event.sessionId);
       if (
         drafts === context.drafts &&
         firstPrompts === context.firstPrompts &&
-        goalFeedback === context.goalFeedback
+        goalFeedback === context.goalFeedback &&
+        promptRefusals === context.promptRefusals
       ) {
         return;
       }
-      return { ...context, drafts, firstPrompts, goalFeedback };
+      return { ...context, drafts, firstPrompts, goalFeedback, promptRefusals };
     },
   },
 });

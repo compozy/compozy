@@ -3548,6 +3548,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addSessionProviderLiveApplySchemas(baseline) == 0 {
 		t.Fatal("approved runtime_live_apply addition: no historical session provider option schemas found")
 	}
+	// #1154: optional wake count on queued input; existing fields and required sets stay unchanged.
+	if addSessionInputCoalescedWakes(baseline) == 0 {
+		t.Fatal("approved coalesced_wakes addition: no historical session input schemas found")
+	}
 	// #1078: optional worktree creation failure cause; existing fields stay unchanged.
 	if addWorktreeCreateErrorSchemas(baseline) == 0 {
 		t.Fatal("approved worktree create_error addition: no historical worktree schemas found")
@@ -3741,6 +3745,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	// required/type/removal change.
 	if addSubagentChildActivity(baseline) == 0 {
 		t.Fatal("approved subagent child activity addition: no historical subagent row schemas found")
+	}
+	// Optional additive provider usage on subagent rows; no required/type/removal change.
+	if addSubagentUsage(baseline) == 0 {
+		t.Fatal("approved subagent usage addition: no historical subagent row schemas found")
 	}
 	// #993: optional urgency order on one parent's subagent list; the default
 	// order and existing parameters keep their meaning.
@@ -4728,6 +4736,38 @@ func addSubagentChildActivity(node any) int {
 	}
 }
 
+func addSubagentUsage(node any) int {
+	switch value := node.(type) {
+	case map[string]any:
+		count := 0
+		if properties, ok := value["properties"].(map[string]any); ok &&
+			properties["subagent_id"] != nil && properties["work_state"] != nil {
+			properties["usage"] = map[string]any{
+				"type":     "object",
+				"nullable": true,
+				"required": []any{"tool_uses", "total_tokens"},
+				"properties": map[string]any{
+					"total_tokens": map[string]any{"type": "integer", "format": "int64"},
+					"tool_uses":    map[string]any{"type": "integer", "format": "int64"},
+				},
+			}
+			count++
+		}
+		for _, child := range value {
+			count += addSubagentUsage(child)
+		}
+		return count
+	case []any:
+		count := 0
+		for _, child := range value {
+			count += addSubagentUsage(child)
+		}
+		return count
+	default:
+		return 0
+	}
+}
+
 func addShellAppearanceSchema(t *testing.T, baseline map[string]any) {
 	t.Helper()
 	var appearance map[string]any
@@ -4864,6 +4904,26 @@ func addSessionProviderLiveApplySchemas(value any) int {
 				"enum": []any{"next_step", "next_turn"},
 				"type": "string",
 			}
+			count++
+		}
+	}
+	return count
+}
+
+func addSessionInputCoalescedWakes(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionInputCoalescedWakes(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionInputCoalescedWakes(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["queue_generation"] != nil && properties["enqueued_at"] != nil {
+			properties["coalesced_wakes"] = map[string]any{"type": "integer"}
 			count++
 		}
 	}

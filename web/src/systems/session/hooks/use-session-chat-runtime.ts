@@ -25,8 +25,12 @@ import {
 } from "../lib/session-unconfirmed-send";
 import { discardSessionTerminalQuote } from "../lib/session-terminal-quote";
 import { applyTerminalQuoteToPromptMessage } from "../lib/session-terminal-quote-prompt";
-import type { SessionPromptRecovery } from "../lib/session-prompt-recovery";
 import {
+  discardRefusedPromptMessage,
+  type SessionPromptRecovery,
+} from "../lib/session-prompt-recovery";
+import {
+  dismissSessionPromptNotSent,
   notifySessionPromptNotSent,
   sessionPromptRefusalReason,
 } from "../lib/session-prompt-refusal";
@@ -376,17 +380,20 @@ export function useSessionChatRuntime({
     if (messageId !== null) promptRecovery.acknowledge(recoveryScope, messageId);
     attachmentAdapter.acknowledgeSentFiles();
   };
-  const restoreDraft = (messageId: string | null) => {
+  const restoreDraft = (messageId: string | null, refusalReason?: string) => {
     const files = attachmentAdapter.recoverSentFiles();
-    if (messageId !== null) promptRecovery.recover(recoveryScope, messageId, files);
+    if (messageId !== null) promptRecovery.recover(recoveryScope, messageId, files, refusalReason);
   };
   const promptOutcome: SessionPromptOutcome = {
-    accepted: consumeDraft,
+    accepted: messageId => {
+      dismissSessionPromptNotSent(sessionId);
+      consumeDraft(messageId);
+    },
     canceled: consumeDraft,
     returned: restoreDraft,
     notSent: (messageId, reason) => {
-      restoreDraft(messageId);
-      notifySessionPromptNotSent(reason);
+      restoreDraft(messageId, reason ?? undefined);
+      notifySessionPromptNotSent(reason, sessionId);
     },
   };
   const runtimeConfig = buildSessionRuntimeConfig(
@@ -423,6 +430,8 @@ export function useSessionChatRuntime({
       return;
     }
     if (answered !== null && answered >= 400 && answered < 500) {
+      // Only an authoritative refusal can evict the optimistic user message.
+      void discardRefusedPromptMessage(runtime, messageId);
       promptOutcome.notSent(
         messageId,
         sessionPromptRefusalReason(error instanceof Error ? error.message : "")

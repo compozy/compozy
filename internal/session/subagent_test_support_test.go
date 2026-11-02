@@ -440,6 +440,7 @@ func (d *memorySubagents) ListOrphanSubagentSessions(context.Context) ([]string,
 }
 
 type subagentTestRuntime struct {
+	permissionLimit                 *SubagentPermissionLimit
 	stopDescendants                 func(context.Context, string) error
 	inputStatuses                   map[string]string
 	errorResume                     error
@@ -476,6 +477,15 @@ func (r *subagentTestRuntime) Snapshot(_ context.Context, id string) (subagentSn
 }
 func (r *subagentTestRuntime) Resolve(_ context.Context, info *Info, target SubagentTarget) (SubagentTarget, error) {
 	return resolveSubagentTarget(subagentInherited(info), target, SubagentTarget{Model: "default"}), nil
+}
+
+func (r *subagentTestRuntime) PermissionLimit(
+	_ context.Context, info *Info, _ SubagentTarget,
+) (SubagentPermissionLimit, error) {
+	if r.permissionLimit != nil {
+		return *r.permissionLimit, nil
+	}
+	return SubagentPermissionLimit{Mode: permissionMode(info)}, nil
 }
 
 func (r *subagentTestRuntime) Capabilities(
@@ -678,6 +688,46 @@ func (d *memorySubagents) UpdateNativeSubagentTitle(
 	changed := row.Origin == store.SubagentOriginProviderNative && row.Title != title
 	if changed {
 		row.Title, row.UpdatedAt = title, at
+		d.rows[id] = row
+	}
+	return row, changed, nil
+}
+
+func (d *memorySubagents) UpdateNativeSubagentRuntime(
+	_ context.Context,
+	id, model, role string,
+	at time.Time,
+) (store.SessionSubagent, bool, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	row := d.rows[id]
+	nextModel, nextRole := cmp.Or(model, row.RuntimeModel), cmp.Or(role, row.Role)
+	changed := row.Origin == store.SubagentOriginProviderNative &&
+		(nextModel != row.RuntimeModel || nextRole != row.Role)
+	if changed {
+		row.RuntimeModel, row.Role, row.UpdatedAt = nextModel, nextRole, at
+		d.rows[id] = row
+	}
+	return row, changed, nil
+}
+
+func (d *memorySubagents) UpdateSubagentUsage(
+	_ context.Context,
+	id string,
+	usage store.SubagentUsage,
+	at time.Time,
+) (store.SessionSubagent, bool, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	row := d.rows[id]
+	changed := row.Origin == store.SubagentOriginProviderNative &&
+		(row.Usage == nil || usage.TotalTokens > row.Usage.TotalTokens || usage.ToolUses > row.Usage.ToolUses)
+	if changed {
+		if row.Usage != nil {
+			usage.TotalTokens = max(usage.TotalTokens, row.Usage.TotalTokens)
+			usage.ToolUses = max(usage.ToolUses, row.Usage.ToolUses)
+		}
+		row.Usage, row.UpdatedAt = &usage, at
 		d.rows[id] = row
 	}
 	return row, changed, nil

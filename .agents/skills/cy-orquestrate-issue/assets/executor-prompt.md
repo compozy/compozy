@@ -30,7 +30,9 @@ Read current AGENTS.md, applicable subtree instructions, relevant skills, and th
 comments. Resolve skills through the active harness; slash text alone is not activation.
 
 Do not activate a Compozy Goal. Keep working through the full delivery contract below until it is
-satisfied or genuinely blocked; do not end your turn at an intermediate checkpoint.
+satisfied or genuinely blocked. Do not end your turn while a step you can act on remains. When every
+remaining step waits on a registered monitor or subagent, the runtime rule applies: end your turn, and
+the wake starts the next one. Never keep a turn open to wait, and never stack monitors in one long turn.
 
 ## Reporting to the orchestrator
 

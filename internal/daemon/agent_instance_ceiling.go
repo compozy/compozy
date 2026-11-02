@@ -14,34 +14,39 @@ import (
 )
 
 func instanceCeilingReader(repo *globaldb.InstanceRepo) session.InstanceCeilingReader {
-	return func(ctx context.Context, sessionID, instanceID string) (*store.SessionPermissionPolicy, string, error) {
+	return func(ctx context.Context, sessionID, instanceID string) (*session.InstanceCeiling, error) {
 		var caller *agentinstance.Caller
+		starting := instanceID != ""
 		if instanceID == "" {
 			resolved, err := repo.InstanceCaller(ctx, sessionID)
 			if errors.Is(err, sql.ErrNoRows) {
-				return nil, "", nil
+				return nil, nil
 			}
 			if err != nil {
-				return nil, "", err
+				return nil, err
 			}
 			if resolved.InstanceID == "" {
-				return nil, "", nil
+				return nil, nil
 			}
 			instanceID, caller = resolved.InstanceID, &resolved
 		}
 		instance, err := repo.Get(ctx, instanceID)
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		var ceiling store.SessionPermissionPolicy
 		if err := json.Unmarshal([]byte(instance.PermissionCeiling), &ceiling); err != nil {
-			return nil, "", err
+			return nil, err
 		}
 		grant := instance.GrantCeiling
 		if caller != nil {
 			ceiling = agentinstance.IntersectPermissions(ceiling, caller.PermissionPolicy)
 			grant = workspaceaccess.NarrowGrant(grant, caller.Grant)
 		}
-		return &ceiling, grant, nil
+		return &session.InstanceCeiling{
+			Policy: ceiling,
+			Grant:  grant,
+			Main:   starting || sessionID == instance.MainSessionID,
+		}, nil
 	}
 }

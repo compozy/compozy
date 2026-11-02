@@ -18,6 +18,8 @@ import {
 
 import type { SessionComposerFeedback } from "./hooks/session-busy-input-store";
 
+type ComposerFeedback = SessionComposerFeedback | { kind: "prompt-refusal"; message: string };
+
 interface FeedbackNoteView {
   Glyph: ComponentType<{ className?: string }>;
   lead: string;
@@ -126,7 +128,16 @@ function splitSentence(sentence: string): Pick<FeedbackNoteView, "lead" | "rest"
   };
 }
 
-function feedbackView(feedback: SessionComposerFeedback): FeedbackNoteView {
+function feedbackView(feedback: ComposerFeedback): FeedbackNoteView {
+  if (feedback.kind === "prompt-refusal") {
+    return {
+      Glyph: TriangleAlert,
+      lead: "",
+      rest: feedback.message,
+      suffix: null,
+      tone: "warning",
+    };
+  }
   if (feedback.kind === "disposition") {
     return dispositionView(feedback.outcome);
   }
@@ -165,7 +176,7 @@ export function SessionComposerFeedbackNote({
   feedback,
   className,
 }: {
-  feedback: SessionComposerFeedback;
+  feedback: ComposerFeedback;
   className?: string;
 }) {
   const view = feedbackView(feedback);
@@ -180,7 +191,9 @@ export function SessionComposerFeedbackNote({
           ? feedback.refusal.code
           : feedback.kind === "unconfirmed"
             ? "unconfirmed"
-            : feedback.outcome.disposition
+            : feedback.kind === "prompt-refusal"
+              ? "prompt-refusal"
+              : feedback.outcome.disposition
       }
       data-detail={view.suffix ?? undefined}
       data-kind={feedback.kind}
@@ -198,7 +211,12 @@ export function SessionComposerFeedbackNote({
               : "text-subtle"
         )}
       />
-      <span className="min-w-0 truncate">
+      <span
+        className={cn(
+          "min-w-0",
+          feedback.kind === "prompt-refusal" ? "whitespace-normal wrap-anywhere" : "truncate"
+        )}
+      >
         <span className="font-medium text-fg">{view.lead}</span>
         {view.rest}
       </span>
