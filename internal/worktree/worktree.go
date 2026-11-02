@@ -138,6 +138,7 @@ type ForgeReviews struct {
 }
 
 type ForgeStatus struct {
+	Title   string
 	Checks  *ForgeChecks
 	Reviews *ForgeReviews
 	// ReviewsUnavailable reports a failed review read, as opposed to a provider without reviews.

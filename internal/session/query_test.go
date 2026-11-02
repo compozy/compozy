@@ -4731,3 +4731,58 @@ func (r *catalogBranchReadCounter) SessionCatalogBranches(
 	r.calls++
 	return r.GlobalDB.SessionCatalogBranches(ctx, query)
 }
+
+// Invariant: lineage roll-up is read-only, deduplicated behind direct work, and never controls the parent board.
+// Owner: session projection; canonical pull-request query suite.
+func TestSessionLinkedWorkProjection(t *testing.T) {
+	t.Parallel()
+	t.Run("Should prefer direct work and exclude rolled up work from board state", func(t *testing.T) {
+		t.Parallel()
+		reader := &pullRequestQueryReader{state: PullRequestOpen, repositories: map[string]string{"ws": "example.com/a/b"}}
+		branches := &linkedWorkQueryStore{pullRequestQueryBranches: pullRequestQueryBranches{values: map[string]string{}}, links: map[string][]store.SessionWorkLink{
+			"root":  {{Repository: "example.com/a/b", Branch: "direct", PRNumber: 42, Provenance: "user"}},
+			"child": {{Repository: "example.com/a/b", Branch: "child", PRNumber: 42, Provenance: "agent"}},
+		}}
+		manager := &Manager{}
+		manager.ConfigurePullRequests(reader, branches)
+		infos := []*Info{{ID: "root", WorkspaceID: "ws"}}
+		got, err := manager.SessionLinkedWork(t.Context(), infos)
+		if err != nil {
+			t.Fatal(err)
+		}
+		view := got["root"]
+		if view.Summary.Total != 1 || !view.DirectOpen || view.Items[0].SourceSessionID != "" || reader.calls != 1 {
+			t.Fatalf("projection=%+v reads=%d", view, reader.calls)
+		}
+		branches.links["root"][0].Unlinked = true
+		got, err = manager.SessionLinkedWork(t.Context(), infos)
+		if err != nil {
+			t.Fatal(err)
+		}
+		view = got["root"]
+		if view.DirectOpen || view.Summary.Total != 1 || view.Items[0].SourceSessionID != "child" || view.Items[0].SourceSessionTitle != "Child work" {
+			t.Fatalf("rollup=%+v", view)
+		}
+	})
+}
+
+type linkedWorkQueryStore struct {
+	pullRequestQueryBranches
+	links map[string][]store.SessionWorkLink
+}
+
+func (s *linkedWorkQueryStore) SessionWorkFamily(context.Context, []string) ([]store.SessionWorkMember, error) {
+	return []store.SessionWorkMember{{RootID: "root", ID: "root", WorkspaceID: "ws"}, {RootID: "root", ID: "child", WorkspaceID: "ws", Name: "Child work"}}, nil
+}
+func (s *linkedWorkQueryStore) SessionWorkLinks(context.Context, []string) (map[string][]store.SessionWorkLink, error) {
+	return s.links, nil
+}
+func (s *linkedWorkQueryStore) SessionPendingWork(context.Context, []string) (map[string]bool, error) {
+	return nil, nil
+}
+func (s *linkedWorkQueryStore) SaveSessionWorkLink(context.Context, store.SessionWorkLink, bool) error {
+	return nil
+}
+func (s *linkedWorkQueryStore) UnlinkSessionWork(context.Context, store.SessionWorkLink) error {
+	return nil
+}

@@ -33,12 +33,16 @@ func (m *Manager) activeBoardSessionCatalogRows(
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("session: active catalog pull requests: %w", err)
 	}
+	linked, err := m.SessionLinkedWork(ctx, visible)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	for _, info := range visible {
 		var state PullRequestState
 		if pr := views[info.ID].PullRequest; pr != nil {
 			state = pr.State
 		}
-		info.BoardColumn = BoardColumnFor(BadgeForInfo(info), state)
+		info.BoardColumn = BoardColumnWithLinkedWork(BadgeForInfo(info), state, linked[info.ID].DirectOpen, linked[info.ID].Pending)
 	}
 	active, ids, matches := m.activeSessionCatalogRowsFromInfos(query, infos, excludedIDs)
 	return active, ids, matches, nil

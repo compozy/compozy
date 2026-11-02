@@ -29,7 +29,10 @@ func (g *SessionRepo) SessionCatalogBranches(
  THEN CASE WHEN ws.detached = 1 THEN '' ELSE COALESCE(ws.branch,w.branch,'') END ELSE '' END
  ELSE sessions.branch END AS refresh_branch FROM sessions
  LEFT JOIN worktrees w ON w.workspace_id = sessions.workspace_id AND w.id = sessions.worktree_id
- LEFT JOIN worktree_status ws ON ws.worktree_id = w.id) AS sessions`
+ LEFT JOIN worktree_status ws ON ws.worktree_id = w.id
+ UNION ALL SELECT sessions.*, l.branch AS refresh_branch FROM sessions
+ JOIN session_work_links l ON l.session_id = sessions.id AND l.workspace_id = sessions.workspace_id
+ WHERE l.unlinked = 0) AS sessions`
 	// dynamic-sql: reuse authorized catalog filters without loading session metadata or cutting a page.
 	rows, err := g.db.QueryContext(
 		ctx,

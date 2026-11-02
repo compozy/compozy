@@ -2922,6 +2922,55 @@ func sessionIDsFromInfos(infos []store.SessionInfo) []string {
 
 func TestSessionCatalogBoard(t *testing.T) {
 	t.Parallel()
+	// Invariant: independent Go and SQL derivations agree before board pagination.
+	// Owner: durable catalog SQL; canonical board suite.
+	t.Run("Should derive linked board columns from runtime inputs", func(t *testing.T) {
+		t.Parallel()
+		for _, state := range []string{"active", "starting", "stopping", "stopped", "unknown"} {
+			t.Run("Should derive "+state, func(t *testing.T) {
+				t.Parallel()
+				ctx, db := t.Context(), openTestGlobalDB(t)
+				ws := registerWorkspaceForGlobalTests(t, db, "linked-board", t.TempDir())
+				info := sessionInfoForWorkspaceStateIndexTest("linked-board", ws, state, time.Now())
+				// Unknown uses an empty state in memory; SQLite's durable enum represents it with created.
+				if state == "unknown" {
+					info.State = "created"
+				}
+				if err := db.RegisterSession(ctx, &info); err != nil {
+					t.Fatal(err)
+				}
+				link := store.SessionWorkLink{SessionID: info.ID, WorkspaceID: ws, Repository: "example.com/a/b", Branch: "linked", Provenance: "user"}
+				if err := db.SaveSessionWorkLink(ctx, link, false); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := db.db.ExecContext(ctx, "INSERT INTO forge_pull_requests(workspace_id,repo_key,branch,pr_state) VALUES (?,?,'linked','open')", ws, link.Repository); err != nil {
+					t.Fatal(err)
+				}
+				source, args, err := sessionCatalogBoardSource(map[string]string{ws: link.Repository}, nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, pending := range []bool{false, true} {
+					if pending {
+						if _, err := db.db.ExecContext(ctx, `INSERT INTO session_input_queue(id,session_id,status,mode,text,enqueued_at,updated_at) VALUES ('queue',?,'queued','queue','next','2026-11-02T00:00:00Z','2026-11-02T00:00:00Z')`, info.ID); err != nil {
+							t.Fatal(err)
+						}
+					}
+					var badge, column string
+					if err := db.db.QueryRowContext(ctx, "SELECT "+sessionCatalogBadgeExpression+","+sessionCatalogBoardColumnExpression+" FROM "+source, args...).Scan(&badge, &column); err != nil {
+						t.Fatal(err)
+					}
+					runtime := &session.Info{State: session.State(info.State)}
+					wantBadge := session.BadgeForInfo(runtime)
+					want := session.BoardColumnWithLinkedWork(wantBadge, "", true, pending)
+					if badge != string(wantBadge) || column != string(want) {
+						t.Fatalf("pending=%v SQL=%s/%s Go=%s/%s", pending, badge, column, wantBadge, want)
+					}
+				}
+			})
+		}
+	})
+
 	t.Run("Should bind repository and default branches to literal workspace IDs", func(t *testing.T) {
 		t.Parallel()
 		ctx, db := t.Context(), openTestGlobalDB(t)

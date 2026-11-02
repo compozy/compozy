@@ -296,3 +296,32 @@ func TestWaitingBadgePrecedenceAndReasons(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: direct links affect only settled sessions; activity and admission win.
+// Owner: session board derivation; canonical badge suite.
+func TestBoardColumnWithLinkedWork(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name    string
+		badge   Badge
+		pending bool
+		own     PullRequestState
+		want    BoardColumn
+	}{
+		{"Should keep running work in Working", BadgeRunning, false, "", BoardWorking},
+		{"Should keep waiting work in Waiting", BadgeWaiting, false, "", BoardWaiting},
+		{"Should keep unknown state unchanged", BadgeUnknown, false, "", BoardDone},
+		{"Should preserve unknown own PR behavior", BadgeUnknown, false, PullRequestOpen, BoardInReview},
+		{"Should keep queued input in Working", BadgeIdle, true, "", BoardWorking},
+		{"Should keep attention ahead of queue", BadgeWaitingForInput, true, "", BoardNeedsYou},
+		{"Should place stopped linked work in review", BadgeStopped, false, "", BoardInReview},
+		{"Should place settled linked work in review", BadgeIdle, false, "", BoardInReview},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := BoardColumnWithLinkedWork(tt.badge, tt.own, true, tt.pending); got != tt.want {
+				t.Fatalf("column=%s want=%s", got, tt.want)
+			}
+		})
+	}
+}

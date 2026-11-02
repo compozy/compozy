@@ -61,6 +61,7 @@ func pullRequestEntry(row sqlcgen.ForgePullRequest) (worktree.PullRequestEntry, 
 	if row.ObservedAt.Valid {
 		facts := &worktree.ForgeStatus{
 			Provider:       row.Provider,
+			Title:          row.Title,
 			PRNumber:       pointerInt(row.PrNumber),
 			PRState:        pointerString(row.PrState),
 			PRURL:          row.PrUrl,
@@ -125,6 +126,7 @@ func (g *WorktreeRepo) SavePullRequest(ctx context.Context, entry worktree.PullR
 		Provider:          facts.Provider,
 		PrNumber:          nullableInt(facts.PRNumber),
 		PrUrl:             facts.PRURL,
+		Title:             facts.Title,
 		PrState:           nullableString(facts.PRState),
 		Merged:            nullableBool(facts.Merged),
 		Draft:             nullableBool(facts.Draft),
