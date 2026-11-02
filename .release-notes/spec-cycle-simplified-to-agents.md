@@ -23,6 +23,7 @@ Upgrading needs no manual step. The daemon starts normally, and nothing under `~
 - A new heartbeat source, `work_log`, surfaces accepted work in `.compozy/work-log.md` that never started.
 - Running a removed Loop, starting a session with a removed agent, or calling a removed tool fails with a not found error. Automations that target them stay saved, and each run fails on its own.
 - A run of a removed Loop that is active during the upgrade fails at its first removed step with a clear error. Its history stays, and other runs are unaffected.
+- A stays-on instance of a removed agent pauses as `definition_missing`, and nothing is deleted.
 - A workspace Loop with one of the removed names keeps working.
 
 **Batuta leaves the catalog.** Batuta is built on the removed Loops, so the catalog no longer offers it. An installed copy keeps loading, and only `batuta-deliver` fails when run.
