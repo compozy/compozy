@@ -233,6 +233,9 @@ func (s *Service) resolvePullRequest(ctx context.Context, spec Spec) (PullReques
 		return PullRequestTarget{}, errors.New("monitor: pull request monitors are unavailable")
 	}
 	target, err := s.pullRequests.ResolvePullRequest(ctx, spec)
+	if errors.Is(err, ErrInvalid) {
+		return PullRequestTarget{}, err // Its message is the caller's correction; a prefix would bury it.
+	}
 	if err != nil {
 		return PullRequestTarget{}, fmt.Errorf("monitor: resolve pull request: %w", err)
 	}

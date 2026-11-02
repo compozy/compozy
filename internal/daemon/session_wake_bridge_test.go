@@ -291,6 +291,32 @@ func (stub *monitorWakeManagerStub) EnqueueSyntheticWake(
 	return store.SessionInputQueueEntry{ID: "inq-1"}, stub.enqueueErr
 }
 
+// Invariant: a delivered pull_request wake buys no stays-on check; other kinds keep their fired fact.
+func TestMonitorDigestFact(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should leave a finished pull_request monitor out of the fired bucket", func(t *testing.T) {
+		t.Parallel()
+
+		fact := monitorDigestFact(monitorpkg.Monitor{
+			ID: "mon-1", SessionID: "sess-1", Kind: monitorpkg.KindPullRequest, Status: monitorpkg.StatusFired,
+		})
+		if fact.Fired {
+			t.Fatalf("fact = %+v", fact)
+		}
+	})
+	t.Run("Should keep the fired fact of other kinds", func(t *testing.T) {
+		t.Parallel()
+
+		fact := monitorDigestFact(monitorpkg.Monitor{
+			ID: "mon-1", SessionID: "sess-1", Kind: monitorpkg.KindTerminal, Status: monitorpkg.StatusFired,
+		})
+		if !fact.Fired {
+			t.Fatalf("fact = %+v", fact)
+		}
+	})
+}
+
 // Invariant: only a current successful lookup reaches the monitor as facts.
 func TestMonitorPullRequestObservation(t *testing.T) {
 	t.Parallel()
