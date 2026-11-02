@@ -56,7 +56,7 @@ func pullRequestLines(mon Monitor, changes *PullRequestChanges) []string {
 		if len(changes.NewlyFailed) > 0 {
 			add("newly failed: %s", forgeList(changes.NewlyFailed))
 		} else if changes.FailureRose {
-			add("failed checks rose; the forge did not name the new ones")
+			add("another check failed; the forge did not name it")
 		}
 		if len(changes.FailedNames) > 0 {
 			add("failing now: %s", forgeList(changes.FailedNames))

@@ -38,8 +38,8 @@ and tells the agent the exact call to make instead:
 
 Shorter sleeps, `gh pr checks` without `--watch`, and text that only mentions these commands still
 run. The check also sees through `timeout`, `env`, `bash -c`, and paths such as `/bin/sleep`. A
-`gh pr checks --watch` on another repository, or one that depends on its directory or environment,
-is sent to a terminal instead.
+`gh pr checks --watch` that names a pull request or another repository, or that depends on its
+directory or environment, is sent to a terminal instead.
 
 What each provider gets:
 

@@ -9,12 +9,13 @@ import (
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 )
 
-// reviewsQuery reads the newest submitted reviews and pages unresolved threads. Review bodies stay out
-// of it on purpose: the agent reads them itself. A thread's commit comes from originalCommit, because a
+// reviewsQuery reads the newest submitted reviews and pages threads from the newest end, so a long pull
+// request still reports its latest ones. Review bodies stay out of it on purpose: the agent reads them
+// itself. A thread's commit comes from originalCommit, because a
 // comment's commit follows the head while its line is unchanged.
-const reviewsQuery = `query($owner:String!,$name:String!,$number:Int!,$after:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviews(last:100){nodes{id state submittedAt author{__typename login} commit{oid}} pageInfo{hasPreviousPage}} reviewThreads(first:100,after:$after){nodes{id isResolved comments(first:1){nodes{originalCommit{oid}}}} pageInfo{hasNextPage endCursor}}}}}`
+const reviewsQuery = `query($owner:String!,$name:String!,$number:Int!,$before:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviews(last:100){nodes{id state submittedAt author{__typename login} commit{oid}} pageInfo{hasPreviousPage}} reviewThreads(last:100,before:$before){nodes{id isResolved comments(first:1){nodes{originalCommit{oid}}}} pageInfo{hasPreviousPage startCursor}}}}}`
 
-// maxReviewThreadPages bounds thread paging; a longer PR reports a truncated count.
+// maxReviewThreadPages bounds thread paging; a longer PR reports a truncated count of its newest threads.
 const maxReviewThreadPages = 3
 
 var errGraphReviewsUnavailable = errors.New("github forge: review activity unavailable")
@@ -44,8 +45,8 @@ type graphReviewActivity struct {
 			}
 		}
 		PageInfo struct {
-			HasNextPage bool
-			EndCursor   string
+			HasPreviousPage bool
+			StartCursor     string
 		}
 	}
 }
@@ -59,8 +60,7 @@ func (p *Provider) readGraphReviews(
 	reviews := &extensioncontract.ForgeReviews{Items: []extensioncontract.ForgeReview{}}
 	var cursor *string
 	for page := range maxReviewThreadPages {
-		variables := graphPageVariables(repo, cursor)
-		variables["number"] = number
+		variables := map[string]any{"owner": repo.owner, "name": repo.name, "number": number, "before": cursor}
 		result, err := p.graphRequest(ctx, token, reviewsQuery, variables)
 		if err != nil {
 			return nil, err
@@ -73,18 +73,23 @@ func (p *Provider) readGraphReviews(
 			reviews.Items = graphReviewItems(activity)
 			reviews.Truncated = activity.Reviews.PageInfo.HasPreviousPage
 		}
-		appendGraphThreads(reviews, activity)
+		prependGraphThreads(reviews, activity)
 		info := activity.ReviewThreads.PageInfo
-		if !info.HasNextPage || info.EndCursor == "" {
+		if !info.HasPreviousPage {
 			return boundGraphThreads(reviews), nil
 		}
-		cursor = &info.EndCursor
+		if info.StartCursor == "" {
+			break
+		}
+		cursor = &info.StartCursor
 	}
 	reviews.Truncated = true
 	return boundGraphThreads(reviews), nil
 }
 
-func appendGraphThreads(reviews *extensioncontract.ForgeReviews, activity *graphReviewActivity) {
+// prependGraphThreads adds one older page, keeping the threads oldest first.
+func prependGraphThreads(reviews *extensioncontract.ForgeReviews, activity *graphReviewActivity) {
+	page := make([]extensioncontract.ForgeReviewThread, 0, len(activity.ReviewThreads.Nodes))
 	for i := range activity.ReviewThreads.Nodes {
 		node := &activity.ReviewThreads.Nodes[i]
 		if node.IsResolved || node.ID == "" {
@@ -94,9 +99,10 @@ func appendGraphThreads(reviews *extensioncontract.ForgeReviews, activity *graph
 		if comments := node.Comments.Nodes; len(comments) > 0 && comments[0].OriginalCommit != nil {
 			thread.Commit = comments[0].OriginalCommit.OID
 		}
-		reviews.Threads = append(reviews.Threads, thread)
+		page = append(page, thread)
 		reviews.UnresolvedThreads++
 	}
+	reviews.Threads = append(page, reviews.Threads...)
 }
 
 // boundGraphThreads keeps the newest threads, which are the ones a watcher has not seen yet.

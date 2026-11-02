@@ -203,8 +203,9 @@ func TestDenyReason(t *testing.T) {
 	t.Run("Should point a pull request watch at the pull_request monitor", func(t *testing.T) {
 		t.Parallel()
 		for _, command := range []string{
-			`gh pr checks 123 --watch`,
-			`timeout 570 gh pr checks 123 --watch --interval 30`,
+			`gh pr checks --watch`,
+			`timeout 570 gh pr checks --watch --interval 30`,
+			`gh pr checks -i 30 --watch`,
 			`bash -lc 'gh pr checks --watch'`,
 		} {
 			finding, found := Detect(command)
@@ -222,8 +223,12 @@ func TestDenyReason(t *testing.T) {
 	t.Run("Should keep the terminal redirect for a watch a monitor cannot select", func(t *testing.T) {
 		t.Parallel()
 		for _, command := range []string{
-			`gh pr checks 123 -R other/repo --watch`,
-			`gh pr checks 123 --repo=other/repo --watch`,
+			`gh pr checks 123 --watch`,
+			`gh pr checks other-feature --watch`,
+			`gh pr checks --interval 30 123 --watch`,
+			`gh pr checks -R other/repo --watch`,
+			`gh pr checks -Rother/repo --watch`,
+			`gh pr checks --repo=other/repo --watch`,
 			`gh pr checks https://github.com/other/repo/pull/123 --watch`,
 			`gh pr checks --interval 30 https://github.com/other/repo/pull/123 --watch`,
 		} {

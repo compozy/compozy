@@ -42,11 +42,18 @@ func (s *Service) Recover(ctx context.Context) error {
 	verdicts := make(map[string]error)
 	var occupying []*entry
 	for _, record := range records {
-		item := s.entryFromRecord(record)
+		item, cursorErr := s.entryFromRecord(record)
 		if !item.occupies() {
 			if s.restoreHistory(item) {
 				restored[item.state.SessionID] = struct{}{}
 			}
+			continue
+		}
+		if cursorErr != nil {
+			// Running would rewrite the cursor and drop any fire it holds, so the row stays as it is.
+			s.logger.Log(s.ctx, slog.LevelWarn, "monitor.cursor_unreadable",
+				"event", "monitor.cursor_unreadable", "monitor_id", item.state.ID,
+				"session_id", item.state.SessionID, "error", cursorErr.Error())
 			continue
 		}
 		touched[item.state.SessionID] = struct{}{}
@@ -68,7 +75,8 @@ func (s *Service) Recover(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) entryFromRecord(record Record) *entry {
+// entryFromRecord also reports a pull_request cursor it could not read.
+func (s *Service) entryFromRecord(record Record) (*entry, error) {
 	mon := record.Monitor
 	key := terminalKey(Spec{
 		Kind: mon.Kind, WorkspaceID: record.WorkspaceID, ProfileID: record.ProfileID, TerminalID: mon.TerminalID,
@@ -80,13 +88,10 @@ func (s *Service) entryFromRecord(record Record) *entry {
 	}
 	if mon.Kind == KindPullRequest {
 		watch, err := decodePullRequestWatch(record.RepoKey, record.Cursor)
-		if err != nil {
-			s.logger.Log(s.ctx, slog.LevelWarn, "monitor.cursor_unreadable",
-				"event", "monitor.cursor_unreadable", "monitor_id", mon.ID, "session_id", mon.SessionID)
-		}
 		item.pullRequest = watch
+		return item, err
 	}
-	return item
+	return item, nil
 }
 
 // restoreHistory keeps interrupted and delivered outcomes inspectable until retention ends and

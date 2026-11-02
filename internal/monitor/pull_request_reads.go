@@ -2,6 +2,8 @@ package monitor
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"hash/fnv"
 	"sync"
 	"time"
@@ -84,7 +86,7 @@ func boundPullRequestObservation(obs PullRequestObservation) PullRequestObservat
 		}
 		reviews.Items = make([]PullRequestReview, 0, len(items))
 		for _, item := range items {
-			item.ID, item.Author = boundForgeText(item.ID), boundForgeText(item.Author)
+			item.ID, item.Author = boundForgeID(item.ID), boundForgeText(item.Author)
 			item.State, item.Commit = boundForgeText(item.State), boundForgeText(item.Commit)
 			reviews.Items = append(reviews.Items, item)
 		}
@@ -95,12 +97,21 @@ func boundPullRequestObservation(obs PullRequestObservation) PullRequestObservat
 		reviews.Threads = make([]PullRequestThread, 0, len(threads))
 		for _, thread := range threads {
 			reviews.Threads = append(reviews.Threads, PullRequestThread{
-				ID: boundForgeText(thread.ID), Commit: boundForgeText(thread.Commit),
+				ID: boundForgeID(thread.ID), Commit: boundForgeText(thread.Commit),
 			})
 		}
 		obs.Reviews = &reviews
 	}
 	return obs
+}
+
+// boundForgeID caps an id without merging two ids that share a long prefix, because seen sets compare it.
+func boundForgeID(value string) string {
+	if len([]rune(value)) <= maxForgeTextRunes {
+		return value
+	}
+	digest := sha256.Sum256([]byte(value))
+	return "sha256:" + hex.EncodeToString(digest[:])
 }
 
 func boundForgeText(value string) string {

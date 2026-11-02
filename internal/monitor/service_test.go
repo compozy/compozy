@@ -2013,6 +2013,27 @@ func TestDetectPullRequest(t *testing.T) {
 			t.Fatalf("changes = %+v", changes)
 		}
 	})
+	t.Run("Should wake once when an unnamed failure replaces a named one", func(t *testing.T) {
+		t.Parallel()
+		before := failing(4, "lint", "test")
+		before.Failed = 3
+		cur := baseline(t, openPull("head-a", before, noReviews()))
+		after := failing(4, "test")
+		after.Failed = 3
+		changes, next := detectPullRequest(cur, openPull("head-a", after, noReviews()), start.Add(time.Minute))
+		if !changes.Wake || !changes.FailureRose || len(changes.NewlyFailed) != 0 {
+			t.Fatalf("changes = %+v", changes)
+		}
+		again, _ := detectPullRequest(next, openPull("head-a", after, noReviews()), start.Add(2*time.Minute))
+		if again.Wake {
+			t.Fatalf("repeated the wake on an unchanged read: %+v", again)
+		}
+		passed := failing(4, "test")
+		cleared, _ := detectPullRequest(cur, openPull("head-a", passed, noReviews()), start.Add(time.Minute))
+		if cleared.Wake {
+			t.Fatalf("woke on a fixed check with every failure named: %+v", cleared)
+		}
+	})
 	t.Run("Should wake once per head when all checks finish", func(t *testing.T) {
 		t.Parallel()
 		cur := baseline(t, openPull("head-a", pending(1, 2), noReviews()))
@@ -2332,6 +2353,34 @@ func TestDetectPullRequest(t *testing.T) {
 		outage := mergePullRequestChanges(first, PullRequestChanges{Wake: true, ForgeDown: true, Cause: "rate_limited"})
 		if !outage.ForgeDown || len(outage.NewlyFailed) != 1 || outage.Head != "head-a" {
 			t.Fatalf("outage merge = %+v", outage)
+		}
+	})
+	t.Run("Should flush a due review burst while the lookup reports absent", func(t *testing.T) {
+		t.Parallel()
+		cur := baseline(t, openPull("head-a", pending(1, 0), noReviews()))
+		_, cur = detectPullRequest(cur, openPull("head-a", pending(1, 0), reviewed(0, "r1")), start)
+		if cur.Burst == nil {
+			t.Fatalf("no burst started: %+v", cur)
+		}
+		absent := PullRequestObservation{Lookup: PullRequestAbsent}
+		early, cur := detectPullRequest(cur, absent, start.Add(reviewQuiet-time.Second))
+		if early.Wake || cur.Burst == nil {
+			t.Fatalf("flushed early: %+v %+v", early, cur)
+		}
+		due, next := detectPullRequest(cur, absent, start.Add(reviewQuiet))
+		if !due.Wake || len(due.Reviews) != 1 || due.Number != cur.Number || next.Burst != nil {
+			t.Fatalf("changes = %+v next = %+v", due, next)
+		}
+	})
+	t.Run("Should keep long ids with one prefix distinct", func(t *testing.T) {
+		t.Parallel()
+		prefix := strings.Repeat("r", maxForgeTextRunes)
+		first, second := boundForgeID(prefix+"a"), boundForgeID(prefix+"b")
+		if first == second || len([]rune(first)) > maxForgeTextRunes {
+			t.Fatalf("bounded ids = %q, %q", first, second)
+		}
+		if short := boundForgeID("r1"); short != "r1" {
+			t.Fatalf("short id = %q", short)
 		}
 	})
 	t.Run("Should treat a missing pull request as a wait", func(t *testing.T) {
@@ -2972,12 +3021,42 @@ func TestServicePullRequestMonitorRestart(t *testing.T) {
 			}
 		})
 	})
-	t.Run("Should rebaseline rather than fail on an unreadable cursor", func(t *testing.T) {
+	t.Run("Should report an unreadable cursor", func(t *testing.T) {
 		t.Parallel()
 		watch, err := decodePullRequestWatch("forge.test/acme/repo", "{not json")
 		if err == nil || watch == nil || watch.repoKey != "forge.test/acme/repo" {
 			t.Fatalf("watch = %+v err = %v", watch, err)
 		}
+	})
+	t.Run("Should leave a watch with an unreadable cursor untouched on recovery", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			store, waker := newMemoryStore(), &recordingWaker{}
+			record := Record{
+				Monitor: Monitor{
+					ID: "mon-aaaaaaaaaaaa", SessionID: "sess-r", Kind: KindPullRequest, Branch: "feat/x",
+					Status: StatusDelivering, CreatedAt: time.Now(), DeadlineAt: time.Now().Add(time.Hour),
+				},
+				WorkspaceID: "ws-1", ProfileID: "prof-1", Timeout: time.Hour, Version: 2,
+				RepoKey: "forge.test/acme/repo", Cursor: "{not json",
+			}
+			store.records[record.Monitor.ID] = record
+			service := newDurableService(t, store, &fakeOwners{}, nil, waker)
+			if err := service.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(time.Minute)
+			synctest.Wait()
+			if got := store.records[record.Monitor.ID]; got.Cursor != record.Cursor || got.Version != record.Version ||
+				got.Monitor.Status != StatusDelivering {
+				t.Fatalf("record = %+v", got)
+			}
+			if err := service.Shutdown(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if got := store.records[record.Monitor.ID]; got.Cursor != record.Cursor {
+				t.Fatalf("shutdown rewrote the cursor: %+v", got)
+			}
+		})
 	})
 }
 

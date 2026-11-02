@@ -124,8 +124,9 @@ these waits in provider shells and the refusal names the exact replacement call.
 checks --watch`, `gh run watch`, `watch`, `tail -f`, a `sleep` of 5 seconds or more, and polling loops,
 including behind `timeout`, `env`, `nohup`, `bash -c`, or an absolute path such as `/bin/sleep`. A
 shorter `sleep`, `gh pr checks` without `--watch`, and text that only mentions these commands stay
-allowed. A plain `gh pr checks --watch` is redirected to a `kind="pull_request"` monitor; one that selects
-another repository, or that depends on its directory or environment, is redirected to a terminal. Claude Code enforces this with a PreToolUse hook on Bash and PowerShell, including inside its
+allowed. A plain `gh pr checks --watch` is redirected to a `kind="pull_request"` monitor; one that names a
+pull request or another repository, or that depends on its directory or environment, is redirected
+to a terminal. Claude Code enforces this with a PreToolUse hook on Bash and PowerShell, including inside its
 Agent subagents. Other providers have no such hook here: CompozyOS can only refuse a wait when the
 provider asks permission for a shell command or creates an ACP terminal. Codex runs sandbox-allowed
 commands without either step, so for Codex the runtime guidance is normally the only redirect. When

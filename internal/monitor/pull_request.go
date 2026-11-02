@@ -224,8 +224,8 @@ func (w *pullRequestWatch) encode() string {
 	return string(data)
 }
 
-// decodePullRequestWatch restores a durable watch. An unreadable cursor restarts from a new baseline,
-// which can repeat a report but never ends the watch.
+// decodePullRequestWatch restores a durable watch. An unreadable cursor comes back as an error beside an
+// empty watch, which only finished history may use.
 func decodePullRequestWatch(repoKey, raw string) (*pullRequestWatch, error) {
 	watch := &pullRequestWatch{repoKey: repoKey}
 	if raw == "" {

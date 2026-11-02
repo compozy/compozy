@@ -304,18 +304,23 @@ func isWatchCommand(argv []string) bool {
 	return false
 }
 
-// isPullRequestWatch reports a checks watch a pull_request monitor can select. Another repository, named by
-// a flag or inside a pull request URL, keeps the terminal redirect.
+// isPullRequestWatch reports a checks watch a pull_request monitor can select, which is only the session
+// branch's own pull request. A named pull request or repository keeps the terminal redirect, because the
+// monitor has no way to select it.
 func isPullRequestWatch(argv []string) bool {
 	if executableName(argv[0]) != "gh" {
 		return false
 	}
 	positional := make([]string, 0, 2)
-	for _, arg := range argv[1:] {
+	args := argv[1:]
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
 		switch {
-		case arg == "-R", arg == "--repo", strings.HasPrefix(arg, "--repo="), strings.Contains(arg, "://"):
+		case strings.HasPrefix(arg, "-R"), arg == "--repo", strings.HasPrefix(arg, "--repo="):
 			return false
-		case !strings.HasPrefix(arg, "-") && len(positional) < 2:
+		case arg == "-i", arg == "--interval":
+			index++
+		case !strings.HasPrefix(arg, "-"):
 			positional = append(positional, arg)
 		}
 	}

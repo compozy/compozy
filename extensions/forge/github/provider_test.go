@@ -767,9 +767,9 @@ func TestProviderGraphQL(t *testing.T) {
 			if variables["number"] != float64(2) {
 				t.Errorf("number = %v", variables["number"])
 			}
-			threads := `{"nodes":[{"id":"t0","isResolved":true},{"id":"t1","isResolved":false,"comments":{"nodes":[{"originalCommit":{"oid":"head-old"}}]}}],"pageInfo":{"hasNextPage":true,"endCursor":"p2"}}`
-			if variables["after"] != nil {
-				threads = `{"nodes":[{"id":"t2","isResolved":false}],"pageInfo":{"hasNextPage":false}}`
+			threads := `{"nodes":[{"id":"t2","isResolved":false}],"pageInfo":{"hasPreviousPage":true,"startCursor":"p2"}}`
+			if variables["before"] != nil {
+				threads = `{"nodes":[{"id":"t0","isResolved":true},{"id":"t1","isResolved":false,"comments":{"nodes":[{"originalCommit":{"oid":"head-old"}}]}}],"pageInfo":{"hasPreviousPage":false}}`
 			}
 			return `{"data":{"repository":{"pullRequest":{"reviews":{"nodes":[` +
 				`{"id":"r1","state":"CHANGES_REQUESTED","submittedAt":"2026-11-02T17:09:56Z","author":{"__typename":"Bot","login":"reviewer[bot]"},"commit":{"oid":"head-a"}},` +
@@ -809,12 +809,27 @@ func TestProviderGraphQL(t *testing.T) {
 				return emptyGraphChecks
 			}
 			return `{"data":{"repository":{"pullRequest":{"reviews":{"nodes":[],"pageInfo":{"hasPreviousPage":false}},` +
-				`"reviewThreads":{"nodes":[{"id":"t1","isResolved":false}],"pageInfo":{"hasNextPage":true,"endCursor":"more"}}}}}}`
+				`"reviewThreads":{"nodes":[{"id":"t1","isResolved":false}],"pageInfo":{"hasPreviousPage":true,"startCursor":"more"}}}}}}`
 		})
 		defer closeServer()
 		got, err := provider.Status(t.Context(), graphTopicRequest())
 		if err != nil || got.Reviews == nil || !got.Reviews.Truncated ||
 			got.Reviews.UnresolvedThreads != maxReviewThreadPages {
+			t.Fatalf("reviews = %+v err = %v", got.Reviews, err)
+		}
+	})
+	t.Run("Should flag threads it cannot page past", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := graphServer(t, func(query string, _ map[string]any) string {
+			if strings.Contains(query, "$oid") {
+				return emptyGraphChecks
+			}
+			return `{"data":{"repository":{"pullRequest":{"reviews":{"nodes":[],"pageInfo":{"hasPreviousPage":false}},` +
+				`"reviewThreads":{"nodes":[{"id":"t1","isResolved":false}],"pageInfo":{"hasPreviousPage":true,"startCursor":""}}}}}}`
+		})
+		defer closeServer()
+		got, err := provider.Status(t.Context(), graphTopicRequest())
+		if err != nil || got.Reviews == nil || !got.Reviews.Truncated || got.Reviews.UnresolvedThreads != 1 {
 			t.Fatalf("reviews = %+v err = %v", got.Reviews, err)
 		}
 	})
@@ -842,8 +857,9 @@ func TestProviderGraphQL(t *testing.T) {
 		{"Should mark reviews unavailable on a server error", "status:503", true},
 		{"Should mark reviews unavailable on a transient GraphQL error", `{"errors":[{"type":"SERVICE_UNAVAILABLE"}]}`, true},
 		{"Should mark reviews unavailable on an undecodable response", `not json`, true},
+		{"Should mark reviews unavailable on an untyped execution error", `{"errors":[{"message":"Something went wrong"}]}`, true},
 		{"Should report no capability when the endpoint is missing", "status:404", false},
-		{"Should report no capability when the schema lacks the field", `{"errors":[{"message":"undefinedField"}]}`, false},
+		{"Should report no capability when the schema lacks the field", `{"errors":[{"extensions":{"code":"undefinedField"},"message":"Field 'x' doesn't exist on type 'y'"}]}`, false},
 		{"Should report no capability when the query is forbidden", `{"errors":[{"type":"FORBIDDEN"}]}`, false},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {

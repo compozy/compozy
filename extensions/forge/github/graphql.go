@@ -77,17 +77,25 @@ type graphResponse struct {
 			PullRequest *graphReviewActivity
 		}
 	}
-	Errors []struct{ Type string }
+	Errors []graphError
+}
+
+type graphError struct {
+	Type       string
+	Extensions struct{ Code string }
 }
 
 // errGraphUnsupported reports a query GitHub refused for good: the token or server cannot serve it, so
 // retrying would change nothing. Every other GraphQL error may be transient.
 var errGraphUnsupported = errors.New("github forge: GraphQL query unsupported")
 
-// A schema validation error, such as a field an older server lacks, carries no type.
-func graphErrorMeansUnsupported(kind string) bool {
-	switch kind {
-	case "", "FORBIDDEN", "NOT_FOUND", "INSUFFICIENT_SCOPES":
+// A validation error, such as a field an older server lacks, carries no type but names its code in
+// extensions. With neither, the error is an execution failure, which GitHub also leaves untyped.
+func graphErrorMeansUnsupported(failure *graphError) bool {
+	switch failure.Type {
+	case "":
+		return failure.Extensions.Code != ""
+	case "FORBIDDEN", "NOT_FOUND", "INSUFFICIENT_SCOPES":
 		return true
 	default:
 		return false
@@ -117,7 +125,8 @@ func (p *Provider) graphRequest(
 	}
 	if len(result.Errors) > 0 {
 		unsupported := true
-		for _, e := range result.Errors {
+		for i := range result.Errors {
+			e := &result.Errors[i]
 			if e.Type == "RATE_LIMITED" {
 				failure := &githubAPIError{
 					cause:  extensioncontract.ForgeCauseRateLimited,
@@ -128,7 +137,7 @@ func (p *Provider) graphRequest(
 				}
 				return result, failure
 			}
-			unsupported = unsupported && graphErrorMeansUnsupported(e.Type)
+			unsupported = unsupported && graphErrorMeansUnsupported(e)
 		}
 		if unsupported {
 			return result, errGraphUnsupported

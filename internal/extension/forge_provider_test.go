@@ -46,6 +46,16 @@ func TestManagerForgeProvider(t *testing.T) {
 		if err := validateForgeStatusResponse(base); err != nil {
 			t.Fatal(err)
 		}
+		atLimit := base
+		atLimit.Checks = &extensioncontract.ForgeChecks{
+			State: "failing", FailedNames: make([]string, extensioncontract.MaxForgeFailedNames),
+		}
+		for i := range atLimit.Checks.FailedNames {
+			atLimit.Checks.FailedNames[i] = "check"
+		}
+		if err := validateForgeStatusResponse(atLimit); err != nil {
+			t.Fatalf("rejected %d failed names: %v", extensioncontract.MaxForgeFailedNames, err)
+		}
 		for _, value := range []extensioncontract.ForgeStatusResponse{
 			{ReviewDecision: "approved_by_author"},
 			{Mergeable: "yes"},

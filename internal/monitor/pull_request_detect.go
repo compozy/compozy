@@ -19,6 +19,9 @@ func detectPullRequest(cur prCursor, obs PullRequestObservation, now time.Time) 
 		return detectOutage(cur, obs, now)
 	case PullRequestAbsent:
 		next.OutageSince, next.OutageReported = time.Time{}, false
+		if burstDue(next.Burst, now) {
+			return flushBurst(PullRequestChanges{Number: cur.Number, Head: cur.Head}, next)
+		}
 		return PullRequestChanges{}, next
 	}
 	missedReads := !cur.OutageSince.IsZero()
@@ -95,7 +98,13 @@ func detectChecks(changes *PullRequestChanges, next prCursor, checks *PullReques
 			changes.NewlyFailed = append(changes.NewlyFailed, name)
 		}
 	}
-	changes.FailureRose = checks.Failed > next.Failed
+	// With more failures than names, a named failure that goes away while the total holds means an unnamed
+	// one took its place. Comparing against the stored names reports that swap once.
+	swapped := checks.Failed > len(checks.FailedNames) && checks.Failed >= next.Failed &&
+		slices.ContainsFunc(next.FailedNames, func(name string) bool {
+			return !slices.Contains(checks.FailedNames, name)
+		})
+	changes.FailureRose = swapped || checks.Failed > next.Failed
 	if len(changes.NewlyFailed) > 0 || changes.FailureRose {
 		changes.Wake = true
 	}
