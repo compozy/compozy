@@ -47,7 +47,7 @@ Independent issues get separate worktrees; several symptoms of one defect stay t
 
 Write everything in English, from `.github/PULL_REQUEST_TEMPLATE.md`. Do not keep its historical comment.
 
-- Title: `<type>: <description>`, describing the result. Squash subjects become release notes, so name the product `CompozyOS`, never bare `Compozy`.
+- Title: `<type>: <description>` or `<type>!: <description>`, describing the result. Squash subjects become release notes, so if the title mentions the product, it says `CompozyOS`, never bare `Compozy`.
 - Link the issue with `Closes #<n>`, or `Refs #<n>` when closing needs a check you cannot make.
 - Cover the trigger, root cause, observable before and after, tradeoffs, verification, and cross-surface, compatibility and QA impact, for a reader without this conversation. Keep it current as remediation changes the work.
 - Omit private identifiers, host paths and credentials.
@@ -69,7 +69,7 @@ curl -sI https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/<key>
 The `main` ruleset requires no status checks, so `gh pr checks --required` reports nothing. This list is the gate, for the current head only:
 
 - `Verify (fmt, lint, unit, build)`, `E2E (combined lane)`, `PR title`, `React Doctor`
-- Every other reported check is successful, or legitimately skipped
+- Every other reported check except CodeRabbit, which [Reviewers](#reviewers) owns, is successful or legitimately skipped
 
 `Verify` and `E2E (combined lane)` may skip only when `Detect changes` succeeded and found no relevant change. Pending, cancelled or missing is not green, and success on an earlier head does not count.
 
@@ -87,13 +87,13 @@ Collect every page of reviews, inline threads and PR comments, including collaps
 1. Validate the finding against the current code and the contract.
 2. Fix it if valid and in scope, then verify and push.
 3. Reply with the commit or evidence, then resolve the thread. For a false positive, give a concrete rationale.
-4. Leave a disputed or materially out-of-scope finding open, and escalate it only if it blocks correct delivery.
+4. For a disputed or materially out-of-scope finding, reply with the rationale and escalate it. Resolve the thread once the operator or reviewer settles it; until then delivery stays open, because `merge-train` and the `main` ruleset both require every thread resolved.
 
 Repeat after each relevant push until nothing actionable remains.
 
 ## Handoff
 
-Capture the head, confirm it did not move during verification, then send the `merge-train` main session one line with `compozy__session_prompt`:
+Find the `merge-train` main session with `compozy agent instance list --agent merge-train`. If the operator has not created the instance, report that as a blocker and leave delivery open. Capture the head, confirm it did not move during verification, then send that session one line with `compozy__session_prompt`:
 
 ```text
 ready: #<number> <head-sha>

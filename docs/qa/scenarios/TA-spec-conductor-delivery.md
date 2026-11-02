@@ -30,5 +30,9 @@ Force these cases and record each result:
 4. A replacement conductor while the previous one is active. It reports the owner and stops.
 5. A spec without `_slices.md`. Nothing is dispatched until the operator accepts proposed slices.
 6. A `reviewer` asked to edit source. It refuses and writes only its findings file.
+7. A replacement conductor after the previous one stopped, with a child still running. It re-registers
+   that child's monitor and calls no `session_reparent`; lineage stays with the old session.
 
 Record the send-back count, since early worker stops are a known risk of delivering without `/goal`.
+Also record whether children obey their prompt over the `To reply, call compozy__session_prompt`
+hint in the message header, and end their turn without messaging the parent.

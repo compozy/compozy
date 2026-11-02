@@ -5065,7 +5065,7 @@ Web source selector co-ship in B2/F1; release/scenario QA belongs to the integra
 
 - **Owning spec.** `.compozy/tasks/spec-cycle-simplify/_spec.md`. Slices link to this entry and update only what they affect.
 - **Native tools.** `ext__spec_cycle__*` removed, a recorded hard cut. No `compozy__*` change.
-- **CLI/HTTP/UDS.** No route or DTO change; removed loops return `loop_not_found`.
+- **CLI/HTTP/UDS.** No route or DTO change; removed loops fail with a not found error.
 - **Extensibility and hooks.** `spec-cycle` drops `tool.provider`. Hooks unaffected. `HEARTBEAT.md` gains `work_log`.
 - **Config.** No `config.toml` change.
 - **Workspace data isolation.** The collector reads one file inside the workspace root and rejects paths outside it.

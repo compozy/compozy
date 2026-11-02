@@ -32,8 +32,8 @@ just a line in a chat. You don't write this file yourself:
 ```markdown title=".compozy/work-log.md"
 # Work log
 
+- [~] wl-20261102-01 | 2026-11-02T13:10:00Z | Fix login redirect | session: sess-1f2e | worktree: wl-20261102-01
 - [ ] wl-20261102-02 | 2026-11-02T14:00:00Z | Add CSV export | source: chat
-- [~] wl-20261102-01 | 2026-11-02T13:10:00Z | Fix login redirect | session: sess-1f2e | worktree: fix-login-redirect
 - [x] wl-20261101-07 | 2026-11-01T09:00:00Z | Bump parser | evidence: commit 91ab3f2
 ```
 
@@ -56,7 +56,8 @@ compozy agent instance create orchestrator --workspace acme
 ```
 
 ```text
-created orchestrator (Stays on) in acme, main session sess-77ab
+Orchestrator is stays-on in acme
+Main session: sess-77ab
 ```
 
 Copy the session ID from the output. Yours will differ. The next steps call it `sess-77ab`.
@@ -68,7 +69,7 @@ compozy session prompt sess-77ab "Fix the login redirect on expired sessions"
 ```
 
 ```text
-Accepted wl-20261102-01. Worktree fix-login-redirect, session sess-1f2e. I'll report when it is verified.
+Accepted wl-20261102-01. Worktree wl-20261102-01, session sess-1f2e. I'll report when it is verified.
 ```
 
 ### Step 4: Check that the work was logged

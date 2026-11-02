@@ -38,14 +38,14 @@ Read all of it fresh from GitHub, and refuse on the first failure.
 ```bash
 gh pr view <n> --json state,isDraft,baseRefName,headRefOid,title,mergeable,mergeStateStatus,statusCheckRollup
 gh api --paginate repos/compozy/compozy/pulls/<n>/reviews
-gh api graphql -F n=<n> -f query='query($n:Int!){repository(owner:"compozy",name:"compozy"){pullRequest(number:$n){reviewThreads(first:100){pageInfo{hasNextPage}nodes{isResolved}}}}}'
+gh api graphql --paginate -F n=<n> -f query='query($n:Int!,$endCursor:String){repository(owner:"compozy",name:"compozy"){pullRequest(number:$n){reviewThreads(first:100,after:$endCursor){pageInfo{hasNextPage endCursor}nodes{isResolved}}}}}'
 ```
 
 1. **Target.** The pull request is open, not a draft, and targets `main`.
 2. **Head.** `headRefOid` starts with the handed-off SHA. Use the full `headRefOid` from here on.
-3. **Title.** It matches `<type>: <description>` and names the product `CompozyOS`, never bare `Compozy`, because squash subjects reach the release notes.
-4. **CI.** The `main` ruleset requires no status checks (verified with `gh api repos/compozy/compozy/rules/branches/main` on 2026-11-02), so `gh pr checks --required` proves nothing and this list is the gate. `Verify (fmt, lint, unit, build)`, `E2E (combined lane)`, `PR title` and `React Doctor` must succeed. The first two may skip only when `Detect changes` succeeded and found no relevant change. Every other reported check must be successful or skipped. Pending, cancelled or missing is a refusal. If the ruleset gains required checks, those are required too.
-5. **Reviewers.** `Greptile Review` succeeded on this head. CodeRabbit has a completed review with `commit_id` equal to this head, or a successful check on it; a skipped check proves nothing. Every review thread is resolved, and `hasNextPage` is false or you read every page.
+3. **Title.** It matches `<type>: <description>` or `<type>!: <description>`. If it mentions the product, it says `CompozyOS`, never bare `Compozy`, because squash subjects reach the release notes.
+4. **CI.** The `main` ruleset requires no status checks (verified with `gh api repos/compozy/compozy/rules/branches/main` on 2026-11-02), so `gh pr checks --required` proves nothing and this list is the gate. `Verify (fmt, lint, unit, build)`, `E2E (combined lane)`, `PR title` and `React Doctor` must succeed. The first two may skip only when `Detect changes` succeeded and found no relevant change. Every other reported check except CodeRabbit, which condition 5 owns, must be successful or skipped. Pending, cancelled or missing is a refusal. If the ruleset gains required checks, those are required too.
+5. **Reviewers.** `Greptile Review` succeeded on this head. CodeRabbit has a completed review with `commit_id` equal to this head, or a successful check on it; a skipped check proves nothing. Every review thread on every page is resolved.
 6. **Mergeability.** `mergeable` is `MERGEABLE`.
 
 Results use these forms:
@@ -76,11 +76,13 @@ For `CONFLICTING`, create a child session with `compozy__session_create` in a ne
 
 On a direct operator message, load the `releasepr` skill and own the release until it is published. An open release pull request is not an end state.
 
-1. Find or trigger the release pull request, and run the Verify checks on it, except that its title may start with `build: release ` or `build: prepare release `.
-2. If its notes contain bare `Compozy`, fix `CHANGELOG.md`, `RELEASE_BODY.md` and `RELEASE_NOTES.md` on the `release/vX.Y.Z` branch.
-3. Squash-merge it bound to its head.
-4. Follow the `Release` workflow on `main` to its end. Each push to `main` cancels the running CI there, so do not merge anything else meanwhile.
-5. Report the version only after confirming it with `gh release view` and the workflow conclusion with `gh run view`.
+1. Find or trigger the release pull request.
+2. If its notes contain bare `Compozy`, fix `CHANGELOG.md`, `RELEASE_BODY.md` and `RELEASE_NOTES.md` on the `release/vX.Y.Z` branch. Do this first, because the push moves the head.
+3. Wait for CI on the final head.
+4. Run the Verify checks on that head, with two exceptions: its title may start with `build: release ` or `build: prepare release `, and condition 5 does not require CodeRabbit, because release pull requests routinely have no CodeRabbit review on their head. `Greptile Review` and resolved threads still apply.
+5. Squash-merge that verified head with the [Merge](#merge) command.
+6. Follow the `Release` workflow on `main` to its end. Each push to `main` cancels the running CI there, so do not merge anything else meanwhile.
+7. Report the version only after confirming it with `gh release view` and the workflow conclusion with `gh run view`.
 
 ## Waiting
 

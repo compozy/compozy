@@ -30,7 +30,7 @@ Read `_run.md` before writing it. If another owner is named, use `session_status
 - S2 | sess-b2 | worktree s2 | source 8e22f70 | integrating
 ```
 
-On restart read integration history with `git log --grep "Spec-Slice:"`: commits win over the checkpoint. Recover already-integrated slices even if the source worktree was removed. Reconcile intent with source and integration heads before retrying; never squash a slice twice. Reparent running children with `session_reparent` and re-register their monitors after takeover.
+On restart read integration history with `git log --grep "Spec-Slice:"`: commits win over the checkpoint. Recover already-integrated slices even if the source worktree was removed. Reconcile intent with source and integration heads before retrying; never squash a slice twice. After takeover re-register monitors for running children; lineage stays with the previous conductor.
 
 ## Dispatch and integrate
 

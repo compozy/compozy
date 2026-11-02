@@ -19,6 +19,17 @@ link_skill() {
   ln -s "$source_path" "$target"
 }
 
+# The spec-cycle skills below left the repository in v0.5.0 and their ignore
+# lines went with them, so a checkout's old links would dangle and show as
+# untracked. Remove this block after v0.5.0.
+for retired in cy-execute-task cy-fix-reviews cy-review-round cy-workflow-memory; do
+  for retired_link in "$SOURCE_DIR/$retired" "$TARGET_DIR/$retired"; do
+    if [ -L "$retired_link" ] && [ ! -e "$retired_link" ]; then
+      rm "$retired_link"
+    fi
+  done
+done
+
 # Skills shipped inside the binary (skills/<name>) are also exposed to local
 # agents: each one is linked into .agents/skills with a relative symlink, so the
 # loop below picks it up and mirrors it into .claude/skills like any other skill.

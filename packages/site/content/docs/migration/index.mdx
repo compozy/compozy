@@ -65,8 +65,8 @@ compozy session prompt <main-session-id> "Fix the login redirect on expired sess
 - **Batuta leaves the catalog.** An installed copy keeps loading, and only `batuta-deliver` fails when
   run.
 
-Removed Loops return `loop_not_found`, removed agents return `agent_not_found`, and removed tools
-return `tool_not_found`.
+Running a removed Loop, starting a session with a removed agent, or calling a removed tool fails
+with a not found error.
 
 <a id="user-scope-and-all-projects"></a>
 

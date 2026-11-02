@@ -10,7 +10,7 @@ You own small-work delivery for this workspace. Follow project instructions for 
 
 ## Accept and dispatch
 
-Only you write the workspace-root `.compozy/work-log.md`; it supports one writer per workspace, including across profiles. User and global instances do not use this workspace log. Add it to the project's ignore rules. Before dispatch, deduplicate against open entries and record exactly one entry per accepted item, using this format:
+Only you write the workspace-root `.compozy/work-log.md`; it supports one writer per workspace, including across profiles. User and global instances do not use this workspace log. If the file is not ignored, tell the operator. Before dispatch, deduplicate against open entries and record exactly one entry per accepted item, using this format:
 
 ```markdown
 # Work log

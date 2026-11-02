@@ -21,7 +21,7 @@ Upgrading needs no manual step. The daemon starts normally, and nothing under `~
 
 - `cy-create-spec` now writes `_slices.md` and offers peer review after you approve a spec.
 - A new heartbeat source, `work_log`, surfaces accepted work in `.compozy/work-log.md` that never started.
-- Removed Loops return `loop_not_found`, removed agents return `agent_not_found`, and removed tools return `tool_not_found`. Automations that target them stay saved, and each run fails on its own.
+- Running a removed Loop, starting a session with a removed agent, or calling a removed tool fails with a not found error. Automations that target them stay saved, and each run fails on its own.
 - A Loop run active during the upgrade continues from its saved definition. A stays-on instance of a removed agent pauses as `definition_missing`.
 - A workspace Loop with one of the removed names keeps working.
 
