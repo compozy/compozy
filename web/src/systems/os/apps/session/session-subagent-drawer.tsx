@@ -101,6 +101,22 @@ function SubagentTranscript({
   );
 }
 
+function SubagentContent({
+  subagent,
+  workspaceId,
+  navigation,
+}: {
+  subagent: SubagentView;
+  workspaceId: string;
+  navigation: SubagentNavigation;
+}) {
+  return (
+    <AuiProvider extends={null} config={AuiConfig({})}>
+      <SubagentTranscript subagent={subagent} workspaceId={workspaceId} navigation={navigation} />
+    </AuiProvider>
+  );
+}
+
 /** The selected parent roster owns live status and admission, including pending child IDs. */
 function SubagentDrawerSelection({
   selected,
@@ -173,15 +189,11 @@ function SubagentDrawerSelection({
       }
       content={
         subagent && selected ? (
-          <>
-            <AuiProvider extends={null} config={AuiConfig({})}>
-              <SubagentTranscript
-                subagent={subagent}
-                workspaceId={selected.workspaceId}
-                navigation={navigation}
-              />
-            </AuiProvider>
-          </>
+          <SubagentContent
+            subagent={subagent}
+            workspaceId={selected.workspaceId}
+            navigation={navigation}
+          />
         ) : null
       }
     >
@@ -203,6 +215,19 @@ export function SessionSubagentDrawer({
     <SubagentDrawerContext
       value={{
         store,
+        content: (subagent, workspaceId) => (
+          <div
+            className={
+              subagent.origin === "provider_native" ? "flex flex-col" : "flex h-96 flex-col"
+            }
+          >
+            <SubagentContent
+              subagent={subagent}
+              workspaceId={workspaceId}
+              navigation={{ openSession }}
+            />
+          </div>
+        ),
         open: (subagent, options, workspaceId) => {
           const target = subagentNavigationTarget(subagent, workspaceId);
           if (options.newWindow && subagent.origin !== "provider_native") {

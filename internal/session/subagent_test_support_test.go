@@ -683,6 +683,42 @@ func (d *memorySubagents) UpdateNativeSubagentTitle(
 	return row, changed, nil
 }
 
+func (d *memorySubagents) UpdateNativeSubagentRuntime(
+	_ context.Context,
+	id, model, role string,
+	at time.Time,
+) (store.SessionSubagent, bool, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	row := d.rows[id]
+	nextModel, nextRole := cmp.Or(model, row.RuntimeModel), cmp.Or(role, row.Role)
+	changed := row.Origin == store.SubagentOriginProviderNative &&
+		(nextModel != row.RuntimeModel || nextRole != row.Role)
+	if changed {
+		row.RuntimeModel, row.Role, row.UpdatedAt = nextModel, nextRole, at
+		d.rows[id] = row
+	}
+	return row, changed, nil
+}
+
+func (d *memorySubagents) UpdateSubagentUsage(
+	_ context.Context,
+	id string,
+	usage store.SubagentUsage,
+	at time.Time,
+) (store.SessionSubagent, bool, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	row := d.rows[id]
+	changed := row.Origin == store.SubagentOriginProviderNative &&
+		(row.Usage == nil || usage.TotalTokens > row.Usage.TotalTokens || usage.ToolUses > row.Usage.ToolUses)
+	if changed {
+		row.Usage, row.UpdatedAt = &usage, at
+		d.rows[id] = row
+	}
+	return row, changed, nil
+}
+
 func (d *memorySubagents) GetSubagentByID(ctx context.Context, id string) (store.SessionSubagent, error) {
 	return d.GetSubagent(ctx, "", id)
 }

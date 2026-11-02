@@ -68,11 +68,15 @@ component stories. This scenario is the real-provider walk with visual parity ag
    between the context ring and Attach files; its popover reads `Subagents` and
    `Nothing delegated yet.` While two subagents run, the control shows the icon with a pulsing live
    dot and `2`; with one waiting for you the dot takes the accent and the label adds `1 needs you`.
-   Open it from the keyboard (Tab, Enter): `Subagents · N running`, the total, failed and live rows
-   first, then `Previous subagents (N)` (open when nothing runs); each row shows the provider mark
-   without a dot and ends with the state glyph, the word, and elapsed for Working/Done. A row opens its subagent like the
-   inspector row; Escape closes the popover and returns focus to the control. Check light and dark
-   themes and a narrow window, where the control stays in the toolbar.
+   Open it from the keyboard (Tab, Enter): `Subagents`, `N of M finished`, a bar with one segment per
+   subagent (finished, failed, working, then queued), failed and live rows first, then
+   `Previous subagents (N)` (open when nothing runs). Each row shows the title, the model and kind
+   (`Sonnet · Explore` for a native call that names `model: sonnet`, never `general`), its current
+   activity, and elapsed. A row slides the panel to that subagent: status, time, tools and tokens
+   when reported, `Asked to`, and its tool activity in the transcript's own groups. Back and Escape
+   slide to the list with focus on the same row; a second Escape closes the popover and returns focus
+   to the control. `Open` shows the full drawer; ⌘/Ctrl on a row opens a delegated child in a new
+   window. Check light and dark themes and a narrow window, where the control stays in the toolbar.
 9. **Accessibility.** Cards are buttons with `aria-label="Open <title>"` and the status as
    `aria-description`; group disclosure exposes `aria-expanded`; elapsed is text, not color only.
 10. **Isolated subagents (agent-collaboration S5, VC-06/VC-07, E2E-004).** Ask the agent to delegate

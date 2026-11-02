@@ -57,6 +57,9 @@ func (s *subagentService) applyNativeTask(ctx context.Context, parent string, ev
 		s.logger.DebugContext(ctx, "subagent.native_task_stale", "subagent_id", row.ID, "turn_id", ev.ParentTurnID)
 		return false, nil
 	}
+	if row, err = s.recordNativeUsage(ctx, row, ev); err != nil {
+		return false, err
+	}
 	status, terminal := nativeTaskOutcome(ev.Task)
 	switch {
 	case !terminal:
@@ -72,6 +75,31 @@ func (s *subagentService) applyNativeTask(ctx context.Context, parent string, ev
 	default:
 		return s.finalizeNativeTask(ctx, row, status, ev.Task, ev.At)
 	}
+}
+
+// recordNativeUsage keeps the provider's running total, including the final
+// figure a notification reports after the row has settled.
+func (s *subagentService) recordNativeUsage(
+	ctx context.Context, row store.SessionSubagent, ev NativeSubagentEvent,
+) (store.SessionSubagent, error) {
+	usage := ev.Task.Usage
+	if usage == nil {
+		return row, nil
+	}
+	at := ev.At
+	if at.IsZero() {
+		at = s.now().UTC()
+	}
+	updated, changed, err := s.store.UpdateSubagentUsage(
+		ctx, row.ID, store.SubagentUsage{TotalTokens: usage.TotalTokens, ToolUses: usage.ToolUses}, at,
+	)
+	if err != nil {
+		return row, err
+	}
+	if changed {
+		s.publish(ctx, updated)
+	}
+	return updated, nil
 }
 
 // observeNativeTaskCall reports the known call, recording a backgrounding the

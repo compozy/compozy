@@ -112,9 +112,17 @@ var (
 )
 
 // SessionSubagent is the durable parent-side record of one subagent.
+// SubagentUsage is what the provider reports a native subagent has spent so far.
+type SubagentUsage struct {
+	TotalTokens int64
+	ToolUses    int64
+}
+
 type SessionSubagent struct {
 	Isolation string
 	Worktree  *SubagentWorktreeState
+	// Usage is the provider's running total; nil until it reports one.
+	Usage *SubagentUsage
 
 	ID                 string
 	WorkspaceID        string
@@ -316,6 +324,15 @@ type SubagentStore interface {
 	Summaries(ctx context.Context, parentIDs []string) (map[string]SubagentSummary, error)
 	UpdateProgress(ctx context.Context, id, progress string, at time.Time) error
 	UpdateNativeSubagentTitle(ctx context.Context, id, title string, at time.Time) (SessionSubagent, bool, error)
+	// UpdateNativeSubagentRuntime fills what a later streamed event of the launching call names.
+	// An empty value keeps the recorded one.
+	UpdateNativeSubagentRuntime(
+		ctx context.Context, id, model, role string, at time.Time,
+	) (SessionSubagent, bool, error)
+	// UpdateSubagentUsage raises a native row's usage; totals never move backwards.
+	UpdateSubagentUsage(
+		ctx context.Context, id string, usage SubagentUsage, at time.Time,
+	) (SessionSubagent, bool, error)
 	UpdateSubagentState(ctx context.Context, id, status, workState string, at time.Time) (SessionSubagent, bool, error)
 	FinalizeSubagent(ctx context.Context, in SubagentFinalize) (SessionSubagent, bool, error)
 	// UpdateSubagentChildActivity records a delegated child's liveness; it never changes status.

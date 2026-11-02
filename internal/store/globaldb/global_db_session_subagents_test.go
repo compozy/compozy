@@ -644,6 +644,59 @@ func TestGlobalDBSubagentStateUpdates(t *testing.T) {
 			}
 		},
 	)
+	// Invariant: a later event fills the runtime without blanking it, usage only rises, and
+	// neither write reaches a delegated row.
+	t.Run("Should fill native runtime and raise usage on native rows only", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		row := store.SessionSubagent{
+			ID:                 "native",
+			WorkspaceID:        workspace,
+			ParentSessionID:    parent,
+			ParentTurnID:       "turn",
+			Origin:             store.SubagentOriginProviderNative,
+			ProviderToolCallID: "tool",
+			IdempotencyKey:     "tool",
+			RequestFingerprint: "native:tool",
+			Title:              "Task",
+			Depth:              1,
+			WakePolicy:         store.SubagentWakePolicySettledOnly,
+		}
+		if _, _, err := db.ReserveSubagent(t.Context(), row); err != nil {
+			t.Fatal(err)
+		}
+		at := now.Add(time.Second)
+		updated, changed, err := db.UpdateNativeSubagentRuntime(t.Context(), row.ID, "sonnet", "Explore", at)
+		if err != nil || !changed || updated.RuntimeModel != "sonnet" || updated.Role != "Explore" {
+			t.Fatal(updated, changed, err)
+		}
+		kept, changed, err := db.UpdateNativeSubagentRuntime(t.Context(), row.ID, "", "", at)
+		if err != nil || changed || kept.RuntimeModel != "sonnet" || kept.Role != "Explore" {
+			t.Fatal(kept, changed, err)
+		}
+		if updated.Usage != nil {
+			t.Fatal(updated.Usage)
+		}
+		raised, changed, err := db.UpdateSubagentUsage(
+			t.Context(), row.ID, store.SubagentUsage{TotalTokens: 900, ToolUses: 4}, at,
+		)
+		if err != nil || !changed || raised.Usage == nil || raised.Usage.TotalTokens != 900 {
+			t.Fatal(raised, changed, err)
+		}
+		stale, changed, err := db.UpdateSubagentUsage(
+			t.Context(), row.ID, store.SubagentUsage{TotalTokens: 100, ToolUses: 1}, at,
+		)
+		if err != nil || changed || stale.Usage.TotalTokens != 900 || stale.Usage.ToolUses != 4 {
+			t.Fatal(stale, changed, err)
+		}
+		delegated := reserveSubagent(t, db.SessionRepo, workspace, parent, "delegated-usage", now)
+		untouched, changed, err := db.UpdateSubagentUsage(
+			t.Context(), delegated.ID, store.SubagentUsage{TotalTokens: 1, ToolUses: 1}, at,
+		)
+		if err != nil || changed || untouched.Usage != nil {
+			t.Fatal(untouched, changed, err)
+		}
+	})
 	// Invariant: child_activity changes only on delegated rows, never touches the terminal outcome,
 	// and boot reconciliation marks settled rows whose child session is stopped.
 	t.Run("Should record delegated child activity and reconcile stopped children", func(t *testing.T) {

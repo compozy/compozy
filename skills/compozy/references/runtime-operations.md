@@ -1112,8 +1112,10 @@ session.
 
 A subagent is a delegated child session that an agent creates with `compozy__subagent_delegate` from
 inside an active turn (protocol in `references/native-tools.md`). Its durable record lives on the
-parent: subagent id, parent turn, child session, runtime, status, `work_state`, `child_activity`, result,
-and delivery. `child_activity` (`working`, `idle`, `stopped`; absent when unknown or provider-native)
+parent: subagent id, parent turn, child session, runtime, status, `work_state`, `child_activity`,
+`usage`, result, and delivery. `usage` (`total_tokens`, `tool_uses`) is the provider's running total
+for a provider-native row and is absent until reported. On those rows `role` is the launching call's
+`subagent_type`. `child_activity` (`working`, `idle`, `stopped`; absent when unknown or provider-native)
 tracks the child session after the delegation settles: the status stays terminal while the child can
 still be prompted again.
 Subagent children set `notify_creator=false`; the subagent wake replaces the creator wake for them, and

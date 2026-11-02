@@ -60,6 +60,9 @@ func subagentFromSQL(row *sqlcgen.SessionSubagent) (store.SessionSubagent, error
 		WakeMessageID:      subagentStringPointer(row.WakeMessageID),
 		AcknowledgedTurnID: row.AcknowledgedTurnID,
 	}
+	if row.UsageTotalTokens.Valid || row.UsageToolUses.Valid {
+		out.Usage = &store.SubagentUsage{TotalTokens: row.UsageTotalTokens.Int64, ToolUses: row.UsageToolUses.Int64}
+	}
 	var err error
 	if out.ChildActivity, err = store.ParseSubagentChildActivity(row.ChildActivity); err != nil {
 		return out, err

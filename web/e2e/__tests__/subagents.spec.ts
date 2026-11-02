@@ -344,6 +344,7 @@ test("E2E-004: a card opens a read-only drawer, Open as session navigates, and m
     .getByRole("button", { name: `Open ${reviewTitle}`, exact: true })
     .last()
     .click();
+  await appPage.getByRole("button", { name: "Open", exact: true }).click();
   await expect(drawer).toBeVisible();
   await expect(drawer).toBeInViewport({ ratio: 1 });
   await expect(drawer).toHaveCSS("opacity", "1");

@@ -40,7 +40,12 @@ export function SessionNativeSubagentActivity({
             className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto p-4"
             data-testid="native-subagent-activity"
           >
-            {prompt ? <SessionMessageText text={prompt} authored /> : null}
+            {prompt ? (
+              <section className="flex flex-col gap-1.5">
+                <h4 className="text-transcript-meta text-muted-foreground">Asked to</h4>
+                <SessionMessageText text={prompt} authored />
+              </section>
+            ) : null}
             <NativeOutcome subagent={subagent} />
             <NativeActivityRows
               transcript={transcript}
@@ -67,11 +72,7 @@ function nativeActivity(messages: readonly ThreadMessage[], subagentId: string) 
     )
   );
   const activity = toolId
-    ? parts.filter(
-        part =>
-          (part.kind === "tool" && part.toolCallId === toolId) ||
-          descendsFrom(part.parentToolCallId, toolId, parents)
-      )
+    ? parts.filter(part => descendsFrom(part.parentToolCallId, toolId, parents))
     : [];
   return { prompt, activity, hasInvocation: call !== undefined };
 }

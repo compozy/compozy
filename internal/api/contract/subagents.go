@@ -24,6 +24,12 @@ type SubagentRuntimePayload struct {
 	Speed           string `json:"speed"`
 }
 
+// SubagentUsagePayload is what the provider reports a subagent has spent so far.
+type SubagentUsagePayload struct {
+	TotalTokens int64 `json:"total_tokens"`
+	ToolUses    int64 `json:"tool_uses"`
+}
+
 type SubagentPayload struct {
 	Isolation          string                   `json:"isolation"`
 	Worktree           *SubagentWorktreePayload `json:"worktree,omitempty"`
@@ -41,21 +47,23 @@ type SubagentPayload struct {
 	// ChildActivity is the delegated child session's liveness (working, idle,
 	// stopped), independent of the delegation's terminal status. Omitted for
 	// provider-native rows and rows recorded before the field existed.
-	ChildActivity   SubagentChildActivity  `json:"child_activity,omitempty"`
-	Runtime         SubagentRuntimePayload `json:"runtime"`
-	Depth           int                    `json:"depth"`
-	Progress        string                 `json:"progress"`
-	Result          *string                `json:"result"`
-	ResultPreview   string                 `json:"result_preview"`
-	ResultTruncated bool                   `json:"result_truncated"`
-	Error           *string                `json:"error"`
-	WaitTimedOut    bool                   `json:"wait_timed_out"`
-	Hint            string                 `json:"hint,omitempty"`
-	Delivery        string                 `json:"delivery"`
-	StartedAt       *time.Time             `json:"started_at"`
-	SettledAt       *time.Time             `json:"settled_at"`
-	CreatedAt       time.Time              `json:"created_at"`
-	UpdatedAt       time.Time              `json:"updated_at"`
+	ChildActivity SubagentChildActivity  `json:"child_activity,omitempty"`
+	Runtime       SubagentRuntimePayload `json:"runtime"`
+	// Usage is omitted until the provider reports one, and for delegated rows.
+	Usage           *SubagentUsagePayload `json:"usage,omitempty"`
+	Depth           int                   `json:"depth"`
+	Progress        string                `json:"progress"`
+	Result          *string               `json:"result"`
+	ResultPreview   string                `json:"result_preview"`
+	ResultTruncated bool                  `json:"result_truncated"`
+	Error           *string               `json:"error"`
+	WaitTimedOut    bool                  `json:"wait_timed_out"`
+	Hint            string                `json:"hint,omitempty"`
+	Delivery        string                `json:"delivery"`
+	StartedAt       *time.Time            `json:"started_at"`
+	SettledAt       *time.Time            `json:"settled_at"`
+	CreatedAt       time.Time             `json:"created_at"`
+	UpdatedAt       time.Time             `json:"updated_at"`
 }
 
 type SubagentListPayload struct {
@@ -116,11 +124,19 @@ func SubagentFromDomain(row *session.Subagent) SubagentPayload {
 		ChildActivity: SubagentChildActivity(row.ChildActivity.String()),
 		Runtime: SubagentRuntimePayload{Agent: row.RuntimeAgent, Provider: row.RuntimeProvider,
 			Model: row.RuntimeModel, ReasoningEffort: row.RuntimeEffort, Speed: runtimeSpeed},
+		Usage: subagentUsagePayload(row.Usage),
 		Depth: row.Depth, Progress: row.Progress, Result: row.Result, ResultPreview: resultPreview,
 		ResultTruncated: row.ResultTruncated, Error: row.Error, WaitTimedOut: row.WaitTimedOut,
 		Hint: hint, Delivery: row.Delivery, StartedAt: row.StartedAt,
 		SettledAt: row.SettledAt, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
+}
+
+func subagentUsagePayload(usage *store.SubagentUsage) *SubagentUsagePayload {
+	if usage == nil {
+		return nil
+	}
+	return &SubagentUsagePayload{TotalTokens: usage.TotalTokens, ToolUses: usage.ToolUses}
 }
 
 func SubagentSummaryFromStore(summary store.SubagentSummary) *SubagentSummaryPayload {

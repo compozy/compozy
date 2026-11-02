@@ -652,6 +652,7 @@ export type SubagentPayload = {
   subagent_id: string;
   title: string;
   updated_at: string;
+  usage?: SubagentUsagePayload | null;
   wait_timed_out: boolean;
   work_state: string;
   workspace_id: string;
@@ -675,6 +676,11 @@ export type SubagentRuntimePayload = {
 export type SubagentUpdatedEvent = {
   session_id: string;
   subagent: SubagentPayload;
+};
+
+export type SubagentUsagePayload = {
+  tool_uses: number;
+  total_tokens: number;
 };
 
 export type SubagentWorktreePayload = {

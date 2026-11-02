@@ -3,10 +3,7 @@ import { subagentRosterGroups, subagentRosterTitle } from "./subagent-format";
 import { SubagentRoster, type SubagentRosterProps } from "./subagent-roster";
 import { SubagentRosterSkeleton } from "./subagent-roster-skeleton";
 
-export type SessionInspectorSubagentsSectionProps = Omit<
-  SubagentRosterProps,
-  "hoverSide" | "className"
-> & {
+export type SessionInspectorSubagentsSectionProps = Omit<SubagentRosterProps, "className"> & {
   /**
    * The session's summary counts while the list is still loading: the section keeps its place,
    * heading and placeholder rows included, instead of appearing and pushing the rail down.
