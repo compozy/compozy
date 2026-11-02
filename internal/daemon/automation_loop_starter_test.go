@@ -124,6 +124,42 @@ func TestAutomationLoopStarterDefaultCatchUpPolicyShouldCoalesceWatchLoops(t *te
 
 func TestAutomationLoopStarterRetiredDependencies(t *testing.T) {
 	t.Parallel()
+	t.Run("Should classify a definition removed between validation and resolution", func(t *testing.T) {
+		t.Parallel()
+		definition, err := loopdsl.Parse([]byte(strings.ReplaceAll(testLoopYAML("vanishing", "Vanishing loop"), "kind: cli", "kind: schedule")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved, err := looppkg.NewCompiler().Compile(definition)
+		if err != nil {
+			t.Fatal(err)
+		}
+		calls := 0
+		starter := &automationLoopStarter{
+			resolver: looppkg.DefinitionResolverFunc(
+				func(context.Context, looppkg.WorkspaceID, string, string) (*looppkg.ResolvedDefinition, error) {
+					calls++
+					if calls == 1 {
+						return resolved, nil
+					}
+					return nil, looppkg.ErrDefinitionNotFound
+				},
+			),
+		}
+		err = starter.ValidateLoopTarget(
+			t.Context(),
+			automationpkg.LoopTargetValidationRequest{
+				WorkspaceID: "ws",
+				ProfileID:   "default",
+				LoopName:    "vanishing",
+				Kind:        automationpkg.LoopStartKindSchedule,
+				Inputs:      map[string]any{"target": "fixture"},
+			},
+		)
+		if !errors.Is(err, automationpkg.ErrLoopTargetNotFound) {
+			t.Fatalf("second resolution = %v", err)
+		}
+	})
 	for _, tc := range []struct {
 		name  string
 		kind  string
@@ -173,7 +209,7 @@ func TestAutomationLoopStarterRetiredDependencies(t *testing.T) {
 				},
 			)
 			want := tc.want
-			if errors.Is(err, automationpkg.ErrLoopTargetUnavailable) != want {
+			if err == nil || errors.Is(err, automationpkg.ErrLoopTargetUnavailable) != want {
 				t.Fatalf("validation error = %v", err)
 			}
 			_, err = starter.DefaultLoopCatchUpPolicy(
@@ -185,7 +221,7 @@ func TestAutomationLoopStarterRetiredDependencies(t *testing.T) {
 					Kind:        automationpkg.LoopStartKindSchedule,
 				},
 			)
-			if errors.Is(err, automationpkg.ErrLoopTargetUnavailable) != want {
+			if err == nil || errors.Is(err, automationpkg.ErrLoopTargetUnavailable) != want {
 				t.Fatalf("policy error = %v", err)
 			}
 		})
@@ -198,7 +234,10 @@ func TestAutomationLoopStarterRetiredDependencies(t *testing.T) {
 					Message: `action ToolID "ext__spec_cycle__import_tasks" is not resolvable`},
 				{NodeID: "independent", Code: code, Message: "result_contract requires a declared output schema"},
 			}}
-			if errors.Is(classifyRetiredLoopTarget(err), automationpkg.ErrLoopTargetUnavailable) {
+			if got := classifyRetiredLoopTarget(
+				err,
+			); got == nil ||
+				errors.Is(got, automationpkg.ErrLoopTargetUnavailable) {
 				t.Fatal("independent schema error accepted")
 			}
 		})
@@ -214,7 +253,7 @@ func TestAutomationLoopStarterRetiredDependencies(t *testing.T) {
 				{Code: looppkg.CodeCycle},
 			},
 		}
-		if errors.Is(classifyRetiredLoopTarget(err), automationpkg.ErrLoopTargetUnavailable) {
+		if got := classifyRetiredLoopTarget(err); got == nil || errors.Is(got, automationpkg.ErrLoopTargetUnavailable) {
 			t.Fatal("malformed definition accepted")
 		}
 	})

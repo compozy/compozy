@@ -116,7 +116,10 @@ func (s *automationLoopStarter) ValidateLoopTarget(
 		validation.LoopName,
 	)
 	if err != nil {
-		return err
+		if errors.Is(err, looppkg.ErrDefinitionNotFound) {
+			return fmt.Errorf("%w: %w", automationpkg.ErrLoopTargetNotFound, err)
+		}
+		return classifyRetiredLoopTarget(err)
 	}
 	values := make(map[string]any, len(validation.Inputs))
 	origins := make(map[string]looppkg.InputOrigin, len(validation.Inputs))
