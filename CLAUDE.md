@@ -19,6 +19,7 @@ Real users run every release. Preserve the three regimes from SD-013 and L-040:
 - Use `go get` for Go dependencies and `bun add` for JS dependencies; generated files change through their owning generator.
 - Keep production source files cohesive and at most 500 lines; extract before growing an oversized file.
 - Before changing a test, identify its invariant, owning layer, and existing suite. Reuse that suite and suitable utilities. Add coverage for observable behavior; prose/CSS/config/snapshot assertions need an actual artifact contract without a stronger owning check. Fix production regressions without weakening tests.
+- Ask decisions as numbered `Q1 - a` questions: a plain question, a short why-it-matters summary without jargon, and lettered options with a recommended one (`cy-create-spec` `references/grill-protocol.md`).
 - Follow the user's authorized scope. Reuse current research, decisions, and verification; ask only when an unresolved decision blocks correct work. Avoid unrelated cleanup.
 
 ## Surface Instructions and Skills
