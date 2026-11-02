@@ -30,6 +30,7 @@ export {
   sessionHasUnsentInput,
   useSessionComposerDraft,
   useSessionGoalFeedback,
+  useSessionPromptRefusal,
   useSessionHasDraft,
 } from "./use-session-store";
 export {

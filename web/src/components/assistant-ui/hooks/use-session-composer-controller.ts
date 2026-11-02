@@ -4,6 +4,7 @@ import { use, useEffect, useState } from "react";
 import {
   attachmentsFromPromptMessageParts,
   composeSessionPromptWithTerminalQuote,
+  sessionStore,
   DEFAULT_SESSION_BUSY_INPUT_MODE,
   discardSessionTerminalQuote,
   isSessionTransportDisconnected,
@@ -164,9 +165,15 @@ export function useSessionComposerController({
     transportDisconnected,
     unconfirmedSends,
     draft: { attachments: promptAttachments, message: promptText },
-    onDraftConsumed: () => discardSessionTerminalQuote(sessionId),
+    onDraftConsumed: () => {
+      discardSessionTerminalQuote(sessionId);
+      sessionStore.trigger.composerPromptRefusalDismissed({ sessionId });
+    },
   });
   const { dismissFeedback, feedback } = busyActions;
+  useEffect(() => {
+    if (feedback) sessionStore.trigger.composerPromptRefusalDismissed({ sessionId });
+  }, [feedback, sessionId]);
   const visibleFeedback = visibleComposerFeedback(feedback, composerText);
 
   useEffect(() => {

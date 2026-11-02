@@ -5156,6 +5156,7 @@ describe("SessionThread composer running semantics", () => {
     vi.mocked(toast.error).mockClear();
     vi.mocked(toast.warning).mockClear();
     sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
+    sessionStore.trigger.composerPromptRefusalDismissed({ sessionId: primarySessionFixture.id });
     sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
     takePendingTerminalQuote();
     clearSessionTerminalQuote(primarySessionFixture.id);
@@ -5915,6 +5916,12 @@ describe("SessionThread composer running semantics", () => {
 
     await screen.findByTestId("composer-input");
     await setComposerText("only the lifecycle tests");
+    await act(async () => {
+      sessionStore.trigger.composerPromptRefused({
+        sessionId: primarySessionFixture.id,
+        reason: "Earlier prompt refusal",
+      });
+    });
     await user.click(screen.getByTestId("composer-steer-button"));
     await waitFor(() => expect(onSteerPrompt).toHaveBeenCalledOnce());
 
@@ -5924,6 +5931,9 @@ describe("SessionThread composer running semantics", () => {
     });
 
     await waitFor(() => expect(composerText()).toBe("actually, the store package too"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("composer-feedback-note")).not.toBeInTheDocument()
+    );
     expect(sessionStore.getSnapshot().context.drafts[primarySessionFixture.id]).toBe(
       "actually, the store package too"
     );
@@ -6066,7 +6076,19 @@ describe("SessionThread composer running semantics", () => {
     await waitFor(() =>
       expect(screen.getByTestId("composer-attachment-tile")).toHaveAttribute("data-state", "ready")
     );
+    await act(async () => {
+      sessionStore.trigger.composerPromptRefused({
+        sessionId: primarySessionFixture.id,
+        reason: "Earlier prompt refusal",
+      });
+    });
+    expect(screen.getByTestId("composer-feedback-note")).toHaveTextContent(
+      "Earlier prompt refusal"
+    );
     await user.click(screen.getByTestId("composer-queue-button"));
+    await waitFor(() =>
+      expect(screen.getByTestId("composer-feedback-note")).toHaveAttribute("data-kind", "refusal")
+    );
 
     const note = await screen.findByTestId("composer-feedback-note");
     expect(note).toHaveAttribute("data-kind", "refusal");
@@ -7074,6 +7096,7 @@ describe("SessionThread composer attachments", () => {
     vi.mocked(toast.error).mockClear();
     vi.mocked(toast.warning).mockClear();
     sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
+    sessionStore.trigger.composerPromptRefusalDismissed({ sessionId: primarySessionFixture.id });
     sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
   });
 
