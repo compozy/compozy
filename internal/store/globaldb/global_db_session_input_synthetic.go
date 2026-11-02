@@ -36,6 +36,10 @@ func coalesceSessionInput(
 	if err != nil {
 		return store.SessionInputQueueEntry{}, false, err
 	}
+	// A wake read before a generation advance stays out of the new generation's row.
+	if open.SessionGeneration != req.SessionGeneration {
+		return store.SessionInputQueueEntry{}, false, nil
+	}
 	members := open.SyntheticPrompt.CoalescedWakes()
 	if members >= req.SyntheticPrompt.Coalesce.MaxMembers {
 		return store.SessionInputQueueEntry{}, false, &store.SessionInputQueueFullError{

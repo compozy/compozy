@@ -157,11 +157,23 @@ func (d *detector) argvKeepsContext(call *syntax.CallExpr, argv []string) bool {
 		len(d.file.Stmts[0].Redirs) > 0 || len(call.Assigns) > 0 {
 		return false
 	}
-	switch executableName(argv[0]) {
-	case "env", "sudo", "doas":
-		return false
+	return wrappersKeepContext(argv) && !slices.Contains(argv, "")
+}
+
+// wrappersKeepContext checks the whole wrapper chain: `timeout 60 env GH_REPO=x gh ...` hides env behind timeout.
+func wrappersKeepContext(argv []string) bool {
+	for len(argv) > 0 {
+		switch executableName(argv[0]) {
+		case "env", "sudo", "doas":
+			return false
+		}
+		next, unwrapped := unwrapOnce(argv)
+		if !unwrapped || len(next) >= len(argv) {
+			return true
+		}
+		argv = next
 	}
-	return !slices.Contains(argv, "")
+	return true
 }
 
 func detectCall(argv []string, depth int) (Finding, bool) {

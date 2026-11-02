@@ -550,6 +550,9 @@ SELECT EXISTS (
     SELECT 1 FROM session_subagents
     WHERE workspace_id = ?1 AND parent_session_id = ?2
       AND origin = 'delegated' AND delivery NOT IN ('delivered','acknowledged','disposed')
+      -- A wait-mode child returned its result to the caller, so no wake follows it.
+      AND NOT (wake_policy = 'settled_only' AND delivery = 'none'
+        AND status IN ('completed','failed','canceled','interrupted'))
 )
 `
 

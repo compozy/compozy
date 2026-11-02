@@ -246,6 +246,7 @@ func TestDenyReason(t *testing.T) {
 		t.Parallel()
 		for _, command := range []string{
 			`env GH_REPO=other/repo gh pr checks 123 --watch`,
+			`timeout 60 env GH_REPO=other/repo gh pr checks 123 --watch`,
 			`GH_REPO=other/repo gh pr checks 123 --watch`,
 			`gh pr checks "$PR" --watch`,
 			`cd checkout && gh pr checks 123 --watch`,

@@ -271,4 +271,7 @@ SELECT EXISTS (
     SELECT 1 FROM session_subagents
     WHERE workspace_id = sqlc.arg(workspace_id) AND parent_session_id = sqlc.arg(parent_session_id)
       AND origin = 'delegated' AND delivery NOT IN ('delivered','acknowledged','disposed')
+      -- A wait-mode child returned its result to the caller, so no wake follows it.
+      AND NOT (wake_policy = 'settled_only' AND delivery = 'none'
+        AND status IN ('completed','failed','canceled','interrupted'))
 );

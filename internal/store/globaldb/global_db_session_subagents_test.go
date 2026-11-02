@@ -59,6 +59,16 @@ func reserveSubagent(
 	now time.Time,
 ) store.SessionSubagent {
 	t.Helper()
+	return reserveSubagentWithPolicy(t, s, workspace, parent, id, store.SubagentWakePolicySettledOnly, now)
+}
+
+func reserveSubagentWithPolicy(
+	t *testing.T,
+	s store.SubagentStore,
+	workspace, parent, id, policy string,
+	now time.Time,
+) store.SessionSubagent {
+	t.Helper()
 	row, created, err := s.ReserveSubagent(
 		t.Context(),
 		store.SessionSubagent{
@@ -71,7 +81,7 @@ func reserveSubagent(
 			RequestFingerprint: "fingerprint",
 			Title:              id,
 			Depth:              1,
-			WakePolicy:         store.SubagentWakePolicySettledOnly,
+			WakePolicy:         policy,
 			PendingTask:        new("perform task"),
 			CreatedAt:          now,
 			UpdatedAt:          now,
@@ -93,6 +103,21 @@ func finalizeSubagent(t *testing.T, s store.SubagentStore, id string, now time.T
 	}
 }
 func TestGlobalDBSubagents(t *testing.T) {
+	t.Run("Should release a wait once a wait-mode child returned its result", func(t *testing.T) {
+		t.Parallel()
+		db, workspace, parent, now := subagentFixture(t)
+		s := db.SessionRepo
+		reserveSubagent(t, s, workspace, parent, "sync-child", now)
+		live, err := s.HasPendingSubagentWake(t.Context(), workspace, parent)
+		if err != nil || !live {
+			t.Fatalf("pending while running = %v, %v; want true", live, err)
+		}
+		finalizeSubagent(t, s, "sync-child", now)
+		pending, err := s.HasPendingSubagentWake(t.Context(), workspace, parent)
+		if err != nil || pending {
+			t.Fatalf("pending after result = %v, %v; want false", pending, err)
+		}
+	})
 	t.Run("Should retain a scoped wait until the subagent result is consumed or abandoned", func(t *testing.T) {
 		t.Parallel()
 		for _, disposition := range []string{"delivered", "acknowledged", "disposed"} {
@@ -109,7 +134,7 @@ func TestGlobalDBSubagents(t *testing.T) {
 					}
 				}
 				assertPending(workspace, parent, false)
-				reserveSubagent(t, s, workspace, parent, "child", now)
+				reserveSubagentWithPolicy(t, s, workspace, parent, "child", store.SubagentWakePolicyAlways, now)
 				assertPending(workspace, parent, true)
 				assertPending("other-workspace", parent, false)
 				assertPending(workspace, "other-parent", false)

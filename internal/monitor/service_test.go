@@ -2348,8 +2348,8 @@ func TestDetectPullRequest(t *testing.T) {
 			Wake: true, Number: 7, Head: "head-a", Reviews: []PullRequestReview{{ID: "r2"}}, NewThreads: 2,
 		}
 		merged := mergePullRequestChanges(carry, flushed)
-		if len(merged.Reviews) != 2 || merged.Reviews[1].ID != "r2" || merged.NewThreads != 3 ||
-			merged.State != "open" {
+		if len(merged.Reviews) != 2 || merged.Reviews[0].ID != "r1" || merged.Reviews[1].ID != "r2" ||
+			merged.NewThreads != 3 || merged.State != "open" {
 			t.Fatalf("merged = %+v", merged)
 		}
 	})
