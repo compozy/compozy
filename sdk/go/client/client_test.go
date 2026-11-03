@@ -292,6 +292,13 @@ func TestClientGeneratedOperations(t *testing.T) {
 				want, _ = ctx.Deadline()
 			}
 			c.httpClient.Transport = profileDeadlineTransport(func(r *http.Request) (*http.Response, error) {
+				wantSeconds := ""
+				if capture.seconds != nil {
+					wantSeconds = strconv.Itoa(*capture.seconds)
+				}
+				if got := r.URL.Query().Get("seconds"); got != wantSeconds {
+					t.Errorf("seconds = %q, want %q", got, wantSeconds)
+				}
 				deadline, ok := r.Context().Deadline()
 				if !ok {
 					t.Error("profile request has no deadline")
