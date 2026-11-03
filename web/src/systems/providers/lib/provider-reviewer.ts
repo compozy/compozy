@@ -3,13 +3,12 @@ import type { ProviderSummary } from "../types";
 /** Whether a provider declares an AI reviewer that the `auto` level can select. */
 export type ProviderReviewer = "available" | "unavailable" | "unknown";
 
-/** `reviewer_mode` arrives from the daemon's resolved provider config; empty means none. */
-type ProviderWithReviewer = ProviderSummary & { reviewer_mode?: string | null };
-
-/** Absent data stays `unknown`, so the editor never warns without provider evidence. */
+/**
+ * The daemon always sends `reviewer_mode`; an empty string means the provider has no reviewer.
+ * An absent field only comes from an older daemon, so it stays `unknown` and never warns.
+ */
 export function providerReviewer(summary: ProviderSummary | undefined): ProviderReviewer {
-  if (!summary) return "unknown";
-  const mode = (summary as ProviderWithReviewer).reviewer_mode;
-  if (mode === undefined || mode === null) return "unknown";
+  const mode = summary?.reviewer_mode;
+  if (mode === undefined) return "unknown";
   return mode.trim() ? "available" : "unavailable";
 }

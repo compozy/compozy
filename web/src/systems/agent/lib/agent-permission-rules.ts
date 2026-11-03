@@ -68,12 +68,65 @@ export function permissionRulesEqual(
   });
 }
 
-/** Whether a path stays inside the session root, mirroring the daemon's check. */
+/** POSIX `path.Clean` for a relative path, as the daemon applies it. */
+function cleanRelativePath(path: string): string {
+  const parts: string[] = [];
+  for (const segment of path.split("/")) {
+    if (segment === "" || segment === ".") continue;
+    if (segment === ".." && parts.length > 0 && parts[parts.length - 1] !== "..") parts.pop();
+    else parts.push(segment);
+  }
+  return parts.join("/") || ".";
+}
+
+/** Whether a path stays inside the session root, with the daemon's exact rule. */
 function pathInsideProject(raw: string): boolean {
   const path = raw.trim();
   if (!path) return true;
   if (path.startsWith("/") || path.includes("\\")) return false;
-  return !path.split("/").includes("..");
+  const clean = cleanRelativePath(path);
+  return clean !== ".." && !clean.startsWith("../");
+}
+
+/** Whether `[` classes and `{` alternations close, which the daemon's glob parser requires. */
+function globWellFormed(path: string): boolean {
+  let inClass = false;
+  let braces = 0;
+  for (const char of path) {
+    if (inClass) {
+      if (char === "]") inClass = false;
+      continue;
+    }
+    if (char === "[") inClass = true;
+    else if (char === "{") braces += 1;
+    else if (char === "}") {
+      if (braces === 0) return false;
+      braces -= 1;
+    }
+  }
+  return !inClass && braces === 0;
+}
+
+const PATH_OUTSIDE_MESSAGE = "Use a path inside the project, such as docs/** or src/app.";
+const GLOB_MESSAGE = "Close every [ and { in this pattern, such as docs/[ab]* or src/{app,lib}.";
+
+/** A daemon refusal of `permission_rules[i]`, placed on the row it names. */
+export function permissionRuleErrorFromDaemon(
+  message: string | null | undefined,
+  rules: readonly PermissionRuleDraft[]
+): { id: string; message: string } | null {
+  const match = message?.match(/permission_rules\[(\d+)\](?:\.(\w+))?/u);
+  const rule = match ? rules[Number(match[1])] : undefined;
+  if (!match || !rule) return null;
+  return {
+    id: rule.id,
+    message:
+      match[2] !== "path"
+        ? "CompozyOS can't save this exception. Check its action and folder."
+        : /relative/u.test(message ?? "")
+          ? PATH_OUTSIDE_MESSAGE
+          : GLOB_MESSAGE,
+  };
 }
 
 /** The first rule that can't be saved, with the reason to show beside it. */
@@ -81,9 +134,8 @@ export function invalidPermissionRule(
   rules: readonly PermissionRuleDraft[]
 ): { id: string; message: string } | null {
   for (const rule of rules) {
-    if (!pathInsideProject(rule.path)) {
-      return { id: rule.id, message: "Use a path inside the project, such as docs/** or src/app." };
-    }
+    if (!pathInsideProject(rule.path)) return { id: rule.id, message: PATH_OUTSIDE_MESSAGE };
+    if (!globWellFormed(rule.path)) return { id: rule.id, message: GLOB_MESSAGE };
     if (rule.kind === "any" && !rule.path.trim()) {
       return { id: rule.id, message: "Pick an action or a folder for this exception." };
     }

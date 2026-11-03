@@ -1,7 +1,6 @@
 import { Check } from "@compozy/ui/icons";
-import { useRef } from "react";
 
-import { RadioCard, SkeletonText } from "@compozy/ui";
+import { RadioCard, RadioCardGroup, SkeletonText } from "@compozy/ui";
 
 const CHOICE_GRID_CLASS = "grid gap-2 p-3 @min-settings-takeover:grid-cols-3";
 /** Longer ladders (five permission levels) read top to bottom in one column. */
@@ -37,76 +36,28 @@ export function SettingsChoiceGroup<V extends string>({
   layout = "grid",
   "data-testid": testId,
 }: SettingsChoiceGroupProps<V>) {
-  const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
-
-  const moveSelection = (currentIndex: number, key: string) => {
-    const currentCard = cardRefs.current[currentIndex];
-    const direction = currentCard ? getComputedStyle(currentCard).direction : "ltr";
-    const previousKey = direction === "rtl" ? "ArrowRight" : "ArrowLeft";
-    const nextKey = direction === "rtl" ? "ArrowLeft" : "ArrowRight";
-    const lastIndex = options.length - 1;
-    let nextIndex = currentIndex;
-
-    if (key === "Home") nextIndex = 0;
-    if (key === "End") nextIndex = lastIndex;
-    if (key === previousKey || key === "ArrowUp") {
-      nextIndex = currentIndex === 0 ? lastIndex : currentIndex - 1;
-    }
-    if (key === nextKey || key === "ArrowDown") {
-      nextIndex = currentIndex === lastIndex ? 0 : currentIndex + 1;
-    }
-    if (nextIndex === currentIndex) return;
-
-    const next = options[nextIndex];
-    if (!next) return;
-    onChange(next.value);
-    cardRefs.current[nextIndex]?.focus();
-  };
-
   return (
-    <div
+    <RadioCardGroup
       aria-label={ariaLabel}
       className={layout === "stack" ? CHOICE_STACK_CLASS : CHOICE_GRID_CLASS}
       data-testid={testId}
-      role="radiogroup"
-    >
-      {options.map((option, index) => {
-        const checked = option.value === value;
-        return (
-          <RadioCard
-            badge={
-              <Check
-                aria-hidden="true"
-                className={checked ? "size-3.5 text-fg" : "size-3.5 opacity-0"}
-              />
-            }
-            // The card's own selected treatment (selected fill + inset ring)
-            // carries the choice.
-            className="relative"
-            data-testid={testId ? `${testId}-${option.value}` : undefined}
-            description={<span className="block leading-snug">{option.description}</span>}
-            key={option.value}
-            onKeyDown={event => {
-              if (
-                ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(
-                  event.key
-                )
-              ) {
-                event.preventDefault();
-                moveSelection(index, event.key);
-              }
-            }}
-            onSelect={() => onChange(option.value)}
-            ref={element => {
-              cardRefs.current[index] = element;
-            }}
-            selected={checked}
-            tabIndex={checked ? 0 : -1}
-            title={option.name}
+      onValueChange={onChange}
+      options={options.map(option => ({
+        value: option.value,
+        title: option.name,
+        description: <span className="block leading-snug">{option.description}</span>,
+        // The card's own selected treatment (selected fill + inset ring) carries the choice.
+        badge: (
+          <Check
+            aria-hidden="true"
+            className={option.value === value ? "size-3.5 text-fg" : "size-3.5 opacity-0"}
           />
-        );
-      })}
-    </div>
+        ),
+        className: "relative",
+        "data-testid": testId ? `${testId}-${option.value}` : undefined,
+      }))}
+      value={value}
+    />
   );
 }
 

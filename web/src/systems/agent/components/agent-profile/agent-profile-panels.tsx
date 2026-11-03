@@ -1,5 +1,8 @@
 /** The focused side panels: each edits one thing with the product's own control. */
 import {
+  Alert,
+  AlertActions,
+  AlertDescription,
   Button,
   Pill,
   Sheet,
@@ -150,6 +153,28 @@ export function AgentProfilePanels({
             </SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto px-4">
+            {panel && page.permissionsBlocked ? (
+              <Alert
+                className="mb-4"
+                data-testid="agent-profile-panel-permissions-blocked"
+                variant="warning"
+              >
+                <AlertDescription>
+                  Its permission level ({page.draft?.legacyPermissions || "none"}) isn't one
+                  CompozyOS knows. Pick a level on the Permissions page, then save here.
+                </AlertDescription>
+                <AlertActions>
+                  <Button
+                    onClick={page.onOpenPermissions}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    Open Permissions
+                  </Button>
+                </AlertActions>
+              </Alert>
+            ) : null}
             {panel ? (
               <PanelBody page={page} panel={panel} provider={provider} readOnly={readOnly} />
             ) : null}
