@@ -594,13 +594,19 @@ describe("useSessionTopbarSlot", () => {
       expect(list).toHaveTextContent(
         `This session runs in ${primarySessionFixture.workspace_path}. Linking never moves it.`
       );
-      expect(list.querySelectorAll('[data-slot="session-link-row"]')).toHaveLength(4);
-      expect(list).toHaveTextContent("Checks failing");
+      const rows = [...list.querySelectorAll('[data-slot="session-link-row"]')];
+      expect(rows.map(row => row.textContent)).toEqual([
+        expect.stringContaining("Checks failing"),
+        expect.stringContaining("5 checks pending"),
+        expect.stringContaining("Merged"),
+        expect.stringContaining("Closed"),
+      ]);
     });
 
     it("Should name what needs you on the count, and nothing when nothing does", () => {
       const view = renderLinks(model(SESSION_LINK_SETS.mixed));
-      expect(screen.getByRole("button", { name: "4 linked PRs, 1 needs you" })).toBeInTheDocument();
+      const attention = screen.getByRole("button", { name: "4 linked PRs, 1 needs you" });
+      expect(attention.querySelector('[data-slot="pill-dot"]')).not.toBeNull();
       view.rerender(
         <SessionPublisher
           linkedWork={model(SESSION_LINK_SETS.mixed.slice(1))}
@@ -608,7 +614,8 @@ describe("useSessionTopbarSlot", () => {
           session={undefined}
         />
       );
-      expect(screen.getByRole("button", { name: "3 linked PRs" })).toBeInTheDocument();
+      const calm = screen.getByRole("button", { name: "3 linked PRs" });
+      expect(calm.querySelector('[data-slot="pill-dot"]')).toBeNull();
     });
 
     it("Should close the list when the link dialog takes over", async () => {

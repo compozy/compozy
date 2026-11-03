@@ -233,7 +233,8 @@ function SessionLinkedWorkChip(props: SessionLinkedWorkStatusProps) {
 export function SessionLinkedWorkStatus(props: SessionLinkedWorkStatusProps) {
   const anchor = useSessionTopbarClipped(props.onClippedChange);
   // An unlink can leave one item: the open list keeps its trigger so its Undo keeps its context.
-  const [listOpen, setListOpen] = useState(false);
+  // A prototype can start with the list open; only the count can be its trigger.
+  const [listOpen, setListOpen] = useState(props.count.total > 1 && (props.listOpen ?? false));
   return (
     <span className="flex min-w-0 shrink-0 items-center gap-1" ref={anchor}>
       {props.count.total > 1 || listOpen ? (
