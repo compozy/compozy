@@ -8,8 +8,10 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/subprocess"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -22,6 +24,7 @@ type stdioChild struct {
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
 	stdout io.ReadCloser
+	stderr *tailBuffer
 	stop   context.CancelFunc
 	waited chan struct{}
 	// exitErr is the child's exit status; read only after waited is closed.
@@ -51,8 +54,10 @@ func startStdioChild(ctx context.Context, name string, spec Spec) (_ *stdioChild
 	cmd := exec.CommandContext(childCtx, executable, spec.Args...)
 	cmd.Env = append([]string(nil), spec.Env...)
 	cmd.Dir = spec.Dir
+	stderr := &tailBuffer{limit: stderrTailBytes}
 	cmd.Stdin = stdinReader
 	cmd.Stdout = stdoutWriter
+	cmd.Stderr = stderr
 	procutil.ConfigureCommandProcessGroup(cmd)
 	startErr := cmd.Start()
 	// The child holds its own copies; the parent keeps only its ends.
@@ -68,6 +73,7 @@ func startStdioChild(ctx context.Context, name string, spec Spec) (_ *stdioChild
 		cmd:    cmd,
 		stdin:  stdinWriter,
 		stdout: stdoutReader,
+		stderr: stderr,
 		stop:   stop,
 		waited: make(chan struct{}),
 	}
@@ -115,4 +121,36 @@ func ignoreClosed(err error) error {
 		return nil
 	}
 	return err
+}
+
+// stderrSummary is the redacted, bounded tail of the child's stderr, for
+// startup errors; empty when the child wrote nothing.
+func (c *stdioChild) stderrSummary() string {
+	if c == nil || c.stderr == nil {
+		return ""
+	}
+	return strings.TrimSpace(diagnostics.RedactAndBound(c.stderr.String(), stderrTailBytes))
+}
+
+// tailBuffer keeps only the last limit bytes written to it.
+type tailBuffer struct {
+	mu    sync.Mutex
+	buf   []byte
+	limit int
+}
+
+func (b *tailBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.buf = append(b.buf, p...)
+	if overflow := len(b.buf) - b.limit; overflow > 0 {
+		b.buf = append(b.buf[:0], b.buf[overflow:]...)
+	}
+	return len(p), nil
+}
+
+func (b *tailBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return string(b.buf)
 }

@@ -33,6 +33,8 @@ const (
 	shutdownTimeout       = 5 * time.Second
 	childExitTimeout      = 5 * time.Second
 	toolSyncTimeout       = 10 * time.Second
+	handshakeTimeout      = 30 * time.Second
+	stderrTailBytes       = 2048
 )
 
 // Spec describes the stdio MCP server one bridge launches and relays.
@@ -111,7 +113,10 @@ func Start(ctx context.Context, spec Spec, logger *slog.Logger) (_ *Bridge, err 
 	if err := bridge.connectChild(ctx, spec); err != nil {
 		return nil, err
 	}
-	if err := bridge.syncTools(ctx, bridge.client); err != nil {
+	syncCtx, cancelSync := context.WithTimeout(ctx, toolSyncTimeout)
+	err = bridge.syncTools(syncCtx, bridge.client)
+	cancelSync()
+	if err != nil {
 		return nil, err
 	}
 	if err := bridge.listen(ctx); err != nil {
@@ -153,8 +158,14 @@ func (b *Bridge) connectChild(ctx context.Context, spec Spec) error {
 			},
 		},
 	)
-	session, err := client.Connect(ctx, child.transport(), nil)
+	// The deadline bounds only the initialize handshake; the session outlives it.
+	connectCtx, cancel := context.WithTimeout(ctx, handshakeTimeout)
+	session, err := client.Connect(connectCtx, child.transport(), nil)
+	cancel()
 	if err != nil {
+		if stderr := child.stderrSummary(); stderr != "" {
+			return fmt.Errorf("mcpbridge: connect stdio server %q: %w (stderr: %s)", b.name, err, stderr)
+		}
 		return fmt.Errorf("mcpbridge: connect stdio server %q: %w", b.name, err)
 	}
 	b.client = session

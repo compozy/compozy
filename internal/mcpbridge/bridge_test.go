@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -24,6 +25,7 @@ import (
 const (
 	helperEnv        = "COMPOZY_MCPBRIDGE_HELPER"
 	helperPIDFileEnv = "COMPOZY_MCPBRIDGE_HELPER_CHILD_PID_FILE"
+	helperFailEnv    = "COMPOZY_MCPBRIDGE_HELPER_FAIL"
 )
 
 func TestBridge(t *testing.T) {
@@ -218,6 +220,19 @@ func TestBridge(t *testing.T) {
 		}
 	})
 
+	t.Run("Should report the stdio server's stderr when it fails to start", func(t *testing.T) {
+		t.Parallel()
+		_, err := Start(testutil.Context(t), Spec{
+			Name: "helper", Command: os.Args[0],
+			Args: []string{"-test.run=^TestBridgeStdioHelperProcess$"},
+			Env:  append(os.Environ(), helperEnv+"=1", helperFailEnv+"=1"),
+			Dir:  t.TempDir(),
+		}, nil)
+		if err == nil || !strings.Contains(err.Error(), "fixture refused to start") {
+			t.Fatalf("Start() error = %v, want the server's stderr", err)
+		}
+	})
+
 	t.Run("Should fail startup when the stdio server cannot start", func(t *testing.T) {
 		t.Parallel()
 		_, err := Start(testutil.Context(t), Spec{
@@ -233,6 +248,10 @@ func TestBridge(t *testing.T) {
 func TestBridgeStdioHelperProcess(t *testing.T) {
 	if os.Getenv(helperEnv) != "1" {
 		t.Skip("helper process only")
+	}
+	if os.Getenv(helperFailEnv) == "1" {
+		fmt.Fprintln(os.Stderr, "fixture refused to start")
+		os.Exit(3)
 	}
 	if pidFile := os.Getenv(helperPIDFileEnv); pidFile != "" {
 		child := exec.CommandContext(context.Background(), "sleep", "300")
