@@ -278,7 +278,7 @@ function ReportBody({
       return skillReviewId ? (
         <SkillReviewCard
           agent={agent}
-          profile={instance?.profile_name}
+          instanceId={data.instance_id}
           reviewId={skillReviewId}
           when={reportClock(data.created_at)}
         />

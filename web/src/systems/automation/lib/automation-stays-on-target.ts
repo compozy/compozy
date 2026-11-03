@@ -32,6 +32,7 @@ function scopeLabel(instance: Pick<AgentInstancePayload, "workspace_id" | "scope
 }
 
 export function staysOnTargetModel(input: {
+  /** Instances in the trigger's own profile: the daemon resolves the target only there. */
   instances: readonly AgentInstancePayload[];
   agent: string;
   /** The trigger's own scope: `""` for User. */

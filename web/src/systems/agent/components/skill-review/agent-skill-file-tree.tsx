@@ -1,4 +1,7 @@
-/** The proposed skill's folders and files. No shared tree exists yet, so it stays with the review. */
+/**
+ * The proposed skill's folders and files: a nested list of buttons, the open file marked current.
+ * The surrounding `nav` names it; no tree role, since it has no tree keyboard model.
+ */
 import { ChevronRight, FileCode, FileText, Folder, FolderOpen } from "@compozy/ui/icons";
 import { useMemo, useState, type ReactNode } from "react";
 
@@ -44,14 +47,23 @@ function TreeRowButton({
   className,
   onClick,
   children,
+  ...aria
 }: {
   depth: number;
   className: string;
   onClick: () => void;
   children: ReactNode;
+  "aria-expanded"?: boolean;
+  "aria-current"?: "true";
 }) {
   return (
-    <button className={cn(ROW, className)} onClick={onClick} style={indent(depth)} type="button">
+    <button
+      className={cn(ROW, className)}
+      onClick={onClick}
+      style={indent(depth)}
+      type="button"
+      {...aria}
+    >
       {children}
     </button>
   );
@@ -69,8 +81,9 @@ function FolderRow({
   const [open, setOpen] = useState(true);
   const Glyph = open ? FolderOpen : Folder;
   return (
-    <li aria-expanded={open} role="treeitem">
+    <li>
       <TreeRowButton
+        aria-expanded={open}
         className="text-muted-foreground"
         depth={depth}
         onClick={() => setOpen(value => !value)}
@@ -85,7 +98,7 @@ function FolderRow({
         <Glyph aria-hidden="true" className="size-4 shrink-0 text-subtle" />
         <span className="truncate">{folder.name}</span>
       </TreeRowButton>
-      {open ? <ul role="group">{children}</ul> : null}
+      {open ? <ul>{children}</ul> : null}
     </li>
   );
 }
@@ -104,8 +117,9 @@ function FileRow({
   const Glyph = file.language === "markdown" ? FileText : FileCode;
   const name = file.path.split("/").at(-1);
   return (
-    <li aria-selected={selected} role="treeitem">
+    <li>
       <TreeRowButton
+        aria-current={selected ? "true" : undefined}
         className={selected ? "bg-selected text-fg" : "text-fg-2"}
         depth={depth + 1}
         onClick={onSelect}
@@ -166,7 +180,7 @@ export function AgentSkillFileTree({
 }) {
   const tree = useMemo(() => buildTree(files), [files]);
   return (
-    <ul aria-label="Skill files" className="flex flex-col gap-0.5" role="tree">
+    <ul className="flex flex-col gap-0.5">
       <FolderItems depth={0} folder={tree} onSelect={onSelect} selected={selected} />
     </ul>
   );

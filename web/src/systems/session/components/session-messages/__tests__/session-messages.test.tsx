@@ -33,6 +33,14 @@ import { SessionSentCard, type SessionSentCardProps } from "../session-sent-card
 import { sessionPartyMark } from "../session-message-party";
 import { useSessionLabel } from "../use-session-label";
 import { useSessionMessageOpen } from "../use-session-message-open";
+import { agentInstanceFixture } from "@/systems/agent/mocks";
+import type { AgentInstancePayload } from "@/systems/agent";
+
+const staysOn = vi.hoisted(() => ({ instances: [] as AgentInstancePayload[] }));
+vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
+  fetchAgentInstances: async () => ({ instances: staysOn.instances, capacity: {} }),
+}));
 
 // Suite: session message surfaces (`_uiux.md` S1–S4; UT-061..064, UT-066, UT-067).
 // Invariant: the daemon's typed origin / synthetic / part facts map to one view model, and the
@@ -529,7 +537,26 @@ describe("long party titles (#1097)", () => {
 
 describe("useSessionLabel", () => {
   beforeEach(() => {
+    staysOn.instances = [];
     stubDetailReads({ [SENDER_ID]: sessionDetail(SENDER_ID, "Billing refactor · PR split") });
+  });
+
+  it("Should name a stays-on agent's current main by the agent, not its session (UT-080)", async () => {
+    staysOn.instances = [
+      agentInstanceFixture({ id: "ainst-1", label: "Triage Lead", main_session_id: SENDER_ID }),
+    ];
+    const { result } = renderHook(
+      () =>
+        useSessionLabel({
+          sessionId: SENDER_ID,
+          workspaceId: WS,
+          currentWorkspaceId: WS,
+          agentName: "claude",
+          titleAtSend: "Refactor billing",
+        }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.title).toBe("Triage Lead"));
   });
 
   it("Should show the current title once the detail read lands, not the recorded one (UT-063)", async () => {

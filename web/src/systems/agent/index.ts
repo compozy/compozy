@@ -355,6 +355,7 @@ export {
   useResumeAgentInstances,
   useAgentInstanceCapacity,
   useAgentInstances,
+  useAgentInstancesState,
   useAgentInstanceInScope,
   useCreateAgentInstance,
   useStaysOnAgents,

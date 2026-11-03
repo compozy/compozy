@@ -119,7 +119,7 @@ export function agentInstanceIndeterminateReportsOptions(ref: AgentInstanceRef) 
 /** One proposed skill with its exact contents (S9); a decision rereads it. */
 export function agentSkillReviewOptions(ref: AgentSkillReviewRef) {
   return queryOptions({
-    queryKey: agentKeys.skillReview(ref.id),
+    queryKey: agentKeys.skillReview(ref.id, ref.profile),
     queryFn: ({ signal }) => fetchAgentSkillReview(ref, signal),
     staleTime: 30_000,
     retry: false,

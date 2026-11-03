@@ -17,11 +17,8 @@ import {
   Pill,
 } from "@compozy/ui";
 
-import {
-  SKILL_DEFINITION_FILE,
-  skillMarkdownRead,
-  type SkillReviewFile,
-} from "../../lib/agent-skill-review";
+import { skillMarkdownRead } from "../../lib/agent-skill-markdown-read";
+import { SKILL_DEFINITION_FILE, type SkillReviewFile } from "../../lib/agent-skill-review";
 import { AgentSkillFileTree } from "./agent-skill-file-tree";
 
 type ReadMode = "read" | "source";

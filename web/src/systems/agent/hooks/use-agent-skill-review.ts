@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { skillKeys } from "@/systems/skill";
+
 import {
   decideAgentSkillReview,
   isSkillReviewStale,
@@ -17,13 +19,15 @@ import { agentKeys } from "../lib/query-keys";
 import { agentSkillReviewOptions } from "../lib/query-options";
 
 /**
- * One proposed skill and the operator's decision on it (S9). A decision names the digest that was
- * read; when the agent changed the contents since, the daemon refuses with `skill_review_stale`,
- * the review rereads, and `stale` stays on until the operator decides on the latest.
+ * One proposed skill and the operator's decision on it (S9). `ref` is `null` until the caller
+ * knows the instance's profile, so neither the read nor a decision goes out under the wrong one.
+ * A decision names the digest that was read; when the agent changed the contents since, the daemon
+ * refuses with `skill_review_stale` and the review rereads. Until the reread brings a different
+ * digest the decision stays off, and only then does the view call it the latest version.
  */
 export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
   const queryClient = useQueryClient();
-  const [stale, setStale] = useState(false);
+  const [staleDigest, setStaleDigest] = useState<string | null>(null);
   const query = useQuery({
     ...agentSkillReviewOptions(ref ?? { id: "" }),
     enabled: Boolean(ref?.id),
@@ -32,30 +36,38 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
   const mutation = useMutation({
     mutationFn: ({ decision, digest }: { decision: AgentSkillReviewDecision; digest: string }) =>
       decideAgentSkillReview(ref!, decision, digest),
-    onSuccess: decided => {
-      setStale(false);
-      queryClient.setQueryData(agentKeys.skillReview(decided.id), decided);
+    onSuccess: (decided, { decision }) => {
+      setStaleDigest(null);
+      queryClient.setQueryData(agentKeys.skillReview(decided.id, ref?.profile), decided);
+      void queryClient.invalidateQueries({
+        queryKey: agentKeys.instanceReports(decided.instance_id),
+      });
+      if (decision === "approve") void queryClient.invalidateQueries({ queryKey: skillKeys.all });
     },
-    onError: error => {
+    onError: (error, { digest }) => {
       if (!isSkillReviewStale(error) || !ref) return;
-      setStale(true);
-      void queryClient.invalidateQueries({ queryKey: agentKeys.skillReview(ref.id) });
+      setStaleDigest(digest);
+      void queryClient.invalidateQueries({ queryKey: agentKeys.skillReview(ref.id, ref.profile) });
     },
   });
   const files = review ? skillReviewFiles(review) : [];
+  const awaitingLatest = staleDigest !== null && review?.digest === staleDigest;
   return {
     review,
-    loading: query.isPending && Boolean(ref?.id),
+    loading: ref === null || (query.isPending && Boolean(ref.id)),
     loadError: query.error,
     files,
     why: review ? skillReviewWhy(review) : undefined,
     automatic: review ? skillAutomaticItems(review, files) : [],
     state: review ? skillReviewState(review) : "pending",
-    stale,
-    deciding: mutation.isPending,
+    /** The contents changed after the operator read them, and this is the newer version. */
+    stale: staleDigest !== null && !awaitingLatest,
+    deciding: mutation.isPending || query.isFetching || awaitingLatest,
     decideError: mutation.error && !isSkillReviewStale(mutation.error) ? mutation.error : null,
     decide: (decision: AgentSkillReviewDecision) => {
-      if (review) mutation.mutate({ decision, digest: review.digest });
+      if (review && !query.isFetching && !awaitingLatest) {
+        mutation.mutate({ decision, digest: review.digest });
+      }
     },
   };
 }

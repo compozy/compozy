@@ -142,23 +142,6 @@ export function skillAutomaticItems(
   return items;
 }
 
-/** Raw HTML and comments, which Read strips, so they never reach the screen there. */
-const HIDDEN_IN_READ = /<!--|<\/?[a-z][^>]*>/i;
-const READ_METADATA_KEYS = new Set(["name", "description"]);
-
-/**
- * What Read shows of a Markdown file: the body without its frontmatter. `hidesText` is true when
- * Read leaves something out besides the name and description, so the viewer points to Source.
- */
-export function skillMarkdownRead(body: string): { text: string; hidesText: boolean } {
-  const split = splitFrontmatter(body);
-  if (!split) return { text: body, hidesText: true };
-  const metadata = split.metadata === null ? {} : parseFrontmatter(split.metadata);
-  const extraMetadata =
-    metadata === null || Object.keys(metadata).some(key => !READ_METADATA_KEYS.has(key));
-  return { text: split.body, hidesText: extraMetadata || HIDDEN_IN_READ.test(split.body) };
-}
-
 export function skillReviewState(review: AgentSkillReviewPayload): AgentSkillReviewState {
   return review.state === "approved" || review.state === "rejected" ? review.state : "pending";
 }
