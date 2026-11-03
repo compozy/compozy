@@ -5,16 +5,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
+	"go/constant"
+	"go/types"
 	"maps"
-	"os"
-	"path/filepath"
 	"reflect"
 	"slices"
-	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -25,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	jsonschemakind "github.com/santhosh-tekuri/jsonschema/v6/kind"
+	"golang.org/x/tools/go/packages"
 )
 
 func TestBuiltinNativeDescriptors(t *testing.T) {
@@ -3020,64 +3018,65 @@ func payloadJSONFields(typ reflect.Type) map[string]payloadJSONField {
 	return fields
 }
 
-// namedStringConstants reads the string constants declared for a named type from its package
-// source, so a new constant reaches the enum check without a hand-maintained list.
+// namedStringConstants returns the string constants the type checker assigns to a named type,
+// so a new constant reaches the enum check without a hand-maintained list, whatever its form.
 func namedStringConstants(t *testing.T, typ reflect.Type) []string {
 	t.Helper()
-	const module = "github.com/compozy/compozy/"
-	relative, ok := strings.CutPrefix(typ.PkgPath(), module)
-	if !ok {
-		return nil
-	}
-	dir := filepath.Join("..", "..", "..", filepath.FromSlash(relative))
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read %s source: %v", typ.PkgPath(), err)
-	}
-	fset := token.NewFileSet()
-	var values []string
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		file, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.SkipObjectResolution)
-		if err != nil {
-			t.Fatalf("parse %s: %v", name, err)
-		}
-		values = append(values, fileStringConstants(file, typ.Name())...)
-	}
-	return values
+	return packageStringConstants(t, typ.PkgPath(), typ.Name())
 }
 
-func fileStringConstants(file *ast.File, typeName string) []string {
-	var values []string
-	for _, decl := range file.Decls {
-		gen, ok := decl.(*ast.GenDecl)
-		if !ok || gen.Tok != token.CONST {
+var typeCheckedPackages sync.Map // package path -> *types.Package
+
+func packageStringConstants(t *testing.T, pkgPath string, typeName string) []string {
+	t.Helper()
+	scope := typeCheckedPackage(t, pkgPath).Scope()
+	values := make([]string, 0)
+	for _, name := range scope.Names() {
+		value, ok := scope.Lookup(name).(*types.Const)
+		if !ok || value.Val().Kind() != constant.String {
 			continue
 		}
-		for _, spec := range gen.Specs {
-			valueSpec, ok := spec.(*ast.ValueSpec)
-			if !ok {
-				continue
-			}
-			ident, ok := valueSpec.Type.(*ast.Ident)
-			if !ok || ident.Name != typeName {
-				continue
-			}
-			for _, expr := range valueSpec.Values {
-				literal, ok := expr.(*ast.BasicLit)
-				if !ok || literal.Kind != token.STRING {
-					continue
-				}
-				if value, err := strconv.Unquote(literal.Value); err == nil {
-					values = append(values, value)
-				}
-			}
+		named, ok := value.Type().(*types.Named)
+		if !ok || named.Obj().Pkg() == nil || named.Obj().Pkg().Path() != pkgPath || named.Obj().Name() != typeName {
+			continue
 		}
+		values = append(values, constant.StringVal(value.Val()))
 	}
-	return values
+	slices.Sort(values)
+	return slices.Compact(values)
+}
+
+func typeCheckedPackage(t *testing.T, pkgPath string) *types.Package {
+	t.Helper()
+	if cached, ok := typeCheckedPackages.Load(pkgPath); ok {
+		return cached.(*types.Package)
+	}
+	loaded, err := packages.Load(&packages.Config{Mode: packages.NeedName | packages.NeedTypes}, pkgPath)
+	if err != nil {
+		t.Fatalf("load %s: %v", pkgPath, err)
+	}
+	if len(loaded) != 1 || len(loaded[0].Errors) > 0 || loaded[0].Types == nil {
+		t.Fatalf("load %s: %d packages, errors %v", pkgPath, len(loaded), packages.PrintErrors(loaded))
+	}
+	cached, _ := typeCheckedPackages.LoadOrStore(pkgPath, loaded[0].Types)
+	return cached.(*types.Package)
+}
+
+func TestPackageStringConstants(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should read every constant form the type checker assigns to a named string type", func(t *testing.T) {
+		t.Parallel()
+		got := packageStringConstants(
+			t,
+			"github.com/compozy/compozy/internal/tools/builtin/testdata/driftconst",
+			"Kind",
+		)
+		want := []string{"converted", "explicit", "joined"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("Kind constants = %v, want %v", got, want)
+		}
+	})
 }
 
 func TestTerminalDescriptorsShouldKeepObserveOnlyAgentsReadOnly(t *testing.T) { // IT-026
