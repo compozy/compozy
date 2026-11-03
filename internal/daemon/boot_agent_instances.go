@@ -16,6 +16,7 @@ type instanceRepositoryProvider interface {
 	SetUnattendedTurnLimit(int64) error
 	Instances() *globaldb.InstanceRepo
 	InstanceReports() *globaldb.InstanceReportRepo
+	SkillReviews() *globaldb.SkillReviewRepo
 }
 
 func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error {
@@ -91,6 +92,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		},
 		Authority: agentinstance.Authority{Callers: repo},
 	}
+	d.bindInstanceSkillReviews(state, provider, definitions)
 	state.deps.AgentInstances = state.agentInstances
 	bindInstanceCatalogReconciliation(ctx, state, service.Reconcile)
 	if err := service.Reconcile(ctx); err != nil {

@@ -1231,3 +1231,150 @@ func TestAgentInstanceNextWake(t *testing.T) {
 		})
 	}
 }
+
+// Invariant: review pages are scoped before pagination; only operators can decide exact contents.
+// Owning layer: shared HTTP/UDS core; canonical suite: TestAgentSkillReviews.
+func TestAgentSkillReviews(t *testing.T) {
+	t.Run("Should bind pages to their scope and require operator decisions [UT-045]", func(t *testing.T) {
+		t.Parallel()
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "reviews.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		repo := db.Instances()
+		instance, _, err := repo.AdmitCreate(
+			t.Context(),
+			agentinstance.Instance{
+				AgentName:         "coder",
+				ProfileID:         store.DefaultProfileID,
+				CreatedByKind:     "human",
+				PermissionCeiling: "{}",
+			},
+			10,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		boundary := instanceAPIInputs{instance: instance}
+		authority := agentinstance.Authority{Callers: boundary}
+		scanRoot := filepath.Join(t.TempDir(), "skills")
+		service := &agentinstance.SkillProposalService{
+			Store:     db.SkillReviews(),
+			Authority: authority,
+			DraftRoot: t.TempDir(),
+			ScanRoots: []string{scanRoot},
+		}
+		var reviews []agentinstance.SkillReview
+		for _, name := range []string{"first", "second"} {
+			review, err := service.Propose(
+				t.Context(),
+				workspaceaccess.ActorRef{Operator: true},
+				instance,
+				scanRoot,
+				agentinstance.SkillProposalInput{
+					Name:        name,
+					Description: "Review changes",
+					Body:        "Read the diff.",
+					Files:       []agentinstance.SkillDraftFile{{Path: "scripts/read.sh", Content: "echo reviewed"}},
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			reviews = append(reviews, review)
+		}
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{
+					ID:                   "caller",
+					AgentName:            "coder",
+					ProfileID:            store.DefaultProfileID,
+					State:                session.StateActive,
+					EffectivePermissions: "approve-all",
+				}, nil
+			}},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+			Store:          repo,
+			Authority:      authority,
+			SkillProposals: service,
+			SkillTarget: func(context.Context, agentinstance.Instance) (string, []string, error) {
+				return scanRoot, []string{scanRoot}, nil
+			},
+		}
+		fixture.Handlers.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{
+			AuthorizeFn: func(context.Context, workspaceaccess.Request) (workspaceaccess.Decision, error) {
+				return workspaceaccess.Decision{Allowed: true}, nil
+			},
+		}
+		fixture.Engine.GET("/reviews", fixture.Handlers.ListAgentSkillReviews)
+		fixture.Engine.GET("/reviews/:id", fixture.Handlers.GetAgentSkillReview)
+		fixture.Engine.POST("/reviews/:id/approve", fixture.Handlers.ApproveAgentSkillReview)
+		fixture.Engine.POST("/reviews/:id/reject", fixture.Handlers.RejectAgentSkillReview)
+		request := func(method, path, body string, agent bool) *httptest.ResponseRecorder {
+			t.Helper()
+			req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
+			if agent {
+				req.Header.Set(agentidentity.HeaderSessionID, "caller")
+				req.Header.Set(agentidentity.HeaderAgent, "coder")
+			}
+			recorder := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(recorder, req)
+			return recorder
+		}
+		first := request("GET", "/reviews?limit=1", "", true)
+		if first.Code != 200 {
+			t.Fatal(first.Code, first.Body.String())
+		}
+		var page contract.AgentSkillReviewsResponse
+		decodeJSON(t, first.Body.Bytes(), &page)
+		if len(page.Reviews) != 1 || page.NextCursor == "" || len(page.Reviews[0].Files) != 0 ||
+			page.Reviews[0].RunsAutomatically.Scripts != 1 {
+			t.Fatalf("first page: %+v", page)
+		}
+		next := request("GET", "/reviews?limit=1&cursor="+page.NextCursor, "", true)
+		var second contract.AgentSkillReviewsResponse
+		decodeJSON(t, next.Body.Bytes(), &second)
+		if next.Code != 200 || len(second.Reviews) != 1 || second.Reviews[0].ID == page.Reviews[0].ID ||
+			second.NextCursor != "" {
+			t.Fatalf("next page: %d %+v", next.Code, second)
+		}
+		mismatch := request("GET", "/reviews?state=pending&cursor="+page.NextCursor, "", true)
+		if mismatch.Code != 422 {
+			t.Fatalf("changed filters: %d %s", mismatch.Code, mismatch.Body.String())
+		}
+		for _, action := range []string{"approve", "reject"} {
+			denial := request("POST", "/reviews/"+reviews[0].ID+"/"+action, `{"digest":"`+reviews[0].Digest+`"}`, true)
+			var failure contract.ErrorPayload
+			decodeJSON(t, denial.Body.Bytes(), &failure)
+			if denial.Code != 403 || failure.Code != "skill_review_operator_only" {
+				t.Fatalf("agent decision: %d %+v", denial.Code, failure)
+			}
+		}
+		stale := request("POST", "/reviews/"+reviews[0].ID+"/approve", `{"digest":"old"}`, false)
+		if stale.Code != 409 {
+			t.Fatalf("stale: %d %s", stale.Code, stale.Body.String())
+		}
+		accepted := request("POST", "/reviews/"+reviews[0].ID+"/approve", `{"digest":"`+reviews[0].Digest+`"}`, false)
+		var decision contract.AgentSkillReviewResponse
+		decodeJSON(t, accepted.Body.Bytes(), &decision)
+		if accepted.Code != 200 || decision.Review.State != "approved" || len(decision.Review.Files) != 2 {
+			t.Fatalf("approval: %d %+v", accepted.Code, decision)
+		}
+		installed, err := os.ReadFile(filepath.Join(scanRoot, "first", "SKILL.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(installed) != decision.Review.Files[0].Content {
+			t.Fatal("installed bytes differ from review")
+		}
+	})
+}

@@ -7,6 +7,56 @@ import (
 	"time"
 )
 
+// ErrorCode is a daemon API value.
+type ErrorCode string
+
+// ErrorPayload is a daemon API value.
+type ErrorPayload struct {
+	Blockers      []WorkspaceArchiveBlocker `json:"blockers,omitempty"`
+	Error         string                    `json:"error"`
+	Code          string                    `json:"code,omitempty"`
+	CurrentTurnID string                    `json:"current_turn_id,omitempty"`
+	Details       map[string]string         `json:"details,omitempty"`
+	Diagnostic    *DiagnosticItem           `json:"diagnostic,omitzero"`
+	ConfigPath    string                    `json:"config_path,omitempty"`
+	UnknownKeys   []string                  `json:"unknown_keys,omitempty"`
+}
+
+// ErrorPolicy is a daemon API value.
+type ErrorPolicy struct {
+	Route     NodeID       `json:"route,omitempty"`
+	AllowFail bool         `json:"allow_fail,omitzero"`
+	Effects   []EffectSpec `json:"effects,omitempty"`
+}
+
+// EvalErrorPolicy is a daemon API value.
+type EvalErrorPolicy string
+
+// EventSubscription is a daemon API value.
+type EventSubscription struct {
+	Kind   string `json:"kind"`
+	Filter string `json:"filter,omitempty"`
+}
+
+// ExecutionPolicy is a daemon API value.
+type ExecutionPolicy struct {
+	SingleFlight bool `json:"single_flight"`
+	RetrySafe    bool `json:"retry_safe"`
+}
+
+// ExecutionProfile is a daemon API value.
+type ExecutionProfile struct {
+	TaskID       string             `json:"task_id"`
+	Coordinator  CoordinatorProfile `json:"coordinator"`
+	Worker       WorkerProfile      `json:"worker"`
+	Review       ReviewProfile      `json:"review"`
+	Participants ParticipantPolicy  `json:"participants"`
+	Worktree     WorktreePolicy     `json:"worktree"`
+	Runtime      RuntimePolicy      `json:"runtime"`
+	CreatedAt    time.Time          `json:"created_at"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+}
+
 // ExtensionCommandGroupPayload is a daemon API value.
 type ExtensionCommandGroupPayload struct {
 	Extension string `json:"extension"`
@@ -393,55 +443,4 @@ type FormBody struct {
 	Fields   []FormField `json:"fields"`
 	Submit   *RowAction  `json:"submit,omitempty"`
 	OnSubmit string      `json:"on_submit,omitempty"`
-}
-
-// FormField is a daemon API value.
-type FormField struct {
-	ID          string            `json:"id"`
-	Type        string            `json:"type"`
-	Label       string            `json:"label"`
-	Placeholder string            `json:"placeholder,omitempty"`
-	Required    bool              `json:"required,omitempty"`
-	Options     []string          `json:"options,omitempty"`
-	Directories bool              `json:"directories,omitempty"`
-	Default     any               `json:"default,omitempty"`
-	Error       string            `json:"error,omitempty"`
-	EmptyHint   string            `json:"empty_hint,omitempty"`
-	OnChange    string            `json:"on_change,omitempty"`
-	OnBlur      string            `json:"on_blur,omitempty"`
-	EventCount  int64             `json:"event_count,omitempty"`
-	Requires    map[string]string `json:"requires,omitempty"`
-	Fallback    string            `json:"fallback,omitempty"`
-}
-
-// GapsConfig is a daemon API value.
-type GapsConfig struct {
-	Inner  float64 `json:"inner"`
-	Top    float64 `json:"top"`
-	Right  float64 `json:"right"`
-	Bottom float64 `json:"bottom"`
-	Left   float64 `json:"left"`
-}
-
-// GateCriterion is a daemon API value.
-type GateCriterion struct {
-	ID       string         `json:"id"`
-	Type     CriterionType  `json:"type"`
-	Check    string         `json:"check,omitempty"`
-	Expect   string         `json:"expect,omitempty"`
-	Contains string         `json:"contains,omitempty"`
-	Agent    string         `json:"agent,omitempty"`
-	Runtime  RuntimeSpec    `json:"runtime,omitzero"`
-	Rubric   string         `json:"rubric,omitempty"`
-	Prompt   string         `json:"prompt,omitempty"`
-	Tool     string         `json:"tool,omitempty"`
-	Inputs   map[string]any `json:"inputs,omitempty"`
-	Metric   *MetricSpec    `json:"metric,omitzero"`
-}
-
-// GatewayAddressPayload is a daemon API value.
-type GatewayAddressPayload struct {
-	Tier    string `json:"tier"`
-	Address string `json:"address"`
-	Live    bool   `json:"live"`
 }

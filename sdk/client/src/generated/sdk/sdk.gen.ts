@@ -49,6 +49,9 @@ import type {
   ApplySettingsUpdateData,
   ApplySettingsUpdateErrors,
   ApplySettingsUpdateResponses,
+  ApproveAgentSkillReviewData,
+  ApproveAgentSkillReviewErrors,
+  ApproveAgentSkillReviewResponses,
   ApproveLoopRunData,
   ApproveLoopRunErrors,
   ApproveLoopRunResponses,
@@ -442,6 +445,9 @@ import type {
   GetAgentMemoryResponses,
   GetAgentMeResponses,
   GetAgentResponses,
+  GetAgentSkillReviewData,
+  GetAgentSkillReviewErrors,
+  GetAgentSkillReviewResponses,
   GetAgentSoulData,
   GetAgentSoulErrors,
   GetAgentSoulResponses,
@@ -797,6 +803,9 @@ import type {
   ListAgentsAggregateResponses,
   ListAgentsData,
   ListAgentsErrors,
+  ListAgentSkillReviewsData,
+  ListAgentSkillReviewsErrors,
+  ListAgentSkillReviewsResponses,
   ListAgentSoulHistoryData,
   ListAgentSoulHistoryErrors,
   ListAgentSoulHistoryResponses,
@@ -1218,6 +1227,9 @@ import type {
   RegisterWindowManagerClientData,
   RegisterWindowManagerClientErrors,
   RegisterWindowManagerClientResponses,
+  RejectAgentSkillReviewData,
+  RejectAgentSkillReviewErrors,
+  RejectAgentSkillReviewResponses,
   RejectTaskData,
   RejectTaskErrors,
   RejectTaskResponses,
@@ -1946,6 +1958,101 @@ export class agents extends HeyApiClient {
       responseStyle: "data",
       url: "/api/agent-instances/{id}/resume",
       ...options,
+    });
+  }
+
+  /**
+   * List agent skill reviews (experimental)
+   */
+  public listAgentSkillReviews<ThrowOnError extends boolean = true>(
+    options?: Options<ListAgentSkillReviewsData, ThrowOnError>
+  ): RequestResult<
+    ListAgentSkillReviewsResponses,
+    ListAgentSkillReviewsErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options?.client ?? this.client).get<
+      ListAgentSkillReviewsResponses,
+      ListAgentSkillReviewsErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-skill-reviews",
+      ...options,
+    });
+  }
+
+  /**
+   * Read exact proposed skill contents (experimental)
+   */
+  public getAgentSkillReview<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentSkillReviewData, ThrowOnError>
+  ): RequestResult<GetAgentSkillReviewResponses, GetAgentSkillReviewErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).get<
+      GetAgentSkillReviewResponses,
+      GetAgentSkillReviewErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-skill-reviews/{id}",
+      ...options,
+    });
+  }
+
+  /**
+   * Decide a skill review as the operator (experimental)
+   */
+  public approveAgentSkillReview<ThrowOnError extends boolean = true>(
+    options: Options<ApproveAgentSkillReviewData, ThrowOnError>
+  ): RequestResult<
+    ApproveAgentSkillReviewResponses,
+    ApproveAgentSkillReviewErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ApproveAgentSkillReviewResponses,
+      ApproveAgentSkillReviewErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-skill-reviews/{id}/approve",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Decide a skill review as the operator (experimental)
+   */
+  public rejectAgentSkillReview<ThrowOnError extends boolean = true>(
+    options: Options<RejectAgentSkillReviewData, ThrowOnError>
+  ): RequestResult<
+    RejectAgentSkillReviewResponses,
+    RejectAgentSkillReviewErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      RejectAgentSkillReviewResponses,
+      RejectAgentSkillReviewErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agent-skill-reviews/{id}/reject",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
     });
   }
 

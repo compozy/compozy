@@ -7,6 +7,51 @@ import (
 	"time"
 )
 
+// GridTile is a daemon API value.
+type GridTile struct {
+	ID       string            `json:"id"`
+	Title    string            `json:"title"`
+	Image    Image             `json:"image"`
+	Badge    *ViewBadge        `json:"badge,omitempty"`
+	Actions  []RowAction       `json:"actions,omitempty"`
+	Requires map[string]string `json:"requires,omitempty"`
+	Fallback string            `json:"fallback,omitempty"`
+}
+
+// GroupID is a daemon API value.
+type GroupID string
+
+// GroupedAgentCatalogItemPayload is a daemon API value.
+type GroupedAgentCatalogItemPayload struct {
+	Name             string       `json:"name"`
+	Label            string       `json:"label"`
+	Kind             string       `json:"kind"`
+	DefinitionDigest string       `json:"definition_digest"`
+	Scopes           []string     `json:"scopes"`
+	Active           int          `json:"active"`
+	Agent            AgentPayload `json:"agent"`
+}
+
+// HarvestSpec is a daemon API value.
+type HarvestSpec struct {
+	Kind string `json:"kind,omitempty"`
+}
+
+// HeartbeatActorKind is a daemon API value.
+type HeartbeatActorKind string
+
+// HeartbeatActorPayload is a daemon API value.
+type HeartbeatActorPayload struct {
+	Kind HeartbeatActorKind `json:"kind"`
+	Ref  string             `json:"ref,omitempty"`
+}
+
+// HeartbeatConfigProvenancePayload is a daemon API value.
+type HeartbeatConfigProvenancePayload struct {
+	Digest string                       `json:"digest"`
+	Subset HeartbeatConfigSubsetPayload `json:"subset"`
+}
+
 // HeartbeatConfigSubsetPayload is a daemon API value.
 type HeartbeatConfigSubsetPayload struct {
 	Enabled                      bool   `json:"enabled"`
@@ -402,27 +447,3 @@ type JobPayload struct {
 	Scheduler    *AutomationSchedulerStatePayload `json:"scheduler,omitzero"`
 	LastRun      *AutomationLastRunPayload        `json:"last_run,omitzero"`
 }
-
-// JobResponse is a daemon API value.
-type JobResponse struct {
-	Job JobPayload `json:"job"`
-}
-
-// JobSource is a daemon API value.
-type JobSource string
-
-// JobTaskConfig is a daemon API value.
-type JobTaskConfig struct {
-	Title       string     `json:"title,omitempty"`
-	Description string     `json:"description,omitempty"`
-	Owner       *Ownership `json:"owner,omitempty"`
-}
-
-// JobsResponse is a daemon API value.
-type JobsResponse struct {
-	Jobs []JobPayload             `json:"jobs"`
-	Page CountedCursorPagePayload `json:"page"`
-}
-
-// LineageKind is a daemon API value.
-type LineageKind string

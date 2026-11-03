@@ -7,6 +7,57 @@ import (
 	"time"
 )
 
+// FormField is a daemon API value.
+type FormField struct {
+	ID          string            `json:"id"`
+	Type        string            `json:"type"`
+	Label       string            `json:"label"`
+	Placeholder string            `json:"placeholder,omitempty"`
+	Required    bool              `json:"required,omitempty"`
+	Options     []string          `json:"options,omitempty"`
+	Directories bool              `json:"directories,omitempty"`
+	Default     any               `json:"default,omitempty"`
+	Error       string            `json:"error,omitempty"`
+	EmptyHint   string            `json:"empty_hint,omitempty"`
+	OnChange    string            `json:"on_change,omitempty"`
+	OnBlur      string            `json:"on_blur,omitempty"`
+	EventCount  int64             `json:"event_count,omitempty"`
+	Requires    map[string]string `json:"requires,omitempty"`
+	Fallback    string            `json:"fallback,omitempty"`
+}
+
+// GapsConfig is a daemon API value.
+type GapsConfig struct {
+	Inner  float64 `json:"inner"`
+	Top    float64 `json:"top"`
+	Right  float64 `json:"right"`
+	Bottom float64 `json:"bottom"`
+	Left   float64 `json:"left"`
+}
+
+// GateCriterion is a daemon API value.
+type GateCriterion struct {
+	ID       string         `json:"id"`
+	Type     CriterionType  `json:"type"`
+	Check    string         `json:"check,omitempty"`
+	Expect   string         `json:"expect,omitempty"`
+	Contains string         `json:"contains,omitempty"`
+	Agent    string         `json:"agent,omitempty"`
+	Runtime  RuntimeSpec    `json:"runtime,omitzero"`
+	Rubric   string         `json:"rubric,omitempty"`
+	Prompt   string         `json:"prompt,omitempty"`
+	Tool     string         `json:"tool,omitempty"`
+	Inputs   map[string]any `json:"inputs,omitempty"`
+	Metric   *MetricSpec    `json:"metric,omitzero"`
+}
+
+// GatewayAddressPayload is a daemon API value.
+type GatewayAddressPayload struct {
+	Tier    string `json:"tier"`
+	Address string `json:"address"`
+	Live    bool   `json:"live"`
+}
+
 // GatewayAuditAuthPayload is a daemon API value.
 type GatewayAuditAuthPayload struct {
 	Mode              string `json:"mode"`
@@ -389,49 +440,4 @@ type GridBody struct {
 type GridSection struct {
 	Title string     `json:"title,omitempty"`
 	Tiles []GridTile `json:"tiles"`
-}
-
-// GridTile is a daemon API value.
-type GridTile struct {
-	ID       string            `json:"id"`
-	Title    string            `json:"title"`
-	Image    Image             `json:"image"`
-	Badge    *ViewBadge        `json:"badge,omitempty"`
-	Actions  []RowAction       `json:"actions,omitempty"`
-	Requires map[string]string `json:"requires,omitempty"`
-	Fallback string            `json:"fallback,omitempty"`
-}
-
-// GroupID is a daemon API value.
-type GroupID string
-
-// GroupedAgentCatalogItemPayload is a daemon API value.
-type GroupedAgentCatalogItemPayload struct {
-	Name             string       `json:"name"`
-	Label            string       `json:"label"`
-	Kind             string       `json:"kind"`
-	DefinitionDigest string       `json:"definition_digest"`
-	Scopes           []string     `json:"scopes"`
-	Active           int          `json:"active"`
-	Agent            AgentPayload `json:"agent"`
-}
-
-// HarvestSpec is a daemon API value.
-type HarvestSpec struct {
-	Kind string `json:"kind,omitempty"`
-}
-
-// HeartbeatActorKind is a daemon API value.
-type HeartbeatActorKind string
-
-// HeartbeatActorPayload is a daemon API value.
-type HeartbeatActorPayload struct {
-	Kind HeartbeatActorKind `json:"kind"`
-	Ref  string             `json:"ref,omitempty"`
-}
-
-// HeartbeatConfigProvenancePayload is a daemon API value.
-type HeartbeatConfigProvenancePayload struct {
-	Digest string                       `json:"digest"`
-	Subset HeartbeatConfigSubsetPayload `json:"subset"`
 }

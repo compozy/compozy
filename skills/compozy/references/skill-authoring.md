@@ -32,3 +32,23 @@ After approval, the skill behaves like any other skill in its tier. It is not tr
 ## Boundary
 
 This approval path applies to proposals submitted through the tool. Skills written directly through file tools retain their existing behavior, including hooks. There is no folder watcher, baseline, or catalog filter enforcing proposal approval on file writes. A proposal never grants permission for unrelated actions.
+
+## Review commands and exact contents
+
+Use the operator CLI to inspect the proposal and decide the digest you reviewed:
+
+```sh
+compozy agent skill review list --workspace my-project
+compozy agent skill review show <review-id>
+compozy agent skill review approve <review-id> --expected-digest <reviewed-digest>
+compozy agent skill review reject <review-id> --expected-digest <reviewed-digest>
+```
+
+For a User-scope instance, select `--workspace @user`. Review output shows **Runs automatically**
+before the exact proposed files. Agent credentials cannot decide even with `approve-all`.
+Approval never replaces existing different contents. A repeated approval of the same installed
+contents is safe and retries catalog publication after an interrupted response.
+
+The tool represents supporting files as `{path, content}`. Paths are relative; the daemon generates
+`SKILL.md` from `name`, `description`, and `body`. The proposal accepts at most 64 supporting files,
+20 evidence session IDs, and 1 MiB of encoded draft contents. Never include secrets.

@@ -7,6 +7,58 @@ import (
 	"time"
 )
 
+// ChangeSet is a daemon API value.
+type ChangeSet struct {
+	DesktopIDs     []DesktopID             `json:"desktop_ids,omitempty"`
+	WindowIDs      []WindowID              `json:"window_ids,omitempty"`
+	GroupIDs       []GroupID               `json:"group_ids,omitempty"`
+	NodeIDs        []WindowmanagerNodeID   `json:"node_ids,omitempty"`
+	ClientIDs      []WindowmanagerClientID `json:"client_ids,omitempty"`
+	StackGrouped   []WindowmanagerNodeID   `json:"stack_grouped,omitempty"`
+	StackUngrouped []WindowmanagerNodeID   `json:"stack_ungrouped,omitempty"`
+}
+
+// ChecksState is a daemon API value.
+type ChecksState string
+
+// Chip is a daemon API value.
+type Chip struct {
+	ID       string            `json:"id"`
+	Label    string            `json:"label"`
+	Count    *int              `json:"count,omitempty"`
+	Requires map[string]string `json:"requires,omitempty"`
+	Fallback string            `json:"fallback,omitempty"`
+}
+
+// ClarificationAnswerRequest is a daemon API value.
+type ClarificationAnswerRequest struct {
+	ChoiceIndex *int   `json:"choice_index,omitzero"`
+	Text        string `json:"text,omitempty"`
+}
+
+// ClarificationPendingPayload is a daemon API value.
+type ClarificationPendingPayload struct {
+	RequestID string     `json:"request_id"`
+	SessionID string     `json:"session_id"`
+	AgentName string     `json:"agent_name"`
+	Question  string     `json:"question"`
+	Choices   []string   `json:"choices,omitempty"`
+	AskedAt   time.Time  `json:"asked_at"`
+	Deadline  *time.Time `json:"deadline"`
+}
+
+// ClarificationsResponse is a daemon API value.
+type ClarificationsResponse struct {
+	Clarifications []ClarificationPendingPayload `json:"clarifications"`
+}
+
+// ClarifyAnswer is a daemon API value.
+type ClarifyAnswer struct {
+	Choice   *int   `json:"choice"`
+	Text     string `json:"text"`
+	Fallback bool   `json:"fallback"`
+}
+
 // ClearTaskBlockRequest is a daemon API value.
 type ClearTaskBlockRequest struct {
 	Note string `json:"note,omitempty"`
@@ -390,58 +442,4 @@ type CreateAgentPayload struct {
 	Skills             *CreateAgentSkillsConfig            `json:"skills,omitzero"`
 	FallbackChain      []AgentFallbackRoutePayload         `json:"fallback_chain,omitempty"`
 	Prompt             string                              `json:"prompt"`
-}
-
-// CreateAgentRequest is a daemon API value.
-type CreateAgentRequest struct {
-	Scope     AgentCreateScope   `json:"scope"`
-	Workspace string             `json:"workspace,omitempty"`
-	Agent     CreateAgentPayload `json:"agent"`
-}
-
-// CreateAgentSkillsConfig is a daemon API value.
-type CreateAgentSkillsConfig struct {
-	Disabled []string `json:"disabled,omitempty"`
-}
-
-// CreateAppTokenRequest is a daemon API value.
-type CreateAppTokenRequest struct {
-	Name    string   `json:"name"`
-	Origins []string `json:"origins,omitempty"`
-}
-
-// CreateJobRequest is a daemon API value.
-type CreateJobRequest struct {
-	Scope       Scope            `json:"scope"`
-	Name        string           `json:"name"`
-	TargetKind  TargetKind       `json:"target_kind,omitempty"`
-	AgentName   string           `json:"agent_name"`
-	WorkspaceID string           `json:"workspace_id,omitempty"`
-	Prompt      string           `json:"prompt"`
-	Schedule    ScheduleSpec     `json:"schedule"`
-	Task        *JobTaskConfig   `json:"task,omitempty"`
-	LoopTarget  *LoopTarget      `json:"loop_target,omitempty"`
-	Enabled     *bool            `json:"enabled,omitempty"`
-	Retry       *RetryConfig     `json:"retry,omitempty"`
-	FireLimit   *FireLimitConfig `json:"fire_limit,omitempty"`
-}
-
-// CreateLoopRequest is a daemon API value.
-type CreateLoopRequest struct {
-	Definition   *LoopDefinitionDocument `json:"definition,omitzero"`
-	ForkFromName string                  `json:"fork_from_name,omitempty"`
-}
-
-// CreateProfileRequest is a daemon API value.
-type CreateProfileRequest struct {
-	Name     string            `json:"name"`
-	Color    string            `json:"color,omitempty"`
-	Icon     string            `json:"icon,omitempty"`
-	Emoji    string            `json:"emoji,omitempty"`
-	Activate *ProfileSelection `json:"activate,omitzero"`
-}
-
-// CreateSessionFolderRequest is a daemon API value.
-type CreateSessionFolderRequest struct {
-	Name string `json:"name"`
 }

@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// JobResponse is a daemon API value.
+type JobResponse struct {
+	Job JobPayload `json:"job"`
+}
+
+// JobSource is a daemon API value.
+type JobSource string
+
+// JobTaskConfig is a daemon API value.
+type JobTaskConfig struct {
+	Title       string     `json:"title,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Owner       *Ownership `json:"owner,omitempty"`
+}
+
+// JobsResponse is a daemon API value.
+type JobsResponse struct {
+	Jobs []JobPayload             `json:"jobs"`
+	Page CountedCursorPagePayload `json:"page"`
+}
+
+// LineageKind is a daemon API value.
+type LineageKind string
+
 // LogEventPayload is a daemon API value.
 type LogEventPayload struct {
 	ID                   string          `json:"id"`
@@ -416,28 +440,3 @@ type LoopGateVerdictEventPayload struct {
 
 // LoopGateVerdictOutcome is a daemon API value.
 type LoopGateVerdictOutcome string
-
-// LoopGateVerdictPayload is a daemon API value.
-type LoopGateVerdictPayload struct {
-	GateID         string                           `json:"gate_id"`
-	ItemIndex      int                              `json:"item_index"`
-	Outcome        LoopGateVerdictOutcome           `json:"outcome"`
-	Score          *float64                         `json:"score,omitzero"`
-	RouteCauseRank *int                             `json:"route_cause_rank,omitzero"`
-	BlockingIssues []LoopGateBlockingIssuePayload   `json:"blocking_issues"`
-	Criteria       []LoopGateCriterionDetailPayload `json:"criteria"`
-}
-
-// LoopGateVerdictRunEventPayload is a daemon API value.
-type LoopGateVerdictRunEventPayload struct {
-	ID          string                      `json:"id"`
-	LoopRunID   string                      `json:"loop_run_id"`
-	WorkspaceID string                      `json:"workspace_id"`
-	Seq         int64                       `json:"seq"`
-	Kind        RunEventKind                `json:"kind"`
-	Payload     LoopGateVerdictEventPayload `json:"payload"`
-	At          time.Time                   `json:"at"`
-}
-
-// LoopGenerationOrigin is a daemon API value.
-type LoopGenerationOrigin string

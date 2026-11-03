@@ -34,6 +34,9 @@ func (s *SkillProposalService) Propose(
 	targetRoot string,
 	input SkillProposalInput,
 ) (SkillReview, error) {
+	if len(input.EvidenceSessionIDs) > 20 {
+		return SkillReview{}, errors.New("at most 20 evidence sessions are allowed")
+	}
 	if s.Store == nil {
 		return SkillReview{}, errors.New("skill proposal store is required")
 	}

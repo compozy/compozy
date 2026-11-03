@@ -25,6 +25,8 @@ var ErrSkillProposeUnverified = errors.New("skill_propose_unverified")
 
 var proposedSkillName = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
 
+const skillDefinitionFile = "SKILL.md"
+
 const maxSkillDraftBytes = 1 << 20
 
 type SkillDraftFile struct {
@@ -53,7 +55,7 @@ func PrepareSkillDraft(name, description, body string, files []SkillDraftFile) (
 	}
 	result := SkillDraft{
 		Name:  name,
-		Files: []SkillDraftFile{{Path: "SKILL.md", Content: "---\n" + string(frontmatter) + "---\n\n" + body}},
+		Files: []SkillDraftFile{{Path: skillDefinitionFile, Content: "---\n" + string(frontmatter) + "---\n\n" + body}},
 	}
 	result.Files = append(result.Files, files...)
 	slices.SortFunc(result.Files, func(a, b SkillDraftFile) int { return strings.Compare(a.Path, b.Path) })
@@ -83,6 +85,9 @@ func PrepareSkillDraft(name, description, body string, files []SkillDraftFile) (
 				return SkillDraft{}, errors.New("skill proposal file conflicts with a directory")
 			}
 		}
+	}
+	if _, err := result.AutomaticContents(); err != nil {
+		return SkillDraft{}, err
 	}
 	return result, nil
 }

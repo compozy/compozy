@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/fileutil"
+	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -48,7 +49,12 @@ func (s *SkillProposalService) Approve(
 	} else if !errors.Is(statErr, os.ErrNotExist) {
 		return statErr
 	}
-	stage, err := os.MkdirTemp(filepath.Dir(review.DraftPath), "skill-install-")
+	// A hidden staging directory is ignored by skillscan and stays on the target filesystem.
+	// The durable review draft remains outside scan roots; only a decided draft is published.
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		return err
+	}
+	stage, err := os.MkdirTemp(filepath.Dir(target), ".skill-install-")
 	if err != nil {
 		return err
 	}
@@ -90,6 +96,13 @@ func writeSkillInstallStage(stage string, draft SkillDraft) error {
 		}
 		if err := os.WriteFile(path, []byte(file.Content), 0o600); err != nil {
 			return err
+		}
+	}
+	for _, file := range draft.Files {
+		if filepath.Base(file.Path) == skillDefinitionFile {
+			if _, err := skills.ParseSkillFile(filepath.Join(stage, filepath.FromSlash(file.Path))); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

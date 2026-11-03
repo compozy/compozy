@@ -26,17 +26,7 @@ func (r instanceDefinitions) InstanceDefinition(
 	ctx context.Context,
 	profileID, workspaceID, agentName string,
 ) (instanceDefinition, error) {
-	var resolved workspacepkg.ResolvedWorkspace
-	var err error
-	if workspaceID == "" {
-		resolved, err = r.workspaces.ResolveUser(ctx, profileID)
-	} else {
-		var name string
-		name, err = r.profiles.ProfileName(ctx, profileID)
-		if err == nil {
-			resolved, err = r.workspaces.ResolveForProfile(ctx, workspaceID, name)
-		}
-	}
+	resolved, err := r.resolveWorkspace(ctx, profileID, workspaceID)
 	if err != nil {
 		return instanceDefinition{}, err
 	}

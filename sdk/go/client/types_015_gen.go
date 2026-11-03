@@ -7,6 +7,50 @@ import (
 	"time"
 )
 
+// RespondLoopRequestResponse is a daemon API value.
+type RespondLoopRequestResponse struct {
+	OK         bool                  `json:"ok"`
+	RunID      string                `json:"run_id"`
+	NodeID     string                `json:"node_id"`
+	Decision   string                `json:"decision"`
+	State      string                `json:"state"`
+	Provenance LoopRequestProvenance `json:"provenance"`
+}
+
+// ResponderAgentPolicy is a daemon API value.
+type ResponderAgentPolicy string
+
+// ResponderSpec is a daemon API value.
+type ResponderSpec struct {
+	Agents ResponderAgentPolicy `json:"agents,omitempty"`
+}
+
+// RestartActionResponse is a daemon API value.
+type RestartActionResponse struct {
+	OperationID        string                 `json:"operation_id"`
+	Status             RestartOperationStatus `json:"status"`
+	StatusURL          string                 `json:"status_url"`
+	ActiveSessionCount int                    `json:"active_session_count"`
+}
+
+// RestartActionStatus is a daemon API value.
+type RestartActionStatus struct {
+	OperationID        string                 `json:"operation_id"`
+	Status             RestartOperationStatus `json:"status"`
+	OldPID             int                    `json:"old_pid"`
+	OldStartedAt       time.Time              `json:"old_started_at"`
+	OldSocketPath      string                 `json:"old_socket_path"`
+	NewPID             int                    `json:"new_pid,omitzero"`
+	ActiveSessionCount int                    `json:"active_session_count"`
+	FailureReason      string                 `json:"failure_reason,omitempty"`
+	StartedAt          time.Time              `json:"started_at"`
+	UpdatedAt          time.Time              `json:"updated_at"`
+	CompletedAt        *time.Time             `json:"completed_at,omitempty"`
+}
+
+// RestartOperationStatus is a daemon API value.
+type RestartOperationStatus string
+
 // ResultContract is a daemon API value.
 type ResultContract struct {
 	FailureField string `json:"failure_field"`
@@ -397,51 +441,3 @@ type RunsResponse struct {
 	Page *CursorPagePayload `json:"page,omitempty"`
 	Runs []RunPayload       `json:"runs"`
 }
-
-// RuntimeActivityPayload is a daemon API value.
-type RuntimeActivityPayload struct {
-	TurnID             string     `json:"turn_id,omitempty"`
-	TurnSource         string     `json:"turn_source,omitempty"`
-	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
-	DeadlineAt         *time.Time `json:"deadline_at,omitempty"`
-	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
-	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
-	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
-	CurrentTool        string     `json:"current_tool,omitempty"`
-	ToolCallID         string     `json:"tool_call_id,omitempty"`
-	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
-	IterationCurrent   int        `json:"iteration_current"`
-	IterationMax       int        `json:"iteration_max"`
-	IdleSeconds        int64      `json:"idle_seconds"`
-	ElapsedSeconds     int64      `json:"elapsed_seconds"`
-	ElapsedMS          int64      `json:"elapsed_ms"`
-}
-
-// RuntimeDefaults is a daemon API value.
-type RuntimeDefaults struct {
-	Worker RuntimeSpec `json:"worker,omitzero"`
-	Judge  RuntimeSpec `json:"judge,omitzero"`
-}
-
-// RuntimeIdentityPayload is a daemon API value.
-type RuntimeIdentityPayload struct {
-	SchemaVersion string                `json:"schema_version"`
-	Daemon        DaemonIdentityPayload `json:"daemon"`
-}
-
-// RuntimeLimits is a daemon API value.
-type RuntimeLimits struct {
-	MaxRuntimeSeconds int64 `json:"max_runtime_seconds"`
-	SummaryMaxBytes   int   `json:"summary_max_bytes"`
-	ContextMaxBytes   int   `json:"context_body_max_bytes"`
-}
-
-// RuntimeMatch is a daemon API value.
-type RuntimeMatch struct {
-	ID         string `json:"id,omitempty"`
-	Type       string `json:"type,omitempty"`
-	Complexity string `json:"complexity,omitempty"`
-}
-
-// RuntimeMode is a daemon API value.
-type RuntimeMode string

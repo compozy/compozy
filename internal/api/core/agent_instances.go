@@ -19,6 +19,9 @@ import (
 )
 
 type AgentInstanceAPI struct {
+	SkillPublished      func(context.Context) error
+	SkillProposals      *agentinstance.SkillProposalService
+	SkillTarget         func(context.Context, agentinstance.Instance) (string, []string, error)
 	HeldWakes           func(context.Context, string) (int64, error)
 	UnattendedTurnLimit int64
 	WakeState           func(context.Context, string) (heartbeat.InstanceWakeState, error)
@@ -53,6 +56,10 @@ func (h *BaseHandlers) instanceActor(c *gin.Context) (workspaceaccess.ActorRef, 
 }
 
 func (h *BaseHandlers) instanceTarget(c *gin.Context, verb string) (agentinstance.Instance, bool) {
+	return h.instanceByID(c, c.Param("id"), verb)
+}
+
+func (h *BaseHandlers) instanceByID(c *gin.Context, id, verb string) (agentinstance.Instance, bool) {
 	if h.AgentInstances == nil {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("agent instances unavailable"))
 		return agentinstance.Instance{}, false
@@ -61,7 +68,7 @@ func (h *BaseHandlers) instanceTarget(c *gin.Context, verb string) (agentinstanc
 	if !ok {
 		return agentinstance.Instance{}, false
 	}
-	instance, err := h.AgentInstances.Store.Get(c.Request.Context(), c.Param("id"))
+	instance, err := h.AgentInstances.Store.Get(c.Request.Context(), id)
 	if err != nil {
 		h.instanceError(c, err)
 		return agentinstance.Instance{}, false
@@ -87,10 +94,11 @@ func (h *BaseHandlers) instanceTarget(c *gin.Context, verb string) (agentinstanc
 		decision, err := h.WorkspaceAccess.Authorize(
 			c.Request.Context(),
 			workspaceaccess.Request{
-				Actor:    actor,
-				Target:   workspaceaccess.ScopeTarget(instance.WorkspaceID, instance.ProfileID),
-				ReadOnly: verb == "occurrence" || verb == "reports" || verb == "list" || verb == "check_dry_run",
-				Seam:     workspaceaccess.SeamTool,
+				Actor:  actor,
+				Target: workspaceaccess.ScopeTarget(instance.WorkspaceID, instance.ProfileID),
+				ReadOnly: verb == "occurrence" || verb == "reports" || verb == "list" || verb == "check_dry_run" ||
+					verb == "skill_reviews",
+				Seam: workspaceaccess.SeamTool,
 			},
 		)
 		if err != nil || !decision.Allowed {

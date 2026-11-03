@@ -5,6 +5,7 @@ import "github.com/compozy/compozy/internal/api/contract"
 func agentInstanceOperations() []OperationSpec {
 	operations := append(agentInstanceCheckOperations(), agentInstanceCatalogOperations()...)
 	operations = append(operations, agentInstanceDetailOperations()...)
+	operations = append(operations, agentSkillReviewOperations()...)
 	for i := range operations {
 		operations[i].AppAccess = AppAccessDenied
 		operations[i].Tags = []string{specAgentsKey}

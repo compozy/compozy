@@ -9,6 +9,49 @@ import (
 	"strings"
 )
 
+// CompleteTaskRun Complete one running task run
+func (c *Client) CompleteTaskRun(ctx context.Context, params CompleteTaskRunParams, body CompleteTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/task-runs/{id}/complete"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ContinueSessionParams carries the path, query, and header parameters.
+type ContinueSessionParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
+// ContinueSession Continue a session with another agent, runtime, or declared route
+func (c *Client) ContinueSession(ctx context.Context, params ContinueSessionParams, body ContinueSessionRequest) (*SessionDeriveResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/continue"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionDeriveResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ControlTerminalRecordingParams carries the path, query, and header parameters.
+type ControlTerminalRecordingParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+}
+
 // ControlTerminalRecording Start or stop terminal recording
 func (c *Client) ControlTerminalRecording(ctx context.Context, params ControlTerminalRecordingParams, body TerminalRecordingRequest) (*TerminalRecordingResponse, error) {
 	path := "/api/workspaces/{workspace_id}/terminals/{id}/recording"
@@ -396,55 +439,4 @@ type DeleteAgentParams struct {
 	Name      string  `url:"name"`
 	Workspace *string `url:"workspace"`
 	Profile   *string `url:"profile"`
-}
-
-// DeleteAgent Durably delete one effective authored agent definition
-func (c *Client) DeleteAgent(ctx context.Context, params DeleteAgentParams) (*DeleteAgentResponse, error) {
-	path := "/api/agents/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out DeleteAgentResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteAgentHeartbeatParams carries the path, query, and header parameters.
-type DeleteAgentHeartbeatParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
-}
-
-// DeleteAgentHeartbeat Delete HEARTBEAT.md through managed authoring
-func (c *Client) DeleteAgentHeartbeat(ctx context.Context, params DeleteAgentHeartbeatParams, body HeartbeatDeleteByPathRequest) (*HeartbeatMutationResponse, error) {
-	path := "/api/agents/{name}/heartbeat"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatMutationResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteAgentSoulParams carries the path, query, and header parameters.
-type DeleteAgentSoulParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
 }

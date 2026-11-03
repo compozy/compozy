@@ -562,6 +562,46 @@ export type AgentSessionPayload = {
   updated_at: string;
 };
 
+export type AgentSkillAutomaticContents = {
+  hooks: number;
+  mcp_servers: number;
+  scripts: number;
+};
+
+export type AgentSkillDraftFile = {
+  content: string;
+  path: string;
+};
+
+export type AgentSkillReviewDecisionRequest = {
+  digest: string;
+};
+
+export type AgentSkillReviewPayload = {
+  agent: string;
+  created_at: string;
+  decided_at?: string | null;
+  decided_by?: string;
+  digest: string;
+  files?: Array<AgentSkillDraftFile>;
+  id: string;
+  instance_id: string;
+  name: string;
+  profile_id: string;
+  runs_automatically: AgentSkillAutomaticContents;
+  state: string;
+  workspace_id: string;
+};
+
+export type AgentSkillReviewResponse = {
+  review: AgentSkillReviewPayload;
+};
+
+export type AgentSkillReviewsResponse = {
+  next_cursor?: string;
+  reviews: Array<AgentSkillReviewPayload>;
+};
+
 export type AgentSoulConfigProvenancePayload = {
   context_projection_bytes: number;
   digest: string;
@@ -13709,6 +13749,270 @@ export type ResumeAgentInstanceResponses = {
 
 export type ResumeAgentInstanceResponse =
   ResumeAgentInstanceResponses[keyof ResumeAgentInstanceResponses];
+
+export type ListAgentSkillReviewsData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Instance ID
+     */
+    instance_id?: string;
+    /**
+     * Workspace reference
+     */
+    workspace?: string;
+    /**
+     * pending, approved or rejected
+     */
+    state?: string;
+    /**
+     * Page cursor
+     */
+    cursor?: string;
+    /**
+     * Page size, 1-100; default 50
+     */
+    limit?: number;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-skill-reviews";
+};
+
+export type ListAgentSkillReviewsErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ListAgentSkillReviewsError =
+  ListAgentSkillReviewsErrors[keyof ListAgentSkillReviewsErrors];
+
+export type ListAgentSkillReviewsResponses = {
+  /**
+   * Skill reviews
+   */
+  200: AgentSkillReviewsResponse;
+};
+
+export type ListAgentSkillReviewsResponse =
+  ListAgentSkillReviewsResponses[keyof ListAgentSkillReviewsResponses];
+
+export type GetAgentSkillReviewData = {
+  body?: never;
+  path: {
+    /**
+     * Review ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-skill-reviews/{id}";
+};
+
+export type GetAgentSkillReviewErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type GetAgentSkillReviewError = GetAgentSkillReviewErrors[keyof GetAgentSkillReviewErrors];
+
+export type GetAgentSkillReviewResponses = {
+  /**
+   * Skill review
+   */
+  200: AgentSkillReviewResponse;
+};
+
+export type GetAgentSkillReviewResponse =
+  GetAgentSkillReviewResponses[keyof GetAgentSkillReviewResponses];
+
+export type ApproveAgentSkillReviewData = {
+  /**
+   * JSON request body
+   */
+  body: AgentSkillReviewDecisionRequest;
+  path: {
+    /**
+     * Review ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-skill-reviews/{id}/approve";
+};
+
+export type ApproveAgentSkillReviewErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ApproveAgentSkillReviewError =
+  ApproveAgentSkillReviewErrors[keyof ApproveAgentSkillReviewErrors];
+
+export type ApproveAgentSkillReviewResponses = {
+  /**
+   * Decided review
+   */
+  200: AgentSkillReviewResponse;
+};
+
+export type ApproveAgentSkillReviewResponse =
+  ApproveAgentSkillReviewResponses[keyof ApproveAgentSkillReviewResponses];
+
+export type RejectAgentSkillReviewData = {
+  /**
+   * JSON request body
+   */
+  body: AgentSkillReviewDecisionRequest;
+  path: {
+    /**
+     * Review ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-skill-reviews/{id}/reject";
+};
+
+export type RejectAgentSkillReviewErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type RejectAgentSkillReviewError =
+  RejectAgentSkillReviewErrors[keyof RejectAgentSkillReviewErrors];
+
+export type RejectAgentSkillReviewResponses = {
+  /**
+   * Decided review
+   */
+  200: AgentSkillReviewResponse;
+};
+
+export type RejectAgentSkillReviewResponse =
+  RejectAgentSkillReviewResponses[keyof RejectAgentSkillReviewResponses];
 
 export type GetAgentContextData = {
   body?: never;

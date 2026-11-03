@@ -183,7 +183,12 @@ func NewEffectivePolicyEvaluator(
 
 func validatePolicyInputs(inputs PolicyInputs) error {
 	switch inputs.SystemPermissionMode {
-	case "", PermissionModeDenyAll, PermissionModeApproveReads, PermissionModeApproveEdits, PermissionModeAuto, PermissionModeApproveAll:
+	case "",
+		PermissionModeDenyAll,
+		PermissionModeApproveReads,
+		PermissionModeApproveEdits,
+		PermissionModeAuto,
+		PermissionModeApproveAll:
 	default:
 		return NewValidationError("system_permission_mode", ReasonPolicyDenied, "unsupported permission mode")
 	}
@@ -372,7 +377,7 @@ func isCoordinationTool(d Descriptor, staysOnLineage bool) bool {
 	}
 	switch d.ID {
 	case ToolIDMonitorCreate, ToolIDMonitorCancel, ToolIDSubagentDelegate, ToolIDSubagentCancel,
-		ToolIDSessionSpawn, ToolIDSessionPrompt, ToolIDGoalControl, ToolIDNotify, "compozy__agent_skill_propose":
+		ToolIDSessionSpawn, ToolIDSessionPrompt, ToolIDGoalControl, ToolIDNotify, ToolIDAgentSkillPropose:
 		return true
 	case ToolIDSessionApprove, ToolIDSessionClarifyAnswer:
 		return staysOnLineage

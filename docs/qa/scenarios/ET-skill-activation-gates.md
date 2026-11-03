@@ -44,3 +44,18 @@ Status remains untested; the next QA cycle owns live retesting.
 QA impact 2026-09-02: profile-aware extension tool discovery changed the `requires_tools` activation input; reset for a focused named-Profile re-walk.
 
 2026-09-02: `pass` — the named-Profile catalog offered the skill, the default Profile reported the exact missing-tool reason, and disable/enable changed the following catalog projection without restarting the daemon.
+
+Stays-on hardening, 2026-11-03 — operator review before discovery:
+
+1. In an isolated stays-on session, call `compozy__agent_skill_propose` with a new procedure.
+2. Confirm the native review is pending and the instance has a linked proposal report. Neither
+   the session catalog nor the workspace skill scan may offer the pending draft.
+3. Inspect it with `compozy agent skill review show`. Confirm automatic contents and exact files
+   are visible. An agent-authenticated approve or reject must return `skill_review_operator_only`.
+4. Approve over HTTP using the shown digest. A stale digest must return `skill_review_stale`.
+5. Create a fresh real ACP session and confirm its catalog offers the approved skill. Re-propose
+   rejected contents and confirm rejection persists until the contents change.
+
+Focused backend owner: `TestInstanceSkillApprovalIntegration` (native proposal, HTTP approval,
+real ACP session and canonical offer-time catalog). Shared HTTP/UDS decision and paging boundaries:
+`TestAgentSkillReviews`. Web report-card interaction remains a separate UI scenario check.

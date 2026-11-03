@@ -53,3 +53,39 @@ Latest focused package results: globaldb 3.901s, core 1.321s, CLI 1.869s, sessio
 ## Impact handoff
 
 Owning audit: `_impact-entry.md`. Rule 6 and rule 7 repairs reuse existing storage, reports and notifications; no new wire shape or configuration in this step. The orchestrator consolidates `docs/_memory/change-impact.md` after backend and frontend integration.
+
+## Skill proposal public surfaces (rules 31-35)
+
+The inherited ledger is now wired to the daemon, native proposal/status tools, shared HTTP/UDS
+review handlers, the operator CLI, and generated OpenAPI/Go/TypeScript clients. Review reads are
+scoped before paging and cursors bind profile, workspace, instance and state. Decisions require
+operator identity and the exact digest. The review exposes automatic contents before exact files.
+Installation stages on the destination filesystem, parses with the canonical skill loader, refuses
+existing different contents, and synchronously publishes the catalog. An interrupted publication
+can be retried by approving the same digest. Pending drafts remain outside every scan root.
+
+Focused evidence:
+
+- UT-040: `globaldb.TestInstanceSkillReviewLedger/Should_propose_an_inert_draft_and_link_its_report`;
+  native end-to-end admission in `daemon.TestInstanceSkillApprovalIntegration`.
+- UT-041: `globaldb.TestInstanceSkillReviewLedger/Should_cap_pending_reviews_and_retain_rejected_content`.
+- UT-042: `agentinstance.TestSkillDraftBoundary/Should_refuse_critical_content_and_unsafe_supporting_paths`;
+  native stable `skill_propose_unverified` envelope in the real integration journey.
+- UT-043: stale digest in `TestInstanceSkillReviewLedger` and `core.TestAgentSkillReviews`;
+  installation and new-session offering in `daemon.TestInstanceSkillApprovalIntegration`.
+- UT-044: rejected digest retention and changed-content proposal in `TestInstanceSkillReviewLedger`.
+- UT-045: `core.TestAgentSkillReviews` rejects both agent-authenticated decision verbs, including
+  an `approve-all` caller; service decisions have the same guard in `TestInstanceSkillReviewLedger`.
+- IT-020: `go test -tags=integration ./internal/daemon -run '^TestInstanceSkillApprovalIntegration$'
+  -count=1 -timeout=120s` passed (4.198s). Real native registry, SQLite, HTTP and ACP processes.
+- Shared route inventory `TestRegisterRoutesCoversTechSpecEndpoints` passed for HTTP (1.553s)
+  and UDS (2.112s). `TestAgentSkillReviewCommands` passed through the CLI HTTP client.
+- Latest focused domain/API/CLI/native-descriptor run passed: agentinstance 0.388s, core 0.887s,
+  CLI 1.722s, builtin 0.392s. `make codegen` passed. Focused lint passed with zero issues
+  across agentinstance, core, spec, HTTP, UDS, CLI, daemon and tools. `git diff --check` passed.
+
+The integration exposed an installed-but-unpublished skill; production now uses the existing
+resource publisher before returning an approval. No catalog filter or change to `internal/skills`
+was introduced. Native descriptor inventory is the owning public-contract test for the two new IDs.
+Official skill guidance, skills site docs and `ET-skill-activation-gates` carry the reviewed workflow.
+The Web approval card remains outside this backend assignment.

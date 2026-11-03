@@ -7,6 +7,60 @@ import (
 	"time"
 )
 
+// CreateAgentRequest is a daemon API value.
+type CreateAgentRequest struct {
+	Scope     AgentCreateScope   `json:"scope"`
+	Workspace string             `json:"workspace,omitempty"`
+	Agent     CreateAgentPayload `json:"agent"`
+}
+
+// CreateAgentSkillsConfig is a daemon API value.
+type CreateAgentSkillsConfig struct {
+	Disabled []string `json:"disabled,omitempty"`
+}
+
+// CreateAppTokenRequest is a daemon API value.
+type CreateAppTokenRequest struct {
+	Name    string   `json:"name"`
+	Origins []string `json:"origins,omitempty"`
+}
+
+// CreateJobRequest is a daemon API value.
+type CreateJobRequest struct {
+	Scope       Scope            `json:"scope"`
+	Name        string           `json:"name"`
+	TargetKind  TargetKind       `json:"target_kind,omitempty"`
+	AgentName   string           `json:"agent_name"`
+	WorkspaceID string           `json:"workspace_id,omitempty"`
+	Prompt      string           `json:"prompt"`
+	Schedule    ScheduleSpec     `json:"schedule"`
+	Task        *JobTaskConfig   `json:"task,omitempty"`
+	LoopTarget  *LoopTarget      `json:"loop_target,omitempty"`
+	Enabled     *bool            `json:"enabled,omitempty"`
+	Retry       *RetryConfig     `json:"retry,omitempty"`
+	FireLimit   *FireLimitConfig `json:"fire_limit,omitempty"`
+}
+
+// CreateLoopRequest is a daemon API value.
+type CreateLoopRequest struct {
+	Definition   *LoopDefinitionDocument `json:"definition,omitzero"`
+	ForkFromName string                  `json:"fork_from_name,omitempty"`
+}
+
+// CreateProfileRequest is a daemon API value.
+type CreateProfileRequest struct {
+	Name     string            `json:"name"`
+	Color    string            `json:"color,omitempty"`
+	Icon     string            `json:"icon,omitempty"`
+	Emoji    string            `json:"emoji,omitempty"`
+	Activate *ProfileSelection `json:"activate,omitzero"`
+}
+
+// CreateSessionFolderRequest is a daemon API value.
+type CreateSessionFolderRequest struct {
+	Name string `json:"name"`
+}
+
 // CreateSessionRequest is a daemon API value.
 type CreateSessionRequest struct {
 	Scope           string                     `json:"scope,omitempty"`
@@ -391,54 +445,4 @@ type Entry struct {
 	Message       UIMessage `json:"message"`
 	StartSequence int64     `json:"start_sequence"`
 	Sequence      int64     `json:"sequence"`
-}
-
-// ErrorCode is a daemon API value.
-type ErrorCode string
-
-// ErrorPayload is a daemon API value.
-type ErrorPayload struct {
-	Blockers      []WorkspaceArchiveBlocker `json:"blockers,omitempty"`
-	Error         string                    `json:"error"`
-	Code          string                    `json:"code,omitempty"`
-	CurrentTurnID string                    `json:"current_turn_id,omitempty"`
-	Details       map[string]string         `json:"details,omitempty"`
-	Diagnostic    *DiagnosticItem           `json:"diagnostic,omitzero"`
-	ConfigPath    string                    `json:"config_path,omitempty"`
-	UnknownKeys   []string                  `json:"unknown_keys,omitempty"`
-}
-
-// ErrorPolicy is a daemon API value.
-type ErrorPolicy struct {
-	Route     NodeID       `json:"route,omitempty"`
-	AllowFail bool         `json:"allow_fail,omitzero"`
-	Effects   []EffectSpec `json:"effects,omitempty"`
-}
-
-// EvalErrorPolicy is a daemon API value.
-type EvalErrorPolicy string
-
-// EventSubscription is a daemon API value.
-type EventSubscription struct {
-	Kind   string `json:"kind"`
-	Filter string `json:"filter,omitempty"`
-}
-
-// ExecutionPolicy is a daemon API value.
-type ExecutionPolicy struct {
-	SingleFlight bool `json:"single_flight"`
-	RetrySafe    bool `json:"retry_safe"`
-}
-
-// ExecutionProfile is a daemon API value.
-type ExecutionProfile struct {
-	TaskID       string             `json:"task_id"`
-	Coordinator  CoordinatorProfile `json:"coordinator"`
-	Worker       WorkerProfile      `json:"worker"`
-	Review       ReviewProfile      `json:"review"`
-	Participants ParticipantPolicy  `json:"participants"`
-	Worktree     WorktreePolicy     `json:"worktree"`
-	Runtime      RuntimePolicy      `json:"runtime"`
-	CreatedAt    time.Time          `json:"created_at"`
-	UpdatedAt    time.Time          `json:"updated_at"`
 }

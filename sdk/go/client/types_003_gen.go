@@ -7,6 +7,55 @@ import (
 	"time"
 )
 
+// AgentTaskFailRequest is a daemon API value.
+type AgentTaskFailRequest struct {
+	Error    string          `json:"error"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// AgentTaskHeartbeatRequest is a daemon API value.
+type AgentTaskHeartbeatRequest struct {
+	LeaseSeconds int64 `json:"lease_seconds,omitzero"`
+}
+
+// AgentTaskLeaseResponse is a daemon API value.
+type AgentTaskLeaseResponse struct {
+	Lease TaskRunLeaseSummaryPayload `json:"lease"`
+}
+
+// AgentTaskReleaseRequest is a daemon API value.
+type AgentTaskReleaseRequest struct {
+	Reason string `json:"reason,omitempty"`
+}
+
+// AgentWorkspacePayload is a daemon API value.
+type AgentWorkspacePayload struct {
+	ID      string `json:"id,omitempty"`
+	Name    string `json:"name,omitempty"`
+	RootDir string `json:"root_dir,omitempty"`
+}
+
+// AgentsResponse is a daemon API value.
+type AgentsResponse struct {
+	Agents []AgentPayload `json:"agents"`
+}
+
+// AppTokenIssuedResponse is a daemon API value.
+type AppTokenIssuedResponse struct {
+	AppToken AppTokenPayload `json:"app_token"`
+	Token    string          `json:"token"`
+}
+
+// AppTokenPayload is a daemon API value.
+type AppTokenPayload struct {
+	ID         string     `json:"id"`
+	Name       string     `json:"name"`
+	Origins    []string   `json:"origins"`
+	CreatedAt  time.Time  `json:"created_at"`
+	LastUsedAt *time.Time `json:"last_used_at"`
+	RevokedAt  *time.Time `json:"revoked_at"`
+}
+
 // AppTokenResponse is a daemon API value.
 type AppTokenResponse struct {
 	AppToken AppTokenPayload `json:"app_token"`
@@ -393,56 +442,4 @@ type CatalogMeta struct {
 	UseWhen  string   `json:"use_when,omitempty"`
 	Keywords []string `json:"keywords,omitempty"`
 	Category string   `json:"category,omitempty"`
-}
-
-// ChangeSet is a daemon API value.
-type ChangeSet struct {
-	DesktopIDs     []DesktopID             `json:"desktop_ids,omitempty"`
-	WindowIDs      []WindowID              `json:"window_ids,omitempty"`
-	GroupIDs       []GroupID               `json:"group_ids,omitempty"`
-	NodeIDs        []WindowmanagerNodeID   `json:"node_ids,omitempty"`
-	ClientIDs      []WindowmanagerClientID `json:"client_ids,omitempty"`
-	StackGrouped   []WindowmanagerNodeID   `json:"stack_grouped,omitempty"`
-	StackUngrouped []WindowmanagerNodeID   `json:"stack_ungrouped,omitempty"`
-}
-
-// ChecksState is a daemon API value.
-type ChecksState string
-
-// Chip is a daemon API value.
-type Chip struct {
-	ID       string            `json:"id"`
-	Label    string            `json:"label"`
-	Count    *int              `json:"count,omitempty"`
-	Requires map[string]string `json:"requires,omitempty"`
-	Fallback string            `json:"fallback,omitempty"`
-}
-
-// ClarificationAnswerRequest is a daemon API value.
-type ClarificationAnswerRequest struct {
-	ChoiceIndex *int   `json:"choice_index,omitzero"`
-	Text        string `json:"text,omitempty"`
-}
-
-// ClarificationPendingPayload is a daemon API value.
-type ClarificationPendingPayload struct {
-	RequestID string     `json:"request_id"`
-	SessionID string     `json:"session_id"`
-	AgentName string     `json:"agent_name"`
-	Question  string     `json:"question"`
-	Choices   []string   `json:"choices,omitempty"`
-	AskedAt   time.Time  `json:"asked_at"`
-	Deadline  *time.Time `json:"deadline"`
-}
-
-// ClarificationsResponse is a daemon API value.
-type ClarificationsResponse struct {
-	Clarifications []ClarificationPendingPayload `json:"clarifications"`
-}
-
-// ClarifyAnswer is a daemon API value.
-type ClarifyAnswer struct {
-	Choice   *int   `json:"choice"`
-	Text     string `json:"text"`
-	Fallback bool   `json:"fallback"`
 }

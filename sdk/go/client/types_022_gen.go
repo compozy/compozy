@@ -2,10 +2,64 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+// SettingsUpdateRuntimePayload is a daemon API value.
+type SettingsUpdateRuntimePayload struct {
+	CheckedAt       *time.Time                  `json:"checked_at,omitempty"`
+	Status          SettingsUpdateStatusKind    `json:"status"`
+	InstallMethod   SettingsUpdateInstallMethod `json:"install_method"`
+	Managed         bool                        `json:"managed"`
+	CurrentVersion  string                      `json:"current_version"`
+	LatestVersion   string                      `json:"latest_version"`
+	ReleaseURL      string                      `json:"release_url"`
+	Recommendation  string                      `json:"recommendation"`
+	RestoredVersion string                      `json:"restored_version"`
+	DaemonRestarted bool                        `json:"daemon_restarted"`
+	Message         string                      `json:"message"`
+	LastError       string                      `json:"last_error"`
+}
+
+// SettingsUpdateStatusKind is a daemon API value.
+type SettingsUpdateStatusKind string
+
+// SettingsUpdateTarget is a daemon API value.
+type SettingsUpdateTarget string
+
+// SettingsUpdateWaitingState is a daemon API value.
+type SettingsUpdateWaitingState string
+
+// SettingsUserScopeKind is a daemon API value.
+type SettingsUserScopeKind string
+
+// SettingsWindowBindingAction is a daemon API value.
+type SettingsWindowBindingAction string
+
+// SettingsWindowDesktopTransition is a daemon API value.
+type SettingsWindowDesktopTransition string
+
+// SettingsWindowDragAwayPolicy is a daemon API value.
+type SettingsWindowDragAwayPolicy string
+
+// SettingsWindowDragModifier is a daemon API value.
+type SettingsWindowDragModifier string
+
+// SettingsWindowFocusPolicy is a daemon API value.
+type SettingsWindowFocusPolicy string
+
+// SettingsWindowManagerBindingPayload is a daemon API value.
+type SettingsWindowManagerBindingPayload struct {
+	TopCenter    SettingsWindowBindingAction `json:"top_center"`
+	BottomCenter SettingsWindowBindingAction `json:"bottom_center"`
+}
+
+// SettingsWindowManagerCommandPayload is a daemon API value.
+type SettingsWindowManagerCommandPayload struct {
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Section string `json:"section"`
+	Source  string `json:"source"`
+}
 
 // SettingsWindowManagerConfigPayload is a daemon API value.
 type SettingsWindowManagerConfigPayload struct {
@@ -391,55 +445,3 @@ type StatusPayload struct {
 
 // SteerCapability is a daemon API value.
 type SteerCapability string
-
-// SteerDeliveryMode is a daemon API value.
-type SteerDeliveryMode string
-
-const (
-	SteerDeliveryModeInjected          SteerDeliveryMode = "injected"
-	SteerDeliveryModePendingInjection  SteerDeliveryMode = "pending_injection"
-	SteerDeliveryModeInterruptFallback SteerDeliveryMode = "interrupt_fallback"
-)
-
-// SteerPromptRequest is a daemon API value.
-type SteerPromptRequest struct {
-	Attachments    []PromptAttachmentRef `json:"attachments,omitempty"`
-	Text           string                `json:"text"`
-	MessageID      string                `json:"message_id"`
-	IdempotencyKey string                `json:"idempotency_key"`
-	ExpectedTurnID string                `json:"expected_turn_id,omitempty"`
-}
-
-// StepProgress is a daemon API value.
-type StepProgress struct {
-	Round      int `json:"round"`
-	StepsDone  int `json:"steps_done"`
-	StepsTotal int `json:"steps_total"`
-}
-
-// StopPhase is a daemon API value.
-type StopPhase string
-
-// StopReason is a daemon API value.
-type StopReason string
-
-// StopSessionRequest is a daemon API value.
-type StopSessionRequest struct {
-	Processes SessionProcessPolicy `json:"processes,omitempty"`
-	Wait      *bool                `json:"wait,omitzero"`
-}
-
-// StopWhenSpec is a daemon API value.
-// StopWhenSpec preserves its custom JSON wire representation.
-type StopWhenSpec = json.RawMessage
-
-// StrategyKind is a daemon API value.
-type StrategyKind string
-
-// StrategySpec is a daemon API value.
-// StrategySpec preserves its custom JSON wire representation.
-type StrategySpec = json.RawMessage
-
-// StrategyThreshold is a daemon API value.
-// StrategyThreshold preserves its custom JSON wire representation.
-type StrategyThreshold = json.RawMessage
