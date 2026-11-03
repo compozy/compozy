@@ -42,9 +42,10 @@ func markSessionSeenOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{
-				Status:      409,
-				Description: "The session still waits on an answer, a sign-in, or a stop",
-				Body:        contract.ErrorPayload{},
+				Status: 409,
+				Description: "The session still waits on an answer, a sign-in, or a stop, " +
+					"or a newer occurrence replaced the one checked",
+				Body: contract.ErrorPayload{},
 			},
 			{
 				Status:      503,

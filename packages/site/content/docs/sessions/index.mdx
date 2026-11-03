@@ -155,6 +155,8 @@ compozy session mark-seen sess-123
 - A session waiting on a permission answer, a question, a sign-in, or a stop cannot be marked as
   seen; answer or resolve it instead. Those sessions do not show the control, and the CLI, API,
   and agents get the `attention_requires_action` error.
+- If a newer occurrence arrives while you mark the session, it stays in Needs you and the request
+  fails with `attention_changed` (agents get `tool_conflict`). Look at it and mark it again.
 - Marking a session as seen does not wake the session that created it.
 
 Agents use `compozy__session_mark_seen`; HTTP clients use

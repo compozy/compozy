@@ -260,6 +260,7 @@ func (s *presenceAttentionStore) MarkSessionEndedEarly(
 func (s *presenceAttentionStore) DismissSessionAttention(
 	context.Context,
 	string,
+	store.SessionAttentionFence,
 	time.Time,
 ) (store.SessionAttentionCommit, error) {
 	s.mu.Lock()

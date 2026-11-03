@@ -53560,7 +53560,7 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
-      /** @description The session still waits on an answer, a sign-in, or a stop */
+      /** @description The session still waits on an answer, a sign-in, or a stop, or a newer occurrence replaced the one checked */
       409: {
         headers: {
           [name: string]: unknown;

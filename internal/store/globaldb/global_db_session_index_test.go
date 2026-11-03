@@ -2155,9 +2155,17 @@ func TestSessionAttentionDismissClearsSeenSourcesUntilTheNextOccurrence(t *testi
 		}
 		return sessionIDsForWorkspaceStateIndexTest(result.Sessions)
 	}
+	fence := func() store.SessionAttentionFence {
+		t.Helper()
+		attention, err := globalDB.GetSessionAttention(ctx, sessionID)
+		if err != nil {
+			t.Fatalf("GetSessionAttention() error = %v", err)
+		}
+		return attention.Fence()
+	}
 	dismiss := func(wantOutcome string) store.SessionAttentionCommit {
 		t.Helper()
-		commit, err := globalDB.DismissSessionAttention(ctx, sessionID, time.Time{})
+		commit, err := globalDB.DismissSessionAttention(ctx, sessionID, fence(), time.Time{})
 		if err != nil || commit.Outcome != wantOutcome {
 			t.Fatalf("DismissSessionAttention() = %#v, %v, want outcome %q", commit, err, wantOutcome)
 		}
@@ -2180,6 +2188,19 @@ func TestSessionAttentionDismissClearsSeenSourcesUntilTheNextOccurrence(t *testi
 		}
 		if got := needsYou(); !slices.Equal(got, []string{sessionID}) {
 			t.Fatalf("needs-you before dismiss = %#v, want the early-stopped session", got)
+		}
+		// A newer early stop after the operator looked keeps Needs you.
+		seen := fence()
+		if _, err := globalDB.MarkSessionEndedEarly(ctx, sessionID, "turn-newer"); err != nil {
+			t.Fatalf("MarkSessionEndedEarly(newer) error = %v", err)
+		}
+		if _, err := globalDB.DismissSessionAttention(ctx, sessionID, seen, time.Time{}); !errors.Is(
+			err, store.ErrSessionAttentionChanged,
+		) {
+			t.Fatalf("DismissSessionAttention(stale fence) error = %v, want ErrSessionAttentionChanged", err)
+		}
+		if got := needsYou(); !slices.Equal(got, []string{sessionID}) {
+			t.Fatalf("needs-you after a stale dismiss = %#v, want the newer early stop kept", got)
 		}
 		commit := dismiss("dismissed")
 		if commit.After.EndedEarlyTurnID != "" || commit.After.AttentionRevision != commit.Before.AttentionRevision+1 {

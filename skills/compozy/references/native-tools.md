@@ -526,7 +526,8 @@ also brings back parked children). CLI fallbacks: `compozy session later <id>` a
 Needs you for a turn that ended early, a return from Later, or a stopped session's failure until
 it happens again; it never wakes the creator. A session waiting on a permission, a question, a
 sign-in, a stop, or a work signal is refused with `attention_requires_action`; session payloads
-report `attention_dismissible`. CLI fallback: `compozy session mark-seen <id>`. Archive and
+report `attention_dismissible`. A newer occurrence that lands while marking is kept and the call
+fails with `tool_conflict`; read the session again before retrying. CLI fallback: `compozy session mark-seen <id>`. Archive and
 conversation clear preserve attachments;
 conversation clear preserves attachments. `compozy session remove` and `compozy workspace remove`
 remove their scoped attachment trees.

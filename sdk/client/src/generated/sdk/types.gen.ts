@@ -37462,7 +37462,7 @@ export type MarkSessionSeenErrors = {
    */
   404: ErrorPayload;
   /**
-   * The session still waits on an answer, a sign-in, or a stop
+   * The session still waits on an answer, a sign-in, or a stop, or a newer occurrence replaced the one checked
    */
   409: ErrorPayload;
   /**

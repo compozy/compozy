@@ -49,7 +49,7 @@ func (h *BaseHandlers) MarkSessionSeen(c *gin.Context) {
 
 func statusForAttentionSeenError(err error) (int, bool) {
 	switch {
-	case errors.Is(err, session.ErrAttentionRequiresAction):
+	case errors.Is(err, session.ErrAttentionRequiresAction), errors.Is(err, session.ErrAttentionChanged):
 		return http.StatusConflict, true
 	case errors.Is(err, session.ErrAttentionSeenUnavailable):
 		return http.StatusServiceUnavailable, true
@@ -59,8 +59,12 @@ func statusForAttentionSeenError(err error) (int, bool) {
 }
 
 func attentionSeenErrorCode(err error) string {
-	if errors.Is(err, session.ErrAttentionRequiresAction) {
+	switch {
+	case errors.Is(err, session.ErrAttentionRequiresAction):
 		return "attention_requires_action"
+	case errors.Is(err, session.ErrAttentionChanged):
+		return "attention_changed"
+	default:
+		return ""
 	}
-	return ""
 }

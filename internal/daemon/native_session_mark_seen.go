@@ -44,6 +44,9 @@ func (n *daemonNativeTools) sessionMarkSeen(
 			toolspkg.ErrorCodeAttentionRequiresAction, req.ToolID, err.Error(), err,
 		)
 	}
+	if errors.Is(err, session.ErrAttentionChanged) {
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCodeConflict, req.ToolID, err.Error(), err)
+	}
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

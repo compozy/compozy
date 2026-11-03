@@ -1259,6 +1259,14 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			!strings.Contains(refused.Body.String(), "answer its question") {
 			t.Fatalf("mark-seen(refused) = %d %s, want 409 attention_requires_action", refused.Code, refused.Body)
 		}
+		later.seenRefusal = session.AttentionBlockerNone
+		later.seenErr = fmt.Errorf("%w: sess-a", session.ErrAttentionChanged)
+		changed := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/mark-seen", nil,
+		)
+		if changed.Code != http.StatusConflict || !strings.Contains(changed.Body.String(), "attention_changed") {
+			t.Fatalf("mark-seen(changed) = %d %s, want 409 attention_changed", changed.Code, changed.Body)
+		}
 	})
 
 	t.Run("Should attach sessions", func(t *testing.T) {
@@ -6593,11 +6601,15 @@ type laterHandlerSessionManager struct {
 	now          time.Time
 	withChildren []bool
 	seenRefusal  session.AttentionBlocker
+	seenErr      error
 }
 
 func (s *laterHandlerSessionManager) MarkAttentionSeen(_ context.Context, id string) (*session.Info, error) {
 	if s.seenRefusal != session.AttentionBlockerNone {
 		return nil, &session.AttentionRequiresActionError{SessionID: id, Blocker: s.seenRefusal}
+	}
+	if s.seenErr != nil {
+		return nil, s.seenErr
 	}
 	info := testutil.NewSessionInfo(id)
 	info.ProfileID = store.DefaultProfileID

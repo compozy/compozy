@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // AttentionBlocker names a Needs you source the operator acts on instead of
@@ -23,6 +25,8 @@ const (
 var (
 	// ErrAttentionRequiresAction rejects marking as seen a session that still waits on the operator.
 	ErrAttentionRequiresAction = errors.New("session: attention requires action")
+	// ErrAttentionChanged rejects marking as seen after a newer occurrence replaced the one checked.
+	ErrAttentionChanged = errors.New("session: attention changed before it was marked as seen")
 	// ErrAttentionSeenUnavailable reports a manager without the canonical attention store.
 	ErrAttentionSeenUnavailable = errors.New("session: attention store is unavailable")
 )
@@ -96,7 +100,9 @@ func AttentionDismissible(info *Info) bool {
 // MarkAttentionSeen clears the current Needs you occurrence of one session for the
 // operator. A session that does not need the operator is returned unchanged; one
 // that waits on an answer, a sign-in, or a stop is refused with its blocker. The
-// next occurrence of any source raises Needs you again, and creators are not woken.
+// write is fenced on the checked occurrence, so a newer one is refused with
+// ErrAttentionChanged instead of being cleared unseen. The next occurrence of any
+// source raises Needs you again, and creators are not woken.
 func (m *Manager) MarkAttentionSeen(ctx context.Context, sessionID string) (*Info, error) {
 	if m == nil || m.attentionStore == nil {
 		return nil, ErrAttentionSeenUnavailable
@@ -106,13 +112,22 @@ func (m *Manager) MarkAttentionSeen(ctx context.Context, sessionID string) (*Inf
 	if err != nil {
 		return nil, err
 	}
+	// The canonical projection is the occurrence the decision and the write both fence on.
+	observed, err := m.attentionStore.GetSessionAttention(ctx, target)
+	if err != nil {
+		return nil, fmt.Errorf("session: read %q attention: %w", target, err)
+	}
+	applyAttentionToInfo(before, observed)
 	if ClassForBadge(BadgeForInfo(before)) != AttentionNeedsYou {
 		return before, nil
 	}
 	if blocker := AttentionBlockerForInfo(before); blocker != AttentionBlockerNone {
 		return nil, &AttentionRequiresActionError{SessionID: target, Blocker: blocker}
 	}
-	commit, err := m.attentionStore.DismissSessionAttention(ctx, target, m.now().UTC())
+	commit, err := m.attentionStore.DismissSessionAttention(ctx, target, observed.Fence(), m.now().UTC())
+	if errors.Is(err, store.ErrSessionAttentionChanged) {
+		return nil, fmt.Errorf("%w: %s", ErrAttentionChanged, target)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("session: mark %q attention seen: %w", target, err)
 	}

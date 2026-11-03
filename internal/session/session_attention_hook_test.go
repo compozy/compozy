@@ -254,6 +254,7 @@ func (s *committingAttentionStore) MarkSessionEndedEarly(
 func (s *committingAttentionStore) DismissSessionAttention(
 	context.Context,
 	string,
+	store.SessionAttentionFence,
 	time.Time,
 ) (store.SessionAttentionCommit, error) {
 	return store.SessionAttentionCommit{}, errors.New("unexpected DismissSessionAttention call")

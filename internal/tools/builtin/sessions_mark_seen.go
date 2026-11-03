@@ -14,8 +14,9 @@ func sessionMarkSeenDescriptor() toolspkg.Descriptor {
 		"Mark a session's Needs you as seen for the operator: a turn that ended early, a return from Later, "+
 			"or a stopped session's failure leaves Needs you until it happens again. A session that still "+
 			"waits on a permission answer, a question, a sign-in, a stop, or a work signal it cannot check is "+
-			"refused with attention_requires_action; answer or resolve it instead. A session that does not "+
-			"need the operator is returned unchanged.",
+			"refused with attention_requires_action; answer or resolve it instead. A newer occurrence that "+
+			"arrives while marking is kept and refused with tool_conflict. A session that does not need the "+
+			"operator is returned unchanged.",
 		sessionMarkSeenInputSchema,
 		toolspkg.RiskMutating,
 		false,

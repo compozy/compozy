@@ -314,9 +314,30 @@ type SessionAttentionStore interface {
 	MarkSessionSeen(ctx context.Context, sessionID string, at time.Time) (SessionAttentionCommit, error)
 	// MarkSessionEndedEarly records the early-stopped turn; an empty turn id clears it.
 	MarkSessionEndedEarly(ctx context.Context, sessionID string, turnID string) (SessionAttentionCommit, error)
-	// DismissSessionAttention marks the operator-dismissible Needs you sources as seen;
-	// Outcome is "unchanged" when none was raised.
-	DismissSessionAttention(ctx context.Context, sessionID string, at time.Time) (SessionAttentionCommit, error)
+	// DismissSessionAttention marks the operator-dismissible Needs you sources as seen
+	// while the occurrence still matches fence; Outcome is "unchanged" when none was
+	// raised, and ErrSessionAttentionChanged reports a newer occurrence.
+	DismissSessionAttention(
+		ctx context.Context,
+		sessionID string,
+		fence SessionAttentionFence,
+		at time.Time,
+	) (SessionAttentionCommit, error)
+}
+
+// ErrSessionAttentionChanged rejects a dismissal whose observed occurrence was replaced.
+var ErrSessionAttentionChanged = errors.New("store: session attention changed")
+
+// SessionAttentionFence names the attention occurrence an operator saw. A new early
+// stop changes the turn id; every other new occurrence moves the attention revision.
+type SessionAttentionFence struct {
+	AttentionRevision int64
+	EndedEarlyTurnID  string
+}
+
+// Fence returns the occurrence fence of this attention projection.
+func (a SessionAttention) Fence() SessionAttentionFence {
+	return SessionAttentionFence{AttentionRevision: a.AttentionRevision, EndedEarlyTurnID: a.EndedEarlyTurnID}
 }
 
 // ValidPendingInteractionKind reports whether kind belongs to the durable vocabulary.
