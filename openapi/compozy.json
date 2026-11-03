@@ -75675,6 +75675,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Select the shell attachment for shortcut statuses",
+            "in": "query",
+            "name": "client_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Select the shell profile without changing settings scope",
+            "in": "query",
+            "name": "client_profile",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -75748,6 +75764,22 @@
             "description": "Select the workspace id for workspace scope",
             "in": "query",
             "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Select the shell attachment for shortcut statuses",
+            "in": "query",
+            "name": "client_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Select the shell profile without changing settings scope",
+            "in": "query",
+            "name": "client_profile",
             "schema": {
               "type": "string"
             }

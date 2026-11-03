@@ -3926,6 +3926,24 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			"schema": map[string]any{"type": "boolean"},
 		},
 	)
+	for _, method := range []string{"get", "patch"} {
+		operation := paths["/api/settings/window-manager"].(map[string]any)[method].(map[string]any)
+		operation["parameters"] = append(
+			operation["parameters"].([]any),
+			map[string]any{
+				"name":        "client_id",
+				"in":          "query",
+				"description": "Select the shell attachment for shortcut statuses",
+				"schema":      map[string]any{"type": "string"},
+			},
+			map[string]any{
+				"name":        "client_profile",
+				"in":          "query",
+				"description": "Select the shell profile without changing settings scope",
+				"schema":      map[string]any{"type": "string"},
+			},
+		)
+	}
 	addStaysOnAdditiveSchemas(baseline)
 }
 

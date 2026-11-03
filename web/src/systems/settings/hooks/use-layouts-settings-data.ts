@@ -51,9 +51,9 @@ export function useLayoutsSettingsData(): LayoutsSettingsData {
   // it is editing rather than letting the daemon resolve `default` (US-026).
   const profileName = useProfileReadScope().destination;
   const [clientId] = useState(stableWindowManagerClientId);
-  const settings = useQuery(windowManagerConfigOptions(null, clientId));
+  const settings = useQuery(windowManagerConfigOptions(null, clientId, profileName));
   const keyboard = useQuery(
-    windowManagerSettingsOptions(workspaceId === "" ? null : workspaceId, clientId)
+    windowManagerSettingsOptions(workspaceId === "" ? null : workspaceId, clientId, profileName)
   );
   const profiles = useQuery(windowManagerLayoutProfilesOptions(workspaceId, profileName));
   const layout = useQuery(windowManagerLayoutOptions(workspaceId, profileName));

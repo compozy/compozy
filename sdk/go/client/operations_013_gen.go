@@ -405,8 +405,10 @@ func (c *Client) GetSettingsUpdate(ctx context.Context) (*SettingsUpdateResponse
 
 // GetSettingsWindowManagerParams carries the path, query, and header parameters.
 type GetSettingsWindowManagerParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
+	Scope         *string `url:"scope"`
+	WorkspaceID   *string `url:"workspace_id"`
+	ClientID      *string `url:"client_id"`
+	ClientProfile *string `url:"client_profile"`
 }
 
 // GetSettingsWindowManager Read the window-manager settings section
@@ -418,6 +420,12 @@ func (c *Client) GetSettingsWindowManager(ctx context.Context, params GetSetting
 	}
 	if params.WorkspaceID != nil {
 		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.ClientID != nil {
+		query.Set("client_id", *params.ClientID)
+	}
+	if params.ClientProfile != nil {
+		query.Set("client_profile", *params.ClientProfile)
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()

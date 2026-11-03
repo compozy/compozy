@@ -100,6 +100,7 @@ func newCmdPaletteClientsCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	scope.add(cmd, false)
+	configureProfileReadCommand(cmd, deps)
 	return cmd
 }
 

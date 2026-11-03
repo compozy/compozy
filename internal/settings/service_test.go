@@ -373,6 +373,40 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve the client profile independently of the settings scope", func(t *testing.T) {
+		t.Parallel()
+		palette := &recordingCmdPaletteCatalog{attachedClient: "client:marketing", attachedProfile: "profile-marketing",
+			catalog: cmdpalette.Catalog{Commands: []cmdpalette.ResolvedCommand{{
+				ID: "palette.open", Title: "Open palette", Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
+				GlobalShortcut: &cmdpalette.GlobalShortcut{Status: "failed_permission", Reason: "permission denied"},
+			}}}}
+		svc := testService(t, homePaths, Dependencies{
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-1": {ID: "ws-1", RootDir: t.TempDir(), WorkspaceID: "ws-1"},
+			}}, CmdPalette: palette,
+		})
+		section, err := svc.GetSection(ctx, SectionRequest{
+			Section:       SectionWindowManager,
+			Scope:         ScopeWorkspace,
+			WorkspaceID:   "ws-1",
+			ClientID:      "client:marketing",
+			ClientProfile: cmdpalette.ScopedProfileLens("profile-marketing", "marketing"),
+		})
+		if err != nil {
+			t.Fatalf("GetSection() error = %v", err)
+		}
+		if section.Scope != ScopeWorkspace || len(section.WindowManager.GlobalShortcuts) != 1 ||
+			section.WindowManager.GlobalShortcuts[0].Status != "failed_permission" {
+			t.Fatalf("section = %#v, want workspace scope and failed_permission status", section)
+		}
+		requests := palette.recordedRequests()
+		if len(requests) != 1 ||
+			requests[0].ProfileLens != cmdpalette.ScopedProfileLens("profile-marketing", "marketing") ||
+			requests[0].ClientID != "client:marketing" {
+			t.Fatalf("catalog requests = %#v, want the attached marketing client without fallback", requests)
+		}
+	})
+
 	t.Run("Should read the section without a client that is not attached yet", func(t *testing.T) {
 		t.Parallel()
 
@@ -4171,7 +4205,8 @@ type recordingCmdPaletteCatalog struct {
 	events   []cmdpalette.Event
 	// attachedClient, when set, is the only client the catalog can resolve;
 	// any other client ID fails like the daemon's client directory does.
-	attachedClient cmdpalette.ClientID
+	attachedClient  cmdpalette.ClientID
+	attachedProfile string
 }
 
 func (r *recordingCmdPaletteCatalog) Catalog(
@@ -4181,6 +4216,9 @@ func (r *recordingCmdPaletteCatalog) Catalog(
 	r.mu.Lock()
 	r.requests = append(r.requests, request)
 	r.mu.Unlock()
+	if r.attachedProfile != "" && request.ClientID != "" && string(request.ProfileLens.ID) != r.attachedProfile {
+		return cmdpalette.Catalog{}, cmdpalette.ErrNoAttachedShell
+	}
 	if r.attachedClient != "" && request.ClientID != "" && request.ClientID != r.attachedClient {
 		return cmdpalette.Catalog{}, cmdpalette.ErrNoAttachedShell
 	}

@@ -27383,6 +27383,14 @@ export type GetSettingsWindowManagerData = {
      * Select the workspace id for workspace scope
      */
     workspace_id?: string;
+    /**
+     * Select the shell attachment for shortcut statuses
+     */
+    client_id?: string;
+    /**
+     * Select the shell profile without changing settings scope
+     */
+    client_profile?: string;
   };
   url: "/api/settings/window-manager";
 };
@@ -27430,6 +27438,14 @@ export type UpdateSettingsWindowManagerData = {
      * Select the workspace id for workspace scope
      */
     workspace_id?: string;
+    /**
+     * Select the shell attachment for shortcut statuses
+     */
+    client_id?: string;
+    /**
+     * Select the shell profile without changing settings scope
+     */
+    client_profile?: string;
   };
   url: "/api/settings/window-manager";
 };

@@ -186,6 +186,19 @@ func TestCmdPaletteClientDirectoryProfileIsolation(t *testing.T) {
 			if attach.client == clientX {
 				tokenX = view.AttachmentToken
 			}
+			manager, err := fixture.registry.For(attach.profile)
+			if err != nil {
+				t.Fatalf("For(%s) error = %v", attach.profile, err)
+			}
+			connection, err := manager.AttachClientCommands(ctx, workspaceID, attach.client)
+			if err != nil {
+				t.Fatalf("AttachClientCommands(%s) error = %v", attach.client, err)
+			}
+			t.Cleanup(func() {
+				if err := connection.Close(); err != nil {
+					t.Errorf("ClientCommandConnection.Close() error = %v", err)
+				}
+			})
 		}
 		if tokenX == "" {
 			t.Fatal("ClaimClient(X) returned no attachment token")
@@ -209,17 +222,25 @@ func TestCmdPaletteClientDirectoryProfileIsolation(t *testing.T) {
 				want: []cmdpalette.ClientID{cmdpalette.ClientID(clientX), cmdpalette.ClientID(clientY)},
 			},
 		} {
-			clients, err := directory.AttachedClients(ctx, tc.lens, workspaceID)
-			if err != nil {
-				t.Fatalf("AttachedClients(%s) error = %v", tc.lens.ID, err)
-			}
-			got := make([]cmdpalette.ClientID, 0, len(clients))
-			for _, client := range clients {
-				got = append(got, client.ID)
-			}
-			slices.Sort(got)
-			if !slices.Equal(got, tc.want) {
-				t.Fatalf("AttachedClients(%s) = %v, want %v", tc.lens.ID, got, tc.want)
+			for _, list := range []struct {
+				name string
+				call func(context.Context, cmdpalette.ProfileLens, cmdpalette.WorkspaceID) ([]cmdpalette.Client, error)
+			}{
+				{name: "AttachedClients", call: directory.AttachedClients},
+				{name: "Clients", call: directory.Clients},
+			} {
+				clients, err := list.call(ctx, tc.lens, workspaceID)
+				if err != nil {
+					t.Fatalf("%s(%s) error = %v", list.name, tc.lens.ID, err)
+				}
+				got := make([]cmdpalette.ClientID, 0, len(clients))
+				for _, client := range clients {
+					got = append(got, client.ID)
+				}
+				slices.Sort(got)
+				if !slices.Equal(got, tc.want) {
+					t.Fatalf("%s(%s) = %v, want %v", list.name, tc.lens.ID, got, tc.want)
+				}
 			}
 		}
 	})

@@ -14,6 +14,8 @@ func getSettingsWindowManagerOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			enumQueryParam(specScopeKey, "Select the settings scope", settingsUserWorkspaceScopeValues()),
 			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
+			queryParam("client_id", "Select the shell attachment for shortcut statuses", false),
+			queryParam("client_profile", "Select the shell profile without changing settings scope", false),
 		},
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SettingsWindowManagerResponse{}},
@@ -37,6 +39,8 @@ func updateSettingsWindowManagerOperationSpec() OperationSpec {
 		Parameters: []ParameterSpec{
 			enumQueryParam(specScopeKey, "Select the settings scope", settingsUserWorkspaceScopeValues()),
 			queryParam("workspace_id", "Select the workspace id for workspace scope", false),
+			queryParam("client_id", "Select the shell attachment for shortcut statuses", false),
+			queryParam("client_profile", "Select the shell profile without changing settings scope", false),
 		},
 		RequestBody: contract.UpdateSettingsWindowManagerRequest{},
 		Responses: []ResponseSpec{

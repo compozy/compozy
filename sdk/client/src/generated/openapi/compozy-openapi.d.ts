@@ -40418,6 +40418,10 @@ export interface operations {
         scope?: "user" | "workspace";
         /** @description Select the workspace id for workspace scope */
         workspace_id?: string;
+        /** @description Select the shell attachment for shortcut statuses */
+        client_id?: string;
+        /** @description Select the shell profile without changing settings scope */
+        client_profile?: string;
       };
       header?: never;
       path?: never;
@@ -40470,6 +40474,10 @@ export interface operations {
         scope?: "user" | "workspace";
         /** @description Select the workspace id for workspace scope */
         workspace_id?: string;
+        /** @description Select the shell attachment for shortcut statuses */
+        client_id?: string;
+        /** @description Select the shell profile without changing settings scope */
+        client_profile?: string;
       };
       header?: never;
       path?: never;

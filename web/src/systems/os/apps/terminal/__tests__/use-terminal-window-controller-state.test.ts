@@ -113,7 +113,7 @@ describe("terminal creation scope", () => {
           snapshot
         );
         client.setQueryData(
-          windowManagerKeys.config(scope.key.workspaceId, "client:web"),
+          windowManagerKeys.config(scope.key.workspaceId, "client:web", scope.key.profileKey),
           parseSettingsWindowManagerSection(settingsWindowManagerSectionFixture)
         );
         runtime.bind({

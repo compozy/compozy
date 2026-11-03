@@ -33,7 +33,7 @@ Walk (task_11 plan):
    source of truth; with `--client` it lands in that client. Clients belong to the profile whose
    desk they present: with one tab on profile X and one on profile Y in the same workspace,
    `cmd-palette clients --profile Y` lists only Y's tab,
-   `GET /api/cmd-palette/clients?all_profiles=true` lists both, and invoking with
+   `cmd-palette clients --all-profiles` and `GET /api/cmd-palette/clients?all_profiles=true` list both, and invoking with
    `--profile Y --client <X tab>` returns no_attached_shell without reaching the X tab.
 5. Invoke a destructive command → 202 approval_pending with a stable approval id; `approvals show`
    tracks pending → terminal; approve → exactly one execution; deny/cancel → terminal without

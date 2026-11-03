@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/cmdpalette"
 
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/gin-gonic/gin"
@@ -23,6 +24,9 @@ func (h *BaseHandlers) getSettingsSection(c *gin.Context, section settingspkg.Se
 		return
 	}
 
+	if !h.resolveSettingsClientProfile(c, &req) {
+		return
+	}
 	envelope, err := h.Settings.GetSection(c.Request.Context(), req)
 	if err != nil {
 		status := StatusForSettingsError(err)
@@ -196,4 +200,23 @@ func (h *BaseHandlers) deleteSettingsCollectionItem(c *gin.Context, req settings
 	}
 
 	c.JSON(http.StatusOK, SettingsApplyResponseFromResult(result))
+}
+
+func (h *BaseHandlers) resolveSettingsClientProfile(c *gin.Context, req *settingspkg.SectionRequest) bool {
+	if req.Section != settingspkg.SectionWindowManager {
+		return true
+	}
+	resolved, err := h.resolveProfileReadSelectionWithSelector(c, req.WorkspaceID, c.Query("client_profile"))
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return false
+	}
+	if resolved.Scope.AllProfiles {
+		h.respondError(c, http.StatusBadRequest, fmt.Errorf("client_profile must select one profile"))
+		return false
+	}
+	req.ClientProfile = cmdpalette.ScopedProfileLens(
+		cmdpalette.ProfileLensID(resolved.Scope.ProfileID), resolved.ProfileName,
+	)
+	return true
 }
