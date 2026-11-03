@@ -52,7 +52,9 @@ func (m *Manager) cachedSkillResource(
 	if m.skillResourceCache == nil {
 		m.skillResourceCache = make(map[string]skillResourceCacheEntry)
 	}
-	m.skillResourceCache[file] = skillResourceCacheEntry{source: source, snapshots: snapshots, skill: cloneSkillSnapshot(skill)}
+	m.skillResourceCache[file] = skillResourceCacheEntry{
+		source: source, snapshots: snapshots, skill: cloneSkillSnapshot(skill),
+	}
 	m.skillResourceCacheMu.Unlock()
 	return skill, nil
 }
