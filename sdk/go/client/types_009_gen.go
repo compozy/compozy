@@ -7,6 +7,9 @@ import (
 	"time"
 )
 
+// InvokeStatus is a daemon API value.
+type InvokeStatus string
+
 // JobPayload is a daemon API value.
 type JobPayload struct {
 	ID           string                           `json:"id"`

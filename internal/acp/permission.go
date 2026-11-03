@@ -13,6 +13,9 @@ import (
 )
 
 const (
+	permissionSourcePolicy  = "policy"
+	permissionSourceRule    = "rule"
+	permissionActorProvider = "provider"
 	// PermissionRequestIDMetaKey pins the externally addressable permission request ID in ACP metadata.
 	PermissionRequestIDMetaKey = "request_id"
 	// PermissionToolIDMetaKey preserves the canonical Compozy tool identity for attention projections.
@@ -178,37 +181,37 @@ func (p permissionPolicy) permissionDecisionSource(
 ) (permissionDecision, bool, string) {
 	paths, err := p.resolvePathList(request.ToolCall.Locations)
 	if err != nil || p.mode == compozyconfig.PermissionModeDenyAll {
-		return decisionRejectOnce, false, "policy"
+		return decisionRejectOnce, false, permissionSourcePolicy
 	}
 
 	if decision, matched := p.ruleDecision(request, paths); matched {
-		return decision, false, "rule"
+		return decision, false, permissionSourceRule
 	}
 	switch p.mode {
 	case compozyconfig.PermissionModeApproveAll:
-		return decisionAllowOnce, false, "policy"
+		return decisionAllowOnce, false, permissionSourcePolicy
 	case compozyconfig.PermissionModeApproveEdits, compozyconfig.PermissionModeAuto:
 		if request.ToolCall.Kind == nil {
-			return decisionRejectOnce, false, "policy"
+			return decisionRejectOnce, false, permissionSourcePolicy
 		}
 		switch *request.ToolCall.Kind {
 		case acpsdk.ToolKindRead, acpsdk.ToolKindEdit:
-			return decisionAllowOnce, false, "policy"
+			return decisionAllowOnce, false, permissionSourcePolicy
 		case acpsdk.ToolKindExecute, acpsdk.ToolKindDelete, acpsdk.ToolKindMove,
 			acpsdk.ToolKindSearch, acpsdk.ToolKindFetch, acpsdk.ToolKindThink, acpsdk.ToolKindSwitchMode:
-			return decisionPending, true, "policy"
+			return decisionPending, true, permissionSourcePolicy
 		default:
-			return decisionRejectOnce, false, "policy"
+			return decisionRejectOnce, false, permissionSourcePolicy
 		}
 	case compozyconfig.PermissionModeApproveReads:
 		if request.ToolCall.Kind != nil && *request.ToolCall.Kind == acpsdk.ToolKindRead {
-			return decisionAllowOnce, false, "policy"
+			return decisionAllowOnce, false, permissionSourcePolicy
 		}
-		return decisionPending, true, "policy"
+		return decisionPending, true, permissionSourcePolicy
 	case compozyconfig.PermissionModeDenyAll:
-		return decisionRejectOnce, false, "policy"
+		return decisionRejectOnce, false, permissionSourcePolicy
 	default:
-		return decisionRejectOnce, false, "policy"
+		return decisionRejectOnce, false, permissionSourcePolicy
 	}
 }
 

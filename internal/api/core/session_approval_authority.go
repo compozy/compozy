@@ -18,7 +18,13 @@ func (h *BaseHandlers) RequireSessionApprovalAuthority(c *gin.Context, target st
 		return false
 	}
 	ctx := session.WithActingSession(c.Request.Context(), caller.Session.ID)
-	if err := session.AuthorizeSessionApproval(ctx, caller.Session.ID, target, h.Sessions.Status); err != nil {
+	if err := session.AuthorizeSessionApproval(
+		ctx,
+		caller.Session.ID,
+		target,
+		h.Sessions.Status,
+		h.WorkspaceAccess,
+	); err != nil {
 		c.JSON(http.StatusForbidden, contract.ErrorPayload{
 			Error: err.Error(), Code: "session_approve_outside_lineage",
 		})

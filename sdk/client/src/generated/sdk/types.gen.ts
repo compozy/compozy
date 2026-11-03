@@ -268,6 +268,7 @@ export type AgentInstanceListResponse = {
   instances: Array<AgentInstancePayload>;
   max_active_instances: number;
   next_cursor: string;
+  peers?: Array<AgentInstancePeer>;
 };
 
 export type AgentInstanceNextWake = {
@@ -315,6 +316,13 @@ export type AgentInstancePayload = {
   workspace_id: string;
 };
 
+export type AgentInstancePeer = {
+  description: string;
+  name: string;
+  scope: string;
+  state: string;
+};
+
 export type AgentInstanceProposal = {
   body: string;
   item_keys: Array<string>;
@@ -331,6 +339,7 @@ export type AgentInstanceProposalSource = {
 };
 
 export type AgentInstanceReportPayload = {
+  action?: string;
   cause?: string;
   created_at: string;
   detail?: string;
@@ -339,11 +348,20 @@ export type AgentInstanceReportPayload = {
   kind: string;
   proposals?: Array<AgentInstanceProposal>;
   reason?: string;
+  resource?: string;
   session_id?: string;
   since?: string;
   skill_review_id?: string;
+  source?: AgentInstanceReportSource | null;
   state: string;
   tool?: string;
+};
+
+export type AgentInstanceReportSource = {
+  event: string;
+  kind: string;
+  summary?: string;
+  trigger_name: string;
 };
 
 export type AgentInstanceReportsResponse = {
@@ -5559,6 +5577,7 @@ export type ProviderSummaryPayload = {
   default: boolean;
   display_name?: string;
   name: string;
+  reviewer_mode?: string;
   runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
   session_env_status?: Array<SettingsProviderCredentialStatusPayload>;
 };
@@ -6554,6 +6573,7 @@ export type SendPromptResultPayload = {
   reply_watch?: ReplyWatchRefPayload | null;
   status: string;
   steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+  target_session_id?: string;
   target_workspace_id?: string;
   turn_id?: string;
 };
@@ -7087,6 +7107,7 @@ export type SessionInputPayload = {
   coalesced_wakes?: number;
   delivery: string;
   enqueued_at: string;
+  held: boolean;
   id: string;
   idempotency_key?: string;
   mentions?: Array<SessionInputMentionPayload>;
@@ -12155,6 +12176,7 @@ export type UpdateTriggerRequest = {
   name?: string | null;
   prompt?: string | null;
   retry?: RetryConfig | null;
+  target_instance_scope?: string | null;
   webhook_id?: string | null;
   webhook_secret_value?: string | null;
 };
@@ -12815,6 +12837,10 @@ export type ListAgentInstancesData = {
      * Include all workspaces
      */
     all_workspaces?: string;
+    /**
+     * Read reachable peers without private instance details
+     */
+    peers?: string;
     /**
      * Agent name
      */

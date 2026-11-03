@@ -7,6 +7,29 @@ import (
 	"time"
 )
 
+// AgentTaskClaimNextRequest is a daemon API value.
+type AgentTaskClaimNextRequest struct {
+	RunID                string   `json:"run_id,omitempty"`
+	WorkspaceID          string   `json:"workspace_id,omitempty"`
+	RequiredCapabilities []string `json:"required_capabilities,omitempty"`
+	PriorityMin          int      `json:"priority_min,omitzero"`
+	LeaseSeconds         int64    `json:"lease_seconds,omitzero"`
+	Wait                 bool     `json:"wait,omitzero"`
+	IdempotencyKey       string   `json:"idempotency_key,omitempty"`
+}
+
+// AgentTaskClaimPayload is a daemon API value.
+type AgentTaskClaimPayload struct {
+	Task  TaskReferencePayload       `json:"task"`
+	Run   TaskRunPayload             `json:"run"`
+	Lease TaskRunLeaseSummaryPayload `json:"lease"`
+}
+
+// AgentTaskClaimResponse is a daemon API value.
+type AgentTaskClaimResponse struct {
+	Claim AgentTaskClaimPayload `json:"claim"`
+}
+
 // AgentTaskCompleteRequest is a daemon API value.
 type AgentTaskCompleteRequest struct {
 	Result         json.RawMessage `json:"result,omitempty"`
@@ -418,30 +441,6 @@ type BulkForceTaskRunItemPayload struct {
 // BulkForceTaskRunRequest is a daemon API value.
 type BulkForceTaskRunRequest struct {
 	RunIDs   []string        `json:"run_ids"`
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// BulkForceTaskRunResponse is a daemon API value.
-type BulkForceTaskRunResponse struct {
-	Results []BulkForceTaskRunItemPayload `json:"results"`
-}
-
-// BusyInputState is a daemon API value.
-type BusyInputState struct {
-	DefaultMode     string            `json:"default_mode"`
-	SteerCapability SteerCapability   `json:"steer_capability"`
-	SteerDelivery   SteerDeliveryMode `json:"steer_delivery,omitempty"`
-}
-
-// CancelTaskRequest is a daemon API value.
-type CancelTaskRequest struct {
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// CancelTaskRunRequest is a daemon API value.
-type CancelTaskRunRequest struct {
 	Reason   string          `json:"reason,omitempty"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 }

@@ -88,6 +88,7 @@ func (g *SessionRepo) EnqueueSessionInput(
 	if err != nil {
 		return store.SessionInputQueueEntry{}, 0, err
 	}
+	g.observeHeldInstanceInput(ctx, &entry)
 	return entry, position, nil
 }
 
@@ -201,6 +202,9 @@ func (g *SessionRepo) ClaimNextSessionInput(
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, false, err
+	}
+	if ok {
+		observeReleasedInstanceInput(ctx, &entry)
 	}
 	return entry, ok, nil
 }

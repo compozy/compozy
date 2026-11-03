@@ -13,16 +13,20 @@ import (
 )
 
 type AutomationEventSource struct {
-	Kind       string `json:"kind"`
-	EventID    string `json:"event_id"`
-	TriggerID  string `json:"trigger_id"`
-	RunID      string `json:"run_id"`
-	ReceivedAt string `json:"received_at"`
+	TriggerName string `json:"trigger_name"`
+	Event       string `json:"event"`
+	Summary     string `json:"summary,omitempty"`
+	Kind        string `json:"kind"`
+	EventID     string `json:"event_id"`
+	TriggerID   string `json:"trigger_id"`
+	RunID       string `json:"run_id"`
+	ReceivedAt  string `json:"received_at"`
 }
 
 type AutomationEventFact struct {
 	ID, InstanceID, Summary, ReceivedAt string
 	Instruction                         string
+	TriggerName, Event                  string
 	TriggerID, RunID                    string
 }
 
@@ -67,7 +71,8 @@ func collectAutomationEvents(scope CollectorScope, facts CollectorFacts) ([]Dige
 		quoted = strings.NewReplacer("<", `\u003c`, ">", `\u003e`, "&", `\u0026`).Replace(quoted)
 		item := DigestItem{
 			Source: &AutomationEventSource{
-				Kind:       "automation_event",
+				Kind:        "event",
+				TriggerName: row.TriggerName, Event: row.Event, Summary: summary,
 				EventID:    row.ID,
 				TriggerID:  row.TriggerID,
 				RunID:      row.RunID,

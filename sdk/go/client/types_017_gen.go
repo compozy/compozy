@@ -394,6 +394,7 @@ type SessionInputMentionPayload struct {
 
 // SessionInputPayload is a daemon API value.
 type SessionInputPayload struct {
+	Held             bool                            `json:"held"`
 	Origin           *PromptOriginMeta               `json:"origin,omitzero"`
 	ID               string                          `json:"id"`
 	SessionID        string                          `json:"session_id"`

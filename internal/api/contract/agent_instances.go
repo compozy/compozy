@@ -40,7 +40,15 @@ type AgentInstancePayload struct {
 type AgentInstanceResponse struct {
 	Instance AgentInstancePayload `json:"instance"`
 }
+type AgentInstancePeer struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Scope       string `json:"scope"`
+	State       string `json:"state"`
+}
+
 type AgentInstanceListResponse struct {
+	Peers              []AgentInstancePeer    `json:"peers,omitempty"`
 	MaxActiveInstances int                    `json:"max_active_instances"`
 	ActiveCount        int64                  `json:"active_count"`
 	Instances          []AgentInstancePayload `json:"instances"`
@@ -55,19 +63,22 @@ type AgentInstanceAdoptRequest struct {
 	SessionID string `json:"session_id"`
 }
 type AgentInstanceReportPayload struct {
-	SkillReviewID string                  `json:"skill_review_id,omitempty"`
-	ID            string                  `json:"id"`
-	Kind          string                  `json:"kind"`
-	State         string                  `json:"state"`
-	Proposals     []AgentInstanceProposal `json:"proposals,omitempty"`
-	Reason        string                  `json:"reason,omitempty"`
-	Detail        string                  `json:"detail,omitempty"`
-	SessionID     string                  `json:"session_id,omitempty"`
-	Tool          string                  `json:"tool,omitempty"`
-	ExpiredBy     string                  `json:"expired_by,omitempty"`
-	Cause         string                  `json:"cause,omitempty"`
-	Since         string                  `json:"since,omitempty"`
-	CreatedAt     time.Time               `json:"created_at"`
+	Source        *AgentInstanceReportSource `json:"source,omitempty"`
+	Action        string                     `json:"action,omitempty"`
+	Resource      string                     `json:"resource,omitempty"`
+	SkillReviewID string                     `json:"skill_review_id,omitempty"`
+	ID            string                     `json:"id"`
+	Kind          string                     `json:"kind"`
+	State         string                     `json:"state"`
+	Proposals     []AgentInstanceProposal    `json:"proposals,omitempty"`
+	Reason        string                     `json:"reason,omitempty"`
+	Detail        string                     `json:"detail,omitempty"`
+	SessionID     string                     `json:"session_id,omitempty"`
+	Tool          string                     `json:"tool,omitempty"`
+	ExpiredBy     string                     `json:"expired_by,omitempty"`
+	Cause         string                     `json:"cause,omitempty"`
+	Since         string                     `json:"since,omitempty"`
+	CreatedAt     time.Time                  `json:"created_at"`
 }
 type AgentInstanceReportsResponse struct {
 	Reports    []AgentInstanceReportPayload `json:"reports"`
@@ -135,4 +146,12 @@ type AgentInstanceProposalSource struct {
 	TriggerID  string `json:"trigger_id"`
 	RunID      string `json:"run_id"`
 	ReceivedAt string `json:"received_at"`
+}
+
+// AgentInstanceReportSource is daemon-owned provenance for an event-derived proposal.
+type AgentInstanceReportSource struct {
+	Kind        string `json:"kind"`
+	TriggerName string `json:"trigger_name"`
+	Event       string `json:"event"`
+	Summary     string `json:"summary,omitempty"`
 }

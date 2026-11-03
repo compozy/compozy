@@ -1,115 +1,58 @@
 # Stays-on hardening backend verification
 
-Contract: `.compozy/tasks/stays-on-hardening/{_spec,_dx,_tests,_user_stories}.md` in the workspace root. This records backend progress; it is not final acceptance. The integration branch began at `6dc279e35` with four partial slices. Web screens, CI, push and PR publication belong to the orchestrator.
+Integration branch: `feat/stays-on-hardening`. Backend completion is in progress.
+The current stays-on hardening spec and operator clarifications own the contract.
+This report records actual focused checks; it does not claim the Web integration or CI gates.
 
-## Engagement and pause notification
+## Verified runtime increments
 
-- Rule 6: marking instance reports seen resets the unattended counter atomically. A resolved operator permission or clarification resets it in the canonical interaction transaction. Agent, policy and timeout decisions, and replayed terminal decisions, do not reset it. Presence remains independent.
-- Rule 7: the persisted unattended-limit report uses the existing idempotent operator notification path; report replay and successor publication do not notify again.
-- Canonical invariants: persistence owns engagement and replay; session publication owns one notification per report. Existing suites were extended, with real SQLite.
+- Durable named agent messages resolve the current main under the admission transaction,
+  survive a paused runtime and daemon restart, and deliver once after resume.
+- Peers use four fields: `name`, `description`, `scope`, `state`. Authorization precedes pagination.
+- Trigger targets include `target_instance_scope` on create/read/update. Events preserve the
+  rendered trigger instruction, trigger name and event name in their durable run receipt.
+- Reports expose optional `source: {kind: "event", trigger_name, event, summary?}`. Expired
+  approvals include `action` and `resource`. Lost wakes use `failure` with `reason: "wake_lost"`
+  and `detail`; the validator also reads historical `interrupted` reports.
+- Provider summaries expose optional `reviewer_mode`. The configured reviewer survives provider
+  cloning, agent resolution and process startup. Mode negotiation also uses ACP `configOptions`.
+- Rule allows cover every location and never select an allow-always option. Denies veto allows;
+  path resolution evaluates symlink targets before matching. Rule events identify the matched rule.
+- Workspace approval grants still pass the existing workspace-access policy.
+- Metrics expose `agent_instances.pause_counts` and `agent_instances.held_input_count` within the
+  caller's profile/workspace. Structured events cover pauses, inputs, repeated denials, skill
+  reviews and instance events.
 
-| Contract | Canonical suite | Focused result |
-| --- | --- | --- |
-| UT-005 (seen, permission, clarification; other engagement paths remain to audit) | `globaldb.TestInstanceSeen`, `globaldb.TestPendingInteractionCanonicalTransactionRedactsAndRollsBackTogether` | Passed with race, 2026-11-03 |
-| Rule 7 notification idempotency (IT-004/IT-029 complete journey still pending) | `session.TestInstanceReportPublication` | Passed with race, 2026-11-03 |
+## Focused evidence through 04:58 UTC
 
-Command: `CGO_ENABLED=1 GOMAXPROCS=4 go test -race ./internal/store/globaldb ./internal/session -run 'Test(InstanceSeen|PendingInteractionCanonicalTransactionRedactsAndRollsBackTogether|InstanceReportPublication)$' -count=1 -timeout=180s`. Store: 9.936s; session: 5.446s.
-
-Test-shape checker passes the changed instance and publication suites. In `global_db_session_index_test.go` it reports four unchanged older top-level tests (`TestSessionAttentionSeenFenceIsMonotonicAndPassiveReadsArePure`, `TestSessionAttentionEndedEarlyMarkDrivesDurableCatalog`, `TestSessionAttentionLifecycleUpdateBumpsOrderingFenceAtomically`, `TestOrphanInteractionResolutionCouplesQueueAndIsIdempotent`). New cases use parallel `Should` subtests; unrelated suites were preserved.
-
-The PATH lint binary was built with Go 1.26 and cannot load this Go 1.27 module. Use `mise exec -- golangci-lint` (repository pin 2.15.0). Inherited formatting and repeated constants in the touched packages were repaired. `mise exec -- golangci-lint run --concurrency 4 --timeout 5m ./internal/store/globaldb/ ./internal/session/` passed with zero issues. The commit uses `HUSKY=0`: the hook invokes lint-staged with automatic stash and repository-wide `make fmt`, conflicting with the assigned preservation and scope rules. Focused formatting, lint, tests and diff checks ran explicitly. The Markdown formatter excludes this report directory.
-
-## Durable pause, queue and monitor repairs
-
-- Rules 1-5, 9-10: queue holds cover two descendant depths, agent-created roots and rotated predecessors. A human-spawned first prompt retains agent attribution while inheriting human dispatch classification; it does not gain human permission authority. Managed prompt seams recheck instance state; Loop-owned scheduler work is excluded from the counter.
-- Pause callbacks carry committed snapshots. State effects reconcile from persisted state at startup and periodic maintenance, so a missed post-commit callback remains recoverable. Goal/Loop pause records share their existing control transaction; resume guards and selective restoration preserve independent operator pauses.
-- Stopped-main admission retains queued work without binding a provider. Resume nudges live lineage sessions and restarts the current main when needed; stopped descendants keep their queues. Archive cancels held lineage rows. The human queue retains its independent capacity.
-- Rule 21: lost monitor wakes append one interrupted main report per wake identity, including pull-request fire sequence; stale updates, shutdown cancellation and delivered wakes do not duplicate reports.
-- CLI/HTTP/UDS/native instance payloads expose unattended count/limit and held count. OpenAPI and Go/TypeScript SDK contracts were generated. Bundled reference, site Heartbeat documentation and the monitor QA scenario now describe these semantics.
-
-| Contract | Canonical suite | Focused result |
-| --- | --- | --- |
-| UT-001, UT-002, UT-025 selection, UT-027, UT-084, UT-085 promotion | `globaldb.TestGlobalDBPausedInstanceInputSelection` | Passed |
-| UT-004, UT-006; retries and three-row batch | `globaldb.TestGlobalDBInstanceUnattendedBrake` | Passed |
-| Rule 10 control transactions and selective ownership | `globaldb.TestGlobalDBInstanceRunPause` | Passed; complete IT-032 journey still pending |
-| UT-003, UT-011; check trip post-commit effects | `globaldb.TestInstancePauseCancelsCheck`, `TestInstanceResumeAuthority`, `TestInstanceCheckUnattendedPauseEffects`, `TestInstanceLifecycleHooks` | Passed |
-| UT-083 origin classification | `session.TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions` | Passed; native wait-held result belongs to the messaging increment |
-| Paused queue/steer/interrupt; trip turn dispatch | `session.TestPausedInstancePromptAdmission`, `TestInstanceUnattendedPauseDispatch` | Passed |
-| UT-029 lost monitor idempotency | `globaldb.TestGlobalDBSessionMonitors` | Passed |
-| Read facets | `core.TestAgentInstanceReadFacets`, `cli.TestAgentInstanceCommands` | Passed; full IT-008 transport comparison remains pending |
-| IT-005, IT-016 stopped-main restart path | `daemon.TestInstancePausedRuntimeIntegration` | Passed, real ACP process and SQLite, 3.846s |
-
-Latest focused package results: globaldb 3.901s, core 1.321s, CLI 1.869s, session 5.323s, daemon 2.206s. The heartbeat package compiled but had no matching tests in this command; heartbeat behavior above ran through its real service in globaldb suites. `make codegen` passed. Focused pinned lint across agentinstance/core/CLI/daemon/heartbeat/loop/session/globaldb passed with zero issues, using `--allow-serial-runners` to honor the shared lint lock. No broad gates or E2E ran. All changed production files remain at most 500 lines.
-
-## Remaining work
-
-- B1: complete the remaining canonical case mapping and daemon journeys, especially full managed-run reconciliation/dispatch racing, monitor/subagent release ordering, native spawn wait-held, observability and 300-turn notification journey.
-- B2: verify inherited implementation, complete case mapping and scoped checks, reviewer probe limitations.
-- B3: verify inherited implementation and complete child Goal journey and migration evidence.
-- B4: native/CLI/HTTP/UDS skill-review surfaces and wiring; event public target surfaces and template semantics; integration journeys; docs.
-- B5: name-addressed admission, reachable peer reads and held delivery result; all cases and docs.
-- Final: generated contracts and codegen-check, affected Turbo typechecks, scoped lint/tests, QA scenarios, release behavior notes and impact handoff. No repository-wide gates or E2E locally.
+- `TestInstancePausedRuntimeIntegration`, `TestInstanceContextExhaustionIntegration`,
+  `TestInstanceSkillApprovalIntegration`, `TestInstanceWebhookCheckIntegration`: passed against
+  SQLite and real ACP child processes. The webhook test verifies the public report source.
+- `TestInstanceUnattendedRuntimeIntegration`: 300 monitor wake turns trip one pause notification;
+  a real timer fires while paused, an authenticated human input resets the counter while preserving
+  the pause, and HTTP operator resume releases exactly one retained wake. Passed.
+- `TestInstancePermissionRuntimeIntegration`: six cases covering declared/undeclared/unadvertised
+  reviewer, allow/deny/level rules, operator decision, and authored approve-all. Passed, 8.521s.
+- `TestInstancePermissionExpiryIntegration`: one-minute timeout, one pending request, one
+  notification/report and immediate repeat denial. Passed within the combined run; final isolated
+  receipt remains to be collected.
+- `TestOpenGlobalDBReopenPreservesRowsAndStatus`,
+  `TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL`, `TestGlobalDBInstanceTriggerRebuild`:
+  passed, 26.422s. Includes schema 163 from v0.4.8, retained heartbeat wake/permission/trigger data,
+  fresh creation, reopening, integrity and foreign keys.
+- Core/session/globaldb/ACP focused policy and scoped-metrics cases passed. Provider regression
+  packages passed: config 0.543s, session 0.813s, ACP 0.967s.
+- Focused lint across changed backend packages passed with zero issues before the final reviewer
+  propagation change; that change is being rechecked.
+- `make codegen` and Turborepo's `codegen-check` passed. Both SDK typechecks passed. The Web
+  typecheck awaits the F1–F3 integration, whose owners supply required fixture fields and levels;
+  this worktree contains no Web edits.
 
 ## Impact handoff
 
-Owning audit: `_impact-entry.md`. Rule 6 and rule 7 repairs reuse existing storage, reports and notifications; no new wire shape or configuration in this step. The orchestrator consolidates `docs/_memory/change-impact.md` after backend and frontend integration.
-
-## Skill proposal public surfaces (rules 31-35)
-
-The inherited ledger is now wired to the daemon, native proposal/status tools, shared HTTP/UDS
-review handlers, the operator CLI, and generated OpenAPI/Go/TypeScript clients. Review reads are
-scoped before paging and cursors bind profile, workspace, instance and state. Decisions require
-operator identity and the exact digest. The review exposes automatic contents before exact files.
-Installation stages on the destination filesystem, parses with the canonical skill loader, refuses
-existing different contents, and synchronously publishes the catalog. An interrupted publication
-can be retried by approving the same digest. Pending drafts remain outside every scan root.
-
-Focused evidence:
-
-- UT-040: `globaldb.TestInstanceSkillReviewLedger/Should_propose_an_inert_draft_and_link_its_report`;
-  native end-to-end admission in `daemon.TestInstanceSkillApprovalIntegration`.
-- UT-041: `globaldb.TestInstanceSkillReviewLedger/Should_cap_pending_reviews_and_retain_rejected_content`.
-- UT-042: `agentinstance.TestSkillDraftBoundary/Should_refuse_critical_content_and_unsafe_supporting_paths`;
-  native stable `skill_propose_unverified` envelope in the real integration journey.
-- UT-043: stale digest in `TestInstanceSkillReviewLedger` and `core.TestAgentSkillReviews`;
-  installation and new-session offering in `daemon.TestInstanceSkillApprovalIntegration`.
-- UT-044: rejected digest retention and changed-content proposal in `TestInstanceSkillReviewLedger`.
-- UT-045: `core.TestAgentSkillReviews` rejects both agent-authenticated decision verbs, including
-  an `approve-all` caller; service decisions have the same guard in `TestInstanceSkillReviewLedger`.
-- IT-020: `go test -tags=integration ./internal/daemon -run '^TestInstanceSkillApprovalIntegration$'
-  -count=1 -timeout=120s` passed (4.198s). Real native registry, SQLite, HTTP and ACP processes.
-- Shared route inventory `TestRegisterRoutesCoversTechSpecEndpoints` passed for HTTP (1.553s)
-  and UDS (2.112s). `TestAgentSkillReviewCommands` passed through the CLI HTTP client.
-- Latest focused domain/API/CLI/native-descriptor run passed: agentinstance 0.388s, core 0.887s,
-  CLI 1.722s, builtin 0.392s. `make codegen` passed. Focused lint passed with zero issues
-  across agentinstance, core, spec, HTTP, UDS, CLI, daemon and tools. `git diff --check` passed.
-
-The integration exposed an installed-but-unpublished skill; production now uses the existing
-resource publisher before returning an approval. No catalog filter or change to `internal/skills`
-was introduced. Native descriptor inventory is the owning public-contract test for the two new IDs.
-Official skill guidance, skills site docs and `ET-skill-activation-gates` carry the reviewed workflow.
-The Web approval card remains outside this backend assignment.
-
-## Event target public surfaces (rules 37-41)
-
-The inherited event sink now has public trigger creation and filtering in CLI, HTTP/UDS, native tools
-and TOML, with generated clients. `--target-instance` infers workspace/global scope for the documented
-CLI path; scheduled jobs reject it. Template rendering and pre/post-fire hooks run before the event
-sink, with rendered values fenced as untrusted data. The operator-authored instruction stays separate.
-Proposals carry daemon-owned event/run/trigger provenance; the public report decoder preserves it and
-the skill review link. The collector remains independent of `context.include` and enforces batch bytes.
-
-| Contract | Canonical suite | Focused result |
-| --- | --- | --- |
-| UT-051, UT-056 | `automation.TestDispatchInstanceEvents` (webhook and `ext.acme.ticket`) | Passed, 1.513s |
-| UT-052, UT-054, UT-055, UT-073, UT-074 | `globaldb.TestInstanceEventDelivery` | Passed in 4.291s focused store run |
-| UT-053 | `heartbeat` event digest cases, `session.TestTriagePromptStatesProposalLimits` | Passed; session 4.220s |
-| UT-071, UT-072 | `globaldb.TestInstanceWakeTransactions`, `TestInstanceCollectorFacts` | Passed in same store run |
-| Public target admission | `cli.TestAutomationInstanceTargets`, `config.TestAutomationInstanceTargets` | Passed, 3.314s and 3.832s |
-| IT-023 | `daemon.TestInstanceWebhookCheckIntegration` | Passed, 4.129s; real signed HTTP webhook, SQLite, read-only ACP and public proposal read |
-| IT-020 report link | `daemon.TestInstanceSkillApprovalIntegration` | Passed again with IT-023, combined 6.476s |
-
-The real event journey refuses an attempted edit and proves the main has no user-message event.
-A creation hook is not a model turn; the assertion queries canonical user-message events.
-`make codegen` passed. Site event/heartbeat docs, the bundled configuration/native reference and
-`TA-automation-last-run-agent` describe the verified backend journey. Full E2E remains CI-owned.
+Update the owning `docs/_memory/change-impact.md` entry with the new native message address,
+peer projection, held delivery/input marker, event trigger scope, report origin/expiry fields,
+provider reviewer summary, scoped metrics and structured events. Workspace/profile authority is
+preserved before lookup and pagination. Generated OpenAPI, TypeScript and Go SDKs co-ship.
+Official skill references, permissions/site docs and QA scenarios accompany the backend changes.
+The permissions page's Web-only section remains owned by F2.

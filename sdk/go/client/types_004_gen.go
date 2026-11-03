@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// BulkForceTaskRunResponse is a daemon API value.
+type BulkForceTaskRunResponse struct {
+	Results []BulkForceTaskRunItemPayload `json:"results"`
+}
+
+// BusyInputState is a daemon API value.
+type BusyInputState struct {
+	DefaultMode     string            `json:"default_mode"`
+	SteerCapability SteerCapability   `json:"steer_capability"`
+	SteerDelivery   SteerDeliveryMode `json:"steer_delivery,omitempty"`
+}
+
+// CancelTaskRequest is a daemon API value.
+type CancelTaskRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
+// CancelTaskRunRequest is a daemon API value.
+type CancelTaskRunRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
 // CancelWorktreeExitActionRequest is a daemon API value.
 type CancelWorktreeExitActionRequest struct {
 	OperationID string `json:"op_id"`
@@ -418,11 +442,3 @@ type CostSource string
 
 // CostStatus is a daemon API value.
 type CostStatus string
-
-// CountedCursorPagePayload is a daemon API value.
-type CountedCursorPagePayload struct {
-	NextCursor string `json:"next_cursor,omitempty"`
-	HasMore    bool   `json:"has_more"`
-	Total      int    `json:"total"`
-	Limit      int    `json:"limit"`
-}

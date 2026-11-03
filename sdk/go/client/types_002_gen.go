@@ -4,6 +4,30 @@ package client
 
 import "time"
 
+// AgentLimitsPayload is a daemon API value.
+type AgentLimitsPayload struct {
+	MaxChildren           int    `json:"max_children"`
+	MaxSpawnDepth         int    `json:"max_spawn_depth"`
+	MaxActivePerWorkspace int    `json:"max_active_per_workspace,omitempty"`
+	GovernedSpawnDepth    int    `json:"governed_spawn_depth"`
+	CanSpawnChildren      bool   `json:"can_spawn_children"`
+	SpawnBlockedReason    string `json:"spawn_blocked_reason,omitempty"`
+	MaxActiveTaskLeases   int    `json:"max_active_task_leases"`
+	ContextSectionLimit   int    `json:"context_section_limit"`
+}
+
+// AgentMCPServerJSON is a daemon API value.
+type AgentMCPServerJSON struct {
+	Name      string                            `json:"name"`
+	Transport string                            `json:"transport,omitempty"`
+	Command   string                            `json:"command,omitempty"`
+	Args      []string                          `json:"args,omitempty"`
+	Env       map[string]string                 `json:"env,omitempty"`
+	SecretEnv map[string]string                 `json:"secret_env,omitempty"`
+	URL       string                            `json:"url,omitempty"`
+	Auth      *SettingsMCPAuthConfigViewPayload `json:"auth,omitzero"`
+}
+
 // AgentMePayload is a daemon API value.
 type AgentMePayload struct {
 	Self             AgentIdentityPayload         `json:"self"`
@@ -418,27 +442,4 @@ type AgentSpawnRequest struct {
 // AgentSpawnResponse is a daemon API value.
 type AgentSpawnResponse struct {
 	Spawn AgentSpawnPayload `json:"spawn"`
-}
-
-// AgentTaskClaimNextRequest is a daemon API value.
-type AgentTaskClaimNextRequest struct {
-	RunID                string   `json:"run_id,omitempty"`
-	WorkspaceID          string   `json:"workspace_id,omitempty"`
-	RequiredCapabilities []string `json:"required_capabilities,omitempty"`
-	PriorityMin          int      `json:"priority_min,omitzero"`
-	LeaseSeconds         int64    `json:"lease_seconds,omitzero"`
-	Wait                 bool     `json:"wait,omitzero"`
-	IdempotencyKey       string   `json:"idempotency_key,omitempty"`
-}
-
-// AgentTaskClaimPayload is a daemon API value.
-type AgentTaskClaimPayload struct {
-	Task  TaskReferencePayload       `json:"task"`
-	Run   TaskRunPayload             `json:"run"`
-	Lease TaskRunLeaseSummaryPayload `json:"lease"`
-}
-
-// AgentTaskClaimResponse is a daemon API value.
-type AgentTaskClaimResponse struct {
-	Claim AgentTaskClaimPayload `json:"claim"`
 }

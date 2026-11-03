@@ -38,7 +38,9 @@ func appendPendingInteractionReport(
 			SessionID string `json:"session_id"`
 			Tool      string `json:"tool"`
 			ExpiredBy string `json:"expired_by"`
-		}{interaction.SessionID, tool, expiredBy}
+			Action    string `json:"action,omitempty"`
+			Resource  string `json:"resource,omitempty"`
+		}{interaction.SessionID, tool, expiredBy, interaction.Payload.Action, interaction.Payload.Resource}
 	case transition.Status == store.PendingInteractionStatusOrphaned || transition.Resolution == "failed-by-restart":
 		if strings.TrimSpace(interaction.TurnID) == "" {
 			return nil

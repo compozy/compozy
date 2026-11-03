@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"time"
 
 	automation "github.com/compozy/compozy/internal/automation/model"
@@ -38,6 +39,7 @@ func (r *InstanceEventRepo) Deliver(
 			"instance event requires target, run, trigger and positive minimum interval",
 		)
 	}
+	created := false
 	var result automation.InstanceEventDelivery
 	err := store.ExecuteWriteOperation(
 		ctx,
@@ -88,6 +90,7 @@ func (r *InstanceEventRepo) Deliver(
 			if err != nil {
 				return err
 			}
+			created = true
 			now := r.now()
 			if err := appendInstanceEvent(ctx, q, instance.ID, event, result.EventID, now); err != nil {
 				return err
@@ -98,6 +101,7 @@ func (r *InstanceEventRepo) Deliver(
 			return r.scheduleInstanceEvent(ctx, q, instance.ID, now)
 		},
 	)
+	observeInstanceEvent(ctx, result, event.RunID, created, err)
 	return result, err
 }
 
@@ -201,6 +205,28 @@ func appendInstanceEvent(
 	}
 	return q.RecordInstanceEventReceipt(
 		ctx,
-		sqlcgen.RecordInstanceEventReceiptParams{RunID: event.RunID, EventID: eventID, InstanceID: instanceID},
+		sqlcgen.RecordInstanceEventReceiptParams{RunID: event.RunID, EventID: eventID, InstanceID: instanceID,
+			TriggerName: event.TriggerName, Event: event.Event, Instruction: event.Instruction},
 	)
+}
+
+func observeInstanceEvent(
+	ctx context.Context,
+	result automation.InstanceEventDelivery,
+	runID string,
+	created bool,
+	err error,
+) {
+	if err == nil && created {
+		slog.InfoContext(
+			ctx,
+			"instance.event.received",
+			"instance_id",
+			result.InstanceID,
+			"event_id",
+			result.EventID,
+			"run_id",
+			runID,
+		)
+	}
 }

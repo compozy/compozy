@@ -116,6 +116,73 @@ func (q *Queries) CountInstanceHeldWakes(ctx context.Context, instanceID string)
 	return column_1, err
 }
 
+const countInstancePausesByReason = `-- name: CountInstancePausesByReason :many
+SELECT pause_reason, COUNT(*) AS count FROM agent_instances
+WHERE profile_id = ?1 AND workspace_id = ?2
+AND state = 'paused' AND archived_at IS NULL GROUP BY pause_reason
+`
+
+type CountInstancePausesByReasonParams struct {
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+type CountInstancePausesByReasonRow struct {
+	PauseReason string `json:"pause_reason"`
+	Count       int64  `json:"count"`
+}
+
+func (q *Queries) CountInstancePausesByReason(ctx context.Context, arg CountInstancePausesByReasonParams) ([]CountInstancePausesByReasonRow, error) {
+	rows, err := q.db.QueryContext(ctx, countInstancePausesByReason, arg.ProfileID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountInstancePausesByReasonRow{}
+	for rows.Next() {
+		var i CountInstancePausesByReasonRow
+		if err := rows.Scan(&i.PauseReason, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countScopedInstanceHeldInputs = `-- name: CountScopedInstanceHeldInputs :one
+WITH RECURSIVE instance_sessions(id, profile_id) AS (
+ SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
+ WHERE i.profile_id = ?1 AND i.workspace_id = ?2
+ AND s.profile_id = i.profile_id AND i.state = 'paused' AND i.archived_at IS NULL
+ UNION
+ SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
+ WHERE s.profile_id = parent.profile_id
+)
+SELECT CAST(COALESCE(SUM(1 + COALESCE(json_array_length(q.synthetic_prompt_json, '$.coalesced_message_ids'), 0)), 0) AS INTEGER)
+FROM session_input_queue q JOIN instance_sessions s ON s.id = q.session_id
+JOIN sessions current ON current.id = s.id
+WHERE q.status = 'queued' AND q.origin_class <> 'human'
+AND q.session_generation = current.input_generation
+`
+
+type CountScopedInstanceHeldInputsParams struct {
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id"`
+}
+
+func (q *Queries) CountScopedInstanceHeldInputs(ctx context.Context, arg CountScopedInstanceHeldInputsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countScopedInstanceHeldInputs, arg.ProfileID, arg.WorkspaceID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const deleteUnstartedAgentInstance = `-- name: DeleteUnstartedAgentInstance :execrows
 DELETE FROM agent_instances WHERE agent_instances.id = ? AND state = 'starting' AND main_session_id IS NULL
 AND NOT EXISTS (SELECT 1 FROM sessions WHERE instance_id = agent_instances.id)

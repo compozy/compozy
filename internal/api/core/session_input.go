@@ -140,7 +140,8 @@ func (h *BaseHandlers) HandlePromoteSessionInput(c *gin.Context) {
 // SessionInputPayloadFromSession maps daemon state into the public contract.
 func SessionInputPayloadFromSession(input session.PendingInput) contract.SessionInputPayload {
 	payload := contract.SessionInputPayload{
-		ID: input.ID, SessionID: input.SessionID, MessageID: input.MessageID,
+		Held: input.Held,
+		ID:   input.ID, SessionID: input.SessionID, MessageID: input.MessageID,
 		Origin:         storedPromptOriginPayload(input.Origin),
 		IdempotencyKey: input.IdempotencyKey, TargetTurnID: input.TargetTurnID,
 		Status: contract.SessionInputStatus(input.Status), Mode: contract.PromptMode(input.Mode),

@@ -2033,6 +2033,7 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		descriptor.ID.String()+" input",
 		input,
 		[]string{
+			"agent",
 			"attachments",
 			"expected_turn_id",
 			"idempotency_key",
@@ -2050,10 +2051,10 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		},
 	)
 	if !slices.Equal(input.Required, []string{
-		"session_id", "message_id", "idempotency_key",
+		"message_id", "idempotency_key",
 	}) {
 		t.Fatalf(
-			"%s input required = %#v, want session_id/message_id/idempotency_key",
+			"%s input required = %#v, want message_id/idempotency_key",
 			descriptor.ID,
 			input.Required,
 		)

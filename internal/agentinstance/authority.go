@@ -53,6 +53,9 @@ func (a Authority) Authorize(
 	if err != nil {
 		return err
 	}
+	if verb == "peers" && caller.InstanceID != "" && caller.ProfileID == instance.ProfileID {
+		return nil // The catalog owner still applies workspace access before pagination.
+	}
 	if caller.InstanceID != instance.ID || caller.AgentName != instance.AgentName ||
 		caller.ProfileID != instance.ProfileID {
 		return ErrForbidden

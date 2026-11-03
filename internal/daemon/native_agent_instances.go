@@ -16,6 +16,7 @@ import (
 )
 
 type nativeInstanceInput struct {
+	Peers         bool   `json:"peers"`
 	DryRun        bool   `json:"dry_run"`
 	Enabled       *bool  `json:"enabled"`
 	OccurrenceID  string `json:"occurrence_id"`
@@ -79,10 +80,13 @@ func (n *daemonNativeTools) agentInstanceCall(
 	if scope.Operator {
 		actor.Kind = workspaceaccess.ActorHuman
 	}
-	if input.Agent == "" {
+	if input.Peers && req.ToolID != toolspkg.ToolIDAgentInstanceList {
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, errors.New("peers requires instance list"))
+	}
+	if input.Agent == "" && !input.Peers {
 		input.Agent = scope.AgentName
 	}
-	if input.Workspace == "" {
+	if input.Workspace == "" && !input.Peers {
 		input.Workspace = scope.WorkspaceID
 	}
 	if req.ToolID == toolspkg.ToolIDAgentActivity {
@@ -100,7 +104,7 @@ func (n *daemonNativeTools) agentInstanceCall(
 		return toolspkg.ToolResult{}, err
 	}
 	if action == "list" {
-		return nativeInstanceList(ctx, api, scope.ProfileID, actor, query)
+		return n.listNativeInstances(ctx, api, scope, input, actor, query)
 	}
 	instance, err := nativeInstanceTarget(ctx, api, actor, input.ID, query)
 	if err != nil {
@@ -267,3 +271,17 @@ const (
 	nativeInstanceActionCheckIns = "check_ins"
 	nativeInstanceActionReports  = "reports"
 )
+
+func (n *daemonNativeTools) listNativeInstances(ctx context.Context, api *core.AgentInstanceAPI,
+	scope toolspkg.Scope, input nativeInstanceInput, actor workspaceaccess.ActorRef,
+	query agentinstance.ListQuery) (toolspkg.ToolResult, error) {
+	if input.Peers {
+		query.AllWorkspaces = input.AllWorkspaces || input.Workspace == ""
+		page, err := api.PeersPage(ctx, query, actor, n.deps.WorkspaceAccess)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		return structuredResult(page, "Reachable instance peers")
+	}
+	return nativeInstanceList(ctx, api, scope.ProfileID, actor, query)
+}

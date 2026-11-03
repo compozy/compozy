@@ -25,6 +25,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
+	"github.com/compozy/compozy/internal/api/contract"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -5763,6 +5764,64 @@ func TestInstanceContextExhaustionIntegration(t *testing.T) {
 		if err != nil || rotated.MainSessionID == target.ID {
 			t.Fatalf("rotation = %+v, %v", rotated, err)
 		}
+		// IT-026: address the instance after a real exhaustion rotation.
+		sender, err := manager.Create(
+			t.Context(),
+			&session.CreateOpts{AgentName: "subagent-test", Workspace: workspace},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sending, err := manager.SendPrompt(t.Context(), sender.ID, session.SendPromptOpts{Message: "hold parent"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		go func() {
+			for range sending.Events {
+			}
+		}()
+		waitForRuntimeCondition(t, "sender work turn", 10*time.Second, func() bool { return sender.IsPrompting() })
+		messageID := "message-after-rotation"
+		input, err := json.Marshal(
+			map[string]any{
+				"agent":           "subagent-test",
+				"workspace":       workspace,
+				"message":         "child work",
+				"message_id":      messageID,
+				"idempotency_key": messageID,
+				"wait":            true,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		message, err := d.toolRegistry.Call(
+			t.Context(),
+			toolspkg.Scope{
+				ProfileID:   target.ProfileID,
+				WorkspaceID: workspace,
+				SessionID:   sender.ID,
+				AgentName:   sender.AgentName,
+			},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPrompt, Input: input, ToolCallID: messageID},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var sent struct {
+			Prompt contract.SendPromptResultPayload `json:"prompt"`
+		}
+		if err := json.Unmarshal(message.Structured, &sent); err != nil {
+			t.Fatal(err)
+		}
+		if sent.Prompt.Delivery != "queued" || sent.Prompt.TargetSessionID != rotated.MainSessionID {
+			t.Fatalf("named delivery: %s", message.Structured)
+		}
+		waitForRuntimeCondition(t, "named message delivered to successor", 10*time.Second, func() bool {
+			row, err := db.GetSessionInputQueueEntry(t.Context(), rotated.MainSessionID, sent.Prompt.QueueEntryID)
+			return err == nil && row.Status == store.SessionInputQueueStatusSent
+		})
+
 		state, err = repo.WakeState(t.Context(), instance.ID)
 		if err != nil || state.RotationDueSession != "" {
 			t.Fatalf("published state = %+v, %v", state, err)

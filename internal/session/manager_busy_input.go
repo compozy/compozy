@@ -38,6 +38,9 @@ func (m *Manager) SendPrompt(ctx context.Context, id string, opts SendPromptOpts
 	if goalResult != nil {
 		return *goalResult, nil
 	}
+	if opts.InstanceTarget != nil {
+		return m.enqueueNamedInstancePrompt(ctx, preparation, *opts.InstanceTarget)
+	}
 	if preparation.mode == BusyInputModeInterrupt && preparation.request.message == "" &&
 		len(preparation.request.attachments) == 0 {
 		return m.sendEmptyInterrupt(ctx, preparation.request)

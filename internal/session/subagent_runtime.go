@@ -45,6 +45,7 @@ func (r managerSubagentRuntime) Snapshot(ctx context.Context, id string) (subage
 		}
 		snap.Queued = len(pending)
 		for i := range pending {
+			snap.Held = snap.Held || pending[i].Held
 			if pending[i].Mode == store.SessionInputQueueModeSteer {
 				snap.UserSteer = true
 			}
@@ -78,10 +79,33 @@ func (r managerSubagentRuntime) Admit(
 			return err
 		}
 	}
+	parent, err := r.m.Status(ctx, row.ParentSessionID)
+	if err != nil {
+		return err
+	}
+	human := false
+	if reader, ok := r.m.promptAdmissionStore.(interface {
+		HumanSessionTurn(context.Context, string, string) (bool, error)
+	}); ok {
+		human, err = reader.HumanSessionTurn(ctx, row.ParentSessionID, row.ParentTurnID)
+		if err != nil {
+			return err
+		}
+	}
+	origin := &acp.PromptOriginMeta{Kind: acp.PromptOriginKindSession, SessionID: row.ParentSessionID,
+		WorkspaceID: parent.WorkspaceID, AgentName: parent.AgentName, TitleAtSend: parent.Name, Hop: 1}
 	result, err := r.m.SendPrompt(
 		ctx,
 		*row.ChildSessionID,
-		SendPromptOpts{Message: text, MessageID: row.ID, IdempotencyKey: row.ID, Mode: BusyInputModeQueue},
+		SendPromptOpts{
+			Message:          text,
+			MessageID:        row.ID,
+			IdempotencyKey:   row.ID,
+			Mode:             BusyInputModeQueue,
+			Origin:           origin,
+			humanSpawnOrigin: human,
+			Caller:           PromptCaller{Kind: LinkProvenanceAgent, ID: row.ParentSessionID},
+		},
 	)
 	if err != nil {
 		return err

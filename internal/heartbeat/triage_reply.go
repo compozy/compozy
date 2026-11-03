@@ -100,9 +100,15 @@ func TriageReplyOutcome(reply string, digest CheckDigest, limit int) TriageOutco
 	if len(proposals) == 0 {
 		return TriageOutcome{Result: "quiet", Reason: "quiet"}
 	}
+	sources := triageEventSources(digest)
+	var source *AutomationEventSource
+	if len(sources) > 0 {
+		source = &sources[0]
+	}
 	payload, err := json.Marshal(struct {
-		Proposals []TriageProposal `json:"proposals"`
-	}{Proposals: proposals})
+		Source    *AutomationEventSource `json:"source,omitempty"`
+		Proposals []TriageProposal       `json:"proposals"`
+	}{Proposals: proposals, Source: source})
 	if err != nil {
 		return failedTriage("triage_output_invalid")
 	}

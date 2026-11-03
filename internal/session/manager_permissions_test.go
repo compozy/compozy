@@ -22,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
@@ -326,12 +327,12 @@ func TestInstancePermissionMode(t *testing.T) {
 	}
 
 	for _, tc := range []struct{ settings, want compozyconfig.PermissionMode }{
-		{compozyconfig.PermissionModeApproveAll, compozyconfig.PermissionModeApproveReads},
-		{compozyconfig.PermissionModeApproveReads, compozyconfig.PermissionModeApproveReads},
-		{compozyconfig.PermissionModeDenyAll, compozyconfig.PermissionModeDenyAll},
+		{compozyconfig.PermissionModeApproveAll, compozyconfig.PermissionModeApproveEdits},
+		{compozyconfig.PermissionModeApproveReads, compozyconfig.PermissionModeApproveEdits},
+		{compozyconfig.PermissionModeDenyAll, compozyconfig.PermissionModeApproveEdits},
 	} {
 		t.Run(
-			"Should cap a main session with no level under "+string(tc.settings)+" settings UT-089",
+			"Should default a main session with no level regardless of "+string(tc.settings)+" settings UT-089",
 			func(t *testing.T) {
 				t.Parallel()
 				h := newHarness(t)
@@ -1255,9 +1256,40 @@ func TestSessionApprovalAuthority(t *testing.T) {
 				"foreign": {ID: "foreign", WorkspaceID: "ws"},
 			}
 			err := AuthorizeSessionApproval(t.Context(), tc.actor, tc.target,
-				func(_ context.Context, id string) (*Info, error) { return infos[id], nil })
+				func(_ context.Context, id string) (*Info, error) { return infos[id], nil }, nil)
 			if errors.Is(err, ErrApprovalOutsideLineage) != tc.denied {
 				t.Fatalf("authority error=%v, want denied=%v", err, tc.denied)
+			}
+		})
+	}
+}
+
+// Invariant: a workspace approval grant cannot bypass the existing cross-workspace policy.
+// Owning layer: session authority; reuse its canonical suite and the policy I/O boundary.
+func TestSessionApprovalWorkspaceBoundary(t *testing.T) {
+	t.Parallel()
+	for _, allowed := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should honor workspace policy allowed=%v", allowed), func(t *testing.T) {
+			t.Parallel()
+			policy := &recordingSpawnWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: allowed}}
+			infos := map[string]*Info{
+				"main": {
+					ID:                       "main",
+					ProfileID:                "profile",
+					WorkspaceID:              "source",
+					InstanceID:               "instance",
+					EffectiveSessionApproval: "workspace",
+				},
+				"target": {ID: "target", ProfileID: "profile", WorkspaceID: "destination"},
+			}
+			err := AuthorizeSessionApproval(t.Context(), "main", "target",
+				func(_ context.Context, id string) (*Info, error) { return infos[id], nil }, policy)
+			if (err == nil) != allowed {
+				t.Fatalf("allowed=%v error=%v", allowed, err)
+			}
+			if policy.calls != 1 || policy.requests[0].ReadOnly ||
+				policy.requests[0].Target.WorkspaceID != "destination" {
+				t.Fatalf("approval policy request: %+v", policy.requests)
 			}
 		})
 	}

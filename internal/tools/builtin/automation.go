@@ -447,6 +447,8 @@ var automationTriggerProperties = `{
 }`
 
 const automationTriggerPatchProperties = `{
+ "target_instance_scope":{"type":"string",
+ "description":"Existing instance scope; target changes require a new trigger."},
 	"trigger_id":{"type":"string"},
 	"workspace":{"type":"string"},
 	"name":{"type":"string"},

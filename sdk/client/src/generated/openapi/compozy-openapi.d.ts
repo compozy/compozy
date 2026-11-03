@@ -7908,6 +7908,7 @@ export interface components {
       instances: components["schemas"]["AgentInstancePayload"][];
       max_active_instances: number;
       next_cursor: string;
+      peers?: components["schemas"]["AgentInstancePeer"][];
     };
     AgentInstanceNextWake: {
       at?: string;
@@ -7958,6 +7959,12 @@ export interface components {
       updated_at: string;
       workspace_id: string;
     };
+    AgentInstancePeer: {
+      description: string;
+      name: string;
+      scope: string;
+      state: string;
+    };
     AgentInstanceProposal: {
       body: string;
       item_keys: string[];
@@ -7972,6 +7979,7 @@ export interface components {
       trigger_id: string;
     };
     AgentInstanceReportPayload: {
+      action?: string;
       cause?: string;
       /** Format: date-time */
       created_at: string;
@@ -7981,11 +7989,19 @@ export interface components {
       kind: string;
       proposals?: components["schemas"]["AgentInstanceProposal"][];
       reason?: string;
+      resource?: string;
       session_id?: string;
       since?: string;
       skill_review_id?: string;
+      source?: components["schemas"]["AgentInstanceReportSource"] | null;
       state: string;
       tool?: string;
+    };
+    AgentInstanceReportSource: {
+      event: string;
+      kind: string;
+      summary?: string;
+      trigger_name: string;
     };
     AgentInstanceReportsResponse: {
       next_cursor: string;
@@ -13299,6 +13315,7 @@ export interface components {
       default: boolean;
       display_name?: string;
       name: string;
+      reviewer_mode?: string;
       /** @enum {string} */
       runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
       session_env_status?: components["schemas"]["SettingsProviderCredentialStatusPayload"][];
@@ -14304,6 +14321,7 @@ export interface components {
       status: string;
       /** @enum {string} */
       steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+      target_session_id?: string;
       target_workspace_id?: string;
       turn_id?: string;
     };
@@ -14895,6 +14913,7 @@ export interface components {
       delivery: string;
       /** Format: date-time */
       enqueued_at: string;
+      held: boolean;
       id: string;
       idempotency_key?: string;
       mentions?: components["schemas"]["SessionInputMentionPayload"][];
@@ -20078,6 +20097,7 @@ export interface components {
       name?: string | null;
       prompt?: string | null;
       retry?: components["schemas"]["RetryConfig"] | null;
+      target_instance_scope?: string | null;
       webhook_id?: string | null;
       webhook_secret_value?: string | null;
     };
@@ -21244,6 +21264,8 @@ export interface operations {
         workspace?: string;
         /** @description Include all workspaces */
         all_workspaces?: string;
+        /** @description Read reachable peers without private instance details */
+        peers?: string;
         /** @description Agent name */
         agent?: string;
         /** @description Instance state */

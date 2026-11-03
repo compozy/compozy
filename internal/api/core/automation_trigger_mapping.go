@@ -66,6 +66,9 @@ func applyTriggerPatch(
 	req contract.UpdateTriggerRequest,
 ) (automationpkg.Trigger, error) {
 	next := current
+	if req.TargetInstanceScope != nil {
+		next.TargetInstanceScope = strings.TrimSpace(*req.TargetInstanceScope)
+	}
 	if req.Name != nil {
 		next.Name = strings.TrimSpace(*req.Name)
 	}

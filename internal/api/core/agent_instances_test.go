@@ -1378,3 +1378,98 @@ func TestAgentSkillReviews(t *testing.T) {
 		}
 	})
 }
+
+// Invariant UT-064: inaccessible peers never occupy pages or expose private instance details.
+func TestAgentInstancePeers(t *testing.T) {
+	t.Run("Should filter before pagination and bind cursors to caller and scope", func(t *testing.T) {
+		t.Parallel()
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "peers.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, id := range []string{"allowed", "denied"} {
+			now := time.Now()
+			if err := db.InsertWorkspace(
+				t.Context(),
+				workspacepkg.Workspace{
+					ID:        id,
+					Name:      id,
+					RootDir:   filepath.Join(t.TempDir(), id),
+					CreatedAt: now,
+					UpdatedAt: now,
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		repo := db.Instances()
+		for i, workspace := range []string{"denied", "allowed", "denied", "allowed"} {
+			_, _, err := repo.AdmitCreate(
+				t.Context(),
+				agentinstance.Instance{
+					ProfileID:         store.DefaultProfileID,
+					WorkspaceID:       workspace,
+					AgentName:         fmt.Sprintf("agent-%d", i),
+					PermissionCeiling: "{}",
+					CreatedByKind:     "human",
+				},
+				10,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		api := &core.AgentInstanceAPI{
+			Store: repo,
+			Authority: agentinstance.Authority{
+				Callers: instanceAPIInputs{
+					instance: agentinstance.Instance{ID: "caller-instance", ProfileID: store.DefaultProfileID},
+				},
+			},
+		}
+		actor := workspaceaccess.ActorRef{
+			Kind:        workspaceaccess.ActorAgentSession,
+			SessionID:   "caller",
+			WorkspaceID: "allowed",
+		}
+		query := agentinstance.ListQuery{ProfileID: store.DefaultProfileID, AllWorkspaces: true, Limit: 1}
+		first, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{})
+		if err != nil || len(first.Peers) != 1 || first.Peers[0].Scope != "allowed" || first.NextCursor == "" ||
+			len(first.Instances) != 0 {
+			t.Fatalf("first peers: %+v %v", first, err)
+		}
+		raw, err := json.Marshal(first.Peers[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fields map[string]any
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			t.Fatal(err)
+		}
+		if len(fields) != 4 || fields["name"] == nil || fields["description"] == nil ||
+			fields["scope"] == nil ||
+			fields["state"] == nil {
+			t.Fatalf("private peer fields: %s", raw)
+		}
+		query.AfterID = first.NextCursor
+		next, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{})
+		if err != nil || len(next.Peers) != 1 || next.Peers[0].Name == first.Peers[0].Name || next.NextCursor != "" {
+			t.Fatalf("next peers: %+v %v", next, err)
+		}
+		query.State = "paused"
+		if _, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{}); err == nil {
+			t.Fatal("cursor crossed filters")
+		}
+		query.State = ""
+		actor.SessionID = "another"
+		if _, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{}); err == nil {
+			t.Fatal("cursor crossed callers")
+		}
+	})
+}

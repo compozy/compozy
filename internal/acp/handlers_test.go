@@ -2913,6 +2913,29 @@ func TestInstancePermissionBeyondDefaultTimeout(t *testing.T) {
 
 func TestPermissionRuleDecisionAttribution(t *testing.T) {
 	t.Parallel()
+	t.Run("Should not widen a once rule to an always-only provider option", func(t *testing.T) {
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		proc.permissions.rules = []compozyconfig.PermissionRule{{Kind: "edit", Decision: "allow"}}
+		active, err := proc.beginPrompt("rule-once", 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		response, err := proc.handleRequestPermission(t.Context(), acpsdk.RequestPermissionRequest{
+			SessionId: "sess-direct",
+			ToolCall:  acpsdk.ToolCallUpdate{Kind: new(acpsdk.ToolKindEdit)},
+			Options: []acpsdk.PermissionOption{
+				{OptionId: "allow-always", Kind: acpsdk.PermissionOptionKindAllowAlways},
+			},
+		})
+		if err != nil || response.Outcome.Selected != nil {
+			t.Fatalf("widened rule: %+v %v", response, err)
+		}
+		event := collectEventsUntilCount(t, active.events, 1)[0]
+		if event.ResolvedByValue() != "rule" || !strings.Contains(string(event.Raw), `"permission_rule"`) {
+			t.Fatalf("rule evidence: %+v", event)
+		}
+	})
 	for _, decision := range []string{"allow", "deny"} {
 		t.Run("Should record rule as the source of "+decision, func(t *testing.T) {
 			t.Parallel()
@@ -2966,7 +2989,11 @@ func TestExpiredPermissionRepeatSuppression(t *testing.T) {
 		defer first.endPrompt(active)
 		request := acpsdk.RequestPermissionRequest{
 			SessionId: "sess-direct",
-			ToolCall:  acpsdk.ToolCallUpdate{Kind: new(acpsdk.ToolKindEdit), Title: new("Edit docs"), RawInput: map[string]any{"path": "docs.md"}},
+			ToolCall: acpsdk.ToolCallUpdate{
+				Kind:     new(acpsdk.ToolKindEdit),
+				Title:    new("Edit docs"),
+				RawInput: map[string]any{"path": "docs.md"},
+			},
 			Options: []acpsdk.PermissionOption{
 				{OptionId: "allow-once", Kind: acpsdk.PermissionOptionKindAllowOnce},
 				{OptionId: "reject-once", Kind: acpsdk.PermissionOptionKindRejectOnce},

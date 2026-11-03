@@ -18,15 +18,16 @@ import (
 
 // AgentProcess represents one running ACP-backed agent subprocess.
 type AgentProcess struct {
-	executionPolicy string
-	PID             int
-	AgentName       string
-	Command         string
-	Args            []string
-	Cwd             string
-	SessionID       string
-	StartedAt       time.Time
-	KernelToken     string
+	modeProviderName string
+	executionPolicy  string
+	PID              int
+	AgentName        string
+	Command          string
+	Args             []string
+	Cwd              string
+	SessionID        string
+	StartedAt        time.Time
+	KernelToken      string
 
 	capsMu          sync.RWMutex
 	caps            Caps

@@ -118,7 +118,11 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 	if err != nil {
 		return StartOpts{}, fmt.Errorf("acp: normalize start ACP options: %w", err)
 	}
-	if err := ValidateACPModePermissions(normalized.ProviderName, normalized.ACPOptions, normalized.Permissions); err != nil {
+	if err := ValidateACPModePermissions(
+		normalized.ProviderName,
+		normalized.ACPOptions,
+		normalized.Permissions,
+	); err != nil {
 		return StartOpts{}, err
 	}
 	if err := compozyconfig.ValidatePermissionRules(normalized.PermissionRulesValue()); err != nil {

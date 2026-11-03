@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"log/slog"
 	"os"
 
 	"github.com/compozy/compozy/internal/store"
@@ -86,6 +87,9 @@ func (s *SkillProposalService) Propose(
 	}, report)
 	if errors.Is(err, ErrSkillReviewLimit) || (err == nil && review.DraftPath != path) {
 		return review, errors.Join(err, os.Remove(path))
+	}
+	if err == nil {
+		slog.InfoContext(ctx, "skill.review.created", "instance_id", instance.ID, "review_id", review.ID)
 	}
 	// An uncertain database commit must retain the inert draft for recovery.
 	return review, err

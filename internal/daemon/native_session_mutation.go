@@ -30,6 +30,7 @@ type sessionCreateInput struct {
 }
 
 type sessionPromptInput struct {
+	Agent            string                                  `json:"agent,omitempty"`
 	NotifyOnComplete bool                                    `json:"notify_on_complete,omitzero"`
 	Workspace        string                                  `json:"workspace,omitempty"`
 	SessionID        string                                  `json:"session_id"`
@@ -189,6 +190,35 @@ func (n *daemonNativeTools) sessionPrompt(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if (strings.TrimSpace(input.SessionID) == "") == (strings.TrimSpace(input.Agent) == "") {
+		return toolspkg.ToolResult{}, nativeInputError(
+			req.ToolID,
+			errors.New("provide exactly one of session_id or agent"),
+		)
+	}
+	for {
+		if err := ctx.Err(); err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		target, err := n.resolveNamedInstanceMessage(ctx, scope, req.ToolID, &input)
+		if err != nil {
+			return toolspkg.ToolResult{}, err
+		}
+		result, err := n.sendSessionPrompt(ctx, scope, req, input, target)
+		if target != nil && errors.Is(err, store.ErrInstancePromptTargetChanged) {
+			continue
+		}
+		return result, err
+	}
+}
+
+func (n *daemonNativeTools) sendSessionPrompt(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+	input sessionPromptInput,
+	target *store.InstancePromptTarget,
+) (toolspkg.ToolResult, error) {
 	sessionID, err := requiredNativeString(req.ToolID, "session_id", input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -244,7 +274,8 @@ func (n *daemonNativeTools) sessionPrompt(
 	deliveryCtx, cancelDelivery := context.WithCancel(ctx)
 	defer cancelDelivery()
 	result, err := n.deps.Sessions.SendPrompt(ctx, sessionID, session.SendPromptOpts{
-		Message: message, MessageID: messageID, IdempotencyKey: idempotencyKey,
+		InstanceTarget: target,
+		Message:        message, MessageID: messageID, IdempotencyKey: idempotencyKey,
 		Mode: mode, ExpectedTurnID: expectedTurnID,
 		DeliveryContext: deliveryCtx,
 		Origin:          origin, NotifyOnComplete: input.NotifyOnComplete, Supersede: input.Supersede,

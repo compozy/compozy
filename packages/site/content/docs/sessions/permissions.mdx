@@ -28,16 +28,20 @@ still auto-rejects at the execution boundary.
 
 ## Permission modes
 
-CompozyOS supports three static modes:
+CompozyOS supports five ordered permission levels:
 
-| Mode            | Static behavior                                                                         | Cross-workspace requests                                       |
-| --------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `deny-all`      | CompozyOS auto-allows none of the built-in file or terminal operations.                 | Denied everywhere, with no prompt.                             |
-| `approve-reads` | CompozyOS auto-allows `fs/read_text_file` only.                                         | Asks at the native-tool boundary; every other boundary denies. |
-| `approve-all`   | CompozyOS auto-allows `fs/read_text_file`, `fs/write_text_file`, and `terminal/create`. | Allowed without asking.                                        |
+| Level | Backend behavior | Cross-workspace requests |
+| --- | --- | --- |
+| `deny-all` | No automatic tool approvals; rejects ACP permission requests. | Denied without a prompt. |
+| `approve-reads` | Reads are allowed; edits and commands require approval. | Asks at the native-tool boundary; other boundaries deny. |
+| `approve-edits` | Reads, workspace file edits and named coordination tools are allowed; terminal commands and other mutations require approval. | Same boundary as `approve-reads`. |
+| `auto` | Requests the provider's declared reviewer mode; CompozyOS keeps the `approve-edits` boundary. | Same boundary as `approve-reads`. |
+| `approve-all` | Automatically approves operations within the session's existing authority. | Allowed without asking. |
 
-The same mode decides both columns. [Cross-workspace access](#cross-workspace-access) explains what
-that means for a session that asks for another workspace.
+`auto` falls back to effective `approve-edits` with `permission_mode_degraded` when the reviewer is
+undeclared, unavailable, or not selected by the adapter. It never falls back to full access.
+Only trusted global provider configuration may declare `reviewer_mode`; workspace overlays cannot.
+The provider catalog exposes this declaration for choosing a level.
 
 ### Defaults and overrides
 
@@ -50,21 +54,37 @@ mode = "approve-all"
 
 That global mode can be overridden by an agent definition.
 
-If a session somehow reaches startup with no resolved permission string at all, the session manager
-falls back to `approve-reads` instead of launching with an empty policy.
+A stays-on definition with no explicit level uses `approve-edits`; its read-only check uses
+`approve-reads`. An on-demand session keeps the global default. Each child resolves its own
+definition and global default. A `permission_mode` request can narrow that level, never raise it.
+
+## Permission rules
+
+An operator-authored definition may add up to 64 `permission_rules`. Each rule has `kind`, `path`,
+or both, and `decision: allow` or `deny`. Paths are workspace-relative glob patterns checked after
+canonical path resolution. Deny matches win; an allow approves this request once. Unmatched requests
+use the selected level. A path rule never matches a request without paths, and no rule permits a path
+outside the workspace or overrides `deny-all`. Rules are fixed when the session starts and are not
+inherited from a parent. Extension-authored rules are ignored.
+
+## Approving another session
+
+A stays-on lineage can answer permission and clarification requests only for its descendants.
+An operator-authored `session_approval: workspace` grants approval authority over sessions it can
+already reach; it adds no workspace access. The effective grant is fixed at session start.
+Extension-authored grants are ignored. Agents cannot edit these grants or set persistent tool approval
+grants. Expired approvals remain denied, produce an `approval_expired` report, and notify the operator
+unless muted. Repeating the same expired request is denied immediately until human engagement clears it.
 
 ## What the static policy actually covers
 
-These are the built-in operations CompozyOS checks directly:
+| Operation | `deny-all` | `approve-reads` | `approve-edits` | `auto` | `approve-all` |
+| --- | --- | --- | --- | --- | --- |
+| Workspace read | blocked | allowed | allowed | allowed | allowed |
+| Workspace file edit | blocked | asks | allowed | allowed | allowed |
+| Terminal command | blocked | asks | asks | asks | allowed |
 
-| Operation            | `deny-all` | `approve-reads` | `approve-all` |
-| -------------------- | ---------- | --------------- | ------------- |
-| `fs/read_text_file`  | blocked    | allowed         | allowed       |
-| `fs/write_text_file` | blocked    | blocked         | allowed       |
-| `terminal/create`    | blocked    | blocked         | allowed       |
-
-Static auto-allow is only one part of the full story. CompozyOS still enforces workspace scoping and
-workspace restrictions after the mode check passes.
+Workspace and tool restrictions remain in force after a level or rule permits a request.
 
 ## Workspace boundaries
 
@@ -91,7 +111,7 @@ under another profile counts as a different scope too. Unless the agent holds th
 | Session mode    | Cross-workspace outcome                                                                        |
 | --------------- | ---------------------------------------------------------------------------------------------- |
 | `approve-all`   | Allowed. The session crosses without being asked.                                              |
-| `approve-reads` | Asks at the native-tool boundary when the session is running; every other boundary denies.     |
+| `approve-reads`, `approve-edits`, `auto` | Asks at the native-tool boundary when the session is running; every other boundary denies. |
 | `deny-all`      | Denied at every boundary, including the native-tool one. CompozyOS never prompts for crossing. |
 
 Operators are not governed by this policy — it applies to agent sessions. Extensions, automation,
@@ -117,9 +137,9 @@ cross-workspace access is denied by this session's permission mode; ask the oper
 
 Native tool denials carry the `workspace_access_denied` reason code alongside that message.
 
-### The prompt in `approve-reads`
+### The cross-workspace prompt
 
-In `approve-reads`, a cross-workspace native tool call from a running session becomes a pending
+In `approve-reads`, `approve-edits` or `auto`, a cross-workspace native tool call from a running session becomes a pending
 permission request instead of an immediate denial. CompozyOS computes the option set:
 
 | Option ID        | Label                   | Effect                                                                           |

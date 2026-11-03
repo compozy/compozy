@@ -892,6 +892,12 @@
           },
           "next_cursor": {
             "type": "string"
+          },
+          "peers": {
+            "items": {
+              "$ref": "#/components/schemas/AgentInstancePeer"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -1072,6 +1078,29 @@
         ],
         "type": "object"
       },
+      "AgentInstancePeer": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "name",
+          "scope",
+          "state"
+        ],
+        "type": "object"
+      },
       "AgentInstanceProposal": {
         "properties": {
           "body": {
@@ -1129,6 +1158,9 @@
       },
       "AgentInstanceReportPayload": {
         "properties": {
+          "action": {
+            "type": "string"
+          },
           "cause": {
             "type": "string"
           },
@@ -1157,6 +1189,9 @@
           "reason": {
             "type": "string"
           },
+          "resource": {
+            "type": "string"
+          },
           "session_id": {
             "type": "string"
           },
@@ -1165,6 +1200,19 @@
           },
           "skill_review_id": {
             "type": "string"
+          },
+          "source": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgentInstanceReportSource"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           },
           "state": {
             "type": "string"
@@ -1178,6 +1226,28 @@
           "id",
           "kind",
           "state"
+        ],
+        "type": "object"
+      },
+      "AgentInstanceReportSource": {
+        "properties": {
+          "event": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "trigger_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "event",
+          "kind",
+          "trigger_name"
         ],
         "type": "object"
       },
@@ -20078,6 +20148,9 @@
           "name": {
             "type": "string"
           },
+          "reviewer_mode": {
+            "type": "string"
+          },
           "runtime_strategy": {
             "enum": [
               "session_config",
@@ -23624,6 +23697,9 @@
             ],
             "type": "string"
           },
+          "target_session_id": {
+            "type": "string"
+          },
           "target_workspace_id": {
             "type": "string"
           },
@@ -25711,6 +25787,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "held": {
+            "type": "boolean"
+          },
           "id": {
             "type": "string"
           },
@@ -25802,6 +25881,7 @@
         "required": [
           "delivery",
           "enqueued_at",
+          "held",
           "id",
           "mode",
           "queue_generation",
@@ -42474,6 +42554,10 @@
               }
             ]
           },
+          "target_instance_scope": {
+            "nullable": true,
+            "type": "string"
+          },
           "webhook_id": {
             "nullable": true,
             "type": "string"
@@ -47298,6 +47382,14 @@
             "description": "Include all workspaces",
             "in": "query",
             "name": "all_workspaces",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read reachable peers without private instance details",
+            "in": "query",
+            "name": "peers",
             "schema": {
               "type": "string"
             }

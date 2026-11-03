@@ -30,6 +30,8 @@ const (
 )
 
 var (
+	// ErrInstancePromptTargetChanged asks the named sender to re-resolve before admission.
+	ErrInstancePromptTargetChanged        = errors.New("store: instance prompt target changed")
 	ErrSessionSuperseded                  = errors.New("session_superseded")
 	ErrSessionPromptAdmissionInProgress   = errors.New("store: session prompt admission is in progress")
 	ErrSessionPromptIdempotencyConflict   = errors.New("store: session prompt idempotency conflict")
@@ -87,6 +89,8 @@ type SessionPromptAdmission struct {
 
 // SessionPromptAdmissionRequest carries immutable command identity and request material.
 type SessionPromptAdmissionRequest struct {
+	// InstanceTarget fences a named send against the current main inside admission.
+	InstanceTarget *InstancePromptTarget
 	// HumanSpawnOrigin inherits dispatch class only, never human permission or mention authority.
 	HumanSpawnOrigin bool
 	// DirectDispatch marks a prompt admitted against an idle session: its turn starts
@@ -114,6 +118,11 @@ type SessionPromptAdmissionRequest struct {
 	TurnID       string
 	EventID      string
 	Now          time.Time
+}
+
+// InstancePromptTarget is an authenticated, profile-scoped address, never a session alias.
+type InstancePromptTarget struct {
+	ProfileID, WorkspaceID, AgentName string
 }
 
 // Normalize trims scalar and attachment fields, clones slices, and normalizes the request clock to UTC.
