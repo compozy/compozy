@@ -35,6 +35,12 @@ describe("KindIcon", () => {
     }
   });
 
+  it("Should render the GitHub Copilot mark for the copilot kind", () => {
+    render(<KindIcon kind="copilot" data-testid="icon" />);
+
+    expect(screen.getByTestId("icon").querySelector("title")).toHaveTextContent("GitHub Copilot");
+  });
+
   it("Should normalize casing and whitespace before reading the registry", () => {
     render(<KindIcon kind=" Qwen-Code " data-testid="icon" />);
 

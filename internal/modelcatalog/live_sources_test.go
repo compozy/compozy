@@ -1845,12 +1845,15 @@ opencode/provider-managed
 				{Value: "high"}, {Value: "xhigh"}, {Value: "max"},
 			},
 		}
+		sonnetEffort := effortOption
+		sonnetEffort.CurrentValueID = "high"
+		sonnetEffort.Values = []acp.SessionConfigOptionValue{{Value: "low"}, {Value: "medium"}, {Value: "high"}}
 		probe := &fakeACPModelProbe{
 			options: []acp.SessionConfigOption{modelOption("gpt-5.6-luna"), effortOption},
 			models: map[string][]acp.SessionConfigOption{
 				"auto":            {modelOption("auto")},
 				"gpt-5.6-luna":    {modelOption("gpt-5.6-luna"), effortOption},
-				"claude-sonnet-5": {modelOption("claude-sonnet-5"), effortOption},
+				"claude-sonnet-5": {modelOption("claude-sonnet-5"), sonnetEffort},
 			},
 		}
 		builtin := compozyconfig.BuiltinProviders()[liveSourcesCopilotKey]
@@ -1886,6 +1889,11 @@ opencode/provider-managed
 			!slices.Equal(luna.ReasoningEfforts, []ReasoningEffort{"none", "low", "medium", "high", "xhigh", "max"}) {
 			t.Fatalf("gpt-5.6-luna reasoning = %v %#v, want advertised Copilot efforts", luna.SupportsReasoning,
 				luna.ReasoningEfforts)
+		}
+		if sonnet := requireModelRow(t, rows, "claude-sonnet-5"); !slices.Equal(
+			sonnet.ReasoningEfforts, []ReasoningEffort{"low", "medium", "high"},
+		) {
+			t.Fatalf("claude-sonnet-5 efforts = %#v, want its own advertised set", sonnet.ReasoningEfforts)
 		}
 		if auto := requireModelRow(t, rows, "auto"); len(auto.ReasoningEfforts) != 0 {
 			t.Fatalf("auto efforts = %#v, want none when Copilot advertises no effort for Auto", auto.ReasoningEfforts)

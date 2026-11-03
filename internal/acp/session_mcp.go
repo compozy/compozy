@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -35,7 +36,7 @@ func (d *Driver) prepareSessionMCPServers(ctx context.Context, process *AgentPro
 			Command: server.Command,
 			Args:    append([]string(nil), server.Args...),
 			Env:     bridgedServerEnv(opts.Env, server.Env),
-			Dir:     opts.Cwd,
+			Dir:     cmp.Or(strings.TrimSpace(server.CWD), opts.Cwd),
 		}, d.logger)
 		if err != nil {
 			closeErr := closeMCPBridges(bridges)

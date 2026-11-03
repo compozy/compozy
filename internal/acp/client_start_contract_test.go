@@ -1676,6 +1676,36 @@ func TestStartMCPServersSkipsRemoteTransports(t *testing.T) {
 func TestStartMCPServersBridgeOverHTTP(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should deliver the bridged server on session/load too", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-load-mcp.jsonl")
+		bin, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		proc := startHelperProcess(t, driver, "load_session", "", StartOpts{
+			ResumeSessionID: "sess-existing",
+			Cwd:             t.TempDir(),
+			Env:             helperEnvWithCapture("load_session", "", captureFile),
+			ProviderConfig:  &compozyconfig.ProviderConfig{SessionMCPTransport: compozyconfig.MCPServerTransportHTTP},
+			MCPServers: []compozyconfig.MCPServer{{
+				Name:      "compozy-hosted-tools",
+				Transport: compozyconfig.MCPServerTransportStdio,
+				Command:   bin,
+				Args:      []string{"-test.run=^TestACPBridgedMCPHelperProcess$"},
+				Env:       map[string]string{bridgedMCPHelperEnvKey: "1"},
+			}},
+		})
+		defer stopProcess(t, driver, proc)
+		params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionLoad)
+		request := decodeCapturedNewSessionRequest(t, params)
+		if len(request.MCPServers) != 1 || request.MCPServers[0].Http == nil || request.MCPServers[0].Stdio != nil {
+			t.Fatalf("session/load mcpServers = %#v, want one bridged HTTP server", request.MCPServers)
+		}
+	})
+
 	t.Run(
 		"Should deliver a stdio server as an authorized loopback HTTP server and close it with the process",
 		func(t *testing.T) {
@@ -1838,6 +1868,21 @@ func TestStartClassifiesSessionNewAuthRefusal(t *testing.T) {
 		if !ok || item.Code != diagcontract.CodeProviderNotAuthenticated ||
 			!strings.Contains(item.Message, "compozy provider auth login helper") {
 			t.Fatalf("Start() diagnostic = %#v, %t; want not-authenticated login guidance", item, ok)
+		}
+	})
+}
+
+func TestProviderSignInRequiredFailure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should name the provider rather than the agent in login guidance", func(t *testing.T) {
+		t.Parallel()
+
+		cause := &acpsdk.RequestError{Code: -32000, Message: "Authentication required"}
+		err := providerSignInRequiredFailure(StartOpts{ProviderName: "copilot", AgentName: "reviewer"}, cause)
+		item, ok := diagnostics.ItemFromError(err)
+		if !ok || !strings.Contains(item.Message, "compozy provider auth login copilot") {
+			t.Fatalf("diagnostic = %#v, %t; want the provider login command", item, ok)
 		}
 	})
 }

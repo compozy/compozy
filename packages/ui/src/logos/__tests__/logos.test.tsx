@@ -26,7 +26,7 @@ describe("AntigravityLogo", () => {
 });
 
 describe("CopilotLogo", () => {
-  it("preserves the official registry geometry with theme-aware ink", () => {
+  it("renders the registry mark with theme-aware ink", () => {
     const { container } = render(<CopilotLogo className="size-6" />);
 
     const svg = container.querySelector("svg");

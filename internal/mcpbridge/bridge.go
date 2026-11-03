@@ -16,13 +16,10 @@ import (
 	"maps"
 	"net"
 	"net/http"
-	"os/exec"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/compozy/compozy/internal/procutil"
-	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/version"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -35,6 +32,7 @@ const (
 	idleTimeout           = 60 * time.Second
 	shutdownTimeout       = 5 * time.Second
 	childExitTimeout      = 5 * time.Second
+	toolSyncTimeout       = 10 * time.Second
 )
 
 // Spec describes the stdio MCP server one bridge launches and relays.
@@ -55,14 +53,11 @@ type Bridge struct {
 	token  string
 	logger *slog.Logger
 
-	client *sdkmcp.ClientSession
-	// cmd is the stdio child; teardown kills its whole process group.
-	cmd      *exec.Cmd
+	client   *sdkmcp.ClientSession
+	child    *stdioChild
 	server   *sdkmcp.Server
 	http     *http.Server
 	serveErr chan error
-	// stopChild ends the child's lifetime context; it runs after a graceful close.
-	stopChild context.CancelFunc
 
 	syncMu sync.Mutex
 	tools  map[string]struct{}
@@ -136,26 +131,20 @@ func (b *Bridge) URL() string { return b.url }
 func (b *Bridge) AuthorizationHeader() string { return "Bearer " + b.token }
 
 func (b *Bridge) connectChild(ctx context.Context, spec Spec) error {
-	// Resolve against the child's own PATH and directory, as the agent would.
-	executable, err := subprocess.ResolveExecutable(strings.TrimSpace(spec.Command), spec.Env, spec.Dir)
+	child, err := startStdioChild(ctx, b.name, spec)
 	if err != nil {
-		return fmt.Errorf("mcpbridge: resolve stdio server %q command: %w", b.name, err)
+		return err
 	}
-	// The child outlives the start request and lives until Close, not the caller's context.
-	childCtx, stopChild := context.WithCancel(context.WithoutCancel(ctx))
-	b.stopChild = stopChild
-	cmd := exec.CommandContext(childCtx, executable, spec.Args...)
-	cmd.Env = append([]string(nil), spec.Env...)
-	cmd.Dir = spec.Dir
-	procutil.ConfigureCommandProcessGroup(cmd)
-	b.cmd = cmd
+	b.child = child
 	client := sdkmcp.NewClient(
 		&sdkmcp.Implementation{Name: "compozy-mcp-bridge", Version: version.Current().Version},
 		&sdkmcp.ClientOptions{
 			Capabilities: &sdkmcp.ClientCapabilities{},
 			// The handler can run before Connect returns, so it uses the request's session.
 			ToolListChangedHandler: func(ctx context.Context, req *sdkmcp.ToolListChangedRequest) {
-				if err := b.syncTools(context.WithoutCancel(ctx), req.Session); err != nil {
+				syncCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), toolSyncTimeout)
+				defer cancel()
+				if err := b.syncTools(syncCtx, req.Session); err != nil {
 					b.logger.Warn("mcpbridge: resync tools after list change", "error", err)
 				}
 			},
@@ -164,18 +153,11 @@ func (b *Bridge) connectChild(ctx context.Context, spec Spec) error {
 			},
 		},
 	)
-	session, err := client.Connect(
-		ctx,
-		&sdkmcp.CommandTransport{Command: cmd, TerminateDuration: childExitTimeout},
-		nil,
-	)
+	session, err := client.Connect(ctx, child.transport(), nil)
 	if err != nil {
 		return fmt.Errorf("mcpbridge: connect stdio server %q: %w", b.name, err)
 	}
 	b.client = session
-	if err := procutil.RegisterCommandProcessGroup(cmd); err != nil {
-		return fmt.Errorf("mcpbridge: register stdio server %q process group: %w", b.name, err)
-	}
 	return nil
 }
 
@@ -187,6 +169,8 @@ func (b *Bridge) syncTools(ctx context.Context, session *sdkmcp.ClientSession) e
 	b.syncMu.Lock()
 	defer b.syncMu.Unlock()
 	current := make(map[string]struct{})
+	// Stage the full listing so a failed page never leaves a mixed catalog behind.
+	listed := make([]*sdkmcp.Tool, 0)
 	for tool, err := range session.Tools(ctx, nil) {
 		if err != nil {
 			return fmt.Errorf("mcpbridge: list tools from %q: %w", b.name, err)
@@ -199,6 +183,9 @@ func (b *Bridge) syncTools(ctx context.Context, session *sdkmcp.ClientSession) e
 			continue
 		}
 		current[tool.Name] = struct{}{}
+		listed = append(listed, tool)
+	}
+	for _, tool := range listed {
 		b.server.AddTool(tool, b.forward(tool.Name))
 	}
 	stale := make([]string, 0)
@@ -293,16 +280,13 @@ func (b *Bridge) Close() error {
 			}
 		}
 		if b.client != nil {
-			if err := b.client.Close(); err != nil && !isChildExit(err) {
-				errs = append(errs, fmt.Errorf("mcpbridge: close stdio server %q: %w", b.name, err))
+			if err := ignoreClosed(b.client.Close()); err != nil {
+				errs = append(errs, fmt.Errorf("mcpbridge: close stdio server %q session: %w", b.name, err))
 			}
 		}
-		// Closing the session stops only the direct child; reap anything it spawned.
-		if err := procutil.KillCommandProcessGroupAndWait(b.cmd, childExitTimeout); err != nil {
-			errs = append(errs, fmt.Errorf("mcpbridge: stop stdio server %q process group: %w", b.name, err))
-		}
-		if b.stopChild != nil {
-			b.stopChild()
+		// Closing the session ends stdin; the child owner reaps the process group.
+		if err := b.child.close(); err != nil {
+			errs = append(errs, fmt.Errorf("mcpbridge: stop stdio server %q: %w", b.name, err))
 		}
 		b.closeErr = errors.Join(errs...)
 	})
@@ -337,10 +321,4 @@ func objectSchema(schema any) bool {
 	}
 	kind, ok := typed["type"].(string)
 	return ok && kind == "object"
-}
-
-// isChildExit reports the expected error when a stdio child exits on close.
-func isChildExit(err error) bool {
-	_, ok := errors.AsType[*exec.ExitError](err)
-	return ok
 }

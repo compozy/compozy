@@ -1017,6 +1017,24 @@ func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should add Copilot allow-all beside an explicit task mode", func(t *testing.T) {
+		t.Parallel()
+		agent := AgentDef{Name: "qa", Provider: "copilot", Prompt: "prompt"}
+		agent.SetACPOptions([]ACPOptionSelection{{
+			ID: "mode", ValueID: "https://agentclientprotocol.com/protocol/session-modes#plan",
+		}})
+		resolved, err := cfg.ResolveAgent(agent)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		got := map[string]string{}
+		for _, option := range resolved.ACPOptionsValue() {
+			got[option.ID] = option.ValueID
+		}
+		if len(got) != 2 || got["allow_all"] != "on" || !strings.HasSuffix(got["mode"], "#plan") {
+			t.Fatalf("ResolveAgent() ACPOptions = %#v, want the explicit mode plus allow_all=on", got)
+		}
+	})
 	t.Run("Should keep an explicit mode for a provider without a full-access mapping", func(t *testing.T) {
 		t.Parallel()
 		agent := AgentDef{Name: "qa", Provider: "gemini", Prompt: "prompt"}
