@@ -191,11 +191,11 @@ func IsUnrestrictedACPMode(provider, mode string) bool {
 // provider's normal sandbox or approvals: an unrestricted mode, or an
 // approval option switched to approve everything.
 func IsUnrestrictedACPOption(provider, optionID, valueID string) bool {
-	switch optionID {
+	switch strings.ToLower(strings.TrimSpace(optionID)) {
 	case "mode":
 		return IsUnrestrictedACPMode(provider, valueID)
 	case CopilotAllowAllOptionID:
-		return valueID == CopilotAllowAllOn
+		return strings.EqualFold(strings.TrimSpace(valueID), CopilotAllowAllOn)
 	default:
 		return false
 	}

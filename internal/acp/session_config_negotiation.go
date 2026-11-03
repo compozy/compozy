@@ -244,7 +244,7 @@ func preferredSessionMode(
 	if permissions == compozyconfig.PermissionModeAuto {
 		if reviewerMode != "" {
 			if matched, ok := lookup[strings.ToLower(strings.TrimSpace(reviewerMode))]; ok &&
-				!compozyconfig.IsUnrestrictedACPMode(provider, matched) {
+				!compozyconfig.IsUnrestrictedACPOption(provider, sessionConfigModeKey, matched) {
 				return matched
 			}
 		}

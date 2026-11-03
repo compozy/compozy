@@ -48,6 +48,8 @@ func TestStartOptsUnrestrictedModesRequireApproveAll(t *testing.T) {
 			mode: "https://agentclientprotocol.com/protocol/session-modes#autopilot",
 		},
 		{name: "Should require approval for Copilot allow-all", optionID: "allow_all", mode: "on"},
+		{name: "Should require approval for mixed case bypass permissions", mode: "BypassPermissions"},
+		{name: "Should require approval for mixed case Copilot allow-all", optionID: "Allow_All", mode: "ON"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
