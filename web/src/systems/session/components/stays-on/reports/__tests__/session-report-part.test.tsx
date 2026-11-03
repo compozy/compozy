@@ -341,7 +341,7 @@ describe("SessionReportPart", () => {
 
       await userEvent.click(await screen.findByRole("button", { name: "Resume" }));
 
-      expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't resume. Try again.");
+      expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't resume. nope");
       expect(screen.getByRole("article", { name: "Paused until you're back" })).toBeInTheDocument();
       expect(reads.notify).not.toHaveBeenCalled();
     });
@@ -418,7 +418,7 @@ describe("SessionReportPart", () => {
       ).toBeInTheDocument();
     });
 
-    it("Should name the tool and the action of an expired request", async () => {
+    it("Should show the expired command with the draft reason", async () => {
       const { container } = render(
         <SessionReportPart
           data={{
@@ -436,7 +436,7 @@ describe("SessionReportPart", () => {
       );
 
       expect(
-        await screen.findByText(/so the Bash execute request wasn't allowed/)
+        await screen.findByText("Nobody answered in time, so it wasn't allowed.")
       ).toBeInTheDocument();
       await waitFor(() => expect(container).toHaveTextContent("make migrate"));
     });

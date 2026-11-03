@@ -17,6 +17,7 @@ import {
   staysOnAgentsOptions,
   agentTeamOptions,
 } from "../lib/query-options";
+import { resumeInOrder } from "../lib/agent-instance-resume";
 import { agentKeys } from "../lib/query-keys";
 import { agentInstanceCapacity, agentInstanceHoldsSlot } from "../lib/agent-instance";
 import type {
@@ -139,17 +140,13 @@ export function useAgentInstanceActions() {
 }
 
 /**
- * Resume one or several instances, with the pending and failed states a report shows in place.
- * Every resume is attempted; it fails when any one of them did. `inline` drops the error toast
- * for a caller that shows the failure itself.
+ * Resume one or several instances, in order, with the pending and failed states a caller shows
+ * in place. Every resume is attempted; a refusal fails with `AgentResumeError`, naming each
+ * agent that stayed paused. `inline` drops the toast for a caller that shows the failure itself.
  */
 export function useResumeAgentInstances({ inline = false }: { inline?: boolean } = {}) {
   return useInstanceMutation(
-    async (instances: readonly AgentInstancePayload[]) => {
-      const settled = await Promise.allSettled(instances.map(resumeAgentInstance));
-      const failed = settled.find(result => result.status === "rejected");
-      if (failed) throw failed.reason;
-    },
+    (instances: readonly AgentInstancePayload[]) => resumeInOrder(instances, resumeAgentInstance),
     inline ? null : "Failed to resume this agent."
   );
 }

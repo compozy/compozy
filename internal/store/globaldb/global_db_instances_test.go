@@ -258,12 +258,19 @@ func TestInstanceLifecycle(t *testing.T) {
 			) {
 				t.Fatalf("archive main error: %v", err)
 			}
-			paused, err := repo.Pause(t.Context(), first.ID, "manual")
+			paused, err := repo.Pause(t.Context(), first.ID, "unattended")
 			if err != nil || paused.State != "paused" {
 				t.Fatalf("pause: %#v %v", paused, err)
 			}
+			if _, err := db.DB().ExecContext(
+				t.Context(),
+				"UPDATE agent_instance_wake_state SET unattended_turns=3 WHERE instance_id=?",
+				first.ID,
+			); err != nil {
+				t.Fatal(err)
+			}
 			again, err := repo.Pause(t.Context(), first.ID, "fatigue")
-			if err != nil || again.PauseReason != "manual" {
+			if err != nil || again.PauseReason != "unattended" {
 				t.Fatalf("repeat pause: %#v %v", again, err)
 			}
 			input.AgentName = "other"
@@ -275,8 +282,13 @@ func TestInstanceLifecycle(t *testing.T) {
 				t.Fatalf("resume error: %v", err)
 			}
 			retained, err := repo.Get(t.Context(), first.ID)
-			if err != nil || retained.State != "paused" {
+			if err != nil || retained.State != "paused" || retained.PauseReason != "unattended" {
 				t.Fatalf("retained: %#v %v", retained, err)
+			}
+			// A refused resume changes nothing: the brake's count stays for the next attempt.
+			wake, err := repo.WakeState(t.Context(), first.ID)
+			if err != nil || wake.UnattendedTurns != 3 {
+				t.Fatalf("refused resume wake state: %+v %v", wake, err)
 			}
 			if err := repo.DeleteUnstarted(t.Context(), other.ID); err != nil {
 				t.Fatal(err)
@@ -284,6 +296,9 @@ func TestInstanceLifecycle(t *testing.T) {
 			resumed, err := repo.Resume(t.Context(), first.ID, 1, true)
 			if err != nil || resumed.State != "active" || resumed.PauseReason != "" {
 				t.Fatalf("resume: %#v %v", resumed, err)
+			}
+			if wake, err := repo.WakeState(t.Context(), first.ID); err != nil || wake.UnattendedTurns != 0 {
+				t.Fatalf("resumed wake state: %+v %v", wake, err)
 			}
 			if _, err := repo.Archive(t.Context(), first.ID); err != nil {
 				t.Fatal(err)

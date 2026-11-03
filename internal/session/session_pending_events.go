@@ -20,6 +20,7 @@ type permissionAttentionPayload struct {
 	} `json:"options"`
 	ToolCall struct {
 		Title string `json:"title"`
+		Kind  string `json:"kind"`
 	} `json:"tool_call"`
 }
 
@@ -109,6 +110,7 @@ func permissionInteractionPayload(event acp.AgentEvent) (store.PendingInteractio
 		title = strings.TrimSpace(raw.ToolCall.Title)
 	}
 	payload.ToolID = strings.TrimSpace(raw.ToolID)
+	payload.ToolKind = strings.TrimSpace(raw.ToolCall.Kind)
 	for _, option := range raw.Options {
 		payload.Decisions = append(payload.Decisions, option.Decision)
 	}

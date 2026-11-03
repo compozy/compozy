@@ -199,8 +199,6 @@ function ExpiredApproval({
   const tool = payload.tool === "provider" ? undefined : payload.tool;
   // The resource is what it wanted to run or change; older reports carry only the tool.
   const subject = payload.resource ?? (payload.action ? undefined : tool);
-  const named = [tool, payload.action].filter(Boolean).join(" ");
-  const request = named ? `${named} request` : "request";
   return (
     <SettledAsk
       actions={
@@ -222,8 +220,8 @@ function ExpiredApproval({
       when={reportClock(data.created_at)}
       why={
         provider
-          ? `The agent stopped waiting for an answer to its ${request} before you got to it.`
-          : `Nobody answered in time, so the ${request} wasn't allowed.`
+          ? "The agent stopped waiting for an answer before you got to it."
+          : "Nobody answered in time, so it wasn't allowed."
       }
     />
   );

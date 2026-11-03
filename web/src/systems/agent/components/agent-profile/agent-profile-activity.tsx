@@ -144,7 +144,16 @@ export function AgentActivitySection({
           {cost.projects.length > 0 ? (
             <div className="-mx-5 flex flex-col gap-2.5 border-t border-line-soft px-5 pt-3.5">
               <Eyebrow className="text-subtle">By project</Eyebrow>
-              <StatusBreakdown items={cost.projects} />
+              <StatusBreakdown
+                items={cost.projects.map(project => ({
+                  ...project,
+                  label: (
+                    <span className="min-w-0 truncate" title={project.label}>
+                      {project.label}
+                    </span>
+                  ),
+                }))}
+              />
             </div>
           ) : null}
         </Panel>

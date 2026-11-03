@@ -119,6 +119,31 @@ describe("StaysOnRow", () => {
     ]);
   });
 
+  it("Should say which agents didn't resume when the cap refuses some [UT-080]", async () => {
+    const user = userEvent.setup();
+    const crew = Array.from({ length: 5 }, (_, index) =>
+      agentInstanceFixture({
+        id: `i-${index}`,
+        label: `Agent ${index}`,
+        ...(index < 3 ? { state: "paused", pause_reason: "unattended" } : {}),
+      })
+    );
+    const cap =
+      "You have 10 active stays-on agents. Pause one or raise `agents.stays_on.max_active_instances`.";
+    mockApi.resume.mockImplementation(async (instance: AgentInstancePayload) => {
+      if (instance.id !== "i-0") throw new Error(cap);
+    });
+    renderRow(crew, { limit: 3, scopeName: "compozy" });
+
+    await user.click(screen.getByRole("button", { name: "Show all 5 agents in compozy" }));
+    await user.click(screen.getByRole("button", { name: "Resume all" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      `Agent 1 and Agent 2 didn't resume. ${cap}`
+    );
+    expect(mockApi.resume).toHaveBeenCalledTimes(3);
+  });
+
   it("Should offer no Resume all for a single brake pause", async () => {
     const user = userEvent.setup();
     const crew = Array.from({ length: 5 }, (_, index) =>

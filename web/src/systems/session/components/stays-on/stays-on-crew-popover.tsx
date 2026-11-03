@@ -15,11 +15,11 @@ import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
   agentAvatarAppearance,
   agentInstanceAvatarState,
-  agentInstancePausedUnattended,
   agentInstancesByUrgency,
-  useResumeAgentInstances,
   type AgentInstancePayload,
 } from "@/systems/agent";
+
+import { useResumeAll } from "../../hooks/use-resume-all";
 
 const BANDS: readonly { label: string; states: readonly AgentAvatarState[] }[] = [
   { label: "Needs you", states: ["needs-you", "failed"] },
@@ -29,26 +29,6 @@ const BANDS: readonly { label: string; states: readonly AgentAvatarState[] }[] =
 ];
 
 const SEARCH_FROM = 7;
-/** Resume all appears once the brake paused at least this many. */
-const RESUME_ALL_FROM = 2;
-
-/** S4: resume every agent the brake paused, in one step. Each resume is the operator's. */
-function ResumeAll({ instances }: { instances: readonly AgentInstancePayload[] }) {
-  const resume = useResumeAgentInstances();
-  const paused = instances.filter(agentInstancePausedUnattended);
-  if (paused.length < RESUME_ALL_FROM) return null;
-  return (
-    <Button
-      disabled={resume.isPending}
-      onClick={() => resume.mutate(paused)}
-      size="sm"
-      type="button"
-      variant="secondary"
-    >
-      {resume.isPending ? "Resuming…" : "Resume all"}
-    </Button>
-  );
-}
 
 function summary(instances: readonly AgentInstancePayload[]) {
   return BANDS.flatMap(band => {
@@ -106,6 +86,7 @@ export function StaysOnCrewPopover({
   onOpen: (instance: AgentInstancePayload) => void;
 }) {
   const [query, setQuery] = useState("");
+  const resumeAll = useResumeAll(instances);
   const needle = query.trim().toLowerCase();
   const shown = agentInstancesByUrgency(instances).filter(instance =>
     instance.label.toLowerCase().includes(needle)
@@ -127,8 +108,23 @@ export function StaysOnCrewPopover({
             </span>
             <span className="text-small-body text-muted-foreground">{summary(instances)}</span>
           </div>
-          <ResumeAll instances={instances} />
+          {resumeAll.offered ? (
+            <Button
+              disabled={resumeAll.pending}
+              onClick={resumeAll.run}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              {resumeAll.pending ? "Resuming…" : "Resume all"}
+            </Button>
+          ) : null}
         </div>
+        {resumeAll.error ? (
+          <p className="px-1 text-small-body text-destructive" role="alert">
+            {resumeAll.error}
+          </p>
+        ) : null}
         {instances.length >= SEARCH_FROM ? (
           <SearchInput
             aria-label="Find an agent"

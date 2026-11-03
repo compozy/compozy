@@ -638,8 +638,9 @@ func TestPendingInteractionReportsAtomicity(t *testing.T) {
 					Title:         "Read workspace files",
 					Payload: store.PendingInteractionPayload{
 						ToolID:   toolID,
-						Action:   "execute",
+						Action:   "session/request_permission",
 						Resource: "make build",
+						ToolKind: "execute",
 					},
 					Kind:              store.PendingInteractionKindPermission,
 					ProviderRequestID: "request-report",
@@ -776,6 +777,7 @@ func TestPendingInteractionReportsAtomicity(t *testing.T) {
 				if payload.Tool != wantTool {
 					t.Fatalf("tool = %q", payload.Tool)
 				}
+				// The tool kind names the action; the ACP operation never reaches the report.
 				if payload.Action != "execute" || payload.Resource != "make build" {
 					t.Fatalf("expiry details: %+v", payload)
 				}
