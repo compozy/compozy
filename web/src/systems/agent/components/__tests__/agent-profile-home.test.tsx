@@ -108,6 +108,23 @@ describe("AgentProfileHome", () => {
     expect(screen.queryByText("What it cost")).not.toBeInTheDocument();
   });
 
+  it("Should read plan-included usage in tokens, never as a zero price [UT-080]", () => {
+    const activity = activityFixture();
+    render(
+      <AgentProfileHome
+        page={pageFixture({
+          activity: {
+            ...activity,
+            cost_by_project: activity.cost_by_project.map(row => ({ ...row, usd_estimate: 0 })),
+          },
+        })}
+      />
+    );
+    expect(screen.getByText("Included")).toBeVisible();
+    expect(screen.getByText("3.1M tokens, in your plan")).toBeVisible();
+    expect(screen.queryByText(/\$0\.00/)).not.toBeInTheDocument();
+  });
+
   it("Should offer Resume, never Pause, for a paused place holding a failure report", async () => {
     const instance = agentInstanceFixture({
       state: "paused",

@@ -1,5 +1,6 @@
 import type { AgentAvatarAppearance, AgentAvatarState } from "@compozy/ui";
 
+import { formatRelativeClock } from "./agent-time";
 import type {
   AgentAppearancePayload,
   AgentInstancePauseReason,
@@ -15,26 +16,71 @@ export function agentScopeLabel(scope: string) {
   return scope === GLOBAL_SCOPE ? "Global" : scope;
 }
 
-const PAUSE_COPY: Record<Exclude<AgentInstancePauseReason, "" | "fatigue">, string> = {
+type CountedReason = "" | "fatigue" | "unattended";
+
+const PAUSE_COPY: Record<Exclude<AgentInstancePauseReason, CountedReason>, string> = {
   manual: "Paused by you.",
   definition_not_stays_on: "Paused because this agent no longer stays on.",
   definition_missing: "Paused because this agent's definition is gone. Its memory is kept.",
 };
 
+export type AgentPauseFacts = Pick<
+  AgentInstancePayload,
+  "pause_reason" | "fatigue_limit" | "unattended_turn_limit" | "unattended_turns"
+>;
+
+/** The steps the brake counted: the limit the daemon applied, else the count it reached. */
+export function agentUnattendedSteps({
+  unattended_turn_limit: limit,
+  unattended_turns: turns,
+}: AgentPauseFacts) {
+  return limit || turns || 0;
+}
+
 /** Why it's paused, with the limit the daemon applied. Empty when it isn't paused. */
-export function agentPauseCopy({
-  pause_reason: reason,
-  fatigue_limit: limit,
-}: Pick<AgentInstancePayload, "pause_reason" | "fatigue_limit">) {
+export function agentPauseCopy(instance: AgentPauseFacts) {
+  const reason = instance.pause_reason;
   if (!reason) return "";
-  return reason === "fatigue"
-    ? `Paused after ${limit} failed checks in a row.`
-    : PAUSE_COPY[reason];
+  if (reason === "fatigue") return `Paused after ${instance.fatigue_limit} failed checks in a row.`;
+  if (reason === "unattended") {
+    const steps = agentUnattendedSteps(instance);
+    return steps
+      ? `Paused after ${steps} steps without you.`
+      : "Paused after many steps without you.";
+  }
+  return PAUSE_COPY[reason];
+}
+
+const WAKE_KIND: Record<string, string> = {
+  check: "Its next check-in",
+  timer: "A timer it set",
+  terminal: "A terminal it's watching",
+  pull_request: "A pull request it's watching",
+  session: "A conversation it's waiting on",
+};
+
+/** What wakes it next and when, as one line; null when nothing is scheduled. */
+export function agentNextWakeLine(
+  instance: Pick<AgentInstancePayload, "next_wake">,
+  now = Date.now()
+) {
+  const wake = instance.next_wake;
+  if (!wake) return null;
+  const what = wake.description.trim() || WAKE_KIND[wake.kind] || "Something it's waiting on";
+  const when = formatRelativeClock(wake.at, now);
+  return when ? `${what}, ${when}` : what;
 }
 
 /** Keeps a link in the instance's own scope, whatever window it opens from. */
 export function agentInstanceBinding(instance: Pick<AgentInstancePayload, "workspace_id">) {
   return { workspace: instance.workspace_id || GLOBAL_SCOPE };
+}
+
+/** Paused by the brake, so Resume is the operator's to give. */
+export function agentInstancePausedUnattended(
+  instance: Pick<AgentInstancePayload, "state" | "pause_reason"> | undefined
+) {
+  return instance?.state === "paused" && instance.pause_reason === "unattended";
 }
 
 /** These reasons resume only once the definition is back, so Resume stays disabled. */

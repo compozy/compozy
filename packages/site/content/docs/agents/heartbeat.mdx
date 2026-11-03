@@ -346,6 +346,12 @@ paused run stays paused. Directly resuming a run while its instance is paused re
 main restarts for delivery; stopped descendants retain their queues. Archiving the
 instance cancels its held rows.
 
+In the app, a brake pause appears in the agent's main session as "Paused until you're
+back", with the number of steps, how many things are waiting, and **Resume**. If you
+were away, the While you were away card says when it paused and offers **Resume** in
+place. When two or more agents in a project paused this way, the `+N` crew panel offers
+**Resume all**. An agent's hover card shows what wakes it up next.
+
 Monitor wakes are held during pause, but not during a quiet window. Lost main-session
 wakes produce one interrupted report per wake, except shutdown cancellations. A
 delivered wake does not trigger another check.

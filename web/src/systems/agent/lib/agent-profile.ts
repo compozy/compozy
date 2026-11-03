@@ -121,19 +121,29 @@ function compactTokens(tokens: number) {
   return `${tokens} tokens`;
 }
 
+/**
+ * Usage with no price, such as a subscription plan, reads in tokens: "≈ $0.00" would say it was
+ * free when it was only included.
+ */
 export function agentCostView(activity: AgentActivityPayload) {
   const rows = activity.cost_by_project;
   const usd = rows.reduce((total, row) => total + row.usd_estimate, 0);
   const tokens = rows.reduce((total, row) => total + row.tokens, 0);
+  const included = usd === 0 && tokens > 0;
+  const total = included ? tokens : usd;
   return {
-    cost: `≈ $${usd.toFixed(2)}`,
+    cost: included ? "Included" : `≈ $${usd.toFixed(2)}`,
     tokens: compactTokens(tokens),
-    projects: rows.map(row => ({
-      id: row.workspace_id || row.scope,
-      label: row.scope === "@user" ? "Global" : row.scope,
-      value: usd > 0 ? row.usd_estimate / usd : 0,
-      formattedValue: `$${row.usd_estimate.toFixed(2)}`,
-    })),
+    note: `${compactTokens(tokens)}, ${included ? "in your plan" : "estimated"}`,
+    projects: rows.map(row => {
+      const amount = included ? row.tokens : row.usd_estimate;
+      return {
+        id: row.workspace_id || row.scope,
+        label: row.scope === "@user" ? "Global" : row.scope,
+        value: total > 0 ? amount / total : 0,
+        formattedValue: included ? compactTokens(row.tokens) : `$${row.usd_estimate.toFixed(2)}`,
+      };
+    }),
   };
 }
 

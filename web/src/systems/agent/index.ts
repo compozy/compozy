@@ -339,6 +339,7 @@ export {
   applyAgentInstanceUpdate,
   invalidateAgentInstances,
   useAgentInstanceActions,
+  useResumeAgentInstances,
   useAgentInstanceCapacity,
   useAgentInstances,
   useAgentInstanceInScope,
@@ -347,6 +348,9 @@ export {
 } from "./hooks/use-agent-instances";
 export {
   agentPauseCopy,
+  agentUnattendedSteps,
+  agentNextWakeLine,
+  agentInstancePausedUnattended,
   GLOBAL_SCOPE,
   agentAvatarAppearance,
   agentInstanceAvatarState,

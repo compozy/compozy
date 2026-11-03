@@ -81,6 +81,7 @@ export type AgentInstancePauseReason =
   | ""
   | "manual"
   | "fatigue"
+  | "unattended"
   | "definition_not_stays_on"
   | "definition_missing";
 
@@ -119,6 +120,12 @@ export interface AgentInstancePayload {
   failure_streak: number;
   /** Failed checks in a row that pause it: `agents.heartbeat.fatigue_limit`. */
   fatigue_limit: number;
+  /** Non-human steps since you last engaged; the brake pauses at `unattended_turn_limit`. */
+  unattended_turns?: number;
+  /** `agents.stays_on.unattended_turn_limit`; 0 disables the brake. */
+  unattended_turn_limit?: number;
+  /** Non-human input held while paused, delivered on resume. */
+  held_wakes?: number;
   created_at: string;
   updated_at: string;
 }
@@ -180,6 +187,10 @@ export interface AgentInstanceReport {
   detail?: string;
   session_id?: string;
   tool?: string;
+  /** What the expired request wanted to do; absent on older reports. */
+  action?: string;
+  /** The command or path the expired request was for. */
+  resource?: string;
   expired_by?: string;
   cause?: string;
   since?: string;

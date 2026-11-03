@@ -206,3 +206,13 @@ nor another pause effect. At the limit, the pause returned to the runtime must
 be the snapshot committed by that finalization. Canonical SQLite coverage:
 `TestInstanceCheckUnattendedCounter` and
 `TestInstanceCheckUnattendedPauseEffects`.
+
+Stays-on hardening F1 web (S1, S4, S7): a brake pause reads "Paused after N steps
+without you." in the hover card and context menu, and "Took N steps without you" on the
+agent's places. The hover card shows "Wakes up next" with the wake's description or kind
+and its time, and for a paused agent how many things wait for resume. With two or more
+agents paused for `unattended` in one scope, the `+N` crew panel offers Resume all,
+which resumes only those; one such pause offers none. The agent's What it cost reads
+"Included" with "N tokens, in your plan" when usage has no price, never "≈ $0.00".
+Web suites: `stays-on-row.test.tsx`, `agent-instance.test.ts`, `agent-team.test.ts`
+and `agent-profile-home.test.tsx`.

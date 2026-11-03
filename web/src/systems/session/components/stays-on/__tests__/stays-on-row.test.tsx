@@ -96,6 +96,71 @@ describe("StaysOnRow", () => {
     expect(screen.queryByRole("button", { name: /Agent 4/ })).toBeNull();
   });
 
+  it("Should resume every agent the brake paused, once two or more did [UT-080]", async () => {
+    const user = userEvent.setup();
+    const crew = Array.from({ length: 5 }, (_, index) =>
+      agentInstanceFixture({
+        id: `i-${index}`,
+        label: `Agent ${index}`,
+        ...(index < 2 ? { state: "paused", pause_reason: "unattended" } : {}),
+        ...(index === 2 ? { state: "paused", pause_reason: "manual" } : {}),
+      })
+    );
+    mockApi.resume.mockResolvedValue(undefined);
+    renderRow(crew, { limit: 3, scopeName: "compozy" });
+
+    await user.click(screen.getByRole("button", { name: "Show all 5 agents in compozy" }));
+    await user.click(screen.getByRole("button", { name: "Resume all" }));
+
+    await waitFor(() => expect(mockApi.resume).toHaveBeenCalledTimes(2));
+    expect(mockApi.resume.mock.calls.map(call => (call[0] as AgentInstancePayload).id)).toEqual([
+      "i-0",
+      "i-1",
+    ]);
+  });
+
+  it("Should offer no Resume all for a single brake pause", async () => {
+    const user = userEvent.setup();
+    const crew = Array.from({ length: 5 }, (_, index) =>
+      agentInstanceFixture({
+        id: `i-${index}`,
+        label: `Agent ${index}`,
+        ...(index === 0 ? { state: "paused", pause_reason: "unattended" } : {}),
+      })
+    );
+    renderRow(crew, { limit: 3, scopeName: "compozy" });
+
+    await user.click(screen.getByRole("button", { name: "Show all 5 agents in compozy" }));
+
+    expect(screen.queryByRole("button", { name: "Resume all" })).toBeNull();
+  });
+
+  it("Should say what wakes it next, and what waits while it's paused [UT-060]", async () => {
+    const user = userEvent.setup();
+    const sleeping = agentInstanceFixture({
+      id: "a",
+      next_wake: { kind: "pull_request", description: "Check CI on #1166" },
+    });
+    const paused = agentInstanceFixture({
+      id: "b",
+      label: "Paused",
+      state: "paused",
+      pause_reason: "unattended",
+      unattended_turn_limit: 300,
+      held_wakes: 2,
+    });
+    renderRow([sleeping, paused]);
+
+    await user.hover(screen.getByTestId("stays-on-seat-a"));
+    expect(await screen.findByText("Wakes up next")).toBeInTheDocument();
+    expect(screen.getByText("Check CI on #1166")).toBeInTheDocument();
+    await user.unhover(screen.getByTestId("stays-on-seat-a"));
+
+    await user.hover(screen.getByTestId("stays-on-seat-b"));
+    expect(await screen.findByText("Paused after 300 steps without you.")).toBeInTheDocument();
+    expect(screen.getByText("2 things are waiting for you to resume")).toBeInTheDocument();
+  });
+
   it("Should open the main session on click and mark the open one", async () => {
     const user = userEvent.setup();
     const instance = agentInstanceFixture();
