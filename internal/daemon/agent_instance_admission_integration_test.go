@@ -1178,6 +1178,12 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 			steps = append(steps, acpmock.Step{Kind: acpmock.StepKindAssistant, Text: "lineage approvals complete"})
 			f.Turns = append(f.Turns, acpmock.TurnFixture{
 				Name: "lineage approvals", Match: acpmock.TurnMatch{UserText: "lineage approvals"}, Steps: steps,
+			}, acpmock.TurnFixture{
+				Name: "main edit", Match: acpmock.TurnMatch{UserText: "main edit"}, Steps: []acpmock.Step{
+					{Kind: acpmock.StepKindPermission, ToolCallID: "main-edit", Title: "Edit main", ToolKind: "edit",
+						Path: "main.txt", ExpectDecision: "allow-once"},
+					{Kind: acpmock.StepKindAssistant, Text: "main edit complete"},
+				},
 			})
 		})
 	})
@@ -1241,6 +1247,26 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 	// tool is recorded as that agent, leaves the unattended counter alone, and has its "always" answer narrowed
 	// to once so no durable grant is written; only the operator's approval resets the counter and stays always.
 	t.Run("Should attribute lineage approvals and reset the counter only for the operator", func(t *testing.T) {
+		// IT-028: the stays-on main at approve-all writes with no prompt; its approve-reads child asks below.
+		mainEvents, err := manager.Prompt(t.Context(), main.ID, "main edit")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var mainSources []string
+		for event := range mainEvents {
+			if event.Type == acp.EventTypeError {
+				t.Fatalf("main provider error: %+v", event)
+			}
+			if event.Type == acp.EventTypePermission {
+				if event.Decision == "" {
+					t.Fatalf("approve-all main asked: %+v", event)
+				}
+				mainSources = append(mainSources, event.ResolvedByValue())
+			}
+		}
+		if !slices.Equal(mainSources, []string{"policy"}) {
+			t.Fatalf("main resolved_by=%v want=[policy]", mainSources)
+		}
 		child, err := manager.Spawn(t.Context(), session.SpawnOpts{ParentSessionID: main.ID, AgentName: main.AgentName,
 			Workspace: workspace, Name: "Approval child", Permissions: "approve-reads", TTL: time.Minute})
 		if err != nil {
@@ -1255,12 +1281,11 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 			client   *http.Client
 			agent    bool
 			decision string
-			turns    int
 		}{
-			{fmt.Sprintf("http://127.0.0.1:%d", d.info.Port), http.DefaultClient, true, "allow-always", 5},
-			{"http://unix", uds, true, "reject-always", 5},
-			{"native", nil, true, "allow-always", 5},
-			{fmt.Sprintf("http://127.0.0.1:%d", d.info.Port), http.DefaultClient, false, "allow-always", 0},
+			{fmt.Sprintf("http://127.0.0.1:%d", d.info.Port), http.DefaultClient, true, "allow-always"},
+			{"http://unix", uds, true, "reject-always"},
+			{"native", nil, true, "allow-always"},
+			{fmt.Sprintf("http://127.0.0.1:%d", d.info.Port), http.DefaultClient, false, "allow-always"},
 		}
 		counter := func() int {
 			wake, err := db.Instances().WakeState(t.Context(), instance.ID)
@@ -1279,13 +1304,15 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 			}
 			if event.Decision != "" {
 				if index := len(sources); index < len(approvers) {
-					want := approvers[index].turns
-					waitForRuntimeCondition(t, "approval counter", 5*time.Second, func() bool {
-						return counter() == want
-					})
-					// An agent decision must not reset later either; the operator's reset is the control.
-					if got := counter(); got != want {
-						t.Fatalf("approval %d unattended turns=%d want=%d", index, got, want)
+					// Concurrent lineage turns may still count up; the decision itself must reset the counter
+					// only when the operator made it.
+					reset := func() bool { return counter() < 5 }
+					if approvers[index].agent {
+						if reset() {
+							t.Fatalf("agent approval %d reset the unattended counter to %d", index, counter())
+						}
+					} else {
+						waitForRuntimeCondition(t, "operator approval reset", 5*time.Second, reset)
 					}
 				}
 				sources = append(sources, event.ResolvedByValue())
