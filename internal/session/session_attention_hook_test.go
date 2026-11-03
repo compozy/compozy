@@ -251,6 +251,14 @@ func (s *committingAttentionStore) MarkSessionEndedEarly(
 	return store.SessionAttentionCommit{}, errors.New("unexpected MarkSessionEndedEarly call")
 }
 
+func (s *committingAttentionStore) DismissSessionAttention(
+	context.Context,
+	string,
+	time.Time,
+) (store.SessionAttentionCommit, error) {
+	return store.SessionAttentionCommit{}, errors.New("unexpected DismissSessionAttention call")
+}
+
 func (s *committingAttentionStore) wasCommitted() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()

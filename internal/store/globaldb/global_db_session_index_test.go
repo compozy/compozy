@@ -2128,6 +2128,103 @@ func TestSessionAttentionEndedEarlyMarkDrivesDurableCatalog(t *testing.T) {
 	}
 }
 
+func TestSessionAttentionDismissClearsSeenSourcesUntilTheNextOccurrence(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t)
+	globalDB := openTestGlobalDB(t)
+	sessionID := registerAttentionSession(t, globalDB, store.SessionAttention{})
+	scope := store.ReadScope{ProfileID: store.DefaultProfileID}
+	badgePage := func(badge string) []string {
+		t.Helper()
+		result, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+			ReadScope: scope, Badges: []string{badge}, Sort: sessionCatalogSortRecent, Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("PageSessions(%s) error = %v", badge, err)
+		}
+		return sessionIDsForWorkspaceStateIndexTest(result.Sessions)
+	}
+	needsYou := func() []string {
+		t.Helper()
+		result, err := globalDB.PageSessions(ctx, store.SessionCatalogPageQuery{
+			ReadScope: scope, AttentionOnly: true, Sort: sessionCatalogSortAttention, Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("PageSessions(attention) error = %v", err)
+		}
+		return sessionIDsForWorkspaceStateIndexTest(result.Sessions)
+	}
+	dismiss := func(wantOutcome string) store.SessionAttentionCommit {
+		t.Helper()
+		commit, err := globalDB.DismissSessionAttention(ctx, sessionID, time.Time{})
+		if err != nil || commit.Outcome != wantOutcome {
+			t.Fatalf("DismissSessionAttention() = %#v, %v, want outcome %q", commit, err, wantOutcome)
+		}
+		return commit
+	}
+	stopWithFailure := func(summary string) {
+		t.Helper()
+		if err := globalDB.UpdateSessionState(ctx, store.SessionStateUpdate{
+			ID: sessionID, State: globalDBSessionStateStopped, FailureSet: true,
+			Failure:   &store.SessionFailure{Kind: store.FailureProcess, Summary: summary},
+			UpdatedAt: time.Now().UTC(),
+		}); err != nil {
+			t.Fatalf("UpdateSessionState(stop failed) error = %v", err)
+		}
+	}
+
+	t.Run("Should clear an early stop and raise the next one again", func(t *testing.T) {
+		if _, err := globalDB.MarkSessionEndedEarly(ctx, sessionID, "turn-early"); err != nil {
+			t.Fatalf("MarkSessionEndedEarly() error = %v", err)
+		}
+		if got := needsYou(); !slices.Equal(got, []string{sessionID}) {
+			t.Fatalf("needs-you before dismiss = %#v, want the early-stopped session", got)
+		}
+		commit := dismiss("dismissed")
+		if commit.After.EndedEarlyTurnID != "" || commit.After.AttentionRevision != commit.Before.AttentionRevision+1 {
+			t.Fatalf("dismiss commit = %#v, want the mark cleared with one revision bump", commit)
+		}
+		if got := needsYou(); len(got) != 0 {
+			t.Fatalf("needs-you after dismiss = %#v, want none", got)
+		}
+		dismiss("unchanged")
+		if _, err := globalDB.MarkSessionEndedEarly(ctx, sessionID, "turn-later"); err != nil {
+			t.Fatalf("MarkSessionEndedEarly(next) error = %v", err)
+		}
+		if got := needsYou(); !slices.Equal(got, []string{sessionID}) {
+			t.Fatalf("needs-you after the next early stop = %#v, want the session again", got)
+		}
+		dismiss("dismissed")
+	})
+
+	t.Run("Should keep a seen failure stopped until the session fails again", func(t *testing.T) {
+		stopWithFailure("agent exited")
+		if got := badgePage("failed"); !slices.Equal(got, []string{sessionID}) {
+			t.Fatalf("failed page = %#v, want the failed session", got)
+		}
+		dismiss("dismissed")
+		if got := badgePage("stopped"); !slices.Equal(got, []string{sessionID}) {
+			t.Fatalf("stopped page after dismiss = %#v, want the seen failure", got)
+		}
+		if got := needsYou(); len(got) != 0 {
+			t.Fatalf("needs-you after dismiss = %#v, want none", got)
+		}
+		facets, err := globalDB.SessionCatalogFacets(ctx, store.SessionCatalogPageQuery{ReadScope: scope, Limit: 10})
+		if err != nil || facets.Facets.NeedsYou != 0 {
+			t.Fatalf("SessionCatalogFacets() needs_you = %d, %v, want 0", facets.Facets.NeedsYou, err)
+		}
+		listed, err := globalDB.ListSessions(ctx, store.SessionListQuery{ReadScope: scope, ID: sessionID, Limit: 1})
+		if err != nil || len(listed) != 1 || listed[0].AttentionSnapshot().FailureSeenAt == nil {
+			t.Fatalf("ListSessions() = %#v, %v, want the durable failure-seen mark", listed, err)
+		}
+		stopWithFailure("agent exited again")
+		if got := badgePage("failed"); !slices.Equal(got, []string{sessionID}) {
+			t.Fatalf("failed page after a new failure = %#v, want the session raised again", got)
+		}
+	})
+}
+
 func TestSessionAttentionLifecycleUpdateBumpsOrderingFenceAtomically(t *testing.T) {
 	t.Parallel()
 

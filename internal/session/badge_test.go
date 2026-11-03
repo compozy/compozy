@@ -123,6 +123,18 @@ func TestCanonicalBadgeAttentionPrecedence(t *testing.T) {
 			want:  BadgeFailed,
 		},
 		{
+			name:  "Should read a failure the operator marked as seen as a plain stop",
+			input: BadgeInputs{State: StateStopped, Failure: failure, FailureSeen: true},
+			want:  BadgeStopped,
+		},
+		{
+			name: "Should keep a seen failure in Needs you while it is back from Later",
+			input: BadgeInputs{
+				State: StateStopped, Failure: failure, FailureSeen: true, ReturnedFromLater: true,
+			},
+			want: BadgeNeedsAttention,
+		},
+		{
 			name:  "Should derive idle for an active settled session",
 			input: BadgeInputs{State: StateActive},
 			want:  BadgeIdle,
