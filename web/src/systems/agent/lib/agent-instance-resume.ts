@@ -27,6 +27,7 @@ export async function resumeInOrder(
   const failures: AgentResumeFailure[] = [];
   for (const instance of instances) {
     try {
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop -- one resume at a time is the point: the daemon admits each against the active-agent cap, so a fixed order decides which agents get the last slots.
       await resume(instance);
     } catch (error) {
       failures.push({
