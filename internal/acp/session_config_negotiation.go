@@ -43,10 +43,14 @@ func (d *Driver) applySessionMode(
 	if modeID == "" {
 		return false, nil
 	}
-	if configurable {
-		if strings.TrimSpace(option.CurrentValueID) == modeID {
-			return false, nil
-		}
+	if configurable && strings.TrimSpace(option.CurrentValueID) == modeID {
+		return false, nil
+	}
+	// Providers that advertise session modes receive session/set_mode; the mode
+	// config option is the transport only for triage or when the mode is not one
+	// of the advertised session modes.
+	if configurable && (process.executionPolicy == ExecutionPolicyTriage ||
+		!advertisesSessionMode(caps.SupportedModes, modeID)) {
 		return true, d.applySessionConfigOption(
 			ctx,
 			process,
@@ -65,6 +69,15 @@ func (d *Driver) applySessionMode(
 		process.setConfigOptionCurrent(sessionConfigModeKey, modeID)
 	}
 	return true, err
+}
+
+func advertisesSessionMode(modes []string, modeID string) bool {
+	for _, mode := range modes {
+		if strings.TrimSpace(mode) == modeID {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *Driver) applySessionModel(
