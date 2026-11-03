@@ -14,6 +14,8 @@ import { SessionListSubagentRow } from "./session-list-subagent-row";
 
 export interface SessionListSubagentBranchProps {
   workspaceId: string;
+  workspace?: string;
+  profile?: string;
   sessionId: string;
   /** The parent row's `subagent_summary.total`: sizes the placeholder before rows load. */
   total: number;
@@ -31,6 +33,8 @@ export interface SessionListSubagentBranchProps {
  */
 export function SessionListSubagentBranch({
   workspaceId,
+  workspace,
+  profile,
   sessionId,
   total,
   currentSessionId,
@@ -64,6 +68,8 @@ export function SessionListSubagentBranch({
           <SessionListSubagentRow
             key={subagent.id}
             subagent={subagent}
+            workspace={workspace}
+            profile={profile}
             current={
               subagent.child_session_id !== null && subagent.child_session_id === currentSessionId
             }

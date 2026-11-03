@@ -40,7 +40,7 @@ export function subagentRuntimeWords(
       : agent
         ? agentLabel
         : null;
-  const modelLabel = [model ? subagentModelLabel(model) : null, effort].filter(Boolean).join(" ");
+  const modelLabel = model ? [subagentModelLabel(model), effort].filter(Boolean).join(" ") : "";
   return { modelLabel, kind, label: [provider, modelLabel, kind].filter(Boolean).join(" · ") };
 }
 

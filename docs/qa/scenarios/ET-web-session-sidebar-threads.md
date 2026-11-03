@@ -206,3 +206,12 @@ the reviewer face showed "Reviewer" after the delay; light and dark both checked
 https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1191/cded6e2862aa/03-real-dark.png,
 04-real-light.png and 07-real-tooltip-dark.png under the same prefix. Lab teardown clean. The rest of this
 scenario was not re-walked, so it stays `untested`.
+
+Review repair (#1215): subagent buttons announce title, provider, model, effort and agent; rows
+without a navigation target also expose their state to assistive technology. A branch in All projects
+uses its parent's workspace/profile agent catalog. Effort appears only with a model and is included
+in session accessible names. Verify with the focused session-list and subagent-format suites; a new
+live assistive-technology walk remains pending. Agent appearance writes through native tools, CLI
+and HTTP now reject generated faces with a background choice; saved plate-bearing faces retain
+their identity on reads without rewriting authored data. No DTO, hook, config-key or workspace
+isolation changes. The official agent-definition reference already limits backgrounds to symbols.

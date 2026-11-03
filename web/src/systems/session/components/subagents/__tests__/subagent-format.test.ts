@@ -1,3 +1,4 @@
+import { subagentRuntimeWords } from "../subagent-row-format";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -401,6 +402,18 @@ describe("subagent group (UT-W07)", () => {
 
 describe("subagent hover content (UT-W08)", () => {
   it("Should render a missing model as Not reported and drop the effort", () => {
+    expect(
+      subagentRuntimeWords(
+        subagent({ runtime: { ...NO_RUNTIME, provider: "claude", reasoning_effort: "high" } }),
+        "Coder"
+      ).modelLabel
+    ).toBe("");
+    expect(
+      subagentRuntimeWords(
+        subagent({ runtime: { ...NO_RUNTIME, model: "opus", reasoning_effort: "high" } }),
+        "Coder"
+      ).modelLabel
+    ).toBe("Opus high");
     expect(
       subagentRuntimeLabel(
         subagent({ runtime: { ...NO_RUNTIME, provider: "claude", reasoning_effort: "high" } })

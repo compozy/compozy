@@ -7,6 +7,7 @@ import {
 import {
   act,
   fireEvent,
+  isInaccessible,
   render,
   renderHook,
   screen,
@@ -283,6 +284,9 @@ describe("SessionList agent identity", () => {
 
     const working = screen.getByTestId("session-sidebar-session-model-row").parentElement!;
     expect(within(working).getByText("claude-opus-4-1 high")).toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-session-model-row")).toHaveAccessibleName(
+      /claude-opus-4-1 high/
+    );
     expect(within(working).queryByText("Working")).not.toBeInTheDocument();
     const asking = screen.getByTestId("session-sidebar-session-asking-row").parentElement!;
     expect(within(asking).getByText("Needs your answer")).toBeInTheDocument();
@@ -1109,7 +1113,8 @@ describe("SessionList subagents", () => {
     expect(
       rows.map(node => node.querySelector('[data-slot="state-glyph"]')?.getAttribute("data-state"))
     ).toEqual(["attention", "failed", "running", "done"]);
-    const open = (title: string) => within(branch).getByRole("button", { name: `Open ${title}` });
+    const open = (title: string) =>
+      within(branch).getByRole("button", { name: `Open ${title} · claude · Coder` });
     expect(open("Subagent 3")).toHaveAttribute("aria-description", "Working");
     expect(open("Subagent 4")).toHaveAttribute("aria-description", "Done");
     // Only a subagent that needs you says its state in words; the glyph says the rest.
@@ -1125,7 +1130,7 @@ describe("SessionList subagents", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
-          subagents: [{ ...wireSubagent(1, "queued"), child_session_id: null }],
+          subagents: [{ ...wireSubagent(1, "failed"), child_session_id: null }],
         }),
         { headers: { "Content-Type": "application/json" } }
       )
@@ -1134,8 +1139,51 @@ describe("SessionList subagents", () => {
     const branch = await screen.findByTestId("session-sidebar-subagents-parent");
     expect(await within(branch).findByText("Subagent 1")).toBeVisible();
     expect(
-      within(branch).queryByRole("button", { name: "Open Subagent 1" })
+      within(branch)
+        .getAllByText("Failed")
+        .some(node => !isInaccessible(node))
+    ).toBe(true);
+    expect(
+      within(branch).queryByRole("button", { name: "Open Subagent 1 · claude · Coder" })
     ).not.toBeInTheDocument();
+  });
+
+  it("Should name a subagent with its recorded owner catalog and runtime", async () => {
+    const parent = row("foreign-parent", {
+      ...summary(1, 1),
+      workspace_id: "foreign-workspace",
+      profile_name: "marketing",
+    });
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          subagents: [
+            {
+              ...wireSubagent(1, "running"),
+              runtime: {
+                agent: "coder",
+                provider: "claude",
+                model: "opus",
+                reasoning_effort: "high",
+                speed: "",
+              },
+            },
+          ],
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      )
+    );
+    const { queryClient } = renderList({ sessions: [parent], subagentThreadIds: [parent.id] });
+    act(() =>
+      queryClient.setQueryData(agentsListOptions("foreign-workspace", "marketing").queryKey, [
+        { ...primaryAgentFixture, name: "coder", label: "Foreign Coder" },
+      ])
+    );
+    expect(
+      await screen.findByRole("button", {
+        name: "Open Subagent 1 · claude · Opus high · Foreign Coder",
+      })
+    ).toHaveAccessibleDescription("Working");
   });
 
   // Issue #919: the subagent list reads nothing while folded, then short pages on demand.
@@ -1299,7 +1347,9 @@ describe("SessionList subagents", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(subagentPage(0, 1));
     const { onSelect } = renderList({ sessions: [parent], subagentThreadIds: ["branch-parent"] });
 
-    await user.click(await screen.findByRole("button", { name: "Open Subagent 0" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Open Subagent 0 · claude · Coder" })
+    );
 
     expect(onSelect).toHaveBeenCalledExactlyOnceWith({
       id: "child-0",
@@ -1330,7 +1380,9 @@ describe("SessionList subagents", () => {
     expect(onBranch).toHaveBeenLastCalledWith("parent", "subagents");
     expect(subagents).toHaveAttribute("aria-expanded", "true");
     expect(children).toHaveAttribute("aria-expanded", "false");
-    expect(await screen.findByRole("button", { name: "Open Subagent 1" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Open Subagent 1 · claude · Coder" })
+    ).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.queryByTestId("session-sidebar-session-plain")).not.toBeInTheDocument()
     );

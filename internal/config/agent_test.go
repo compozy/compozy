@@ -1997,6 +1997,41 @@ func TestAgentIdentityContract(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	t.Run("Should preserve a saved generated face with an ignored plate", func(t *testing.T) {
+		t.Parallel()
+		appearance := map[string]any{
+			"version": 1, "avatar": "generated", "seed": "saved-seed",
+			"generation": 1, "color": "#123456", "background": "plate",
+		}
+		if !errors.Is(ValidateAgentAppearance(appearance), ErrAgentAppearanceInvalid) {
+			t.Fatal("accepted a plate for a generated face")
+		}
+		path := filepath.Join(t.TempDir(), "AGENT.md")
+		contents, _, err := RenderAgentDefinition(AgentDefinitionDraft{
+			Name: "saved-face", Prompt: "Assist.", Appearance: appearance,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, contents, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := LoadAgentDefFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved, err := loaded.ResolveAppearance()
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := CloneAgentAppearance(appearance)
+		delete(want, "background")
+		if !EqualAgentAppearance(resolved, want) ||
+			!EqualAgentAppearance(loaded.AppearanceOrDefault(), want) ||
+			!EqualAgentAppearance(loaded.Appearance, appearance) {
+			t.Fatalf("lost saved identity: saved=%#v resolved=%#v", loaded.Appearance, resolved)
+		}
+	})
 	t.Run("Should accept every appearance the web editors save [#1204]", func(t *testing.T) {
 		t.Parallel()
 		for name, a := range map[string]map[string]any{

@@ -48,7 +48,9 @@ export function useSessionRuntimeLabel(
   const modelLabel = modelName || model;
   return {
     provider,
-    label: modelLabel ? `${providerLabel} · ${modelLabel}` : providerLabel,
+    label: modelLabel
+      ? `${providerLabel} · ${[modelLabel, effort].filter(Boolean).join(" ")}`
+      : providerLabel,
     model: modelLabel ? [modelLabel, effort].filter(Boolean).join(" ") : "",
   };
 }

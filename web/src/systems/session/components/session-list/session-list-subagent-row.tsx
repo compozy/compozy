@@ -2,7 +2,7 @@ import type { MouseEvent } from "react";
 
 import { StateGlyph, cn } from "@compozy/ui";
 
-import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
+import { useAgentIdentityView } from "@/systems/agent";
 
 import { useSubagentDrawerSelected } from "../../hooks/use-subagent-drawer-selected";
 import { SESSION_TONE_WORD_CLASS } from "../../lib/session-badge-classes";
@@ -20,14 +20,20 @@ export function SessionListSubagentRow({
   subagent,
   current,
   onOpen,
+  workspace,
+  profile,
 }: {
   subagent: SubagentView;
   current: boolean;
+  workspace?: string;
+  profile?: string;
   onOpen?: (event: MouseEvent<HTMLButtonElement>) => void;
 }) {
   const selected = useSubagentDrawerSelected(subagent.id);
   const display = subagentDisplay(subagent);
   const word = display.word;
+  const identity = useAgentIdentityView(subagent.runtime.agent ?? "", { workspace, profile });
+  const runtime = subagentRuntimeWords(subagent, identity.label);
   const body = (
     <>
       {/* The mark sits on the title line, where the branch elbow lands, not between both lines. */}
@@ -36,7 +42,12 @@ export function SessionListSubagentRow({
       </span>
       <span className="flex min-w-0 flex-col">
         <span className="truncate">{subagent.title}</span>
-        <SubagentRowWho display={display} subagent={subagent} />
+        <SubagentRowWho
+          display={display}
+          subagent={subagent}
+          identity={identity}
+          runtime={runtime}
+        />
       </span>
       <SubagentElapsed className="self-start leading-5" clock={display.clock} />
     </>
@@ -57,7 +68,7 @@ export function SessionListSubagentRow({
             rowClass,
             "transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring"
           )}
-          aria-label={`Open ${subagent.title}`}
+          aria-label={`Open ${subagent.title} · ${runtime.label}`}
           aria-description={word}
           aria-current={current || selected ? "true" : undefined}
           onClick={onOpen}
@@ -65,7 +76,10 @@ export function SessionListSubagentRow({
           {body}
         </button>
       ) : (
-        <div className={rowClass}>{body}</div>
+        <div className={rowClass}>
+          {body}
+          <span className="sr-only">{word}</span>
+        </div>
       )}
     </div>
   );
@@ -78,13 +92,16 @@ export function SessionListSubagentRow({
 function SubagentRowWho({
   subagent,
   display,
+  identity,
+  runtime,
 }: {
   subagent: SubagentView;
   display: SubagentDisplay;
+  identity: ReturnType<typeof useAgentIdentityView>;
+  runtime: ReturnType<typeof subagentRuntimeWords>;
 }) {
   const { agent, provider } = subagent.runtime;
-  const identity = useAgentIdentityView(agent ?? "");
-  const { modelLabel, label } = subagentRuntimeWords(subagent, identity.label);
+  const { modelLabel, label } = runtime;
   const needsYou = display.tone === "attention" || display.tone === "destructive";
   return (
     <span className="flex min-w-0 items-center gap-1 text-transcript-meta text-muted-foreground">

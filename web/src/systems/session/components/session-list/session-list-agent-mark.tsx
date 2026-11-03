@@ -1,7 +1,7 @@
 import type { AgentAvatarAppearance } from "@compozy/ui";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
-import { AgentMark } from "@/systems/agent/components/agent-mark";
+import { AgentMark } from "@/systems/agent";
 
 import { SESSION_ROW_MARK_TOOLTIP_DELAY } from "./session-list-row-frame";
 
