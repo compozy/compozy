@@ -46,6 +46,18 @@ describe("detectFilePath", () => {
   ])("Should not detect %j", (text, source) => {
     expect(detectFilePath(text, source)).toBeNull();
   });
+  // FR-004. Invariant: drive paths name a file only on a Windows desktop.
+  it.each<[string, "inline_code" | "href"]>([
+    ["C:\\Users\\a\\b.txt", "inline_code"],
+    ["C:/Users/a/b.txt:3", "inline_code"],
+    ["file:///C:/Users/a/b.txt", "href"],
+  ])("Should not detect the drive path %j off Windows", (text, source) => {
+    expect(detectFilePath(text, source, { drivePaths: false })).toBeNull();
+    expect(detectFilePath(text, source, { drivePaths: true })).toMatchObject({ relative: false });
+    expect(detectFilePath("/tmp/x", source, { drivePaths: false })).toMatchObject({
+      path: "/tmp/x",
+    });
+  });
 });
 
 describe("resolveFilePath", () => {

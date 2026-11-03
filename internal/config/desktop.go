@@ -46,10 +46,17 @@ func (c DesktopConfig) Validate() error {
 	if strings.ContainsFunc(value, unicode.IsControl) {
 		return desktopEditorCommandError("must not contain control characters")
 	}
-	if !desktopEditorQuotesBalanced(value) {
+	executable, ok := desktopEditorExecutable(value)
+	if !ok {
 		return desktopEditorCommandError("unbalanced quote")
 	}
-	return validateDesktopEditorPlaceholders(value)
+	if err := validateDesktopEditorPlaceholders(value); err != nil {
+		return err
+	}
+	if strings.ContainsRune(executable, '{') {
+		return desktopEditorCommandError("the executable cannot contain a placeholder")
+	}
+	return nil
 }
 
 func validateDesktopEditorPlaceholders(value string) error {
@@ -82,19 +89,39 @@ func validateDesktopEditorPlaceholders(value string) error {
 	return nil
 }
 
-// desktopEditorQuotesBalanced mirrors the desktop splitter: single and double quotes group,
-// a quote of the other kind inside an open group is literal, and there are no escapes.
-func desktopEditorQuotesBalanced(value string) bool {
-	var open rune
+// desktopEditorExecutable mirrors the desktop splitter and returns argv[0]: whitespace separates
+// arguments, single and double quotes group (a quote of the other kind inside an open group is
+// literal), and there are no escapes. ok is false when a quote is left open.
+func desktopEditorExecutable(value string) (executable string, ok bool) {
+	var (
+		open    rune
+		current strings.Builder
+		started bool
+		done    bool
+	)
 	for _, char := range value {
 		switch {
-		case open == 0 && (char == '\'' || char == '"'):
+		case open != 0:
+			if char == open {
+				open = 0
+			} else if !done {
+				current.WriteRune(char)
+			}
+		case char == '\'' || char == '"':
 			open = char
-		case open != 0 && char == open:
-			open = 0
+			started = true
+		case unicode.IsSpace(char):
+			if started {
+				done = true
+			}
+		default:
+			if !done {
+				current.WriteRune(char)
+			}
+			started = true
 		}
 	}
-	return open == 0
+	return current.String(), open == 0
 }
 
 func desktopEditorCommandError(message string) error {

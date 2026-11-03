@@ -64,11 +64,20 @@ function lastSegment(path: string): string {
   return parts[parts.length - 1] ?? "";
 }
 
-function classify(path: string, hasLine: boolean): { relative: boolean } | null {
+export interface FilePathDetectOptions {
+  /** Whether Windows drive paths count; only a Windows desktop can open them. Default true. */
+  drivePaths?: boolean;
+}
+
+function classify(
+  path: string,
+  hasLine: boolean,
+  drivePaths: boolean
+): { relative: boolean } | null {
   if (path === "" || isNetworkPath(path) || path.startsWith("@")) return null;
   if (path.startsWith("/")) return /[^/]/.test(path) ? { relative: false } : null;
   if (path.startsWith("~/")) return path.length > 2 ? { relative: false } : null;
-  if (WINDOWS_DRIVE.test(path)) return path.length > 3 ? { relative: false } : null;
+  if (WINDOWS_DRIVE.test(path)) return drivePaths && path.length > 3 ? { relative: false } : null;
   if (path.startsWith("./") || path.startsWith("../")) {
     return path.replace(/^(\.\.?\/)+/, "") === "" ? null : { relative: true };
   }
@@ -84,7 +93,11 @@ function positive(value: string | undefined): number | null | undefined {
 }
 
 /** Returns the path token `text` names, or `null` when it does not look like a file path. */
-export function detectFilePath(text: string, source: FilePathSource): FilePathToken | null {
+export function detectFilePath(
+  text: string,
+  source: FilePathSource,
+  options: FilePathDetectOptions = {}
+): FilePathToken | null {
   const raw = text.trim();
   if (raw.length === 0 || raw.length > MAX_TOKEN_LENGTH || FORBIDDEN_CHARS.test(raw)) return null;
 
@@ -110,7 +123,7 @@ export function detectFilePath(text: string, source: FilePathSource): FilePathTo
     path = candidate.slice(0, suffix.index);
   }
 
-  const kind = classify(path, line !== undefined);
+  const kind = classify(path, line !== undefined, options.drivePaths ?? true);
   if (!kind) return null;
   return {
     raw,

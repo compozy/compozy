@@ -18,6 +18,8 @@ export interface OpenInEditor {
   open(token: FilePathToken): Promise<void>;
   /** Cmd on macOS, Ctrl elsewhere — the modifier that opens on click. */
   modifier: "meta" | "ctrl";
+  /** Windows drive paths (`C:\x`) name a file only on a Windows desktop. */
+  drivePaths: boolean;
 }
 
 interface SessionScope {
@@ -125,6 +127,7 @@ export function useOpenInEditor(): OpenInEditor | null {
 
   return {
     modifier: bridge.platform === "darwin" ? "meta" : "ctrl",
+    drivePaths: bridge.platform === "win32",
     async open(token) {
       const openSettings = () => void navigate({ to: EDITOR_SETTINGS_PATH });
       const { base, roots } = await readResolutionBase(queryClient, scope);

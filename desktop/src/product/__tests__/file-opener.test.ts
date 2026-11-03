@@ -43,6 +43,7 @@ function harness(
     loginPath?: string | null | Error;
     executables?: string[];
     spawnEvent?: "spawn" | "error";
+    env?: NodeJS.ProcessEnv;
   } = {}
 ) {
   const home = options.home ?? "/Users/d";
@@ -63,7 +64,7 @@ function harness(
   const opener = new ElectronFileOpener({
     platform: options.platform ?? "darwin",
     homedir: () => home,
-    env: { PATH: "/usr/bin:/bin", HOME: home },
+    env: { PATH: "/usr/bin:/bin", HOME: home, ...options.env },
     fs: {
       async realpath(path) {
         fsCalls.push(`realpath ${path}`);
@@ -194,6 +195,23 @@ describe("file opener", () => {
     const fifo = harness({ entries: { ...REPO, "/repo/pipe": "fifo" } });
     expect(await fifo.open({ path: "/repo/pipe" })).toMatchObject({ code: "not_a_file" });
     expect(fifo.spawned).toEqual([]);
+  });
+
+  it("Should report a drive path as missing off Windows before any dialog or filesystem call", async () => {
+    for (const platform of ["darwin", "linux"] as const) {
+      for (const path of ["C:\\Users\\a\\b.txt", "C:/Users/a/b.txt"]) {
+        const run = harness({ platform, entries: REPO });
+        expect(await run.open({ path })).toEqual({
+          status: "error",
+          code: "not_found",
+          message: `File not found: ${path}`,
+        });
+        expect(run.dialogs).toEqual([]);
+        expect(run.fsCalls).toEqual([]);
+        expect(run.fetches).toEqual([]);
+        expect(run.spawned).toEqual([]);
+      }
+    }
   });
 
   it("Should confirm a symlink escape with its real path and hand the editor only real paths", async () => {
@@ -331,7 +349,10 @@ describe("file opener", () => {
   it("Should treat a daemon without config.desktop as unset and use the fallback", async () => {
     const run = harness({ entries: REPO, settings: { body: settingsBody(null) } });
     expect(await run.open({ path: "/repo/a.ts", line: 9 })).toEqual({ status: "opened" });
-    expect(at(run.spawned, 0)).toMatchObject({ command: "open", args: ["-t", "/repo/a.ts"] });
+    expect(at(run.spawned, 0)).toMatchObject({
+      command: "/usr/bin/open",
+      args: ["-t", "/repo/a.ts"],
+    });
     expect(at(run.logs, 0)).toMatchObject({ fallback: true });
   });
 
@@ -346,8 +367,35 @@ describe("file opener", () => {
     expect(await win.open({ path: "C:\\repo\\a.ts", roots: ["C:\\repo"] })).toEqual({
       status: "opened",
     });
-    expect(at(win.spawned, 0)).toMatchObject({ command: "notepad.exe", args: ["C:\\repo\\a.ts"] });
+    expect(at(win.spawned, 0)).toMatchObject({
+      command: "C:\\Windows\\System32\\notepad.exe",
+      args: ["C:\\repo\\a.ts"],
+    });
     expect(win.loginShellPath).not.toHaveBeenCalled();
+
+    const winRoot = harness({
+      platform: "win32",
+      home: "C:\\Users\\d",
+      entries: { "C:\\repo": "dir", "C:\\repo\\a.ts": "file" },
+      settings: unset,
+      env: { SystemRoot: "D:\\WINNT" },
+    });
+    expect(await winRoot.open({ path: "C:\\repo\\a.ts", roots: ["C:\\repo"] })).toEqual({
+      status: "opened",
+    });
+    expect(at(winRoot.spawned, 0).command).toBe("D:\\WINNT\\System32\\notepad.exe");
+
+    const mac = harness({
+      entries: REPO,
+      settings: unset,
+      loginPath: "/opt/shim/bin:/usr/bin",
+      executables: ["/opt/shim/bin/open"],
+    });
+    expect(await mac.open({ path: "/repo/a.ts" })).toEqual({ status: "opened" });
+    expect(at(mac.spawned, 0)).toMatchObject({
+      command: "/usr/bin/open",
+      args: ["-t", "/repo/a.ts"],
+    });
 
     const linux = harness({
       platform: "linux",

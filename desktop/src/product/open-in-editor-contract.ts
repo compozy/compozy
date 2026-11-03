@@ -61,10 +61,15 @@ function isBoundedPathText(value: unknown): value is string {
   return !isNetworkOrDevicePath(value);
 }
 
+/** A Windows drive path (`C:\x`, `C:/x`); it only names a file on a win32 host. */
+export function isWindowsDrivePath(value: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(value);
+}
+
 /** An absolute local POSIX (`/x`) or Windows drive (`C:\x`, `C:/x`) path; never UNC/device. */
 export function isLocalAbsolutePath(value: unknown): value is string {
   if (!isBoundedPathText(value)) return false;
-  return value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value);
+  return value.startsWith("/") || isWindowsDrivePath(value);
 }
 
 /** A target path: local absolute with at least one non-separator character, or `~/` + name. */

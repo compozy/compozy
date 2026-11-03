@@ -6,7 +6,7 @@ import { FileText } from "@compozy/ui/icons";
 import { useFilePathOpenAction } from "../hooks/use-file-path-open-action";
 import type { OpenInEditor } from "../hooks/use-open-in-editor";
 import { detectFilePath, filePathBasename, type FilePathToken } from "../lib/file-path-links";
-import { FilePathOpenerContext } from "../lib/file-path-opener-context";
+import { FilePathInsideLinkContext, FilePathOpenerContext } from "../lib/file-path-opener-context";
 
 // Hover underline on the path text only; the button appears on hover of the span or on focus.
 const PATH_TEXT_CLASS =
@@ -68,7 +68,7 @@ function FilePathAffordance({
     <span className="group/path" data-file-path={token.raw}>
       {/* Cmd/Ctrl+click is a mouse shortcut; the adjacent button is the keyboard path. */}
       <span className={PATH_TEXT_CLASS} onClick={onModifierClick} role="presentation">
-        {children}
+        <FilePathInsideLinkContext value>{children}</FilePathInsideLinkContext>
       </span>
       <OpenInEditorButton
         token={token}
@@ -80,10 +80,17 @@ function FilePathAffordance({
   );
 }
 
-/** `StreamMarkdown` inline-code decorator body: path spans gain the open affordance. */
+/**
+ * `StreamMarkdown` inline-code decorator body: path spans gain the open affordance, except
+ * inside a link, which keeps its own click behavior.
+ */
 export function FilePathInlineCode({ text, element }: { text: string; element: ReactElement }) {
   const opener = use(FilePathOpenerContext);
-  const token = opener ? detectFilePath(text, "inline_code") : null;
+  const insideLink = use(FilePathInsideLinkContext);
+  const token =
+    opener && !insideLink
+      ? detectFilePath(text, "inline_code", { drivePaths: opener.drivePaths })
+      : null;
   if (!opener || !token) return element;
   return (
     <FilePathAffordance opener={opener} token={token}>
@@ -126,7 +133,7 @@ function FilePathLinkText({ children }: { children: ReactNode }) {
 /** `StreamMarkdown` local-link component: path hrefs open in the editor and never navigate. */
 export function FilePathLocalLink({ href, children }: { href: string; children: ReactNode }) {
   const opener = use(FilePathOpenerContext);
-  const token = opener ? detectFilePath(href, "href") : null;
+  const token = opener ? detectFilePath(href, "href", { drivePaths: opener.drivePaths }) : null;
   if (!opener || !token) return <BlockedLink href={href}>{children}</BlockedLink>;
   return (
     <FilePathAffordance opener={opener} token={token}>
@@ -145,12 +152,12 @@ export function FilePathAnchor({
   const opener = use(FilePathOpenerContext);
   const token =
     opener && typeof href === "string" && href.startsWith("/")
-      ? detectFilePath(href, "href")
+      ? detectFilePath(href, "href", { drivePaths: opener.drivePaths })
       : null;
   if (!opener || !token) {
     return (
       <MarkdownAnchor href={href} className={className} {...props}>
-        {children}
+        <FilePathInsideLinkContext value>{children}</FilePathInsideLinkContext>
       </MarkdownAnchor>
     );
   }

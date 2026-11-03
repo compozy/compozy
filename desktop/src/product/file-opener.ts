@@ -13,6 +13,7 @@ import { FileOpenPolicy } from "./file-open-policy";
 import { lookPath, type CommandRunner } from "./login-shell-path";
 import {
   isNetworkOrDevicePath,
+  isWindowsDrivePath,
   type OpenInEditorErrorCode,
   type OpenInEditorParams,
   type OpenInEditorResult,
@@ -128,6 +129,11 @@ export class ElectronFileOpener implements FileOpener {
     window: BrowserWindow | null,
     outcome: { inside: boolean; fallback: boolean }
   ): Promise<OpenInEditorResult> {
+    // A drive path names no file off Windows; resolving it would show a dialog for a path
+    // the agent never wrote.
+    if (this.#deps.platform !== "win32" && isWindowsDrivePath(params.path)) {
+      throw new OpenFailure("not_found", `File not found: ${params.path}`);
+    }
     const policy = this.#policy;
     const home = policy.normalize(this.#deps.homedir());
     const lexical = policy.expand(params.path, home);
@@ -268,7 +274,10 @@ export class ElectronFileOpener implements FileOpener {
         handler = null;
       }
     }
-    const argv = fallbackEditorArgv(this.#deps.platform, path, handler);
+    const argv = fallbackEditorArgv(this.#deps.platform, path, {
+      linuxTextHandler: handler,
+      systemRoot: this.#deps.env.SystemRoot,
+    });
     if (!argv) throw failure("editor_not_configured");
     return argv;
   }

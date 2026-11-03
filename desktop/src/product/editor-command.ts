@@ -1,3 +1,5 @@
+import { win32 } from "node:path";
+
 /**
  * `desktop.editor_command` template handling. A template is split into argv like a shell
  * would for quotes only (no escapes, no expansion) and is never run through a shell.
@@ -101,17 +103,31 @@ export function isDesktopEntryID(value: string): boolean {
   return /^[A-Za-z0-9][A-Za-z0-9_.-]*\.desktop$/.test(value);
 }
 
+/** Where the unset-command fallback finds what it cannot resolve on its own. */
+export interface FallbackEditorHost {
+  /** The `xdg-mime` `text/plain` handler on Linux, or `null` when there is none. */
+  linuxTextHandler: string | null;
+  /** The win32 `SystemRoot` environment value; `C:\Windows` when unset. */
+  systemRoot?: string | undefined;
+}
+
 /**
  * The fixed per-OS text-editor fallback for an unset command, or `null` when Linux has no
- * `text/plain` handler. None of these supports a line.
+ * `text/plain` handler. darwin and win32 use fixed executable locations so no PATH or
+ * current-directory entry can shadow them; Linux has none, so `gtk-launch` stays a bare name
+ * resolved through the login-shell PATH. None of these supports a line.
  */
 export function fallbackEditorArgv(
   platform: NodeJS.Platform,
   path: string,
-  linuxTextHandler: string | null
+  host: FallbackEditorHost
 ): string[] | null {
-  if (platform === "darwin") return ["open", "-t", path];
-  if (platform === "win32") return ["notepad.exe", path];
-  if (!linuxTextHandler || !isDesktopEntryID(linuxTextHandler)) return null;
-  return ["gtk-launch", linuxTextHandler, path];
+  if (platform === "darwin") return ["/usr/bin/open", "-t", path];
+  if (platform === "win32") {
+    const systemRoot = host.systemRoot?.trim() || "C:\\Windows";
+    return [win32.join(systemRoot, "System32", "notepad.exe"), path];
+  }
+  const handler = host.linuxTextHandler;
+  if (!handler || !isDesktopEntryID(handler)) return null;
+  return ["gtk-launch", handler, path];
 }

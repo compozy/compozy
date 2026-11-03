@@ -27,6 +27,17 @@ func TestDesktopConfigValidate(t *testing.T) {
 			command: "code {file}",
 			wantErr: "unknown placeholder {file}; allowed: {path}, {line}, {col}",
 		},
+		{name: "Should accept a placeholder outside the executable", command: "code {path}"},
+		{
+			name:    "Should reject a placeholder as the executable",
+			command: "{path}",
+			wantErr: "the executable cannot contain a placeholder",
+		},
+		{
+			name:    "Should reject a quoted placeholder as the executable",
+			command: `"{path}" --wait`,
+			wantErr: "the executable cannot contain a placeholder",
+		},
 		{name: "Should reject an unbalanced quote", command: `code "{path}`, wantErr: "unbalanced quote"},
 		{
 			name:    "Should reject a command longer than 1024 bytes",

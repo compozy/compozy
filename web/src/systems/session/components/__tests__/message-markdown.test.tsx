@@ -396,6 +396,45 @@ describe("MessageMarkdown file paths", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("Should leave inline code inside a link undecorated and the link's own clicks intact", async () => {
+    const openInEditor = stubShell();
+    const { container } = renderTranscript(
+      <MessageMarkdown
+        openPaths
+        content="[`src/app.ts`](https://github.com/o/r/blob/main/src/app.ts)"
+      />
+    );
+    const anchor = container.querySelector("a[href='https://github.com/o/r/blob/main/src/app.ts']");
+    expect(anchor).not.toBeNull();
+    expect(anchor?.querySelector("button, [data-file-path]")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+    // fireEvent returns false only when a handler called preventDefault.
+    expect(fireEvent.click(screen.getByText("src/app.ts"), { metaKey: true })).toBe(true);
+    expect(openInEditor).not.toHaveBeenCalled();
+
+    const local = renderTranscript(<MessageMarkdown openPaths content="[`a.ts:3`](a.ts:3)" />);
+    expect(within(local.container).getAllByRole("button", { name: /in editor/ })).toHaveLength(1);
+    expect(local.container.querySelectorAll("[data-file-path]")).toHaveLength(1);
+    fireEvent.click(within(local.container).getByText("a.ts:3"), { metaKey: true });
+    await waitFor(() => expect(openInEditor).toHaveBeenCalledTimes(1));
+    expect(openInEditor).toHaveBeenCalledWith({ path: "/repo/a.ts", line: 3, roots: ["/repo"] });
+  });
+
+  it("Should linkify Windows drive paths only on a Windows desktop", () => {
+    const content = "See `C:\\Users\\a\\b.txt` and `C:/Users/a/b.txt`.";
+    for (const platform of ["darwin", "linux"]) {
+      stubShell(platform);
+      const view = renderTranscript(<MessageMarkdown openPaths content={content} />);
+      expect(within(view.container).queryByRole("button")).toBeNull();
+      view.unmount();
+    }
+    stubShell("win32");
+    const win = renderTranscript(<MessageMarkdown openPaths content={content} />);
+    expect(
+      within(win.container).getAllByRole("button", { name: "Open b.txt in editor" })
+    ).toHaveLength(2);
+  });
+
   it("Should leave non-path inline code unchanged on desktop", () => {
     stubShell();
     renderTranscript(<MessageMarkdown openPaths content="Run `compozy start` now." />);

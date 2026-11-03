@@ -355,6 +355,7 @@ describe("StreamMarkdown", () => {
     const source = [
       "[a](internal/x.go:42) [b](~/c.toml) [c](file:///Users/d/a.md) [d](C:/x/y.ts)",
       "[e](https://x.dev/) [f](javascript:alert(1)) [g](<java\tscript:alert(1)>)",
+      "[h](vbscript:msgbox(1)) [i](data:text/html,x) [j](blob:https://x.dev/1)",
     ].join(" ");
     function LocalLink({ href, children }: { href: string; children: React.ReactNode }) {
       return (
@@ -377,6 +378,9 @@ describe("StreamMarkdown", () => {
     expect(screen.getByRole("link", { name: "e" })).toHaveAttribute("href", "https://x.dev/");
     expect(container).toHaveTextContent("f [blocked]");
     expect(container).toHaveTextContent("g [blocked]");
+    for (const name of ["h", "i", "j"]) {
+      expect(container).toHaveTextContent(`${name} [blocked]`);
+    }
 
     const fallback = render(<StreamMarkdown>{source}</StreamMarkdown>);
     expect(
@@ -391,6 +395,9 @@ describe("StreamMarkdown", () => {
       ["Blocked URL: undefined", "d [blocked]"],
       ["Blocked URL: undefined", "f [blocked]"],
       ["Blocked URL: undefined", "g [blocked]"],
+      ["Blocked URL: undefined", "h [blocked]"],
+      ["Blocked URL: undefined", "i [blocked]"],
+      ["Blocked URL: undefined", "j [blocked]"],
     ]);
   });
 });
