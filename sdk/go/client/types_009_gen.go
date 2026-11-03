@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+// JobPayload is a daemon API value.
+type JobPayload struct {
+	ID           string                           `json:"id"`
+	ProfileID    string                           `json:"profile_id"`
+	ProfileName  string                           `json:"profile_name"`
+	ProfileColor string                           `json:"profile_color,omitempty"`
+	ProfileIcon  string                           `json:"profile_icon,omitempty"`
+	Scope        Scope                            `json:"scope"`
+	Name         string                           `json:"name"`
+	TargetKind   TargetKind                       `json:"target_kind"`
+	AgentName    string                           `json:"agent_name"`
+	WorkspaceID  string                           `json:"workspace_id,omitempty"`
+	Prompt       string                           `json:"prompt"`
+	Schedule     *ScheduleSpec                    `json:"schedule,omitzero"`
+	Task         *JobTaskConfig                   `json:"task,omitzero"`
+	LoopTarget   *LoopTarget                      `json:"loop_target,omitzero"`
+	Enabled      bool                             `json:"enabled"`
+	Retry        RetryConfig                      `json:"retry"`
+	FireLimit    FireLimitConfig                  `json:"fire_limit"`
+	Source       JobSource                        `json:"source"`
+	CreatedAt    time.Time                        `json:"created_at"`
+	UpdatedAt    time.Time                        `json:"updated_at"`
+	NextRun      *time.Time                       `json:"next_run,omitempty"`
+	Scheduler    *AutomationSchedulerStatePayload `json:"scheduler,omitzero"`
+	LastRun      *AutomationLastRunPayload        `json:"last_run,omitzero"`
+}
+
 // JobResponse is a daemon API value.
 type JobResponse struct {
 	Job JobPayload `json:"job"`
@@ -416,27 +443,3 @@ type LoopGateCriterionEventPayload struct {
 
 // LoopGateDecision is a daemon API value.
 type LoopGateDecision string
-
-// LoopGateDiagnosticWarning is a daemon API value.
-type LoopGateDiagnosticWarning struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
-// LoopGateVerdictEventPayload is a daemon API value.
-type LoopGateVerdictEventPayload struct {
-	NodeID         string                          `json:"node_id"`
-	Generation     int64                           `json:"generation"`
-	GateID         string                          `json:"gate_id"`
-	ItemIndex      int                             `json:"item_index"`
-	Verdict        string                          `json:"verdict"`
-	Reason         string                          `json:"reason"`
-	Route          string                          `json:"route"`
-	BlockingIssues []LoopGateBlockingIssuePayload  `json:"blocking_issues"`
-	Criteria       []LoopGateCriterionEventPayload `json:"criteria"`
-	Score          *float64                        `json:"score,omitzero"`
-	BestGeneration *int64                          `json:"best_generation,omitzero"`
-}
-
-// LoopGateVerdictOutcome is a daemon API value.
-type LoopGateVerdictOutcome string

@@ -251,7 +251,8 @@ func StatusForAutomationError(err error) int {
 		return http.StatusBadRequest
 	case errors.Is(err, automationpkg.ErrWebhookEndpointInvalid):
 		return http.StatusBadRequest
-	case errors.Is(err, automationpkg.ErrJobNotFound),
+	case errors.Is(err, automationpkg.ErrTriggerTargetInstanceNotFound),
+		errors.Is(err, automationpkg.ErrJobNotFound),
 		errors.Is(err, automationpkg.ErrSuggestionNotFound),
 		errors.Is(err, automationpkg.ErrTriggerNotFound),
 		errors.Is(err, automationpkg.ErrRunNotFound),

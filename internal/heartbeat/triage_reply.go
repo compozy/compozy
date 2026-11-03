@@ -21,9 +21,10 @@ const (
 )
 
 type TriageProposal struct {
-	Title    string   `json:"title"`
-	Body     string   `json:"body"`
-	ItemKeys []string `json:"item_keys"`
+	Sources  []AutomationEventSource `json:"sources,omitempty"`
+	Title    string                  `json:"title"`
+	Body     string                  `json:"body"`
+	ItemKeys []string                `json:"item_keys"`
 }
 
 // ParseTriageReply consumes only the final assistant message selected by the dispatcher.
@@ -64,7 +65,8 @@ func ParseTriageReply(reply string, digest CheckDigest, limit int) ([]TriageProp
 			}
 		}
 		slices.Sort(keys)
-		proposals = append(proposals, TriageProposal{Title: raw.Title, Body: raw.Body, ItemKeys: slices.Compact(keys)})
+		proposals = append(proposals, TriageProposal{Title: raw.Title, Body: raw.Body, ItemKeys: slices.Compact(keys),
+			Sources: triageEventSources(digest)})
 	}
 	return proposals, nil
 }
@@ -112,4 +114,15 @@ func TriageReplyOutcome(reply string, digest CheckDigest, limit int) TriageOutco
 		return failedTriage("triage_output_invalid")
 	}
 	return TriageOutcome{Result: "reported", Reason: "reported", Report: report}
+}
+
+// Source attribution comes from the admitted digest, never from provider-authored IDs.
+func triageEventSources(digest CheckDigest) []AutomationEventSource {
+	var sources []AutomationEventSource
+	for _, item := range digest.Items {
+		if item.Source != nil {
+			sources = append(sources, *item.Source)
+		}
+	}
+	return sources
 }

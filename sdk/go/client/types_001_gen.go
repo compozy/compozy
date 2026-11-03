@@ -365,25 +365,36 @@ type AgentInstancePayload struct {
 
 // AgentInstanceProposal is a daemon API value.
 type AgentInstanceProposal struct {
-	Title    string   `json:"title"`
-	Body     string   `json:"body"`
-	ItemKeys []string `json:"item_keys"`
+	Sources  []AgentInstanceProposalSource `json:"sources,omitempty"`
+	Title    string                        `json:"title"`
+	Body     string                        `json:"body"`
+	ItemKeys []string                      `json:"item_keys"`
+}
+
+// AgentInstanceProposalSource is a daemon API value.
+type AgentInstanceProposalSource struct {
+	Kind       string `json:"kind"`
+	EventID    string `json:"event_id"`
+	TriggerID  string `json:"trigger_id"`
+	RunID      string `json:"run_id"`
+	ReceivedAt string `json:"received_at"`
 }
 
 // AgentInstanceReportPayload is a daemon API value.
 type AgentInstanceReportPayload struct {
-	ID        string                  `json:"id"`
-	Kind      string                  `json:"kind"`
-	State     string                  `json:"state"`
-	Proposals []AgentInstanceProposal `json:"proposals,omitempty"`
-	Reason    string                  `json:"reason,omitempty"`
-	Detail    string                  `json:"detail,omitempty"`
-	SessionID string                  `json:"session_id,omitempty"`
-	Tool      string                  `json:"tool,omitempty"`
-	ExpiredBy string                  `json:"expired_by,omitempty"`
-	Cause     string                  `json:"cause,omitempty"`
-	Since     string                  `json:"since,omitempty"`
-	CreatedAt time.Time               `json:"created_at"`
+	SkillReviewID string                  `json:"skill_review_id,omitempty"`
+	ID            string                  `json:"id"`
+	Kind          string                  `json:"kind"`
+	State         string                  `json:"state"`
+	Proposals     []AgentInstanceProposal `json:"proposals,omitempty"`
+	Reason        string                  `json:"reason,omitempty"`
+	Detail        string                  `json:"detail,omitempty"`
+	SessionID     string                  `json:"session_id,omitempty"`
+	Tool          string                  `json:"tool,omitempty"`
+	ExpiredBy     string                  `json:"expired_by,omitempty"`
+	Cause         string                  `json:"cause,omitempty"`
+	Since         string                  `json:"since,omitempty"`
+	CreatedAt     time.Time               `json:"created_at"`
 }
 
 // AgentInstanceReportsResponse is a daemon API value.
@@ -429,20 +440,4 @@ type AgentMCPServerJSON struct {
 	SecretEnv map[string]string                 `json:"secret_env,omitempty"`
 	URL       string                            `json:"url,omitempty"`
 	Auth      *SettingsMCPAuthConfigViewPayload `json:"auth,omitzero"`
-}
-
-// AgentMePayload is a daemon API value.
-type AgentMePayload struct {
-	Self             AgentIdentityPayload         `json:"self"`
-	Workspace        AgentWorkspacePayload        `json:"workspace"`
-	Session          AgentSessionPayload          `json:"session"`
-	Capabilities     []AgentCapabilityPayload     `json:"capabilities"`
-	ActiveTaskLeases []TaskRunLeaseSummaryPayload `json:"active_task_leases"`
-	Coordinator      CoordinatorConfigPayload     `json:"coordinator"`
-	Limits           AgentLimitsPayload           `json:"limits"`
-}
-
-// AgentMeResponse is a daemon API value.
-type AgentMeResponse struct {
-	Me AgentMePayload `json:"me"`
 }

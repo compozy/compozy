@@ -2,10 +2,23 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+// AgentMePayload is a daemon API value.
+type AgentMePayload struct {
+	Self             AgentIdentityPayload         `json:"self"`
+	Workspace        AgentWorkspacePayload        `json:"workspace"`
+	Session          AgentSessionPayload          `json:"session"`
+	Capabilities     []AgentCapabilityPayload     `json:"capabilities"`
+	ActiveTaskLeases []TaskRunLeaseSummaryPayload `json:"active_task_leases"`
+	Coordinator      CoordinatorConfigPayload     `json:"coordinator"`
+	Limits           AgentLimitsPayload           `json:"limits"`
+}
+
+// AgentMeResponse is a daemon API value.
+type AgentMeResponse struct {
+	Me AgentMePayload `json:"me"`
+}
 
 // AgentMemoryAddRequest is a daemon API value.
 type AgentMemoryAddRequest struct {
@@ -428,18 +441,4 @@ type AgentTaskClaimPayload struct {
 // AgentTaskClaimResponse is a daemon API value.
 type AgentTaskClaimResponse struct {
 	Claim AgentTaskClaimPayload `json:"claim"`
-}
-
-// AgentTaskCompleteRequest is a daemon API value.
-type AgentTaskCompleteRequest struct {
-	Result         json.RawMessage `json:"result,omitempty"`
-	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
-}
-
-// AgentTaskContextPayload is a daemon API value.
-type AgentTaskContextPayload struct {
-	Available bool                        `json:"available"`
-	Task      *TaskReferencePayload       `json:"task,omitzero"`
-	Lease     *TaskRunLeaseSummaryPayload `json:"lease,omitzero"`
-	Bundle    *ContextBundle              `json:"bundle,omitzero"`
 }

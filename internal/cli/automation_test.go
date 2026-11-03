@@ -1446,3 +1446,84 @@ func TestAutomationUserScopeAliases(t *testing.T) {
 		})
 	}
 }
+
+// Invariant: a trigger's instance target shares its resolved scope and cannot be a scheduled job target.
+// Owning layer: CLI command admission; canonical automation creation suite.
+func TestAutomationInstanceTargets(t *testing.T) {
+	t.Run("Should forward a workspace instance target", func(t *testing.T) {
+		t.Parallel()
+		var request AutomationTriggerCreateRequest
+		deps := newDefaultProfileTestDeps(t, &stubClient{
+			getWorkspaceFn: func(context.Context, string) (WorkspaceDetailRecord, error) {
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-alpha"}}, nil
+			},
+			createAutomationTriggerFn: func(_ context.Context, got AutomationTriggerCreateRequest) (TriggerRecord, error) {
+				request = got
+				return sampleAutomationTriggerRecord(), nil
+			},
+		})
+		_, _, err := executeRootCommand(
+			t,
+			deps,
+			"automation",
+			"triggers",
+			"create",
+			"--name",
+			"review-event",
+			"--workspace",
+			"alpha",
+			"--event",
+			"session.stopped",
+			"--target-instance",
+			"reviewer",
+			"--prompt",
+			"Suggest next steps",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if request.TargetKind != automationpkg.TargetKindAgentInstance || request.AgentName != "reviewer" ||
+			request.TargetInstanceScope != "ws-alpha" ||
+			request.WorkspaceID != "ws-alpha" {
+			t.Fatalf("target: %+v", request)
+		}
+		_, _, err = executeRootCommand(
+			t,
+			deps,
+			"automation",
+			"triggers",
+			"create",
+			"--name",
+			"review-event",
+			"--workspace",
+			"alpha",
+			"--event",
+			"session.stopped",
+			"--target-instance",
+			"reviewer",
+			"--agent",
+			"worker",
+			"--prompt",
+			"Suggest next steps",
+		)
+		if err == nil {
+			t.Fatal("accepted ambiguous target")
+		}
+		_, _, err = executeRootCommand(
+			t,
+			deps,
+			"automation",
+			"jobs",
+			"create",
+			"--name",
+			"review-event",
+			"--target-instance",
+			"reviewer",
+			"--prompt",
+			"Suggest next steps",
+		)
+		if err == nil {
+			t.Fatal("scheduled job accepted instance target")
+		}
+	})
+}

@@ -76,35 +76,39 @@ func (i automationJobUpdateInput) request() contract.UpdateJobRequest {
 }
 
 type automationTriggerCreateInput struct {
-	Scope              automationpkg.Scope            `json:"scope"`
-	Name               string                         `json:"name"`
-	AgentName          string                         `json:"agent_name"`
-	WorkspaceID        string                         `json:"workspace,omitempty"`
-	Prompt             string                         `json:"prompt"`
-	Event              string                         `json:"event"`
-	Filter             map[string]string              `json:"filter,omitempty"`
-	Enabled            *bool                          `json:"enabled,omitzero"`
-	Retry              *automationpkg.RetryConfig     `json:"retry,omitzero"`
-	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitzero"`
-	WebhookID          string                         `json:"webhook_id,omitempty"`
-	EndpointSlug       string                         `json:"endpoint_slug,omitempty"`
-	WebhookSecretValue *string                        `json:"webhook_secret_value,omitzero"`
+	TargetKind          automationpkg.TargetKind       `json:"target_kind,omitempty"`
+	TargetInstanceScope string                         `json:"target_instance_scope,omitempty"`
+	Scope               automationpkg.Scope            `json:"scope"`
+	Name                string                         `json:"name"`
+	AgentName           string                         `json:"agent_name"`
+	WorkspaceID         string                         `json:"workspace,omitempty"`
+	Prompt              string                         `json:"prompt"`
+	Event               string                         `json:"event"`
+	Filter              map[string]string              `json:"filter,omitempty"`
+	Enabled             *bool                          `json:"enabled,omitzero"`
+	Retry               *automationpkg.RetryConfig     `json:"retry,omitzero"`
+	FireLimit           *automationpkg.FireLimitConfig `json:"fire_limit,omitzero"`
+	WebhookID           string                         `json:"webhook_id,omitempty"`
+	EndpointSlug        string                         `json:"endpoint_slug,omitempty"`
+	WebhookSecretValue  *string                        `json:"webhook_secret_value,omitzero"`
 }
 
 func (i automationTriggerCreateInput) request() contract.CreateTriggerRequest {
 	return contract.CreateTriggerRequest{
-		Scope:        i.Scope,
-		Name:         i.Name,
-		AgentName:    i.AgentName,
-		WorkspaceID:  i.WorkspaceID,
-		Prompt:       i.Prompt,
-		Event:        i.Event,
-		Filter:       i.Filter,
-		Enabled:      i.Enabled,
-		Retry:        i.Retry,
-		FireLimit:    i.FireLimit,
-		WebhookID:    i.WebhookID,
-		EndpointSlug: i.EndpointSlug,
+		TargetKind:          i.TargetKind,
+		TargetInstanceScope: i.TargetInstanceScope,
+		Scope:               i.Scope,
+		Name:                i.Name,
+		AgentName:           i.AgentName,
+		WorkspaceID:         i.WorkspaceID,
+		Prompt:              i.Prompt,
+		Event:               i.Event,
+		Filter:              i.Filter,
+		Enabled:             i.Enabled,
+		Retry:               i.Retry,
+		FireLimit:           i.FireLimit,
+		WebhookID:           i.WebhookID,
+		EndpointSlug:        i.EndpointSlug,
 	}
 }
 

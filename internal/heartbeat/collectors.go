@@ -52,8 +52,10 @@ type CollectorFacts struct {
 	WorkLogTruncated bool
 }
 type DigestItem struct {
-	Key     string `json:"key"`
-	Summary string `json:"summary,omitempty"`
+	Instruction string                 `json:"instruction,omitempty"`
+	Source      *AutomationEventSource `json:"source,omitempty"`
+	Key         string                 `json:"key"`
+	Summary     string                 `json:"summary,omitempty"`
 }
 type CheckDigest struct {
 	EventIDs         []string     `json:"event_ids,omitempty"`

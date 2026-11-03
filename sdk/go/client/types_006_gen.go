@@ -7,6 +7,35 @@ import (
 	"time"
 )
 
+// Effort is a daemon API value.
+type Effort string
+
+// EmitSpec is a daemon API value.
+type EmitSpec struct {
+	Kind    string         `json:"kind"`
+	Payload map[string]any `json:"payload,omitempty"`
+}
+
+// EmptyState is a daemon API value.
+type EmptyState struct {
+	Title string `json:"title"`
+	Hint  string `json:"hint,omitempty"`
+	Icon  string `json:"icon,omitempty"`
+}
+
+// EnqueueTaskRunRequest is a daemon API value.
+type EnqueueTaskRunRequest struct {
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
+}
+
+// Entry is a daemon API value.
+type Entry struct {
+	Message       UIMessage `json:"message"`
+	StartSequence int64     `json:"start_sequence"`
+	Sequence      int64     `json:"sequence"`
+}
+
 // ErrorCode is a daemon API value.
 type ErrorCode string
 
@@ -413,34 +442,4 @@ type ForkLoopRequest struct {
 	Inputs     map[string]any `json:"inputs,omitempty"`
 	Reason     string         `json:"reason,omitempty"`
 	RequestID  string         `json:"request_id,omitempty"`
-}
-
-// ForkLoopResponse is a daemon API value.
-type ForkLoopResponse struct {
-	Run      LoopRunPayload `json:"run"`
-	Replayed bool           `json:"replayed,omitzero"`
-}
-
-// ForkSessionRequest is a daemon API value.
-type ForkSessionRequest struct {
-	MessageID           string `json:"message_id,omitempty"`
-	Name                string `json:"name,omitempty"`
-	IdempotencyKey      string `json:"idempotency_key"`
-	ExpectedEpoch       *int64 `json:"expected_epoch,omitzero"`
-	ExpectedGeneration  *int64 `json:"expected_generation,omitzero"`
-	ExpectedMaxSequence *int64 `json:"expected_max_sequence,omitzero"`
-}
-
-// ForkSessionWorktreeRequest is a daemon API value.
-type ForkSessionWorktreeRequest struct {
-	Worktree    string                     `json:"worktree,omitempty"`
-	NewWorktree *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
-	Confirmed   bool                       `json:"confirmed"`
-}
-
-// FormBody is a daemon API value.
-type FormBody struct {
-	Fields   []FormField `json:"fields"`
-	Submit   *RowAction  `json:"submit,omitempty"`
-	OnSubmit string      `json:"on_submit,omitempty"`
 }

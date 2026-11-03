@@ -78,8 +78,10 @@ If nothing is claimable, return a concise no-op summary.
 | `context.include`           | string array | optional | Hints about what context the agent should re-read on wake.                               |
 | Body                        | Markdown     | optional | Bounded reentry prose. Truncated at `[agents.heartbeat].max_body_bytes`.                 |
 
-Omitting `context` enables all six proactive collectors. An explicit `context: {include: []}`
-disables them and survives save, reload and rollback.
+Omitting `context` enables the configurable proactive collectors. An explicit
+`context: {include: []}` disables those collectors and survives save, reload and rollback.
+Pending `automation_events` are always collected for a stays-on instance, independently of that
+selection. See [event targets](/docs/automation/events#send-an-event-to-a-stays-on-check).
 
 The `work_log` collector reads the workspace's `.compozy/work-log.md` and reports `[ ]` entries older
 than 30 minutes, oldest first: up to 9 items, then `work:more` if there are others, and

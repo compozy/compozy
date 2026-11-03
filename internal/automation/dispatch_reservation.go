@@ -37,6 +37,15 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 		return d.dispatchLoopBackedAttempt(ctx, req, scheduledRun, attempt)
 	}
 
+	return d.dispatchAgentSession(ctx, req, scheduledRun, attempt)
+}
+
+func (d *Dispatcher) dispatchAgentSession(
+	ctx context.Context,
+	req DispatchRequest,
+	scheduledRun *Run,
+	attempt int,
+) (*Run, error) {
 	prompt, promptErr := req.prompt()
 	if promptErr != nil {
 		return d.finishRun(ctx, scheduledRun, RunFailed, promptErr)

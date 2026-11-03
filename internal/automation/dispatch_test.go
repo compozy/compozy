@@ -57,6 +57,7 @@ func TestDispatchInstanceEvents(t *testing.T) {
 				trigger := testTrigger(AutomationScopeGlobal, "instance-event", "")
 				trigger.TargetKind, trigger.TargetInstanceScope = TargetKindAgentInstance, "global"
 				trigger.Event = eventKind
+				trigger.Prompt = `Review {{ index .Data "payload" }}`
 				if eventKind != "webhook" {
 					trigger.WebhookID, trigger.EndpointSlug, trigger.WebhookSecretRef = "", "", ""
 				}
@@ -97,10 +98,24 @@ func TestDispatchInstanceEvents(t *testing.T) {
 					facts.AutomationEvents[0].Instruction != trigger.Prompt {
 					t.Fatalf("event facts: %+v %v", facts.AutomationEvents, err)
 				}
+				if !strings.Contains(facts.AutomationEvents[0].Summary, "Review ") ||
+					facts.AutomationEvents[0].TriggerID != trigger.ID || facts.AutomationEvents[0].RunID != run.ID {
+					t.Fatalf("rendered event identity: %+v", facts.AutomationEvents[0])
+				}
 				digest, err := heartbeat.CollectDigest(scope, facts, []string{}, "", "")
 				if err != nil || len(digest.EventIDs) != 1 ||
 					strings.Count(digest.Items[0].Summary, "</untrusted_automation_event>") != 1 {
 					t.Fatalf("fenced digest: %+v %v", digest, err)
+				}
+				proposals, err := heartbeat.ParseTriageReply(
+					`{"proposals":[{"title":"Review event","body":"Inspect the change.","item_keys":[]}]}`,
+					digest,
+					1,
+				)
+				if err != nil || len(proposals) != 1 || len(proposals[0].Sources) != 1 ||
+					proposals[0].Sources[0].TriggerID != trigger.ID ||
+					proposals[0].Sources[0].RunID != run.ID {
+					t.Fatalf("proposal attribution: %+v %v", proposals, err)
 				}
 			},
 		)

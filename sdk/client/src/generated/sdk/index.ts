@@ -126,6 +126,7 @@ export type {
   AgentInstanceOccurrenceResponse,
   AgentInstancePayload,
   AgentInstanceProposal,
+  AgentInstanceProposalSource,
   AgentInstanceReportPayload,
   AgentInstanceReportsResponse,
   AgentInstanceResponse,
