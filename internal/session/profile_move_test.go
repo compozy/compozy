@@ -384,6 +384,14 @@ func TestManagerMoveToProfile(t *testing.T) {
 			if copied.Derivation == nil || copied.Derivation.SourceSessionID != source.ID {
 				t.Fatalf("copy derivation = %#v, want the source conversation carried", copied.Derivation)
 			}
+			copySession, ok := h.manager.Get(copied.ID)
+			if !ok {
+				t.Fatalf("Get(%q) did not find the copy", copied.ID)
+			}
+			imported := readMeta(t, copySession.MetaPath()).ImportedContext
+			if imported == nil || imported.SourceSessionID != source.ID || imported.MessageCount == 0 {
+				t.Fatalf("copy imported context = %+v, want messages carried from %s", imported, source.ID)
+			}
 			target, ok := h.worktrees.get(result.WorktreeID)
 			if !ok || copied.WorktreeID != result.WorktreeID || target.profileID != profileMoveTargetID ||
 				target.branch != profileMoveBranch || result.Branch != profileMoveBranch {
@@ -618,8 +626,11 @@ func TestManagerMoveToProfile(t *testing.T) {
 
 		_, err := h.move(testutil.Context(t), source.ID)
 		refusal, ok := errors.AsType[*ProfileMoveError](err)
-		if !ok || refusal.Reason != ProfileMoveRefusalRecoveryIncomplete {
-			t.Fatalf("MoveToProfile() error = %v, want recovery_incomplete", err)
+		if !ok || refusal.Reason != ProfileMoveRefusalRecoveryIncomplete ||
+			!strings.Contains(refusal.Message, source.ID) ||
+			!strings.Contains(refusal.Message, "archive state could not be read") ||
+			!strings.Contains(refusal.Message, "unarchived when the move is retried or the daemon restarts") {
+			t.Fatalf("MoveToProfile() error = %v, want recovery_incomplete naming the session and its recovery", err)
 		}
 	})
 
