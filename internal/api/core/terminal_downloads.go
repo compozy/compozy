@@ -11,6 +11,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/gin-gonic/gin"
 )
@@ -22,9 +23,13 @@ func (h *BaseHandlers) DownloadTerminalRecording(c *gin.Context) {
 	}
 	workspaceID := strings.TrimSpace(c.Param("workspace_id"))
 	recordingID := strings.TrimSpace(c.Param("id"))
-	ref, reader, err := service.Journal().Recording(
-		c.Request.Context(), workspaceID, scope, recordingID,
-	)
+	var ref *terminalpkg.RecordingRef
+	var reader io.ReadCloser
+	err := h.eachTerminalDownloadScope(c.Request.Context(), scope, func(owner store.ReadScope) error {
+		var openErr error
+		ref, reader, openErr = service.Journal().Recording(c.Request.Context(), workspaceID, owner, recordingID)
+		return openErr
+	})
 	if err != nil {
 		h.respondTerminalError(c, terminalDownloadError(recordingID, err))
 		return
@@ -45,9 +50,12 @@ func (h *BaseHandlers) DownloadTerminalArtifact(c *gin.Context) {
 	}
 	workspaceID := strings.TrimSpace(c.Param("workspace_id"))
 	artifactID := strings.TrimSpace(c.Param("id"))
-	reader, err := service.Journal().Artifact(
-		c.Request.Context(), workspaceID, scope, artifactID,
-	)
+	var reader io.ReadCloser
+	err := h.eachTerminalDownloadScope(c.Request.Context(), scope, func(owner store.ReadScope) error {
+		var openErr error
+		reader, openErr = service.Journal().Artifact(c.Request.Context(), workspaceID, owner, artifactID)
+		return openErr
+	})
 	if err != nil {
 		h.respondTerminalError(c, terminalDownloadError(artifactID, err))
 		return
@@ -55,6 +63,31 @@ func (h *BaseHandlers) DownloadTerminalArtifact(c *gin.Context) {
 	h.streamTerminalDownload(c, reader, terminalDownload{
 		contentType: "application/octet-stream", filename: artifactID + ".log",
 	})
+}
+
+// eachTerminalDownloadScope opens a download in the resolved scope. Some journals, such as the
+// User scope's per-profile journals, cannot open an aggregate scope, so a file the aggregate
+// does not find is opened from each owner profile in turn; the first owner that has it wins.
+func (h *BaseHandlers) eachTerminalDownloadScope(
+	ctx context.Context,
+	scope store.ReadScope,
+	open func(store.ReadScope) error,
+) error {
+	err := open(scope)
+	if !scope.AllProfiles || !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	profileIDs, listErr := h.terminalOwnerProfileIDs(ctx)
+	if listErr != nil {
+		return err
+	}
+	for _, profileID := range profileIDs {
+		ownerErr := open(store.ReadScope{ProfileID: profileID})
+		if !errors.Is(ownerErr, os.ErrNotExist) {
+			return ownerErr
+		}
+	}
+	return err
 }
 
 type terminalDownload struct {

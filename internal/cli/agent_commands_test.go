@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/spf13/cobra"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1526,5 +1527,37 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 				t.Fatalf("review: %s", output)
 			}
 		})
+	}
+}
+
+type agentInstanceNameClient struct {
+	agentInstancesClient
+	instances []contract.AgentInstancePayload
+}
+
+func (c agentInstanceNameClient) ListAgentInstances(
+	context.Context,
+	url.Values,
+) (contract.AgentInstanceListResponse, error) {
+	return contract.AgentInstanceListResponse{Instances: c.instances}, nil
+}
+
+// Invariant: an agent name resolves to one instance or refuses; an all-profiles read never picks
+// one profile's instance silently.
+func TestResolveInstanceIDShouldRefuseAnAgentNameOwnedBySeveralProfiles(t *testing.T) {
+	t.Parallel()
+	client := agentInstanceNameClient{instances: []contract.AgentInstancePayload{
+		{ID: "ainst-a", AgentName: "triage", ProfileID: "profile-a", ProfileName: "work"},
+		{ID: "ainst-b", AgentName: "triage", ProfileID: "profile-b", ProfileName: "home"},
+	}}
+	cmd := &cobra.Command{}
+	cmd.SetContext(t.Context())
+	_, err := resolveInstanceID(cmd, client, "triage", "")
+	if err == nil || !strings.Contains(err.Error(), "ainst-a (work)") || !strings.Contains(err.Error(), "ainst-b (home)") {
+		t.Fatalf("ambiguous resolve error = %v, want both owners named", err)
+	}
+	id, err := resolveInstanceID(cmd, agentInstanceNameClient{instances: client.instances[:1]}, "triage", "")
+	if err != nil || id != "ainst-a" {
+		t.Fatalf("single resolve = %q, %v", id, err)
 	}
 }

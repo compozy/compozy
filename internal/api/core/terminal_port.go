@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"errors"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -62,8 +64,10 @@ func (h *BaseHandlers) terminalService(
 }
 
 // terminalInScope reads one terminal from the resolved scope. The aggregate finds the
-// terminal in whichever profile owns it; the payload's profile_name labels that owner.
-func terminalInScope(
+// terminal in whichever profile owns it; the payload's profile_name labels that owner. A
+// terminal the aggregate list no longer shows answers like a single-profile read, so an
+// expired terminal still reports terminal_expired.
+func (h *BaseHandlers) terminalInScope(
 	ctx context.Context,
 	service terminalpkg.Manager,
 	workspaceID string,
@@ -82,7 +86,34 @@ func terminalInScope(
 			return &items[index], nil
 		}
 	}
-	return nil, &terminalpkg.Error{
+	notFound := &terminalpkg.Error{
 		Code: terminalpkg.ErrorCodeNotFound, Message: "terminal not found", Err: terminalpkg.ErrNotFound,
 	}
+	profileIDs, err := h.terminalOwnerProfileIDs(ctx)
+	if err != nil {
+		return nil, notFound
+	}
+	for _, profileID := range profileIDs {
+		if _, err := service.Get(ctx, workspaceID, profileID, id); errors.Is(err, terminalpkg.ErrExpired) {
+			return nil, err
+		}
+	}
+	return nil, notFound
+}
+
+// terminalOwnerProfileIDs lists the profiles an aggregate terminal read resolves one owner at a
+// time, in a stable order.
+func (h *BaseHandlers) terminalOwnerProfileIDs(ctx context.Context) ([]string, error) {
+	owners, err := h.profileOwnerIdentities(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]string, 0, len(owners))
+	for _, owner := range owners {
+		if owner.ID != "" && !slices.Contains(ids, owner.ID) {
+			ids = append(ids, owner.ID)
+		}
+	}
+	slices.Sort(ids)
+	return ids, nil
 }

@@ -239,9 +239,11 @@ func (api *AgentInstanceAPI) Payload(
 	ctx context.Context,
 	i agentinstance.Instance,
 ) (contract.AgentInstancePayload, error) {
+	// The owner label is best-effort: a failed profile lookup must not turn a committed
+	// mutation, or an otherwise complete read, into an error. The row keeps its profile_id.
 	owners, err := profileOwnerIdentities(ctx, api.Profiles)
 	if err != nil {
-		return AgentInstancePayload(i), err
+		owners = nil
 	}
 	return api.payloadWithOwners(ctx, i, owners)
 }

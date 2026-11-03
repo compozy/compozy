@@ -2,8 +2,10 @@ package core
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -253,4 +255,94 @@ func TestTerminalDownloadsShouldKeepRecordingsOfArchivedProfilesReadable(t *test
 	if journal.recordingScope.ProfileID != "profile-archived" {
 		t.Fatalf("recording scope = %#v, want the archived profile", journal.recordingScope)
 	}
+}
+
+// ownerTerminalProfileService lists two owner profiles for an all-profiles read.
+type ownerTerminalProfileService struct{ ProfileService }
+
+func (ownerTerminalProfileService) ListIdentities(context.Context) ([]profilepkg.Profile, error) {
+	return []profilepkg.Profile{{ID: store.DefaultProfileID, Name: "default"}, {ID: "profile-b", Name: "b"}}, nil
+}
+
+// perProfileTerminalJournal behaves like the User scope's journals: it opens files of one
+// profile and refuses the aggregate scope with not-exist.
+type perProfileTerminalJournal struct {
+	terminalAgentJournalStub
+	owner string
+}
+
+func (j *perProfileTerminalJournal) Recording(
+	_ context.Context, _ string, scope store.ReadScope, id string,
+) (*terminalpkg.RecordingRef, io.ReadCloser, error) {
+	if scope.AllProfiles || scope.ProfileID != j.owner {
+		return nil, nil, os.ErrNotExist
+	}
+	return &terminalpkg.RecordingRef{ID: id, Bytes: int64(len("asciicast"))},
+		io.NopCloser(strings.NewReader("asciicast")), nil
+}
+
+func (j *perProfileTerminalJournal) Artifact(
+	_ context.Context, _ string, scope store.ReadScope, _ string,
+) (io.ReadCloser, error) {
+	if scope.AllProfiles || scope.ProfileID != j.owner {
+		return nil, os.ErrNotExist
+	}
+	return io.NopCloser(strings.NewReader("artifact bytes")), nil
+}
+
+// expiredTerminalManager lists nothing and reports one profile's tombstoned terminal as expired.
+type expiredTerminalManager struct{ scopeRecordingTerminalManager }
+
+func (*expiredTerminalManager) Get(_ context.Context, _, profileID string, _ terminalpkg.ID) (*terminalpkg.Info, error) {
+	if profileID == "profile-b" {
+		return nil, &terminalpkg.Error{Code: terminalpkg.ErrorCodeExpired, Message: "expired", Err: terminalpkg.ErrExpired}
+	}
+	return nil, &terminalpkg.Error{Code: terminalpkg.ErrorCodeNotFound, Message: "missing", Err: terminalpkg.ErrNotFound}
+}
+
+func TestTerminalAggregateReadsShouldAnswerLikeTheOwnerProfileRead(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	t.Run("Should download a file that only its owner profile's journal can open", func(t *testing.T) {
+		t.Parallel()
+		journal := &perProfileTerminalJournal{owner: "profile-b"}
+		handlers := NewBaseHandlers(&BaseHandlerConfig{
+			TransportName: "udsapi",
+			Terminal:      &terminalProviderStub{Manager: terminalDownloadManagerStub{journal: journal}},
+			Profiles:      ownerTerminalProfileService{},
+		})
+		router := gin.New()
+		router.GET("/api/workspaces/:workspace_id/terminals/recordings/:id", handlers.DownloadTerminalRecording)
+		router.GET("/api/workspaces/:workspace_id/terminals/artifacts/:id", handlers.DownloadTerminalArtifact)
+		for path, want := range map[string]string{
+			"/api/workspaces/@user/terminals/recordings/recording-b?all_profiles=true": "asciicast",
+			"/api/workspaces/@user/terminals/artifacts/artifact-b?all_profiles=true":   "artifact bytes",
+		} {
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequestWithContext(
+				testutil.Context(t), http.MethodGet, path, http.NoBody,
+			))
+			if response.Code != http.StatusOK || response.Body.String() != want {
+				t.Fatalf("%s status/body = %d/%s, want 200/%s", path, response.Code, response.Body.String(), want)
+			}
+		}
+	})
+	t.Run("Should report an expired terminal as expired, not missing", func(t *testing.T) {
+		t.Parallel()
+		handlers := NewBaseHandlers(&BaseHandlerConfig{
+			TransportName: "udsapi",
+			Terminal:      &terminalProviderStub{Manager: &expiredTerminalManager{}},
+			Profiles:      ownerTerminalProfileService{},
+		})
+		router := gin.New()
+		router.GET("/api/workspaces/:workspace_id/terminals/:id", handlers.GetTerminal)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequestWithContext(
+			testutil.Context(t), http.MethodGet,
+			"/api/workspaces/workspace-a/terminals/term-gone?all_profiles=true", http.NoBody,
+		))
+		if response.Code != http.StatusGone || !strings.Contains(response.Body.String(), `"code":"terminal_expired"`) {
+			t.Fatalf("aggregate expired status/body = %d/%s, want 410 terminal_expired", response.Code, response.Body.String())
+		}
+	})
 }

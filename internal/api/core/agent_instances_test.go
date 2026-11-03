@@ -1304,6 +1304,26 @@ func TestAgentInstanceNextWake(t *testing.T) {
 	}
 }
 
+type failingInstanceOwners struct{}
+
+func (failingInstanceOwners) ListIdentities(context.Context) ([]profilepkg.Profile, error) {
+	return nil, errors.New("profile store unavailable")
+}
+
+// Invariant: the owner label is best-effort; a failed profile lookup never fails the payload of
+// a committed mutation or a read. Owning layer: shared core payload hydration.
+func TestAgentInstancePayloadShouldKeepTheRowWhenTheOwnerLabelLookupFails(t *testing.T) {
+	t.Parallel()
+	api := core.AgentInstanceAPI{Profiles: failingInstanceOwners{}}
+	payload, err := api.Payload(t.Context(), agentinstance.Instance{ID: "ainst-a", ProfileID: "profile-b", State: "paused"})
+	if err != nil {
+		t.Fatalf("payload error = %v, want the committed row", err)
+	}
+	if payload.ID != "ainst-a" || payload.ProfileID != "profile-b" || payload.ProfileName != "" {
+		t.Fatalf("payload = %+v, want the row without an owner label", payload)
+	}
+}
+
 // Invariant: review pages are scoped before pagination; only operators can decide exact contents.
 // Owning layer: shared HTTP/UDS core; canonical suite: TestAgentSkillReviews.
 func TestAgentSkillReviews(t *testing.T) {

@@ -221,6 +221,14 @@ func (s nativeInstanceTargetStore) Get(context.Context, string) (agentinstance.I
 	return s.target, nil
 }
 
+// List answers the one target row for the profiles the query names.
+func (s nativeInstanceTargetStore) List(_ context.Context, query agentinstance.ListQuery) ([]agentinstance.Instance, error) {
+	if (!query.AllProfiles && query.ProfileID != s.target.ProfileID) || query.AfterID != "" {
+		return nil, nil
+	}
+	return []agentinstance.Instance{s.target}, nil
+}
+
 func TestNativeInstanceAuthority(t *testing.T) {
 	for _, tc := range []struct {
 		id    toolspkg.ToolID
@@ -1327,6 +1335,20 @@ func TestNativeAgentReadsAllProfiles(t *testing.T) {
 			workspaceaccess.ActorRef{Operator: true}, "list")
 		if err != nil || !query.AllProfiles || query.ProfileID != "" {
 			t.Fatalf("aggregate list query = %#v, %v", query, err)
+		}
+		result, err := native.agentInstanceCall(t.Context(), aggregate, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentInstanceList, Input: []byte(`{}`),
+		})
+		if err != nil {
+			t.Fatalf("aggregate list: %v", err)
+		}
+		var page contract.AgentInstanceListResponse
+		if err := json.Unmarshal(result.Structured, &page); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Instances) != 1 || page.Instances[0].ID != "target" ||
+			page.Instances[0].ProfileName != "foreign" {
+			t.Fatalf("aggregate list rows = %+v, want the foreign row labeled by its owner", page.Instances)
 		}
 	})
 	t.Run("Should refuse all_profiles instead of ignoring it on agent definitions", func(t *testing.T) {

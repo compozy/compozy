@@ -92,6 +92,7 @@ func resolveInstanceID(cmd *cobra.Command, client agentInstancesClient, target, 
 		return target, nil
 	}
 	query := url.Values{workspaceSkillSource: {workspace}, "agent": {target}, listLimitField: {"100"}}
+	matches := make([]contract.AgentInstancePayload, 0, 1)
 	for {
 		result, err := client.ListAgentInstances(cmd.Context(), query)
 		if err != nil {
@@ -99,14 +100,29 @@ func resolveInstanceID(cmd *cobra.Command, client agentInstancesClient, target, 
 		}
 		for _, instance := range result.Instances {
 			if instance.AgentName == target {
-				return instance.ID, nil
+				matches = append(matches, instance)
 			}
 		}
 		if result.NextCursor == "" {
-			return "", fmt.Errorf("cli: instance for agent %q not found", target)
+			break
 		}
 		query.Set("cursor", result.NextCursor)
 	}
+	switch len(matches) {
+	case 0:
+		return "", fmt.Errorf("cli: instance for agent %q not found", target)
+	case 1:
+		return matches[0].ID, nil
+	}
+	// An all-profiles read can find the agent in several profiles; never pick one silently.
+	owners := make([]string, 0, len(matches))
+	for _, match := range matches {
+		owners = append(owners, fmt.Sprintf("%s (%s)", match.ID, cmp.Or(match.ProfileName, match.ProfileID)))
+	}
+	return "", fmt.Errorf(
+		"cli: agent %q has instances in several profiles: %s; pass an instance ID or --profile",
+		target, strings.Join(owners, ", "),
+	)
 }
 func writeInstanceOutput(cmd *cobra.Command, value any, human string) error {
 	return writeCommandOutput(cmd, outputBundle{jsonValue: value,

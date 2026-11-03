@@ -78,7 +78,7 @@ func (h *BaseHandlers) GetTerminal(c *gin.Context) {
 	if !ok {
 		return
 	}
-	info, err := terminalInScope(
+	info, err := h.terminalInScope(
 		c.Request.Context(), service, strings.TrimSpace(c.Param("workspace_id")), scope,
 		terminalpkg.ID(strings.TrimSpace(c.Param("id"))),
 	)
