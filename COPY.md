@@ -319,7 +319,7 @@ A session's child sessions are the rows nested under it in the session list; con
 A session's profile never changes; **Move to profile** copies it into another profile and archives the original. Never "transfer", "migrate", or "reassign" in UI copy.
 
 - Verb: "Move to profile" (row menu submenu of the other active profile names). Not offered for archived, subagent, or spawned sessions, or when no other active profile exists.
-- Dialog: title "Move to profile"; description "A copy with this conversation starts in {profile}. This session is archived here and keeps its history."; worktree note "Its worktree moves too: the branch is checked out again for {profile}."; refusals "Stop this session before moving it." · "This session has child sessions. Make them top-level first.", and the daemon's own reason (for example uncommitted worktree changes) verbatim; pending "Moving the session…"; confirm "Move to {profile}".
+- Dialog: title "Move to profile"; description "A copy with this conversation starts in {profile}. This session is archived here and keeps its history."; usage note "Usage so far stays counted in {current profile}."; worktree note "Its worktree moves too: the branch is checked out again for {profile}."; refusals "Stop this session before moving it." · "This session has child sessions. Make them top-level first.", and the daemon's own reason (for example uncommitted worktree changes) verbatim; pending "Moving the session…"; confirm "Move to {profile}".
 - Toast: "Moved to {profile}" with "The original is archived here."
 
 ### Session Later Terms

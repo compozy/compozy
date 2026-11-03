@@ -90,6 +90,9 @@ describe("SessionProfileMoveDialog", () => {
     const { onOpenChange } = renderDialog();
 
     expect(screen.getByRole("heading", { name: "Move to profile" })).toBeInTheDocument();
+    expect(screen.getByTestId("session-profile-move-usage-note")).toHaveTextContent(
+      "Usage so far stays counted in default."
+    );
     expect(screen.getByTestId("session-profile-move-worktree-note")).toHaveTextContent(
       "the branch is checked out again for work"
     );

@@ -87,6 +87,9 @@ export function SessionProfileMoveDialog({
 
         <form className="contents" onSubmit={handleSubmit}>
           <EntityDialogBody className="flex flex-col gap-3 text-form-hint text-subtle">
+            <p data-testid="session-profile-move-usage-note">
+              Usage so far stays counted in {source.profile_name}.
+            </p>
             {source.worktree_id ? (
               <p data-testid="session-profile-move-worktree-note">
                 Its worktree moves too: the branch is checked out again for {target.name}.
