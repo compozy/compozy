@@ -40,6 +40,11 @@ type fakeProfileMoveWorktrees struct {
 	onInspect func()
 	// failAfterRelease is returned once the checkout was already removed.
 	failAfterRelease error
+	// failRelease is returned before anything is removed.
+	failRelease error
+	// inspectErrs fails inspections by call number (1-based).
+	inspectErrs map[int]error
+	inspects    int
 }
 
 type fakeMoveWorktree struct {
@@ -133,7 +138,12 @@ func (f *fakeProfileMoveWorktrees) InspectProfileMoveWorktree(
 	}
 	f.mu.Lock()
 	onInspect := f.onInspect
+	f.inspects++
+	inspectErr := f.inspectErrs[f.inspects]
 	f.mu.Unlock()
+	if inspectErr != nil {
+		return ProfileMoveCheckout{}, inspectErr
+	}
 	if onInspect != nil {
 		onInspect()
 	}
@@ -150,6 +160,10 @@ func (f *fakeProfileMoveWorktrees) ReleaseProfileMoveWorktree(_ context.Context,
 	item, ok := f.worktrees[worktreeID]
 	if !ok {
 		return fmt.Errorf("worktree %s not found", worktreeID)
+	}
+	if err := f.failRelease; err != nil {
+		f.failRelease = nil
+		return err
 	}
 	item.released = true
 	f.releases = append(f.releases, worktreeID)
@@ -566,6 +580,47 @@ func TestManagerMoveToProfile(t *testing.T) {
 		refusal, ok := errors.AsType[*ProfileMoveError](err)
 		if !ok || refusal.Reason != ProfileMoveRefusalRecoveryIncomplete {
 			t.Fatalf("MoveToProfile() error = %v, want recovery_incomplete", err)
+		}
+	})
+
+	t.Run("Should keep the source checkout when a failed release left it in place", func(t *testing.T) {
+		t.Parallel()
+
+		h := newProfileMoveHarness(t)
+		sourceWorktree := h.worktrees.add(t, store.DefaultProfileID)
+		source := h.stoppedSource(t, sourceWorktree, "")
+		cause := errors.New("removal hook denied")
+		h.worktrees.mu.Lock()
+		h.worktrees.failRelease = cause
+		// The inspection right after the failed release cannot tell; the rollback's can.
+		h.worktrees.inspectErrs = map[int]error{2: errors.New("status unreadable")}
+		h.worktrees.mu.Unlock()
+
+		_, err := h.move(testutil.Context(t), source.ID)
+		if !errors.Is(err, cause) || errors.Is(err, ErrProfileMoveRefused) {
+			t.Fatalf("MoveToProfile() error = %v, want the cause after a complete rollback", err)
+		}
+		original, err := h.manager.Status(testutil.Context(t), source.ID)
+		if err != nil || original.WorktreeID != sourceWorktree || h.archivedAt(t, source.ID) {
+			t.Fatalf("original = %#v, %v, archived=%t; want it unarchived on %s",
+				original, err, h.archivedAt(t, source.ID), sourceWorktree)
+		}
+	})
+
+	t.Run("Should stop waiting for an in-flight move when the unarchive request ends", func(t *testing.T) {
+		t.Parallel()
+
+		h := newProfileMoveHarness(t)
+		source := h.stoppedSource(t, "", "")
+		_, unlock, err := h.manager.lockProfileMove(testutil.Context(t), source.ID)
+		if err != nil {
+			t.Fatalf("lockProfileMove() error = %v", err)
+		}
+		defer unlock()
+		ctx, cancel := context.WithTimeout(testutil.Context(t), 50*time.Millisecond)
+		defer cancel()
+		if _, err := h.manager.Unarchive(ctx, h.workspaceID, source.ID); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Unarchive() during a move error = %v, want the request deadline", err)
 		}
 	})
 

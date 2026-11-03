@@ -204,3 +204,10 @@ WHERE worktrees.workspace_id = sqlc.arg(workspace_id) AND worktrees.id = sqlc.ar
       AND worktree_exit_ops.worktree_id = worktrees.id
       AND worktree_exit_ops.state = 'running'
   );
+
+-- name: HasUnarchivedWorktreeSession :one
+SELECT CAST(EXISTS (
+  SELECT 1 FROM sessions
+  WHERE sessions.workspace_id = sqlc.arg(workspace_id) AND sessions.worktree_id = sqlc.arg(worktree_id)
+    AND sessions.archived_at IS NULL
+) AS INTEGER) AS bound;

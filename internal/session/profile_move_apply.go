@@ -78,11 +78,7 @@ func (m *Manager) applyProfileMove(ctx context.Context, plan *profileMovePlan) (
 		result.Branch = plan.checkout.Branch
 	}
 	if result.Copy == nil {
-		if result.Copy, err = m.Status(execCtx, derived.ChildSessionID); err != nil {
-			return result, fmt.Errorf(
-				"session: moved %s to copy %s, but reading the copy failed: %w", meta.ID, derived.ChildSessionID, err,
-			)
-		}
+		result.Copy = m.readProfileMoveCopy(execCtx, plan, derived.ChildSessionID, relocation.worktreeID)
 	}
 	m.logger.Info(
 		"session.profile_move.completed",
@@ -145,6 +141,22 @@ func (m *Manager) requireProfileMoveBinding(ctx context.Context, plan *profileMo
 	return nil
 }
 
+// readProfileMoveCopy reads the committed copy back. The move is complete either way,
+// so a failed read is logged and the copy is reported by what the move knows of it.
+func (m *Manager) readProfileMoveCopy(ctx context.Context, plan *profileMovePlan, copyID, worktreeID string) *Info {
+	copied, err := m.Status(ctx, copyID)
+	if err == nil {
+		return copied
+	}
+	m.logger.Warn(
+		"session.profile_move.copy_read_failed", "session_id", plan.meta.ID, "copy_session_id", copyID, "error", err,
+	)
+	return &Info{
+		ID: copyID, Name: plan.meta.Name, AgentName: plan.meta.AgentName, WorkspaceID: plan.meta.WorkspaceID,
+		ProfileID: plan.opts.TargetProfileID, WorktreeID: worktreeID, State: StateStopped,
+	}
+}
+
 // rollbackProfileMove undoes a failed move in reverse order: the target checkout is
 // released, the branch is checked out again for the source profile, and the
 // original is unarchived and rebound to it. It runs on its own detached, bounded
@@ -160,38 +172,8 @@ func (m *Manager) rollbackProfileMove(
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), profileMoveTimeout)
 	defer cancel()
 	meta := &plan.meta
-	var errs []error
-	if progress.targetWorktreeID != "" {
-		if err := plan.worktree.ReleaseProfileMoveWorktree(
-			ctx,
-			meta.WorkspaceID,
-			progress.targetWorktreeID,
-		); err != nil {
-			errs = append(errs, fmt.Errorf("release the target worktree %s: %w", progress.targetWorktreeID, err))
-		}
-	}
-	restoredID := ""
-	if progress.released && len(errs) == 0 {
-		id, _, err := plan.worktree.CreateProfileMoveWorktree(
-			ctx,
-			meta.WorkspaceID,
-			plan.opts.ProfileID,
-			*plan.checkout,
-		)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("check out branch %s again: %w", plan.checkout.Branch, err))
-		}
-		restoredID = id
-	}
-	// The move holds the lock the public Unarchive takes.
-	if _, err := m.setArchived(ctx, meta.WorkspaceID, meta.ID, false); err != nil {
-		errs = append(errs, fmt.Errorf("unarchive session %s: %w", meta.ID, err))
-	} else if restoredID != "" {
-		expected := plan.checkout.ID
-		if _, err := m.ChangeWorktreeBinding(ctx, meta.ID, restoredID, &expected); err != nil {
-			errs = append(errs, fmt.Errorf("bind session %s to worktree %s: %w", meta.ID, restoredID, err))
-		}
-	}
+	restoredID, errs := m.undoProfileMoveCheckouts(ctx, plan, progress)
+	errs = append(errs, m.restoreProfileMoveSource(ctx, plan, restoredID)...)
 	if len(errs) == 0 {
 		return cause
 	}
@@ -208,6 +190,65 @@ func (m *Manager) rollbackProfileMove(
 		),
 		cause: errors.Join(cause, rollbackErr),
 	}
+}
+
+// undoProfileMoveCheckouts releases the target checkout and checks the branch out again
+// for the source profile, returning that checkout's id. A source checkout that is
+// still ready (a release that failed before removing it) is kept as it is.
+func (m *Manager) undoProfileMoveCheckouts(
+	ctx context.Context,
+	plan *profileMovePlan,
+	progress profileMoveProgress,
+) (string, []error) {
+	meta := &plan.meta
+	var errs []error
+	if progress.targetWorktreeID != "" {
+		err := plan.worktree.ReleaseProfileMoveWorktree(ctx, meta.WorkspaceID, progress.targetWorktreeID)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("release the target worktree %s: %w", progress.targetWorktreeID, err))
+		}
+	}
+	if !progress.released || len(errs) != 0 {
+		return "", errs
+	}
+	checkout, err := plan.worktree.InspectProfileMoveWorktree(ctx, meta.WorkspaceID, plan.checkout.ID)
+	if err == nil && checkout.Ready {
+		return "", nil
+	}
+	id, _, err := plan.worktree.CreateProfileMoveWorktree(ctx, meta.WorkspaceID, plan.opts.ProfileID, *plan.checkout)
+	if err != nil {
+		return "", []error{fmt.Errorf("check out branch %s again: %w", plan.checkout.Branch, err)}
+	}
+	return id, nil
+}
+
+// restoreProfileMoveSource unarchives the source and rebinds it to restoredID under the
+// session's conversation lock, so a resume cannot start it on a removed checkout in
+// between. The move already holds the profile-move lock the public Unarchive takes.
+func (m *Manager) restoreProfileMoveSource(ctx context.Context, plan *profileMovePlan, restoredID string) []error {
+	meta := &plan.meta
+	operationCtx, unlock, err := m.lockConversationOperation(ctx, meta.ID)
+	if err != nil {
+		return []error{fmt.Errorf("lock session %s: %w", meta.ID, err)}
+	}
+	if _, err := m.setArchived(operationCtx, meta.WorkspaceID, meta.ID, false); err != nil {
+		unlock()
+		return []error{fmt.Errorf("unarchive session %s: %w", meta.ID, err)}
+	}
+	if restoredID == "" {
+		unlock()
+		return nil
+	}
+	expected := plan.checkout.ID
+	info, previous, changed, err := m.changeStoppedWorktreeBinding(operationCtx, meta.ID, restoredID, &expected)
+	unlock()
+	if err != nil {
+		return []error{fmt.Errorf("bind session %s to worktree %s: %w", meta.ID, restoredID, err)}
+	}
+	if changed {
+		m.notifyWorktreeBindingChanged(ctx, info, previous)
+	}
+	return nil
 }
 
 func profileMoveBranchNote(plan *profileMovePlan) string {
