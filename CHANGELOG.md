@@ -5,6 +5,69 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.0 - 2026-11-03
+
+### Bug Fixes
+
+- Deliver late hosted MCP tools and bound projection discovery (#1135)
+- Recover cold npm adapter starts before ACP initialization (#1136)
+- Recover superseded extensions and interrupted installs (#1137)
+- Preserve shared composer images and recover missing attachments (#1144)
+- Strip label prefixes from automatic session titles (#1145)
+- Keep QA provider credentials opt-in and remove lab copies on teardown (#1150)
+- Run stays-on agents at their configured permission level (#1157)
+- Keep allowed permission receipts with their tool (#1158)
+- Coalesce monitor wakes outside the operator input queue (#1159)
+- Suspend Goal turns while external work is pending (#1151)
+- Resolve merge train review findings on main
+- Claim subagent wakes parked during a parent resume
+- Release Goal waits after wait-mode children and keep wakes in generation
+- Clear the remaining main lint and integration failures
+- Keep finished automation groups reachable from a grouped search
+- Keep the linked work list open after an unlink leaves one item
+- Keep the linked work list open when Undo is pressed in its toast
+- Use CompozyOS product language and format the skill references
+- Close cross-scope review gaps in approve-all session reads (#1173)
+- Keep store failures out of the masked profile conflict
+- Repair main CI after the stays-on merge
+- Install an approved skill before recording the approval
+- Use CompozyOS product language in the permissions draft
+- Keep scenario-configured model discovery in mock-agent E2E daemons
+- Drop the builtin reviewer mode when a provider is routed to another runtime
+- Match attributed delegated child prompts in the subagent CLI fixture
+- Match the attributed delegated child prompt in the update work fixture
+- Keep permission requests lost to a disconnect askable after recovery
+
+### Features
+
+- Let archive and delete include child sessions (#1131)
+- Add one View options menu with Collapse all and Kanban lane folds (#1133)
+- Add stays-on agents and agent identity
+- Reveal subagent model, kind and activity in the composer panel (#1147)
+- Let a session monitor wait on other sessions (#1146)
+- Add a pull_request session monitor (#1156)
+- Simplify spec-cycle to agents and spec authoring (#1152)
+- **BREAKING:** simplify spec-cycle to agents and spec authoring (#1152)
+- Hide finished automation sessions from the default list (#1163)
+- Link worktrees, branches and pull requests to sessions (#1161)
+- Let approve-all sessions read sessions across workspaces and profiles (#1171)
+- Make GitHub Copilot CLI a first-class provider (#1170)
+- Make stays-on agents safe to leave running (#1174)
+
+### Performance Improvements
+
+- Improve responsiveness under concurrent sessions (#1141)
+
+### Refactoring
+
+- Extract the skill approval ledger write
+
+### Testing
+
+- Stop the stale-entry promotion hook from blocking its dispatch
+- Align integration expectations with merged Goal and instance contracts
+- Expect the authored level after instance context replacement
+
 ## 0.4.8 - 2026-11-01
 
 ### Bug Fixes
@@ -36,7 +99,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Group session processes into trees (#1106)
 - Hide child sessions on the Kanban board by default (#1124)
 - Apply runtime selection changes to the live session immediately (#1108)
-- Redirect foreground shell waits to CompozyOS monitors (#1127)
+- Redirect foreground shell waits to Compozy monitors (#1127)
 - Make session monitors durable across daemon restarts and trace their lifecycle (#1129)
 
 ### Refactoring
@@ -1034,6 +1097,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.5.0]: https://github.com/compozy/compozy/compare/v0.4.8...v0.5.0
 [0.4.8]: https://github.com/compozy/compozy/compare/v0.4.7...v0.4.8
 [0.4.7]: https://github.com/compozy/compozy/compare/v0.4.6...v0.4.7
 [0.4.6]: https://github.com/compozy/compozy/compare/v0.4.5...v0.4.6
