@@ -2224,6 +2224,17 @@ func TestSessionAttentionDismissClearsSeenSourcesUntilTheNextOccurrence(t *testi
 		if got := badgePage("failed"); !slices.Equal(got, []string{sessionID}) {
 			t.Fatalf("failed page = %#v, want the failed session", got)
 		}
+		// A same-kind failure replacing the one the operator saw keeps Needs you.
+		seen := fence()
+		stopWithFailure("agent exited while recovering")
+		if _, err := globalDB.DismissSessionAttention(ctx, sessionID, seen, time.Time{}); !errors.Is(
+			err, store.ErrSessionAttentionChanged,
+		) {
+			t.Fatalf("DismissSessionAttention(replaced failure) error = %v, want ErrSessionAttentionChanged", err)
+		}
+		if got := badgePage("failed"); !slices.Equal(got, []string{sessionID}) {
+			t.Fatalf("failed page after a stale dismiss = %#v, want the replacing failure kept", got)
+		}
 		dismiss("dismissed")
 		if got := badgePage("stopped"); !slices.Equal(got, []string{sessionID}) {
 			t.Fatalf("stopped page after dismiss = %#v, want the seen failure", got)

@@ -186,7 +186,9 @@ func getSessionAttention(
 	var row sessionAttentionRow
 	err := exec.QueryRowContext(ctx, `SELECT pending_permission_count, pending_clarify_count,
 attention_revision, last_settled_revision, last_seen_revision, last_seen_at, attention_changed_at,
-ended_early_turn_id, failure_seen_at
+ended_early_turn_id, failure_seen_at,
+CASE WHEN COALESCE(failure_kind, '') <> ''
+ THEN json_array(failure_kind, failure_summary, crash_bundle_path, updated_at) ELSE '' END
 FROM sessions WHERE id = ?`, sessionID).Scan(
 		&row.pendingPermissionCount,
 		&row.pendingClarifyCount,
@@ -197,6 +199,7 @@ FROM sessions WHERE id = ?`, sessionID).Scan(
 		&row.attentionChangedAt,
 		&row.endedEarlyTurnID,
 		&row.failureSeenAt,
+		&row.failureIdentity,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.SessionAttention{}, fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
@@ -208,6 +211,7 @@ FROM sessions WHERE id = ?`, sessionID).Scan(
 }
 
 type sessionAttentionRow struct {
+	failureIdentity        string
 	pendingPermissionCount int
 	pendingClarifyCount    int
 	attentionRevision      int64
@@ -221,6 +225,7 @@ type sessionAttentionRow struct {
 
 func (r sessionAttentionRow) toStore() (store.SessionAttention, error) {
 	result := store.SessionAttention{
+		FailureIdentity:        r.failureIdentity,
 		PendingPermissionCount: r.pendingPermissionCount,
 		PendingClarifyCount:    r.pendingClarifyCount,
 		AttentionRevision:      r.attentionRevision,

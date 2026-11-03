@@ -95185,6 +95185,16 @@
             },
             "description": "OK"
           },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Conflicting profile selectors (profile_selection_conflict)"
+          },
           "404": {
             "content": {
               "application/json": {

@@ -6,7 +6,7 @@ persona: Théo
 journey: J-15
 expected: Mark as seen clears a dismissible Needs you (a turn that ended early, a return from Later, a stopped session's failure) on every surface and persists across reload and daemon restart; the next occurrence raises Needs you again; a session waiting on a permission answer, a question, a sign-in, a stop, or a work signal it cannot check is refused with attention_requires_action and keeps its badge; creators are not woken by the dismissal.
 entry_points: Web session row menu, Kanban card menu and context menu ("Mark as seen"), session header button; CLI session mark-seen; HTTP+UDS POST /api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen; native tool session_mark_seen
-qa_status: passed
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -36,7 +36,12 @@ Mark as seen acknowledges one occurrence; it never mutes a session. The payload 
    "Mark as seen"; the badge and the decision dock stay.
 2. `compozy session mark-seen <id>` and `compozy__session_mark_seen` on that session fail with
    `attention_requires_action` and name the answer still owed; HTTP returns 409.
-3. A session with nothing to dismiss returns unchanged (200, no new attention event).
+3. Repeat with a stopped failure that still has a pending permission or clarification: dismissal
+   remains refused and the unanswered interaction stays visible.
+4. Replace a failure after capturing its dismissal fence: the stale request returns
+   `attention_changed` and preserves the replacement failure. Concurrent early-stop or pending
+   interaction writes must remain visible after dismissal in the resident session.
+5. A session with nothing to dismiss returns unchanged (200, no new attention event).
 
 ## Side effects
 

@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -138,6 +139,16 @@ func TestAttentionBlockerForInfo(t *testing.T) {
 			want: AttentionBlockerPendingPermission,
 		},
 		{
+			name: "Should refuse a stopped failure with a pending permission",
+			info: Info{State: StateStopped, Failure: failure, PendingPermissionCount: 1},
+			want: AttentionBlockerPendingPermission,
+		},
+		{
+			name: "Should refuse a stopped failure with a pending question",
+			info: Info{State: StateStopped, Failure: authFailure, PendingClarifyCount: 1},
+			want: AttentionBlockerPendingClarify,
+		},
+		{
 			name: "Should refuse a live sign-in failure",
 			info: Info{State: StateActive, Failure: authFailure},
 			want: AttentionBlockerProviderAuth,
@@ -171,4 +182,97 @@ func TestAttentionBlockerForInfo(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: a newer attention write cannot overtake a dismissal's resident apply.
+// Owner: session manager; canonical suite: TestManagerMarkAttentionSeen.
+func TestManagerAttentionCommitOrdering(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{"early", store.PendingInteractionKindPermission, store.PendingInteractionKindClarify} {
+		t.Run("Should preserve newer "+kind+" attention after dismissal", func(t *testing.T) {
+			t.Parallel()
+			h, _ := newMentionHarness(t)
+			sess := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+			h.manager.setEndedEarly(t.Context(), sess, "old-turn")
+			wrapped := &pausedDismissStore{
+				SessionAttentionStore: h.manager.attentionStore,
+				committed:             make(chan struct{}),
+				release:               make(chan struct{}),
+				entered:               make(chan struct{}, 1),
+			}
+			h.manager.attentionStore = wrapped
+			dismissed := make(chan error, 1)
+			go func() { _, err := h.manager.MarkAttentionSeen(t.Context(), sess.ID); dismissed <- err }()
+			<-wrapped.committed
+			newer := make(chan error, 1)
+			go func() {
+				if kind == "early" {
+					h.manager.setEndedEarly(t.Context(), sess, "new-turn")
+					newer <- nil
+					return
+				}
+				_, err := h.manager.createPendingInteraction(t.Context(), store.PendingInteractionCreate{
+					SessionID: sess.ID, InteractionID: "new-interaction", Kind: kind, ProviderRequestID: "request",
+				})
+				newer <- err
+			}()
+			select {
+			case <-wrapped.entered:
+				close(wrapped.release)
+				<-dismissed
+				<-newer
+				t.Fatal("new attention write overtook the dismissal apply")
+			case <-time.After(100 * time.Millisecond):
+			}
+			close(wrapped.release)
+			if err := <-dismissed; err != nil {
+				t.Fatal(err)
+			}
+			if err := <-newer; err != nil {
+				t.Fatal(err)
+			}
+			info, err := h.manager.Status(t.Context(), sess.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if kind == "early" && info.EndedEarlyTurnID != "new-turn" ||
+				kind == store.PendingInteractionKindPermission && info.PendingPermissionCount != 1 ||
+				kind == store.PendingInteractionKindClarify && info.PendingClarifyCount != 1 {
+				t.Fatalf("newer attention was lost: %#v", info)
+			}
+		})
+	}
+}
+
+type pausedDismissStore struct {
+	store.SessionAttentionStore
+	committed, release chan struct{}
+	entered            chan struct{}
+}
+
+func (s *pausedDismissStore) DismissSessionAttention(
+	ctx context.Context,
+	id string,
+	fence store.SessionAttentionFence,
+	at time.Time,
+) (store.SessionAttentionCommit, error) {
+	commit, err := s.SessionAttentionStore.DismissSessionAttention(ctx, id, fence, at)
+	close(s.committed)
+	<-s.release
+	return commit, err
+}
+func (s *pausedDismissStore) MarkSessionEndedEarly(
+	ctx context.Context,
+	id, turn string,
+) (store.SessionAttentionCommit, error) {
+	s.entered <- struct{}{}
+	return s.SessionAttentionStore.MarkSessionEndedEarly(ctx, id, turn)
+}
+func (s *pausedDismissStore) CreatePendingInteraction(
+	ctx context.Context,
+	req store.PendingInteractionCreate,
+) (store.SessionAttentionCommit, error) {
+	s.entered <- struct{}{}
+	return s.SessionAttentionStore.CreatePendingInteraction(ctx, req)
 }

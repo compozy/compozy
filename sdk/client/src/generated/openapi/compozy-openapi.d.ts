@@ -53551,6 +53551,15 @@ export interface operations {
           "application/json": components["schemas"]["SessionResponse"];
         };
       };
+      /** @description Conflicting profile selectors (profile_selection_conflict) */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
       /** @description Session not found */
       404: {
         headers: {

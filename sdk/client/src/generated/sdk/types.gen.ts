@@ -37458,6 +37458,10 @@ export type MarkSessionSeenData = {
 
 export type MarkSessionSeenErrors = {
   /**
+   * Conflicting profile selectors (profile_selection_conflict)
+   */
+  400: ErrorPayload;
+  /**
    * Session not found
    */
   404: ErrorPayload;
