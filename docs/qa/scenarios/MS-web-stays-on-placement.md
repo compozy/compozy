@@ -213,6 +213,7 @@ agent's places. The hover card shows "Wakes up next" with the wake's description
 and its time, and for a paused agent how many things wait for resume. With two or more
 agents paused for `unattended` in one scope, the `+N` crew panel offers Resume all,
 which resumes only those; one such pause offers none. The agent's What it cost reads
-"Included" with "N tokens, in your plan" when usage has no price, never "≈ $0.00".
+the token count with "No price available" when usage has no price, never "≈ $0.00" and
+never a plan claim, since the data carries no billing basis.
 Web suites: `stays-on-row.test.tsx`, `agent-instance.test.ts`, `agent-team.test.ts`
 and `agent-profile-home.test.tsx`.

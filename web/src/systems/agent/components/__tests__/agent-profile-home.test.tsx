@@ -108,7 +108,7 @@ describe("AgentProfileHome", () => {
     expect(screen.queryByText("What it cost")).not.toBeInTheDocument();
   });
 
-  it("Should read plan-included usage in tokens, never as a zero price [UT-080]", () => {
+  it("Should read unpriced usage in tokens without claiming a plan [UT-080]", () => {
     const activity = activityFixture();
     render(
       <AgentProfileHome
@@ -120,9 +120,9 @@ describe("AgentProfileHome", () => {
         })}
       />
     );
-    expect(screen.getByText("Included")).toBeVisible();
-    expect(screen.getByText("3.1M tokens, in your plan")).toBeVisible();
-    expect(screen.queryByText(/\$0\.00/)).not.toBeInTheDocument();
+    expect(screen.getByText("3.1M tokens")).toBeVisible();
+    expect(screen.getByText("No price available")).toBeVisible();
+    expect(screen.queryByText(/\$0\.00|in your plan/)).not.toBeInTheDocument();
   });
 
   it("Should offer Resume, never Pause, for a paused place holding a failure report", async () => {

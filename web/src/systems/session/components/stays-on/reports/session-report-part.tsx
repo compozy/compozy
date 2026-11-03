@@ -19,7 +19,12 @@ import {
 import { useReportSource } from "../../../hooks/use-report-source";
 import { countWord, deriveAwayDigest, reportClock } from "../../../lib/session-away";
 import { SessionReportSendContext } from "../../../lib/session-report-send";
-import { isLostWake, pickedProposal, reportPayload } from "../../../lib/session-report";
+import {
+  isLostWake,
+  newestUnattendedReportId,
+  pickedProposal,
+  reportPayload,
+} from "../../../lib/session-report";
 import type { SessionReportData } from "../../../types";
 import { CheckTicks } from "../stays-on-hover-card";
 import { AwayDigest } from "./away-digest";
@@ -163,6 +168,9 @@ function FailureBody({
 }) {
   const { reason, detail } = reportPayload(data);
   const when = reportClock(data.created_at);
+  const newestPause = useAuiState(state =>
+    newestUnattendedReportId(state.thread.messages, data.instance_id)
+  );
   if (isLostWake(data.kind, undefined, reason)) {
     return (
       <WakeLostReport agent={agent} detail={detail === reason ? undefined : detail} when={when} />
@@ -170,7 +178,14 @@ function FailureBody({
   }
   switch (reason) {
     case "unattended":
-      return <UnattendedPauseReport agent={agent} instance={instance} when={when} />;
+      return (
+        <UnattendedPauseReport
+          agent={agent}
+          instance={instance}
+          newest={newestPause === undefined || newestPause === data.report_id}
+          when={when}
+        />
+      );
     case "context_exhausted":
       return <ContextFullReport agent={agent} when={when} />;
     default:
@@ -327,7 +342,10 @@ export function SessionReportPart({ data }: { data: SessionReportData }) {
   const [now] = useState(() => Date.now());
   const messages = useAuiState(state => state.thread.messages);
   const digest = away
-    ? deriveAwayDigest(away, agent.label, now, messages, instance?.held_wakes ?? 0)
+    ? deriveAwayDigest(away, agent.label, now, messages, {
+        held: instance?.held_wakes ?? 0,
+        pausedNow: agentInstancePausedUnattended(instance),
+      })
     : null;
   const resumable = agentInstancePausedUnattended(instance) ? instance : undefined;
   const leads = digest?.firstReportId === data.report_id;

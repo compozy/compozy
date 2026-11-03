@@ -122,26 +122,26 @@ function compactTokens(tokens: number) {
 }
 
 /**
- * Usage with no price, such as a subscription plan, reads in tokens: "≈ $0.00" would say it was
- * free when it was only included.
+ * Usage the daemon couldn't price reads in tokens. A zero estimate doesn't prove a plan: no
+ * billing basis is on the wire, so it says only that no price is available, never "≈ $0.00".
  */
 export function agentCostView(activity: AgentActivityPayload) {
   const rows = activity.cost_by_project;
   const usd = rows.reduce((total, row) => total + row.usd_estimate, 0);
   const tokens = rows.reduce((total, row) => total + row.tokens, 0);
-  const included = usd === 0 && tokens > 0;
-  const total = included ? tokens : usd;
+  const unpriced = usd === 0 && tokens > 0;
+  const total = unpriced ? tokens : usd;
   return {
-    cost: included ? "Included" : `≈ $${usd.toFixed(2)}`,
+    cost: unpriced ? compactTokens(tokens) : `≈ $${usd.toFixed(2)}`,
     tokens: compactTokens(tokens),
-    note: `${compactTokens(tokens)}, ${included ? "in your plan" : "estimated"}`,
+    note: unpriced ? "No price available" : `${compactTokens(tokens)}, estimated`,
     projects: rows.map(row => {
-      const amount = included ? row.tokens : row.usd_estimate;
+      const amount = unpriced ? row.tokens : row.usd_estimate;
       return {
         id: row.workspace_id || row.scope,
         label: row.scope === "@user" ? "Global" : row.scope,
         value: total > 0 ? amount / total : 0,
-        formattedValue: included ? compactTokens(row.tokens) : `$${row.usd_estimate.toFixed(2)}`,
+        formattedValue: unpriced ? compactTokens(row.tokens) : `$${row.usd_estimate.toFixed(2)}`,
       };
     }),
   };

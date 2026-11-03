@@ -151,8 +151,8 @@ export function deriveAwayDigest(
   agentLabel: string,
   now: number,
   messages: Parameters<typeof pickedProposal>[0] = [],
-  /** Input held for resume, from the instance read. */
-  held = 0
+  /** From the instance read: input held for resume, and whether the brake still holds it. */
+  { held = 0, pausedNow = false }: { held?: number; pausedNow?: boolean } = {}
 ): AwayDigestView | null {
   const reports = [...away.reports].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const picked = (report: AgentInstanceReport) =>
@@ -188,20 +188,25 @@ export function deriveAwayDigest(
   const mostlyQuiet = away.quiet_check_ins >= reports.length;
   const lead = mostlyQuiet ? "quiet " : "";
 
-  const pause = reports
+  const lastPause = reports
     .filter(report => report.kind === "failure" && report.reason === "unattended")
     .at(-1);
+  // Told as a pause only while the brake still holds it; once resumed, it's past.
+  const pause = pausedNow ? lastPause : undefined;
   const waiting = heldPhrase(held);
   const headline = pause
     ? `${hours === 0 ? "Under an hour" : `${countWord(hours)} ${span}`} of work, then it paused.`
     : hours === 0
       ? `Under an hour, ${decisions}`
       : `${countWord(hours)} ${lead}${span}, ${decisions}`;
+  const checkedIn = mostlyQuiet
+    ? `${agentLabel} checked in ${total} times. Most had nothing to report.`
+    : `${agentLabel} checked in ${total} times.`;
   const summary = pause
     ? `${agentLabel} reached its limit at ${reportClock(pause.created_at)}.${waiting ? ` ${waiting}.` : ""}`
-    : mostlyQuiet
-      ? `${agentLabel} checked in ${total} times. Most had nothing to report.`
-      : `${agentLabel} checked in ${total} times.`;
+    : lastPause
+      ? `${checkedIn} It paused at ${reportClock(lastPause.created_at)}, then you resumed it.`
+      : checkedIn;
 
   return {
     firstReportId: first.id,

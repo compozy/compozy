@@ -360,11 +360,15 @@ acceptance and the default. Daemon wiring passes the configured value directly.
 Stays-on hardening F1 web (S2, S3, S8 and the wake and context reports): set
 `agents.stays_on.unattended_turn_limit` low and let the agent run past it. The main
 session shows "Paused until you're back" with the steps it took, how many things are
-waiting, and Resume. Resume shows Resuming…, then settles into "You resumed …" naming
-what it delivers; a failed resume keeps the report and says "Couldn't resume. Try again."
+waiting, and Resume. Resume shows Resuming…, then settles into "You resumed …" once
+the agent is active; a failed resume keeps the report and says "Couldn't resume. Try again."
+in place, with no toast. Only the newest brake pause offers Resume: trip the brake twice and
+the older report reads "… paused at HH:MM after N steps without you." with no action, as does
+the report when the agent is later paused for another reason.
 Message the agent while paused: it answers and the report still offers Resume. After an
 absence with enough check-ins, the While you were away card leads with "… of work, then it
-paused.", the time it reached its limit, the held count and Resume in place. An expired
+paused.", the time it reached its limit, the held count and Resume in place. Resume it elsewhere first and the card instead
+says "It paused at HH:MM, then you resumed it." An expired
 request names the tool and action in its reason ("the Bash execute request") and shows
 the command or path from `resource`. A lost wake, either a `failure` with reason
 `wake_lost` or an `interrupted` report for a monitor, reads "A wake-up didn't arrive" with Check it now. A full

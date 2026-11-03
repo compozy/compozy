@@ -64,7 +64,7 @@ describe("deriveAwayDigest", () => {
       "Triage Lead",
       NOW,
       [],
-      2
+      { held: 2, pausedNow: true }
     );
     expect(digest?.paused).toBe(true);
     expect(digest?.headline).toBe("Nine hours of work, then it paused.");
@@ -74,6 +74,23 @@ describe("deriveAwayDigest", () => {
     expect(digest?.events.find(event => event.id === "u1")?.title).toBe(
       "It paused until you're back"
     );
+  });
+
+  it("Should tell a resumed pause in the past tense, with no Resume [FE-5]", () => {
+    const pause = {
+      ...report("u1", "failure", "2026-11-01T04:12:00Z"),
+      reason: "unattended",
+    };
+    const digest = deriveAwayDigest(
+      { ...AWAY, reports: [...AWAY.reports, pause] },
+      "Triage Lead",
+      NOW,
+      [],
+      { held: 0, pausedNow: false }
+    );
+    expect(digest?.paused).toBe(false);
+    expect(digest?.headline).not.toMatch(/then it paused/);
+    expect(digest?.summary).toMatch(/It paused at \d\d:\d\d, then you resumed it\.$/);
   });
 
   it("Should tell a lost wake apart from an interrupted approval", () => {

@@ -16,6 +16,8 @@ import { SessionReportPart } from "../session-report-part";
 
 const reads = vi.hoisted(() => ({
   navigate: vi.fn(),
+  notify: vi.fn(),
+  messages: [] as unknown[],
   instances: vi.fn(async () => [] as AgentInstancePayload[]),
   reports: vi.fn(async () => [] as AgentInstanceReport[]),
   away: vi.fn(async () => null as AgentInstanceAway | null),
@@ -43,7 +45,13 @@ vi.mock("@/systems/agent/adapters/agent-skill-review-api", async importOriginal 
 
 vi.mock("@assistant-ui/react", async importOriginal => ({
   ...(await importOriginal<typeof import("@assistant-ui/react")>()),
-  useAuiState: () => undefined,
+  useAuiState: (select: (state: { thread: { messages: unknown[] } }) => unknown) =>
+    select({ thread: { messages: reads.messages } }),
+}));
+
+vi.mock("@/lib/user-feedback", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/lib/user-feedback")>()),
+  notifyUser: reads.notify,
 }));
 
 vi.mock("@tanstack/react-router", async importOriginal => ({
@@ -103,6 +111,8 @@ describe("SessionReportPart", () => {
 
   beforeEach(() => {
     reads.resume.mockReset();
+    reads.notify.mockReset();
+    reads.messages = [];
     reads.instances.mockResolvedValue([INSTANCE]);
     reads.reports.mockResolvedValue([]);
     reads.away.mockResolvedValue(null);
@@ -245,9 +255,39 @@ describe("SessionReportPart", () => {
       await userEvent.click(screen.getByRole("button", { name: "Resume" }));
 
       await waitFor(() => expect(reads.resume).toHaveBeenCalledTimes(1));
+      expect(await screen.findByText(/You resumed/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
+    });
+
+    it("Should keep a record without Resume once paused for another reason [FE-4]", async () => {
+      reads.instances.mockResolvedValue([{ ...PAUSED, pause_reason: "manual" }]);
+      render(<SessionReportPart data={PAUSE} />, { wrapper: harness(vi.fn()) });
+
       expect(
-        await screen.findByText(/Delivering 2 things that were waiting\./)
+        await screen.findByText(/paused at .* after 300 steps without you\./)
       ).toBeInTheDocument();
+      expect(screen.queryByText(/You resumed/)).toBeNull();
+      expect(screen.queryByRole("button", { name: "Resume" })).toBeNull();
+    });
+
+    it("Should offer Resume only on the newest brake pause [FE-4]", async () => {
+      reads.instances.mockResolvedValue([PAUSED]);
+      const later = { ...PAUSE, report_id: "arpt-2", created_at: "2026-11-01T02:00:00Z" };
+      reads.messages = [PAUSE, later].map(data => ({
+        role: "assistant",
+        content: [{ type: "data", name: "compozy-report", data }],
+      }));
+      render(
+        <>
+          <SessionReportPart data={PAUSE} />
+          <SessionReportPart data={later} />
+        </>,
+        { wrapper: harness(vi.fn()) }
+      );
+
+      expect(await screen.findAllByRole("button", { name: "Resume" })).toHaveLength(1);
+      expect(screen.getAllByRole("article", { name: "Paused until you're back" })).toHaveLength(1);
+      expect(screen.getByText(/paused at .* after 300 steps without you\./)).toBeInTheDocument();
     });
 
     it("Should keep the report and say so when resume fails", async () => {
@@ -259,6 +299,7 @@ describe("SessionReportPart", () => {
 
       expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't resume. Try again.");
       expect(screen.getByRole("article", { name: "Paused until you're back" })).toBeInTheDocument();
+      expect(reads.notify).not.toHaveBeenCalled();
     });
 
     it("Should tell a lost wake and offer a check that sends a prompt", async () => {

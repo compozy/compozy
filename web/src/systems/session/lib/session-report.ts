@@ -118,3 +118,44 @@ export function pickedProposal(
   }
   return undefined;
 }
+
+interface ReportPartLike {
+  type?: string;
+  name?: string;
+  data?: unknown;
+}
+
+function reportPartData(part: unknown): SessionReportData | null {
+  const candidate = part as ReportPartLike | null;
+  if (!candidate || typeof candidate !== "object") return null;
+  const named =
+    candidate.type === "data-compozy-report" ||
+    (candidate.type === "data" && candidate.name === "compozy-report");
+  const data = candidate.data as SessionReportData | undefined;
+  return named && data && typeof data.report_id === "string" ? data : null;
+}
+
+/** A brake pause: the `failure` report with reason `unattended`. */
+export function isUnattendedPause(data: SessionReportData) {
+  return data.kind === "failure" && reportPayload(data).reason === "unattended";
+}
+
+/**
+ * The newest brake-pause report of an instance in the loaded thread; only it offers a live
+ * Resume. Undefined when the thread holds none, so a lone report stays the newest.
+ */
+export function newestUnattendedReportId(
+  messages: readonly ThreadMessageLike[] | undefined,
+  instanceId: string
+): string | undefined {
+  let newest: SessionReportData | undefined;
+  for (const message of messages ?? []) {
+    if (!Array.isArray(message.content)) continue;
+    for (const part of message.content) {
+      const data = reportPartData(part);
+      if (!data || data.instance_id !== instanceId || !isUnattendedPause(data)) continue;
+      if (!newest || data.created_at > newest.created_at) newest = data;
+    }
+  }
+  return newest?.report_id;
+}

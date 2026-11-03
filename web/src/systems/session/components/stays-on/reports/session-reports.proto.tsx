@@ -19,6 +19,7 @@ import {
   ContextFullReport,
   ContextRotatedNotice,
   PauseNotice,
+  PauseRecord,
   ResumeButton,
   ResumedReceipt,
   WakeLostReport,
@@ -47,6 +48,7 @@ export const meta = definePrototype({
     { id: "pause-resuming", label: "S2 · Resume pending" },
     { id: "pause-resume-failed", label: "S2 · Resume failed" },
     { id: "pause-resumed", label: "S2 · After you resume" },
+    { id: "pause-record", label: "S2 · Paused since for another reason" },
     { id: "away-paused", label: "S3 · Paused while you were away" },
     { id: "expired-action", label: "S8 · Expired, tool and action" },
     { id: "wake-lost", label: "A wake-up was lost" },
@@ -187,10 +189,15 @@ function View({ state }: { state?: string }) {
       return <Pause pending />;
     case "pause-resume-failed":
       return <Pause failed />;
+    case "pause-record":
+      return <PauseRecord agent={REPORT_TRIAGE} steps={300} when="04:12" />;
     case "pause-resumed":
-      return <ResumedReceipt agent={REPORT_TRIAGE} delivered={2} />;
+      return <ResumedReceipt agent={REPORT_TRIAGE} />;
     case "away-paused": {
-      const paused = deriveAwayDigest(PAUSED_AWAY, REPORT_TRIAGE.label, AWAY_NOW, [], 2);
+      const paused = deriveAwayDigest(PAUSED_AWAY, REPORT_TRIAGE.label, AWAY_NOW, [], {
+        held: 2,
+        pausedNow: true,
+      });
       return paused ? (
         <AwayDigest
           action={<ResumeButton onResume={() => undefined} />}

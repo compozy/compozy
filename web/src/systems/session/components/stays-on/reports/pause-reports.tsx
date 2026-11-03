@@ -2,12 +2,12 @@
  * S2 and the context and wake reports: why it stopped, what's waiting, and the one way forward.
  * Pure views; `unattended-pause-report.tsx` owns the resume they offer.
  */
-import { Bell, Play } from "@compozy/ui/icons";
+import { Bell, Pause, Play } from "@compozy/ui/icons";
 import { use, useState, type ReactNode } from "react";
 
 import { Button, Receipt } from "@compozy/ui";
 
-import { blockerPhrases, deliveredPhrase, heldPhrase } from "../../../lib/session-pause";
+import { blockerPhrases, heldPhrase } from "../../../lib/session-pause";
 import { SessionReportSendContext } from "../../../lib/session-report-send";
 import type { ReportAgent } from "../../../lib/session-report-identity";
 import { Notice } from "./report-entry";
@@ -81,11 +81,27 @@ export function PauseNotice({
 }
 
 /** What the report settles into once it runs again. */
-export function ResumedReceipt({ agent, delivered }: { agent: ReportAgent; delivered: number }) {
-  const handed = deliveredPhrase(delivered);
+export function ResumedReceipt({ agent }: { agent: ReportAgent }) {
   return (
     <Receipt icon={<Play aria-hidden="true" />}>
-      You resumed <b>{agent.label}</b>.{handed ? ` ${handed}` : null}
+      You resumed <b>{agent.label}</b>.
+    </Receipt>
+  );
+}
+
+/** A pause that's no longer the live one, or that another pause took over: a record, no action. */
+export function PauseRecord({
+  agent,
+  steps,
+  when,
+}: {
+  agent: ReportAgent;
+  steps: number;
+  when: string;
+}) {
+  return (
+    <Receipt icon={<Pause aria-hidden="true" />}>
+      <b>{agent.label}</b> paused at {when} after {steps || "many"} steps without you.
     </Receipt>
   );
 }
