@@ -37,7 +37,7 @@ func (s *SkillProposalService) Approve(
 		return ErrSkillReviewStale
 	}
 	if !proposedSkillName.MatchString(draft.Name) || draft.Name != review.SkillName {
-		return ErrSkillReviewStale
+		return ErrSkillReviewInvalid
 	}
 	target, err := fileutil.ResolvePathWithinRoot(targetRoot, filepath.Join(targetRoot, draft.Name))
 	if err != nil {
@@ -99,7 +99,7 @@ func publishSkillInstall(stage, target string, draft SkillDraft) error {
 func writeSkillInstallStage(stage string, draft SkillDraft) error {
 	for _, file := range draft.Files {
 		if !fs.ValidPath(file.Path) || file.Path == "." || strings.ContainsAny(file.Path, "\\\x00:") {
-			return ErrSkillReviewStale
+			return ErrSkillReviewInvalid
 		}
 		path := filepath.Join(stage, filepath.FromSlash(file.Path))
 		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {

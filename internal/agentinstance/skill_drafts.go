@@ -145,7 +145,7 @@ func ReadSkillDraft(path, digest string) (SkillDraft, error) {
 		return SkillDraft{}, err
 	}
 	if !info.Mode().IsRegular() || info.Size() > maxSkillDraftBytes {
-		return SkillDraft{}, ErrSkillReviewStale
+		return SkillDraft{}, ErrSkillReviewInvalid
 	}
 	file, err := os.Open(path)
 	if err != nil {
@@ -156,10 +156,10 @@ func ReadSkillDraft(path, digest string) (SkillDraft, error) {
 		return SkillDraft{}, err
 	}
 	if len(data) > maxSkillDraftBytes {
-		return SkillDraft{}, ErrSkillReviewStale
+		return SkillDraft{}, ErrSkillReviewInvalid
 	}
 	if skillDraftDigest(data) != digest {
-		return SkillDraft{}, ErrSkillReviewStale
+		return SkillDraft{}, ErrSkillReviewInvalid
 	}
 	var draft SkillDraft
 	if err := json.Unmarshal(data, &draft); err != nil {

@@ -9,8 +9,11 @@ import (
 const SkillReviewPending = "pending"
 
 var (
-	ErrSkillReviewLimit        = errors.New("skill_review_limit")
-	ErrSkillReviewStale        = errors.New("skill_review_stale")
+	ErrSkillReviewLimit = errors.New("skill_review_limit")
+	ErrSkillReviewStale = errors.New("skill_review_stale")
+	// ErrSkillReviewInvalid means the reviewed digest still matches but the draft cannot be installed:
+	// its bytes, name or file paths fail verification. Only rejection can settle such a review.
+	ErrSkillReviewInvalid      = errors.New("skill_review_invalid")
 	ErrSkillReviewNotFound     = errors.New("skill_review_not_found")
 	ErrSkillReviewOperatorOnly = errors.New("skill_review_operator_only")
 )
