@@ -1,0 +1,3 @@
+{"agent_name":"alpha-watch","state":"active","pause_reason":""}
+{"agent_name":"beta-watch","state":"active","pause_reason":""}
+{"agent_name":"ops-lead","state":"active","pause_reason":""}

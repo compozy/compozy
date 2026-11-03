@@ -77,3 +77,25 @@ the trigger scenario.
 
 13 scenarios: 1 pass, 2 fail, 9 partial and 1 skipped. Three bugs were filed (one fixed and pending a re-walk, two in progress), plus two copy failures
 and the paper cuts listed above. No CI or full suites were run locally, per repository policy.
+
+## Re-walk on the final head (feat/stays-on-hardening 4056dbcc2)
+
+Fresh isolated lab built from 4056dbcc2, with the same acpmock fixture and demo seed. Screens are in R2 under `stays-on-hardening/4056dbcc2/`, and every object returned 200 `image/png`.
+
+| Item | Verdict | Evidence |
+| --- | --- | --- |
+| S4 Resume all at the cap (`max_active_instances = 7`, 6 active, 3 paused) | Pass | Resumes run one at a time: one 200, then two 429s. The panel says "Beta Watch and Ops Lead didn't resume. You have 7 active stays-on agents…" (`04-s4-resume-all.png`). |
+| S4 Resume all with room (`max_active_instances = 20`) | Pass | All three resumed in sequence (`04b-s4-resume-all-room-for-all.png`, `rewalk-s4-resume-requests.txt`). |
+| S5 Auto unavailable | Pass | Gemini agent: Let a reviewer decide shows Not available (`05-s5-permissions-levels.png`). |
+| S8 expiry copy | Pass | `action: execute`; "Nobody answered in time, so it wasn't allowed." under `$ Run git push`, with no ACP method name (`08-s8-expired-approval.png`). |
+| S13 event summary | Pass | "deploy: failed · env: staging · payload: …"; no raw JSON; the footer is present (`13-s13-event-proposal.png`). |
+| S15 Settings icons | Pass | Same icons as the agent page (`15-s15-settings-levels.png`). |
+| Trigger flow (CLI) | Pass | An instance ID is rejected at create time; an agent name works without `--prompt`; the delivery leads to a proposal (`rewalk-trigger-create.txt`, `rewalk-webhook.txt`). |
+| S12 sender mark | Pass | Scribe's avatar; no "SY synthetic" (`12-s12-held-message.png`). |
+| Automation picker selection | Pass for events, fail for links | The selection sticks and the list shows labels. With a link start, every Where it runs option is disabled (`10-s10-trigger-target.png`, `10c-s10-link-scope-disabled.png`). |
+
+Bug status: BUG-20261103-resume-all-rate-limited, BUG-20261103-reviewer-mode-omitted and BUG-20261103-target-instance-id-accepted are verified fixed. New: BUG-20261103-link-trigger-stays-on-scope (open). Paper cuts:
+- The open crew panel keeps a resumed agent under Needs you until it refetches.
+- The cap message shows the config key with literal backticks.
+- The S5 "Not available" pill doesn't name the provider, as the draft's alert did.
+- The S8 sentence doesn't name the tool or action; only the command block does.
