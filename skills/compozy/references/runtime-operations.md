@@ -1985,3 +1985,32 @@ Read reachable peers with `compozy agent instance list --peers` or
 The `peers` array carries only the addressable `name`, `description`, `scope` and `state`.
 Workspace access filters rows before pagination. Omit workspace to inspect reachable scopes in the
 current profile, and retain filters with each `next_cursor`. No roster is injected into prompts.
+
+## Daemon profiles (experimental)
+
+Capture profiles from the running local daemon without restarting it:
+
+```bash
+compozy daemon profile cpu --seconds 30 --file cpu.pprof -o json
+compozy daemon profile heap --file heap.pprof
+compozy daemon profile goroutine --file goroutine.pprof
+go tool pprof -top cpu.pprof
+go tool pprof -http :0 cpu.pprof
+go tool pprof -tagfocus session_id=sess-example cpu.pprof
+```
+
+The experimental `GET /api/daemon/profile/{kind}` route exists only on UDS, never HTTP or
+Gateway listeners. Kinds are `cpu`, `heap`, `allocs`, `goroutine`, `mutex`, `block`, and
+`threadcreate`. CPU, mutex and block use `seconds` (default 30, range 1–120); snapshots
+reject `seconds`. A concurrent CPU capture returns `409 profile_busy`; mutex/block
+captures share a separate exclusive sampling window. Cancellation stops sampling.
+Mutex/block sampling is off outside capture windows; returned contention counters are
+runtime-cumulative, including earlier sampled windows. Heap/allocs use Go's default
+memory sampling. No background collector or profiling configuration is added.
+
+Labels are enabled during captures on session event processing, ACP callbacks, native tool
+dispatch, hosted-MCP projection and HTTP/UDS handlers. Keys include `session_id`, `provider`,
+`tool`, `route` (route templates), and fixed `operation` names. They never contain prompts,
+file contents, tool arguments, query strings or message text. Profiles contain runtime stack,
+allocation and binary metadata, so review them before sharing. `--file` writes a mode-0600
+artifact atomically; `-o json` reports its kind and path, not the binary payload.

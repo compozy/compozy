@@ -10,6 +10,41 @@ import (
 	"strings"
 )
 
+// DeleteSettingsMCPServer Delete a manual MCP server or reset its extension override
+func (c *Client) DeleteSettingsMCPServer(ctx context.Context, params DeleteSettingsMCPServerParams) (*SettingsApplyResponse, error) {
+	path := "/api/settings/mcp-servers/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.Owner != nil {
+		query.Set("owner", *params.Owner)
+	}
+	if params.Target != nil {
+		query.Set("target", *params.Target)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteSettingsProviderParams carries the path, query, and header parameters.
+type DeleteSettingsProviderParams struct {
+	Name string `url:"name"`
+}
+
 // DeleteSettingsProvider Delete one settings-backed provider overlay
 func (c *Client) DeleteSettingsProvider(ctx context.Context, params DeleteSettingsProviderParams) (*SettingsApplyResponse, error) {
 	path := "/api/settings/providers/{name}"
@@ -396,53 +431,4 @@ type DismissWorktreeParams struct {
 	DeleteBranch *bool   `url:"delete_branch"`
 	Force        *bool   `url:"force"`
 	Profile      *string `url:"profile"`
-}
-
-// DismissWorktree Dismiss a worktree tombstone
-func (c *Client) DismissWorktree(ctx context.Context, params DismissWorktreeParams) (*WorktreeCleanupResponse, error) {
-	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/dismiss"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
-	query := url.Values{}
-	if params.DeleteBranch != nil {
-		query.Set("delete_branch", strconv.FormatBool(*params.DeleteBranch))
-	}
-	if params.Force != nil {
-		query.Set("force", strconv.FormatBool(*params.Force))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorktreeCleanupResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DownloadSupportBundleParams carries the path, query, and header parameters.
-type DownloadSupportBundleParams struct {
-	OperationID string `url:"operation_id"`
-}
-
-// DownloadSupportBundle Download a completed support bundle archive
-func (c *Client) DownloadSupportBundle(ctx context.Context, params DownloadSupportBundleParams) (*[]byte, error) {
-	path := "/api/support/bundles/{operation_id}/download"
-	path = strings.ReplaceAll(path, "{operation_id}", url.PathEscape(params.OperationID))
-	var out []byte
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "application/gzip"); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DownloadTerminalArtifactParams carries the path, query, and header parameters.
-type DownloadTerminalArtifactParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

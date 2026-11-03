@@ -10,6 +10,54 @@ import (
 	"strings"
 )
 
+// GetAgentInstanceOccurrence Read an instance check occurrence
+func (c *Client) GetAgentInstanceOccurrence(ctx context.Context, params GetAgentInstanceOccurrenceParams) (*AgentInstanceOccurrenceResponse, error) {
+	path := "/api/agent-instances/{id}/occurrences/{occurrence}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	path = strings.ReplaceAll(path, "{occurrence}", url.PathEscape(params.Occurrence))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentInstanceOccurrenceResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentMeParams carries the path, query, and header parameters.
+type GetAgentMeParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+}
+
+// GetAgentMe Resolve the calling agent session
+func (c *Client) GetAgentMe(ctx context.Context, params GetAgentMeParams) (*AgentMeResponse, error) {
+	path := "/api/agent/me"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	var out AgentMeResponse
+	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetAgentMemoryParams carries the path, query, and header parameters.
+type GetAgentMemoryParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
 // GetAgentMemory Inspect agent memory (experimental) Experimental: pin the exact SDK version.
 func (c *Client) GetAgentMemory(ctx context.Context, params GetAgentMemoryParams) (*AgentMemoryDocument, error) {
 	path := "/api/agents/{name}/memory"
@@ -396,38 +444,4 @@ func (c *Client) GetExtensionProvenance(ctx context.Context, params GetExtension
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetGatewayAudit Audit the current gateway security posture
-func (c *Client) GetGatewayAudit(ctx context.Context) (*GatewayAuditPayload, error) {
-	path := "/api/gateway/audit"
-	var out GatewayAuditPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetGatewayStatus Get the operator-global gateway posture
-func (c *Client) GetGatewayStatus(ctx context.Context) (*GatewayStatusPayload, error) {
-	path := "/api/gateway/status"
-	var out GatewayStatusPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetGlobalSessionHistoryParams carries the path, query, and header parameters.
-type GetGlobalSessionHistoryParams struct {
-	SessionID     string  `url:"session_id"`
-	Since         *string `url:"since"`
-	Limit         *int    `url:"limit"`
-	AfterSequence *int64  `url:"after_sequence"`
-	Type          *string `url:"type"`
-	AgentName     *string `url:"agent_name"`
-	TurnID        *string `url:"turn_id"`
-	Archive       *string `url:"archive"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
 }

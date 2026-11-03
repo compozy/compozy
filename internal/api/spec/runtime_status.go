@@ -4,6 +4,7 @@ import "github.com/compozy/compozy/internal/api/contract"
 
 func runtimeStatusOperations() []OperationSpec {
 	return []OperationSpec{
+		daemonProfileOperation(),
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/doctor",
@@ -65,6 +66,50 @@ func drainStateOperation(method string, path string, operationID string, summary
 			{Status: 200, Description: "OK", Body: contract.DrainStatusResponse{}},
 			{Status: 503, Description: "Daemon drain controller is unavailable", Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func daemonProfileOperation() OperationSpec {
+	seconds := intQueryParam(
+		"seconds",
+		"Capture window for cpu, mutex and block only; snapshot profiles reject this parameter",
+	)
+	seconds.Minimum, seconds.Maximum, seconds.Default = new(float64(1)), new(float64(120)), 30
+	return OperationSpec{
+		Method: httpMethodGet, Path: "/api/daemon/profile/{kind}",
+		AppAccess: AppAccessDenied, Stability: schemaStabilityExperimental,
+		OperationID: "captureDaemonProfile", Summary: "Capture a runtime profile over the local socket",
+		Tags: []string{specDiagnosticsKey}, Transports: []Transport{TransportUDS},
+		Auth: map[Transport]OperationAuth{TransportUDS: OperationAuthLocalSocket},
+		Parameters: []ParameterSpec{
+			{
+				Name:     "kind",
+				In:       "path",
+				Required: true,
+				Kind:     "string",
+				Enum:     []string{"cpu", "heap", "allocs", "goroutine", "mutex", "block", "threadcreate"},
+			},
+			seconds,
+		},
+		Responses: []ResponseSpec{
+			{
+				Status:      200,
+				Description: "Raw gzip-compressed pprof protobuf",
+				Body:        binaryResponse{},
+				ContentType: "application/octet-stream",
+			},
+			{
+				Status:      400,
+				Description: "daemon_profile_invalid: unsupported kind or duration",
+				Body:        contract.ErrorPayload{},
+			},
+			{
+				Status:      409,
+				Description: "profile_busy: CPU or contention capture already active",
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 500, Description: "profile_failed: capture canceled or failed", Body: contract.ErrorPayload{}},
 		},
 	}
 }

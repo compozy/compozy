@@ -1337,6 +1337,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/daemon/profile/{kind}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Capture a runtime profile over the local socket */
+    get: operations["captureDaemonProfile"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/doctor": {
     parameters: {
       query?: never;
@@ -29399,6 +29416,58 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["CmdPaletteError"];
+        };
+      };
+    };
+  };
+  captureDaemonProfile: {
+    parameters: {
+      query?: {
+        /** @description Capture window for cpu, mutex and block only; snapshot profiles reject this parameter */
+        seconds?: number;
+      };
+      header?: never;
+      path: {
+        kind: "cpu" | "heap" | "allocs" | "goroutine" | "mutex" | "block" | "threadcreate";
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Raw gzip-compressed pprof protobuf */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/octet-stream": string;
+        };
+      };
+      /** @description daemon_profile_invalid: unsupported kind or duration */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description profile_busy: CPU or contention capture already active */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description profile_failed: capture canceled or failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
         };
       };
     };

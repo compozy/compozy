@@ -1,10 +1,13 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"syscall"
@@ -813,6 +816,97 @@ func TestDaemonClockDrift(t *testing.T) {
 		}
 		if _, err := compozydaemon.ReadInfo(paths.DaemonInfo); err != nil {
 			t.Fatal(err)
+		}
+	})
+}
+
+type profileTestClient struct {
+	DaemonClient
+	capture func(context.Context, string, int, io.Writer) error
+}
+
+var _ daemonProfileClient = (*profileTestClient)(nil)
+
+func (c *profileTestClient) CaptureDaemonProfile(ctx context.Context, kind string, seconds int, dst io.Writer) error {
+	return c.capture(ctx, kind, seconds, dst)
+}
+
+func TestDaemonProfileCommand(t *testing.T) {
+	t.Parallel()
+	t.Run("Should save raw profile bytes and report the destination as JSON", func(t *testing.T) {
+		t.Parallel()
+		client := &profileTestClient{capture: func(_ context.Context, kind string, seconds int, dst io.Writer) error {
+			if kind != "cpu" || seconds != 1 {
+				t.Errorf("capture = %s %d", kind, seconds)
+			}
+			_, err := dst.Write([]byte{0x1f, 0x8b, 0x00})
+			return err
+		}}
+		path := filepath.Join(t.TempDir(), "cpu.pprof")
+		output, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"daemon",
+			"profile",
+			"cpu",
+			"--seconds",
+			"1",
+			"--file",
+			path,
+			"-o",
+			"json",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(data, []byte{0x1f, 0x8b, 0x00}) || !strings.Contains(output, "cpu.pprof") {
+			t.Fatalf("file=%v output=%s", data, output)
+		}
+	})
+	t.Run("Should preserve an existing destination and remove partial files on capture failure", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		path := filepath.Join(dir, "heap.pprof")
+		if err := os.WriteFile(path, []byte("existing"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		client := &profileTestClient{capture: func(_ context.Context, _ string, _ int, dst io.Writer) error {
+			if _, err := io.WriteString(dst, "partial"); err != nil {
+				return err
+			}
+			return errors.New("capture failed")
+		}}
+		_, _, err := executeRootCommand(t, newTestDeps(t, client), "daemon", "profile", "heap", "--file", path)
+		if err == nil || !strings.Contains(err.Error(), "capture failed") {
+			t.Fatalf("error=%v", err)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(data) != "existing" {
+			t.Fatalf("file=%s", data)
+		}
+		files, err := os.ReadDir(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(files) != 1 {
+			t.Fatalf("partial files=%v", files)
+		}
+	})
+	t.Run("Should reject invalid kinds and explicit out of range or inapplicable durations", func(t *testing.T) {
+		t.Parallel()
+		for _, args := range [][]string{{"cpu", "--seconds", "0"}, {"cpu", "--seconds", "121"}, {"heap", "--seconds", "1"}, {"unknown"}} {
+			full := append([]string{"daemon", "profile"}, args...)
+			full = append(full, "--file", filepath.Join(t.TempDir(), "invalid.pprof"))
+			if _, _, err := executeRootCommand(t, newTestDeps(t, &profileTestClient{}), full...); err == nil {
+				t.Fatalf("accepted %v", args)
+			}
 		}
 	})
 }

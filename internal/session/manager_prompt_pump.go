@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/compozy/compozy/internal/profiling"
+
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -155,6 +157,27 @@ func (m *Manager) flushPromptPumpRun(
 }
 
 func (m *Manager) handlePromptPumpRun(
+	run *promptPumpRun,
+	loop *promptPumpLoopState,
+	event acp.AgentEvent,
+	runtimeEvent bool,
+) bool {
+	if !profiling.Enabled() {
+		return m.handleLabeledPromptPumpRun(run, loop, event, runtimeEvent)
+	}
+	run.session.mu.RLock()
+	sessionID, provider := run.session.ID, run.session.Provider
+	run.session.mu.RUnlock()
+	var stop bool
+	profiling.Do(run.lifecycleCtx, func(ctx context.Context) {
+		labeled := *run
+		labeled.lifecycleCtx = ctx
+		stop = m.handleLabeledPromptPumpRun(&labeled, loop, event, runtimeEvent)
+	}, "session_id", sessionID, "provider", provider)
+	return stop
+}
+
+func (m *Manager) handleLabeledPromptPumpRun(
 	run *promptPumpRun,
 	loop *promptPumpLoopState,
 	event acp.AgentEvent,

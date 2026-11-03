@@ -18792,6 +18792,48 @@ export type OpenCmdPaletteViewSessionResponses = {
 export type OpenCmdPaletteViewSessionResponse =
   OpenCmdPaletteViewSessionResponses[keyof OpenCmdPaletteViewSessionResponses];
 
+export type CaptureDaemonProfileData = {
+  body?: never;
+  path: {
+    kind: "cpu" | "heap" | "allocs" | "goroutine" | "mutex" | "block" | "threadcreate";
+  };
+  query?: {
+    /**
+     * Capture window for cpu, mutex and block only; snapshot profiles reject this parameter
+     */
+    seconds?: number;
+  };
+  url: "/api/daemon/profile/{kind}";
+};
+
+export type CaptureDaemonProfileErrors = {
+  /**
+   * daemon_profile_invalid: unsupported kind or duration
+   */
+  400: ErrorPayload;
+  /**
+   * profile_busy: CPU or contention capture already active
+   */
+  409: ErrorPayload;
+  /**
+   * profile_failed: capture canceled or failed
+   */
+  500: ErrorPayload;
+};
+
+export type CaptureDaemonProfileError =
+  CaptureDaemonProfileErrors[keyof CaptureDaemonProfileErrors];
+
+export type CaptureDaemonProfileResponses = {
+  /**
+   * Raw gzip-compressed pprof protobuf
+   */
+  200: Blob | File;
+};
+
+export type CaptureDaemonProfileResponse =
+  CaptureDaemonProfileResponses[keyof CaptureDaemonProfileResponses];
+
 export type GetDoctorData = {
   body?: never;
   path?: never;
