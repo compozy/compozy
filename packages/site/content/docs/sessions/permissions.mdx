@@ -66,8 +66,10 @@ An operator-authored definition may add up to 64 `permission_rules`. Each rule h
 or both, and `decision: allow` or `deny`. Paths are workspace-relative glob patterns checked after
 canonical path resolution. Deny matches win; an allow approves this request once. Unmatched requests
 use the selected level. A path rule never matches a request without paths, and no rule permits a path
-outside the workspace or overrides `deny-all`. Rules are fixed when the session starts and are not
-inherited from a parent. Extension-authored rules are ignored.
+outside the workspace or overrides `deny-all`. Deny path patterns match regardless of letter case;
+allow patterns match exactly. Rules cover only requests a provider asks: approvals for CompozyOS's
+own tools follow the level alone. Rules are fixed when the session starts and are not inherited from
+a parent. Extension-authored rules are ignored.
 
 ## Approving another session
 
@@ -85,6 +87,9 @@ unless muted. Repeating the same expired request is denied immediately until hum
 | Workspace read | blocked | allowed | allowed | allowed | allowed |
 | Workspace file edit | blocked | asks | allowed | allowed | allowed |
 | Terminal command | blocked | asks | asks | asks | allowed |
+
+At `approve-edits` and `auto`, an edit is allowed only when the request names at least one file inside
+the workspace; an edit without file locations, and a request of kind `other` or with no kind, asks.
 
 Workspace and tool restrictions remain in force after a level or rule permits a request.
 
