@@ -76,6 +76,13 @@ produces exactly one pending prompt, which runs once approved. Repeat on Codex (
 `TestHostedToolPermissionGates`, `TestCoordinationPermissionLevels` and
 `TestDaemonNativeRuntimePolicyResolver` own the gate rules.
 
+QA verification 2026-11-03 (#1200, isolated lab, live Claude and Codex): Pass. On main the built-in
+Orchestrator asked 7 times for `skill_view` x4, `monitor_create`, `worktree_create` and
+`session_create`. On the fix it asked 0 times for those and once for `worktree_remove`; the
+`approve-edits` agent matched. Codex at `workspace-write` runs non-destructive MCP calls without
+asking and asks for destructive ones by tool call id only; the fix leaves one prompt for
+`worktree_remove`. Not walked here: the Web placement journey above.
+
 B1 resume authority: race an own-instance agent resume against an operator pause,
 then against a fatigue pause. Resume must read and authorize the current pause
 reason inside the same write transaction as the cap check and state transition.
