@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/url"
@@ -139,12 +140,15 @@ func instanceActionText(instance contract.AgentInstancePayload, action string) s
 		return instanceText(instance)
 	}
 }
+
+// instanceText renders one instance; the owner profile labels rows of an all-profiles read.
 func instanceText(instance contract.AgentInstancePayload) string {
 	return fmt.Sprintf(
-		"%s\t%s\t%s\nMain session: %s\nPause reason: %s\nUnattended turns: %d/%d\nHeld wakes: %d\n",
+		"%s\t%s\t%s\nProfile: %s\nMain session: %s\nPause reason: %s\nUnattended turns: %d/%d\nHeld wakes: %d\n",
 		instance.ID,
 		instance.AgentName,
 		instance.State,
+		cmp.Or(instance.ProfileName, instance.ProfileID),
 		instance.MainSessionID,
 		instance.PauseReason,
 		instance.UnattendedTurns,

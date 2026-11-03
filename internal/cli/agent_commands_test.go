@@ -1177,13 +1177,15 @@ func TestAgentInstanceCommands(t *testing.T) {
 		{"archive", []string{"archive", "ainst-test"}, "Triage Lead archived in Global. Its sessions stay in history.\n"},
 		{"checks off", []string{"checks", "off", "ainst-test"}, "Checks off for Triage Lead in Global\n"},
 		{"ensure-main", []string{"ensure-main", "ainst-test"}, "Main session: sess-main\n"},
+		{"show", []string{"show", "ainst-test", "--all-profiles"}, "ainst-test\ttriage\tactive\nProfile: work\nMain session: sess-main\n" +
+			"Pause reason: \nUnattended turns: 0/0\nHeld wakes: 0\n"},
 		{"reported check", []string{"check", "ainst-test"}, "Check finished: 1 proposal delivered\n"},
 	} {
 		t.Run("Should render the approved "+tc.name+" result", func(t *testing.T) {
 			t.Parallel()
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
-				body := `{"instance":{"id":"ainst-test","agent_name":"triage","label":"Triage Lead","scope":"Global","state":"active","main_session_id":"sess-main"}}`
+				body := `{"instance":{"id":"ainst-test","agent_name":"triage","label":"Triage Lead","scope":"Global","state":"active","main_session_id":"sess-main","profile_id":"profile-work","profile_name":"work"}}`
 				switch r.URL.Path {
 				case "/api/agent-instances",
 					"/api/agent-instances/adopt",

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/agentidentity"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
@@ -204,5 +205,52 @@ func TestTerminalReadsShouldApplyTheSharedProfileReadPolicyToAgents(t *testing.T
 				}
 			}
 		})
+	}
+}
+
+// archivedTerminalProfileService knows one archived profile. Resolve refuses it as an
+// unavailable selection; the historical lookup still finds it.
+type archivedTerminalProfileService struct{ ProfileService }
+
+func (archivedTerminalProfileService) Resolve(
+	context.Context,
+	profilepkg.ResolveInput,
+) (profilepkg.Resolution, error) {
+	return profilepkg.Resolution{}, &profilepkg.Error{
+		Code: "profile_archived", Message: "profile archived is archived", Cause: profilepkg.ErrArchived,
+	}
+}
+
+func (archivedTerminalProfileService) GetByName(_ context.Context, name string) (profilepkg.Profile, error) {
+	if name != "archived" {
+		return profilepkg.Profile{}, profilepkg.ErrNotFound
+	}
+	return profilepkg.Profile{ID: "profile-archived", Name: "archived", State: profilepkg.StateArchived}, nil
+}
+
+func TestTerminalDownloadsShouldKeepRecordingsOfArchivedProfilesReadable(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	journal := &terminalDownloadJournalStub{}
+	handlers := NewBaseHandlers(&BaseHandlerConfig{
+		TransportName: "udsapi",
+		Terminal:      &terminalProviderStub{Manager: terminalDownloadManagerStub{journal: journal}},
+		Profiles:      archivedTerminalProfileService{},
+	})
+	router := gin.New()
+	router.GET("/api/workspaces/:workspace_id/terminals/recordings/:id", handlers.DownloadTerminalRecording)
+
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, httptest.NewRequestWithContext(
+		testutil.Context(t),
+		http.MethodGet,
+		"/api/workspaces/workspace-a/terminals/recordings/recording-a?profile=archived",
+		http.NoBody,
+	))
+	if response.Code != http.StatusOK || response.Body.String() != "asciicast" {
+		t.Fatalf("archived recording status/body = %d/%s, want 200/asciicast", response.Code, response.Body.String())
+	}
+	if journal.recordingScope.ProfileID != "profile-archived" {
+		t.Fatalf("recording scope = %#v, want the archived profile", journal.recordingScope)
 	}
 }

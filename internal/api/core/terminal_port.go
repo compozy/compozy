@@ -13,7 +13,7 @@ import (
 type TerminalProvider interface{ terminalpkg.Manager }
 
 // terminalReadService resolves a terminal read that admits the owner-labeled all-profiles
-// aggregate, through the same profile read policy every other read uses.
+// aggregate through the shared profile read policy and resolves one profile historically.
 func (h *BaseHandlers) terminalReadService(
 	c *gin.Context,
 ) (terminalpkg.Manager, store.ReadScope, bool) {
@@ -24,7 +24,7 @@ func (h *BaseHandlers) terminalReadService(
 		return nil, store.ReadScope{}, false
 	}
 	workspaceID := strings.TrimSpace(c.Param("workspace_id"))
-	resolved, err := h.resolveProfileReadSelectionForWorkspace(c, workspaceID)
+	resolved, err := h.resolveTerminalProfileReadSelection(c, workspaceID)
 	if err != nil {
 		h.respondTerminalProfileError(c, err)
 		return nil, store.ReadScope{}, false
@@ -49,7 +49,7 @@ func (h *BaseHandlers) terminalService(
 	if mutation {
 		resolved, err = h.resolveProfileMutationSelectionForWorkspace(c, workspaceID)
 	} else {
-		resolved, err = h.resolveProfileReadSelectionForWorkspace(c, workspaceID)
+		resolved, err = h.resolveTerminalProfileReadSelection(c, workspaceID)
 		if err == nil && resolved.Scope.AllProfiles {
 			err = singleProfileReadError("this terminal interaction belongs to one profile")
 		}
