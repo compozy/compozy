@@ -417,6 +417,27 @@ describe("useProfileSwitchWindowSweep", () => {
     expect(userClose).not.toHaveBeenCalled();
   });
 
+  it("Should cancel pending owner reads without sweeping the restored profile after rollback", async () => {
+    sessionOwners.set("s_xray", "p_xray");
+    const { shell, userClose } = fakeShell(true);
+    const held = heldOwnerReads();
+    const { rerender } = renderHook(
+      ({ partition }) => useProfileSwitchWindowSweep(shell, partition),
+      { wrapper: held.wrapper, initialProps: { partition: "ws_a" } }
+    );
+
+    switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() => expect(held.queryClient.fetchQuery).toHaveBeenCalled());
+    act(() => restoreProfileView({ kind: "profile", profile: "zulu" }));
+    held.release();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(userClose).not.toHaveBeenCalled();
+    // The same epoch cannot authorize a sweep of another desk after rollback either.
+    rerender({ partition: "ws_b" });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(userClose).not.toHaveBeenCalled();
+  });
+
   it("Should stop closing when a failed switch rolls the view back", async () => {
     sessionOwners.set("s_xray", "p_xray");
     sessionOwners.set("s_zulu", "p_zulu");
