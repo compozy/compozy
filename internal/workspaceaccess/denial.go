@@ -27,8 +27,8 @@ func DenialMessage(decision Decision) string {
 			"profile, or All projects; ask the operator to set the agent's permissions.mode to " +
 			"approve-all, or to approve-reads to be asked each time"
 	case DenialConsentRequired:
-		return "this session's permissions.mode is approve-reads, so reaching another workspace, " +
-			"profile, or All projects needs the operator's approval in a prompt, and none was " +
+		return "this session's permissions.mode is approve-reads, approve-edits or auto, so reaching another " +
+			"workspace, profile, or All projects needs the operator's approval in a prompt, and none was " +
 			"answered here; retry from a native tool so the operator is asked, or ask the operator " +
 			"to set the agent's permissions.mode to approve-all"
 	case DenialConsentRejected:

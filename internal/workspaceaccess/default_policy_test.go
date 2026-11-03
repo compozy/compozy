@@ -748,6 +748,12 @@ func TestPermissionModeReach(t *testing.T) {
 		{"Should never let deny-all read aggregates", ModeDenyAll, "", nil, aggregate, true, Decision{Source: SourceDenied, Denial: DenialModeDenyAll}},
 		{"Should never let deny-all read an unresolved target", ModeDenyAll, "", nil, unresolved, true, Decision{Source: SourceDenied, Denial: DenialModeDenyAll}},
 		{"Should keep the grant reaching writes in another profile", ModeDenyAll, Unrestricted, nil, otherProfile, false, Decision{Allowed: true, Source: SourceAgentGrant}},
+		{"Should ask approve-edits before reading another profile", ModeApproveEdits, "", &consentCacheStub{}, otherProfile, true, Decision{Source: SourceDenied, PromptEligible: true, Denial: DenialConsentRequired}},
+		{"Should honor approve-edits session consent in another workspace", ModeApproveEdits, "", &consentCacheStub{consent: ConsentAllow, ok: true}, ScopeTarget(testWorkspaceB, "p1"), false, Decision{Allowed: true, Source: SourceSessionConsent}},
+		{"Should honor an approve-edits session rejection", ModeApproveEdits, "", &consentCacheStub{consent: ConsentReject, ok: true}, ScopeTarget(testWorkspaceB, "p1"), true, Decision{Source: SourceDenied, Denial: DenialConsentRejected}},
+		{"Should ask auto before writing to the User scope", ModeAuto, "", &consentCacheStub{}, ScopeTarget("", "p1"), false, Decision{Source: SourceDenied, PromptEligible: true, Denial: DenialConsentRequired}},
+		{"Should honor auto session consent for aggregates", ModeAuto, "", &consentCacheStub{consent: ConsentAllow, ok: true}, aggregate, true, Decision{Allowed: true, Source: SourceSessionConsent}},
+		{"Should honor an auto session rejection", ModeAuto, "", &consentCacheStub{consent: ConsentReject, ok: true}, otherProfile, true, Decision{Source: SourceDenied, Denial: DenialConsentRejected}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
