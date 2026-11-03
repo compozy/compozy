@@ -118,7 +118,8 @@ func (t Trigger) Validate(path string) error {
 	if err := ValidateTriggerFilter(t.Filter, nestedPath(path, "filter")); err != nil {
 		return err
 	}
-	if targetKind == TargetKindAgent || targetKind == TargetKindAgentInstance {
+	if targetKind == TargetKindAgent ||
+		(targetKind == TargetKindAgentInstance && strings.TrimSpace(t.Prompt) != "") {
 		if err := ValidateTriggerPromptTemplate(t.Prompt); err != nil {
 			return fmt.Errorf("%s is invalid: %w", nestedPath(path, "prompt"), err)
 		}
@@ -210,7 +211,9 @@ func validateTriggerTarget(trigger Trigger, targetKind TargetKind, path string) 
 		if strings.TrimSpace(trigger.AgentName) == "" {
 			return errors.New(nestedPath(path, "agent_name") + " is required")
 		}
-		if strings.TrimSpace(trigger.Prompt) == "" {
+		// An agent_instance trigger delivers the event to the agent's check; its prompt is an
+		// optional instruction, not the session prompt an agent target needs.
+		if targetKind == TargetKindAgent && strings.TrimSpace(trigger.Prompt) == "" {
 			return errors.New(nestedPath(path, "prompt") + " is required")
 		}
 	case TargetKindLoop:

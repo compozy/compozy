@@ -410,6 +410,10 @@ describe("GeneralSettingsPage", () => {
       )
     );
     expect(screen.getByRole("radio", { name: /Never ask/ })).toBeChecked();
+    // S15 shares the S5 card style: every level shows its glyph.
+    for (const radio of permissions.querySelectorAll('[role="radio"]')) {
+      expect(radio.querySelector('[data-slot="radio-card-icon-well"]')).not.toBeNull();
+    }
     fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
     expect(screen.getByText("Settings file")).toBeInTheDocument();
     expect(screen.getByText("~/.compozy/config.toml")).toBeInTheDocument();

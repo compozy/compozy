@@ -19209,6 +19209,8 @@ export interface components {
       duration_ms?: number;
       /** @enum {string} */
       error_code?:
+        | "agent_instance_not_found"
+        | "agent_instance_starting"
         | "approval_rejected"
         | "compaction_unsupported"
         | "generation_fenced"
@@ -19417,6 +19419,8 @@ export interface components {
     ToolErrorPayload: {
       /** @enum {string} */
       code:
+        | "agent_instance_not_found"
+        | "agent_instance_starting"
         | "approval_rejected"
         | "compaction_unsupported"
         | "generation_fenced"

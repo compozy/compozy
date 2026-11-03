@@ -208,6 +208,20 @@ describe("expiredInteractionsByRequest", () => {
     expect(resolved("bridge:acme")).toBe("unknown");
     expect(resolved("operator", "canceled")).toBe("unknown");
     expect(permissionDecisionActor(undefined)).toBe("unknown");
+    expect(resolved("repeat_denied")).toBe("repeat");
+    expect(resolved("rule")).toBe("rule");
+    expect(resolved("policy")).toBe("policy");
+  });
+
+  it("Should prefer the decision's own actor over a row that shares its request id", () => {
+    const earlier = record({
+      status: "resolved",
+      resolution: "reject-once",
+      resolved_by: "operator",
+    });
+    expect(permissionDecisionActor(earlier, "repeat_denied")).toBe("repeat");
+    expect(permissionDecisionActor(earlier, "timeout")).toBe("timeout");
+    expect(permissionDecisionActor(earlier, "")).toBe("you");
   });
 
   it("Should attribute a canceled row to the restart only when the daemon says so", () => {

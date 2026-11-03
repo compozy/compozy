@@ -320,6 +320,8 @@ export interface AgentEventPayload {
   action?: string;
   resource?: string;
   decision?: string;
+  /** Who settled a permission ask: `operator`, `timeout`, `policy`, `rule`, `repeat_denied`, … */
+  resolved_by?: string;
   error?: string;
   failure?: SessionFailurePayload;
   provider_error?: ProviderErrorDiagnosticPayload | null;

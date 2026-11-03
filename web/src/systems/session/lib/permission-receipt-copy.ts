@@ -8,7 +8,8 @@
  * Who decided comes from the daemon's resolved interaction row, never from the
  * transcript part: "by you" only when an operator surface answered, "another
  * agent" for a native approval from another session, "timed out" when nobody
- * answered, "by the runtime" when the row names the runtime (`provider`, `system`),
+ * answered, "by the runtime" when the row names the runtime (`provider`, `system`), the
+ * exception or permission level for `rule` and `policy`, a repeat for `repeat_denied`,
  * and a neutral lead when no evidence names an actor. The runtime lead never says
  * whether a question was shown: `provider` is also the daemon's fallback actor.
  */
@@ -74,6 +75,10 @@ function decisionLead(decision: PermissionDecision, actor: PermissionDecisionAct
         return "Allowed by another agent";
       case "runtime":
         return "Allowed by the runtime";
+      case "rule":
+        return "Allowed by an exception";
+      case "policy":
+        return "Allowed by the permission level";
       default:
         return "Allowed";
     }
@@ -87,6 +92,12 @@ function decisionLead(decision: PermissionDecision, actor: PermissionDecisionAct
       return "Not allowed by the runtime";
     case "timeout":
       return "Timed out before anyone answered";
+    case "repeat":
+      return "Not allowed again: the same request was already refused";
+    case "rule":
+      return "Not allowed by an exception";
+    case "policy":
+      return "Not allowed by the permission level";
     default:
       return "Not allowed";
   }

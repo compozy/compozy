@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
+	"strings"
 )
 
 func WithDispatcherInstanceEvents(sink InstanceEventSink) DispatcherOption {
@@ -19,9 +20,14 @@ func (d *Dispatcher) dispatchInstanceEvent(
 	if d.instanceEvents == nil {
 		return d.finishRun(ctx, run, RunFailed, errors.New("automation: instance event sink is unavailable"))
 	}
-	prompt, err := req.prompt()
-	if err != nil {
-		return d.finishRun(ctx, run, RunFailed, err)
+	// The instruction is optional for an instance target: the event alone wakes the check.
+	prompt := ""
+	if strings.TrimSpace(req.Prompt) != "" || strings.TrimSpace(req.Trigger.Prompt) != "" {
+		rendered, err := req.prompt()
+		if err != nil {
+			return d.finishRun(ctx, run, RunFailed, err)
+		}
+		prompt = rendered
 	}
 	prompt, canceled, err := d.dispatchPreFireHook(ctx, req, prompt, attempt)
 	if err != nil {

@@ -1525,5 +1525,48 @@ func TestAutomationInstanceTargets(t *testing.T) {
 		if err == nil {
 			t.Fatal("scheduled job accepted instance target")
 		}
+		request = AutomationTriggerCreateRequest{}
+		_, _, err = executeRootCommand(
+			t,
+			deps,
+			"automation",
+			"triggers",
+			"create",
+			"--name",
+			"deploy-failed",
+			"--workspace",
+			"alpha",
+			"--event",
+			"session.stopped",
+			"--target-instance",
+			"reviewer",
+		)
+		if err != nil {
+			t.Fatalf("--target-instance without --prompt: %v", err)
+		}
+		if request.TargetKind != automationpkg.TargetKindAgentInstance || request.AgentName != "reviewer" ||
+			request.Prompt != "" {
+			t.Fatalf("prompt-less instance target: %+v", request)
+		}
+		_, _, err = executeRootCommand(
+			t,
+			deps,
+			"automation",
+			"triggers",
+			"create",
+			"--name",
+			"deploy-failed",
+			"--workspace",
+			"alpha",
+			"--event",
+			"session.stopped",
+			"--target-instance",
+			"reviewer",
+			"--loop",
+			"triage-loop",
+		)
+		if err == nil || strings.Contains(err.Error(), "--agent") {
+			t.Fatalf("instance target error must not name --agent: %v", err)
+		}
 	})
 }

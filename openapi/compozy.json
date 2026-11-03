@@ -40490,6 +40490,8 @@
           },
           "error_code": {
             "enum": [
+              "agent_instance_not_found",
+              "agent_instance_starting",
               "approval_rejected",
               "compaction_unsupported",
               "generation_fenced",
@@ -40855,6 +40857,8 @@
         "properties": {
           "code": {
             "enum": [
+              "agent_instance_not_found",
+              "agent_instance_starting",
               "approval_rejected",
               "compaction_unsupported",
               "generation_fenced",

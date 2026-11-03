@@ -11291,6 +11291,8 @@ export type ToolCallEventPayload = {
   display_title?: string;
   duration_ms?: number;
   error_code?:
+    | "agent_instance_not_found"
+    | "agent_instance_starting"
     | "approval_rejected"
     | "compaction_unsupported"
     | "generation_fenced"
@@ -11494,6 +11496,8 @@ export type ToolDescriptorPayload = {
 
 export type ToolErrorPayload = {
   code:
+    | "agent_instance_not_found"
+    | "agent_instance_starting"
     | "approval_rejected"
     | "compaction_unsupported"
     | "generation_fenced"

@@ -43,7 +43,7 @@ func (n *daemonNativeTools) resolveNamedInstanceMessage(
 	}
 	if len(rows) == 0 {
 		return nil, toolspkg.NewToolError(
-			"agent_instance_not_found",
+			toolspkg.ErrorCodeAgentInstanceNotFound,
 			id,
 			"No instance exists for this agent in this scope.",
 			agentinstance.ErrNotFound,
@@ -51,7 +51,7 @@ func (n *daemonNativeTools) resolveNamedInstanceMessage(
 	}
 	if rows[0].MainSessionID == "" {
 		return nil, toolspkg.NewToolError(
-			"agent_instance_starting",
+			toolspkg.ErrorCodeAgentInstanceStarting,
 			id,
 			"The instance has no main session yet.",
 			agentinstance.ErrStarting,

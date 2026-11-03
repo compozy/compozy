@@ -123,7 +123,10 @@ export function PermissionDataPart({ data }: { data: CompozyPermissionData }) {
   const permission = toPermissionRequest(data);
   const decision = normalizePermissionDecision(data.decision);
   if (decision !== null) {
-    const actor = permissionDecisionActor(renderContext?.resolvedInteractions.get(data.request_id));
+    const actor = permissionDecisionActor(
+      renderContext?.resolvedInteractions.get(data.request_id),
+      data.resolved_by
+    );
     return (
       <PermissionReceipt
         actor={actor}
