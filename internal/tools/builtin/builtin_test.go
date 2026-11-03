@@ -5,12 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"maps"
+	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
@@ -844,6 +851,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"worktree":{"id":"wt-1","name":"auth","branch":"feat/auth","path":"/wt/auth","base_sha":"abc","created":true},
 			"prompt":{"message_id":"spawn-prompt-sess-child","status":"accepted","reply_watch_id":"rw-1","reply_watch_state":"armed"}
 		}`)
+		output := decodeRawNativeObjectSchema(t, "session_spawn output", spawn.OutputSchema)
+		for property, payload := range map[string]reflect.Type{
+			"permissions": reflect.TypeFor[contract.SpawnPermissionPolicyPayload](),
+			"worktree":    reflect.TypeFor[contract.SpawnWorktreePayload](),
+			"prompt":      reflect.TypeFor[contract.SpawnPromptPayload](),
+		} {
+			assertSchemaDeclaresPayload(t, "session_spawn output "+property, output.Properties[property], payload)
+		}
 	})
 
 	t.Run("Should validate exact Loop lifecycle output schemas", func(t *testing.T) {
@@ -2293,28 +2308,12 @@ func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw jso
 	if prompt.Type != "object" {
 		t.Fatalf("%s prompt schema = %#v, want object", owner, prompt)
 	}
-	assertClosedObjectSchema(t, owner+" prompt", prompt, []string{
-		"canceled_queued_entries",
-		"delivery",
-		"disposition",
-		"entry_id",
-		"estimated_send_at",
-		"goal",
-		"idempotency_key",
-		"message_id",
-		"mode",
-		"new_turn_id",
-		"previous_turn_id",
-		"queue_entry_id",
-		"queue_generation",
-		"queue_position",
-		"replayed",
-		"reply_watch",
-		"status",
-		"steer_delivery",
-		"target_workspace_id",
-		"turn_id",
-	})
+	assertSchemaDeclaresPayload(
+		t,
+		owner+" prompt",
+		envelope.Properties["prompt"],
+		reflect.TypeFor[contract.SendPromptResultPayload](),
+	)
 	if !slices.Equal(prompt.Required, []string{"status", "delivery", "message_id", "idempotency_key", "replayed"}) {
 		t.Fatalf(
 			"%s prompt required = %#v, want status/delivery/message_id/idempotency_key/replayed",
@@ -2334,18 +2333,6 @@ func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw jso
 		[]string{"armed", "fired", "delivered", "abandoned"},
 	)
 
-	assertStringEnumSchema(
-		t,
-		owner+" prompt.delivery",
-		prompt.Properties["delivery"],
-		[]string{"none", "direct", "after_turn", "interrupt_then_prompt"},
-	)
-	assertStringEnumSchema(
-		t,
-		owner+" prompt.mode",
-		prompt.Properties["mode"],
-		[]string{"queue", "interrupt", "steer"},
-	)
 	for _, field := range []string{"message_id", "idempotency_key"} {
 		var identity nativeObjectSchema
 		if err := json.Unmarshal(prompt.Properties[field], &identity); err != nil {
@@ -2397,11 +2384,7 @@ func assertSessionInputsListSchema(t *testing.T, descriptor toolspkg.Descriptor)
 	if inputs.Type != "array" {
 		t.Fatalf("%s outputs schema = %#v, want array", descriptor.ID, inputs)
 	}
-	var item nativeObjectSchema
-	if err := json.Unmarshal(inputs.Items, &item); err != nil {
-		t.Fatalf("%s output items schema unmarshal error = %v", descriptor.ID, err)
-	}
-	assertSessionInputPayloadSchema(t, descriptor.ID.String()+" output input", item)
+	assertSessionInputPayloadSchema(t, descriptor.ID.String()+" output input", inputs.Items)
 }
 
 func assertSessionInputReplaceSchema(t *testing.T, descriptor toolspkg.Descriptor) {
@@ -2490,32 +2473,18 @@ func assertSessionInputOutputSchema(t *testing.T, owner string, raw json.RawMess
 		t.Fatalf("%s schema unmarshal error = %v", owner, err)
 	}
 	assertClosedObjectSchema(t, owner, envelope, []string{"input"})
-	var input nativeObjectSchema
-	if err := json.Unmarshal(envelope.Properties["input"], &input); err != nil {
-		t.Fatalf("%s input schema unmarshal error = %v", owner, err)
-	}
-	assertSessionInputPayloadSchema(t, owner+" input", input)
+	assertSessionInputPayloadSchema(t, owner+" input", envelope.Properties["input"])
 }
 
-func assertSessionInputPayloadSchema(t *testing.T, owner string, input nativeObjectSchema) {
+func assertSessionInputPayloadSchema(t *testing.T, owner string, raw json.RawMessage) {
 	t.Helper()
-	assertClosedObjectSchema(t, owner, input, []string{
-		"attachments", "coalesced_wakes", "delivery", "enqueued_at", "held", "id", "idempotency_key", "mentions",
-		"message_id", "mode", "origin", "owner_id", "owner_kind", "queue_generation",
-		"runtime", "session_id", "skill_invocations", "status", "steer_delivery", "target_turn_id", "text",
-	})
+	input := decodeRawNativeObjectSchema(t, owner, raw)
+	assertSchemaDeclaresPayload(t, owner, raw, reflect.TypeFor[contract.SessionInputPayload]())
 	if !slices.Equal(input.Required, []string{
 		"id", "session_id", "status", "mode", "delivery", "text", "queue_generation", "enqueued_at",
 	}) {
 		t.Fatalf("%s required = %#v, want durable session input fields", owner, input.Required)
 	}
-	assertStringEnumSchema(t, owner+" mode", input.Properties["mode"], []string{"queue", "interrupt", "steer"})
-	assertStringEnumSchema(
-		t,
-		owner+" delivery",
-		input.Properties["delivery"],
-		[]string{"none", "direct", "after_turn", "interrupt_then_prompt"},
-	)
 }
 
 func assertSessionMutationEnvelopeSchema(
@@ -2949,6 +2918,166 @@ func assertStringEnumSchema(t *testing.T, owner string, raw json.RawMessage, wan
 	if schema.Type != "string" || !slices.Equal(schema.Enum, want) {
 		t.Fatalf("%s schema = %#v, want string enum %#v", owner, schema, want)
 	}
+}
+
+// assertSchemaDeclaresPayload fails when a Go payload type can emit JSON its declared output
+// schema rejects. MCP clients validate structured results against the advertised schema, so a
+// field or enum value added to the payload type must reach the schema in the same change.
+func assertSchemaDeclaresPayload(t *testing.T, owner string, raw json.RawMessage, typ reflect.Type) {
+	t.Helper()
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("%s schema unmarshal error = %v", owner, err)
+	}
+	assertSchemaNodeDeclaresType(t, owner, schema, typ)
+}
+
+func assertSchemaNodeDeclaresType(t *testing.T, owner string, schema map[string]any, typ reflect.Type) {
+	t.Helper()
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+	if typ.Implements(reflect.TypeFor[json.Marshaler]()) ||
+		reflect.PointerTo(typ).Implements(reflect.TypeFor[json.Marshaler]()) {
+		return
+	}
+	switch typ.Kind() {
+	case reflect.Struct:
+		properties, _ := schema["properties"].(map[string]any)
+		closed := schema["additionalProperties"] == false
+		fields := payloadJSONFields(typ)
+		for name, field := range fields {
+			child, declared := properties[name].(map[string]any)
+			if !declared {
+				if closed {
+					t.Errorf("%s: %s emits %q, which the closed schema does not declare", owner, typ, name)
+				}
+				continue
+			}
+			assertSchemaNodeDeclaresType(t, owner+"."+name, child, field.Type)
+		}
+		required, _ := schema["required"].([]any)
+		for _, value := range required {
+			name, _ := value.(string)
+			field, ok := fields[name]
+			switch {
+			case !ok:
+				t.Errorf("%s: schema requires %q, which %s never emits", owner, name, typ)
+			case field.optional:
+				t.Errorf("%s: schema requires %q, which %s omits when empty", owner, name, typ)
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		if items, ok := schema["items"].(map[string]any); ok {
+			assertSchemaNodeDeclaresType(t, owner+"[]", items, typ.Elem())
+		}
+	case reflect.String:
+		enum, ok := schema["enum"].([]any)
+		if !ok || typ.PkgPath() == "" {
+			return
+		}
+		for _, value := range namedStringConstants(t, typ) {
+			if !slices.Contains(enum, any(value)) {
+				t.Errorf("%s: %s value %q is missing from the schema enum %v", owner, typ, value, enum)
+			}
+		}
+	default:
+	}
+}
+
+type payloadJSONField struct {
+	Type     reflect.Type
+	optional bool
+}
+
+func payloadJSONFields(typ reflect.Type) map[string]payloadJSONField {
+	fields := make(map[string]payloadJSONField, typ.NumField())
+	for field := range typ.Fields() {
+		if !field.IsExported() {
+			continue
+		}
+		tag := field.Tag.Get("json")
+		if tag == "-" {
+			continue
+		}
+		name, options, _ := strings.Cut(tag, ",")
+		if field.Anonymous && name == "" {
+			embedded := field.Type
+			if embedded.Kind() == reflect.Pointer {
+				embedded = embedded.Elem()
+			}
+			maps.Copy(fields, payloadJSONFields(embedded))
+			continue
+		}
+		if name == "" {
+			name = field.Name
+		}
+		optional := slices.ContainsFunc(strings.Split(options, ","), func(option string) bool {
+			return option == "omitempty" || option == "omitzero"
+		})
+		fields[name] = payloadJSONField{Type: field.Type, optional: optional}
+	}
+	return fields
+}
+
+// namedStringConstants reads the string constants declared for a named type from its package
+// source, so a new constant reaches the enum check without a hand-maintained list.
+func namedStringConstants(t *testing.T, typ reflect.Type) []string {
+	t.Helper()
+	const module = "github.com/compozy/compozy/"
+	relative, ok := strings.CutPrefix(typ.PkgPath(), module)
+	if !ok {
+		return nil
+	}
+	dir := filepath.Join("..", "..", "..", filepath.FromSlash(relative))
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read %s source: %v", typ.PkgPath(), err)
+	}
+	fset := token.NewFileSet()
+	var values []string
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.SkipObjectResolution)
+		if err != nil {
+			t.Fatalf("parse %s: %v", name, err)
+		}
+		values = append(values, fileStringConstants(file, typ.Name())...)
+	}
+	return values
+}
+
+func fileStringConstants(file *ast.File, typeName string) []string {
+	var values []string
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			valueSpec, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			ident, ok := valueSpec.Type.(*ast.Ident)
+			if !ok || ident.Name != typeName {
+				continue
+			}
+			for _, expr := range valueSpec.Values {
+				literal, ok := expr.(*ast.BasicLit)
+				if !ok || literal.Kind != token.STRING {
+					continue
+				}
+				if value, err := strconv.Unquote(literal.Value); err == nil {
+					values = append(values, value)
+				}
+			}
+		}
+	}
+	return values
 }
 
 func TestTerminalDescriptorsShouldKeepObserveOnlyAgentsReadOnly(t *testing.T) { // IT-026

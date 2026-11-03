@@ -112,6 +112,15 @@ func TestInstancePausedRuntimeIntegration(t *testing.T) {
 		if err != nil || held.Status != store.SessionPromptResultStatusQueued || held.Delivery != "held" {
 			t.Fatalf("held=%+v %v", held, err)
 		}
+		heldPayload, err := core.PromptResultPayloadFromSession(held)
+		if err != nil {
+			t.Fatal(err)
+		}
+		heldResult, err := json.Marshal(map[string]any{"prompt": heldPayload})
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireSessionPromptOutputSchemaAccepts(t, heldResult)
 		inputs, err := manager.ListPendingInputs(t.Context(), main.ID)
 		if err != nil || len(inputs) != 1 || !core.SessionInputPayloadFromSession(inputs[0]).Held {
 			t.Fatalf("held queue projection: %+v %v", inputs, err)

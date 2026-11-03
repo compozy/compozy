@@ -11,7 +11,7 @@ bug_ids: none
 fix_status: not-applicable
 retest_status: pass
 fix_commits: pending
-evidence: internal/daemon/subagent_integration_test.go TestSessionMessageOriginDaemonIntegration; internal/session/manager_busy_input_test.go TestManagerPromptOriginDelivery and TestManagerPromptOriginHopFence; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+evidence: internal/daemon/subagent_integration_test.go TestSessionMessageOriginDaemonIntegration and TestReplyWatchNativeIntegration (output schema, #1186); internal/session/manager_busy_input_test.go TestManagerPromptOriginDelivery and TestManagerPromptOriginHopFence; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
 last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: RT-session-message-reply; ET-web-session-message-card
 ---
@@ -112,9 +112,15 @@ Busy-target policy regression (#760)
    Restart the daemon, confirm the row remains held, then resume as operator. It is delivered once.
 4. A human prompt on the paused main runs without resuming autonomy; a check cannot call the message
    tool, and a missing name produces `agent_instance_not_found`.
+5. From a stays-on main, message a fresh idle child it created (`--parent`), with `runtime` set. The
+   receipt reports `delivery: queued` and `target_session_id`, and the caller's MCP client accepts it:
+   no "does not match the tool's output schema" error and no "Could not send" card (#1186). Validate
+   the `structuredContent` against the advertised output schema for direct, queued and held receipts.
 
 Automated backend owners: `TestAgentInstancePeers`, `TestGlobalDBSessionPromptAdmission`,
 `TestInstanceContextExhaustionIntegration` and `TestInstancePausedRuntimeIntegration`.
 The real ACP journeys cover successor delivery and restart retention.
 
 QA verification 2026-11-03 (stays-on peer addressing, soh/qa 583415ef5, isolated acpmock lab): Partial. `agent instance list --peers` returned name/description/scope/state rows. A native `compozy__session_prompt` with `agent: release-watch`, sent while it was paused, returned `delivery: held`. The queue row was `held: true` and stayed held with `unattended_turns` unchanged across a daemon restart. An operator resume delivered it in one turn (`turn-2b4a49e90d7d9360`), and a second resume added no prompt (`restart-retention.txt`). A human prompt on a paused main ran without resuming autonomy. A missing name returned code `agent_instance_not_found`, but the message is "Internal Server Error" (paper cut). Not walked: delivery to a rotated peer's successor, the denied-workspace peer filter, and a check calling the message tool.
+
+QA verification 2026-11-03 (#1186, isolated acpmock lab on the fix branch): Pass for step 5. A stays-on main sent `compozy__session_prompt` with `runtime` to its fresh idle child through the hosted MCP proxy and got `delivery: queued` with `target_session_id`. The MCP TypeScript SDK's AJV validator accepted that `structuredContent` against the advertised schema; the same receipt against the previous schema reproduced the reported error verbatim. Held and direct receipts are owned by `TestInstancePausedRuntimeIntegration` and `TestReplyWatchNativeIntegration`.
