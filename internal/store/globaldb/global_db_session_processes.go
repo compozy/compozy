@@ -14,7 +14,7 @@ func (g *SessionProcessRepo) LoadProcessObservations(ctx context.Context) ([]ses
 	if err := g.checkReady(ctx, "load process observations"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListSessionProcessObservations(ctx)
+	rows, err := g.readQueries.ListSessionProcessObservations(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: load process observations: %w", err)
 	}

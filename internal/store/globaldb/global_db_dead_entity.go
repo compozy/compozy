@@ -95,7 +95,7 @@ func (g *DeadEntityRepo) FindDeadEntity(
 		return store.DeadEntity{}, false, err
 	}
 	row := sqlcgen.DeadEntity{}
-	err := g.db.QueryRowContext(ctx, `SELECT profile_id, workspace_id, kind, entity_id, reason, marked_at
+	err := g.readDB.QueryRowContext(ctx, `SELECT profile_id, workspace_id, kind, entity_id, reason, marked_at
 		FROM dead_entities WHERE profile_id = ? AND workspace_id = ? AND kind = ? AND entity_id = ?`,
 		key.ProfileID, key.WorkspaceID, string(key.Kind), key.EntityID,
 	).Scan(&row.ProfileID, &row.WorkspaceID, &row.Kind, &row.EntityID, &row.Reason, &row.MarkedAt)
@@ -144,7 +144,7 @@ func (g *DeadEntityRepo) ListDeadEntities(
 		store.ReadScopeClause("d.profile_id", readScope),
 		store.StringClause("d.workspace_id", trimmedWorkspaceID),
 	)
-	rows, err := g.db.QueryContext(ctx, statement, args...)
+	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: list dead entities for workspace %q: %w", trimmedWorkspaceID, err)
 	}

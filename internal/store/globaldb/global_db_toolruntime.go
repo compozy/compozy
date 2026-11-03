@@ -97,7 +97,7 @@ func (g *ToolRuntimeRepo) ListProcessRecords(
 
 	// dynamic-sql: optional ID/state sets, owner scope fields, source, and limit change the statement shape.
 	sqlQuery, args := toolProcessListQuery(query)
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: list tool process records: %w", err)
 	}

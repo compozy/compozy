@@ -60,7 +60,7 @@ func (g *LoopRepo) queryDueLoopRetryRows(
 			looppkg.ErrValidation,
 		)
 	}
-	rows, err := g.db.QueryContext(
+	rows, err := g.readDB.QueryContext(
 		ctx,
 		`SELECT run.workspace_id, output.loop_run_id, output.generation, output.node_id,
 		        output.item_index, output.attempt, output.epoch, output.next_attempt_at

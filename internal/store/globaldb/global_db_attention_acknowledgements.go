@@ -93,7 +93,7 @@ func (r *NotificationRepo) AcknowledgeAttentionSnapshot(
 	if err := scope.Validate(); err != nil {
 		return err
 	}
-	raw, err := r.queries.GetAttentionSnapshot(ctx, sqlcgen.GetAttentionSnapshotParams{
+	raw, err := r.readQueries.GetAttentionSnapshot(ctx, sqlcgen.GetAttentionSnapshotParams{
 		ID: snapshot, ProfileID: scope.ProfileID, ActorKind: scope.ActorKind, ActorID: scope.ActorID,
 		Population: scope.Population, Now: store.FormatTimestamp(r.now()),
 	})

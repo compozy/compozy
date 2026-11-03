@@ -23,7 +23,7 @@ func (g *LoopRepo) LookupRerunReplay(
 	if err := g.checkReady(ctx, "lookup Loop rerun replay"); err != nil {
 		return looppkg.RerunResult{}, false, err
 	}
-	prior, found, err := getTimeTravelReplay(ctx, g.db, workspaceID, key)
+	prior, found, err := getTimeTravelReplay(ctx, g.readDB, workspaceID, key)
 	if err != nil || !found {
 		return looppkg.RerunResult{}, found, err
 	}
@@ -70,7 +70,7 @@ func (g *LoopRepo) ListForks(
 	if err := g.checkReady(ctx, "list Loop forks"); err != nil {
 		return nil, err
 	}
-	rows, err := g.db.QueryContext(ctx, `SELECT id, forked_from_generation FROM loop_runs
+	rows, err := g.readDB.QueryContext(ctx, `SELECT id, forked_from_generation FROM loop_runs
 		WHERE workspace_id = ? AND forked_from_run_id = ? ORDER BY created_at ASC, id ASC`, workspaceID, runID)
 	if err != nil {
 		return nil, fmt.Errorf("store: list Loop forks: %w", err)

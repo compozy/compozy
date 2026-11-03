@@ -20,7 +20,7 @@ func (r *AttentionRepo) ListAttentionWorkspaceMutes(ctx context.Context, profile
 	if profileID == "" {
 		return nil, errors.New("store: attention profile id is required")
 	}
-	workspaceIDs, err := r.queries.ListAttentionWorkspaceMutes(ctx, profileID)
+	workspaceIDs, err := r.readQueries.ListAttentionWorkspaceMutes(ctx, profileID)
 	if err != nil {
 		return nil, fmt.Errorf("store: list attention workspace mutes for profile %q: %w", profileID, err)
 	}
@@ -40,7 +40,7 @@ func (r *AttentionRepo) IsAttentionWorkspaceMuted(
 	if profileID == "" || workspaceID == "" {
 		return false, errors.New("store: attention profile id and workspace id are required")
 	}
-	muted, err := r.queries.IsAttentionWorkspaceMuted(ctx, sqlcgen.IsAttentionWorkspaceMutedParams{
+	muted, err := r.readQueries.IsAttentionWorkspaceMuted(ctx, sqlcgen.IsAttentionWorkspaceMutedParams{
 		ProfileID: profileID, WorkspaceID: workspaceID,
 	})
 	if err != nil {

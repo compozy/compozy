@@ -54,7 +54,7 @@ func (g *HeartbeatRepo) GetHeartbeatWakeState(
 		)
 	}
 
-	row, err := g.queries.GetHeartbeatWakeState(ctx, sqlcgen.GetHeartbeatWakeStateParams{
+	row, err := g.readQueries.GetHeartbeatWakeState(ctx, sqlcgen.GetHeartbeatWakeStateParams{
 		WorkspaceID: workspaceID, AgentName: agentName, SessionID: sessionID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -100,7 +100,7 @@ func (g *HeartbeatRepo) ListHeartbeatWakeState(
 	sqlQuery += " ORDER BY updated_at DESC, session_id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query heartbeat wake state: %w", err)
 	}
@@ -273,7 +273,7 @@ func (g *HeartbeatRepo) GetHeartbeatWakeEvent(ctx context.Context, id string) (h
 		return heartbeat.WakeEvent{}, fmt.Errorf("%w: id is required", heartbeat.ErrInvalidWakeEvent)
 	}
 
-	row, err := g.queries.GetHeartbeatWakeEvent(ctx, trimmedID)
+	row, err := g.readQueries.GetHeartbeatWakeEvent(ctx, trimmedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return heartbeat.WakeEvent{}, fmt.Errorf(
 			"store: heartbeat wake event %q: %w",
@@ -320,7 +320,7 @@ func (g *HeartbeatRepo) ListHeartbeatWakeEvents(
 	sqlQuery += heartbeatOrderByCreatedDesc
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query heartbeat wake events: %w", err)
 	}
@@ -355,7 +355,7 @@ func (g *HeartbeatRepo) SweepHeartbeatWakeEvents(ctx context.Context, cutoff tim
 	if limit <= 0 {
 		return 0, fmt.Errorf("%w: retention limit must be positive", heartbeat.ErrInvalidWakeEvent)
 	}
-	expired, err := g.queries.HasExpiredHeartbeatWakeEvents(ctx, store.FormatTimestamp(cutoff))
+	expired, err := g.readQueries.HasExpiredHeartbeatWakeEvents(ctx, store.FormatTimestamp(cutoff))
 	if err != nil {
 		return 0, fmt.Errorf("store: find expired heartbeat wake events: %w", err)
 	}

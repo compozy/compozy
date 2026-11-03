@@ -16,23 +16,27 @@ import (
 )
 
 type repoBase struct {
-	db       *sql.DB
-	queries  *sqlcgen.Queries
-	path     string
-	now      func() time.Time
-	closed   *atomic.Int32
-	tasks    *TaskRepo
-	sessions *SessionRepo
+	db          *sql.DB
+	readDB      *sql.DB
+	queries     *sqlcgen.Queries
+	readQueries *sqlcgen.Queries
+	path        string
+	now         func() time.Time
+	closed      *atomic.Int32
+	tasks       *TaskRepo
+	sessions    *SessionRepo
 
 	outboxSignals *outboxSignalHub
 }
 
-func newRepoBase(db *sql.DB, now func() time.Time, closed *atomic.Int32) *repoBase {
+func newRepoBase(db, readDB *sql.DB, now func() time.Time, closed *atomic.Int32) *repoBase {
 	return &repoBase{
-		db:      db,
-		queries: sqlcgen.New(db),
-		now:     now,
-		closed:  closed,
+		db:          db,
+		readDB:      readDB,
+		queries:     sqlcgen.New(db),
+		readQueries: sqlcgen.New(readDB),
+		now:         now,
+		closed:      closed,
 
 		outboxSignals: &outboxSignalHub{},
 	}
@@ -120,7 +124,7 @@ type CmdPaletteRepo struct{ *repoBase }
 type WorktreeRepo struct{ *repoBase }
 
 func (g *GlobalDB) initializeRepositories(config openConfig) {
-	base := newRepoBase(g.db, func() time.Time { return g.now() }, &g.closed)
+	base := newRepoBase(g.db, g.readDB, func() time.Time { return g.now() }, &g.closed)
 	base.path = g.path
 	g.WorkspaceRepo = &WorkspaceRepo{
 		repoBase:   base,

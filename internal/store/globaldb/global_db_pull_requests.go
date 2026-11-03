@@ -29,7 +29,7 @@ func (g *WorktreeRepo) ReadPullRequests(
 	if err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ReadForgePullRequests(ctx, string(data))
+	rows, err := g.readQueries.ReadForgePullRequests(ctx, string(data))
 	if err != nil {
 		return nil, fmt.Errorf("store: read pull requests: %w", err)
 	}

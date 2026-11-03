@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -18,6 +19,272 @@ import (
 	"github.com/compozy/compozy/internal/testutil"
 	"modernc.org/sqlite"
 )
+
+func TestBackgroundWrites(t *testing.T) {
+	t.Run("Should coalesce concurrent writes and isolate each rejected item", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "batch.db"))
+		if _, err := db.ExecContext(ctx, `CREATE TABLE items (id INTEGER PRIMARY KEY)`); err != nil {
+			t.Fatal(err)
+		}
+		admission, unregister := registerWriteAdmission(db)
+		defer unregister()
+		release, err := admission.acquire(ctx, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		release = sync.OnceFunc(release)
+		defer release()
+		writer := NewBackgroundWriter(db)
+		t.Cleanup(func() {
+			if err := writer.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		const count = 30
+		results := make(chan error, count)
+		rejected := errors.New("reject item")
+		transactions := make(map[uint64]bool)
+		for id := range count {
+			item := &backgroundWrite{ctx: ctx, operation: "record observation", result: results}
+			item.fn = func(ctx context.Context, tx *WriteTx) error {
+				writeOwners.Lock()
+				transactions[writeOwners.active[db].id] = true
+				writeOwners.Unlock()
+				if _, err := tx.ExecContext(ctx, `INSERT INTO items VALUES (?)`, id); err != nil {
+					return err
+				}
+				if id == 7 {
+					return rejected
+				}
+				return nil
+			}
+			if err := writer.enqueue(item); err != nil {
+				t.Fatal(err)
+			}
+		}
+		closed := make(chan error, 1)
+		go func() { closed <- writer.Close(ctx) }()
+		<-writer.closing
+		release()
+		if err := <-closed; err != nil {
+			t.Fatal(err)
+		}
+		failures := 0
+		for range count {
+			if err := <-results; err != nil {
+				if !errors.Is(err, rejected) {
+					t.Fatal(err)
+				}
+				failures++
+			}
+		}
+		var persisted, rejectedRows int
+		if err := db.QueryRowContext(ctx, `SELECT count(*), count(*) FILTER (WHERE id = 7) FROM items`).
+			Scan(&persisted, &rejectedRows); err != nil {
+			t.Fatal(err)
+		}
+		if failures != 1 || persisted != count-1 || rejectedRows != 0 {
+			t.Fatalf("failures=%d rows=%d rejected=%d", failures, persisted, rejectedRows)
+		}
+		if len(transactions) >= count {
+			t.Fatalf("concurrent writes used %d transactions for %d items", len(transactions), count)
+		}
+		if err := writer.Submit(
+			ctx,
+			"after close",
+			func(context.Context, *WriteTx) error { return nil },
+		); !errors.Is(
+			err,
+			ErrClosed,
+		) {
+			t.Fatalf("submission after close: %v", err)
+		}
+	})
+
+	t.Run("Should prioritize interactive writes over queued background writes", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "priority.db"))
+		admission, unregister := registerWriteAdmission(db)
+		defer unregister()
+		release, err := admission.acquire(ctx, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		release = sync.OnceFunc(release)
+		defer release()
+		order := make(chan string, 2)
+		results := make(chan error, 2)
+		cfg := defaultExecuteWriteConfig()
+		cfg.background = true
+		go func() {
+			results <- executeWrite(ctx, db, cfg, func(context.Context, *WriteTx) error {
+				order <- "background"
+				return nil
+			})
+		}()
+		go func() {
+			results <- ExecuteWrite(ctx, db, func(context.Context, *WriteTx) error {
+				order <- "interactive"
+				return nil
+			})
+		}()
+		waitForWriteCondition(t, admission.interactiveWaiting)
+		release()
+		for range 2 {
+			if err := <-results; err != nil {
+				t.Fatal(err)
+			}
+		}
+		if first := <-order; first != "interactive" {
+			t.Fatalf("first write = %q", first)
+		}
+	})
+
+	t.Run("Should cancel a waiting item and reject reentry without discarding its peers", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "batch-cancel.db"))
+		admission, unregister := registerWriteAdmission(db)
+		defer unregister()
+		release, err := admission.acquire(ctx, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		release = sync.OnceFunc(release)
+		defer release()
+		writer := NewBackgroundWriter(db)
+		t.Cleanup(func() {
+			if err := writer.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		waitCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		result := make(chan error, 1)
+		go func() {
+			result <- writer.Submit(waitCtx, "canceled item", func(context.Context, *WriteTx) error {
+				t.Error("canceled callback ran")
+				return nil
+			})
+		}()
+		waitForWriteCondition(t, func() bool { return len(writer.slots) == 1 })
+		cancel()
+		if err := <-result; !errors.Is(err, context.Canceled) {
+			t.Fatalf("canceled submission = %v", err)
+		}
+		release()
+		err = writer.Submit(ctx, "outer item", func(ctx context.Context, _ *WriteTx) error {
+			return writer.Submit(ctx, "nested item", func(context.Context, *WriteTx) error { return nil })
+		})
+		if !errors.Is(err, errWriteReentry) {
+			t.Fatalf("nested submission = %v", err)
+		}
+		if err := writer.Submit(ctx, "healthy peer", func(context.Context, *WriteTx) error { return nil }); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should isolate cancellation and mutation fences from successful peers", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "batch-fence.db"))
+		if _, err := db.ExecContext(ctx, `CREATE TABLE items (id TEXT PRIMARY KEY)`); err != nil {
+			t.Fatal(err)
+		}
+		writer := NewBackgroundWriter(db)
+		t.Cleanup(func() {
+			if err := writer.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		denied := errors.New("authorization changed")
+		fencedCtx := ContextWithMutationCommitFence(ctx, func(context.Context) error { return denied })
+		cancelCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		for _, tc := range []struct {
+			id   string
+			ctx  context.Context
+			want error
+		}{
+			{id: "canceled", ctx: cancelCtx, want: context.Canceled},
+			{id: "fenced", ctx: fencedCtx, want: denied},
+			{id: "committed", ctx: ctx},
+		} {
+			err := writer.Submit(tc.ctx, tc.id, func(ctx context.Context, tx *WriteTx) error {
+				if _, err := tx.ExecContext(ctx, `INSERT INTO items VALUES (?)`, tc.id); err != nil {
+					return err
+				}
+				if tc.id == "canceled" {
+					cancel()
+				}
+				return nil
+			})
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("%s: error = %v, want %v", tc.id, err, tc.want)
+			}
+		}
+		var count int
+		var id string
+		if err := db.QueryRowContext(ctx, `SELECT count(*), min(id) FROM items`).Scan(&count, &id); err != nil {
+			t.Fatal(err)
+		}
+		if count != 1 || id != "committed" {
+			t.Fatalf("persisted %d rows, first=%q", count, id)
+		}
+	})
+
+	t.Run("Should preserve a successful batch outcome when cancellation races commit", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		db := sql.OpenDB(&commitCancellationConnector{
+			sqliteDriver: &sqlite.Driver{},
+			dsn:          sqliteDSN(filepath.Join(t.TempDir(), "batch-commit-cancel.db")), cancel: cancel,
+		})
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := db.ExecContext(ctx, `CREATE TABLE items (id TEXT PRIMARY KEY)`); err != nil {
+			t.Fatal(err)
+		}
+		writer := NewBackgroundWriter(db)
+		t.Cleanup(func() {
+			if err := writer.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		err := writer.Submit(ctx, "commit with cancellation", func(ctx context.Context, tx *WriteTx) error {
+			_, err := tx.ExecContext(ctx, `INSERT INTO items VALUES ('committed')`)
+			return err
+		})
+		if err != nil || !errors.Is(ctx.Err(), context.Canceled) {
+			t.Fatalf("write=%v cancellation=%v", err, ctx.Err())
+		}
+		var count int
+		if err := db.QueryRowContext(t.Context(), `SELECT count(*) FROM items`).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("persisted=%d error=%v", count, err)
+		}
+	})
+}
+
+func waitForWriteCondition(t *testing.T, ready func() bool) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for !ready() {
+		select {
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for writer coordination")
+		case <-ticker.C:
+		}
+	}
+}
 
 func TestExecuteWrite(t *testing.T) {
 	// Invariant: storage failures remain distinguishable from cancellation and transaction contract errors.

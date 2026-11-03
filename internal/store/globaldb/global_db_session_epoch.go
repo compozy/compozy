@@ -21,7 +21,7 @@ func (g *SessionRepo) SessionTranscriptEpoch(ctx context.Context, sessionID stri
 		return 0, errors.New("store: session id is required")
 	}
 
-	epoch, err := g.queries.GetSessionTranscriptEpoch(ctx, target)
+	epoch, err := g.readQueries.GetSessionTranscriptEpoch(ctx, target)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return 0, fmt.Errorf("%w: %s", store.ErrSessionNotFound, target)

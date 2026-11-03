@@ -69,7 +69,7 @@ func (g *HeartbeatRepo) GetSessionHealth(ctx context.Context, sessionID string) 
 		return heartbeat.SessionHealth{}, fmt.Errorf("%w: session id is required", heartbeat.ErrInvalidSessionHealth)
 	}
 
-	row, err := g.queries.GetSessionHealth(ctx, trimmedID)
+	row, err := g.readQueries.GetSessionHealth(ctx, trimmedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return heartbeat.SessionHealth{}, fmt.Errorf(
 			"store: session health %q: %w",
@@ -115,7 +115,7 @@ func (g *HeartbeatRepo) ListSessionHealth(
 	sqlQuery += " ORDER BY updated_at DESC, session_id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	result, err := querySessionHealthRows(ctx, g.db, sqlQuery, args...)
+	result, err := querySessionHealthRows(ctx, g.readDB, sqlQuery, args...)
 	if err != nil {
 		return nil, err
 	}

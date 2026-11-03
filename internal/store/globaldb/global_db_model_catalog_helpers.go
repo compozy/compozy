@@ -139,7 +139,7 @@ func (g *ModelCatalogRepo) withModelCatalogReadTransaction(
 	action string,
 	run func(exec modelCatalogSQLExecutor) error,
 ) (err error) {
-	conn, err := g.db.Conn(ctx)
+	conn, err := g.readDB.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("store: open connection for %s: %w", action, err)
 	}

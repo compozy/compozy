@@ -27,7 +27,7 @@ func (g *SessionRepo) ListSessionFolders(
 	if err != nil {
 		return nil, err
 	}
-	return listSessionFolders(ctx, g.queries, scope)
+	return listSessionFolders(ctx, g.readQueries, scope)
 }
 
 // CreateSessionFolder inserts a folder at the top of the scope's folder order.
@@ -327,7 +327,7 @@ func (g *SessionRepo) SessionPlacements(
 	if err != nil {
 		return nil, fmt.Errorf("store: encode session placement ids: %w", err)
 	}
-	rows, err := g.queries.ListSessionPlacementsByIDs(ctx, string(encoded))
+	rows, err := g.readQueries.ListSessionPlacementsByIDs(ctx, string(encoded))
 	if err != nil {
 		return nil, fmt.Errorf("store: read session placements: %w", err)
 	}

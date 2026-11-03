@@ -139,7 +139,7 @@ func (g *TaskRepo) listExpiredTaskBlockCandidates(
 	ctx context.Context,
 	now time.Time,
 ) ([]taskBlockExpiryCandidate, error) {
-	rows, err := g.queries.ListExpiredTaskBlockCandidates(ctx, nullableTaskTime(now.UTC()))
+	rows, err := g.readQueries.ListExpiredTaskBlockCandidates(ctx, nullableTaskTime(now.UTC()))
 	if err != nil {
 		return nil, fmt.Errorf("store: query expired task blocks: %w", err)
 	}

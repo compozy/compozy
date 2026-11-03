@@ -24,7 +24,7 @@ func (g *LoopRepo) ListLoopRosterOutputs(
 	if strings.TrimSpace(string(runID)) == "" {
 		return nil, fmt.Errorf("%w: roster output scope is invalid", looppkg.ErrValidation)
 	}
-	rows, err := g.queries.ListLoopRosterOutputs(ctx, sqlcgen.ListLoopRosterOutputsParams{
+	rows, err := g.readQueries.ListLoopRosterOutputs(ctx, sqlcgen.ListLoopRosterOutputsParams{
 		LoopRunID: string(runID), WorkspaceID: string(workspaceID),
 	})
 	if err != nil {
@@ -61,7 +61,7 @@ func (g *LoopRepo) ListLoopRosterRouteCauses(
 	if strings.TrimSpace(string(runID)) == "" {
 		return nil, fmt.Errorf("%w: roster route-cause scope is invalid", looppkg.ErrValidation)
 	}
-	rows, err := g.queries.ListLoopRosterRouteCauses(ctx, sqlcgen.ListLoopRosterRouteCausesParams{
+	rows, err := g.readQueries.ListLoopRosterRouteCauses(ctx, sqlcgen.ListLoopRosterRouteCausesParams{
 		LoopRunID: string(runID), WorkspaceID: string(workspaceID),
 	})
 	if err != nil {

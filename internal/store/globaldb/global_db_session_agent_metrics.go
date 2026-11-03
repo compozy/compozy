@@ -52,7 +52,7 @@ func (g *SessionRepo) AggregateSessionsByAgent(
 	args = append([]any{store.FormatTimestamp(now)}, args...)
 
 	// dynamic-sql: exclusion slices and catalog visibility filters alter the aggregate query structure.
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query session agent metrics: %w", err)
 	}

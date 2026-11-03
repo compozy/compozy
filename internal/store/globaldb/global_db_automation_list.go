@@ -39,7 +39,7 @@ func (g *AutomationRepo) ListJobs(
 	if err := automation.ValidateJobListQuery(normalized); err != nil {
 		return automation.JobListPage{}, err
 	}
-	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := g.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return automation.JobListPage{}, fmt.Errorf("store: begin automation job catalog read: %w", err)
 	}
@@ -69,7 +69,7 @@ func (g *AutomationRepo) ListTriggers(
 	if err := automation.ValidateTriggerListQuery(normalized); err != nil {
 		return automation.TriggerListPage{}, err
 	}
-	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := g.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return automation.TriggerListPage{}, fmt.Errorf("store: begin automation trigger catalog read: %w", err)
 	}

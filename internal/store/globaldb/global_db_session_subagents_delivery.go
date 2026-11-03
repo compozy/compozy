@@ -135,7 +135,7 @@ func (g *SessionRepo) HasPendingSubagentWake(ctx context.Context, workspaceID, p
 	if err := g.checkReady(ctx, "read pending subagent wake"); err != nil {
 		return false, err
 	}
-	pending, err := g.queries.HasPendingSubagentWake(ctx, sqlcgen.HasPendingSubagentWakeParams{
+	pending, err := g.readQueries.HasPendingSubagentWake(ctx, sqlcgen.HasPendingSubagentWakeParams{
 		WorkspaceID: workspaceID, ParentSessionID: parentID,
 	})
 	return pending, err

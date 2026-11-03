@@ -33,10 +33,15 @@ func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*Glo
 		closeErr := db.Close()
 		return nil, errors.Join(err, closeErr)
 	}
+	readDB, err := store.OpenSQLiteReadPool(ctx, path)
+	if err != nil {
+		return nil, errors.Join(err, db.Close())
+	}
 
 	globalDB := &GlobalDB{
-		db:   db,
-		path: strings.TrimSpace(path),
+		db:     db,
+		readDB: readDB,
+		path:   strings.TrimSpace(path),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -104,9 +109,10 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 	}
 
 	// A reader retaining a WAL snapshot must not block database shutdown.
+	readCloseErr := g.readDB.Close()
 	checkpointErr := store.CheckpointPassive(ctx, g.db)
 	closeErr := g.db.Close()
-	return errors.Join(checkpointErr, closeErr)
+	return errors.Join(readCloseErr, checkpointErr, closeErr)
 }
 
 func openGlobalSQLite(ctx context.Context, path string, operatorHomeDir string) (*sql.DB, error) {

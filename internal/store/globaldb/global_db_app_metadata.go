@@ -23,7 +23,7 @@ func (g *AppMetadataRepo) GetAppMetadata(ctx context.Context, key string) (strin
 		return "", false, errors.New("store: app metadata key is required")
 	}
 
-	value, err := g.queries.GetAppMetadata(ctx, trimmed)
+	value, err := g.readQueries.GetAppMetadata(ctx, trimmed)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return "", false, nil

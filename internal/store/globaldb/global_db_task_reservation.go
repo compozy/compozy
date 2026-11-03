@@ -272,7 +272,7 @@ func (g *TaskRepo) GetTaskRunByIdempotencyKey(
 		return taskpkg.Run{}, err
 	}
 
-	runID, err := g.queries.GetTaskRunIDByIdempotency(ctx, sqlcgen.GetTaskRunIDByIdempotencyParams{
+	runID, err := g.readQueries.GetTaskRunIDByIdempotency(ctx, sqlcgen.GetTaskRunIDByIdempotencyParams{
 		IdempotencyKey: trimmedKey,
 		OriginKind:     string(normalizedOrigin.Kind),
 		OriginRef:      normalizedOrigin.Ref,
@@ -283,7 +283,7 @@ func (g *TaskRepo) GetTaskRunByIdempotencyKey(
 		}
 		return taskpkg.Run{}, fmt.Errorf("store: lookup task run idempotency %q: %w", trimmedKey, err)
 	}
-	return g.getTaskRunWithExecutor(ctx, g.db, runID)
+	return g.getTaskRunWithExecutor(ctx, g.readDB, runID)
 }
 
 // SaveTaskRunIdempotency inserts one origin-scoped idempotency binding for a persisted run.

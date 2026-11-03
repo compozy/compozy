@@ -148,7 +148,7 @@ func (g *SessionRepo) ListSessions(
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
 	// dynamic-sql: session catalog filters, resumability, ordering, and limit alter statement structure.
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query sessions: %w", err)
 	}
@@ -186,7 +186,7 @@ func (g *SessionRepo) SweepExpiredSessionAttachLocks(ctx context.Context, now ti
 	}
 	now = now.UTC()
 	nowRaw := store.FormatTimestamp(now)
-	expiredLocks, err := g.queries.CountExpiredSessionAttachLocks(ctx, nullableSessionTime(now))
+	expiredLocks, err := g.readQueries.CountExpiredSessionAttachLocks(ctx, nullableSessionTime(now))
 	if err != nil {
 		return 0, fmt.Errorf("store: count expired session attach locks: %w", err)
 	}
@@ -237,7 +237,7 @@ func (g *SessionRepo) AttachSession(ctx context.Context, req store.SessionAttach
 }
 
 func (g *SessionRepo) classifyAttachFailure(ctx context.Context, sessionID string, now time.Time) error {
-	row, err := g.queries.GetSessionAttachState(ctx, sessionID)
+	row, err := g.readQueries.GetSessionAttachState(ctx, sessionID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)

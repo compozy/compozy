@@ -114,7 +114,7 @@ func (g *VaultRepo) GetVaultSecret(ctx context.Context, ref string) (vault.Recor
 	if normalized == "" {
 		return vault.Record{}, errors.New("store: vault secret ref is required")
 	}
-	return getVaultSecretWithExecutor(ctx, g.db, normalized)
+	return getVaultSecretWithExecutor(ctx, g.readDB, normalized)
 }
 
 func getVaultSecretWithExecutor(ctx context.Context, exec globalSQLExecutor, ref string) (vault.Record, error) {
@@ -137,7 +137,7 @@ func (g *VaultRepo) ListVaultSecrets(ctx context.Context, prefix string) (_ []va
 	if err := g.checkReady(ctx, "list vault secrets"); err != nil {
 		return nil, err
 	}
-	return listVaultSecretsWithExecutor(ctx, g.db, prefix)
+	return listVaultSecretsWithExecutor(ctx, g.readDB, prefix)
 }
 
 func listVaultSecretsWithExecutor(

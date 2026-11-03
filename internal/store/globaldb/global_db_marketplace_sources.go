@@ -115,7 +115,7 @@ func (r *MarketplaceRepo) ReadMarketplaceCatalogSources(
 	if err := r.checkReady(ctx, "read marketplace sources"); err != nil {
 		return snapshot, err
 	}
-	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := r.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return snapshot, err
 	}

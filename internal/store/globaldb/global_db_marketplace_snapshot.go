@@ -17,7 +17,7 @@ func (r *MarketplaceRepo) ReadMarketplaceCatalogSnapshot(
 	if err := r.checkReady(ctx, "read marketplace catalog snapshot"); err != nil {
 		return snapshot, err
 	}
-	tx, err := r.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := r.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return snapshot, fmt.Errorf("store: begin marketplace snapshot: %w", err)
 	}

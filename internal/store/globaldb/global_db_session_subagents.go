@@ -74,7 +74,7 @@ func (g *SessionRepo) GetSubagent(ctx context.Context, workspaceID, id string) (
 	if err := g.checkReady(ctx, "get subagent"); err != nil {
 		return store.SessionSubagent{}, err
 	}
-	row, err := readSubagent(ctx, g.queries, id)
+	row, err := readSubagent(ctx, g.readQueries, id)
 	if err != nil {
 		return row, err
 	}
@@ -87,13 +87,13 @@ func (g *SessionRepo) GetSubagentByID(ctx context.Context, id string) (store.Ses
 	if err := g.checkReady(ctx, "get subagent by id"); err != nil {
 		return store.SessionSubagent{}, err
 	}
-	return readSubagent(ctx, g.queries, id)
+	return readSubagent(ctx, g.readQueries, id)
 }
 func (g *SessionRepo) GetSubagentByChild(ctx context.Context, id string) (store.SessionSubagent, error) {
 	if err := g.checkReady(ctx, "get subagent by child"); err != nil {
 		return store.SessionSubagent{}, err
 	}
-	row, err := g.queries.GetSubagentByChild(ctx, sql.NullString{String: id, Valid: true})
+	row, err := g.readQueries.GetSubagentByChild(ctx, sql.NullString{String: id, Valid: true})
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.SessionSubagent{}, store.ErrSubagentNotFound
 	}

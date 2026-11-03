@@ -58,7 +58,7 @@ func (g *ApprovalPendingRepo) GetApproval(
 	if err := g.requireApprovalOwner(ctx, approvalID); err != nil {
 		return toolspkg.ApprovalStatus{}, err
 	}
-	row, err := g.queries.GetPendingToolApproval(ctx, approvalID)
+	row, err := g.readQueries.GetPendingToolApproval(ctx, approvalID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return toolspkg.ApprovalStatus{}, toolspkg.ErrApprovalNotFound
 	}
@@ -152,7 +152,7 @@ func (g *ApprovalPendingRepo) ListPendingApprovals(
 	if err := g.checkReady(ctx, "list pending tool approvals"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListPendingToolApprovals(ctx)
+	rows, err := g.readQueries.ListPendingToolApprovals(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list pending tool approvals: %w", err)
 	}
@@ -164,7 +164,7 @@ func (g *ApprovalPendingRepo) approvalTransitionError(
 	approvalID string,
 	transitionErr error,
 ) error {
-	_, err := g.queries.GetPendingToolApproval(ctx, approvalID)
+	_, err := g.readQueries.GetPendingToolApproval(ctx, approvalID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return toolspkg.ErrApprovalNotFound
 	}
@@ -180,7 +180,7 @@ func (g *ApprovalPendingRepo) requireApprovalOwner(ctx context.Context, approval
 		return err
 	}
 	var storedProfileID string
-	if err := g.db.QueryRowContext(
+	if err := g.readDB.QueryRowContext(
 		ctx,
 		`SELECT profile_id FROM tool_approval_pending WHERE approval_id = ?`,
 		approvalID,

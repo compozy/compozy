@@ -47,7 +47,7 @@ func (g *TaskRepo) ListTaskEvents(ctx context.Context, query taskpkg.EventQuery)
 	}
 
 	normalized := normalizeTaskEventQuery(query)
-	rows, err := g.queries.ListTaskEvents(ctx, sqlcgen.ListTaskEventsParams{
+	rows, err := g.readQueries.ListTaskEvents(ctx, sqlcgen.ListTaskEventsParams{
 		TaskID:      normalized.TaskID,
 		RunID:       normalized.RunID,
 		EventType:   normalized.EventType,
@@ -88,7 +88,7 @@ func (g *TaskRepo) ListTaskEventsForTasks(ctx context.Context, taskIDs []string)
 	if err != nil {
 		return nil, fmt.Errorf("store: encode task event task ids: %w", err)
 	}
-	rows, err := g.queries.ListTaskEventsForTasks(ctx, string(encoded))
+	rows, err := g.readQueries.ListTaskEventsForTasks(ctx, string(encoded))
 	if err != nil {
 		return nil, fmt.Errorf("store: query task events for tasks: %w", err)
 	}
@@ -123,7 +123,7 @@ func (g *TaskRepo) TaskWakeEventExists(
 	if err != nil {
 		return false, err
 	}
-	recorded, err := g.queries.TaskWakeEventExists(ctx, sqlcgen.TaskWakeEventExistsParams{
+	recorded, err := g.readQueries.TaskWakeEventExists(ctx, sqlcgen.TaskWakeEventExistsParams{
 		TaskID:      trimmedTaskID,
 		WakeEventID: sql.NullString{String: trimmedWakeEventID, Valid: true},
 	})
@@ -149,7 +149,7 @@ func (g *TaskRepo) GetTaskEventRecord(ctx context.Context, eventID string) (task
 		return taskpkg.EventRecord{}, err
 	}
 
-	row, err := g.queries.GetTaskEventRecord(ctx, trimmedEventID)
+	row, err := g.readQueries.GetTaskEventRecord(ctx, trimmedEventID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return taskpkg.EventRecord{}, taskpkg.ErrTaskEventNotFound
@@ -172,7 +172,7 @@ func (g *TaskRepo) ListTaskEventRecords(
 	}
 
 	if query.Descending {
-		rows, err := g.queries.ListTaskEventRecordsDescending(ctx, sqlcgen.ListTaskEventRecordsDescendingParams{
+		rows, err := g.readQueries.ListTaskEventRecordsDescending(ctx, sqlcgen.ListTaskEventRecordsDescendingParams{
 			TaskID: strings.TrimSpace(query.TaskID), AfterSequence: query.AfterSequence,
 			ResultLimit: taskQueryLimit(query.Limit),
 		})
@@ -190,7 +190,7 @@ func (g *TaskRepo) ListTaskEventRecords(
 		return records, nil
 	}
 
-	rows, err := g.queries.ListTaskEventRecordsAscending(ctx, sqlcgen.ListTaskEventRecordsAscendingParams{
+	rows, err := g.readQueries.ListTaskEventRecordsAscending(ctx, sqlcgen.ListTaskEventRecordsAscendingParams{
 		TaskID: strings.TrimSpace(query.TaskID), AfterSequence: query.AfterSequence,
 		ResultLimit: taskQueryLimit(query.Limit),
 	})

@@ -148,19 +148,19 @@ func (r *CmdPaletteRepo) CmdPalettePersonalization(
 	if workspace == "" {
 		return cmdpalette.PersonalizationRows{}, errors.New("store: command palette workspace ID is required")
 	}
-	usageRows, err := r.queries.ListCmdPaletteUsage(ctx, sqlcgen.ListCmdPaletteUsageParams{
+	usageRows, err := r.readQueries.ListCmdPaletteUsage(ctx, sqlcgen.ListCmdPaletteUsageParams{
 		ProfileLensID: string(profileLensID), WorkspaceID: workspace,
 	})
 	if err != nil {
 		return cmdpalette.PersonalizationRows{}, fmt.Errorf("store: list command palette usage: %w", err)
 	}
-	queryRows, err := r.queries.ListCmdPaletteQueryHits(ctx, sqlcgen.ListCmdPaletteQueryHitsParams{
+	queryRows, err := r.readQueries.ListCmdPaletteQueryHits(ctx, sqlcgen.ListCmdPaletteQueryHitsParams{
 		ProfileLensID: string(profileLensID), WorkspaceID: workspace,
 	})
 	if err != nil {
 		return cmdpalette.PersonalizationRows{}, fmt.Errorf("store: list command palette query hits: %w", err)
 	}
-	pinRows, err := r.queries.ListCmdPalettePins(ctx, sqlcgen.ListCmdPalettePinsParams{
+	pinRows, err := r.readQueries.ListCmdPalettePins(ctx, sqlcgen.ListCmdPalettePinsParams{
 		ProfileLensID: string(profileLensID), WorkspaceID: workspace,
 	})
 	if err != nil {

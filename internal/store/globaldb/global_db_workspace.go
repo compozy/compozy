@@ -42,7 +42,7 @@ func (g *WorkspaceRepo) InsertWorkspace(ctx context.Context, ws compozyworkspace
 		return fmt.Errorf(
 			"store: insert workspace %q: %w",
 			normalized.ID,
-			mapWorkspaceWriteConstraintError(ctx, g.db, normalized, err),
+			mapWorkspaceWriteConstraintError(ctx, g.readDB, normalized, err),
 		)
 	}
 
@@ -71,7 +71,7 @@ func (g *WorkspaceRepo) UpdateWorkspace(ctx context.Context, ws compozyworkspace
 		return fmt.Errorf(
 			"store: update workspace %q: %w",
 			normalized.ID,
-			mapWorkspaceWriteConstraintError(ctx, g.db, normalized, err),
+			mapWorkspaceWriteConstraintError(ctx, g.readDB, normalized, err),
 		)
 	}
 
@@ -172,7 +172,7 @@ func (g *WorkspaceRepo) GetWorkspace(
 		return compozyworkspace.Workspace{}, errors.New("store: workspace id is required")
 	}
 
-	row, err := g.queries.GetWorkspace(ctx, trimmedID)
+	row, err := g.readQueries.GetWorkspace(ctx, trimmedID)
 	return workspaceFromGenerated(row, err)
 }
 
@@ -192,7 +192,7 @@ func (g *WorkspaceRepo) GetWorkspaceByPath(
 		)
 	}
 
-	row, err := g.queries.GetWorkspaceByPath(ctx, trimmedRoot)
+	row, err := g.readQueries.GetWorkspaceByPath(ctx, trimmedRoot)
 	return workspaceFromGenerated(row, err)
 }
 
@@ -210,9 +210,9 @@ func (g *WorkspaceRepo) GetWorkspaceByName(
 		return compozyworkspace.Workspace{}, errors.New("store: workspace name is required")
 	}
 
-	row, err := g.queries.GetWorkspaceByName(ctx, trimmedName)
+	row, err := g.readQueries.GetWorkspaceByName(ctx, trimmedName)
 	if errors.Is(err, sql.ErrNoRows) && trimmedName != workspaceaccess.UserSelector {
-		row, err = g.queries.GetWorkspaceByLegacyName(ctx, trimmedName)
+		row, err = g.readQueries.GetWorkspaceByLegacyName(ctx, trimmedName)
 		if err == nil {
 			slog.WarnContext(
 				ctx,
@@ -238,7 +238,7 @@ func (g *WorkspaceRepo) ListWorkspaces(ctx context.Context) ([]compozyworkspace.
 		return nil, err
 	}
 
-	rows, err := g.queries.ListWorkspaces(ctx)
+	rows, err := g.readQueries.ListWorkspaces(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: query workspaces: %w", err)
 	}

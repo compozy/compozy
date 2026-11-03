@@ -34,7 +34,7 @@ func (g *TaskRepo) ListTaskInbox(
 		return taskpkg.InboxPage{}, err
 	}
 
-	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := g.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return taskpkg.InboxPage{}, fmt.Errorf("store: begin task inbox read: %w", err)
 	}

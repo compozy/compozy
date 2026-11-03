@@ -81,7 +81,7 @@ func (g *SessionRepo) IndeterminatePromptReports(
 	ctx context.Context,
 	after string,
 ) ([]store.IndeterminatePromptReport, error) {
-	rows, err := g.queries.ListIndeterminatePromptReports(ctx, after)
+	rows, err := g.readQueries.ListIndeterminatePromptReports(ctx, after)
 	if err != nil {
 		return nil, err
 	}

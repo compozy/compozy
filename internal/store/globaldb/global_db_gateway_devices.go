@@ -62,7 +62,7 @@ func (g *GatewayRepo) ListDevices(ctx context.Context) ([]gateway.DeviceSession,
 	if err := g.checkReady(ctx, "list gateway devices"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListGatewayDevices(ctx)
+	rows, err := g.readQueries.ListGatewayDevices(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list gateway devices: %w", err)
 	}
@@ -81,7 +81,7 @@ func (g *GatewayRepo) GetDevice(ctx context.Context, deviceID string) (gateway.D
 	if err := g.checkReady(ctx, "get gateway device"); err != nil {
 		return gateway.DeviceSession{}, err
 	}
-	row, err := g.queries.GetGatewayDevice(ctx, deviceID)
+	row, err := g.readQueries.GetGatewayDevice(ctx, deviceID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return gateway.DeviceSession{}, gateway.ErrDeviceNotFound
 	}
@@ -205,7 +205,7 @@ func (g *GatewayRepo) RevalidateDeviceEpoch(ctx context.Context, deviceID string
 	if err != nil {
 		return err
 	}
-	matches, err := g.queries.GatewayDeviceEpochMatches(ctx, sqlcgen.GatewayDeviceEpochMatchesParams{
+	matches, err := g.readQueries.GatewayDeviceEpochMatches(ctx, sqlcgen.GatewayDeviceEpochMatchesParams{
 		ID: deviceID, RevokeEpoch: value,
 	})
 	if err != nil {
@@ -223,7 +223,7 @@ func (g *GatewayRepo) classifyDeviceMutationMiss(
 	actorEpoch int64,
 	targetID string,
 ) error {
-	matches, err := g.queries.GatewayDeviceEpochMatches(ctx, sqlcgen.GatewayDeviceEpochMatchesParams{
+	matches, err := g.readQueries.GatewayDeviceEpochMatches(ctx, sqlcgen.GatewayDeviceEpochMatchesParams{
 		ID: actorID, RevokeEpoch: actorEpoch,
 	})
 	if err != nil {
@@ -232,7 +232,7 @@ func (g *GatewayRepo) classifyDeviceMutationMiss(
 	if !matches {
 		return gateway.ErrDeviceRevoked
 	}
-	if _, err := g.queries.GetGatewayDevice(ctx, targetID); errors.Is(err, sql.ErrNoRows) {
+	if _, err := g.readQueries.GetGatewayDevice(ctx, targetID); errors.Is(err, sql.ErrNoRows) {
 		return gateway.ErrDeviceNotFound
 	} else if err != nil {
 		return fmt.Errorf("store: classify gateway device target: %w", err)

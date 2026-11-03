@@ -24,7 +24,7 @@ func (g *SessionRepo) SessionLaterState(
 		return nil, nil, err
 	}
 	sessionID = strings.TrimSpace(sessionID)
-	row, err := g.queries.GetSessionLaterState(ctx, sqlcgen.GetSessionLaterStateParams{
+	row, err := g.readQueries.GetSessionLaterState(ctx, sqlcgen.GetSessionLaterStateParams{
 		WorkspaceID: strings.TrimSpace(workspaceID),
 		ID:          sessionID,
 	})

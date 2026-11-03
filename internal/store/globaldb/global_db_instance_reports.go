@@ -17,7 +17,7 @@ type InstanceReportRepo struct{ *repoBase }
 var _ agentinstance.ReportStore = (*InstanceReportRepo)(nil)
 
 func (g *GlobalDB) InstanceReports() *InstanceReportRepo {
-	return &InstanceReportRepo{repoBase: newRepoBase(g.db, g.now, &g.closed)}
+	return &InstanceReportRepo{repoBase: newRepoBase(g.db, g.readDB, g.now, &g.closed)}
 }
 
 func (r *InstanceReportRepo) AppendReport(
@@ -50,7 +50,7 @@ func (r *InstanceReportRepo) AppendReport(
 	if err != nil {
 		return agentinstance.Report{}, fmt.Errorf("append instance report: %w", err)
 	}
-	row, err := r.queries.GetAgentInstanceReportBySource(
+	row, err := r.readQueries.GetAgentInstanceReportBySource(
 		ctx,
 		sqlcgen.GetAgentInstanceReportBySourceParams{SourceKey: input.SourceKey, InstanceID: instanceID},
 	)
@@ -74,7 +74,7 @@ func (r *InstanceReportRepo) ListReports(
 	if !q.AfterCreatedAt.IsZero() {
 		after = store.FormatTimestamp(q.AfterCreatedAt)
 	}
-	rows, err := r.queries.ListAgentInstanceReports(
+	rows, err := r.readQueries.ListAgentInstanceReports(
 		ctx,
 		sqlcgen.ListAgentInstanceReportsParams{
 			InstanceID:     q.InstanceID,
@@ -101,7 +101,7 @@ func (r *InstanceReportRepo) RecentReports(
 	if instanceID == "" || limit < 1 || limit > 100 {
 		return nil, errors.New("recent reports require instance and limit from 1 to 100")
 	}
-	rows, err := r.queries.ListRecentAgentInstanceReports(ctx, sqlcgen.ListRecentAgentInstanceReportsParams{
+	rows, err := r.readQueries.ListRecentAgentInstanceReports(ctx, sqlcgen.ListRecentAgentInstanceReportsParams{
 		InstanceID: instanceID, PageLimit: int64(limit),
 	})
 	if err != nil {
@@ -133,7 +133,7 @@ func (r *InstanceReportRepo) UnpublishedReports(
 	if limit < 1 {
 		return nil, errors.New("publication limit must be positive")
 	}
-	rows, err := r.queries.ListUnpublishedAgentInstanceReports(
+	rows, err := r.readQueries.ListUnpublishedAgentInstanceReports(
 		ctx,
 		sqlcgen.ListUnpublishedAgentInstanceReportsParams{AfterID: after, PageLimit: int64(limit)},
 	)
@@ -237,7 +237,7 @@ func (r *SessionRepo) ReportContextExhaustion(ctx context.Context, sessionID, tu
 	if err := r.checkReady(ctx, "report exhausted context"); err != nil {
 		return err
 	}
-	caller, err := r.queries.GetInstanceCaller(ctx, sessionID)
+	caller, err := r.readQueries.GetInstanceCaller(ctx, sessionID)
 	if err != nil {
 		return err
 	}
@@ -248,7 +248,7 @@ func (r *SessionRepo) ReportContextExhaustion(ctx context.Context, sessionID, tu
 	if id == "" {
 		return nil
 	}
-	instance, err := r.queries.GetAgentInstance(ctx, id)
+	instance, err := r.readQueries.GetAgentInstance(ctx, id)
 	if err != nil {
 		return err
 	}

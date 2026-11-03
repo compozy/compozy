@@ -24,7 +24,7 @@ func (g *SessionRepo) addTerminalApprovalFacets(
 	statement := sessionTerminalApprovalFacetStatement(where)
 
 	// dynamic-sql: eligible sessions share the owning catalog scope and visibility filters.
-	rows, err := g.db.QueryContext(ctx, statement, args...)
+	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return fmt.Errorf("store: query terminal approval facets: %w", err)
 	}

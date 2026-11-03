@@ -51,7 +51,7 @@ func (g *GoalRepo) ClaimGoalSessionOutbox(
 	if limit == 0 {
 		limit = 50
 	}
-	rows, err := sqlcgen.New(g.db).ClaimGoalSessionOutbox(ctx, int64(limit))
+	rows, err := g.readQueries.ClaimGoalSessionOutbox(ctx, int64(limit))
 	if err != nil {
 		return nil, fmt.Errorf("store: claim goal session outbox: %w", err)
 	}

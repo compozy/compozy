@@ -135,7 +135,7 @@ func (g *LoopRepo) queryLoopRunSummaryBase(
 	// dynamic-sql: the selected run IDs define the placeholder count; every value is parameterized.
 	// #nosec G201 -- the SQL body is constant and the only interpolation is generated question marks.
 	query := fmt.Sprintf(loopRunSummariesSQL, strings.Join(placeholders, ","))
-	rows, err := g.db.QueryContext(ctx, query, args...)
+	rows, err := g.readDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("store: list loop run summaries: %w", err)
 	}
@@ -218,7 +218,7 @@ func (g *LoopRepo) appendLoopRunSummaryForks(
 	// dynamic-sql: the selected run IDs define the placeholder count; every value is parameterized.
 	// #nosec G201 -- the SQL body is constant and the only interpolation is generated question marks.
 	query := fmt.Sprintf(loopRunSummaryForksSQL, strings.Join(placeholders, ","))
-	rows, err := g.db.QueryContext(ctx, query, args...)
+	rows, err := g.readDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("store: list Loop run summary forks: %w", err)
 	}

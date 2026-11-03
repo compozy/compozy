@@ -273,7 +273,7 @@ title, payload_json, status, created_at, resolved_at, resolution, resolved_by, e
 FROM session_pending_interactions
 WHERE session_id IN (SELECT id FROM selected_sessions) AND status IN (SELECT CAST(value AS TEXT) FROM json_each(?))
 ORDER BY created_at ASC, interaction_id ASC`
-	rows, queryErr := g.db.QueryContext(ctx, query, target, descendants, target, target, string(encodedStatuses))
+	rows, queryErr := g.readDB.QueryContext(ctx, query, target, descendants, target, target, string(encodedStatuses))
 	if queryErr != nil {
 		return nil, fmt.Errorf("store: query pending interactions: %w", queryErr)
 	}

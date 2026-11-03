@@ -8,8 +8,11 @@ import (
 )
 
 type writeAdmission struct {
-	busy  chan struct{}
-	users int
+	mu          sync.Mutex
+	changed     chan struct{}
+	busy        bool
+	interactive int
+	users       int
 }
 
 var writeAdmissions = struct {
@@ -23,7 +26,7 @@ func registerWriteAdmission(db *sql.DB) (*writeAdmission, func()) {
 	writeAdmissions.Lock()
 	admission := writeAdmissions.byDB[db]
 	if admission == nil {
-		admission = &writeAdmission{busy: make(chan struct{}, 1)}
+		admission = &writeAdmission{changed: make(chan struct{})}
 		writeAdmissions.byDB[db] = admission
 	}
 	admission.users++
@@ -40,14 +43,46 @@ func registerWriteAdmission(db *sql.DB) (*writeAdmission, func()) {
 
 // acquire waits for the local transaction owner without reserving a database
 // connection or spending the retry budget for actual SQLite BUSY responses.
-func (a *writeAdmission) acquire(ctx context.Context) (func(), error) {
-	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("store: wait for local sqlite writer admission: %w", err)
+func (a *writeAdmission) acquire(ctx context.Context, background bool) (func(), error) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if !background {
+		a.interactive++
+		defer func() {
+			a.interactive--
+			a.notify()
+		}()
 	}
-	select {
-	case a.busy <- struct{}{}:
-		return func() { <-a.busy }, nil
-	case <-ctx.Done():
-		return nil, fmt.Errorf("store: wait for local sqlite writer admission: %w", ctx.Err())
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("store: wait for local sqlite writer admission: %w", err)
+		}
+		if !a.busy && (!background || a.interactive == 0) {
+			a.busy = true
+			return func() {
+				a.mu.Lock()
+				defer a.mu.Unlock()
+				a.busy = false
+				a.notify()
+			}, nil
+		}
+		changed := a.changed
+		a.mu.Unlock()
+		select {
+		case <-changed:
+		case <-ctx.Done():
+		}
+		a.mu.Lock()
 	}
+}
+
+func (a *writeAdmission) notify() {
+	close(a.changed)
+	a.changed = make(chan struct{})
+}
+
+func (a *writeAdmission) interactiveWaiting() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.interactive > 0
 }

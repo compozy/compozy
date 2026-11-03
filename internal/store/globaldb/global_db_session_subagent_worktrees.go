@@ -41,7 +41,7 @@ func (g *SessionRepo) ListSubagentWorktreeCleanupPending(ctx context.Context) ([
 	if err := g.checkReady(ctx, "list subagent cleanup"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListSubagentWorktreeCleanupPending(ctx)
+	rows, err := g.readQueries.ListSubagentWorktreeCleanupPending(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +92,7 @@ func (g *SessionRepo) HasSubagentCommittedAdmission(ctx context.Context, ws, chi
 	if err := g.checkReady(ctx, "subagent admission evidence"); err != nil {
 		return false, err
 	}
-	n, err := g.queries.HasSubagentCommittedAdmission(
+	n, err := g.readQueries.HasSubagentCommittedAdmission(
 		ctx,
 		sqlcgen.HasSubagentCommittedAdmissionParams{WorkspaceID: ws, SessionID: child, SubagentID: id},
 	)

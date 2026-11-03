@@ -90,7 +90,7 @@ func (g *TaskRunRepo) ReadTaskRunResultPage(
 	if offset < 0 || limit < 0 || limit > taskpkg.MaxRunResultPageBytes {
 		return taskpkg.RunResultPage{}, taskpkg.ErrTaskRunResultInvalidRange
 	}
-	rows, err := g.db.QueryContext(
+	rows, err := g.readDB.QueryContext(
 		ctx,
 		`SELECT DISTINCT output.output_ref, blob.payload_json, blob.byte_size
 		 FROM loop_generation_outputs AS output

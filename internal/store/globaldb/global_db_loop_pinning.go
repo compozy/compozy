@@ -71,7 +71,7 @@ func (g *LoopRepo) GetLoopDefinitionSnapshot(
 	if trimmedDigest == "" {
 		return looppkg.DefinitionSnapshot{}, fmt.Errorf("%w: definition_digest is required", looppkg.ErrValidation)
 	}
-	row, err := g.queries.GetLoopDefinitionSnapshot(ctx, sqlcgen.GetLoopDefinitionSnapshotParams{
+	row, err := g.readQueries.GetLoopDefinitionSnapshot(ctx, sqlcgen.GetLoopDefinitionSnapshotParams{
 		ProfileID:   loopStateProfileID(ws, profileID),
 		WorkspaceID: string(ws), DefinitionDigest: trimmedDigest,
 	})
@@ -237,7 +237,7 @@ func (g *LoopRepo) ListLoopGateDecisions(
 	if trimmedGateID == "" {
 		return nil, fmt.Errorf("%w: gate_id is required", looppkg.ErrValidation)
 	}
-	rows, err := g.queries.ListLoopGateDecisions(ctx, sqlcgen.ListLoopGateDecisionsParams{
+	rows, err := g.readQueries.ListLoopGateDecisions(ctx, sqlcgen.ListLoopGateDecisionsParams{
 		WorkspaceID: string(ws), LoopRunID: string(runID), Generation: int64(generation), GateID: trimmedGateID,
 	})
 	if err != nil {

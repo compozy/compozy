@@ -30,7 +30,7 @@ func (g *GoalRepo) ClaimLoopSessionCleanup(
 	if limit == 0 {
 		limit = 50
 	}
-	rows, err := sqlcgen.New(g.db).ClaimLoopSessionCleanup(ctx, sqlcgen.ClaimLoopSessionCleanupParams{
+	rows, err := g.readQueries.ClaimLoopSessionCleanup(ctx, sqlcgen.ClaimLoopSessionCleanupParams{
 		UnsettledFailureCode: goalNullableString(goalBindingFailureStopCreationUnsettled), ClaimLimit: int64(limit),
 	})
 	if err != nil {

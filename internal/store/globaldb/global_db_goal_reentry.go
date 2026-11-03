@@ -29,7 +29,7 @@ func (g *GoalRepo) LoadAwaitingGoalControl(
 			looppkg.ErrValidation,
 		)
 	}
-	row, found, err := loadAwaitingGoalControlWithExecutor(ctx, g.db, workspaceID, runID)
+	row, found, err := loadAwaitingGoalControlWithExecutor(ctx, g.readDB, workspaceID, runID)
 	if err != nil || !found {
 		return looppkg.GoalControlState{}, found, err
 	}

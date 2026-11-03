@@ -41,6 +41,7 @@ type GlobalDB struct {
 	Worktrees *WorktreeRepo
 
 	db     *sql.DB
+	readDB *sql.DB
 	path   string
 	now    func() time.Time
 	closed atomic.Int32

@@ -35,11 +35,11 @@ func (r *InstanceRepo) CollectorFacts(
 		return scope, facts, fmt.Errorf("encode collector reach: %w", err)
 	}
 	key := sql.NullString{String: id, Valid: true}
-	scope.ChainSessionIDs, err = r.queries.ListInstanceCollectorChain(ctx, key)
+	scope.ChainSessionIDs, err = r.readQueries.ListInstanceCollectorChain(ctx, key)
 	if err != nil {
 		return scope, facts, fmt.Errorf("read collector chain: %w", err)
 	}
-	tasks, err := r.queries.ListInstanceCollectorTasks(
+	tasks, err := r.readQueries.ListInstanceCollectorTasks(
 		ctx,
 		sqlcgen.ListInstanceCollectorTasksParams{
 			InstanceID: key,
@@ -51,7 +51,7 @@ func (r *InstanceRepo) CollectorFacts(
 		return scope, facts, fmt.Errorf("collect tasks: %w", err)
 	}
 	facts.Tasks = collectorTaskFacts(tasks)
-	sessions, err := r.queries.ListInstanceCollectorSessions(
+	sessions, err := r.readQueries.ListInstanceCollectorSessions(
 		ctx,
 		sqlcgen.ListInstanceCollectorSessionsParams{
 			InstanceID: key,
@@ -63,7 +63,7 @@ func (r *InstanceRepo) CollectorFacts(
 		return scope, facts, fmt.Errorf("collect sessions: %w", err)
 	}
 	facts.Sessions = collectorSessionFacts(sessions)
-	runs, err := r.queries.ListInstanceCollectorAutomations(
+	runs, err := r.readQueries.ListInstanceCollectorAutomations(
 		ctx,
 		sqlcgen.ListInstanceCollectorAutomationsParams{
 			ProfileID:  sql.NullString{String: instance.ProfileID, Valid: true},

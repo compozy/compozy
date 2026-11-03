@@ -179,7 +179,7 @@ func (g *WatchEventsRepo) readWatchEventsCursor(
 		args := append([]any{query.workspaceID}, scopeArgs...)
 		args = append(args, kindArgs...)
 		return scanWatchEventCursor(
-			g.db.QueryRowContext(
+			g.readDB.QueryRowContext(
 				ctx,
 				`SELECT COALESCE(MAX(te.event_seq), 0)
 				   FROM task_events te
@@ -250,7 +250,7 @@ func (g *WatchEventsRepo) readTaskWatchEvents(
 	args = append(args, query.limit)
 	// dynamic-sql: caller-selected task event kinds require a variable-width IN list.
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
-	rows, err := g.db.QueryContext(
+	rows, err := g.readDB.QueryContext(
 		ctx,
 		`SELECT
 			te.event_seq,

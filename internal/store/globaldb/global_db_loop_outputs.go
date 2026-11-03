@@ -39,7 +39,7 @@ func (g *LoopRepo) ListGenerationOutputs(
 	if generation <= 0 {
 		return nil, fmt.Errorf("%w: generation must be positive", looppkg.ErrValidation)
 	}
-	rows, err := g.queries.ListLoopGenerationOutputs(ctx, sqlcgen.ListLoopGenerationOutputsParams{
+	rows, err := g.readQueries.ListLoopGenerationOutputs(ctx, sqlcgen.ListLoopGenerationOutputsParams{
 		LoopRunID: string(runID), Generation: int64(generation), WorkspaceID: string(workspaceID),
 	})
 	if err != nil {
@@ -164,7 +164,7 @@ func (g *LoopRepo) LookupLoopGenerationOutputStatus(
 			looppkg.ErrValidation,
 		)
 	}
-	status, err := g.queries.GetLoopGenerationOutputStatus(ctx, sqlcgen.GetLoopGenerationOutputStatusParams{
+	status, err := g.readQueries.GetLoopGenerationOutputStatus(ctx, sqlcgen.GetLoopGenerationOutputStatusParams{
 		LoopRunID: loopRunID, TaskRunID: nullString(taskRunID), WorkspaceID: workspaceID,
 	})
 	if err != nil {
@@ -199,7 +199,7 @@ func (g *LoopRepo) GetGenerationOutputPayload(
 	if !looppkg.OutputRefLooksContentAddressed(outputRef) {
 		return nil, fmt.Errorf("%w: output_ref is invalid: %q", looppkg.ErrValidation, outputRef)
 	}
-	raw, err := g.queries.GetLoopGenerationOutputPayload(
+	raw, err := g.readQueries.GetLoopGenerationOutputPayload(
 		ctx,
 		sqlcgen.GetLoopGenerationOutputPayloadParams{
 			LoopRunID:   runID,

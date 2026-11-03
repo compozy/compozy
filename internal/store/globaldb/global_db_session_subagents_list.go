@@ -111,17 +111,17 @@ func (g *SessionRepo) listSubagentRows(
 	limit := int64(q.Limit) + 1
 	switch {
 	case q.Order == store.SubagentOrderUrgency:
-		return g.queries.ListSubagentsByParentUrgency(ctx, sqlcgen.ListSubagentsByParentUrgencyParams{
+		return g.readQueries.ListSubagentsByParentUrgency(ctx, sqlcgen.ListSubagentsByParentUrgencyParams{
 			Workspace: q.WorkspaceID, Parent: q.ParentSessionID, Origins: origins, Statuses: statuses,
 			CursorID: pos.ID, CursorRank: int64(pos.Rank), CursorTime: pos.CreatedAt, PageLimit: limit,
 		})
 	case q.ParentSessionID != "":
-		return g.queries.ListSubagentsByParent(ctx, sqlcgen.ListSubagentsByParentParams{
+		return g.readQueries.ListSubagentsByParent(ctx, sqlcgen.ListSubagentsByParentParams{
 			Workspace: q.WorkspaceID, Parent: q.ParentSessionID, Origins: origins, Statuses: statuses,
 			CursorID: pos.ID, CursorTime: pos.CreatedAt, PageLimit: limit,
 		})
 	default:
-		return g.queries.ListSubagentsByWorkspace(ctx, sqlcgen.ListSubagentsByWorkspaceParams{
+		return g.readQueries.ListSubagentsByWorkspace(ctx, sqlcgen.ListSubagentsByWorkspaceParams{
 			Workspace: q.WorkspaceID, Origins: origins, Statuses: statuses,
 			CursorID: pos.ID, CursorTime: pos.CreatedAt, PageLimit: limit,
 		})
@@ -136,7 +136,7 @@ func (g *SessionRepo) Summaries(ctx context.Context, parentIDs []string) (map[st
 	if err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.SubagentSummaries(ctx, ids)
+	rows, err := g.readQueries.SubagentSummaries(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -169,7 +169,7 @@ func (g *SessionRepo) ListStaleReserved(ctx context.Context, olderThan time.Time
 	if err := g.checkReady(ctx, "list stale subagents"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListStaleReservedSubagents(ctx, store.FormatTimestamp(olderThan))
+	rows, err := g.readQueries.ListStaleReservedSubagents(ctx, store.FormatTimestamp(olderThan))
 	if err != nil {
 		return nil, err
 	}
@@ -179,7 +179,7 @@ func (g *SessionRepo) ListUnfinalizedDelegated(ctx context.Context) ([]store.Ses
 	if err := g.checkReady(ctx, "list unfinalized subagents"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListUnfinalizedDelegatedSubagents(ctx)
+	rows, err := g.readQueries.ListUnfinalizedDelegatedSubagents(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -192,9 +192,9 @@ func (g *SessionRepo) ListPending(ctx context.Context, parentID string) ([]store
 	var rows []sqlcgen.SessionSubagent
 	var err error
 	if parentID = strings.TrimSpace(parentID); parentID == "" {
-		rows, err = g.queries.ListPendingSubagents(ctx)
+		rows, err = g.readQueries.ListPendingSubagents(ctx)
 	} else {
-		rows, err = g.queries.ListPendingSubagentsByParent(ctx, parentID)
+		rows, err = g.readQueries.ListPendingSubagentsByParent(ctx, parentID)
 	}
 	if err != nil {
 		return nil, err
@@ -205,14 +205,14 @@ func (g *SessionRepo) ListOrphanSubagentSessions(ctx context.Context) ([]string,
 	if err := g.checkReady(ctx, "list orphan subagent sessions"); err != nil {
 		return nil, err
 	}
-	return g.queries.ListOrphanSubagentSessions(ctx)
+	return g.readQueries.ListOrphanSubagentSessions(ctx)
 }
 
 func (g *SessionRepo) ListUnfinalizedNative(ctx context.Context) ([]store.SessionSubagent, error) {
 	if err := g.checkReady(ctx, "list unfinalized native subagents"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListUnfinalizedNativeSubagents(ctx)
+	rows, err := g.readQueries.ListUnfinalizedNativeSubagents(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +231,7 @@ func (g *SessionRepo) ListNativeMissingResult(
 	if err := g.checkReady(ctx, "list native subagents missing results"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListNativeMissingResultSubagents(ctx, sqlcgen.ListNativeMissingResultSubagentsParams{
+	rows, err := g.readQueries.ListNativeMissingResultSubagents(ctx, sqlcgen.ListNativeMissingResultSubagentsParams{
 		Since:      sql.NullString{String: store.FormatTimestamp(since), Valid: true},
 		CursorID:   after.ID,
 		CursorTime: sql.NullString{String: store.FormatTimestamp(after.SettledAt), Valid: after.ID != ""},

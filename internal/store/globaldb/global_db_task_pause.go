@@ -133,7 +133,7 @@ func (g *TaskRepo) IsTaskEffectivelyPaused(ctx context.Context, taskID string) (
 	}
 	var pausedByTaskID string
 	// dynamic-sql: sqlc's SQLite analyzer cannot resolve this recursive ancestor walk.
-	err = g.db.QueryRowContext(
+	err = g.readDB.QueryRowContext(
 		ctx,
 		`WITH RECURSIVE chain(id, parent_task_id, paused, depth) AS (
 			SELECT id, parent_task_id, paused, 0

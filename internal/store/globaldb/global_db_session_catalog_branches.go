@@ -39,7 +39,7 @@ func (g *SessionRepo) SessionCatalogBranches(
  JOIN session_work_links l ON l.session_id = sessions.id AND l.workspace_id = sessions.workspace_id
  WHERE l.unlinked = 0 AND l.repo_key = json_extract(?, '$.' || json_quote(l.workspace_id))) AS sessions`
 	// dynamic-sql: reuse authorized catalog filters without loading session metadata or cutting a page.
-	rows, err := g.db.QueryContext(
+	rows, err := g.readDB.QueryContext(
 		ctx,
 		store.AppendWhere("SELECT DISTINCT workspace_id, refresh_branch FROM "+source, where),
 		append([]any{string(repos)}, args...)...)

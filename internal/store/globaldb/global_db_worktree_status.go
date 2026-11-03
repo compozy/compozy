@@ -52,7 +52,7 @@ func (g *WorktreeRepo) GetStatus(
 	if err := g.checkReady(ctx, "get worktree status"); err != nil {
 		return nil, err
 	}
-	row, err := g.queries.GetWorktreeStatus(ctx, sqlcgen.GetWorktreeStatusParams{
+	row, err := g.readQueries.GetWorktreeStatus(ctx, sqlcgen.GetWorktreeStatusParams{
 		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -118,7 +118,7 @@ func (g *WorktreeRepo) ListRunningExitOperations(ctx context.Context) ([]worktre
 	if err := g.checkReady(ctx, "list running worktree exit operations"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListRunningWorktreeExitOperations(ctx)
+	rows, err := g.readQueries.ListRunningWorktreeExitOperations(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list running worktree exit operations: %w", err)
 	}

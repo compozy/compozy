@@ -107,7 +107,7 @@ func (g *AutomationRepo) GetSuggestion(
 	if err != nil {
 		return automation.Suggestion{}, err
 	}
-	row, err := g.queries.GetAutomationSuggestion(ctx, sqlcgen.GetAutomationSuggestionParams{
+	row, err := g.readQueries.GetAutomationSuggestion(ctx, sqlcgen.GetAutomationSuggestionParams{
 		ProfileID:   profileID,
 		WorkspaceID: nullableAutomationString(workspaceID),
 		ID:          id,
@@ -142,14 +142,14 @@ func (g *AutomationRepo) ListSuggestions(
 	var rows []sqlcgen.AutomationSuggestion
 	var err error
 	if readScope.AllProfiles {
-		rows, err = g.queries.ListAutomationSuggestionsAllProfiles(
+		rows, err = g.readQueries.ListAutomationSuggestionsAllProfiles(
 			ctx,
 			sqlcgen.ListAutomationSuggestionsAllProfilesParams{
 				WorkspaceID: nullableAutomationString(workspaceID), Status: string(status),
 			},
 		)
 	} else {
-		rows, err = g.queries.ListAutomationSuggestions(ctx, sqlcgen.ListAutomationSuggestionsParams{
+		rows, err = g.readQueries.ListAutomationSuggestions(ctx, sqlcgen.ListAutomationSuggestionsParams{
 			ProfileID: readScope.ProfileID, WorkspaceID: nullableAutomationString(workspaceID), Status: string(status),
 		})
 	}
@@ -163,7 +163,7 @@ func (g *AutomationRepo) ListAcceptedSuggestions(ctx context.Context) ([]automat
 	if err := g.checkReady(ctx, "list accepted automation suggestions"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListAcceptedAutomationSuggestionsAllProfiles(ctx)
+	rows, err := g.readQueries.ListAcceptedAutomationSuggestionsAllProfiles(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list accepted automation suggestions: %w", err)
 	}

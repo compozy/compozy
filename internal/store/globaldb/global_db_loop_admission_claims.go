@@ -26,7 +26,7 @@ func (g *LoopRepo) GetAdmissionClaim(
 	if err := g.checkReady(ctx, "get admission claim"); err != nil {
 		return looppkg.AdmissionClaim{}, err
 	}
-	row, err := g.queries.GetLoopAdmissionClaim(ctx, sqlcgen.GetLoopAdmissionClaimParams{
+	row, err := g.readQueries.GetLoopAdmissionClaim(ctx, sqlcgen.GetLoopAdmissionClaimParams{
 		ProfileID:   loopStateProfileID(workspaceID, profileID),
 		WorkspaceID: string(workspaceID),
 		LoopName:    loopName,

@@ -91,7 +91,7 @@ func (g *SoulRepo) GetSoulSnapshot(ctx context.Context, id string) (soul.Snapsho
 		return soul.Snapshot{}, fmt.Errorf("%w: id is required", soul.ErrInvalidSnapshot)
 	}
 
-	row, err := g.queries.GetSoulSnapshot(ctx, trimmedID)
+	row, err := g.readQueries.GetSoulSnapshot(ctx, trimmedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return soul.Snapshot{}, fmt.Errorf("store: soul snapshot %q: %w", trimmedID, soul.ErrSnapshotNotFound)
 	}
@@ -126,7 +126,7 @@ func (g *SoulRepo) FindSoulSnapshotByDigest(
 		)
 	}
 
-	row, err := g.queries.GetSoulSnapshotByDigest(ctx, sqlcgen.GetSoulSnapshotByDigestParams{
+	row, err := g.readQueries.GetSoulSnapshotByDigest(ctx, sqlcgen.GetSoulSnapshotByDigestParams{
 		WorkspaceID: workspaceID, ProfileID: profileID, AgentName: agentName, Digest: digest,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -171,7 +171,7 @@ func (g *SoulRepo) ListSoulSnapshots(
 	sqlQuery += " ORDER BY created_at DESC, id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query soul snapshots: %w", err)
 	}
@@ -241,7 +241,7 @@ func (g *SoulRepo) GetSoulRevision(ctx context.Context, id string) (soul.Revisio
 		return soul.Revision{}, fmt.Errorf("%w: id is required", soul.ErrInvalidRevision)
 	}
 
-	row, err := g.queries.GetSoulRevision(ctx, trimmedID)
+	row, err := g.readQueries.GetSoulRevision(ctx, trimmedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return soul.Revision{}, fmt.Errorf("store: soul revision %q: %w", trimmedID, soul.ErrRevisionNotFound)
 	}
@@ -284,7 +284,7 @@ func (g *SoulRepo) ListSoulRevisions(
 	sqlQuery += " ORDER BY created_at DESC, id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query soul revisions: %w", err)
 	}
@@ -320,7 +320,7 @@ func (g *SoulRepo) FindSoulRevisionForRollback(
 		return soul.Revision{}, err
 	}
 
-	row, err := g.queries.GetSoulRevisionForRollback(ctx, sqlcgen.GetSoulRevisionForRollbackParams{
+	row, err := g.readQueries.GetSoulRevisionForRollback(ctx, sqlcgen.GetSoulRevisionForRollbackParams{
 		ProfileID: authoringProfileID(query.ProfileID), WorkspaceID: strings.TrimSpace(query.WorkspaceID),
 		AgentName:  strings.TrimSpace(query.AgentName),
 		SourcePath: strings.TrimSpace(query.SourcePath),

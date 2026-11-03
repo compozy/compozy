@@ -32,7 +32,7 @@ func (g *LoopRepo) ListGenerations(
 	if runID == "" {
 		return nil, fmt.Errorf("%w: workspace and loop run id are required", looppkg.ErrValidation)
 	}
-	rows, err := g.queries.ListLoopGenerations(ctx, sqlcgen.ListLoopGenerationsParams{
+	rows, err := g.readQueries.ListLoopGenerations(ctx, sqlcgen.ListLoopGenerationsParams{
 		WorkspaceID: workspaceID, LoopRunID: runID,
 	})
 	if err != nil {
@@ -65,7 +65,7 @@ func (g *LoopRepo) ListGateVerdicts(
 	if runID == "" || generation < 1 {
 		return nil, fmt.Errorf("%w: loop gate verdict identity is invalid", looppkg.ErrValidation)
 	}
-	rows, err := g.queries.ListLoopGateVerdicts(ctx, sqlcgen.ListLoopGateVerdictsParams{
+	rows, err := g.readQueries.ListLoopGateVerdicts(ctx, sqlcgen.ListLoopGateVerdictsParams{
 		WorkspaceID: workspaceID,
 		LoopRunID:   runID,
 		Generation:  generation,
@@ -90,7 +90,7 @@ func (g *LoopRepo) ListRouteCausingVerdicts(
 	if runID == "" || generation < 1 {
 		return nil, fmt.Errorf("%w: loop gate verdict identity is invalid", looppkg.ErrValidation)
 	}
-	rows, err := g.queries.ListRouteCausingLoopGateVerdicts(
+	rows, err := g.readQueries.ListRouteCausingLoopGateVerdicts(
 		ctx,
 		sqlcgen.ListRouteCausingLoopGateVerdictsParams{
 			WorkspaceID: workspaceID,

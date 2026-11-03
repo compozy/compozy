@@ -44,7 +44,7 @@ func (g *WatchEventsRepo) readAutomationWatchEventsCursor(
 	args = append(args, statusArgs...)
 	// #nosec G202 -- IN placeholders are generated from normalized status count; values are parameterized.
 	return scanWatchEventCursor(
-		g.db.QueryRowContext(
+		g.readDB.QueryRowContext(
 			ctx,
 			`SELECT COALESCE(MAX(awe.seq), 0)
 			   FROM automation_watch_events awe
@@ -73,7 +73,7 @@ func (g *WatchEventsRepo) readAutomationWatchEvents(
 	args = append(args, statusArgs...)
 	args = append(args, query.limit)
 	// #nosec G202 -- IN placeholders are generated from normalized status count; values are parameterized.
-	rows, err := g.db.QueryContext(
+	rows, err := g.readDB.QueryContext(
 		ctx,
 		`SELECT
 			awe.seq,

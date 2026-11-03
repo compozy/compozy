@@ -1335,7 +1335,7 @@ func TestSubagentWorktreePersistence(t *testing.T) {
 			t.Fatal(err)
 		}
 		now := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
-		old := &GlobalDB{db: prefix, path: path, now: func() time.Time { return now }}
+		old := &GlobalDB{db: prefix, readDB: prefix, path: path, now: func() time.Time { return now }}
 		old.initializeRepositories(openConfig{})
 		ws := registerWorkspaceForGlobalTests(t, old, "isolation-upgrade", t.TempDir())
 		insertPrefixRow(t, prefix, "sessions", map[string]any{

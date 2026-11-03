@@ -73,7 +73,7 @@ func (r *InstanceRepo) Occurrence(
 	if err := r.checkReady(ctx, "read instance occurrence"); err != nil {
 		return agentinstance.Occurrence{}, err
 	}
-	row, err := r.queries.GetInstanceOccurrence(
+	row, err := r.readQueries.GetInstanceOccurrence(
 		ctx,
 		sqlcgen.GetInstanceOccurrenceParams{InstanceID: instanceID, OccurrenceID: occurrenceID},
 	)

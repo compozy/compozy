@@ -48,7 +48,7 @@ func (g *WorkspaceRepo) GetWorkspaceDeletionIntent(
 	if workspaceID == "" {
 		return compozyworkspace.DeletionIntent{}, errors.New("store: workspace id is required")
 	}
-	row, err := g.queries.GetWorkspaceDeletionIntent(ctx, workspaceID)
+	row, err := g.readQueries.GetWorkspaceDeletionIntent(ctx, workspaceID)
 	return workspaceDeletionIntentFromGenerated(row, err)
 }
 
@@ -59,7 +59,7 @@ func (g *WorkspaceRepo) ListWorkspaceDeletionIntents(
 	if err := g.checkReady(ctx, "list workspace deletion intents"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListWorkspaceDeletionIntents(ctx)
+	rows, err := g.readQueries.ListWorkspaceDeletionIntents(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list workspace deletion intents: %w", err)
 	}

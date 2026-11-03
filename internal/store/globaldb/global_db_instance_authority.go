@@ -19,7 +19,7 @@ func (r *InstanceRepo) InstanceCaller(ctx context.Context, sessionID string) (ag
 	if err := r.checkReady(ctx, "resolve instance caller"); err != nil {
 		return agentinstance.Caller{}, err
 	}
-	row, err := r.queries.GetInstanceCaller(ctx, sessionID)
+	row, err := r.readQueries.GetInstanceCaller(ctx, sessionID)
 	if err != nil {
 		return agentinstance.Caller{}, err
 	}
@@ -49,7 +49,7 @@ func (r *SessionRepo) CheckSessionSuperseded(ctx context.Context, sessionID stri
 	if err := r.checkReady(ctx, "check session supersession"); err != nil {
 		return err
 	}
-	return checkSessionSuperseded(ctx, r.queries, sessionID)
+	return checkSessionSuperseded(ctx, r.readQueries, sessionID)
 }
 
 func checkSessionSuperseded(ctx context.Context, queries *sqlcgen.Queries, sessionID string) error {
@@ -76,7 +76,7 @@ func (r *SessionRepo) SessionLineageInstanceID(ctx context.Context, sessionID st
 	if err := r.checkReady(ctx, "resolve session instance lineage"); err != nil {
 		return "", err
 	}
-	row, err := r.queries.GetInstanceCaller(ctx, sessionID)
+	row, err := r.readQueries.GetInstanceCaller(ctx, sessionID)
 	if err != nil {
 		return "", err
 	}

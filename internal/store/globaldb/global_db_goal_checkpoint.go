@@ -108,10 +108,10 @@ func (g *GoalRepo) LoadCheckpoint(ctx context.Context, key goal.TurnKey) (goal.C
 	if err := g.checkReady(ctx, "load goal checkpoint"); err != nil {
 		return goal.Checkpoint{}, err
 	}
-	if err := validateGoalRunWorkspace(ctx, g.db, key); err != nil {
+	if err := validateGoalRunWorkspace(ctx, g.readDB, key); err != nil {
 		return goal.Checkpoint{}, err
 	}
-	return loadGoalCheckpointWithExecutor(ctx, g.db, key)
+	return loadGoalCheckpointWithExecutor(ctx, g.readDB, key)
 }
 
 func loadGoalCheckpointWithExecutor(

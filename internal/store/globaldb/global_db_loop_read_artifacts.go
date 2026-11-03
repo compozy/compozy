@@ -17,7 +17,7 @@ func (g *LoopRepo) ListAvailableLoopOutputRefs(
 	if err := g.checkReady(ctx, "list available loop output refs"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListAvailableLoopOutputRefs(ctx, sqlcgen.ListAvailableLoopOutputRefsParams{
+	rows, err := g.readQueries.ListAvailableLoopOutputRefs(ctx, sqlcgen.ListAvailableLoopOutputRefsParams{
 		WorkspaceID: string(workspaceID), LoopRunID: string(runID),
 	})
 	if err != nil {

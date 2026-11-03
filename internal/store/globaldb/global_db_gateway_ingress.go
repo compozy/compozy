@@ -26,7 +26,7 @@ func (g *GatewayRepo) ResolveIngressSubject(
 	if err := g.checkReady(ctx, "resolve gateway ingress subject"); err != nil {
 		return gateway.IngressSubject{}, err
 	}
-	return resolveGatewayIngressSubject(ctx, g.queries, ref)
+	return resolveGatewayIngressSubject(ctx, g.readQueries, ref)
 }
 
 func resolveGatewayIngressSubject(
@@ -133,7 +133,7 @@ func (g *GatewayRepo) GetIngressEndpoint(
 	if err := tier.Validate(); err != nil {
 		return gateway.IngressEndpointState{}, err
 	}
-	row, err := g.queries.GetGatewayEndpointState(ctx, string(tier))
+	row, err := g.readQueries.GetGatewayEndpointState(ctx, string(tier))
 	if errors.Is(err, sql.ErrNoRows) {
 		return gateway.IngressEndpointState{}, gateway.ErrEndpointUnverified
 	}

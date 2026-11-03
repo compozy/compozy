@@ -77,7 +77,7 @@ func (g *LoopRepo) loadLoopRunSummaryOutputs(
 ) (err error) {
 	// #nosec G201 -- interpolation is generated placeholders.
 	query := fmt.Sprintf(loopRunSummaryOutputsSQL, strings.Join(placeholders, ","))
-	rows, err := g.db.QueryContext(ctx, query, args...)
+	rows, err := g.readDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("store: list Loop run summary outputs: %w", err)
 	}
@@ -120,7 +120,7 @@ func (g *LoopRepo) loadLoopRunSummaryRouteEvidence(
 ) (err error) {
 	// #nosec G201 -- interpolation is generated placeholders.
 	query := fmt.Sprintf(loopRunSummaryRouteEvidenceSQL, strings.Join(placeholders, ","))
-	rows, err := g.db.QueryContext(ctx, query, args...)
+	rows, err := g.readDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return fmt.Errorf("store: list Loop run summary route evidence: %w", err)
 	}

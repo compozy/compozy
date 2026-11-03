@@ -20,7 +20,7 @@ func (g *GatewayRepo) GetIngressBinding(
 	if err := g.checkReady(ctx, "load gateway ingress binding"); err != nil {
 		return gateway.IngressBinding{}, err
 	}
-	row, err := g.queries.GetGatewayIngressBinding(ctx, ingressBindingKey(ref))
+	row, err := g.readQueries.GetGatewayIngressBinding(ctx, ingressBindingKey(ref))
 	if errors.Is(err, sql.ErrNoRows) {
 		return gateway.IngressBinding{}, gateway.ErrIngressSubjectNotFound
 	}
@@ -145,7 +145,7 @@ func (g *GatewayRepo) ListIngressBindings(ctx context.Context) ([]gateway.Ingres
 	if err := g.checkReady(ctx, "list gateway ingress bindings"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListGatewayIngressBindings(ctx)
+	rows, err := g.readQueries.ListGatewayIngressBindings(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list gateway ingress bindings: %w", err)
 	}

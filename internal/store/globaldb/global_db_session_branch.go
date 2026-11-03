@@ -16,7 +16,7 @@ func (g *SessionRepo) SessionBranches(ctx context.Context, ids []string) (map[st
 	if err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ReadSessionBranches(ctx, string(data))
+	rows, err := g.readQueries.ReadSessionBranches(ctx, string(data))
 	if err != nil {
 		return nil, fmt.Errorf("store: read session branches: %w", err)
 	}
@@ -42,5 +42,5 @@ func (g *SessionRepo) SaveSessionBranch(ctx context.Context, workspaceID, id, br
 }
 
 func (g *SessionRepo) SessionCatalogProfiles(ctx context.Context, workspaceID string) ([]string, error) {
-	return g.queries.SessionCatalogProfiles(ctx, workspaceID)
+	return g.readQueries.SessionCatalogProfiles(ctx, workspaceID)
 }

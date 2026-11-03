@@ -41,7 +41,7 @@ func (g *TaskRepo) GetTaskRun(ctx context.Context, id string) (taskpkg.Run, erro
 		return taskpkg.Run{}, err
 	}
 
-	row, err := g.queries.GetTaskRun(ctx, trimmedID)
+	row, err := g.readQueries.GetTaskRun(ctx, trimmedID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
@@ -52,11 +52,11 @@ func (g *TaskRepo) GetTaskRun(ctx context.Context, id string) (taskpkg.Run, erro
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
-	run, err = g.loadTaskRunCapabilities(ctx, g.db, run)
+	run, err = g.loadTaskRunCapabilities(ctx, g.readDB, run)
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
-	runs, err := attachTaskRunResultDescriptors(ctx, g.db, []taskpkg.Run{run})
+	runs, err := attachTaskRunResultDescriptors(ctx, g.readDB, []taskpkg.Run{run})
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
@@ -72,7 +72,7 @@ func (g *TaskRepo) ListTaskRuns(
 		return nil, err
 	}
 
-	return g.listTaskRunsWithExecutor(ctx, g.db, query)
+	return g.listTaskRunsWithExecutor(ctx, g.readDB, query)
 }
 
 func (g *TaskRepo) listTaskRunsWithExecutor(
@@ -150,7 +150,7 @@ func (g *TaskRepo) ListTaskRunsByStatus(
 		args = append(args, normalized.String())
 	}
 
-	rows, err := g.queries.ListTaskRunsByStatus(ctx, args)
+	rows, err := g.readQueries.ListTaskRunsByStatus(ctx, args)
 	if err != nil {
 		return nil, fmt.Errorf("store: query task runs by status: %w", err)
 	}
@@ -164,11 +164,11 @@ func (g *TaskRepo) ListTaskRunsByStatus(
 		runs = append(runs, run)
 	}
 
-	runs, err = g.loadTaskRunCapabilitiesForList(ctx, g.db, runs)
+	runs, err = g.loadTaskRunCapabilitiesForList(ctx, g.readDB, runs)
 	if err != nil {
 		return nil, err
 	}
-	return attachTaskRunResultDescriptors(ctx, g.db, runs)
+	return attachTaskRunResultDescriptors(ctx, g.readDB, runs)
 }
 
 // CountActiveSessionBindings reports how many non-terminal runs are bound to one session.
@@ -182,7 +182,7 @@ func (g *TaskRepo) CountActiveSessionBindings(ctx context.Context, sessionID str
 		return 0, err
 	}
 
-	count, err := g.queries.CountActiveTaskRunSessionBindings(
+	count, err := g.readQueries.CountActiveTaskRunSessionBindings(
 		ctx,
 		sqlcgen.CountActiveTaskRunSessionBindingsParams{
 			SessionID:      nullableTaskString(trimmedSessionID),

@@ -81,6 +81,7 @@ func ExecuteWrite(ctx context.Context, db *sql.DB, fn func(context.Context, *Wri
 
 type executeWriteConfig struct {
 	operation     string
+	background    bool
 	maxAttempts   int
 	minRetryDelay time.Duration
 	maxRetryDelay time.Duration
@@ -125,7 +126,7 @@ func executeWrite(
 	admission, unregister := registerWriteAdmission(db)
 	defer unregister()
 	started := time.Now()
-	releaseAdmission, err := admission.acquire(ctx)
+	releaseAdmission, err := admission.acquire(ctx, cfg.background)
 	if err != nil {
 		return writeContentionError(db, cfg.operation, 0, started, err)
 	}

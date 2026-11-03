@@ -55,5 +55,5 @@ func (g *LoopRepo) queryRequestRows(
 		"SELECT "+requestSelectColumns+" FROM loop_requests AS request JOIN loop_runs AS run ON run.id = request.loop_run_id",
 		where,
 	) + " ORDER BY " + order + " LIMIT ?"
-	return g.db.QueryContext(ctx, statement, append(args, limit)...)
+	return g.readDB.QueryContext(ctx, statement, append(args, limit)...)
 }

@@ -28,7 +28,7 @@ func (g *SessionRepo) ListSessionHealthByIDs(
 		return []heartbeat.SessionHealth{}, nil
 	}
 
-	rows, err := g.queries.ListSessionHealthByIDs(ctx, ids)
+	rows, err := g.readQueries.ListSessionHealthByIDs(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("store: query session health: %w", err)
 	}

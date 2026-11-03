@@ -196,7 +196,7 @@ func (g *TaskRepo) ensureWorkspaceExists(ctx context.Context, workspaceID string
 		return nil
 	}
 
-	if _, err := g.queries.GetWorkspaceID(ctx, trimmedID); err != nil {
+	if _, err := g.readQueries.GetWorkspaceID(ctx, trimmedID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return compozyworkspace.ErrWorkspaceNotFound
 		}
@@ -211,7 +211,7 @@ func (g *TaskRepo) ensureTaskExists(ctx context.Context, taskID string) error {
 		return taskpkg.ErrTaskNotFound
 	}
 
-	if _, err := g.queries.GetTaskID(ctx, trimmedID); err != nil {
+	if _, err := g.readQueries.GetTaskID(ctx, trimmedID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return taskpkg.ErrTaskNotFound
 		}

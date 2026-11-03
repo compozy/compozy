@@ -1950,7 +1950,7 @@ func seedSessionPromptAdmissionRuntimePrefix(t *testing.T, prefixDB *sql.DB, pat
 	)
 	ctx := globalMigrationTestContext(t)
 	now := time.Date(2026, 8, 27, 9, 0, 0, 0, time.UTC)
-	prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: func() time.Time { return now }}
+	prefixGlobalDB := &GlobalDB{db: prefixDB, readDB: prefixDB, path: path, now: func() time.Time { return now }}
 	prefixGlobalDB.initializeRepositories(openConfig{})
 	workspaceID := registerWorkspaceForGlobalTests(
 		t,
@@ -2072,7 +2072,7 @@ func openSessionPromptAdmissionMigrationFixture(t *testing.T) sessionPromptAdmis
 	ctx := globalMigrationTestContext(t)
 	now := time.Date(2026, 7, 31, 14, 0, 0, 0, time.UTC)
 	prefixGlobalDB := &GlobalDB{
-		db:   prefixDB,
+		db: prefixDB, readDB: prefixDB,
 		path: path,
 		now: func() time.Time {
 			return now
@@ -3296,7 +3296,7 @@ func TestGlobalDBSubagentMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 		now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
-		old := &GlobalDB{db: prefix, path: path, now: func() time.Time { return now }}
+		old := &GlobalDB{db: prefix, readDB: prefix, path: path, now: func() time.Time { return now }}
 		old.initializeRepositories(openConfig{})
 		workspaceID := registerWorkspaceForGlobalTests(
 			t,
@@ -3817,7 +3817,7 @@ func TestGlobalDBSessionOriginMigration(t *testing.T) {
 			t.Fatal(err)
 		}
 		// IT-030: the real upgrade preserves a v4 receipt for the store replay boundary.
-		repo := &SessionRepo{repoBase: newRepoBase(db, time.Now, new(atomic.Int32))}
+		repo := &SessionRepo{repoBase: newRepoBase(db, db, time.Now, new(atomic.Int32))}
 		replay, found, err := repo.ReplaySessionPromptAdmission(t.Context(), store.SessionPromptAdmissionRequest{
 			ID:                       "new-admission",
 			WorkspaceID:              "ws-origin",

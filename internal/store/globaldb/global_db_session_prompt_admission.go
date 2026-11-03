@@ -26,7 +26,7 @@ func (g *SessionRepo) ReplaySessionPromptAdmission(
 	if err := req.Validate(); err != nil {
 		return store.SessionPromptAdmission{}, false, err
 	}
-	return findPromptAdmissionReplay(ctx, g.db, req)
+	return findPromptAdmissionReplay(ctx, g.readDB, req)
 }
 
 // LookupSessionPromptAdmission reads an admitted command by its idempotency key without classifying a
@@ -38,7 +38,7 @@ func (g *SessionRepo) LookupSessionPromptAdmission(
 	if err := g.checkReady(ctx, "look up session prompt admission"); err != nil {
 		return store.SessionPromptAdmission{}, false, err
 	}
-	row, err := sqlcgen.New(g.db).GetSessionPromptAdmissionByIdempotencyKey(
+	row, err := g.readQueries.GetSessionPromptAdmissionByIdempotencyKey(
 		ctx,
 		sqlcgen.GetSessionPromptAdmissionByIdempotencyKeyParams{
 			WorkspaceID: workspaceID, SessionID: sessionID, IdempotencyKey: idempotencyKey,

@@ -26,7 +26,7 @@ func (g *TaskRepo) GetSchedulerPause(ctx context.Context) (taskpkg.SchedulerPaus
 	if err := g.checkReady(ctx, "get scheduler pause state"); err != nil {
 		return taskpkg.SchedulerPauseState{}, err
 	}
-	row, err := g.queries.GetSchedulerPause(ctx)
+	row, err := g.readQueries.GetSchedulerPause(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
 		return taskpkg.SchedulerPauseState{}, nil
 	}

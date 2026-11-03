@@ -23,7 +23,7 @@ func (g *SessionRepo) GetSessionAttention(
 	if target == "" {
 		return store.SessionAttention{}, errors.New("store: session id is required")
 	}
-	return getSessionAttention(ctx, g.db, target)
+	return getSessionAttention(ctx, g.readDB, target)
 }
 
 // MarkSessionSettled advances the catalog-owned settled fence.

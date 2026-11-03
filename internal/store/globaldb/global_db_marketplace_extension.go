@@ -18,7 +18,7 @@ func (r *MarketplaceRepo) GetMarketplaceExtensionByInstallSlug(
 	if err := r.checkReady(ctx, "get marketplace extension by install slug"); err != nil {
 		return store.MarketplaceCatalogEntry{}, err
 	}
-	row, err := r.queries.GetMarketplaceExtensionByInstallSlug(
+	row, err := r.readQueries.GetMarketplaceExtensionByInstallSlug(
 		ctx,
 		sqlcgen.GetMarketplaceExtensionByInstallSlugParams{
 			InstallSlug: sql.NullString{String: installSlug, Valid: true},

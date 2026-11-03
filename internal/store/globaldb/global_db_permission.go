@@ -65,7 +65,7 @@ func (g *PermissionRepo) ListPermissionLog(
 	sqlQuery += " ORDER BY timestamp ASC, id ASC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query permission log: %w", err)
 	}

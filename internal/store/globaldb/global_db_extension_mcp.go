@@ -22,7 +22,7 @@ func (r *ExtensionMCPRepo) List(ctx context.Context, profileID, workspaceID stri
 	if err := r.checkReady(ctx, "list extension MCP overrides"); err != nil {
 		return nil, err
 	}
-	return listExtensionMCPRecords(ctx, r.queries, extensionMCPProfileID(profileID), strings.TrimSpace(workspaceID))
+	return listExtensionMCPRecords(ctx, r.readQueries, extensionMCPProfileID(profileID), strings.TrimSpace(workspaceID))
 }
 
 // Reserve commits a new allocation once; an existing allocation is never renamed.
@@ -42,7 +42,7 @@ func (r *ExtensionMCPRepo) Reserve(
 			return record, err
 		}
 	}
-	records, err := listExtensionMCPRecords(ctx, r.queries, target.ProfileID, target.WorkspaceID)
+	records, err := listExtensionMCPRecords(ctx, r.readQueries, target.ProfileID, target.WorkspaceID)
 	if err != nil {
 		return record, err
 	}
@@ -249,7 +249,7 @@ func (r *ExtensionMCPRepo) ListAll(ctx context.Context) ([]extensionmcp.Record, 
 	if err := r.checkReady(ctx, "list allocated extension MCP names"); err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListAllExtensionMCPOverrides(ctx)
+	rows, err := r.readQueries.ListAllExtensionMCPOverrides(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list allocated extension MCP names: %w", err)
 	}

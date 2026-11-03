@@ -65,7 +65,7 @@ func (g *SessionRepo) GetSessionCreationProfile(
 	if profileRef == "" {
 		return store.SessionCreationProfile{}, fmt.Errorf("store: session creation profile ref is required")
 	}
-	payload, err := g.queries.GetSessionCreationProfileJSON(ctx, profileRef)
+	payload, err := g.readQueries.GetSessionCreationProfileJSON(ctx, profileRef)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.SessionCreationProfile{}, fmt.Errorf("%w: %s", store.ErrSessionNotFound, profileRef)
 	}

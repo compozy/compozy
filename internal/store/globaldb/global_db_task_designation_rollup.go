@@ -63,7 +63,7 @@ func (g *TaskRepo) ListTaskDesignationRollups(
 	sqlQuery += " ORDER BY created_at DESC, designation_group_id ASC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query task designation rollups: %w", err)
 	}

@@ -116,7 +116,7 @@ func (g *AutomationRepo) GetJob(ctx context.Context, id string) (automation.Job,
 	if err != nil {
 		return automation.Job{}, err
 	}
-	row, err := g.queries.GetAutomationJob(ctx, trimmedID)
+	row, err := g.readQueries.GetAutomationJob(ctx, trimmedID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return automation.Job{}, automation.ErrJobNotFound
@@ -301,7 +301,7 @@ func (g *AutomationRepo) GetTrigger(ctx context.Context, id string) (automation.
 	if err != nil {
 		return automation.Trigger{}, err
 	}
-	row, err := g.queries.GetAutomationTrigger(ctx, trimmedID)
+	row, err := g.readQueries.GetAutomationTrigger(ctx, trimmedID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return automation.Trigger{}, automation.ErrTriggerNotFound

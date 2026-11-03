@@ -116,7 +116,7 @@ func (g *SessionRepo) ListPendingSessionInputClearTraces(
 	if err := g.checkReady(ctx, "list queue clear traces"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListPendingSessionInputClearTraces(ctx, strings.TrimSpace(sessionID))
+	rows, err := g.readQueries.ListPendingSessionInputClearTraces(ctx, strings.TrimSpace(sessionID))
 	if err != nil {
 		return nil, err
 	}

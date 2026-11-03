@@ -179,7 +179,7 @@ func (g *ModelCatalogRepo) ListSourceStatus(
 	sqlQuery += ` ORDER BY provider_id ASC, source_id ASC`
 
 	// dynamic-sql: the provider filter is optional while stable ordering is preserved.
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query model catalog source status: %w", err)
 	}

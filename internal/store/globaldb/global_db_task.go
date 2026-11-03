@@ -222,7 +222,7 @@ func (g *TaskRepo) GetTask(ctx context.Context, id string) (taskpkg.Task, error)
 		return taskpkg.Task{}, err
 	}
 
-	row, err := g.queries.GetTask(ctx, trimmedID)
+	row, err := g.readQueries.GetTask(ctx, trimmedID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return taskpkg.Task{}, taskpkg.ErrTaskNotFound
@@ -253,7 +253,7 @@ func (g *TaskRepo) GetTaskInReadScope(
 		store.StringClause("id", trimmedID),
 		store.ReadScopeClause("profile_id", readScope),
 	)
-	row := g.db.QueryRowContext(
+	row := g.readDB.QueryRowContext(
 		ctx,
 		store.AppendWhere("SELECT "+taskRecordSelectColumnsSQL+" FROM tasks", where),
 		args...,
@@ -306,7 +306,7 @@ func (g *TaskRepo) ListTasks(
 	sqlQuery += taskListOrderByActivitySQL
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, normalized.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query tasks: %w", err)
 	}
@@ -347,7 +347,7 @@ func (g *TaskRepo) CountDirectChildren(ctx context.Context, parentTaskID string)
 		return 0, err
 	}
 
-	return g.countDirectChildrenWithExecutor(ctx, g.db, parentTaskID)
+	return g.countDirectChildrenWithExecutor(ctx, g.readDB, parentTaskID)
 }
 
 func (g *TaskRepo) countDirectChildrenWithExecutor(

@@ -28,7 +28,7 @@ func (r *ExtensionEnvRepo) ListEnvBindings(
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListExtensionEnvBindings(ctx, sqlcgen.ListExtensionEnvBindingsParams{
+	rows, err := r.readQueries.ListExtensionEnvBindings(ctx, sqlcgen.ListExtensionEnvBindingsParams{
 		ExtensionName: name,
 		ProfileID:     strings.TrimSpace(profileID),
 		WorkspaceID:   workspace,
@@ -70,7 +70,7 @@ func (r *ExtensionEnvRepo) ResolveEnvBindings(
 	if profileID == "" {
 		return nil, errors.New("store: profile id is required to resolve extension env bindings")
 	}
-	rows, err := r.db.QueryContext(ctx, `
+	rows, err := r.readDB.QueryContext(ctx, `
 		SELECT extension_name, profile_id, workspace_id, env_name, secret_ref, input_id, active,
 		       mcp_server, header_name, kind, created_at, updated_at
 		FROM (
@@ -231,7 +231,7 @@ func (r *ExtensionEnvRepo) CountEnvBindingsBySecretRef(ctx context.Context, secr
 	if err := vault.ValidateSecretRef(ref); err != nil {
 		return 0, err
 	}
-	count, err := r.queries.CountExtensionEnvBindingsBySecretRef(ctx, ref)
+	count, err := r.readQueries.CountExtensionEnvBindingsBySecretRef(ctx, ref)
 	if err != nil {
 		return 0, fmt.Errorf("store: count extension env bindings by secret ref: %w", err)
 	}

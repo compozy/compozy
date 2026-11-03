@@ -116,7 +116,7 @@ func (g *SessionRepo) GetSessionCreationIdentity(
 	if err := g.checkReady(ctx, "get session creation identity"); err != nil {
 		return store.SessionCreationIdentity{}, err
 	}
-	_, _, identity, found, err := readSessionCreationIdentity(ctx, g.db, strings.TrimSpace(sessionID))
+	_, _, identity, found, err := readSessionCreationIdentity(ctx, g.readDB, strings.TrimSpace(sessionID))
 	if err != nil {
 		return store.SessionCreationIdentity{}, err
 	}

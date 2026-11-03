@@ -106,7 +106,7 @@ func openQueryRowsCloseErrorGlobalDB(t *testing.T) *GlobalDB {
 			t.Errorf("sql.DB.Close(query rows close-error driver) error = %v", err)
 		}
 	})
-	globalDB := &GlobalDB{db: db, now: func() time.Time { return time.Unix(0, 0).UTC() }}
+	globalDB := &GlobalDB{db: db, readDB: db, now: func() time.Time { return time.Unix(0, 0).UTC() }}
 	globalDB.initializeRepositories(openConfig{})
 	return globalDB
 }

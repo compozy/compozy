@@ -45,11 +45,11 @@ func (g *WorktreeRepo) Get(ctx context.Context, workspaceID, idOrName string) (*
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
 	idOrName = strings.TrimSpace(idOrName)
-	row, err := g.queries.GetWorktreeByID(ctx, sqlcgen.GetWorktreeByIDParams{
+	row, err := g.readQueries.GetWorktreeByID(ctx, sqlcgen.GetWorktreeByIDParams{
 		WorkspaceID: workspaceID, WorktreeID: idOrName,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		row, err = g.queries.GetWorktreeByName(ctx, sqlcgen.GetWorktreeByNameParams{
+		row, err = g.readQueries.GetWorktreeByName(ctx, sqlcgen.GetWorktreeByNameParams{
 			WorkspaceID: workspaceID, Name: idOrName,
 		})
 	}
@@ -66,7 +66,7 @@ func (g *WorktreeRepo) GetByPath(ctx context.Context, workspaceID, path string) 
 	if err := g.checkReady(ctx, "get worktree by path"); err != nil {
 		return nil, err
 	}
-	row, err := g.queries.GetLiveWorktreeByPath(ctx, sqlcgen.GetLiveWorktreeByPathParams{
+	row, err := g.readQueries.GetLiveWorktreeByPath(ctx, sqlcgen.GetLiveWorktreeByPathParams{
 		WorkspaceID: strings.TrimSpace(workspaceID), Path: strings.TrimSpace(path),
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -85,7 +85,7 @@ func (g *WorktreeRepo) PathOwnedByAnyWorkspace(ctx context.Context, path string)
 		return false, err
 	}
 	// Exact match: Git paths that differ only by edge whitespace are distinct checkouts.
-	count, err := g.queries.CountLiveWorktreesByPath(ctx, path)
+	count, err := g.readQueries.CountLiveWorktreesByPath(ctx, path)
 	if err != nil {
 		return false, fmt.Errorf("store: find worktree path owner: %w", err)
 	}
@@ -96,7 +96,7 @@ func (g *WorktreeRepo) List(ctx context.Context, workspaceID string) ([]worktree
 	if err := g.checkReady(ctx, "list worktrees"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListWorktrees(ctx, strings.TrimSpace(workspaceID))
+	rows, err := g.readQueries.ListWorktrees(ctx, strings.TrimSpace(workspaceID))
 	if err != nil {
 		return nil, fmt.Errorf("store: list worktrees: %w", err)
 	}
@@ -107,7 +107,7 @@ func (g *WorktreeRepo) ListRecoverable(ctx context.Context) ([]worktree.Worktree
 	if err := g.checkReady(ctx, "list recoverable worktrees"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListRecoverableWorktrees(ctx)
+	rows, err := g.readQueries.ListRecoverableWorktrees(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list recoverable worktrees: %w", err)
 	}
@@ -321,7 +321,7 @@ func (g *WorktreeRepo) ListAggregate(ctx context.Context) ([]worktree.Worktree, 
 	if err := g.checkReady(ctx, "list aggregate worktrees"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListWorktreesAggregate(ctx)
+	rows, err := g.readQueries.ListWorktreesAggregate(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: aggregate worktrees: %w", err)
 	}

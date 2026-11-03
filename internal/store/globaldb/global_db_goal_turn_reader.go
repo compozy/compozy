@@ -33,7 +33,7 @@ func (g *GoalRepo) ListGoalTurns(
 	if err := query.Validate(); err != nil {
 		return goal.TurnPage{}, err
 	}
-	if err := validateGoalRunWorkspace(ctx, g.db, goal.TurnKey{
+	if err := validateGoalRunWorkspace(ctx, g.readDB, goal.TurnKey{
 		WorkspaceID: query.WorkspaceID,
 		LoopRunID:   query.LoopRunID,
 		Generation:  1,
@@ -48,7 +48,7 @@ func (g *GoalRepo) ListGoalTurns(
 	}
 	statement, args := goalTurnListQuery(query, limit+1)
 	// dynamic-sql: optional node/item filters and cursor pagination change the predicate and argument shape.
-	rows, err := g.db.QueryContext(ctx, statement, args...)
+	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return goal.TurnPage{}, fmt.Errorf("store: list goal turns for run %q: %w", query.LoopRunID, err)
 	}
@@ -94,11 +94,11 @@ func (g *GoalRepo) GetGoalTurnByPromptID(
 	if normalizedPromptID == "" {
 		return goal.Turn{}, fmt.Errorf("%w: goal prompt_id is required", looppkg.ErrValidation)
 	}
-	if err := validateGoalRunWorkspace(ctx, g.db, key); err != nil {
+	if err := validateGoalRunWorkspace(ctx, g.readDB, key); err != nil {
 		return goal.Turn{}, err
 	}
 
-	row, err := sqlcgen.New(g.db).GetGoalTurnByPromptID(ctx, sqlcgen.GetGoalTurnByPromptIDParams{
+	row, err := g.readQueries.GetGoalTurnByPromptID(ctx, sqlcgen.GetGoalTurnByPromptIDParams{
 		LoopRunID: string(key.LoopRunID), Generation: int64(key.Generation), NodeID: string(key.NodeID),
 		ItemIndex: int64(key.ItemIndex), PromptID: normalizedPromptID, WorkspaceID: string(key.WorkspaceID),
 	})

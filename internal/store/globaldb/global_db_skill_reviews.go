@@ -15,7 +15,7 @@ type SkillReviewRepo struct{ *repoBase }
 var _ agentinstance.SkillReviewStore = (*SkillReviewRepo)(nil)
 
 func (g *GlobalDB) SkillReviews() *SkillReviewRepo {
-	return &SkillReviewRepo{repoBase: newRepoBase(g.db, g.now, &g.closed)}
+	return &SkillReviewRepo{repoBase: newRepoBase(g.db, g.readDB, g.now, &g.closed)}
 }
 
 func (r *SkillReviewRepo) CreateReview(
@@ -94,7 +94,7 @@ func (r *SkillReviewRepo) GetReview(ctx context.Context, id string) (agentinstan
 	if err := r.checkReady(ctx, "get skill review"); err != nil {
 		return agentinstance.SkillReview{}, err
 	}
-	row, err := r.queries.GetAgentSkillReview(ctx, id)
+	row, err := r.readQueries.GetAgentSkillReview(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return agentinstance.SkillReview{}, agentinstance.ErrSkillReviewNotFound
 	}
@@ -118,7 +118,7 @@ func (r *SkillReviewRepo) ListReviews(
 	if !query.AfterCreatedAt.IsZero() {
 		after = store.FormatTimestamp(query.AfterCreatedAt)
 	}
-	rows, err := r.queries.ListAgentSkillReviews(ctx, sqlcgen.ListAgentSkillReviewsParams{
+	rows, err := r.readQueries.ListAgentSkillReviews(ctx, sqlcgen.ListAgentSkillReviewsParams{
 		ProfileID:      query.ProfileID,
 		WorkspaceID:    query.WorkspaceID,
 		InstanceID:     query.InstanceID,

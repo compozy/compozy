@@ -14,7 +14,7 @@ func (r *InstanceRepo) collectAutomationEventFacts(
 	id string,
 	facts *heartbeat.CollectorFacts,
 ) error {
-	rows, err := r.queries.ListPendingAgentInstanceEvents(ctx, id)
+	rows, err := r.readQueries.ListPendingAgentInstanceEvents(ctx, id)
 	if err != nil {
 		return fmt.Errorf("collect instance events: %w", err)
 	}
@@ -26,7 +26,7 @@ func (r *InstanceRepo) collectAutomationEventFacts(
 			ID:          row.ID, InstanceID: row.InstanceID, Summary: row.Summary, ReceivedAt: row.ReceivedAt,
 		})
 	}
-	wake, err := r.queries.GetInstanceWakeState(ctx, id)
+	wake, err := r.readQueries.GetInstanceWakeState(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}

@@ -36,7 +36,7 @@ func (r *InstanceRepo) ReadActivity(
 		"",
 		append(clauses, store.StringCompareClause("day", ">=", store.LocalDay(query.Since)))...)
 	cost := agentinstance.ActivityCost{WorkspaceID: query.WorkspaceID}
-	if err := r.db.QueryRowContext(ctx, statement, args...).Scan(&cost.USDEstimate, &cost.Tokens); err != nil {
+	if err := r.readDB.QueryRowContext(ctx, statement, args...).Scan(&cost.USDEstimate, &cost.Tokens); err != nil {
 		return result, err
 	}
 	if cost.Tokens != 0 || cost.USDEstimate != 0 {
@@ -53,7 +53,7 @@ func (r *InstanceRepo) ReadActivity(
 		`SELECT date(created_at, 'localtime'), SUM(CASE WHEN kind = 'proposal' THEN 1 ELSE 0 END), SUM(CASE WHEN kind NOT IN ('proposal', 'quiet') THEN 1 ELSE 0 END), SUM(CASE WHEN kind = 'quiet' THEN 1 ELSE 0 END) FROM `+source,
 		` GROUP BY 1 ORDER BY 1`,
 		append(clauses, store.TimeClause("created_at", ">=", query.Since))...)
-	rows, err := r.db.QueryContext(ctx, statement, args...)
+	rows, err := r.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return result, err
 	}
@@ -76,7 +76,7 @@ func (r *InstanceRepo) ReadActivity(
 		`SELECT CAST(strftime('%w', timestamp, 'localtime') AS INTEGER), CAST(strftime('%H', timestamp, 'localtime') AS INTEGER), COUNT(*) FROM event_summaries`,
 		` GROUP BY 1, 2 ORDER BY 1, 2`,
 		append(clauses, store.TimeClause("timestamp", ">=", query.Since))...)
-	hours, err := r.db.QueryContext(ctx, statement, args...)
+	hours, err := r.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return result, err
 	}

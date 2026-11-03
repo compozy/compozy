@@ -106,7 +106,7 @@ func (g *VaultRepo) GetMCPAuthToken(ctx context.Context, target mcpauth.Target) 
 		return mcpauth.TokenRecord{}, fmt.Errorf("store: invalid MCP auth target: %w", err)
 	}
 
-	row, err := g.queries.GetMCPAuthToken(ctx, mcpAuthTargetParams(target))
+	row, err := g.readQueries.GetMCPAuthToken(ctx, mcpAuthTargetParams(target))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return mcpauth.TokenRecord{}, mcpauth.ErrTokenNotFound
@@ -128,7 +128,7 @@ func (g *VaultRepo) ListMCPAuthTokens(ctx context.Context) ([]mcpauth.TokenRecor
 	if err := g.checkReady(ctx, "list MCP auth tokens"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListMCPAuthTokens(ctx)
+	rows, err := g.readQueries.ListMCPAuthTokens(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list MCP auth tokens: %w", err)
 	}

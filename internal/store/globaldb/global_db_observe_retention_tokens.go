@@ -29,7 +29,7 @@ func (g *ObserveRepo) SweepObservability(
 	result = store.ObservabilityRetentionSweepResult{CutoffAt: cutoff.UTC()}
 	cutoffValue := store.FormatTimestamp(result.CutoffAt)
 
-	expired, err := g.queries.HasExpiredObservability(ctx, sqlcgen.HasExpiredObservabilityParams{
+	expired, err := g.readQueries.HasExpiredObservability(ctx, sqlcgen.HasExpiredObservabilityParams{
 		Cutoff: cutoffValue, CutoffDay: store.LocalDay(result.CutoffAt),
 	})
 	if err != nil {
@@ -142,7 +142,7 @@ func (g *ObserveRepo) ListTokenStats(
 	sqlQuery += " ORDER BY updated_at DESC, id DESC"
 	sqlQuery, args = store.AppendLimit(sqlQuery, args, query.Limit)
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query token stats: %w", err)
 	}

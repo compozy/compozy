@@ -23,7 +23,7 @@ func (g *SessionRepo) SessionMessageWindow(
 	if err := g.checkReady(ctx, "count session messages"); err != nil {
 		return store.SessionMessageWindow{}, err
 	}
-	row, err := sqlcgen.New(g.db).SessionMessageRateWindow(ctx, sqlcgen.SessionMessageRateWindowParams{
+	row, err := g.readQueries.SessionMessageRateWindow(ctx, sqlcgen.SessionMessageRateWindowParams{
 		WorkspaceID:     targetWorkspaceID,
 		SessionID:       targetSessionID,
 		Since:           store.FormatTimestamp(since),
@@ -51,7 +51,7 @@ func (g *SessionRepo) LookupSessionPromptAdmissionByMessageID(
 	if err := g.checkReady(ctx, "look up session prompt admission by message"); err != nil {
 		return store.SessionPromptAdmission{}, false, err
 	}
-	row, err := sqlcgen.New(g.db).GetSessionPromptAdmissionByMessageID(
+	row, err := g.readQueries.GetSessionPromptAdmissionByMessageID(
 		ctx,
 		sqlcgen.GetSessionPromptAdmissionByMessageIDParams{
 			WorkspaceID: workspaceID, SessionID: sessionID, MessageID: messageID,

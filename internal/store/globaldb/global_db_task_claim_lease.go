@@ -27,7 +27,7 @@ func (g *TaskRunRepo) ListAutonomyLeaseHandles(
 		return nil, fmt.Errorf("%w: session_id is required", taskpkg.ErrValidation)
 	}
 
-	rows, err := g.queries.ListAutonomyLeaseHandles(
+	rows, err := g.readQueries.ListAutonomyLeaseHandles(
 		ctx,
 		sql.NullString{String: trimmedSessionID, Valid: true},
 	)

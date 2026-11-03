@@ -1,5 +1,21 @@
 # Compozy Change Impact
 
+## SQLite contention isolation — issue #1227
+
+Owner: `fix/issue-1227-sqlite-contention`; evidence and remaining acceptance work:
+`docs/qa/reports/2026-11-03-sqlite-contention.md`.
+
+- Native tools, CLI, HTTP/UDS DTOs and Observe response shapes remain unchanged. Interactive
+  persistence still acknowledges commits, and mutation authorization fences retain their own
+  commit boundary. Background batching is an internal persistence mechanism.
+- Global request reads use an independent read-only connection pool. Existing profile and
+  workspace filters, ordering and transaction snapshots are retained at the owning repositories.
+- No hook, extension SDK or config key changes in this checkpoint. The official `skills/compozy/`
+  and Web/site interfaces need no new operation or copy. Global DB ownership closes both pools.
+- User-state relocation, its append-only migration, cache flush integration, transcript-lock
+  reduction and measured multi-session QA remain in progress; this entry does not certify them.
+- QA owners: `MS-daemon-host-load-governance` and `RT-session-catalog-server-scope`.
+
 ## Main CI contract co-ship repairs — 2026-11-03
 
 Regenerate the Go client from the current API registry to restore its canonical operation file

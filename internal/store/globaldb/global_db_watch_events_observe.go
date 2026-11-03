@@ -23,7 +23,7 @@ func (g *WatchEventsRepo) readObserveWatchEventsCursor(
 	args = append(args, kindArgs...)
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
 	return scanWatchEventCursor(
-		g.db.QueryRowContext(
+		g.readDB.QueryRowContext(
 			ctx,
 			`SELECT COALESCE(MAX(rowid), 0)
 			   FROM event_summaries
@@ -51,7 +51,7 @@ func (g *WatchEventsRepo) readObserveWatchEvents(
 	args = append(args, kindArgs...)
 	args = append(args, query.limit)
 	// #nosec G202 -- IN placeholders are generated from normalized kind count; values are parameterized.
-	rows, err := g.db.QueryContext(
+	rows, err := g.readDB.QueryContext(
 		ctx,
 		`SELECT
 			rowid,

@@ -30,7 +30,7 @@ func (g *SessionRepo) SessionCatalogRelations(
 		return result, err
 	}
 	// dynamic-sql: scoped page identifiers and active overlay exclusions share catalog filters.
-	rows, err := g.db.QueryContext(ctx, statement, args...)
+	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return result, fmt.Errorf("store: query session relations: %w", err)
 	}

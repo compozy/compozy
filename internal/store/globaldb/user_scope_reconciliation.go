@@ -19,7 +19,7 @@ type UserScopeMigration struct {
 }
 
 func (g *GlobalDB) PendingUserScopeMigrations(ctx context.Context) (result []UserScopeMigration, resultErr error) {
-	rows, err := g.db.QueryContext(
+	rows, err := g.readDB.QueryContext(
 		ctx,
 		`SELECT source_workspace_id,source_root,disposition,profile_ids,journal_state,layout_state FROM user_scope_migrations WHERE registration_removed_at IS NULL AND disposition='migrate' ORDER BY source_workspace_id`,
 	)

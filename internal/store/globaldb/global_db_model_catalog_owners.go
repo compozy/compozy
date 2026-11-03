@@ -25,7 +25,7 @@ func (g *ModelCatalogRepo) ListRowOwners(
 	sqlQuery := store.AppendWhere(`SELECT DISTINCT source_id, provider_id FROM model_catalog_rows`, where)
 	sqlQuery += ` ORDER BY source_id ASC, provider_id ASC`
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query model catalog row owners: %w", err)
 	}

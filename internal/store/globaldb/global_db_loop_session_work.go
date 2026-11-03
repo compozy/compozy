@@ -22,7 +22,7 @@ func (g *LoopRepo) ListSessionLoopWork(
 	if err := scope.Validate(); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListSessionLoopWork(ctx, sqlcgen.ListSessionLoopWorkParams{
+	rows, err := g.readQueries.ListSessionLoopWork(ctx, sqlcgen.ListSessionLoopWorkParams{
 		WorkspaceID: workspaceID, AllProfiles: boolToInt64(scope.AllProfiles), ProfileID: scope.ProfileID,
 		SessionID: nullableAutomationString(sessionID), OwnerRunID: string(ownerRunID),
 	})

@@ -79,7 +79,7 @@ func (g *SessionRepo) ReplyWatchByMessage(
 	ctx context.Context,
 	targetSessionID, messageID string,
 ) (store.ReplyWatch, bool, error) {
-	row, err := g.queries.GetReplyWatchByMessage(
+	row, err := g.readQueries.GetReplyWatchByMessage(
 		ctx,
 		sqlcgen.GetReplyWatchByMessageParams{TargetSessionID: targetSessionID, MessageID: messageID},
 	)
@@ -94,7 +94,7 @@ func (g *SessionRepo) ReplyWatchByMessage(
 }
 
 func (g *SessionRepo) GetReplyWatch(ctx context.Context, id string) (store.ReplyWatch, error) {
-	row, err := g.queries.GetReplyWatch(ctx, id)
+	row, err := g.readQueries.GetReplyWatch(ctx, id)
 	if err != nil {
 		return store.ReplyWatch{}, err
 	}
@@ -102,7 +102,7 @@ func (g *SessionRepo) GetReplyWatch(ctx context.Context, id string) (store.Reply
 }
 
 func (g *SessionRepo) ListReplyWatches(ctx context.Context, f store.ReplyWatchFilter) ([]store.ReplyWatch, error) {
-	rows, err := g.queries.ListReplyWatches(
+	rows, err := g.readQueries.ListReplyWatches(
 		ctx,
 		sqlcgen.ListReplyWatchesParams{
 			StateFilter:     f.State,
@@ -127,7 +127,7 @@ func (g *SessionRepo) ListReplyWatches(ctx context.Context, f store.ReplyWatchFi
 
 // ListPendingReplyWatchesBySender reads one sender's armed and fired watches through its index.
 func (g *SessionRepo) ListPendingReplyWatchesBySender(ctx context.Context, sender string) ([]store.ReplyWatch, error) {
-	rows, err := g.queries.ListPendingReplyWatchesBySender(ctx, sender)
+	rows, err := g.readQueries.ListPendingReplyWatchesBySender(ctx, sender)
 	if err != nil {
 		return nil, err
 	}
@@ -264,7 +264,7 @@ func (g *SessionRepo) ReplyWatchEvidence(
 	ctx context.Context,
 	w store.ReplyWatch,
 ) (store.SessionPromptAdmission, []store.SessionInputQueueEntry, error) {
-	row, err := g.queries.ReplyWatchAdmission(ctx, w.AdmissionID)
+	row, err := g.readQueries.ReplyWatchAdmission(ctx, w.AdmissionID)
 	if err != nil {
 		return store.SessionPromptAdmission{}, nil, err
 	}
@@ -272,7 +272,7 @@ func (g *SessionRepo) ReplyWatchEvidence(
 	if err != nil {
 		return store.SessionPromptAdmission{}, nil, err
 	}
-	rows, err := g.queries.ReplyWatchMessageInputs(
+	rows, err := g.readQueries.ReplyWatchMessageInputs(
 		ctx,
 		sqlcgen.ReplyWatchMessageInputsParams{SessionID: w.TargetSessionID, MessageID: w.MessageID},
 	)

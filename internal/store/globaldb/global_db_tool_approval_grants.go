@@ -120,7 +120,7 @@ func (g *ApprovalGrantRepo) approvalGrantProfileOwner(
 	profileID string,
 ) (toolspkg.ApprovalGrant, error) {
 	var owner toolspkg.ApprovalGrant
-	err := g.db.QueryRowContext(
+	err := g.readDB.QueryRowContext(
 		ctx,
 		`SELECT name, color, COALESCE(icon, ''), COALESCE(emoji, ''), state = 'archived'
 		 FROM profiles WHERE id = ?`,
@@ -175,7 +175,7 @@ func (g *ApprovalGrantRepo) ListApprovalGrants(
 		store.ReadScopeClause("g.profile_id", readScope),
 		store.StringClause("g.workspace_id", workspaceID),
 	)
-	rows, err := g.db.QueryContext(ctx, statement, args...)
+	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: list tool approval grants for %q: %w", workspaceID, err)
 	}

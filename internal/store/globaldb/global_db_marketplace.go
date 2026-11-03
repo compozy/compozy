@@ -118,7 +118,7 @@ func (r *MarketplaceRepo) ListMarketplaceCatalogEntries(
 	if err := r.checkReady(ctx, "list marketplace catalog entries"); err != nil {
 		return nil, err
 	}
-	rows, err := r.queries.ListMarketplaceCatalogEntries(ctx, sqlcgen.ListMarketplaceCatalogEntriesParams{
+	rows, err := r.readQueries.ListMarketplaceCatalogEntries(ctx, sqlcgen.ListMarketplaceCatalogEntriesParams{
 		Source:      source,
 		ResultLimit: limit,
 	})
@@ -141,7 +141,7 @@ func (r *MarketplaceRepo) GetMarketplaceCatalogEntry(
 	if err := r.checkReady(ctx, "get marketplace catalog entry"); err != nil {
 		return store.MarketplaceCatalogEntry{}, err
 	}
-	row, err := r.queries.GetMarketplaceCatalogEntry(ctx, sqlcgen.GetMarketplaceCatalogEntryParams{
+	row, err := r.readQueries.GetMarketplaceCatalogEntry(ctx, sqlcgen.GetMarketplaceCatalogEntryParams{
 		Source:  source,
 		EntryID: entryID,
 	})
@@ -164,7 +164,7 @@ func (r *MarketplaceRepo) GetMarketplaceCatalogState(
 	if err := r.checkReady(ctx, "get marketplace catalog state"); err != nil {
 		return store.MarketplaceCatalogState{}, err
 	}
-	row, err := r.queries.GetMarketplaceCatalogState(ctx, source)
+	row, err := r.readQueries.GetMarketplaceCatalogState(ctx, source)
 	if err != nil {
 		return store.MarketplaceCatalogState{}, fmt.Errorf("store: get marketplace catalog %q state: %w", source, err)
 	}

@@ -85,7 +85,7 @@ func (g *SessionRepo) PageSessions(
 	if err != nil {
 		return store.SessionCatalogPage{}, err
 	}
-	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := g.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return store.SessionCatalogPage{}, fmt.Errorf("store: begin session catalog page transaction: %w", err)
 	}

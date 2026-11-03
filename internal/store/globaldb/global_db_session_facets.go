@@ -46,7 +46,7 @@ func (g *SessionRepo) SessionCatalogFacets(
 	statement.WriteString(" GROUP BY workspace_id, profile_id, 3, 4 ORDER BY workspace_id")
 	args = append(append(boardArgs, sourceArgs...), args...)
 
-	rows, err := g.db.QueryContext(ctx, statement.String(), args...)
+	rows, err := g.readDB.QueryContext(ctx, statement.String(), args...)
 	if err != nil {
 		return result, fmt.Errorf("store: query session catalog facets: %w", err)
 	}
@@ -105,7 +105,7 @@ func (g *SessionRepo) sessionCatalogLaterCount(ctx context.Context, query store.
 	// dynamic-sql: catalog scope and exclusion slices share the owning page filters.
 	statement := store.AppendWhere("SELECT COUNT(1) FROM sessions", where)
 	var count int
-	if err := g.db.QueryRowContext(ctx, statement, args...).Scan(&count); err != nil {
+	if err := g.readDB.QueryRowContext(ctx, statement, args...).Scan(&count); err != nil {
 		return 0, fmt.Errorf("store: count session catalog later: %w", err)
 	}
 	return count, nil

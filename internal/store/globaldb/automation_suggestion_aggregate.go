@@ -19,7 +19,7 @@ func (g *AutomationRepo) ListSuggestionsAggregate(
 	if err := scope.Validate(); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListAutomationSuggestionsAggregate(
+	rows, err := g.readQueries.ListAutomationSuggestionsAggregate(
 		ctx,
 		sqlcgen.ListAutomationSuggestionsAggregateParams{
 			AllProfiles: scope.AllProfiles,

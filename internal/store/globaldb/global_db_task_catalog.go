@@ -32,7 +32,7 @@ func (g *TaskRepo) ListTaskCatalog(
 		return taskpkg.CatalogPage{}, err
 	}
 
-	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := g.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return taskpkg.CatalogPage{}, fmt.Errorf("store: begin task catalog read: %w", err)
 	}

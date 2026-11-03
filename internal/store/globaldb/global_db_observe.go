@@ -169,7 +169,7 @@ func (g *ObserveRepo) ListEventSummaries(
 		args = append(args, query.Limit)
 	}
 
-	rows, err := g.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlQuery, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: query event summaries: %w", err)
 	}
@@ -270,7 +270,7 @@ func (g *ObserveRepo) populateEventSummaryProjections(ctx context.Context, summa
 		return nil
 	}
 
-	row, err := g.queries.GetEventSummarySessionProjection(ctx, strings.TrimSpace(summary.SessionID))
+	row, err := g.readQueries.GetEventSummarySessionProjection(ctx, strings.TrimSpace(summary.SessionID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}

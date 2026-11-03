@@ -24,7 +24,7 @@ func (g *AutomationRepo) GetSchedulerState(ctx context.Context, jobID string) (a
 		return automation.SchedulerState{}, err
 	}
 
-	row, err := g.queries.GetAutomationSchedulerState(ctx, trimmedID)
+	row, err := g.readQueries.GetAutomationSchedulerState(ctx, trimmedID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return automation.SchedulerState{}, automation.ErrSchedulerStateNotFound
@@ -40,7 +40,7 @@ func (g *AutomationRepo) ListSchedulerStates(ctx context.Context) ([]automation.
 		return nil, err
 	}
 
-	rows, err := g.queries.ListAutomationSchedulerStates(ctx)
+	rows, err := g.readQueries.ListAutomationSchedulerStates(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: query automation scheduler states: %w", err)
 	}

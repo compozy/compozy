@@ -35,7 +35,7 @@ func (g *TaskRepo) GetExecutionProfile(
 		return taskpkg.ExecutionProfile{}, err
 	}
 
-	profile, found, err := loadExecutionProfile(ctx, g.db, trimmedID)
+	profile, found, err := loadExecutionProfile(ctx, g.readDB, trimmedID)
 	if err != nil {
 		return taskpkg.ExecutionProfile{}, err
 	}

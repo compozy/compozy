@@ -106,7 +106,7 @@ func (g *SessionMonitorRepo) LoadMonitors(ctx context.Context) ([]monitor.Record
 	if err := g.checkReady(ctx, "load session monitors"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListSessionMonitors(ctx)
+	rows, err := g.readQueries.ListSessionMonitors(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: load session monitors: %w", err)
 	}

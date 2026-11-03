@@ -39,7 +39,7 @@ func (g *GlobalDB) HasActiveWorktreeSession(
 		return false, err
 	}
 	var found bool
-	err := g.Worktrees.db.QueryRowContext(ctx, `
+	err := g.Worktrees.readDB.QueryRowContext(ctx, `
 SELECT EXISTS (
   SELECT 1 FROM sessions
   WHERE workspace_id = ? AND worktree_id = ?
@@ -64,7 +64,7 @@ func (g *GlobalDB) HasUnarchivedWorktreeSession(
 	if err := g.Worktrees.checkReady(ctx, "inspect bound worktree sessions"); err != nil {
 		return false, err
 	}
-	bound, err := g.Worktrees.queries.HasUnarchivedWorktreeSession(ctx, sqlcgen.HasUnarchivedWorktreeSessionParams{
+	bound, err := g.Worktrees.readQueries.HasUnarchivedWorktreeSession(ctx, sqlcgen.HasUnarchivedWorktreeSessionParams{
 		WorkspaceID: strings.TrimSpace(workspaceID),
 		WorktreeID:  sql.NullString{String: strings.TrimSpace(worktreeID), Valid: true},
 	})
@@ -86,7 +86,7 @@ func (g *GlobalDB) HasOtherActiveWorktreeSession(
 		return false, err
 	}
 	var found bool
-	err := g.Worktrees.db.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sessions WHERE workspace_id=? AND worktree_id=? AND id<>? AND state IN ('starting','active','stopping'))`, workspaceID, worktreeID, sessionID).
+	err := g.Worktrees.readDB.QueryRowContext(ctx, `SELECT EXISTS (SELECT 1 FROM sessions WHERE workspace_id=? AND worktree_id=? AND id<>? AND state IN ('starting','active','stopping'))`, workspaceID, worktreeID, sessionID).
 		Scan(&found)
 	if err != nil {
 		return false, fmt.Errorf("store: inspect other worktree sessions: %w", err)

@@ -1358,7 +1358,7 @@ func TestGlobalDBAutomationSuggestionMigrations(t *testing.T) {
 	if exists {
 		t.Fatal("automation_suggestions exists at v19, want append-only v20 ownership")
 	}
-	prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: time.Now}
+	prefixGlobalDB := &GlobalDB{db: prefixDB, readDB: prefixDB, path: path, now: time.Now}
 	prefixGlobalDB.initializeRepositories(openConfig{})
 	workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "suggestions-upgrade", t.TempDir())
 	// Invariant: v19 adds suggestion storage, and populated v20 payloads survive the rename.

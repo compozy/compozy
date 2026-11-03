@@ -239,10 +239,10 @@ func (g *GoalRepo) GetJudgeAttempt(
 	if err := g.checkReady(ctx, "get goal judge attempt"); err != nil {
 		return goal.JudgeAttempt{}, err
 	}
-	if err := validateGoalRunWorkspace(ctx, g.db, key); err != nil {
+	if err := validateGoalRunWorkspace(ctx, g.readDB, key); err != nil {
 		return goal.JudgeAttempt{}, err
 	}
-	return getGoalJudgeAttemptWithExecutor(ctx, g.db, key, attemptID)
+	return getGoalJudgeAttemptWithExecutor(ctx, g.readDB, key, attemptID)
 }
 
 func getGoalJudgeAttemptWithExecutor(

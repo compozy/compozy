@@ -37,7 +37,7 @@ func (g *LoopRepo) ListNodeInventory(
 	if err != nil {
 		return looppkg.NodeInventoryPage{}, err
 	}
-	tx, err := g.db.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
+	tx, err := g.readDB.BeginTx(ctx, &sql.TxOptions{ReadOnly: true})
 	if err != nil {
 		return looppkg.NodeInventoryPage{}, fmt.Errorf("store: begin loop node inventory read: %w", err)
 	}

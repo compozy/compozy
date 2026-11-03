@@ -26,7 +26,7 @@ func (g *TaskRunRepo) LoadRunStarvation(
 	if err != nil {
 		return taskpkg.RunStarvation{}, false, err
 	}
-	row, err := g.queries.GetRunStarvation(ctx, id)
+	row, err := g.readQueries.GetRunStarvation(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return taskpkg.RunStarvation{}, false, nil
 	}
@@ -74,7 +74,7 @@ func (g *TaskRunRepo) ListRunStarvation(ctx context.Context) ([]taskpkg.RunStarv
 	if err := g.checkReady(ctx, "list run starvation"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListRunStarvation(ctx)
+	rows, err := g.readQueries.ListRunStarvation(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list run starvation: %w", err)
 	}

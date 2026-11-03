@@ -259,7 +259,7 @@ func (g *SessionRepo) FailStaleDispatchingSessionInputs(ctx context.Context, now
 	if err := g.checkReady(ctx, "fail stale dispatching session inputs"); err != nil {
 		return 0, err
 	}
-	rows, err := g.queries.ListStaleDispatchingSessionInputs(ctx)
+	rows, err := g.readQueries.ListStaleDispatchingSessionInputs(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("store: list stale dispatching session inputs: %w", err)
 	}

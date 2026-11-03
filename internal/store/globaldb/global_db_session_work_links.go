@@ -16,7 +16,7 @@ func (g *SessionRepo) SaveSessionWorkLink(ctx context.Context, link store.Sessio
 	}
 	var belongs bool
 	const belongsQuery = "SELECT EXISTS (SELECT 1 FROM sessions WHERE id = ? AND workspace_id = ?)"
-	if err := g.db.QueryRowContext(ctx, belongsQuery, link.SessionID, link.WorkspaceID).
+	if err := g.readDB.QueryRowContext(ctx, belongsQuery, link.SessionID, link.WorkspaceID).
 		Scan(&belongs); err != nil {
 		return fmt.Errorf("store: validate linked session: %w", err)
 	}
@@ -74,7 +74,7 @@ func (g *SessionRepo) SessionWorkLinks(ctx context.Context, ids []string) (map[s
 	if err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ReadSessionWorkLinks(ctx, string(data))
+	rows, err := g.readQueries.ReadSessionWorkLinks(ctx, string(data))
 	if err != nil {
 		return nil, fmt.Errorf("store: read session work links: %w", err)
 	}
@@ -107,7 +107,7 @@ func (g *SessionRepo) SessionPendingWork(ctx context.Context, ids []string) (map
 	if err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ReadSessionPendingWork(ctx, string(data))
+	rows, err := g.readQueries.ReadSessionPendingWork(ctx, string(data))
 	if err != nil {
 		return nil, fmt.Errorf("store: read pending session work: %w", err)
 	}
@@ -126,7 +126,7 @@ func (g *SessionRepo) SessionWorkFamily(ctx context.Context, ids []string) ([]st
 	if err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ReadSessionWorkFamily(ctx, string(data))
+	rows, err := g.readQueries.ReadSessionWorkFamily(ctx, string(data))
 	if err != nil {
 		return nil, fmt.Errorf("store: read linked work family: %w", err)
 	}

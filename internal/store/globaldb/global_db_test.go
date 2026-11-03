@@ -25,6 +25,7 @@ import (
 	"github.com/compozy/compozy/internal/agentinstance"
 	automation "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/extensionenv"
+	"github.com/compozy/compozy/internal/heartbeat"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
@@ -131,6 +132,48 @@ func reportTestMainError(format string, args ...any) {
 
 func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 	t.Parallel()
+	t.Run("Should keep request reads independent of an exhausted writer pool", func(t *testing.T) {
+		t.Parallel()
+		g := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, g, "read-isolation", t.TempDir())
+		g.db.SetMaxOpenConns(1)
+		conn, err := g.db.Conn(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := conn.Close(); err != nil {
+				t.Error(err)
+			}
+		}()
+		if _, err := conn.ExecContext(t.Context(), "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if _, err := conn.ExecContext(testutil.Context(t), "ROLLBACK"); err != nil {
+				t.Error(err)
+			}
+		}()
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		workspace, err := g.GetWorkspace(ctx, workspaceID)
+		if err != nil || workspace.ID != workspaceID {
+			t.Fatalf("workspace read while writer held: %+v, %v", workspace, err)
+		}
+		page, err := g.PageSessions(ctx, store.SessionCatalogPageQuery{
+			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, Limit: 30, Sort: sessionCatalogSortRecent,
+		})
+		if err != nil || len(page.Sessions) != 0 || page.Total != 0 {
+			t.Fatalf("catalog read while writer held: %+v, %v", page, err)
+		}
+		if _, err := g.GetSessionHealth(ctx, "missing-session"); !errors.Is(err, heartbeat.ErrSessionHealthNotFound) {
+			t.Fatalf("health read while writer held: %v", err)
+		}
+		if _, err := g.readDB.ExecContext(ctx, "DELETE FROM workspaces"); err == nil {
+			t.Fatal("read pool allowed a mutation")
+		}
+	})
+
 	t.Run("Should verify the permanent default profile without repairing invalid identity", func(t *testing.T) {
 		t.Parallel()
 
@@ -1952,7 +1995,7 @@ func TestGlobalDBPhase0HomeWorkspaceMigration(t *testing.T) {
 			}
 		})
 		assertPhase0HomeWorkspaceDisposition(ctx, t, reopened)
-		healthRepo := &HeartbeatRepo{repoBase: newRepoBase(reopened, nil, new(atomic.Int32))}
+		healthRepo := &HeartbeatRepo{repoBase: newRepoBase(reopened, reopened, nil, new(atomic.Int32))}
 		health, err := healthRepo.GetSessionHealth(ctx, "home-session")
 		if err != nil {
 			t.Fatalf("GetSessionHealth(migrated Global session) error = %v", err)
@@ -6962,7 +7005,7 @@ func TestUserScopeMigration(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		g := &GlobalDB{db: db}
+		g := &GlobalDB{db: db, readDB: db}
 		t.Cleanup(func() {
 			if err := db.Close(); err != nil {
 				t.Error(err)
@@ -7132,7 +7175,7 @@ func TestUserScopeMigrationNamesAndKeepProject(t *testing.T) {
 			if err := applyGlobalMigrationPrefix(t, db, MigrationStream()); err != nil {
 				t.Fatal(err)
 			}
-			repo := &WorkspaceRepo{repoBase: newRepoBase(db, nil, new(atomic.Int32))}
+			repo := &WorkspaceRepo{repoBase: newRepoBase(db, db, nil, new(atomic.Int32))}
 			for old, want := range map[string]string{"user": "user-project-2", "global": "global-project", "@x": "x"} {
 				got, err := repo.GetWorkspaceByName(t.Context(), old)
 				if err != nil || got.Name != want {

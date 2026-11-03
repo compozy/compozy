@@ -18,16 +18,16 @@ func (g *LoopRepo) BackfillLoopWaitAdmissionDeadlines(ctx context.Context, limit
 	if limit <= 0 {
 		return 0, fmt.Errorf("store: wait deadline page limit must be positive")
 	}
-	rows, err := g.queries.ListExpirylessLoopEventWaits(ctx, int64(limit))
+	rows, err := g.readQueries.ListExpirylessLoopEventWaits(ctx, int64(limit))
 	if err != nil {
 		return 0, err
 	}
 	for _, row := range rows {
-		run, err := getLoopRunByIDWithExecutor(ctx, g.db, looppkg.RunID(row.LoopRunID))
+		run, err := getLoopRunByIDWithExecutor(ctx, g.readDB, looppkg.RunID(row.LoopRunID))
 		if err != nil {
 			return 0, err
 		}
-		resolved, err := loadWaitExecutedDefinition(ctx, g.db, run)
+		resolved, err := loadWaitExecutedDefinition(ctx, g.readDB, run)
 		if err != nil {
 			return 0, err
 		}

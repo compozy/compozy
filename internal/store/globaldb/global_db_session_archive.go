@@ -28,7 +28,7 @@ func (g *SessionRepo) SessionArchivedAt(
 	if sessionID == "" {
 		return nil, errors.New("store: session archive session id is required")
 	}
-	archivedAt, err := g.queries.GetSessionArchivedAt(ctx, sqlcgen.GetSessionArchivedAtParams{
+	archivedAt, err := g.readQueries.GetSessionArchivedAt(ctx, sqlcgen.GetSessionArchivedAtParams{
 		WorkspaceID: workspaceID, ID: sessionID,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
@@ -140,7 +140,7 @@ func (g *SessionRepo) GuardInstanceMain(ctx context.Context, sessionID string) e
 	if err := g.checkReady(ctx, "guard instance main"); err != nil {
 		return err
 	}
-	return guardInstanceMainArchive(ctx, g.queries, sessionID)
+	return guardInstanceMainArchive(ctx, g.readQueries, sessionID)
 }
 
 func guardInstanceMainArchive(ctx context.Context, q *sqlcgen.Queries, sessionID string) error {

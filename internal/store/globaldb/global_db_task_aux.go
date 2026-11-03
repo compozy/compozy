@@ -60,7 +60,7 @@ func (g *TaskRepo) GetTaskTriageState(
 		return taskpkg.TriageState{}, err
 	}
 
-	row, err := g.queries.GetTaskTriageState(ctx, sqlcgen.GetTaskTriageStateParams{
+	row, err := g.readQueries.GetTaskTriageState(ctx, sqlcgen.GetTaskTriageStateParams{
 		TaskID: trimmedTaskID, ActorKind: string(normalizedActor.Kind), ActorID: normalizedActor.Ref,
 	})
 	if err != nil {
@@ -123,7 +123,7 @@ func (g *TaskRepo) ListTaskTriageStates(
 		return nil, err
 	}
 
-	rows, err := g.queries.ListTaskTriageStates(ctx, sqlcgen.ListTaskTriageStatesParams{
+	rows, err := g.readQueries.ListTaskTriageStates(ctx, sqlcgen.ListTaskTriageStatesParams{
 		ActorKind: string(normalizedActor.Kind), ActorID: normalizedActor.Ref,
 	})
 	if err != nil {
@@ -258,7 +258,7 @@ func (g *TaskRepo) ListDependencies(ctx context.Context, taskID string) ([]taskp
 		return nil, err
 	}
 
-	return g.listDependenciesWithExecutor(ctx, g.db, taskID)
+	return g.listDependenciesWithExecutor(ctx, g.readDB, taskID)
 }
 
 func (g *TaskRepo) listDependenciesWithExecutor(
@@ -293,7 +293,7 @@ func (g *TaskRepo) ListDependents(ctx context.Context, dependsOnTaskID string) (
 		return nil, err
 	}
 
-	return g.listDependentsWithExecutor(ctx, g.db, dependsOnTaskID)
+	return g.listDependentsWithExecutor(ctx, g.readDB, dependsOnTaskID)
 }
 
 func (g *TaskRepo) listDependentsWithExecutor(
@@ -333,7 +333,7 @@ func (g *TaskRepo) CountDependencies(ctx context.Context, taskID string) (int, e
 		return 0, err
 	}
 
-	return g.countDependenciesWithExecutor(ctx, g.db, trimmedTaskID)
+	return g.countDependenciesWithExecutor(ctx, g.readDB, trimmedTaskID)
 }
 
 // HasDependencyPath reports whether the dependency graph already contains a path from one task to another.
@@ -351,5 +351,5 @@ func (g *TaskRepo) HasDependencyPath(ctx context.Context, fromTaskID string, toT
 		return false, err
 	}
 
-	return g.hasDependencyPathWithExecutor(ctx, g.db, trimmedFromTaskID, trimmedToTaskID)
+	return g.hasDependencyPathWithExecutor(ctx, g.readDB, trimmedFromTaskID, trimmedToTaskID)
 }

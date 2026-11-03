@@ -98,7 +98,7 @@ func (g *LoopRepo) ListLoopRuns(
 	// #nosec G202 -- clauses are constants; values are parameters.
 	sqlText := store.AppendWhere(loopRunAPIListSelectSQL, where) + orderBy
 	args = append(args, normalized.Limit)
-	rows, err := g.db.QueryContext(ctx, sqlText, args...)
+	rows, err := g.readDB.QueryContext(ctx, sqlText, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: list loop runs: %w", err)
 	}
@@ -151,7 +151,7 @@ func (g *LoopRepo) validateLoopRunListPosition(
 	)
 	var createdAtRaw string
 	var rank int
-	if err := g.db.QueryRowContext(ctx, statement, args...).Scan(&createdAtRaw, &rank); err != nil {
+	if err := g.readDB.QueryRowContext(ctx, statement, args...).Scan(&createdAtRaw, &rank); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf(
 				"%w: Loop run list cursor no longer identifies its boundary",
@@ -189,7 +189,7 @@ func (g *LoopRepo) ListLoopRunEvents(
 	if !normalized.ReadScope.Matches(run.ProfileID) {
 		return nil, looppkg.ErrRunNotFound
 	}
-	rows, err := g.queries.ListLoopRunEvents(ctx, sqlcgen.ListLoopRunEventsParams{
+	rows, err := g.readQueries.ListLoopRunEvents(ctx, sqlcgen.ListLoopRunEventsParams{
 		WorkspaceID: string(normalized.WorkspaceID), LoopRunID: string(normalized.RunID),
 		AfterSeq: normalized.AfterSeq, RowLimit: int64(normalized.Limit),
 	})
@@ -212,7 +212,7 @@ func (g *LoopRepo) GetLoopRunEventHead(
 	if err := g.checkReady(ctx, "get loop run event head"); err != nil {
 		return 0, err
 	}
-	head, err := g.queries.GetLoopRunEventHead(ctx, sqlcgen.GetLoopRunEventHeadParams{
+	head, err := g.readQueries.GetLoopRunEventHead(ctx, sqlcgen.GetLoopRunEventHeadParams{
 		WorkspaceID: string(workspaceID), LoopRunID: string(runID),
 	})
 	if err != nil {
@@ -232,7 +232,7 @@ func (g *LoopRepo) ListLoopRunEventsBackward(
 	if query.Limit < 1 || query.Limit > maxLoopAPIListLimit || query.FixedHeadSeq < 0 || query.BeforeSeq < 1 {
 		return nil, fmt.Errorf("%w: backward loop event query is invalid", looppkg.ErrValidation)
 	}
-	rows, err := g.queries.ListLoopRunEventsBackward(ctx, sqlcgen.ListLoopRunEventsBackwardParams{
+	rows, err := g.readQueries.ListLoopRunEventsBackward(ctx, sqlcgen.ListLoopRunEventsBackwardParams{
 		WorkspaceID: string(query.WorkspaceID), LoopRunID: string(query.RunID), FixedHeadSeq: query.FixedHeadSeq,
 		BeforeSeq: query.BeforeSeq, RowLimit: int64(query.Limit),
 	})
@@ -259,7 +259,7 @@ func (g *LoopRepo) ListRouteCauses(
 	if strings.TrimSpace(string(runID)) == "" || generation < 1 {
 		return nil, fmt.Errorf("%w: route cause scope is invalid", looppkg.ErrValidation)
 	}
-	rows, err := g.queries.ListLoopRouteCauses(ctx, sqlcgen.ListLoopRouteCausesParams{
+	rows, err := g.readQueries.ListLoopRouteCauses(ctx, sqlcgen.ListLoopRouteCausesParams{
 		WorkspaceID: string(workspaceID), LoopRunID: string(runID), Generation: strconv.FormatInt(generation, 10),
 	})
 	if err != nil {
@@ -292,7 +292,7 @@ func (g *LoopRepo) ListLoopUIAnnotations(
 	if err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListLoopUIAnnotations(ctx, sqlcgen.ListLoopUIAnnotationsParams{
+	rows, err := g.readQueries.ListLoopUIAnnotations(ctx, sqlcgen.ListLoopUIAnnotationsParams{
 		ProfileID:   loopStateProfileID(workspaceID, profileID),
 		WorkspaceID: string(workspaceID), LoopName: name,
 	})
