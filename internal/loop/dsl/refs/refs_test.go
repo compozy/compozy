@@ -365,6 +365,48 @@ func TestTemplateShouldCompareNumbersByValueAcrossDecodedKinds(t *testing.T) {
 			value:    json.Number("0"),
 			want:     "true",
 		},
+		{
+			name:     "Should compare matching decimal with eq",
+			template: `{{ eq .n 0.1 }}`,
+			value:    json.Number("0.1"),
+			want:     "true",
+		},
+		{
+			name:     "Should compare matching decimal with ne",
+			template: `{{ ne .n 0.1 }}`,
+			value:    json.Number("0.1"),
+			want:     "false",
+		},
+		{
+			name:     "Should compare matching decimal with lt",
+			template: `{{ lt .n 0.1 }}`,
+			value:    json.Number("0.1"),
+			want:     "false",
+		},
+		{
+			name:     "Should compare matching decimal with le",
+			template: `{{ le .n 0.1 }}`,
+			value:    json.Number("0.1"),
+			want:     "true",
+		},
+		{
+			name:     "Should compare matching decimal with gt",
+			template: `{{ gt .n 0.1 }}`,
+			value:    json.Number("0.1"),
+			want:     "false",
+		},
+		{
+			name:     "Should compare matching decimal with ge",
+			template: `{{ ge .n 0.1 }}`,
+			value:    json.Number("0.1"),
+			want:     "true",
+		},
+		{
+			name:     "Should compare float32 using its decimal representation",
+			template: `{{ eq .n 0.1 }}`,
+			value:    float32(0.1),
+			want:     "true",
+		},
 		{name: "Should match any of several eq operands", template: `{{ eq .n 1 2 3 }}`, value: int64(2), want: "true"},
 		{name: "Should compare unequal mixed numeric kinds", template: `{{ ne .n 3 }}`, value: uint8(4), want: "true"},
 		{

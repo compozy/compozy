@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/big"
 	"reflect"
+	"strconv"
 )
 
 // Loop data carries numbers as json.Number, float64, or Go integers depending
@@ -108,9 +109,7 @@ func templateOrder(left any, right any) (int, error) {
 	return 0, fmt.Errorf("%w: %T and %T", errIncompatibleComparison, left, right)
 }
 
-// templateNumbers converts both operands to exact big floats when both are
-// numeric. A json.Number paired with a non-numeric operand stays a string so
-// `eq .count "3"` keeps its builtin meaning.
+// templateNumbers compares numeric operands while preserving string comparisons for mixed operands.
 func templateNumbers(left any, right any) (*big.Float, *big.Float, bool) {
 	leftNumber, leftOK := templateNumber(left)
 	if !leftOK {
@@ -142,7 +141,8 @@ func templateNumber(value any) (*big.Float, bool) {
 		if math.IsNaN(float) || math.IsInf(float, 0) {
 			return nil, false
 		}
-		return number.SetFloat64(float), true
+		// Decimal formatting aligns float literals with JSON decimal values.
+		return number.SetString(strconv.FormatFloat(float, 'g', -1, reflected.Type().Bits()))
 	default:
 		return nil, false
 	}
