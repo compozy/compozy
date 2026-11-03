@@ -142,13 +142,16 @@ export function useAgentCreateDialog({
   workspaceProvidersLoading,
 }: AgentCreateDialogContext): AgentCreateDialogApi {
   const navigate = useNavigate();
-  const instanceCapacity = useAgentInstanceCapacity();
   const workspaces = useWorkspaces();
   const dialogStore = useStore(agentCreateDialogLogic, {
     initialDraft: createDefaultAgentCreateDraft(Boolean(activeWorkspace), activeWorkspace?.id),
   });
   const flow = useSelector(dialogStore, snapshot => snapshot.context);
   const { open, duplicateSource, ...flowView } = describeAgentCreateFlow(flow);
+  // A duplicate lands in its source's profile: names and slots are checked there too.
+  const targetProfile =
+    flow.status !== "closed" && flow.kind === "duplicate" ? flow.profile : undefined;
+  const instanceCapacity = useAgentInstanceCapacity(targetProfile);
 
   const { resolveDraft, providerOptions, providersLoading, providersError } =
     useAgentCreateProviders(flow.draft, {
@@ -164,7 +167,7 @@ export function useAgentCreateDialog({
     needsAuth: option.needs_auth,
   }));
   const catalog = useRuntimeModelCatalog(catalogProviders, { enabled: open });
-  const definitions = useAgents(activeWorkspace?.id, { enabled: open });
+  const definitions = useAgents(activeWorkspace?.id, { enabled: open, profile: targetProfile });
   const takenNames = definitions.data ? new Set(definitions.data.map(a => a.name)) : NO_NAMES;
 
   const defaultDraft = () =>

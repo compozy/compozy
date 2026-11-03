@@ -83,10 +83,13 @@ export function useAgentInstances(): readonly AgentInstancePayload[] {
   return useAgentInstancesRead()?.instances ?? NO_INSTANCES;
 }
 
-/** The slots of the profile a new instance would land in, as the daemon reports them. */
-export function useAgentInstanceCapacity() {
+/**
+ * The slots of the profile a new instance would land in, as the daemon reports them. `profile`
+ * names another one, e.g. the profile a duplicate's copy lands in.
+ */
+export function useAgentInstanceCapacity(profile?: string) {
   const { destination } = useProfilePerProfileScope();
-  return agentInstanceCapacity(useAgentInstancesRead()?.capacity[destination]);
+  return agentInstanceCapacity(useAgentInstancesRead()?.capacity[profile ?? destination]);
 }
 
 /** The stays-on agents a scope can start; `""` is Global. Reads only while a picker is open. */
