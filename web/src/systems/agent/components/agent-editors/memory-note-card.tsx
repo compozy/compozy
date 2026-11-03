@@ -14,6 +14,7 @@ import { agentEditorMark } from "../../lib/agent-editor-mark";
 import { agentScopeLabel } from "../../lib/agent-instance";
 import type { AgentPayload } from "../../types";
 import { AgentMark } from "../agent-mark";
+import { InlineCodeText } from "../inline-code-text";
 
 const MAX_NOTE = 1000;
 
@@ -54,19 +55,11 @@ function Forgets({ note, today }: { note: MemoryNote; today: string }) {
   );
 }
 
-/** Note text with inline `code` drawn the way the Markdown editor draws it. */
+/** Note text with inline `code`. */
 function NoteText({ text, expired }: { text: string; expired?: boolean }) {
   return (
     <p className={cn("text-body leading-relaxed", expired ? "text-subtle" : "text-fg")}>
-      {text.split(/(`[^`]+`)/).map(part =>
-        part.startsWith("`") ? (
-          <code className="rounded-xxs bg-sunken/40 px-1 font-mono text-[0.92em]" key={part}>
-            {part.slice(1, -1)}
-          </code>
-        ) : (
-          part
-        )
-      )}
+      <InlineCodeText text={text} />
     </p>
   );
 }

@@ -138,9 +138,12 @@ describe("StaysOnRow", () => {
     await user.click(screen.getByRole("button", { name: "Show all 5 agents in compozy" }));
     await user.click(screen.getByRole("button", { name: "Resume all" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      `Agent 1 and Agent 2 didn't resume. ${cap}`
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      `Agent 1 and Agent 2 didn't resume. ${cap.replaceAll("`", "")}`
     );
+    // The config key reads as code, never with literal backticks.
+    expect(within(alert).getByText("agents.stays_on.max_active_instances").tagName).toBe("CODE");
     expect(mockApi.resume).toHaveBeenCalledTimes(3);
   });
 

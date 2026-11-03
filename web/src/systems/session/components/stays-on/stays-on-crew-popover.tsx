@@ -16,6 +16,7 @@ import {
   agentAvatarAppearance,
   agentInstanceAvatarState,
   agentInstancesByUrgency,
+  InlineCodeText,
   type AgentInstancePayload,
 } from "@/systems/agent";
 
@@ -122,7 +123,7 @@ export function StaysOnCrewPopover({
         </div>
         {resumeAll.error ? (
           <p className="px-1 text-small-body text-destructive" role="alert">
-            {resumeAll.error}
+            <InlineCodeText text={resumeAll.error} />
           </p>
         ) : null}
         {instances.length >= SEARCH_FROM ? (
