@@ -97,6 +97,11 @@ AND created_at>sqlc.arg(after_time);
 UPDATE agent_instance_wake_state SET quiet_streak=0
 WHERE instance_id IN (SELECT id FROM agent_instances WHERE main_session_id=? AND archived_at IS NULL);
 
+-- name: MarkSessionInputUnattendedCounted :execrows
+-- Claims the row's single unattended count; a retried turn finds it already set.
+UPDATE session_input_queue SET unattended_counted = 1
+WHERE id = sqlc.arg(id) AND unattended_counted = 0;
+
 -- name: AdvanceInstanceUnattended :one
 UPDATE agent_instance_wake_state SET unattended_turns=unattended_turns+1
 WHERE instance_id=sqlc.arg(instance_id)

@@ -406,6 +406,20 @@ func (q *Queries) ListInstanceCheckIns(ctx context.Context, arg ListInstanceChec
 	return items, nil
 }
 
+const markSessionInputUnattendedCounted = `-- name: MarkSessionInputUnattendedCounted :execrows
+UPDATE session_input_queue SET unattended_counted = 1
+WHERE id = ?1 AND unattended_counted = 0
+`
+
+// Claims the row's single unattended count; a retried turn finds it already set.
+func (q *Queries) MarkSessionInputUnattendedCounted(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markSessionInputUnattendedCounted, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const resetInstanceUnattended = `-- name: ResetInstanceUnattended :exec
 UPDATE agent_instance_wake_state SET unattended_turns=0, engaged_at=?1
 WHERE instance_id=?2
