@@ -21,6 +21,7 @@ import (
 // session/load. Providers that accept only remote MCP servers get each stdio
 // server through a loopback HTTP bridge owned by the agent process.
 func (d *Driver) prepareSessionMCPServers(ctx context.Context, process *AgentProcess, opts StartOpts) error {
+	process.setHostedToolIdentity(opts)
 	if opts.ProviderConfig == nil || !opts.ProviderConfig.SessionMCPOverHTTP() {
 		return process.setSessionMCPServers(toSDKMCPServers(opts.MCPServers), nil)
 	}

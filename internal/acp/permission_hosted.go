@@ -3,12 +3,14 @@ package acp
 import (
 	"bytes"
 	"encoding/json"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/providerexec"
 	"github.com/compozy/compozy/internal/toolmeta"
 )
 
@@ -41,28 +43,68 @@ type hostedToolCall struct {
 // MCP server from the provider's structured identity, never from the title: the
 // Claude adapter reports the serving MCP server and its config source, and
 // Codex reports the server and tool it dispatches to, in the request or in the
-// tool call it announced under the same id. The process must also have sent
-// that server in session/new or session/load.
+// tool call it announced under the same id. Each shape is read only from the
+// provider that produces it, and only when this process sent the daemon-minted
+// hosted server launch in session/new or session/load.
 func (p *AgentProcess) hostedToolCall(request acpsdk.RequestPermissionRequest) (hostedToolCall, bool) {
-	if p == nil || !p.sentHostedMCPServer() {
+	if p == nil {
 		return hostedToolCall{}, false
 	}
-	if call, ok := claudeHostedToolCall(request); ok {
-		return call, true
-	}
-	if call, ok := codexHostedToolCall(request.ToolCall.RawInput); ok {
-		return call, true
-	}
-	if request.ToolCall.RawInput != nil {
+	identity := p.hostedToolIdentitySnapshot()
+	switch {
+	case !identity.launched:
+		return hostedToolCall{}, false
+	case identity.claude:
+		return claudeHostedToolCall(request)
+	case identity.codex:
+		if call, ok := codexHostedToolCall(request.ToolCall.RawInput); ok {
+			return call, true
+		}
+		if request.ToolCall.RawInput != nil {
+			return hostedToolCall{}, false
+		}
+		return p.hostedAnnounced.lookup(string(request.ToolCall.ToolCallId))
+	default:
 		return hostedToolCall{}, false
 	}
-	return p.hostedAnnounced.lookup(string(request.ToolCall.ToolCallId))
 }
 
-// observeHostedToolCall remembers a hosted call the provider announced on the
-// bound session. Codex asks permission for an MCP call with only the tool call
-// id; the announcement carries the server, tool, and arguments.
+// hostedToolIdentity records whether this process launched the hosted MCP
+// server and which provider bridge reports its calls.
+type hostedToolIdentity struct {
+	launched bool
+	claude   bool
+	codex    bool
+}
+
+func (p *AgentProcess) setHostedToolIdentity(opts StartOpts) {
+	identity := hostedToolIdentity{
+		claude: providerexec.IsClaudeAgentBridge(opts.Command),
+		codex:  providerexec.IsCodexAgentBridge(opts.Command),
+	}
+	for _, server := range opts.MCPServers {
+		if server.Name == toolmeta.HostedServerName && slices.Contains(server.Args, toolmeta.HostedBindNonceFlag) {
+			identity.launched = true
+		}
+	}
+	p.sessionMCPMu.Lock()
+	p.hostedIdentity = identity
+	p.sessionMCPMu.Unlock()
+}
+
+func (p *AgentProcess) hostedToolIdentitySnapshot() hostedToolIdentity {
+	p.sessionMCPMu.Lock()
+	defer p.sessionMCPMu.Unlock()
+	return p.hostedIdentity
+}
+
+// observeHostedToolCall remembers a hosted call Codex announced on the bound
+// session. Codex asks permission for an MCP call with only the tool call id;
+// the announcement carries the server, tool, and arguments.
 func (p *AgentProcess) observeHostedToolCall(update acpsdk.SessionUpdate) {
+	if !p.hostedToolIdentitySnapshot().codex {
+		return
+	}
 	var (
 		id       acpsdk.ToolCallId
 		rawInput any
@@ -77,28 +119,6 @@ func (p *AgentProcess) observeHostedToolCall(update acpsdk.SessionUpdate) {
 	}
 	if call, ok := codexHostedToolCall(rawInput); ok && strings.TrimSpace(string(id)) != "" {
 		p.hostedAnnounced.record(string(id), call)
-	}
-}
-
-func (p *AgentProcess) sentHostedMCPServer() bool {
-	for _, server := range p.sessionMCPServers() {
-		if mcpServerName(server) == toolmeta.HostedServerName {
-			return true
-		}
-	}
-	return false
-}
-
-func mcpServerName(server acpsdk.McpServer) string {
-	switch {
-	case server.Stdio != nil:
-		return server.Stdio.Name
-	case server.Http != nil:
-		return server.Http.Name
-	case server.Sse != nil:
-		return server.Sse.Name
-	default:
-		return ""
 	}
 }
 

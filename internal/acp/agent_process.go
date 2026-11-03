@@ -55,6 +55,7 @@ type AgentProcess struct {
 	// are the loopback HTTP bridges this process owns until it exits.
 	sessionMCPMu     sync.Mutex
 	sessionMCP       []acpsdk.McpServer
+	hostedIdentity   hostedToolIdentity
 	mcpBridges       []*mcpbridge.Bridge
 	mcpBridgesClosed bool
 

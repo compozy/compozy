@@ -6,6 +6,10 @@ import "strings"
 // session for its hosted native tools.
 const HostedServerName = "compozy-hosted-tools"
 
+// HostedBindNonceFlag marks the daemon-minted launch of the hosted MCP server;
+// a configured server that only reuses the name never carries it.
+const HostedBindNonceFlag = "--bind-nonce"
+
 // NativeEntry returns curated progress metadata for Compozy's native tool namespace.
 func NativeEntry(toolID string) (Entry, bool) {
 	entry, ok := nativeEntries[NormalizeHostedToolName(toolID)]

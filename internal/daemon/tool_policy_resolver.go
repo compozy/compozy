@@ -143,6 +143,7 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 		workspaceaccess.ActorKind(resolvedScope.ActorKind) != workspaceaccess.ActorDaemon {
 		if err := r.applyAgentToolPolicy(&inputs, resolvedScope.AgentName, resolvedWorkspace, cfg); err != nil {
 			if inputs.Session.Enforced && errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+				applySessionPermissionLevel(&inputs, info)
 				return inputs, nil
 			}
 			return toolspkg.PolicyInputs{}, err

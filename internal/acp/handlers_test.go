@@ -3117,35 +3117,55 @@ func TestHostedToolPermissionGates(t *testing.T) {
 			},
 		}
 	}
-	codexAnnounced := func(t *testing.T, proc *AgentProcess) acpsdk.RequestPermissionRequest {
+	codexAnnounced := func(t *testing.T, proc *AgentProcess, active *activePromptState) acpsdk.RequestPermissionRequest {
 		t.Helper()
-		proc.observeHostedToolCall(acpsdk.SessionUpdate{ToolCall: &acpsdk.SessionUpdateToolCall{
-			ToolCallId: "exec-announced",
-			Title:      "mcp.compozy-hosted-tools.compozy__worktree_create",
-			Kind:       acpsdk.ToolKindExecute,
-			RawInput: map[string]any{
-				"server": "compozy-hosted-tools", "tool": "compozy__worktree_create", "arguments": input,
+		// The announcement travels the real session/update path.
+		if err := proc.handleSessionUpdate(mustMarshalJSON(map[string]any{
+			"sessionId": "sess-direct",
+			"update": map[string]any{
+				"sessionUpdate": "tool_call", "toolCallId": "exec-announced", "status": "in_progress",
+				"title": "mcp.compozy-hosted-tools.compozy__worktree_create", "kind": "execute",
+				"rawInput": map[string]any{
+					"server": "compozy-hosted-tools", "tool": "compozy__worktree_create", "arguments": input,
+				},
 			},
-		}})
+		})); err != nil {
+			t.Fatal(err)
+		}
+		collectEventsUntilCount(t, active.events, 1)
 		return acpsdk.RequestPermissionRequest{
 			SessionId: "sess-direct",
 			Options:   options,
 			ToolCall:  acpsdk.ToolCallUpdate{ToolCallId: "exec-announced", Kind: new(acpsdk.ToolKindExecute)},
 		}
 	}
+	claudeWithCodexInput := claudeRequest("github", "dynamic", "mcp__github__create_issue")
+	claudeWithCodexInput.ToolCall.RawInput = map[string]any{
+		"server": "compozy-hosted-tools", "tool": "compozy__worktree_create", "arguments": input,
+	}
 	titleOnly := claudeRequest("", "", hostedName)
 	titleOnly.ToolCall.Meta = nil
-	newProcess := func(t *testing.T, mode compozyconfig.PermissionMode, hosted bool) (*AgentProcess, *activePromptState) {
+	bridges := map[string]string{
+		"claude": "npx -y @agentclientprotocol/claude-agent-acp",
+		"codex":  "npx -y @agentclientprotocol/codex-acp@latest",
+	}
+	// launch is "minted" for the daemon's hosted launch, "name" for a server that
+	// only reuses its name, and "" for no hosted server.
+	newProcess := func(
+		t *testing.T, mode compozyconfig.PermissionMode, bridge string, launch string,
+	) (*AgentProcess, *activePromptState) {
 		t.Helper()
 		proc := newDirectProcess(t, mode)
 		proc.permissionTimeout = 50 * time.Millisecond
-		if hosted {
-			if err := proc.setSessionMCPServers([]acpsdk.McpServer{{Stdio: &acpsdk.McpServerStdio{
-				Name: "compozy-hosted-tools", Command: "compozy",
-			}}}, nil); err != nil {
-				t.Fatal(err)
-			}
+		opts := StartOpts{Command: bridges[bridge]}
+		switch launch {
+		case "minted":
+			opts.MCPServers = []compozyconfig.MCPServer{{Name: "compozy-hosted-tools", Command: "compozy",
+				Args: []string{"tool", "mcp", "--session", "sess-direct", "--bind-nonce", "nonce"}}}
+		case "name":
+			opts.MCPServers = []compozyconfig.MCPServer{{Name: "compozy-hosted-tools", Command: "my-server"}}
 		}
+		proc.setHostedToolIdentity(opts)
 		active, err := proc.beginPrompt("turn-hosted", 8)
 		if err != nil {
 			t.Fatal(err)
@@ -3165,14 +3185,15 @@ func TestHostedToolPermissionGates(t *testing.T) {
 	} {
 		for _, tc := range []struct {
 			name    string
+			bridge  string
 			request acpsdk.RequestPermissionRequest
 		}{
-			{"Claude hosted server", claudeRequest("compozy-hosted-tools", "dynamic", hostedName)},
-			{"Codex hosted server", codexRequest("compozy-hosted-tools")},
+			{"Claude hosted server", "claude", claudeRequest("compozy-hosted-tools", "dynamic", hostedName)},
+			{"Codex hosted server", "codex", codexRequest("compozy-hosted-tools")},
 		} {
 			t.Run("Should not prompt for a "+tc.name+" call at "+string(mode), func(t *testing.T) {
 				t.Parallel()
-				proc, active := newProcess(t, mode, true)
+				proc, active := newProcess(t, mode, tc.bridge, "minted")
 				response, err := proc.handleRequestPermission(t.Context(), tc.request)
 				if err != nil {
 					t.Fatal(err)
@@ -3188,17 +3209,30 @@ func TestHostedToolPermissionGates(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		request acpsdk.RequestPermissionRequest
-		hosted  bool
+		bridge  string
+		launch  string
 	}{
-		{"a configured server reusing the hosted name", claudeRequest("compozy-hosted-tools", "project", hostedName), true},
-		{"a non-Compozy MCP server", claudeRequest("github", "dynamic", "mcp__github__create_issue"), true},
-		{"a non-Compozy Codex MCP execute", codexRequest("github"), true},
-		{"a title naming the hosted tool", titleOnly, true},
-		{"a session that never received the hosted server", claudeRequest("compozy-hosted-tools", "dynamic", hostedName), false},
+		{
+			"a configured server reusing the hosted name",
+			claudeRequest("compozy-hosted-tools", "project", hostedName), "claude", "minted",
+		},
+		{"a non-Compozy MCP server", claudeRequest("github", "dynamic", "mcp__github__create_issue"), "claude", "minted"},
+		{"a non-Compozy Codex MCP execute", codexRequest("github"), "codex", "minted"},
+		{"a title naming the hosted tool", titleOnly, "claude", "minted"},
+		{"a Claude call whose input names the hosted server", claudeWithCodexInput, "claude", "minted"},
+		{"a Codex-shaped request from a non-Codex provider", codexRequest("compozy-hosted-tools"), "claude", "minted"},
+		{
+			"a session server that only reuses the hosted name",
+			claudeRequest("compozy-hosted-tools", "dynamic", hostedName), "claude", "name",
+		},
+		{
+			"a session that never received the hosted server",
+			claudeRequest("compozy-hosted-tools", "dynamic", hostedName), "claude", "",
+		},
 	} {
 		t.Run("Should still ask at approve-edits for "+tc.name, func(t *testing.T) {
 			t.Parallel()
-			proc, active := newProcess(t, compozyconfig.PermissionModeApproveEdits, tc.hosted)
+			proc, active := newProcess(t, compozyconfig.PermissionModeApproveEdits, tc.bridge, tc.launch)
 			response, err := proc.handleRequestPermission(t.Context(), tc.request)
 			if err != nil {
 				t.Fatal(err)
@@ -3250,8 +3284,8 @@ func TestHostedToolPermissionGates(t *testing.T) {
 
 	t.Run("Should not prompt for a Codex call identified by its announced tool call", func(t *testing.T) {
 		t.Parallel()
-		proc, active := newProcess(t, compozyconfig.PermissionModeApproveEdits, true)
-		response, err := proc.handleRequestPermission(t.Context(), codexAnnounced(t, proc))
+		proc, active := newProcess(t, compozyconfig.PermissionModeApproveEdits, "codex", "minted")
+		response, err := proc.handleRequestPermission(t.Context(), codexAnnounced(t, proc, active))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3263,7 +3297,7 @@ func TestHostedToolPermissionGates(t *testing.T) {
 
 	t.Run("Should ask once for a destructive hosted call at approve-edits", func(t *testing.T) {
 		t.Parallel()
-		proc, active := newProcess(t, compozyconfig.PermissionModeApproveEdits, true)
+		proc, active := newProcess(t, compozyconfig.PermissionModeApproveEdits, "claude", "minted")
 		gate1 := claudeRequest("compozy-hosted-tools", "dynamic", "mcp__compozy-hosted-tools__compozy__worktree_remove")
 		response, err := proc.handleRequestPermission(t.Context(), gate1)
 		if err != nil {
@@ -3279,7 +3313,7 @@ func TestHostedToolPermissionGates(t *testing.T) {
 
 	t.Run("Should let one provider-gate approval answer the daemon gate once", func(t *testing.T) {
 		t.Parallel()
-		proc, active := newProcess(t, compozyconfig.PermissionModeApproveReads, true)
+		proc, active := newProcess(t, compozyconfig.PermissionModeApproveReads, "claude", "minted")
 		gate1 := claudeRequest("compozy-hosted-tools", "dynamic", hostedName)
 		// The provider omitted workspace; the daemon binds it before its own gate.
 		gate1.ToolCall.RawInput = map[string]any{"name": "fix-1200"}

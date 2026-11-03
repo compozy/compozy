@@ -278,7 +278,7 @@ func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (co
 		Name:      HostedServerName,
 		Transport: compozyconfig.MCPServerTransportStdio,
 		Command:   s.expectedBinary,
-		Args:      []string{"tool", hostedMCPKey, "--session", sessionID, "--bind-nonce", nonce},
+		Args:      []string{"tool", hostedMCPKey, "--session", sessionID, toolmeta.HostedBindNonceFlag, nonce},
 		Env:       env,
 	}, nil
 }
