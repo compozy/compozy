@@ -137,9 +137,11 @@ WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id);
 SELECT * FROM session_input_queue WHERE id = sqlc.arg(id);
 
 -- name: ReserveSessionSteer :execrows
+-- A steering reservation injects into the current turn and is not a turn claim. attempt_count counts turn
+-- claims only, so a refused injection's first standalone dispatch still reads as attempt 1 and is counted
+-- by the unattended brake; retries of a claimed turn read above 1 and are not counted again.
 UPDATE session_input_queue
-SET status = 'dispatching', dispatch_started_at = sqlc.arg(now),
-    attempt_count = attempt_count + 1, updated_at = sqlc.arg(now)
+SET status = 'dispatching', dispatch_started_at = sqlc.arg(now), updated_at = sqlc.arg(now)
 WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
   AND (session_input_queue.origin_class = 'human' OR NOT EXISTS (
     SELECT 1 FROM sessions AS target

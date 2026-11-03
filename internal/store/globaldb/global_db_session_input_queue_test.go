@@ -1434,9 +1434,11 @@ func TestGlobalDBSessionInputQueueOriginPolicy(t *testing.T) {
 		if reverted, err := db.RevertPromotedAgentSessionInput(ctx, sessionID, "a1", now); err != nil || !reverted {
 			t.Fatalf("revert of a reserved promotion = %v, %v", reverted, err)
 		}
+		// The reservation was not a turn claim, so the first ordinary claim reads as attempt 1.
 		claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Minute))
-		if err != nil || !ok || claimed.ID != "a1" {
-			t.Fatalf("ClaimNextSessionInput() = %q, %v, %v; want the reverted message claimed", claimed.ID, ok, err)
+		if err != nil || !ok || claimed.ID != "a1" || claimed.AttemptCount != 1 {
+			t.Fatalf("ClaimNextSessionInput() = %q/%d, %v, %v; want the reverted message claimed as attempt 1",
+				claimed.ID, claimed.AttemptCount, ok, err)
 		}
 	})
 
@@ -4485,6 +4487,78 @@ func TestGlobalDBInstanceUnattendedBrake(t *testing.T) {
 			t.Fatalf("turns=%+v %v", wake, err)
 		}
 	})
+	// Invariant (UT-004/UT-026): a steering reservation is not a turn claim. When injection is refused, the
+	// row's first standalone dispatch is counted once; a retry of that claimed turn is not counted again.
+	for _, pending := range []bool{false, true} {
+		name := "Should count the first standalone turn after a refused steering injection"
+		if pending {
+			name = "Should count the first standalone turn after a pending injection falls back"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			main := registerInputQueueSession(t, db)
+			instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: "ws-input-queue-workspace",
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+			admission := promptAdmissionRequest("ws-input-queue-workspace", main, "peer-steer", now)
+			admission.Origin = json.RawMessage(`{"kind":"session","session_id":"peer","workspace_id":"ws","hop":1}`)
+			if _, _, _, _, err := db.EnqueueAdmittedSessionInput(ctx, admission, store.SessionInputQueueInsert{
+				ID: "peer-steer", SessionID: main, Text: "work", QueueCap: 10, Now: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, promoted, err := db.PromoteQueuedAgentSessionInputToSteer(
+				ctx, main, "peer-steer", "turn-live", now,
+			); err != nil || !promoted {
+				t.Fatalf("promote = %v, %v", promoted, err)
+			}
+			if _, reserved, err := db.ReserveSessionSteer(ctx, main, "peer-steer", now); err != nil || !reserved {
+				t.Fatalf("reserve = %v, %v", reserved, err)
+			}
+			if pending {
+				if _, err := db.ResolveSessionSteer(
+					ctx, main, "peer-steer", store.SteerDeliveryPendingInjection, now,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if _, settled, err := db.SettlePendingSessionSteer(
+					ctx, main, "peer-steer", store.SteerDeliveryInterruptFallback, now,
+				); err != nil || !settled {
+					t.Fatalf("fallback = %v, %v", settled, err)
+				}
+			}
+			reverted, err := db.RevertPromotedAgentSessionInput(ctx, main, "peer-steer", now)
+			if err != nil || !reverted {
+				t.Fatalf("revert = %v, %v", reverted, err)
+			}
+			if wake, err := db.Instances().WakeState(ctx, instance.ID); err != nil || wake.UnattendedTurns != 0 {
+				t.Fatalf("steering reservation counted = %+v, %v", wake, err)
+			}
+			claimed, found, err := db.ClaimNextSessionInput(ctx, main, now.Add(time.Second))
+			if err != nil || !found || claimed.ID != "peer-steer" || claimed.AttemptCount != 1 {
+				t.Fatalf("standalone claim = %+v, %v, %v", claimed, found, err)
+			}
+			if wake, err := db.Instances().WakeState(ctx, instance.ID); err != nil || wake.UnattendedTurns != 1 {
+				t.Fatalf("standalone turn not counted = %+v, %v", wake, err)
+			}
+			if err := db.ReleaseSessionInput(ctx, main, claimed.ID, now.Add(time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			if _, found, err := db.ClaimNextSessionInput(ctx, main, now.Add(2*time.Second)); err != nil || !found {
+				t.Fatalf("retry claim = %v, %v", found, err)
+			}
+			if wake, err := db.Instances().WakeState(ctx, instance.ID); err != nil || wake.UnattendedTurns != 1 {
+				t.Fatalf("retried turn counted again = %+v, %v", wake, err)
+			}
+		})
+	}
 	for _, limit := range []int64{0, 2, 300} {
 		t.Run(fmt.Sprintf("Should count and enforce unattended limit %d", limit), func(t *testing.T) {
 			t.Parallel()

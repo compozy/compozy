@@ -40,6 +40,8 @@ func advanceLineageUnattended(
 	if err != nil {
 		return nil, err
 	}
+	// attempt_count counts turn claims only (steering reservations do not advance it), so a value above 1
+	// is a retry of a turn this function already counted.
 	if loopOwned || entry.AttemptCount > 1 || entry.LoopRunID != "" || entry.OwnerKind == goalPromptOwnerKind {
 		return nil, nil
 	}
