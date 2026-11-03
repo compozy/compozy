@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -1117,6 +1118,7 @@ func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
 func TestInstanceRunningCheckPauseIntegration(t *testing.T) {
 	for _, trip := range []bool{false, true} {
 		t.Run(fmt.Sprintf("Should cancel the running check with spend brake=%v", trip), func(t *testing.T) {
+			pauseHookCapture := filepath.Join(t.TempDir(), "pause-hooks.jsonl")
 			d, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
 				cfg.Agents.StaysOn.UnattendedTurnLimit = 1
 			}, "", func(d *Daemon) {
@@ -1133,6 +1135,19 @@ func TestInstanceRunningCheckPauseIntegration(t *testing.T) {
 						}},
 					}}, agent.Turns...)
 				})
+				// IT-029: a real lifecycle hook records every committed pause transition.
+				config, err := os.ReadFile(d.homePaths.ConfigFile)
+				if err != nil {
+					t.Fatal(err)
+				}
+				hook := fmt.Sprintf("\n[[hooks.declarations]]\nname = \"pause-capture\"\n"+
+					"event = \"agent.instance.paused\"\nmode = \"async\"\n[hooks.declarations.executor]\n"+
+					"command = \"/bin/sh\"\nargs = [\"-c\", %s]\nenv = { HOOK_CAPTURE = %s }\n",
+					strconv.Quote(`payload=$(cat); printf '%s\n' "$payload" >> "$HOOK_CAPTURE"; printf '{}'`),
+					strconv.Quote(pauseHookCapture))
+				if err := os.WriteFile(d.homePaths.ConfigFile, append(config, []byte(hook)...), 0o600); err != nil {
+					t.Fatal(err)
+				}
 				path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "HEARTBEAT.md")
 				if err := os.WriteFile(
 					path,
@@ -1216,6 +1231,28 @@ func TestInstanceRunningCheckPauseIntegration(t *testing.T) {
 			paused, err := db.Instances().Get(t.Context(), instance.ID)
 			if err != nil || paused.State != "paused" || (trip && paused.PauseReason != "unattended") {
 				t.Fatalf("instance=%+v error=%v", paused, err)
+			}
+			// IT-029: the pause dispatches its lifecycle hook exactly once and raises exactly one report.
+			waitForRuntimeCondition(t, "one pause hook", 10*time.Second, func() bool {
+				raw, err := os.ReadFile(pauseHookCapture)
+				return err == nil && bytes.Count(raw, []byte("\n")) >= 1
+			})
+			reports, err := db.InstanceReports().ListReports(t.Context(), agentinstance.ReportQuery{
+				InstanceID: instance.ID, Limit: 10,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantReports := 0
+			if trip {
+				wantReports = 1
+			}
+			if len(reports) != wantReports {
+				t.Fatalf("pause reports=%+v want %d", reports, wantReports)
+			}
+			raw, err := os.ReadFile(pauseHookCapture)
+			if err != nil || bytes.Count(raw, []byte("\n")) != 1 || !bytes.Contains(raw, []byte(instance.ID)) {
+				t.Fatalf("pause hooks=%q error=%v", raw, err)
 			}
 		})
 	}
