@@ -20,7 +20,7 @@ export const meta = definePrototype({
     { id: "paused", label: "Paused by you" },
     { id: "paused-failures", label: "Paused after failures" },
     { id: "cant-resume", label: "Can't resume" },
-    { id: "no-longer-always-on", label: "Can't resume, now on demand" },
+    { id: "no-longer-always-on", label: "Can't resume, now on-demand" },
     { id: "on-demand", label: "On-demand" },
     { id: "extension", label: "From an extension" },
     { id: "no-activity", label: "No activity yet" },

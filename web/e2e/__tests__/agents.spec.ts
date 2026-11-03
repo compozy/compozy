@@ -319,15 +319,17 @@ test.describe("always-on agent vocabulary", () => {
   }) => {
     await createAlwaysOnAgent(appPage, runtime, "watch-setup");
     await expect(appPage.getByText("Setup", { exact: true })).toBeVisible();
-    const rows = appPage.locator('[data-testid^="agent-setup-"]');
-    await expect(rows).toHaveText([
-      /^Instructions/,
-      /^Model/,
-      /^Heartbeat/,
-      /^Memory/,
-      /^Tools/,
-      /^Permissions/,
-    ]);
+    const setupRows = [
+      ["agent-setup-behavior", /^Instructions/],
+      ["agent-setup-model", /^Model/],
+      ["agent-setup-check-ins", /^Heartbeat/],
+      ["agent-setup-memory", /^Memory/],
+      ["agent-setup-tools", /^Tools/],
+      ["agent-setup-permissions", /^Permissions/],
+    ] as const;
+    for (const [testId, title] of setupRows) {
+      await expect(appPage.getByTestId(testId)).toHaveText(title);
+    }
 
     await appPage.getByTestId("agent-setup-check-ins").click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/watch-setup/check-ins");

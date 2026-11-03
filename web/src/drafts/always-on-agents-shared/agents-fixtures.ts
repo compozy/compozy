@@ -24,7 +24,7 @@ export const PAUSE_PLAIN: Record<PauseReason, string> = {
 /** The same reason, short enough for a card. */
 export const PAUSE_SHORT: Record<PauseReason, string> = {
   manual: "You paused it",
-  fatigue: "Stopped after 10 failed check-ins",
+  fatigue: "Stopped after 10 failed heartbeats",
   unattended: "Took 300 steps without you",
   definition_not_always_on: "Now on-demand, so it can't be always-on",
   definition_missing: "Its setup was deleted",
