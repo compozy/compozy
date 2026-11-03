@@ -21,10 +21,11 @@ interface Feedback {
   key: string;
   error?: string;
   conflict?: string;
+  /** The conflict's server reread is still running; picks wait for the fresh digest. */
+  refreshing?: boolean;
 }
 
 interface Intended {
-  key: string;
   value: RuntimeSelectorValue | null;
   speed: RuntimeSpeed;
 }
@@ -57,12 +58,12 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
   const key = JSON.stringify([destination, cacheWorkspace, agent?.name ?? ""]);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   // The latest choice, shown while its save runs so the next control builds on it.
-  // `value: null` is a pending return to the default.
-  const [intended, setIntended] = useState<Intended | null>(null);
+  // `value: null` is a pending return to the default. One entry per agent with a save running.
+  const [intended, setIntended] = useState<Readonly<Record<string, Intended>>>({});
   // Agents with a save in flight, each with the choice made meanwhile, if any.
   const saving = useRef(new Map<string, Partial<AgentSettingsDraft> | null>());
 
-  const pending = intended?.key === key ? intended : null;
+  const pending = intended[key] ?? null;
   const serverValue = resolveAgentRuntimeValue(agent);
   const value: RuntimeSelectorValue = pending?.value ?? serverValue;
   const speed = pending?.speed ?? agent?.effective_runtime?.speed ?? agent?.speed ?? "normal";
@@ -74,7 +75,11 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
   const shown = feedback?.key === key ? feedback : null;
 
   const settle = (owner: string) =>
-    setIntended(current => (current?.key === owner ? null : current));
+    setIntended(current => {
+      if (!(owner in current)) return current;
+      const { [owner]: _settled, ...rest } = current;
+      return rest;
+    });
 
   const save = (owner: string, patch: Partial<AgentSettingsDraft>, base: AgentPayload) => {
     if (saving.current.has(owner)) {
@@ -113,14 +118,15 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
           // Refetch the exact view key only. Do not write the rejected choice
           // into cache — mutation onSuccess never ran, and invalidate+refetch
           // restores server truth under the same key useAgent reads.
+          const conflict = "This agent changed somewhere else. Pick the model again.";
+          setFeedback({ key: owner, conflict, refreshing: true });
           void queryClient
             .invalidateQueries({ queryKey: detailKey })
             .then(() => queryClient.refetchQueries({ queryKey: detailKey }))
             .finally(() => {
-              setFeedback({
-                key: owner,
-                conflict: "This agent changed somewhere else. Pick the model again.",
-              });
+              setFeedback(current =>
+                current?.key === owner && current.refreshing ? { key: owner, conflict } : current
+              );
             });
           return;
         }
@@ -138,7 +144,7 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
     patch: Partial<AgentSettingsDraft>
   ) => {
     if (!agent) return;
-    setIntended({ key, value: next, speed: nextSpeed });
+    setIntended(current => ({ ...current, [key]: { value: next, speed: nextSpeed } }));
     save(key, patch, agent);
   };
 
@@ -157,9 +163,10 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
     overridden,
     onChange,
     onSpeedChange: (next: RuntimeSpeed) => choose(value, next, { speed: next }),
-    onUseDefault: () => choose(null, "normal", DEFAULT_RUNTIME),
-    /** A return to the default is saving; the selector waits for it. */
-    isPending: pending !== null && pending.value === null,
+    // The server resolves the default's speed, so the current one stays until the reread.
+    onUseDefault: () => choose(null, speed, DEFAULT_RUNTIME),
+    /** A return to the default or a conflict reread is running; the selector waits for it. */
+    isPending: (pending !== null && pending.value === null) || Boolean(shown?.refreshing),
     error: shown?.error ?? null,
     conflictMessage: shown?.conflict ?? null,
     onDismissError: () => setFeedback(null),

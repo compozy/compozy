@@ -347,7 +347,7 @@ describe("useAgentRuntimeEditor", () => {
       result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
     );
     act(() =>
-      result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "high" })
+      result.current.onChange({ provider: "claude", model: "opus", reasoning_effort: "high" })
     );
     expect(mocks.updateMutateAsync).toHaveBeenCalledOnce();
 
@@ -358,7 +358,7 @@ describe("useAgentRuntimeEditor", () => {
     expect(mocks.updateMutateAsync).toHaveBeenCalledTimes(2);
     expect(savedParams(1).params).toMatchObject({
       expected_digest: "s1",
-      agent: { provider: "claude", model: "sonnet", reasoning_effort: "high" },
+      agent: { provider: "claude", model: "opus", reasoning_effort: "high" },
     });
   });
 
@@ -380,8 +380,33 @@ describe("useAgentRuntimeEditor", () => {
       params: { expected_digest: "reviewer-digest", agent: { model: "opus" } },
     });
 
+    // Each agent keeps its own pending choice while its save runs.
+    rerender({ current: first });
+    expect(result.current.value.model).toBe("sonnet");
+
     await act(async () => saves[0]!.resolve({ ...first, model: "sonnet" }));
     expect(mocks.updateMutateAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it("Should hold picks until a conflict's reread brings the fresh digest", async () => {
+    let finishReread = () => {};
+    const reread = vi
+      .spyOn(QueryClient.prototype, "refetchQueries")
+      .mockReturnValue(new Promise<void>(resolve => (finishReread = resolve)));
+    const { result } = renderEditor(workspaceAgent());
+
+    act(() =>
+      result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
+    );
+    await act(async () => saves[0]!.reject(new AgentDigestConflictError("stale")));
+
+    expect(result.current.isPending).toBe(true);
+    expect(result.current.conflictMessage).toBe(
+      "This agent changed somewhere else. Pick the model again."
+    );
+    await act(async () => finishReread());
+    await waitFor(() => expect(result.current.isPending).toBe(false));
+    reread.mockRestore();
   });
 
   it("Should restore server truth and show the error when a save fails", async () => {
@@ -410,6 +435,8 @@ describe("useAgentRuntimeEditor", () => {
     act(() => result.current.onUseDefault());
 
     expect(result.current.overridden).toBe(false);
+    // The server resolves the default's speed; the current one stays until the reread.
+    expect(result.current.speed).toBe("fast");
     expect(result.current.isPending).toBe(true);
     const { agent } = savedParams(0).params;
     expect(agent).not.toHaveProperty("provider");

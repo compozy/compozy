@@ -45,6 +45,14 @@ describe("parseAgentWindowLocation", () => {
     ).toMatchObject({ search: { panel: "tools", workspace: "ws-compozy" } });
   });
 
+  it("Should keep the window binding on the home for an old runtime link", () => {
+    expect(at("/agents/triage/settings", { section: "runtime", workspace: "ws-compozy" })).toEqual({
+      kind: "detail",
+      name: "triage",
+      search: { workspace: "ws-compozy" },
+    });
+  });
+
   it.each([
     ["instructions", { kind: "page", page: "what-it-does" }],
     ["configuration", { kind: "detail", search: {} }],
