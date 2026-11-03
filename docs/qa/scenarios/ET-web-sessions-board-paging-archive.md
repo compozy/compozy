@@ -48,3 +48,10 @@ QA impact 2026-10-31 (#1114): expand the Later and Archive bars in light and dar
 Tab onto a card. Its border, rounded corners and focus ring stay complete on every side, and the
 bar still scrolls sideways when the cards overflow. Focused evidence: E2E-006 asserts the geometry
 in the Archive bar; Storybook capture in headless Chromium covers both bars and themes.
+
+2026-11-03 performance retest: open a transcript in both window and board-drawer presentations.
+Delta pauses may reconcile session catalogs at most once per five seconds; snapshots and terminal
+frames still reconcile immediately. Generate catalog events in another profile or outside an
+All-projects Project filter and verify those mounted pages/facets do not refetch. Then reconnect:
+all mounted catalog scopes must reconcile, including workspace pages and the aggregate. Preserve
+column membership, exact counts and the settled foreign by-id read behavior.

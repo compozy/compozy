@@ -1,4 +1,6 @@
-import type { QueryClient } from "@tanstack/react-query";
+import type { QueryClient, QueryKey } from "@tanstack/react-query";
+
+import { notificationKeys } from "@/systems/notifications";
 
 import { sessionKeys } from "../lib/query-keys";
 import { invalidateSessionByIdReads } from "../lib/session-query-invalidation";
@@ -117,6 +119,140 @@ export function createSessionReadReconciler(queryClient: QueryClient) {
     close() {
       closed = true;
       pending.clear();
+    },
+  };
+}
+
+interface CatalogChange {
+  workspace_id: string;
+  profile_name?: string;
+  kind?: string;
+}
+
+function catalogReadAffected(key: QueryKey, change: CatalogChange | undefined): boolean {
+  if (!change || !queryKeyHasScope(key, sessionKeys.lists())) return true;
+  const family = key[3];
+  if (family === "folders") return true;
+  const scope = (typeof family === "object" ? family : key[4]) as
+    | { profile?: string; all_profiles?: boolean; workspace_ids?: string[] }
+    | undefined;
+  if (!scope || typeof scope !== "object") return true;
+  if (
+    change.profile_name &&
+    scope.profile &&
+    !scope.all_profiles &&
+    scope.profile !== change.profile_name
+  )
+    return false;
+  const workspace = change.workspace_id || "@user";
+  return !scope.workspace_ids?.length || scope.workspace_ids.includes(workspace);
+}
+
+// One wake window per stream, independent of the number of lifecycle/attention frames.
+// An in-flight read is allowed to finish; cancelling it on every frame amplified
+// one background transition into repeated full-catalog walks.
+export function createCatalogReconciler(queryClient: QueryClient) {
+  const workspaces = new Set<string>();
+  const pending = new Set<string>();
+  const changes = new Map<string, CatalogChange | undefined>();
+  let lastRead = -Infinity;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let focused = true;
+  const visible = () =>
+    focused && (typeof document === "undefined" || document.visibilityState !== "hidden");
+  const flush = () => {
+    timer = undefined;
+    if ((workspaces.size === 0 && pending.size === 0) || !visible()) return;
+    lastRead = Date.now();
+    const affected = [...changes.values()];
+    changes.clear();
+    const matches = (query: { queryKey: QueryKey }) =>
+      affected.some(change => catalogReadAffected(query.queryKey, change));
+    const hashes = new Set(pending);
+    pending.clear();
+    const prefixes = [
+      ...Array.from(workspaces, workspace => sessionKeys.workspaceLists(workspace)),
+      ...(workspaces.size > 0
+        ? [
+            sessionKeys.attentionSummary(),
+            notificationKeys.attentionRoot(),
+            sessionKeys.processesLeftRunning(),
+          ]
+        : []),
+    ];
+    workspaces.clear();
+    for (const queryKey of prefixes) {
+      for (const query of queryClient.getQueryCache().findAll({ queryKey })) {
+        if (matches(query)) hashes.delete(query.queryHash);
+      }
+    }
+    // A retry retains only blocked identities. Healthy siblings require a new wake.
+    const predicate = (query: {
+      queryHash: string;
+      state: { status: string; errorUpdatedAt: number; fetchStatus: string };
+      getObserversCount: () => number;
+    }) => {
+      const blocked =
+        query.getObserversCount() > 0 &&
+        (query.state.fetchStatus === "fetching" ||
+          (query.state.status === "error" && Date.now() - query.state.errorUpdatedAt < 30_000));
+      if (blocked) pending.add(query.queryHash);
+      return !blocked;
+    };
+    for (const queryKey of prefixes) {
+      void queryClient.invalidateQueries(
+        { queryKey, predicate: query => matches(query) && predicate(query) },
+        { cancelRefetch: false }
+      );
+    }
+    if (hashes.size > 0) {
+      void queryClient.invalidateQueries(
+        { predicate: query => hashes.has(query.queryHash) && predicate(query) },
+        { cancelRefetch: false }
+      );
+    }
+    schedule();
+  };
+  const schedule = () => {
+    if (timer !== undefined || !visible() || (workspaces.size === 0 && pending.size === 0)) return;
+    const delay = Math.max(0, 5_000 - (Date.now() - lastRead));
+    if (delay === 0) flush();
+    else timer = setTimeout(flush, delay);
+  };
+  const onVisibility = () => schedule();
+  const onFocus = () => {
+    focused = true;
+    schedule();
+  };
+  const onBlur = () => {
+    focused = false;
+  };
+  if (typeof window !== "undefined") {
+    window.addEventListener("focus", onFocus);
+    window.addEventListener("blur", onBlur);
+  }
+  if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisibility);
+  return {
+    wake(workspace?: string, change?: CatalogChange) {
+      changes.set(JSON.stringify([workspace, change?.profile_name, change?.kind]), change);
+      workspaces.add("");
+      if (workspace !== undefined) workspaces.add(workspace);
+      else
+        for (const query of queryClient
+          .getQueryCache()
+          .findAll({ queryKey: sessionKeys.lists() })) {
+          if (typeof query.queryKey[2] === "string") workspaces.add(query.queryKey[2]);
+        }
+      schedule();
+    },
+    close() {
+      if (typeof window !== "undefined") {
+        window.removeEventListener("focus", onFocus);
+        window.removeEventListener("blur", onBlur);
+      }
+      if (timer !== undefined) clearTimeout(timer);
+      if (typeof document !== "undefined")
+        document.removeEventListener("visibilitychange", onVisibility);
     },
   };
 }
