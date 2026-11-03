@@ -7,6 +7,29 @@ import (
 	"time"
 )
 
+// ProviderSummaryPayload is a daemon API value.
+type ProviderSummaryPayload struct {
+	ReviewerMode     string                                    `json:"reviewer_mode"`
+	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
+	Name             string                                    `json:"name"`
+	DisplayName      string                                    `json:"display_name,omitempty"`
+	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`
+	Default          bool                                      `json:"default"`
+	AuthStatus       ProviderAuthStatusPayload                 `json:"auth_status"`
+}
+
+// ProviderUsageAccount is a daemon API value.
+type ProviderUsageAccount struct {
+	Label string `json:"label"`
+	Plan  string `json:"plan"`
+}
+
+// ProviderUsageAmount is a daemon API value.
+type ProviderUsageAmount struct {
+	Value string `json:"value"`
+	Unit  string `json:"unit"`
+}
+
 // ProviderUsageBalance is a daemon API value.
 type ProviderUsageBalance struct {
 	ID        string              `json:"id"`
@@ -423,26 +446,3 @@ type ResourceScope struct {
 
 // ResourceScopeKind is a daemon API value.
 type ResourceScopeKind string
-
-// ResourceSource is a daemon API value.
-type ResourceSource struct {
-	Kind ResourceSourceKind `json:"kind"`
-	ID   string             `json:"id"`
-}
-
-// ResourceSourceKind is a daemon API value.
-type ResourceSourceKind string
-
-// ResourcesResponse is a daemon API value.
-type ResourcesResponse struct {
-	Records []ResourceRecordPayload `json:"records"`
-}
-
-// RespondLoopRequest is a daemon API value.
-type RespondLoopRequest struct {
-	Generation int             `json:"generation"`
-	ItemIndex  int             `json:"item_index,omitzero"`
-	Decision   string          `json:"decision,omitempty"`
-	Payload    json.RawMessage `json:"payload"`
-	Note       string          `json:"note,omitempty"`
-}

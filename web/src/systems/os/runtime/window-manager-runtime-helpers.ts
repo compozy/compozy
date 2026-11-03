@@ -1,7 +1,24 @@
 import type { QueryCacheNotifyEvent } from "@tanstack/react-query";
 
+import type { WindowManagerRuntimeBinding } from "./window-manager-runtime-core";
+
 /** How long a refused-command notice stays before the surface clears it on its own. */
 export const WINDOW_MANAGER_DIAGNOSTIC_TTL_MS = 5_000;
+
+/** How long a window-manager command may wait, queued or in flight, before it is dropped. */
+export const WINDOW_MANAGER_COMMAND_DEADLINE_MS = 8_000;
+
+/** Whether a queued command still targets the workspace, profile and client it was issued for. */
+export function sameRuntimeBinding(
+  current: WindowManagerRuntimeBinding,
+  enqueued: WindowManagerRuntimeBinding
+): boolean {
+  return (
+    current.workspaceId === enqueued.workspaceId &&
+    current.profileId === enqueued.profileId &&
+    current.clientId === enqueued.clientId
+  );
+}
 
 export function randomWindowManagerId(prefix: string): string {
   if (typeof globalThis.crypto?.randomUUID === "function") {

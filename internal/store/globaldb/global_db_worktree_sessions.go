@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -48,6 +49,29 @@ SELECT EXISTS (
 		return false, fmt.Errorf("store: inspect active worktree sessions: %w", err)
 	}
 	return found, nil
+}
+
+// HasUnarchivedWorktreeSession reports whether any unarchived session, in any state,
+// still binds a workspace-scoped worktree.
+func (g *GlobalDB) HasUnarchivedWorktreeSession(
+	ctx context.Context,
+	workspaceID string,
+	worktreeID string,
+) (bool, error) {
+	if g == nil || g.Worktrees == nil {
+		return false, fmt.Errorf("store: worktree repository is required")
+	}
+	if err := g.Worktrees.checkReady(ctx, "inspect bound worktree sessions"); err != nil {
+		return false, err
+	}
+	bound, err := g.Worktrees.queries.HasUnarchivedWorktreeSession(ctx, sqlcgen.HasUnarchivedWorktreeSessionParams{
+		WorkspaceID: strings.TrimSpace(workspaceID),
+		WorktreeID:  sql.NullString{String: strings.TrimSpace(worktreeID), Valid: true},
+	})
+	if err != nil {
+		return false, fmt.Errorf("store: inspect bound worktree sessions: %w", err)
+	}
+	return bound != 0, nil
 }
 
 // HasOtherActiveWorktreeSession excludes only the exact managed-delivery caller.

@@ -1,4 +1,5 @@
 import { moveSessionToLater, resumeSessionFromLater } from "../session-later-api";
+import { markSessionSeen } from "../session-mark-seen-api";
 import { fetchSessionSubagents, cancelSubagent } from "../subagent-api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -626,6 +627,32 @@ describe("session Later", () => {
       path: "/api/workspaces/ws_alpha/sessions/sess-001/resume-later?profile=design",
       body: {},
     });
+  });
+
+  it("marks a session's Needs you as seen through its workspace endpoint", async () => {
+    const seen = { ...mockSession, attention_dismissible: false };
+    mockJsonResponse({ session: seen });
+
+    await expect(markSessionSeen(WORKSPACE_ID, mockSession.id, "design")).resolves.toEqual(seen);
+    await expectFetchRequest({
+      method: "POST",
+      path: "/api/workspaces/ws_alpha/sessions/sess-001/mark-seen?profile=design",
+    });
+  });
+
+  it("carries the daemon's refusal code when the session still waits on an answer", async () => {
+    mockJsonResponse(
+      {
+        code: "attention_requires_action",
+        error: "session sess-001 needs you to answer its question",
+      },
+      { status: 409 }
+    );
+    const error = await markSessionSeen(WORKSPACE_ID, "sess-001", "design").catch(
+      (reason: unknown) => reason
+    );
+    expect(error).toBeInstanceOf(SessionApiError);
+    expect(error).toMatchObject({ code: "attention_requires_action", status: 409 });
   });
 });
 

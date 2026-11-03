@@ -24,6 +24,44 @@ func resumeSessionFromLaterOperationSpec() OperationSpec {
 	)
 }
 
+func markSessionSeenOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodPost,
+		Path:        "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen",
+		AppAccess:   AppAccessAllowed,
+		OperationID: "markSessionSeen",
+		Summary: "Mark a session's Needs you as seen until its next occurrence; a session " +
+			"waiting on an answer, a sign-in, or a stop is refused",
+		Tags:       []string{specSessionsKey},
+		Transports: []Transport{TransportHTTP, TransportUDS},
+		Parameters: withProfileSelector(
+			pathParam("workspace_id", "Workspace id"),
+			pathParam("session_id", "Session id"),
+		),
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},
+			{
+				Status:      400,
+				Description: "Conflicting profile selectors (profile_selection_conflict)",
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
+			{
+				Status: 409,
+				Description: "The session still waits on an answer, a sign-in, or a stop, " +
+					"or a newer occurrence replaced the one checked",
+				Body: contract.ErrorPayload{},
+			},
+			{
+				Status:      503,
+				Description: specServiceUnavailableDependentServiceMissingDescription,
+				Body:        contract.ErrorPayload{},
+			},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
 func sessionLaterOperationSpec(
 	action string,
 	operationID string,

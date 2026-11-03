@@ -150,9 +150,11 @@ type stubClient struct {
 	unarchiveSessionFn               func(context.Context, string) (SessionRecord, error)
 	moveSessionToLaterFn             func(context.Context, string, contract.MoveSessionToLaterRequest) (SessionRecord, error)
 	resumeSessionFromLaterFn         func(context.Context, string, bool) (SessionRecord, error)
+	markSessionSeenFn                func(context.Context, string) (SessionRecord, error)
 	renameSessionFn                  func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
 	setSessionParentFn               func(context.Context, string, SetSessionParentRequest) (SessionRecord, error)
 	clearSessionParentFn             func(context.Context, string) (SessionRecord, error)
+	moveSessionToProfileFn           func(context.Context, string, MoveSessionToProfileRequest) (MoveSessionToProfileResponse, error)
 	deleteSessionFn                  func(context.Context, string, bool, contract.SessionProcessPolicy) error
 	resumeSessionFn                  func(context.Context, string) (SessionRecord, error)
 	uploadSessionAttachmentFn        func(context.Context, string, string) (SessionAttachmentRecord, error)
@@ -1361,6 +1363,13 @@ func (s *stubClient) ResumeSessionFromLater(ctx context.Context, id string, with
 	return SessionRecord{}, errors.New("unexpected ResumeSessionFromLater call")
 }
 
+func (s *stubClient) MarkSessionSeen(ctx context.Context, id string) (SessionRecord, error) {
+	if s.markSessionSeenFn != nil {
+		return s.markSessionSeenFn(ctx, id)
+	}
+	return SessionRecord{}, errors.New("unexpected MarkSessionSeen call")
+}
+
 func (s *stubClient) RenameSession(
 	ctx context.Context,
 	id string,
@@ -1388,6 +1397,17 @@ func (s *stubClient) ClearSessionParent(ctx context.Context, id string) (Session
 		return s.clearSessionParentFn(ctx, id)
 	}
 	return SessionRecord{}, errors.New("unexpected ClearSessionParent call")
+}
+
+func (s *stubClient) MoveSessionToProfile(
+	ctx context.Context,
+	id string,
+	request MoveSessionToProfileRequest,
+) (MoveSessionToProfileResponse, error) {
+	if s.moveSessionToProfileFn != nil {
+		return s.moveSessionToProfileFn(ctx, id, request)
+	}
+	return MoveSessionToProfileResponse{}, errors.New("unexpected MoveSessionToProfile call")
 }
 
 func (s *stubClient) DeleteSession(

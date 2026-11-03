@@ -116,11 +116,24 @@ func normalizedAdapterToken(value string) string {
 // claudeAgentBridgeExecutable is the bin name claude-agent-acp publishes.
 const claudeAgentBridgeExecutable = "claude-agent-acp"
 
+// codexAgentBridgeExecutable is the bin name codex-acp publishes.
+const codexAgentBridgeExecutable = "codex-acp"
+
 // IsClaudeAgentBridge reports whether command launches the claude-agent-acp
 // bridge, through its package token (npx/bunx) or its published executable.
 func IsClaudeAgentBridge(command string) bool {
+	return isAgentBridge(command, nativeCLIClaudeCommand, claudeAgentBridgeExecutable)
+}
+
+// IsCodexAgentBridge reports whether command launches the codex-acp bridge,
+// through its package token (npx/bunx) or its published executable.
+func IsCodexAgentBridge(command string) bool {
+	return isAgentBridge(command, nativeCLICodexCommand, codexAgentBridgeExecutable)
+}
+
+func isAgentBridge(command string, nativeCommand string, executable string) bool {
 	if nativeCLI, ok := nativeCLIBridgeForCommand(command); ok {
-		return nativeCLI.Command == nativeCLIClaudeCommand
+		return nativeCLI.Command == nativeCommand
 	}
 	parsed, err := compozyconfig.ParseLaunchCommand(strings.TrimSpace(command))
 	if err != nil {
@@ -128,5 +141,5 @@ func IsClaudeAgentBridge(command string) bool {
 	}
 	name := strings.ToLower(path.Base(strings.ReplaceAll(parsed.Executable, `\`, "/")))
 	name = strings.TrimSuffix(strings.TrimSuffix(name, ".cmd"), ".exe")
-	return name == claudeAgentBridgeExecutable
+	return name == executable
 }

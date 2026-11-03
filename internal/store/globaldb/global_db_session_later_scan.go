@@ -18,6 +18,11 @@ func populateSessionLaterScanParts(session *store.SessionInfo, row *sessionInfoR
 		session.Attention = &store.SessionAttention{}
 	}
 	session.Attention.LaterReturnedAt = returnedAt
+	failureSeenAt, err := parseOptionalLaterTimestamp(row.failureSeenAt, "failure seen at")
+	if err != nil {
+		return err
+	}
+	session.Attention.FailureSeenAt = failureSeenAt
 	parkedAt, err := parseOptionalLaterTimestamp(row.parkedAt, "parked at")
 	if err != nil || parkedAt == nil {
 		return err

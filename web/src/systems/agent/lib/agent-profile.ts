@@ -5,7 +5,7 @@ import { formatRelativeClock } from "./agent-time";
 import { agentPauseShort, type AgentTeamPlace } from "./agent-team";
 import type { AgentActivityPayload, AgentPayload } from "../types";
 
-export const AGENT_PROFILE_PANELS = ["model", "tools"] as const;
+export const AGENT_PROFILE_PANELS = ["tools"] as const;
 export type AgentProfilePanel = (typeof AGENT_PROFILE_PANELS)[number];
 
 export const AGENT_EDITOR_PAGES = [
@@ -150,10 +150,6 @@ export function agentCostView(activity: AgentActivityPayload) {
       };
     }),
   };
-}
-
-export function agentModelSummary(agent: Pick<AgentPayload, "model" | "provider">) {
-  return agent.model || "Uses your default";
 }
 
 export function agentToolsSummary(agent: Pick<AgentPayload, "tools" | "toolsets">) {

@@ -221,6 +221,67 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 	})
 
+	t.Run("Should remove a checkout with unpushed commits without force and keep its branch", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		f.item.Branch = "run/remove"
+		f.item.CreatedBranch = true
+		f.item.RunNamespace = "run/"
+		f.item.CreatedHead = "base-head"
+		f.store.mu.Lock()
+		f.store.items[worktreeStoreKey(f.workspace.ID, f.item.ID)] = f.item
+		f.store.mu.Unlock()
+		f.uniqueCommits.Store(2)
+		refusalResult, err := f.service.RemoveKeepingBranch(t.Context(), f.workspace.ID, f.item.ID)
+		if err != nil || refusalResult != nil || f.mustItem(t).State != StateRemoved {
+			t.Fatalf("RemoveKeepingBranch = (%#v, %v), state %s", refusalResult, err, f.mustItem(t).State)
+		}
+		commands := invocationCommands(f.runner.invocations())
+		if containsCommandPrefix(commands, "update-ref -d ") {
+			t.Fatal("the kept branch was reclaimed")
+		}
+		for _, command := range commands {
+			if strings.Contains(command, "worktree remove") && strings.Contains(command, "--force") {
+				t.Fatalf("checkout removed with force: %s", command)
+			}
+		}
+	})
+
+	t.Run("Should refuse uncommitted files a teardown leaves when keeping the branch", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		settings := config.DefaultWorktreesConfig()
+		settings.TeardownCommand = "printf cleanup"
+		f.service.getenv = func(string) string { return "/bin/sh" }
+		WithConfig(settings, t.TempDir())(f.service)
+		f.uniqueCommits.Store(1)
+		f.events.onEvent = func(event LifecycleEvent) {
+			if event.Name == EventTeardownOutput {
+				f.dirty.Store(true)
+			}
+		}
+		refusalResult, err := f.service.RemoveKeepingBranch(t.Context(), f.workspace.ID, f.item.ID)
+		if !errors.Is(err, ErrDirtyRequiresForce) || refusalResult == nil {
+			t.Fatalf("RemoveKeepingBranch after a dirty teardown = (%#v, %v)", refusalResult, err)
+		}
+		if f.removeCalls.Load() != 0 || f.mustItem(t).State != StateReady {
+			t.Fatal("checkout with uncommitted files removed")
+		}
+	})
+
+	t.Run("Should refuse to keep-branch remove a checkout another unarchived session binds", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		WithSessionGuard(fixedSessionGuard{bound: true})(f.service)
+		refusalResult, err := f.service.RemoveKeepingBranch(t.Context(), f.workspace.ID, f.item.ID)
+		if !errors.Is(err, ErrSessionBound) || refusalResult != nil {
+			t.Fatalf("RemoveKeepingBranch(bound) = (%#v, %v), want ErrSessionBound", refusalResult, err)
+		}
+		if f.removeCalls.Load() != 0 || f.mustItem(t).State != StateReady {
+			t.Fatal("checkout bound by another session removed")
+		}
+	})
+
 	t.Run("Should skip teardown when the removal hook denies", func(t *testing.T) {
 		t.Parallel()
 		f := newRemovalTestFixture(t)
@@ -1279,11 +1340,16 @@ func (d removalHookDispatcher) DispatchWorktreeHook(
 
 type fixedSessionGuard struct {
 	active bool
+	bound  bool
 	err    error
 }
 
 func (g fixedSessionGuard) HasActiveSession(context.Context, string, string) (bool, error) {
 	return g.active, g.err
+}
+
+func (g fixedSessionGuard) HasUnarchivedSession(context.Context, string, string) (bool, error) {
+	return g.bound, g.err
 }
 
 type recordingEventSink struct {

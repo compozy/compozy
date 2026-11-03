@@ -76,6 +76,7 @@ func (n *daemonNativeTools) sessionToolBindings(
 			call:         n.sessionReparent,
 			availability: catalogAvailability,
 		},
+		toolspkg.ToolIDSessionMoveToProfile: {call: n.sessionMoveToProfile, availability: catalogAvailability},
 		toolspkg.ToolIDSessionCreate: {
 			call:         n.sessionCreate,
 			availability: n.sessionCreateAvailability(),

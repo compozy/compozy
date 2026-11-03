@@ -2125,6 +2125,7 @@ func TestBaseHandlersRefreshSessionPullRequest(t *testing.T) {
 	observed := time.Now().UTC()
 	for _, testCase := range []struct {
 		name   string
+		query  string
 		view   session.PullRequestProjection
 		err    error
 		status int
@@ -2133,6 +2134,8 @@ func TestBaseHandlersRefreshSessionPullRequest(t *testing.T) {
 		{name: "no branch", status: http.StatusConflict, code: "session_branch_unavailable"},
 		{name: "provider failure", view: session.PullRequestProjection{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "rate_limited"}}}, err: errors.New("provider failed"), status: http.StatusBadGateway, code: "forge_unavailable"},
 		{name: "cached failure", view: session.PullRequestProjection{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "rate_limited", ObservedAt: observed, Stale: true}, PullRequest: &session.PullRequest{Number: 42, State: session.PullRequestOpen}}}, err: errors.New("provider failed"), status: http.StatusOK},
+		// The refresh is a write: the read-only aggregate lens cannot reach it (#1193).
+		{name: "the read-only lens refusal for an aggregate refresh", query: "?all_profiles=true", view: session.PullRequestProjection{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{ObservedAt: observed}, PullRequest: &session.PullRequest{Number: 42, State: session.PullRequestOpen}}}, status: http.StatusBadRequest},
 	} {
 		t.Run("Should return "+testCase.name, func(t *testing.T) {
 			t.Parallel()
@@ -2153,11 +2156,25 @@ func TestBaseHandlersRefreshSessionPullRequest(t *testing.T) {
 				t,
 				fixture.Engine,
 				http.MethodPost,
-				"/sessions/session-pr/pull-request/refresh",
+				"/sessions/session-pr/pull-request/refresh"+testCase.query,
 				nil,
 			)
 			if response.Code != testCase.status {
 				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			if testCase.query == "?all_profiles=true" {
+				var payload struct {
+					Error struct {
+						Code    string `json:"code"`
+						Message string `json:"message"`
+					} `json:"error"`
+				}
+				testutil.DecodeJSONResponse(t, response, &payload)
+				if payload.Error.Code != "profile_selection_conflict" ||
+					payload.Error.Message != "all_profiles is only available for reads" {
+					t.Fatalf("aggregate refresh = %s, want typed read-only lens refusal", response.Body)
+				}
+				return
 			}
 			var body map[string]any
 			testutil.DecodeJSONResponse(t, response, &body)

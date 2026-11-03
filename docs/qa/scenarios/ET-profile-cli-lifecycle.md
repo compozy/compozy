@@ -72,3 +72,11 @@ and other owned work is removed, the delete plan counts archived instances and
 agent memory files. Deletion removes those rows and the immutable profile-ID
 memory tree through a recoverable lifecycle step. Verify another profile's notes
 remain intact. Canonical suite: `TestManagerProfileLifecycle`.
+
+2026-11-03 (#1209) QA impact: an archived profile must not block daemon boot. Archive a
+profile, stop the daemon, and start it again: startup reaches readiness and provider usage
+publishes no targets for the archived profile while active profiles keep theirs. Unarchive
+restores its targets. Isolated lab walk on the fix branch: the archive → restart → unarchive →
+archive → restart cycle passed. Before the fix, it reproduced
+`daemon: start provider usage: profile "<name>" is archived`. Canonical suite:
+`TestDaemonProfileEventRecorder`.

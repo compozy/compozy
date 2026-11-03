@@ -2,7 +2,11 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
 import { notifyUser } from "@/lib/user-feedback";
-import { usePinnedProfile, useProfileReadScope } from "@/systems/profiles";
+import {
+  PROFILE_IDENTITY_SWATCHES,
+  usePinnedProfile,
+  useProfileReadScope,
+} from "@/systems/profiles";
 import {
   getSessionDisplayTitle,
   useSessionCreateActions,
@@ -12,6 +16,7 @@ import {
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { agentAppearanceFromPayload } from "../lib/agent-appearance";
+import { agentIdentityPatchPayload, type AgentIdentityPatch } from "../lib/agent-create-identity";
 import { isOrphanAgent } from "../lib/agent-instance-wire";
 import { GLOBAL_SCOPE, type AgentInstanceCapacity } from "../lib/agent-instance";
 import { formatAgentOwner, isAgentReadOnly } from "../lib/agent-ownership";
@@ -20,7 +25,6 @@ import {
   agentBehaviorSummary,
   agentCanResume,
   agentHeadline,
-  agentModelSummary,
   agentToolsSummary,
   type AgentEditorPage,
   type AgentProfilePanel,
@@ -41,7 +45,7 @@ import {
   agentTeamOptions,
 } from "../lib/query-options";
 import { isAgentSessionFailure } from "../lib/session-status";
-import type { AgentPayload, UpdateAgentParams } from "../types";
+import type { AgentPayload } from "../types";
 import type { AgentWorkItem } from "../components/agent-profile/agent-profile-work";
 import type { AgentHeroIdentity } from "../components/agent-profile/agent-profile-hero";
 import type { AgentAddPlaceActions } from "../components/agent-team/agent-team-parts";
@@ -50,6 +54,7 @@ import {
   useAgentInstanceCapacity,
   useAgentDefinitionInstances,
 } from "./use-agent-instances";
+import { useAgentRuntimeEditor } from "./use-agent-runtime-editor";
 import { useAgentSessions } from "./use-agent-sessions";
 import { useAgentWindowScope } from "./use-agent-window-scope";
 import { useUpdateAgent } from "./use-agents";
@@ -102,7 +107,7 @@ function useIdentitySave(agent: AgentPayload) {
   const update = useUpdateAgent();
   const { destination } = useProfileReadScope();
   const { workspace, projectId } = useAgentWindowScope();
-  return (patch: Partial<UpdateAgentParams["agent"]>) => {
+  return (patch: AgentIdentityPatch) => {
     const params = buildUpdateAgentParams(buildSettingsDraftFromAgent(agent), projectId);
     if (!params) {
       notifyUser({
@@ -116,7 +121,16 @@ function useIdentitySave(agent: AgentPayload) {
         name: agent.name,
         profile: destination,
         cacheWorkspace: workspace,
-        params: { ...params, agent: { ...params.agent, ...patch } },
+        params: {
+          ...params,
+          agent: {
+            ...params.agent,
+            ...agentIdentityPatchPayload(
+              patch,
+              PROFILE_IDENTITY_SWATCHES.map(swatch => swatch.value)
+            ),
+          },
+        },
       },
       {
         onError: error =>
@@ -189,6 +203,7 @@ export function useAgentProfile(input: {
     if (current?.main_session_id) openSessionById(current.main_session_id);
   };
   const saveIdentity = useIdentitySave(agent);
+  const model = useAgentRuntimeEditor({ agent });
   return {
     identity,
     places,
@@ -207,9 +222,9 @@ export function useAgentProfile(input: {
     capacity,
     add: useAddPlace(agent, capacity),
     newSessionDisabled: projectId === null,
+    model,
     summaries: {
       behavior: agentBehaviorSummary(agent),
-      model: agentModelSummary(agent),
       checkIns: checkInsSummary(places),
       memory: input.memorySummary,
       tools: agentToolsSummary(agent),

@@ -30,7 +30,9 @@ import {
   linkUnlinkedNote,
   linkedCandidateKeys,
   candidateIsLinked,
-  moreLabel,
+  linkCount,
+  linkedCountLabel,
+  summaryLinkCount,
   needsYouCount,
   summaryMoreLabel,
   type SessionLinkedWorkItem,
@@ -426,13 +428,21 @@ describe("session linked work", () => {
   });
 
   it.each([
-    ["all pull requests", SESSION_LINK_SETS.mixed, "+3 PRs"],
-    ["one more pull request", SESSION_LINK_SETS.runsHere, "+1 PR"],
-    ["a branch among them", SESSION_LINK_SETS.addedBy, "+3 more"],
-    ["a single item", SESSION_LINK_SETS.onePr, null],
-    ["nothing linked", SESSION_LINK_SETS.none, null],
-  ])("Should label the rest of the list with %s", (_name, items, label) => {
-    expect(moreLabel(items)).toBe(label);
+    ["all pull requests", SESSION_LINK_SETS.mixed, "4 linked PRs"],
+    ["two pull requests", SESSION_LINK_SETS.runsHere, "2 linked PRs"],
+    ["a branch among them", SESSION_LINK_SETS.addedBy, "4 linked"],
+  ])("Should count the whole list with %s", (_name, items, label) => {
+    expect(linkedCountLabel(linkCount(items))).toBe(label);
+  });
+
+  it("Should read the same count from the catalog summary", () => {
+    const summary = { total: 4, needs_you: 1, pull_requests: 3, lead: READY_ITEM() };
+    expect(summaryLinkCount(summary)).toEqual({ total: 4, allPullRequests: false, needsYou: 1 });
+    expect(linkCount(SESSION_LINK_SETS.mixed)).toEqual({
+      total: 4,
+      allPullRequests: true,
+      needsYou: 1,
+    });
   });
 
   it.each([

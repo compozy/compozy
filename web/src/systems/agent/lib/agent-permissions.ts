@@ -30,7 +30,8 @@ export const AGENT_PERMISSION_LEVELS: readonly AgentPermissionLevelOption[] = [
   {
     value: "approve-edits",
     label: "Edit on its own",
-    description: "Edits files and organizes its own work. Riskier actions still ask.",
+    description:
+      "Edits files and runs its own coordination. Commands, deletions and settings changes still ask.",
     icon: PencilLine,
   },
   {

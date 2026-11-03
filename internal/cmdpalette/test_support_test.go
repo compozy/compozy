@@ -82,11 +82,15 @@ func (d *testClientDirectory) GlobalShortcutStatuses(
 	return d.globalStatuses[clientID], nil
 }
 
-func (d *testClientDirectory) AttachedClients(ctx context.Context, workspaceID WorkspaceID) ([]Client, error) {
-	return d.Clients(ctx, workspaceID)
+func (d *testClientDirectory) AttachedClients(
+	ctx context.Context,
+	profileLens ProfileLens,
+	workspaceID WorkspaceID,
+) ([]Client, error) {
+	return d.Clients(ctx, profileLens, workspaceID)
 }
 
-func (d *testClientDirectory) Clients(context.Context, WorkspaceID) ([]Client, error) {
+func (d *testClientDirectory) Clients(context.Context, ProfileLens, WorkspaceID) ([]Client, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	return append([]Client(nil), d.clients...), nil
@@ -94,6 +98,7 @@ func (d *testClientDirectory) Clients(context.Context, WorkspaceID) ([]Client, e
 
 func (d *testClientDirectory) Context(
 	_ context.Context,
+	_ ProfileLens,
 	_ WorkspaceID,
 	clientID ClientID,
 ) (ContextSnapshot, error) {
@@ -108,6 +113,7 @@ func (d *testClientDirectory) Context(
 
 func (d *testClientDirectory) Authorize(
 	_ context.Context,
+	_ ProfileLens,
 	_ WorkspaceID,
 	clientID ClientID,
 	token string,

@@ -3247,6 +3247,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		correctProviderSettingsCommandAuthorship(t, baseline)
 		addProviderUsageSettingsSection(t, baseline)
 		addStaysOnHardeningSchemas(t, baseline)
+		addSessionRouteProfileSelectors(t, baseline)
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -3521,6 +3522,44 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 	return nil
 }
 
+// #1193: every route that names one session documents its optional profile selector; reads also
+// offer the all-profiles lens. Existing parameters keep their order and meaning.
+func addSessionRouteProfileSelectors(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	const prefix = "/api/workspaces/{workspace_id}/sessions/{session_id}"
+	added := 0
+	for path, item := range baseline["paths"].(map[string]any) {
+		if path != "/api/sessions/{session_id}/owner" && path != prefix && !strings.HasPrefix(path, prefix+"/") {
+			continue
+		}
+		for method, rawOperation := range item.(map[string]any) {
+			operation, ok := rawOperation.(map[string]any)
+			if !ok {
+				continue
+			}
+			parameters, _ := operation["parameters"].([]any)
+			if slices.ContainsFunc(parameters, func(parameter any) bool {
+				return parameter.(map[string]any)["name"] == "profile"
+			}) {
+				continue
+			}
+			parameters = append(parameters, map[string]any{
+				"in": "query", "name": "profile", "schema": map[string]any{"type": "string"},
+			})
+			if method == "get" {
+				parameters = append(parameters, map[string]any{
+					"in": "query", "name": "all_profiles", "schema": map[string]any{"type": "boolean"},
+				})
+			}
+			operation["parameters"] = parameters
+			added++
+		}
+	}
+	if added == 0 {
+		t.Fatal("approved session profile selectors: no historical session routes without a selector")
+	}
+}
+
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
 	// #1076: optional Later state on session payloads; existing fields and required sets stay unchanged.
@@ -3543,6 +3582,13 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 		if addToolErrorCode(baseline, string(code)) == 0 {
 			t.Fatal("approved Later tool errors: no historical tool error enums found")
 		}
+	}
+	// #1202: optional attention_dismissible flag on session payloads and the mark-seen refusal code.
+	if addSessionAttentionDismissibleSchema(baseline) == 0 {
+		t.Fatal("approved attention_dismissible addition: no historical session schemas found")
+	}
+	if addToolErrorCode(baseline, string(tools.ErrorCodeAttentionRequiresAction)) == 0 {
+		t.Fatal("approved mark-seen tool error: no historical tool error enums found")
 	}
 	// #1149: additive Goal wait status and attention reasons; no existing value is removed.
 	if addGoalWaitSchemas(baseline) == 0 {
@@ -3578,6 +3624,7 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	}
 	// #1008: optional browser registration partition; existing parameters retain their meaning.
 	addTerminalClientPartitionHeader(t, baseline)
+	addTerminalCatalogStreamCursor(t, baseline)
 	// #992: optional execution-environment availability; existing fields remain unchanged.
 	if addSessionWorktreeBindingSchemas(baseline) == 0 {
 		t.Fatal("approved session binding addition: no historical session schemas found")
@@ -3867,6 +3914,37 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			},
 		),
 	)
+	// #1196: attached palette clients belong to one profile, so the client list takes the
+	// optional profile selector and aggregate; the workspace parameter keeps its meaning.
+	paletteClients := paths["/api/cmd-palette/clients"].(map[string]any)["get"].(map[string]any)
+	paletteClients["parameters"] = append(paletteClients["parameters"].([]any),
+		map[string]any{
+			"description": "Read one profile's rows by name", "in": "query", "name": "profile",
+			"schema": map[string]any{"type": "string"},
+		},
+		map[string]any{
+			"description": "Read the owner-labeled all-profiles aggregate", "in": "query", "name": "all_profiles",
+			"schema": map[string]any{"type": "boolean"},
+		},
+	)
+	for _, method := range []string{"get", "patch"} {
+		operation := paths["/api/settings/window-manager"].(map[string]any)[method].(map[string]any)
+		operation["parameters"] = append(
+			operation["parameters"].([]any),
+			map[string]any{
+				"name":        "client_id",
+				"in":          "query",
+				"description": "Select the shell attachment for shortcut statuses",
+				"schema":      map[string]any{"type": "string"},
+			},
+			map[string]any{
+				"name":        "client_profile",
+				"in":          "query",
+				"description": "Select the shell profile without changing settings scope",
+				"schema":      map[string]any{"type": "string"},
+			},
+		)
+	}
 	addStaysOnAdditiveSchemas(baseline)
 }
 
@@ -5056,6 +5134,28 @@ func addSessionLaterSchemas(value any) int {
 			map[string]any{"enum": []any{nil}, "nullable": true},
 		}}
 		properties["returned_from_later_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+		count++
+	}
+	return count
+}
+
+func addSessionAttentionDismissibleSchema(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionAttentionDismissibleSchema(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionAttentionDismissibleSchema(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["badge"] == nil || properties["attachable"] == nil || properties["workspace_id"] == nil ||
+			properties["id"] == nil {
+			return count
+		}
+		properties["attention_dismissible"] = map[string]any{"type": "boolean"}
 		count++
 	}
 	return count

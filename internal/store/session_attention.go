@@ -44,6 +44,7 @@ var (
 
 // SessionAttention is the catalog-owned attention projection for one session.
 type SessionAttention struct {
+	FailureIdentity        string
 	PendingPermissionCount int
 	PendingClarifyCount    int
 	AttentionRevision      int64
@@ -59,6 +60,9 @@ type SessionAttention struct {
 	// LaterReturnedAt marks a session the daemon brought back from Later until the
 	// operator sees or resumes it.
 	LaterReturnedAt *time.Time
+	// FailureSeenAt records when the operator marked a stopped session's failure as
+	// seen; the failure then leaves Needs you until the session changes state or fails again.
+	FailureSeenAt *time.Time
 }
 
 // CloneSessionAttention returns an isolated copy of an optional attention projection.
@@ -76,6 +80,9 @@ func CloneSessionAttention(attention *SessionAttention) *SessionAttention {
 	cloned.Later = CloneSessionLater(attention.Later)
 	if attention.LaterReturnedAt != nil {
 		cloned.LaterReturnedAt = new(*attention.LaterReturnedAt)
+	}
+	if attention.FailureSeenAt != nil {
+		cloned.FailureSeenAt = new(*attention.FailureSeenAt)
 	}
 	return &cloned
 }
@@ -308,6 +315,34 @@ type SessionAttentionStore interface {
 	MarkSessionSeen(ctx context.Context, sessionID string, at time.Time) (SessionAttentionCommit, error)
 	// MarkSessionEndedEarly records the early-stopped turn; an empty turn id clears it.
 	MarkSessionEndedEarly(ctx context.Context, sessionID string, turnID string) (SessionAttentionCommit, error)
+	// DismissSessionAttention marks the operator-dismissible Needs you sources as seen
+	// while the occurrence still matches fence; Outcome is "unchanged" when none was
+	// raised, and ErrSessionAttentionChanged reports a newer occurrence.
+	DismissSessionAttention(
+		ctx context.Context,
+		sessionID string,
+		fence SessionAttentionFence,
+		at time.Time,
+	) (SessionAttentionCommit, error)
+}
+
+// ErrSessionAttentionChanged rejects a dismissal whose observed occurrence was replaced.
+var ErrSessionAttentionChanged = errors.New("store: session attention changed")
+
+// SessionAttentionFence identifies the revision, early-stop turn, and failure occurrence the operator saw.
+type SessionAttentionFence struct {
+	FailureIdentity   string
+	AttentionRevision int64
+	EndedEarlyTurnID  string
+}
+
+// Fence returns the occurrence fence of this attention projection.
+func (a SessionAttention) Fence() SessionAttentionFence {
+	return SessionAttentionFence{
+		FailureIdentity:   a.FailureIdentity,
+		AttentionRevision: a.AttentionRevision,
+		EndedEarlyTurnID:  a.EndedEarlyTurnID,
+	}
 }
 
 // ValidPendingInteractionKind reports whether kind belongs to the durable vocabulary.

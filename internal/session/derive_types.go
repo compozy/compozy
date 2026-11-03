@@ -60,6 +60,8 @@ type ContinueSessionOpts struct {
 	SourceSessionID string
 	WorkspaceID     string
 	ProfileID       string
+	// SourceProfileID fences authorization without changing persisted request fingerprints.
+	SourceProfileID string
 	AgentName       string
 	// Runtime is exclusive with Route.
 	Runtime *DeriveRuntime
@@ -77,6 +79,8 @@ type ForkSessionOpts struct {
 	SourceSessionID string
 	WorkspaceID     string
 	ProfileID       string
+	// SourceProfileID fences both fresh requests and receipt replay.
+	SourceProfileID string
 	// MessageID is the durable user message to cut through; "" forks the whole session.
 	MessageID      string
 	Name           string

@@ -30,11 +30,14 @@ type ApprovalPreflight interface {
 	ApprovalRequired(context.Context, ExecutionRequest) (bool, error)
 }
 
+// ClientDirectory answers the shells attached to one profile lens. Clients are
+// registered per profile, so a scoped lens reaches only that profile's clients;
+// only the explicit All profiles aggregate widens the read.
 type ClientDirectory interface {
-	AttachedClients(context.Context, WorkspaceID) ([]Client, error)
-	Clients(context.Context, WorkspaceID) ([]Client, error)
-	Context(context.Context, WorkspaceID, ClientID) (ContextSnapshot, error)
-	Authorize(context.Context, WorkspaceID, ClientID, string) error
+	AttachedClients(context.Context, ProfileLens, WorkspaceID) ([]Client, error)
+	Clients(context.Context, ProfileLens, WorkspaceID) ([]Client, error)
+	Context(context.Context, ProfileLens, WorkspaceID, ClientID) (ContextSnapshot, error)
+	Authorize(context.Context, ProfileLens, WorkspaceID, ClientID, string) error
 }
 
 type BindingsResolver interface {
@@ -74,7 +77,7 @@ type GlobalShortcutStatusDirectory interface {
 
 type Registry interface {
 	Catalog(context.Context, CatalogRequest) (Catalog, error)
-	Clients(context.Context, WorkspaceID) ([]Client, error)
+	Clients(context.Context, ProfileLens, WorkspaceID) ([]Client, error)
 	Invoke(context.Context, InvokeRequest) (InvokeResult, error)
 	RecordUsage(context.Context, Usage) error
 	Personalization(context.Context, ProfileLens, WorkspaceID) (Snapshot, error)

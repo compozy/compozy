@@ -24,6 +24,12 @@ type RenameSessionRequest = contract.RenameSessionRequest
 // SetSessionParentRequest adopts a parentless session as a child of another session.
 type SetSessionParentRequest = contract.SetSessionParentRequest
 
+// MoveSessionToProfileRequest copies a stopped session into another profile.
+type MoveSessionToProfileRequest = contract.MoveSessionToProfileRequest
+
+// MoveSessionToProfileResponse is the copy, the archived original, and the copy's worktree.
+type MoveSessionToProfileResponse = contract.MoveSessionToProfileResponse
+
 // SessionCommandsRecord is the unified session command catalog.
 type SessionCommandsRecord = contract.SessionCommandsResponse
 

@@ -90,6 +90,7 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 		toolspkg.ErrorCodeSessionInLater,
 		toolspkg.ErrorCodeSubagentLaterFollowsParent,
 		toolspkg.ErrorCodeSessionLaterStopFailed,
+		toolspkg.ErrorCodeAttentionRequiresAction,
 		toolspkg.ErrorCodeSessionMessageHopLimit,
 		toolspkg.ErrorCodeAgentInstanceStarting:
 		return http.StatusConflict
@@ -325,6 +326,8 @@ func safeSessionToolErrorMessage(code toolspkg.ErrorCode) string {
 		return "subagent sessions move to Later with their parent"
 	case toolspkg.ErrorCodeSessionLaterStopFailed:
 		return "session could not be stopped before moving to Later"
+	case toolspkg.ErrorCodeAttentionRequiresAction:
+		return "session still needs an answer, a sign-in, or a stop before it can be marked as seen"
 	case toolspkg.ErrorCodeAgentInstanceNotFound:
 		return "No instance exists for this agent in this scope."
 	case toolspkg.ErrorCodeAgentInstanceStarting:

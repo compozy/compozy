@@ -29,6 +29,7 @@ import { subscribeWorkspaceSwitchBarrier } from "../lib/workspace-switch-barrier
 import { WindowManagerRuntime } from "../runtime/window-manager-runtime";
 import { selectFocusedSessionId } from "./use-focused-session-id";
 import { useGlobalShortcutReconciliation } from "./use-global-shortcut-reconciliation";
+import { useProfileSwitchWindowSweep } from "./use-profile-switch-window-sweep";
 import { useWindowScopePruning } from "./use-window-scope-pruning";
 import { useWindowManagerClient } from "./use-window-manager-client";
 import { useWindowManagerStream } from "./use-window-manager-stream";
@@ -91,7 +92,7 @@ export function useDesktopChrome(
   // The read names this client, so it waits until the client is attached to
   // the workspace it is about to present (a switch re-registers it).
   const configQuery = useQuery({
-    ...windowManagerConfigOptions(configWorkspaceId, client.clientId),
+    ...windowManagerConfigOptions(configWorkspaceId, client.clientId, profileId),
     enabled: client.status === "registered",
   });
   const globalShortcuts = useGlobalShortcutReconciliation(configQuery.data?.globalShortcuts);
@@ -156,6 +157,9 @@ export function useDesktopChrome(
     shell.coordinator.reportAuthoritativeState();
   }, [activeWorkspaceId, client.client, client.error, manager, profileId, shell]);
 
+  // After the rebind above, so the sweep reads the target desk rather than the one it replaced.
+  useProfileSwitchWindowSweep(shell, activeWorkspaceId);
+
   useEffect(() => {
     if (client.status === "registered" && query.data && configQuery.data) {
       shell.coordinator.completeHydration();
@@ -187,7 +191,7 @@ export function useDesktopChrome(
       shell.coordinator.reportAuthoritativeState();
       if (view.globalShortcuts.length > 0) {
         void queryClient.invalidateQueries({
-          queryKey: windowManagerKeys.config(configWorkspaceId, client.clientId),
+          queryKey: windowManagerKeys.config(configWorkspaceId, client.clientId, profileId),
           exact: true,
         });
       }

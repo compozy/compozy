@@ -37,6 +37,8 @@ export interface SessionLifecycleActionHandlers {
   onMoveToLaterMany?: (sessions: readonly SessionPayload[]) => void;
   onBackFromLater?: (session: SessionPayload) => void;
   onBackFromLaterMany?: (sessions: readonly SessionPayload[]) => void;
+  /** Clears a dismissible Needs you; absent where the host offers no Mark as seen. */
+  onMarkSeen?: (session: SessionPayload) => void;
   onDeleteMany?: (
     sessions: readonly SessionPayload[],
     onSelectionChange?: (remainingIds: readonly string[]) => void

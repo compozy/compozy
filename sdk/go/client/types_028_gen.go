@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+// UpdateTaskRequest is a daemon API value.
+type UpdateTaskRequest struct {
+	Title              *string          `json:"title,omitempty"`
+	Description        *string          `json:"description,omitempty"`
+	Priority           *Priority        `json:"priority,omitempty"`
+	MaxAttempts        *int             `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady *bool            `json:"auto_enqueue_on_ready,omitempty"`
+	ApprovalPolicy     *ApprovalPolicy  `json:"approval_policy,omitempty"`
+	Metadata           *json.RawMessage `json:"metadata,omitempty"`
+	Owner              *Ownership       `json:"owner,omitempty"`
+	ClearOwner         bool             `json:"clear_owner,omitempty"`
+}
+
 // UpdateTriggerRequest is a daemon API value.
 type UpdateTriggerRequest struct {
 	TargetInstanceScope *string           `json:"target_instance_scope,omitempty"`
@@ -433,12 +446,4 @@ type WorkCandidate struct {
 	Title          string `json:"title,omitempty"`
 	URL            string `json:"url,omitempty"`
 	State          string `json:"state,omitempty"`
-}
-
-// WorkCandidates is a daemon API value.
-type WorkCandidates struct {
-	Items               []WorkCandidate `json:"items"`
-	HasMore             bool            `json:"has_more"`
-	SupportsPRDiscovery bool            `json:"supports_pr_discovery"`
-	Repository          string          `json:"repository,omitempty"`
 }

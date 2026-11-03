@@ -2052,6 +2052,31 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should mark Needs you as seen and keep the refusal code agents branch on", func(t *testing.T) {
+		t.Parallel()
+
+		later := &nativeLaterSessionManager{StubSessionManager: *nativeTestSessionManager("ws-native")}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: later, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-other", AgentName: "coder"}
+		request := toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionMarkSeen,
+			Input:  json.RawMessage(`{"session_id":"sess-parent"}`),
+		}
+		if _, err := registry.Call(t.Context(), scope, request); err != nil || len(later.seen) != 1 {
+			t.Fatalf("session_mark_seen = %v, seen=%v, want one mark", err, later.seen)
+		}
+		later.err = &session.AttentionRequiresActionError{
+			SessionID: "sess-parent", Blocker: session.AttentionBlockerPendingPermission,
+		}
+		_, err := registry.Call(t.Context(), scope, request)
+		if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); !ok ||
+			toolErr.Code != toolspkg.ErrorCodeAttentionRequiresAction {
+			t.Fatalf("session_mark_seen refusal = %#v, want attention_requires_action", err)
+		}
+	})
+
 	t.Run("Should deny session orchestration self actions before calling services", func(t *testing.T) {
 		t.Parallel()
 
@@ -10928,6 +10953,97 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
 	})
 
+	t.Run("Should decide native tools at the session's effective level", func(t *testing.T) {
+		t.Parallel()
+		// #1200: an undeclared stays-on agent runs at approve-edits; its native tools
+		// must not fall back to the global approve-all while the provider gate defers.
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		for _, tc := range []struct {
+			name        string
+			sessionType session.Type
+			effective   string
+			agentErr    error
+			want        toolspkg.PermissionMode
+		}{
+			{
+				name: "Should use the stays-on default level", sessionType: session.SessionTypeUser,
+				effective: string(compozyconfig.PermissionModeApproveEdits), want: toolspkg.PermissionModeApproveEdits,
+			},
+			{
+				name: "Should keep the configured mode without an effective level", sessionType: session.SessionTypeUser,
+				want: toolspkg.PermissionModeApproveAll,
+			},
+			{
+				name: "Should use a narrowed delegated level", sessionType: session.SessionTypeSpawned,
+				effective: string(compozyconfig.PermissionModeApproveReads), want: toolspkg.PermissionModeApproveReads,
+			},
+			{
+				name: "Should use the effective level when the lineage agent is unavailable", sessionType: session.SessionTypeSpawned,
+				effective: string(compozyconfig.PermissionModeApproveReads), agentErr: workspacepkg.ErrAgentNotAvailable,
+				want: toolspkg.PermissionModeApproveReads,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				info := &session.Info{
+					ID: "sess-level", ProfileID: store.DefaultProfileID, AgentName: "orchestrator",
+					State: session.StateActive, Type: tc.sessionType, EffectivePermissions: tc.effective,
+				}
+				if tc.sessionType == session.SessionTypeSpawned {
+					info.Lineage = &store.SessionLineage{
+						ParentSessionID: "parent-1", RootSessionID: "root-1", SpawnDepth: 1,
+						PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"compozy__session_create"}},
+					}
+				}
+				resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+					Config:   &cfg,
+					Sessions: &nativeToolPolicySessionStub{info: info},
+					AgentResolver: &nativeToolPolicyAgentResolverStub{err: tc.agentErr, agent: compozyconfig.AgentDef{
+						Name: "orchestrator", Provider: "opencode", Prompt: "Coordinate.", Kind: "stays_on",
+					}},
+					ApprovalAvailable: true,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: "sess-level"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if inputs.SystemPermissionMode != tc.want {
+					t.Fatalf("mode = %q, want %q", inputs.SystemPermissionMode, tc.want)
+				}
+				if tc.want != toolspkg.PermissionModeApproveReads {
+					return
+				}
+				// The lineage-allowed coordination mutation asks below approve-edits.
+				for _, descriptor := range builtintools.NativeDescriptors() {
+					if descriptor.ID != toolspkg.ToolIDSessionCreate {
+						continue
+					}
+					evaluator, err := toolspkg.NewEffectivePolicyEvaluator(
+						inputs, toolspkg.ToolsetCatalog{}, []toolspkg.ToolID{descriptor.ID},
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					decision, err := evaluator.Evaluate(
+						t.Context(),
+						toolspkg.Scope{SessionID: "sess-level"},
+						descriptor,
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !decision.ApprovalRequired {
+						t.Fatalf("session_create decision = %+v, want approval at approve-reads", decision)
+					}
+				}
+			})
+		}
+	})
+
 	t.Run("Should resolve daemon policy without treating its audit label as an authored agent", func(t *testing.T) {
 		t.Parallel()
 
@@ -15975,7 +16091,16 @@ func (s *nativeProcessPolicyService) Terminate(
 type nativeLaterSessionManager struct {
 	apitest.StubSessionManager
 	parked []session.LaterRequest
+	seen   []string
 	err    error
+}
+
+func (m *nativeLaterSessionManager) MarkAttentionSeen(_ context.Context, id string) (*session.Info, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	m.seen = append(m.seen, id)
+	return &session.Info{ID: id, State: session.StateActive}, nil
 }
 
 func (m *nativeLaterSessionManager) MoveToLater(
@@ -16352,4 +16477,124 @@ func (s *subagentLimitStub) PermissionLimit(
 	context.Context, *session.Info, session.SubagentTarget,
 ) (session.SubagentPermissionLimit, error) {
 	return s.limit, nil
+}
+
+// The native move-to-profile binding owns the caller fence, the target-profile write
+// authorization, and public refusal codes; the session manager owns the move itself.
+func TestNativeSessionMoveToProfile(t *testing.T) {
+	t.Parallel()
+
+	const targetID = "01PROFILEWORK00000000000000"
+	newRegistry := func(
+		t *testing.T, decision workspaceaccess.Decision, move func(session.MoveToProfileOpts) error,
+	) (*toolspkg.RuntimeRegistry, *recordingNativeWorkspaceAccessPolicy, *[]session.MoveToProfileOpts) {
+		t.Helper()
+		calls := []session.MoveToProfileOpts{}
+		sessions := nativeTestSessionManager("ws-move")
+		sessions.MoveToProfileFn = func(
+			_ context.Context, opts session.MoveToProfileOpts,
+		) (session.MoveToProfileResult, error) {
+			calls = append(calls, opts)
+			if err := move(opts); err != nil {
+				return session.MoveToProfileResult{}, err
+			}
+			return session.MoveToProfileResult{
+				Copy:     &session.Info{ID: "sess-copy", ProfileID: targetID, WorkspaceID: "ws-move"},
+				Original: &session.Info{ID: opts.SessionID, ProfileID: opts.ProfileID, WorkspaceID: "ws-move"},
+			}, nil
+		}
+		policy := &recordingNativeWorkspaceAccessPolicy{decision: decision}
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
+			Sessions: sessions, Workspaces: nativeTestWorkspaceService(t), WorkspaceAccess: policy,
+			Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{
+				{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+				{ID: targetID, Name: "work", State: profilepkg.StateActive},
+			}},
+		}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), policy)
+		return registry, policy, &calls
+	}
+	request := func(sessionID string) toolspkg.CallRequest {
+		return toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionMoveToProfile,
+			Input:  json.RawMessage(`{"session_id":"` + sessionID + `","target_profile":"work"}`),
+		}
+	}
+	agent := toolspkg.Scope{SessionID: "sess-agent", WorkspaceID: "ws-move", AgentName: "coder"}
+
+	t.Run("Should move another session once the policy admits the target-profile write", func(t *testing.T) {
+		t.Parallel()
+		registry, policy, calls := newRegistry(t, workspaceaccess.Decision{Allowed: true}, func(
+			session.MoveToProfileOpts,
+		) error {
+			return nil
+		})
+		result, err := registry.Call(t.Context(), agent, request("sess-source"))
+		if err != nil {
+			t.Fatalf("Registry.Call(session_move_to_profile) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"id":"sess-copy"`))
+		requireNativeStructuredContains(t, result, []byte(`"original":{`))
+		if len(*calls) != 1 || (*calls)[0].TargetProfileID != targetID || (*calls)[0].SessionID != "sess-source" ||
+			(*calls)[0].ProfileID != store.DefaultProfileID {
+			t.Fatalf("MoveToProfile() calls = %#v, want one move of sess-source to %s", *calls, targetID)
+		}
+		if policy.calls != 1 || policy.last.Target.ProfileID != targetID || policy.last.ReadOnly {
+			t.Fatalf("policy request = %d %#v, want one write to %s", policy.calls, policy.last, targetID)
+		}
+	})
+
+	t.Run("Should deny the move without permission to write the target profile", func(t *testing.T) {
+		t.Parallel()
+		registry, _, calls := newRegistry(t, workspaceaccess.Decision{
+			Denial: workspaceaccess.DenialNeedsGrant,
+		}, func(session.MoveToProfileOpts) error { return nil })
+		_, err := registry.Call(t.Context(), agent, request("sess-source"))
+		if !errors.Is(err, toolspkg.ErrToolDenied) || len(*calls) != 0 {
+			t.Fatalf("denied move error = %v calls = %d, want denied before moving", err, len(*calls))
+		}
+	})
+
+	t.Run("Should deny a non-operator call without a session", func(t *testing.T) {
+		t.Parallel()
+		registry, policy, calls := newRegistry(t, workspaceaccess.Decision{Allowed: true}, func(
+			session.MoveToProfileOpts,
+		) error {
+			return nil
+		})
+		_, err := registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "ws-move"}, request("sess-source"))
+		if !errors.Is(err, toolspkg.ErrToolDenied) || len(*calls) != 0 || policy.calls != 0 {
+			t.Fatalf("sessionless move error = %v calls = %d policy = %d, want denied", err, len(*calls), policy.calls)
+		}
+	})
+
+	t.Run("Should refuse an agent moving its own session", func(t *testing.T) {
+		t.Parallel()
+		registry, policy, calls := newRegistry(t, workspaceaccess.Decision{Allowed: true}, func(
+			session.MoveToProfileOpts,
+		) error {
+			return nil
+		})
+		_, err := registry.Call(t.Context(), agent, request(agent.SessionID))
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+		if len(*calls) != 0 || policy.calls != 0 {
+			t.Fatalf("self move calls = %d policy = %d, want none", len(*calls), policy.calls)
+		}
+	})
+
+	t.Run("Should preserve the refusal code of a move the manager refuses", func(t *testing.T) {
+		t.Parallel()
+		registry, _, _ := newRegistry(t, workspaceaccess.Decision{Allowed: true}, func(
+			session.MoveToProfileOpts,
+		) error {
+			return &session.ProfileMoveError{
+				Reason: session.ProfileMoveRefusalWorktreeDirty, Message: "uncommitted changes",
+			}
+		})
+		operator := toolspkg.Scope{Operator: true, WorkspaceID: "ws-move"}
+		_, err := registry.Call(t.Context(), operator, request("sess-source"))
+		got, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || string(got.Code) != "session_move_to_profile_worktree_dirty" {
+			t.Fatalf("refused move error = %v, want session_move_to_profile_worktree_dirty", err)
+		}
+	})
 }

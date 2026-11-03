@@ -64,6 +64,7 @@ const sessionInfoSelectQuery = `SELECT COALESCE(instance_id, ''), initiator_kind
 	last_settled_revision, last_seen_revision, last_seen_at, attention_changed_at, ended_early_turn_id,
 	soul_snapshot_id, soul_digest, parent_soul_digest,
 	parked_at, park_reason, park_until, later_returned_at, ` + sessionLaterPendingMessagesExpression + `,
+	failure_seen_at,
 	created_at, updated_at, ` + sessionCatalogVerdictOnlyExpression + `
 FROM sessions`
 

@@ -4,6 +4,7 @@ import { buildSessionStreamUrl, fetchSessionTranscript } from "../adapters/sessi
 import { normalizeTranscriptEntries } from "../lib/message-schemas";
 import { sessionKeys } from "../lib/query-keys";
 import {
+  invalidateSessionByIdReads,
   invalidateSessionLiveQueries,
   invalidateSessionOwnLiveQueries,
   invalidateSessionUsageQueries,
@@ -265,7 +266,7 @@ export function createSessionLiveTailRuntime({
             }
           : existing
     );
-    void queryClient.invalidateQueries({ queryKey: sessionKeys.byIdRoot(sessionId) });
+    void invalidateSessionByIdReads(queryClient, sessionId);
     const failureMessage = terminalFailureMessage(payload, sessionId);
     if (failureMessage) {
       queryClient.setQueryData<SessionTranscriptData>(transcriptQueryKey, existing =>

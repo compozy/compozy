@@ -51,6 +51,7 @@ type StubSessionManager struct {
 	UnarchiveFn             func(context.Context, string, string) (*session.Info, error)
 	RenameFn                func(context.Context, string, string, string) (*session.Info, error)
 	AdoptSessionFn          func(context.Context, string, string, string) (*session.Info, error)
+	MoveToProfileFn         func(context.Context, session.MoveToProfileOpts) (session.MoveToProfileResult, error)
 	DetachSessionFn         func(context.Context, string, string) (*session.Info, error)
 	StopWithCauseFn         func(context.Context, string, session.StopCause, string) error
 	ResumeFn                func(context.Context, string) (*session.Session, error)
@@ -264,7 +265,7 @@ func (s *StubSessionManager) SessionOwner(ctx context.Context, id string) (store
 	if err != nil {
 		return store.SessionOwner{}, err
 	}
-	return store.SessionOwner{SessionID: info.ID, WorkspaceID: info.WorkspaceID}, nil
+	return store.SessionOwner{SessionID: info.ID, ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID}, nil
 }
 
 func (s *StubSessionManager) ActivePromptRun(

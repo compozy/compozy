@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -32,6 +33,7 @@ type providerUsageResolver struct {
 	collectors providerusage.Registry
 }
 
+// Targets skips archived and reserved profiles so they cannot block reconciliation.
 func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) ([]providerusage.Target, error) {
 	r.mu.RLock()
 	cfg := config.CloneConfig(&r.cfg)
@@ -39,15 +41,13 @@ func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) (
 	profileName := "default"
 	if r.profiles != nil {
 		name, err := r.profiles.ProfileName(ctx, profileID)
-		if err != nil {
-			return nil, err
-		}
-		selected, err := r.profiles.GetByName(ctx, name)
-		if err != nil {
-			return nil, err
-		}
-		if selected.State != profile.StateActive {
+		// Archived or lifecycle-reserved profiles cannot own new collection work;
+		// they publish no targets instead of failing reconciliation for every profile.
+		if errors.Is(err, profile.ErrArchived) || errors.Is(err, profile.ErrUnavailable) {
 			return nil, nil
+		}
+		if err != nil {
+			return nil, err
 		}
 		profileName = name
 	} else if profileID != store.DefaultProfileID {

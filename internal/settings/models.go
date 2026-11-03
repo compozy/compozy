@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
@@ -193,12 +194,13 @@ const (
 
 // SectionRequest identifies one section read.
 type SectionRequest struct {
-	Section     SectionName
-	Scope       ScopeKind
-	WorkspaceID string
-	ProfileName string
-	AgentName   string
-	ClientID    string
+	Section       SectionName
+	Scope         ScopeKind
+	WorkspaceID   string
+	ProfileName   string
+	AgentName     string
+	ClientID      string
+	ClientProfile cmdpalette.ProfileLens
 }
 
 // SectionUpdateRequest identifies one section mutation.
@@ -280,6 +282,7 @@ type SectionEnvelope struct {
 	ProfileName     string
 	AgentName       string
 	ClientID        string
+	ClientProfile   cmdpalette.ProfileLens
 	AvailableScopes []ScopeKind
 	General         *GeneralSection
 	Persona         *PersonaSection

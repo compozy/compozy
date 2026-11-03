@@ -91,9 +91,18 @@ func (m *Manager) archiveStoppingLiveMembers(ctx context.Context, sessionID stri
 	}
 }
 
-// Unarchive restores a session to the default catalog.
+// Unarchive restores a session to the default catalog. It waits for a move to
+// another profile of the same session, which archives the source while it runs.
 func (m *Manager) Unarchive(ctx context.Context, workspaceID string, sessionID string) (*Info, error) {
-	return m.setArchived(ctx, workspaceID, sessionID, false)
+	if ctx == nil {
+		return m.setArchived(ctx, workspaceID, sessionID, false)
+	}
+	lockedCtx, unlock, err := m.lockProfileMove(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer unlock()
+	return m.setArchived(lockedCtx, workspaceID, sessionID, false)
 }
 
 func (m *Manager) setArchived(

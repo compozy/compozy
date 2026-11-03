@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+// ToolContent is a daemon API value.
+type ToolContent struct {
+	Type     string                     `json:"type"`
+	Text     string                     `json:"text,omitempty"`
+	Data     json.RawMessage            `json:"data,omitempty"`
+	MIMEType string                     `json:"mime_type,omitempty"`
+	Metadata map[string]json.RawMessage `json:"metadata,omitempty"`
+}
+
 // ToolDescriptorPayload is a daemon API value.
 type ToolDescriptorPayload struct {
 	ToolID              ToolID                `json:"tool_id"`
@@ -426,17 +435,4 @@ type UpdateSettingsWindowManagerRequest struct {
 	Aliases           *map[string]string                  `json:"aliases,omitzero"`
 	GlobalShortcuts   *map[string]string                  `json:"global_shortcuts,omitzero"`
 	Overwrite         bool                                `json:"overwrite,omitzero"`
-}
-
-// UpdateTaskRequest is a daemon API value.
-type UpdateTaskRequest struct {
-	Title              *string          `json:"title,omitempty"`
-	Description        *string          `json:"description,omitempty"`
-	Priority           *Priority        `json:"priority,omitempty"`
-	MaxAttempts        *int             `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady *bool            `json:"auto_enqueue_on_ready,omitempty"`
-	ApprovalPolicy     *ApprovalPolicy  `json:"approval_policy,omitempty"`
-	Metadata           *json.RawMessage `json:"metadata,omitempty"`
-	Owner              *Ownership       `json:"owner,omitempty"`
-	ClearOwner         bool             `json:"clear_owner,omitempty"`
 }

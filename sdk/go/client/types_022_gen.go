@@ -4,6 +4,31 @@ package client
 
 import "time"
 
+// SettingsUpdateOperationPayload is a daemon API value.
+type SettingsUpdateOperationPayload struct {
+	ID           string                       `json:"id"`
+	Revision     int64                        `json:"revision"`
+	Targets      []SettingsUpdateTarget       `json:"targets"`
+	ActiveTarget *SettingsUpdateTarget        `json:"active_target,omitzero"`
+	Phase        SettingsUpdatePhase          `json:"phase"`
+	Percent      int                          `json:"percent"`
+	Holder       *SettingsUpdateHolderPayload `json:"holder"`
+	Waiting      SettingsUpdateWaitingState   `json:"waiting"`
+	StartedAt    time.Time                    `json:"started_at"`
+	LastError    string                       `json:"last_error"`
+}
+
+// SettingsUpdatePhase is a daemon API value.
+type SettingsUpdatePhase string
+
+// SettingsUpdateResponse is a daemon API value.
+type SettingsUpdateResponse struct {
+	Aggregate SettingsUpdateStatusKind        `json:"aggregate"`
+	Operation *SettingsUpdateOperationPayload `json:"operation"`
+	Runtime   SettingsUpdateRuntimePayload    `json:"runtime"`
+	App       *SettingsUpdateAppPayload       `json:"app"`
+}
+
 // SettingsUpdateRuntimePayload is a daemon API value.
 type SettingsUpdateRuntimePayload struct {
 	CheckedAt       *time.Time                  `json:"checked_at,omitempty"`
@@ -422,26 +447,3 @@ type StartTaskRunRequest struct {
 
 // State is a daemon API value.
 type State string
-
-// Status is a daemon API value.
-type Status string
-
-// StatusPayload is a daemon API value.
-type StatusPayload struct {
-	SchemaVersion    string                           `json:"schema_version"`
-	GeneratedAt      time.Time                        `json:"generated_at"`
-	Daemon           DaemonStatusPayload              `json:"daemon"`
-	Sessions         SessionAggregatePayload          `json:"sessions"`
-	SubprocessHealth SubprocessHealthAggregatePayload `json:"subprocess_health"`
-	Health           ObserveHealthPayload             `json:"health"`
-	Automation       AutomationHealthPayload          `json:"automation"`
-	Tasks            TaskHealthPayload                `json:"tasks"`
-	Providers        []ProviderStatusPayload          `json:"providers,omitempty"`
-	MCPServers       []MCPServerStatusPayload         `json:"mcp_servers,omitempty"`
-	Skills           SkillRuntimeStatusPayload        `json:"skills"`
-	Config           ConfigRuntimeStatusPayload       `json:"config"`
-	LogTail          LogTailStatusPayload             `json:"log_tail"`
-}
-
-// SteerCapability is a daemon API value.
-type SteerCapability string

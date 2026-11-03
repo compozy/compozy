@@ -45,6 +45,10 @@ func (h *BaseHandlers) ListCmdPaletteCommands(c *gin.Context) {
 }
 
 func (h *BaseHandlers) ListCmdPaletteClients(c *gin.Context) {
+	profileLens, ok := h.resolveCmdPaletteProfileLens(c, false)
+	if !ok {
+		return
+	}
 	workspaceID, ok := h.resolveCmdPaletteWorkspace(c, c.Query("workspace"))
 	if !ok {
 		return
@@ -53,7 +57,7 @@ func (h *BaseHandlers) ListCmdPaletteClients(c *gin.Context) {
 		h.respondCmdPaletteError(c, workspaceID, errCmdPaletteServiceUnavailable)
 		return
 	}
-	clients, err := h.CmdPalette.Clients(c.Request.Context(), workspaceID)
+	clients, err := h.CmdPalette.Clients(c.Request.Context(), profileLens, workspaceID)
 	if err != nil {
 		h.respondCmdPaletteError(c, workspaceID, err)
 		return

@@ -32,14 +32,7 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 			payload.Code = code
 		}
 	}
-	if busy, ok := errors.AsType[*workspace.BusyError](err); ok {
-		payload.Code = "workspace_busy"
-		for _, blocker := range busy.Blockers {
-			payload.Blockers = append(payload.Blockers, contract.WorkspaceArchiveBlocker{
-				Kind: blocker.Kind, ID: blocker.ID, Name: blocker.Name,
-			})
-		}
-	}
+	enrichWorkspaceBusyError(&payload, err)
 	if errors.Is(err, workspace.ErrWorkspaceRootMissing) {
 		payload.Code = workspaceRootMissingCode
 	}
@@ -69,6 +62,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if code := sessionLaterErrorCode(err); code != "" {
 		payload.Code = code
 	}
+	if code := attentionSeenErrorCode(err); code != "" {
+		payload.Code = code
+	}
 	if errors.Is(err, session.ErrBoardFilterInvalid) {
 		payload.Code = "session_list_query_invalid"
 	}
@@ -88,6 +84,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 		payload.Code = code
 	}
 	enrichWorktreeError(&payload, err)
+	if code := SessionProfileMoveErrorCode(err); code != "" {
+		payload.Code = code
+	}
 	if reason, ok := errors.AsType[*looppkg.ReasonError](err); ok {
 		payload.Code = string(reason.Code)
 		payload.Details = lifecycleReasonDetails(reason.Meta)
@@ -95,6 +94,17 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	payload.Diagnostic = errorDiagnosticItem(message, err)
 	enrichSessionInputError(&payload, err)
 	return payload
+}
+
+func enrichWorkspaceBusyError(payload *contract.ErrorPayload, err error) {
+	if busy, ok := errors.AsType[*workspace.BusyError](err); ok {
+		payload.Code = "workspace_busy"
+		for _, blocker := range busy.Blockers {
+			payload.Blockers = append(payload.Blockers, contract.WorkspaceArchiveBlocker{
+				Kind: blocker.Kind, ID: blocker.ID, Name: blocker.Name,
+			})
+		}
+	}
 }
 
 func enrichOperationError(payload *contract.ErrorPayload, err error) {
