@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -209,6 +210,36 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		}
 		if _, err := authorize(t, binder, `{"session_id":"sess-own"}`); err != nil {
 			t.Fatalf("authorize(own session) error = %v, want own workspace and profile unchanged", err)
+		}
+	})
+
+	t.Run("Should deny a foreign session whose project folder is gone like a missing one", func(t *testing.T) {
+		t.Parallel()
+		sessions := sessionsFor(workspaceaccess.ModeDenyAll)
+		workspaces := nativeTestWorkspaceService(t)
+		resolve := workspaces.ResolveFn
+		workspaces.ResolveFn = func(ctx context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+			if ref == foreignWorkspace {
+				return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceRootMissing
+			}
+			return resolve(ctx, ref)
+		}
+		binder := newNativeWorkspaceInputBinder(workspaces, sessions, newPolicy(t, sessions), nil)
+		historyDescriptor := statusDescriptor
+		historyDescriptor.ID = toolspkg.ToolIDSessionHistory
+		call := func(input string) error {
+			bound, err := binder.BindCallInput(t.Context(), actorScope, historyDescriptor, json.RawMessage(input))
+			if err != nil {
+				return err
+			}
+			return binder.AuthorizeCallInput(t.Context(), actorScope, historyDescriptor, toolspkg.CallRequest{
+				ToolID: historyDescriptor.ID, SessionID: actorScope.SessionID, Input: bound,
+			})
+		}
+		foreignErr, missingErr := call(`{"session_id":"sess-foreign"}`), call(`{"session_id":"sess-missing"}`)
+		requireToolReason(t, foreignErr, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if missingErr == nil || foreignErr.Error() != missingErr.Error() {
+			t.Fatalf("denials differ:\nforeign: %v\nmissing: %v", foreignErr, missingErr)
 		}
 	})
 

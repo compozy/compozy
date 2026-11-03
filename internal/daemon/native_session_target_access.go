@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/session"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -112,10 +113,30 @@ func (b *nativeWorkspaceInputBinder) bindNativeSessionTargetWorkspace(
 	// revealing whether the session exists.
 	target, lookupErr := b.resolveNativeSessionTarget(ctx, sessionID)
 	if lookupErr == nil && target.info != nil &&
-		strings.TrimSpace(target.info.WorkspaceID) != strings.TrimSpace(scope.WorkspaceID) {
+		strings.TrimSpace(target.info.WorkspaceID) != strings.TrimSpace(scope.WorkspaceID) &&
+		b.nativeSessionOwnerBindable(ctx, id, target.workspaceSelector()) {
 		return setNativeWorkspaceInput(payload, target.workspaceSelector())
 	}
 	return nil
+}
+
+// nativeSessionOwnerBindable reports whether the owner workspace of a named session binds
+// without an input error. An owner that cannot bind (its project folder is gone) is not filled
+// in: binding would fail before authorization and tell a denied caller the session exists. The
+// authorizer still decides the call against the session's real owner.
+func (b *nativeWorkspaceInputBinder) nativeSessionOwnerBindable(
+	ctx context.Context,
+	id toolspkg.ToolID,
+	selector string,
+) bool {
+	if selector == workspaceaccess.UserSelector {
+		return true
+	}
+	if b == nil || b.workspaces == nil {
+		return false
+	}
+	_, err := b.workspaces.Resolve(ctx, selector)
+	return err == nil || (errors.Is(err, workspacepkg.ErrWorkspaceRootMissing) && nativeAllowsMissingWorkspace(id))
 }
 
 // authorizeNativeSessionTarget authorizes the named target session against its own workspace and
