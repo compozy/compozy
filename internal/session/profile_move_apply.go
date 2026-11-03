@@ -94,13 +94,29 @@ func (m *Manager) applyProfileMove(ctx context.Context, plan *profileMovePlan) (
 }
 
 // rollbackFailedArchive keeps a failed archive harmless: when it committed before a
-// later step of the archive failed, the source is unarchived again.
+// later step of the archive failed, the source is unarchived again. The archive state
+// is read on a fresh lifetime, and a read that fails is reported, never taken as proof
+// that nothing was archived.
 func (m *Manager) rollbackFailedArchive(ctx context.Context, plan *profileMovePlan, cause error) error {
-	err := m.requireSessionUnarchived(ctx, plan.meta.WorkspaceID, plan.meta.ID)
-	if !errors.Is(err, ErrSessionArchived) {
+	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), profileMoveTimeout)
+	defer cancel()
+	err := m.requireSessionUnarchived(readCtx, plan.meta.WorkspaceID, plan.meta.ID)
+	switch {
+	case err == nil:
 		return cause
+	case errors.Is(err, ErrSessionArchived):
+		return m.rollbackProfileMove(ctx, plan, profileMoveProgress{}, cause)
+	default:
+		return &ProfileMoveError{
+			Reason: ProfileMoveRefusalRecoveryIncomplete,
+			Message: fmt.Sprintf(
+				"archiving session %s failed (%v) and its archive state could not be read (%v); "+
+					"unarchive it if it stays archived",
+				plan.meta.ID, cause, err,
+			),
+			cause: errors.Join(cause, err),
+		}
 	}
-	return m.rollbackProfileMove(ctx, plan, profileMoveProgress{}, cause)
 }
 
 // profileMoveCheckoutGone reports whether a release that failed still removed the

@@ -188,7 +188,41 @@ type profileMoveHarness struct {
 	worktrees *fakeProfileMoveWorktrees
 }
 
+// archiveFailingCatalog commits an archive and then reports a failure, and can also
+// fail the archive-state reads that follow, as a store that loses its connection would.
+type archiveFailingCatalog struct {
+	*globaldb.GlobalDB
+	archiveErr error
+	readErr    error
+}
+
+func (c *archiveFailingCatalog) SetSessionArchived(
+	ctx context.Context, workspaceID string, sessionID string, archived bool,
+) (store.SessionInfo, error) {
+	info, err := c.GlobalDB.SetSessionArchived(ctx, workspaceID, sessionID, archived)
+	if err == nil && archived && c.archiveErr != nil {
+		return info, c.archiveErr
+	}
+	return info, err
+}
+
+func (c *archiveFailingCatalog) SessionArchivedAt(
+	ctx context.Context, workspaceID string, sessionID string,
+) (*time.Time, error) {
+	if c.readErr != nil {
+		if archived, err := c.GlobalDB.SessionArchivedAt(ctx, workspaceID, sessionID); err == nil && archived != nil {
+			return nil, c.readErr
+		}
+	}
+	return c.GlobalDB.SessionArchivedAt(ctx, workspaceID, sessionID)
+}
+
 func newProfileMoveHarness(t *testing.T) *profileMoveHarness {
+	t.Helper()
+	return newProfileMoveHarnessWith(t, nil)
+}
+
+func newProfileMoveHarnessWith(t *testing.T, catalog func(*globaldb.GlobalDB) store.SessionCatalog) *profileMoveHarness {
 	t.Helper()
 	h := newHarness(t)
 	db := openManagerInputQueueStore(t)
@@ -200,9 +234,13 @@ func newProfileMoveHarness(t *testing.T) *profileMoveHarness {
 		t.Fatalf("insert target profile: %v", err)
 	}
 	worktrees := newFakeProfileMoveWorktrees(t, db, h.workspaceID)
+	var sessionCatalog store.SessionCatalog = db
+	if catalog != nil {
+		sessionCatalog = catalog(db)
+	}
 	h.manager = newManagerWithHarness(
 		t, h,
-		WithSessionCatalog(db), WithEventLedger(db), WithSessionPromptAdmissionStore(db),
+		WithSessionCatalog(sessionCatalog), WithEventLedger(db), WithSessionPromptAdmissionStore(db),
 		WithWorktreeResolver(worktrees),
 		WithProfileNameResolver(profileNameResolverMap{profileMoveTargetID: profileMoveTargetName}),
 	)
@@ -486,6 +524,45 @@ func TestManagerMoveToProfile(t *testing.T) {
 		if !ok || original.WorktreeID == sourceWorktree || restored.released || h.archivedAt(t, source.ID) {
 			t.Fatalf("original worktree = %q (%#v), archived=%t; want a fresh checkout of the branch",
 				original.WorktreeID, restored, h.archivedAt(t, source.ID))
+		}
+	})
+
+	t.Run("Should unarchive the source when its archive commits and then fails", func(t *testing.T) {
+		t.Parallel()
+
+		cause := errors.New("watch release failed")
+		failing := &archiveFailingCatalog{}
+		h := newProfileMoveHarnessWith(t, func(db *globaldb.GlobalDB) store.SessionCatalog {
+			failing.GlobalDB = db
+			return failing
+		})
+		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+		failing.archiveErr = cause
+
+		_, err := h.move(testutil.Context(t), source.ID)
+		if !errors.Is(err, cause) || errors.Is(err, ErrProfileMoveRefused) || h.archivedAt(t, source.ID) ||
+			h.worktrees.releaseCount() != 0 {
+			t.Fatalf("MoveToProfile() error = %v, archived=%t releases=%d; want the cause with the source restored",
+				err, h.archivedAt(t, source.ID), h.worktrees.releaseCount())
+		}
+	})
+
+	t.Run("Should report an unreadable archive state instead of assuming nothing was archived", func(t *testing.T) {
+		t.Parallel()
+
+		failing := &archiveFailingCatalog{}
+		h := newProfileMoveHarnessWith(t, func(db *globaldb.GlobalDB) store.SessionCatalog {
+			failing.GlobalDB = db
+			return failing
+		})
+		source := h.stoppedSource(t, "", "")
+		failing.archiveErr = errors.New("watch release failed")
+		failing.readErr = errors.New("catalog unavailable")
+
+		_, err := h.move(testutil.Context(t), source.ID)
+		refusal, ok := errors.AsType[*ProfileMoveError](err)
+		if !ok || refusal.Reason != ProfileMoveRefusalRecoveryIncomplete {
+			t.Fatalf("MoveToProfile() error = %v, want recovery_incomplete", err)
 		}
 	})
 
