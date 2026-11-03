@@ -18,8 +18,15 @@ compozy terminal input-requests --workspace my-project --all-profiles -o json
 compozy terminal journal --workspace my-project --all-profiles -o json
 ```
 
-Aggregate rows include `profile_id` and `profile_name`. Single-terminal reads and mutations remain
-single-profile operations; `--all-profiles` does not grant cross-profile mutation authority.
+Aggregate rows include `profile_id` and `profile_name`. Reading one terminal with `--all-profiles`
+(or `all_profiles=true` on its detail, catalog stream, recording, or artifact download) finds it in
+whichever profile owns it and labels that owner. Interactions such as reading output, waiting,
+attaching, and quoting, and every mutation, stay single-profile operations; `--all-profiles` does not
+grant cross-profile mutation authority.
+
+Agent sessions follow the same read policy as every other aggregate: an approve-all session or an
+unrestricted workspace-access grant may use `all_profiles=true` on any terminal read, and any other
+agent gets `profile_selection_conflict` on all of them.
 
 ## Archive and delete behavior
 

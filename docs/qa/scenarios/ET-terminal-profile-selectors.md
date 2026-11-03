@@ -5,7 +5,7 @@ title: Refuse ambiguous or unscoped terminal requests instead of guessing
 persona: Ada
 journey: J-switch-profile-terminal-scope
 expected: Every structured terminal surface resolves exactly one profile scope or an explicitly labelled all-profiles read; asking for both, asking for the aggregate on a change, contradicting a session's own profile, or calling with no project at all is each refused with its own reason, and an unresolvable scope returns nothing rather than everything.
-entry_points: compozy terminal list|journal|input-requests --profile and --all-profiles; compozy terminal get|attach|quote --profile; compozy terminal open|exec|kill|signal|respond|record; HTTP and UDS terminal routes with profile= and all_profiles=; terminal catalog stream; native terminal tools in a session with no project
+entry_points: compozy terminal list|get|journal|input-requests --profile and --all-profiles; compozy terminal attach|quote --profile; compozy terminal open|exec|kill|signal|respond|record; HTTP and UDS terminal routes with profile= and all_profiles=; terminal catalog stream; native terminal tools in a session with no project
 qa_status: pass
 bug_ids: BUG-20260826-terminal-attach-profile-scope
 fix_status: fixed
@@ -15,6 +15,12 @@ evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-review-r2-20
 last_report: docs/qa/reports/2026-09-01-integrated-terminal-review-r2.md
 overlaps: ET-terminal-profile-segmentation; ET-profile-selection-precedence
 ---
+
+qa-impact: 2026-11-03 #1195 made terminal detail, the per-workspace catalog stream, and recording/artifact
+downloads accept the owner-labeled aggregate, and moved every terminal read onto the shared profile read
+policy, so an agent session admitted by workspace access (approve-all or an unrestricted grant) reads
+`all_profiles=true` on every terminal read and a denied one gets `profile_selection_conflict` on every
+one. Interactions (read output, wait, attach, quote) stay single-owner. Steps 2 and 9 changed.
 
 qa-impact: 2026-09-01 deep-review round 2 changed workspace/profile recovery and UDS bootstrap
 scope ownership. Reset for a focused cross-surface selector and isolation re-walk.
@@ -32,7 +38,9 @@ Walk:
 
 1. Call each aggregate read with no selector, with an explicit profile, and with the all-profiles form;
    confirm the default is the resolved profile and the aggregate labels every row's owner.
-2. Call the single-owner reads and confirm they accept one profile and offer no aggregate form.
+2. Read one terminal with the all-profiles form and confirm it is found in whichever profile owns it,
+   labelled with that owner; call the interactions (read output, wait, attach, quote) with it and
+   confirm each is refused with `profile_selection_conflict`.
 3. Call every change verb with the aggregate form and confirm each is refused.
 4. Send both selectors together on a read and confirm the refusal names the two selectors and which one
    that surface accepts.
@@ -45,6 +53,8 @@ Walk:
 8. Open a terminal under an archived profile and under a profile held by a lifecycle operation; confirm
    each refusal names the profile and its condition while reads of existing terminals keep working.
 9. Compare the same query across the command line, both transports, the catalog stream, and a native
-   read from inside a session; confirm all five agree on scope and on owner labels.
+   read from inside a session; confirm all five agree on scope and on owner labels. From an
+   approve-all agent session, confirm `all_profiles=true` gets the same answer on the workspace list,
+   detail, and the All projects aggregate route.
 10. Fill one profile's per-project terminal budget and confirm another profile in the same project can
     still open terminals.

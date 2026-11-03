@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"net/url"
@@ -75,14 +76,23 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return options.run(cmd, deps, action, args)
 	}
+	if action == agentListKey || action == configShowKey {
+		configureProfileReadCommand(cmd, deps)
+		cmd.Annotations = map[string]string{agentAggregateProfileReadAnnotation: "true"}
+	}
 	return cmd
 }
+
+// agentAggregateProfileReadAnnotation marks an agent read that offers --all-profiles, so the
+// single-profile default is not applied over it.
+const agentAggregateProfileReadAnnotation = "compozy.profile_read.aggregate"
 
 func resolveInstanceID(cmd *cobra.Command, client agentInstancesClient, target, workspace string) (string, error) {
 	if strings.HasPrefix(target, "ainst-") {
 		return target, nil
 	}
 	query := url.Values{workspaceSkillSource: {workspace}, "agent": {target}, listLimitField: {"100"}}
+	matches := make([]contract.AgentInstancePayload, 0, 1)
 	for {
 		result, err := client.ListAgentInstances(cmd.Context(), query)
 		if err != nil {
@@ -90,14 +100,29 @@ func resolveInstanceID(cmd *cobra.Command, client agentInstancesClient, target, 
 		}
 		for _, instance := range result.Instances {
 			if instance.AgentName == target {
-				return instance.ID, nil
+				matches = append(matches, instance)
 			}
 		}
 		if result.NextCursor == "" {
-			return "", fmt.Errorf("cli: instance for agent %q not found", target)
+			break
 		}
 		query.Set("cursor", result.NextCursor)
 	}
+	switch len(matches) {
+	case 0:
+		return "", fmt.Errorf("cli: instance for agent %q not found", target)
+	case 1:
+		return matches[0].ID, nil
+	}
+	// An all-profiles read can find the agent in several profiles; never pick one silently.
+	owners := make([]string, 0, len(matches))
+	for _, match := range matches {
+		owners = append(owners, fmt.Sprintf("%s (%s)", match.ID, cmp.Or(match.ProfileName, match.ProfileID)))
+	}
+	return "", fmt.Errorf(
+		"cli: agent %q has instances in several profiles: %s; pass an instance ID or --profile",
+		target, strings.Join(owners, ", "),
+	)
 }
 func writeInstanceOutput(cmd *cobra.Command, value any, human string) error {
 	return writeCommandOutput(cmd, outputBundle{jsonValue: value,
@@ -131,12 +156,15 @@ func instanceActionText(instance contract.AgentInstancePayload, action string) s
 		return instanceText(instance)
 	}
 }
+
+// instanceText renders one instance; the owner profile labels rows of an all-profiles read.
 func instanceText(instance contract.AgentInstancePayload) string {
 	return fmt.Sprintf(
-		"%s\t%s\t%s\nMain session: %s\nPause reason: %s\nUnattended turns: %d/%d\nHeld wakes: %d\n",
+		"%s\t%s\t%s\nProfile: %s\nMain session: %s\nPause reason: %s\nUnattended turns: %d/%d\nHeld wakes: %d\n",
 		instance.ID,
 		instance.AgentName,
 		instance.State,
+		cmp.Or(instance.ProfileName, instance.ProfileID),
 		instance.MainSessionID,
 		instance.PauseReason,
 		instance.UnattendedTurns,

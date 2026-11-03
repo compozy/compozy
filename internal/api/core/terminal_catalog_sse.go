@@ -27,7 +27,7 @@ func (h *BaseHandlers) StreamTerminalCatalog(c *gin.Context) {
 		}
 		return
 	}
-	service, profileID, ok := h.terminalService(c, false)
+	service, scope, ok := h.terminalReadService(c)
 	if !ok {
 		return
 	}
@@ -37,7 +37,7 @@ func (h *BaseHandlers) StreamTerminalCatalog(c *gin.Context) {
 		return
 	}
 	workspaceID := strings.TrimSpace(c.Param(workspaceIDKey))
-	replay, reset, fence, changed := h.terminalCatalog.read(workspaceID, profileID, after)
+	replay, reset, fence, changed := h.terminalCatalog.read(workspaceID, scope, after)
 	stop, done, accepting := h.terminalStreams.begin()
 	if !accepting {
 		h.respondTerminalError(c, fmt.Errorf("terminal streams are shutting down: %w", terminalpkg.ErrShuttingDown))
@@ -50,7 +50,7 @@ func (h *BaseHandlers) StreamTerminalCatalog(c *gin.Context) {
 	}
 	defer closeStream()
 	if reset {
-		if err := h.writeTerminalCatalogSnapshot(c, writer, service, workspaceID, profileID, fence); err != nil {
+		if err := h.writeTerminalCatalogSnapshot(c, writer, service, workspaceID, scope, fence); err != nil {
 			return
 		}
 		after = fence
@@ -63,20 +63,21 @@ func (h *BaseHandlers) StreamTerminalCatalog(c *gin.Context) {
 		}
 	}
 	after, changed, err = h.writeTerminalCatalogRecordingRecovery(
-		c, writer, service, workspaceID, profileID, after, changed, replay,
+		c, writer, service, workspaceID, scope, after, changed, replay,
 	)
 	if err != nil {
 		h.logSSEWriteFailure("terminal.recording_started", err)
 		return
 	}
-	h.streamTerminalCatalog(c, writer, service, workspaceID, profileID, after, changed, stop)
+	h.streamTerminalCatalog(c, writer, service, workspaceID, scope, after, changed, stop)
 }
 
 func (h *BaseHandlers) streamTerminalCatalog(
 	c *gin.Context,
 	writer FlushWriter,
 	service terminalpkg.Manager,
-	workspaceID, profileID string,
+	workspaceID string,
+	scope store.ReadScope,
 	after uint64,
 	changed <-chan struct{},
 	stop <-chan struct{},
@@ -86,7 +87,7 @@ func (h *BaseHandlers) streamTerminalCatalog(
 	for {
 		select {
 		case <-changed:
-			replay, reset, fence, nextChanged := h.terminalCatalog.read(workspaceID, profileID, after)
+			replay, reset, fence, nextChanged := h.terminalCatalog.read(workspaceID, scope, after)
 			changed = nextChanged
 			if reset {
 				if err := h.writeTerminalCatalogSnapshot(
@@ -94,14 +95,14 @@ func (h *BaseHandlers) streamTerminalCatalog(
 					writer,
 					service,
 					workspaceID,
-					profileID,
+					scope,
 					fence,
 				); err != nil {
 					return
 				}
 				after = fence
 				recoveredAfter, recoveredChanged, recoveryErr := h.writeTerminalCatalogRecordingRecovery(
-					c, writer, service, workspaceID, profileID, after, changed, nil,
+					c, writer, service, workspaceID, scope, after, changed, nil,
 				)
 				if recoveryErr != nil {
 					h.logSSEWriteFailure("terminal.recording_started", recoveryErr)
@@ -136,10 +137,11 @@ func (h *BaseHandlers) writeTerminalCatalogSnapshot(
 	c *gin.Context,
 	writer FlushWriter,
 	service terminalpkg.Manager,
-	workspaceID, profileID string,
+	workspaceID string,
+	scope store.ReadScope,
 	fence uint64,
 ) error {
-	items, err := h.terminalListForProfile(c, service, workspaceID, profileID)
+	items, err := h.terminalListInScope(c, service, workspaceID, scope)
 	if err != nil {
 		h.logSSEWriteFailure("terminal.snapshot", err)
 		return err
@@ -172,7 +174,8 @@ func (h *BaseHandlers) writeTerminalCatalogRecordingRecovery(
 	c *gin.Context,
 	writer FlushWriter,
 	service terminalpkg.Manager,
-	workspaceID, profileID string,
+	workspaceID string,
+	scope store.ReadScope,
 	after uint64,
 	changed <-chan struct{},
 	alreadyWritten []terminalCatalogEvent,
@@ -180,18 +183,18 @@ func (h *BaseHandlers) writeTerminalCatalogRecordingRecovery(
 	writtenRecordings := terminalCatalogRecordingEventIDs(alreadyWritten)
 	for {
 		recordings, err := service.ActiveRecordings(
-			c.Request.Context(), workspaceID, store.ReadScope{ProfileID: profileID},
+			c.Request.Context(), workspaceID, scope,
 		)
 		if err != nil {
 			return after, changed, fmt.Errorf("terminal catalog: list active recordings: %w", err)
 		}
-		catchUp, reset, fence, nextChanged := h.terminalCatalog.read(workspaceID, profileID, after)
+		catchUp, reset, fence, nextChanged := h.terminalCatalog.read(workspaceID, scope, after)
 		changed = nextChanged
 		if reset && after == 0 && fence == 0 {
 			reset = false
 		}
 		if reset {
-			if err := h.writeTerminalCatalogSnapshot(c, writer, service, workspaceID, profileID, fence); err != nil {
+			if err := h.writeTerminalCatalogSnapshot(c, writer, service, workspaceID, scope, fence); err != nil {
 				return after, changed, err
 			}
 			after = fence

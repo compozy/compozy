@@ -10,6 +10,80 @@ import (
 	"strings"
 )
 
+// MoveSessionToLaterParams carries the path, query, and header parameters.
+type MoveSessionToLaterParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// MoveSessionToLater Stop a session and its children and park them in Later, with an optional reason and return time
+func (c *Client) MoveSessionToLater(ctx context.Context, params MoveSessionToLaterParams, body MoveSessionToLaterRequest) (*SessionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/later"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MoveSessionToProfileParams carries the path, query, and header parameters.
+type MoveSessionToProfileParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// MoveSessionToProfile Copy a stopped user session into another profile and archive the original
+func (c *Client) MoveSessionToProfile(ctx context.Context, params MoveSessionToProfileParams, body MoveSessionToProfileRequest) (*MoveSessionToProfileResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MoveSessionToProfileResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MoveWorkspaceParams carries the path, query, and header parameters.
+type MoveWorkspaceParams struct {
+	Profile *string `url:"profile"`
+}
+
+// MoveWorkspace Move a workspace into a folder or back to the root
+func (c *Client) MoveWorkspace(ctx context.Context, params MoveWorkspaceParams, body MoveWorkspaceRequest) (*WorkspaceLayoutResponse, error) {
+	path := "/api/workspace-order/move"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorkspaceLayoutResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // MutateSessionGoalParams carries the path, query, and header parameters.
 type MutateSessionGoalParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -363,80 +437,6 @@ func (c *Client) PreviewExtensionInstall(ctx context.Context, params PreviewExte
 	}
 	var out ExtensionInstallPreviewPayload
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PreviewSessionDeriveParams carries the path, query, and header parameters.
-type PreviewSessionDeriveParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	MessageID   *string `url:"message_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// PreviewSessionDerive Preview what a continue or fork of a session would carry
-func (c *Client) PreviewSessionDerive(ctx context.Context, params PreviewSessionDeriveParams) (*SessionDerivePreviewResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.MessageID != nil {
-		query.Set("message_id", *params.MessageID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionDerivePreviewResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PreviewWindowManagerCommandParams carries the path, query, and header parameters.
-type PreviewWindowManagerCommandParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// PreviewWindowManagerCommand Preview one semantic window-manager command
-func (c *Client) PreviewWindowManagerCommand(ctx context.Context, params PreviewWindowManagerCommandParams, body WindowManagerCommandRequest) (*WindowManagerPreview, error) {
-	path := "/api/workspaces/{workspace_id}/window-manager/preview"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WindowManagerPreview
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ProbeProviderAuthParams carries the path, query, and header parameters.
-type ProbeProviderAuthParams struct {
-	ProviderID string `url:"provider_id"`
-}
-
-// ProbeProviderAuth Run a non-interactive provider auth status probe
-func (c *Client) ProbeProviderAuth(ctx context.Context, params ProbeProviderAuthParams) (*ProviderAuthProbeResponse, error) {
-	path := "/api/providers/{provider_id}/auth/probe"
-	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
-	var out ProviderAuthProbeResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

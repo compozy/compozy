@@ -27,6 +27,10 @@ Walk:
    frame with workspace and source; repeat without a workspace and retain `profile_resolution` with
    `profile=all`.
 4. Combine `--profile` and `--all-profiles` and verify the structured conflict response.
+5. List and show stays-on agent instances with `compozy agent instance list|show --all-profiles` and
+   `all_profiles=true`; verify each instance carries `profile_name`, the aggregate `active_count` sums
+   every owner, and agent activity and skill reviews refuse the aggregate with
+   `profile_selection_conflict` (#1195).
 
 Expected evidence: CLI JSON and JSONL captures, HTTP and UDS payloads, owner comparisons, and the option
 conflict response.

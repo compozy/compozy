@@ -15,7 +15,7 @@ var errInvalidPeersQuery = errors.New("invalid peers query or cursor")
 
 type instancePeersCursor struct {
 	Profile, Workspace, Agent, State, Caller, After string
-	All                                             bool
+	All, AllProfiles                                bool
 }
 
 // PeersPage applies both instance and workspace authority before filling a page.
@@ -34,12 +34,13 @@ func (api *AgentInstanceAPI) PeersPage(
 		return result, errInvalidPeersQuery
 	}
 	filter := instancePeersCursor{
-		Profile:   query.ProfileID,
-		Workspace: query.WorkspaceID,
-		Agent:     query.AgentName,
-		State:     query.State,
-		Caller:    actor.SessionID,
-		All:       query.AllWorkspaces,
+		Profile:     query.ProfileID,
+		Workspace:   query.WorkspaceID,
+		Agent:       query.AgentName,
+		State:       query.State,
+		Caller:      actor.SessionID,
+		All:         query.AllWorkspaces,
+		AllProfiles: query.AllProfiles,
 	}
 	if query.AfterID != "" {
 		raw, err := base64.RawURLEncoding.DecodeString(query.AfterID)

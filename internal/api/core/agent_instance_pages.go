@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json/v2"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -18,7 +19,15 @@ func (api *AgentInstanceAPI) ListPage(
 	query agentinstance.ListQuery,
 	actor workspaceaccess.ActorRef,
 ) (contract.AgentInstanceListResponse, error) {
-	result, err := api.ListResponse(ctx, query.ProfileID)
+	owners, err := profileOwnerIdentities(ctx, api.Profiles)
+	if err != nil {
+		return contract.AgentInstanceListResponse{}, err
+	}
+	profileIDs := []string{query.ProfileID}
+	if query.AllProfiles {
+		profileIDs = ownerProfileIDs(owners)
+	}
+	result, err := api.ListResponse(ctx, profileIDs...)
 	if err != nil {
 		return result, err
 	}
@@ -43,7 +52,7 @@ func (api *AgentInstanceAPI) ListPage(
 				result.NextCursor = result.Instances[limit-1].ID
 				return result, nil
 			}
-			payload, err := api.Payload(ctx, row)
+			payload, err := api.payloadWithOwners(ctx, row, owners)
 			if err != nil {
 				return result, err
 			}
@@ -54,6 +63,18 @@ func (api *AgentInstanceAPI) ListPage(
 		}
 		query.AfterID = rows[len(rows)-1].ID
 	}
+}
+
+// ownerProfileIDs lists each known owner once, in a stable order.
+func ownerProfileIDs(owners map[string]profileOwnerIdentity) []string {
+	ids := make([]string, 0, len(owners))
+	for _, owner := range owners {
+		if owner.ID != "" && !slices.Contains(ids, owner.ID) {
+			ids = append(ids, owner.ID)
+		}
+	}
+	slices.Sort(ids)
+	return ids
 }
 
 // ReportsPage shares report hydration and terminal-page detection across transports.

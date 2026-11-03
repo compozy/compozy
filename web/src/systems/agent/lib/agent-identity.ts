@@ -40,14 +40,27 @@ function agentIndex(agents: readonly AgentIdentitySource[]) {
   return index;
 }
 
+/**
+ * The bootstrap General agent's default face, `defaultAppearance` in `internal/config`; keep them
+ * in step. A row draws it before the catalog answers, so no generated face flashes first.
+ */
+const GENERAL_AGENT_NAME = "general";
+const GENERAL_AGENT_APPEARANCE: AgentAppearancePayload = {
+  version: 1,
+  avatar: "icon",
+  icon: "sparkles",
+  color: "#8a8f98",
+  background: "none",
+};
+
 function identityOf(name: string, agent: AgentIdentitySource | undefined, loaded: boolean) {
+  const appearance =
+    (agent?.resolved_appearance as AgentAppearancePayload | null | undefined) ??
+    (name === GENERAL_AGENT_NAME ? GENERAL_AGENT_APPEARANCE : undefined);
   return {
     name,
     label: agent?.label?.trim() || humanizeAgentSlug(name),
-    appearance: agentAvatarAppearance(
-      agent?.resolved_appearance as AgentAppearancePayload | null | undefined,
-      name
-    ),
+    appearance: agentAvatarAppearance(appearance, name),
     known: agent !== undefined,
     missing: loaded && agent === undefined,
   } satisfies AgentIdentity;

@@ -9,6 +9,112 @@ import (
 	"strings"
 )
 
+// ListSessionProcesses List attributed session processes
+func (c *Client) ListSessionProcesses(ctx context.Context, params ListSessionProcessesParams) (*SessionProcessesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/processes"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionProcessesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionSubagentsParams carries the path, query, and header parameters.
+type ListSessionSubagentsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Origin      *string `url:"origin"`
+	Status      *string `url:"status"`
+	Limit       *int    `url:"limit"`
+	Cursor      *string `url:"cursor"`
+	Order       *string `url:"order"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListSessionSubagents List a session's subagents
+func (c *Client) ListSessionSubagents(ctx context.Context, params ListSessionSubagentsParams) (*SubagentListPayload, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Origin != nil {
+		query.Set("origin", *params.Origin)
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Order != nil {
+		query.Set("order", *params.Order)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SubagentListPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListSessionToolsParams carries the path, query, and header parameters.
+type ListSessionToolsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	AgentName   *string `url:"agent_name"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ListSessionTools List session-callable registry tools
+func (c *Client) ListSessionTools(ctx context.Context, params ListSessionToolsParams) (*ToolsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/tools"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ListSessionsParams carries the path, query, and header parameters.
 type ListSessionsParams struct {
 	WorkspaceID               *string   `url:"workspace_id"`
@@ -313,138 +419,4 @@ type ListTaskReviewsParams struct {
 	Limit             *int    `url:"limit"`
 	Profile           *string `url:"profile"`
 	AllProfiles       *bool   `url:"all_profiles"`
-}
-
-// ListTaskReviews List task-run reviews for one task
-func (c *Client) ListTaskReviews(ctx context.Context, params ListTaskReviewsParams) (*TaskRunReviewsResponse, error) {
-	path := "/api/tasks/{id}/reviews"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.ReviewerSessionID != nil {
-		query.Set("reviewer_session_id", *params.ReviewerSessionID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunReviewsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListTaskRunReviewsParams carries the path, query, and header parameters.
-type ListTaskRunReviewsParams struct {
-	ID                string  `url:"id"`
-	Status            *string `url:"status"`
-	ReviewerSessionID *string `url:"reviewer_session_id"`
-	Limit             *int    `url:"limit"`
-	Profile           *string `url:"profile"`
-	AllProfiles       *bool   `url:"all_profiles"`
-}
-
-// ListTaskRunReviews List reviews for one task run
-func (c *Client) ListTaskRunReviews(ctx context.Context, params ListTaskRunReviewsParams) (*TaskRunReviewsResponse, error) {
-	path := "/api/task-runs/{id}/reviews"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.ReviewerSessionID != nil {
-		query.Set("reviewer_session_id", *params.ReviewerSessionID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunReviewsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListTaskRunsParams carries the path, query, and header parameters.
-type ListTaskRunsParams struct {
-	ID          string  `url:"id"`
-	Status      *string `url:"status"`
-	SessionID   *string `url:"session_id"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// ListTaskRuns List runs for one task
-func (c *Client) ListTaskRuns(ctx context.Context, params ListTaskRunsParams) (*TaskRunsResponse, error) {
-	path := "/api/tasks/{id}/runs"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.SessionID != nil {
-		query.Set("session_id", *params.SessionID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListTasksParams carries the path, query, and header parameters.
-type ListTasksParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Scope         *string   `url:"scope"`
-	Workspace     *string   `url:"workspace"`
-	Status        *string   `url:"status"`
-	Priority      *string   `url:"priority"`
-	IncludeDrafts *bool     `url:"include_drafts"`
-	IncludeLoop   *bool     `url:"include_loop"`
-	LoopRunID     *string   `url:"loop_run_id"`
-	ApprovalState *string   `url:"approval_state"`
-	OwnerKind     *string   `url:"owner_kind"`
-	OwnerRef      *string   `url:"owner_ref"`
-	ParentTaskID  *string   `url:"parent_task_id"`
-	Worktree      *string   `url:"worktree"`
-	Query         *string   `url:"query"`
-	Sort          *string   `url:"sort"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
 }

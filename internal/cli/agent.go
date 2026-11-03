@@ -86,7 +86,9 @@ func configureAgentProfileCommands(cmd *cobra.Command, deps commandDeps) {
 	if cmd == nil {
 		return
 	}
-	configureSingleProfileReadCommand(cmd, deps)
+	if cmd.Annotations[agentAggregateProfileReadAnnotation] == "" {
+		configureSingleProfileReadCommand(cmd, deps)
+	}
 	for _, child := range cmd.Commands() {
 		configureAgentProfileCommands(child, deps)
 	}

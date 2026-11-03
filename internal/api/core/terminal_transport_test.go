@@ -293,7 +293,13 @@ func (m *scopeRecordingTerminalManager) List(
 	scope store.ReadScope,
 ) ([]terminalpkg.Info, error) {
 	m.scope = scope
-	return []terminalpkg.Info{}, nil
+	items := []terminalpkg.Info{}
+	for _, info := range m.infos {
+		if scope.Matches(info.ProfileID) {
+			items = append(items, info)
+		}
+	}
+	return items, nil
 }
 
 func (terminalManagerStub) Open(context.Context, terminalpkg.OpenRequest) (terminalpkg.Handle, error) {

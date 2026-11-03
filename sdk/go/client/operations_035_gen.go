@@ -4,10 +4,113 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strings"
 )
+
+// UpdateExtensionParams carries the path, query, and header parameters.
+type UpdateExtensionParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
+// UpdateExtension Update one marketplace-installed extension
+func (c *Client) UpdateExtension(ctx context.Context, params UpdateExtensionParams, body UpdateExtensionRequest) (*ExtensionUpdateResponse, error) {
+	path := "/api/extensions/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionUpdateResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateExtensionsParams carries the path, query, and header parameters.
+type UpdateExtensionsParams struct {
+	Profile *string `url:"profile"`
+}
+
+// UpdateExtensions Update installed extensions and report each outcome
+func (c *Client) UpdateExtensions(ctx context.Context, params UpdateExtensionsParams, body UpdateExtensionsRequest) (*ExtensionUpdateBatchResponse, error) {
+	path := "/api/extensions/update"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionUpdateBatchResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateMarketplaceSourceParams carries the path, query, and header parameters.
+type UpdateMarketplaceSourceParams struct {
+	Name string `url:"name"`
+}
+
+// UpdateMarketplaceSource Enable or disable a plugin marketplace source Experimental: pin the exact SDK version.
+func (c *Client) UpdateMarketplaceSource(ctx context.Context, params UpdateMarketplaceSourceParams, body UpdateMarketplaceSourceRequest) (*MarketplaceSourceResponse, error) {
+	path := "/api/marketplace/sources/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out MarketplaceSourceResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateProfileParams carries the path, query, and header parameters.
+type UpdateProfileParams struct {
+	Name string `url:"name"`
+}
+
+// UpdateProfile Update profile identity
+func (c *Client) UpdateProfile(ctx context.Context, params UpdateProfileParams, body UpdateProfileRequest) (*Profile, error) {
+	path := "/api/profiles/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out Profile
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// UpdateSessionPresenceParams carries the path, query, and header parameters.
+type UpdateSessionPresenceParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// UpdateSessionPresence Update operator session presence
+func (c *Client) UpdateSessionPresence(ctx context.Context, params UpdateSessionPresenceParams, body SessionPresenceRequest) (*SessionPresenceResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/presence"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionPresenceResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // UpdateSettingsAttentionParams carries the path, query, and header parameters.
 type UpdateSettingsAttentionParams struct {
@@ -343,107 +446,4 @@ func (c *Client) ValidateAgentDefinitionSoul(ctx context.Context, params Validat
 		return nil, err
 	}
 	return &out, nil
-}
-
-// ValidateAgentHeartbeatParams carries the path, query, and header parameters.
-type ValidateAgentHeartbeatParams struct {
-	Name    string  `url:"name"`
-	Profile *string `url:"profile"`
-}
-
-// ValidateAgentHeartbeat Validate a proposed HEARTBEAT.md body
-func (c *Client) ValidateAgentHeartbeat(ctx context.Context, params ValidateAgentHeartbeatParams, body HeartbeatValidateByPathRequest) (*HeartbeatPolicyPayload, error) {
-	path := "/api/agents/{name}/heartbeat/validate"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out HeartbeatPolicyPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ValidateAgentMemoryParams carries the path, query, and header parameters.
-type ValidateAgentMemoryParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// ValidateAgentMemory Validate proposed memory content (experimental) Experimental: pin the exact SDK version.
-func (c *Client) ValidateAgentMemory(ctx context.Context, params ValidateAgentMemoryParams, body AgentMemoryValidateRequest) (*AgentMemoryValidateResponse, error) {
-	path := "/api/agents/{name}/memory/validate"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentMemoryValidateResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ValidateAgentSoulParams carries the path, query, and header parameters.
-type ValidateAgentSoulParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-}
-
-// ValidateAgentSoul Validate a proposed Soul body or the calling agent's current Soul
-func (c *Client) ValidateAgentSoul(ctx context.Context, params ValidateAgentSoulParams, body AgentSoulValidateRequest) (*AgentSoulPayload, error) {
-	path := "/api/agent/soul/validate"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	var out AgentSoulPayload
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ValidateLoopParams carries the path, query, and header parameters.
-type ValidateLoopParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Name        string  `url:"name"`
-	Profile     *string `url:"profile"`
-}
-
-// ValidateLoop Validate one Loop definition without saving
-func (c *Client) ValidateLoop(ctx context.Context, params ValidateLoopParams, body ValidateLoopRequest) (*LoopValidationResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loops/{name}/validate"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopValidationResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ValidateWindowManagerLayoutParams carries the path, query, and header parameters.
-type ValidateWindowManagerLayoutParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
 }

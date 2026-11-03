@@ -11,6 +11,74 @@ import (
 	"strings"
 )
 
+// InspectTask Inspect one task with diagnostics
+func (c *Client) InspectTask(ctx context.Context, params InspectTaskParams) (*TaskInspectResponse, error) {
+	path := "/api/tasks/{id}/inspect"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskInspectResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InspectWorktreeParams carries the path, query, and header parameters.
+type InspectWorktreeParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	WorktreeID  string `url:"worktree_id"`
+}
+
+// InspectWorktree Inspect one worktree
+func (c *Client) InspectWorktree(ctx context.Context, params InspectWorktreeParams) (*WorktreeInspectionResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
+	var out WorktreeInspectionResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InstallExtensionParams carries the path, query, and header parameters.
+type InstallExtensionParams struct {
+	Profile *string `url:"profile"`
+}
+
+// InstallExtension Install a local or marketplace extension
+func (c *Client) InstallExtension(ctx context.Context, params InstallExtensionParams, body InstallExtensionRequest) (*ExtensionResponse, error) {
+	path := "/api/extensions"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InvokeCmdPaletteCommandParams carries the path, query, and header parameters.
+type InvokeCmdPaletteCommandParams struct {
+	ID                  string  `url:"id"`
+	XCompozyClientToken string  `url:"X-Compozy-Client-Token"`
+	Profile             *string `url:"profile"`
+}
+
 // InvokeCmdPaletteCommand Invoke one command palette command
 func (c *Client) InvokeCmdPaletteCommand(ctx context.Context, params InvokeCmdPaletteCommandParams, body CmdPaletteInvokeRequest) (*CmdPaletteInvokeResult, error) {
 	path := "/api/cmd-palette/commands/{id}/invoke"
@@ -189,10 +257,11 @@ func (c *Client) ListAgentHeartbeatHistory(ctx context.Context, params ListAgent
 
 // ListAgentInstanceCheckInsParams carries the path, query, and header parameters.
 type ListAgentInstanceCheckInsParams struct {
-	ID      string  `url:"id"`
-	Cursor  *string `url:"cursor"`
-	Limit   *int    `url:"limit"`
-	Profile *string `url:"profile"`
+	ID          string  `url:"id"`
+	Cursor      *string `url:"cursor"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // ListAgentInstanceCheckIns List instance wake events
@@ -209,6 +278,9 @@ func (c *Client) ListAgentInstanceCheckIns(ctx context.Context, params ListAgent
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
@@ -221,11 +293,12 @@ func (c *Client) ListAgentInstanceCheckIns(ctx context.Context, params ListAgent
 
 // ListAgentInstanceReportsParams carries the path, query, and header parameters.
 type ListAgentInstanceReportsParams struct {
-	ID      string  `url:"id"`
-	State   *string `url:"state"`
-	Cursor  *string `url:"cursor"`
-	Limit   *string `url:"limit"`
-	Profile *string `url:"profile"`
+	ID          string  `url:"id"`
+	State       *string `url:"state"`
+	Cursor      *string `url:"cursor"`
+	Limit       *string `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // ListAgentInstanceReports List durable instance reports
@@ -244,6 +317,9 @@ func (c *Client) ListAgentInstanceReports(ctx context.Context, params ListAgentI
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -265,6 +341,7 @@ type ListAgentInstancesParams struct {
 	Cursor        *string `url:"cursor"`
 	Limit         *string `url:"limit"`
 	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
 }
 
 // ListAgentInstances List agent instances
@@ -294,6 +371,9 @@ func (c *Client) ListAgentInstances(ctx context.Context, params ListAgentInstanc
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -341,98 +421,4 @@ type ListAgentSkillReviewsParams struct {
 	Cursor     *string `url:"cursor"`
 	Limit      *int    `url:"limit"`
 	Profile    *string `url:"profile"`
-}
-
-// ListAgentSkillReviews List agent skill reviews (experimental)
-func (c *Client) ListAgentSkillReviews(ctx context.Context, params ListAgentSkillReviewsParams) (*AgentSkillReviewsResponse, error) {
-	path := "/api/agent-skill-reviews"
-	query := url.Values{}
-	if params.InstanceID != nil {
-		query.Set("instance_id", *params.InstanceID)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSkillReviewsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentSoulHistoryParams carries the path, query, and header parameters.
-type ListAgentSoulHistoryParams struct {
-	Name        string  `url:"name"`
-	WorkspaceID *string `url:"workspace_id"`
-	Limit       *int    `url:"limit"`
-	Cursor      *string `url:"cursor"`
-	Profile     *string `url:"profile"`
-}
-
-// ListAgentSoulHistory List managed SOUL.md authoring revisions
-func (c *Client) ListAgentSoulHistory(ctx context.Context, params ListAgentSoulHistoryParams) (*AgentSoulHistoryResponse, error) {
-	path := "/api/agents/{name}/soul/history"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSoulHistoryResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentsParams carries the path, query, and header parameters.
-type ListAgentsParams struct {
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// ListAgents List all readable agent definitions, optionally resolved for a workspace
-func (c *Client) ListAgents(ctx context.Context, params ListAgentsParams) (*AgentsResponse, error) {
-	path := "/api/agents"
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

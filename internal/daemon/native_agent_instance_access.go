@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -91,6 +92,11 @@ func (n *daemonNativeTools) nativeInstanceQuery(
 	if input.Limit < 1 || input.Limit > 100 {
 		return agentinstance.ListQuery{}, errors.New("limit must be from 1 to 100")
 	}
+	// The profile selection already resolved and authorized the lens into the scope.
+	readScope := store.ReadScope{ProfileID: scope.ProfileID}
+	if scope.AllProfiles {
+		readScope = store.ReadScope{AllProfiles: true}
+	}
 	workspaceID := scope.WorkspaceID
 	if input.Workspace == workspaceaccess.UserSelector {
 		workspaceID = ""
@@ -107,7 +113,8 @@ func (n *daemonNativeTools) nativeInstanceQuery(
 			workspaceaccess.Request{
 				Actor: actor,
 				Target: workspaceaccess.TargetRef{
-					Kind: workspaceaccess.TargetAggregate, Surface: "agent instances", ProfileID: scope.ProfileID,
+					Kind: workspaceaccess.TargetAggregate, Surface: "agent instances",
+					ProfileID: readScope.ProfileID, AllProfiles: readScope.AllProfiles,
 				},
 				ReadOnly: true,
 				Seam:     workspaceaccess.SeamCatalog,
@@ -123,7 +130,8 @@ func (n *daemonNativeTools) nativeInstanceQuery(
 	}
 	query := agentinstance.ListQuery{
 		AgentName:     input.Agent,
-		ProfileID:     scope.ProfileID,
+		ProfileID:     readScope.ProfileID,
+		AllProfiles:   readScope.AllProfiles,
 		WorkspaceID:   workspaceID,
 		AllWorkspaces: input.AllWorkspaces,
 		Limit:         input.Limit,
@@ -144,7 +152,8 @@ func (n *daemonNativeTools) authorizeNativeInstanceAction(
 	input nativeInstanceInput,
 	action string,
 ) error {
-	if instance.ProfileID != scope.ProfileID {
+	// The all-profiles lens reaches reads only; the selection guard refuses it on writes.
+	if !scope.AllProfiles && instance.ProfileID != scope.ProfileID {
 		return agentinstance.ErrNotFound
 	}
 	if (action == "away" || action == "mark_seen") && !scope.Operator {
@@ -197,11 +206,9 @@ func (n *daemonNativeTools) authorizeNativeInstanceAction(
 func nativeInstanceList(
 	ctx context.Context,
 	api *core.AgentInstanceAPI,
-	profileID string,
 	actor workspaceaccess.ActorRef,
 	query agentinstance.ListQuery,
 ) (toolspkg.ToolResult, error) {
-	query.ProfileID = profileID
 	result, err := api.ListPage(ctx, query, actor)
 	if err != nil {
 		return toolspkg.ToolResult{}, err

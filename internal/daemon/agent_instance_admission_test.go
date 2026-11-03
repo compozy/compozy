@@ -221,6 +221,14 @@ func (s nativeInstanceTargetStore) Get(context.Context, string) (agentinstance.I
 	return s.target, nil
 }
 
+// List answers the one target row for the profiles the query names.
+func (s nativeInstanceTargetStore) List(_ context.Context, query agentinstance.ListQuery) ([]agentinstance.Instance, error) {
+	if (!query.AllProfiles && query.ProfileID != s.target.ProfileID) || query.AfterID != "" {
+		return nil, nil
+	}
+	return []agentinstance.Instance{s.target}, nil
+}
+
 func TestNativeInstanceAuthority(t *testing.T) {
 	for _, tc := range []struct {
 		id    toolspkg.ToolID
@@ -1303,4 +1311,92 @@ func (f rotationEligibilityFixture) RotationDueSession(context.Context, string) 
 }
 func (f rotationEligibilityFixture) RotationBlockers(context.Context, string) ([]string, error) {
 	return []string{"queued_input"}, nil
+}
+
+func TestNativeAgentReadsAllProfiles(t *testing.T) {
+	t.Parallel()
+	// Invariant: native agent reads honor the resolved all-profiles lens or refuse it; none ignore it.
+	foreign := agentinstance.Instance{ID: "target", AgentName: "coder", ProfileID: "foreign", State: "active"}
+	native := &daemonNativeTools{deps: &daemonNativeToolsDeps{AgentInstances: func() *core.AgentInstanceAPI {
+		return &core.AgentInstanceAPI{
+			Store:    nativeInstanceTargetStore{target: foreign},
+			Profiles: nativeInstanceProfileOwners{{ID: "foreign", Name: "foreign"}, {ID: "profile", Name: "home"}},
+		}
+	}}}
+	operator := toolspkg.Scope{Operator: true, ProfileID: "profile"}
+	aggregate := operator
+	aggregate.AllProfiles = true
+
+	t.Run("Should read another profile's instance with its owner label under all_profiles", func(t *testing.T) {
+		t.Parallel()
+		result, err := native.agentInstanceCall(t.Context(), aggregate, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentInstanceGet, Input: []byte(`{"id":"target"}`),
+		})
+		if err != nil {
+			t.Fatalf("aggregate get: %v", err)
+		}
+		var body contract.AgentInstanceResponse
+		if err := json.Unmarshal(result.Structured, &body); err != nil {
+			t.Fatal(err)
+		}
+		if body.Instance.ProfileID != "foreign" || body.Instance.ProfileName != "foreign" {
+			t.Fatalf("aggregate get = %+v", body.Instance)
+		}
+	})
+	t.Run("Should keep another profile's instance hidden without all_profiles", func(t *testing.T) {
+		t.Parallel()
+		_, err := native.agentInstanceCall(t.Context(), operator, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentInstanceGet, Input: []byte(`{"id":"target"}`),
+		})
+		if !errors.Is(err, agentinstance.ErrNotFound) {
+			t.Fatalf("scoped get error = %v, want not found", err)
+		}
+	})
+	t.Run("Should list every profile under all_profiles", func(t *testing.T) {
+		t.Parallel()
+		input := nativeInstanceInput{}
+		query, err := native.nativeInstanceQuery(t.Context(), aggregate, &input,
+			workspaceaccess.ActorRef{Operator: true}, "list")
+		if err != nil || !query.AllProfiles || query.ProfileID != "" {
+			t.Fatalf("aggregate list query = %#v, %v", query, err)
+		}
+		result, err := native.agentInstanceCall(t.Context(), aggregate, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentInstanceList, Input: []byte(`{}`),
+		})
+		if err != nil {
+			t.Fatalf("aggregate list: %v", err)
+		}
+		var page contract.AgentInstanceListResponse
+		if err := json.Unmarshal(result.Structured, &page); err != nil {
+			t.Fatal(err)
+		}
+		if len(page.Instances) != 1 || page.Instances[0].ID != "target" ||
+			page.Instances[0].ProfileName != "foreign" {
+			t.Fatalf("aggregate list rows = %+v, want the foreign row labeled by its owner", page.Instances)
+		}
+	})
+	t.Run("Should refuse all_profiles instead of ignoring it on agent definitions", func(t *testing.T) {
+		t.Parallel()
+		_, err := native.agentList(t.Context(), aggregate, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentList, Input: []byte(`{}`),
+		})
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) || !strings.Contains(err.Error(), "one profile") {
+			t.Fatalf("agent list aggregate error = %v, want a one-profile refusal", err)
+		}
+	})
+	t.Run("Should refuse all_profiles instead of ignoring it on agent activity", func(t *testing.T) {
+		t.Parallel()
+		_, err := native.nativeAgentActivity(t.Context(), aggregate, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentActivity,
+		}, nativeInstanceInput{Agent: "coder"}, workspaceaccess.ActorRef{Operator: true})
+		if !errors.Is(err, toolspkg.ErrToolInvalidInput) || !strings.Contains(err.Error(), "one profile") {
+			t.Fatalf("agent activity aggregate error = %v, want a one-profile refusal", err)
+		}
+	})
+}
+
+type nativeInstanceProfileOwners []profile.Profile
+
+func (owners nativeInstanceProfileOwners) ListIdentities(context.Context) ([]profile.Profile, error) {
+	return owners, nil
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/spf13/cobra"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1177,13 +1178,15 @@ func TestAgentInstanceCommands(t *testing.T) {
 		{"archive", []string{"archive", "ainst-test"}, "Triage Lead archived in Global. Its sessions stay in history.\n"},
 		{"checks off", []string{"checks", "off", "ainst-test"}, "Checks off for Triage Lead in Global\n"},
 		{"ensure-main", []string{"ensure-main", "ainst-test"}, "Main session: sess-main\n"},
+		{"show", []string{"show", "ainst-test", "--all-profiles"}, "ainst-test\ttriage\tactive\nProfile: work\nMain session: sess-main\n" +
+			"Pause reason: \nUnattended turns: 0/0\nHeld wakes: 0\n"},
 		{"reported check", []string{"check", "ainst-test"}, "Check finished: 1 proposal delivered\n"},
 	} {
 		t.Run("Should render the approved "+tc.name+" result", func(t *testing.T) {
 			t.Parallel()
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
-				body := `{"instance":{"id":"ainst-test","agent_name":"triage","label":"Triage Lead","scope":"Global","state":"active","main_session_id":"sess-main"}}`
+				body := `{"instance":{"id":"ainst-test","agent_name":"triage","label":"Triage Lead","scope":"Global","state":"active","main_session_id":"sess-main","profile_id":"profile-work","profile_name":"work"}}`
 				switch r.URL.Path {
 				case "/api/agent-instances",
 					"/api/agent-instances/adopt",
@@ -1197,6 +1200,10 @@ func TestAgentInstanceCommands(t *testing.T) {
 					if r.Method == http.MethodDelete {
 						w.WriteHeader(204)
 						return
+					}
+					if wantAll := slices.Contains(tc.args, "--all-profiles"); r.Method == http.MethodGet &&
+						(r.URL.Query().Get("all_profiles") == "true") != wantAll {
+						t.Errorf("all_profiles query = %q, want selector %v", r.URL.RawQuery, wantAll)
 					}
 					if r.Method != http.MethodGet && r.Method != http.MethodPatch {
 						t.Errorf("unexpected method %s", r.Method)
@@ -1524,5 +1531,37 @@ func TestAgentSkillReviewCommands(t *testing.T) {
 				t.Fatalf("review: %s", output)
 			}
 		})
+	}
+}
+
+type agentInstanceNameClient struct {
+	agentInstancesClient
+	instances []contract.AgentInstancePayload
+}
+
+func (c agentInstanceNameClient) ListAgentInstances(
+	context.Context,
+	url.Values,
+) (contract.AgentInstanceListResponse, error) {
+	return contract.AgentInstanceListResponse{Instances: c.instances}, nil
+}
+
+// Invariant: an agent name resolves to one instance or refuses; an all-profiles read never picks
+// one profile's instance silently.
+func TestResolveInstanceIDShouldRefuseAnAgentNameOwnedBySeveralProfiles(t *testing.T) {
+	t.Parallel()
+	client := agentInstanceNameClient{instances: []contract.AgentInstancePayload{
+		{ID: "ainst-a", AgentName: "triage", ProfileID: "profile-a", ProfileName: "work"},
+		{ID: "ainst-b", AgentName: "triage", ProfileID: "profile-b", ProfileName: "home"},
+	}}
+	cmd := &cobra.Command{}
+	cmd.SetContext(t.Context())
+	_, err := resolveInstanceID(cmd, client, "triage", "")
+	if err == nil || !strings.Contains(err.Error(), "ainst-a (work)") || !strings.Contains(err.Error(), "ainst-b (home)") {
+		t.Fatalf("ambiguous resolve error = %v, want both owners named", err)
+	}
+	id, err := resolveInstanceID(cmd, agentInstanceNameClient{instances: client.instances[:1]}, "triage", "")
+	if err != nil || id != "ainst-a" {
+		t.Fatalf("single resolve = %q, %v", id, err)
 	}
 }

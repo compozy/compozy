@@ -11,6 +11,70 @@ import (
 	"strings"
 )
 
+// GetLoopRun Get one Loop run
+func (c *Client) GetLoopRun(ctx context.Context, params GetLoopRunParams) (*LoopRunResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopRunResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetLoopRunBriefingParams carries the path, query, and header parameters.
+type GetLoopRunBriefingParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetLoopRunBriefing Explain the current Loop run state
+func (c *Client) GetLoopRunBriefing(ctx context.Context, params GetLoopRunBriefingParams) (*Briefing, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out Briefing
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetLoopRunNodesParams carries the path, query, and header parameters.
+type GetLoopRunNodesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	State       *string `url:"state"`
+	Generation  *int    `url:"generation"`
+	Cursor      *string `url:"cursor"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetLoopRunNodes Get the computed Loop run node roster
 func (c *Client) GetLoopRunNodes(ctx context.Context, params GetLoopRunNodesParams) (*RosterPage, error) {
 	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes"
@@ -381,63 +445,4 @@ func (c *Client) GetProviderModelStatus(ctx context.Context) (*ProviderModelStat
 // GetProviderModelStatusByProviderParams carries the path, query, and header parameters.
 type GetProviderModelStatusByProviderParams struct {
 	ProviderID string `url:"provider_id"`
-}
-
-// GetProviderModelStatusByProvider List provider model catalog source status for one provider
-func (c *Client) GetProviderModelStatusByProvider(ctx context.Context, params GetProviderModelStatusByProviderParams) (*ProviderModelStatusResponse, error) {
-	path := "/api/model-catalog/providers/{provider_id}/models/status"
-	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
-	var out ProviderModelStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetProviderUsageParams carries the path, query, and header parameters.
-type GetProviderUsageParams struct {
-	ProviderID string  `url:"provider_id"`
-	Profile    *string `url:"profile"`
-}
-
-// GetProviderUsage Read cached provider usage (experimental) Experimental: pin the exact SDK version.
-func (c *Client) GetProviderUsage(ctx context.Context, params GetProviderUsageParams) (*ProviderUsageEnvelope, error) {
-	path := "/api/provider-usage/providers/{provider_id}"
-	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ProviderUsageEnvelope
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetResourceParams carries the path, query, and header parameters.
-type GetResourceParams struct {
-	Kind string `url:"kind"`
-	ID   string `url:"id"`
-}
-
-// GetResource Read one desired-state resource on the local operator control plane
-func (c *Client) GetResource(ctx context.Context, params GetResourceParams) (*ResourceResponse, error) {
-	path := "/api/resources/{kind}/{id}"
-	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out ResourceResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetRoleParams carries the path, query, and header parameters.
-type GetRoleParams struct {
-	Role      string  `url:"role"`
-	Workspace *string `url:"workspace"`
 }

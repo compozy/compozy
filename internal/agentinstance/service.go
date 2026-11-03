@@ -15,7 +15,9 @@ type ListQuery struct {
 	ProfileID, WorkspaceID, AfterID string
 	AgentName, State                string
 	AllWorkspaces                   bool
-	Limit                           int
+	// AllProfiles reads the owner-labeled aggregate; ProfileID is then empty.
+	AllProfiles bool
+	Limit       int
 }
 
 type InstanceStore interface {

@@ -205,7 +205,7 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 
 		provider := &terminalProviderStub{}
 		catalog := newTerminalCatalog(provider)
-		replay, reset, fence, changed := catalog.read("workspace-a", "profile-a", 0)
+		replay, reset, fence, changed := catalog.read("workspace-a", store.ReadScope{ProfileID: "profile-a"}, 0)
 		if len(replay) != 0 || !reset || fence != 0 {
 			t.Fatalf("initial subscribe replay/reset/fence = %#v/%v/%d", replay, reset, fence)
 		}
@@ -218,7 +218,7 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 		case <-time.After(time.Second):
 			t.Fatal("catalog observer did not signal a retained event")
 		}
-		replay, reset, fence, changed = catalog.read("workspace-a", "profile-a", 1)
+		replay, reset, fence, changed = catalog.read("workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
 		if len(replay) != 0 || reset || fence != 1 {
 			t.Fatalf("current cursor replay/reset/fence = %#v/%v/%d", replay, reset, fence)
 		}
@@ -231,7 +231,7 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 		case <-time.After(time.Second):
 			t.Fatal("catalog observer did not signal the title event")
 		}
-		replay, reset, fence, changed = catalog.read("workspace-a", "profile-a", 1)
+		replay, reset, fence, changed = catalog.read("workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
 		if changed == nil || reset || fence != 2 || len(replay) != 1 || replay[0].Sequence != 2 ||
 			replay[0].Event.Kind != terminalpkg.EventKindTitleChanged {
 			t.Fatalf("replay = %#v, reset=%v fence=%d", replay, reset, fence)
@@ -245,7 +245,7 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 		case <-time.After(time.Second):
 			t.Fatal("catalog observer did not signal the recording event")
 		}
-		replay, reset, fence, changed = catalog.read("workspace-a", "profile-a", 2)
+		replay, reset, fence, changed = catalog.read("workspace-a", store.ReadScope{ProfileID: "profile-a"}, 2)
 		if changed == nil || reset || fence != 3 || len(replay) != 1 || replay[0].Sequence != 3 ||
 			replay[0].Event.Kind != terminalpkg.EventKindRecordingStarted {
 			t.Fatalf("recording replay = %#v, reset=%v fence=%d", replay, reset, fence)
@@ -256,7 +256,7 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 				TerminalID: "term-a", Detail: &terminalpkg.EventDetail{Mode: terminalpkg.ModePTY},
 			})
 		}
-		replay, reset, fence, changed = catalog.read("workspace-a", "profile-a", 1)
+		replay, reset, fence, changed = catalog.read("workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
 		if len(replay) != 0 || !reset || fence <= terminalCatalogRetention || changed == nil {
 			t.Fatalf("stale cursor replay/reset/fence/changed = %#v/%v/%d/%v", replay, reset, fence, changed)
 		}

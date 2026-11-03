@@ -7,6 +7,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
@@ -79,11 +80,12 @@ func (c *terminalCatalog) appendLocked(record terminalCatalogEvent) {
 }
 
 func (c *terminalCatalog) read(
-	workspaceID, profileID string,
+	workspaceID string,
+	scope store.ReadScope,
 	after uint64,
 ) ([]terminalCatalogEvent, bool, uint64, <-chan struct{}) {
 	return c.readSelection(after, func(event terminalpkg.Event) bool {
-		return event.WorkspaceID == workspaceID && event.ProfileID == profileID
+		return event.WorkspaceID == workspaceID && scope.Matches(event.ProfileID)
 	})
 }
 

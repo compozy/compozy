@@ -444,4 +444,5 @@ type DownloadTerminalArtifactParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	ID          string  `url:"id"`
 	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }

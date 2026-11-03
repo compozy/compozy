@@ -152,9 +152,13 @@ func TestTerminalOpenAPIContract(t *testing.T) {
 		t.Parallel()
 
 		aggregates := map[string]struct{}{
-			http.MethodGet + " " + terminalPath:                     {},
-			http.MethodGet + " " + terminalPath + "/input-requests": {},
-			http.MethodGet + " " + terminalPath + "/journal":        {},
+			http.MethodGet + " " + terminalPath:                      {},
+			http.MethodGet + " " + terminalPath + "/input-requests":  {},
+			http.MethodGet + " " + terminalPath + "/journal":         {},
+			http.MethodGet + " " + terminalPath + "/stream":          {},
+			http.MethodGet + " " + terminalPath + "/{id}":            {},
+			http.MethodGet + " " + terminalPath + "/recordings/{id}": {},
+			http.MethodGet + " " + terminalPath + "/artifacts/{id}":  {},
 		}
 		for _, operation := range Operations() {
 			if !strings.HasPrefix(operation.Path, terminalPath) {

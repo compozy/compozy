@@ -189,6 +189,15 @@ describe("agent identity", () => {
   it("Should not call an agent deleted before the catalog answers", () => {
     expect(resolveAgentIdentity("release_captain").missing).toBe(false);
   });
+
+  it("Should draw the built-in General agent's icon before the catalog answers", () => {
+    expect(resolveAgentIdentity("general").appearance).toEqual({
+      avatar: "icon",
+      icon: "sparkles",
+      color: "#8a8f98",
+      background: "none",
+    });
+  });
 });
 
 describe("agentFromOrphanInstance", () => {

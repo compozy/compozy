@@ -1,98 +1,66 @@
 package core
 
 import (
-	"fmt"
+	"context"
 	"strings"
 
 	profilepkg "github.com/compozy/compozy/internal/profile"
-	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
+// resolveTerminalProfileReadSelection resolves a terminal read. Terminals and their retained
+// recordings outlive their profile's lifecycle, so a read of one profile resolves it
+// historically: an archived profile, or one held by an unfinished lifecycle operation, still
+// answers with its terminals. The all-profiles aggregate and an agent session that names
+// another profile go through the shared profile read policy, which owns their authorization.
 func (h *BaseHandlers) resolveTerminalProfileReadSelection(
 	c *gin.Context,
 	workspaceID string,
 ) (resolvedProfileReadScope, error) {
 	allProfiles, err := parseBoolQuery(c, "all_profiles")
+	if err != nil || allProfiles || h == nil || h.Profiles == nil {
+		return h.resolveProfileReadSelectionForWorkspace(c, workspaceID)
+	}
+	caller, err := h.resolveProfileReadCaller(c, workspaceID)
 	if err != nil {
-		return resolvedProfileReadScope{}, fmt.Errorf("%w: %v", profilepkg.ErrInvalidInput, err)
+		return resolvedProfileReadScope{}, err
 	}
 	requested := strings.TrimSpace(c.Query("profile"))
-	if allProfiles && requested != "" {
-		return resolvedProfileReadScope{}, terminalProfileSelectionConflict(
-			"profile and all_profiles cannot be used together",
-			"choose one profile or set all_profiles=true",
-		)
+	profile, err := h.historicalTerminalProfile(c.Request.Context(), requested, caller.sessionProfileID)
+	if caller.sessionProfileID != "" && (err != nil || strings.TrimSpace(profile.ID) != caller.sessionProfileID) {
+		return h.resolveProfileReadSelectionForWorkspace(c, workspaceID)
 	}
-	sessionProfileID := ""
-	credentials := agentCallerCredentialsFromRequest(c)
-	if hasAgentCallerIdentityCredentials(credentials) {
-		caller, resolveErr := h.resolveAgentCallerForWorkspace(
-			c.Request.Context(), credentials, "terminal.read", workspaceID,
-		)
-		if resolveErr != nil {
-			return resolvedProfileReadScope{}, resolveErr
-		}
-		sessionProfileID = strings.TrimSpace(caller.Session.ProfileID)
-		if allProfiles {
-			return resolvedProfileReadScope{}, terminalProfileSelectionConflict(
-				"all_profiles is only available to operators",
-				"read the agent profile selected by the authenticated session",
-			)
-		}
-	}
-	if allProfiles {
-		return resolvedProfileReadScope{Scope: profilepkg.ReadScope{AllProfiles: true}}, nil
-	}
-	profile, err := h.historicalTerminalProfile(c, requested, sessionProfileID)
 	if err != nil {
 		return resolvedProfileReadScope{}, err
 	}
 	return resolvedProfileReadScope{
-		Scope: profilepkg.ReadScope{ProfileID: strings.TrimSpace(profile.ID)}, ProfileName: profile.Name,
+		Scope:       profilepkg.ReadScope{ProfileID: strings.TrimSpace(profile.ID)},
+		ProfileName: strings.TrimSpace(profile.Name),
 	}, nil
 }
 
+// historicalTerminalProfile finds the named profile, or the session's own profile when no name
+// is given, without requiring it to be available.
 func (h *BaseHandlers) historicalTerminalProfile(
-	c *gin.Context,
+	ctx context.Context,
 	requested string,
 	sessionProfileID string,
 ) (profilepkg.Profile, error) {
-	if h == nil || h.Profiles == nil {
-		if sessionProfileID == "" || sessionProfileID == store.DefaultProfileID {
-			return profilepkg.Profile{ID: store.DefaultProfileID, Name: profileDefaultName}, nil
-		}
-		return profilepkg.Profile{}, fmt.Errorf("profile service is unavailable")
-	}
 	if sessionProfileID == "" {
 		if requested == "" {
 			requested = profileDefaultName
 		}
-		return h.profileService().GetByName(c.Request.Context(), requested)
+		return h.profileService().GetByName(ctx, requested)
 	}
-	profiles, err := h.profileService().List(c.Request.Context())
+	profiles, err := h.profileService().List(ctx)
 	if err != nil {
 		return profilepkg.Profile{}, err
 	}
 	for _, candidate := range profiles {
-		if strings.TrimSpace(candidate.ID) != sessionProfileID {
-			continue
+		if (requested == "" && strings.TrimSpace(candidate.ID) == sessionProfileID) ||
+			(requested != "" && candidate.Name == requested) {
+			return candidate.Profile, nil
 		}
-		if requested != "" && requested != candidate.Name {
-			return profilepkg.Profile{}, &profilepkg.Error{
-				Code:    "profile_session_conflict",
-				Message: fmt.Sprintf("session is bound to profile %q", candidate.Name),
-				Action:  "drop the profile selector; the session decides",
-				Cause:   profilepkg.ErrSessionConflict,
-			}
-		}
-		return candidate.Profile, nil
 	}
 	return profilepkg.Profile{}, profilepkg.ErrNotFound
-}
-
-func terminalProfileSelectionConflict(message string, action string) error {
-	return &profilepkg.Error{
-		Code: profileSelectionConflictCode, Message: message, Action: action, Cause: profilepkg.ErrInvalidInput,
-	}
 }

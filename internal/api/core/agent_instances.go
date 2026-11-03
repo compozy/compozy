@@ -38,6 +38,8 @@ type AgentInstanceAPI struct {
 	Store               agentinstance.InstanceStore
 	Reports             agentinstance.ReportStore
 	Authority           agentinstance.Authority
+	// Profiles labels each instance with its owner's profile_name.
+	Profiles ProfileOwnerReader
 }
 
 func (h *BaseHandlers) instanceActor(c *gin.Context) (workspaceaccess.ActorRef, bool) {
@@ -237,6 +239,21 @@ func (api *AgentInstanceAPI) Payload(
 	ctx context.Context,
 	i agentinstance.Instance,
 ) (contract.AgentInstancePayload, error) {
+	// The owner label is best-effort: a failed profile lookup must not turn a committed
+	// mutation, or an otherwise complete read, into an error. The row keeps its profile_id.
+	owners, err := profileOwnerIdentities(ctx, api.Profiles)
+	if err != nil {
+		owners = nil
+	}
+	return api.payloadWithOwners(ctx, i, owners)
+}
+
+// payloadWithOwners hydrates one instance with owner labels a page loads once.
+func (api *AgentInstanceAPI) payloadWithOwners(
+	ctx context.Context,
+	i agentinstance.Instance,
+	owners map[string]profileOwnerIdentity,
+) (contract.AgentInstancePayload, error) {
 	payload := AgentInstancePayload(i)
 	if api.ReadPayload != nil {
 		var err error
@@ -245,6 +262,7 @@ func (api *AgentInstanceAPI) Payload(
 			return payload, err
 		}
 	}
+	payload.ProfileName = owners[i.ProfileID].Name
 	payload.FatigueLimit = api.FatigueLimit
 	payload.UnattendedTurnLimit = api.UnattendedTurnLimit
 	if api.HeldWakes != nil {
@@ -341,20 +359,25 @@ func (h *BaseHandlers) instanceError(c *gin.Context, err error) {
 	h.respondError(c, http.StatusInternalServerError, err)
 }
 
+// ListResponse starts a page with the active count of the profiles it reads. The cap
+// applies per profile, so the aggregate reports the sum across every owner.
 func (api *AgentInstanceAPI) ListResponse(
 	ctx context.Context,
-	profileID string,
+	profileIDs ...string,
 ) (contract.AgentInstanceListResponse, error) {
 	result := contract.AgentInstanceListResponse{
 		Instances:          []contract.AgentInstancePayload{},
 		MaxActiveInstances: api.MaxActiveInstances,
 	}
-	if api.CountActive != nil {
-		var err error
-		result.ActiveCount, err = api.CountActive(ctx, profileID)
+	if api.CountActive == nil {
+		return result, nil
+	}
+	for _, profileID := range profileIDs {
+		count, err := api.CountActive(ctx, profileID)
 		if err != nil {
 			return result, err
 		}
+		result.ActiveCount += count
 	}
 	return result, nil
 }
