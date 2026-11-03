@@ -43,7 +43,8 @@ func (m *Manager) ApprovePermission(
 	if err := AuthorizeSessionApproval(ctx, actingSessionID(ctx), id, m.Status, m.workspaceAccessPolicy()); err != nil {
 		return ApprovalResult{}, err
 	}
-	if err := req.Validate(); err != nil {
+	req, err := m.bindApprovalActor(ctx, req)
+	if err != nil {
 		return ApprovalResult{}, err
 	}
 	target := strings.TrimSpace(id)
@@ -101,6 +102,22 @@ func (m *Manager) ApprovePermission(
 		RequestID: identity,
 		Decision:  strings.TrimSpace(req.Decision),
 	}, nil
+}
+
+// bindApprovalActor validates the request and makes a trusted acting session the decision's actor on every
+// transport; an empty actor would otherwise be recorded as operator engagement and reset the lineage's
+// unattended counter. A stays-on actor's "always" answer is narrowed to once so it leaves no durable grant.
+func (m *Manager) bindApprovalActor(ctx context.Context, req acp.ApproveRequest) (acp.ApproveRequest, error) {
+	if err := req.Validate(); err != nil {
+		return acp.ApproveRequest{}, err
+	}
+	req.ResolvedBy = resolvedByFromContext(ctx, req.ResolvedBy)
+	decision, err := StaysOnApprovalDecision(ctx, actingSessionID(ctx), req.Decision, m.Status)
+	if err != nil {
+		return acp.ApproveRequest{}, err
+	}
+	req.Decision = decision
+	return req, nil
 }
 
 func approvalError(sessionID string, err error) error {

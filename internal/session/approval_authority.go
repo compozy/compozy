@@ -3,7 +3,9 @@ package session
 import (
 	"context"
 	"errors"
+	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
@@ -134,3 +136,25 @@ func AuthorizeToolApprovalGrantMutation(
 var ErrToolApprovalGrantDenied = errors.New(
 	"tool_approval_grants_denied: stays-on lineages cannot set or revoke tool approval grants",
 )
+
+// StaysOnApprovalDecision narrows a stays-on actor's persistent decision to its one-time form. An "always"
+// answer would leave a durable grant, and stays-on lineages cannot set grants on any surface (rule 15).
+func StaysOnApprovalDecision(
+	ctx context.Context,
+	actorID, decision string,
+	lookup func(context.Context, string) (*Info, error),
+) (string, error) {
+	decision = strings.TrimSpace(decision)
+	once := map[string]string{
+		string(acp.PermissionDecisionAllowAlways):  string(acp.PermissionDecisionAllowOnce),
+		string(acp.PermissionDecisionRejectAlways): string(acp.PermissionDecisionRejectOnce),
+	}[decision]
+	if actorID == "" || once == "" {
+		return decision, nil
+	}
+	staysOn, err := IsStaysOnLineage(ctx, actorID, lookup)
+	if err != nil || !staysOn {
+		return decision, err
+	}
+	return once, nil
+}

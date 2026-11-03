@@ -1226,17 +1226,37 @@ func TestInstanceRunningCheckPauseIntegration(t *testing.T) {
 // Owning layer: daemon instance admission integration, using real session identity.
 func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 	d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
-		configureInstancePermissionFixture(t, d, "approve-all", "", func(*acpmock.AgentFixture) {})
+		configureInstancePermissionFixture(t, d, "approve-all", "", func(f *acpmock.AgentFixture) {
+			var steps []acpmock.Step
+			for _, step := range []struct{ id, expect string }{
+				{"agent-http", "allow-once"}, {"agent-uds", "reject-once"},
+				{"agent-native", "allow-once"}, {"operator-http", "allow-always"},
+			} {
+				steps = append(steps, acpmock.Step{Kind: acpmock.StepKindPermission, ToolCallID: step.id,
+					Title: "Edit " + step.id, ToolKind: "edit", Path: step.id + ".txt", ExpectDecision: step.expect})
+			}
+			steps = append(steps, acpmock.Step{Kind: acpmock.StepKindAssistant, Text: "lineage approvals complete"})
+			f.Turns = append(f.Turns, acpmock.TurnFixture{
+				Name: "lineage approvals", Match: acpmock.TurnMatch{UserText: "lineage approvals"}, Steps: steps,
+			}, acpmock.TurnFixture{
+				Name: "main edit", Match: acpmock.TurnMatch{UserText: "main edit"}, Steps: []acpmock.Step{
+					{Kind: acpmock.StepKindPermission, ToolCallID: "main-edit", Title: "Edit main", ToolKind: "edit",
+						Path: "main.txt", ExpectDecision: "allow-once"},
+					{Kind: acpmock.StepKindAssistant, Text: "main edit complete"},
+				},
+			})
+		})
 	})
 	main, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
 	if err != nil {
 		t.Fatal(err)
 	}
 	db := d.registry.(*globaldb.GlobalDB)
-	if _, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+	instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
 		ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
 		PermissionCeiling: string(mustWorkLogCeiling(t, main.Info().Workspace)), CreatedByKind: "human",
-	}, main.ID, 10); err != nil {
+	}, main.ID, 10)
+	if err != nil {
 		t.Fatal(err)
 	}
 	stranger, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
@@ -1283,6 +1303,222 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 			})
 		}
 	}
+	// Invariant (UT-005, IT-013; rules 6, 15 and 19): an authorized agent approval over HTTP, UDS or the native
+	// tool is recorded as that agent, leaves the unattended counter alone, and has its "always" answer narrowed
+	// to once so no durable grant is written; only the operator's approval resets the counter and stays always.
+	t.Run("Should attribute lineage approvals and reset the counter only for the operator", func(t *testing.T) {
+		// IT-028: the stays-on main at approve-all writes with no prompt; its approve-reads child asks below.
+		mainEvents, err := manager.Prompt(t.Context(), main.ID, "main edit")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var mainSources []string
+		for event := range mainEvents {
+			if event.Type == acp.EventTypeError {
+				t.Fatalf("main provider error: %+v", event)
+			}
+			if event.Type == acp.EventTypePermission {
+				if event.Decision == "" {
+					t.Fatalf("approve-all main asked: %+v", event)
+				}
+				mainSources = append(mainSources, event.ResolvedByValue())
+			}
+		}
+		if !slices.Equal(mainSources, []string{"policy"}) {
+			t.Fatalf("main resolved_by=%v want=[policy]", mainSources)
+		}
+		child, err := manager.Spawn(t.Context(), session.SpawnOpts{ParentSessionID: main.ID, AgentName: main.AgentName,
+			Workspace: workspace, Name: "Approval child", Permissions: "approve-reads", TTL: time.Minute})
+		if err != nil {
+			t.Fatal(err)
+		}
+		events, err := manager.Prompt(t.Context(), child.ID, "lineage approvals")
+		if err != nil {
+			t.Fatal(err)
+		}
+		approvers := []struct {
+			base     string
+			client   *http.Client
+			agent    bool
+			decision string
+		}{
+			{fmt.Sprintf("http://127.0.0.1:%d", d.info.Port), http.DefaultClient, true, "allow-always"},
+			{"http://unix", uds, true, "reject-always"},
+			{"native", nil, true, "allow-always"},
+			{fmt.Sprintf("http://127.0.0.1:%d", d.info.Port), http.DefaultClient, false, "allow-always"},
+		}
+		counter := func() int {
+			wake, err := db.Instances().WakeState(t.Context(), instance.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return int(wake.UnattendedTurns)
+		}
+		var sources, decisions []string
+		for event := range events {
+			if event.Type == acp.EventTypeError {
+				t.Fatalf("provider error: %+v", event)
+			}
+			if event.Type != acp.EventTypePermission {
+				continue
+			}
+			if event.Decision != "" {
+				if index := len(sources); index < len(approvers) {
+					// Concurrent lineage turns may still count up; the decision itself must reset the counter
+					// only when the operator made it.
+					reset := func() bool { return counter() < 5 }
+					if approvers[index].agent {
+						if reset() {
+							t.Fatalf("agent approval %d reset the unattended counter to %d", index, counter())
+						}
+					} else {
+						waitForRuntimeCondition(t, "operator approval reset", 5*time.Second, reset)
+					}
+				}
+				sources = append(sources, event.ResolvedByValue())
+				decisions = append(decisions, event.Decision)
+				continue
+			}
+			index := len(sources)
+			if index >= len(approvers) {
+				t.Fatalf("unexpected pending permission: %+v", event)
+			}
+			approver := approvers[index]
+			if _, err := db.DB().ExecContext(t.Context(),
+				"UPDATE agent_instance_wake_state SET unattended_turns=5 WHERE instance_id=?", instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			if approver.client == nil {
+				if _, err := d.toolRegistry.Call(t.Context(), toolspkg.Scope{
+					SessionID: main.ID, WorkspaceID: workspace, ProfileID: store.DefaultProfileID,
+					AgentName: main.AgentName,
+				}, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionApprove, ApprovalGranted: true, Input: []byte(fmt.Sprintf(
+						`{"session_id":%q,"request_id":%q,"decision":%q}`,
+						child.ID, event.RequestIDValue(), approver.decision,
+					)),
+				}); err != nil {
+					t.Fatalf("native approval: %v", err)
+				}
+				continue
+			}
+			body := fmt.Sprintf(`{"request_id":%q,"decision":%q}`, event.RequestIDValue(), approver.decision)
+			request, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+				approver.base+"/api/workspaces/"+workspace+"/sessions/"+child.ID+"/approve", strings.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			request.Header.Set("Content-Type", "application/json")
+			if approver.agent {
+				request.Header.Set(agentidentity.HeaderSessionID, main.ID)
+				request.Header.Set(agentidentity.HeaderAgent, main.AgentName)
+			}
+			response, err := approver.client.Do(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, readErr := io.ReadAll(response.Body)
+			response.Body.Close()
+			if readErr != nil || response.StatusCode >= 300 {
+				t.Fatalf("approval %d response=%d %s error=%v", index, response.StatusCode, raw, readErr)
+			}
+		}
+		agentActor := "agent_session:" + main.ID
+		if want := []string{agentActor, agentActor, agentActor, "operator"}; !slices.Equal(sources, want) {
+			t.Fatalf("resolved_by=%v want=%v", sources, want)
+		}
+		if want := []string{"allow-once", "reject-once", "allow-once", "allow-always"}; !slices.Equal(decisions, want) {
+			t.Fatalf("decisions=%v want=%v", decisions, want)
+		}
+	})
+	// Invariant (rule 15, SEC-1): a stays-on lineage cannot widen its own approval reach by adopting a session,
+	// or detach one, on any surface; the operator still can.
+	t.Run("Should refuse stays-on adopt and detach on every surface", func(t *testing.T) {
+		const refusal = "session_reparent_operator_required"
+		scope := toolspkg.Scope{
+			SessionID: main.ID, WorkspaceID: workspace, ProfileID: store.DefaultProfileID, AgentName: main.AgentName,
+		}
+		native := func(input string) {
+			t.Helper()
+			_, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDSessionReparent, Input: []byte(input), ApprovalGranted: true,
+			})
+			failure, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || string(failure.Code) != refusal {
+				t.Fatalf("native reparent %s error=%v", input, err)
+			}
+		}
+		reparent := func(base string, client *http.Client, method string, agent bool) (int, []byte) {
+			t.Helper()
+			var body io.Reader = http.NoBody
+			if method == http.MethodPut {
+				body = strings.NewReader(fmt.Sprintf(`{"parent_session_id":%q}`, main.ID))
+			}
+			request, err := http.NewRequestWithContext(t.Context(), method,
+				base+"/api/workspaces/"+workspace+"/sessions/"+stranger.ID+"/parent", body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request.Header.Set("Content-Type", "application/json")
+			if agent {
+				request.Header.Set(agentidentity.HeaderSessionID, main.ID)
+				request.Header.Set(agentidentity.HeaderAgent, main.AgentName)
+			}
+			response, err := client.Do(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer response.Body.Close()
+			raw, err := io.ReadAll(response.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return response.StatusCode, raw
+		}
+		parentOf := func() string {
+			info, err := manager.Status(t.Context(), stranger.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Lineage == nil {
+				return ""
+			}
+			return info.Lineage.ParentSessionID
+		}
+		httpBase := fmt.Sprintf("http://127.0.0.1:%d", d.info.Port)
+		native(fmt.Sprintf(`{"session_id":%q,"parent_session_id":%q}`, stranger.ID, main.ID))
+		for _, transport := range []struct {
+			base   string
+			client *http.Client
+		}{{httpBase, http.DefaultClient}, {"http://unix", uds}} {
+			status, raw := reparent(transport.base, transport.client, http.MethodPut, true)
+			if status != http.StatusConflict || !bytes.Contains(raw, []byte(refusal)) {
+				t.Fatalf("agent adopt through %s=%d %s", transport.base, status, raw)
+			}
+		}
+		if got := parentOf(); got != "" {
+			t.Fatalf("refused adopt changed parent to %q", got)
+		}
+		if status, raw := reparent(httpBase, http.DefaultClient, http.MethodPut, false); status != http.StatusOK {
+			t.Fatalf("operator adopt=%d %s", status, raw)
+		}
+		native(fmt.Sprintf(`{"session_id":%q,"top_level":true}`, stranger.ID))
+		for _, transport := range []struct {
+			base   string
+			client *http.Client
+		}{{httpBase, http.DefaultClient}, {"http://unix", uds}} {
+			status, raw := reparent(transport.base, transport.client, http.MethodDelete, true)
+			if status != http.StatusConflict || !bytes.Contains(raw, []byte(refusal)) {
+				t.Fatalf("agent detach through %s=%d %s", transport.base, status, raw)
+			}
+		}
+		if got := parentOf(); got != main.ID {
+			t.Fatalf("refused detach changed parent to %q", got)
+		}
+		if status, raw := reparent(httpBase, http.DefaultClient, http.MethodDelete, false); status != http.StatusOK {
+			t.Fatalf("operator detach=%d %s", status, raw)
+		}
+	})
 }
 
 // Invariant (UT-007, IT-022, IT-032): child Goals remain supported; maintenance
@@ -1423,6 +1659,20 @@ func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
 	if err != nil || wake.UnattendedTurns != 0 {
 		t.Fatalf("managed turn counter=%+v error=%v", wake, err)
 	}
+	// Invariant (IT-032): an operator resume racing the Goal's asynchronous pause never fails the committed
+	// instance resume; the instance-owned Goal resumes once its pause settles.
+	status, raw = instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/pause", nil, nil)
+	if status != http.StatusOK {
+		t.Fatalf("instance pause=%d %s", status, raw)
+	}
+	status, raw = instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/resume", nil, nil)
+	if status != http.StatusOK {
+		t.Fatalf("immediate instance resume=%d %s", status, raw)
+	}
+	waitForRuntimeCondition(t, "racing resume restored the instance Goal", 20*time.Second, func() bool {
+		own, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(children[0].runID))
+		return err == nil && own.Status == looppkg.StatusRunning && !own.PauseRequested
+	})
 	for _, child := range children {
 		status, _, raw := goalCommand(child.sessionID, "stop")
 		if status >= 400 {

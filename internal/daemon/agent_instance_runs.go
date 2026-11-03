@@ -75,7 +75,13 @@ func reconcileInstanceRun(ctx context.Context, state *bootState, instance agenti
 	if pause {
 		return state.deps.Loops.PauseLoopRun(ctx, workspace, run.ID, actor)
 	}
-	return state.deps.Loops.ResumeLoopRun(ctx, workspace, run.ID, actor)
+	err := state.deps.Loops.ResumeLoopRun(ctx, workspace, run.ID, actor)
+	if err != nil && run.Status == string(looppkg.StatusRunning) && errors.Is(err, looppkg.ErrTransitionConflict) {
+		// The run is still settling the pause this instance requested. It stays recorded, so instance
+		// maintenance resumes it once paused instead of failing the already committed instance resume.
+		return nil
+	}
+	return err
 }
 
 func releaseInstanceInputs(

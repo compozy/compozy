@@ -648,14 +648,16 @@ func newSubagentDaemonWithSetup(
 			Steps: nativeBackgroundSteps(t),
 		},
 	)
-	// Attributed provider prompts retain the origin header; match the authored suffix explicitly.
+	// Attributed provider prompts, including every delegated child's first input, retain the origin header;
+	// each exact-text turn also matches its authored suffix after that header.
 	for _, turn := range fixture.Agents[0].Turns {
-		if turn.Name == "child" || turn.Name == "parent" || turn.Name == "reply-failure" {
-			attributed := turn
-			attributed.Name = "attributed-" + turn.Name
-			attributed.Match = acpmock.TurnMatch{RawUserTextContains: "\n\n" + turn.Match.UserText}
-			fixture.Agents[0].Turns = append(fixture.Agents[0].Turns, attributed)
+		if turn.Match.UserText == "" {
+			continue
 		}
+		attributed := turn
+		attributed.Name = "attributed-" + turn.Name
+		attributed.Match = acpmock.TurnMatch{RawUserTextContains: "\n\n" + turn.Match.UserText}
+		fixture.Agents[0].Turns = append(fixture.Agents[0].Turns, attributed)
 	}
 	data, err := json.Marshal(fixture)
 	if err != nil {
@@ -1079,7 +1081,10 @@ func startSubagentIntegrationParent(
 // IT-023: permission waiting belongs to the child and does not return prematurely from wait mode.
 func TestSubagentPermissionDaemonIntegration(t *testing.T) {
 	t.Run("Should wait through child approval", func(t *testing.T) {
-		d, manager, workspace := newSubagentDaemonIntegration(t)
+		// The adopted instance needs a stays-on definition, or reconcile pauses it as definition_not_stays_on.
+		d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
+			configureInstancePermissionFixture(t, d, "approve-all", "", func(*acpmock.AgentFixture) {})
+		})
 		ws, err := d.registry.GetWorkspace(t.Context(), workspace)
 		if err != nil {
 			t.Fatal(err)

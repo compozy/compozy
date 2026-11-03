@@ -21,11 +21,13 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/procutil"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
@@ -46,6 +48,7 @@ func TestResumeInterruptedSession(t *testing.T) {
 		permissions compozyconfig.PermissionMode
 		batched     bool
 		completed   bool
+		instance    string
 		wantResume  bool
 	}{
 		{name: "Should resume an interrupted turn exactly once", restart: true, wantResume: true},
@@ -60,6 +63,8 @@ func TestResumeInterruptedSession(t *testing.T) {
 		{name: "Should require a new permission decision", restart: true, interaction: store.PendingInteractionKindPermission},
 		{name: "Should require a new clarification answer", restart: true, interaction: store.PendingInteractionKindClarify},
 		{name: "Should not continue a turn that completed during drain", restart: true, completed: true},
+		{name: "Should hold a paused instance continuation until resume", restart: true, instance: "paused", wantResume: true},
+		{name: "Should count an active instance continuation once", restart: true, instance: "active", wantResume: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			admissions := openManagerInputQueueStore(t)
@@ -77,6 +82,17 @@ func TestResumeInterruptedSession(t *testing.T) {
 			}
 			registerManagerInputQueueSession(t, admissions, h, target)
 			t.Cleanup(func() { reportSessionStop(t, h, target.ID) })
+			instanceID := ""
+			if tc.instance != "" {
+				instance, err := admissions.Instances().Adopt(t.Context(), agentinstance.Instance{
+					ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: target.AgentName,
+					PermissionCeiling: "{}", CreatedByKind: "human",
+				}, target.ID, 10)
+				if err != nil {
+					t.Fatal(err)
+				}
+				instanceID = instance.ID
+			}
 			source := make(chan acp.AgentEvent)
 			h.driver.promptHook = func(_ *fakeProcess, _ acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 				return source, nil
@@ -117,6 +133,11 @@ func TestResumeInterruptedSession(t *testing.T) {
 					Text:      "batched follower",
 					Timestamp: h.manager.now(),
 				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.instance == "paused" {
+				if _, err := admissions.Instances().Pause(t.Context(), instanceID, "manual"); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -178,6 +199,9 @@ func TestResumeInterruptedSession(t *testing.T) {
 			if repeated, err := h.manager.ResumeInterruptedSession(t.Context(), target.ID); err != nil || repeated {
 				t.Fatalf("repeated recovery = %t, %v", repeated, err)
 			}
+			if tc.instance != "" {
+				assertInstanceRestartContinuation(t, h, admissions, target.ID, instanceID, tc.instance == "paused")
+			}
 			if tc.queued {
 				waitForCondition(
 					t,
@@ -208,6 +232,50 @@ func TestResumeInterruptedSession(t *testing.T) {
 				t.Fatalf("provider prompts = %d, want %d", prompts, want)
 			}
 		})
+	}
+}
+
+// assertInstanceRestartContinuation proves an instance lineage's continuation runs through the durable
+// selector: held while paused (Paused Outcomes: restart continuation) and counted once when it runs.
+func assertInstanceRestartContinuation(
+	t *testing.T, h *harness, database *globaldb.GlobalDB, sessionID, instanceID string, paused bool,
+) {
+	t.Helper()
+	ctx := t.Context()
+	providerPrompts := func() int {
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		return len(h.driver.promptCalls)
+	}
+	if paused {
+		if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+			t.Fatal(err)
+		}
+		entries, err := h.manager.inputQueue.List(ctx, sessionID)
+		if err != nil || len(entries) != 1 || entries[0].OwnerKind != store.SessionInputOwnerSynthetic ||
+			!strings.HasPrefix(entries[0].MessageID, "restart:") ||
+			entries[0].Status != store.SessionInputQueueStatusQueued {
+			t.Fatalf("held continuation = %+v, %v", entries, err)
+		}
+		if got := providerPrompts(); got != 1 {
+			t.Fatalf("paused continuation reached the provider: prompts = %d", got)
+		}
+		if wake, err := database.Instances().WakeState(ctx, instanceID); err != nil || wake.UnattendedTurns != 0 {
+			t.Fatalf("held continuation counted = %+v, %v", wake, err)
+		}
+		if _, err := database.Instances().Resume(ctx, instanceID, 10, true); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.ReleaseInstanceInputs(ctx, sessionID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	waitForCondition(t, "instance continuation dispatch", func() bool { return providerPrompts() == 2 })
+	if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if wake, err := database.Instances().WakeState(ctx, instanceID); err != nil || wake.UnattendedTurns != 1 {
+		t.Fatalf("continuation unattended turns = %+v, %v", wake, err)
 	}
 }
 

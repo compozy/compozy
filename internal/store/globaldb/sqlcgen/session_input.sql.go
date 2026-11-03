@@ -1530,8 +1530,7 @@ func (q *Queries) ReleaseSessionInput(ctx context.Context, arg ReleaseSessionInp
 
 const reserveSessionSteer = `-- name: ReserveSessionSteer :execrows
 UPDATE session_input_queue
-SET status = 'dispatching', dispatch_started_at = ?1,
-    attempt_count = attempt_count + 1, updated_at = ?1
+SET status = 'dispatching', dispatch_started_at = ?1, updated_at = ?1
 WHERE session_input_queue.session_id = ?2 AND session_input_queue.id = ?3
   AND (session_input_queue.origin_class = 'human' OR NOT EXISTS (
     SELECT 1 FROM sessions AS target
@@ -1549,6 +1548,9 @@ type ReserveSessionSteerParams struct {
 	ID        string         `json:"id"`
 }
 
+// A steering reservation injects into the current turn and is not a turn claim. attempt_count counts turn
+// claims only, so a refused injection's first standalone dispatch still reads as attempt 1 and is counted
+// by the unattended brake; retries of a claimed turn read above 1 and are not counted again.
 func (q *Queries) ReserveSessionSteer(ctx context.Context, arg ReserveSessionSteerParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, reserveSessionSteer, arg.Now, arg.SessionID, arg.ID)
 	if err != nil {

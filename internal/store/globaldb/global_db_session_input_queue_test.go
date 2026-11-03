@@ -1434,9 +1434,11 @@ func TestGlobalDBSessionInputQueueOriginPolicy(t *testing.T) {
 		if reverted, err := db.RevertPromotedAgentSessionInput(ctx, sessionID, "a1", now); err != nil || !reverted {
 			t.Fatalf("revert of a reserved promotion = %v, %v", reverted, err)
 		}
+		// The reservation was not a turn claim, so the first ordinary claim reads as attempt 1.
 		claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(time.Minute))
-		if err != nil || !ok || claimed.ID != "a1" {
-			t.Fatalf("ClaimNextSessionInput() = %q, %v, %v; want the reverted message claimed", claimed.ID, ok, err)
+		if err != nil || !ok || claimed.ID != "a1" || claimed.AttemptCount != 1 {
+			t.Fatalf("ClaimNextSessionInput() = %q/%d, %v, %v; want the reverted message claimed as attempt 1",
+				claimed.ID, claimed.AttemptCount, ok, err)
 		}
 	})
 
@@ -4234,6 +4236,60 @@ func TestGlobalDBSyntheticSessionInputAdmitted(t *testing.T) {
 func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
 	// Invariant (UT-002, UT-027): holds follow durable lineage through both depths and old mains;
 	// archive cancels every held row. Owning layer: globaldb queue selection.
+	// Invariant (UT-084): a held backlog above the configured queue limit never blocks a human prompt,
+	// which is admitted and selected ahead of the held rows.
+	t.Run("Should admit a human prompt behind an overfull held backlog", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "overfull-held", "sess-overfull-main")
+		instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Instances().Pause(ctx, instance.ID, "manual"); err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now().UTC()
+		for i := range 3 {
+			if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+				ID: fmt.Sprintf("held-%d", i), SessionID: main, Text: "peer work",
+				Origin:   json.RawMessage(`{"kind":"session","session_id":"peer","hop":1}`),
+				QueueCap: 3, Now: now.Add(time.Duration(i) * time.Second),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// The configured limit is now below the held backlog; a further agent row is refused.
+		if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "held-over", SessionID: main, Text: "peer work",
+			Origin:   json.RawMessage(`{"kind":"session","session_id":"peer","hop":1}`),
+			QueueCap: 2, Now: now.Add(time.Minute),
+		}); !errors.Is(err, store.ErrSessionInputQueueFull) {
+			t.Fatalf("over-limit agent row error = %v, want queue full", err)
+		}
+		if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "human", SessionID: main, Text: "operator", QueueCap: 2, Now: now.Add(time.Hour),
+		}); err != nil {
+			t.Fatalf("human prompt behind the held backlog: %v", err)
+		}
+		claimed, found, err := db.ClaimNextSessionInput(ctx, main, now.Add(2*time.Hour))
+		if err != nil || !found || claimed.ID != "human" {
+			t.Fatalf("claim = %q/%v/%v, want the human prompt", claimed.ID, found, err)
+		}
+		for i := range 3 {
+			entry, err := db.GetSessionInputQueueEntry(ctx, main, fmt.Sprintf("held-%d", i))
+			if err != nil || entry.Status != store.SessionInputQueueStatusQueued {
+				t.Fatalf("held row %d = %+v, %v", i, entry, err)
+			}
+		}
+		if _, found, err := db.ClaimNextSessionInput(ctx, main, now.Add(3*time.Hour)); err != nil || found {
+			t.Fatalf("held claim after the human prompt = %v, %v", found, err)
+		}
+	})
 	for _, creator := range []string{"human", "agent"} {
 		t.Run("Should hold and archive descendants of a "+creator+" created main after rotation", func(t *testing.T) {
 			t.Parallel()
@@ -4485,6 +4541,78 @@ func TestGlobalDBInstanceUnattendedBrake(t *testing.T) {
 			t.Fatalf("turns=%+v %v", wake, err)
 		}
 	})
+	// Invariant (UT-004/UT-026): a steering reservation is not a turn claim. When injection is refused, the
+	// row's first standalone dispatch is counted once; a retry of that claimed turn is not counted again.
+	for _, pending := range []bool{false, true} {
+		name := "Should count the first standalone turn after a refused steering injection"
+		if pending {
+			name = "Should count the first standalone turn after a pending injection falls back"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			main := registerInputQueueSession(t, db)
+			instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: "ws-input-queue-workspace",
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+			admission := promptAdmissionRequest("ws-input-queue-workspace", main, "peer-steer", now)
+			admission.Origin = json.RawMessage(`{"kind":"session","session_id":"peer","workspace_id":"ws","hop":1}`)
+			if _, _, _, _, err := db.EnqueueAdmittedSessionInput(ctx, admission, store.SessionInputQueueInsert{
+				ID: "peer-steer", SessionID: main, Text: "work", QueueCap: 10, Now: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if _, promoted, err := db.PromoteQueuedAgentSessionInputToSteer(
+				ctx, main, "peer-steer", "turn-live", now,
+			); err != nil || !promoted {
+				t.Fatalf("promote = %v, %v", promoted, err)
+			}
+			if _, reserved, err := db.ReserveSessionSteer(ctx, main, "peer-steer", now); err != nil || !reserved {
+				t.Fatalf("reserve = %v, %v", reserved, err)
+			}
+			if pending {
+				if _, err := db.ResolveSessionSteer(
+					ctx, main, "peer-steer", store.SteerDeliveryPendingInjection, now,
+				); err != nil {
+					t.Fatal(err)
+				}
+				if _, settled, err := db.SettlePendingSessionSteer(
+					ctx, main, "peer-steer", store.SteerDeliveryInterruptFallback, now,
+				); err != nil || !settled {
+					t.Fatalf("fallback = %v, %v", settled, err)
+				}
+			}
+			reverted, err := db.RevertPromotedAgentSessionInput(ctx, main, "peer-steer", now)
+			if err != nil || !reverted {
+				t.Fatalf("revert = %v, %v", reverted, err)
+			}
+			if wake, err := db.Instances().WakeState(ctx, instance.ID); err != nil || wake.UnattendedTurns != 0 {
+				t.Fatalf("steering reservation counted = %+v, %v", wake, err)
+			}
+			claimed, found, err := db.ClaimNextSessionInput(ctx, main, now.Add(time.Second))
+			if err != nil || !found || claimed.ID != "peer-steer" || claimed.AttemptCount != 1 {
+				t.Fatalf("standalone claim = %+v, %v, %v", claimed, found, err)
+			}
+			if wake, err := db.Instances().WakeState(ctx, instance.ID); err != nil || wake.UnattendedTurns != 1 {
+				t.Fatalf("standalone turn not counted = %+v, %v", wake, err)
+			}
+			if err := db.ReleaseSessionInput(ctx, main, claimed.ID, now.Add(time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			if _, found, err := db.ClaimNextSessionInput(ctx, main, now.Add(2*time.Second)); err != nil || !found {
+				t.Fatalf("retry claim = %v, %v", found, err)
+			}
+			if wake, err := db.Instances().WakeState(ctx, instance.ID); err != nil || wake.UnattendedTurns != 1 {
+				t.Fatalf("retried turn counted again = %+v, %v", wake, err)
+			}
+		})
+	}
 	for _, limit := range []int64{0, 2, 300} {
 		t.Run(fmt.Sprintf("Should count and enforce unattended limit %d", limit), func(t *testing.T) {
 			t.Parallel()
