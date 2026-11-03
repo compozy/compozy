@@ -4248,7 +4248,8 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		}
 		var payload contract.AgentResponse
 		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if payload.Agent.Appearance != nil || payload.Agent.ResolvedAppearance["seed"] != "reviewer" {
+		if payload.Agent.Appearance != nil || payload.Agent.ResolvedAppearance["avatar"] != "generated" ||
+			payload.Agent.ResolvedAppearance["seed"] != "reviewer" {
 			t.Fatalf("duplicate appearance = %#v, resolved = %#v; want default face seeded by the copy",
 				payload.Agent.Appearance, payload.Agent.ResolvedAppearance)
 		}
