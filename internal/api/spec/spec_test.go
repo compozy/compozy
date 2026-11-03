@@ -3248,6 +3248,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		addProviderUsageSettingsSection(t, baseline)
 		addStaysOnHardeningSchemas(t, baseline)
 		addSessionRouteProfileSelectors(t, baseline)
+		addRuntimeRecoveryReason(baseline)
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -5490,6 +5491,32 @@ func addProfileRemovalInstanceCounts(t *testing.T, baseline map[string]any) {
 			}
 			if required, ok := node["required"].([]any); ok {
 				node["required"] = append(names, required...)
+			}
+		}
+	}
+	walk(baseline)
+}
+
+// addRuntimeRecoveryReason records the approved optional runtime.recovery.reason discriminator.
+func addRuntimeRecoveryReason(baseline map[string]any) {
+	var walk func(any)
+	walk = func(value any) {
+		switch node := value.(type) {
+		case []any:
+			for _, child := range node {
+				walk(child)
+			}
+		case map[string]any:
+			for _, child := range node {
+				walk(child)
+			}
+			properties, ok := node["properties"].(map[string]any)
+			if !ok || properties["max_attempts"] == nil || properties["last_attempt_at"] == nil {
+				return
+			}
+			properties["reason"] = map[string]any{
+				"type": "string",
+				"enum": []any{"runtime_exit", "provider_auth"},
 			}
 		}
 	}

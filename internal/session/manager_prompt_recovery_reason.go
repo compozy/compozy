@@ -31,6 +31,15 @@ func promptRecoveryReasonFor(event acp.AgentEvent) (store.SessionRuntimeRecovery
 	return "", false
 }
 
+// notePromptEventDelivered tracks provider work for the recovery payload choice and re-arms the
+// sign-in wait once a turn completes.
+func notePromptEventDelivered(session *Session, turnState *promptTurnDispatchState, eventType string) {
+	turnState.recovery.observeDelivered(eventType)
+	if eventType == acp.EventTypeDone {
+		session.setAuthRecoveryExhausted(false)
+	}
+}
+
 func (m *Manager) promptRecoverySchedule(reason store.SessionRuntimeRecoveryReason) []time.Duration {
 	if reason == store.SessionRuntimeRecoveryProviderAuth {
 		return m.authRecoveryDelays

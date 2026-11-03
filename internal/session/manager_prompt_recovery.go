@@ -48,20 +48,11 @@ func (m *Manager) attemptPromptRecovery(
 		return false, nil
 	}
 	recovery := turnState.recovery
-	if recovery.executionCtx == nil || recovery.executionCtx.Err() != nil ||
-		session.promptCancellationRequested(turnState.turnID) {
+	delays, budget, ok := m.startablePromptRecovery(session, turnState, reason)
+	if !ok {
 		return false, m.settleStoppedPromptRecovery(ctx, session, reason)
 	}
-
-	delays := m.promptRecoverySchedule(reason)
-	budget := recovery.budget(reason)
 	maxAttempts := len(delays)
-	if maxAttempts == 0 || budget.exhaustedRecorded || !promptRecoveryAvailable(session, reason) {
-		return false, m.settleStoppedPromptRecovery(ctx, session, reason)
-	}
-	if budget.startedAt.IsZero() {
-		budget.startedAt = m.now()
-	}
 	for budget.attempts < maxAttempts {
 		attempt := budget.attempts + 1
 		delay := delays[budget.attempts]
@@ -113,6 +104,41 @@ func (m *Manager) attemptPromptRecovery(
 		return true, nil
 	}
 
+	return false, m.exhaustPromptRecovery(ctx, session, turnState, loop, trigger, reason, budget, maxAttempts)
+}
+
+// startablePromptRecovery returns the schedule and budget a turn failure may still spend.
+func (m *Manager) startablePromptRecovery(
+	session *Session,
+	turnState *promptTurnDispatchState,
+	reason store.SessionRuntimeRecoveryReason,
+) ([]time.Duration, *promptRecoveryBudget, bool) {
+	recovery := turnState.recovery
+	if recovery.executionCtx == nil || recovery.executionCtx.Err() != nil ||
+		session.promptCancellationRequested(turnState.turnID) {
+		return nil, nil, false
+	}
+	delays := m.promptRecoverySchedule(reason)
+	budget := recovery.budget(reason)
+	if len(delays) == 0 || budget.exhaustedRecorded || !promptRecoveryAvailable(session, reason) {
+		return nil, nil, false
+	}
+	if budget.startedAt.IsZero() {
+		budget.startedAt = m.now()
+	}
+	return delays, budget, true
+}
+
+func (m *Manager) exhaustPromptRecovery(
+	ctx context.Context,
+	session *Session,
+	turnState *promptTurnDispatchState,
+	loop *promptPumpLoopState,
+	trigger acp.AgentEvent,
+	reason store.SessionRuntimeRecoveryReason,
+	budget *promptRecoveryBudget,
+	maxAttempts int,
+) error {
 	if err := m.recordPromptRecoveryEvent(
 		ctx,
 		session,
@@ -124,13 +150,13 @@ func (m *Manager) attemptPromptRecovery(
 		budget.attempts,
 		maxAttempts,
 	); err != nil {
-		return false, err
+		return err
 	}
 	budget.exhaustedRecorded = true
 	if reason == store.SessionRuntimeRecoveryProviderAuth {
 		session.setAuthRecoveryExhausted(true)
 	}
-	return false, m.settleStoppedPromptRecovery(ctx, session, reason)
+	return m.settleStoppedPromptRecovery(ctx, session, reason)
 }
 
 func (m *Manager) persistPromptRecoveryFailure(ctx context.Context, session *Session, recoveryErr error) error {

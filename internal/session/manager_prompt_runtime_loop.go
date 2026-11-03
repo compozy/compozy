@@ -267,10 +267,7 @@ func (m *Manager) handlePromptPumpEvent(
 		failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
 		return failure, errorText, true
 	}
-	turnState.recovery.observeDelivered(normalized.Type)
-	if normalized.Type == acp.EventTypeDone {
-		session.setAuthRecoveryExhausted(false)
-	}
+	notePromptEventDelivered(session, turnState, normalized.Type)
 	if stop := m.sendPromptPumpEvent(ctx, deliveryCtx, out, loop, normalized, runtimeEvent); stop {
 		return fatalPromptFailure, normalized.Error, true
 	}

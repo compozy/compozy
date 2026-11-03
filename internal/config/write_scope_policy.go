@@ -16,6 +16,18 @@ const (
 	workspaceFieldForbiddenReason = "only sources and custom_sources may be written at this scope"
 )
 
+// bootConsumedGlobalPath reports keys the daemon reads once at boot from the home config; a
+// workspace-layered write would validate yet never take effect.
+func bootConsumedGlobalPath(clean []string) bool {
+	hasPrefix := func(prefix []string) bool {
+		return slices.Equal(clean[:min(len(clean), len(prefix))], prefix)
+	}
+	return slices.Equal(clean, toolSurfaceToolsClarifyTimeoutSegments) ||
+		slices.Equal(clean, mcpStatusProbeTimeoutSegments) ||
+		hasPrefix(mcpStdioConfigSegments) ||
+		hasPrefix(sessionAuthRecoverySegments)
+}
+
 // ValidateConfigWriteScope rejects paths that the selected runtime scope cannot consume.
 func ValidateConfigWriteScope(scope WriteScope, path []string) error {
 	if err := scope.Validate(); err != nil {
@@ -33,13 +45,7 @@ func ValidateConfigWriteScope(scope WriteScope, path []string) error {
 			strings.Join(clean, "."),
 		)
 	}
-	// tools.clarify.timeout, mcp.status_probe_timeout, mcp.stdio.*, and session.auth_recovery.* are consumed once at daemon boot
-	// from the home config; a workspace-layered write would validate yet never
-	// take effect, so reject it with the same global-only gate.
-	if scope == WriteScopeWorkspace && (slices.Equal(clean, toolSurfaceToolsClarifyTimeoutSegments) ||
-		slices.Equal(clean, mcpStatusProbeTimeoutSegments) ||
-		slices.Equal(clean[:min(len(clean), len(mcpStdioConfigSegments))], mcpStdioConfigSegments) ||
-		slices.Equal(clean[:min(len(clean), len(sessionAuthRecoverySegments))], sessionAuthRecoverySegments)) {
+	if scope == WriteScopeWorkspace && bootConsumedGlobalPath(clean) {
 		return fmt.Errorf(
 			"config: path %q is global-only and cannot be written at workspace scope; write this key with --scope user",
 			strings.Join(clean, "."),

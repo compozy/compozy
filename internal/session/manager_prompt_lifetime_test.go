@@ -652,8 +652,13 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 			Error:   `{"code":-32000,"message":"Authentication required"}`,
 			Failure: &store.SessionFailure{Kind: store.FailurePrompt, Summary: "Authentication required"},
 			ProviderError: &acp.ProviderErrorDiagnostic{
-				Code: acp.ProviderErrorAuthRequired, Provider: "claude", NextAction: acp.ProviderFailureActionLogin,
-				Guidance: "run provider auth login for this provider", OccurrenceCount: 1, FirstSeenAt: at, LastSeenAt: at,
+				Code:            acp.ProviderErrorAuthRequired,
+				Provider:        "claude",
+				NextAction:      acp.ProviderFailureActionLogin,
+				Guidance:        "run provider auth login for this provider",
+				OccurrenceCount: 1,
+				FirstSeenAt:     at,
+				LastSeenAt:      at,
 			},
 		}
 	}
@@ -732,7 +737,11 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		}
 		requests, starts := promptRequests(h)
 		if len(requests) != 3 || starts != 3 {
-			t.Fatalf("prompts = %d, starts = %d; want one turn reloaded on two replacement runtimes", len(requests), starts)
+			t.Fatalf(
+				"prompts = %d, starts = %d; want one turn reloaded on two replacement runtimes",
+				len(requests),
+				starts,
+			)
 		}
 		for index, request := range requests {
 			if request.TurnID != requests[0].TurnID || !strings.HasSuffix(request.Message, "ship the release notes") {
@@ -744,7 +753,12 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		}
 		info := session.Info()
 		if info.State != StateActive || info.RuntimeStatus != RuntimeStatusReady || info.RuntimeRecovery != nil {
-			t.Fatalf("session = %s/%s recovery %#v, want active and ready", info.State, info.RuntimeStatus, info.RuntimeRecovery)
+			t.Fatalf(
+				"session = %s/%s recovery %#v, want active and ready",
+				info.State,
+				info.RuntimeStatus,
+				info.RuntimeRecovery,
+			)
 		}
 	})
 
@@ -824,7 +838,12 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		}
 		info := session.Info()
 		if info.State != StateActive || info.RuntimeStatus != RuntimeStatusReady || info.RuntimeRecovery != nil {
-			t.Fatalf("session = %s/%s recovery %#v, want active and ready", info.State, info.RuntimeStatus, info.RuntimeRecovery)
+			t.Fatalf(
+				"session = %s/%s recovery %#v, want active and ready",
+				info.State,
+				info.RuntimeStatus,
+				info.RuntimeRecovery,
+			)
 		}
 
 		next, err := h.manager.Prompt(testutil.Context(t), session.ID, "and the next one")
@@ -837,7 +856,7 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		}
 	})
 
-	t.Run("Should return the session to ready when the sign-in wait is cancelled", func(t *testing.T) {
+	t.Run("Should return the session to ready when the sign-in wait is canceled", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		h.manager.authRecoveryDelays = []time.Duration{time.Hour}
@@ -864,7 +883,12 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		collectEvents(t, events)
 		info := session.Info()
 		if info.State != StateActive || info.RuntimeStatus != RuntimeStatusReady || info.RuntimeRecovery != nil {
-			t.Fatalf("session = %s/%s recovery %#v, want active and ready", info.State, info.RuntimeStatus, info.RuntimeRecovery)
+			t.Fatalf(
+				"session = %s/%s recovery %#v, want active and ready",
+				info.State,
+				info.RuntimeStatus,
+				info.RuntimeRecovery,
+			)
 		}
 		if _, starts := promptRequests(h); starts != 1 {
 			t.Fatalf("driver starts = %d, want no replacement runtime after cancellation", starts)
