@@ -57,7 +57,6 @@ import { useUpdateAgent } from "./use-agents";
 
 const ACTIVITY_DAYS = 30;
 const WORK_SHOWN = 5;
-const AVATAR_COLORS = PROFILE_IDENTITY_SWATCHES.map(swatch => swatch.value);
 
 function workItem(session: SessionPayload): AgentWorkItem {
   const failed = isAgentSessionFailure(session);
@@ -120,7 +119,13 @@ function useIdentitySave(agent: AgentPayload) {
         cacheWorkspace: workspace,
         params: {
           ...params,
-          agent: { ...params.agent, ...agentIdentityPatchPayload(patch, AVATAR_COLORS) },
+          agent: {
+            ...params.agent,
+            ...agentIdentityPatchPayload(
+              patch,
+              PROFILE_IDENTITY_SWATCHES.map(swatch => swatch.value)
+            ),
+          },
         },
       },
       {
