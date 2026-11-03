@@ -10,6 +10,7 @@ export {
   type StreamMarkdownLocalLinkComponent,
   type StreamMarkdownProps,
 } from "../components/custom/stream-markdown";
+export { MarkdownAnchor } from "../components/custom/markdown-prose-parts";
 export {
   composeMarkdownSlots,
   type MarkdownSlotPlacement,
