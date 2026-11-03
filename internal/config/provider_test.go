@@ -3823,6 +3823,10 @@ func TestReviewerModeTrustBoundary(t *testing.T) {
 			{"claude", "auto", false}, {"codex", "agent", false},
 			{"custom", "smart", false}, {"custom", "auto", true},
 			{"claude", "bypassPermissions", true},
+			{"claude", "BYPASSPERMISSIONS", true},
+			{"custom", "Full-Access", true},
+			{"custom", "AuTo", true},
+			{"Claude", "Auto", false},
 		} {
 			p := builtinProviders[providerClaudeKey]
 			p.ReviewerMode = tc.mode

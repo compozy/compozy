@@ -1,6 +1,9 @@
 package config
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // AgentsConfig holds authored agent context settings.
 type AgentsConfig struct {
@@ -155,6 +158,8 @@ const acpModeAuto = "auto"
 
 // IsUnrestrictedACPMode reports provider mode IDs that bypass the provider's normal sandbox or approvals.
 func IsUnrestrictedACPMode(provider, mode string) bool {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	mode = strings.ToLower(strings.TrimSpace(mode))
 	if provider == "claude" && mode == acpModeAuto {
 		return false
 	}
@@ -162,7 +167,7 @@ func IsUnrestrictedACPMode(provider, mode string) bool {
 	case "agent-full-access",
 		"full-access",
 		"full_access",
-		"bypassPermissions",
+		"bypasspermissions",
 		"bypass_permissions",
 		"yolo",
 		acpModeAuto:
