@@ -27,7 +27,8 @@ var (
 	ErrAgentDisplayNameInvalid = errors.New("display names can have up to 80 characters")
 	ErrAgentDescriptionInvalid = errors.New("descriptions can have up to 280 characters")
 	ErrAgentAppearanceInvalid  = errors.New(
-		"appearance needs version 1, a `#rrggbb` color, and a generated face, one icon, or one emoji",
+		"appearance needs version 1, a `#rrggbb` color, and a generated face, one icon, or one emoji; " +
+			"background, if set, must be `plate`",
 	)
 	agentColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 )
@@ -154,8 +155,7 @@ func ValidateAgentAppearance(a map[string]any) error {
 	return nil
 }
 
-// validAppearanceBackground accepts the optional icon/emoji plate choice: unset or "plate"
-// keeps the tinted plate, "none" draws the symbol alone in its color.
+// Only plate backgrounds are rendered by the avatar UI.
 func validAppearanceBackground(a map[string]any) bool {
 	value, ok := a["background"]
 	if !ok {
@@ -164,8 +164,6 @@ func validAppearanceBackground(a map[string]any) bool {
 	switch value {
 	case "plate":
 		return true
-	case "none":
-		return a["avatar"] == "icon" || a["avatar"] == "emoji"
 	default:
 		return false
 	}
