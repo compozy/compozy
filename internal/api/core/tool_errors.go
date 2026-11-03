@@ -66,7 +66,8 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 	switch code {
 	case toolspkg.ErrorCodeInvalidInput, toolspkg.ErrorCodeInvalidRequest:
 		return http.StatusBadRequest
-	case toolspkg.ErrorCodeNotFound, toolspkg.ErrorCodeWorktreeNotFound:
+	case toolspkg.ErrorCodeNotFound, toolspkg.ErrorCodeWorktreeNotFound,
+		toolspkg.ErrorCodeAgentInstanceNotFound:
 		return http.StatusNotFound
 	case toolspkg.ErrorCodeDenied:
 		return http.StatusForbidden
@@ -89,7 +90,8 @@ func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) i
 		toolspkg.ErrorCodeSessionInLater,
 		toolspkg.ErrorCodeSubagentLaterFollowsParent,
 		toolspkg.ErrorCodeSessionLaterStopFailed,
-		toolspkg.ErrorCodeSessionMessageHopLimit:
+		toolspkg.ErrorCodeSessionMessageHopLimit,
+		toolspkg.ErrorCodeAgentInstanceStarting:
 		return http.StatusConflict
 	case toolspkg.ErrorCodeSessionMessageRateLimited:
 		return http.StatusTooManyRequests
@@ -323,6 +325,10 @@ func safeSessionToolErrorMessage(code toolspkg.ErrorCode) string {
 		return "subagent sessions move to Later with their parent"
 	case toolspkg.ErrorCodeSessionLaterStopFailed:
 		return "session could not be stopped before moving to Later"
+	case toolspkg.ErrorCodeAgentInstanceNotFound:
+		return "No instance exists for this agent in this scope."
+	case toolspkg.ErrorCodeAgentInstanceStarting:
+		return "The instance has no main session yet."
 	}
 	return ""
 }

@@ -582,6 +582,33 @@ func TestToolErrorResponses(t *testing.T) {
 		}
 	})
 
+	t.Run(
+		"Should map a missing or starting message target instance to 404 and 409 with its message",
+		func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range []struct {
+				code    toolspkg.ErrorCode
+				status  int
+				message string
+			}{
+				{toolspkg.ErrorCodeAgentInstanceNotFound, http.StatusNotFound, "No instance exists for this agent in this scope."},
+				{toolspkg.ErrorCodeAgentInstanceStarting, http.StatusConflict, "The instance has no main session yet."},
+			} {
+				err := toolspkg.NewToolError(
+					tc.code,
+					toolspkg.ToolIDSessionPrompt,
+					tc.message,
+					errors.New(string(tc.code)),
+				)
+				status := core.StatusForToolError(err)
+				payload := core.ToolErrorResponseForError(err, status, true)
+				if status != tc.status || payload.Error.Code != tc.code || payload.Error.Message != tc.message {
+					t.Fatalf("%s: status=%d payload=%#v", tc.code, status, payload)
+				}
+			}
+		},
+	)
+
 	t.Run("Should preserve typed terminal details without parsing the message", func(t *testing.T) {
 		t.Parallel()
 
