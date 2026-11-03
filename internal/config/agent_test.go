@@ -1934,6 +1934,26 @@ func TestAgentIdentityContract(t *testing.T) {
 			t.Fatalf("unstable appearance: %v", err)
 		}
 	})
+	t.Run("Should draw the bootstrap General agent as a bare icon until it saves a face", func(t *testing.T) {
+		t.Parallel()
+		general, err := AgentDef{Name: DefaultAgentName}.ResolveAppearance()
+		if err != nil || general["avatar"] != "icon" || general["icon"] != "sparkles" ||
+			general["background"] != "none" {
+			t.Fatalf("general appearance = %#v, %v", general, err)
+		}
+		if err := ValidateAgentAppearance(general); err != nil {
+			t.Fatalf("general default must validate: %v", err)
+		}
+		saved := map[string]any{"version": 1, "avatar": "emoji", "emoji": "🦊", "color": "#123456"}
+		own, err := AgentDef{Name: DefaultAgentName, Appearance: saved}.ResolveAppearance()
+		if err != nil || !EqualAgentAppearance(own, saved) {
+			t.Fatalf("saved general appearance = %#v, %v", own, err)
+		}
+		other, err := AgentDef{Name: "code-reviewer"}.ResolveAppearance()
+		if err != nil || other["avatar"] != "generated" {
+			t.Fatalf("other default = %#v, %v", other, err)
+		}
+	})
 	t.Run("Should reject invalid authored identity and appearance", func(t *testing.T) {
 		t.Parallel()
 		for _, a := range []AgentDef{{DisplayName: strings.Repeat("é", 81)}, {Description: strings.Repeat("é", 281)}, {Kind: "daemon"}} {

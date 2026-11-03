@@ -459,7 +459,20 @@ Watch issues and propose the next step.
 Declaring `stays_on` in an extension does not start a session or create an instance.
 Display names allow 80 characters after trimming; descriptions allow 280. Blank display names use
 the humanized slug. Appearance supports `generated` (seed and generation), `icon` (a Lucide slug),
-or `emoji` (one emoji), with a `#rrggbb` color. Omitted appearance resolves from the slug at read time.
+or `emoji` (one emoji), with a `#rrggbb` color. An icon or emoji sits on a tinted plate unless
+`background: none` draws it alone in its color. Omitted appearance resolves from the slug at read time,
+except the built-in `general` agent, which draws a gray `sparkles` icon without a plate. The agents that
+ship with Compozy's built-in extensions use gray icons without a plate too:
+
+```yaml
+appearance:
+  version: 1
+  avatar: icon
+  icon: code-xml
+  color: "#8a8f98"
+  background: none
+```
+
 Unknown appearance versions and subkeys remain in the file; unsupported appearance resolves to the default with a diagnostic.
 
 ```sh
@@ -469,7 +482,7 @@ compozy agent duplicate triage triage-lite --kind on_demand
 
 Creation and update accept `--display-name`, `--description`, and `--appearance-avatar`,
 `--appearance-seed`, `--appearance-generation`, `--appearance-color`, `--appearance-icon`,
-`--appearance-emoji`. Update requires the current `--expected-digest`.
+`--appearance-emoji`, `--appearance-background`. Update requires the current `--expected-digest`.
 
 Agent reads expose `label`, `kind`, authored `appearance`, and `resolved_appearance`.
 PUT preserves omitted identity fields and ignores read-only label and resolved appearance.

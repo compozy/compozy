@@ -1,7 +1,7 @@
 /**
  * Issue #1191: the quiet session list. Line 2 writes the model, or only the needs-you words in its
- * place; the agent's name rides on its face's resting-hover tooltip. Each list renders twice,
- * built-ins on a gray plate (left) and bare (right).
+ * place; the agent's name rides on its face's resting-hover tooltip. Built-in agents wear gray
+ * icons without a plate.
  */
 import { useId, useState, type ReactNode } from "react";
 
@@ -41,6 +41,7 @@ import { roster } from "@/systems/session/components/subagents/stories/subagent-
 import { SessionListRowView } from "@/systems/session/components/session-list/session-list-row-view";
 import { SessionRowActions } from "@/systems/session/components/session-row-actions";
 import { childSessionSignalState } from "@/systems/session/lib/session-hierarchy";
+import { SESSION_SIDEBAR_DEFAULT_WIDTH } from "@/systems/session/lib/session-sidebar-width";
 import { sessionSubagentCounts } from "@/systems/session/lib/session-subagent-summary";
 import type { SessionThreadSegment } from "@/systems/session/lib/session-thread-branch";
 import { boardRuntimeFixture } from "@/systems/session/mocks/sessions-board-view-fixtures";
@@ -62,7 +63,6 @@ import {
   THREAD_CHILDREN,
   agentCatalog,
   builtinAppearance,
-  type IconBackground,
 } from "./fixtures";
 
 export const meta = definePrototype({
@@ -76,9 +76,6 @@ export const meta = definePrototype({
 });
 
 const actions = sessionLifecycleActionsFixture();
-
-/** Wider than today's 264 px default, as the operator asked to review it. */
-const SIDEBAR_WIDTH = 360;
 
 /** The orchestrator's direct subagents: one waiting on you, one failed, one working, one done. */
 const SUBAGENTS = [roster[2]!, roster[0]!, roster[3]!, roster[5]!];
@@ -160,24 +157,15 @@ function Folder() {
   );
 }
 
-function SessionColumn({
-  background,
-  title,
-  threadSegment,
-}: {
-  background: IconBackground;
-  title: string;
-  threadSegment: SessionThreadSegment;
-}) {
-  const catalog = agentCatalog(background);
+function SessionColumn({ threadSegment }: { threadSegment: SessionThreadSegment }) {
+  const catalog = agentCatalog();
   return (
     <AgentIdentityCatalogContext value={() => catalog}>
       <section className="flex flex-col gap-2">
-        <Eyebrow className="px-1">{title}</Eyebrow>
         <aside
-          aria-label={`Sessions, ${title}`}
+          aria-label="Sessions"
           className="flex flex-col gap-1 rounded-lg bg-sunken px-2.5 py-2"
-          style={{ width: SIDEBAR_WIDTH }}
+          style={{ width: SESSION_SIDEBAR_DEFAULT_WIDTH }}
         >
           <SessionListGroupToggle
             collapsed={false}
@@ -204,20 +192,7 @@ function SessionColumn({
 }
 
 function SessionLists({ threadSegment }: { threadSegment: SessionThreadSegment }) {
-  return (
-    <div className="flex flex-wrap items-start gap-8">
-      <SessionColumn
-        background="plate"
-        threadSegment={threadSegment}
-        title="Built-ins on a gray plate"
-      />
-      <SessionColumn
-        background="none"
-        threadSegment={threadSegment}
-        title="Built-ins without background"
-      />
-    </div>
-  );
+  return <SessionColumn threadSegment={threadSegment} />;
 }
 
 function EditorPreview({ appearance }: { appearance: AgentAvatarAppearance }) {

@@ -14,8 +14,8 @@ import (
 )
 
 type agentDefinitionFlags struct {
-	displayName, description, kind, avatar, seed, color, icon, emoji string
-	generation                                                       int
+	displayName, description, kind, avatar, seed, color, icon, emoji, background string
+	generation                                                                   int
 
 	provider        string
 	command         string

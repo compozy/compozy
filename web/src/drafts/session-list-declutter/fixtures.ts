@@ -57,12 +57,12 @@ const USER_AGENTS: AgentIdentitySource[] = [
   },
 ];
 
-/** The catalog the rows resolve faces from, with built-ins on a gray plate or bare. */
-export function agentCatalog(background: IconBackground): readonly AgentIdentitySource[] {
+/** The catalog the rows resolve faces from: built-ins bare, people's agents on their faces. */
+export function agentCatalog(): readonly AgentIdentitySource[] {
   const builtins = (Object.keys(BUILTIN_ICONS) as BuiltinAgent[]).map(name => ({
     name,
     label: BUILTIN_ICONS[name].label,
-    resolved_appearance: { version: 1, ...builtinAppearance(name, background) },
+    resolved_appearance: { version: 1, ...builtinAppearance(name, "none") },
   }));
   return [...builtins, ...USER_AGENTS];
 }

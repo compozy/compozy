@@ -1100,6 +1100,29 @@ func TestAgentIdentityFlags(t *testing.T) {
 			t.Fatalf("duplicate=%+v %v", overrides, err)
 		}
 	})
+	t.Run("Should send an icon without its plate and drop the plate choice on a generated face", func(t *testing.T) {
+		t.Parallel()
+		cmd := newAgentCreateCommand(commandDeps{})
+		if err := cmd.ParseFlags(
+			[]string{"--appearance-icon", "code-xml", "--appearance-background", "none"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		p := contract.CreateAgentPayload{Name: "builder"}
+		applyAgentIdentityFlags(cmd, &p, agentDefinitionFlags{icon: "code-xml", background: "none", color: "#7c5cff"})
+		if p.Appearance["avatar"] != "icon" || p.Appearance["background"] != "none" ||
+			compozyconfig.ValidateAgentAppearance(p.Appearance) != nil {
+			t.Fatalf("appearance=%v", p.Appearance)
+		}
+		generated := newAgentCreateCommand(commandDeps{})
+		if err := generated.ParseFlags([]string{"--appearance-avatar", "generated"}); err != nil {
+			t.Fatal(err)
+		}
+		applyAgentIdentityFlags(generated, &p, agentDefinitionFlags{avatar: "generated"})
+		if _, kept := p.Appearance["background"]; kept || compozyconfig.ValidateAgentAppearance(p.Appearance) != nil {
+			t.Fatalf("generated appearance=%v", p.Appearance)
+		}
+	})
 	t.Parallel()
 	t.Run("Should send explicit identity and emoji appearance flags", func(t *testing.T) {
 		t.Parallel()

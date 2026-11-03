@@ -268,6 +268,27 @@ describe("SessionList agent identity", () => {
     );
   });
 
+  // Invariant: line 2 writes the model, and only a session that needs you replaces it with why.
+  it("Should write the model on line 2 and the needs-you words in its place", () => {
+    const runtime = {
+      ...session.runtime,
+      effective: { provider: "claude", model: "claude-opus-4-1", reasoning_effort: "high" },
+    };
+    renderList({
+      sessions: [
+        { ...session, id: "model-row", badge: "running", runtime },
+        { ...session, id: "asking-row", badge: "waiting-for-input", runtime },
+      ],
+    });
+
+    const working = screen.getByTestId("session-sidebar-session-model-row").parentElement!;
+    expect(within(working).getByText("claude-opus-4-1 high")).toBeInTheDocument();
+    expect(within(working).queryByText("Working")).not.toBeInTheDocument();
+    const asking = screen.getByTestId("session-sidebar-session-asking-row").parentElement!;
+    expect(within(asking).getByText("Needs your answer")).toBeInTheDocument();
+    expect(within(asking).queryByText("claude-opus-4-1 high")).not.toBeInTheDocument();
+  });
+
   it("Should render a deleted agent's humanized slug", () => {
     renderList({ sessions: [session] });
 

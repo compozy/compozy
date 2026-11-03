@@ -101,7 +101,26 @@ func (a AgentDef) AppearanceOrDefault() map[string]any {
 	return CloneAgentAppearance(a.Appearance)
 }
 
+// The bootstrap General agent's face: a bare icon in the neutral gray built-in agents wear.
+const (
+	// "icon" names both the avatar kind and the field that holds the icon.
+	appearanceIcon        = "icon"
+	builtinAgentIconColor = "#8a8f98"
+	generalAgentIcon      = "sparkles"
+)
+
 func (a AgentDef) defaultAppearance() map[string]any {
+	// The bootstrap General agent is written once and never rewritten, so its icon is resolved
+	// here rather than stored: an existing install draws it without touching the user's file.
+	if a.Name == DefaultAgentName {
+		return map[string]any{
+			"version":      1,
+			"avatar":       appearanceIcon,
+			appearanceIcon: generalAgentIcon,
+			"color":        builtinAgentIconColor,
+			"background":   "none",
+		}
+	}
 	return map[string]any{"version": 1, "avatar": "generated", "seed": a.Name, "generation": 1, "color": "#7c5cff"}
 }
 

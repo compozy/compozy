@@ -16,6 +16,9 @@ func addAgentIdentityFlags(cmd *cobra.Command, f *agentDefinitionFlags) {
 	cmd.Flags().StringVar(&f.color, "appearance-color", "#7c5cff", "Avatar color (#rrggbb)")
 	cmd.Flags().StringVar(&f.icon, "appearance-icon", "", "Lucide icon name")
 	cmd.Flags().StringVar(&f.emoji, "appearance-emoji", "", "One emoji")
+	cmd.Flags().StringVar(
+		&f.background, "appearance-background", "", "Icon or emoji background: plate (default) or none",
+	)
 }
 
 func agentIdentityFlagsChanged(cmd *cobra.Command) bool {
@@ -29,6 +32,7 @@ func agentIdentityFlagsChanged(cmd *cobra.Command) bool {
 		"appearance-color",
 		"appearance-icon",
 		"appearance-emoji",
+		"appearance-background",
 	} {
 		if cmd.Flags().Changed(name) {
 			return true
@@ -55,6 +59,7 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 		cliColorKey,
 		agentAppearanceIconKey,
 		agentAppearanceEmojiKey,
+		agentAppearanceBackgroundKey,
 	} {
 		changed = changed || cmd.Flags().Changed("appearance-"+name)
 	}
@@ -74,6 +79,7 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 	for key, value := range map[string]any{
 		agentAppearanceAvatarKey: f.avatar, cliSeedKey: f.seed, loopGenerationKey: f.generation,
 		cliColorKey: f.color, agentAppearanceIconKey: f.icon, agentAppearanceEmojiKey: f.emoji,
+		agentAppearanceBackgroundKey: f.background,
 	} {
 		if cmd.Flags().Changed("appearance-" + key) {
 			a[key] = value
@@ -93,8 +99,10 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 	}
 	switch a[agentAppearanceAvatarKey] {
 	case "generated":
+		// A generated face has no plate to drop.
 		delete(a, agentAppearanceIconKey)
 		delete(a, agentAppearanceEmojiKey)
+		delete(a, agentAppearanceBackgroundKey)
 		if a[cliSeedKey] == nil || a[cliSeedKey] == "" {
 			a[cliSeedKey] = p.Name
 		}
@@ -114,6 +122,8 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 }
 
 const agentAppearanceAvatarKey = "avatar"
+
+const agentAppearanceBackgroundKey = "background"
 
 const agentAppearanceEmojiKey = "emoji"
 

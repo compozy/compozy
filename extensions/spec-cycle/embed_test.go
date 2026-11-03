@@ -33,6 +33,11 @@ func TestEmbeddedResources(t *testing.T) {
 			if kind == "stays_on" && agent.Permissions != string(compozyconfig.PermissionModeAuto) {
 				t.Fatalf("%s permissions = %q, want auto", name, agent.Permissions)
 			}
+			// A built-in reads as part of the app: an icon without its plate, never a generated face.
+			appearance, err := agent.ResolveAppearance()
+			if err != nil || appearance["avatar"] != "icon" || appearance["background"] != "none" {
+				t.Fatalf("%s appearance = %#v, %v", name, appearance, err)
+			}
 		}
 	})
 	t.Run("Should publish exactly four agents two skills and no executable surfaces", func(t *testing.T) {
