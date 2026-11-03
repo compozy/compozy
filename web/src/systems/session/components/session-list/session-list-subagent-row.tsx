@@ -2,14 +2,18 @@ import type { MouseEvent } from "react";
 
 import { StateGlyph, cn } from "@compozy/ui";
 
+import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
+
 import { useSubagentDrawerSelected } from "../../hooks/use-subagent-drawer-selected";
 import { SESSION_TONE_WORD_CLASS } from "../../lib/session-badge-classes";
 import { SubagentElapsed } from "../subagents/subagent-elapsed";
 import { subagentDisplay, type SubagentDisplay } from "../subagents/subagent-format";
-import { SubagentRuntimeMeta } from "../subagents/subagent-runtime-meta";
+import { subagentRuntimeWords } from "../subagents/subagent-row-format";
 import type { SubagentView } from "../subagents/types";
 import { BRANCH_NODE } from "./session-list-branch-rail";
-import { SUBAGENT_ROW_FRAME } from "./session-list-row-frame";
+import { SessionListAgentMark } from "./session-list-agent-mark";
+import { SessionListProviderMark } from "./session-list-provider-mark";
+import { SESSION_ROW_MARK_TOOLTIP_DELAY, SUBAGENT_ROW_FRAME } from "./session-list-row-frame";
 
 /** One direct subagent on its parent's rail; `SessionListSubagentBranch` pages and opens them. */
 export function SessionListSubagentRow({
@@ -32,9 +36,7 @@ export function SessionListSubagentRow({
       </span>
       <span className="flex min-w-0 flex-col">
         <span className="truncate">{subagent.title}</span>
-        <SubagentRuntimeMeta quiet subagent={subagent}>
-          {needsYou(display) ? <NeedsYouWord display={display} /> : undefined}
-        </SubagentRuntimeMeta>
+        <SubagentRowWho display={display} subagent={subagent} />
       </span>
       <SubagentElapsed className="self-start leading-5" clock={display.clock} />
     </>
@@ -69,8 +71,45 @@ export function SessionListSubagentRow({
   );
 }
 
-function needsYou(display: SubagentDisplay): boolean {
-  return display.tone === "attention" || display.tone === "destructive";
+/**
+ * Line 2 in the session rows' grammar: the agent's face and the provider mark, which name
+ * themselves on a resting hover, then the model, or the needs-you words in its place.
+ */
+function SubagentRowWho({
+  subagent,
+  display,
+}: {
+  subagent: SubagentView;
+  display: SubagentDisplay;
+}) {
+  const { agent, provider } = subagent.runtime;
+  const identity = useAgentIdentityView(agent ?? "");
+  const { modelLabel, label } = subagentRuntimeWords(subagent, identity.label);
+  const needsYou = display.tone === "attention" || display.tone === "destructive";
+  return (
+    <span className="flex min-w-0 items-center gap-1 text-transcript-meta text-muted-foreground">
+      {agent ? (
+        <SessionListAgentMark
+          appearance={identity.appearance}
+          label={identity.label}
+          sessionId={subagent.id}
+        />
+      ) : null}
+      <SessionListProviderMark
+        delay={SESSION_ROW_MARK_TOOLTIP_DELAY}
+        runtime={provider ? { provider, label } : null}
+        sessionId={subagent.id}
+      />
+      <span className="sr-only">{label}</span>
+      {needsYou ? (
+        <NeedsYouWord display={display} />
+      ) : modelLabel ? (
+        <span aria-hidden="true" className="min-w-0 shrink truncate text-fg-2">
+          {modelLabel}
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 /** The words a row keeps, in the model's place: the subagent waits for you or failed. */
