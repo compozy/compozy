@@ -440,6 +440,11 @@ describe("useAgentRuntimeEditor", () => {
       expect(result.current.editor.error).toBe("Couldn't load this agent's latest version.")
     );
     expect(result.current.editor.isPending).toBe(true);
+    // A pick from the still-open popup waits too; it would only hit the stale digest again.
+    act(() =>
+      result.current.editor.onChange({ provider: "claude", model: "haiku", reasoning_effort: "" })
+    );
+    expect(mocks.updateMutateAsync).toHaveBeenCalledOnce();
 
     server.offline = false;
     server.agent = workspaceAgent({ definition_digest: "fresh-digest" });
