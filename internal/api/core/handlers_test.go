@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"bytes"
+	"cmp"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -49,8 +50,9 @@ import (
 
 type sessionCommandCatalogManagerStub struct {
 	testutil.StubSessionManager
-	catalog commandpkg.Catalog
-	calls   *atomic.Int32
+	catalog   commandpkg.Catalog
+	sessionID string
+	calls     *atomic.Int32
 }
 
 type sessionStopManagerStub struct {
@@ -126,7 +128,7 @@ func (s *sessionCommandCatalogManagerStub) CommandCatalog(
 	if err := ctx.Err(); err != nil {
 		return commandpkg.Catalog{}, err
 	}
-	if id != "sess-command" {
+	if id != cmp.Or(s.sessionID, "sess-command") {
 		return commandpkg.Catalog{}, fmt.Errorf("command catalog session = %q", id)
 	}
 	if s.calls != nil {
@@ -1646,26 +1648,68 @@ func TestWorkspaceSessionRoutesFollowTheSessionProfile(t *testing.T) {
 	const fenced = "workspace-scoped resource not found"
 	newFixture := func(t *testing.T) handlerFixture {
 		t.Helper()
-		manager := &testutil.StubSessionManager{
-			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-				info := testutil.NewSessionInfo(id)
-				if id == "sess-marketing" {
-					info.ProfileID = "profile-marketing"
-				}
-				return info, nil
+		infoFor := func(id string) *session.Info {
+			info := testutil.NewSessionInfo(id)
+			if id == "sess-marketing" {
+				info.ProfileID = "profile-marketing"
+			}
+			return info
+		}
+		manager := &sessionCommandCatalogManagerStub{
+			sessionID: "sess-marketing",
+
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) { return infoFor(id), nil },
+			DerivePreviewFn: func(context.Context, string, string, string) (session.DerivePreview, error) {
+				return session.DerivePreview{}, nil
+			},
+			AttachSessionFn: func(_ context.Context, req store.SessionAttachRequest) (store.SessionAttach, error) {
+				return store.SessionAttach{SessionID: req.SessionID}, nil
+			},
+			SetRuntimeSelectionFn: func(_ context.Context, id string, _ session.RuntimeSelection, _ int64) (*session.Info, error) {
+				return infoFor(id), nil
+			},
+			ClearRuntimeSelectionFn: func(_ context.Context, id string, _ int64) (*session.Info, error) { return infoFor(id), nil },
+			RenameFn:                func(_ context.Context, _, id, _ string) (*session.Info, error) { return infoFor(id), nil },
+			Attention: testutil.StubSessionAttention{
+				WaitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
+					return session.WaitOutcome{}, nil
+				},
 			},
 		}
-		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{
-			GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
-				return workspacepkg.Workspace{ID: "ws-workspace", Name: "Primary workspace"}, nil
+		fixture := newHandlerFixture(
+			t,
+			&manager.StubSessionManager,
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+					return workspacepkg.Workspace{ID: "ws-workspace", Name: "Primary workspace"}, nil
+				},
 			},
-		})
+		)
+		fixture.Engine.GET(
+			"/workspaces/:workspace_id/sessions/:session_id/derive/preview",
+			fixture.Handlers.PreviewSessionDerive,
+		)
+		fixture.Handlers.Sessions = manager
 		fixture.Handlers.Profiles = sessionProfileServiceStub{}
 		return fixture
 	}
 	serve := func(t *testing.T, fixture handlerFixture, method, path string, agent bool) *httptest.ResponseRecorder {
 		t.Helper()
 		body := "{}"
+		if strings.Contains(path, "/runtime") {
+			body = `{"runtime":{"provider":"codex"},"expected_revision":0}`
+			if method == http.MethodDelete {
+				separator := "?"
+				if strings.Contains(path, "?") {
+					separator = "&"
+				}
+				path += separator + "expected_revision=0"
+			}
+		}
+		if method == http.MethodPatch {
+			body = `{"name":"renamed"}`
+		}
 		if strings.Contains(path, "/wait") {
 			body = `{"timeout_ms":1,"until":["idle"]}`
 		}
@@ -1699,12 +1743,10 @@ func TestWorkspaceSessionRoutesFollowTheSessionProfile(t *testing.T) {
 			t.Fatalf("aggregate write = %d %s (%v), want the read-only lens refusal", response.Code, response.Body, err)
 		}
 	}
-	passedFence := func(t *testing.T, label string, response *httptest.ResponseRecorder) {
+	passedFence := func(t *testing.T, label string, response *httptest.ResponseRecorder, want int) {
 		t.Helper()
-		body := response.Body.String()
-		if strings.Contains(body, fenced) || strings.Contains(body, "all_profiles") ||
-			strings.Contains(body, "profile_selection") {
-			t.Fatalf("%s = %d %s, want the profile fence passed", label, response.Code, body)
+		if response.Code != want {
+			t.Fatalf("%s = %d %s, want %d", label, response.Code, response.Body, want)
 		}
 	}
 
@@ -1712,6 +1754,7 @@ func TestWorkspaceSessionRoutesFollowTheSessionProfile(t *testing.T) {
 		method, path string
 		write        bool
 	}{
+		{http.MethodGet, route + "/derive/preview", false},
 		{http.MethodGet, route + "/events", false},
 		{http.MethodGet, route + "/history", false},
 		{http.MethodGet, route + "/recap", false},
@@ -1729,8 +1772,24 @@ func TestWorkspaceSessionRoutesFollowTheSessionProfile(t *testing.T) {
 		t.Run("Should fence "+name+" by the session's profile", func(t *testing.T) {
 			t.Parallel()
 			fixture := newFixture(t)
-			passedFence(t, "owner profile", serve(t, fixture, family.method, family.path+"?profile=marketing", false))
-			passedFence(t, "operator without a selection", serve(t, fixture, family.method, family.path, false))
+			passedFence(
+				t,
+				"owner profile",
+				serve(t, fixture, family.method, family.path+"?profile=marketing", false),
+				http.StatusOK,
+			)
+			passedFence(
+				t,
+				"operator without a selection",
+				serve(t, fixture, family.method, family.path, false),
+				http.StatusOK,
+			)
+			passedFence(
+				t,
+				"explicitly disabled aggregate",
+				serve(t, fixture, family.method, family.path+"?all_profiles=false", false),
+				http.StatusOK,
+			)
 			assertAPIErrorResponse(
 				t, serve(t, fixture, family.method, family.path+"?profile=default", false), http.StatusNotFound, fenced,
 			)
@@ -1742,7 +1801,7 @@ func TestWorkspaceSessionRoutesFollowTheSessionProfile(t *testing.T) {
 				refusedAggregateWrite(t, aggregate)
 				return
 			}
-			passedFence(t, "all profiles read", aggregate)
+			passedFence(t, "all profiles read", aggregate, http.StatusOK)
 		})
 	}
 
@@ -1761,10 +1820,14 @@ func TestWorkspaceSessionRoutesFollowTheSessionProfile(t *testing.T) {
 					http.StatusNotFound,
 					fenced,
 				)
+				want := http.StatusOK
+				if scoped.method == http.MethodPost {
+					want = http.StatusNoContent
+				}
 				passedFence(
 					t,
 					scoped.method+" owner",
-					serve(t, fixture, scoped.method, scoped.path+"?profile=marketing", false),
+					serve(t, fixture, scoped.method, scoped.path+"?profile=marketing", false), want,
 				)
 				refusedAggregateWrite(t, serve(t, fixture, scoped.method, scoped.path+"?all_profiles=true", false))
 			}

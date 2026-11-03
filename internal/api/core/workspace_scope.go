@@ -269,7 +269,11 @@ func (h *BaseHandlers) sessionProfileScope(
 	ownerProfileID string,
 	actInOwner bool,
 ) (profilepkg.ReadScope, error) {
-	if actInOwner && strings.TrimSpace(c.Query("profile")) == "" && c.Query("all_profiles") == "" &&
+	allProfiles, err := parseBoolQuery(c, "all_profiles")
+	if err != nil {
+		return profilepkg.ReadScope{}, fmt.Errorf("%w: %v", profilepkg.ErrInvalidInput, err)
+	}
+	if actInOwner && strings.TrimSpace(c.Query("profile")) == "" && !allProfiles &&
 		!hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
 		if _, err := h.resolveProfileReadCaller(c, ""); err != nil {
 			return profilepkg.ReadScope{}, err

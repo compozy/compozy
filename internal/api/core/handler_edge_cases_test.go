@@ -2162,6 +2162,20 @@ func TestBaseHandlersRefreshSessionPullRequest(t *testing.T) {
 			if response.Code != testCase.status {
 				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 			}
+			if testCase.query == "?all_profiles=true" {
+				var payload struct {
+					Error struct {
+						Code    string `json:"code"`
+						Message string `json:"message"`
+					} `json:"error"`
+				}
+				testutil.DecodeJSONResponse(t, response, &payload)
+				if payload.Error.Code != "profile_selection_conflict" ||
+					payload.Error.Message != "all_profiles is only available for reads" {
+					t.Fatalf("aggregate refresh = %s, want typed read-only lens refusal", response.Body)
+				}
+				return
+			}
 			var body map[string]any
 			testutil.DecodeJSONResponse(t, response, &body)
 			if testCase.code != "" && body["code"] != testCase.code {

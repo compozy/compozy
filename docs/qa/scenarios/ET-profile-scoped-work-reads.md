@@ -34,7 +34,10 @@ events and owner projection with `profile=X` (200), then `profile=Y` (404). Rena
 returns `400 profile_selection_conflict` for rename and pull-request refresh. A request carrying
 Y's agent-session identity without a selector must return 404 for X's events. An operator runtime
 read without a selector still follows the identified session; existing detail/lifecycle defaults
-remain profile scoped. Verify HTTP/UDS parity in the owning transport suite.
+remain profile scoped. Verify HTTP/UDS parity in the owning transport suite. Also read the session Goal and derive
+preview under each profile, reject aggregate continue/fork writes, and retry a recorded continue
+or fork after deleting its source: only its owner may replay the receipt. An explicit
+`all_profiles=false` must behave like omission on owner-context runtime routes.
 
 2026-11-03: this regression passed 12 real API/CLI checks in a fresh two-profile lab using the
 branch binary; HTTP/UDS parity passed in `TestWorkspaceSessionProfileFenceHTTPUDSTransportParity`.
