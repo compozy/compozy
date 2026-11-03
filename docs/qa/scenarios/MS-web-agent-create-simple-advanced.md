@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits: 7e5d6b8
 evidence: .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-03; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-11; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/040-agent-create-authored-files; /Users/pedronauck/dev/qa-labs/compozy-pr-368-global-runtime-binding-20260813-091321-434791-lab/qa-artifacts/qa/notes/global-agent-session-e2e.md; docs/qa/reports/2026-08-13-pr-367-agent-name-validation-rewalk.md; /Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-agent-create-advanced-runtime.png; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 always-on QA walk)
-last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
+last_report: docs/qa/reports/2026-11-03-vocabulary-alignment-qa.md
 overlaps: MS-web-entity-modal-shell
 ---
 

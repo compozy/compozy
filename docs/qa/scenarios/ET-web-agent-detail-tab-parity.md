@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/09-agent-detail-sessions.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md;docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-narrow.png;docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-desktop.png; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 always-on QA walk)
-last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
+last_report: docs/qa/reports/2026-11-03-vocabulary-alignment-qa.md
 overlaps: RT-agent-overview-canonical-metrics; RT-076
 ---
 

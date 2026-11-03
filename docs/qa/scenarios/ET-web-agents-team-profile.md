@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: pending
 fix_commits: f7a8bbf3d, 4a6fef558, 2e2487068, 11e90692f, 2f917de93, 9d9147a9f, 10183640d, 301b10320, f5d9906aa, 1300ed91f, 1a9b61852, 7fc9e2389, 6b13d0dec, e53e4593a, 11042786b, b280406e0, a64b1c981
 evidence: docs/qa/reports/2026-11-01-stays-on-agents.md; .compozy/tasks/always-on-agent/qa/pr-evidence.md
-last_report: docs/qa/reports/2026-11-01-stays-on-agents.md
+last_report: docs/qa/reports/2026-11-03-vocabulary-alignment-qa.md
 overlaps: ET-web-agent-detail-tab-parity; ET-web-agent-fleet-listing-rows
 ---
 

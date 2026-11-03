@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: verified
 fix_commits: 2f5647d5b, 4056dbcc2
 evidence: web/src/systems/agent/components/__tests__/agent-editors.test.tsx (Permissions); web/src/routes/_app/settings/__tests__/-general.test.tsx; Storybook systems/agent/components/AgentEditors Permissions* stories; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 always-on QA walk)
-last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
+last_report: docs/qa/reports/2026-11-03-vocabulary-alignment-qa.md
 overlaps: MS-web-agent-create-simple-advanced, ET-web-agent-detail-tab-parity
 ---
 

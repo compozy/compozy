@@ -12,7 +12,7 @@ fix_status:
 retest_status:
 fix_commits:
 evidence:
-last_report:
+last_report: docs/qa/reports/2026-11-03-vocabulary-alignment-qa.md
 overlaps: MS-web-stays-on-placement
 ---
 

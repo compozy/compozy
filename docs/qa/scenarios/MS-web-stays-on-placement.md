@@ -12,7 +12,7 @@ fix_status: fixed
 retest_status: verified
 fix_commits: f7a8bbf3d, 4a6fef558, 2e2487068, 11e90692f, 2f917de93, 9d9147a9f, 10183640d, 301b10320, f5d9906aa, 1300ed91f, 1a9b61852, 7fc9e2389, 6b13d0dec, e53e4593a, 11042786b, b280406e0, a64b1c981, 4056dbcc2
 evidence: docs/qa/reports/2026-11-01-stays-on-agents.md; .compozy/tasks/always-on-agent/qa/pr-evidence.md; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 always-on QA walk)
-last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
+last_report: docs/qa/reports/2026-11-03-vocabulary-alignment-qa.md
 overlaps: MS-web-agent-create-simple-advanced
 ---
 
