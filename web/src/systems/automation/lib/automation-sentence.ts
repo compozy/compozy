@@ -12,14 +12,16 @@
 
 import { humanCron } from "./cron-engine-presentation";
 import { parseEventSelection } from "./trigger-event-id";
-import { LOOP_TARGET_KIND } from "./automation-drafts";
+import { AGENT_INSTANCE_TARGET_KIND, LOOP_TARGET_KIND } from "./automation-drafts";
 import { isAutomationTrigger } from "./automation-entity";
 import { humanizeFilterKey } from "./trigger-filter";
 import { humanizeFireWindow } from "./automation-formatters";
 import type { AutomationJob, AutomationSchedule, AutomationTrigger } from "../types";
 
 export type AutomationStart = "schedule" | "event" | "webhook";
-export type AutomationDoes = "agent" | "loop" | "task";
+export type AutomationDoes = "agent" | "stays-on" | "loop" | "task";
+/** The list's server-side `target` filter; stays-on triggers have no filter value yet. */
+export type AutomationListTarget = Exclude<AutomationDoes, "stays-on">;
 
 export interface AutomationSentenceSegment {
   text: string;
@@ -230,6 +232,15 @@ function doesSegments(
         ...(owner ? [plain(" for "), strong(owner)] : []),
       ];
     }
+    case "stays-on": {
+      const agent = target.agentName?.trim();
+      if (!agent) return [missing("tell a stays-on agent")];
+      return [
+        plain("tell "),
+        strong(ctx.agentLabel?.(agent) ?? agent),
+        plain(" at its next check"),
+      ];
+    }
     case "agent": {
       const agent = target.agentName?.trim();
       if (!agent) return [missing("ask an agent")];
@@ -347,6 +358,9 @@ function entityTarget(input: AutomationJob | AutomationTrigger): AutomationDraft
       loopName: input.loop_target?.loop_name,
       loopInputs: input.loop_target?.inputs,
     };
+  }
+  if (input.target_kind === AGENT_INSTANCE_TARGET_KIND) {
+    return { kind: "stays-on", agentName: input.agent_name, prompt: input.prompt };
   }
   return { kind: "agent", agentName: input.agent_name, prompt: input.prompt };
 }

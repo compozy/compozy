@@ -192,6 +192,7 @@ export const queueStoryClearedTranscript: TranscriptMessage[] = [
 function inputFromEntry(entry: QueueStoryEntry): SessionInputPayload {
   return {
     delivery: "after_turn",
+    held: false,
     enqueued_at: "2026-09-06T14:05:30Z",
     id: entry.id,
     idempotency_key: `idk_${entry.id}`,

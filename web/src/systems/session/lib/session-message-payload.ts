@@ -85,6 +85,8 @@ export interface SessionSentMessagePart {
   /** The message id this send answers (`in_reply_to`); absent when it answers nothing. */
   inReplyTo?: string;
   state: SessionSentCallState;
+  /** The target is a paused stays-on agent: the message waits and arrives on resume (S12). */
+  held: boolean;
 }
 
 const REPLY_OUTCOMES: ReadonlySet<string> = new Set<SessionReplyOutcome>([
@@ -271,7 +273,7 @@ interface SessionMessagePartPayload {
   message_id?: string;
   /** The requested mode (`queue` · `steer` · `interrupt`). */
   mode?: string;
-  /** The result's delivery: `none` · `direct` · `after_turn` · `interrupt_then_prompt`; absent until the call returns. */
+  /** The result's delivery: `none` · `direct` · `after_turn` · `interrupt_then_prompt` · `queued` · `held`; absent until the call returns. */
   delivery?: string;
   /** How a steer landed: `injected` · `pending_injection` · `interrupt_fallback`. */
   steer_delivery?: string;
@@ -307,6 +309,8 @@ const SENT_CALL_STATE: Record<string, SessionSentCallState> = {
 };
 
 const INTERRUPT_THEN_PROMPT = "interrupt_then_prompt";
+/** `delivery: held` (`_dx.md`): a lineage target that is paused keeps the message until resume. */
+const DELIVERY_HELD = "held";
 
 // The requested mode earns its chip only when the result says the target's
 // turn was steered or interrupted; `direct` (idle target), `after_turn` and
@@ -339,6 +343,7 @@ export function sessionSentMessagePart(name: string, data: unknown): SessionSent
     ...(inReplyTo ? { inReplyTo } : {}),
     // An unknown state from a newer daemon reads as admitted: no spinner it cannot end.
     state: SENT_CALL_STATE[part.state.trim()] ?? "sent",
+    held: part.delivery?.trim() === DELIVERY_HELD,
   };
 }
 

@@ -1,4 +1,4 @@
-import { ArrowUpRight, CornerDownRight, Scissors } from "@compozy/ui/icons";
+import { ArrowUpRight, CornerDownRight, Pause, Scissors } from "@compozy/ui/icons";
 import { useReducedMotionConfig } from "motion/react";
 import type { ReactNode } from "react";
 
@@ -91,6 +91,27 @@ function SessionSentReply({
   );
 }
 
+/** How the send landed: Steered or Interrupted from the daemon's delivery, and Held for a paused agent. */
+function SessionSentChips({ mode, held }: { mode: SessionMessageMode; held: boolean }) {
+  return (
+    <>
+      {mode === "steer" ? (
+        <SessionMessageChip icon={<CornerDownRight aria-hidden="true" />}>
+          Steered
+        </SessionMessageChip>
+      ) : null}
+      {mode === "interrupt" ? (
+        <SessionMessageChip icon={<Scissors aria-hidden="true" />}>Interrupted</SessionMessageChip>
+      ) : null}
+      {held ? (
+        <SessionMessageChip icon={<Pause aria-hidden="true" />}>
+          Held until it resumes
+        </SessionMessageChip>
+      ) : null}
+    </>
+  );
+}
+
 export interface SessionSentCardProps {
   target: SessionMessageParty;
   callState: SessionSentCallState;
@@ -103,6 +124,8 @@ export interface SessionSentCardProps {
   replyTo?: ReactNode;
   timestampMs: number | null;
   onOpenTarget?: SessionMessageOpen;
+  /** The target is paused: the message waits for its resume (S12). */
+  held?: boolean;
 }
 
 /**
@@ -120,6 +143,7 @@ export function SessionSentCard({
   replyTo,
   timestampMs,
   onOpenTarget,
+  held = false,
 }: SessionSentCardProps) {
   const failed = callState === "failed";
   const verb = VERB[callState];
@@ -130,7 +154,8 @@ export function SessionSentCard({
       : reply === "waiting"
         ? "waiting for reply"
         : REPLY_WORD[reply].toLowerCase();
-  const name = sessionPartyPhrase(verb, target);
+  const showHeld = held && !failed;
+  const name = `${sessionPartyPhrase(verb, target)}${showHeld ? ", held until it resumes" : ""}`;
   return (
     <article
       aria-label={replyWord ? `${name}, ${replyWord}` : name}
@@ -138,6 +163,7 @@ export function SessionSentCard({
       data-testid="session-sent-card"
       data-state={callState}
       data-reply={reply}
+      data-held={held || undefined}
       className={cn(
         SESSION_MESSAGE_FRAME_CLASS,
         "grid min-h-11.5 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-x-2.5 py-1.75 pr-3 pl-2.25"
@@ -157,15 +183,7 @@ export function SessionSentCard({
       <span className="flex min-w-0 flex-col gap-px">
         <span className="flex min-w-0 items-center gap-1.5">
           <SessionMessagePartyLabel verb={verb} party={target} onOpen={onOpenTarget} />
-          {mode === "steer" ? (
-            <SessionMessageChip icon={<CornerDownRight aria-hidden="true" />}>
-              Steered
-            </SessionMessageChip>
-          ) : mode === "interrupt" ? (
-            <SessionMessageChip icon={<Scissors aria-hidden="true" />}>
-              Interrupted
-            </SessionMessageChip>
-          ) : null}
+          <SessionSentChips mode={mode} held={showHeld} />
           {replyTo}
         </span>
         {lineTwo ? (

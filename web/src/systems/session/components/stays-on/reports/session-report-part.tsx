@@ -33,6 +33,8 @@ import {
 import { ResumeAction, UnattendedPauseReport } from "./unattended-pause-report";
 import { Notice, SettledAsk, ShoulderTap } from "./report-entry";
 import { RotatedMarker } from "./rotated-marker";
+import { ReportEventSourceLine } from "./report-event-source";
+import { SkillReviewCard } from "./skill-review-card";
 
 const NO_INSTANCE = { id: "", profile_name: "" };
 
@@ -60,7 +62,7 @@ function Proposal({
   unsure: boolean;
 }) {
   const send = use(SessionReportSendContext);
-  const proposals = reportPayload(data).proposals;
+  const { proposals, source } = reportPayload(data);
   const picked = useAuiState(state =>
     pickedProposal(state.thread.messages, proposals, data.created_at)
   );
@@ -76,6 +78,7 @@ function Proposal({
       chosen={picked}
       footnote={unsure ? MAYBE_NOT_PICKED(agent.label) : undefined}
       onChoose={send ? choice => send(choice.title) : undefined}
+      source={source ? <ReportEventSourceLine source={source} /> : undefined}
       when={reportClock(data.created_at)}
     />
   );
@@ -255,8 +258,19 @@ function ReportBody({
   unsure: boolean;
 }) {
   switch (data.kind) {
-    case "proposal":
-      return <Proposal agent={agent} data={data} unsure={unsure} />;
+    case "proposal": {
+      const { skillReviewId } = reportPayload(data);
+      return skillReviewId ? (
+        <SkillReviewCard
+          agent={agent}
+          profile={instance?.profile_name}
+          reviewId={skillReviewId}
+          when={reportClock(data.created_at)}
+        />
+      ) : (
+        <Proposal agent={agent} data={data} unsure={unsure} />
+      );
+    }
     case "failure":
       return <FailureBody agent={agent} data={data} instance={instance} />;
     case "approval_expired":

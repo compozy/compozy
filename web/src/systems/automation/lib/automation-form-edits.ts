@@ -49,7 +49,9 @@ export function canSwitchDoes(
 ): boolean {
   if (context.mode === "edit" || context.lockedLoop !== undefined) return false;
   if (next === context.current) return false;
-  return next !== "task" || draft.start === "schedule";
+  if (next === "task") return draft.start === "schedule";
+  if (next === "stays-on") return draft.start !== "schedule";
+  return true;
 }
 
 /** The workspaces the editor can name, falling back to the active one. */

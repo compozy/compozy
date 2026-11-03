@@ -34,6 +34,7 @@ export const agentKeys = {
   instanceOccurrence: (id: string, occurrence: string) =>
     [...agentKeys.all, "instance-occurrence", id, occurrence] as const,
   instanceReports: (id: string) => [...agentKeys.all, "instance-reports", id] as const,
+  skillReview: (id: string) => [...agentKeys.all, "skill-review", id] as const,
   instanceIndeterminateReports: (id: string) =>
     [...agentKeys.instanceReports(id), "indeterminate"] as const,
   /** Definitions a scope can start: one `group=agent` read per scope and profile. */

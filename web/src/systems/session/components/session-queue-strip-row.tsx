@@ -19,6 +19,7 @@ import { SubagentAvatar } from "./subagents/subagent-avatar";
 import { DELETED_SESSION_LABEL, sessionPartyMark } from "./session-messages/session-message-party";
 import { useSessionLabel } from "./session-messages/use-session-label";
 import { AgentIdentityChip } from "@/systems/agent/components/agent-identity-mark";
+import { SessionQueuedHeld } from "./session-queued-held";
 
 function queuedAttachmentSuffix(summary: QueuedPromptAttachmentSummary): string {
   const parts: string[] = [];
@@ -285,6 +286,7 @@ function SessionQueuedSessionMessageActions({
 function SessionQueuedSessionMessageRow({
   prompt,
   sender,
+  held,
   disabled,
   actionsHidden,
   onSteer,
@@ -292,6 +294,7 @@ function SessionQueuedSessionMessageRow({
 }: {
   prompt: QueuedPrompt;
   sender: SessionMessageOrigin;
+  held: boolean;
   disabled: boolean;
   actionsHidden: boolean;
   onSteer: (prompt: QueuedPrompt) => void;
@@ -310,12 +313,17 @@ function SessionQueuedSessionMessageRow({
   const title = party.title ?? DELETED_SESSION_LABEL;
   const actionable = isQueuedPromptMutable(prompt) && !dispatching && !actionsHidden;
   return (
-    <SessionQueueRowFrame data-status={prompt.status} data-origin="session">
+    <SessionQueueRowFrame
+      data-status={prompt.status}
+      data-origin="session"
+      data-held={held ? "true" : undefined}
+    >
       <SessionQueuePosition>#{prompt.position}</SessionQueuePosition>
       <ListPlus aria-hidden="true" className="size-3 shrink-0 text-faint" />
       <SessionQueuedSender party={party} title={title} />
       {prompt.attachments ? <SessionQueuedAttachmentWell summary={prompt.attachments} /> : null}
       <SessionQueuedPreview text={prompt.text} className="min-w-16 basis-0" />
+      {held ? <SessionQueuedHeld /> : null}
       {dispatching ? (
         <SessionQueuedState spinning testId="composer-queued-state">
           Sending…
@@ -361,11 +369,13 @@ export function SessionQueueEntryRow({
   onEdit,
   onRemove,
 }: SessionQueueEntryRowProps) {
+  const held = prompt.held === true;
   if (prompt.sender) {
     return (
       <SessionQueuedSessionMessageRow
         prompt={prompt}
         sender={prompt.sender}
+        held={held}
         disabled={disabled}
         actionsHidden={actionsHidden}
         onSteer={onSteer}
@@ -377,7 +387,11 @@ export function SessionQueueEntryRow({
   const mutable =
     isQueuedPromptMutable(prompt) && prompt.owner === null && !dispatching && !actionsHidden;
   return (
-    <SessionQueueRowFrame data-status={prompt.status} data-owner-kind={prompt.owner?.kind}>
+    <SessionQueueRowFrame
+      data-status={prompt.status}
+      data-owner-kind={prompt.owner?.kind}
+      data-held={held ? "true" : undefined}
+    >
       <SessionQueuePosition>#{prompt.position}</SessionQueuePosition>
       <ListPlus aria-hidden="true" className="size-3 shrink-0 text-faint" />
       {prompt.owner ? <SessionQueuedOwner owner={prompt.owner} /> : null}
@@ -385,6 +399,7 @@ export function SessionQueueEntryRow({
       <SessionQueuedPreview
         text={prompt.coalescedWakes ? coalescedWakesLabel(prompt.coalescedWakes) : prompt.text}
       />
+      {held ? <SessionQueuedHeld /> : null}
       {dispatching ? (
         <SessionQueuedState spinning testId="composer-queued-state">
           Sending…

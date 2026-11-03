@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { SessionNotFoundError } from "@/systems/session/adapters/session-api-errors";
 import { sessionDetailOptions, sessionOwnerOptions } from "@/systems/session/lib/query-options";
 import { getSessionDisplayTitle } from "@/systems/session/lib/session-display-title";
+import { useAgentInstances } from "@/systems/agent";
 import { useWorkspace } from "@/systems/workspace";
 
 import type { SessionMessageParty } from "./session-message-party";
@@ -49,6 +50,7 @@ export function useSessionLabel({
   const workspace = useWorkspace(resolvedWorkspaceId, {
     enabled: crossWorkspace && !userDestination,
   });
+  const staysOnLabel = useStaysOnLabel(sessionId);
   const labelRead = workspaceId === "" && !owner.data ? owner : detail;
   const { title, pending } = sessionLabelTitle(
     { data: detail.data, error: labelRead.error, isError: labelRead.isError },
@@ -58,8 +60,8 @@ export function useSessionLabel({
   return {
     sessionId,
     workspaceId: userDestination ? "" : resolvedWorkspaceId,
-    title,
-    ...(pending ? { pending } : {}),
+    title: staysOnLabel ?? title,
+    ...(pending && !staysOnLabel ? { pending } : {}),
     agentName: detail.data?.agent_name || agentName,
     provider: sessionRuntimeProvider(detail.data?.runtime),
     workspaceName: sessionLabelWorkspaceName(
@@ -68,6 +70,14 @@ export function useSessionLabel({
       workspace.data?.workspace.name ?? owner.data?.workspace_name
     ),
   };
+}
+
+/** A stays-on agent's current main speaks as the agent, not as its session (S12). */
+function useStaysOnLabel(sessionId: string): string | null {
+  const staysOn = useAgentInstances().find(
+    instance => sessionId !== "" && instance.main_session_id === sessionId
+  );
+  return staysOn ? staysOn.label || staysOn.agent_name : null;
 }
 
 interface SessionRuntimeRoutes {

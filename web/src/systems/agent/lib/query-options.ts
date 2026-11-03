@@ -21,6 +21,10 @@ import {
   fetchAgentHeartbeatStatus,
   type FetchAgentHeartbeatStatusParams,
 } from "../adapters/agent-heartbeat-api";
+import {
+  fetchAgentSkillReview,
+  type AgentSkillReviewRef,
+} from "../adapters/agent-skill-review-api";
 import { fetchAgentMemory, fetchAgentMemoryHistory } from "../adapters/agent-memory-api";
 import { fetchAgentSoul, fetchAgentSoulHistory } from "../adapters/agent-soul-api";
 import { agentKeys } from "./query-keys";
@@ -107,6 +111,16 @@ export function agentInstanceIndeterminateReportsOptions(ref: AgentInstanceRef) 
   return queryOptions({
     queryKey: agentKeys.instanceIndeterminateReports(ref.id),
     queryFn: ({ signal }) => fetchAgentInstanceReports(ref, undefined, signal, "indeterminate"),
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+/** One proposed skill with its exact contents (S9); a decision rereads it. */
+export function agentSkillReviewOptions(ref: AgentSkillReviewRef) {
+  return queryOptions({
+    queryKey: agentKeys.skillReview(ref.id),
+    queryFn: ({ signal }) => fetchAgentSkillReview(ref, signal),
     staleTime: 30_000,
     retry: false,
   });

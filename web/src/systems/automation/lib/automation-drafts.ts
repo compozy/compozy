@@ -166,6 +166,8 @@ export function createAutomationTriggerDraft(
 
 /** The `target_kind` discriminator value marking a loop-target automation. */
 export const LOOP_TARGET_KIND = "loop";
+/** A trigger that stores its event for a stays-on agent's next check (S10); triggers only. */
+export const AGENT_INSTANCE_TARGET_KIND = "agent_instance";
 const AGENT_TARGET_KIND = "agent";
 
 export type AutomationTargetMode = "agent" | "loop";
@@ -298,6 +300,9 @@ export function automationTriggerToDraft(
     },
     endpoint_slug: trigger.endpoint_slug,
     webhook_id: trigger.webhook_id,
+    ...(trigger.target_kind === AGENT_INSTANCE_TARGET_KIND
+      ? { target_instance_scope: trigger.target_instance_scope ?? "" }
+      : {}),
   };
 }
 

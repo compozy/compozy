@@ -53,6 +53,7 @@ describe("queued prompt read model", () => {
   it("Should number rows by the daemon's list order without counting on its own", () => {
     const input = (id: string, status: SessionInputPayload["status"]): SessionInputPayload => ({
       delivery: "after_turn",
+      held: false,
       enqueued_at: "2026-09-06T10:00:00Z",
       id,
       mode: "queue",
@@ -79,6 +80,7 @@ describe("queued prompt read model", () => {
   it("Should map a session message's origin to its sender and leave other rows without one (UT-064)", () => {
     const base: SessionInputPayload = {
       delivery: "after_turn",
+      held: false,
       enqueued_at: "2026-10-09T22:30:12Z",
       id: "inp-41aa",
       mode: "queue",
@@ -145,5 +147,31 @@ describe("queued prompt read model", () => {
     // A response that predates the summary stays without one — nothing is fabricated.
     expect(withCachedInputs({ inputs: [] }, [])).toEqual({ inputs: [] });
     expect(withCachedInputs(undefined, [])).toEqual({ inputs: [] });
+  });
+
+  it("Should mark a row held only when the daemon says so (UT-080)", () => {
+    const base: SessionInputPayload = {
+      delivery: "after_turn",
+      enqueued_at: "2026-11-03T04:00:00Z",
+      id: "inp-held",
+      mode: "queue",
+      owner_kind: "agent",
+      owner_id: "triage",
+      queue_generation: 1,
+      session_id: "sess-main",
+      status: "queued",
+      text: "Deploy 412 failed.",
+      held: false,
+    };
+    const [held, plain] = queuedPromptsFromInputs(
+      [
+        { ...base, held: true },
+        { ...base, id: "inp-plain" },
+      ],
+      "ws",
+      "sess-main"
+    );
+    expect(held?.held).toBe(true);
+    expect(plain?.held).toBeUndefined();
   });
 });

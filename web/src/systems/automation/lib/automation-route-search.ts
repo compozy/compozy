@@ -1,7 +1,7 @@
 import { normalizeListingSearchValue } from "@/lib/listing-search";
 import type { AutomationScope, AutomationSource } from "../types";
 import type { AutomationEditorSection } from "./automation-form-draft";
-import type { AutomationDoes, AutomationStart } from "./automation-sentence";
+import type { AutomationListTarget, AutomationStart } from "./automation-sentence";
 
 /** Start view on the listing; `webhook` is only an editor preselection (`create=1`). */
 export type AutomationsStartParam = "schedule" | "event" | "webhook";
@@ -17,7 +17,7 @@ export interface AutomationsRouteSearch {
    */
   scope?: AutomationScope;
   source?: AutomationSource;
-  target?: AutomationDoes;
+  target?: AutomationListTarget;
   loop?: string;
   view?: "cards";
   /**
@@ -87,7 +87,7 @@ export function parseAutomationEnabled(value: unknown): boolean | undefined {
   return undefined;
 }
 
-export function parseAutomationTarget(value: unknown): AutomationDoes | undefined {
+export function parseAutomationTarget(value: unknown): AutomationListTarget | undefined {
   return value === "agent" || value === "loop" || value === "task" ? value : undefined;
 }
 
