@@ -1417,6 +1417,29 @@ func TestAgentSkillReviews(t *testing.T) {
 		if rejected.Code != 200 {
 			t.Fatalf("reject uninstallable: %d %s", rejected.Code, rejected.Body.String())
 		}
+
+		// Stored draft bytes that no longer verify still read as a review, marked invalid, and reject.
+		if err := os.WriteFile(reviews[1].DraftPath, []byte(`{}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		listed := request("GET", "/reviews?state=pending", "", true)
+		var pending contract.AgentSkillReviewsResponse
+		decodeJSON(t, listed.Body.Bytes(), &pending)
+		if listed.Code != 200 || len(pending.Reviews) != 1 || pending.Reviews[0].Problem != "skill_review_invalid" {
+			t.Fatalf("list with a damaged draft: %d %+v", listed.Code, pending)
+		}
+		read := request("GET", "/reviews/"+reviews[1].ID, "", true)
+		var damaged contract.AgentSkillReviewResponse
+		decodeJSON(t, read.Body.Bytes(), &damaged)
+		if read.Code != 200 || damaged.Review.Problem != "skill_review_invalid" || len(damaged.Review.Files) != 0 {
+			t.Fatalf("read damaged draft: %d %+v", read.Code, damaged)
+		}
+		dropped := request("POST", "/reviews/"+reviews[1].ID+"/reject", `{"digest":"`+reviews[1].Digest+`"}`, false)
+		var droppedReview contract.AgentSkillReviewResponse
+		decodeJSON(t, dropped.Body.Bytes(), &droppedReview)
+		if dropped.Code != 200 || droppedReview.Review.State != "rejected" {
+			t.Fatalf("reject damaged draft: %d %s", dropped.Code, dropped.Body.String())
+		}
 	})
 }
 

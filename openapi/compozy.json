@@ -2122,6 +2122,9 @@
           "name": {
             "type": "string"
           },
+          "problem": {
+            "type": "string"
+          },
           "profile_id": {
             "type": "string"
           },

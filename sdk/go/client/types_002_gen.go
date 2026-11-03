@@ -269,6 +269,7 @@ type AgentSkillReviewPayload struct {
 	CreatedAt         time.Time                   `json:"created_at"`
 	DecidedAt         *time.Time                  `json:"decided_at,omitempty"`
 	DecidedBy         string                      `json:"decided_by,omitempty"`
+	Problem           string                      `json:"problem,omitempty"`
 }
 
 // AgentSkillReviewResponse is a daemon API value.

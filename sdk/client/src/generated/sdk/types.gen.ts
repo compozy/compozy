@@ -615,6 +615,7 @@ export type AgentSkillReviewPayload = {
   id: string;
   instance_id: string;
   name: string;
+  problem?: string;
   profile_id: string;
   runs_automatically: AgentSkillAutomaticContents;
   state: string;

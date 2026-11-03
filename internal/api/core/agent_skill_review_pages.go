@@ -89,15 +89,36 @@ func (api *AgentInstanceAPI) SkillReviewsPage(ctx context.Context, query agentin
 }
 
 func skillReviewPayload(review agentinstance.SkillReview, detail bool) (contract.AgentSkillReviewPayload, error) {
+	result := skillReviewMetadata(review)
 	draft, err := agentinstance.ReadSkillDraft(review.DraftPath, review.Digest)
-	if err != nil {
+	if err != nil && !errors.Is(err, agentinstance.ErrSkillReviewInvalid) {
 		return contract.AgentSkillReviewPayload{}, err
 	}
-	automatic, err := draft.AutomaticContents()
-	if err != nil {
-		return contract.AgentSkillReviewPayload{}, err
+	var automatic agentinstance.SkillAutomaticContents
+	if err == nil {
+		automatic, err = draft.AutomaticContents()
 	}
-	result := contract.AgentSkillReviewPayload{
+	if err != nil {
+		// A draft that no longer verifies still reads as a review, so it can be seen and rejected.
+		result.Problem = agentinstance.ErrSkillReviewInvalid.Error()
+		return result, nil
+	}
+	result.RunsAutomatically = contract.AgentSkillAutomaticContents{
+		Hooks:      automatic.Hooks,
+		MCPServers: automatic.MCPServers,
+		Scripts:    automatic.Scripts,
+	}
+	if detail {
+		result.Files = make([]contract.AgentSkillDraftFile, 0, len(draft.Files))
+		for _, file := range draft.Files {
+			result.Files = append(result.Files, contract.AgentSkillDraftFile{Path: file.Path, Content: file.Content})
+		}
+	}
+	return result, nil
+}
+
+func skillReviewMetadata(review agentinstance.SkillReview) contract.AgentSkillReviewPayload {
+	return contract.AgentSkillReviewPayload{
 		ID:          review.ID,
 		InstanceID:  review.InstanceID,
 		ProfileID:   review.ProfileID,
@@ -109,19 +130,7 @@ func skillReviewPayload(review agentinstance.SkillReview, detail bool) (contract
 		CreatedAt:   review.CreatedAt,
 		DecidedAt:   review.DecidedAt,
 		DecidedBy:   review.DecidedBy,
-		RunsAutomatically: contract.AgentSkillAutomaticContents{
-			Hooks:      automatic.Hooks,
-			MCPServers: automatic.MCPServers,
-			Scripts:    automatic.Scripts,
-		},
 	}
-	if detail {
-		result.Files = make([]contract.AgentSkillDraftFile, 0, len(draft.Files))
-		for _, file := range draft.Files {
-			result.Files = append(result.Files, contract.AgentSkillDraftFile{Path: file.Path, Content: file.Content})
-		}
-	}
-	return result, nil
 }
 
 func (identity skillReviewCursor) apply(cursor string, query *agentinstance.SkillReviewQuery) error {

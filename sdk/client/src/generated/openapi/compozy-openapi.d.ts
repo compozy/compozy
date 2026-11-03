@@ -8235,6 +8235,7 @@ export interface components {
       id: string;
       instance_id: string;
       name: string;
+      problem?: string;
       profile_id: string;
       runs_automatically: components["schemas"]["AgentSkillAutomaticContents"];
       state: string;
