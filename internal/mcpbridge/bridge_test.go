@@ -33,7 +33,7 @@ func TestBridge(t *testing.T) {
 			t.Fatalf("bridge URL = %q, want loopback http", bridge.URL())
 		}
 		session := connectHTTPClient(t, bridge, bridge.AuthorizationHeader())
-		if got := toolNames(t, session); !slices.Equal(got, []string{"echo", "grow"}) {
+		if got := toolNames(t, session); !slices.Equal(got, []string{"echo", "grow", "slow"}) {
 			t.Fatalf("tools = %#v, want the stdio server tools", got)
 		}
 		result, err := session.CallTool(testutil.Context(t), &sdkmcp.CallToolParams{
@@ -91,6 +91,38 @@ func TestBridge(t *testing.T) {
 		}
 	})
 
+	t.Run("Should relay child progress to the agent under its own token", func(t *testing.T) {
+		t.Parallel()
+		bridge := startHelperBridge(t)
+		progress := make(chan *sdkmcp.ProgressNotificationParams, 4)
+		client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "agent", Version: "1.0.0"}, &sdkmcp.ClientOptions{
+			ProgressNotificationHandler: func(_ context.Context, req *sdkmcp.ProgressNotificationClientRequest) {
+				progress <- req.Params
+			},
+		})
+		session, err := client.Connect(testutil.Context(t), &sdkmcp.StreamableClientTransport{
+			Endpoint:   bridge.URL(),
+			HTTPClient: &http.Client{Transport: headerTransport{authorization: bridge.AuthorizationHeader()}},
+		}, nil)
+		if err != nil {
+			t.Fatalf("connect HTTP client: %v", err)
+		}
+		t.Cleanup(func() { _ = session.Close() })
+		params := &sdkmcp.CallToolParams{Name: "slow", Arguments: map[string]any{}}
+		params.SetProgressToken("agent-token")
+		if _, err := session.CallTool(testutil.Context(t), params); err != nil {
+			t.Fatalf("CallTool(slow) error = %v", err)
+		}
+		select {
+		case got := <-progress:
+			if got.ProgressToken != "agent-token" || got.Message != "working" {
+				t.Fatalf("progress = %#v, want the agent token and child message", got)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("no progress notification reached the agent")
+		}
+	})
+
 	t.Run("Should stop serving and release the child on close", func(t *testing.T) {
 		t.Parallel()
 		bridge := startHelperBridge(t)
@@ -143,6 +175,17 @@ func TestBridgeStdioHelperProcess(t *testing.T) {
 		return &sdkmcp.CallToolResult{
 			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "echo: " + input.Message}},
 		}, nil
+	})
+	server.AddTool(&sdkmcp.Tool{
+		Name:        "slow",
+		InputSchema: json.RawMessage(`{"type":"object"}`),
+	}, func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+		if err := req.Session.NotifyProgress(ctx, &sdkmcp.ProgressNotificationParams{
+			ProgressToken: req.Params.GetProgressToken(), Message: "working", Progress: 1,
+		}); err != nil {
+			return nil, err
+		}
+		return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "done"}}}, nil
 	})
 	server.AddTool(&sdkmcp.Tool{
 		Name:        "grow",

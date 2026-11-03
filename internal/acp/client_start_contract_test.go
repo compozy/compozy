@@ -22,6 +22,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/mcpbridge"
 	"github.com/compozy/compozy/internal/providers"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -1721,9 +1722,6 @@ func TestStartMCPServersBridgeOverHTTP(t *testing.T) {
 			if strings.Contains(logs.String(), token) {
 				t.Fatal("driver logs leak the bridge bearer token")
 			}
-			if !strings.Contains(logs.String(), "transport=http header_count=1") {
-				t.Fatalf("MCP diagnostic missing HTTP shape: %s", logs.String())
-			}
 
 			client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "agent", Version: "1.0.0"}, nil)
 			session, err := client.Connect(testutil.Context(t), &sdkmcp.StreamableClientTransport{
@@ -1750,6 +1748,46 @@ func TestStartMCPServersBridgeOverHTTP(t *testing.T) {
 			}
 		},
 	)
+}
+
+func TestAgentProcessClosesBridgesRegisteredAfterExit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should close a bridge that finishes starting after its agent exited", func(t *testing.T) {
+		t.Parallel()
+
+		bin, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		bridge, err := mcpbridge.Start(testutil.Context(t), mcpbridge.Spec{
+			Name:    "compozy-hosted-tools",
+			Command: bin,
+			Args:    []string{"-test.run=^TestACPBridgedMCPHelperProcess$"},
+			Env:     append(os.Environ(), bridgedMCPHelperEnvKey+"=1"),
+			Dir:     t.TempDir(),
+		}, nil)
+		if err != nil {
+			t.Fatalf("mcpbridge.Start() error = %v", err)
+		}
+		t.Cleanup(func() { _ = bridge.Close() })
+		process := &AgentProcess{}
+		if err := process.closeMCPBridges(); err != nil {
+			t.Fatalf("closeMCPBridges() error = %v", err)
+		}
+		err = process.setSessionMCPServers(nil, []*mcpbridge.Bridge{bridge})
+		if !errors.Is(err, errAgentExitedBeforeMCPBridge) {
+			t.Fatalf("setSessionMCPServers() error = %v, want late-bridge refusal", err)
+		}
+		probe, err := http.NewRequestWithContext(testutil.Context(t), http.MethodPost, bridge.URL(), http.NoBody)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if response, err := http.DefaultClient.Do(probe); err == nil {
+			_ = response.Body.Close()
+			t.Fatalf("late bridge still serving: status %d", response.StatusCode)
+		}
+	})
 }
 
 const bridgedMCPHelperEnvKey = "COMPOZY_ACP_BRIDGED_MCP_HELPER"

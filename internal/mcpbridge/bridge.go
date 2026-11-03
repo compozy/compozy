@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"os/exec"
@@ -63,6 +64,8 @@ type Bridge struct {
 	syncMu sync.Mutex
 	tools  map[string]struct{}
 
+	progress progressRelay
+
 	closeOnce sync.Once
 	closeErr  error
 }
@@ -92,7 +95,9 @@ func Start(ctx context.Context, spec Spec, logger *slog.Logger) (_ *Bridge, err 
 		logger:   logger.With("mcp_server", name),
 		serveErr: make(chan error, 1),
 		tools:    make(map[string]struct{}),
+		progress: progressRelay{calls: make(map[string]progressTarget)},
 	}
+	bridge.progress.logger = bridge.logger
 	defer func() {
 		if err != nil {
 			err = errors.Join(err, bridge.Close())
@@ -108,7 +113,7 @@ func Start(ctx context.Context, spec Spec, logger *slog.Logger) (_ *Bridge, err 
 	if err := bridge.connectChild(ctx, spec); err != nil {
 		return nil, err
 	}
-	if err := bridge.syncTools(ctx); err != nil {
+	if err := bridge.syncTools(ctx, bridge.client); err != nil {
 		return nil, err
 	}
 	if err := bridge.listen(ctx); err != nil {
@@ -141,10 +146,14 @@ func (b *Bridge) connectChild(ctx context.Context, spec Spec) error {
 		&sdkmcp.Implementation{Name: "compozy-mcp-bridge", Version: version.Current().Version},
 		&sdkmcp.ClientOptions{
 			Capabilities: &sdkmcp.ClientCapabilities{},
-			ToolListChangedHandler: func(ctx context.Context, _ *sdkmcp.ToolListChangedRequest) {
-				if err := b.syncTools(context.WithoutCancel(ctx)); err != nil {
+			// The handler can run before Connect returns, so it uses the request's session.
+			ToolListChangedHandler: func(ctx context.Context, req *sdkmcp.ToolListChangedRequest) {
+				if err := b.syncTools(context.WithoutCancel(ctx), req.Session); err != nil {
 					b.logger.Warn("mcpbridge: resync tools after list change", "error", err)
 				}
+			},
+			ProgressNotificationHandler: func(ctx context.Context, req *sdkmcp.ProgressNotificationClientRequest) {
+				b.progress.relay(ctx, req.Params)
 			},
 		},
 	)
@@ -161,11 +170,14 @@ func (b *Bridge) connectChild(ctx context.Context, spec Spec) error {
 }
 
 // syncTools mirrors the child's current tool list onto the HTTP server.
-func (b *Bridge) syncTools(ctx context.Context) error {
+func (b *Bridge) syncTools(ctx context.Context, session *sdkmcp.ClientSession) error {
+	if session == nil {
+		return fmt.Errorf("mcpbridge: list tools from %q: no client session", b.name)
+	}
 	b.syncMu.Lock()
 	defer b.syncMu.Unlock()
 	current := make(map[string]struct{})
-	for tool, err := range b.client.Tools(ctx, nil) {
+	for tool, err := range session.Tools(ctx, nil) {
 		if err != nil {
 			return fmt.Errorf("mcpbridge: list tools from %q: %w", b.name, err)
 		}
@@ -195,11 +207,19 @@ func (b *Bridge) syncTools(ctx context.Context) error {
 func (b *Bridge) forward(name string) sdkmcp.ToolHandler {
 	return func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
 		params := &sdkmcp.CallToolParams{Name: name}
-		if req != nil && req.Params != nil {
-			params.Meta = req.Params.Meta
-			if len(req.Params.Arguments) > 0 {
-				params.Arguments = req.Params.Arguments
-			}
+		if req == nil || req.Params == nil {
+			return b.client.CallTool(ctx, params)
+		}
+		params.Meta = maps.Clone(req.Params.Meta)
+		if len(req.Params.Arguments) > 0 {
+			params.Arguments = req.Params.Arguments
+		}
+		if token := req.Params.GetProgressToken(); token != nil && req.Session != nil {
+			// Child progress keeps long calls alive on the agent side; route it back
+			// to this HTTP request under the token the agent chose.
+			relayToken, release := b.progress.register(ctx, req.Session, token)
+			defer release()
+			params.SetProgressToken(relayToken)
 		}
 		return b.client.CallTool(ctx, params)
 	}
@@ -215,8 +235,8 @@ func (b *Bridge) listen(ctx context.Context) error {
 	handler := sdkmcp.NewStreamableHTTPHandler(
 		func(*http.Request) *sdkmcp.Server { return b.server },
 		&sdkmcp.StreamableHTTPOptions{
+			// SSE responses (not JSON) carry progress notifications for in-flight calls.
 			Stateless:                    true,
-			JSONResponse:                 true,
 			Logger:                       b.logger,
 			PropagateRequestCancellation: true,
 		},
@@ -248,10 +268,16 @@ func (b *Bridge) Close() error {
 		var errs []error
 		if b.http != nil {
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-			if err := b.http.Shutdown(shutdownCtx); err != nil {
+			err := b.http.Shutdown(shutdownCtx)
+			cancel()
+			if errors.Is(err, context.DeadlineExceeded) {
+				// Lingering connections (an agent's open stream, or a dialed but unused
+				// keep-alive connection) must not keep the listener alive past teardown.
+				err = b.http.Close()
+			}
+			if err != nil {
 				errs = append(errs, fmt.Errorf("mcpbridge: shut down %q listener: %w", b.name, err))
 			}
-			cancel()
 			if err := <-b.serveErr; err != nil {
 				errs = append(errs, fmt.Errorf("mcpbridge: serve %q: %w", b.name, err))
 			}

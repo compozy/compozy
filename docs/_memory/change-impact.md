@@ -595,10 +595,11 @@ overrides still win. `permissions.provider_full_access` maps Copilot to the `all
 Copilot's Autopilot mode and `allow_all = on` now count as unrestricted, so they require approve-all at
 start, prompt runtime, and Loop roles. Runtime: a session/new auth-required refusal is a provider-auth
 failure with `provider_not_authenticated` login guidance for every ACP provider (previously a protocol
-failure); the HTTP status moves from 500 to the existing 422 provider-auth mapping. Model catalog:
+failure); prompt and start errors now carry that diagnostic (CLI exit code follows the diagnostic severity); session/load is unchanged. Model catalog:
 `provider_live:copilot` uses ACP discovery. Native tools / HTTP / UDS / DTOs / hooks / extension SDKs:
 unchanged; hosted MCP reaches Copilot through the per-session loopback bridge (`internal/mcpbridge`),
-bearer token never logged, torn down with the agent process. Workspace isolation unchanged: one bridge
+bearer token never logged, progress relayed over SSE responses, torn down with the agent process
+(late bridges after an agent exit are closed instead of registered). Workspace isolation unchanged: one bridge
 per agent process, bound to that session's hosted launch. Web/UI: `@compozy/ui` gains `CopilotLogo`
 in the provider registry; the site landing uses it. Official skill (`references/runtime-operations.md`,
 `references/agent-definitions.md`) and site docs (`agents/providers.mdx`, `configuration/config-toml.mdx`,

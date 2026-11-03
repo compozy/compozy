@@ -52,9 +52,10 @@ type AgentProcess struct {
 
 	// sessionMCP is the session/new and session/load MCP payload; mcpBridges
 	// are the loopback HTTP bridges this process owns until it exits.
-	sessionMCPMu sync.Mutex
-	sessionMCP   []acpsdk.McpServer
-	mcpBridges   []*mcpbridge.Bridge
+	sessionMCPMu     sync.Mutex
+	sessionMCP       []acpsdk.McpServer
+	mcpBridges       []*mcpbridge.Bridge
+	mcpBridgesClosed bool
 
 	terminalProcessMu sync.Mutex
 	terminalProcesses map[string]*toolruntime.Handle

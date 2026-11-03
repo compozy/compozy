@@ -185,8 +185,9 @@ Copilot CLI releases. CompozyOS was verified against Copilot CLI 1.0.105.
 3. Start a session with `--provider copilot`, or pick **GitHub Copilot CLI** in the session
    provider picker.
 
-When Copilot is not signed in, session start fails with `needs_login` and the recovery is
-`compozy provider auth login copilot`. CompozyOS strips token-shaped variables such as
+When Copilot is not signed in, `compozy provider auth status copilot --remote` reports
+`needs_login`, and starting a new session fails with `provider_not_authenticated`. Both name the
+recovery, `compozy provider auth login copilot`. CompozyOS strips token-shaped variables such as
 `GH_TOKEN` and `COPILOT_GITHUB_TOKEN` from the daemon environment before launching providers, so
 sign in with `copilot login` rather than exporting a token to the daemon. To run Copilot under a
 separate config directory, export `COPILOT_HOME` in the daemon's environment or declare
@@ -208,7 +209,8 @@ What Copilot supports through CompozyOS:
 - **CompozyOS native tools.** Copilot ignores stdio MCP servers sent over ACP, so `copilot`
   defaults to `session_mcp_transport = "http"`. CompozyOS tools reach Copilot through a
   loopback HTTP endpoint with a per-session bearer token, and the endpoint closes when the
-  session's Copilot process exits. Tool progress notifications are not relayed.
+  session's Copilot process exits. Progress from long-running tools is relayed so Copilot keeps
+  waiting on them.
 
 Not supported yet:
 

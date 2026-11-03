@@ -21,8 +21,7 @@ import (
 // server through a loopback HTTP bridge owned by the agent process.
 func (d *Driver) prepareSessionMCPServers(ctx context.Context, process *AgentProcess, opts StartOpts) error {
 	if opts.ProviderConfig == nil || !opts.ProviderConfig.SessionMCPOverHTTP() {
-		process.setSessionMCPServers(toSDKMCPServers(opts.MCPServers), nil)
-		return nil
+		return process.setSessionMCPServers(toSDKMCPServers(opts.MCPServers), nil)
 	}
 	servers := make([]acpsdk.McpServer, 0, len(opts.MCPServers))
 	bridges := make([]*mcpbridge.Bridge, 0, len(opts.MCPServers))
@@ -53,7 +52,9 @@ func (d *Driver) prepareSessionMCPServers(ctx context.Context, process *AgentPro
 			Headers: []acpsdk.HttpHeader{{Name: "Authorization", Value: bridge.AuthorizationHeader()}},
 		}})
 	}
-	process.setSessionMCPServers(servers, bridges)
+	if err := process.setSessionMCPServers(servers, bridges); err != nil {
+		return WrapFailure(store.FailureStartup, "session MCP bridge startup failed", err)
+	}
 	return nil
 }
 
@@ -70,11 +71,24 @@ func bridgedServerEnv(agentEnv []string, serverEnv map[string]string) []string {
 	return base
 }
 
-func (p *AgentProcess) setSessionMCPServers(servers []acpsdk.McpServer, bridges []*mcpbridge.Bridge) {
+// errAgentExitedBeforeMCPBridge reports bridges that finished starting after
+// their agent process exited; they are closed instead of being registered.
+var errAgentExitedBeforeMCPBridge = errors.New("acp: agent process exited before its MCP bridges were ready")
+
+// setSessionMCPServers registers the session MCP payload and the bridges the
+// process owns. After the process has exited and closed its bridges, late
+// bridges are closed here instead of leaking their child and listener.
+func (p *AgentProcess) setSessionMCPServers(servers []acpsdk.McpServer, bridges []*mcpbridge.Bridge) error {
 	p.sessionMCPMu.Lock()
+	// Only bridges need refusing; an exited process without bridges keeps its own failure.
+	if p.mcpBridgesClosed && len(bridges) > 0 {
+		p.sessionMCPMu.Unlock()
+		return errors.Join(errAgentExitedBeforeMCPBridge, closeMCPBridges(bridges))
+	}
 	defer p.sessionMCPMu.Unlock()
 	p.sessionMCP = servers
 	p.mcpBridges = append(p.mcpBridges, bridges...)
+	return nil
 }
 
 func (p *AgentProcess) sessionMCPServers() []acpsdk.McpServer {
@@ -91,6 +105,7 @@ func (p *AgentProcess) closeMCPBridges() error {
 	p.sessionMCPMu.Lock()
 	bridges := p.mcpBridges
 	p.mcpBridges = nil
+	p.mcpBridgesClosed = true
 	p.sessionMCPMu.Unlock()
 	return closeMCPBridges(bridges)
 }
