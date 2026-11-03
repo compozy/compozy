@@ -137,6 +137,30 @@ compozy session list --later                     # what is in Later
 Agents use `compozy__session_later` and `compozy__session_resume_later`; HTTP clients use
 `POST /api/workspaces/{workspace_id}/sessions/{session_id}/later` and `.../resume-later`.
 
+## Mark as seen
+
+When you have looked at a session in **Needs you** and nothing more is needed, mark it as seen. In
+the web app, choose **Mark as seen** from the session row or Kanban card menu, or use the button in
+the session header.
+
+```bash
+compozy session mark-seen sess-123
+```
+
+- It clears a turn that ended early ("Stopped before delivering"), a return from Later, and the
+  failure of a stopped session. The session leaves Needs you, and that stays true after a reload
+  or a daemon restart.
+- It acknowledges one occurrence; it does not mute the session. The next early stop, the next
+  return from Later, or the next failure brings Needs you back.
+- A session waiting on a permission answer, a question, a sign-in, or a stop cannot be marked as
+  seen; answer or resolve it instead. Those sessions do not show the control, and the CLI, API,
+  and agents get the `attention_requires_action` error.
+- Marking a session as seen does not wake the session that created it.
+
+Agents use `compozy__session_mark_seen`; HTTP clients use
+`POST /api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen`. Session payloads carry
+`attention_dismissible: true` while the current Needs you can be marked as seen.
+
 Use `--cursor` to continue with the same filters and sort. A cursor from another workspace or query
 is rejected instead of crossing catalog boundaries. See the generated
 [`compozy session list`](/docs/cli/session/list) reference for every flag.
