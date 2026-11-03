@@ -10,6 +10,9 @@ import (
 	"github.com/compozy/compozy/internal/worktree"
 )
 
+// worktreeRemovalKeepBranch is the removal_mode of a removal that keeps its branch.
+const worktreeRemovalKeepBranch = "keep_branch"
+
 func worktreeFromSQLC(row sqlcgen.Worktree) (*worktree.Worktree, error) {
 	createdAt, err := store.ParseTimestamp(row.CreatedAt)
 	if err != nil {
@@ -27,7 +30,8 @@ func worktreeFromSQLC(row sqlcgen.Worktree) (*worktree.Worktree, error) {
 		CreateRollbackError: row.CreateRollbackError,
 		BaseRef:             row.BaseRef, CreatedBranch: row.CreatedBranch != 0,
 		RunNamespace: row.RunNamespace, CreatedHead: row.CreatedHead, RunID: row.RunID,
-		CreatedAt: createdAt, UpdatedAt: updatedAt,
+		RemovalKeepsBranch: row.RemovalMode == worktreeRemovalKeepBranch,
+		CreatedAt:          createdAt, UpdatedAt: updatedAt,
 	}, nil
 }
 

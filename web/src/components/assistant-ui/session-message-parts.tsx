@@ -26,6 +26,7 @@ export function SessionMessageText({
       reveal={reveal}
       slots={slots}
       authored={authored}
+      openPaths={!authored}
     />
   );
 }

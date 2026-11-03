@@ -59,10 +59,13 @@ func profileMoveRefused(reason ProfileMoveRefusal, format string, args ...any) e
 
 // ProfileMoveCheckout is the source session's worktree as a move sees it.
 type ProfileMoveCheckout struct {
-	ID           string
-	Branch       string
-	HeadSHA      string
-	Ready        bool
+	ID      string
+	Branch  string
+	HeadSHA string
+	Ready   bool
+	// Gone reports that no checkout remains: the row is removed or dismissed, or
+	// its creation failed and rolled back.
+	Gone         bool
 	Detached     bool
 	DirtyFiles   int
 	RunNamespace string
@@ -71,13 +74,16 @@ type ProfileMoveCheckout struct {
 // ProfileMoveWorktrees releases a stopped session's worktree and recreates its
 // branch in another profile. The daemon's worktree resolver implements it.
 type ProfileMoveWorktrees interface {
+	// InspectProfileMoveWorktree fails with ErrProfileMoveWorktreeNotFound when no
+	// row was ever recorded for the id.
 	InspectProfileMoveWorktree(ctx context.Context, workspaceID, worktreeID string) (ProfileMoveCheckout, error)
 	// ReleaseProfileMoveWorktree removes the checkout and keeps its branch and commits.
 	ReleaseProfileMoveWorktree(ctx context.Context, workspaceID, worktreeID string) error
-	// CreateProfileMoveWorktree checks the branch out again in a new worktree owned by
-	// profileID, recreating the branch at the recorded head if it no longer exists.
+	// CreateProfileMoveWorktree checks the branch out again in a new worktree with the
+	// given id, owned by profileID, recreating the branch at the recorded head if it
+	// no longer exists.
 	CreateProfileMoveWorktree(
-		ctx context.Context, workspaceID, profileID string, checkout ProfileMoveCheckout,
+		ctx context.Context, workspaceID, profileID, worktreeID string, checkout ProfileMoveCheckout,
 	) (id string, root string, err error)
 }
 
@@ -113,8 +119,9 @@ type profileMovePlan struct {
 // the original. The session's profile never changes: the copy is a fork owned by
 // the target profile, carrying the conversation as a fork does. A source worktree
 // is released and its branch checked out again in a new worktree owned by the
-// target profile. Any failure after the archive rolls back in reverse order, so
-// the original session and its branch are never lost.
+// target profile. Any failure after the archive rolls back in reverse order, and a
+// journal written before the archive lets boot recovery settle a move a daemon
+// stop interrupted, so the original session and its branch are never lost.
 func (m *Manager) MoveToProfile(ctx context.Context, opts MoveToProfileOpts) (MoveToProfileResult, error) {
 	if m == nil {
 		return MoveToProfileResult{}, errors.New("session: manager is required")
@@ -134,6 +141,9 @@ func (m *Manager) MoveToProfile(ctx context.Context, opts MoveToProfileOpts) (Mo
 		return MoveToProfileResult{}, err
 	}
 	defer unlock()
+	if err := m.settleOpenProfileMove(ctx, opts.SessionID); err != nil {
+		return MoveToProfileResult{}, err
+	}
 	plan, err := m.planProfileMove(ctx, opts)
 	if err != nil {
 		return MoveToProfileResult{}, err

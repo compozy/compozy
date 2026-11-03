@@ -1,9 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+
+import type { CompozyShellBridge } from "@/systems/os/lib/desktop-shell-bridge";
+import { workspaceKeys } from "@/systems/workspace/lib/query-keys";
 
 import { CenteredSurface } from "@/storybook/story-layout";
 import { markdownFixture } from "@/systems/session/mocks";
 
+import { sessionKeys } from "../../lib/query-keys";
+import { SessionRuntimeRenderProvider } from "../../lib/session-runtime-render-context";
 import { MessageMarkdown } from "../message-markdown";
 
 const meta: Meta<typeof MessageMarkdown> = {
@@ -204,4 +211,61 @@ export const HostImageReference: Story = {
       <MessageMarkdown content="![Desktop preview](/tmp/render/desktop-idle.png)" />
     </MarkdownFrame>
   ),
+};
+
+const PATHS_WORKSPACE = "ws_story";
+const PATHS_SESSION = "sess-story";
+const openInEditor = fn(async () => ({ status: "opened" as const }));
+
+function pathsQueryClient() {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(sessionKeys.detail(PATHS_WORKSPACE, PATHS_SESSION), {
+    id: PATHS_SESSION,
+    workspace_id: PATHS_WORKSPACE,
+    working_dir: "/Users/dora/compozy",
+  });
+  client.setQueryData(workspaceKeys.detail(PATHS_WORKSPACE), {
+    workspace: { id: PATHS_WORKSPACE, root_dir: "/Users/dora/compozy" },
+  });
+  return client;
+}
+
+const FILE_PATHS_MARKDOWN = `I changed \`internal/mcp/hosted_proxy.go:42\` and \`web/src/app.tsx\`.
+
+The config lives in [your config file](~/.compozy/config.toml); the report is at [report](/tmp/report.md).
+Docs: [compozy.com](https://compozy.com). \`compozy start\` is not a path.`;
+
+/** Desktop app (spec #1167): path inline code and links open in the editor on ⌘-click. */
+export const DesktopFilePaths: Story = {
+  beforeEach: () => {
+    window.compozyShell = {
+      platform: "darwin",
+      files: { openInEditor },
+    } as unknown as CompozyShellBridge;
+    return () => {
+      delete window.compozyShell;
+    };
+  },
+  render: () => (
+    <QueryClientProvider client={pathsQueryClient()}>
+      <SessionRuntimeRenderProvider sessionId={PATHS_SESSION} workspaceId={PATHS_WORKSPACE}>
+        <MarkdownFrame>
+          <MessageMarkdown openPaths content={FILE_PATHS_MARKDOWN} />
+        </MarkdownFrame>
+      </SessionRuntimeRenderProvider>
+    </QueryClientProvider>
+  ),
+  tags: ["play-fn"],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Open hosted_proxy.go in editor" }));
+    await waitFor(() =>
+      expect(openInEditor).toHaveBeenCalledWith({
+        path: "/Users/dora/compozy/internal/mcp/hosted_proxy.go",
+        line: 42,
+        roots: ["/Users/dora/compozy"],
+      })
+    );
+    await expect(canvas.queryByRole("button", { name: /compozy start/ })).toBeNull();
+  },
 };

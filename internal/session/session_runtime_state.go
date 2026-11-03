@@ -159,12 +159,15 @@ func (s *Session) completeRuntimeTransitionLocked(
 	return previous
 }
 
-func (s *Session) beginAutomaticRecovery(
-	attempt int,
-	maxAttempts int,
-	nextAttemptAt time.Time,
-	now time.Time,
-) error {
+type automaticRecoveryAttempt struct {
+	reason        store.SessionRuntimeRecoveryReason
+	attempt       int
+	maxAttempts   int
+	startedAt     time.Time
+	nextAttemptAt time.Time
+}
+
+func (s *Session) beginAutomaticRecovery(progress automaticRecoveryAttempt, now time.Time) error {
 	if s == nil {
 		return errors.New("session: session is required")
 	}
@@ -173,26 +176,64 @@ func (s *Session) beginAutomaticRecovery(
 	if s.State != StateActive {
 		return ErrSessionNotActive
 	}
-	startedAt := now.UTC()
-	if s.RuntimeRecovery != nil && !s.RuntimeRecovery.StartedAt.IsZero() {
-		startedAt = s.RuntimeRecovery.StartedAt.UTC()
+	startedAt := progress.startedAt.UTC()
+	if startedAt.IsZero() {
+		startedAt = now.UTC()
 	}
 	var next *time.Time
-	if !nextAttemptAt.IsZero() {
-		value := nextAttemptAt.UTC()
+	if !progress.nextAttemptAt.IsZero() {
+		value := progress.nextAttemptAt.UTC()
 		next = &value
 	}
 	s.RuntimeStatus = RuntimeStatusRecovering
 	s.RuntimeTransition = RuntimeTransitionAutomaticRecovery
 	s.RuntimeFailure = ""
 	s.RuntimeRecovery = &store.SessionRuntimeRecovery{
-		Attempt: attempt, MaxAttempts: maxAttempts, Generation: s.RuntimeGeneration + 1,
-		StartedAt: startedAt, LastAttemptAt: now.UTC(), NextAttemptAt: next,
+		Reason: progress.reason, Attempt: progress.attempt, MaxAttempts: progress.maxAttempts,
+		Generation: s.RuntimeGeneration + 1, StartedAt: startedAt, LastAttemptAt: now.UTC(), NextAttemptAt: next,
 	}
 	if !now.IsZero() {
 		s.UpdatedAt = now.UTC()
 	}
 	return nil
+}
+
+// abandonAutomaticRecovery returns a still-active session whose recovery stopped short to the
+// runtime it kept, so a non-fatal failure does not leave it reading as recovering.
+func (s *Session) abandonAutomaticRecovery(now time.Time) bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.State != StateActive || s.RuntimeStatus != RuntimeStatusRecovering {
+		return false
+	}
+	s.RuntimeStatus = RuntimeStatusReady
+	s.RuntimeFailure = ""
+	s.RuntimeRecovery = nil
+	if !now.IsZero() {
+		s.UpdatedAt = now.UTC()
+	}
+	return true
+}
+
+func (s *Session) authRecoveryAvailable() bool {
+	if s == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return !s.authRecoveryExhausted
+}
+
+func (s *Session) setAuthRecoveryExhausted(exhausted bool) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.authRecoveryExhausted = exhausted
 }
 
 func (s *Session) recordAutomaticRecoveryFailure(cause error, now time.Time) {

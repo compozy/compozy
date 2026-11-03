@@ -142,6 +142,11 @@ func (a *mockAgent) performDriverControl(ctx context.Context, control acpmock.Dr
 	case acpmock.DriverControlDelay, acpmock.DriverControlHoldIgnoringCancel:
 		return nil
 	case acpmock.DriverControlFailPrompt:
+		if gate := strings.TrimSpace(control.WhenPathMissing); gate != "" {
+			if _, err := os.Stat(gate); err == nil {
+				return nil
+			}
+		}
 		code := control.ErrorCode
 		if code == 0 {
 			code = failPromptDefaultCode

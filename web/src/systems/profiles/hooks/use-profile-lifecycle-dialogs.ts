@@ -54,7 +54,8 @@ export interface ProfileLifecycleDialogsModel {
  * mutations live here so no single component carries the whole lifecycle.
  */
 export function useProfileLifecycleDialogs(
-  profiles: readonly ProfilePayload[]
+  profiles: readonly ProfilePayload[],
+  onProfileRenamed?: () => Promise<unknown>
 ): ProfileLifecycleDialogsModel {
   const lifecycle = useProfileLifecycle();
   const flow = lifecycle.intent?.flow;
@@ -79,7 +80,7 @@ export function useProfileLifecycleDialogs(
     workItems,
     acceptedRepos,
     create: useCreateProfile(),
-    rename: useRenameProfile(),
+    rename: useRenameProfile({ onRenamed: onProfileRenamed }),
     update: useUpdateProfileIdentity(),
     archive: useArchiveProfile(),
     unarchive: useUnarchiveProfile(),

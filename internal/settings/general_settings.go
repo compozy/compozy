@@ -18,6 +18,8 @@ type GeneralSettings struct {
 	Daemon           compozyconfig.DaemonConfig
 	Redact           compozyconfig.RedactConfig
 	Terminal         compozyconfig.TerminalConfig
+	// Desktop is nil when an update leaves the current [desktop] values unchanged.
+	Desktop *compozyconfig.DesktopConfig
 }
 
 func generalSettingsFromConfig(cfg *compozyconfig.Config) GeneralSettings {
@@ -31,5 +33,6 @@ func generalSettingsFromConfig(cfg *compozyconfig.Config) GeneralSettings {
 		Daemon:           cfg.Daemon,
 		Redact:           cfg.Redact,
 		Terminal:         cfg.Terminal,
+		Desktop:          new(cfg.Desktop),
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -2188,6 +2189,112 @@ func TestRenameSessionHandler(t *testing.T) {
 	})
 }
 
+// IT-002 invariant: only the two single-session detail reads carry the daemon-resolved
+// working_dir; lists and PATCH responses omit it, and a resolution failure omits the
+// field without failing the read. Owner: BaseHandlers session detail decoration.
+func TestSessionDetailWorkingDirIT002(t *testing.T) {
+	t.Parallel()
+
+	bound := testutil.NewSessionInfo("sess-wt")
+	bound.ProfileID = store.DefaultProfileID
+	bound.WorkspaceID = "ws-wd"
+	bound.Type = session.SessionTypeUser
+	broken := testutil.NewSessionInfo("sess-broken")
+	broken.ProfileID = store.DefaultProfileID
+	broken.WorkspaceID = "ws-wd"
+	broken.Type = session.SessionTypeUser
+	manager := &testutil.StubSessionManager{
+		ListAllFn: func(context.Context) ([]*session.Info, error) {
+			return []*session.Info{bound, broken}, nil
+		},
+		RenameFn: func(_ context.Context, _ string, sessionID string, name string) (*session.Info, error) {
+			if sessionID != bound.ID {
+				return nil, session.ErrSessionNotFound
+			}
+			updated := *bound
+			updated.Name = name
+			return &updated, nil
+		},
+		WorkingDirFn: func(_ context.Context, id string) (string, error) {
+			if id == bound.ID {
+				return "/wt/web", nil
+			}
+			return "", fmt.Errorf("session: resolve working-directory worktree for %q: %w", id, fs.ErrNotExist)
+		},
+	}
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+
+	sessionFields := func(t *testing.T, response *httptest.ResponseRecorder) map[string]json.RawMessage {
+		t.Helper()
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var envelope struct {
+			Session map[string]json.RawMessage `json:"session"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &envelope); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		return envelope.Session
+	}
+
+	for _, path := range []string{"/sessions/sess-wt", "/workspaces/ws-wd/sessions/sess-wt"} {
+		t.Run("Should return the resolved working_dir on GET "+path, func(t *testing.T) {
+			t.Parallel()
+			fields := sessionFields(t, performRequest(t, fixture.Engine, http.MethodGet, path, nil))
+			if got := string(fields["working_dir"]); got != `"/wt/web"` {
+				t.Fatalf("working_dir = %s, want \"/wt/web\"", got)
+			}
+		})
+	}
+
+	for _, path := range []string{"/sessions/sess-broken", "/workspaces/ws-wd/sessions/sess-broken"} {
+		t.Run("Should omit working_dir and keep 200 when resolution fails on GET "+path, func(t *testing.T) {
+			t.Parallel()
+			fields := sessionFields(t, performRequest(t, fixture.Engine, http.MethodGet, path, nil))
+			if raw, ok := fields["working_dir"]; ok {
+				t.Fatalf("working_dir = %s, want omitted", raw)
+			}
+		})
+	}
+
+	t.Run("Should omit working_dir from the PATCH response", func(t *testing.T) {
+		t.Parallel()
+		response := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/workspaces/ws-wd/sessions/sess-wt",
+			[]byte(`{"name":"Renamed"}`),
+		)
+		if raw, ok := sessionFields(t, response)["working_dir"]; ok {
+			t.Fatalf("PATCH working_dir = %s, want omitted", raw)
+		}
+	})
+
+	t.Run("Should omit working_dir from session lists", func(t *testing.T) {
+		t.Parallel()
+		response := performRequest(t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true", nil)
+		if response.Code != http.StatusOK {
+			t.Fatalf("list status = %d; body=%s", response.Code, response.Body.String())
+		}
+		var list struct {
+			Sessions []map[string]json.RawMessage `json:"sessions"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &list); err != nil {
+			t.Fatalf("json.Unmarshal(list) error = %v", err)
+		}
+		if len(list.Sessions) == 0 {
+			t.Fatalf("list sessions = empty; body=%s", response.Body.String())
+		}
+		for _, item := range list.Sessions {
+			if raw, ok := item["working_dir"]; ok {
+				t.Fatalf("list working_dir = %s, want omitted", raw)
+			}
+		}
+	})
+}
+
 func TestSessionParentHandlers(t *testing.T) {
 	t.Parallel()
 
@@ -4212,6 +4319,62 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		)
 		if resp.Code != http.StatusBadRequest || !strings.Contains(resp.Body.String(), "provider is required") {
 			t.Fatalf("update status = %d, body=%s; want unresolved runtime", resp.Code, resp.Body.String())
+		}
+	})
+
+	t.Run("Should duplicate a source with an unsupported appearance using the default face", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		dir := filepath.Join(fixture.HomePaths.AgentsDir, "coder")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		raw := "---\nname: coder\nprovider: codex\nappearance:\n  avatar: emoji\n  emoji: \"🦊\"\n---\nSource.\n"
+		sourcePath := filepath.Join(dir, compozyconfig.AgentDefinitionFileName)
+		if err := os.WriteFile(
+			sourcePath,
+			[]byte(raw),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/agents/coder/duplicate",
+			mustJSON(t, contract.DuplicateAgentRequest{Name: "reviewer"}),
+		)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("duplicate status = %d, body=%s; want 201", resp.Code, resp.Body.String())
+		}
+		var payload contract.AgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Agent.Appearance != nil || payload.Agent.ResolvedAppearance["avatar"] != "generated" ||
+			payload.Agent.ResolvedAppearance["seed"] != "reviewer" {
+			t.Fatalf("duplicate appearance = %#v, resolved = %#v; want default face seeded by the copy",
+				payload.Agent.Appearance, payload.Agent.ResolvedAppearance)
+		}
+		if after, err := os.ReadFile(sourcePath); err != nil || string(after) != raw {
+			t.Fatalf("source after duplicate = %q, %v; want unchanged", after, err)
+		}
+		override := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/agents/coder/duplicate",
+			mustJSON(t, contract.DuplicateAgentRequest{
+				Name:      "auditor",
+				Overrides: &contract.DuplicateAgentOverrides{Appearance: map[string]any{"avatar": "emoji"}},
+			}),
+		)
+		if override.Code != http.StatusBadRequest {
+			t.Fatalf("invalid override status = %d, body=%s; want 400", override.Code, override.Body.String())
 		}
 	})
 

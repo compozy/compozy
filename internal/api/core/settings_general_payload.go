@@ -18,6 +18,13 @@ type settingsGeneralUpdateConfigPayload struct {
 	// IdleReleaseAfter shadows the embedded string so a supplied blank value is
 	// rejected instead of being mistaken for an omitted field.
 	IdleReleaseAfter *string `json:"idle_release_after"`
+	// Desktop shadows the embedded block so `"desktop": {}` is rejected instead of clearing the
+	// command; omit desktop to keep the current value, or send "" to clear it.
+	Desktop *settingsGeneralUpdateDesktopPayload `json:"desktop"`
+}
+
+type settingsGeneralUpdateDesktopPayload struct {
+	EditorCommand *string `json:"editor_command"`
 }
 
 type settingsGeneralUpdateRedactPayload struct {
@@ -46,6 +53,20 @@ func (p settingsGeneralUpdateConfigPayload) validatedPayload() (contract.Setting
 	}
 	if p.Terminal != nil {
 		p.SettingsGeneralConfigPayload.Terminal = *p.Terminal
+	}
+	p.SettingsGeneralConfigPayload.Desktop = nil
+	if p.Desktop != nil {
+		if p.Desktop.EditorCommand == nil {
+			return contract.SettingsGeneralConfigPayload{}, false, NewSettingsValidationError(
+				compozyconfig.ValidationError{
+					Path:    "desktop.editor_command",
+					Message: `is required; omit desktop to keep the current value or send "" to clear it`,
+				},
+			)
+		}
+		p.SettingsGeneralConfigPayload.Desktop = &contract.SettingsDesktopPayload{
+			EditorCommand: *p.Desktop.EditorCommand,
+		}
 	}
 	return p.SettingsGeneralConfigPayload, p.Terminal != nil, nil
 }
@@ -82,29 +103,9 @@ func generalSettingsFromPayload(
 	}
 
 	if terminalProvided {
-		detachedTTL, parseErr := time.ParseDuration(strings.TrimSpace(payload.Terminal.DetachedTTL))
-		if parseErr != nil {
-			return settingspkg.GeneralSettings{}, NewSettingsValidationError(
-				fmt.Errorf("general.config.terminal.detached_ttl: %w", parseErr),
-			)
-		}
-		exitRetention, parseErr := time.ParseDuration(strings.TrimSpace(payload.Terminal.ExitRetention))
-		if parseErr != nil {
-			return settingspkg.GeneralSettings{}, NewSettingsValidationError(
-				fmt.Errorf("general.config.terminal.exit_retention: %w", parseErr),
-			)
-		}
-		value.Terminal = compozyconfig.TerminalConfig{
-			DefaultShell:           strings.TrimSpace(payload.Terminal.DefaultShell),
-			ShellIntegration:       payload.Terminal.ShellIntegration,
-			ScrollbackBytes:        payload.Terminal.ScrollbackBytes,
-			DetachedTTL:            detachedTTL,
-			ExitRetention:          exitRetention,
-			Recording:              payload.Terminal.Recording,
-			RecordingRetentionDays: payload.Terminal.RecordingRetentionDays,
-			MaxPerWorkspace:        payload.Terminal.MaxPerWorkspace,
-			MaxPerDaemon:           payload.Terminal.MaxPerDaemon,
-			MaxSubscribers:         payload.Terminal.MaxSubscribers,
+		value.Terminal, err = terminalSettingsFromPayload(payload.Terminal)
+		if err != nil {
+			return settingspkg.GeneralSettings{}, err
 		}
 	}
 
@@ -128,8 +129,51 @@ func generalSettingsFromPayload(
 			return settingspkg.GeneralSettings{}, NewSettingsValidationError(err)
 		}
 	}
+	value.Desktop, err = desktopSettingsFromPayload(payload.Desktop)
+	if err != nil {
+		return settingspkg.GeneralSettings{}, err
+	}
 
 	return value, nil
+}
+
+func terminalSettingsFromPayload(payload contract.SettingsTerminalPayload) (compozyconfig.TerminalConfig, error) {
+	detachedTTL, err := time.ParseDuration(strings.TrimSpace(payload.DetachedTTL))
+	if err != nil {
+		return compozyconfig.TerminalConfig{}, NewSettingsValidationError(
+			fmt.Errorf("general.config.terminal.detached_ttl: %w", err),
+		)
+	}
+	exitRetention, err := time.ParseDuration(strings.TrimSpace(payload.ExitRetention))
+	if err != nil {
+		return compozyconfig.TerminalConfig{}, NewSettingsValidationError(
+			fmt.Errorf("general.config.terminal.exit_retention: %w", err),
+		)
+	}
+	return compozyconfig.TerminalConfig{
+		DefaultShell:           strings.TrimSpace(payload.DefaultShell),
+		ShellIntegration:       payload.ShellIntegration,
+		ScrollbackBytes:        payload.ScrollbackBytes,
+		DetachedTTL:            detachedTTL,
+		ExitRetention:          exitRetention,
+		Recording:              payload.Recording,
+		RecordingRetentionDays: payload.RecordingRetentionDays,
+		MaxPerWorkspace:        payload.MaxPerWorkspace,
+		MaxPerDaemon:           payload.MaxPerDaemon,
+		MaxSubscribers:         payload.MaxSubscribers,
+	}, nil
+}
+
+// desktopSettingsFromPayload returns nil for an omitted block so the current value is kept.
+func desktopSettingsFromPayload(payload *contract.SettingsDesktopPayload) (*compozyconfig.DesktopConfig, error) {
+	if payload == nil {
+		return nil, nil
+	}
+	desktop := compozyconfig.DesktopConfig{EditorCommand: strings.TrimSpace(payload.EditorCommand)}
+	if err := desktop.Validate(); err != nil {
+		return nil, NewSettingsValidationError(err)
+	}
+	return &desktop, nil
 }
 
 func followUpModeFromPayload(payload *contract.SettingsBusyInputPayload) (*string, error) {

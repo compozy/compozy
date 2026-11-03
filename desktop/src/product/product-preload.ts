@@ -9,6 +9,8 @@ import {
   validProductResponse,
   type GlobalShortcutBinding,
   type GlobalShortcutRegistration,
+  type OpenInEditorParams,
+  type OpenInEditorResult,
   type PickDirectoryParams,
   type ProductMethod,
   type ProductResponses,
@@ -64,6 +66,15 @@ contextBridge.exposeInMainWorld("compozyShell", {
     /** Opens the native folder dialog; resolves the chosen absolute path or `null` on cancel. */
     async pickDirectory(options: PickDirectoryParams = {}): Promise<string | null> {
       return (await invoke("dialog.pick_directory", options)).path;
+    },
+  },
+  files: {
+    /**
+     * Asks the shell to open a local file in the operator's editor. The shell confirms
+     * outside-workspace targets natively and reads the editor command itself.
+     */
+    async openInEditor(params: OpenInEditorParams): Promise<OpenInEditorResult> {
+      return await invoke("files.open_in_editor", params);
     },
   },
 });

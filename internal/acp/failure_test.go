@@ -184,6 +184,15 @@ func TestProviderFailureDiagnosticFromErrorClassifiesProviderRecoveryActions(t *
 			wantAction: ProviderFailureActionLogin,
 		},
 		{
+			name: "Should classify the ACP auth-required code without auth wording as login",
+			err: &acpsdk.RequestError{
+				Code:    -32000,
+				Message: "Sign-in needed",
+			},
+			wantKind:   ProviderFailureUnauthenticated,
+			wantAction: ProviderFailureActionLogin,
+		},
+		{
 			name: "Should classify invalid API keys as login",
 			err: &acpsdk.RequestError{
 				Code:    -32603,

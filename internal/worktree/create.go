@@ -13,6 +13,9 @@ import (
 )
 
 type CreateOptions struct {
+	// ID assigns the new row's id; empty generates one. A caller that must find the
+	// worktree after a daemon restart, such as a session move, records it first.
+	ID             string
 	ProfileID      string
 	Name           string
 	Branch         string
@@ -271,9 +274,11 @@ func (s *Service) prepareCreate(
 		}
 		return Worktree{}, refusal(ErrPathExists, "explicit path cannot be resolved: "+err.Error())
 	}
-	id, err := s.newID("wt")
-	if err != nil {
-		return Worktree{}, err
+	id := strings.TrimSpace(options.ID)
+	if id == "" {
+		if id, err = s.newID("wt"); err != nil {
+			return Worktree{}, err
+		}
 	}
 	origin := options.Origin
 	if origin == "" {

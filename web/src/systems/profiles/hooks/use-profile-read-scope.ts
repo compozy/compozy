@@ -10,7 +10,7 @@ import {
 } from "../lib/profile-scope";
 import type { ProfilePayload, ProfileView } from "../types";
 import { usePinnedProfileView } from "./use-pinned-profile";
-import { useActiveProfileView, useRememberedProfile } from "./use-profile-selection";
+import { useActiveProfileView, useRememberedProfileName } from "./use-profile-selection";
 import { useProfiles } from "./use-profiles";
 
 export interface ProfileReadScope extends ProfileListingScope {
@@ -47,11 +47,11 @@ export interface ProfileReadScope extends ProfileListingScope {
  */
 export function useProfileReadScope(): ProfileReadScope {
   const view = usePinnedProfileView(useActiveProfileView());
-  const remembered = useRememberedProfile();
+  const remembered = useRememberedProfileName();
   const profiles = useProfiles();
   const rows = profiles.data ?? [];
   const archivedById = archivedLookup(rows);
-  const destination = actingProfile(view, remembered.data?.profile);
+  const destination = actingProfile(view, remembered);
   return {
     view,
     aggregate: view.kind === "aggregate",

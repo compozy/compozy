@@ -23,10 +23,7 @@ func (m *Manager) waitForActivePromptProcessExit(
 	if base == nil {
 		base = m.fallbackLifecycleContext()
 	}
-	waitTimeout := defaultLifecycleTimeout
-	for _, delay := range m.promptRecoveryDelays {
-		waitTimeout += delay + defaultLifecycleTimeout
-	}
+	waitTimeout := defaultLifecycleTimeout + m.maxPromptRecoveryWait()
 	waitCtx, cancel := context.WithTimeout(context.WithoutCancel(base), waitTimeout)
 	defer cancel()
 	ticker := time.NewTicker(promptDeliveryCatchUpInterval)

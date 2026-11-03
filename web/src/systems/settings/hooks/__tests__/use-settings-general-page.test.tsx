@@ -243,6 +243,29 @@ describe("useSettingsGeneralPage", () => {
     }
   );
 
+  // UT-047 (#1167). Invariant: the editor command saves inside `config.desktop`, and a 400
+  // validation answer naming the key stays the page's save error for the row to show.
+  it("Should send the editor command in config.desktop and surface its validation error", async () => {
+    vi.mocked(updateSettingsGeneral).mockRejectedValue(
+      new Error("desktop.editor_command must contain {path}")
+    );
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsGeneralPage(), { wrapper });
+    await waitFor(() => expect(result.current.draft).toBeTruthy());
+
+    act(() => {
+      result.current.setDraft({ ...envelope.config, desktop: { editor_command: "code -g" } });
+    });
+    act(() => result.current.handleSave());
+
+    await waitFor(() =>
+      expect(result.current.saveError).toBe("desktop.editor_command must contain {path}")
+    );
+    expect(updateSettingsGeneral).toHaveBeenCalledExactlyOnceWith({
+      config: { ...envelope.config, desktop: { editor_command: "code -g" } },
+    });
+  });
+
   it("Should retain the dirty draft when the save fails", async () => {
     vi.mocked(updateSettingsGeneral).mockRejectedValue(new Error("Couldn't save General"));
     const { wrapper } = createWrapper();

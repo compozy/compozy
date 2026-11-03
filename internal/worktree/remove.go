@@ -105,15 +105,14 @@ func (s *Service) remove(
 	if _, err := s.capability.Check(ctx); err != nil {
 		return nil, err
 	}
-	swapped, err := s.store.CompareAndSwapState(
-		ctx, workspaceID, item.ID, StateReady, StateRemoving, s.now().UTC(),
-	)
+	swapped, err := s.store.FenceRemoval(ctx, workspaceID, item.ID, mode.keepBranch, s.now().UTC())
 	if err != nil {
 		return nil, fmt.Errorf("worktree: fence removal: %w", err)
 	}
 	if !swapped {
 		return nil, ErrNotReady
 	}
+	item.RemovalKeepsBranch = mode.keepBranch
 	return s.removeFenced(ctx, *item, mode)
 }
 

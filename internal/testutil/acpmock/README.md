@@ -63,3 +63,8 @@ then continues the scripted turn to its normal completion. Use `block_until_canc
 when the integration test must hold the pending window open across another child settlement.
 Native-tool steps may set `omit_tool_call_id: true` to omit provider `_meta.toolCallId`
 while retaining the transcript tool ID; this exercises the hosted request-ID fallback.
+
+A `fail_prompt` driver control may set `when_path_missing` to a path relative to the driver's working
+directory. The step then fails the prompt only while that path is absent and otherwise lets the turn
+continue. `testdata/provider_error_fixture.json` agent `signin-agent` uses `.provider-credential` this
+way to stand in for a provider sign-in that a lab removes and restores (`RT-provider-auth-recovery`).

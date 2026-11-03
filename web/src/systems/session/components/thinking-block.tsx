@@ -131,7 +131,7 @@ export function ThinkingBlock({
             "focus-visible:shadow-focus-ring focus-visible:outline-none"
           )}
         >
-          <MessageMarkdown content={thinking} streaming={live} compact="relaxed" />
+          <MessageMarkdown content={thinking} streaming={live} compact="relaxed" openPaths />
         </div>
       ) : null}
     </div>

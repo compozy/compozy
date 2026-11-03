@@ -18,6 +18,8 @@ import { ProfileUnarchiveDialog } from "./profile-unarchive-dialog";
 export interface ProfileLifecycleDialogsProps {
   profiles: readonly ProfilePayload[];
   onSetAutomationEnabled: (identity: string, profile: string, enabled: boolean) => Promise<void>;
+  /** Rereads the work rows other systems label with the old profile name (#1220). */
+  onProfileRenamed: () => Promise<unknown>;
 }
 
 function retryStalePlan(refetch: () => void): (error: unknown) => void {
@@ -36,8 +38,9 @@ function retryStalePlan(refetch: () => void): (error: unknown) => void {
 export function ProfileLifecycleDialogs({
   profiles,
   onSetAutomationEnabled,
+  onProfileRenamed,
 }: ProfileLifecycleDialogsProps) {
-  const model = useProfileLifecycleDialogs(profiles);
+  const model = useProfileLifecycleDialogs(profiles, onProfileRenamed);
   const { lifecycle, target } = model;
   const intent = lifecycle.intent;
   const catalog = useProfileIconCatalog(intent?.flow === "create" || intent?.flow === "update");

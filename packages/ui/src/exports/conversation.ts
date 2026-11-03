@@ -4,7 +4,13 @@ export {
   STREAMDOWN_SAFE_CONFIG,
   type MarkdownProps,
 } from "../components/custom/markdown";
-export { StreamMarkdown, type StreamMarkdownProps } from "../components/custom/stream-markdown";
+export {
+  StreamMarkdown,
+  type StreamMarkdownInlineCodeDecorator,
+  type StreamMarkdownLocalLinkComponent,
+  type StreamMarkdownProps,
+} from "../components/custom/stream-markdown";
+export { MarkdownAnchor } from "../components/custom/markdown-prose-parts";
 export {
   composeMarkdownSlots,
   type MarkdownSlotPlacement,

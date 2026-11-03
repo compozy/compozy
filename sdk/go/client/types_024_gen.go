@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// TaskDashboardBlockedCardPayload is a daemon API value.
+type TaskDashboardBlockedCardPayload struct {
+	Tasks                int    `json:"tasks"`
+	AwaitingApproval     int    `json:"awaiting_approval"`
+	AwaitingDependencies int    `json:"awaiting_dependencies"`
+	HealthStatus         string `json:"health_status"`
+}
+
+// TaskDashboardCardsPayload is a daemon API value.
+type TaskDashboardCardsPayload struct {
+	InProgress TaskDashboardInProgressCardPayload `json:"in_progress"`
+	Blocked    TaskDashboardBlockedCardPayload    `json:"blocked"`
+	Failed     TaskDashboardFailedCardPayload     `json:"failed"`
+	Latency    TaskDashboardLatencyCardPayload    `json:"latency"`
+}
+
 // TaskDashboardFailedCardPayload is a daemon API value.
 type TaskDashboardFailedCardPayload struct {
 	Tasks        int    `json:"tasks"`
@@ -421,25 +437,4 @@ type TaskRecoveryTotalsPayload struct {
 	Requeued      int `json:"requeued"`
 	MarkedRunning int `json:"marked_running"`
 	Failed        int `json:"failed"`
-}
-
-// TaskReferencePayload is a daemon API value.
-type TaskReferencePayload struct {
-	ID              string     `json:"id"`
-	Identifier      string     `json:"identifier,omitempty"`
-	Title           string     `json:"title"`
-	Status          TaskStatus `json:"status"`
-	Priority        Priority   `json:"priority,omitempty"`
-	Owner           *Ownership `json:"owner,omitempty"`
-	Scope           TaskScope  `json:"scope"`
-	WorkspaceID     string     `json:"workspace_id,omitempty"`
-	LatestEventSeq  int64      `json:"latest_event_seq"`
-	Paused          bool       `json:"paused,omitempty"`
-	EffectivePaused bool       `json:"effective_paused,omitempty"`
-	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
-}
-
-// TaskResponse is a daemon API value.
-type TaskResponse struct {
-	Task TaskPayload `json:"task"`
 }

@@ -202,6 +202,10 @@ func TestDeriveSourceProfileFence(t *testing.T) {
 			if err != nil {
 				t.Fatalf("initial derive: %v", err)
 			}
+			fresh, err := derive("owner-fresh", store.DefaultProfileID)
+			if err != nil || fresh.Replayed || fresh.ChildSessionID == first.ChildSessionID {
+				t.Fatalf("matching-profile fresh derive = %+v, %v, want a new child", fresh, err)
+			}
 			if err := h.manager.Stop(t.Context(), source.ID); err != nil {
 				t.Fatal(err)
 			}

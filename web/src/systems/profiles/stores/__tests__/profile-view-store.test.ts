@@ -1,6 +1,8 @@
 // Suite: profile active-view store transitions
 // Invariant: the active view is one global answer shared by every workspace, rollback-exact —
-// a failed persist restores the previous answer including "there wasn't one" — a profile that
+// a failed persist restores the previous answer including "there wasn't one", and overlapping
+// switches roll back along their chain (a later switch keeps the view; a chain of failures returns
+// to where the operator started, #1194) — a profile that
 // stops existing is dropped, only the All profiles view is persisted for a reload, and only an
 // explicit change of view counts as a switch.
 // Boundary IN: the module-scoped @xstate/store, its imperative API, and its localStorage envelope.
@@ -14,9 +16,10 @@ import {
   localProfileView,
   profileViewStore,
   rehydrateProfileViewStore,
+  failProfileSwitch,
   resetProfileViews,
-  restoreProfileView,
   setProfileView,
+  settleProfileSwitch,
   sweepProfileView,
 } from "../profile-view-store";
 
@@ -44,20 +47,44 @@ describe("profile view store", () => {
   });
 
   it("Should roll back to the previous view after a failed persist", () => {
-    setProfileView({ kind: "profile", profile: "marketing" });
-    const previous = localProfileView();
-    setProfileView({ kind: "profile", profile: "consulting" });
-    restoreProfileView(previous);
+    settleProfileSwitch(setProfileView({ kind: "profile", profile: "marketing" }) ?? 0);
+    const failed = setProfileView({ kind: "profile", profile: "consulting" }) ?? 0;
+    failProfileSwitch(failed);
     expect(localProfileView()).toEqual({ kind: "profile", profile: "marketing" });
   });
 
   it("Should roll back to having no local answer at all", () => {
     // The first switch has no previous view; rolling back has to mean "defer to
     // the server again", not "stay where the failed switch put us".
-    const previous = localProfileView();
-    setProfileView({ kind: "profile", profile: "marketing" });
-    restoreProfileView(previous);
+    failProfileSwitch(setProfileView({ kind: "profile", profile: "marketing" }) ?? 0);
     expect(localProfileView()).toBeNull();
+  });
+
+  it("Should keep a later switch when an earlier overlapping one fails [#1194]", () => {
+    const yankee = setProfileView({ kind: "profile", profile: "yankee" }) ?? 0;
+    const zulu = setProfileView({ kind: "profile", profile: "zulu" }) ?? 0;
+    settleProfileSwitch(zulu);
+    failProfileSwitch(yankee);
+    expect(localProfileView()).toEqual({ kind: "profile", profile: "zulu" });
+  });
+
+  it("Should return to where the operator started when overlapping switches all fail [#1194]", () => {
+    settleProfileSwitch(setProfileView({ kind: "profile", profile: "xray" }) ?? 0);
+    const yankee = setProfileView({ kind: "profile", profile: "yankee" }) ?? 0;
+    const zulu = setProfileView({ kind: "profile", profile: "zulu" }) ?? 0;
+    // Either order: the newer failure first restores yankee, the older one then xray; the older
+    // failure first hands its fallback to zulu, which then restores xray.
+    failProfileSwitch(zulu);
+    expect(localProfileView()).toEqual({ kind: "profile", profile: "yankee" });
+    failProfileSwitch(yankee);
+    expect(localProfileView()).toEqual({ kind: "profile", profile: "xray" });
+
+    const again = setProfileView({ kind: "profile", profile: "yankee" }) ?? 0;
+    const last = setProfileView({ kind: "profile", profile: "zulu" }) ?? 0;
+    failProfileSwitch(again);
+    expect(localProfileView()).toEqual({ kind: "profile", profile: "zulu" });
+    failProfileSwitch(last);
+    expect(localProfileView()).toEqual({ kind: "profile", profile: "xray" });
   });
 
   it("Should drop a swept profile but leave any other view", () => {
@@ -91,12 +118,9 @@ describe("profile view store", () => {
     expect(epoch()).toBe(start + 2);
     // A failed switch rolls back to where the operator was; neither half of that moved them.
     const beforeFailedSwitch = epoch();
-    const previous = localProfileView();
-    setProfileView({ kind: "profile", profile: "consulting" });
-    restoreProfileView(previous);
+    failProfileSwitch(setProfileView({ kind: "profile", profile: "consulting" }) ?? 0);
     expect(epoch()).toBe(beforeFailedSwitch + 1);
-    restoreProfileView(null);
-    expect(epoch()).toBe(beforeFailedSwitch + 1);
+    expect(localProfileView()).toEqual({ kind: "profile", profile: "marketing" });
   });
 
   it("Should keep counting explicit switches after a reload restores the view", async () => {

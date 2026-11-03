@@ -1,4 +1,7 @@
 import { useSelector } from "@xstate/store-react";
+import { useContext } from "react";
+
+import { DeskProfileContext } from "../contexts/desk-profile-context";
 
 import type { PaletteViewFrame } from "../lib/palette-view-stack";
 import type { SnapTarget } from "../lib/snap-targets";
@@ -23,6 +26,18 @@ import {
   type WindowPaletteIntent,
   windowManagerStore,
 } from "../stores/window-manager-store";
+
+/**
+ * The runtime presents the desk of the profile this client acts as. A switch moves that profile
+ * during render while the runtime rebinds in the commit's effects, so for one commit the previous
+ * desk's windows would render under the new profile and fire its reads (#1194). Bodies wait for
+ * the rebind instead. An unbound runtime has no windows to hold back.
+ */
+export function useDeskBoundToActingProfile(): boolean {
+  const presented = useContext(DeskProfileContext);
+  const bound = useSelector(windowManagerStore, snapshot => snapshot.context.binding?.profileId);
+  return presented === null || bound === undefined || bound === presented;
+}
 
 export function useWindowManagerWorkArea(): WindowManagerWorkArea | null {
   return useSelector(windowManagerStore, snapshot => selectWindowManagerWorkArea(snapshot.context));

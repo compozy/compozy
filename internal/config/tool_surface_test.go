@@ -36,6 +36,8 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			path: "provider_usage.providers.claude.enabled", kind: ConfigValueBool},
 		{name: "Should reject parent provider usage replacement",
 			path: "provider_usage.providers.claude", denial: ConfigPathForbidden},
+		{name: "Should reject agent mutation of the desktop editor command",
+			path: "desktop.editor_command", denial: ConfigPathForbidden},
 
 		{
 			name: "Should reject Vault key provider trust root",

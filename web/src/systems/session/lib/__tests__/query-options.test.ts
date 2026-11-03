@@ -29,6 +29,7 @@ import {
   invalidateSessionMonitorsQueries,
   invalidateSessionProcessesQueries,
   invalidateSessionMutationQueries,
+  invalidateSessionOwnerLabelReads,
   invalidateSessionUsageQueries,
   invalidateWorkspaceSessionCatalog,
 } from "../session-query-invalidation";
@@ -237,6 +238,32 @@ describe("sessionScopedDetailOptions", () => {
     await invalidateSessionLiveQueries(client, "ws_alpha", "sess_1");
     await vi.waitFor(() => expect(foreign.count()).toBe(2));
     for (const read of [foreign, aggregate, missing, own]) read.unsubscribe();
+    client.clear();
+  });
+
+  it("Should re-ask a settled foreign lens after a profile rename, which can make it the owner", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let lensCalls = 0;
+    // The aggregate still names the old owner `a` while the rename reread runs.
+    client.setQueryData(sessionKeys.byId("sess_1", PROFILE_AGGREGATE), { profile_name: "a" });
+    const lens = new QueryObserver(client, {
+      queryKey: sessionKeys.byId("sess_1", "b"),
+      queryFn: () => {
+        lensCalls += 1;
+        return lensCalls === 1
+          ? Promise.reject(new SessionApiError("not found", 404))
+          : Promise.resolve({ profile_name: "b" });
+      },
+    });
+    const unsubscribe = lens.subscribe(() => {});
+    await vi.waitFor(() => expect(lens.getCurrentResult().status).toBe("error"));
+
+    // `a` was renamed to `b`: lens `b` now owns the session, so its settled 404 is stale.
+    await invalidateSessionOwnerLabelReads(client);
+
+    expect(lensCalls).toBe(2);
+    expect(lens.getCurrentResult().data).toEqual({ profile_name: "b" });
+    unsubscribe();
     client.clear();
   });
 
@@ -494,7 +521,9 @@ describe("stream-backed session reads", () => {
 
 // Invariant: each wake rereads its active read models once, invalidates inactive siblings,
 // and preserves all other workspace/session data. A session's row also lives in the All projects
-// aggregate, so every catalog wake reaches it too. Owner: canonical Query cache boundaries.
+// aggregate, so every catalog wake reaches it too. A profile rename relabels every row a catalog,
+// by-id lens, or detail read holds, in every workspace, without touching transcript-side reads
+// (#1220). Owner: canonical Query cache boundaries.
 describe("session read invalidation", () => {
   const keys = {
     detail: sessionKeys.detail("ws", "session"),
@@ -615,6 +644,23 @@ describe("session read invalidation", () => {
       ],
     },
     { name: "usage", invalidate: invalidateSessionUsageQueries, affected: ["usage", "usageTurns"] },
+    {
+      // The All profiles catalog keys on the aggregate, not a name, so the rename moves no key.
+      name: "profile rename",
+      invalidate: (client: QueryClient) => invalidateSessionOwnerLabelReads(client),
+      affected: [
+        "detail",
+        "profile",
+        "otherProfile",
+        "catalog",
+        "folders",
+        "aggregate",
+        "otherCatalog",
+        "otherSession",
+        "otherWorkspace",
+        "otherOwner",
+      ],
+    },
   ]) {
     it(`Should preserve the ${testCase.name} wake scope for active and inactive reads`, async () => {
       const client = new QueryClient({

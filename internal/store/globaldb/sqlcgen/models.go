@@ -1774,6 +1774,21 @@ type SessionProcessObservation struct {
 	Attribution     string `json:"attribution"`
 }
 
+type SessionProfileMove struct {
+	SessionID         string `json:"session_id"`
+	WorkspaceID       string `json:"workspace_id"`
+	ProfileID         string `json:"profile_id"`
+	TargetProfileID   string `json:"target_profile_id"`
+	CopyKey           string `json:"copy_key"`
+	SourceWorktreeID  string `json:"source_worktree_id"`
+	Branch            string `json:"branch"`
+	HeadSha           string `json:"head_sha"`
+	TargetWorktreeID  string `json:"target_worktree_id"`
+	RestoreWorktreeID string `json:"restore_worktree_id"`
+	CreatedAt         string `json:"created_at"`
+	UpdatedAt         string `json:"updated_at"`
+}
+
 type SessionPromptAdmission struct {
 	ID                     string         `json:"id"`
 	WorkspaceID            string         `json:"workspace_id"`
@@ -2384,6 +2399,7 @@ type Worktree struct {
 	RunID               string `json:"run_id"`
 	CreatedAt           string `json:"created_at"`
 	UpdatedAt           string `json:"updated_at"`
+	RemovalMode         string `json:"removal_mode"`
 }
 
 type WorktreeExitOp struct {

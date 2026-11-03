@@ -153,14 +153,17 @@ type SessionRuntimeRecoveryExhaustedPayload struct {
 }
 
 type SessionRuntimeRecoveryPayload struct {
-	Attempt       int        `json:"attempt"`
-	MaxAttempts   int        `json:"max_attempts"`
-	Generation    int64      `json:"generation"`
-	StartedAt     time.Time  `json:"started_at"`
-	LastAttemptAt time.Time  `json:"last_attempt_at"`
-	NextAttemptAt *time.Time `json:"next_attempt_at,omitempty"`
-	LastError     string     `json:"last_error,omitempty"`
+	Reason        SessionRuntimeRecoveryReason `json:"reason,omitempty"`
+	Attempt       int                          `json:"attempt"`
+	MaxAttempts   int                          `json:"max_attempts"`
+	Generation    int64                        `json:"generation"`
+	StartedAt     time.Time                    `json:"started_at"`
+	LastAttemptAt time.Time                    `json:"last_attempt_at"`
+	NextAttemptAt *time.Time                   `json:"next_attempt_at,omitempty"`
+	LastError     string                       `json:"last_error,omitempty"`
 }
+
+type SessionRuntimeRecoveryReason string
 
 type SessionRuntimeRecoveryStartedPayload struct {
 	Event          HookEvent `json:"event"`
@@ -299,9 +302,4 @@ type SessionSummary struct {
 	State      State                 `json:"state"`
 	ArchivedAt *time.Time            `json:"archived_at"`
 	CreatedAt  time.Time             `json:"created_at"`
-}
-
-type SessionTargetParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
 }

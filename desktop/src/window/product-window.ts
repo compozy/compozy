@@ -132,6 +132,13 @@ export class ProductWindow {
     return window;
   }
 
+  /** The live product window and the origin it serves, or `null` before creation or after close. */
+  current(): { window: BrowserWindow; origin: string } | null {
+    const window = this.#window;
+    if (!window || window.isDestroyed()) return null;
+    return { window, origin: this.#origin };
+  }
+
   focus(): void {
     const window = this.#window;
     if (!window || window.isDestroyed()) return;

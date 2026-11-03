@@ -376,6 +376,11 @@ type SettingsDefaultsPayload struct {
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 }
 
+// SettingsDesktopPayload is a daemon API value.
+type SettingsDesktopPayload struct {
+	EditorCommand string `json:"editor_command"`
+}
+
 // SettingsExtensionDevPayload is a daemon API value.
 type SettingsExtensionDevPayload struct {
 	WatchInterval string `json:"watch_interval"`
@@ -429,17 +434,4 @@ type SettingsExtensionsConfigPayload struct {
 // SettingsGeneralActionsPayload is a daemon API value.
 type SettingsGeneralActionsPayload struct {
 	Restart SettingsActionMetadataPayload `json:"restart"`
-}
-
-// SettingsGeneralConfigPayload is a daemon API value.
-type SettingsGeneralConfigPayload struct {
-	BusyInput        *SettingsBusyInputPayload  `json:"busy_input,omitzero"`
-	Limits           SettingsLimitsPayload      `json:"limits"`
-	Permissions      SettingsPermissionsPayload `json:"permissions"`
-	SessionTimeout   string                     `json:"session_timeout"`
-	IdleReleaseAfter string                     `json:"idle_release_after,omitempty"`
-	HTTP             SettingsHTTPPayload        `json:"http"`
-	Daemon           SettingsDaemonPayload      `json:"daemon"`
-	Redact           SettingsRedactPayload      `json:"redact"`
-	Terminal         SettingsTerminalPayload    `json:"terminal"`
 }

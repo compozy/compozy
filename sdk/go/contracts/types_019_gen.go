@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type SessionTargetParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+}
+
 type SessionsCreateParams struct {
 	Agent     string `json:"agent"`
 	Workspace string `json:"workspace,omitempty"`
@@ -284,5 +289,3 @@ type SpawnTTLExpiredPayload struct {
 	ReapReason        string         `json:"reap_reason,omitempty"`
 	Error             string         `json:"error,omitempty"`
 }
-
-type Speed string

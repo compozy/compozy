@@ -78,14 +78,15 @@ type limitsOverlay struct {
 }
 
 type sessionOverlay struct {
-	Restart     sessionRestartOverlay     `toml:"restart"`
-	Stop        sessionStopOverlay        `toml:"stop"`
-	Limits      sessionLimitsOverlay      `toml:"limits"`
-	Supervision sessionSupervisionOverlay `toml:"supervision"`
-	BusyInput   sessionBusyInputOverlay   `toml:"busy_input"`
-	Messaging   sessionMessagingOverlay   `toml:"messaging"`
-	Attachments sessionAttachmentsOverlay `toml:"attachments"`
-	Derive      sessionDeriveOverlay      `toml:"derive"`
+	Restart      sessionRestartOverlay      `toml:"restart"`
+	AuthRecovery sessionAuthRecoveryOverlay `toml:"auth_recovery"`
+	Stop         sessionStopOverlay         `toml:"stop"`
+	Limits       sessionLimitsOverlay       `toml:"limits"`
+	Supervision  sessionSupervisionOverlay  `toml:"supervision"`
+	BusyInput    sessionBusyInputOverlay    `toml:"busy_input"`
+	Messaging    sessionMessagingOverlay    `toml:"messaging"`
+	Attachments  sessionAttachmentsOverlay  `toml:"attachments"`
+	Derive       sessionDeriveOverlay       `toml:"derive"`
 }
 
 type sessionStopOverlay struct {

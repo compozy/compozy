@@ -991,6 +991,32 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 	})
 
+	t.Run("Should finish an interrupted keep-branch removal without the unpushed-commit refusal", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		f.item.Branch = "run/remove"
+		f.item.CreatedBranch = true
+		f.item.RunNamespace = "run/"
+		f.item.CreatedHead = "base-head"
+		f.store.mu.Lock()
+		f.store.items[worktreeStoreKey(f.workspace.ID, f.item.ID)] = f.item
+		f.store.mu.Unlock()
+		f.uniqueCommits.Store(2)
+		fenced, err := f.store.FenceRemoval(t.Context(), f.workspace.ID, f.item.ID, true, f.item.UpdatedAt)
+		if err != nil || !fenced {
+			t.Fatalf("FenceRemoval(keep branch) = %t, %v", fenced, err)
+		}
+		if err := f.service.RecoverCreations(t.Context()); err != nil {
+			t.Fatalf("RecoverCreations() error = %v", err)
+		}
+		if got := f.mustItem(t).State; got != StateRemoved {
+			t.Fatalf("interrupted keep-branch removal = %q, want removed", got)
+		}
+		if containsCommandPrefix(invocationCommands(f.runner.invocations()), "update-ref -d ") {
+			t.Fatal("recovery reclaimed the branch a keep-branch removal keeps")
+		}
+	})
+
 	t.Run("Should leave worktree rows untouched when the parent workspace root vanished", func(t *testing.T) {
 		t.Parallel()
 		fixture := newRemovalTestFixture(t)
@@ -1142,6 +1168,10 @@ func (s *lostStateFenceStore) CompareAndSwapState(
 	State,
 	time.Time,
 ) (bool, error) {
+	return false, nil
+}
+
+func (s *lostStateFenceStore) FenceRemoval(context.Context, string, string, bool, time.Time) (bool, error) {
 	return false, nil
 }
 

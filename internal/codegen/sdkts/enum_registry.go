@@ -41,6 +41,7 @@ var enumValuesRegistry = map[reflect.Type][]string{
 	reflect.TypeFor[session.LookupState]():                          {"ok", "pending", "error", "incomplete"},
 	reflect.TypeFor[session.Disposition]():                          session.DispositionValues(),
 	reflect.TypeFor[store.SteerDeliveryMode]():                      store.SteerDeliveryModeValues(),
+	reflect.TypeFor[store.SessionRuntimeRecoveryReason]():           store.SessionRuntimeRecoveryReasonValues(),
 	reflect.TypeFor[extensioncontract.CommandFlagType]():            extensioncontract.CommandFlagTypeValues(),
 	reflect.TypeFor[apicontract.IssueSeverity]():                    apicontract.IssueSeverityValues(),
 	reflect.TypeFor[apicontract.AuthoredValidationStatus]():         apicontract.AuthoredValidationStatusValues(),

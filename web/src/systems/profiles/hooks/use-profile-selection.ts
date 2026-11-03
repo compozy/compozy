@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useMutationState, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector } from "@xstate/store-react";
 
 import { notifyUser } from "@/lib/user-feedback";
@@ -7,22 +7,40 @@ import { notifyUser } from "@/lib/user-feedback";
 import { putProfileSelection } from "../adapters/profiles-api";
 import { PERMANENT_PROFILE, actingProfile, isArchived } from "../lib/profile-rows";
 import { profileViewKey } from "../lib/profile-scope";
+import { rememberedAfterSwitches, type SelectionSwitch } from "../lib/profile-scope-resolver";
 import { profileKeys } from "../lib/query-keys";
 import { profileSelectionOptions } from "../lib/query-options";
 import {
   enterProfileView,
-  localProfileView,
+  failProfileSwitch,
   profileViewStore,
-  restoreProfileView,
   setProfileView,
+  settleProfileSwitch,
 } from "../stores/profile-view-store";
-import { PROFILE_AGGREGATE, type ProfileView } from "../types";
+import { PROFILE_AGGREGATE, type ProfileSelectionPayload, type ProfileView } from "../types";
 import { usePinnedProfileView } from "./use-pinned-profile";
 import { useProfiles } from "./use-profiles";
 
 /** The remembered Global choice — daemon state, cached for instant render. */
 export function useRememberedProfile(enabled = true) {
   return useQuery(profileSelectionOptions(enabled));
+}
+
+/**
+ * The remembered choice the aggregate acts as. A switch still being persisted wins over the
+ * daemon's answer: the aggregate rereads the choice freely, and a reread landing before the write
+ * would otherwise bring the previous profile back, so X → Y → All could act as X (#1194).
+ */
+export function useRememberedProfileName(enabled = true): string | undefined {
+  const remembered = useRememberedProfile(enabled);
+  const switches = useMutationState({
+    filters: { mutationKey: profileKeys.selectionWrite() },
+    select: (mutation): SelectionSwitch => ({
+      status: mutation.state.status,
+      view: mutation.state.variables as ProfileView | undefined,
+    }),
+  });
+  return rememberedAfterSwitches(switches, remembered.data?.profile);
 }
 
 /**
@@ -89,7 +107,7 @@ export function useProfilePerProfileScope(): ProfilePerProfileScope {
     }
   );
   const aggregate = view.kind === "aggregate";
-  const remembered = useRememberedProfile(aggregate);
+  const remembered = useRememberedProfileName(aggregate);
   const profiles = useProfiles(aggregate);
   return {
     key: profileViewKey(view),
@@ -97,7 +115,7 @@ export function useProfilePerProfileScope(): ProfilePerProfileScope {
       view.kind === "aggregate"
         ? (profiles.data ?? []).flatMap(row => (isArchived(row) ? [] : [row.name]))
         : [view.profile],
-    destination: actingProfile(view, remembered.data?.profile),
+    destination: actingProfile(view, remembered),
   };
 }
 
@@ -123,15 +141,33 @@ export function useSwitchProfile() {
       void queryClient.invalidateQueries({ queryKey: profileKeys.selections() });
     }
   };
+  // Once the daemon holds the new choice the cache says so at once, so the gap between the write
+  // and its reread never acts as the previous choice; a read already in flight is dropped first so
+  // its older answer cannot land on top. While the write is pending, useRememberedProfileName
+  // answers from the mutation instead.
+  const rememberPersisted = async (view: ProfileView) => {
+    if (view.kind !== "profile") return;
+    await queryClient.cancelQueries({ queryKey: profileKeys.selection(), exact: true });
+    queryClient.setQueryData<ProfileSelectionPayload>(profileKeys.selection(), {
+      scope: "global",
+      profile: view.profile,
+    });
+  };
   const mutation = useMutation({
+    mutationKey: profileKeys.selectionWrite(),
+    // Writes run in the order the operator switched, so the daemon ends on the newest choice
+    // even when an older write is slow; the view itself still moves at once in onMutate.
+    scope: { id: "profile-selection-write" },
     mutationFn: rememberProfileView,
-    onMutate: (view: ProfileView) => {
-      const previous = localProfileView();
-      setProfileView(view);
-      return { previous };
+    onMutate: (view: ProfileView) => ({ switchId: setProfileView(view) }),
+    onSuccess: async (view, _view, context) => {
+      if (context.switchId !== null) settleProfileSwitch(context.switchId);
+      await rememberPersisted(view);
     },
     onError: (error, _view, context) => {
-      restoreProfileView(context?.previous ?? null);
+      // Switches overlap: the store rolls this one back along the pending chain, so a later
+      // switch keeps the view and a chain of failures returns to where the operator started.
+      if (context && context.switchId !== null) failProfileSwitch(context.switchId);
       notifyUser({
         message: error instanceof Error ? error.message : "Could not switch profile.",
         tone: "error",
@@ -147,8 +183,11 @@ export function useSwitchProfile() {
     // replaces the connection carrying that command.
     prepare: async (view: ProfileView) => {
       await rememberProfileView(view);
+      await rememberPersisted(view);
       return () => {
-        setProfileView(view);
+        // Already persisted: the switch is settled the moment it is shown.
+        const switchId = setProfileView(view);
+        if (switchId !== null) settleProfileSwitch(switchId);
         invalidateSelection(view);
       };
     },

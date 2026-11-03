@@ -13,6 +13,8 @@ export const profileKeys = {
   detail: (name: string) => [...profileKeys.details(), name] as const,
   selections: () => [...profileKeys.all, "selection"] as const,
   selection: () => [...profileKeys.selections(), "global"] as const,
+  /** Mutation identity of a switch persisting the Global choice. */
+  selectionWrite: () => [...profileKeys.all, "selection-write"] as const,
   plans: () => [...profileKeys.all, "plan"] as const,
   renamePlan: (name: string, newName: string) =>
     [...profileKeys.plans(), "rename", name, newName] as const,

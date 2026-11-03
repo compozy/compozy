@@ -238,6 +238,7 @@ func (h *BaseHandlers) GetSession(c *gin.Context) {
 	}
 
 	payload.Diagnostics = MissingWorkspaceDiagnostics(c.GetString("workspace_root_missing"))
+	h.withSessionWorkingDir(c.Request.Context(), &payload)
 	c.JSON(http.StatusOK, contract.SessionResponse{Session: payload})
 }
 

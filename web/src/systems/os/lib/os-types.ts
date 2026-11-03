@@ -196,7 +196,7 @@ export interface WindowManagerController extends OsDesktopRuntime {
   setConnectionStatus(status: WindowManagerConnectionStatus): void;
   setLoadError(error: Error | null): void;
   openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome;
-  closeWindow(id: string): Promise<boolean>;
+  closeWindow(id: string, viewOnly?: boolean): Promise<boolean>;
   focusWindow(id: string): WindowManagerCommandOutcome;
   minimizeWindow(id: string): Promise<boolean>;
   restoreWindow(id: string): WindowManagerCommandOutcome;

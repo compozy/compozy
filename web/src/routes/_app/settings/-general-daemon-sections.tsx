@@ -63,3 +63,41 @@ export function RedactionSection({ draft, setDraft }: DraftSectionProps) {
     </SettingsGroup>
   );
 }
+
+/** The PATCH validation message, shown on the row when it names the editor command. */
+function editorCommandError(saveError: string | null): string | undefined {
+  return saveError?.includes("desktop.editor_command") ? saveError : undefined;
+}
+
+/** `desktop.editor_command`: the argv template the desktop app opens transcript files with. */
+export function EditorCommandSection({
+  draft,
+  setDraft,
+  saveError,
+}: DraftSectionProps & { saveError: string | null }) {
+  return (
+    <SettingsGroup data-testid="settings-page-general-editor" title="Editor">
+      <SettingRow
+        data-testid="settings-page-general-editor-command"
+        description="Used by the desktop app to open files from the transcript. Use {path}, {line} and {col}. Leave empty to use the system text editor."
+        error={editorCommandError(saveError)}
+        label="Editor command"
+        control={
+          <Input
+            aria-label="Editor command"
+            className="font-mono"
+            data-testid="settings-page-general-editor-command-input"
+            placeholder="code -g {path}:{line}:{col}"
+            value={draft.desktop?.editor_command ?? ""}
+            onChange={event =>
+              setDraft(prev => {
+                const current = prev ?? draft;
+                return { ...current, desktop: { editor_command: event.target.value } };
+              })
+            }
+          />
+        }
+      />
+    </SettingsGroup>
+  );
+}

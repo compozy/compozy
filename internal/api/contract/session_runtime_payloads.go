@@ -112,6 +112,7 @@ type SessionPayload struct {
 	WorkspaceID              string                               `json:"workspace_id,omitempty"`
 	WorkspacePath            string                               `json:"workspace_path,omitempty"`
 	WorktreeID               string                               `json:"worktree_id,omitempty"`
+	WorkingDir               string                               `json:"working_dir,omitempty"`
 	Type                     session.Type                         `json:"type,omitempty"`
 	State                    session.State                        `json:"state"`
 	Badge                    session.Badge                        `json:"badge"`
@@ -168,13 +169,16 @@ type SessionRuntimePayload struct {
 
 // SessionRuntimeRecoveryPayload reports bounded automatic recovery progress.
 type SessionRuntimeRecoveryPayload struct {
-	Attempt       int        `json:"attempt"`
-	MaxAttempts   int        `json:"max_attempts"`
-	Generation    int64      `json:"generation"`
-	StartedAt     time.Time  `json:"started_at"`
-	LastAttemptAt time.Time  `json:"last_attempt_at"`
-	NextAttemptAt *time.Time `json:"next_attempt_at,omitempty"`
-	LastError     string     `json:"last_error,omitempty"`
+	// Reason is runtime_exit while a replacement runtime starts, or provider_auth while the
+	// provider sign-in is missing; absent on recoveries recorded before the field existed.
+	Reason        store.SessionRuntimeRecoveryReason `json:"reason,omitempty"`
+	Attempt       int                                `json:"attempt"`
+	MaxAttempts   int                                `json:"max_attempts"`
+	Generation    int64                              `json:"generation"`
+	StartedAt     time.Time                          `json:"started_at"`
+	LastAttemptAt time.Time                          `json:"last_attempt_at"`
+	NextAttemptAt *time.Time                         `json:"next_attempt_at,omitempty"`
+	LastError     string                             `json:"last_error,omitempty"`
 }
 
 // SetSessionRuntimeRequest durably selects the default runtime for future prompts.

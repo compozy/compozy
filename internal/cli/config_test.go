@@ -68,6 +68,40 @@ func TestConfigCommandsMutateValidateAndInspectTempHome(t *testing.T) {
 			t.Fatal("rejected literal leaked in diagnostic")
 		}
 	})
+	t.Run("Should set and read the global desktop editor command", func(t *testing.T) {
+		t.Parallel()
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		const path = "desktop.editor_command"
+		if _, _, err := executeRootCommand(t, deps, "config", "set", path, "zed {path}", "-o", "json"); err != nil {
+			t.Fatalf("config set %s error = %v", path, err)
+		}
+		home, err := deps.resolveHome()
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg, err := compozyconfig.LoadGlobalConfig(home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.Desktop.EditorCommand != "zed {path}" {
+			t.Fatalf("global desktop.editor_command = %q, want %q", cfg.Desktop.EditorCommand, "zed {path}")
+		}
+		getOut, _, err := executeRootCommand(t, deps, "config", "get", path, "-o", "json")
+		if err != nil {
+			t.Fatalf("config get %s error = %v", path, err)
+		}
+		var valueRecord configValueRecord
+		if err := json.Unmarshal([]byte(getOut), &valueRecord); err != nil {
+			t.Fatalf("json.Unmarshal(config get) error = %v", err)
+		}
+		if valueRecord.Path != path || valueRecord.Value != "zed {path}" || valueRecord.Redacted {
+			t.Fatalf("config get record = %#v, want %s=zed {path}", valueRecord, path)
+		}
+		_, _, err = executeRootCommand(t, deps, "config", "set", path, "code -g", "-o", "json")
+		if err == nil || !strings.Contains(err.Error(), path) || !strings.Contains(err.Error(), "must contain {path}") {
+			t.Fatalf("config set invalid template error = %v, want must contain {path}", err)
+		}
+	})
 	t.Run("Should mutate validate and inspect a temporary home [IT-016]", func(t *testing.T) {
 		t.Parallel()
 
