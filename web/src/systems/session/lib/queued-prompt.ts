@@ -52,6 +52,30 @@ export interface QueuedPrompt {
   position: number;
   status?: string;
   text: string;
+  /** The daemon holds this non-human row while a stays-on agent is paused (S12). */
+  held?: boolean;
+}
+
+/**
+ * The daemon's held marker on a queued input. Read defensively until the generated
+ * `SessionInputPayload` carries it; delete the cast once it does.
+ */
+function queuedInputHeld(input: SessionInputPayload): boolean {
+  const raw = input as SessionInputPayload & { held?: unknown };
+  return raw.held === true || (input.status as string) === "held";
+}
+
+/**
+ * A non-operator row that waits while the viewing session is a paused stays-on agent's main:
+ * agent messages and wakes are held until resume, while the operator's own input still runs.
+ */
+export function queuedPromptHeld(
+  prompt: Pick<QueuedPrompt, "held" | "owner" | "sender" | "status">,
+  instancePaused: boolean
+): boolean {
+  if (prompt.held) return true;
+  if (!instancePaused || prompt.status === "dispatching") return false;
+  return Boolean(prompt.sender) || (prompt.owner !== null && prompt.owner.kind !== "human");
 }
 
 export function queuedPromptAttachmentSummary(
@@ -123,6 +147,7 @@ export function queuedPromptsFromInputs(
       ...(input.coalesced_wakes ? { coalescedWakes: input.coalesced_wakes } : {}),
       ...(attachments ? { attachments } : {}),
       ...(sender ? { sender } : {}),
+      ...(queuedInputHeld(input) ? { held: true } : {}),
     };
   });
 }

@@ -835,6 +835,21 @@ describe("SessionSentCard", () => {
     expect(screen.getByText("Steered")).toBeInTheDocument();
   });
 
+  it("Should say a message to a paused stays-on agent is held (UT-080)", () => {
+    const part = sessionSentMessagePart("data-compozy-session-message", {
+      tool_call_id: "call-held",
+      target_session_id: target.sessionId,
+      delivery: "held",
+      state: "done",
+    });
+    expect(part?.held).toBe(true);
+    render(<SessionSentCard {...base} reply="none" held={part?.held} />, { wrapper });
+    const card = screen.getByRole("article", {
+      name: "Sent to Billing reviewer, held until it resumes",
+    });
+    expect(within(card).getByText("Held until it resumes")).toBeInTheDocument();
+  });
+
   it("Should read a failed call as Could not send with the error in place of the message (UT-067)", () => {
     render(
       <SessionSentCard

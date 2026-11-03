@@ -1,4 +1,4 @@
-import { ArrowUpRight, CornerDownRight, Scissors } from "@compozy/ui/icons";
+import { ArrowUpRight, CornerDownRight, Pause, Scissors } from "@compozy/ui/icons";
 import { useReducedMotionConfig } from "motion/react";
 import type { ReactNode } from "react";
 
@@ -103,6 +103,8 @@ export interface SessionSentCardProps {
   replyTo?: ReactNode;
   timestampMs: number | null;
   onOpenTarget?: SessionMessageOpen;
+  /** The target is paused: the message waits for its resume (S12). */
+  held?: boolean;
 }
 
 /**
@@ -120,6 +122,7 @@ export function SessionSentCard({
   replyTo,
   timestampMs,
   onOpenTarget,
+  held = false,
 }: SessionSentCardProps) {
   const failed = callState === "failed";
   const verb = VERB[callState];
@@ -130,7 +133,7 @@ export function SessionSentCard({
       : reply === "waiting"
         ? "waiting for reply"
         : REPLY_WORD[reply].toLowerCase();
-  const name = sessionPartyPhrase(verb, target);
+  const name = `${sessionPartyPhrase(verb, target)}${held && !failed ? ", held until it resumes" : ""}`;
   return (
     <article
       aria-label={replyWord ? `${name}, ${replyWord}` : name}
@@ -138,6 +141,7 @@ export function SessionSentCard({
       data-testid="session-sent-card"
       data-state={callState}
       data-reply={reply}
+      data-held={held || undefined}
       className={cn(
         SESSION_MESSAGE_FRAME_CLASS,
         "grid min-h-11.5 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-x-2.5 py-1.75 pr-3 pl-2.25"
@@ -164,6 +168,11 @@ export function SessionSentCard({
           ) : mode === "interrupt" ? (
             <SessionMessageChip icon={<Scissors aria-hidden="true" />}>
               Interrupted
+            </SessionMessageChip>
+          ) : null}
+          {held && !failed ? (
+            <SessionMessageChip icon={<Pause aria-hidden="true" />}>
+              Held until it resumes
             </SessionMessageChip>
           ) : null}
           {replyTo}

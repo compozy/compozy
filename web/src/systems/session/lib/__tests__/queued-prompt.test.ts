@@ -4,6 +4,7 @@ import {
   coalescedWakesLabel,
   operatorQueuedCount,
   queueCapFromInputs,
+  queuedPromptHeld,
   queuedPromptOwner,
   queuedPromptsFromInputs,
   withCachedInputs,
@@ -145,5 +146,14 @@ describe("queued prompt read model", () => {
     // A response that predates the summary stays without one — nothing is fabricated.
     expect(withCachedInputs({ inputs: [] }, [])).toEqual({ inputs: [] });
     expect(withCachedInputs(undefined, [])).toEqual({ inputs: [] });
+  });
+
+  it("Should hold agent rows, never the operator's, while the stays-on agent is paused (UT-080)", () => {
+    const agentRow = { owner: queuedPromptOwner("agent", "triage"), status: "queued" };
+    const operatorRow = { owner: null, status: "queued" };
+    expect(queuedPromptHeld(agentRow, true)).toBe(true);
+    expect(queuedPromptHeld(agentRow, false)).toBe(false);
+    expect(queuedPromptHeld(operatorRow, true)).toBe(false);
+    expect(queuedPromptHeld({ ...operatorRow, held: true }, false)).toBe(true);
   });
 });

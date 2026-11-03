@@ -121,6 +121,7 @@ export function SessionSentMessageRowView({ row }: { row: SessionSentMessageRow 
         }
         timestampMs={Number.isNaN(timestamp) ? null : timestamp}
         onOpenTarget={onOpen}
+        held={part.held}
       />
     </div>
   );
