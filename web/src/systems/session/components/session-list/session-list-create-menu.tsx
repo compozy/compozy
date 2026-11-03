@@ -17,7 +17,7 @@ export interface SessionListCreateMenuProps {
   onNewFolder?: () => void;
   /** Why folders cannot be added here; shows New folder disabled with the reason. */
   newFolderUnavailable?: string | null;
-  /** Present where a list shows one concrete scope: adds the Add stays-on agent item. */
+  /** Adds the Add stays-on agent item; its overlay may ask where the agent lives first. */
   onAddStaysOn?: () => void;
   /** Rendered over the `+`: the picker that item opens. */
   overlay?: ReactNode;
