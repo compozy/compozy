@@ -87,3 +87,5 @@ narrow width. Automated owners: E2E-004 in `web/e2e/__tests__/session-messages.s
 and the `LongTitles` story (360px and the 560px card maximum).
 
 QA verification 2026-10-31 (#1102): the targeted isolated project ping/pong, five authorization denials, and live From/Sent/error labels after reload passed. See [scoped report](../reports/2026-10-31-issue-1102-cross-workspace-reply.md) for evidence and coverage limits.
+
+QA impact 2026-11-03 (stays-on hardening S12): a message from or to a stays-on agent's current main names the agent (its label) instead of the session title. A send whose result is `delivery: held` reads Held until it resumes on the Sent card. In a paused agent's main session, queued agent messages and wakes show Held until resume while the operator's own rows stay editable. Both need backend B5 (`delivery: held`, the held marker on queued inputs); until then the queue state derives from the paused instance. Owners: `session-messages.test.tsx` and `queued-prompt.test.ts` (UT-080). Not walked.
