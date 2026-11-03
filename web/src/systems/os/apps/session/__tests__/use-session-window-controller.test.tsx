@@ -66,7 +66,11 @@ vi.mock("../use-session-window-sidebar", () => ({
 
 vi.mock("@/systems/session", () => ({
   sessionSuccessorId: () => null,
-  useSessionLinkedWork: () => ({ items: [], lead: null, more: null }),
+  useSessionLinkedWork: () => ({
+    items: [],
+    lead: null,
+    count: { total: 0, allPullRequests: true, needsYou: 0 },
+  }),
   getSessionPromptRuntimeSnapshot: () => ({ model: "gpt-5.6-terra", provider: "codex" }),
   isSessionTransportDisconnected: () => false,
   SessionTransportChip: () => null,
