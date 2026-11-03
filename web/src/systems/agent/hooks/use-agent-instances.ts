@@ -123,7 +123,12 @@ export function useCreateAgentInstance() {
 export function useAgentInstanceActions() {
   const { destination } = useProfilePerProfileScope();
   const pause = useInstanceMutation(pauseAgentInstance, "Failed to pause this agent.");
-  const resume = useInstanceMutation(resumeAgentInstance, "Failed to resume this agent.");
+  const queryClient = useQueryClient();
+  const resume = useInstanceMutation(async (instance: AgentInstancePayload) => {
+    const resumed = await resumeAgentInstance(instance);
+    applyAgentInstanceUpdate(queryClient, resumed);
+    return resumed;
+  }, "Failed to resume this agent.");
   const archive = useInstanceMutation(archiveAgentInstance, "Failed to archive this agent.");
   const add = useInstanceMutation(
     (params: CreateAgentInstanceParams) => createAgentInstance(params, destination),
@@ -145,8 +150,13 @@ export function useAgentInstanceActions() {
  * agent that stayed paused. `inline` drops the toast for a caller that shows the failure itself.
  */
 export function useResumeAgentInstances({ inline = false }: { inline?: boolean } = {}) {
+  const queryClient = useQueryClient();
   return useInstanceMutation(
-    (instances: readonly AgentInstancePayload[]) => resumeInOrder(instances, resumeAgentInstance),
+    (instances: readonly AgentInstancePayload[]) =>
+      // Each resumed agent moves in every open view at once, before the lists reread.
+      resumeInOrder(instances, async instance =>
+        applyAgentInstanceUpdate(queryClient, await resumeAgentInstance(instance))
+      ),
     inline ? null : "Failed to resume this agent."
   );
 }

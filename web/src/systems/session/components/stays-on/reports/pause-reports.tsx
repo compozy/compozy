@@ -7,6 +7,8 @@ import { use, useState, type ReactNode } from "react";
 
 import { Button, Receipt } from "@compozy/ui";
 
+import { InlineCodeText } from "@/systems/agent/components/inline-code-text";
+
 import { blockerPhrases, heldPhrase } from "../../../lib/session-pause";
 import { SessionReportSendContext } from "../../../lib/session-report-send";
 import type { ReportAgent } from "../../../lib/session-report-identity";
@@ -37,7 +39,7 @@ export function ResumeButton({
       </Button>
       {failed ? (
         <span className="text-small-body text-destructive" role="alert">
-          Couldn't resume. {reason || "Try again."}
+          Couldn't resume. {reason ? <InlineCodeText text={reason} /> : "Try again."}
         </span>
       ) : null}
     </span>
