@@ -125,7 +125,7 @@ after a daemon restart. Login changes require an explicit
 remain available while the source is parked.
 
 Transient network failures, permission denials such as HTTP 403 or unreadable files, HTTP 5xx,
-timeouts, and process crashes retry automatically with
+timeouts, and launch failures where the executable still exists retry automatically with
 exponential backoff, starting at five minutes and capped at two hours per execution context.
 A successful refresh restores the normal five-minute freshness window.
 

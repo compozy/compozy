@@ -213,3 +213,8 @@ and a provider config change should attempt a parked source immediately. A login
 detected without starting the provider, so after `agent login` (or another provider login) run
 `compozy provider models refresh` for that provider. A fake endpoint returning 503 and then 200 must
 recover at its next backoff attempt.
+
+For a discovery script whose executable exists but whose shebang interpreter is missing, confirm
+the launch error schedules transient backoff. It must not create an unobservable permanent hold
+or a refresh on every 30-second sweep. Restore the interpreter and verify the next due refresh
+(or an explicit manual refresh) recovers. The focused real-launch fixture owns this regression.

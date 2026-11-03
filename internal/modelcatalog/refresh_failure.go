@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -63,7 +64,12 @@ func requiresLoginText(text string) bool {
 
 func isMissingExecutableStart(err error) bool {
 	pathErr, ok := errors.AsType[*fs.PathError](err)
-	return ok && pathErr.Op == "fork/exec" && errors.Is(pathErr.Err, fs.ErrNotExist)
+	if !ok || pathErr.Op != "fork/exec" || !errors.Is(pathErr.Err, fs.ErrNotExist) {
+		return false
+	}
+	// An existing script can fail ENOENT when its interpreter is absent; preflight cannot observe that.
+	_, statErr := os.Stat(pathErr.Path)
+	return errors.Is(statErr, fs.ErrNotExist)
 }
 
 // PermanentFailureHeld identifies failed TTL sources parked without a scheduled refresh.

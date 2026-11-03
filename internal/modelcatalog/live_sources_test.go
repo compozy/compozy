@@ -755,6 +755,48 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
+	t.Run("Should back off a launch failure when the executable itself exists", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("requires a script interpreter fixture")
+		}
+		root := t.TempDir()
+		command := filepath.Join(root, "discovery")
+		if err := os.WriteFile(
+			command,
+			[]byte("#!"+filepath.Join(root, "missing-interpreter")+"\n"),
+			0o755,
+		); err != nil {
+			t.Fatal(err)
+		}
+		provider := compozyconfig.ProviderConfig{}
+		provider.Models.Discovery.Command = command
+		source := newLiveSourceForTest(
+			t,
+			"ollama",
+			provider,
+			&LiveProviderSourcesConfig{BaseEnv: []string{"PATH=/bin"}},
+		)
+		if err := source.DiscoveryPreflight(testutil.Context(t)); err != nil {
+			t.Fatalf("DiscoveryPreflight() error = %v, want existing executable", err)
+		}
+		_, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "ollama", Now: testTime(0)})
+		if err == nil || !errors.Is(err, fs.ErrNotExist) || IsPermanentSourceFailure(err) {
+			t.Fatalf("ListModels() error = %v, want transient missing-interpreter launch failure", err)
+		}
+		service := newTestService(t, newMemoryStore(), []Source{source})
+		statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{
+			ProviderID: "ollama", SourceID: source.ID(), Now: testTime(0),
+		})
+		if !errors.Is(err, ErrAllSourcesFailed) {
+			t.Fatalf("Refresh() error = %v, want ErrAllSourcesFailed", err)
+		}
+		if status := requireStatus(t, statuses, source.ID()); status.PermanentFailureHeld() ||
+			!status.NextRefresh.Equal(testTime(0).Add(source.TTL())) {
+			t.Fatalf("launch failure status = %#v, want transient backoff instead of a permanent hold", status)
+		}
+	})
+
 	t.Run("Should classify permanent and transient discovery failures", func(t *testing.T) {
 		t.Parallel()
 
@@ -789,7 +831,7 @@ func TestLiveProviderSources(t *testing.T) {
 			{
 				name: "absolute executable missing",
 				err: fmt.Errorf("acp: start: %w", &os.PathError{
-					Op: "fork/exec", Path: "/opt/agy/agy_acp_server.par", Err: os.ErrNotExist,
+					Op: "fork/exec", Path: filepath.Join(t.TempDir(), "missing-acp"), Err: os.ErrNotExist,
 				}),
 				permanent: true,
 			},
