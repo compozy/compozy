@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"cmp"
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -2461,6 +2462,88 @@ func TestDispatchInitiatorIdentity(t *testing.T) {
 			opts := dispatcher.createOpts(tc.request)
 			if string(opts.Origin.Kind) != "automation" || opts.Origin.ID != tc.want {
 				t.Fatalf("origin = %#v, want automation/%s", opts.Origin, tc.want)
+			}
+		})
+	}
+}
+
+func TestDispatchInstanceEventReadableWebhookSummary(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body map[string]any
+	}{
+		{"Should read a small webhook body as its fields, not the raw payload copy", map[string]any{"status": "failed"}},
+		{
+			"Should keep a readable line for a body larger than the stored limit",
+			map[string]any{"status": "failed", "log": strings.Repeat("stack frame ", 600)},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			path := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
+			if err := automationTestStoreSeed.Clone(path); err != nil {
+				t.Fatal(err)
+			}
+			db, err := globaldb.OpenGlobalDB(ctx, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			instance, _, err := db.Instances().
+				AdmitCreate(ctx, agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "reviewer", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.DB().
+				ExecContext(ctx, "UPDATE agent_instances SET state='active' WHERE id=?", instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			trigger := testTrigger(AutomationScopeGlobal, "deploy-failed", "")
+			trigger.TargetKind, trigger.TargetInstanceScope, trigger.Prompt = TargetKindAgentInstance, "global", ""
+			trigger, err = db.CreateTrigger(ctx, trigger)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, err := json.Marshal(tc.body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// The HTTP transport decodes the body into Data and also keeps the raw bytes.
+			envelope, err := webhookEnvelope(WebhookRequest{
+				Scope: AutomationScopeGlobal, DeliveryID: "dlv-1", Timestamp: time.Now(),
+				Payload: raw, Data: tc.body,
+			}, trigger)
+			if err != nil {
+				t.Fatal(err)
+			}
+			dispatcher := newTestDispatcher(
+				t, newRecordingSessionCreator(), db, WithDispatcherInstanceEvents(db.InstanceEvents(time.Minute)),
+			)
+			run, err := dispatcher.Dispatch(
+				ctx, DispatchRequest{Kind: DispatchKindTrigger, Trigger: &trigger, Envelope: &envelope},
+			)
+			if err != nil || run.Status != RunCompleted {
+				t.Fatalf("dispatch: %+v %v", run, err)
+			}
+			_, facts, err := db.Instances().CollectorFacts(ctx, instance.ID, heartbeat.CollectorScope{})
+			if err != nil || len(facts.AutomationEvents) != 1 {
+				t.Fatalf("event facts: %+v %v", facts.AutomationEvents, err)
+			}
+			stored := facts.AutomationEvents[0].Summary
+			if len(stored) > heartbeat.AutomationEventSummaryBytes {
+				t.Fatalf("stored summary is %d bytes", len(stored))
+			}
+			readable := heartbeat.ReadableAutomationEventSummary(stored)
+			// The line is the body's own fields in key order (bounded), never the raw envelope.
+			fields := readable == "status: failed" || strings.HasPrefix(readable, "log: stack frame")
+			if !fields || strings.Contains(readable, "payload") || strings.Contains(readable, "{") ||
+				strings.Contains(readable, "dlv-1") {
+				t.Fatalf("readable line = %q from stored %q", readable, stored)
 			}
 		})
 	}

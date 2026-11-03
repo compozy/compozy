@@ -6728,7 +6728,6 @@
           "agent_name",
           "event",
           "name",
-          "prompt",
           "scope"
         ],
         "type": "object"

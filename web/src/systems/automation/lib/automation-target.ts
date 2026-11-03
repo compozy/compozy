@@ -2,7 +2,8 @@ import { LOOP_TARGET_KIND, type AutomationLoopTarget } from "./automation-drafts
 
 interface AutomationTargetSource {
   agent_name: string;
-  prompt: string;
+  /** Optional for a stays-on agent target, whose check reads the event itself. */
+  prompt?: string;
   target_kind?: string | null;
   loop_target?: AutomationLoopTarget | null;
 }
@@ -43,7 +44,7 @@ export function projectAutomationTarget(
   return {
     kind: "agent",
     agentName: source.agent_name,
-    prompt: source.prompt,
+    prompt: source.prompt ?? "",
   };
 }
 

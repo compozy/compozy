@@ -191,7 +191,7 @@ func appendInstanceEvent(
 		TriggerID:  event.TriggerID,
 		RunID:      event.RunID,
 		Summary: heartbeat.BoundAutomationEventSummary(
-			redact.String(event.Summary),
+			heartbeat.CompactAutomationEventSummary(redact.String(event.Summary)),
 		),
 		ReceivedAt: store.FormatTimestamp(now),
 	}); err != nil {

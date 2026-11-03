@@ -369,7 +369,7 @@ const automationTriggerHistoryInputSchema = `{
 
 var automationTriggerCreateInputSchema = `{
 	"type":"object",
-	"required":["scope","name","agent_name","prompt","event"],
+	"required":["scope","name","agent_name","event"],
 	"properties":` + automationTriggerProperties + `,
 	"additionalProperties":false
 }`
