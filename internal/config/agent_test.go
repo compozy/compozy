@@ -2004,6 +2004,8 @@ func TestAgentIdentityContract(t *testing.T) {
 			"icon on its plate":           {"version": 1, "avatar": "icon", "icon": "radar", "color": "#7c5cff"},
 			"icon on an explicit plate":   {"version": 1, "avatar": "icon", "icon": "radar", "color": "#7c5cff", "background": "plate"},
 			"emoji on an explicit plate":  {"version": 1, "avatar": "emoji", "emoji": "🦊", "color": "#e5484d", "background": "plate"},
+			"icon with no background":     {"version": 1, "avatar": "icon", "icon": "radar", "color": "#7c5cff", "background": "none"},
+			"emoji with no background":    {"version": 1, "avatar": "emoji", "emoji": "🦊", "color": "#e5484d", "background": "none"},
 			"version decoded as float":    {"version": 1.0, "avatar": "emoji", "emoji": "🦊", "color": "#e5484d"},
 		} {
 			t.Run("Should accept "+name, func(t *testing.T) {
@@ -2016,8 +2018,6 @@ func TestAgentIdentityContract(t *testing.T) {
 		for name, a := range map[string]map[string]any{
 			"missing version":           {"avatar": "icon", "icon": "radar", "color": "#7c5cff"},
 			"missing color":             {"version": 1, "avatar": "generated", "seed": "issue-watch", "generation": 1},
-			"icon with no background":   {"version": 1, "avatar": "icon", "icon": "radar", "color": "#7c5cff", "background": "none"},
-			"emoji with no background":  {"version": 1, "avatar": "emoji", "emoji": "🦊", "color": "#e5484d", "background": "none"},
 			"unknown background":        {"version": 1, "avatar": "icon", "icon": "radar", "color": "#7c5cff", "background": "glass"},
 			"generated without a plate": {"version": 1, "avatar": "generated", "seed": "s", "generation": 1, "color": "#7c5cff", "background": "none"},
 		} {
@@ -2032,7 +2032,7 @@ func TestAgentIdentityContract(t *testing.T) {
 	for _, avatar := range []string{"icon", "emoji"} {
 		t.Run("Should preserve and repair a saved unsupported background for "+avatar, func(t *testing.T) {
 			t.Parallel()
-			appearance := map[string]any{"version": 1, "avatar": avatar, "color": "#7c5cff", "background": "none"}
+			appearance := map[string]any{"version": 1, "avatar": avatar, "color": "#7c5cff", "background": "glass"}
 			if avatar == "icon" {
 				appearance["icon"] = "radar"
 			} else {
