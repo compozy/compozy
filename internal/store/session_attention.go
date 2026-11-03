@@ -100,6 +100,9 @@ type PendingInteractionPayload struct {
 	Choices   []string `json:"choices,omitempty"`
 	Decisions []string `json:"decisions,omitempty"`
 	ToolID    string   `json:"tool_id,omitempty"`
+	// ToolKind is the ACP tool kind of a permission request (edit, execute, ...); Action holds
+	// the ACP operation that raised it.
+	ToolKind string `json:"tool_kind,omitempty"`
 }
 
 // PendingInteraction is one restart-durable operator decision request.
@@ -338,6 +341,7 @@ func normalizePendingInteractionPayload(payload PendingInteractionPayload) Pendi
 		Choices:   make([]string, 0, len(payload.Choices)),
 		Decisions: make([]string, 0, len(payload.Decisions)),
 		ToolID:    diagnostics.RedactAndBound(payload.ToolID, PendingInteractionTitleMaxBytes),
+		ToolKind:  diagnostics.RedactAndBound(payload.ToolKind, PendingInteractionTitleMaxBytes),
 	}
 	for _, choice := range payload.Choices {
 		if normalized := diagnostics.RedactAndBound(choice, PendingInteractionChoiceMaxBytes); normalized != "" {

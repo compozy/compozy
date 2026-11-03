@@ -424,7 +424,7 @@ func TestPermissionInteractionPayloadShouldPreserveCanonicalToolID(t *testing.T)
 		Raw: []byte(`{
 			"tool_id":"compozy__terminal_exec",
 			"options":[{"decision":"allow-once"}],
-			"tool_call":{"title":"Terminal Exec"}
+			"tool_call":{"title":"Terminal Exec","kind":"execute"}
 		}`),
 	})
 	if got, want := title, "Terminal Exec"; got != want {
@@ -435,6 +435,9 @@ func TestPermissionInteractionPayloadShouldPreserveCanonicalToolID(t *testing.T)
 	}
 	if got, want := payload.Decisions, []string{"allow-once"}; !slices.Equal(got, want) {
 		t.Fatalf("decisions = %#v, want %#v", got, want)
+	}
+	if got, want := payload.ToolKind, "execute"; got != want {
+		t.Fatalf("tool kind = %q, want %q", got, want)
 	}
 }
 
