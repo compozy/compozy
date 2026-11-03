@@ -11,8 +11,10 @@ CompozyOS applies permissions in two layers:
 Both layers are scoped to the session workspace. `approve-all` by itself does not guarantee
 unrestricted provider commands: the ACP provider also chooses an operating mode. Set
 `permissions.provider_full_access = true` in the global config to request the provider's unrestricted mode for new
-`approve-all` sessions, including Loop roles. CompozyOS selects `agent-full-access` for Codex and
-`bypassPermissions` for Claude Code. Unsupported providers fail session resolution clearly instead
+`approve-all` sessions, including Loop roles. CompozyOS selects `agent-full-access` for Codex,
+`bypassPermissions` for Claude Code, `yolo` for Google Antigravity, and the `allow_all = on` option
+for GitHub Copilot CLI. Copilot's Autopilot mode also approves everything, so it counts as an
+unrestricted mode. Unsupported providers fail session resolution clearly instead
 of silently accepting this preference. Existing mode selection is unchanged when the setting is
 false. With the current Claude Code adapter, `approve-all` already selects `bypassPermissions`
 when that mode is advertised. An agent can explicitly choose a narrower ACP mode, and stricter effective CompozyOS
@@ -140,6 +142,24 @@ under another profile counts as a different scope too. Unless the agent holds th
 | `approve-reads`, `approve-edits`, `auto` | Asks at the native-tool boundary when the session is running; every other boundary denies. |
 | `deny-all`      | Denied at every boundary, including the native-tool one. CompozyOS never prompts for crossing. |
 
+The same table covers reading another profile (`profile`, `all_profiles`) and the
+[All projects](/docs/all-projects) aggregates, so an `approve-all` session reads sessions in any
+workspace, the User scope, and any profile, as you would. Changing another profile, or writing
+through an aggregate route, still needs the [unrestricted grant](#the-unrestricted-grant).
+
+A session tool called with only a `session_id`, such as `compozy__session_status`, is checked
+against the workspace and profile of that session, not the caller's. You don't need to pass
+`workspace` to read a session somewhere else.
+
+### Redaction outside the agent's own scope
+
+When an agent reads something outside its own workspace or profile, CompozyOS redacts secrets in
+what comes back: session names, messages, tool inputs and outputs, and previews. It replaces
+credential-shaped text with `[REDACTED]`: authorization headers and bearer tokens, `key=value` pairs
+whose key names a secret, well-known provider key prefixes, URL passwords, and long random-looking
+tokens. Redaction works by recognizing patterns, so a secret with no recognizable shape can still
+come through. Reads inside the agent's own workspace and profile are not changed.
+
 Operators are not governed by this policy — it applies to agent sessions. Extensions, automation,
 and the daemon itself keep the behavior they have today; a permissive mode never
 widens them.
@@ -155,13 +175,16 @@ workspace. The built-in default is `approve-all`, so set `[permissions] mode` �
 
 ### Denials
 
-A denied request keeps the error shape it has today and adds one hint:
+A denied request keeps the error shape it has today. Native tool denials carry the
+`workspace_access_denied` reason code, and the message says which setting denied the call and what
+would allow it: `deny-all`, an `approve-reads` request nobody answered, a rejected request, or a
+write to another profile that needs the unrestricted grant. The message never names the target, so
+a session that is denied gets the same answer whether the session it asked for exists or not. Other
+boundaries keep this hint:
 
 ```text
 cross-workspace access is denied by this session's permission mode; ask the operator to set the agent's permissions.mode to approve-all, or approve the prompt when asked
 ```
-
-Native tool denials carry the `workspace_access_denied` reason code alongside that message.
 
 ### The cross-workspace prompt
 
@@ -194,8 +217,8 @@ how you clear the answer. Persisted audit events show how later policy evaluatio
 ### The unrestricted grant
 
 An agent definition with `workspace_access: unrestricted` skips this table: its sessions reach every
-workspace, the User scope, and every profile without a prompt, and can read
-[All projects](/docs/all-projects) aggregates. Only you can set the field, and it does not loosen tool
+workspace, the User scope, and every profile without a prompt, for reads and writes, and can read
+[All projects](/docs/all-projects) aggregates whatever their permission mode. Only you can set the field, and it does not loosen tool
 approvals — the permission mode still decides risky tools. Each allowed crossing is audited with
 decision source `agent_grant`. See
 [Give an agent access to everything](/docs/user-scope/unrestricted-agents).
@@ -205,7 +228,7 @@ decision source `agent_grant`. See
 Each policy evaluation attempts a best-effort audit append — `workspace.access_granted` for an allow
 or `workspace.access_denied` for a deny, including a prompt-eligible deny — scoped to the actor's own
 workspace. The payload carries the actor and target profiles, the target kind (`workspace`, `user`,
-or `aggregate`), the target workspace, boundary, decision source, and resolved mode.
+`aggregate`, or `unresolved` for a session id that matches no session), the target workspace, boundary, decision source, and resolved mode.
 An audit write failure is logged and does not change the access decision. Read persisted events with
 `compozy logs --type <event-type>` or `GET /api/logs`.
 

@@ -167,7 +167,9 @@ apply. It has no worktrees.
 
 **All projects** is the Web's breadth mode (the topbar globe): every registered project plus User,
 within the profile lens. Agents and scripts read the same aggregates with `--all-workspaces` or
-`all_workspaces=true`; ordinary agent identities are denied (`agent_scope_denied`). The route
+`all_workspaces=true`; agent identities need the unrestricted grant or a permission mode that
+reaches All projects for reads (`approve-all`, or `approve-reads` with a session answer), and are
+otherwise denied (`agent_scope_denied`). The route
 matrix, `workspace_ids` filter, cursors, and per-route rules are in `references/native-tools.md`
 (All-Projects Aggregates). Session lists take `--all-workspaces` and, over HTTP/UDS,
 `workspace_ids` (`@user` selects User rows); facets add `by_profile`.
@@ -665,8 +667,9 @@ Operator clients acquire a per-client visibility lease with
 `POST /api/workspaces/{workspace_id}/sessions/{session_id}/presence`. A first request with
 `{"visible":true}` returns `lease_id`; renew or release only that lease by sending the ID back.
 When a turn settles under any live lease, the daemon marks it seen and does not derive `done`.
-Leases expire after 15 seconds unless renewed. Presence, attention-summary, and cross-workspace
-catalog surfaces are operator-only; agent identity receives `403 agent_scope_denied`. Interaction
+Leases expire after 15 seconds unless renewed. Presence and attention-summary are operator-only;
+agent identity receives `403 agent_scope_denied`. The cross-workspace session catalog and its
+stream follow the All projects aggregate rule above. Interaction
 discovery accepts a validated agent identity only for that agent's workspace.
 
 Subscribe to `session_attention_changed` on the session catalog stream for committed badge edges.
@@ -1427,6 +1430,19 @@ concluding a new model is absent, and treat a missing-login diagnostic as a prom
 secret-binding or shell workaround. In Settings the provider shows `Sign-in unverified` until a
 live probe succeeds, and the runtime picker plus session attribution carry the exact selected
 model ID (on the verified 1.4.0 server the bare `gemini-4-argon` / `gemini-3.8-flash` IDs; effort is the first-class `thinking_level` option, not an ID suffix).
+
+For the `copilot` built-in (GitHub Copilot CLI, ACP in public preview upstream), sign in with
+`compozy provider auth login copilot`, which runs `copilot login` (browser or device code; token in
+the system keychain). `needs_login` means run that login; `missing_cli` means install
+`@github/copilot` (`npm install -g @github/copilot` or `brew install copilot-cli`). Never ask for or
+export a GitHub token: CompozyOS filters token-shaped daemon variables. Models and effort come only
+from live `provider_live:copilot` discovery and depend on the account's plan; a plan with one model
+(Copilot Free) advertises no model option, so refresh reports it missing, Copilot picks Auto, and an
+explicit model or effort fails before the first prompt. CompozyOS native tools reach Copilot through
+the `session_mcp_transport = "http"` loopback bridge; if a Copilot session lacks `compozy__*` tools,
+check that the provider override did not set `session_mcp_transport = "stdio"`. Copilot has no
+read-only mode (triage is unsupported), no steering (a busy-mode message interrupts the turn;
+use `--queue` to wait), and no provider-usage collector.
 
 ## Automatic continuation after daemon restart
 

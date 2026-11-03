@@ -623,6 +623,9 @@ func (a *helperACPAgent) NewSession(
 		<-ctx.Done()
 		return acpsdk.NewSessionResponse{}, ctx.Err()
 	}
+	if a.scenario == "new_session_auth_required" {
+		return acpsdk.NewSessionResponse{}, &acpsdk.RequestError{Code: -32000, Message: "Authentication required"}
+	}
 	if a.scenario == "triage_config_mode" || a.scenario == "triage_config_unconfirmed" {
 		options := []acpsdk.SessionConfigOption{helperSelectConfigOption("mode", "Mode", "default", "default", "plan")}
 		a.setHelperConfigOptions(options)

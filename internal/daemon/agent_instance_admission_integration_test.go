@@ -19,11 +19,13 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	looppkg "github.com/compozy/compozy/internal/loop"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -941,4 +943,463 @@ func TestInstancePermissionExpiryIntegration(t *testing.T) {
 	if payload["resource"] == "" || payload["action"] == "" {
 		t.Fatalf("expiry payload=%v", payload)
 	}
+}
+
+// Invariant (UT-083, IT-001): pause permits an in-flight turn to finish. A child first
+// prompt from a human turn runs without counting; the same spawn from an autonomous turn is held.
+func TestInstancePausedChildRuntimeIntegration(t *testing.T) {
+	for _, human := range []bool{true, false} {
+		t.Run(fmt.Sprintf("Should classify first child prompt with human parent=%v", human), func(t *testing.T) {
+			d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
+				configureInstancePermissionFixture(t, d, "approve-all", "", func(*acpmock.AgentFixture) {})
+			})
+			main, err := manager.Create(
+				t.Context(),
+				&session.CreateOpts{AgentName: "subagent-test", Workspace: workspace},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			db := d.registry.(*globaldb.GlobalDB)
+			instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+				ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
+				PermissionCeiling: string(mustWorkLogCeiling(t, main.Info().Workspace)), CreatedByKind: "human",
+			}, main.ID, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			opts := session.SendPromptOpts{
+				Message:        "slow child",
+				MessageID:      "parent-turn",
+				IdempotencyKey: "parent-turn",
+			}
+			if human {
+				opts.Caller = session.PromptCaller{Kind: "human", ID: "operator", Source: "http"}
+			} else {
+				peer, err := manager.Create(
+					t.Context(),
+					&session.CreateOpts{AgentName: "subagent-test", Workspace: workspace},
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				opts.Origin = &acp.PromptOriginMeta{Kind: "session", SessionID: peer.ID, WorkspaceID: workspace, Hop: 1}
+			}
+			started, err := manager.SendPrompt(t.Context(), main.ID, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if started.Events != nil {
+				go func() {
+					for range started.Events {
+					}
+				}()
+			}
+			waitForCondition(
+				t,
+				"parent work started",
+				func() bool { return main.IsPrompting() && main.CurrentTurnID() != "" },
+			)
+			caller := session.SubagentCaller{
+				WorkspaceID: workspace,
+				SessionID:   main.ID,
+				TurnID:      main.CurrentTurnID(),
+				ToolCallID:  "child-first",
+			}
+			status, raw := instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/pause", nil, nil)
+			if status != http.StatusOK {
+				t.Fatalf("pause=%d %s", status, raw)
+			}
+			child, err := d.SubagentService().Delegate(t.Context(), session.SubagentRequest{
+				Caller:  caller,
+				Task:    "child work",
+				Title:   "First child prompt",
+				Mode:    "wait",
+				Timeout: 10 * time.Second,
+			})
+			if err != nil || child.ChildSessionID == nil {
+				t.Fatalf("child=%+v error=%v", child, err)
+			}
+			if human {
+				if child.Status != "completed" || child.Delivery == "held" {
+					t.Fatalf("human child=%+v", child)
+				}
+			} else {
+				if child.Delivery != "held" {
+					t.Fatalf("autonomous child=%+v", child)
+				}
+				rows, err := manager.ListPendingInputs(t.Context(), *child.ChildSessionID)
+				if err != nil || len(rows) != 1 || !rows[0].Held || manager.IsPrompting(*child.ChildSessionID) {
+					t.Fatalf("held child=%+v error=%v", rows, err)
+				}
+			}
+			waitForRuntimeCondition(
+				t,
+				"in-flight parent finished after pause",
+				10*time.Second,
+				func() bool { return !main.IsPrompting() },
+			)
+			wake, err := db.Instances().WakeState(t.Context(), instance.ID)
+			want := int64(1)
+			if human {
+				want = 0
+			}
+			if err != nil || wake.UnattendedTurns != want {
+				t.Fatalf("counter=%+v error=%v", wake, err)
+			}
+		})
+	}
+}
+
+// Invariant (IT-003, IT-029): committed manual or spend-brake pauses cancel an
+// active ACP check, settle it as cancelled, and preserve its failure streak.
+// Owning layer and canonical suite: daemon instance admission integration.
+func TestInstanceRunningCheckPauseIntegration(t *testing.T) {
+	for _, trip := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should cancel the running check with spend brake=%v", trip), func(t *testing.T) {
+			d, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
+				cfg.Agents.StaysOn.UnattendedTurnLimit = 1
+			}, "", func(d *Daemon) {
+				configureInstancePermissionFixture(t, d, "approve-all", "", func(agent *acpmock.AgentFixture) {
+					agent.ConfigOptions = []acpmock.SessionConfigOptionFixture{{
+						ID: "mode", Name: "Mode", Category: "mode", Current: "read-only",
+						Values: []acpmock.SessionConfigOptionValueFixture{{Value: "read-only", Label: "Read only"}},
+					}}
+					agent.Turns = append([]acpmock.TurnFixture{{
+						Name: "blocking-check", Match: acpmock.TurnMatch{RawUserTextContains: "pause-check-fixture"},
+						Steps: []acpmock.Step{{Kind: acpmock.StepKindThought, Text: "check ready"}, {
+							Kind:          acpmock.StepKindDriverControl,
+							DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlBlockUntilCancel},
+						}},
+					}}, agent.Turns...)
+				})
+				path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "HEARTBEAT.md")
+				if err := os.WriteFile(
+					path,
+					[]byte("---\nversion: 1\nenabled: true\ncontext:\n  include: []\n---\npause-check-fixture\n"),
+					0o600,
+				); err != nil {
+					t.Fatal(err)
+				}
+			})
+			main, err := manager.Create(
+				t.Context(),
+				&session.CreateOpts{AgentName: "subagent-test", Workspace: workspace},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			db := d.registry.(*globaldb.GlobalDB)
+			instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+				ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
+				PermissionCeiling: string(mustWorkLogCeiling(t, main.Info().Workspace)), CreatedByKind: "human",
+			}, main.ID, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			check, err := d.runtimeWorkers.proactiveChecks.Check(t.Context(), instance.ID, false)
+			if err != nil || check.OccurrenceID == "" {
+				t.Fatalf("check=%+v error=%v", check, err)
+			}
+			var triageID string
+			t.Cleanup(func() {
+				if t.Failed() {
+					wake, _ := db.Instances().WakeState(context.Background(), instance.ID)
+					occurrence, _ := db.Instances().Occurrence(context.Background(), instance.ID, check.OccurrenceID)
+					t.Logf(
+						"failed check: wake=%+v occurrence=%+v prompting=%v",
+						wake,
+						occurrence,
+						manager.IsPrompting(triageID),
+					)
+				}
+			})
+			waitForRuntimeCondition(t, "real ACP check started", 15*time.Second, func() bool {
+				wake, err := db.Instances().WakeState(t.Context(), instance.ID)
+				triageID = wake.TriageSessionID
+				return err == nil && triageID != "" && manager.IsPrompting(triageID)
+			})
+			if trip {
+				waker := monitorSessionWaker{sessions: func() monitorSessionManager { return manager }}
+				if err := waker.WakeSession(t.Context(), monitorpkg.Notification{
+					Monitor: monitorpkg.Monitor{
+						ID:          "mon-check-trip",
+						SessionID:   main.ID,
+						Kind:        monitorpkg.KindTimer,
+						Description: "Reach spend limit",
+					},
+					Outcome: monitorpkg.Outcome{Reason: "timer"},
+				}); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				status, raw := instanceIntegrationHTTP(
+					t,
+					d,
+					"POST",
+					"/api/agent-instances/"+instance.ID+"/pause",
+					nil,
+					nil,
+				)
+				if status != http.StatusOK {
+					t.Fatalf("pause=%d %s", status, raw)
+				}
+			}
+			waitForRuntimeCondition(t, "check cancelled and settled", 15*time.Second, func() bool {
+				occurrence, err := db.Instances().Occurrence(t.Context(), instance.ID, check.OccurrenceID)
+				return err == nil && occurrence.Result == "cancelled" && !manager.IsPrompting(triageID)
+			})
+			wake, err := db.Instances().WakeState(t.Context(), instance.ID)
+			if err != nil || wake.FailureStreak != 0 || wake.OccurrenceID != "" {
+				t.Fatalf("settled check=%+v error=%v", wake, err)
+			}
+			paused, err := db.Instances().Get(t.Context(), instance.ID)
+			if err != nil || paused.State != "paused" || (trip && paused.PauseReason != "unattended") {
+				t.Fatalf("instance=%+v error=%v", paused, err)
+			}
+		})
+	}
+}
+
+// Invariant (IT-010, IT-030): the HTTP and CLI UDS transports enforce the same
+// frozen lineage grant before looking up an approval or clarification request.
+// Owning layer: daemon instance admission integration, using real session identity.
+func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
+	d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
+		configureInstancePermissionFixture(t, d, "approve-all", "", func(*acpmock.AgentFixture) {})
+	})
+	main, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := d.registry.(*globaldb.GlobalDB)
+	if _, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+		ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
+		PermissionCeiling: string(mustWorkLogCeiling(t, main.Info().Workspace)), CreatedByKind: "human",
+	}, main.ID, 10); err != nil {
+		t.Fatal(err)
+	}
+	stranger, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	uds := gatewayDaemonUDSClient(d.homePaths.DaemonSocket)
+	t.Cleanup(uds.CloseIdleConnections)
+	for _, transport := range []struct {
+		name, base string
+		client     *http.Client
+	}{
+		{"HTTP", fmt.Sprintf("http://127.0.0.1:%d", d.info.Port), http.DefaultClient},
+		{"UDS", "http://unix", uds},
+	} {
+		for _, endpoint := range []struct{ path, body string }{
+			{"approve", `{"request_id":"stranger-request","decision":"allow-once"}`},
+			{"clarifications/stranger-request/answer", `{"text":"Proceed"}`},
+		} {
+			t.Run("Should refuse stranger "+endpoint.path+" through "+transport.name, func(t *testing.T) {
+				url := transport.base + "/api/workspaces/" + workspace + "/sessions/" + stranger.ID + "/" + endpoint.path
+				request, err := http.NewRequestWithContext(
+					t.Context(),
+					http.MethodPost,
+					url,
+					strings.NewReader(endpoint.body),
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Header.Set("Content-Type", "application/json")
+				request.Header.Set(agentidentity.HeaderSessionID, main.ID)
+				request.Header.Set(agentidentity.HeaderAgent, main.AgentName)
+				response, err := transport.client.Do(request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer response.Body.Close()
+				raw, err := io.ReadAll(response.Body)
+				if err != nil || response.StatusCode != http.StatusForbidden ||
+					!bytes.Contains(raw, []byte("session_approve_outside_lineage")) {
+					t.Fatalf("approval response=%d %s error=%v", response.StatusCode, raw, err)
+				}
+			})
+		}
+	}
+}
+
+// Invariant (UT-007, IT-022, IT-032): child Goals remain supported; maintenance
+// recovers a committed instance pause and resumes only its own paused runs.
+// Owning layer and canonical suite: daemon instance admission integration.
+func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
+	d, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
+		cfg.Session.Supervision.ActivityHeartbeatInterval = time.Second
+		cfg.Loops.Defaults.Delivery.RuntimeDefaults.Judge.Model = "goal-test-judge"
+	}, "", func(d *Daemon) {
+		config, err := os.ReadFile(d.homePaths.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		config = append(
+			config,
+			[]byte("\n[loops.defaults.delivery.runtime_defaults.judge]\nmodel = \"goal-test-judge\"\n")...)
+		if err := os.WriteFile(d.homePaths.ConfigFile, config, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		configureInstancePermissionFixture(t, d, "approve-all", "", func(agent *acpmock.AgentFixture) {
+			agent.Turns = append([]acpmock.TurnFixture{{
+				Name: "child-goal", Match: acpmock.TurnMatch{RawUserTextContains: "Keep child working"},
+				Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "Goal work started"}, {
+					Kind:          acpmock.StepKindDriverControl,
+					DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlBlockUntilCancel},
+				}},
+			}}, agent.Turns...)
+		})
+	})
+	main, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := d.registry.(*globaldb.GlobalDB)
+	instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+		ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
+		PermissionCeiling: string(mustWorkLogCeiling(t, main.Info().Workspace)), CreatedByKind: "human",
+	}, main.ID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type childGoal struct{ sessionID, runID string }
+	var children []childGoal
+	goalCommand := func(id, operation string) (int, contract.GoalCommandResult, []byte) {
+		t.Helper()
+		input := map[string]string{"operation": operation}
+		if operation == "set" {
+			input["objective"] = "Keep child working"
+		}
+		body, err := json.Marshal(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, raw := instanceIntegrationHTTP(
+			t,
+			d,
+			"POST",
+			"/api/workspaces/"+workspace+"/sessions/"+id+"/goal",
+			body,
+			nil,
+		)
+		var result contract.GoalCommandResult
+		if status < 400 {
+			if err := json.Unmarshal(raw, &result); err != nil {
+				t.Fatal(err)
+			}
+		}
+		return status, result, raw
+	}
+	for i := range 2 {
+		child, err := manager.Spawn(t.Context(), session.SpawnOpts{ParentSessionID: main.ID, AgentName: main.AgentName,
+			Workspace: workspace, Name: fmt.Sprintf("Goal child %d", i), InheritPermissions: true, TTL: time.Minute})
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, started, raw := goalCommand(child.ID, "set")
+		if status >= 400 || started.Outcome != contract.GoalOutcomeStarted || started.Snapshot == nil {
+			t.Fatalf("child Goal start=%d %s", status, raw)
+		}
+		children = append(children, childGoal{child.ID, started.Snapshot.RunID})
+	}
+	operatorChild := children[1]
+	t.Cleanup(func() {
+		if t.Failed() {
+			runs, err := db.Instances().ManagedRuns(context.Background(), instance.ID, "")
+			t.Logf("managed runs after failure=%+v error=%v", runs, err)
+			for _, child := range children {
+				run, err := db.GetLoopRun(
+					context.Background(),
+					looppkg.WorkspaceID(workspace),
+					looppkg.RunID(child.runID),
+				)
+				t.Logf("Goal child=%+v run status=%s pause=%v error=%v", child, run.Status, run.PauseRequested, err)
+			}
+		}
+	})
+	status, paused, raw := goalCommand(operatorChild.sessionID, "pause")
+	if status >= 400 || paused.Outcome != contract.GoalOutcomePaused {
+		t.Fatalf("operator pause=%d %s", status, raw)
+	}
+	// Deliberately omit post-commit effects to model a crash at this boundary.
+	if _, err := db.Instances().Pause(t.Context(), instance.ID, "manual"); err != nil {
+		t.Fatal(err)
+	}
+	waitForRuntimeCondition(t, "maintenance recovered Goal pause", 20*time.Second, func() bool {
+		runs, err := db.Instances().ManagedRuns(t.Context(), instance.ID, "")
+		if err != nil || len(runs) != 1 {
+			return false
+		}
+		for _, run := range runs {
+			if run.Status != "paused" {
+				return false
+			}
+			if !run.Recorded || run.ID != children[0].runID {
+				return false
+			}
+		}
+		return true
+	})
+	status, _, raw = goalCommand(children[0].sessionID, "resume")
+	if status < 400 || !bytes.Contains(raw, []byte("agent_instance_paused")) {
+		t.Fatalf("direct Goal resume=%d %s", status, raw)
+	}
+	status, raw = instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/resume", nil, nil)
+	if status != http.StatusOK {
+		t.Fatalf("instance resume=%d %s", status, raw)
+	}
+	waitForRuntimeCondition(t, "only instance-owned Goal resumed", 15*time.Second, func() bool {
+		own, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(children[0].runID))
+		if err != nil || own.Status != looppkg.StatusRunning || own.PauseRequested {
+			return false
+		}
+		other, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(operatorChild.runID))
+		return err == nil && (other.Status == looppkg.StatusPaused || other.PauseRequested)
+	})
+	wake, err := db.Instances().WakeState(t.Context(), instance.ID)
+	if err != nil || wake.UnattendedTurns != 0 {
+		t.Fatalf("managed turn counter=%+v error=%v", wake, err)
+	}
+	for _, child := range children {
+		status, _, raw := goalCommand(child.sessionID, "stop")
+		if status >= 400 {
+			t.Fatalf("Goal cleanup=%d %s", status, raw)
+		}
+	}
+}
+
+func instanceIntegrationHTTP(
+	t *testing.T,
+	d *Daemon,
+	method, path string,
+	body []byte,
+	headers map[string]string,
+) (int, []byte) {
+	t.Helper()
+	req, err := http.NewRequestWithContext(
+		t.Context(),
+		method,
+		fmt.Sprintf("http://127.0.0.1:%d%s", d.info.Port, path),
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+	response, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	raw, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return response.StatusCode, raw
 }

@@ -1,11 +1,15 @@
 package acp
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	"github.com/compozy/compozy/internal/diagnostics"
+	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -38,7 +42,7 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 
 	loadRequest := acpsdk.LoadSessionRequest{
 		Cwd:        normalized.Cwd,
-		McpServers: toSDKMCPServers(normalized.MCPServers),
+		McpServers: process.sessionMCPServers(),
 		SessionId:  acpsdk.SessionId(normalized.ResumeSessionID),
 	}
 	d.logMCPServerShape(method, loadRequest.McpServers)
@@ -85,7 +89,7 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 	stageStartedAt := time.Now()
 	newRequest := acpsdk.NewSessionRequest{
 		Cwd:        normalized.Cwd,
-		McpServers: toSDKMCPServers(normalized.MCPServers),
+		McpServers: process.sessionMCPServers(),
 	}
 	d.logMCPServerShape(string(acpsdk.AgentMethodSessionNew), newRequest.McpServers)
 	newWireRequest := wireNewSessionRequest{
@@ -100,11 +104,11 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 	)
 	if err != nil {
 		d.logStartStage(normalized, process, "session_new", startOutcomeFailed, stageStartedAt)
-		return WrapFailure(
-			store.FailureProtocol,
-			"ACP session/new failed",
-			fmt.Errorf("acp: create session for %q: %w", normalized.AgentName, err),
-		)
+		cause := fmt.Errorf("acp: create session for %q: %w", normalized.AgentName, err)
+		if IsAuthRequiredError(err) {
+			return providerSignInRequiredFailure(normalized, cause)
+		}
+		return WrapFailure(store.FailureProtocol, "ACP session/new failed", cause)
 	}
 
 	// session/new returned a session id: ACP accepted this binding (ADR-005).
@@ -199,4 +203,17 @@ func (d *Driver) applySessionConfiguration(
 		return err
 	}
 	return nil
+}
+
+// providerSignInRequiredFailure classifies an ACP authentication-required
+// refusal of session/new as a provider-auth failure carrying the same login
+// guidance the readiness probe reports, instead of a raw protocol error.
+func providerSignInRequiredFailure(opts StartOpts, cause error) error {
+	providerName := cmp.Or(strings.TrimSpace(opts.ProviderName), strings.TrimSpace(opts.AgentName))
+	item := authproviders.DiagnosticItem(providerName, ClassifyProbeError(providerName, cause))
+	return WrapFailure(
+		store.FailureProviderAuth,
+		"provider sign-in required",
+		diagnostics.NewStructuredError(item, cause),
+	)
 }

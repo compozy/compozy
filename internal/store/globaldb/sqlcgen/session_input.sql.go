@@ -781,8 +781,10 @@ func (q *Queries) GetSyntheticSessionInputByMessage(ctx context.Context, arg Get
 }
 
 const humanSessionTurn = `-- name: HumanSessionTurn :one
-SELECT EXISTS (SELECT 1 FROM session_input_queue WHERE session_id = ?1
- AND turn_id = ?2 AND origin_class = 'human' AND status IN ('dispatching','sent'))
+SELECT EXISTS (SELECT 1 FROM session_input_queue AS queued WHERE queued.session_id = ?1
+ AND queued.turn_id = ?2 AND queued.origin_class = 'human' AND queued.status IN ('dispatching','sent')
+ UNION ALL SELECT 1 FROM session_prompt_admissions AS admitted WHERE admitted.session_id = ?1
+ AND admitted.turn_id = ?2 AND admitted.human_ingress = 1 AND admitted.dispatch_committed_at IS NOT NULL)
 `
 
 type HumanSessionTurnParams struct {

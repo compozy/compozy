@@ -412,6 +412,7 @@ func providerMutableConfigPolicy(clean []string) (PathPolicy, bool) {
 			"env_policy",
 			"home_policy",
 			"steer_capability",
+			"session_mcp_transport",
 			"auth_status_command":
 			policy.Kind = ConfigValueString
 			return policy, true

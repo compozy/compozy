@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,6 +39,8 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 		runtimeProvider string
 		defaultModel    string
 		noSessionMCP    bool
+		sessionMCPHTTP  bool
+		acpMethod       string
 		statusCommand   string
 		loginCommand    string
 		apiKeyEnv       string
@@ -60,10 +63,13 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			loginCommand: "codex login",
 		},
 		{
-			name:     "copilot",
-			command:  "copilot --acp --stdio",
-			harness:  ProviderHarnessACP,
-			authMode: ProviderAuthModeNativeCLI,
+			name:           "copilot",
+			command:        "copilot --acp --stdio",
+			harness:        ProviderHarnessACP,
+			authMode:       ProviderAuthModeNativeCLI,
+			sessionMCPHTTP: true,
+			loginCommand:   "copilot login",
+			acpMethod:      "copilot-login",
 		},
 		{name: "cursor", command: "cursor-agent acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
 		{
@@ -201,6 +207,22 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 					tc.name,
 					got.SessionMCPEnabled(),
 					!tc.noSessionMCP,
+				)
+			}
+			if got.EffectiveACPMethod() != tc.acpMethod {
+				t.Fatalf(
+					"BuiltinProviders()[%q].AuthACPMethod = %q, want %q",
+					tc.name,
+					got.EffectiveACPMethod(),
+					tc.acpMethod,
+				)
+			}
+			if got.SessionMCPOverHTTP() != tc.sessionMCPHTTP {
+				t.Fatalf(
+					"BuiltinProviders()[%q].SessionMCPOverHTTP() = %t, want %t",
+					tc.name,
+					got.SessionMCPOverHTTP(),
+					tc.sessionMCPHTTP,
 				)
 			}
 			if strings.TrimSpace(got.AuthLoginCmd) != tc.loginCommand {
@@ -959,12 +981,19 @@ func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
 		provider    string
+		agentOption string
 		agentMode   string
 		permissions string
+		wantOption  string
 		wantMode    string
 	}{
 		{name: "Should select Codex full access", provider: "codex", wantMode: "agent-full-access"},
 		{name: "Should select Claude bypass permissions", provider: "claude", wantMode: "bypassPermissions"},
+		{name: "Should select Copilot allow-all", provider: "copilot", wantOption: "allow_all", wantMode: "on"},
+		{
+			name: "Should let an agent narrow Copilot allow-all", provider: "copilot",
+			agentOption: "allow_all", agentMode: "off", wantOption: "allow_all", wantMode: "off",
+		},
 		{name: "Should let an agent narrow the provider mode", provider: "codex", agentMode: "read-only", wantMode: "read-only"},
 		{name: "Should preserve stricter Compozy permissions", provider: "claude", permissions: "approve-reads"},
 	} {
@@ -972,7 +1001,7 @@ func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
 			t.Parallel()
 			agent := AgentDef{Name: "qa", Provider: tc.provider, Permissions: tc.permissions, Prompt: "prompt"}
 			if tc.agentMode != "" {
-				agent.SetACPOptions([]ACPOptionSelection{{ID: "mode", ValueID: tc.agentMode}})
+				agent.SetACPOptions([]ACPOptionSelection{{ID: cmp.Or(tc.agentOption, "mode"), ValueID: tc.agentMode}})
 			}
 			resolved, err := cfg.ResolveAgent(agent)
 			if err != nil {
@@ -982,11 +1011,44 @@ func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
 			if tc.wantMode == "" && len(options) == 0 {
 				return
 			}
-			if len(options) != 1 || options[0].ID != "mode" || options[0].ValueID != tc.wantMode {
-				t.Fatalf("ResolveAgent() ACPOptions = %#v, want mode %q", options, tc.wantMode)
+			wantOption := cmp.Or(tc.wantOption, "mode")
+			if len(options) != 1 || options[0].ID != wantOption || options[0].ValueID != tc.wantMode {
+				t.Fatalf("ResolveAgent() ACPOptions = %#v, want %s %q", options, wantOption, tc.wantMode)
 			}
 		})
 	}
+	t.Run("Should add Copilot allow-all beside an explicit task mode", func(t *testing.T) {
+		t.Parallel()
+		agent := AgentDef{Name: "qa", Provider: "copilot", Prompt: "prompt"}
+		agent.SetACPOptions([]ACPOptionSelection{{
+			ID: "mode", ValueID: "https://agentclientprotocol.com/protocol/session-modes#plan",
+		}})
+		resolved, err := cfg.ResolveAgent(agent)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		options := resolved.ACPOptionsValue()
+		got := map[string]string{}
+		for _, option := range options {
+			got[option.ID] = option.ValueID
+		}
+		if len(options) != 2 || len(got) != 2 || got["allow_all"] != "on" ||
+			got["mode"] != "https://agentclientprotocol.com/protocol/session-modes#plan" {
+			t.Fatalf("ResolveAgent() ACPOptions = %#v, want the explicit mode plus allow_all=on", got)
+		}
+	})
+	t.Run("Should keep an explicit mode for a provider without a full-access mapping", func(t *testing.T) {
+		t.Parallel()
+		agent := AgentDef{Name: "qa", Provider: "gemini", Prompt: "prompt"}
+		agent.SetACPOptions([]ACPOptionSelection{{ID: "mode", ValueID: "default"}})
+		resolved, err := cfg.ResolveAgent(agent)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v, want the explicit mode to win", err)
+		}
+		if options := resolved.ACPOptionsValue(); len(options) != 1 || options[0].ValueID != "default" {
+			t.Fatalf("ResolveAgent() ACPOptions = %#v, want the explicit mode", options)
+		}
+	})
 	t.Run("Should fail clearly for an unsupported provider", func(t *testing.T) {
 		t.Parallel()
 		_, err := cfg.ResolveAgent(AgentDef{Name: "qa", Provider: "gemini", Prompt: "prompt"})
@@ -3233,6 +3295,80 @@ func TestProviderSteerCapabilityConfig(t *testing.T) {
 	})
 }
 
+func TestProviderSessionMCPTransportConfig(t *testing.T) {
+	t.Parallel()
+	t.Run("Should bridge session MCP over HTTP when an overlay selects it", func(t *testing.T) {
+		t.Parallel()
+		var overlay providerOverlay
+		if _, err := toml.Decode(`session_mcp_transport = "http"
+reviewer_mode = "review"`, &overlay); err != nil {
+			t.Fatal(err)
+		}
+		provider := ProviderConfig{Command: "custom-agent --acp"}
+		overlay.Apply(&provider)
+		cfg := Config{Providers: map[string]ProviderConfig{"custom": provider}}
+		resolved, err := cfg.ResolveProvider("custom")
+		if err != nil {
+			t.Fatalf("ResolveProvider() error = %v", err)
+		}
+		if !resolved.SessionMCPOverHTTP() {
+			t.Fatalf("SessionMCPOverHTTP() = false for %#v", resolved.SessionMCPTransport)
+		}
+		agent, err := cfg.ResolveAgent(AgentDef{Name: "qa", Provider: "custom", Prompt: "prompt"})
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if !agent.SessionMCPOverHTTP {
+			t.Fatal("ResolvedAgent.SessionMCPOverHTTP = false, want true")
+		}
+		// Provider resolution owns preserving both independently configured
+		// launch capabilities when cloning and applying the same overlay.
+		if resolved.ReviewerMode != "review" || agent.ReviewerMode != "review" {
+			t.Fatalf("reviewer mode lost across provider resolution: %q, %q", resolved.ReviewerMode, agent.ReviewerMode)
+		}
+	})
+	t.Run("Should let an operator return Copilot to stdio session MCP", func(t *testing.T) {
+		t.Parallel()
+		cfg := Config{Providers: map[string]ProviderConfig{
+			"copilot": {SessionMCPTransport: MCPServerTransportStdio},
+		}}
+		resolved, err := cfg.ResolveProvider("copilot")
+		if err != nil {
+			t.Fatalf("ResolveProvider() error = %v", err)
+		}
+		if resolved.SessionMCPOverHTTP() {
+			t.Fatal("SessionMCPOverHTTP() = true, want the stdio override")
+		}
+	})
+	for _, tc := range []struct {
+		name     string
+		provider ProviderConfig
+		want     string
+	}{
+		{
+			name:     "Should reject an unknown session MCP transport",
+			provider: ProviderConfig{Command: "custom-agent --acp", SessionMCPTransport: "sse"},
+			want:     "providers.custom.session_mcp_transport must be one of stdio or http",
+		},
+		{
+			name: "Should reject the HTTP bridge outside the ACP harness",
+			provider: ProviderConfig{
+				Command: "npx -y pi-acp@latest", Harness: ProviderHarnessPiACP, RuntimeProvider: "anthropic",
+				SessionMCPTransport: MCPServerTransportHTTP,
+			},
+			want: `providers.custom.session_mcp_transport = "http" requires harness = "acp"`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cfg := Config{Providers: map[string]ProviderConfig{"custom": tc.provider}}
+			if _, err := cfg.ResolveProvider("custom"); err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("ResolveProvider() error = %v, want %q", err, tc.want)
+			}
+		})
+	}
+}
+
 func TestProviderACPMethodValidation(t *testing.T) {
 	t.Parallel()
 
@@ -3823,6 +3959,7 @@ func TestReviewerModeTrustBoundary(t *testing.T) {
 			{"claude", "auto", false}, {"codex", "agent", false},
 			{"custom", "smart", false}, {"custom", "auto", true},
 			{"claude", "bypassPermissions", true},
+			{"copilot", copilotAutopilotMode, true},
 		} {
 			p := builtinProviders[providerClaudeKey]
 			p.ReviewerMode = tc.mode

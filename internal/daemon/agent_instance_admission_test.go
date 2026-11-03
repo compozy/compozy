@@ -369,11 +369,57 @@ func TestInstanceWorkspaceReach(t *testing.T) {
 	})
 }
 
+func TestNativeInstanceAggregateQuery(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should admit an approve-all all-workspaces instance list under the real policy", func(t *testing.T) {
+		t.Parallel()
+		sessions := &testutil.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+			return &session.Info{
+				ID: id, AgentName: "coder", WorkspaceID: "ws_00000000000000a1", ProfileID: "profile",
+				State: session.StateActive, EffectivePermissions: string(workspaceaccess.ModeApproveAll),
+			}, nil
+		}}
+		facts, err := newWorkspaceAccessModeSource(sessions)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy, err := workspaceaccess.New(workspaceaccess.Deps{
+			Facts: facts, Consent: newWorkspaceAccessConsentCache(),
+			Audit: nativeSessionTargetAuditStub{}, Log: slog.New(slog.DiscardHandler),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{WorkspaceAccess: policy}}
+		input := nativeInstanceInput{AllWorkspaces: true}
+		query, err := native.nativeInstanceQuery(
+			t.Context(),
+			toolspkg.Scope{
+				SessionID: "caller", AgentName: "coder", ProfileID: "profile", WorkspaceID: "ws_00000000000000a1",
+			},
+			&input,
+			workspaceaccess.ActorRef{
+				Kind: workspaceaccess.ActorAgentSession, SessionID: "caller", WorkspaceID: "ws_00000000000000a1",
+			},
+			"list",
+		)
+		if err != nil || !query.AllWorkspaces {
+			t.Fatalf("nativeInstanceQuery() = %#v, %v; want the aggregate admitted", query, err)
+		}
+	})
+}
+
 func TestNativeInstanceWorkspaceAuthority(t *testing.T) {
 	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume, toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceReports, toolspkg.ToolIDAgentInstanceGet, toolspkg.ToolIDAgentInstanceCheckIns} {
 		t.Run("Should deny an unreachable owned instance through "+id.String(), func(t *testing.T) {
 			t.Parallel()
-			target := agentinstance.Instance{ID: "own", AgentName: "coder", ProfileID: "profile", WorkspaceID: "target"}
+			// This suite owns the workspace boundary. Use an agent-resumable
+			// definition pause so the earlier instance authority admits resume.
+			target := agentinstance.Instance{
+				ID: "own", AgentName: "coder", ProfileID: "profile", WorkspaceID: "target",
+				State: "paused", PauseReason: "definition_missing",
+			}
 			api := &core.AgentInstanceAPI{
 				Store: nativeInstanceTargetStore{target: target},
 				Authority: agentinstance.Authority{

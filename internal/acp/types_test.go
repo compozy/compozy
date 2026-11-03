@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -34,13 +35,19 @@ func TestStartOptsUnrestrictedModesRequireApproveAll(t *testing.T) {
 	})
 
 	for _, tc := range []struct {
-		name string
-		mode string
+		name     string
+		optionID string
+		mode     string
 	}{
 		{name: "Should require approval for Codex full access", mode: "agent-full-access"},
 		{name: "Should require approval for Claude bypass permissions", mode: "bypassPermissions"},
 		{name: "Should require approval for YOLO mode", mode: "yolo"},
 		{name: "Should require approval for auto mode", mode: "auto"},
+		{
+			name: "Should require approval for Copilot autopilot mode",
+			mode: "https://agentclientprotocol.com/protocol/session-modes#autopilot",
+		},
+		{name: "Should require approval for Copilot allow-all", optionID: "allow_all", mode: "on"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -49,7 +56,7 @@ func TestStartOptsUnrestrictedModesRequireApproveAll(t *testing.T) {
 				Command:   "codex-acp",
 				Cwd:       t.TempDir(),
 				ACPOptions: []SessionConfigOptionSelection{{
-					ID: "mode", ValueID: tc.mode,
+					ID: cmp.Or(tc.optionID, "mode"), ValueID: tc.mode,
 				}},
 			}
 			if err := base.Validate(); err == nil || !strings.Contains(err.Error(), "requires approve-all") {
@@ -61,9 +68,16 @@ func TestStartOptsUnrestrictedModesRequireApproveAll(t *testing.T) {
 				!strings.Contains(err.Error(), "requires approve-all") {
 				t.Fatalf("normalizeStartOpts() with default permissions = %v, want full-access refusal", err)
 			}
-			base.Permissions = compozyconfig.PermissionModeApproveReads
-			if err := base.Validate(); err == nil || !strings.Contains(err.Error(), "requires approve-all") {
-				t.Fatalf("Validate() with approve-reads = %v, want full-access refusal", err)
+			// The ACP start boundary must reject provider bypass options at every
+			// level below approve-all, including the two added permission levels.
+			for _, level := range []compozyconfig.PermissionMode{
+				compozyconfig.PermissionModeDenyAll, compozyconfig.PermissionModeApproveReads,
+				compozyconfig.PermissionModeApproveEdits, compozyconfig.PermissionModeAuto,
+			} {
+				base.Permissions = level
+				if err := base.Validate(); err == nil || !strings.Contains(err.Error(), "requires approve-all") {
+					t.Fatalf("Validate() with %s = %v, want full-access refusal", level, err)
+				}
 			}
 			base.Permissions = compozyconfig.PermissionModeApproveAll
 			if err := base.Validate(); err != nil {

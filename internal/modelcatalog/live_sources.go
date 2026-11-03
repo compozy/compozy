@@ -22,6 +22,7 @@ const (
 	liveSourcesAgyKey               = "agy"
 	liveSourcesClaudeKey            = "claude"
 	liveSourcesCodexKey             = "codex"
+	liveSourcesCopilotKey           = "copilot"
 	liveSourcesCursorKey            = "cursor"
 	liveSourcesOllamaKey            = "ollama"
 	liveSourcesOpenaiKey            = "openai"

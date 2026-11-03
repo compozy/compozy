@@ -39,7 +39,8 @@ func (m *Service) ListTaskCatalog(
 
 var _ CatalogManager = (*Service)(nil)
 
-// authorizeTaskCatalogAggregate admits a non-operator All projects read only through an agent grant.
+// authorizeTaskCatalogAggregate admits a non-operator All projects read through the
+// workspace-access policy: the unrestricted grant or the session's permission mode.
 func (m *Service) authorizeTaskCatalogAggregate(
 	ctx context.Context,
 	query CatalogQuery,
@@ -69,7 +70,7 @@ func (m *Service) authorizeTaskCatalogAggregate(
 	if err != nil {
 		return false, err
 	}
-	if !decision.Allowed || decision.Source != workspaceaccess.SourceAgentGrant {
+	if !decision.Allowed {
 		return false, ErrPermissionDenied
 	}
 	return true, nil

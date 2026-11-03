@@ -69,6 +69,9 @@ func (p *AgentProcess) waitForExit(ctx context.Context, processRecordTimeout tim
 	if p.terminals != nil {
 		p.terminals.closeAll()
 	}
+	if err := p.closeMCPBridges(); err != nil {
+		slog.Default().Warn("acp: close session MCP bridges", "pid", p.PID, "error", err)
+	}
 	close(p.done)
 }
 

@@ -61,6 +61,9 @@ func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig 
 	if override.SessionMCP != nil {
 		merged.SessionMCP = new(*override.SessionMCP)
 	}
+	if override.SessionMCPTransport != "" {
+		merged.SessionMCPTransport = override.SessionMCPTransport
+	}
 	if len(override.CredentialSlots) > 0 {
 		merged.CredentialSlots = cloneProviderCredentialSlots(override.CredentialSlots)
 	}

@@ -22,6 +22,10 @@ func (r *RuntimeRegistry) completeDispatch(
 	if err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, req, started, err, ToolCallDenied)
 	}
+	if callScopeAccessFrom(ctx).outsideCallerScope() {
+		// A post-call hook can add text after the dispatch pass; redact its output too.
+		patched = redactOutsideScopeResult(patched)
+	}
 	finalized, err := r.resultProcessor().Finalize(ctx, scope, target.descriptor, patched)
 	if err != nil {
 		return r.failResultProcessing(ctx, scope, target, req, started, finalized, err)
