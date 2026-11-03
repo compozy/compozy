@@ -4,6 +4,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
   AntigravityLogo,
   ClaudeLogo,
+  CopilotLogo,
   CursorLogo,
   GeminiLogo,
   GithubLogo,
@@ -31,6 +32,7 @@ interface LogoGalleryProps {
 const AGENT_LOGOS: Array<{ label: string; Logo: LogoComponent }> = [
   { label: "Antigravity", Logo: AntigravityLogo },
   { label: "Claude", Logo: ClaudeLogo },
+  { label: "Copilot", Logo: CopilotLogo },
   { label: "Cursor", Logo: CursorLogo },
   { label: "Gemini", Logo: GeminiLogo },
   { label: "Kimi", Logo: KimiLogo },

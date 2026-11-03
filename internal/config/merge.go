@@ -122,25 +122,26 @@ type permissionsOverlay struct {
 }
 
 type providerOverlay struct {
-	Command         *string                     `toml:"command"`
-	SessionEnv      SessionEnv                  `toml:"session_env"`
-	SteerCapability *SteerCapability            `toml:"steer_capability"`
-	DisplayName     *string                     `toml:"display_name"`
-	Models          *providerModelsOverlay      `toml:"models"`
-	Harness         *ProviderHarness            `toml:"harness"`
-	RuntimeProvider *string                     `toml:"runtime_provider"`
-	Transport       *string                     `toml:"transport"`
-	BaseURL         *string                     `toml:"base_url"`
-	AuthMode        *ProviderAuthMode           `toml:"auth_mode"`
-	EnvPolicy       *ProviderEnvPolicy          `toml:"env_policy"`
-	HomePolicy      *ProviderHomePolicy         `toml:"home_policy"`
-	NoneSecurity    *ProviderNoneSecurity       `toml:"none_security"`
-	AuthStatusCmd   *string                     `toml:"auth_status_command"`
-	AuthLoginCmd    *string                     `toml:"auth_login_command"`
-	AuthACPMethod   *string                     `toml:"auth_acp_method"`
-	SessionMCP      *bool                       `toml:"session_mcp"`
-	CredentialSlots []providerCredentialOverlay `toml:"credential_slots"`
-	MCPServers      []mcpServerOverlay          `toml:"mcp_servers"`
+	Command             *string                     `toml:"command"`
+	SessionEnv          SessionEnv                  `toml:"session_env"`
+	SteerCapability     *SteerCapability            `toml:"steer_capability"`
+	DisplayName         *string                     `toml:"display_name"`
+	Models              *providerModelsOverlay      `toml:"models"`
+	Harness             *ProviderHarness            `toml:"harness"`
+	RuntimeProvider     *string                     `toml:"runtime_provider"`
+	Transport           *string                     `toml:"transport"`
+	BaseURL             *string                     `toml:"base_url"`
+	AuthMode            *ProviderAuthMode           `toml:"auth_mode"`
+	EnvPolicy           *ProviderEnvPolicy          `toml:"env_policy"`
+	HomePolicy          *ProviderHomePolicy         `toml:"home_policy"`
+	NoneSecurity        *ProviderNoneSecurity       `toml:"none_security"`
+	AuthStatusCmd       *string                     `toml:"auth_status_command"`
+	AuthLoginCmd        *string                     `toml:"auth_login_command"`
+	AuthACPMethod       *string                     `toml:"auth_acp_method"`
+	SessionMCP          *bool                       `toml:"session_mcp"`
+	SessionMCPTransport *MCPServerTransport         `toml:"session_mcp_transport"`
+	CredentialSlots     []providerCredentialOverlay `toml:"credential_slots"`
+	MCPServers          []mcpServerOverlay          `toml:"mcp_servers"`
 }
 
 type providerModelsOverlay struct {

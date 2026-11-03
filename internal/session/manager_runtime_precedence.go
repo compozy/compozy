@@ -9,8 +9,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-const acpModeOptionID = "mode"
-
 // applyResolvedRuntimeDefaults materializes the effective session runtime in
 // provider/project -> agent -> session order. Prompt selections are rebuilt as
 // session specs and therefore form the final overlay through the same path.
@@ -36,7 +34,7 @@ func (s *sessionStartSpec) applyResolvedRuntimeDefaults(
 	authoredUnrestricted := hasUnrestrictedACPMode(authoredOptions)
 	if permissions != compozyconfig.PermissionModeApproveAll && (dropInheritedUnrestricted || authoredUnrestricted) {
 		agentOptions = slices.DeleteFunc(agentOptions, func(option acp.SessionConfigOptionSelection) bool {
-			return option.ID == acpModeOptionID && compozyconfig.IsUnrestrictedACPMode(option.ValueID)
+			return compozyconfig.IsUnrestrictedACPOption(option.ID, option.ValueID)
 		})
 	}
 	merged, err := MergeRuntimeACPOptions(agentOptions, s.acpOptions)
@@ -49,7 +47,7 @@ func (s *sessionStartSpec) applyResolvedRuntimeDefaults(
 
 func hasUnrestrictedACPMode(options []compozyconfig.ACPOptionSelection) bool {
 	return slices.ContainsFunc(options, func(option compozyconfig.ACPOptionSelection) bool {
-		return option.ID == acpModeOptionID && compozyconfig.IsUnrestrictedACPMode(option.ValueID)
+		return compozyconfig.IsUnrestrictedACPOption(option.ID, option.ValueID)
 	})
 }
 

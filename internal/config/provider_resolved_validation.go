@@ -22,13 +22,7 @@ func validateResolvedProvider(name string, provider ProviderConfig) error {
 	if err := provider.EffectiveAuthMode().Validate(fmt.Sprintf("providers.%s.auth_mode", name)); err != nil {
 		return err
 	}
-	if err := provider.EffectiveEnvPolicy().Validate(fmt.Sprintf("providers.%s.env_policy", name)); err != nil {
-		return err
-	}
-	if err := provider.EffectiveHomePolicy().Validate(fmt.Sprintf("providers.%s.home_policy", name)); err != nil {
-		return err
-	}
-	if err := provider.EffectiveNoneSecurity().Validate(fmt.Sprintf("providers.%s.none_security", name)); err != nil {
+	if err := validateProviderLaunchPolicies(name, provider); err != nil {
 		return err
 	}
 	if err := ValidateACPMethod(provider.AuthACPMethod, fmt.Sprintf("providers.%s.auth_acp_method", name)); err != nil {
@@ -165,4 +159,33 @@ func mergeMCPAuthConfig(base MCPAuthConfig, override MCPAuthConfig) MCPAuthConfi
 		merged.Scopes = append([]string(nil), override.Scopes...)
 	}
 	return merged
+}
+
+func validateSessionMCPTransport(provider ProviderConfig, path string) error {
+	switch provider.SessionMCPTransport {
+	case "", MCPServerTransportStdio:
+		return nil
+	case MCPServerTransportHTTP:
+		if provider.EffectiveHarness() != ProviderHarnessACP {
+			return fmt.Errorf("%s = %q requires harness = %q", path, MCPServerTransportHTTP, ProviderHarnessACP)
+		}
+		return nil
+	default:
+		return fmt.Errorf("%s must be one of stdio or http", path)
+	}
+}
+
+// validateProviderLaunchPolicies checks the environment, home, no-auth, and
+// session MCP delivery policies that shape a provider launch.
+func validateProviderLaunchPolicies(name string, provider ProviderConfig) error {
+	if err := provider.EffectiveEnvPolicy().Validate(fmt.Sprintf("providers.%s.env_policy", name)); err != nil {
+		return err
+	}
+	if err := provider.EffectiveHomePolicy().Validate(fmt.Sprintf("providers.%s.home_policy", name)); err != nil {
+		return err
+	}
+	if err := provider.EffectiveNoneSecurity().Validate(fmt.Sprintf("providers.%s.none_security", name)); err != nil {
+		return err
+	}
+	return validateSessionMCPTransport(provider, fmt.Sprintf("providers.%s.session_mcp_transport", name))
 }

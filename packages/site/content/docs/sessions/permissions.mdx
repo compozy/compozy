@@ -11,8 +11,10 @@ CompozyOS applies permissions in two layers:
 Both layers are scoped to the session workspace. `approve-all` by itself does not guarantee
 unrestricted provider commands: the ACP provider also chooses an operating mode. Set
 `permissions.provider_full_access = true` in the global config to request the provider's unrestricted mode for new
-`approve-all` sessions, including Loop roles. CompozyOS selects `agent-full-access` for Codex and
-`bypassPermissions` for Claude Code. Unsupported providers fail session resolution clearly instead
+`approve-all` sessions, including Loop roles. CompozyOS selects `agent-full-access` for Codex,
+`bypassPermissions` for Claude Code, `yolo` for Google Antigravity, and the `allow_all = on` option
+for GitHub Copilot CLI. Copilot's Autopilot mode also approves everything, so it counts as an
+unrestricted mode. Unsupported providers fail session resolution clearly instead
 of silently accepting this preference. Existing mode selection is unchanged when the setting is
 false. With the current Claude Code adapter, `approve-all` already selects `bypassPermissions`
 when that mode is advertised. An agent can explicitly choose a narrower ACP mode, and stricter effective CompozyOS

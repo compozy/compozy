@@ -117,6 +117,12 @@ func (d *Driver) logMCPServerShape(method string, servers []acpsdk.McpServer) {
 		logger = slog.Default()
 	}
 	for _, server := range servers {
+		if server.Http != nil {
+			// Header values carry the bridge bearer token; log only their count.
+			logger.Debug("acp.session.mcp_server", "method", method,
+				"transport", "http", "header_count", len(server.Http.Headers))
+			continue
+		}
 		if server.Stdio == nil {
 			continue
 		}

@@ -20,6 +20,7 @@ const (
 	providerGeminiKey                  = "gemini"
 	modelClaudeOpus47ID                = "claude-opus-4-7"
 	providerCodexKey                   = "codex"
+	providerCopilotKey                 = "copilot"
 	providerGemini31ProPreviewPath     = "gemini-3.1-pro-preview"
 	providerGlm46Path                  = "glm-4.6"
 	providerGrokAlias                  = "grok"
@@ -129,26 +130,30 @@ type ModelsDevSourceConfig struct {
 
 // ProviderConfig describes how to launch a provider in ACP mode.
 type ProviderConfig struct {
-	SessionEnv       SessionEnv               `toml:"session_env,omitempty"`
-	Command          string                   `toml:"command"`
-	CommandIsBuiltin bool                     `toml:"-"                             json:"-" yaml:"-"`
-	SteerCapability  SteerCapability          `toml:"steer_capability,omitempty"`
-	DisplayName      string                   `toml:"display_name,omitempty"`
-	Models           ProviderModelsConfig     `toml:"models,omitempty"`
-	Harness          ProviderHarness          `toml:"harness,omitempty"`
-	RuntimeProvider  string                   `toml:"runtime_provider,omitempty"`
-	Transport        string                   `toml:"transport,omitempty"`
-	BaseURL          string                   `toml:"base_url,omitempty"`
-	AuthMode         ProviderAuthMode         `toml:"auth_mode,omitempty"`
-	EnvPolicy        ProviderEnvPolicy        `toml:"env_policy,omitempty"`
-	HomePolicy       ProviderHomePolicy       `toml:"home_policy,omitempty"`
-	NoneSecurity     ProviderNoneSecurity     `toml:"none_security,omitempty"`
-	AuthStatusCmd    string                   `toml:"auth_status_command,omitempty"`
-	AuthLoginCmd     string                   `toml:"auth_login_command,omitempty"`
-	AuthACPMethod    string                   `toml:"auth_acp_method,omitempty"`
-	SessionMCP       *bool                    `toml:"session_mcp,omitempty"`
-	CredentialSlots  []ProviderCredentialSlot `toml:"credential_slots,omitempty"`
-	MCPServers       []MCPServer              `toml:"mcp_servers,omitempty"`
+	SessionEnv       SessionEnv           `toml:"session_env,omitempty"`
+	Command          string               `toml:"command"`
+	CommandIsBuiltin bool                 `toml:"-"                             json:"-" yaml:"-"`
+	SteerCapability  SteerCapability      `toml:"steer_capability,omitempty"`
+	DisplayName      string               `toml:"display_name,omitempty"`
+	Models           ProviderModelsConfig `toml:"models,omitempty"`
+	Harness          ProviderHarness      `toml:"harness,omitempty"`
+	RuntimeProvider  string               `toml:"runtime_provider,omitempty"`
+	Transport        string               `toml:"transport,omitempty"`
+	BaseURL          string               `toml:"base_url,omitempty"`
+	AuthMode         ProviderAuthMode     `toml:"auth_mode,omitempty"`
+	EnvPolicy        ProviderEnvPolicy    `toml:"env_policy,omitempty"`
+	HomePolicy       ProviderHomePolicy   `toml:"home_policy,omitempty"`
+	NoneSecurity     ProviderNoneSecurity `toml:"none_security,omitempty"`
+	AuthStatusCmd    string               `toml:"auth_status_command,omitempty"`
+	AuthLoginCmd     string               `toml:"auth_login_command,omitempty"`
+	AuthACPMethod    string               `toml:"auth_acp_method,omitempty"`
+	SessionMCP       *bool                `toml:"session_mcp,omitempty"`
+	// SessionMCPTransport chooses how per-session stdio MCP servers reach the
+	// agent. "http" serves them through a loopback HTTP bridge for agents that
+	// accept only remote MCP servers over ACP; empty or "stdio" passes them as-is.
+	SessionMCPTransport MCPServerTransport       `toml:"session_mcp_transport,omitempty"`
+	CredentialSlots     []ProviderCredentialSlot `toml:"credential_slots,omitempty"`
+	MCPServers          []MCPServer              `toml:"mcp_servers,omitempty"`
 }
 
 // MCPServerTransport identifies how Compozy reaches an MCP server.
@@ -209,6 +214,9 @@ type ResolvedAgent struct {
 	AuthLoginCmd    string
 	AuthACPMethod   string
 	SessionMCP      bool
+	// SessionMCPOverHTTP bridges stdio session MCP servers through loopback HTTP.
+	// It is a bool beside SessionMCP so the struct stays under the hugeParam threshold.
+	SessionMCPOverHTTP bool
 	// PermissionsConfigured reports that the definition set Permissions; false means settings supplied it.
 	// It sits beside SessionMCP so the struct stays under the hugeParam threshold.
 	PermissionsConfigured bool

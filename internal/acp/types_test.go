@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"reflect"
@@ -16,13 +17,19 @@ import (
 func TestStartOptsUnrestrictedModesRequireApproveAll(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name string
-		mode string
+		name     string
+		optionID string
+		mode     string
 	}{
 		{name: "Should require approval for Codex full access", mode: "agent-full-access"},
 		{name: "Should require approval for Claude bypass permissions", mode: "bypassPermissions"},
 		{name: "Should require approval for YOLO mode", mode: "yolo"},
 		{name: "Should require approval for auto mode", mode: "auto"},
+		{
+			name: "Should require approval for Copilot autopilot mode",
+			mode: "https://agentclientprotocol.com/protocol/session-modes#autopilot",
+		},
+		{name: "Should require approval for Copilot allow-all", optionID: "allow_all", mode: "on"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -31,7 +38,7 @@ func TestStartOptsUnrestrictedModesRequireApproveAll(t *testing.T) {
 				Command:   "codex-acp",
 				Cwd:       t.TempDir(),
 				ACPOptions: []SessionConfigOptionSelection{{
-					ID: "mode", ValueID: tc.mode,
+					ID: cmp.Or(tc.optionID, "mode"), ValueID: tc.mode,
 				}},
 			}
 			if err := base.Validate(); err == nil || !strings.Contains(err.Error(), "requires approve-all") {

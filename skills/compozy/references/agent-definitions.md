@@ -159,6 +159,8 @@ Built-in provider names include claude, codex, gemini, opencode, copilot, cursor
 
 For standard ACP providers, CompozyOS applies model, replaces the option snapshot, applies Reasoning and Fast, then applies remaining ACP options in stable ID order, refreshing and revalidating after every response. Cursor resolves logical model plus option values to a private launch alias and replaces the process when that binding changes. Empty effort sends no RPC; explicit `none` does when advertised. Unknown or unsupported values fail; CompozyOS never falls back silently.
 
+Providers that accept only remote MCP servers over ACP set `session_mcp_transport = "http"` (the `copilot` built-in does): CompozyOS serves each per-session stdio MCP server on a loopback endpoint with a per-session bearer token and closes it with the provider process. `permissions.provider_full_access` maps to Copilot's `allow_all = on` option, and Copilot's Autopilot mode counts as unrestricted, so both require `approve-all`.
+
 Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp.json replaces same-name frontmatter servers. Use provider-level MCP when every agent for that provider needs the server; use agent-level MCP when one agent needs it.
 
 ## Fleet Reads
