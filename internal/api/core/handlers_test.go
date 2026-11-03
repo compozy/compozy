@@ -4228,8 +4228,9 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			t.Fatal(err)
 		}
 		raw := "---\nname: coder\nprovider: codex\nappearance:\n  avatar: emoji\n  emoji: \"🦊\"\n---\nSource.\n"
+		sourcePath := filepath.Join(dir, compozyconfig.AgentDefinitionFileName)
 		if err := os.WriteFile(
-			filepath.Join(dir, compozyconfig.AgentDefinitionFileName),
+			sourcePath,
 			[]byte(raw),
 			0o600,
 		); err != nil {
@@ -4250,6 +4251,9 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		if payload.Agent.Appearance != nil || payload.Agent.ResolvedAppearance["seed"] != "reviewer" {
 			t.Fatalf("duplicate appearance = %#v, resolved = %#v; want default face seeded by the copy",
 				payload.Agent.Appearance, payload.Agent.ResolvedAppearance)
+		}
+		if after, err := os.ReadFile(sourcePath); err != nil || string(after) != raw {
+			t.Fatalf("source after duplicate = %q, %v; want unchanged", after, err)
 		}
 		override := performRequest(
 			t,
