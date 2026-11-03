@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/procutil"
+	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/version"
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -54,7 +55,9 @@ type Bridge struct {
 	token  string
 	logger *slog.Logger
 
-	client   *sdkmcp.ClientSession
+	client *sdkmcp.ClientSession
+	// cmd is the stdio child; teardown kills its whole process group.
+	cmd      *exec.Cmd
 	server   *sdkmcp.Server
 	http     *http.Server
 	serveErr chan error
@@ -133,15 +136,19 @@ func (b *Bridge) URL() string { return b.url }
 func (b *Bridge) AuthorizationHeader() string { return "Bearer " + b.token }
 
 func (b *Bridge) connectChild(ctx context.Context, spec Spec) error {
-	command, args := strings.TrimSpace(spec.Command), spec.Args
+	// Resolve against the child's own PATH and directory, as the agent would.
+	executable, err := subprocess.ResolveExecutable(strings.TrimSpace(spec.Command), spec.Env, spec.Dir)
+	if err != nil {
+		return fmt.Errorf("mcpbridge: resolve stdio server %q command: %w", b.name, err)
+	}
 	// The child outlives the start request and lives until Close, not the caller's context.
 	childCtx, stopChild := context.WithCancel(context.WithoutCancel(ctx))
 	b.stopChild = stopChild
-	// The configured MCP server command is the launch contract the agent would run itself.
-	cmd := exec.CommandContext(childCtx, command, args...)
+	cmd := exec.CommandContext(childCtx, executable, spec.Args...)
 	cmd.Env = append([]string(nil), spec.Env...)
 	cmd.Dir = spec.Dir
 	procutil.ConfigureCommandProcessGroup(cmd)
+	b.cmd = cmd
 	client := sdkmcp.NewClient(
 		&sdkmcp.Implementation{Name: "compozy-mcp-bridge", Version: version.Current().Version},
 		&sdkmcp.ClientOptions{
@@ -166,6 +173,9 @@ func (b *Bridge) connectChild(ctx context.Context, spec Spec) error {
 		return fmt.Errorf("mcpbridge: connect stdio server %q: %w", b.name, err)
 	}
 	b.client = session
+	if err := procutil.RegisterCommandProcessGroup(cmd); err != nil {
+		return fmt.Errorf("mcpbridge: register stdio server %q process group: %w", b.name, err)
+	}
 	return nil
 }
 
@@ -286,6 +296,10 @@ func (b *Bridge) Close() error {
 			if err := b.client.Close(); err != nil && !isChildExit(err) {
 				errs = append(errs, fmt.Errorf("mcpbridge: close stdio server %q: %w", b.name, err))
 			}
+		}
+		// Closing the session stops only the direct child; reap anything it spawned.
+		if err := procutil.KillCommandProcessGroupAndWait(b.cmd, childExitTimeout); err != nil {
+			errs = append(errs, fmt.Errorf("mcpbridge: stop stdio server %q process group: %w", b.name, err))
 		}
 		if b.stopChild != nil {
 			b.stopChild()

@@ -45,6 +45,12 @@ Four short prompts reached Copilot.
   The next prompt reloaded the same Copilot session (`session_load` succeeded on a new bridge port)
   and called `compozy__workspace_info` again. The reply quoted the word written earlier.
 
+- **Bridge over SSE responses (retest).** The bridge later moved from JSON to SSE responses so it
+  can relay progress. A fresh isolated lab reran one prompt: Copilot called
+  `compozy__skill_view`, `compozy__tool_info`, and `compozy__workspace_info` through the bridge, and
+  each completed. The reply named the workspace, the logs held no bearer value, and the operator's
+  `~/.copilot` stayed unchanged.
+
 ## Not proven live
 
 - **Paid-plan model and effort picker.** Covered by `internal/modelcatalog/live_sources_test.go`

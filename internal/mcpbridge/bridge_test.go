@@ -7,8 +7,13 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -16,7 +21,10 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const helperEnv = "COMPOZY_MCPBRIDGE_HELPER"
+const (
+	helperEnv        = "COMPOZY_MCPBRIDGE_HELPER"
+	helperPIDFileEnv = "COMPOZY_MCPBRIDGE_HELPER_CHILD_PID_FILE"
+)
 
 func TestBridge(t *testing.T) {
 	t.Parallel()
@@ -73,21 +81,35 @@ func TestBridge(t *testing.T) {
 		}
 	})
 
-	t.Run("Should mirror tool list changes from the stdio server", func(t *testing.T) {
+	t.Run("Should notify the agent when the stdio server changes its tools", func(t *testing.T) {
 		t.Parallel()
 		bridge := startHelperBridge(t)
-		session := connectHTTPClient(t, bridge, bridge.AuthorizationHeader())
+		changed := make(chan struct{}, 4)
+		client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "agent", Version: "1.0.0"}, &sdkmcp.ClientOptions{
+			ToolListChangedHandler: func(context.Context, *sdkmcp.ToolListChangedRequest) {
+				changed <- struct{}{}
+			},
+		})
+		session, err := client.Connect(testutil.Context(t), &sdkmcp.StreamableClientTransport{
+			Endpoint:   bridge.URL(),
+			HTTPClient: &http.Client{Transport: headerTransport{authorization: bridge.AuthorizationHeader()}},
+		}, nil)
+		if err != nil {
+			t.Fatalf("connect HTTP client: %v", err)
+		}
+		t.Cleanup(func() { _ = session.Close() })
 		if _, err := session.CallTool(testutil.Context(t), &sdkmcp.CallToolParams{
 			Name: "grow", Arguments: map[string]any{},
 		}); err != nil {
 			t.Fatalf("CallTool(grow) error = %v", err)
 		}
-		deadline := time.Now().Add(5 * time.Second)
-		for !slices.Contains(toolNames(t, session), "late") {
-			if time.Now().After(deadline) {
-				t.Fatalf("tools = %#v, want the tool added after list_changed", toolNames(t, session))
-			}
-			time.Sleep(20 * time.Millisecond)
+		select {
+		case <-changed:
+		case <-time.After(5 * time.Second):
+			t.Fatal("agent received no tools/list_changed after the stdio server added a tool")
+		}
+		if got := toolNames(t, session); !slices.Contains(got, "late") {
+			t.Fatalf("tools = %#v, want the tool added after list_changed", got)
 		}
 	})
 
@@ -143,13 +165,66 @@ func TestBridge(t *testing.T) {
 		}
 	})
 
+	t.Run("Should stop processes the stdio server spawned when it closes", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("process-group signaling is covered by the Windows job object")
+		}
+		pidFile := filepath.Join(t.TempDir(), "child.pid")
+		bridge := startBridge(t, Spec{
+			Name: "helper", Command: os.Args[0],
+			Args: []string{"-test.run=^TestBridgeStdioHelperProcess$"},
+			Env:  append(os.Environ(), helperEnv+"=1", helperPIDFileEnv+"="+pidFile),
+			Dir:  t.TempDir(),
+		})
+		raw, err := os.ReadFile(pidFile)
+		if err != nil {
+			t.Fatalf("read spawned child pid: %v", err)
+		}
+		pid, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := bridge.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+		deadline := time.Now().Add(5 * time.Second)
+		for processAlive(pid) {
+			if time.Now().After(deadline) {
+				t.Fatalf("spawned child %d survived bridge Close", pid)
+			}
+			time.Sleep(20 * time.Millisecond)
+		}
+	})
+
+	t.Run("Should resolve a bare command against the child PATH", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("PATHEXT resolution is covered by the subprocess package")
+		}
+		binDir := t.TempDir()
+		if err := os.Symlink(os.Args[0], filepath.Join(binDir, "compozy-bridge-helper")); err != nil {
+			t.Fatal(err)
+		}
+		bridge := startBridge(t, Spec{
+			Name: "helper", Command: "compozy-bridge-helper",
+			Args: []string{"-test.run=^TestBridgeStdioHelperProcess$"},
+			Env:  append(os.Environ(), "PATH="+binDir, helperEnv+"=1"),
+			Dir:  t.TempDir(),
+		})
+		session := connectHTTPClient(t, bridge, bridge.AuthorizationHeader())
+		if got := toolNames(t, session); !slices.Contains(got, "echo") {
+			t.Fatalf("tools = %#v, want the helper started from the child PATH", got)
+		}
+	})
+
 	t.Run("Should fail startup when the stdio server cannot start", func(t *testing.T) {
 		t.Parallel()
 		_, err := Start(testutil.Context(t), Spec{
 			Name: "missing", Command: "/nonexistent/compozy-mcp-server",
 		}, nil)
-		if err == nil || !strings.Contains(err.Error(), `connect stdio server "missing"`) {
-			t.Fatalf("Start() error = %v, want stdio connect failure", err)
+		if err == nil || !strings.Contains(err.Error(), `stdio server "missing"`) {
+			t.Fatalf("Start() error = %v, want stdio server startup failure", err)
 		}
 	})
 }
@@ -158,6 +233,15 @@ func TestBridge(t *testing.T) {
 func TestBridgeStdioHelperProcess(t *testing.T) {
 	if os.Getenv(helperEnv) != "1" {
 		t.Skip("helper process only")
+	}
+	if pidFile := os.Getenv(helperPIDFileEnv); pidFile != "" {
+		child := exec.CommandContext(context.Background(), "sleep", "300")
+		if err := child.Start(); err != nil {
+			os.Exit(2)
+		}
+		if err := os.WriteFile(pidFile, []byte(strconv.Itoa(child.Process.Pid)), 0o600); err != nil {
+			os.Exit(2)
+		}
 	}
 	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "helper", Version: "1.0.0"}, &sdkmcp.ServerOptions{
 		Capabilities: &sdkmcp.ServerCapabilities{Tools: &sdkmcp.ToolCapabilities{ListChanged: true}},
@@ -185,6 +269,9 @@ func TestBridgeStdioHelperProcess(t *testing.T) {
 		}); err != nil {
 			return nil, err
 		}
+		// Real keepalives precede the result by seconds; a final notification racing
+		// the result is dropped once the call has finished.
+		time.Sleep(300 * time.Millisecond)
 		return &sdkmcp.CallToolResult{Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "done"}}}, nil
 	})
 	server.AddTool(&sdkmcp.Tool{
@@ -209,13 +296,18 @@ func TestBridgeStdioHelperProcess(t *testing.T) {
 
 func startHelperBridge(t *testing.T) *Bridge {
 	t.Helper()
-	bridge, err := Start(testutil.Context(t), Spec{
+	return startBridge(t, Spec{
 		Name:    "helper",
 		Command: os.Args[0],
 		Args:    []string{"-test.run=^TestBridgeStdioHelperProcess$"},
 		Env:     append(os.Environ(), helperEnv+"=1"),
 		Dir:     t.TempDir(),
-	}, nil)
+	})
+}
+
+func startBridge(t *testing.T, spec Spec) *Bridge {
+	t.Helper()
+	bridge, err := Start(testutil.Context(t), spec, nil)
 	if err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
@@ -271,4 +363,12 @@ func (h headerTransport) RoundTrip(request *http.Request) (*http.Response, error
 	clone := request.Clone(request.Context())
 	clone.Header.Set("Authorization", h.authorization)
 	return http.DefaultTransport.RoundTrip(clone)
+}
+
+func processAlive(pid int) bool {
+	process, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	return process.Signal(syscall.Signal(0)) == nil
 }

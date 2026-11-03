@@ -1017,6 +1017,18 @@ func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should keep an explicit mode for a provider without a full-access mapping", func(t *testing.T) {
+		t.Parallel()
+		agent := AgentDef{Name: "qa", Provider: "gemini", Prompt: "prompt"}
+		agent.SetACPOptions([]ACPOptionSelection{{ID: "mode", ValueID: "default"}})
+		resolved, err := cfg.ResolveAgent(agent)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v, want the explicit mode to win", err)
+		}
+		if options := resolved.ACPOptionsValue(); len(options) != 1 || options[0].ValueID != "default" {
+			t.Fatalf("ResolveAgent() ACPOptions = %#v, want the explicit mode", options)
+		}
+	})
 	t.Run("Should fail clearly for an unsupported provider", func(t *testing.T) {
 		t.Parallel()
 		_, err := cfg.ResolveAgent(AgentDef{Name: "qa", Provider: "gemini", Prompt: "prompt"})

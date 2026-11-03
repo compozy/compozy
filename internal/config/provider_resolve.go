@@ -340,19 +340,10 @@ func applyProviderFullAccessPreference(
 	if !permissions.ProviderFullAccess || resolved.Permissions != string(PermissionModeApproveAll) {
 		return nil
 	}
-	optionID, valueID := "mode", ""
-	switch providerName {
-	case providerCodexKey:
-		valueID = "agent-full-access"
-	case "claude":
-		valueID = "bypassPermissions"
-	case providerAgyKey:
-		valueID = "yolo"
-	case providerCopilotKey:
-		// Copilot keeps approvals in its own allow_all option; its modes are task modes.
-		optionID, valueID = CopilotAllowAllOptionID, CopilotAllowAllOn
-	default:
-		return fmt.Errorf("permissions.provider_full_access is unsupported for provider %q", providerName)
+	// Copilot keeps approvals in its own allow_all option; its modes are task modes.
+	optionID := "mode"
+	if providerName == providerCopilotKey {
+		optionID = CopilotAllowAllOptionID
 	}
 	for _, option := range resolved.ACPOptionsValue() {
 		if option.ID == optionID {
@@ -365,6 +356,19 @@ func applyProviderFullAccessPreference(
 			providerName,
 			provider.EffectiveHarness(),
 		)
+	}
+	var valueID string
+	switch providerName {
+	case providerCodexKey:
+		valueID = "agent-full-access"
+	case "claude":
+		valueID = "bypassPermissions"
+	case providerAgyKey:
+		valueID = "yolo"
+	case providerCopilotKey:
+		valueID = CopilotAllowAllOn
+	default:
+		return fmt.Errorf("permissions.provider_full_access is unsupported for provider %q", providerName)
 	}
 	options, _ := runtimeoption.MergeSelections(
 		[]ACPOptionSelection{{ID: optionID, ValueID: valueID}}, resolved.ACPOptionsValue(),
