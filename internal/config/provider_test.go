@@ -210,7 +210,12 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 				)
 			}
 			if got.EffectiveACPMethod() != tc.acpMethod {
-				t.Fatalf("BuiltinProviders()[%q].AuthACPMethod = %q, want %q", tc.name, got.EffectiveACPMethod(), tc.acpMethod)
+				t.Fatalf(
+					"BuiltinProviders()[%q].AuthACPMethod = %q, want %q",
+					tc.name,
+					got.EffectiveACPMethod(),
+					tc.acpMethod,
+				)
 			}
 			if got.SessionMCPOverHTTP() != tc.sessionMCPHTTP {
 				t.Fatalf(

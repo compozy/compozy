@@ -100,7 +100,7 @@ func TestBridge(t *testing.T) {
 		if err := bridge.Close(); err != nil {
 			t.Fatalf("second Close() error = %v, want idempotent", err)
 		}
-		request, err := http.NewRequestWithContext(testutil.Context(t), http.MethodPost, bridge.URL(), nil)
+		request, err := http.NewRequestWithContext(testutil.Context(t), http.MethodPost, bridge.URL(), http.NoBody)
 		if err != nil {
 			t.Fatal(err)
 		}

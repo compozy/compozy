@@ -57,6 +57,8 @@ type Bridge struct {
 	server   *sdkmcp.Server
 	http     *http.Server
 	serveErr chan error
+	// stopChild ends the child's lifetime context; it runs after a graceful close.
+	stopChild context.CancelFunc
 
 	syncMu sync.Mutex
 	tools  map[string]struct{}
@@ -126,9 +128,12 @@ func (b *Bridge) URL() string { return b.url }
 func (b *Bridge) AuthorizationHeader() string { return "Bearer " + b.token }
 
 func (b *Bridge) connectChild(ctx context.Context, spec Spec) error {
-	cmd := exec.Command(
-		strings.TrimSpace(spec.Command),
-		spec.Args...) //nolint:gosec // The operator-configured MCP command is the launch contract.
+	command, args := strings.TrimSpace(spec.Command), spec.Args
+	// The child outlives the start request and lives until Close, not the caller's context.
+	childCtx, stopChild := context.WithCancel(context.WithoutCancel(ctx))
+	b.stopChild = stopChild
+	// The configured MCP server command is the launch contract the agent would run itself.
+	cmd := exec.CommandContext(childCtx, command, args...)
 	cmd.Env = append([]string(nil), spec.Env...)
 	cmd.Dir = spec.Dir
 	procutil.ConfigureCommandProcessGroup(cmd)
@@ -256,6 +261,9 @@ func (b *Bridge) Close() error {
 				errs = append(errs, fmt.Errorf("mcpbridge: close stdio server %q: %w", b.name, err))
 			}
 		}
+		if b.stopChild != nil {
+			b.stopChild()
+		}
 		b.closeErr = errors.Join(errs...)
 	})
 	return b.closeErr
@@ -283,13 +291,12 @@ func newToken() (string, error) {
 }
 
 func objectSchema(schema any) bool {
-	switch typed := schema.(type) {
-	case map[string]any:
-		kind, _ := typed["type"].(string)
-		return kind == "object"
-	default:
+	typed, ok := schema.(map[string]any)
+	if !ok {
 		return false
 	}
+	kind, ok := typed["type"].(string)
+	return ok && kind == "object"
 }
 
 // isChildExit reports the expected error when a stdio child exits on close.

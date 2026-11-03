@@ -1675,74 +1675,81 @@ func TestStartMCPServersSkipsRemoteTransports(t *testing.T) {
 func TestStartMCPServersBridgeOverHTTP(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should deliver a stdio server as an authorized loopback HTTP server and close it with the process", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should deliver a stdio server as an authorized loopback HTTP server and close it with the process",
+		func(t *testing.T) {
+			t.Parallel()
 
-		var logs lockedBuffer
-		driver := New(WithLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))))
-		captureFile := filepath.Join(t.TempDir(), "session-new-mcp.jsonl")
-		bin, err := os.Executable()
-		if err != nil {
-			t.Fatal(err)
-		}
-		proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{
-			Cwd:            t.TempDir(),
-			Env:            helperEnvWithCapture("stream_updates", "", captureFile),
-			ProviderConfig: &compozyconfig.ProviderConfig{SessionMCPTransport: compozyconfig.MCPServerTransportHTTP},
-			MCPServers: []compozyconfig.MCPServer{{
-				Name:      "compozy-hosted-tools",
-				Transport: compozyconfig.MCPServerTransportStdio,
-				Command:   bin,
-				Args:      []string{"-test.run=^TestACPBridgedMCPHelperProcess$"},
-				Env:       map[string]string{bridgedMCPHelperEnvKey: "1"},
-			}},
-		})
-		params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew)
-		request := decodeCapturedNewSessionRequest(t, params)
-		if len(request.MCPServers) != 1 || request.MCPServers[0].Http == nil {
-			t.Fatalf("session/new mcpServers = %#v, want one HTTP server", request.MCPServers)
-		}
-		server := request.MCPServers[0].Http
-		endpoint, err := url.Parse(server.Url)
-		if err != nil || endpoint.Hostname() != "127.0.0.1" || server.Name != "compozy-hosted-tools" {
-			t.Fatalf("bridged server = %#v, want named loopback endpoint", server)
-		}
-		if len(server.Headers) != 1 || server.Headers[0].Name != "Authorization" ||
-			!strings.HasPrefix(server.Headers[0].Value, "Bearer ") {
-			t.Fatalf("bridged headers = %#v, want one bearer Authorization header", server.Headers)
-		}
-		token := strings.TrimPrefix(server.Headers[0].Value, "Bearer ")
-		if strings.Contains(logs.String(), token) {
-			t.Fatal("driver logs leak the bridge bearer token")
-		}
-		if !strings.Contains(logs.String(), "transport=http header_count=1") {
-			t.Fatalf("MCP diagnostic missing HTTP shape: %s", logs.String())
-		}
+			var logs lockedBuffer
+			driver := New(
+				WithLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))),
+			)
+			captureFile := filepath.Join(t.TempDir(), "session-new-mcp.jsonl")
+			bin, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{
+				Cwd: t.TempDir(),
+				Env: helperEnvWithCapture("stream_updates", "", captureFile),
+				ProviderConfig: &compozyconfig.ProviderConfig{
+					SessionMCPTransport: compozyconfig.MCPServerTransportHTTP,
+				},
+				MCPServers: []compozyconfig.MCPServer{{
+					Name:      "compozy-hosted-tools",
+					Transport: compozyconfig.MCPServerTransportStdio,
+					Command:   bin,
+					Args:      []string{"-test.run=^TestACPBridgedMCPHelperProcess$"},
+					Env:       map[string]string{bridgedMCPHelperEnvKey: "1"},
+				}},
+			})
+			params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew)
+			request := decodeCapturedNewSessionRequest(t, params)
+			if len(request.MCPServers) != 1 || request.MCPServers[0].Http == nil {
+				t.Fatalf("session/new mcpServers = %#v, want one HTTP server", request.MCPServers)
+			}
+			server := request.MCPServers[0].Http
+			endpoint, err := url.Parse(server.Url)
+			if err != nil || endpoint.Hostname() != "127.0.0.1" || server.Name != "compozy-hosted-tools" {
+				t.Fatalf("bridged server = %#v, want named loopback endpoint", server)
+			}
+			if len(server.Headers) != 1 || server.Headers[0].Name != "Authorization" ||
+				!strings.HasPrefix(server.Headers[0].Value, "Bearer ") {
+				t.Fatalf("bridged headers = %#v, want one bearer Authorization header", server.Headers)
+			}
+			token := strings.TrimPrefix(server.Headers[0].Value, "Bearer ")
+			if strings.Contains(logs.String(), token) {
+				t.Fatal("driver logs leak the bridge bearer token")
+			}
+			if !strings.Contains(logs.String(), "transport=http header_count=1") {
+				t.Fatalf("MCP diagnostic missing HTTP shape: %s", logs.String())
+			}
 
-		client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "agent", Version: "1.0.0"}, nil)
-		session, err := client.Connect(testutil.Context(t), &sdkmcp.StreamableClientTransport{
-			Endpoint:   server.Url,
-			HTTPClient: &http.Client{Transport: bearerRoundTripper{value: server.Headers[0].Value}},
-		}, nil)
-		if err != nil {
-			t.Fatalf("connect to bridged server: %v", err)
-		}
-		tools, err := session.ListTools(testutil.Context(t), nil)
-		if err != nil || len(tools.Tools) != 1 || tools.Tools[0].Name != "bridged_ping" {
-			t.Fatalf("bridged tools = %#v, %v; want the stdio server tool", tools, err)
-		}
-		_ = session.Close()
+			client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "agent", Version: "1.0.0"}, nil)
+			session, err := client.Connect(testutil.Context(t), &sdkmcp.StreamableClientTransport{
+				Endpoint:   server.Url,
+				HTTPClient: &http.Client{Transport: bearerRoundTripper{value: server.Headers[0].Value}},
+			}, nil)
+			if err != nil {
+				t.Fatalf("connect to bridged server: %v", err)
+			}
+			tools, err := session.ListTools(testutil.Context(t), nil)
+			if err != nil || len(tools.Tools) != 1 || tools.Tools[0].Name != "bridged_ping" {
+				t.Fatalf("bridged tools = %#v, %v; want the stdio server tool", tools, err)
+			}
+			_ = session.Close()
 
-		stopProcess(t, driver, proc)
-		probe, err := http.NewRequestWithContext(testutil.Context(t), http.MethodPost, server.Url, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if response, err := http.DefaultClient.Do(probe); err == nil {
-			_ = response.Body.Close()
-			t.Fatalf("bridge still serving after process stop: status %d", response.StatusCode)
-		}
-	})
+			stopProcess(t, driver, proc)
+			probe, err := http.NewRequestWithContext(testutil.Context(t), http.MethodPost, server.Url, http.NoBody)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if response, err := http.DefaultClient.Do(probe); err == nil {
+				_ = response.Body.Close()
+				t.Fatalf("bridge still serving after process stop: status %d", response.StatusCode)
+			}
+		},
+	)
 }
 
 const bridgedMCPHelperEnvKey = "COMPOZY_ACP_BRIDGED_MCP_HELPER"

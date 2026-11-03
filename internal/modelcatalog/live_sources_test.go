@@ -1869,7 +1869,16 @@ opencode/provider-managed
 		if err != nil {
 			t.Fatalf("ListModels(Copilot ACP) error = %v", err)
 		}
-		if got, want := rowModelIDs(rows), []string{"auto", "claude-sonnet-5", "gpt-5.6-luna"}; !slices.Equal(got, want) {
+		if got, want := rowModelIDs(
+			rows,
+		), []string{
+			"auto",
+			"claude-sonnet-5",
+			"gpt-5.6-luna",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
 			t.Fatalf("row ids = %#v, want %#v", got, want)
 		}
 		luna := requireModelRow(t, rows, "gpt-5.6-luna")

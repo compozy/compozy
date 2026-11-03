@@ -9,8 +9,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
-const acpModeOptionID = "mode"
-
 // applyResolvedRuntimeDefaults materializes the effective session runtime in
 // provider/project -> agent -> session order. Prompt selections are rebuilt as
 // session specs and therefore form the final overlay through the same path.
