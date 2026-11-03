@@ -631,6 +631,22 @@ func (a *helperACPAgent) NewSession(
 		a.setHelperConfigOptions(options)
 		return acpsdk.NewSessionResponse{SessionId: "sess-new", ConfigOptions: options}, nil
 	}
+	if a.scenario == "cursor_mode_config_only" {
+		options := []acpsdk.SessionConfigOption{
+			helperSelectConfigOption("mode", "Mode", "plan", "agent", "plan", "ask"),
+		}
+		a.setHelperConfigOptions(options)
+		return acpsdk.NewSessionResponse{SessionId: "sess-new", ConfigOptions: options}, nil
+	}
+	if a.scenario == "triage_dual_mode" {
+		options := []acpsdk.SessionConfigOption{helperSelectConfigOption("mode", "Mode", "default", "default", "plan")}
+		a.setHelperConfigOptions(options)
+		return acpsdk.NewSessionResponse{
+			SessionId:     "sess-new",
+			Modes:         helperModeStateWithCurrent("default", "default", "plan"),
+			ConfigOptions: options,
+		}, nil
+	}
 	if a.scenario == "mode_mapping" || a.scenario == "stall_mode" {
 		return acpsdk.NewSessionResponse{
 			SessionId: "sess-new",
