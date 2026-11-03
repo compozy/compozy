@@ -16499,8 +16499,10 @@ func TestNativeSessionMoveToProfile(t *testing.T) {
 				return session.MoveToProfileResult{}, err
 			}
 			return session.MoveToProfileResult{
-				Copy:     &session.Info{ID: "sess-copy", ProfileID: targetID, WorkspaceID: "ws-move"},
-				Original: &session.Info{ID: opts.SessionID, ProfileID: opts.ProfileID, WorkspaceID: "ws-move"},
+				Copy:       &session.Info{ID: "sess-copy", ProfileID: targetID, WorkspaceID: "ws-move"},
+				Original:   &session.Info{ID: opts.SessionID, ProfileID: opts.ProfileID, WorkspaceID: "ws-move"},
+				WorktreeID: "wt-copy",
+				Branch:     "feature/move",
 			}, nil
 		}
 		policy := &recordingNativeWorkspaceAccessPolicy{decision: decision}
@@ -16532,8 +16534,19 @@ func TestNativeSessionMoveToProfile(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Registry.Call(session_move_to_profile) error = %v", err)
 		}
-		requireNativeStructuredContains(t, result, []byte(`"id":"sess-copy"`))
-		requireNativeStructuredContains(t, result, []byte(`"original":{`))
+		var moved struct {
+			Session    struct{ ID string }
+			Original   struct{ ID string }
+			WorktreeID string `json:"worktree_id"`
+			Branch     string
+		}
+		if err := json.Unmarshal(result.Structured, &moved); err != nil {
+			t.Fatalf("json.Unmarshal(structured) error = %v", err)
+		}
+		if moved.Session.ID != "sess-copy" || moved.Original.ID != "sess-source" ||
+			moved.WorktreeID != "wt-copy" || moved.Branch != "feature/move" {
+			t.Fatalf("move result = %+v, want copy sess-copy of sess-source on wt-copy/feature/move", moved)
+		}
 		if len(*calls) != 1 || (*calls)[0].TargetProfileID != targetID || (*calls)[0].SessionID != "sess-source" ||
 			(*calls)[0].ProfileID != store.DefaultProfileID {
 			t.Fatalf("MoveToProfile() calls = %#v, want one move of sess-source to %s", *calls, targetID)
@@ -16564,6 +16577,18 @@ func TestNativeSessionMoveToProfile(t *testing.T) {
 		_, err := registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "ws-move"}, request("sess-source"))
 		if !errors.Is(err, toolspkg.ErrToolDenied) || len(*calls) != 0 || policy.calls != 0 {
 			t.Fatalf("sessionless move error = %v calls = %d policy = %d, want denied", err, len(*calls), policy.calls)
+		}
+	})
+
+	t.Run("Should deny the target-profile write of a non-operator scope without a session", func(t *testing.T) {
+		t.Parallel()
+		policy := &recordingNativeWorkspaceAccessPolicy{decision: workspaceaccess.Decision{Allowed: true}}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{WorkspaceAccess: policy}}
+		err := native.authorizeNativeProfileMove(
+			t.Context(), toolspkg.Scope{WorkspaceID: "ws-move"}, request("sess-source"), "work", targetID,
+		)
+		if !errors.Is(err, toolspkg.ErrToolDenied) || policy.calls != 0 {
+			t.Fatalf("sessionless authorization error = %v policy = %d, want denied before the policy", err, policy.calls)
 		}
 	})
 
