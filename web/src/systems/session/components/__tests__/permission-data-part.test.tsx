@@ -134,6 +134,29 @@ describe("PermissionDataPart", () => {
     expect(receipt).toHaveTextContent("Not allowed by you · Bash — rm -rf /tmp/test");
   });
 
+  it("Should name a repeat refusal as a repeat, not as your answer, even when the earlier row was yours", () => {
+    renderWithResolvedRow(
+      { ...basePermissionData, decision: "reject-once", resolved_by: "repeat_denied" },
+      resolvedRow("operator")
+    );
+
+    const receipt = screen.getByTestId("permission-rejected-notice");
+    expect(receipt).toHaveAttribute("data-actor", "repeat");
+    expect(receipt).toHaveTextContent("Not allowed again: the same request was already refused");
+    expect(receipt).not.toHaveTextContent("by you");
+  });
+
+  it("Should say a timed-out refusal timed out, from the decision's own actor", () => {
+    renderWithResolvedRow(
+      { ...basePermissionData, decision: "reject-once", resolved_by: "timeout" },
+      resolvedRow("operator")
+    );
+
+    expect(screen.getByTestId("permission-rejected-notice")).toHaveTextContent(
+      "Timed out before anyone answered"
+    );
+  });
+
   it("Should phrase a reject-always receipt as a project-and-agent refusal", () => {
     renderWithResolvedRow(
       { ...basePermissionData, decision: "reject-always" },
