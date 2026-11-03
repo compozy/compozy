@@ -163,6 +163,12 @@ func (b *Bridge) connectChild(ctx context.Context, spec Spec) error {
 	session, err := client.Connect(connectCtx, child.transport(), nil)
 	cancel()
 	if err != nil {
+		// A child that exited mid-handshake may still be flushing stderr;
+		// let the copy finish so the tail includes its last output.
+		select {
+		case <-child.waited:
+		case <-time.After(childExitTimeout):
+		}
 		if stderr := child.stderrSummary(); stderr != "" {
 			return fmt.Errorf("mcpbridge: connect stdio server %q: %w (stderr: %s)", b.name, err, stderr)
 		}

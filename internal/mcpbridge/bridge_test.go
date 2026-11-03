@@ -244,6 +244,43 @@ func TestBridge(t *testing.T) {
 	})
 }
 
+func TestTailBuffer(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep only whole lines once the tail drops bytes", func(t *testing.T) {
+		t.Parallel()
+		tail := &tailBuffer{limit: 16}
+		if _, err := tail.Write([]byte("token=abcdefghij\nlast line\n")); err != nil {
+			t.Fatal(err)
+		}
+		if got := tail.String(); got != "last line\n" {
+			t.Fatalf("tail = %q, want the cut first line dropped", got)
+		}
+	})
+
+	t.Run("Should return nothing when the kept tail is one cut line", func(t *testing.T) {
+		t.Parallel()
+		tail := &tailBuffer{limit: 8}
+		if _, err := tail.Write([]byte("Authorization: Bearer abcdefghijklmnop")); err != nil {
+			t.Fatal(err)
+		}
+		if got := tail.String(); got != "" {
+			t.Fatalf("tail = %q, want no credential fragment", got)
+		}
+	})
+
+	t.Run("Should keep everything while under the limit", func(t *testing.T) {
+		t.Parallel()
+		tail := &tailBuffer{limit: 64}
+		if _, err := tail.Write([]byte("partial")); err != nil {
+			t.Fatal(err)
+		}
+		if got := tail.String(); got != "partial" {
+			t.Fatalf("tail = %q, want the full output", got)
+		}
+	})
+}
+
 // TestBridgeStdioHelperProcess is the stdio MCP server child used above.
 func TestBridgeStdioHelperProcess(t *testing.T) {
 	if os.Getenv(helperEnv) != "1" {
