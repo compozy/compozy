@@ -43,7 +43,13 @@ func (p permissionPolicy) rulePathsMatch(rule compozyconfig.PermissionRule, path
 		relative, err := filepath.Rel(p.root, location)
 		match := false
 		if err == nil {
-			match, err = doublestar.Match(rule.Path, filepath.ToSlash(relative))
+			pattern, target := rule.Path, filepath.ToSlash(relative)
+			if !allow {
+				// Case-insensitive volumes resolve SECRETS/key to secrets/key, so a deny
+				// rule matches regardless of case; over-matching a deny only narrows.
+				pattern, target = strings.ToLower(pattern), strings.ToLower(target)
+			}
+			match, err = doublestar.Match(pattern, target)
 		}
 		matched := err == nil && match
 		if allow && !matched {
@@ -58,13 +64,21 @@ func (p permissionPolicy) rulePathsMatch(rule compozyconfig.PermissionRule, path
 
 type permissionDecisionSourceHost interface {
 	PermissionDecisionSource(acpsdk.RequestPermissionRequest) (PermissionDecision, bool, string)
+	DaemonPermissionDecisionSource(acpsdk.RequestPermissionRequest) (PermissionDecision, bool, string)
 }
 
+// resolveHostPermissionDecision applies permission rules only to provider-asked
+// requests. Daemon-originated Compozy tool approvals are identified by their call
+// path (the system actor), never by request metadata a provider could forge.
 func resolveHostPermissionDecision(
 	host ToolHost,
 	request acpsdk.RequestPermissionRequest,
+	actor string,
 ) (PermissionDecision, bool, string) {
 	if sourced, ok := host.(permissionDecisionSourceHost); ok {
+		if actor == permissionActorSystem {
+			return sourced.DaemonPermissionDecisionSource(request)
+		}
 		return sourced.PermissionDecisionSource(request)
 	}
 	decision, interactive := host.PermissionDecision(request)

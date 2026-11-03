@@ -361,30 +361,44 @@ func TestTriagePolicy(t *testing.T) {
 
 func TestEditLevelPermissionRequests(t *testing.T) {
 	t.Parallel()
-	for _, tc := range []struct {
-		name     string
-		kind     acpsdk.ToolKind
-		decision permissionDecision
-		pending  bool
-	}{
-		{"Should allow read once", acpsdk.ToolKindRead, decisionAllowOnce, false},
-		{"Should allow edit once", acpsdk.ToolKindEdit, decisionAllowOnce, false},
-		{"Should ask for command execution", acpsdk.ToolKindExecute, decisionPending, true},
-		{"Should reject unknown operations", acpsdk.ToolKind("unknown"), decisionRejectOnce, false},
+	// Invariant (rule 12, SEC-4, SEC-7): approve-edits and auto approve reads and contained edits,
+	// and every other request, including an edit without locations or an unknown kind, asks.
+	// Owning layer: ACP permission level decision; canonical suite: TestEditLevelPermissionRequests.
+	for _, mode := range []compozyconfig.PermissionMode{
+		compozyconfig.PermissionModeApproveEdits,
+		compozyconfig.PermissionModeAuto,
 	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			policy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveEdits, t.TempDir())
-			if err != nil {
-				t.Fatal(err)
-			}
-			decision, pending := policy.permissionDecision(acpsdk.RequestPermissionRequest{
-				ToolCall: acpsdk.ToolCallUpdate{Kind: new(tc.kind)},
+		for _, tc := range []struct {
+			name     string
+			kind     *acpsdk.ToolKind
+			location string
+			decision permissionDecision
+			pending  bool
+		}{
+			{"Should allow read once", new(acpsdk.ToolKindRead), "docs/a.md", decisionAllowOnce, false},
+			{"Should allow a contained edit once", new(acpsdk.ToolKindEdit), "docs/a.md", decisionAllowOnce, false},
+			{"Should ask for an edit without locations", new(acpsdk.ToolKindEdit), "", decisionPending, true},
+			{"Should ask for command execution", new(acpsdk.ToolKindExecute), "", decisionPending, true},
+			{"Should ask for kind other", new(acpsdk.ToolKindOther), "", decisionPending, true},
+			{"Should ask for unknown operations", new(acpsdk.ToolKind("unknown")), "", decisionPending, true},
+			{"Should ask for a missing kind", nil, "docs/a.md", decisionPending, true},
+		} {
+			t.Run(string(mode)+" "+tc.name, func(t *testing.T) {
+				t.Parallel()
+				policy, err := newPermissionPolicy(mode, t.TempDir())
+				if err != nil {
+					t.Fatal(err)
+				}
+				request := acpsdk.RequestPermissionRequest{ToolCall: acpsdk.ToolCallUpdate{Kind: tc.kind}}
+				if tc.location != "" {
+					request.ToolCall.Locations = []acpsdk.ToolCallLocation{{Path: tc.location}}
+				}
+				decision, pending := policy.permissionDecision(request)
+				if decision != tc.decision || pending != tc.pending {
+					t.Fatalf("decision=%s pending=%v, want %s %v", decision, pending, tc.decision, tc.pending)
+				}
 			})
-			if decision != tc.decision || pending != tc.pending {
-				t.Fatalf("decision=%s pending=%v, want %s %v", decision, pending, tc.decision, tc.pending)
-			}
-		})
+		}
 	}
 }
 
@@ -453,6 +467,12 @@ func TestPermissionRuleDecisions(t *testing.T) {
 		{"Should preserve allowed-root checks before allow rules", compozyconfig.PermissionModeApproveAll,
 			[]compozyconfig.PermissionRule{{Kind: "edit", Decision: "allow"}},
 			"../outside.txt", decisionRejectOnce, false},
+		{"Should deny a path rule regardless of letter case", compozyconfig.PermissionModeApproveAll,
+			[]compozyconfig.PermissionRule{{Kind: "edit", Path: "secrets/**", Decision: "deny"}},
+			"SECRETS/key", decisionRejectOnce, false},
+		{"Should not widen an allow path rule by letter case", compozyconfig.PermissionModeApproveReads,
+			[]compozyconfig.PermissionRule{{Kind: "edit", Path: "docs/**", Decision: "allow"}},
+			"DOCS/guide.md", decisionPending, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -476,4 +496,52 @@ func TestPermissionRuleDecisions(t *testing.T) {
 			}
 		})
 	}
+	// Invariant (rule 49, SEC-3): rules cover what a provider asks; daemon-originated Compozy tool
+	// approvals are decided by the level alone, identified by call path rather than forgeable metadata.
+	t.Run("Should not let a kind-only allow rule approve a Compozy tool", func(t *testing.T) {
+		t.Parallel()
+		policy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveEdits, t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy.rules = []compozyconfig.PermissionRule{{Kind: "execute", Decision: "allow"}}
+		request := acpsdk.RequestPermissionRequest{
+			Meta:     map[string]any{PermissionToolIDMetaKey: "compozy__agent_create"},
+			ToolCall: acpsdk.ToolCallUpdate{Kind: new(acpsdk.ToolKindExecute)},
+		}
+		if decision, pending, source := policy.permissionDecisionSource(request); decision != decisionAllowOnce ||
+			pending || source != permissionSourceRule {
+			t.Fatalf("provider request: decision=%s pending=%v source=%s", decision, pending, source)
+		}
+		decision, pending, source := policy.daemonPermissionDecisionSource(request)
+		if decision != decisionPending || !pending || source != permissionSourcePolicy {
+			t.Fatalf("daemon request: decision=%s pending=%v source=%s", decision, pending, source)
+		}
+	})
+	t.Run(
+		"Should route daemon-originated requests around rules and provider requests through them",
+		func(t *testing.T) {
+			t.Parallel()
+			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+			proc.permissions.rules = []compozyconfig.PermissionRule{{Kind: "delete", Decision: "deny"}}
+			request := acpsdk.RequestPermissionRequest{
+				SessionId: "sess-direct",
+				ToolCall:  acpsdk.ToolCallUpdate{ToolCallId: "tool-delete", Kind: new(acpsdk.ToolKindDelete)},
+				Options: []acpsdk.PermissionOption{
+					{OptionId: "allow", Name: "Allow", Kind: acpsdk.PermissionOptionKindAllowOnce},
+					{OptionId: "reject", Name: "Reject", Kind: acpsdk.PermissionOptionKindRejectOnce},
+				},
+			}
+			provider, err := proc.handleRequestPermission(t.Context(), request)
+			if err != nil || provider.Outcome.Selected == nil || provider.Outcome.Selected.OptionId != "reject" {
+				t.Fatalf("provider outcome=%+v err=%v, want the deny rule", provider.Outcome, err)
+			}
+			request.Meta = map[string]any{PermissionToolIDMetaKey: "compozy__session_stop"}
+			request.ToolCall.ToolCallId = "tool-approval-delete"
+			daemon, err := proc.RequestPermission(t.Context(), request)
+			if err != nil || daemon.Outcome.Selected == nil || daemon.Outcome.Selected.OptionId != "allow" {
+				t.Fatalf("daemon outcome=%+v err=%v, want the level decision", daemon.Outcome, err)
+			}
+		},
+	)
 }
