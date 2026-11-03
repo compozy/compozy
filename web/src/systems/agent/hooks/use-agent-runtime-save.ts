@@ -62,6 +62,8 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
   const [intended, setIntended] = useState<Readonly<Record<string, Intended>>>({});
   // Agents with a save in flight, each with the choice made meanwhile, if any.
   const saving = useRef(new Map<string, Partial<AgentSettingsDraft> | null>());
+  // What the latest choice for each agent changed, named in the toast once its save lands.
+  const notice = useRef(new Map<string, string>());
 
   const pending = intended[key] ?? null;
   const serverValue = resolveAgentRuntimeValue(agent);
@@ -108,7 +110,8 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
           return;
         }
         settle(owner);
-        toast.success("Model updated");
+        toast.success(notice.current.get(owner) ?? "Model updated");
+        notice.current.delete(owner);
       },
       (mutationError: unknown) => {
         // A choice waiting on a definition that didn't save is dropped with it.
@@ -141,30 +144,38 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
   const choose = (
     next: Intended["value"],
     nextSpeed: RuntimeSpeed,
-    patch: Partial<AgentSettingsDraft>
+    patch: Partial<AgentSettingsDraft>,
+    message: string
   ) => {
     if (!agent) return;
+    notice.current.set(key, message);
     setIntended(current => ({ ...current, [key]: { value: next, speed: nextSpeed } }));
     save(key, patch, agent);
   };
 
   const onChange = (next: RuntimeSelectorValue, normalizedSpeed?: RuntimeSpeed) =>
-    choose(next, normalizedSpeed ?? speed, {
-      provider: next.provider,
-      model: next.model ?? "",
-      reasoningEffort: next.reasoning_effort,
-      acpOptions: next.acp_options ?? [],
-      ...(normalizedSpeed ? { speed: normalizedSpeed } : {}),
-    });
+    choose(
+      next,
+      normalizedSpeed ?? speed,
+      {
+        provider: next.provider,
+        model: next.model ?? "",
+        reasoningEffort: next.reasoning_effort,
+        acpOptions: next.acp_options ?? [],
+        ...(normalizedSpeed ? { speed: normalizedSpeed } : {}),
+      },
+      "Model updated"
+    );
 
   return {
     value,
     speed,
     overridden,
     onChange,
-    onSpeedChange: (next: RuntimeSpeed) => choose(value, next, { speed: next }),
+    onSpeedChange: (next: RuntimeSpeed) =>
+      choose(value, next, { speed: next }, next === "fast" ? "Fast turned on" : "Fast turned off"),
     // The server resolves the default's speed, so the current one stays until the reread.
-    onUseDefault: () => choose(null, speed, DEFAULT_RUNTIME),
+    onUseDefault: () => choose(null, speed, DEFAULT_RUNTIME, "Back to your default"),
     /** A return to the default or a conflict reread is running; the selector waits for it. */
     isPending: (pending !== null && pending.value === null) || Boolean(shown?.refreshing),
     error: shown?.error ?? null,

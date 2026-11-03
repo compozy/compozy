@@ -274,6 +274,23 @@ describe("AgentProfileHome", () => {
     expect(onUseDefault).toHaveBeenCalledOnce();
   });
 
+  it("Should offer Retry when providers fail to load", async () => {
+    const onRetryProviderSource = vi.fn();
+    renderHome(
+      pageFixture({
+        model: modelFixture({
+          providerOptions: [],
+          providerSourceError: "Couldn't load providers",
+          onRetryProviderSource,
+        }),
+      })
+    );
+    const row = screen.getByTestId("agent-setup-model");
+    expect(within(row).getByRole("alert")).toHaveTextContent("Couldn't load providers");
+    await userEvent.setup().click(within(row).getByRole("button", { name: "Retry" }));
+    expect(onRetryProviderSource).toHaveBeenCalledOnce();
+  });
+
   it("Should keep a package-owned agent's model visible but unchangeable", () => {
     renderHome(
       pageFixture({

@@ -445,4 +445,16 @@ describe("useAgentRuntimeEditor", () => {
     expect(agent).not.toHaveProperty("speed");
     expect(agent.acp_options).toEqual([]);
   });
+
+  it("Should name what changed when each save lands", async () => {
+    const { result } = renderEditor(workspaceAgent({ provider: "claude", model: "sonnet" }));
+
+    act(() => result.current.onSpeedChange("fast"));
+    await act(async () => saves[0]!.resolve(workspaceAgent({ speed: "fast" })));
+    expect(mocks.toastSuccess).toHaveBeenLastCalledWith("Fast turned on");
+
+    act(() => result.current.onUseDefault());
+    await act(async () => saves[1]!.resolve(workspaceAgent()));
+    expect(mocks.toastSuccess).toHaveBeenLastCalledWith("Back to your default");
+  });
 });

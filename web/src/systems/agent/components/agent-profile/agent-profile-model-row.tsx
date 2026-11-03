@@ -1,4 +1,5 @@
 /** The Model row of the setup list: the runtime selector itself, so a pick applies at once. */
+import { useId } from "react";
 import { Bot } from "@compozy/ui/icons";
 
 import { Button, cn } from "@compozy/ui";
@@ -11,8 +12,6 @@ import {
   HOME_RUN_TITLE_CLASS,
 } from "@/systems/dashboard";
 
-const LABEL_ID = "agent-setup-model-label";
-
 export function AgentSetupModelRow({
   model,
   readOnly,
@@ -20,14 +19,18 @@ export function AgentSetupModelRow({
   model: UseAgentRuntimeEditorResult;
   readOnly: boolean;
 }) {
+  const labelId = useId();
+  const triggerId = useId();
   const problem = model.conflictMessage ?? model.error ?? model.providerSourceError;
+  // Only a failed provider load leaves the selector with nothing to offer; that one can retry.
+  const retry = problem !== null && problem === model.providerSourceError;
   return (
     <div className="px-4 py-3" data-testid="agent-setup-model">
       <div className={cn(HOME_RUN_ROW_CLASS, "p-0")}>
         <span className="min-w-0">
           <span className={HOME_RUN_TITLE_CLASS}>
             <Bot aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-            <span className="truncate" id={LABEL_ID}>
+            <span className="truncate" id={labelId}>
               Model
             </span>
           </span>
@@ -52,7 +55,7 @@ export function AgentSetupModelRow({
       </div>
       <div className="mt-2 pl-6">
         <RuntimeSelector
-          ariaLabelledby={LABEL_ID}
+          ariaLabelledby={labelId}
           disabled={model.isPending || model.providersLoading || model.providerOptions.length === 0}
           loading={model.modelCatalogLoading}
           models={model.runtimeModels}
@@ -64,7 +67,7 @@ export function AgentSetupModelRow({
           readOnly={readOnly}
           refreshing={model.modelCatalogRefreshing}
           speed={model.speed}
-          triggerId="agent-setup-model-trigger"
+          triggerId={triggerId}
           triggerTestId="agent-setup-model-select"
           value={model.value}
           variant="small"
@@ -72,13 +75,22 @@ export function AgentSetupModelRow({
         />
       </div>
       {problem ? (
-        <p
-          className="mt-2 pl-6 text-small-body text-destructive"
-          data-testid="agent-setup-model-error"
-          role="alert"
-        >
-          {problem}
-        </p>
+        <div className="mt-2 flex min-w-0 items-center gap-1.5 pl-6" role="alert">
+          <p className="text-small-body text-destructive" data-testid="agent-setup-model-error">
+            {problem}
+          </p>
+          {retry ? (
+            <Button
+              className="shrink-0"
+              onClick={model.onRetryProviderSource}
+              size="xs"
+              type="button"
+              variant="ghost"
+            >
+              Retry
+            </Button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
