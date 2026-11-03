@@ -78,6 +78,11 @@ func ReclamationEligible(branch, recordedNamespace string, createdBranch bool) b
 	return createdBranch && recordedNamespace != "" && strings.HasPrefix(branch, recordedNamespace)
 }
 
+// NewID returns a fresh worktree id for CreateOptions.ID.
+func NewID() (string, error) {
+	return generateID("wt")
+}
+
 func generateID(prefix string) (string, error) {
 	var entropy [8]byte
 	if _, err := rand.Read(entropy[:]); err != nil {

@@ -31,11 +31,11 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 			m.logger.Error("session: deletion failed", "session_id", target, "error", err)
 		}
 	}()
-	ctx, unlockConversation, err := m.lockConversationOperation(ctx, target)
+	ctx, unlock, err := m.lockSessionDelete(ctx, target)
 	if err != nil {
 		return err
 	}
-	defer unlockConversation()
+	defer unlock()
 	if err := m.guardInstanceMain(ctx, target); err != nil {
 		return err
 	}
@@ -101,6 +101,29 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 
 // prepareSessionDelete settles execution and owned Goals before reversible history removal.
 // The caller must own the conversation operation, without holding lifecycleMu.
+// lockSessionDelete takes the session's profile-move lock, refuses a session whose
+// move is still journaled, then takes its conversation lock. A move takes the same
+// two locks in that order.
+func (m *Manager) lockSessionDelete(ctx context.Context, target string) (context.Context, func(), error) {
+	ctx, unlockMove, err := m.lockProfileMove(ctx, target)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := m.refuseOpenProfileMove(ctx, target); err != nil {
+		unlockMove()
+		return nil, nil, err
+	}
+	ctx, unlockConversation, err := m.lockConversationOperation(ctx, target)
+	if err != nil {
+		unlockMove()
+		return nil, nil, err
+	}
+	return ctx, func() {
+		unlockConversation()
+		unlockMove()
+	}, nil
+}
+
 func (m *Manager) prepareSessionDelete(ctx context.Context, target string) (*Info, error) {
 	// Restore durable stop settlement before deciding whether deletion can proceed.
 	if _, active := m.Get(target); !active {

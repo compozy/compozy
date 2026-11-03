@@ -529,6 +529,21 @@ func TestServiceCreate(t *testing.T) {
 		}
 	})
 
+	t.Run("Should create the worktree under the id its caller chose", func(t *testing.T) {
+		t.Parallel()
+		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+		item, err := fixture.service.Create(t.Context(), fixture.workspace.ID, CreateOptions{
+			ID: "wt_chosen_by_move", ProfileID: testNonDefaultWorktreeProfileID, Name: "Moved Branch",
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		persisted, err := fixture.store.Get(t.Context(), fixture.workspace.ID, "wt_chosen_by_move")
+		if item.ID != "wt_chosen_by_move" || err != nil || persisted.State != StateReady {
+			t.Fatalf("Create() id = %q, persisted = %#v, %v; want the requested id ready", item.ID, persisted, err)
+		}
+	})
+
 	t.Run("Should create a branch and persist every phase before completing", func(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())

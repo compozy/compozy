@@ -26,6 +26,10 @@ CREATE TABLE worktrees (
 		run_id TEXT NOT NULL DEFAULT '',
 		created_at TEXT NOT NULL,
 		updated_at TEXT NOT NULL,
+		-- removal_mode is what an in-flight removal may discard ('' or 'keep_branch');
+		-- boot recovery of a removing row finishes it in the same mode. keep_branch never
+		-- reclaims the branch. No CHECK: SQLite adds the column in place, without a rebuild.
+		removal_mode TEXT NOT NULL DEFAULT '',
 		UNIQUE (workspace_id, id)
 	);
 
