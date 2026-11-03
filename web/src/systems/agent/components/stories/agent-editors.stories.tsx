@@ -13,6 +13,10 @@ import {
 import type { AgentPayload } from "../../types";
 import { AgentCheckInsView } from "../agent-editors/check-ins-view";
 import { AgentMemoryView } from "../agent-editors/memory-view";
+import {
+  AgentPermissionsView,
+  type AgentPermissionsViewProps,
+} from "../agent-editors/permissions-view";
 import { AgentWhatItDoesView } from "../agent-editors/what-it-does-view";
 
 const agent: AgentPayload = {
@@ -111,4 +115,111 @@ export const MemoryFilled: Story = {
 
 export const MemoryEmpty: Story = {
   render: () => <AgentMemoryView agent={agent} model={blankMemoryModelFixture()} state="idle" />,
+};
+
+const staysOnAgent: AgentPayload = { ...agent, kind: "stays_on", provider: "claude" };
+
+function permissionsProps(
+  overrides: Partial<AgentPermissionsViewProps> = {}
+): AgentPermissionsViewProps {
+  return {
+    agent: staysOnAgent,
+    providerName: "Claude Code",
+    level: "",
+    sessionApproval: "",
+    rules: [],
+    invalidRule: null,
+    reviewer: "available",
+    degraded: false,
+    readOnly: false,
+    changes: 0,
+    saving: false,
+    onLevelChange: fn(),
+    onSessionApprovalChange: fn(),
+    onRulesChange: fn(),
+    onSave: fn(),
+    onDiscard: fn(),
+    ...overrides,
+  };
+}
+
+const permissionRules: AgentPermissionsViewProps["rules"] = [
+  { id: "docs", kind: "edit", path: "docs/**", decision: "allow" },
+  { id: "infra", kind: "edit", path: "infra/**", decision: "deny" },
+  { id: "migrations", kind: "delete", path: "db/migrations/**", decision: "deny" },
+];
+
+export const PermissionsNothingSet: Story = {
+  render: () => <AgentPermissionsView {...permissionsProps()} />,
+};
+
+export const PermissionsReviewerUnavailable: Story = {
+  render: () => (
+    <AgentPermissionsView
+      {...permissionsProps({ level: "auto", providerName: "Cursor", reviewer: "unavailable" })}
+    />
+  ),
+};
+
+export const PermissionsReviewerDegraded: Story = {
+  render: () => <AgentPermissionsView {...permissionsProps({ level: "auto", degraded: true })} />,
+};
+
+export const PermissionsNeverAskCodex: Story = {
+  render: () => (
+    <AgentPermissionsView
+      {...permissionsProps({
+        agent: { ...staysOnAgent, provider: "codex" },
+        level: "approve-all",
+        providerName: "Codex",
+      })}
+    />
+  ),
+};
+
+export const PermissionsExceptions: Story = {
+  render: () => (
+    <AgentPermissionsView
+      {...permissionsProps({ level: "approve-edits", rules: permissionRules })}
+    />
+  ),
+};
+
+export const PermissionsExceptionInvalid: Story = {
+  render: () => (
+    <AgentPermissionsView
+      {...permissionsProps({
+        blocked: "Fix the exception first",
+        changes: 1,
+        invalidRule: {
+          id: "outside",
+          message: "Use a path inside the project, such as docs/** or src/app.",
+        },
+        rules: [
+          ...permissionRules,
+          { id: "outside", kind: "edit", path: "../secrets", decision: "allow" },
+        ],
+        sessionApproval: "workspace",
+      })}
+    />
+  ),
+};
+
+export const PermissionsOnDemand: Story = {
+  render: () => (
+    <AgentPermissionsView
+      {...permissionsProps({
+        agent: { ...agent, kind: "on_demand" },
+        settingsLevel: "approve-all",
+      })}
+    />
+  ),
+};
+
+export const PermissionsExtensionOwned: Story = {
+  render: () => (
+    <AgentPermissionsView
+      {...permissionsProps({ owner: "Release Kit", readOnly: true, rules: permissionRules })}
+    />
+  ),
 };
