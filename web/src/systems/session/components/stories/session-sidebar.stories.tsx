@@ -44,7 +44,6 @@ const meta: Meta<typeof SessionSidebar> = {
     },
   },
   decorators: [
-    // The desktop shell hosts New agent; Add stays-on agent's Create new opens it.
     Story => (
       <AgentCreateHostProvider openDialog={fn()} openForDuplicate={fn()}>
         <CenteredSurface>
