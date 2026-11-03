@@ -1,5 +1,14 @@
 # Compozy Change Impact
 
+## Session profile move approval classification — 2026-11-03
+
+The native `compozy__session_move_to_profile` descriptor now declares destructive risk and its
+destructive flag, matching the archive and worktree release it performs. `approve-edits` and
+`auto` therefore require approval through the existing policy. CLI, HTTP/UDS, Web, schemas, hooks,
+config, and persisted data are unchanged. Profile write authorization remains enforced. The native
+catalog is regenerated; the official skill needs no change because destructive approval is already
+documented. QA coverage is recorded in `ET-session-move-to-profile`.
+
 ## Approve-all reads across workspaces and profiles — 2026-11-03
 
 Owner: issue #1169, branch `approve-all-cross-workspace-reads`. Owner decision 2026-11-03 reverses

@@ -36,3 +36,7 @@ Walk (isolated lab, two profiles `default` and `work`, acpmock agent, git worksp
 Covered by the owning suites, not walked: rollback after a failure past the archive (session suite
 `TestManagerMoveToProfile`), children and own-session refusals, and the native tool's
 target-profile write authorization (`TestNativeSessionMoveToProfile`).
+
+Native permission check: at `approve-edits` or `auto`, moving a session to another profile requires
+destructive-tool approval because it archives the original and releases its worktree. Covered by
+`TestBuiltinEditLevelAutoApprovals` and `TestBuiltinNativeDescriptors`.
