@@ -63,9 +63,9 @@ it has never run. The human table shows it as the **Last Run** column.
 | `endpoint_slug`              | Webhook triggers        | Human-readable webhook endpoint segment.                                                                                                                     |
 | `webhook_secret_ref`         | Webhook triggers        | `env:NAME` or `vault:automation/...` ref for the webhook signing secret.                                                                                     |
 
-## Send an event to a stays-on check
+## Send an event to an always-on check
 
-The experimental `agent_instance` target addresses an existing stays-on agent by `agent_name`
+The experimental `agent_instance` target addresses an existing always-on agent by `agent_name`
 and `target_instance_scope`. The scope must match the trigger: its own `workspace_id`, or `global`
 for a global trigger. Scheduled jobs cannot use this target.
 

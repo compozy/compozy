@@ -88,6 +88,15 @@ fi
 # Rule B keeps the retired word off public surfaces. In v0.5.2 the alias files leave rule_a_allowed;
 # the rules stay.
 retired_kind='(?i)stays[-_]?on'
+# Rule B skips immutable history identifiers only: the shipped stays-on-hardening spec, its branch,
+# reports and artifacts, dated reports, and content-addressed QA scenario, charter and bug IDs.
+history_refs='(?x:
+  stays-on-hardening
+  | \d{4}-\d{2}-\d{2}-stays-on-[\w-]+\.md
+  | \bBUG-\d{8}-[\w-]*stays-on[\w-]*
+  | \b(?:MS|CH)-[\w-]*stays-on[\w-]*
+)'
+rule_b_pattern="${history_refs}(*SKIP)(*F)|${retired_kind}"
 
 # Production Go files that may name stays_on or call CanonicalAgentKind.
 rule_a_allowed=(
@@ -134,7 +143,7 @@ rule_b_allowed() {
   case "$rel" in
     RELEASE_NOTES.md | RELEASE_BODY.md | CHANGELOG.md | .release-notes/archive/* | .release-notes/*0.5.1*) return 0 ;;
     sdk/client/* | sdk/go/client/* | openapi/compozy.json | internal/tools/builtin/testdata/native-tool-catalog.json) return 0 ;;
-    docs/_memory/glossary.md | COPY.md | MIGRATION_GUIDE.md) return 0 ;;
+    docs/_memory/glossary.md | COPY.md | MIGRATION_GUIDE.md | packages/site/content/docs/migration/index.mdx) return 0 ;;
     skills/compozy/references/agent-definitions.md | packages/site/content/docs/agents/definitions.mdx) return 0 ;;
     internal/cli/*_test.go | extensions/*_test.go) return 0 ;;
     web/*/__tests__/* | web/*.test.*) return 0 ;;
@@ -179,7 +188,7 @@ while IFS= read -r file; do
   rule_b_in_scope "$rel" || continue
   rule_b_allowed "$rel" && continue
   kind_findings+=("Rule B: $file ($rel) uses the retired stays-on vocabulary")
-done < <(rg --files-with-matches --pcre2 "$retired_kind" -- "${rule_b_paths[@]}" 2>/dev/null || true)
+done < <(rg --files-with-matches --pcre2 "$rule_b_pattern" -- "${rule_b_paths[@]}" 2>/dev/null || true)
 
 if ((${#kind_findings[@]} > 0)); then
   printf '%s\n' "${kind_findings[@]}" >&2

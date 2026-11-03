@@ -11,7 +11,7 @@ bug_ids: compozy/compozy#742; compozy/compozy#1097
 fix_status: fixed
 retest_status: pass
 fix_commits: branch fix/issue-742-session-message-cards
-evidence:; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+evidence:; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 always-on QA walk)
 last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: RT-session-message-origin; RT-session-message-reply; ET-web-session-transcript-calm-grammar; ET-web-subagent-card
 ---
@@ -88,8 +88,8 @@ and the `LongTitles` story (360px and the 560px card maximum).
 
 QA verification 2026-10-31 (#1102): the targeted isolated project ping/pong, five authorization denials, and live From/Sent/error labels after reload passed. See [scoped report](../reports/2026-10-31-issue-1102-cross-workspace-reply.md) for evidence and coverage limits.
 
-QA impact 2026-11-03 (stays-on hardening S12): a message from or to a stays-on agent's current main names the agent (its label) instead of the session title. A send whose result is `delivery: held` reads Held until it resumes on the Sent card while the target is still paused. In a paused agent's main session, queued rows the daemon marks `held` show Held until it resumes while the operator's own rows stay editable. Both read backend B5 (`delivery: held`, `SessionInputPayload.held`). Owners: `session-messages.test.tsx` and `queued-prompt.test.ts` (UT-080). Not walked.
+QA impact 2026-11-03 (always-on hardening S12): a message from or to an always-on agent's current main names the agent (its label) instead of the session title. A send whose result is `delivery: held` reads Held until it resumes on the Sent card while the target is still paused. In a paused agent's main session, queued rows the daemon marks `held` show Held until it resumes while the operator's own rows stay editable. Both read backend B5 (`delivery: held`, `SessionInputPayload.held`). Owners: `session-messages.test.tsx` and `queued-prompt.test.ts` (UT-080). Not walked.
 
-QA verification 2026-11-03 (stays-on hardening S12, soh/qa 583415ef5): Partial. In paused Ops Lead's main the queued rows read "From Scribe · Can you confirm… · Held until it resumes" and "1 monitor fired · Held until it resumes" (`12-s12-held-message.png`). Paper cuts: the sender avatar is the Claude provider mark rather than Scribe's, and the held monitor row shows a raw "SY synthetic" label. The Sent card leg was not verified: the acpmock sender's transcript renders a generic tool row with raw JSON `"delivery":"held"` (`12b-s12-sent-card.png`), which may only reflect how the fixture's tool call renders.
+QA verification 2026-11-03 (always-on hardening S12, soh/qa 583415ef5): Partial. In paused Ops Lead's main the queued rows read "From Scribe · Can you confirm… · Held until it resumes" and "1 monitor fired · Held until it resumes" (`12-s12-held-message.png`). Paper cuts: the sender avatar is the Claude provider mark rather than Scribe's, and the held monitor row shows a raw "SY synthetic" label. The Sent card leg was not verified: the acpmock sender's transcript renders a generic tool row with raw JSON `"delivery":"held"` (`12b-s12-sent-card.png`), which may only reflect how the fixture's tool call renders.
 
 Re-walk 2026-11-03 on 4056dbcc2 (S12): the held peer row now shows Scribe's own avatar and "From Scribe". The held monitor row reads "1 monitor fired · Held until it resumes" with no "SY synthetic" label (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/stays-on-hardening/4056dbcc2/12-s12-held-message.png`). The Sent card leg is still unverified with the acpmock sender.

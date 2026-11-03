@@ -118,8 +118,16 @@ func TestProductLanguageGuardAgentKind(t *testing.T) {
 			content: "// the window stays on top\n"},
 		{name: "Should allow generated release notes", as: "RELEASE_NOTES.md", allowed: true,
 			content: "Renamed stays_on to always_on.\n"},
+		{name: "Should allow the site mirror of the migration guide",
+			as: "packages/site/content/docs/migration/index.mdx", allowed: true,
+			content: "Change `kind: stays_on` to `kind: always_on`.\n"},
 		{name: "Should reject the retired word in QA scenarios", as: "docs/qa/scenarios/X.md",
 			content: "Open the stays-on row.\n"},
+		{name: "Should allow history identifiers in QA scenarios", as: "docs/qa/scenarios/X.md", allowed: true,
+			content: "id: MS-web-stays-on-placement\nlast_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md\n" +
+				"bug_ids: BUG-20261103-link-trigger-stays-on-scope\n"},
+		{name: "Should reject prose next to a history identifier", as: "docs/qa/scenarios/X.md",
+			content: "See MS-web-stays-on-reports, then open the stays-on row.\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

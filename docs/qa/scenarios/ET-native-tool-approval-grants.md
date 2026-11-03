@@ -11,7 +11,7 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 always-on QA walk)
 last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: ET-037; ET-038
 ---
@@ -66,8 +66,8 @@ Coverage remains outstanding; this skip is not a passing result. Resume from the
 report's session matrix in a future QA cycle.
 
 QA impact 2026-11-01 (B4 unattended approval waits): configure
-`agents.stays_on.approval_timeout` (default `12h`, range `1m` through `72h`).
-For a Stays on main and its child, trigger a native approval and verify the
+`agents.always_on.approval_timeout` (default `12h`, range `1m` through `72h`).
+For an always-on main and its child, trigger a native approval and verify the
 request appears in pending interactions with the original request identity.
 Approve through the existing session approval route. Repeat after adoption and
 after archiving the instance while the process remains running: subsequent
@@ -168,7 +168,7 @@ requests and `compozy agent draft "<goal>" --provider <provider>` to draft witho
 saving. The former unshipped names have no aliases. Native relay and CLI command
 suites cover dispatch and the unchanged HTTP drafting boundary.
 
-B2 extension — stays-on grant authority (verification pending): from a stays-on
+B2 extension — always-on grant authority (verification pending): from an always-on
 main and a nested child, call `compozy__tool_approvals_set` and
 `compozy__tool_approvals_revoke` with otherwise valid input. Both must be denied
 without changing the grant store. Repeat through the HTTP and UDS grant mutation
@@ -176,4 +176,4 @@ routes with daemon-validated agent credentials; expect 403 and
 `tool_approval_grants_denied`. Operator and unrelated on-demand callers retain
 their existing grant behavior.
 
-QA verification 2026-11-03 (stays-on hardening, soh/qa 583415ef5, isolated acpmock lab): Partial. From two stays-on mains (`gatekeeper` at approve-edits, `gatekeeper2` at approve-all) native `compozy__tool_approvals_set` and `compozy__tool_approvals_revoke` with valid input both failed `tool_denied`/`policy_denied`. With the stays-on main's agent credentials, HTTP and UDS `PUT /api/tool-approval-grants` and `DELETE /api/tool-approval-grants/:id` each returned 403 `tool_approval_grants_denied`; the grant list was byte-identical before and after. The operator still set and revoked a `compozy__notify` grant. Not walked: a nested child of a stays-on main, and an unrelated on-demand caller. Evidence: `grants-agent-routes.txt`.
+QA verification 2026-11-03 (always-on hardening, soh/qa 583415ef5, isolated acpmock lab): Partial. From two always-on mains (`gatekeeper` at approve-edits, `gatekeeper2` at approve-all) native `compozy__tool_approvals_set` and `compozy__tool_approvals_revoke` with valid input both failed `tool_denied`/`policy_denied`. With the always-on main's agent credentials, HTTP and UDS `PUT /api/tool-approval-grants` and `DELETE /api/tool-approval-grants/:id` each returned 403 `tool_approval_grants_denied`; the grant list was byte-identical before and after. The operator still set and revoked a `compozy__notify` grant. Not walked: a nested child of an always-on main, and an unrelated on-demand caller. Evidence: `grants-agent-routes.txt`.

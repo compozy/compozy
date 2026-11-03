@@ -4,14 +4,14 @@ area: ET
 title: Agent detail tab panelbox and content contracts
 persona: Bruno
 journey: J-31
-expected: The agent profile opens focused Model, What it can use, What it does, Check-ins, Memory, and Where it works pages. Each page retains its profile/project binding. Saves honor digest conflicts and the unsaved guard. Starting instructions remain editable when no SOUL.md exists; check-ins distinguish dry-run summaries from a real occurrence and expose bounded audit details.
+expected: The agent profile opens focused Model, Tools, Instructions, Heartbeat, Memory, and Where it works pages. Each page retains its profile/project binding. Saves honor digest conflicts and the unsaved guard. Starting instructions remain editable when no SOUL.md exists; heartbeats distinguish dry-run summaries from a real occurrence and expose bounded audit details.
 entry_points: web /agents/$name and /agents/$name/$page
 qa_status: partial
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/09-agent-detail-sessions.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md;docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-narrow.png;docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-desktop.png; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/09-agent-detail-sessions.png;docs/qa/evidence/2026-07-30-session-runtime-selector/runtime-selector-proof.md;docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-narrow.png;docs/qa/evidence/2026-08-01-loops-paper-adoption/session-create-dialog-desktop.png; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 always-on QA walk)
 last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: RT-agent-overview-canonical-metrics; RT-076
 ---
@@ -43,8 +43,8 @@ comfortably inside the panelbox and that no horizontal overflow appears.
 
 QA impact 2026-09-28 (ui-normie-pass): Overview drops the At a glance rail and the Command row
 (Command stays in Configuration), panels move from `AgentPanelBox` to the shared `Panel`, permission
-values render through one plain vocabulary ("Ask before every action" / "Ask only before changes" /
-"Never ask" / "Use the provider's setting"), the Sessions tab drops its duplicate stats grid in favour of
+values render through one plain vocabulary ("Ask before every action" / "Ask before changes" /
+"Accept edits" / "Auto-review" / "Full access"), the Sessions tab drops its duplicate stats grid in favour of
 filter counts and loses the Iterations column, and a failed session list offers Retry. Status reset to
 untested; not walked.
 
@@ -70,7 +70,7 @@ The existing route-preloading and agent-session deep-link suites own scope/cache
 targeted real-daemon rendering is recorded in
 `docs/qa/reports/2026-10-28-tanstack-data-loading.md`.
 
-QA impact 2026-11-01 (stays-on F2): the fleet, the four tabs and the settings modal are gone, replaced
+QA impact 2026-11-01 (always-on F2): the fleet, the four tabs and the settings modal are gone, replaced
 by the team list and the agent's home. See `ET-web-agents-team-profile`; old `?tab=` and
 `settings?section=` links land on the matching panel or page. Status remains untested; no QA replay
 ran for this scenario.
@@ -79,10 +79,12 @@ ran for this scenario.
 receipts remain historical. Repeat the profile and editor walk against the merged PR before
 claiming current verification; include same-named definitions in two projects and two profiles.
 
-QA impact 2026-11-03 (stays-on hardening S5/S15): permission values now use the five-level
-vocabulary ("Ask before every action" / "Ask before changes" / "Edit on its own" / "Let a reviewer
-decide" / "Never ask"), with "Follow Settings" for an on-demand agent with nothing set. The Model
+QA impact 2026-11-03 (always-on hardening S5/S15): permission values now use the five-level
+vocabulary ("Ask before every action" / "Ask before changes" / "Accept edits" / "Auto-review"
+/ "Full access"), with "Follow Settings" for an on-demand agent with nothing set. The Model
 panel no longer carries a permissions field; the level, approval reach and exceptions live on the
 agent's Permissions page (`MS-web-agent-permissions`). Not walked.
 
-QA verification 2026-11-03 (stays-on hardening, soh/qa 583415ef5): Partial. Only the S5/S15 vocabulary was checked. The agent Permissions page and Settings → General both list the five levels with the same labels and descriptions (screenshots `05-s5-permissions-levels.png`, `15-s15-settings-levels.png`). The full tab-parity walk was not repeated.
+QA verification 2026-11-03 (always-on hardening, soh/qa 583415ef5): Partial. Only the S5/S15 vocabulary was checked. The agent Permissions page and Settings → General both list the five levels with the same labels and descriptions (screenshots `05-s5-permissions-levels.png`, `15-s15-settings-levels.png`). The full tab-parity walk was not repeated.
+
+QA impact 2026-11-03 (#1199 vocabulary, v0.5.1): the focused pages read Instructions, Heartbeat, Memory and Tools, the setup section reads Setup, and the permission labels read Accept edits, Auto-review and Full access. URLs `what-it-does` and `check-ins` are unchanged. Not walked; S4 walks it on the integration head.

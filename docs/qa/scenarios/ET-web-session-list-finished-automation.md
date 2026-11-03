@@ -21,7 +21,7 @@ Introduced by #1162.
 Owning automated coverage: `TestPageSessionsVisibilityExclusion` in
 `global_db_session_index_test.go` owns the population, totals, facets, board, All projects and
 paging against real SQLite. `TestNormalizeListQueryFinishedAutomationScope` owns which reads ignore
-the flag. `stays-on-signals.test.tsx` owns the shelves that send it.
+the flag. `always-on-signals.test.tsx` owns the shelves that send it.
 
 Walk: in an isolated lab with a mock agent, trigger a job built on the previous release, upgrade the
 binary on the same home, then trigger one succeeding and one failing job. Compare the list, the

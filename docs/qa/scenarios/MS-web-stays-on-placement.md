@@ -1,22 +1,22 @@
 ---
 id: MS-web-stays-on-placement
 area: MS
-title: Stays-on agents sit as avatars above sessions and in Kanban headers
+title: Always-on agents sit as avatars above sessions and in Kanban headers
 persona: Dora
 journey: J-31
-expected: With no instance there is no row and no empty space. Global instances sit in a row labeled Global above all projects; each project's instances sit under its name, and in its Kanban lane header. Anyone needing the operator is ordered first and shows the Needs you triangle. A click opens the main session, created again if it was lost, and the open one shows a selected background. Hover or focus opens a card with what it's doing, last and next check, Open conversation and Pause or Resume. The context menu offers Pause or Resume with the pause reason, Open agent, Check-ins and Archive; Resume is disabled when the definition is gone. More agents than fit move into `+N`, a searchable panel grouped by state. A collapsed project shows who needs you by face. Main sessions leave session rows, cards and counts. Sessions they spawn stay ordinary rows and cards; the card carries a creator badge, while the row leaves it to the session itself (#1191). A project with only an agent still gets its group. A project's `+` offers New session, New folder and Add stays-on agent; Add opens a picker of stays-on agents not yet there, with Create new opening New agent on Stays on with that project chosen. The list toolbar's `+` offers Add stays-on agent in every grouping: with one scope it adds there; when the list spans several projects it first asks where the agent lives (Global or a project), with the focused or last-used project preselected. At the limit the rows and Create new are blocked and the popover shows it. Flat mode shows one row: Global first, then the focused project's. The dock's Home app reads Dashboard.
+expected: With no instance there is no row and no empty space. Global instances sit in a row labeled Global above all projects; each project's instances sit under its name, and in its Kanban lane header. Anyone needing the operator is ordered first and shows the Needs you triangle. A click opens the main session, created again if it was lost, and the open one shows a selected background. Hover or focus opens a card with what it's doing, last and next check, Open conversation and Pause or Resume. The context menu offers Pause or Resume with the pause reason, Open agent, Check-ins and Archive; Resume is disabled when the definition is gone. More agents than fit move into `+N`, a searchable panel grouped by state. A collapsed project shows who needs you by face. Main sessions leave session rows, cards and counts. Sessions they spawn stay ordinary rows and cards; the card carries a creator badge, while the row leaves it to the session itself (#1191). A project with only an agent still gets its group. A project's `+` offers New session, New folder and Add always-on agent; Add opens a picker of always-on agents not yet there, with Create new opening New agent on Always-on with that project chosen. The list toolbar's `+` offers Add always-on agent in every grouping: with one scope it adds there; when the list spans several projects it first asks where the agent lives (Global or a project), with the focused or last-used project preselected. At the limit the rows and Create new are blocked and the popover shows it. Flat mode shows one row: Global first, then the focused project's. The dock's Home app reads Dashboard.
 entry_points: web Sessions window (list and Kanban); project `+`; list toolbar `+`; avatar row; avatar context menu
 qa_status: pass
 bug_ids: BUG-20261103-resume-all-rate-limited
 fix_status: fixed
 retest_status: verified
 fix_commits: f7a8bbf3d, 4a6fef558, 2e2487068, 11e90692f, 2f917de93, 9d9147a9f, 10183640d, 301b10320, f5d9906aa, 1300ed91f, 1a9b61852, 7fc9e2389, 6b13d0dec, e53e4593a, 11042786b, b280406e0, a64b1c981, 4056dbcc2
-evidence: docs/qa/reports/2026-11-01-stays-on-agents.md; .compozy/tasks/always-on-agent/qa/pr-evidence.md; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+evidence: docs/qa/reports/2026-11-01-stays-on-agents.md; .compozy/tasks/always-on-agent/qa/pr-evidence.md; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 always-on QA walk)
 last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: MS-web-agent-create-simple-advanced
 ---
 
-Needs the instance routes from the stays-on backend slices. Create a stays-on agent in a project and
+Needs the instance routes from the always-on backend slices. Create an always-on agent in a project and
 one Global, then walk the row, its card and menu, the picker, Kanban and the collapsed signal. Pause
 and resume from the menu, archive and confirm the session returns to history, and watch
 `agent_instance.updated` move a pose without a reload.
@@ -27,7 +27,7 @@ returned `NOTHING_TO_REPORT`; Claude also refused a requested scratch-file write
 See `../reports/2026-11-01-always-on-b4-remediation.md` for unavailable providers,
 scope limits, and exact evidence. This does not mark the Web journey walked.
 
-QA impact 2026-11-01 (stays-on F1): built against the `_dx.md` contract with typed adapters and mocks,
+QA impact 2026-11-01 (always-on F1): built against the `_dx.md` contract with typed adapters and mocks,
 before those routes merged. Focused suites own the states. Not walked.
 
 Proactive core follow-up (2026-11-01): use CLI `agent instance check --dry-run`, then a real
@@ -41,7 +41,7 @@ Automated evidence owners: `TestInstanceManualCheckRace`, `TestInstanceWakeMigra
 `TestInstanceCheckFatigue`, `TestTriageDispatcher`, `TestInstanceReportPublication`, and
 `TestAgentInstanceCommands`.
 
-B1 contract remediation: configure `agents.stays_on.max_active_instances = 7` and
+B1 contract remediation: configure `agents.always_on.max_active_instances = 7` and
 `agents.heartbeat.fatigue_limit = 4`. Create two instances in the same profile and
 filter the instance list to one agent. The envelope must still report
 `active_count: 2` and `max_active_instances: 7`. GET, PATCH, native reads and
@@ -59,10 +59,10 @@ operator: only the Global instance retains unrestricted. Permission intersection
 remain enforced. `TestInstanceCreateAdmission` covers all four admission outcomes;
 the native runtime walk remains pending.
 
-Instance permission level: configure one stays-on agent with `permissions: approve-all` and one with
+Instance permission level: configure one always-on agent with `permissions: approve-all` and one with
 `approve-reads`, with `[permissions].mode = "approve-all"`. Create both instances, then prompt a turn
 that requests an edit. The first is allowed with no prompt, the second waits for the operator. A third
-stays-on agent with no `permissions` waits for the operator too. A session created under the `approve-reads` instance with no level of its own runs at `approve-all` and
+always-on agent with no `permissions` waits for the operator too. A session created under the `approve-reads` instance with no level of its own runs at `approve-all` and
 keeps the instance's tool, skill, MCP server, and path ceilings. Hidden triage stays read-only.
 `TestInstancePermissionMode` and `TestTriageSessionPermissions` own the level rules; the same walk ran
 through a real daemon with a scripted ACP provider.
@@ -197,12 +197,12 @@ the API available, retain the manually paused instance, and log its reconciliati
 error. A missing project must not prevent access to other projects.
 
 Spend-brake configuration coverage (stays-on-hardening B1): set
-`agents.stays_on.unattended_turn_limit` to `2` and restart the daemon.
+`agents.always_on.unattended_turn_limit` to `2` and restart the daemon.
 Two autonomous turns pause the instance with reason `unattended`; the next input
 remains queued. Repeat with an explicit `0`: autonomous turns continue. A
 negative value must fail configuration validation. The default is `300`.
 Configuration and explicit-zero merge coverage lives in
-`TestStaysOnTriageConfiguration`; real SQLite trip and disabled-brake coverage
+`TestAlwaysOnTriageConfiguration`; real SQLite trip and disabled-brake coverage
 lives in `TestGlobalDBInstanceUnattendedBrake`. The combined product walk remains
 pending until pause side effects and public read fields are integrated.
 
@@ -223,23 +223,23 @@ be the snapshot committed by that finalization. Canonical SQLite coverage:
 `TestInstanceCheckUnattendedCounter` and
 `TestInstanceCheckUnattendedPauseEffects`.
 
-Stays-on hardening F1 web (S1, S4, S7): a brake pause reads "Paused after N steps
+Always-on hardening F1 web (S1, S4, S7): a brake pause reads "Paused after N steps
 without you." in the hover card and context menu, and "Took N steps without you" on the
 agent's places. The hover card shows "Wakes up next" with the wake's description or kind
 and its time, and for a paused agent how many things wait for resume. With two or more
 agents paused for `unattended` in one scope, the `+N` crew panel offers Resume all,
 which resumes only those, one at a time; one such pause offers none. When the
-`agents.stays_on.max_active_instances` cap refuses some, the panel names them with the
-daemon's reason ("Ops Lead and Release Watch didn't resume. You have 10 active stays-on
+`agents.always_on.max_active_instances` cap refuses some, the panel names them with the
+daemon's reason ("Ops Lead and Release Watch didn't resume. You have 10 active always-on
 agents. …"); a refused resume leaves the agent paused with its counter unchanged. The agent's What it cost reads
 the token count with "No price available" when usage has no price, never "≈ $0.00" and
 never a plan claim, since the data carries no billing basis.
-Web suites: `stays-on-row.test.tsx`, `agent-instance.test.ts`, `agent-team.test.ts`
+Web suites: `always-on-row.test.tsx`, `agent-instance.test.ts`, `agent-team.test.ts`
 and `agent-profile-home.test.tsx`.
 
-QA verification 2026-11-03 (stays-on hardening B1/F1, soh/qa 583415ef5, isolated acpmock lab): Fail on S4. Passing legs: with `unattended_turn_limit = 3`, a 5-second monitor-timer chain paused `ops-lead` with reason `unattended` after 3 steps, and the next wake was held (`held_wakes: 1`). A human prompt on a paused main ran, kept the pause and reset the counter to 0. `-1` was rejected ("must be nonnegative") with the file unchanged. An explicit `0`, after a restart, let 5 autonomous turns run with the agent active. A reported event check raised `unattended_turns` by 1. CLI and HTTP instance reads match on all 26 fields (`it008-*.json`). The hover card read "Paused after 3 steps without you. · 2 things are waiting for you to resume" (`01b-s1-hover-paused.png`) and "Wakes up next · Re-check the staging deploy, in 15m" (`07-s7-hover-next-wake.png`). What it cost read "154K tokens · No price available" (`11-s11-usage.png`; paper cut: project name clipped with no ellipsis). Fail: the +N panel showed Resume all with two `unattended` agents, but pressing it sent parallel resumes, all but one got 429, no error appeared and the rest stayed paused (`04-s4-resume-all.png`, BUG-20261103-resume-all-rate-limited). Paper cut: a paused Release Watch was ordered under Paused in the overflow rather than Needs you.
+QA verification 2026-11-03 (always-on hardening B1/F1, soh/qa 583415ef5, isolated acpmock lab): Fail on S4. Passing legs: with `unattended_turn_limit = 3`, a 5-second monitor-timer chain paused `ops-lead` with reason `unattended` after 3 steps, and the next wake was held (`held_wakes: 1`). A human prompt on a paused main ran, kept the pause and reset the counter to 0. `-1` was rejected ("must be nonnegative") with the file unchanged. An explicit `0`, after a restart, let 5 autonomous turns run with the agent active. A reported event check raised `unattended_turns` by 1. CLI and HTTP instance reads match on all 26 fields (`it008-*.json`). The hover card read "Paused after 3 steps without you. · 2 things are waiting for you to resume" (`01b-s1-hover-paused.png`) and "Wakes up next · Re-check the staging deploy, in 15m" (`07-s7-hover-next-wake.png`). What it cost read "154K tokens · No price available" (`11-s11-usage.png`; paper cut: project name clipped with no ellipsis). Fail: the +N panel showed Resume all with two `unattended` agents, but pressing it sent parallel resumes, all but one got 429, no error appeared and the rest stayed paused (`04-s4-resume-all.png`, BUG-20261103-resume-all-rate-limited). Paper cut: a paused Release Watch was ordered under Paused in the overflow rather than Needs you.
 
-Re-walk 2026-11-03 on feat/stays-on-hardening 4056dbcc2 (S4): Pass. BUG-20261103-resume-all-rate-limited is verified fixed. With `max_active_instances = 7`, 6 active and 3 agents paused for `unattended`, Resume all resumed Alpha Watch first. The other two requests, each sent after the previous one finished, returned 429. The panel read "Beta Watch and Ops Lead didn't resume. You have 7 active stays-on agents. Pause one or raise `agents.stays_on.max_active_instances`." (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/stays-on-hardening/4056dbcc2/04-s4-resume-all.png`). With `max_active_instances = 20`, all three resumed in sequence (200, 180–214 ms; `https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/stays-on-hardening/4056dbcc2/04b-s4-resume-all-room-for-all.png`, `rewalk-s4-resume-requests.txt`). Paper cuts: the open panel keeps a resumed agent under Needs you and its count until it refetches, and the config key renders with literal backticks.
+Re-walk 2026-11-03 on feat/stays-on-hardening 4056dbcc2 (S4): Pass. BUG-20261103-resume-all-rate-limited is verified fixed. With `max_active_instances = 7`, 6 active and 3 agents paused for `unattended`, Resume all resumed Alpha Watch first. The other two requests, each sent after the previous one finished, returned 429. The panel read "Beta Watch and Ops Lead didn't resume. You have 7 active always-on agents. Pause one or raise `agents.always_on.max_active_instances`." (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/stays-on-hardening/4056dbcc2/04-s4-resume-all.png`). With `max_active_instances = 20`, all three resumed in sequence (200, 180–214 ms; `https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/stays-on-hardening/4056dbcc2/04b-s4-resume-all-room-for-all.png`, `rewalk-s4-resume-requests.txt`). Paper cuts: the open panel keeps a resumed agent under Needs you and its count until it refetches, and the config key renders with literal backticks.
 
 Issue #1181 (toolbar `+`): in a grouped All projects list, the toolbar `+` shows New session,
 New folder and Add stays-on agent. Add opens a place list (Global, then Projects) with the
@@ -249,11 +249,11 @@ Web suites: `session-list.test.tsx` and `stays-on-add-menu.test.tsx`.
 
 ## Open agent from All profiles (#1183)
 
-With All profiles selected, open an agent from the avatar menu (Open agent and Check-ins) for
+With All profiles selected, open an agent from the avatar menu (Open agent and Heartbeat) for
 instances owned by a nondefault profile: one Global, one in a project, with definitions that exist
 only in that profile's layer. The agent window must show the agent every time, never "Agent not
 found", and every agent read in it must carry the instance's profile. Reload the page with the
-window open and confirm it still resolves there. Web suites: `stays-on-row.test.tsx`,
+window open and confirm it still resolves there. Web suites: `always-on-row.test.tsx`,
 `agent-window-location.test.ts`, `use-profile-selection.test.tsx`.
 
 Verified 2026-11-03 on fix/issue-1183-open-agent-all-profiles 1dd4c5745 (isolated targeted lab,
@@ -263,3 +263,5 @@ opens (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1183/1dd4c5745
 With the fix, 60 of 60 opens across three agents and two runs resolved with `profile=ops`
 (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1183/1dd4c5745/02-final-Ops-Lead.png`), and
 Check-ins survived 5 reloads (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1183/1dd4c5745/04-after-reload.png`).
+
+QA impact 2026-11-03 (#1199 vocabulary, v0.5.1): the row, its aria label ("Always-on agents"), the topbar pill and the add action read Always-on ("Add always-on agent"); the avatar menu item reads Heartbeat; capacity uses `agents.always_on.max_active_instances`; the v0.5.0 table name still applies through v0.5.1 with a daemon warning. Not walked; S4 walks it on the integration head.

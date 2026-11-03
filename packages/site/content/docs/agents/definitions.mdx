@@ -444,7 +444,7 @@ Agent identity is optional frontmatter. Existing files remain valid without bein
 name: triage
 display_name: Triage Lead
 description: Watches issues and proposes the next step
-kind: stays_on
+kind: always_on
 appearance:
   version: 1
   avatar: generated
@@ -456,7 +456,10 @@ Watch issues and propose the next step.
 ```
 
 `kind` defaults to `on_demand` and is fixed at creation. Duplicate an agent to choose another kind.
-Declaring `stays_on` in an extension does not start a session or create an instance.
+Declaring `always_on` in an extension does not start a session or create an instance.
+`stays_on`, the v0.5.0 spelling, still loads as `always_on` through v0.5.1 with a daemon warning;
+AGENT.md files under `$COMPOZY_HOME` are rewritten at boot, and repository, workspace-profile, and
+extension files are left for you to edit. v0.5.2 removes the alias.
 Display names allow 80 characters after trimming; descriptions allow 280. Blank display names use
 the humanized slug. Appearance supports `generated` (seed and generation), `icon` (a Lucide slug),
 or `emoji` (one emoji), with a `#rrggbb` color. An icon or emoji sits on a tinted plate unless
@@ -478,7 +481,7 @@ Duplicating a definition with an unsupported appearance leaves it out of the cop
 default face for its new name. An explicit appearance override on duplicate is still validated.
 
 ```sh
-compozy agent create triage --kind stays_on --display-name "Triage Lead" --prompt "Keep issues moving."
+compozy agent create triage --kind always_on --display-name "Triage Lead" --prompt "Keep issues moving."
 compozy agent duplicate triage triage-lite --kind on_demand
 ```
 

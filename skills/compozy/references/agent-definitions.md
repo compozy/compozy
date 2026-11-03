@@ -58,7 +58,7 @@ Do not use categories or slash strings for hierarchy. They are not runtime seman
 ## Unrestricted Workspace Access
 
 `workspace_access: unrestricted` lets sessions of one agent read and act on every workspace, the
-User scope, and every profile, the way the operator does. It exists for stays-on agents that live in
+User scope, and every profile, the way the operator does. It exists for always-on agents that live in
 the operator's home. It is the only grant vocabulary in CompozyOS (User Scope Work ADR-003, which
 supersedes cross-workspace ADR-007 §1 for this one field); there is no grants table, config section,
 or grant-management tool.
@@ -229,7 +229,7 @@ The matching daemon endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:
 ## Authored Context and Profiles
 
 SOUL.md and HEARTBEAT.md authoring follows the effective definition's scope. A User-scope agent
-needs no project placement: What it does and Check-ins can open from All projects. Revisions and
+needs no project placement: Instructions and Heartbeat can open from All projects. Revisions and
 snapshots belong to the selected profile and agent, including when the agent runs in a project;
 other profiles cannot reuse its history, rollback targets, or snapshots. A missing HEARTBEAT.md
 reads as all day with all five context sources.
@@ -248,10 +248,10 @@ A `SOUL.md` that still carries the retired memory-policy frontmatter key from an
 valid: any value is accepted and ignored. `compozy agent soul validate` reports no diagnostic, the key is
 never rendered into a session, and CompozyOS does not rewrite the file.
 
-## Stays-On Permission Level
+## Always-On Permission Level
 
-- A stays-on agent runs at the `permissions` set on its own definition, and `approve-all` stays
-  `approve-all`. With no level on a stays-on definition it runs at `approve-edits`; on-demand sessions use `[permissions].mode`
+- An always-on agent runs at the `permissions` set on its own definition, and `approve-all` stays
+  `approve-all`. With no level on an always-on definition it runs at `approve-edits`; on-demand sessions use `[permissions].mode`
   without a permission-level rewrite. This holds for instances created by the operator or by an agent,
   and for main sessions resumed after an older release lowered them.
 - Sessions an instance starts do not inherit its level. Each uses the `permissions` of its own
@@ -271,9 +271,9 @@ through ACP `configOptions` without a legacy modes list. The daemon confirms a
 config-option selection before prompting. Other providers' `plan` modes are not
 accepted by name alone; unsupported modes fail with `triage_unsupported`.
 
-## Stays-On Agent Memory
+## Always-On Agent Memory
 
-Stays-on agent memory is partitioned by profile, definition origin, and agent name.
+Always-on agent memory is partitioned by profile, definition origin, and agent name.
 Agent-authenticated memory routes and native memory tools require a daemon-resolved
 instance lineage for that agent; a manually started session with the same name is
 not sufficient. Operator memory routes retain their explicit target selection.
@@ -307,7 +307,7 @@ account and organization details from probe responses and diagnostics.
 
 ## Identity and kind
 
-Create supports `display_name` (80 characters), `description` (280), `kind` (`on_demand` by default or `stays_on`),
+Create supports `display_name` (80 characters), `description` (280), `kind` (`on_demand` by default or `always_on`),
 and an open `appearance` object. `compozy__agent_create` accepts these fields; agent reads include `label`,
 `kind`, authored `appearance`, and `resolved_appearance`. The label falls back to the humanized slug.
 A generated appearance uses `{version:1, avatar:"generated", seed:<slug>, generation:1, color:"#7c5cff"}`.
@@ -327,9 +327,27 @@ Bundled built-in agents ship a bare gray Lucide icon (`background:"none"`, color
 `general` agent resolves the same kind of icon (`sparkles`) while its AGENT.md has no `appearance`, so an existing
 install changes face without its file being rewritten. The CLI sets the plate with `--appearance-background none|plate`.
 
-## Stays-on approval authority
+`stays_on` is the v0.5.0 spelling of `always_on`. Through v0.5.1 every input (AGENT.md `kind`, `--kind`,
+HTTP/UDS create, update and duplicate, and `compozy__agent_create`) accepts it as `always_on` with a
+deprecation warning, and no output emits it; `stays_on` versus `always_on` never raises
+`agent_kind_immutable`. On boot the daemon rewrites the `kind` value of AGENT.md files under
+`$COMPOZY_HOME/agents` and `$COMPOZY_HOME/profiles/<profile>/agents`; repository, workspace-profile, and
+extension files are never rewritten and keep the warning until edited. The alias is removed in v0.5.2,
+so write `always_on`.
 
-Stays-on lineages cannot create or revoke durable tool approval grants through
+The same window covers config: `[agents.stays_on]` is read into `[agents.always_on]` with one daemon
+warning per process, and `agents.always_on` wins per key. `compozy config get|set|unset` and
+`compozy__config_*` accept `agents.stays_on.*` paths, warn on stderr or in the daemon log, and operate on
+`agents.always_on.*`; `unset` through either spelling clears the key from both tables in the selected
+file. Outputs switched at once with no window: emitted `kind` is `always_on`, the error
+`agent_not_stays_on` is `agent_not_always_on`, the reason `definition_not_stays_on` is
+`definition_not_always_on` (stored rows are migrated), and the startup section `stays_on_doctrine` is
+`always_on_doctrine`. Update the daemon with the CLI: a v0.5.1 CLI sends `always_on`, which a v0.5.0
+daemon rejects.
+
+## Always-on approval authority
+
+Always-on lineages cannot create or revoke durable tool approval grants through
 native tools, HTTP or UDS. An operator manages these grants. This restriction
 also applies to descendants without an instance ID and is independent of the
 permission level and `session_approval` setting.
@@ -338,7 +356,10 @@ permission level and `session_approval` setting.
 
 The `permissions` agent field and `[permissions].mode` accept `deny-all`,
 `approve-reads`, `approve-edits`, `auto` and `approve-all`, in increasing order.
-An unset stays-on definition uses `approve-edits`; triage remains read-only.
+An unset always-on definition uses `approve-edits`; triage remains read-only.
+The app labels the levels Ask before every action (`deny-all`), Ask before changes
+(`approve-reads`), Accept edits (`approve-edits`), Auto-review (`auto`), and Full access
+(`approve-all`); use the wire value in files, config, and calls.
 On-demand children resolve their own definition or settings level.
 
 | Level                       | Claude                                  | Codex                                       |

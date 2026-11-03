@@ -28,7 +28,7 @@ QA impact 2026-09-28 (session-continue-fork review round 1, W3): Web settings sa
 
 QA re-walk 2026-09-29 (session-continue-fork review round 1, fallback-chain leg only) — PASS. Lab `…-r1-rewalk-…`, agent `route-agent` with two authored routes (the second `QA_SEAT=2 …`). (1) Overview Runtime select → Composer 2.5 (cursor): the `PUT` body carries both routes (no `command_fingerprint`). `GET /api/agents/route-agent` then shows provider cursor, model composer-2.5, two routes with fingerprints `sha256:1569c25b…`/`sha256:220ff472…`, and `AGENT.md` keeps both routes. (2) Settings → Instructions prompt edit ("Keep answers short.") → Save: both routes remain in the read and in `AGENT.md`. The rest of this scenario (inherited provenance, "Use project defaults", conflicts) was not walked and keeps its status. Observation: a provider switch keeps the agent's `command` override (the acpmock command stays under provider cursor); this is pre-existing and not filed. Evidence: `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/agent-after-runtime.txt`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/agent-after-instructions.txt`.
 
-QA impact 2026-11-01 (B1 identity contract): create an agent with display name, description, stays_on kind,
+QA impact 2026-11-01 (B1 identity contract): create an agent with display name, description, always_on kind,
 and appearance, then perform a runtime-only PUT omitting all four identity fields. GET and the authored file
 must retain them. Repeat with a future appearance version and unknown nested fields. A kind change must return
 409 agent_kind_immutable without writing; duplication with on_demand must succeed. Catalog label search and

@@ -1,12 +1,12 @@
 ---
 title: Deliver small work with the orchestrator
-description: Keep a stays-on orchestrator in your workspace, hand it a small change in plain words, and let it log, dispatch, and verify the work.
+description: Keep an always-on orchestrator in your workspace, hand it a small change in plain words, and let it log, dispatch, and verify the work.
 maturity: shipped
 ---
 
 ## What you build
 
-One agent that stays on in your project and takes small requests. You describe a change, and the
+One always-on agent in your project that takes small requests. You describe a change, and the
 `orchestrator` writes it down, starts a `code_implementer` session in its own worktree, checks the
 result, and reports back. A worktree is a separate copy of your project on its own branch, so your
 main checkout stays clean.
@@ -56,7 +56,7 @@ compozy agent instance create orchestrator --workspace acme
 ```
 
 ```text
-Orchestrator is stays-on in acme
+Orchestrator is always-on in acme
 Main session: sess-77ab
 ```
 
@@ -86,21 +86,21 @@ result, the entry reads `[x]` and names the evidence.
 - **One writer.** Only the orchestrator edits the work log. Run one per workspace. User and global
   instances don't use a work log.
 - **Nothing gets forgotten.** If an entry stays `[ ]` for more than 30 minutes, the orchestrator's
-  next check-in picks it up and reports it or proposes dispatching or closing it. A check-in only
+  next heartbeat picks it up and reports it or proposes dispatching or closing it. A heartbeat only
   reads and reports, so you decide what happens next. This source appears as **Work that never got
-  started** in the agent's Check-ins page and as `work_log` in
+  started** on the agent's Heartbeat page and as `work_log` in
   [`HEARTBEAT.md`](/docs/agents/heartbeat).
 - **Repeats stay quiet.** The same stale entry doesn't trigger another model call while nothing has
   changed, until `max_interval` passes.
 - **Clean-up.** Closed entries older than 7 days are pruned. Only the first 64 KiB of the file is
-  read, so a very long log is flagged in the check-in.
+  read, so a very long log is flagged in the heartbeat.
 
 ## Common problems
 
 | What you see                                | What it means                         | What to do                                             |
 | ------------------------------------------- | ------------------------------------- | ------------------------------------------------------ |
-| `work:log-truncated` in a check-in          | The log is larger than 64 KiB         | Close finished work so the open entries fit            |
-| `work:more` in a check-in                   | More than 9 stale entries are waiting | Ask the orchestrator to go through them                |
+| `work:log-truncated` in a heartbeat         | The log is larger than 64 KiB         | Close finished work so the open entries fit            |
+| `work:more` in a heartbeat                  | More than 9 stale entries are waiting | Ask the orchestrator to go through them                |
 | Daemon warning `work_log: ignored line <n>` | A line doesn't match the format       | Fix that line; the valid lines still count             |
 | The orchestrator recommends writing a spec  | The request is too big for small work | Follow [Deliver a spec](/docs/examples/deliver-a-spec) |
 
@@ -119,6 +119,6 @@ result, the entry reads `[x]` and names the evidence.
     label="Concept"
     title="HEARTBEAT.md"
     description="Choose what an agent looks at between turns, and how often."
-    meta="Check-ins"
+    meta="Heartbeat"
   />
 </GuideGrid>
