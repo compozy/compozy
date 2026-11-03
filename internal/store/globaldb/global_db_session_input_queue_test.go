@@ -1550,6 +1550,8 @@ func TestGlobalDBSessionInputQueueOriginPolicy(t *testing.T) {
 	})
 }
 
+const humanTurnAdmissionIndex = "idx_session_prompt_admissions_human_turn"
+
 func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 	t.Parallel()
 	t.Run("Should create the prompt admission schema on a fresh database", func(t *testing.T) {
@@ -1578,10 +1580,36 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 			globalDB.db,
 			"session_prompt_admissions",
 			"idx_session_prompt_admissions_state",
+			humanTurnAdmissionIndex,
 		)
 	})
 
 	fixture := openSessionPromptAdmissionMigrationFixture(t)
+
+	t.Run(
+		"Should search committed human admissions by session turn on fresh and upgraded databases",
+		func(t *testing.T) {
+			t.Parallel()
+			for name, globalDB := range map[string]*GlobalDB{
+				"fresh":    openFreshTestGlobalDB(t),
+				"upgraded": openSessionPromptAdmissionMigrationCopy(t, fixture.path),
+			} {
+				// HumanSessionTurn from queries/session_input.sql.
+				plan := explainQueryPlan(t, globalDB.db, `SELECT EXISTS (SELECT 1 FROM session_input_queue AS queued
+				WHERE queued.session_id = ?1 AND queued.turn_id = ?2 AND queued.origin_class = 'human'
+				AND queued.status IN ('dispatching','sent')
+				UNION ALL SELECT 1 FROM session_prompt_admissions AS admitted
+				WHERE admitted.session_id = ?1 AND admitted.turn_id = ?2
+				AND admitted.human_ingress = 1 AND admitted.dispatch_committed_at IS NOT NULL)`, "sess", "turn")
+				if !strings.Contains(
+					plan,
+					"SEARCH admitted USING INDEX "+humanTurnAdmissionIndex+" (session_id=? AND turn_id=?)",
+				) {
+					t.Fatalf("%s plan = %q, want a search of %s", name, plan, humanTurnAdmissionIndex)
+				}
+			}
+		},
+	)
 
 	t.Run("Should preserve populated runtime rows through the 00094 table rebuild", func(t *testing.T) {
 		t.Parallel()

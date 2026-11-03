@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -2154,83 +2153,123 @@ func TestInstanceWakeTransactions(t *testing.T) {
 			t.Fatalf("deadline: %+v %v", state, err)
 		}
 	})
-	t.Run("Should consume an escaping heavy head event and progress to ordinary events [UT-072]", func(t *testing.T) {
-		t.Parallel()
-		db := openTestGlobalDB(t)
-		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "event-escaped", "event-escaped-main")
-		repo := db.Instances()
-		instance, err := repo.Adopt(
-			t.Context(),
-			agentinstance.Instance{
-				ProfileID:         store.DefaultProfileID,
-				AgentName:         "coder",
-				WorkspaceID:       workspace,
-				PermissionCeiling: "{}",
-				CreatedByKind:     "human",
+	for _, tc := range []struct {
+		name, slug, summary, triggerName string
+		headAlone                        bool
+	}{
+		{name: "an escaping heavy summary", slug: "escaped", summary: strings.Repeat("<\\", 700), headAlone: true},
+		{name: "an accepted 8 KiB trigger name", slug: "long-name", summary: "Selected event", triggerName: strings.Repeat("n", 8<<10)},
+	} {
+		t.Run(
+			"Should consume a head event with "+tc.name+" and progress to ordinary events [UT-072]",
+			func(t *testing.T) {
+				t.Parallel()
+				db := openTestGlobalDB(t)
+				workspace, main := registerHeartbeatWorkspaceAndSession(
+					t,
+					db,
+					"event-"+tc.slug,
+					"event-"+tc.slug+"-main",
+				)
+				repo := db.Instances()
+				instance, err := repo.Adopt(
+					t.Context(),
+					agentinstance.Instance{
+						ProfileID:         store.DefaultProfileID,
+						AgentName:         "coder",
+						WorkspaceID:       workspace,
+						PermissionCeiling: "{}",
+						CreatedByKind:     "human",
+					},
+					main,
+					10,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				now := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+				for i := range 25 {
+					id := fmt.Sprintf("event-%02d", i)
+					summary := "Selected event"
+					if i == 0 {
+						summary = tc.summary
+						if tc.triggerName != "" {
+							// A pre-existing receipt persisted the accepted name in run metadata.
+							if _, err := db.DB().ExecContext(
+								t.Context(),
+								`INSERT INTO automation_runs (id, trigger_id, status, metadata_json) VALUES (?, 'trigger', 'succeeded', json_object('instance_event_trigger_name', ?))`,
+								"run-"+id, tc.triggerName,
+							); err != nil {
+								t.Fatal(err)
+							}
+						}
+					}
+					if _, err := db.DB().
+						ExecContext(t.Context(), `INSERT INTO agent_instance_events (id,instance_id,trigger_id,run_id,summary,received_at) VALUES (?,?,'trigger',?,?,?)`, id, instance.ID, "run-"+id, summary, store.FormatTimestamp(now)); err != nil {
+						t.Fatal(err)
+					}
+				}
+				collect := func() heartbeat.CheckDigest {
+					t.Helper()
+					scope, facts, err := repo.CollectorFacts(t.Context(), instance.ID, heartbeat.CollectorScope{})
+					if err != nil {
+						t.Fatal(err)
+					}
+					digest, err := heartbeat.CollectDigest(scope, facts, nil, "", "")
+					if err != nil {
+						t.Fatal(err)
+					}
+					return digest
+				}
+				digest := collect()
+				if len(digest.EventIDs) == 0 || digest.EventIDs[0] != "event-00" ||
+					(tc.headAlone && len(digest.EventIDs) != 1) {
+					t.Fatalf("head events=%v", digest.EventIDs)
+				}
+				if tc.triggerName != "" {
+					var stored string
+					if err := db.DB().QueryRowContext(
+						t.Context(),
+						`SELECT json_extract(metadata_json, '$.instance_event_trigger_name') FROM automation_runs WHERE id = 'run-event-00'`,
+					).
+						Scan(&stored); err != nil || stored != tc.triggerName {
+						t.Fatalf("stored trigger name changed: len=%d err=%v", len(stored), err)
+					}
+				}
+				admitted, err := repo.Admit(t.Context(), heartbeat.AdmitRequest{
+					InstanceID:    instance.ID,
+					OccurrenceID:  "head-occ",
+					Now:           now,
+					NextWakeAt:    now.Add(time.Hour),
+					MaxConcurrent: 1,
+					ManualCheck:   true,
+					EventIDs:      digest.EventIDs,
+				})
+				if err != nil || !admitted {
+					t.Fatalf("admit: %v %v", admitted, err)
+				}
+				if changed, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
+					InstanceID:   instance.ID,
+					OccurrenceID: "head-occ",
+					Source:       "timer",
+					Result:       "quiet",
+					Reason:       "quiet",
+					Now:          now.Add(time.Minute),
+					NextWakeAt:   now.Add(2 * time.Hour),
+					ExpiresAt:    now.Add(24 * time.Hour),
+				}); err != nil || !changed.Changed {
+					t.Fatalf("finish: %v %v", changed, err)
+				}
+				next := collect()
+				first := len(digest.EventIDs)
+				last := min(first+20, 25) - 1
+				if len(next.EventIDs) != last-first+1 || next.EventIDs[0] != fmt.Sprintf("event-%02d", first) ||
+					next.EventIDs[len(next.EventIDs)-1] != fmt.Sprintf("event-%02d", last) {
+					t.Fatalf("next events=%v", next.EventIDs)
+				}
 			},
-			main,
-			10,
 		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		now := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
-		for i := range 25 {
-			id := fmt.Sprintf("event-%02d", i)
-			summary := "Selected event"
-			if i == 0 {
-				summary = strings.Repeat("<\\", 700)
-			}
-			if _, err := db.DB().
-				ExecContext(t.Context(), `INSERT INTO agent_instance_events (id,instance_id,trigger_id,run_id,summary,received_at) VALUES (?,?,'trigger',?,?,?)`, id, instance.ID, "run-"+id, summary, store.FormatTimestamp(now)); err != nil {
-				t.Fatal(err)
-			}
-		}
-		collect := func() heartbeat.CheckDigest {
-			t.Helper()
-			scope, facts, err := repo.CollectorFacts(t.Context(), instance.ID, heartbeat.CollectorScope{})
-			if err != nil {
-				t.Fatal(err)
-			}
-			digest, err := heartbeat.CollectDigest(scope, facts, nil, "", "")
-			if err != nil {
-				t.Fatal(err)
-			}
-			return digest
-		}
-		digest := collect()
-		if !slices.Equal(digest.EventIDs, []string{"event-00"}) {
-			t.Fatalf("head events=%v", digest.EventIDs)
-		}
-		admitted, err := repo.Admit(t.Context(), heartbeat.AdmitRequest{
-			InstanceID:    instance.ID,
-			OccurrenceID:  "escaped-occ",
-			Now:           now,
-			NextWakeAt:    now.Add(time.Hour),
-			MaxConcurrent: 1,
-			ManualCheck:   true,
-			EventIDs:      digest.EventIDs,
-		})
-		if err != nil || !admitted {
-			t.Fatalf("admit: %v %v", admitted, err)
-		}
-		if changed, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
-			InstanceID:   instance.ID,
-			OccurrenceID: "escaped-occ",
-			Source:       "timer",
-			Result:       "quiet",
-			Reason:       "quiet",
-			Now:          now.Add(time.Minute),
-			NextWakeAt:   now.Add(2 * time.Hour),
-			ExpiresAt:    now.Add(24 * time.Hour),
-		}); err != nil || !changed.Changed {
-			t.Fatalf("finish: %v %v", changed, err)
-		}
-		next := collect()
-		if len(next.EventIDs) != 20 || next.EventIDs[0] != "event-01" || next.EventIDs[19] != "event-20" {
-			t.Fatalf("next events=%v", next.EventIDs)
-		}
-	})
+	}
 	t.Run("Should admit once finalize once and retain cancellation across resume", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)

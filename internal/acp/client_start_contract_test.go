@@ -2715,6 +2715,94 @@ func TestTriageStartup(t *testing.T) {
 	})
 }
 
+func TestSessionModeTransport(t *testing.T) {
+	t.Parallel()
+	gateway := toolExecutionGatewayFunc(
+		func(_ context.Context, req ToolExecutionRequest) (ToolExecutionRequest, error) {
+			return req, nil
+		},
+	)
+	assertModeConfigOption := func(t *testing.T, captureFile, want string) {
+		t.Helper()
+		request := decodeCapturedSetSessionConfigOptionRequest(
+			t,
+			captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption),
+		)
+		if request.ConfigID != "mode" || request.Value != want {
+			t.Fatalf("set_config_option = %+v, want mode=%s", request, want)
+		}
+	}
+
+	t.Run("Should send session/set_mode for a mode advertised as session mode and config option", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "mode-dual.jsonl")
+		proc := startHelperProcess(t, driver, "cursor_mode_mapping", "", StartOpts{
+			Env:         helperEnvWithCapture("cursor_mode_mapping", "", captureFile),
+			ToolGateway: gateway,
+		})
+		defer stopProcess(t, driver, proc)
+
+		request := decodeCapturedSetSessionModeRequest(
+			t,
+			captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionSetMode),
+		)
+		if request.SessionID != "sess-new" || request.ModeID != "agent" {
+			t.Fatalf("set_mode = %+v, want sess-new agent", request)
+		}
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption) {
+			t.Fatal("set_config_option was sent for an advertised session mode")
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "mode", "agent", "agent", "plan", "ask")
+	})
+
+	t.Run("Should send session/set_config_option for a mode only in config options", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "mode-config-only.jsonl")
+		proc := startHelperProcess(t, driver, "cursor_mode_config_only", "", StartOpts{
+			Env:         helperEnvWithCapture("cursor_mode_config_only", "", captureFile),
+			ToolGateway: gateway,
+		})
+		defer stopProcess(t, driver, proc)
+
+		assertModeConfigOption(t, captureFile, "agent")
+		if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetMode) {
+			t.Fatal("set_mode was sent for a mode the provider does not advertise as a session mode")
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "mode", "agent", "agent", "plan", "ask")
+	})
+
+	t.Run(
+		"Should keep the config option transport for triage even when the mode is a session mode",
+		func(t *testing.T) {
+			t.Parallel()
+			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
+			captureFile := filepath.Join(t.TempDir(), "mode-triage-dual.jsonl")
+			proc, err := driver.Start(t.Context(), StartOpts{
+				ProviderConfig:   &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
+				AgentName:        "helper",
+				ProviderName:     "opencode",
+				Command:          helperCommand(t),
+				Cwd:              t.TempDir(),
+				Env:              helperEnvWithCapture("triage_dual_mode", "", captureFile),
+				PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage},
+				Permissions:      compozyconfig.PermissionModeApproveAll,
+			})
+			if err != nil {
+				t.Fatalf("triage startup: %v", err)
+			}
+			defer stopProcess(t, driver, proc)
+
+			assertModeConfigOption(t, captureFile, "plan")
+			if captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionSetMode) {
+				t.Fatal("set_mode was sent for triage")
+			}
+			assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "mode", "plan", "default", "plan")
+		},
+	)
+}
+
 func TestPermissionLevelModeSelection(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
