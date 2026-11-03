@@ -7,7 +7,7 @@ import { AgentProfileOverflow, humanizeAgentSlug } from "@/systems/agent";
 import type { UseAgentDetailResult } from "./use-agent-detail";
 
 /**
- * One location of the Agents window: `Agents / Orchestrator / Check-ins`. A topbar has
+ * One location of the Agents window: `Agents / Orchestrator / Heartbeat`. A topbar has
  * one publisher, so a page that adds `actions` publishes alone and its loading shell
  * passes `publish: false` once that page is mounted.
  */

@@ -8,7 +8,7 @@ import type { AgentActivityPayload } from "../types";
 
 const PULSE_READ_DAYS = 14;
 
-/** The last two weeks of one agent; stays-on members only, so the list reads a handful. */
+/** The last two weeks of one agent; always-on members only, so the list reads a handful. */
 export function useAgentPulse(member: AgentTeamMember) {
   const { destination } = useProfileReadScope();
   const reads = useQueries({
@@ -18,7 +18,7 @@ export function useAgentPulse(member: AgentTeamMember) {
         PULSE_READ_DAYS,
         scope,
         destination,
-        member.kind === "stays_on" && member.agent !== null
+        member.kind === "always_on" && member.agent !== null
       )
     ),
   });

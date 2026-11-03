@@ -12,7 +12,7 @@ function item(name: string, label: string, provider = "claude"): AgentGroupedCat
   return {
     name,
     label,
-    kind: "stays_on",
+    kind: "always_on",
     definition_digest: "d",
     scopes: [],
     active: 0,
@@ -60,7 +60,7 @@ describe("AgentPicker", () => {
     });
 
     expect(screen.getByTestId("agent-add-limit")).toHaveTextContent(
-      "10 of 10 agents are staying on."
+      "10 of 10 always-on agents are active."
     );
     await user.click(screen.getByText("Scout"));
     await user.click(screen.getByText("Create new"));
@@ -95,7 +95,7 @@ describe("AgentPicker", () => {
     const user = userEvent.setup();
     const { onCreateNew } = renderPicker({ agents: [] });
 
-    expect(screen.getByText("All your stays-on agents already work here.")).toBeInTheDocument();
+    expect(screen.getByText("All your always-on agents already work here.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Create new" }));
     expect(onCreateNew).toHaveBeenCalledOnce();
   });

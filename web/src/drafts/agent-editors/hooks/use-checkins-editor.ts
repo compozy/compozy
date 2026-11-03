@@ -120,7 +120,7 @@ export function useCheckInsEditor(variant: CheckInsVariant) {
     },
     resume: () => {
       setStanding("running");
-      toast.message("Check-ins are back on");
+      toast.message("Heartbeat is back on");
     },
     discard: () => {
       setSettings(saved);

@@ -1,8 +1,8 @@
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
-import type { ScopePickerProps } from "../stays-on-agents-shared/add-pickers";
-import { AgentAppPage } from "../stays-on-agents-shared/agent-page";
-import { TRIAGE } from "../stays-on-agents-shared/fixtures";
+import type { ScopePickerProps } from "../always-on-agents-shared/add-pickers";
+import { AgentAppPage } from "../always-on-agents-shared/agent-page";
+import { TRIAGE } from "../always-on-agents-shared/fixtures";
 import { PROFILES, type ProfileId, type ProfilePlace } from "./profile-fixtures";
 import type { HeroEdit } from "./profile-hero";
 import { ProfileHome } from "./profile-home";
@@ -15,13 +15,13 @@ export const meta = definePrototype({
   surface: "S4 S5 S8",
   route: "/agents/triage",
   states: [
-    { id: "stays-on", label: "Stays on, working" },
+    { id: "always-on", label: "Always-on, working" },
     { id: "needs-you", label: "Needs you" },
     { id: "paused", label: "Paused by you" },
     { id: "paused-failures", label: "Paused after failures" },
     { id: "cant-resume", label: "Can't resume" },
-    { id: "no-longer-stays-on", label: "Can't resume, now on demand" },
-    { id: "on-demand", label: "On demand" },
+    { id: "no-longer-always-on", label: "Can't resume, now on demand" },
+    { id: "on-demand", label: "On-demand" },
     { id: "extension", label: "From an extension" },
     { id: "no-activity", label: "No activity yet" },
     { id: "invalid", label: "Can't start" },
@@ -44,7 +44,7 @@ export const meta = definePrototype({
   ],
 });
 
-const ACTIVE = PROFILES["stays-on"].places;
+const ACTIVE = PROFILES["always-on"].places;
 
 const WHERE: Record<string, { places: readonly ProfilePlace[]; capped?: boolean }> = {
   "where-active": { places: ACTIVE },
@@ -92,7 +92,7 @@ export default function AgentProfileDraft({ state }: PrototypeProps) {
   }
   const edit = EDITS[state];
   const panel = PANELS[state] ?? null;
-  const id: ProfileId = edit?.on ?? (state in PROFILES ? (state as ProfileId) : "stays-on");
+  const id: ProfileId = edit?.on ?? (state in PROFILES ? (state as ProfileId) : "always-on");
   const data = PROFILES[id];
   return (
     <AgentAppPage agent={data.agent} width="max-w-6xl">

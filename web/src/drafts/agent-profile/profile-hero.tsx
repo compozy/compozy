@@ -2,8 +2,8 @@
 import { Pill, StatusDot } from "@compozy/ui";
 import type { ReactNode } from "react";
 
-import { KindPill } from "../stays-on-agents-shared/agent-page";
-import type { AgentState } from "../stays-on-agents-shared/agent-state";
+import { KindPill } from "../always-on-agents-shared/agent-page";
+import type { AgentState } from "../always-on-agents-shared/agent-state";
 import { AvatarEditor, InlineText, type AvatarMode } from "./identity-editor";
 import type { ProfileData } from "./profile-fixtures";
 

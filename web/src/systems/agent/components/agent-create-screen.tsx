@@ -60,7 +60,7 @@ export interface AgentCreateScreenProps {
   startFailure?: string | null;
   isSubmitting: boolean;
   hasActiveWorkspace: boolean;
-  /** Names an On demand agent's destination in the footer. */
+  /** Names an on-demand agent's destination in the footer. */
   workspaceName: string | null;
   takenNames: ReadonlySet<string>;
   workspaces: readonly WorkspacePayload[];

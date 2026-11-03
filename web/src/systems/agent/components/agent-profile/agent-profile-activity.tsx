@@ -64,13 +64,13 @@ function Legend() {
   );
 }
 
-export function AgentFirstDay({ name, staysOn }: { name: string; staysOn: boolean }) {
+export function AgentFirstDay({ name, alwaysOn }: { name: string; alwaysOn: boolean }) {
   return (
     <Section label="How it's been going">
       <Panel bodyClassName="px-6 py-14">
         <Empty
           description={
-            staysOn
+            alwaysOn
               ? "Add it to a project and everything it does, finds and costs will show up here."
               : "Start a session and everything it does, finds and costs will show up here."
           }

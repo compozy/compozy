@@ -1,9 +1,9 @@
 /** The head every editor shares: the agent, large and in its current pose, and what this page is. */
 import type { ReactNode } from "react";
 
-import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
-import type { AgentState } from "../stays-on-agents-shared/agent-state";
-import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
+import { AgentAvatar } from "../always-on-agents-shared/agent-avatar";
+import type { AgentState } from "../always-on-agents-shared/agent-state";
+import type { DraftAgent } from "../always-on-agents-shared/fixtures";
 
 export function EditorHead({
   agent,

@@ -23,10 +23,10 @@ import {
   PROFILE_SPRITE_URL,
 } from "@/systems/profiles/lib/profile-identity";
 
-import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
-import type { AgentAppearance, AgentState } from "../stays-on-agents-shared/agent-state";
-import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
-import { useCanvasTheme } from "../stays-on-agents-shared/use-canvas-theme";
+import { AgentAvatar } from "../always-on-agents-shared/agent-avatar";
+import type { AgentAppearance, AgentState } from "../always-on-agents-shared/agent-state";
+import type { DraftAgent } from "../always-on-agents-shared/fixtures";
+import { useCanvasTheme } from "../always-on-agents-shared/use-canvas-theme";
 import { useIconCatalog } from "./hooks/use-icon-catalog";
 
 export type AvatarMode = "generated" | "symbol";

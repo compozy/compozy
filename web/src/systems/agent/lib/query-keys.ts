@@ -25,7 +25,7 @@ export const agentKeys = {
     ] as const,
   instances: () => [...agentKeys.all, "instances"] as const,
   instanceLists: () => [...agentKeys.instances(), "list"] as const,
-  /** The view's stays-on agents across every scope; one read shared by every row. */
+  /** The view's always-on agents across every scope; one read shared by every row. */
   instanceList: (view: string, profiles: readonly string[]) =>
     [...agentKeys.instanceLists(), view, profiles.join(",")] as const,
   instanceAway: (id: string) => [...agentKeys.instances(), id, "away"] as const,
@@ -39,8 +39,8 @@ export const agentKeys = {
   instanceIndeterminateReports: (id: string) =>
     [...agentKeys.instanceReports(id), "indeterminate"] as const,
   /** Definitions a scope can start: one `group=agent` read per scope and profile. */
-  staysOnCatalog: (workspace: string, profile = "default") =>
-    [...agentKeys.catalogs(), "@stays-on", workspace, profile] as const,
+  alwaysOnCatalog: (workspace: string, profile = "default") =>
+    [...agentKeys.catalogs(), "@always-on", workspace, profile] as const,
   /** One card per agent for a scope; `""` is every project and User. */
   team: (workspace: string, profile = "default") =>
     [...agentKeys.catalogs(), "@team", workspace, profile] as const,

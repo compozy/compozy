@@ -50,7 +50,7 @@ export function canSwitchDoes(
   if (context.mode === "edit" || context.lockedLoop !== undefined) return false;
   if (next === context.current) return false;
   if (next === "task") return draft.start === "schedule";
-  if (next === "stays-on") return draft.start !== "schedule";
+  if (next === "always-on") return draft.start !== "schedule";
   return true;
 }
 

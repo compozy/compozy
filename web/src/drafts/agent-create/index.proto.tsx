@@ -2,10 +2,10 @@ import { ConfirmDialog } from "@compozy/ui";
 
 import { definePrototype, protoHref, type PrototypeProps } from "@compozy/proto";
 
-import { goToState } from "../stays-on-agents-shared/go-to-state";
-import { LISTED_ON_DEMAND, LISTED_STAYS_ON } from "../stays-on-agents-shared/agents-fixtures";
-import { AgentsPage } from "../stays-on-agents-shared/agents-page";
-import { ORCHESTRATOR, RELEASE, TRIAGE } from "../stays-on-agents-shared/fixtures";
+import { goToState } from "../always-on-agents-shared/go-to-state";
+import { LISTED_ON_DEMAND, LISTED_ALWAYS_ON } from "../always-on-agents-shared/agents-fixtures";
+import { AgentsPage } from "../always-on-agents-shared/agents-page";
+import { ORCHESTRATOR, RELEASE, TRIAGE } from "../always-on-agents-shared/fixtures";
 
 import { CreateScreen, type CreateScreenProps } from "./create-screen";
 import {
@@ -26,7 +26,7 @@ export const meta = definePrototype({
   states: [
     { id: "empty", label: "Empty" },
     { id: "filled", label: "Filled · Runs when you ask" },
-    { id: "stays-on", label: "Filled · Stays on" },
+    { id: "always-on", label: "Filled · Always-on" },
     { id: "fill-idle", label: "Fill with AI · Describe it" },
     { id: "fill-generating", label: "Fill with AI · Writing" },
     { id: "fill-applied", label: "Fill with AI · Added" },
@@ -63,7 +63,7 @@ const TRIAGE_DRAFT: Partial<Draft> = {
   description: TRIAGE.description,
   instructions: INSTRUCTIONS,
   appearance: TRIAGE.appearance,
-  mode: "stays-on",
+  mode: "always-on",
   place: "compozy",
 };
 
@@ -79,7 +79,7 @@ const FAILED: CreateScreenProps = {
   previewLabel: "Couldn't start",
   readOnly: {
     primary: "Open agent",
-    onPrimary: () => window.location.assign(protoHref("agent-profile", "stays-on")),
+    onPrimary: () => window.location.assign(protoHref("agent-profile", "always-on")),
   },
 };
 
@@ -90,7 +90,7 @@ const OWNED: CreateScreenProps = {
     instructions:
       "Break each task into small pieces.\n\n- Give each piece to one worker\n- Check the result before moving on\n- Tell me when a decision is needed",
     appearance: ORCHESTRATOR.appearance,
-    mode: "stays-on",
+    mode: "always-on",
     place: "compozy",
   },
   title: ORCHESTRATOR.label,
@@ -107,7 +107,7 @@ const FILL_BRIEF = "Watch new issues and tell me which ones need me today";
 const SCREENS: Record<string, CreateScreenProps> = {
   empty: {},
   filled: { initial: FILLED },
-  "stays-on": { initial: TRIAGE_DRAFT },
+  "always-on": { initial: TRIAGE_DRAFT },
   "fill-idle": { fill: { status: "idle", brief: FILL_BRIEF } },
   "fill-generating": { fill: { status: "generating", brief: FILL_BRIEF } },
   "fill-applied": {
@@ -132,7 +132,7 @@ const SCREENS: Record<string, CreateScreenProps> = {
     },
   },
   "decide-later": { initial: { ...TRIAGE_DRAFT, place: PLACE_LATER } },
-  "from-project": { initial: { mode: "stays-on", place: "compozy" } },
+  "from-project": { initial: { mode: "always-on", place: "compozy" } },
   "avatar-character": { initial: FILLED, avatarOpen: "generated" },
   "avatar-symbol": {
     initial: { ...FILLED, appearance: RELEASE.appearance },
@@ -174,7 +174,7 @@ export default function AgentCreateDraft({ state }: PrototypeProps) {
           ) : null}
         </>
       }
-      staysOn={LISTED_STAYS_ON}
+      alwaysOn={LISTED_ALWAYS_ON}
     />
   );
 }

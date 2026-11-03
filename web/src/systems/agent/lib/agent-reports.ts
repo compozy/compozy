@@ -16,7 +16,7 @@ export interface AgentFinding {
 const FINDINGS_SHOWN = 5;
 
 const FAILURE_TITLE: Record<string, string> = {
-  failure: "A check-in failed",
+  failure: "A heartbeat failed",
   approval_expired: "An approval expired",
   interrupted: "A run was interrupted",
   rotation_failed: "It couldn't start a fresh conversation",

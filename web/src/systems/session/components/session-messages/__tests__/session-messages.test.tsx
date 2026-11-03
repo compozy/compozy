@@ -37,10 +37,10 @@ import { agentInstanceFixture } from "@/systems/agent/mocks";
 import type { AgentInstancePayload } from "@/systems/agent";
 
 const INSTANCE_AGENT = "triage";
-const staysOn = vi.hoisted(() => ({ instances: [] as AgentInstancePayload[] }));
+const alwaysOn = vi.hoisted(() => ({ instances: [] as AgentInstancePayload[] }));
 vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
-  fetchAgentInstances: async () => ({ instances: staysOn.instances, capacity: {} }),
+  fetchAgentInstances: async () => ({ instances: alwaysOn.instances, capacity: {} }),
 }));
 
 // Suite: session message surfaces (`_uiux.md` S1–S4; UT-061..064, UT-066, UT-067).
@@ -538,12 +538,12 @@ describe("long party titles (#1097)", () => {
 
 describe("useSessionLabel", () => {
   beforeEach(() => {
-    staysOn.instances = [];
+    alwaysOn.instances = [];
     stubDetailReads({ [SENDER_ID]: sessionDetail(SENDER_ID, "Billing refactor · PR split") });
   });
 
-  it("Should name a stays-on agent's current main by the agent, not its session (UT-080)", async () => {
-    staysOn.instances = [
+  it("Should name an always-on agent's current main by the agent, not its session (UT-080)", async () => {
+    alwaysOn.instances = [
       agentInstanceFixture({
         id: "ainst-1",
         agent_name: INSTANCE_AGENT,
@@ -563,7 +563,7 @@ describe("useSessionLabel", () => {
       { wrapper }
     );
     await waitFor(() => expect(result.current.title).toBe("Triage Lead"));
-    expect(result.current.staysOn?.label).toBe("Triage Lead");
+    expect(result.current.alwaysOn?.label).toBe("Triage Lead");
   });
 
   it("Should show the current title once the detail read lands, not the recorded one (UT-063)", async () => {
@@ -894,7 +894,7 @@ describe("SessionSentCard", () => {
     expect(screen.getByText("Steered")).toBeInTheDocument();
   });
 
-  it("Should say a message to a paused stays-on agent is held (UT-080)", () => {
+  it("Should say a message to a paused always-on agent is held (UT-080)", () => {
     const part = sessionSentMessagePart("data-compozy-session-message", {
       tool_call_id: "call-held",
       target_session_id: target.sessionId,
@@ -944,8 +944,8 @@ describe("SessionQueueEntryRow session message", () => {
     },
   };
 
-  it("Should show a stays-on sender by the agent's name and mark (UT-080)", async () => {
-    staysOn.instances = [
+  it("Should show an always-on sender by the agent's name and mark (UT-080)", async () => {
+    alwaysOn.instances = [
       agentInstanceFixture({
         id: "ainst-1",
         agent_name: INSTANCE_AGENT,
@@ -966,7 +966,7 @@ describe("SessionQueueEntryRow session message", () => {
     );
     const sender = screen.getByTestId("composer-queued-sender");
     await waitFor(() => expect(sender).toHaveTextContent(/From\s*Triage Lead$/));
-    staysOn.instances = [];
+    alwaysOn.instances = [];
   });
 
   it("Should name no owner on a daemon wake (UT-080)", () => {

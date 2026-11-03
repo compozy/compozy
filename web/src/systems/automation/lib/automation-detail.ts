@@ -120,7 +120,7 @@ const START_WORDS = {
 
 const DOES_WORDS = {
   agent: "Ask an agent",
-  "stays-on": "Tell a stays-on agent",
+  "always-on": "Tell an always-on agent",
   loop: "Start a Loop",
   task: "Create a task",
 } as const satisfies Record<AutomationDoes, string>;

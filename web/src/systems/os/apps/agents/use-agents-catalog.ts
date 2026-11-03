@@ -152,8 +152,8 @@ function useOpenTeamMember(allProjects: boolean) {
 
 function useOpenAgentCreate() {
   const { openDialog } = useAgentCreateHost();
-  return (options?: { staysOn?: boolean }) =>
-    openDialog(options?.staysOn ? { place: AGENT_PLACE_LATER } : undefined);
+  return (options?: { alwaysOn?: boolean }) =>
+    openDialog(options?.alwaysOn ? { place: AGENT_PLACE_LATER } : undefined);
 }
 
 function focusItemsFor(members: readonly AgentTeamMember[]) {

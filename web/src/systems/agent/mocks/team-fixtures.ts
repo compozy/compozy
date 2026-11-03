@@ -18,7 +18,7 @@ export function agentPayloadFixture(overrides: Partial<AgentPayload> = {}): Agen
     label: "Triage Lead",
     display_name: "Triage Lead",
     description: "Watches issues and proposes the next step",
-    kind: "stays_on",
+    kind: "always_on",
     provider: "claude",
     model: "claude-opus-5-5",
     origin: "global",

@@ -3,10 +3,10 @@ import { Plus, SearchX } from "@compozy/ui/icons";
 
 import { Button, Empty, PillGroup, SearchInput, toast } from "@compozy/ui";
 
-import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
-import { AgentAppPage } from "../stays-on-agents-shared/agent-page";
-import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
-import { EditorCard } from "../stays-on-agents-shared/rich-controls";
+import { AgentAvatar } from "../always-on-agents-shared/agent-avatar";
+import { AgentAppPage } from "../always-on-agents-shared/agent-page";
+import type { DraftAgent } from "../always-on-agents-shared/fixtures";
+import { EditorCard } from "../always-on-agents-shared/rich-controls";
 import { ConflictCard } from "./conflict-card";
 import { EditorHead } from "./editor-head";
 import { useMemoryEditor, type Filter, type MemoryVariant } from "./hooks/use-memory-editor";

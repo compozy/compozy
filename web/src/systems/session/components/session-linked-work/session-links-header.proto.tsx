@@ -1,6 +1,6 @@
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
-import { SessionLinksHeaderStage } from "@/drafts/stays-on-agents-shared/session-links-stage";
+import { SessionLinksHeaderStage } from "@/drafts/always-on-agents-shared/session-links-stage";
 
 export const meta = definePrototype({
   title: "Session links · In the header",

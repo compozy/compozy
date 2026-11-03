@@ -20,7 +20,7 @@ import { SessionMarkSeenAction } from "../components/session-mark-seen-action";
 import { SessionPrimaryAction } from "../components/session-primary-action";
 import { sessionProcessPorts, sessionRunningProcesses } from "../lib/session-processes";
 import { SessionPanelToggle } from "../components/session-panel-toggle";
-import { StaysOnAgentMenu } from "../components/stays-on/stays-on-agent-menu";
+import { AlwaysOnAgentMenu } from "../components/always-on/always-on-agent-menu";
 
 import type { WorktreePayload } from "@/systems/workspace";
 
@@ -206,7 +206,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     crumb: instance?.label ?? getSessionDisplayTitle(session),
     status: (
       <span className="flex min-w-0 items-center gap-2">
-        {instance ? <Pill size="sm">Stays on</Pill> : null}
+        {instance ? <Pill size="sm">Always-on</Pill> : null}
         {/* Keyed by session: the head outlives a session switch, and an open list must not. */}
         <SessionLinkedWorkStatus
           key={session.id}
@@ -248,7 +248,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     actions: (
       <>
         {linkedWork.clipped ? <SessionLinkedWorkNarrowEntry {...linkedList} /> : null}
-        {instance ? <StaysOnAgentMenu instance={instance} /> : null}
+        {instance ? <AlwaysOnAgentMenu instance={instance} /> : null}
         <SessionMarkSeenAction session={session} />
         <SessionPrimaryAction
           key={session.id}

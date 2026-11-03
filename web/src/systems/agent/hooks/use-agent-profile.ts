@@ -172,15 +172,15 @@ export function useAgentProfile(input: {
   const places = instances.flatMap(instance =>
     instance.agent_name === agent.name ? [agentPlaceFromInstance(instance, names)] : []
   );
-  const staysOn = agent.kind === "stays_on" || places.length > 0;
-  const state = agentOverallState({ active, kind: staysOn ? "stays_on" : "on_demand", places });
+  const alwaysOn = agent.kind === "always_on" || places.length > 0;
+  const state = agentOverallState({ active, kind: alwaysOn ? "always_on" : "on_demand", places });
   const activityQuery = useQuery(
     agentActivityOptions(agent.name, ACTIVITY_DAYS, workspace, destination)
   );
   // `undefined` while loading, `null` when no route answers: the two say different things.
   const activity = activityQuery.isSuccess ? activityQuery.data : undefined;
   const { sessions } = useAgentSessions(workspace, agent.name);
-  const findings = useFindings(staysOn ? places : []);
+  const findings = useFindings(alwaysOn ? places : []);
   const work = sessions.slice(0, WORK_SHOWN).map(workItem);
   const packageOwned = isAgentReadOnly(agent);
   const readOnly = packageOwned || isOrphanAgent(agent);
@@ -190,7 +190,7 @@ export function useAgentProfile(input: {
     description: agent.description ?? "",
     appearance: agentAppearanceFromPayload(agent.resolved_appearance, agent.name),
     provider: agent.provider || null,
-    staysOn,
+    alwaysOn,
     readOnly,
     ...(packageOwned ? { owner: formatAgentOwner(agent) } : {}),
   };
@@ -214,7 +214,7 @@ export function useAgentProfile(input: {
     findings,
     work,
     diagnostics: agent.diagnostics ?? [],
-    headline: agentHeadline({ staysOn, active, places, state }),
+    headline: agentHeadline({ alwaysOn, active, places, state }),
     fresh:
       work.length === 0 &&
       findings.length === 0 &&

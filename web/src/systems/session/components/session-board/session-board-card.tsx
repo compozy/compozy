@@ -13,7 +13,7 @@ import { getSessionDisplayTitle } from "../../lib/session-display-title";
 import { linkedSessionFacts, summaryMoreLabel } from "../../lib/session-linked-work";
 import { SessionRowActions } from "../session-row-actions";
 import { SessionRowContextMenu } from "../session-row-context-menu";
-import { StaysOnCreatorBadge } from "../stays-on/stays-on-signals";
+import { AlwaysOnCreatorBadge } from "../always-on/always-on-signals";
 import { SessionBoardCardView } from "./session-board-card-view";
 import { SessionBoardLinkedWorkCount } from "./session-board-linked-work-count";
 import { SessionsBoardSelectionMenu } from "./sessions-board-selection-menu";
@@ -116,7 +116,7 @@ function SessionBoardCardButton({
       onOpen={() => props.onOpen(props.session)}
       session={linkedSessionFacts(props.session)}
       creatorBadge={
-        creator ? <StaysOnCreatorBadge creator={creator} surface="ring-card" /> : undefined
+        creator ? <AlwaysOnCreatorBadge creator={creator} surface="ring-card" /> : undefined
       }
       {...preloadHandlers}
       onActivate={

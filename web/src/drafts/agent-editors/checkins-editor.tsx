@@ -11,18 +11,18 @@ import {
 
 import { Button, Empty, MarkdownEditor, Switch, toast } from "@compozy/ui";
 
-import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
-import { formatClock } from "../stays-on-agents-shared/format-clock";
-import { AgentAppPage } from "../stays-on-agents-shared/agent-page";
-import type { AgentState } from "../stays-on-agents-shared/agent-state";
-import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
+import { AgentAvatar } from "../always-on-agents-shared/agent-avatar";
+import { formatClock } from "../always-on-agents-shared/format-clock";
+import { AgentAppPage } from "../always-on-agents-shared/agent-page";
+import type { AgentState } from "../always-on-agents-shared/agent-state";
+import type { DraftAgent } from "../always-on-agents-shared/fixtures";
 import {
   DayRangeSlider,
   EditorCard,
   SettingRow,
   StopSlider,
   ToggleRow,
-} from "../stays-on-agents-shared/rich-controls";
+} from "../always-on-agents-shared/rich-controls";
 import { NextCard, RecentCard } from "./checkins-activity";
 import {
   FLOOR,
@@ -156,7 +156,7 @@ function NotStartedCard({
       <Empty
         action={
           <Button onClick={nowhere ? undefined : onTurnOn} type="button">
-            {nowhere ? "Add it to a project" : "Turn on check-ins"}
+            {nowhere ? "Add it to a project" : "Turn on heartbeat"}
           </Button>
         }
         description={
@@ -174,7 +174,7 @@ function NotStartedCard({
             state="paused"
           />
         }
-        title={nowhere ? "Nowhere to check in yet" : "No check-ins yet"}
+        title={nowhere ? "Nowhere to check in yet" : "No heartbeats yet"}
       />
     </EditorCard>
   );
@@ -204,18 +204,18 @@ export function CheckInsEditor({
   } = editor;
 
   return (
-    <AgentAppPage agent={agent} hubState="checkins" leaf="Check-ins" width="max-w-5xl">
+    <AgentAppPage agent={agent} hubState="checkins" leaf="Heartbeat" width="max-w-5xl">
       <div className="flex flex-col gap-6 py-2">
         <EditorHead
           agent={agent}
           state={agentPose(settings.on, standing)}
           subtitle={paused ? "Waiting for you" : scheduleSummary(settings)}
-          title="Check-ins"
+          title="Heartbeat"
         >
           <label className="flex cursor-pointer items-center gap-2.5 text-body text-fg">
             {settings.on && !paused ? "On" : "Off"}
             <Switch
-              aria-label="Check-ins"
+              aria-label="Heartbeat"
               checked={settings.on && !paused}
               disabled={nowhere || paused}
               onCheckedChange={editor.turnOn}

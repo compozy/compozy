@@ -15,10 +15,10 @@ import {
 
 import { NeverCard } from "@/systems/agent/components/agent-editors/what-it-does-cards";
 
-import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
-import { AgentAppPage } from "../stays-on-agents-shared/agent-page";
-import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
-import { EditorCard } from "../stays-on-agents-shared/rich-controls";
+import { AgentAvatar } from "../always-on-agents-shared/agent-avatar";
+import { AgentAppPage } from "../always-on-agents-shared/agent-page";
+import type { DraftAgent } from "../always-on-agents-shared/fixtures";
+import { EditorCard } from "../always-on-agents-shared/rich-controls";
 import { ConflictCard } from "./conflict-card";
 import { EditorHead } from "./editor-head";
 import { RawFile } from "./raw-file";
@@ -216,9 +216,9 @@ export function WhatItDoesEditor({
   const theirs = `${SAVED.body}\n- ${THEIR_LINE}`;
 
   return (
-    <AgentAppPage agent={agent} hubState="what" leaf="What it does" width="max-w-5xl">
+    <AgentAppPage agent={agent} hubState="what" leaf="Instructions" width="max-w-5xl">
       <div className="flex flex-col gap-6 py-2">
-        <EditorHead agent={agent} subtitle={agent.description} title="What it does" />
+        <EditorHead agent={agent} subtitle={agent.description} title="Instructions" />
         {conflict ? (
           <ConflictCard
             agentLabel={agent.label}
@@ -256,7 +256,7 @@ export function WhatItDoesEditor({
           <div className="grid grid-cols-[minmax(0,1fr)_21rem] items-start gap-5">
             <div className="flex min-w-0 flex-col gap-4">
               <MarkdownEditor
-                aria-label="What it does"
+                aria-label="Instructions"
                 autoFocus={variant === "empty"}
                 className="bg-card [&>.overflow-y-auto]:max-h-none"
                 contentClassName="min-h-96 px-4 py-3 text-body leading-relaxed"

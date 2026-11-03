@@ -1,5 +1,5 @@
 // Suite: the agent's home
-// Invariant: an on-demand agent shows no Stays on sections (UT-074), no route behind activity
+// Invariant: an on-demand agent shows no Always-on sections (UT-074), no route behind activity
 //   reads as unknown, never as no activity, and the Model row is the runtime selector itself.
 // Boundary IN: `AgentProfileHome` from its view model. Boundary OUT: the side panels and the plan
 //   card, which read their own daemon routes.
@@ -95,7 +95,7 @@ function pageFixture(overrides: Partial<UseAgentProfile> = {}): UseAgentProfile 
       description: "Watches issues",
       appearance: { avatar: "generated", seed: "triage" },
       provider: "claude",
-      staysOn: true,
+      alwaysOn: true,
       readOnly: false,
     },
     places: [agentPlaceFromInstance(agentInstanceFixture(), new Map())],
@@ -123,7 +123,7 @@ function pageFixture(overrides: Partial<UseAgentProfile> = {}): UseAgentProfile 
       checkIns: "Off",
       memory: "",
       tools: "",
-      permissions: "Edit on its own",
+      permissions: "Accept edits",
     },
     placeActions: { onArchive: vi.fn(), onOpen: vi.fn(), onToggle: vi.fn() },
     onResumeAll: vi.fn(),
@@ -137,28 +137,70 @@ function pageFixture(overrides: Partial<UseAgentProfile> = {}): UseAgentProfile 
   };
 }
 
+/** The setup rows in order, each by its visible title. */
+function setupTitles() {
+  return screen
+    .getAllByTestId(/^agent-setup-/)
+    .map(row => row.querySelector(".truncate")?.textContent);
+}
+
 describe("AgentProfileHome", () => {
-  it("Should show where a stays-on agent works and its setup rows", () => {
+  it("Should show where an always-on agent works and its setup rows", () => {
     render(<AgentProfileHome page={pageFixture()} />);
     expect(screen.getByText("Where it's working")).toBeVisible();
-    expect(screen.getByTestId("agent-setup-check-ins")).toBeVisible();
-    expect(screen.getByTestId("agent-setup-memory")).toBeVisible();
+    expect(screen.getByText("Setup")).toBeVisible();
+    expect(setupTitles()).toEqual([
+      "Instructions",
+      "Model",
+      "Heartbeat",
+      "Memory",
+      "Tools",
+      "Permissions",
+    ]);
   });
 
-  it("Should omit every Stays on section for an on-demand agent", () => {
+  it("Should keep the setup labels on a read-only agent and lock what it can't edit", () => {
+    render(
+      <AgentProfileHome
+        page={pageFixture({ identity: { ...pageFixture().identity, readOnly: true } })}
+      />
+    );
+    expect(setupTitles()).toEqual([
+      "Instructions",
+      "Model",
+      "Heartbeat",
+      "Memory",
+      "Tools",
+      "Permissions",
+    ]);
+    const locked = screen
+      .getAllByTestId(/^agent-setup-/)
+      .filter(row => row.querySelector(".lucide-lock"))
+      .map(row => row.dataset.testid);
+    // Memory stays open: its notes are the agent's own, not the definition's.
+    expect(locked).toEqual([
+      "agent-setup-behavior",
+      "agent-setup-model",
+      "agent-setup-check-ins",
+      "agent-setup-tools",
+      "agent-setup-permissions",
+    ]);
+    expect(within(screen.getByTestId("agent-setup-memory")).getByText("Memory")).toBeVisible();
+  });
+
+  it("Should omit every Always-on section for an on-demand agent", () => {
     render(
       <AgentProfileHome
         page={pageFixture({
-          identity: { ...pageFixture().identity, staysOn: false },
+          identity: { ...pageFixture().identity, alwaysOn: false },
           places: [],
         })}
       />
     );
     expect(screen.queryByText("Where it's working")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("agent-setup-check-ins")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("agent-setup-memory")).not.toBeInTheDocument();
+    expect(setupTitles()).toEqual(["Instructions", "Model", "Tools", "Permissions"]);
     expect(screen.getByTestId("agent-page-new-session")).toBeVisible();
-    expect(screen.getByTestId("agent-profile-kind")).toHaveTextContent("On demand");
+    expect(screen.getByTestId("agent-profile-kind")).toHaveTextContent("On-demand");
   });
 
   it("Should say activity is unavailable when no route answers", () => {

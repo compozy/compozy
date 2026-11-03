@@ -3,7 +3,7 @@ import { useAgentInstances } from "@/systems/agent";
 import { useSessionLabel } from "../components/session-messages/use-session-label";
 
 /**
- * The session a "Sent to" card names, and whether it is a stays-on agent that is paused right now
+ * The session a "Sent to" card names, and whether it is an always-on agent that is paused right now
  * (S12): a `delivery: held` send stays held only while that is true.
  */
 export function useSessionSentTarget({

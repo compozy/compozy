@@ -19,7 +19,7 @@ import {
   FOLLOW_SETTINGS_LABEL,
   isAgentPermissionLevel,
   permissionLabel,
-  STAYS_ON_DEFAULT_PERMISSION,
+  ALWAYS_ON_DEFAULT_PERMISSION,
   type AgentPermissionLevel,
 } from "../../lib/agent-permissions";
 import type { AgentSessionApproval } from "../../lib/agent-settings-draft";
@@ -75,7 +75,8 @@ function LevelNote({
       <Alert data-testid="agent-permissions-no-reviewer" variant="warning">
         <AlertTitle>{providerName} has no AI reviewer</AlertTitle>
         <AlertDescription>
-          This agent will use Edit on its own instead. It never gets more access than that.
+          This agent will use {permissionLabel("approve-edits")} instead. It never gets more access
+          than that.
         </AlertDescription>
       </Alert>
     );
@@ -85,7 +86,8 @@ function LevelNote({
       <Alert data-testid="agent-permissions-degraded" variant="warning">
         <AlertTitle>The reviewer isn't available right now</AlertTitle>
         <AlertDescription>
-          The current session is running as Edit on its own. It keeps your choice for new sessions.
+          The current session is running as {permissionLabel("approve-edits")}. It keeps your choice
+          for new sessions.
         </AlertDescription>
       </Alert>
     );
@@ -107,11 +109,11 @@ function LevelNote({
 /** The radio value for "Follow Settings", which stores no `permissions`. */
 const FOLLOW_SETTINGS = "follow-settings";
 
-function LevelGroup(props: AgentPermissionsViewProps & { staysOn: boolean }) {
-  const { level, staysOn, readOnly, onLevelChange, settingsLevel } = props;
+function LevelGroup(props: AgentPermissionsViewProps & { alwaysOn: boolean }) {
+  const { level, alwaysOn, readOnly, onLevelChange, settingsLevel } = props;
   const unset = level === "";
-  const shown = staysOn && unset ? STAYS_ON_DEFAULT_PERMISSION : level;
-  const follow: RadioCardGroupOption<string>[] = staysOn
+  const shown = alwaysOn && unset ? ALWAYS_ON_DEFAULT_PERMISSION : level;
+  const follow: RadioCardGroupOption<string>[] = alwaysOn
     ? []
     : [
         {
@@ -131,7 +133,7 @@ function LevelGroup(props: AgentPermissionsViewProps & { staysOn: boolean }) {
     icon: option.icon,
     "data-testid": `agent-permissions-level-${option.value}`,
     badge:
-      staysOn && unset && option.value === STAYS_ON_DEFAULT_PERMISSION ? (
+      alwaysOn && unset && option.value === ALWAYS_ON_DEFAULT_PERMISSION ? (
         <Pill size="sm" tone="neutral">
           Default
         </Pill>
@@ -149,7 +151,7 @@ function LevelGroup(props: AgentPermissionsViewProps & { staysOn: boolean }) {
       disabled={readOnly}
       onValueChange={next => onLevelChange(isAgentPermissionLevel(next) ? next : "")}
       options={[...follow, ...levels]}
-      value={unset && !staysOn ? FOLLOW_SETTINGS : shown}
+      value={unset && !alwaysOn ? FOLLOW_SETTINGS : shown}
     />
   );
 }
@@ -173,8 +175,8 @@ const REACH_OPTIONS: RadioCardGroupOption<"children" | "workspace">[] = [
 
 export function AgentPermissionsView(props: AgentPermissionsViewProps) {
   const { agent, level, legacyLevel, sessionApproval, readOnly, owner } = props;
-  const staysOn = agent.kind === "stays_on";
-  const effective = level === "" && staysOn ? STAYS_ON_DEFAULT_PERMISSION : level;
+  const alwaysOn = agent.kind === "always_on";
+  const effective = level === "" && alwaysOn ? ALWAYS_ON_DEFAULT_PERMISSION : level;
   const reach = sessionApproval || "children";
   return (
     <div className="flex flex-col gap-8" data-testid="agent-permissions-page">
@@ -199,7 +201,7 @@ export function AgentPermissionsView(props: AgentPermissionsViewProps) {
             Unrecognized permission mode: {legacyLevel}. Pick one to save.
           </p>
         ) : null}
-        <LevelGroup {...props} staysOn={staysOn} />
+        <LevelGroup {...props} alwaysOn={alwaysOn} />
         {effective ? (
           <LevelNote
             providerId={props.providerId}
@@ -215,7 +217,7 @@ export function AgentPermissionsView(props: AgentPermissionsViewProps) {
           </p>
         ) : null}
       </FormSection>
-      {staysOn ? (
+      {alwaysOn ? (
         <FormSection
           help="Only you can change this. An agent can't widen it for itself."
           title="Whose requests can it answer?"

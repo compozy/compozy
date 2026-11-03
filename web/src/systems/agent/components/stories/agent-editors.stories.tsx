@@ -33,7 +33,7 @@ const meta: Meta<typeof AgentWhatItDoesView> = {
     docs: {
       description: {
         component:
-          "The pure views behind What it does, Check-ins and Memory. The containers read the files; the page chrome belongs to the route.",
+          "The pure views behind Instructions, Heartbeat and Memory. The containers read the files; the page chrome belongs to the route.",
       },
     },
   },
@@ -117,13 +117,13 @@ export const MemoryEmpty: Story = {
   render: () => <AgentMemoryView agent={agent} model={blankMemoryModelFixture()} state="idle" />,
 };
 
-const staysOnAgent: AgentPayload = { ...agent, kind: "stays_on", provider: "claude" };
+const alwaysOnAgent: AgentPayload = { ...agent, kind: "always_on", provider: "claude" };
 
 function permissionsProps(
   overrides: Partial<AgentPermissionsViewProps> = {}
 ): AgentPermissionsViewProps {
   return {
-    agent: staysOnAgent,
+    agent: alwaysOnAgent,
     providerId: "claude",
     providerName: "Claude Code",
     level: "",
@@ -170,7 +170,7 @@ export const PermissionsNeverAskCodex: Story = {
   render: () => (
     <AgentPermissionsView
       {...permissionsProps({
-        agent: { ...staysOnAgent, provider: "codex" },
+        agent: { ...alwaysOnAgent, provider: "codex" },
         level: "approve-all",
         providerId: "codex",
         providerName: "Codex",

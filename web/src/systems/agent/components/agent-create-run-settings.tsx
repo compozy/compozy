@@ -139,18 +139,18 @@ export function AgentCreateRunSettings({
           iconWellSize="lg"
           onSelect={() => onDraftChange({ ...draft, kind: "on_demand" })}
           selected={draft.kind === "on_demand"}
-          title="On demand, runs when you ask"
+          title="On-demand: runs when you ask"
         />
         <RadioCard
-          data-testid="agent-create-kind-stays-on"
+          data-testid="agent-create-kind-always-on"
           icon={Eye}
           iconWellSize="lg"
-          onSelect={() => onDraftChange({ ...draft, kind: "stays_on" })}
-          selected={draft.kind === "stays_on"}
-          title="Stays on and watches for you"
+          onSelect={() => onDraftChange({ ...draft, kind: "always_on" })}
+          selected={draft.kind === "always_on"}
+          title="Always-on: watches for you"
         />
       </div>
-      {draft.kind === "stays_on" ? (
+      {draft.kind === "always_on" ? (
         <Labeled id={whereId} label="Where it works">
           {instanceCapacity.reached ? (
             <LimitCard capacity={instanceCapacity} />
@@ -191,7 +191,7 @@ export function AgentCreateRunFacts({
   draft: AgentCreateDialogDraft;
   workspaces: readonly WorkspacePayload[];
 }) {
-  const stays = draft.kind === "stays_on";
+  const stays = draft.kind === "always_on";
   const ModeIcon = stays ? Eye : Clock3;
   const place = agentPlaceLabel(draft.place, workspaces);
   return (
@@ -202,7 +202,7 @@ export function AgentCreateRunFacts({
           label: "How it works",
           value: (
             <Fact mark={<ModeIcon aria-hidden="true" className={FACT_ICON} />}>
-              {stays ? "Stays on" : "On demand"}
+              {stays ? "Always-on" : "On-demand"}
             </Fact>
           ),
         },

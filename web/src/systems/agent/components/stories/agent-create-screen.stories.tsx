@@ -152,10 +152,10 @@ export const Default: Story = {
   render: () => <AgentCreateScreenHarness initialDraft={validDraft} />,
 };
 
-/** Stays on: Where it works joins the side panel. */
-export const StaysOn: Story = {
+/** Always-on: Where it works joins the side panel. */
+export const AlwaysOn: Story = {
   args: {},
-  render: () => <AgentCreateScreenHarness initialDraft={{ ...validDraft, kind: "stays_on" }} />,
+  render: () => <AgentCreateScreenHarness initialDraft={{ ...validDraft, kind: "always_on" }} />,
 };
 
 /** The limit shows before submitting; the agent is created unstarted. */
@@ -164,7 +164,7 @@ export const LimitReached: Story = {
   render: () => (
     <AgentCreateScreenHarness
       instanceCapacity={{ limit: 10, active: 10, reached: true }}
-      initialDraft={{ ...validDraft, kind: "stays_on" }}
+      initialDraft={{ ...validDraft, kind: "always_on" }}
     />
   ),
 };
@@ -174,7 +174,7 @@ export const FailedToStart: Story = {
   args: {},
   render: () => (
     <AgentCreateScreenHarness
-      initialDraft={{ ...validDraft, kind: "stays_on" }}
+      initialDraft={{ ...validDraft, kind: "always_on" }}
       startFailure="This agent can't reach that workspace."
     />
   ),

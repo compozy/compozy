@@ -113,7 +113,7 @@ function instanceFacts(instance: AgentInstancePayload | null, interval: number) 
   };
 }
 
-/** Check-ins' file, plus how the agent stands in the project picked on the page. */
+/** The Heartbeat page's file, plus how the agent stands in the project picked on the page. */
 export function useCheckInsEditor(
   agent: AgentPayload,
   workspace: string | null,
@@ -177,7 +177,7 @@ export function useCheckInsEditor(
     resume: () => {
       if (!instance) return;
       resume(instance);
-      toast.message("Check-ins are back on");
+      toast.message("Heartbeat is back on");
     },
   };
 }

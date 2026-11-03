@@ -25,11 +25,11 @@ export function SessionQueuedSender({
       title={party.pending ? undefined : `From ${title}`}
       className="inline-flex max-w-[70%] min-w-0 items-center gap-1.5 text-micro text-muted-foreground"
     >
-      {party.staysOn ? (
+      {party.alwaysOn ? (
         <AgentMark
           aria-hidden="true"
-          appearance={party.staysOn.appearance}
-          label={party.staysOn.label}
+          appearance={party.alwaysOn.appearance}
+          label={party.alwaysOn.label}
           quietIdle
           size={18}
           state="unknown"

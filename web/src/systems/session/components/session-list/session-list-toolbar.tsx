@@ -31,7 +31,7 @@ export interface SessionListToolbarProps {
   onNewFolder?: () => void;
   /** Why this list cannot hold folders; New folder shows disabled with it. */
   newFolderUnavailable?: string | null;
-  /** Replaces the plain `+`: the live list's menu with Add stays-on agent. */
+  /** Replaces the plain `+`: the live list's menu with Add always-on agent. */
   createMenu?: ReactNode;
   testIdPrefix: string;
 }
