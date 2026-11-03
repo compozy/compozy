@@ -215,7 +215,7 @@ func (h *BaseHandlers) skillReviewError(c *gin.Context, err error) {
 		{agentinstance.ErrSkillReviewOperatorOnly, 403}, {agentinstance.ErrForbidden, 403},
 		{agentinstance.ErrSkillReviewNotFound, 404}, {agentinstance.ErrSkillReviewStale, 409},
 		{agentinstance.ErrSkillReviewNoTarget, 409}, {agentinstance.ErrSkillReviewLimit, 409},
-		{agentinstance.ErrSkillProposeUnverified, 422},
+		{agentinstance.ErrSkillProposeUnverified, 422}, {agentinstance.ErrSkillReviewInvalid, 422},
 	} {
 		if errors.Is(err, item.reason) {
 			c.JSON(item.status, contract.ErrorPayload{Code: item.reason.Error(), Error: err.Error()})

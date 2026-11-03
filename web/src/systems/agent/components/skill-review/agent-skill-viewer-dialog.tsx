@@ -17,7 +17,7 @@ import {
   Pill,
 } from "@compozy/ui";
 
-import { skillMarkdownRead } from "../../lib/agent-skill-markdown-read";
+import { hasInvisibleCharacters, skillMarkdownRead } from "../../lib/agent-skill-markdown-read";
 import { SKILL_DEFINITION_FILE, type SkillReviewFile } from "../../lib/agent-skill-review";
 import { AgentSkillFileTree } from "./agent-skill-file-tree";
 
@@ -42,10 +42,24 @@ function ReadToggle({ mode, onMode }: { mode: ReadMode; onMode: (mode: ReadMode)
   );
 }
 
+/** Source shows every byte, but some of them draw nothing: say so, on any file. */
+function InvisibleCharactersNotice() {
+  return (
+    <Alert data-testid="skill-review-invisible-characters" variant="warning">
+      <AlertDescription>
+        This file has characters that don't show, such as zero-width or text-direction marks. They
+        can change what it says or does.
+      </AlertDescription>
+    </Alert>
+  );
+}
+
 function FileView({ file }: { file: SkillReviewFile }) {
   const [mode, setMode] = useState<ReadMode>("read");
   const markdown = file.language === "markdown";
   const read = markdown ? skillMarkdownRead(file.body) : null;
+  const readHides = read?.hidesText === true && mode === "read";
+  const invisible = !readHides && hasInvisibleCharacters(file.body);
   return (
     <div className="flex min-w-0 flex-col gap-3">
       <div className="flex min-h-8 items-center gap-3">
@@ -59,7 +73,8 @@ function FileView({ file }: { file: SkillReviewFile }) {
         ) : null}
         {markdown ? <ReadToggle mode={mode} onMode={setMode} /> : null}
       </div>
-      {read?.hidesText && mode === "read" ? (
+      {invisible ? <InvisibleCharactersNotice /> : null}
+      {readHides ? (
         <Alert data-testid="skill-review-hidden-text" variant="warning">
           <AlertDescription>
             This file has text that doesn't show here.{" "}
@@ -92,6 +107,7 @@ export function AgentSkillViewerDialog({
   stale = false,
   decided = false,
   deciding = false,
+  approveDisabled = false,
   error,
   onApprove,
   onReject,
@@ -109,6 +125,8 @@ export function AgentSkillViewerDialog({
   /** Already approved or rejected: read only. */
   decided?: boolean;
   deciding?: boolean;
+  /** This version can't be approved; Reject stays available. */
+  approveDisabled?: boolean;
   error?: string;
   onApprove: () => void;
   onReject: () => void;
@@ -158,6 +176,7 @@ export function AgentSkillViewerDialog({
             onCancel={onReject}
             onPrimary={onApprove}
             cancelDisabled={deciding}
+            primaryDisabled={approveDisabled}
             isSaving={deciding}
             primaryIcon={Check}
             primaryLabel="Approve"

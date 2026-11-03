@@ -763,7 +763,7 @@ describe("AutomationEditorDialog", () => {
 
       fireEvent.click(screen.getByTestId("automation-does-stays-on"));
       const agent = await screen.findByTestId("automation-stays-on-agent");
-      await screen.findByRole("option", { name: "triage" });
+      await screen.findByRole("option", { name: "Triage Lead" });
       fireEvent.change(agent, { target: { value: "triage" } });
 
       expect(await screen.findByTestId("automation-stays-on-missing")).toHaveTextContent(

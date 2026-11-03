@@ -75,6 +75,14 @@ export async function decideAgentSkillReview(
   return requireResponseData(data, response, fallback).review;
 }
 
+/**
+ * The reviewed digest still matches but CompozyOS can't install the draft (its bytes, name or file
+ * paths fail verification). Only rejection settles it.
+ */
+export function isSkillReviewInvalid(error: unknown) {
+  return error instanceof AgentSkillReviewApiError && error.code === "skill_review_invalid";
+}
+
 /** The contents changed after the operator read them, so the decision did not apply. */
 export function isSkillReviewStale(error: unknown) {
   return error instanceof AgentSkillReviewApiError && error.code === "skill_review_stale";

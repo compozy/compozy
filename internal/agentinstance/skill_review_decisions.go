@@ -38,19 +38,28 @@ func (s *SkillProposalService) Review(
 	if err := s.Authority.Authorize(ctx, actor, instance, "skill_reviews"); err != nil {
 		return SkillReview{}, SkillDraft{}, err
 	}
-	review, err := s.Store.GetReview(ctx, id)
+	review, err := s.reviewRow(ctx, instance, id)
 	if err != nil {
 		return SkillReview{}, SkillDraft{}, err
-	}
-	if review.InstanceID != instance.ID || review.ProfileID != instance.ProfileID ||
-		review.WorkspaceID != instance.WorkspaceID {
-		return SkillReview{}, SkillDraft{}, ErrSkillReviewNotFound
 	}
 	draft, err := ReadSkillDraft(review.DraftPath, review.Digest)
 	if err != nil {
 		return SkillReview{}, SkillDraft{}, err
 	}
 	return review, draft, nil
+}
+
+// reviewRow reads one review bound to the instance, without its draft.
+func (s *SkillProposalService) reviewRow(ctx context.Context, instance Instance, id string) (SkillReview, error) {
+	review, err := s.Store.GetReview(ctx, id)
+	if err != nil {
+		return SkillReview{}, err
+	}
+	if review.InstanceID != instance.ID || review.ProfileID != instance.ProfileID ||
+		review.WorkspaceID != instance.WorkspaceID {
+		return SkillReview{}, ErrSkillReviewNotFound
+	}
+	return review, nil
 }
 
 func (s *SkillProposalService) Reject(
@@ -65,7 +74,14 @@ func (s *SkillProposalService) Reject(
 	if operator == "" {
 		return errors.New("skill review operator identity is required")
 	}
-	review, _, err := s.Review(ctx, actor, instance, id)
+	if s.Store == nil {
+		return errors.New("skill proposal store is required")
+	}
+	if err := s.Authority.Authorize(ctx, actor, instance, "skill_reviews"); err != nil {
+		return err
+	}
+	// Rejection never needs the draft, so a draft that cannot be installed can still be rejected.
+	review, err := s.reviewRow(ctx, instance, id)
 	if err != nil {
 		return err
 	}

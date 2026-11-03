@@ -22,6 +22,8 @@ export interface SessionMessageParty {
    * `billing-reviewer` running on Claude still draws the Claude mark.
    */
   provider?: string | null;
+  /** The stays-on agent this session is the current main of (S12): its mark replaces the provider's. */
+  staysOnAgent?: string | null;
   /** Set only when the party lives in another workspace than this transcript (Gap 5). */
   workspaceName?: string | null;
 }

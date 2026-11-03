@@ -74,6 +74,7 @@ export function SkillReviewCardView({
       agentLabel={agent.label}
       decided={view.state !== "pending"}
       deciding={view.deciding}
+      approveDisabled={view.invalid}
       error={view.decideError?.message}
       files={view.files}
       initialPath={initialPath}

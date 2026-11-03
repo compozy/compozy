@@ -23,7 +23,7 @@ Read the instance's reviews with `compozy__agent_skill_reviews`. A rejected draf
 
 Only an operator may approve or reject, through the review UI, CLI, HTTP, or UDS. There is no agent approval tool. Agent-credentialed decisions fail with `skill_review_operator_only`.
 
-The operator inspects the exact contents and automatic execution details before deciding. Approval verifies the draft digest; changed contents fail with `skill_review_stale` and require a fresh review of those contents.
+The operator inspects the exact contents and automatic execution details before deciding. Approval verifies the draft digest; changed contents fail with `skill_review_stale` and require a fresh review of those contents. A draft whose digest still matches but cannot be installed (its bytes, name or file paths fail verification) fails with `skill_review_invalid`; it can only be rejected.
 
 For a workspace instance, approval installs into the workspace skills root. For a global instance, it installs into the definition's agent-local `skills/` directory, where hooks do not run. A global definition without a source path cannot receive a draft (`skill_review_no_target`). Content refused by verification returns `skill_propose_unverified`.
 

@@ -50,7 +50,7 @@ describe("staysOnTargetModel", () => {
       workspaceId: "ws_alpha",
       isWebhook: false,
     });
-    expect(model.agents).toEqual(["triage"]);
+    expect(model.agents).toEqual([{ name: "triage", label: "Triage Lead" }]);
     expect(model.scopes.map(scope => scope.label)).toEqual(["Global", "alpha"]);
     expect(model.selectedScope).toBe("ws_alpha");
     expect(model.status).toEqual({ kind: "ready", label: "Triage Lead" });

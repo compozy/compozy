@@ -100,12 +100,12 @@ export function StaysOnTarget({
                   ? "No stays-on agents yet"
                   : "Choose an agent…"}
             </NativeSelectOption>
-            {model.agents.map(name => (
-              <NativeSelectOption key={name} value={name}>
-                {name}
+            {model.agents.map(option => (
+              <NativeSelectOption key={option.name} value={option.name}>
+                {option.label}
               </NativeSelectOption>
             ))}
-            {agent && !model.agents.includes(agent) ? (
+            {agent && !model.agents.some(option => option.name === agent) ? (
               <NativeSelectOption value={agent}>{agent}</NativeSelectOption>
             ) : null}
           </NativeSelect>

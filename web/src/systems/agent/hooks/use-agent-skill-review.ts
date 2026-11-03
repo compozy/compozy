@@ -5,6 +5,7 @@ import { skillKeys } from "@/systems/skill";
 
 import {
   decideAgentSkillReview,
+  isSkillReviewInvalid,
   isSkillReviewStale,
   type AgentSkillReviewDecision,
   type AgentSkillReviewRef,
@@ -22,8 +23,9 @@ import { agentSkillReviewOptions } from "../lib/query-options";
  * One proposed skill and the operator's decision on it (S9). `ref` is `null` until the caller
  * knows the instance's profile, so neither the read nor a decision goes out under the wrong one.
  * A decision names the digest that was read; when the agent changed the contents since, the daemon
- * refuses with `skill_review_stale` and the review rereads. Until the reread brings a different
- * digest the decision stays off, and only then does the view call it the latest version.
+ * refuses with `skill_review_stale` and the review rereads. The decision waits for the reread, and
+ * only a different digest is called the latest version. A draft CompozyOS can't install
+ * (`skill_review_invalid`) keeps Approve off and Reject available.
  */
 export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
   const queryClient = useQueryClient();
@@ -51,7 +53,7 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
     },
   });
   const files = review ? skillReviewFiles(review) : [];
-  const awaitingLatest = staleDigest !== null && review?.digest === staleDigest;
+  const invalid = isSkillReviewInvalid(mutation.error);
   return {
     review,
     loading: ref === null || (query.isPending && Boolean(ref.id)),
@@ -60,12 +62,20 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
     why: review ? skillReviewWhy(review) : undefined,
     automatic: review ? skillAutomaticItems(review, files) : [],
     state: review ? skillReviewState(review) : "pending",
-    /** The contents changed after the operator read them, and this is the newer version. */
-    stale: staleDigest !== null && !awaitingLatest,
-    deciding: mutation.isPending || query.isFetching || awaitingLatest,
-    decideError: mutation.error && !isSkillReviewStale(mutation.error) ? mutation.error : null,
+    /** A stale refusal brought a different digest: this is the newer version. The decision waits for the reread. */
+    stale: staleDigest !== null && review?.digest !== staleDigest,
+    deciding: mutation.isPending || query.isFetching,
+    /** This version can't be installed: Approve is off, Reject stays available. */
+    invalid,
+    decideError: invalid
+      ? new Error(
+          "CompozyOS can't install this version. Reject it, or wait for the agent to propose it again."
+        )
+      : mutation.error && !isSkillReviewStale(mutation.error)
+        ? mutation.error
+        : null,
     decide: (decision: AgentSkillReviewDecision) => {
-      if (review && !query.isFetching && !awaitingLatest) {
+      if (review && !query.isFetching && !(invalid && decision === "approve")) {
         mutation.mutate({ decision, digest: review.digest });
       }
     },

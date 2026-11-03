@@ -1,6 +1,8 @@
 import { CornerDownRight, Reply, Scissors } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
+import { AgentIdentityMark } from "@/systems/agent/components/agent-identity-mark";
+
 import { SubagentAvatar } from "../subagents/subagent-avatar";
 import {
   SessionMessageChip,
@@ -63,11 +65,15 @@ export function SessionMessageCard({
       data-testid="session-message-card"
       data-delivery={delivery ?? undefined}
       avatar={
-        <SubagentAvatar
-          agent={sender.agentName}
-          provider={sessionPartyMark(sender)}
-          surface="rail"
-        />
+        sender.staysOnAgent ? (
+          <AgentIdentityMark aria-hidden="true" name={sender.staysOnAgent} quietIdle size={24} />
+        ) : (
+          <SubagentAvatar
+            agent={sender.agentName}
+            provider={sessionPartyMark(sender)}
+            surface="rail"
+          />
+        )
       }
       header={
         <>

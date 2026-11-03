@@ -1376,6 +1376,47 @@ func TestAgentSkillReviews(t *testing.T) {
 		if string(installed) != decision.Review.Files[0].Content {
 			t.Fatal("installed bytes differ from review")
 		}
+
+		// A draft whose digest still matches but cannot be installed is invalid, not stale, and
+		// stays rejectable.
+		mismatched, err := agentinstance.PrepareSkillDraft("renamed", "Review changes", "Read the diff.", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		draftPath, draftDigest, err := agentinstance.WriteSkillDraft(t.TempDir(), []string{scanRoot}, mismatched)
+		if err != nil {
+			t.Fatal(err)
+		}
+		invalid, err := db.SkillReviews().CreateReview(t.Context(), agentinstance.SkillReview{
+			ID:          "skr-invalid",
+			InstanceID:  instance.ID,
+			ProfileID:   instance.ProfileID,
+			WorkspaceID: instance.WorkspaceID,
+			AgentName:   instance.AgentName,
+			SkillName:   "expected",
+			Digest:      draftDigest,
+			DraftPath:   draftPath,
+		}, agentinstance.ReportInput{
+			SourceKey: "skill_review:skr-invalid",
+			Kind:      agentinstance.ReportKindProposal,
+			Payload:   []byte(`{"skill_review_id":"skr-invalid","proposals":[{"title":"Review","body":"Review it."}]}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		uninstallable := request("POST", "/reviews/"+invalid.ID+"/approve", `{"digest":"`+invalid.Digest+`"}`, false)
+		var invalidFailure contract.ErrorPayload
+		decodeJSON(t, uninstallable.Body.Bytes(), &invalidFailure)
+		if uninstallable.Code != 422 || invalidFailure.Code != "skill_review_invalid" {
+			t.Fatalf("uninstallable approval: %d %+v", uninstallable.Code, invalidFailure)
+		}
+		if _, err := os.Stat(filepath.Join(scanRoot, "expected")); !os.IsNotExist(err) {
+			t.Fatalf("uninstallable draft installed: %v", err)
+		}
+		rejected := request("POST", "/reviews/"+invalid.ID+"/reject", `{"digest":"`+invalid.Digest+`"}`, false)
+		if rejected.Code != 200 {
+			t.Fatalf("reject uninstallable: %d %s", rejected.Code, rejected.Body.String())
+		}
 	})
 }
 

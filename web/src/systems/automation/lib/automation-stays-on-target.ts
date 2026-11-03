@@ -17,8 +17,15 @@ export type StaysOnTargetStatus =
   | { kind: "no-checks"; label: string }
   | { kind: "ready"; label: string };
 
+export interface StaysOnAgentOption {
+  /** The agent name the trigger saves. */
+  name: string;
+  /** What the operator reads: the instance's display name. */
+  label: string;
+}
+
 export interface StaysOnTargetModel {
-  agents: string[];
+  agents: StaysOnAgentOption[];
   scopes: StaysOnScopeOption[];
   /** `""` is Global, `null` when nothing is chosen yet. */
   selectedScope: string | null;
@@ -40,7 +47,15 @@ export function staysOnTargetModel(input: {
   isWebhook: boolean;
 }): StaysOnTargetModel {
   const agent = input.agent.trim();
-  const agents = [...new Set(input.instances.map(instance => instance.agent_name))].sort();
+  const labels = new Map<string, string>();
+  for (const instance of input.instances) {
+    if (!labels.has(instance.agent_name)) {
+      labels.set(instance.agent_name, instance.label || instance.agent_name);
+    }
+  }
+  const agents = [...labels]
+    .map(([name, label]) => ({ name, label }))
+    .sort((a, b) => a.label.localeCompare(b.label));
   const own = input.instances.filter(instance => instance.agent_name === agent);
   const scopes = own
     .map(instance => ({

@@ -36,6 +36,7 @@ import { useSessionMessageOpen } from "../use-session-message-open";
 import { agentInstanceFixture } from "@/systems/agent/mocks";
 import type { AgentInstancePayload } from "@/systems/agent";
 
+const INSTANCE_AGENT = "triage";
 const staysOn = vi.hoisted(() => ({ instances: [] as AgentInstancePayload[] }));
 vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
@@ -543,7 +544,12 @@ describe("useSessionLabel", () => {
 
   it("Should name a stays-on agent's current main by the agent, not its session (UT-080)", async () => {
     staysOn.instances = [
-      agentInstanceFixture({ id: "ainst-1", label: "Triage Lead", main_session_id: SENDER_ID }),
+      agentInstanceFixture({
+        id: "ainst-1",
+        agent_name: INSTANCE_AGENT,
+        label: "Triage Lead",
+        main_session_id: SENDER_ID,
+      }),
     ];
     const { result } = renderHook(
       () =>
@@ -557,6 +563,7 @@ describe("useSessionLabel", () => {
       { wrapper }
     );
     await waitFor(() => expect(result.current.title).toBe("Triage Lead"));
+    expect(result.current.staysOnAgent).toBe(INSTANCE_AGENT);
   });
 
   it("Should show the current title once the detail read lands, not the recorded one (UT-063)", async () => {
@@ -911,6 +918,57 @@ describe("SessionQueueEntryRow session message", () => {
       replyWatchId: "rw-6e2d81a0",
     },
   };
+
+  it("Should show a stays-on sender by the agent's name and mark (UT-080)", async () => {
+    staysOn.instances = [
+      agentInstanceFixture({
+        id: "ainst-1",
+        agent_name: INSTANCE_AGENT,
+        label: "Triage Lead",
+        main_session_id: SENDER_ID,
+      }),
+    ];
+    stubDetailReads({ [SENDER_ID]: sessionDetail(SENDER_ID, "Refactor billing") });
+    render(
+      <SessionQueueEntryRow
+        prompt={prompt}
+        disabled={false}
+        actionsHidden={false}
+        onSteer={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+      { wrapper }
+    );
+    const sender = screen.getByTestId("composer-queued-sender");
+    await waitFor(() => expect(sender).toHaveTextContent(/From\s*Triage Lead$/));
+    staysOn.instances = [];
+  });
+
+  it("Should name no owner on a daemon wake (UT-080)", () => {
+    render(
+      <SessionQueueEntryRow
+        prompt={{
+          id: "inp-wake",
+          owner: { kind: "synthetic", id: null },
+          position: 1,
+          status: "queued",
+          text: "1 monitor fired",
+          held: true,
+        }}
+        disabled={false}
+        actionsHidden={false}
+        onSteer={vi.fn()}
+        onRemove={vi.fn()}
+      />,
+      { wrapper }
+    );
+    const row = screen.getByTestId("composer-queued-prompt-row");
+    expect(within(row).queryByTestId("composer-queued-owner")).not.toBeInTheDocument();
+    expect(row).not.toHaveTextContent("synthetic");
+    expect(within(row).getByTestId("composer-queued-held")).toHaveTextContent(
+      "Held until it resumes"
+    );
+  });
 
   it("Should show the sender and offer Steer and Remove, never Edit (UT-064, #760)", async () => {
     stubDetailReads({ [SENDER_ID]: sessionDetail(SENDER_ID, "Refactor billing") });

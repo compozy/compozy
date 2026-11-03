@@ -16,8 +16,20 @@ const HIDDEN_NODE_TYPES: ReadonlySet<string> = new Set([
   "definition",
   "footnoteDefinition",
 ]);
-/** Zero-width and bidi control characters: present in the text, invisible on screen. */
-const INVISIBLE_CHARACTERS = /[​-‏‪-‮⁦-⁩﻿]/;
+/**
+ * Characters that are in the text but invisible on screen: soft hyphen, Mongolian vowel separator,
+ * zero-width and bidi controls, word joiner and invisible operators, BOM, and Unicode tag characters
+ * (the "ASCII smuggling" carrier). Built from an escaped string so no tool can normalize them away.
+ */
+const INVISIBLE_CHARACTERS = new RegExp(
+  "[\\u00AD\\u180E\\u200B-\\u200F\\u202A-\\u202E\\u2060-\\u2064\\u2066-\\u2069\\uFEFF\\u{E0000}-\\u{E007F}]",
+  "u"
+);
+
+/** Whether any file, Markdown or not, holds characters the screen won't show. */
+export function hasInvisibleCharacters(text: string): boolean {
+  return INVISIBLE_CHARACTERS.test(text);
+}
 const READ_METADATA_KEYS: ReadonlySet<string> = new Set(["name", "description"]);
 
 const parser = unified().use(remarkParse).use(remarkGfm);
@@ -35,7 +47,7 @@ function hasHiddenNode(node: MarkdownNode): boolean {
 
 /** Whether Read would leave out text this Markdown body contains. */
 export function markdownHidesText(body: string): boolean {
-  if (INVISIBLE_CHARACTERS.test(body)) return true;
+  if (hasInvisibleCharacters(body)) return true;
   return hasHiddenNode(parser.runSync(parser.parse(body)) as MarkdownNode);
 }
 
