@@ -48,11 +48,7 @@ export default function StaysOnSkillReviewDraft({ state }: PrototypeProps) {
   if (state === "viewer-script") {
     return (
       <MainSession pending={1} state="needs-you">
-        <SkillReviewCard
-          defaultOpen
-          initialPath="scripts/sync-board.sh"
-          skill={AUTOMATIC_SKILL}
-        />
+        <SkillReviewCard defaultOpen initialPath="scripts/sync-board.sh" skill={AUTOMATIC_SKILL} />
       </MainSession>
     );
   }

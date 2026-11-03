@@ -111,9 +111,7 @@ export function RulesSection({
               disabled={readOnly}
               invalid={rule.id === invalidId}
               key={rule.id}
-              onChange={next =>
-                onChange(rules.map(item => (item.id === rule.id ? next : item)))
-              }
+              onChange={next => onChange(rules.map(item => (item.id === rule.id ? next : item)))}
               onRemove={() => onChange(rules.filter(item => item.id !== rule.id))}
               rule={rule}
             />

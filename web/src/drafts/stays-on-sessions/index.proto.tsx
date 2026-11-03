@@ -119,7 +119,10 @@ const RAILS: Record<string, SessionRailProps> = {
     top: GLOBAL_ROW,
   },
   "sidebar-hover-wake": {
-    groups: [{ ...COMPOZY, instances: WAKE_CREW, rowProps: { cardFor: WAKE_CREW[0]!.id } }, RELOADDEV],
+    groups: [
+      { ...COMPOZY, instances: WAKE_CREW, rowProps: { cardFor: WAKE_CREW[0]!.id } },
+      RELOADDEV,
+    ],
     top: GLOBAL_ROW,
   },
   "sidebar-crew": { groups: [{ ...COMPOZY, instances: CREW }, RELOADDEV], top: GLOBAL_ROW },

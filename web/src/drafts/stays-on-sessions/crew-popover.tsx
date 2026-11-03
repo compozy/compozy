@@ -1,7 +1,15 @@
 /** The whole crew of a project, for when the row runs out of room. */
 import { useState } from "react";
 
-import { Button, Eyebrow, Item, Popover, PopoverContent, PopoverTrigger, SearchInput } from "@compozy/ui";
+import {
+  Button,
+  Eyebrow,
+  Item,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  SearchInput,
+} from "@compozy/ui";
 
 import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
 import type { AgentState } from "../stays-on-agents-shared/agent-state";

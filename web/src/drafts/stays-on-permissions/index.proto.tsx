@@ -1,11 +1,6 @@
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
-import {
-  GENERAL,
-  ORCHESTRATOR,
-  RELEASE,
-  TRIAGE,
-} from "../stays-on-agents-shared/fixtures";
+import { GENERAL, ORCHESTRATOR, RELEASE, TRIAGE } from "../stays-on-agents-shared/fixtures";
 import type { PermissionRule } from "./levels";
 import { PermissionsEditor } from "./permissions-editor";
 import { SettingsPermissions } from "./settings-view";
@@ -72,10 +67,7 @@ export default function StaysOnPermissionsDraft({ state }: PrototypeProps) {
           agent={TRIAGE}
           invalidRuleId="outside"
           key={state}
-          rules={[
-            ...RULES,
-            { id: "outside", kind: "edit", path: "../secrets", decision: "allow" },
-          ]}
+          rules={[...RULES, { id: "outside", kind: "edit", path: "../secrets", decision: "allow" }]}
           unsaved
         />
       );
