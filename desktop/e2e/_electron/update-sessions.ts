@@ -79,6 +79,16 @@ export async function prepareUpdateWork(home: string): Promise<void> {
         match: { turn_source: "synthetic" },
         steps: [{ kind: "assistant", text: "Child result received." }],
       },
+      // A delegated child's first input carries its origin header; match the authored task after it.
+      ...(name === "update-worker"
+        ? [
+            {
+              name: "attributed-in-flight",
+              match: { raw_user_text_contains: "\n\nupdate work" },
+              steps: [{ kind: "assistant", text: "Partial work before update." }, block],
+            },
+          ]
+        : []),
     ],
   }));
   await writeFile(fixture, JSON.stringify({ version: 2, agents }));
