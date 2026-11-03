@@ -258,9 +258,11 @@ type Manager struct {
 	started      bool
 	stopping     bool
 
-	devOperations     int
-	devOperationsDone chan struct{}
-	viewCallGates     viewCallGateRegistry
+	devOperations        int
+	devOperationsDone    chan struct{}
+	viewCallGates        viewCallGateRegistry
+	skillResourceCacheMu sync.Mutex
+	skillResourceCache   map[string]skillResourceCacheEntry
 
 	extensions          map[string]*managedExtension
 	devExtensions       map[InstanceKey]*managedExtension

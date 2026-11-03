@@ -3222,3 +3222,66 @@ func waitForManagerCondition(t *testing.T, timeout time.Duration, fn func() bool
 	}
 	t.Fatal("timed out waiting for manager condition")
 }
+
+func TestManagerReusesUnchangedSkillParses(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reuse skill parses across projections and observe file and sidecar edits", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		file := filepath.Join(root, "SKILL.md")
+		content := "---\nname: cached\ndescription: first\n---\nBody\n"
+		if err := os.WriteFile(file, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		manager := NewManager(nil)
+		reads := 0
+		load := func(path string, source skillspkg.SkillSource) (*skillspkg.Skill, error) {
+			reads++
+			return skillspkg.ParseSkillFileWithSource(path, source)
+		}
+		for range 5 {
+			skill, err := manager.cachedSkillResource(file, skillspkg.SourceUser, load)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if skill.Meta.Description != "first" {
+				t.Fatalf("description = %q", skill.Meta.Description)
+			}
+			skill.Meta.Description = "changed by caller"
+		}
+		if reads != 1 {
+			t.Fatalf("filesystem parses = %d, want 1", reads)
+		}
+		if err := os.WriteFile(file, []byte(strings.ReplaceAll(content, "first", "second")), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		skill, err := manager.cachedSkillResource(file, skillspkg.SourceUser, load)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reads != 2 || skill.Meta.Description != "second" {
+			t.Fatalf("parses=%d, description=%q", reads, skill.Meta.Description)
+		}
+		sidecar := filepath.Join(root, "mcp.json")
+		if err := os.WriteFile(sidecar, []byte(`{"mcpServers":{"local":{"command":"example"}}}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		skill, err = manager.cachedSkillResource(file, skillspkg.SourceUser, load)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reads != 3 || len(skill.MCPServers) != 1 {
+			t.Fatalf("parses=%d, servers=%#v", reads, skill.MCPServers)
+		}
+		if err := os.Remove(sidecar); err != nil {
+			t.Fatal(err)
+		}
+		skill, err = manager.cachedSkillResource(file, skillspkg.SourceUser, load)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reads != 4 || len(skill.MCPServers) != 0 {
+			t.Fatalf("parses=%d, servers=%#v", reads, skill.MCPServers)
+		}
+	})
+}

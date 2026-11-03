@@ -201,7 +201,8 @@ func TestParseSkillContentWarnsOnUnknownFields(t *testing.T) {
 		"body",
 	}, "\n")
 
-	meta, body, err := parseSkillContent([]byte(content))
+	path := filepath.Join(t.TempDir(), skillFileName)
+	meta, body, err := parseSkillContent([]byte(content), path)
 	if err != nil {
 		t.Fatalf("parseSkillContent() error = %v", err)
 	}
@@ -213,6 +214,14 @@ func TestParseSkillContentWarnsOnUnknownFields(t *testing.T) {
 	}
 	if !strings.Contains(logs.String(), "unknown frontmatter field") || !strings.Contains(logs.String(), "extra") {
 		t.Fatalf("expected unknown field warning in logs, got %q", logs.String())
+	}
+	for range 3 {
+		if _, _, err := parseSkillContent([]byte(content), path); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if strings.Count(logs.String(), "unknown frontmatter field") != 1 || !strings.Contains(logs.String(), path) {
+		t.Fatalf("expected one warning identifying %s, got %s", path, logs.String())
 	}
 }
 

@@ -102,7 +102,7 @@ func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill,
 			return nil, err
 		}
 		for _, file := range files {
-			skill, err := skillspkg.ParseSkillFileWithSource(file, source)
+			skill, err := m.cachedSkillResource(file, source, skillspkg.ParseSkillFileWithSource)
 			if err != nil {
 				return nil, err
 			}

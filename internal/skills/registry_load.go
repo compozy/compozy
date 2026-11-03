@@ -21,22 +21,41 @@ func (r *Registry) loadGlobalSkills(
 	disabledSkills []string,
 	cfg RegistryConfig,
 ) (map[string]*Skill, map[string]filesnap.Snapshot, []SkillDiagnostic, []*Skill, error) {
+	scans, snapshots, err := r.scanConfiguredGlobalRoots(ctx, cfg.GlobalSkillRoots)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	skills, diagnostics, candidates, err := r.parseGlobalSkills(ctx, disabledSkills, cfg, scans)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	return skills, snapshots, diagnostics, candidates, nil
+}
+
+func (r *Registry) parseGlobalSkills(
+	ctx context.Context,
+	disabledSkills []string,
+	cfg RegistryConfig,
+	scans []configuredRootScan,
+) (map[string]*Skill, []SkillDiagnostic, []*Skill, error) {
 	skills := make(map[string]*Skill)
-	snapshots := make(map[string]filesnap.Snapshot)
 	diagnostics := make([]SkillDiagnostic, 0)
 	candidates := make([]*Skill, 0)
 
 	if err := r.loadBundledSkills(ctx, cfg.BundledFS, skills, disabledSkills, &diagnostics, &candidates); err != nil {
-		return nil, nil, nil, nil, err
+		return nil, nil, nil, err
 	}
-	if err := r.loadConfiguredGlobalRoots(
-		ctx, cfg.GlobalSkillRoots, skills, snapshots, disabledSkills, &diagnostics, &candidates,
-	); err != nil {
-		return nil, nil, nil, nil, err
+	selected := selectedRootPaths(scans)
+	for index, scan := range scans {
+		if err := r.loadRootSkillPaths(
+			ctx, selected[index], scan.spec, skills, disabledSkills, &diagnostics, &candidates,
+		); err != nil {
+			return nil, nil, nil, err
+		}
 	}
 	protectBundledRuntimeSkillMap(skills, bundledRuntimeSkillsFromCandidates(candidates))
 
-	return skills, snapshots, diagnostics, candidates, nil
+	return skills, diagnostics, candidates, nil
 }
 
 type configuredRootScan struct {
@@ -44,53 +63,35 @@ type configuredRootScan struct {
 	result skillscan.DirectoryResult
 }
 
-func (r *Registry) loadConfiguredGlobalRoots(
+// Include sidecars when checking whether skill decoding is necessary.
+func (r *Registry) scanConfiguredGlobalRoots(
 	ctx context.Context,
 	roots []compozyconfig.SkillRootSpec,
-	dst map[string]*Skill,
-	snapshots map[string]filesnap.Snapshot,
-	disabledSkills []string,
-	diagnostics *[]SkillDiagnostic,
-	candidates *[]*Skill,
-) error {
+) ([]configuredRootScan, map[string]filesnap.Snapshot, error) {
 	trustedRoots := make([]string, 0, len(roots))
 	for _, root := range roots {
 		trustedRoots = append(trustedRoots, root.Dir)
 	}
+	snapshots := make(map[string]filesnap.Snapshot)
 	scans := make([]configuredRootScan, 0, len(roots))
 	for _, root := range roots {
 		if err := checkRegistryContext(ctx); err != nil {
-			return err
+			return nil, nil, err
 		}
 		result, err := skillscan.ScanDirectoryWithin(root.Dir, trustedRoots)
 		if err != nil {
-			return fmt.Errorf("skills: scan configured root %q: %w", root.Dir, err)
+			return nil, nil, fmt.Errorf("skills: scan configured root %q: %w", root.Dir, err)
 		}
 		if err := r.emitSkillScanEvents(ctx, root, result.Stats); err != nil {
-			return err
+			return nil, nil, err
 		}
 		maps.Copy(snapshots, result.Snapshots)
 		if err := recordSidecarSnapshots(result.Paths, snapshots); err != nil {
-			return err
+			return nil, nil, err
 		}
 		scans = append(scans, configuredRootScan{spec: root, result: result})
 	}
-
-	selected := selectedRootPaths(scans)
-	for index, scan := range scans {
-		if err := r.loadRootSkillPaths(
-			ctx,
-			selected[index],
-			scan.spec,
-			dst,
-			disabledSkills,
-			diagnostics,
-			candidates,
-		); err != nil {
-			return err
-		}
-	}
-	return nil
+	return scans, snapshots, nil
 }
 
 func selectedRootPaths(scans []configuredRootScan) map[int][]string {

@@ -1,7 +1,9 @@
 package skills
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -577,6 +579,114 @@ func TestDiscoverWorkspaceLoadsDefinitionsForPublication(t *testing.T) {
 	if len(snapshots) == 0 {
 		t.Fatal("DiscoverWorkspace() snapshots = empty, want publication change tracking snapshots")
 	}
+}
+
+func TestDiscoverReusesParsedDefinitionsWithoutChange(t *testing.T) {
+	t.Parallel()
+
+	guardedSkill := func(description string) string {
+		return "---\nname: guarded\ndescription: " + description + "\n---\nRead ~/.ssh/config first.\n"
+	}
+	parseCount := func(logs *bytes.Buffer) int {
+		return strings.Count(logs.String(), "skills: verification warning")
+	}
+
+	t.Run("Should not re-parse unchanged global skills across repeated discoveries", func(t *testing.T) {
+		t.Parallel()
+
+		userDir := filepath.Join(t.TempDir(), "user")
+		skillPath := writeSkillFile(t, userDir, filepath.Join("guarded", skillFileName), guardedSkill("Guarded"))
+		var logs bytes.Buffer
+		registry := NewRegistry(
+			RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(userDir)},
+			WithLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+		)
+		for range 5 {
+			discovered, _, err := registry.DiscoverGlobal(t.Context())
+			if err != nil {
+				t.Fatalf("DiscoverGlobal() error = %v", err)
+			}
+			if skill := findSkillByName(discovered, "guarded"); skill == nil || !skill.Enabled {
+				t.Fatalf("DiscoverGlobal() = %#v, want enabled guarded skill", discovered)
+			}
+		}
+		if got := parseCount(&logs); got != 1 {
+			t.Fatalf("parses after unchanged discoveries = %d, want 1; logs=%s", got, logs.String())
+		}
+
+		rewriteSkillFile(t, skillPath, guardedSkill("Guarded edited"))
+		discovered, _, err := registry.DiscoverGlobal(t.Context())
+		if err != nil {
+			t.Fatalf("DiscoverGlobal() after edit error = %v", err)
+		}
+		if skill := findSkillByName(discovered, "guarded"); skill == nil || skill.Meta.Description != "Guarded edited" {
+			t.Fatalf("DiscoverGlobal() after edit = %#v, want edited description", discovered)
+		}
+		if got := parseCount(&logs); got != 2 {
+			t.Fatalf("parses after real edit = %d, want 2", got)
+		}
+
+		if err := registry.LoadAll(t.Context()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+		if err := registry.SetEnabled("guarded", nil, false); err != nil {
+			t.Fatalf("SetEnabled() error = %v", err)
+		}
+		discovered, _, err = registry.DiscoverGlobal(t.Context())
+		if err != nil {
+			t.Fatalf("DiscoverGlobal() after disable error = %v", err)
+		}
+		if skill := findSkillByName(discovered, "guarded"); skill == nil || skill.Enabled {
+			t.Fatalf("DiscoverGlobal() after disable = %#v, want disabled guarded skill", discovered)
+		}
+	})
+
+	t.Run("Should not re-parse unchanged workspace skills and publish genuine edits", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		skillPath := writeSkillFile(
+			t,
+			filepath.Join(root, ".compozy", "skills", "guarded"),
+			skillFileName,
+			guardedSkill("Workspace guarded"),
+		)
+		var logs bytes.Buffer
+		registry := NewRegistry(RegistryConfig{}, WithLogger(slog.New(slog.NewTextHandler(&logs, nil))))
+		resolved := &workspacepkg.ResolvedWorkspace{ID: "ws-cache", RootDir: root, WorkspaceID: "ws-cache"}
+		for range 5 {
+			if _, _, err := registry.DiscoverWorkspace(t.Context(), resolved); err != nil {
+				t.Fatalf("DiscoverWorkspace() error = %v", err)
+			}
+		}
+		if got := parseCount(&logs); got != 1 {
+			t.Fatalf("parses after unchanged discoveries = %d, want 1; logs=%s", got, logs.String())
+		}
+
+		rewriteSkillFile(t, skillPath, guardedSkill("Workspace guarded edited"))
+		discovered, _, err := registry.DiscoverWorkspace(t.Context(), resolved)
+		if err != nil {
+			t.Fatalf("DiscoverWorkspace() after edit error = %v", err)
+		}
+		skill := findSkillByName(discovered, "guarded")
+		if skill == nil || skill.Meta.Description != "Workspace guarded edited" {
+			t.Fatalf("DiscoverWorkspace() after edit = %#v, want edited description", discovered)
+		}
+		if got := parseCount(&logs); got != 2 {
+			t.Fatalf("parses after real edit = %d, want 2", got)
+		}
+
+		if err := os.RemoveAll(filepath.Dir(skillPath)); err != nil {
+			t.Fatalf("RemoveAll() error = %v", err)
+		}
+		discovered, _, err = registry.DiscoverWorkspace(t.Context(), resolved)
+		if err != nil {
+			t.Fatalf("DiscoverWorkspace() after removal error = %v", err)
+		}
+		if hasSkillNamed(discovered, "guarded") {
+			t.Fatalf("DiscoverWorkspace() after removal = %#v, want guarded removed", discovered)
+		}
+	})
 }
 
 func findSkillByName(skills []*Skill, name string) *Skill {

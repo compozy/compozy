@@ -2,6 +2,7 @@ package skills
 
 import (
 	"fmt"
+	"sync"
 
 	"log/slog"
 
@@ -159,7 +160,9 @@ func warnCompozyMetadata(skill *Skill, message string, args ...any) {
 	slog.Warn(message, attrs...)
 }
 
-func warnUnknownFields(document *yaml.Node) {
+var unknownFieldWarnings sync.Map
+
+func warnUnknownFields(document *yaml.Node, paths ...string) {
 	if document == nil || len(document.Content) == 0 {
 		return
 	}
@@ -175,6 +178,13 @@ func warnUnknownFields(document *yaml.Node) {
 			continue
 		}
 
-		slog.Warn("skills: unknown frontmatter field", "field", key)
+		path := "<content>"
+		if len(paths) > 0 {
+			path = paths[0]
+		}
+		if _, loaded := unknownFieldWarnings.LoadOrStore(struct{ path, field string }{path, key}, struct{}{}); loaded {
+			continue
+		}
+		slog.Warn("skills: unknown frontmatter field", "path", path, "field", key)
 	}
 }

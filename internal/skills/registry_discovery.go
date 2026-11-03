@@ -42,23 +42,36 @@ func newResourceSkillProjection() resourceSkillProjection {
 	}
 }
 
-// DiscoverGlobal loads global skill definitions for resource publication without
-// making the file-system scan authoritative in the registry.
+// DiscoverGlobal discovers publication candidates without changing the authoritative registry.
 func (r *Registry) DiscoverGlobal(ctx context.Context) ([]*Skill, map[string]filesnap.Snapshot, error) {
 	if err := checkRegistryContext(ctx); err != nil {
 		return nil, nil, err
 	}
-	cfg := r.registryConfigSnapshot(ctx)
-	disabledSkills := append([]string(nil), cfg.DisabledSkills...)
-	_, snapshots, diagnostics, candidates, err := r.loadGlobalSkills(ctx, disabledSkills, cfg)
+	cfg, generation := r.registryConfigSnapshotWithGeneration(ctx)
+	scans, snapshots, err := r.scanConfiguredGlobalRoots(ctx, cfg.GlobalSkillRoots)
 	if err != nil {
 		return nil, nil, err
+	}
+	key := discoveryCacheEntry{
+		generation: generation,
+		roots:      cfg.GlobalSkillRoots,
+		disabled:   cfg.DisabledSkills,
+		snapshots:  snapshots,
+	}
+	candidates, diagnostics, ok := r.cachedDiscovery(registryGlobalKey, key)
+	if !ok {
+		disabledSkills := append([]string(nil), cfg.DisabledSkills...)
+		_, diagnostics, candidates, err = r.parseGlobalSkills(ctx, disabledSkills, cfg, scans)
+		if err != nil {
+			return nil, nil, err
+		}
+		r.storeDiscovery(registryGlobalKey, key, candidates, diagnostics)
 	}
 	r.recordDiscoveredGlobalDiagnostics(ctx, diagnostics)
 	return cloneCommandSkillSlice(candidates), filesnap.Clone(snapshots), nil
 }
 
-// DiscoverWorkspace loads workspace-visible skill definitions for resource publication.
+// DiscoverWorkspace reuses parsed publication candidates while workspace inputs are unchanged.
 func (r *Registry) DiscoverWorkspace(
 	ctx context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
@@ -66,6 +79,7 @@ func (r *Registry) DiscoverWorkspace(
 	if err := checkRegistryContext(ctx); err != nil {
 		return nil, nil, err
 	}
+	cfg, generation := r.registryConfigSnapshotWithGeneration(ctx)
 	load, err := r.workspaceLoadFromResolved(ctx, resolved)
 	if err != nil {
 		return nil, nil, err
@@ -74,13 +88,27 @@ func (r *Registry) DiscoverWorkspace(
 		r.recordDiscoveredWorkspaceDiagnostics(ctx, resolved, nil)
 		return nil, load.snapshots, nil
 	}
+	cacheKey := workspaceCacheKey(resolved)
 	workspaceDisabled := r.workspaceDisabledSkillsSnapshot(
-		workspaceCacheKey(resolved),
+		cacheKey,
 		resolved.Config.Skills.DisabledSkills,
 	)
-	_, diagnostics, candidates, err := r.loadWorkspaceSkills(ctx, load.paths, workspaceDisabled)
-	if err != nil {
-		return nil, nil, err
+	key := discoveryCacheEntry{
+		generation: generation,
+		roots:      cfg.GlobalSkillRoots,
+		paths:      load.paths,
+		disabled:   workspaceDisabled,
+		snapshots:  load.snapshots,
+	}
+	candidates, diagnostics, ok := r.cachedDiscovery(cacheKey, key)
+	if !ok {
+		_, diagnostics, candidates, err = r.loadWorkspaceSkills(ctx, load.paths, workspaceDisabled)
+		if err != nil {
+			return nil, nil, err
+		}
+		if cacheKey != "" {
+			r.storeDiscovery(cacheKey, key, candidates, diagnostics)
+		}
 	}
 	r.recordDiscoveredWorkspaceDiagnostics(ctx, resolved, diagnostics)
 	return cloneCommandSkillSlice(candidates), load.snapshots, nil

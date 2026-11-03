@@ -252,7 +252,9 @@ func extensionAgentSkillDeclarationProvider(
 		} else {
 			snapshots, err = extensionResourceSnapshots(registry, manager, logger)
 		}
-		if err != nil {
+		// Isolated per-extension failures still publish every healthy extension;
+		// the failure is returned after the declarations so the caller retries.
+		if err != nil && !isExtensionProjectionError(err) {
 			return agentSkillDeclarations{}, err
 		}
 		for _, snapshot := range snapshots {
@@ -270,6 +272,6 @@ func extensionAgentSkillDeclarationProvider(
 			}, ext.Skills)
 		}
 
-		return desired, nil
+		return desired, err
 	}
 }
