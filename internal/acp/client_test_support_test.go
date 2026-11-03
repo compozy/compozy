@@ -803,10 +803,12 @@ func (a *helperACPAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest
 			return acpsdk.PromptResponse{StopReason: acpsdk.StopReasonEndTurn}, nil
 		}
 		message := "HTTP 401 authentication required"
+		code := authRequiredCode
 		if a.scenario == "provider_rate_limit_recovers" {
 			message = "HTTP 429 rate limit"
+			code = -32603
 		}
-		return acpsdk.PromptResponse{}, &acpsdk.RequestError{Code: -32000, Message: message}
+		return acpsdk.PromptResponse{}, &acpsdk.RequestError{Code: code, Message: message}
 	case "prompt_request_error_with_reason":
 		return acpsdk.PromptResponse{}, &acpsdk.RequestError{
 			Code:    -32000,
