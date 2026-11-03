@@ -1009,6 +1009,30 @@ func TestInstanceDefinitionPaths(t *testing.T) {
 			t.Fatalf("resolved appearance = %#v, want the default generated face", payload.ResolvedAppearance)
 		}
 	})
+	t.Run("Should keep a valid saved appearance in the instance projection", func(t *testing.T) {
+		t.Parallel()
+		definitions, _ := newInstanceDefinitionsFixture(
+			t,
+			map[string]any{"version": 1, "avatar": "icon", "icon": "compass", "color": "#123456"},
+		)
+		payload := contract.AgentInstancePayload{}
+		err := definitions.projectInstanceDefinition(
+			t.Context(),
+			agentinstance.Instance{
+				ProfileID:   store.DefaultProfileID,
+				WorkspaceID: "ws-instance-paths",
+				AgentName:   "coder",
+			},
+			&payload,
+		)
+		if err != nil {
+			t.Fatalf("projectInstanceDefinition() error = %v", err)
+		}
+		if payload.ResolvedAppearance["avatar"] != "icon" || payload.ResolvedAppearance["icon"] != "compass" ||
+			payload.ResolvedAppearance["color"] != "#123456" {
+			t.Fatalf("resolved appearance = %#v, want the saved compass icon", payload.ResolvedAppearance)
+		}
+	})
 }
 
 // newInstanceDefinitionsFixture resolves workspace ws-instance-paths and answers every agent
