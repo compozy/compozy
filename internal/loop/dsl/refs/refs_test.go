@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -407,14 +408,58 @@ func TestTemplateShouldCompareNumbersByValueAcrossDecodedKinds(t *testing.T) {
 			value:    float32(0.1),
 			want:     "true",
 		},
-		{name: "Should match any of several eq operands", template: `{{ eq .n 1 2 3 }}`, value: int64(2), want: "true"},
-		{name: "Should compare unequal mixed numeric kinds", template: `{{ ne .n 3 }}`, value: uint8(4), want: "true"},
 		{
-			name:     "Should keep string equality for json.Number and a string",
-			template: `{{ eq .n "3" }}`,
-			value:    json.Number("3"),
+			name:     "Should equate an exact whole float with an integer",
+			template: `{{ eq .n 1152921504606846976 }}`,
+			value:    float64(1152921504606846976),
 			want:     "true",
 		},
+		{
+			name:     "Should equate a JSON integer with an exact whole float literal",
+			template: `{{ eq .n 1152921504606846976.0 }}`,
+			value:    json.Number("1152921504606846976"),
+			want:     "true",
+		},
+		{
+			name:     "Should order an exact whole float literal",
+			template: `{{ lt .n 1152921504606846976.0 }}`,
+			value:    json.Number("1152921504606846975"),
+			want:     "true",
+		},
+		{
+			name:     "Should preserve a negative whole float",
+			template: `{{ eq .n -1152921504606846976 }}`,
+			value:    float64(-1152921504606846976),
+			want:     "true",
+		},
+		{
+			name:     "Should equate exponent notation",
+			template: `{{ eq .n 100 }}`,
+			value:    json.Number("1e2"),
+			want:     "true",
+		},
+		{
+			name:     "Should accept the upper exponent bound",
+			template: `{{ gt .n 1 }}`,
+			value:    json.Number("1e4096"),
+			want:     "true",
+		},
+		{
+			name:     "Should accept the lower exponent bound",
+			template: `{{ lt .n 1 }}`,
+			value:    json.Number("1E-4096"),
+			want:     "true",
+		},
+		{
+			name:     "Should preserve decimal digits beyond float precision",
+			template: `{{ gt .n 0.1 }}`,
+			value: json.Number(
+				"0.10000000000000000000000000000000000000000000000000000000000000000000000000000000001",
+			),
+			want: "true",
+		},
+		{name: "Should match any of several eq operands", template: `{{ eq .n 1 2 3 }}`, value: int64(2), want: "true"},
+		{name: "Should compare unequal mixed numeric kinds", template: `{{ ne .n 3 }}`, value: uint8(4), want: "true"},
 		{name: "Should order strings lexically", template: `{{ gt .n "a" }}`, value: "b", want: "true"},
 		{name: "Should compare booleans for equality", template: `{{ eq .n true }}`, value: true, want: "true"},
 	}
@@ -432,14 +477,52 @@ func TestTemplateShouldCompareNumbersByValueAcrossDecodedKinds(t *testing.T) {
 		})
 	}
 
-	t.Run("Should reject comparing a number with a string", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := refs.RenderTemplateString("numeric", `{{ lt .n "3" }}`, map[string]any{"n": float64(2)})
-		if err == nil || !strings.Contains(err.Error(), "incompatible types for comparison") {
-			t.Fatalf("RenderTemplateString() error = %v, want incompatible types for comparison", err)
+	for _, builtin := range []string{"eq", "ne", "lt", "le", "gt", "ge"} {
+		t.Run("Should compare exact JSON numbers with "+builtin, func(t *testing.T) {
+			t.Parallel()
+			data := map[string]any{
+				"n": json.Number("115792089237316195423570985008687907853269984665640564039457584007913129639936"),
+				"m": json.Number("115792089237316195423570985008687907853269984665640564039457584007913129639937"),
+			}
+			want := builtin == "ne" || builtin == "lt" || builtin == "le"
+			rendered, err := refs.RenderTemplateString("numeric", "{{ "+builtin+" .n .m }}", data)
+			if err != nil || rendered != fmt.Sprint(want) {
+				t.Fatalf("RenderTemplateString() = %q, %v, want %v", rendered, err, want)
+			}
+		})
+		for _, value := range []string{"invalid", "1e4097", "1e-4097", "1e99999999999999999999"} {
+			t.Run("Should reject invalid numeric comparison "+builtin+" "+value, func(t *testing.T) {
+				t.Parallel()
+				_, err := refs.RenderTemplateString(
+					"numeric",
+					"{{ "+builtin+" .n .n }}",
+					map[string]any{"n": json.Number(value)},
+				)
+				if err == nil || !strings.Contains(err.Error(), "incompatible types for comparison") {
+					t.Fatalf("RenderTemplateString() error = %v, want incompatible types for comparison", err)
+				}
+			})
 		}
-	})
+
+		for _, value := range []any{float64(3), json.Number("3")} {
+			for _, expression := range []string{builtin + ` .n "3"`, builtin + ` "3" .n`} {
+				t.Run(
+					fmt.Sprintf("Should reject numeric text comparison %T %v %s", value, value, expression),
+					func(t *testing.T) {
+						t.Parallel()
+						_, err := refs.RenderTemplateString(
+							"numeric",
+							"{{ "+expression+" }}",
+							map[string]any{"n": value},
+						)
+						if err == nil || !strings.Contains(err.Error(), "incompatible types for comparison") {
+							t.Fatalf("RenderTemplateString() error = %v, want incompatible types for comparison", err)
+						}
+					},
+				)
+			}
+		}
+	}
 }
 
 func TestConditionShouldCompileCacheAndValidateBoolContract(t *testing.T) {

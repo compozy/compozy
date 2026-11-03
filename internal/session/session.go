@@ -130,8 +130,10 @@ type Info struct {
 	Later *store.SessionLater
 	// LaterReturnedAt marks a session brought back from Later until the operator sees or resumes it.
 	LaterReturnedAt *time.Time
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	// FailureSeenAt marks a stopped session's failure the operator marked as seen.
+	FailureSeenAt *time.Time
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 // Session is the in-memory runtime representation of one active or stopping session.
@@ -238,6 +240,7 @@ type Session struct {
 	LastSeenAt                *time.Time
 	AttentionChangedAt        *time.Time
 	EndedEarlyTurnID          string
+	FailureSeenAt             *time.Time
 	PendingInteractions       []store.PendingInteraction
 	CreatedAt                 time.Time
 	UpdatedAt                 time.Time

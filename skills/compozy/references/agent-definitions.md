@@ -311,8 +311,10 @@ Create supports `display_name` (80 characters), `description` (280), `kind` (`on
 and an open `appearance` object. `compozy__agent_create` accepts these fields; agent reads include `label`,
 `kind`, authored `appearance`, and `resolved_appearance`. The label falls back to the humanized slug.
 A generated appearance uses `{version:1, avatar:"generated", seed:<slug>, generation:1, color:"#7c5cff"}`.
-Icon and emoji forms use `avatar:"icon", icon:<Lucide slug>` or `avatar:"emoji", emoji:<one emoji>` with a color.
-Unsupported saved appearance falls back with a diagnostic and survives unrelated edits.
+Icon and emoji forms use `avatar:"icon", icon:<Lucide slug>` or `avatar:"emoji", emoji:<one emoji>` with a color,
+plus optional `background:"none"` to drop the tinted plate (`"plate"` or unset keeps it). Every write needs
+`version:1` and a `#rrggbb` color. Unsupported saved appearance never fails a read: it resolves to the default
+face with an `agent_appearance_invalid` diagnostic, survives unrelated edits, and is replaced by the next valid save.
 
 Kind is fixed at creation. Use `compozy agent duplicate <source> <name> --kind on_demand` to choose another kind.
 Changing it through update returns `agent_kind_immutable`. PUT preserves omitted identity fields and ignores

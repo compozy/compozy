@@ -13,7 +13,8 @@ remembered by the daemon; the browser keeps it across reloads, and Web creation 
 remembered profile (`default` until one is chosen), shown by the destination chip.
 Under All profiles the Web works on that remembered profile's desks, so another profile's session
 opened there lands on them; an explicit switch into one profile closes, through the normal reopenable
-`window.close`, every session window on its desk that another profile owns. A deep link opened while a
+`window.close`, every session window another profile owns on each of its desks (every project,
+All projects, User) the first time that desk is shown after the switch. A deep link opened while a
 profile is selected keeps its owner banner.
 
 ## Resolve And Inspect

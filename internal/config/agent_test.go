@@ -1952,6 +1952,88 @@ func TestAgentIdentityContract(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	t.Run("Should accept every appearance the web editors save [#1204]", func(t *testing.T) {
+		t.Parallel()
+		for name, a := range map[string]map[string]any{
+			"generated face with a color": {"version": 1, "avatar": "generated", "seed": "issue-watch.3", "generation": 1, "color": "#2aa8a8"},
+			"icon on its plate":           {"version": 1, "avatar": "icon", "icon": "radar", "color": "#7c5cff"},
+			"icon on an explicit plate":   {"version": 1, "avatar": "icon", "icon": "radar", "color": "#7c5cff", "background": "plate"},
+			"emoji on an explicit plate":  {"version": 1, "avatar": "emoji", "emoji": "🦊", "color": "#e5484d", "background": "plate"},
+			"version decoded as float":    {"version": 1.0, "avatar": "emoji", "emoji": "🦊", "color": "#e5484d"},
+		} {
+			t.Run("Should accept "+name, func(t *testing.T) {
+				t.Parallel()
+				if err := ValidateAgentAppearance(a); err != nil {
+					t.Errorf("ValidateAgentAppearance(%#v) = %v", a, err)
+				}
+			})
+		}
+		for name, a := range map[string]map[string]any{
+			"missing version":           {"avatar": "icon", "icon": "radar", "color": "#7c5cff"},
+			"missing color":             {"version": 1, "avatar": "generated", "seed": "issue-watch", "generation": 1},
+			"icon with no background":   {"version": 1, "avatar": "icon", "icon": "radar", "color": "#7c5cff", "background": "none"},
+			"emoji with no background":  {"version": 1, "avatar": "emoji", "emoji": "🦊", "color": "#e5484d", "background": "none"},
+			"unknown background":        {"version": 1, "avatar": "icon", "icon": "radar", "color": "#7c5cff", "background": "glass"},
+			"generated without a plate": {"version": 1, "avatar": "generated", "seed": "s", "generation": 1, "color": "#7c5cff", "background": "none"},
+		} {
+			t.Run("Should reject "+name, func(t *testing.T) {
+				t.Parallel()
+				if !errors.Is(ValidateAgentAppearance(a), ErrAgentAppearanceInvalid) {
+					t.Errorf("ValidateAgentAppearance(%#v) accepted", a)
+				}
+			})
+		}
+	})
+	for _, avatar := range []string{"icon", "emoji"} {
+		t.Run("Should preserve and repair a saved unsupported background for "+avatar, func(t *testing.T) {
+			t.Parallel()
+			appearance := map[string]any{"version": 1, "avatar": avatar, "color": "#7c5cff", "background": "none"}
+			if avatar == "icon" {
+				appearance["icon"] = "radar"
+			} else {
+				appearance["emoji"] = "🦊"
+			}
+			path := filepath.Join(t.TempDir(), "AGENT.md")
+			draft := AgentDefinitionDraft{Name: "background-test", Prompt: "Assist.", Appearance: appearance}
+			if _, err := CreateAgentDefFile(path, draft, false); !errors.Is(err, ErrAgentAppearanceInvalid) {
+				t.Fatalf("create unsupported appearance = %v", err)
+			}
+			contents, _, err := RenderAgentDefinition(draft)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, contents, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			saved, err := EditAgentDefFile(path, func(a *AgentDef) error { a.Description = "Updated"; return nil })
+			if err != nil || !EqualAgentAppearance(saved.Appearance, appearance) {
+				t.Fatalf("unrelated edit lost appearance: %#v, %v", saved.Appearance, err)
+			}
+			loaded, err := LoadAgentDefFile(path)
+			if err != nil || !EqualAgentAppearance(loaded.Appearance, appearance) {
+				t.Fatalf("load lost appearance: %#v, %v", loaded.Appearance, err)
+			}
+			resolved, err := loaded.ResolveAppearance()
+			if !errors.Is(err, ErrAgentAppearanceInvalid) || resolved["avatar"] != "generated" {
+				t.Fatalf("fallback = %#v, %v", resolved, err)
+			}
+			_, err = EditAgentDefFile(path, func(a *AgentDef) error {
+				a.Appearance["background"] = "plate"
+				return nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			loaded, err = LoadAgentDefFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resolved, err = loaded.ResolveAppearance()
+			if err != nil || resolved["avatar"] != avatar || resolved["background"] != "plate" {
+				t.Fatalf("repaired appearance = %#v, %v", resolved, err)
+			}
+		})
+	}
 	t.Run("Should refuse kind mutation without changing the file", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), "AGENT.md")

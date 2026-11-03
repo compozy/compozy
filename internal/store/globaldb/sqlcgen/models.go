@@ -1579,6 +1579,7 @@ type Session struct {
 	ParkReason               string         `json:"park_reason"`
 	ParkUntil                sql.NullString `json:"park_until"`
 	LaterReturnedAt          sql.NullString `json:"later_returned_at"`
+	FailureSeenAt            sql.NullString `json:"failure_seen_at"`
 }
 
 type SessionCreationProfile struct {

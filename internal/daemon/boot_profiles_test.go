@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,6 +76,96 @@ func TestDaemonProfileEventRecorder(t *testing.T) {
 		}
 		if resolution.Err() == nil {
 			t.Fatal("shutdown did not cancel resolution")
+		}
+	})
+
+	for _, tc := range []struct {
+		name     string
+		reserved bool
+	}{
+		{name: "Should start provider usage when a profile is archived"},
+		{name: "Should start provider usage when a profile is reserved", reserved: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			database := openDaemonTestGlobalDB(t)
+			home := testHomePaths(t)
+			manager, err := profile.NewManager(profile.WithStore(database), profile.WithHomePaths(home))
+			if err != nil {
+				t.Fatalf("profile.NewManager() error = %v", err)
+			}
+			inactive, err := manager.Create(t.Context(), profile.CreateInput{Name: "open-design"})
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			if tc.reserved {
+				if err := os.Mkdir(filepath.Join(home.ProfilesDir, "conflicting-name"), 0o700); err != nil {
+					t.Fatalf("create conflicting destination: %v", err)
+				}
+				plan, err := manager.PrepareRename(t.Context(), inactive.Name, "conflicting-name")
+				if err != nil {
+					t.Fatalf("PrepareRename() error = %v", err)
+				}
+				if _, err := manager.Rename(t.Context(), inactive.Name, profile.RenameOptions{
+					NewName: "conflicting-name", PlanRevision: plan.Revision, Repos: profile.RepoChoice{None: true},
+				}); err == nil || !strings.Contains(err.Error(), "rename target") || !strings.Contains(err.Error(), "already exists") {
+					t.Fatalf("Rename() error = %v, want the destination conflict", err)
+				}
+				if _, err := manager.ProfileName(t.Context(), inactive.ID); !errors.Is(err, profile.ErrUnavailable) {
+					t.Fatalf("ProfileName() error = %v, want ErrUnavailable", err)
+				}
+			} else {
+				plan, err := manager.PrepareArchive(t.Context(), inactive.Name)
+				if err != nil {
+					t.Fatalf("PrepareArchive() error = %v", err)
+				}
+				if _, err := manager.Archive(t.Context(), inactive.Name, plan.Revision); err != nil {
+					t.Fatalf("Archive() error = %v", err)
+				}
+			}
+			cfg := testConfig(t, home)
+			// Disabled usage still reconciles every profile at boot, without collecting.
+			cfg.ProviderUsage.Enabled = false
+			state := &bootState{cfg: cfg, profiles: manager}
+			cleanup := &bootCleanup{}
+			t.Cleanup(func() {
+				for _, fn := range cleanup.fns {
+					if err := fn(context.Background()); err != nil {
+						t.Error(err)
+					}
+				}
+			})
+			daemon := &Daemon{homePaths: home, now: time.Now}
+			if err := daemon.bootProviderUsage(t.Context(), state, cleanup); err != nil {
+				t.Fatalf("bootProviderUsage() error = %v, want the inactive profile skipped", err)
+			}
+			resolver := state.providerUsage.resolver
+			targets, err := resolver.Targets(t.Context(), inactive.ID)
+			if err != nil || len(targets) != 0 {
+				t.Fatalf("Targets(inactive) = %d targets, %v; want none and no error", len(targets), err)
+			}
+			targets, err = resolver.Targets(t.Context(), store.DefaultProfileID)
+			if err != nil || len(targets) == 0 {
+				t.Fatalf("Targets(default) = %d targets, %v; want the active profile resolved", len(targets), err)
+			}
+		})
+	}
+
+	t.Run("Should propagate canceled profile lookups from usage target resolution", func(t *testing.T) {
+		t.Parallel()
+		database := openDaemonTestGlobalDB(t)
+		home := testHomePaths(t)
+		manager, err := profile.NewManager(profile.WithStore(database), profile.WithHomePaths(home))
+		if err != nil {
+			t.Fatalf("profile.NewManager() error = %v", err)
+		}
+		resolver := &providerUsageResolver{cfg: testConfig(t, home), profiles: manager}
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		cancel()
+		targets, err := resolver.Targets(ctx, store.DefaultProfileID)
+		if len(targets) != 0 || !errors.Is(err, context.Canceled) {
+			t.Fatalf("Targets(canceled) = %d targets, %v; want none and context.Canceled", len(targets), err)
 		}
 	})
 

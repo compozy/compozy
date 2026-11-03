@@ -11,6 +11,11 @@ import {
   type AgentCreateDialogDraft,
   type AgentCreateValidationContext,
 } from "../agent-create-draft";
+import {
+  agentIdentityPatchPayload,
+  withAutoAvatarColor,
+  type AgentIdentityPatch,
+} from "../agent-create-identity";
 import type { AgentPayload } from "../../types";
 
 const providerOptions: readonly RuntimeProviderOption[] = [{ id: "codex", name: "Codex" }];
@@ -294,5 +299,46 @@ describe("duplicate draft mapping", () => {
     };
 
     expect(buildDuplicateAgentParams(source, draft, "ws_alpha", workspaceContext)).toBeNull();
+  });
+});
+
+// Invariant: every face the profile header's avatar editor saves goes out with `version: 1`
+// and a `#rrggbb` color, the block `ValidateAgentAppearance` in internal/config accepts (#1204).
+describe("profile identity patch mapping", () => {
+  const colors = ["#2aa8a8", "#e5484d"];
+  const saved = (appearance: AgentIdentityPatch["appearance"]) =>
+    agentIdentityPatchPayload({ appearance }, colors).appearance;
+
+  it("Should give an Auto generated face a version and a seeded color", () => {
+    expect(saved({ avatar: "generated", seed: "issue-watch.2", generation: 1 })).toEqual({
+      version: 1,
+      avatar: "generated",
+      seed: "issue-watch.2",
+      generation: 1,
+      color: expect.stringMatching(/^#[0-9a-f]{6}$/u),
+    });
+  });
+
+  it("Should save an Auto face with the color its preview shows", () => {
+    const face = { avatar: "generated", seed: "issue-watch.4", generation: 1 } as const;
+    expect(saved(face)?.color).toBe(withAutoAvatarColor(face, colors).color);
+  });
+
+  it.each([
+    [{ avatar: "generated", seed: "issue-watch", generation: 1, color: "#e5484d" }],
+    [{ avatar: "icon", icon: "radar", color: "#2aa8a8" }],
+    [{ avatar: "emoji", emoji: "🦊", color: "#e5484d" }],
+    [{ avatar: "icon", icon: "radar", color: "#2aa8a8", background: "none" }],
+  ] as const)("Should keep a picked face and version it: %o", appearance => {
+    expect(saved(appearance as AgentIdentityPatch["appearance"])).toEqual({
+      version: 1,
+      ...appearance,
+    });
+  });
+
+  it("Should leave the saved face alone when only the words change", () => {
+    expect(agentIdentityPatchPayload({ display_name: "Issue Watch" }, colors)).toEqual({
+      display_name: "Issue Watch",
+    });
   });
 });
