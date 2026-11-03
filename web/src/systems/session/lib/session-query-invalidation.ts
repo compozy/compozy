@@ -3,6 +3,7 @@ import type { Query, QueryClient, QueryKey } from "@tanstack/react-query";
 import { PROFILE_AGGREGATE } from "@/systems/profiles";
 
 import { isSessionUnavailable } from "../adapters/session-api-errors";
+import type { SessionPayload } from "../types";
 import { sessionKeys } from "./query-keys";
 import { queryKeyHasScope } from "./session-query-policy";
 
@@ -19,9 +20,19 @@ function isSettledForeignByIdRead(queryClient: QueryClient, query: Query): boole
   if (typeof id !== "string") return false;
   const root = sessionKeys.byIdRoot(id);
   if (key.length !== root.length + 1 || !queryKeyHasScope(key, root)) return false;
-  if (key[root.length] === PROFILE_AGGREGATE) return false;
+  const lens = key[root.length];
+  if (lens === PROFILE_AGGREGATE) return false;
   if (query.state.status !== "error" || !isSessionUnavailable(query.state.error)) return false;
-  return queryClient.getQueryData(sessionKeys.byId(id, PROFILE_AGGREGATE)) !== undefined;
+  // The aggregate's latest answer must be a success naming another owner: a failed refetch keeps
+  // stale data, and a session gone since then is the deletion reconciliation's to reread.
+  const aggregate = queryClient.getQueryState<SessionPayload>(
+    sessionKeys.byId(id, PROFILE_AGGREGATE)
+  );
+  return (
+    aggregate?.status === "success" &&
+    aggregate.data !== undefined &&
+    aggregate.data.profile_name !== lens
+  );
 }
 
 /** Rereads every lens of one session's by-id family, except lenses already settled as foreign. */

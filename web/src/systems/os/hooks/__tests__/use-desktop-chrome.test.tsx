@@ -69,6 +69,7 @@ vi.mock("@/systems/profiles", async importOriginal => {
   return {
     ...actual,
     useProfileReadScope: () => ({
+      view: profileScope.aggregate ? { kind: "aggregate" } : { kind: "profile", profile: "yankee" },
       aggregate: profileScope.aggregate,
       destination: "yankee",
       destinationOwner: profileScope.aggregate ? null : { id: profileScope.ownerId },
@@ -283,6 +284,25 @@ describe("useProfileSwitchWindowSweep", () => {
 
     act(() => goLive());
     await waitFor(() => expect(closed).toEqual(["w_xray", "w_zulu"]));
+  });
+
+  it("Should sweep each desk of the profile the first time it is live after the switch", async () => {
+    sessionOwners.set("s_xray", "p_xray");
+    const { shell, userClose } = fakeShell(true);
+    const { rerender } = renderHook(
+      ({ partition }) => useProfileSwitchWindowSweep(shell, partition),
+      { wrapper: wrapper(), initialProps: { partition: "ws_a" } }
+    );
+
+    switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() => expect(userClose).toHaveBeenCalledTimes(1));
+    // Moving to All projects later presents another desk of the same profile: it is swept too.
+    rerender({ partition: "global" });
+    await waitFor(() => expect(userClose).toHaveBeenCalledTimes(2));
+    // Coming back to a desk already swept for this switch does not sweep it again.
+    rerender({ partition: "ws_a" });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(userClose).toHaveBeenCalledTimes(2);
   });
 
   it("Should retry a close the runtime refused while another close was pending", async () => {
