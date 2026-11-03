@@ -66,8 +66,8 @@ func TestManagerMarkAttentionSeen(t *testing.T) {
 		h.manager.applyAttentionProjection(sess.ID, commit.After)
 
 		_, err = h.manager.MarkAttentionSeen(ctx, sess.ID)
-		var refusal *AttentionRequiresActionError
-		if !errors.Is(err, ErrAttentionRequiresAction) || !errors.As(err, &refusal) ||
+		refusal, refused := errors.AsType[*AttentionRequiresActionError](err)
+		if !errors.Is(err, ErrAttentionRequiresAction) || !refused ||
 			refusal.Blocker != AttentionBlockerPendingClarify {
 			t.Fatalf("MarkAttentionSeen(pending clarify) error = %v, want a pending_clarify refusal", err)
 		}
