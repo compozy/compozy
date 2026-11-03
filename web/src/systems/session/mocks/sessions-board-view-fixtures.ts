@@ -105,12 +105,20 @@ export function sessionsBoardViewFixture(
   };
 }
 
-const RUNTIMES: Record<string, SessionRuntimeLabel> = {
-  claude: { provider: "claude", label: "Claude · Opus 4.1", model: "Opus 4.1 high" },
-  codex: { provider: "codex", label: "Codex · GPT-5", model: "GPT-5 medium" },
-};
+/** The names the shared catalog reads give the fixture runtimes' wire ids. */
+const PROVIDER_NAMES: Record<string, string> = { claude: "Claude", codex: "Codex" };
+const MODEL_NAMES: Record<string, string> = { "claude-opus-4-1": "Opus 4.1", "gpt-5": "GPT-5" };
 
-/** The runtime label a live card would read for a fixture session. */
+/**
+ * The runtime label a live card would read for a fixture session: the same words
+ * `useSessionRuntimeLabel` builds, with no model line for a provider-only runtime.
+ */
 export function boardRuntimeFixture(session: SessionBoardPayload): SessionRuntimeLabel {
-  return RUNTIMES[session.runtime?.effective?.provider ?? ""] ?? RUNTIMES.claude!;
+  const effective = session.runtime?.effective;
+  const provider = effective?.provider.trim() || "claude";
+  const providerLabel = PROVIDER_NAMES[provider] ?? provider;
+  const modelId = effective?.model?.trim() ?? "";
+  const effort = effective?.reasoning_effort?.trim() ?? "";
+  const model = modelId ? [MODEL_NAMES[modelId] ?? modelId, effort].filter(Boolean).join(" ") : "";
+  return { provider, label: model ? `${providerLabel} · ${model}` : providerLabel, model };
 }

@@ -1,6 +1,6 @@
 /** Board sessions shared by the Kanban stories and gallery prototypes. */
 import type { SessionBoardColumnId, SessionPullRequest } from "../lib/session-board-contract";
-import { primarySessionFixture, sessionRuntime } from "./fixtures";
+import { primarySessionFixture, sessionRuntimeWithModel } from "./fixtures";
 import type { SessionPayload } from "../types";
 
 const NOW = Date.now();
@@ -34,7 +34,7 @@ function boardSession(
     ...primarySessionFixture,
     id,
     agent_name: provider,
-    runtime: sessionRuntime(provider),
+    runtime: sessionRuntimeWithModel(provider),
     state: "active",
     badge: "idle",
     board_column: column,

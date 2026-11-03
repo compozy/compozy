@@ -28,3 +28,15 @@ export function sessionRuntime(
       : {}),
   };
 }
+
+const FIXTURE_MODELS: Record<string, { model: string; reasoning_effort: string }> = {
+  claude: { model: "claude-opus-4-1", reasoning_effort: "high" },
+  codex: { model: "gpt-5", reasoning_effort: "medium" },
+};
+
+/** A bound runtime that also records the model and effort the gallery rows name on line 2. */
+export function sessionRuntimeWithModel(provider: string): SessionPayload["runtime"] {
+  const runtime = sessionRuntime(provider);
+  const model = FIXTURE_MODELS[provider];
+  return model ? { ...runtime, effective: { provider, ...model } } : runtime;
+}

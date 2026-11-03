@@ -21,7 +21,7 @@ import {
 } from "@/storybook/fintech-scenario";
 import { sessionRuntime } from "./runtime-fixture";
 
-export { sessionRuntime } from "./runtime-fixture";
+export { sessionRuntime, sessionRuntimeWithModel } from "./runtime-fixture";
 
 type SessionFixtureInput = Omit<
   SessionPayload,
