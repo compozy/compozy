@@ -58,7 +58,17 @@ func (a Authority) Authorize(
 		return ErrForbidden
 	}
 	switch verb {
-	case "list", "reports", "occurrence", "pause", "archive", "ensure_main", "check", "check_dry_run", "checks_off":
+	case "list",
+		"reports",
+		"skill_propose",
+		"skill_reviews",
+		"occurrence",
+		"pause",
+		"archive",
+		"ensure_main",
+		"check",
+		"check_dry_run",
+		"checks_off":
 		return nil
 	case "resume":
 		if !OperatorOnlyResume(instance.PauseReason) {

@@ -60,6 +60,9 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 			if err := insertInstanceWakeReport(ctx, q, &req); err != nil {
 				return err
 			}
+			if err := consumeFinishedInstanceEvents(ctx, q, req, completed); err != nil {
+				return err
+			}
 			if err := recordFinishedWakeEvent(ctx, q, &req); err != nil {
 				return err
 			}

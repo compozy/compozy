@@ -165,7 +165,7 @@ SELECT t.grant_ceiling, t.profile_id, t.id, t.scope, t.name, t.agent_name, t.wor
   CASE WHEN t.source IN ('config', 'package') AND o.enabled_override IS NOT NULL
     THEN o.enabled_override ELSE t.enabled END AS enabled,
   t.retry, t.fire_limit, t.source, t.webhook_id, t.endpoint_slug, t.webhook_secret_ref,
-  t.target_kind, t.loop_workspace_id, t.loop_name, t.loop_inputs, t.loop_input_mapping,
+  t.target_kind, t.target_instance_scope, t.loop_workspace_id, t.loop_name, t.loop_inputs, t.loop_input_mapping,
 	t.created_at, t.updated_at
 FROM requested
 JOIN automation_triggers AS t ON t.id = requested.trigger_id
@@ -174,30 +174,31 @@ ORDER BY requested.ordinal
 `
 
 type HydrateAutomationTriggerCatalogRow struct {
-	GrantCeiling     string         `json:"grant_ceiling"`
-	ProfileID        string         `json:"profile_id"`
-	ID               string         `json:"id"`
-	Scope            string         `json:"scope"`
-	Name             string         `json:"name"`
-	AgentName        string         `json:"agent_name"`
-	WorkspaceID      sql.NullString `json:"workspace_id"`
-	Prompt           string         `json:"prompt"`
-	Event            string         `json:"event"`
-	Filter           sql.NullString `json:"filter"`
-	Enabled          any            `json:"enabled"`
-	Retry            string         `json:"retry"`
-	FireLimit        string         `json:"fire_limit"`
-	Source           string         `json:"source"`
-	WebhookID        sql.NullString `json:"webhook_id"`
-	EndpointSlug     sql.NullString `json:"endpoint_slug"`
-	WebhookSecretRef sql.NullString `json:"webhook_secret_ref"`
-	TargetKind       string         `json:"target_kind"`
-	LoopWorkspaceID  sql.NullString `json:"loop_workspace_id"`
-	LoopName         sql.NullString `json:"loop_name"`
-	LoopInputs       sql.NullString `json:"loop_inputs"`
-	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
-	CreatedAt        string         `json:"created_at"`
-	UpdatedAt        string         `json:"updated_at"`
+	GrantCeiling        string         `json:"grant_ceiling"`
+	ProfileID           string         `json:"profile_id"`
+	ID                  string         `json:"id"`
+	Scope               string         `json:"scope"`
+	Name                string         `json:"name"`
+	AgentName           string         `json:"agent_name"`
+	WorkspaceID         sql.NullString `json:"workspace_id"`
+	Prompt              string         `json:"prompt"`
+	Event               string         `json:"event"`
+	Filter              sql.NullString `json:"filter"`
+	Enabled             any            `json:"enabled"`
+	Retry               string         `json:"retry"`
+	FireLimit           string         `json:"fire_limit"`
+	Source              string         `json:"source"`
+	WebhookID           sql.NullString `json:"webhook_id"`
+	EndpointSlug        sql.NullString `json:"endpoint_slug"`
+	WebhookSecretRef    sql.NullString `json:"webhook_secret_ref"`
+	TargetKind          string         `json:"target_kind"`
+	TargetInstanceScope string         `json:"target_instance_scope"`
+	LoopWorkspaceID     sql.NullString `json:"loop_workspace_id"`
+	LoopName            sql.NullString `json:"loop_name"`
+	LoopInputs          sql.NullString `json:"loop_inputs"`
+	LoopInputMapping    sql.NullString `json:"loop_input_mapping"`
+	CreatedAt           string         `json:"created_at"`
+	UpdatedAt           string         `json:"updated_at"`
 }
 
 func (q *Queries) HydrateAutomationTriggerCatalog(ctx context.Context, idsJson any) ([]HydrateAutomationTriggerCatalogRow, error) {
@@ -228,6 +229,7 @@ func (q *Queries) HydrateAutomationTriggerCatalog(ctx context.Context, idsJson a
 			&i.EndpointSlug,
 			&i.WebhookSecretRef,
 			&i.TargetKind,
+			&i.TargetInstanceScope,
 			&i.LoopWorkspaceID,
 			&i.LoopName,
 			&i.LoopInputs,

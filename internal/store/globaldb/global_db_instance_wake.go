@@ -2,6 +2,8 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json/v2"
 	"errors"
 	"time"
 
@@ -48,18 +50,44 @@ func (r *InstanceRepo) Inflight(ctx context.Context) ([]heartbeat.InstanceWakeSt
 }
 func (r *InstanceRepo) Admit(ctx context.Context, req heartbeat.AdmitRequest) (bool, error) {
 	if req.InstanceID == "" || req.OccurrenceID == "" || req.Now.IsZero() || req.MaxConcurrent < 1 ||
-		(!req.ManualCheck && !req.NextWakeAt.After(req.Now)) {
+		(!req.ManualCheck && !req.NextWakeAt.After(req.Now)) || len(req.EventIDs) > heartbeat.AutomationEventBatchLimit {
 		return false, errors.New("invalid wake admission")
 	}
 	manual := 0
 	if req.ManualCheck {
 		manual = 1
 	}
-	count, err := r.queries.AdmitInstanceWake(ctx, sqlcgen.AdmitInstanceWakeParams{
+	params := sqlcgen.AdmitInstanceWakeParams{
 		InstanceID: req.InstanceID, OccurrenceID: req.OccurrenceID, Now: store.FormatTimestamp(req.Now),
 		NextWakeAt: store.FormatTimestamp(req.NextWakeAt), ManualCheck: manual, MaxConcurrent: int64(req.MaxConcurrent),
-	})
-	return count == 1, err
+	}
+	ids, err := json.Marshal(req.EventIDs)
+	if err != nil {
+		return false, err
+	}
+	admitted := false
+	err = store.ExecuteWriteOperation(
+		ctx,
+		r.db,
+		"admit instance wake",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			q := sqlcgen.New(tx)
+			count, err := q.AdmitInstanceWake(ctx, params)
+			if err != nil || count == 0 {
+				return err
+			}
+			if err := q.RecordInstanceEventBatch(ctx, sqlcgen.RecordInstanceEventBatchParams{
+				InstanceID:   req.InstanceID,
+				OccurrenceID: sql.NullString{String: req.OccurrenceID, Valid: true},
+				EventIds:     string(ids),
+			}); err != nil {
+				return err
+			}
+			admitted = true
+			return nil
+		},
+	)
+	return admitted && err == nil, err
 }
 func (r *InstanceRepo) BindTriage(ctx context.Context, id, occurrence, sessionID string) (bool, error) {
 	if id == "" || occurrence == "" || sessionID == "" {

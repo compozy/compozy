@@ -17,6 +17,8 @@ type ReportInput struct {
 	Fingerprint string
 }
 
+const ReportKindProposal = "proposal"
+
 type Report struct {
 	ID         string
 	InstanceID string
@@ -103,7 +105,7 @@ func (r ReportInput) Validate() error {
 	}
 	var required []string
 	switch r.Kind {
-	case "proposal":
+	case ReportKindProposal:
 		return validateReportProposals(fields)
 	case "failure":
 		required = []string{"reason", "detail"}
@@ -131,8 +133,9 @@ func (r ReportInput) Validate() error {
 func (r ReportInput) validSourceKey() bool {
 	prefix, suffix, ok := strings.Cut(r.SourceKey, ":")
 	rotation := prefix == "rotation" && (r.Kind == "rotation_failed" || r.Kind == "rotation_deferred")
+	skillReview := prefix == "skill_review" && r.Kind == ReportKindProposal
 	if !ok || strings.TrimSpace(suffix) == "" ||
-		(!rotation && prefix != "occ" && prefix != "interaction" && prefix != "turn") {
+		(!rotation && !skillReview && prefix != "occ" && prefix != "interaction" && prefix != "turn") {
 		return false
 	}
 	return true

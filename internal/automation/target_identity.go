@@ -53,7 +53,7 @@ func validateImmutableTargetIdentity(
 		return ErrTargetIdentityImmutable
 	}
 	switch currentKind {
-	case TargetKindAgent:
+	case TargetKindAgent, TargetKindAgentInstance:
 		if strings.TrimSpace(currentAgentName) != strings.TrimSpace(nextAgentName) {
 			return ErrTargetIdentityImmutable
 		}

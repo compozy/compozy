@@ -15,6 +15,7 @@ type InstanceWakeState struct {
 	Canceled                                                                       bool
 }
 type AdmitRequest struct {
+	EventIDs                 []string
 	InstanceID, OccurrenceID string
 	Now, NextWakeAt          time.Time
 	ManualCheck              bool

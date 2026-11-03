@@ -9,10 +9,17 @@ import (
 // Validate ensures the target kind is supported.
 func (k TargetKind) Validate(path string) error {
 	switch k.Normalize() {
-	case TargetKindAgent, TargetKindLoop:
+	case TargetKindAgent, TargetKindLoop, TargetKindAgentInstance:
 		return nil
 	default:
-		return fmt.Errorf("%s must be one of %q or %q: %q", path, TargetKindAgent, TargetKindLoop, k)
+		return fmt.Errorf(
+			"%s must be one of %q, %q or %q: %q",
+			path,
+			TargetKindAgent,
+			TargetKindLoop,
+			TargetKindAgentInstance,
+			k,
+		)
 	}
 }
 
@@ -111,7 +118,7 @@ func (t Trigger) Validate(path string) error {
 	if err := ValidateTriggerFilter(t.Filter, nestedPath(path, "filter")); err != nil {
 		return err
 	}
-	if targetKind == TargetKindAgent {
+	if targetKind == TargetKindAgent || targetKind == TargetKindAgentInstance {
 		if err := ValidateTriggerPromptTemplate(t.Prompt); err != nil {
 			return fmt.Errorf("%s is invalid: %w", nestedPath(path, "prompt"), err)
 		}
@@ -148,6 +155,8 @@ func (r Run) Validate(path string) error {
 
 func validateJobTarget(job Job, targetKind TargetKind, path string) error {
 	switch targetKind {
+	case TargetKindAgentInstance:
+		return errors.New(nestedPath(path, "target_kind") + " cannot target an agent instance from a scheduled job")
 	case TargetKindAgent:
 		if hasLoopTarget(job.LoopTarget) {
 			return errors.New(nestedPath(path, "loop_target") + " must be empty when target_kind is \"agent\"")
@@ -182,8 +191,19 @@ func validateJobTarget(job Job, targetKind TargetKind, path string) error {
 }
 
 func validateTriggerTarget(trigger Trigger, targetKind TargetKind, path string) error {
+	if targetKind != TargetKindAgentInstance && trigger.TargetInstanceScope != "" {
+		return errors.New(nestedPath(path, "target_instance_scope") + " requires agent_instance")
+	}
+	if targetKind == TargetKindAgentInstance {
+		if scope := strings.TrimSpace(
+			trigger.TargetInstanceScope,
+		); scope != "" && scope != trigger.WorkspaceID &&
+			!(trigger.Scope == AutomationScopeGlobal && scope == "global") {
+			return errors.New(nestedPath(path, "target_instance_scope") + " must match the trigger scope")
+		}
+	}
 	switch targetKind {
-	case TargetKindAgent:
+	case TargetKindAgent, TargetKindAgentInstance:
 		if hasLoopTarget(trigger.LoopTarget) {
 			return errors.New(nestedPath(path, "loop_target") + " must be empty when target_kind is \"agent\"")
 		}

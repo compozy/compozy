@@ -169,6 +169,7 @@ func (s *CheckService) admitCheck(
 		return CheckResult{}, err
 	}
 	request.OccurrenceID = occurrence
+	request.EventIDs = digest.EventIDs
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
