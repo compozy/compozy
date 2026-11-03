@@ -290,4 +290,28 @@ describe("StaysOnRow", () => {
 
     await waitFor(() => expect(mockApi.pause.mock.calls[0]?.[0]).toBe(instance));
   });
+
+  it("Should open the agent and its check-ins in the agent's own profile [#1183]", async () => {
+    const user = userEvent.setup();
+    const instance = agentInstanceFixture({ profile_id: "prof-ops", profile_name: "ops" });
+    renderRow([instance]);
+    const seat = screen.getByTestId(`stays-on-seat-${instance.id}`);
+
+    await user.pointer({ keys: "[MouseRight]", target: seat });
+    await user.click(await screen.findByRole("menuitem", { name: "Open agent" }));
+    await user.pointer({ keys: "[MouseRight]", target: seat });
+    await user.click(await screen.findByRole("menuitem", { name: "Check-ins" }));
+
+    const search = { workspace: "ws-compozy", profile: "ops" };
+    expect(mockNavigate).toHaveBeenNthCalledWith(1, {
+      to: "/agents/$name",
+      params: { name: "triage" },
+      search,
+    });
+    expect(mockNavigate).toHaveBeenNthCalledWith(2, {
+      to: "/agents/$name/$page",
+      params: { name: "triage", page: "check-ins" },
+      search,
+    });
+  });
 });

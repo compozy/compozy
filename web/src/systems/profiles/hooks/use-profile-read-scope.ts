@@ -9,6 +9,7 @@ import {
   type ProfileScopeParams,
 } from "../lib/profile-scope";
 import type { ProfilePayload, ProfileView } from "../types";
+import { usePinnedProfileView } from "./use-pinned-profile";
 import { useActiveProfileView, useRememberedProfile } from "./use-profile-selection";
 import { useProfiles } from "./use-profiles";
 
@@ -45,7 +46,7 @@ export interface ProfileReadScope extends ProfileListingScope {
  * together and no surface can silently fall back to an unscoped read.
  */
 export function useProfileReadScope(): ProfileReadScope {
-  const view = useActiveProfileView();
+  const view = usePinnedProfileView(useActiveProfileView());
   const remembered = useRememberedProfile();
   const profiles = useProfiles();
   const rows = profiles.data ?? [];

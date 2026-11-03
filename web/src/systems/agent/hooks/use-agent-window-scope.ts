@@ -1,3 +1,4 @@
+import { usePinnedProfile } from "@/systems/profiles";
 import {
   USER_SCOPE_SELECTOR,
   useActiveWorkspace,
@@ -12,7 +13,9 @@ import {
  */
 export function useAgentWindowScope() {
   const scope = useWindowDataWorkspace();
-  const bindingSearch = useWindowBindingSearch();
+  const windowBinding = useWindowBindingSearch();
+  const pinned = usePinnedProfile();
+  const bindingSearch = pinned ? { ...windowBinding, profile: pinned } : windowBinding;
   const { registeredWorkspaces } = useActiveWorkspace();
   const projectId = scope?.kind === "project" ? scope.workspaceId : null;
   const workspace = projectId ?? (scope?.kind === "user" ? USER_SCOPE_SELECTOR : null);
@@ -24,7 +27,7 @@ export function useAgentWindowScope() {
     /** The owning project for project-only actions (delete, providers, saves). */
     projectId,
     projectName: registeredWorkspaces.find(item => item.id === projectId)?.name ?? null,
-    /** Spread into in-window navigations so the window keeps its binding. */
+    /** Spread into in-window navigations so the window keeps its binding and profile pin. */
     bindingSearch,
   };
 }
