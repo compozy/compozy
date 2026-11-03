@@ -50,7 +50,7 @@ export function useSessionLabel({
   const workspace = useWorkspace(resolvedWorkspaceId, {
     enabled: crossWorkspace && !userDestination,
   });
-  const staysOnLabel = useStaysOnLabel(sessionId);
+  const staysOn = useStaysOnIdentity(sessionId);
   const labelRead = workspaceId === "" && !owner.data ? owner : detail;
   const { title, pending } = sessionLabelTitle(
     { data: detail.data, error: labelRead.error, isError: labelRead.isError },
@@ -60,8 +60,7 @@ export function useSessionLabel({
   return {
     sessionId,
     workspaceId: userDestination ? "" : resolvedWorkspaceId,
-    title: staysOnLabel ?? title,
-    ...(pending && !staysOnLabel ? { pending } : {}),
+    ...staysOnParty(title, pending, staysOn),
     agentName: detail.data?.agent_name || agentName,
     provider: sessionRuntimeProvider(detail.data?.runtime),
     workspaceName: sessionLabelWorkspaceName(
@@ -73,11 +72,23 @@ export function useSessionLabel({
 }
 
 /** A stays-on agent's current main speaks as the agent, not as its session (S12). */
-function useStaysOnLabel(sessionId: string): string | null {
+function useStaysOnIdentity(sessionId: string): { label: string; agentName: string } | null {
   const staysOn = useAgentInstances().find(
     instance => sessionId !== "" && instance.main_session_id === sessionId
   );
-  return staysOn ? staysOn.label || staysOn.agent_name : null;
+  return staysOn
+    ? { label: staysOn.label || staysOn.agent_name, agentName: staysOn.agent_name }
+    : null;
+}
+
+/** The title a party reads: a stays-on main names its agent and never waits on its session read. */
+function staysOnParty(
+  title: string | null,
+  pending: boolean | undefined,
+  staysOn: { label: string; agentName: string } | null
+): Pick<SessionMessageParty, "title" | "pending" | "staysOnAgent"> {
+  if (staysOn) return { title: staysOn.label, staysOnAgent: staysOn.agentName };
+  return pending ? { title, pending } : { title };
 }
 
 interface SessionRuntimeRoutes {
