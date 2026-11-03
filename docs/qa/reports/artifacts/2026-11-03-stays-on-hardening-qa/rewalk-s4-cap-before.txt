@@ -1,0 +1,6 @@
+{"agent_name":"alpha-watch","state":"paused","pause_reason":"unattended"}
+{"agent_name":"deploy-bot","state":"active","pause_reason":""}
+{"agent_name":"scribe","state":"active","pause_reason":""}
+{"agent_name":"inbox","state":"active","pause_reason":""}
+{"agent_name":"beta-watch","state":"paused","pause_reason":"unattended"}
+{"agent_name":"ops-lead","state":"paused","pause_reason":"unattended"}

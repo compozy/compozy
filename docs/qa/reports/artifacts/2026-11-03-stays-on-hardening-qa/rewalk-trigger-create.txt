@@ -1,0 +1,5 @@
+## --target-instance <instance-id>, no --prompt
+{"error":"automation validation error: trigger.agent_name \"ainst-be2e7e1e15028deb\" is an agent instance id; target a stays-on agent by its agent name, such as \"triage\""}
+
+## --target-instance inbox, no --prompt
+{"id":"trg-fe807c8f9ced10f9","target_kind":"agent_instance","agent_name":"inbox","prompt":"","webhook_id":"wbh_2bee5e5d76de025d","target_instance_scope":"01M6G2R4P7HC6A1W5N6JNF9DPF"}
