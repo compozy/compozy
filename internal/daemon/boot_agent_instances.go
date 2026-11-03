@@ -72,7 +72,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		agentinstance.WithInstanceChanged(func(instance agentinstance.Instance) {
 			manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
 		}),
-		agentinstance.WithLifecycleHooks(state.hookDispatcher),
+		agentinstance.WithLifecycleHooks(newInstanceLifecycleHooks(state.hookDispatcher, definitions)),
 		agentinstance.WithStateEffects(instanceStateEffects(state, repo)),
 	)
 	if err != nil {
