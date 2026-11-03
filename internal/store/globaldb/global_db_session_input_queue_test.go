@@ -4236,6 +4236,60 @@ func TestGlobalDBSyntheticSessionInputAdmitted(t *testing.T) {
 func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
 	// Invariant (UT-002, UT-027): holds follow durable lineage through both depths and old mains;
 	// archive cancels every held row. Owning layer: globaldb queue selection.
+	// Invariant (UT-084): a held backlog above the configured queue limit never blocks a human prompt,
+	// which is admitted and selected ahead of the held rows.
+	t.Run("Should admit a human prompt behind an overfull held backlog", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "overfull-held", "sess-overfull-main")
+		instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Instances().Pause(ctx, instance.ID, "manual"); err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now().UTC()
+		for i := range 3 {
+			if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+				ID: fmt.Sprintf("held-%d", i), SessionID: main, Text: "peer work",
+				Origin:   json.RawMessage(`{"kind":"session","session_id":"peer","hop":1}`),
+				QueueCap: 3, Now: now.Add(time.Duration(i) * time.Second),
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		// The configured limit is now below the held backlog; a further agent row is refused.
+		if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "held-over", SessionID: main, Text: "peer work",
+			Origin:   json.RawMessage(`{"kind":"session","session_id":"peer","hop":1}`),
+			QueueCap: 2, Now: now.Add(time.Minute),
+		}); !errors.Is(err, store.ErrSessionInputQueueFull) {
+			t.Fatalf("over-limit agent row error = %v, want queue full", err)
+		}
+		if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "human", SessionID: main, Text: "operator", QueueCap: 2, Now: now.Add(time.Hour),
+		}); err != nil {
+			t.Fatalf("human prompt behind the held backlog: %v", err)
+		}
+		claimed, found, err := db.ClaimNextSessionInput(ctx, main, now.Add(2*time.Hour))
+		if err != nil || !found || claimed.ID != "human" {
+			t.Fatalf("claim = %q/%v/%v, want the human prompt", claimed.ID, found, err)
+		}
+		for i := range 3 {
+			entry, err := db.GetSessionInputQueueEntry(ctx, main, fmt.Sprintf("held-%d", i))
+			if err != nil || entry.Status != store.SessionInputQueueStatusQueued {
+				t.Fatalf("held row %d = %+v, %v", i, entry, err)
+			}
+		}
+		if _, found, err := db.ClaimNextSessionInput(ctx, main, now.Add(3*time.Hour)); err != nil || found {
+			t.Fatalf("held claim after the human prompt = %v, %v", found, err)
+		}
+	})
 	for _, creator := range []string{"human", "agent"} {
 		t.Run("Should hold and archive descendants of a "+creator+" created main after rotation", func(t *testing.T) {
 			t.Parallel()
