@@ -2500,8 +2500,8 @@ func assertSessionInputOutputSchema(t *testing.T, owner string, raw json.RawMess
 func assertSessionInputPayloadSchema(t *testing.T, owner string, input nativeObjectSchema) {
 	t.Helper()
 	assertClosedObjectSchema(t, owner, input, []string{
-		"attachments", "coalesced_wakes", "delivery", "enqueued_at", "id", "idempotency_key", "mentions", "message_id",
-		"mode", "origin", "owner_id", "owner_kind", "queue_generation",
+		"attachments", "coalesced_wakes", "delivery", "enqueued_at", "held", "id", "idempotency_key", "mentions",
+		"message_id", "mode", "origin", "owner_id", "owner_kind", "queue_generation",
 		"runtime", "session_id", "skill_invocations", "status", "steer_delivery", "target_turn_id", "text",
 	})
 	if !slices.Equal(input.Required, []string{

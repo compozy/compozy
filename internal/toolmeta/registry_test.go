@@ -98,6 +98,8 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__agent_memory_remove":            expectedNativeEntry("Removing", " ", false, "🤖", "auto"),
 		"compozy__agent_memory_replace":           expectedNativeEntry("Updating", " ", false, "🤖", "auto"),
 		"compozy__agent_memory_search":            expectedNativeEntry("Searching", " ", false, "🤖", "auto"),
+		"compozy__agent_skill_propose":            expectedNativeEntry("Proposing", " ", false, "🧰", "auto"),
+		"compozy__agent_skill_reviews":            expectedNativeEntry("Reading", " ", false, "🧰", "auto"),
 		"compozy__session_pending_interactions":   expectedNativeEntry("Reading", " ", false, "💬", "auto"),
 		"compozy__subagent_capabilities":          expectedNativeEntry("Checking", " ", false, "🤖", "auto"),
 		"compozy__subagent_delegate":              expectedNativeEntry("Delegating", " ", false, "🤖", "auto"),

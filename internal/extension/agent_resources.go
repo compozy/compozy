@@ -49,19 +49,20 @@ func LoadAgentResources(rootDir string, paths []string) ([]StaticAgent, error) {
 		if err != nil {
 			return nil, err
 		}
-		for _, item := range items {
-			name := strings.TrimSpace(item.Agent.Name)
+		for i := range items {
+			name := strings.TrimSpace(items[i].Agent.Name)
 			if _, exists := loaded[name]; exists {
 				return nil, fmt.Errorf("%w: duplicate extension agent %q", ErrManifestInvalid, name)
 			}
-			loaded[name] = item
+			loaded[name] = items[i]
 		}
 	}
 
 	names := slices.Sorted(maps.Keys(loaded))
 	result := make([]StaticAgent, 0, len(names))
 	for _, name := range names {
-		result = append(result, cloneStaticAgent(loaded[name]))
+		item := loaded[name]
+		result = append(result, cloneStaticAgent(&item))
 	}
 	return result, nil
 }
@@ -237,7 +238,7 @@ func relativeResourcePath(rootDir, path string) (string, error) {
 	return relative, nil
 }
 
-func cloneStaticAgent(value StaticAgent) StaticAgent {
+func cloneStaticAgent(value *StaticAgent) StaticAgent {
 	clone := StaticAgent{Agent: compozyconfig.CloneAgentDef(value.Agent)}
 	if value.Soul != nil {
 		clone.Soul = new(*value.Soul)

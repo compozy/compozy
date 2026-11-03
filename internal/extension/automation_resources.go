@@ -232,8 +232,8 @@ func validateAutomationAgentTargets(
 	agents []StaticAgent,
 ) error {
 	available := make(map[string]struct{}, len(agents))
-	for _, agent := range agents {
-		available[strings.TrimSpace(agent.Agent.Name)] = struct{}{}
+	for i := range agents {
+		available[strings.TrimSpace(agents[i].Agent.Name)] = struct{}{}
 	}
 	shipped := sortedKeys(available)
 	for _, job := range jobs {

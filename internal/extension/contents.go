@@ -113,8 +113,8 @@ func InspectPackageContents(
 		return contract.ExtensionContentsPayload{}, fmt.Errorf("extension: inspect package agents: %w", err)
 	}
 	inspected.Agents = make([]compozyconfig.AgentDef, 0, len(agents))
-	for _, agent := range agents {
-		inspected.Agents = append(inspected.Agents, agent.Agent)
+	for i := range agents {
+		inspected.Agents = append(inspected.Agents, agents[i].Agent)
 	}
 	if err := ctx.Err(); err != nil {
 		return contract.ExtensionContentsPayload{}, err

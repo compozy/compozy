@@ -56,8 +56,8 @@ func (m *Manager) loadDeclarativeResources(
 		return loadedExtensionResources{}, fmt.Errorf("extension: load declared agents: %w", err)
 	}
 	loaded.agents = make([]compozyconfig.AgentDef, 0, len(loaded.staticAgents))
-	for _, agent := range loaded.staticAgents {
-		loaded.agents = append(loaded.agents, compozyconfig.CloneAgentDef(agent.Agent))
+	for i := range loaded.staticAgents {
+		loaded.agents = append(loaded.agents, compozyconfig.CloneAgentDef(loaded.staticAgents[i].Agent))
 	}
 	loaded.skills, err = m.loadSkillResources(ext)
 	if err != nil {

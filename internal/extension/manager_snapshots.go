@@ -37,8 +37,8 @@ func (m *Manager) cloneExtension(ext *managedExtension) *Extension {
 	for _, agent := range ext.agents {
 		clone.Agents = append(clone.Agents, compozyconfig.CloneAgentDef(agent))
 	}
-	for _, agent := range ext.staticAgents {
-		clone.StaticAgents = append(clone.StaticAgents, cloneStaticAgent(agent))
+	for i := range ext.staticAgents {
+		clone.StaticAgents = append(clone.StaticAgents, cloneStaticAgent(&ext.staticAgents[i]))
 	}
 	clone.AutomationJobs = cloneExtensionAutomationJobs(ext.automationJobs)
 	clone.AutomationTriggers = cloneExtensionAutomationTriggers(ext.automationTriggers)

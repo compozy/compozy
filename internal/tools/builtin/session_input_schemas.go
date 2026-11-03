@@ -87,6 +87,7 @@ const sessionInputPayloadSchema = `{
 		"queue_generation":{"type":"integer"},
 		"enqueued_at":{"type":"string","format":"date-time"},
 		"coalesced_wakes":{"type":"integer","minimum":0},
+		"held":{"type":"boolean"},
 		"skill_invocations":{"type":"array","items":{
 			"type":"object",
 			"required":["command_id","token","name","source","start","end"],

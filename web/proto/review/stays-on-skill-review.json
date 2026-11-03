@@ -1,146 +1,146 @@
 {
-  "version": 3,
-  "key": "stays-on-skill-review",
-  "sequence": 2,
-  "review": {
-    "status": "in_review",
-    "updatedAt": null
-  },
-  "events": [],
-  "comments": [
-    {
-      "id": "stays-on-skill-review-1",
-      "slug": "stays-on-skill-review",
-      "status": "resolved",
-      "createdAt": "2026-11-03T00:26:13.422Z",
-      "updatedAt": "2026-11-03T00:33:37.687Z",
-      "resolvedAt": "2026-11-03T00:33:37.687Z",
-      "context": {
-        "commit": "eadbf8ff0836202d4433506c0127d3e2c027e33e",
-        "state": "instructions",
-        "theme": "dark",
-        "role": null,
-        "viewport": {
-          "width": 1396,
-          "height": 693
-        }
-      },
-      "target": {
-        "kind": "element",
-        "selector": "pre",
-        "testId": null,
-        "tag": "pre",
-        "text": "# Triage labels Use this when new issues arrive without labels. 1. Read the title and the first comment. 2. Pick one ar…",
-        "source": "src/drafts/stays-on-skill-review/skill-review-card.tsx:86:9",
-        "sourceChain": [
-          "src/drafts/stays-on-skill-review/skill-review-card.tsx:86:9",
-          "src/drafts/stays-on-skill-review/skill-review-card.tsx:85:7",
-          "src/drafts/stays-on-skill-review/skill-review-card.tsx:74:5",
-          "src/drafts/stays-on-skill-review/skill-review-card.tsx:158:11",
-          "src/drafts/stays-on-skill-review/skill-review-card.tsx:149:9",
-          "src/systems/session/components/stays-on/reports/report-entry.tsx:144:7",
-          "src/systems/session/components/stays-on/reports/report-entry.tsx:139:5",
-          "src/drafts/stays-on-reports/report-entry.tsx:138:5"
-        ],
-        "rect": {
-          "x": 570,
-          "y": 297.046875,
-          "width": 634,
-          "height": 208
-        },
-        "rectNormalized": {
-          "x": 0.40830945558739257,
-          "y": 0.42863906926406925,
-          "width": 0.45415472779369626,
-          "height": 0.30014430014430016
-        },
-        "offset": null
-      },
-      "thread": [
-        {
-          "id": "14db3e47-069c-4e45-a691-307d257bc7b8",
-          "at": "2026-11-03T00:26:13.432Z",
-          "editedAt": null,
-          "body": "dependendo o tamanho desse markdown pode ficar enorme esse box, é melhor ter um link de visuaizar skill e o conteúdo abrir em um modal",
-          "author": "reviewer",
-          "attachments": []
-        },
-        {
-          "id": "aa0d53d4-b497-42eb-afc7-e9a2bd30ad57",
-          "at": "2026-11-03T00:33:37.687Z",
-          "editedAt": null,
-          "body": "O cartão agora mostra só o motivo e o que roda automaticamente, com o botão Review skill. O conteúdo abre em um modal com rolagem própria. Conferido nos estados instructions, automatic, two, stale, viewer e viewer-script, em dark e 1396px.",
-          "author": "agent",
-          "attachments": []
-        }
-      ]
+    "version": 3,
+    "key": "stays-on-skill-review",
+    "sequence": 2,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
     },
-    {
-      "id": "stays-on-skill-review-2",
-      "slug": "stays-on-skill-review",
-      "status": "resolved",
-      "createdAt": "2026-11-03T00:27:41.778Z",
-      "updatedAt": "2026-11-03T00:33:37.986Z",
-      "resolvedAt": "2026-11-03T00:33:37.986Z",
-      "context": {
-        "commit": "eadbf8ff0836202d4433506c0127d3e2c027e33e",
-        "state": "two",
-        "theme": "dark",
-        "role": null,
-        "viewport": {
-          "width": 1396,
-          "height": 693
-        }
-      },
-      "target": {
-        "kind": "element",
-        "selector": "article:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2)",
-        "testId": null,
-        "tag": "div",
-        "text": "SKILL.md scripts/sync-board.sh markdown # Triage labels Use this when new issues arrive without labels. 1. Read the tit…",
-        "source": "src/drafts/stays-on-skill-review/skill-review-card.tsx:74:5",
-        "sourceChain": [
-          "src/drafts/stays-on-skill-review/skill-review-card.tsx:74:5",
-          "src/drafts/stays-on-skill-review/skill-review-card.tsx:158:11",
-          "src/drafts/stays-on-skill-review/skill-review-card.tsx:149:9",
-          "src/systems/session/components/stays-on/reports/report-entry.tsx:144:7",
-          "src/systems/session/components/stays-on/reports/report-entry.tsx:139:5",
-          "src/drafts/stays-on-reports/report-entry.tsx:138:5",
-          "src/drafts/stays-on-skill-review/skill-review-card.tsx:124:5",
-          "src/drafts/stays-on-skill-review/index.proto.tsx:42:9"
-        ],
-        "rect": {
-          "x": 569,
-          "y": 248.046875,
-          "width": 636,
-          "height": 258
-        },
-        "rectNormalized": {
-          "x": 0.4075931232091691,
-          "y": 0.35793199855699853,
-          "width": 0.45558739255014324,
-          "height": 0.3722943722943723
-        },
-        "offset": null
-      },
-      "thread": [
+    "events": [],
+    "comments": [
         {
-          "id": "9874e96c-fbc5-4779-be63-5ecac6c02f93",
-          "at": "2026-11-03T00:27:41.789Z",
-          "editedAt": null,
-          "body": "nesse caso também, ao invés de mostrar isso, mostrar um modal propriamente feito, com os arquivos e etc, mas algo bem feito que de para de fato ler toda a skill, com os folders e files em um file tree bem feito",
-          "author": "reviewer",
-          "attachments": []
+            "id": "stays-on-skill-review-1",
+            "slug": "stays-on-skill-review",
+            "status": "resolved",
+            "createdAt": "2026-11-03T00:26:13.422Z",
+            "updatedAt": "2026-11-03T00:33:37.687Z",
+            "resolvedAt": "2026-11-03T00:33:37.687Z",
+            "context": {
+                "commit": "eadbf8ff0836202d4433506c0127d3e2c027e33e",
+                "state": "instructions",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "pre",
+                "testId": null,
+                "tag": "pre",
+                "text": "# Triage labels Use this when new issues arrive without labels. 1. Read the title and the first comment. 2. Pick one ar…",
+                "source": "src/drafts/stays-on-skill-review/skill-review-card.tsx:86:9",
+                "sourceChain": [
+                    "src/drafts/stays-on-skill-review/skill-review-card.tsx:86:9",
+                    "src/drafts/stays-on-skill-review/skill-review-card.tsx:85:7",
+                    "src/drafts/stays-on-skill-review/skill-review-card.tsx:74:5",
+                    "src/drafts/stays-on-skill-review/skill-review-card.tsx:158:11",
+                    "src/drafts/stays-on-skill-review/skill-review-card.tsx:149:9",
+                    "src/systems/session/components/stays-on/reports/report-entry.tsx:144:7",
+                    "src/systems/session/components/stays-on/reports/report-entry.tsx:139:5",
+                    "src/drafts/stays-on-reports/report-entry.tsx:138:5"
+                ],
+                "rect": {
+                    "x": 570,
+                    "y": 297.046875,
+                    "width": 634,
+                    "height": 208
+                },
+                "rectNormalized": {
+                    "x": 0.40830945558739257,
+                    "y": 0.42863906926406925,
+                    "width": 0.45415472779369626,
+                    "height": 0.30014430014430016
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "14db3e47-069c-4e45-a691-307d257bc7b8",
+                    "at": "2026-11-03T00:26:13.432Z",
+                    "editedAt": null,
+                    "body": "dependendo o tamanho desse markdown pode ficar enorme esse box, é melhor ter um link de visuaizar skill e o conteúdo abrir em um modal",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "aa0d53d4-b497-42eb-afc7-e9a2bd30ad57",
+                    "at": "2026-11-03T00:33:37.687Z",
+                    "editedAt": null,
+                    "body": "O cartão agora mostra só o motivo e o que roda automaticamente, com o botão Review skill. O conteúdo abre em um modal com rolagem própria. Conferido nos estados instructions, automatic, two, stale, viewer e viewer-script, em dark e 1396px.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
         },
         {
-          "id": "b4dacc9c-652a-4baf-a678-ac33a20168b7",
-          "at": "2026-11-03T00:33:37.985Z",
-          "editedAt": null,
-          "body": "Novo modal com árvore de pastas e arquivos, e leitura Read ou Source para Markdown. Scripts aparecem como código, e os arquivos que rodam sozinhos ficam marcados. Approve e Reject foram para o rodapé do modal, então decidir passa por abrir a skill. Veja os estados viewer e viewer-script.",
-          "author": "agent",
-          "attachments": []
+            "id": "stays-on-skill-review-2",
+            "slug": "stays-on-skill-review",
+            "status": "resolved",
+            "createdAt": "2026-11-03T00:27:41.778Z",
+            "updatedAt": "2026-11-03T00:33:37.986Z",
+            "resolvedAt": "2026-11-03T00:33:37.986Z",
+            "context": {
+                "commit": "eadbf8ff0836202d4433506c0127d3e2c027e33e",
+                "state": "two",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 1396,
+                    "height": 693
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "article:nth-of-type(2) > div > div:nth-of-type(2) > div:nth-of-type(2)",
+                "testId": null,
+                "tag": "div",
+                "text": "SKILL.md scripts/sync-board.sh markdown # Triage labels Use this when new issues arrive without labels. 1. Read the tit…",
+                "source": "src/drafts/stays-on-skill-review/skill-review-card.tsx:74:5",
+                "sourceChain": [
+                    "src/drafts/stays-on-skill-review/skill-review-card.tsx:74:5",
+                    "src/drafts/stays-on-skill-review/skill-review-card.tsx:158:11",
+                    "src/drafts/stays-on-skill-review/skill-review-card.tsx:149:9",
+                    "src/systems/session/components/stays-on/reports/report-entry.tsx:144:7",
+                    "src/systems/session/components/stays-on/reports/report-entry.tsx:139:5",
+                    "src/drafts/stays-on-reports/report-entry.tsx:138:5",
+                    "src/drafts/stays-on-skill-review/skill-review-card.tsx:124:5",
+                    "src/drafts/stays-on-skill-review/index.proto.tsx:42:9"
+                ],
+                "rect": {
+                    "x": 569,
+                    "y": 248.046875,
+                    "width": 636,
+                    "height": 258
+                },
+                "rectNormalized": {
+                    "x": 0.4075931232091691,
+                    "y": 0.35793199855699853,
+                    "width": 0.45558739255014324,
+                    "height": 0.3722943722943723
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "9874e96c-fbc5-4779-be63-5ecac6c02f93",
+                    "at": "2026-11-03T00:27:41.789Z",
+                    "editedAt": null,
+                    "body": "nesse caso também, ao invés de mostrar isso, mostrar um modal propriamente feito, com os arquivos e etc, mas algo bem feito que de para de fato ler toda a skill, com os folders e files em um file tree bem feito",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "b4dacc9c-652a-4baf-a678-ac33a20168b7",
+                    "at": "2026-11-03T00:33:37.985Z",
+                    "editedAt": null,
+                    "body": "Novo modal com árvore de pastas e arquivos, e leitura Read ou Source para Markdown. Scripts aparecem como código, e os arquivos que rodam sozinhos ficam marcados. Approve e Reject foram para o rodapé do modal, então decidir passa por abrir a skill. Veja os estados viewer e viewer-script.",
+                    "author": "agent",
+                    "attachments": []
+                }
+            ]
         }
-      ]
-    }
-  ]
+    ]
 }

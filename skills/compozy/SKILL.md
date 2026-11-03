@@ -37,7 +37,7 @@ A delegated coding, research, or review assignment can use its authorized provid
 | Inspect, mutate, or watch virtual desktops, managed windows, or workspace layouts through native tools, CLI, HTTP, or UDS      | references/window-management.md + references/native-tools.md       |
 | Open, inspect, attach to, execute in, or interact with CompozyOS terminals; answer terminal input or audit terminal commands   | references/terminal.md + references/native-tools.md                |
 | Create or review CompozyOS agent definitions, provider defaults, permissions, workspace access, or MCP sidecars                | references/agent-definitions.md + references/tools-and-skills.md   |
-| Propose a reusable skill or inspect its operator review | references/skill-authoring.md + references/native-tools.md |
+| Propose a reusable skill or inspect its operator review                                                                        | references/skill-authoring.md + references/native-tools.md         |
 | Discover or call CompozyOS-native tools, inspect native tool IDs, view skills, or choose tools vs CLI                          | references/tools-and-skills.md + references/native-tools.md        |
 | List, inspect, or invoke command palette commands; inspect or cancel a pending palette approval                                | references/native-tools.md                                         |
 | Claim, run, review, block, recover, or coordinate daemon Tasks; or wake a Task creator                                         | references/tasks-and-orchestration.md                              |

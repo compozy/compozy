@@ -32,13 +32,13 @@ still auto-rejects at the execution boundary.
 
 CompozyOS supports five ordered permission levels:
 
-| Level | Backend behavior | Cross-workspace requests |
-| --- | --- | --- |
-| `deny-all` | No automatic tool approvals; rejects ACP permission requests. | Denied without a prompt. |
-| `approve-reads` | Reads are allowed; edits and commands require approval. | Asks at the native-tool boundary; other boundaries deny. |
-| `approve-edits` | Reads, workspace file edits and named coordination tools are allowed; terminal commands and other mutations require approval. | Same boundary as `approve-reads`. |
-| `auto` | Requests the provider's declared reviewer mode; CompozyOS keeps the `approve-edits` boundary. | Same boundary as `approve-reads`. |
-| `approve-all` | Automatically approves operations within the session's existing authority. | Allowed without asking. |
+| Level           | Backend behavior                                                                                                              | Cross-workspace requests                                 |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `deny-all`      | No automatic tool approvals; rejects ACP permission requests.                                                                 | Denied without a prompt.                                 |
+| `approve-reads` | Reads are allowed; edits and commands require approval.                                                                       | Asks at the native-tool boundary; other boundaries deny. |
+| `approve-edits` | Reads, workspace file edits and named coordination tools are allowed; terminal commands and other mutations require approval. | Same boundary as `approve-reads`.                        |
+| `auto`          | Requests the provider's declared reviewer mode; CompozyOS keeps the `approve-edits` boundary.                                 | Same boundary as `approve-reads`.                        |
+| `approve-all`   | Automatically approves operations within the session's existing authority.                                                    | Allowed without asking.                                  |
 
 `auto` falls back to effective `approve-edits` with `permission_mode_degraded` when the reviewer is
 undeclared, unavailable, or not selected by the adapter. It never falls back to full access.
@@ -108,11 +108,11 @@ unless muted. Repeating the same expired request is denied immediately until hum
 
 ## What the static policy actually covers
 
-| Operation | `deny-all` | `approve-reads` | `approve-edits` | `auto` | `approve-all` |
-| --- | --- | --- | --- | --- | --- |
-| Workspace read | blocked | allowed | allowed | allowed | allowed |
-| Workspace file edit | blocked | asks | allowed | allowed | allowed |
-| Terminal command | blocked | asks | asks | asks | allowed |
+| Operation           | `deny-all` | `approve-reads` | `approve-edits` | `auto`  | `approve-all` |
+| ------------------- | ---------- | --------------- | --------------- | ------- | ------------- |
+| Workspace read      | blocked    | allowed         | allowed         | allowed | allowed       |
+| Workspace file edit | blocked    | asks            | allowed         | allowed | allowed       |
+| Terminal command    | blocked    | asks            | asks            | asks    | allowed       |
 
 At `approve-edits` and `auto`, an edit is allowed only when the request names at least one file inside
 the workspace; an edit without file locations, and a request of kind `other` or with no kind, asks.
@@ -141,11 +141,11 @@ coordination command — the daemon sends that request through a single policy. 
 under another profile counts as a different scope too. Unless the agent holds the
 [unrestricted grant](#the-unrestricted-grant), the session's own permission mode decides it:
 
-| Session mode    | Cross-workspace outcome                                                                        |
-| --------------- | ---------------------------------------------------------------------------------------------- |
-| `approve-all`   | Allowed. The session crosses without being asked.                                              |
-| `approve-reads`, `approve-edits`, `auto` | Asks at the native-tool boundary when the session is running; every other boundary denies. |
-| `deny-all`      | Denied at every boundary, including the native-tool one. CompozyOS never prompts for crossing. |
+| Session mode                             | Cross-workspace outcome                                                                        |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `approve-all`                            | Allowed. The session crosses without being asked.                                              |
+| `approve-reads`, `approve-edits`, `auto` | Asks at the native-tool boundary when the session is running; every other boundary denies.     |
+| `deny-all`                               | Denied at every boundary, including the native-tool one. CompozyOS never prompts for crossing. |
 
 The same table covers reading another profile (`profile`, `all_profiles`) and the
 [All projects](/docs/all-projects) aggregates, so an `approve-all` session reads sessions in any

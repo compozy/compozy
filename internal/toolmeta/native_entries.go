@@ -21,6 +21,8 @@ var nativeEntries = map[string]Entry{
 	"compozy__agent_memory_remove":            nativeEntry("Removing", " ", false, "🤖", "auto"),
 	"compozy__agent_memory_replace":           nativeEntry("Updating", " ", false, "🤖", "auto"),
 	"compozy__agent_memory_search":            nativeEntry("Searching", " ", false, "🤖", "auto"),
+	"compozy__agent_skill_propose":            nativeEntry("Proposing", " ", false, "🧰", "auto"),
+	"compozy__agent_skill_reviews":            nativeEntry("Reading", " ", false, "🧰", "auto"),
 	"compozy__session_pending_interactions":   nativeEntry("Reading", " ", false, "💬", "auto"),
 	"compozy__subagent_capabilities":          nativeEntry("Checking", " ", false, "🤖", "auto"),
 	"compozy__subagent_delegate":              nativeEntry("Delegating", " ", false, "🤖", "auto"),
