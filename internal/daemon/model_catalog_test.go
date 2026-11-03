@@ -1705,7 +1705,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		now := start
 		service := newCatalogReadRefreshService()
 		// Parked statuses persisted by an earlier daemon process: the runtime below
-		// starts with no in-memory baseline, as after a cold restart.
+		// starts with no in-memory state, as after a cold restart.
 		parked := func(sourceID string, lastError string) modelcatalog.SourceStatus {
 			return modelcatalog.SourceStatus{
 				SourceID: sourceID, ProviderID: strings.TrimPrefix(sourceID, "extension/"),
@@ -1755,7 +1755,9 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			held.ID(): held, login.ID(): login, fixed.ID(): fixed, transient.ID(): transient,
 		}
 		targets := runtime.dynamicRefreshTargets()
-		if _, err := runtime.resolveCatalogExecutionContext(modelcatalog.CatalogExecutionContext{ProfileID: "other-profile"}); err != nil {
+		if _, err := runtime.resolveCatalogExecutionContext(
+			modelcatalog.CatalogExecutionContext{ProfileID: "other-profile"},
+		); err != nil {
 			t.Fatal(err)
 		}
 		executionContexts := runtime.catalogExecutionContexts()
@@ -1771,15 +1773,25 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 					due = append(due, target.sourceID)
 				}
 			}
-			holds.finish()
 			return due
+		}
+		// persistSuccess records the refresh outcome the service stores once discovery recovers.
+		persistSuccess := func(sourceID string) {
+			service.updateStatus(sourceID, func(status *modelcatalog.SourceStatus) {
+				status.RefreshState = modelcatalog.RefreshStateSucceeded
+				status.LastError = ""
+				status.LastSuccess = start
+				status.LastRefresh = start
+				// A healthy TTL far past the simulated weeks keeps the recovered target out of the sweep.
+				status.NextRefresh = start.Add(365 * 24 * time.Hour)
+			})
 		}
 		if due := sweep(); !slices.Equal(due, []string{fixed.ID(), fixed.ID()}) {
 			t.Fatalf("first sweep due = %#v, want only the target fixed since its persisted failure", due)
 		}
-		// Weeks pass: a parked target never comes due by time, and the fixed target
-		// is not retried again while its preflight outcome stays the same. Only the
-		// transient target returns, once its backoff elapses.
+		persistSuccess(fixed.ID())
+		// Weeks pass: a parked target never comes due by time, and the recovered target
+		// follows its persisted TTL. Only the transient target returns, once its backoff elapses.
 		for index, elapsed := range []time.Duration{time.Minute, 48 * time.Hour, 21 * 24 * time.Hour} {
 			nowMu.Lock()
 			now = start.Add(elapsed)
@@ -1804,6 +1816,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if due := sweep(); !slices.Equal(due, wantChanged) {
 			t.Fatalf("sweep after cause change due = %#v, want %#v", due, wantChanged)
 		}
+		persistSuccess(held.ID())
 		wantSettled := []string{transient.ID(), transient.ID()}
 		if due := sweep(); !slices.Equal(due, wantSettled) {
 			t.Fatalf("sweep after acting on the change due = %#v, want %#v", due, wantSettled)
@@ -1865,13 +1878,91 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			if len(due) != want {
 				t.Fatalf("fixed context due on sweep %d = %#v, want %d", sweep, due, want)
 			}
-			holds.finish()
+			// The fixed context's refresh persists success; the login context stays parked.
+			recovered := fixed
+			recovered.RefreshState = modelcatalog.RefreshStateSucceeded
+			recovered.LastError = ""
+			recovered.NextRefresh = now.Add(time.Hour)
+			service.setContextStatuses(second, []modelcatalog.SourceStatus{recovered})
 		}
 		if got := source.preflightCalls(); got != 2 {
 			t.Fatalf("preflight calls = %d, want once per sweep across contexts", got)
 		}
 		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatal(err)
+		}
+	})
+
+	t.Run("Should retry a changed parked cause until a refresh persists its outcome", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+		service := newCatalogReadRefreshService()
+		service.refreshErr = context.DeadlineExceeded
+		service.statuses = []modelcatalog.SourceStatus{{
+			SourceID: "extension/held", ProviderID: "held",
+			RefreshState: modelcatalog.RefreshStateFailed,
+			LastRefresh:  now.Add(-time.Hour),
+			LastError:    "resolve provider credential: vault: secret value missing",
+		}}
+		source := &catalogPreflightSource{
+			catalogDynamicSource: catalogDynamicSource{id: "extension/held"},
+			outcome:              errors.New("vault: secret value missing"),
+		}
+		newRuntime := func() *modelCatalogRuntime {
+			runtime, err := newModelCatalogRuntime(testutil.Context(t), service, discardLogger(), func() time.Time {
+				return now
+			}, time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime.dynamicSources = map[string]modelcatalog.Source{source.ID(): source}
+			return runtime
+		}
+		runtime := newRuntime()
+		executionContext := runtime.catalogExecutionContexts()[0]
+		due := func(runtime *modelCatalogRuntime) []modelCatalogRefreshTarget {
+			return runtime.dueRefreshTargets(executionContext, runtime.dynamicRefreshTargets(), runtime.newHoldSweep())
+		}
+		if got := due(runtime); len(got) != 0 {
+			t.Fatalf("unchanged cause due = %#v, want parked", got)
+		}
+
+		// The secret is bound, but the refresh hits its deadline before persisting any status.
+		source.setOutcome(nil)
+		for attempt := range 2 {
+			targets := due(runtime)
+			if len(targets) != 1 || targets[0].sourceID != source.ID() {
+				t.Fatalf("attempt %d due = %#v, want the changed target retried", attempt, targets)
+			}
+			if _, err := runtime.Refresh(testutil.Context(t), modelcatalog.RefreshOptions{
+				SourceID: source.ID(), ProviderID: targets[0].providerID, ExecutionContext: executionContext,
+			}); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("attempt %d Refresh() error = %v, want deadline", attempt, err)
+			}
+			service.waitForRefresh(t)
+		}
+		// A cold restart sees the same unpublished change.
+		restarted := newRuntime()
+		if got := due(restarted); len(got) != 1 {
+			t.Fatalf("restarted due = %#v, want the changed target still retried", got)
+		}
+
+		// Recovery: the next refresh persists success, so the target leaves the hold.
+		service.updateStatus(source.ID(), func(status *modelcatalog.SourceStatus) {
+			status.RefreshState = modelcatalog.RefreshStateSucceeded
+			status.LastError = ""
+			status.LastSuccess = now
+			status.LastRefresh = now
+			status.NextRefresh = now.Add(5 * time.Minute)
+		})
+		if got := due(restarted); len(got) != 0 {
+			t.Fatalf("recovered due = %#v, want fresh until its TTL", got)
+		}
+		for _, current := range []*modelCatalogRuntime{runtime, restarted} {
+			if err := current.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
 		}
 	})
 
@@ -2480,6 +2571,8 @@ type recordingModelCatalogService struct {
 
 type catalogReadRefreshService struct {
 	refreshes         chan modelcatalog.RefreshOptions
+	refreshErr        error
+	mu                sync.Mutex
 	statuses          []modelcatalog.SourceStatus
 	statusesByContext map[modelcatalog.CatalogExecutionContext][]modelcatalog.SourceStatus
 }
@@ -2620,13 +2713,35 @@ func (s *catalogReadRefreshService) Refresh(
 	opts modelcatalog.RefreshOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	s.refreshes <- opts
-	return nil, nil
+	return nil, s.refreshErr
+}
+
+// updateStatus simulates the persisted outcome of a refresh for every execution context.
+func (s *catalogReadRefreshService) updateStatus(sourceID string, update func(*modelcatalog.SourceStatus)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for index := range s.statuses {
+		if s.statuses[index].SourceID == sourceID {
+			update(&s.statuses[index])
+		}
+	}
+}
+
+func (s *catalogReadRefreshService) setContextStatuses(
+	executionContext modelcatalog.CatalogExecutionContext,
+	statuses []modelcatalog.SourceStatus,
+) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.statusesByContext[executionContext] = statuses
 }
 
 func (s *catalogReadRefreshService) ListSourceStatus(
 	_ context.Context,
 	opts modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.statusesByContext != nil {
 		return slices.Clone(s.statusesByContext[opts.ExecutionContext]), nil
 	}

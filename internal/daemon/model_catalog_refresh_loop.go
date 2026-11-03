@@ -157,7 +157,6 @@ func (r *modelCatalogRuntime) refreshDynamicSourcesInBackground() {
 			}
 		}
 		refreshes.Wait()
-		holds.finish()
 	}()
 }
 
@@ -178,7 +177,7 @@ func (r *modelCatalogRuntime) dueRefreshTargets(
 		switch {
 		case scheduled:
 			due = append(due, target)
-		case len(held) > 0 && holds != nil && holds.causeChanged(executionContext, target, held):
+		case len(held) > 0 && holds != nil && holds.causeChanged(target, held):
 			due = append(due, target)
 		}
 	}

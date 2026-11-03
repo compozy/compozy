@@ -42,70 +42,24 @@ func (c *modelCatalogFailureCauses) clear(scope string) {
 	c.mu.Unlock()
 }
 
-// modelCatalogHeldScope keeps persisted failure baselines local to their execution context.
-type modelCatalogHeldScope struct {
-	target           modelCatalogRefreshTarget
-	executionContext modelcatalog.CatalogExecutionContext
-}
-
-type modelCatalogHeldPreflights struct {
-	mu        sync.Mutex
-	baselines map[modelCatalogHeldScope]string
-}
-
-// changed compares against memory, or against persisted status after a cold restart.
-func (h *modelCatalogHeldPreflights) changed(
-	scope modelCatalogHeldScope,
-	outcome string,
-	persistedChanged bool,
-) bool {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	baseline, seen := h.baselines[scope]
-	if h.baselines == nil {
-		h.baselines = make(map[modelCatalogHeldScope]string)
-	}
-	h.baselines[scope] = outcome
-	if seen {
-		return baseline != outcome
-	}
-	return persistedChanged
-}
-
-// retain drops baselines for targets no longer held in any execution context.
-func (h *modelCatalogHeldPreflights) retain(held map[modelCatalogHeldScope]struct{}) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	for scope := range h.baselines {
-		if _, ok := held[scope]; !ok {
-			delete(h.baselines, scope)
-		}
-	}
-}
-
-// modelCatalogHoldSweep preflights each parked target once across execution contexts.
+// modelCatalogHoldSweep memoizes preflight; persisted status decides whether recovery remains due.
 type modelCatalogHoldSweep struct {
 	runtime *modelCatalogRuntime
 	results map[modelCatalogRefreshTarget]error
-	held    map[modelCatalogHeldScope]struct{}
 }
 
 func (r *modelCatalogRuntime) newHoldSweep() *modelCatalogHoldSweep {
 	return &modelCatalogHoldSweep{
 		runtime: r,
 		results: make(map[modelCatalogRefreshTarget]error),
-		held:    make(map[modelCatalogHeldScope]struct{}),
 	}
 }
 
 // causeChanged leaves sources without a preflight parked until an explicit refresh.
 func (s *modelCatalogHoldSweep) causeChanged(
-	executionContext modelcatalog.CatalogExecutionContext,
 	target modelCatalogRefreshTarget,
 	held []modelcatalog.SourceStatus,
 ) bool {
-	scope := modelCatalogHeldScope{target: target, executionContext: executionContext}
-	s.held[scope] = struct{}{}
 	preflighter := s.runtime.targetPreflighter(target)
 	if preflighter == nil {
 		return false
@@ -117,22 +71,12 @@ func (s *modelCatalogHoldSweep) causeChanged(
 		cancel()
 		s.results[target] = preflightErr
 	}
-	outcome := ""
-	if preflightErr != nil {
-		outcome = modelcatalog.RedactString(preflightErr.Error())
-	}
-	persistedChanged := false
 	for _, status := range held {
 		if !status.HeldCauseUnchanged(preflightErr) {
-			persistedChanged = true
-			break
+			return true
 		}
 	}
-	return s.runtime.heldPreflights.changed(scope, outcome, persistedChanged)
-}
-
-func (s *modelCatalogHoldSweep) finish() {
-	s.runtime.heldPreflights.retain(s.held)
+	return false
 }
 
 func (r *modelCatalogRuntime) targetPreflighter(target modelCatalogRefreshTarget) modelCatalogDiscoveryPreflighter {

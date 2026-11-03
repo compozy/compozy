@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -623,7 +624,11 @@ func TestLiveProviderSources(t *testing.T) {
 		if !errors.Is(err, exec.ErrNotFound) || !IsPermanentSourceFailure(err) {
 			t.Fatalf("missing binary DiscoveryPreflight() error = %v, want permanent exec.ErrNotFound", err)
 		}
-		if err := os.WriteFile(filepath.Join(binDir, "compozy-discovery-fixture"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(binDir, "compozy-discovery-fixture"),
+			[]byte("#!/bin/sh\n"),
+			0o755,
+		); err != nil {
 			t.Fatalf("WriteFile(discovery fixture) error = %v", err)
 		}
 		if err := missingBinary.DiscoveryPreflight(testutil.Context(t)); err != nil {
@@ -631,6 +636,64 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 		if got := len(executor.requests); got != 0 {
 			t.Fatalf("discovery commands during preflight = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should preflight the native CLI that ACP discovery resolves without probing", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("executable fixtures require Unix semantics")
+		}
+		install := func(t *testing.T, dir string, name string) {
+			t.Helper()
+			if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"), 0o755); err != nil {
+				t.Fatalf("WriteFile(%s fixture) error = %v", name, err)
+			}
+		}
+
+		// Claude bridges through the npx launcher, which also needs the native CLI.
+		claudeBin := t.TempDir()
+		install(t, claudeBin, "npx")
+		acpProbe := &fakeACPModelProbe{}
+		claude := newLiveSourceForTest(t, "claude", compozyconfig.ProviderConfig{
+			Command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
+		}, &LiveProviderSourcesConfig{
+			BaseEnv: []string{"PATH=" + claudeBin, "HOME=" + t.TempDir()}, ACPProbe: acpProbe,
+		})
+		err := claude.DiscoveryPreflight(testutil.Context(t))
+		if !errors.Is(err, exec.ErrNotFound) || !IsPermanentSourceFailure(err) {
+			t.Fatalf("missing claude DiscoveryPreflight() error = %v, want permanent exec.ErrNotFound", err)
+		}
+		_, listErr := claude.ListModels(testutil.Context(t), ListOptions{ProviderID: "claude", Now: testTime(0)})
+		if listErr == nil || listErr.Error() != err.Error() {
+			t.Fatalf("ListModels() error = %v, want the preflight cause %v", listErr, err)
+		}
+		install(t, claudeBin, "claude")
+		if err := claude.DiscoveryPreflight(testutil.Context(t)); err != nil {
+			t.Fatalf("installed claude DiscoveryPreflight() error = %v, want nil", err)
+		}
+
+		// Native Codex discovery runs the CLI directly, so the unused npx launcher is not required.
+		codexBin := t.TempDir()
+		codexProbe := &recordingCodexProbe{}
+		codex := newLiveSourceForTest(t, "codex", compozyconfig.BuiltinProviders()["codex"], &LiveProviderSourcesConfig{
+			BaseEnv: []string{"PATH=" + codexBin, "HOME=" + t.TempDir()}, CodexProbe: codexProbe,
+		})
+		err = codex.DiscoveryPreflight(testutil.Context(t))
+		if !errors.Is(err, exec.ErrNotFound) || !IsPermanentSourceFailure(err) {
+			t.Fatalf("missing codex DiscoveryPreflight() error = %v, want permanent exec.ErrNotFound", err)
+		}
+		install(t, codexBin, "codex")
+		if err := codex.DiscoveryPreflight(testutil.Context(t)); err != nil {
+			t.Fatalf("installed codex DiscoveryPreflight() error = %v, want nil without npx", err)
+		}
+
+		if got := len(acpProbe.requests); got != 0 {
+			t.Fatalf("ACP probes = %d, want 0", got)
+		}
+		if got := codexProbe.calls.Load(); got != 0 {
+			t.Fatalf("Codex probes = %d, want 0", got)
 		}
 	})
 
@@ -679,7 +742,12 @@ func TestLiveProviderSources(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Refresh(recovered HTTP) error = %v", err)
 		}
-		if got := requireStatus(t, statuses, source.ID()); got.RefreshState != RefreshStateSucceeded || got.RowCount != 1 {
+		if got := requireStatus(
+			t,
+			statuses,
+			source.ID(),
+		); got.RefreshState != RefreshStateSucceeded ||
+			got.RowCount != 1 {
 			t.Fatalf("recovered status = %#v, want one successful model row", got)
 		}
 		if got := requests.Load(); got != 2 {
@@ -700,6 +768,14 @@ func TestLiveProviderSources(t *testing.T) {
 			{name: "timeout", err: fmt.Errorf("live discovery timed out: %w", context.DeadlineExceeded)},
 			{name: "process crash", err: errors.New("signal: killed")},
 			{name: "connection refused", err: errors.New("dial tcp 127.0.0.1:11434: connect: connection refused")},
+			{name: "HTTP 403", err: errors.New(`model catalog: live discovery for "openai" returned HTTP 403`)},
+			{name: "generic permission denied", err: errors.New("exit status 1: permission denied")},
+			{
+				name: "filesystem permission denied",
+				err: fmt.Errorf("model catalog: read discovery cache: %w", &fs.PathError{
+					Op: "open", Path: "/tmp/compozy-discovery-cache", Err: fs.ErrPermission,
+				}),
+			},
 			{
 				name:      "login required",
 				err:       errors.New("exit status 1: Error: Authentication required. Run 'agent login' first."),
@@ -3125,6 +3201,17 @@ func TestCodexCatalogProtocol(t *testing.T) {
 			t.Fatalf("listModels() = %#v, %v", models, err)
 		}
 	})
+}
+
+// recordingCodexProbe counts native Codex discovery starts at the process boundary.
+type recordingCodexProbe struct{ calls atomic.Int32 }
+
+func (p *recordingCodexProbe) InspectCodexModels(
+	context.Context,
+	DiscoveryCommandRequest,
+) ([]CodexModelMetadata, error) {
+	p.calls.Add(1)
+	return nil, errors.New("codex probe fixture")
 }
 
 type fixedCodexProbe struct{ models []CodexModelMetadata }

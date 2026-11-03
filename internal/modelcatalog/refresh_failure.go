@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strings"
 
+	"github.com/compozy/compozy/internal/providerexec"
 	authproviders "github.com/compozy/compozy/internal/providers"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/vault"
@@ -54,18 +55,10 @@ func IsPermanentSourceFailure(err error) bool {
 	return requiresLoginText(err.Error())
 }
 
-// requiresLoginText identifies auth failures that a process-free preflight cannot recheck.
+// requiresLoginText parks explicit login failures; generic permission denials remain transient.
 func requiresLoginText(text string) bool {
 	classification, ok := authproviders.ClassifyErrorText(text)
-	if !ok {
-		return false
-	}
-	switch classification.State {
-	case authproviders.ProviderAuthStateNeedsLogin, authproviders.ProviderAuthStatePermissionDenied:
-		return true
-	default:
-		return false
-	}
+	return ok && classification.State == authproviders.ProviderAuthStateNeedsLogin
 }
 
 func isMissingExecutableStart(err error) bool {
@@ -89,7 +82,7 @@ func (s SourceStatus) HeldCauseUnchanged(preflightErr error) bool {
 	return strings.Contains(s.LastError, RedactString(preflightErr.Error()))
 }
 
-// DiscoveryPreflight checks config, credentials, and PATH without starting discovery or writing state.
+// DiscoveryPreflight checks the effective discovery prerequisites without starting it or writing state.
 func (s *LiveProviderSource) DiscoveryPreflight(ctx context.Context) error {
 	if s == nil {
 		return errors.New("model catalog: live provider source is required")
@@ -109,14 +102,32 @@ func (s *LiveProviderSource) DiscoveryPreflight(ctx context.Context) error {
 	switch target.kind {
 	case liveDiscoveryHTTP:
 		return s.requireRequestCredential(env)
-	case liveDiscoveryCommand, liveDiscoveryACP:
-		bin, _, err := parseDiscoveryCommand(target.command)
+	case liveDiscoveryCommand:
+		if isAutomaticOpenCodeDiscovery(s.providerID, provider) {
+			_, err := providerexec.ResolveOpenCodeCommand(provider, env, s.workingDir)
+			return err
+		}
+		return s.resolveDiscoveryExecutable(target.command, env)
+	case liveDiscoveryACP:
+		provider.Command = target.command
+		env, err := nativeCLIACPEnv(provider, env, strings.TrimSpace(s.workingDir))
 		if err != nil {
 			return err
 		}
-		if _, err := subprocess.ResolveExecutable(bin, env, s.workingDir); err != nil {
-			return err
+		// Native Codex discovery runs the resolved CLI directly and never starts the ACP launcher.
+		if s.usesNativeCodexDiscovery(provider) {
+			return nil
 		}
+		return s.resolveDiscoveryExecutable(target.command, env)
 	}
 	return nil
+}
+
+func (s *LiveProviderSource) resolveDiscoveryExecutable(command string, env []string) error {
+	bin, _, err := parseDiscoveryCommand(command)
+	if err != nil {
+		return err
+	}
+	_, err = subprocess.ResolveExecutable(bin, env, s.workingDir)
+	return err
 }

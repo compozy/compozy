@@ -46,8 +46,7 @@ type modelCatalogRuntime struct {
 	backgroundRefreshMu      sync.Mutex
 	backgroundRefreshRunning bool
 
-	failureCauses  modelCatalogFailureCauses
-	heldPreflights modelCatalogHeldPreflights
+	failureCauses modelCatalogFailureCauses
 }
 
 var _ modelcatalog.Service = (*modelCatalogRuntime)(nil)
