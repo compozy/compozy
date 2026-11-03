@@ -164,9 +164,12 @@ func (n *daemonNativeTools) authorizeNativeProfileSwitch(
 		if promptErr != nil {
 			return errors.Join(nativeWorkspaceAccessDecisionError(req.ToolID, decision), promptErr)
 		}
-		decision.Allowed = allowed
-		if !allowed {
+		decision.Allowed = allowed && !decision.NeedsGrantAfterConsent
+		switch {
+		case !allowed:
 			decision.Denial = workspaceaccess.DenialConsentRejected
+		case decision.NeedsGrantAfterConsent:
+			decision.Denial = workspaceaccess.DenialNeedsGrant
 		}
 	}
 	if !decision.Allowed {

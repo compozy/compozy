@@ -674,9 +674,9 @@ the workspace ID or the new name. On data tools `global` is not a workspace sele
 
 A call that names a workspace other than the bound session's, another profile (`profile`, `all_profiles`), or an All projects aggregate is a cross-scope request. An effective `workspace_access: unrestricted` grant allows it with audit source `agent_grant`; otherwise the session's effective permission mode decides:
 
-- `approve-all`: another workspace is allowed at every seam. Another profile and aggregates are allowed for reads (read-only tools, `GET` routes); writes there are denied and need the grant.
+- `approve-all`: another workspace is allowed at every seam, for reads and writes, as before. Another profile and aggregates are allowed for reads (read-only tools, `GET` routes); writes there are denied and need the grant.
 - `deny-all`: denied at every seam, including native tools. CompozyOS never prompts for crossing under this mode.
-- `approve-reads`: the native-tool seam prompts the operator while the session is running; the agent-identity, task, spawn, and workspace-coordination seams deny unless an `allow_session` answer is already recorded. Writes to another profile or through an aggregate are denied like `approve-all`.
+- `approve-reads`: the native-tool seam prompts the operator while the session is running; the agent-identity, task, spawn, and workspace-coordination seams deny unless an `allow_session` answer is already recorded. A write to another profile or through an aggregate is asked like any crossing and, once allowed, still denied for lack of the grant, so a missing target and a real one get the same prompt.
 
 A session tool called with a `session_id` and no `workspace` resolves the target from that session: the daemon fills in its workspace (or `@user`) and authorizes against its own workspace and profile, so an `approve-all` session reads `compozy__session_status`, `compozy__session_history`, and the other session tools of any session by id alone. `compozy__session_describe` still describes the calling session. A caller the policy denies gets the same denial, and an `approve-reads` caller the same prompt (`Read session <id> outside this workspace or profile`), whether the session exists or not; a caller the policy allows gets `session_not_found` for a missing id.
 

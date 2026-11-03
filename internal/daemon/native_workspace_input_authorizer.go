@@ -163,6 +163,12 @@ func (b *nativeWorkspaceInputBinder) authorizeAccessTarget(
 			workspaceaccess.Decision{Denial: workspaceaccess.DenialConsentRejected},
 		)
 	}
+	if decision.NeedsGrantAfterConsent {
+		return false, nativeWorkspaceAccessDecisionError(
+			descriptor.ID,
+			workspaceaccess.Decision{Denial: workspaceaccess.DenialNeedsGrant},
+		)
+	}
 	toolspkg.MarkOutsideCallerScope(ctx)
 	return true, nil
 }

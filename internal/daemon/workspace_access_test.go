@@ -79,6 +79,11 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 					ID: id, AgentName: "coder", WorkspaceID: foreignWorkspace, ProfileID: "p-y",
 					State: session.StateActive, Name: "deploy with " + seededSecret,
 				}, nil
+			case "sess-sibling":
+				return &session.Info{
+					ID: id, AgentName: "coder", WorkspaceID: foreignWorkspace, ProfileID: "p-x",
+					State: session.StateActive,
+				}, nil
 			case "sess-user":
 				return &session.Info{ID: id, AgentName: "coder", ProfileID: "p-y", State: session.StateStopped}, nil
 			default:
@@ -133,6 +138,54 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 			if !strings.Contains(string(bound), `"workspace":"`+wantWorkspace+`"`) {
 				t.Fatalf("bound input = %s, want the session's own workspace %q", bound, wantWorkspace)
 			}
+		}
+	})
+
+	t.Run("Should keep approve-all writes to another workspace of the same profile", func(t *testing.T) {
+		t.Parallel()
+		renameDescriptor := statusDescriptor
+		renameDescriptor.ID, renameDescriptor.ReadOnly = toolspkg.ToolIDSessionRename, false
+		write := func(t *testing.T, binder *nativeWorkspaceInputBinder, input string) error {
+			t.Helper()
+			bound, err := binder.BindCallInput(t.Context(), actorScope, renameDescriptor, json.RawMessage(input))
+			if err != nil {
+				return err
+			}
+			return binder.AuthorizeCallInput(t.Context(), actorScope, renameDescriptor, toolspkg.CallRequest{
+				ToolID: renameDescriptor.ID, SessionID: actorScope.SessionID, Input: bound,
+			})
+		}
+		sessions := sessionsFor(workspaceaccess.ModeApproveAll)
+		binder := newNativeWorkspaceInputBinder(nativeTestWorkspaceService(t), sessions, newPolicy(t, sessions), nil)
+		if err := write(t, binder, `{"session_id":"sess-sibling"}`); err != nil {
+			t.Fatalf("same-profile cross-workspace write error = %v, want the ADR-007 approve-all reach", err)
+		}
+		if err := write(t, binder, `{"session_id":"sess-missing"}`); err != nil {
+			t.Fatalf("missing-session write error = %v, want the handler to report not found", err)
+		}
+		err := write(t, binder, `{"session_id":"sess-foreign"}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if !strings.Contains(err.Error(), "workspace_access: unrestricted") {
+			t.Fatalf("cross-profile write error = %v, want the grant named", err)
+		}
+		denySessions := sessionsFor(workspaceaccess.ModeDenyAll)
+		denied := newNativeWorkspaceInputBinder(
+			nativeTestWorkspaceService(t),
+			denySessions,
+			newPolicy(t, denySessions),
+			nil,
+		)
+		foreignErr, missingErr := write(
+			t,
+			denied,
+			`{"session_id":"sess-foreign"}`,
+		), write(
+			t,
+			denied,
+			`{"session_id":"sess-missing"}`,
+		)
+		if foreignErr == nil || missingErr == nil || foreignErr.Error() != missingErr.Error() {
+			t.Fatalf("deny-all write denials differ:\nforeign: %v\nmissing: %v", foreignErr, missingErr)
 		}
 	})
 

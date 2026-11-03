@@ -96,14 +96,27 @@ func (p *DefaultPolicy) authorize(ctx context.Context, req Request, record *Acce
 	if facts.WorkspaceAccess == Unrestricted {
 		return Decision{Allowed: true, Source: SourceAgentGrant}, mode, nil
 	}
-	if !sameProfile || req.Target.Kind == TargetAggregate || req.Target.Kind == TargetUnresolved {
-		// Another profile, the All projects aggregate, or a target that could not be resolved is
-		// reachable through the permission mode only for reads; writes there need the grant.
-		if !req.ReadOnly {
-			return deniedDecisionFor(DenialNeedsGrant), mode, nil
-		}
+	decision, mode, err := p.authorizeFromMode(ctx, req.Actor.SessionID, mode)
+	if err != nil {
+		return decision, mode, err
 	}
-	return p.authorizeFromMode(ctx, req.Actor.SessionID, mode)
+	return requireGrantForWrite(decision, req, sameProfile), mode, nil
+}
+
+// requireGrantForWrite keeps the permission mode's reach to reads for another profile and the
+// All projects aggregate; writes there need the grant. Same-profile crossings keep the full
+// mode table. The mode is applied first so an unresolved target, which never needs the grant,
+// gets the same answer as a real one whenever the caller is denied reach at all.
+func requireGrantForWrite(decision Decision, req Request, sameProfile bool) Decision {
+	crossProfile := !sameProfile && req.Target.Kind != TargetUnresolved
+	if req.ReadOnly || (!crossProfile && req.Target.Kind != TargetAggregate) {
+		return decision
+	}
+	if decision.Allowed {
+		return deniedDecisionFor(DenialNeedsGrant)
+	}
+	decision.NeedsGrantAfterConsent = decision.PromptEligible
+	return decision
 }
 
 // authorizeFromMode applies the permission-mode table to a crossing the grant did not decide.
