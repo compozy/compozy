@@ -108,6 +108,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		promptBufSize:               defaultPromptBufferSize,
 		promptRecoveryDelays:        append([]time.Duration(nil), defaultPromptRecoveryDelays...),
 		authRecoveryDelays:          compozyconfig.DefaultSessionAuthRecoveryConfig().Delays(),
+		authRecoveryWindow:          compozyconfig.DefaultSessionAuthRecoveryConfig().Window,
 		soulRefreshTimeout:          defaultLifecycleTimeout,
 	}
 

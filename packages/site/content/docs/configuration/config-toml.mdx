@@ -1306,7 +1306,8 @@ for eligibility, pending-interaction handling, and external-effect limits.
 | `max_delay`     | duration | `"1m"`  | `initial_delay`–`"10m"` | Cap on the wait between retries.                                           |
 
 The defaults retry after 15 s, 30 s, and then every minute, eleven attempts inside ten minutes. When the
-window ends, the turn fails with the usual provider guidance. The wait does not count as turn activity, so
+window ends, the turn fails with the usual provider guidance. Provider startup and delayed auth refusals
+count against the elapsed window; no further retry starts after expiry. The wait does not count as turn activity, so
 keep `window` below `session.supervision.quiet_after` if you shorten that watchdog. These keys are global-only: workspace-scope
 writes are rejected. They follow the restart-required settings lifecycle. See
 [provider sign-in recovery](/docs/sessions/lifecycle#when-the-provider-sign-in-goes-missing-during-a-prompt).

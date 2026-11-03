@@ -266,12 +266,12 @@ sign-in to come back and retries on its own, for every ACP provider:
   sign-in…** with the attempt count. Runtime-exit recoveries report `reason: "runtime_exit"`.
 - Retries back off from `session.auth_recovery.initial_delay` (15 seconds), doubling up to
   `max_delay` (1 minute), for as long as `window` allows (10 minutes): 15 s, 30 s, then every minute,
-  eleven attempts by default. Each one starts a fresh provider process, which reads the current
+  up to eleven attempts by default. Startup and delayed auth refusals count against that elapsed-time window. Each one starts a fresh provider process, which reads the current
   credentials, and reloads the provider session with ACP `session/load` (or a bounded transcript replay).
 - If the provider had not produced anything for the turn yet, the original request is sent again on
   the same turn ID. If the turn had already produced output or tool calls, CompozyOS sends a short
-  continuation instead, which tells the agent to check the current state before repeating any action,
-  so finished tool calls are not run twice. The user message is never recorded twice.
+  continuation instead, retaining the attachment bytes even if the replacement needs a fresh session.
+  It tells the agent to check the current state before repeating any action, so finished tool calls are not run twice. The user message is never recorded twice.
 - While the provider is still signed out, each retry is refused before any work starts. The same
   `runtime_recovery_started`, `runtime_recovery_succeeded`, and `runtime_recovery_exhausted` events
   and hooks report progress.

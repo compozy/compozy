@@ -64,3 +64,17 @@ files in this lab were synthetic; no operator provider login was changed.
 - **PR readiness:** pending current-head CI and reviews. CodeRabbit was rate-limited;
   two authorized Opus fallback attempts failed ACP initialization before review.
   No review approval or quiet round is claimed.
+
+## Review Corrections After the Lab
+
+Greptile identified that startup/refusal latency was not charged to the window and
+that a continuation discarded attachment bytes. The session owner now retains an
+expiry from the first auth failure, caps waits and runtime startup to the remaining
+time, attempts native session reload, and keeps image/PDF bytes on the continuation
+when reload falls back to a new session.
+
+The focused `TestPromptProviderAuthRecovery` passed, including deterministic
+startup/refusal expiry and native-load-refusal attachment regressions. Per the
+operator's host-load restriction, no local lint, race, build or new lab run was
+performed for these corrections. Current-head CI owns those gates. The earlier
+lab evidence above remains evidence for its recorded build, not this later patch.

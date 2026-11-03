@@ -1,6 +1,7 @@
 package session
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
@@ -803,6 +805,123 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		}
 		if got := countEventType(readStoredEvents(t, session), acp.EventTypeToolCall); got != 1 {
 			t.Fatalf("stored tool calls = %d, want the interrupted call recorded once", got)
+		}
+	})
+
+	for _, startup := range []bool{false, true} {
+		name := "Should count delayed auth refusals against the recovery window"
+		if startup {
+			name = "Should count provider startup against the recovery window"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			base := time.Now().UTC()
+			var elapsed atomic.Int64
+			h := newHarness(t, WithNow(func() time.Time { return base.Add(time.Duration(elapsed.Load())) }))
+			h.manager.authRecoveryDelays = []time.Duration{0, 0, 0}
+			h.manager.authRecoveryWindow = time.Minute
+			session := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+			h.driver.startContextHook = func(ctx context.Context, opts acp.StartOpts, attempt int) (*fakeProcess, error) {
+				if startup {
+					deadline, ok := ctx.Deadline()
+					if !ok || time.Until(deadline) > time.Minute {
+						return nil, errors.New("recovery startup has no bounded deadline")
+					}
+					elapsed.Store(int64(2 * time.Minute))
+					return nil, context.DeadlineExceeded
+				}
+				return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("recovered-%d", attempt)), nil
+			}
+			var calls atomic.Int64
+			h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				if calls.Add(1) > 1 {
+					elapsed.Store(int64(2 * time.Minute))
+				}
+				events := make(chan acp.AgentEvent, 1)
+				events <- authLostEvent(proc, req.TurnID)
+				close(events)
+				return events, nil
+			}
+			events, err := h.manager.Prompt(t.Context(), session.ID, "wait for sign-in")
+			if err != nil {
+				t.Fatal(err)
+			}
+			delivered := collectEvents(t, events)
+			if countAgentEvents(delivered, acp.EventTypeRuntimeRecoveryStarted) != 1 ||
+				countAgentEvents(delivered, acp.EventTypeRuntimeRecoveryExhausted) != 1 ||
+				countAgentEvents(delivered, acp.EventTypeError) != 1 {
+				t.Fatalf("events = %#v, want one attempt and one terminal auth failure", delivered)
+			}
+			_, starts := promptRequests(h)
+			if starts != 2 {
+				t.Fatalf("starts = %d, want no new runtime after expiry", starts)
+			}
+		})
+	}
+
+	t.Run("Should retain image and PDF bytes when auth recovery starts a fresh session", func(t *testing.T) {
+		t.Parallel()
+		imageID := "att_" + strings.Repeat("a", 64)
+		pdfID := "att_" + strings.Repeat("b", 64)
+		image, pdf := []byte("image contents"), []byte("PDF contents")
+		opener := &promptAttachmentOpenerStub{
+			data: map[string][]byte{imageID: image, pdfID: pdf},
+			refs: map[string]attachmentspkg.AttachmentRef{
+				imageID: storedPromptAttachmentRef(t, imageID, "photo.png", "image/png", image),
+				pdfID:   storedPromptAttachmentRef(t, pdfID, "report.pdf", "application/pdf", pdf),
+			},
+		}
+		admissions := openManagerInputQueueStore(t)
+		h := newHarness(t, WithAttachmentOpener(opener), WithSessionPromptAdmissionStore(admissions))
+		h.manager.authRecoveryDelays = []time.Duration{0}
+		registerManagerInputQueueWorkspace(t, admissions, h)
+		h.driver.startHook = func(opts acp.StartOpts, attempt int) (*fakeProcess, error) {
+			if opts.ResumeSessionID != "" {
+				return nil, acp.ErrAgentDoesNotSupportSession
+			}
+			proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("fresh-%d", attempt))
+			proc.handle.caps.PromptImage = true
+			proc.handle.caps.PromptEmbeddedContext = true
+			return proc, nil
+		}
+		session := createSession(t, h)
+		registerManagerInputQueueSession(t, admissions, h, session)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		var calls atomic.Int64
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 2)
+			if calls.Add(1) == 1 {
+				events <- acp.AgentEvent{Type: acp.EventTypeThought, TurnID: req.TurnID, Timestamp: h.manager.now(), Text: "Reading files"}
+				events <- authLostEvent(proc, req.TurnID)
+			} else {
+				events <- doneEvent(proc, req.TurnID)
+			}
+			close(events)
+			return events, nil
+		}
+		result, err := h.manager.SendPrompt(t.Context(), session.ID, SendPromptOpts{
+			MessageID: "files-recovery", IdempotencyKey: "files-recovery",
+			Message: "compare the attached files",
+			Attachments: []AttachmentMeta{
+				promptAttachmentMeta(t, imageID, "photo.png", "image/png", image),
+				promptAttachmentMeta(t, pdfID, "report.pdf", "application/pdf", pdf),
+			},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		delivered := collectEvents(t, result.Events)
+		requests, starts := promptRequests(h)
+		if countAgentEvents(delivered, acp.EventTypeDone) != 1 || len(requests) != 2 || starts != 3 {
+			t.Fatalf("done/requests/starts = %d/%d/%d, want 1/2/3", countAgentEvents(delivered, acp.EventTypeDone), len(requests), starts)
+		}
+		continued := requests[1]
+		if !strings.HasSuffix(continued.Message, authRecoveryContinueMessage) || len(continued.Attachments) != 2 {
+			t.Fatalf("continued request = %+v, want continuation and both files", continued)
+		}
+		if !bytes.Equal(continued.Attachments[0].Data, image) || !bytes.Equal(continued.Attachments[1].Data, pdf) {
+			t.Fatal("fresh-session continuation lost attachment bytes")
 		}
 	})
 

@@ -55,9 +55,12 @@ func (m *Manager) attemptPromptRecovery(
 	maxAttempts := len(delays)
 	for budget.attempts < maxAttempts {
 		attempt := budget.attempts + 1
-		delay := delays[budget.attempts]
-		budget.attempts = attempt
 		now := m.now()
+		delay, withinWindow := budget.remainingDelay(now, delays[budget.attempts])
+		if !withinWindow {
+			break
+		}
+		budget.attempts = attempt
 		if err := session.beginAutomaticRecovery(automaticRecoveryAttempt{
 			reason: reason, attempt: attempt, maxAttempts: maxAttempts,
 			startedAt: budget.startedAt, nextAttemptAt: now.Add(delay),
@@ -75,6 +78,9 @@ func (m *Manager) attemptPromptRecovery(
 		if err := waitForPromptRecovery(recovery.executionCtx, delay); err != nil {
 			return false, m.settleStoppedPromptRecovery(ctx, session, reason)
 		}
+		if !budget.expiresAt.IsZero() && !m.now().Before(budget.expiresAt) {
+			break
+		}
 
 		request, message := recoveredPromptPayload(recovery, reason)
 		source, replayBlock, err := m.startRecoveredPrompt(
@@ -83,6 +89,7 @@ func (m *Manager) attemptPromptRecovery(
 			turnState,
 			request,
 			message,
+			budget.expiresAt,
 		)
 		if err != nil {
 			if persistErr := m.persistPromptRecoveryFailure(ctx, session, err); persistErr != nil {
@@ -125,6 +132,9 @@ func (m *Manager) startablePromptRecovery(
 	}
 	if budget.startedAt.IsZero() {
 		budget.startedAt = m.now()
+		if reason == store.SessionRuntimeRecoveryProviderAuth {
+			budget.expiresAt = budget.startedAt.Add(m.authRecoveryWindow)
+		}
 	}
 	return delays, budget, true
 }
@@ -173,12 +183,16 @@ func (m *Manager) startRecoveredPrompt(
 	state *promptTurnDispatchState,
 	request acp.PromptRequest,
 	message string,
+	expiresAt time.Time,
 ) (<-chan acp.AgentEvent, string, error) {
 	m.releaseHostedPromptRun(session, state)
 	m.clearActivePromptRunForState(session, state)
-	process, replayBlock, err := m.recoverPromptRuntime(ctx, session)
+	process, replayBlock, err := m.recoverPromptRuntimeBefore(ctx, session, expiresAt)
 	if err != nil {
 		return nil, "", err
+	}
+	if !expiresAt.IsZero() && !m.now().Before(expiresAt) {
+		return nil, "", context.DeadlineExceeded
 	}
 	replayRequest := clonePromptRecoveryRequest(request)
 	replayRequest.Generation = session.Info().RuntimeGeneration
@@ -278,6 +292,14 @@ func (m *Manager) recoverPromptRuntime(
 	ctx context.Context,
 	session *Session,
 ) (*AgentProcess, string, error) {
+	return m.recoverPromptRuntimeWithLoad(ctx, session, false)
+}
+
+func (m *Manager) recoverPromptRuntimeWithLoad(
+	ctx context.Context,
+	session *Session,
+	loadSession bool,
+) (*AgentProcess, string, error) {
 	snapshot := session.runtimeBindingSnapshot()
 	// Recovery keeps the accepted seat: the accepted route's explicit command, if any.
 	plan, err := m.preparePromptRuntimePlanForRoute(
@@ -292,6 +314,9 @@ func (m *Manager) recoverPromptRuntime(
 		return nil, "", fmt.Errorf("session: resolve recovery MCP servers: %w", err)
 	}
 	plan.spec.resumeReplay = true
+	if loadSession {
+		plan.spec.acpSessionID = snapshot.acpSessionID
+	}
 	plan.spec.startAction = "automatic recovery"
 
 	candidate, err := m.startPromptRecoveryCandidate(ctx, session, plan, &runtime)

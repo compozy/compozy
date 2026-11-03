@@ -47,6 +47,14 @@ func (m *Manager) promptRecoverySchedule(reason store.SessionRuntimeRecoveryReas
 	return m.promptRecoveryDelays
 }
 
+func (b *promptRecoveryBudget) remainingDelay(now time.Time, delay time.Duration) (time.Duration, bool) {
+	if b.expiresAt.IsZero() {
+		return delay, true
+	}
+	remaining := b.expiresAt.Sub(now)
+	return min(delay, remaining), remaining > 0
+}
+
 // promptRecoveryAvailable reports whether this failure class may start or continue recovering.
 func promptRecoveryAvailable(session *Session, reason store.SessionRuntimeRecoveryReason) bool {
 	return reason != store.SessionRuntimeRecoveryProviderAuth || session.authRecoveryAvailable()
@@ -63,9 +71,25 @@ func recoveredPromptPayload(
 	if reason != store.SessionRuntimeRecoveryProviderAuth || !recovery.workObserved || request.BypassesContext() {
 		return request, recovery.originalMessage
 	}
-	request.Attachments = nil
 	request.MentionLinks = nil
 	return request, authRecoveryContinueMessage
+}
+
+func (m *Manager) recoverPromptRuntimeBefore(
+	ctx context.Context,
+	session *Session,
+	expiresAt time.Time,
+) (*AgentProcess, string, error) {
+	if !expiresAt.IsZero() {
+		remaining := expiresAt.Sub(m.now())
+		if remaining <= 0 {
+			return nil, "", context.DeadlineExceeded
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, remaining)
+		defer cancel()
+	}
+	return m.recoverPromptRuntimeWithLoad(ctx, session, !expiresAt.IsZero())
 }
 
 // settleStoppedPromptRecovery leaves a non-fatal failure on the runtime the session kept; a

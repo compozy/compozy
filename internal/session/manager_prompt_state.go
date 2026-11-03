@@ -42,6 +42,7 @@ type promptRecoveryState struct {
 type promptRecoveryBudget struct {
 	attempts          int
 	startedAt         time.Time
+	expiresAt         time.Time
 	exhaustedRecorded bool
 }
 

@@ -362,6 +362,7 @@ func WithPromptRecoveryDelays(delays ...time.Duration) Option {
 func WithSessionAuthRecoveryConfig(config compozyconfig.SessionAuthRecoveryConfig) Option {
 	return func(manager *Manager) {
 		manager.authRecoveryDelays = config.Delays()
+		manager.authRecoveryWindow = config.Window
 	}
 }
 
