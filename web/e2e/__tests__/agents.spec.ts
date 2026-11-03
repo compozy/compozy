@@ -265,11 +265,14 @@ async function createAlwaysOnAgent(
   await appPage.getByTestId("agents-topbar-create").click();
   await expect(appPage.getByTestId("agent-create-dialog")).toBeVisible();
   await appPage.getByTestId("agent-create-name").fill(name);
-  await appPage.getByTestId("agent-create-runtime-select").click();
+  const runtimeTrigger = appPage.getByTestId("agent-create-runtime-select");
+  await runtimeTrigger.click();
+  await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
   await appPage
     .locator(`[data-provider="${mockAgentProvider}"][data-model="${reasoningCatalogModel}"]`)
     .click();
   await appPage.keyboard.press("Escape");
+  await expect(runtimeTrigger).toContainText(reasoningCatalogModelLabel);
   await appPage
     .getByTestId("agent-create-prompt")
     .locator('[contenteditable="true"]')
@@ -280,9 +283,10 @@ async function createAlwaysOnAgent(
   await expect(appPage.getByTestId("agent-create-kind-on-demand")).toContainText("On-demand");
   await alwaysOn.click();
   await appPage.getByTestId("agent-create-where").click();
-  await appPage.getByText("Decide later").click();
+  await appPage.getByText("Decide later", { exact: true }).click();
+  await expect(appPage.getByTestId("agent-create-where")).toContainText("Decide later");
 
-  await appPage.getByRole("button", { name: "Advanced" }).click();
+  await appPage.getByRole("button", { name: "Advanced", exact: true }).click();
   const acceptEdits = appPage.getByTestId("agent-create-permissions-approve-edits");
   await expect(acceptEdits).toContainText("Accept edits");
   await expect(acceptEdits).toHaveAttribute("aria-checked", "true");
@@ -303,6 +307,21 @@ async function createAlwaysOnAgent(
 }
 
 test.describe("always-on agent vocabulary", () => {
+  // The seed registers the acpmock provider and its catalog models for the create screen.
+  test.use({
+    runtimeOptions: {
+      seed: {
+        mockAgents: [
+          {
+            fixturePath: browserLifecycleFixture,
+            fixtureAgent: "browser-lifecycle-agent",
+            agentName: "always-on-vocabulary-seed",
+          },
+        ],
+      },
+    },
+  });
+
   test("E2E-001: an always-on agent created at Full access reads Always-on and Full access", async ({
     appPage,
     runtime,
