@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
@@ -75,7 +76,7 @@ func (h *BaseHandlers) instanceByID(c *gin.Context, id, verb string) (agentinsta
 		h.instanceError(c, err)
 		return agentinstance.Instance{}, false
 	}
-	scope, err := h.resolveProfileReadScope(c)
+	scope, err := h.instanceProfileScope(c)
 	if err != nil {
 		h.respondProfileReadScopeError(c, err)
 		return agentinstance.Instance{}, false
@@ -109,6 +110,17 @@ func (h *BaseHandlers) instanceByID(c *gin.Context, id, verb string) (agentinsta
 		}
 	}
 	return instance, true
+}
+
+// instanceProfileScope admits the all-profiles lens only for reads: a write names the owner
+// profile, so an aggregate selector cannot reach another profile's instance.
+func (h *BaseHandlers) instanceProfileScope(c *gin.Context) (profilepkg.ReadScope, error) {
+	switch c.Request.Method {
+	case http.MethodGet, http.MethodHead:
+		return h.resolveProfileReadScope(c)
+	default:
+		return h.resolveProfileMutationScope(c)
+	}
 }
 
 func (h *BaseHandlers) GetAgentInstance(c *gin.Context) {

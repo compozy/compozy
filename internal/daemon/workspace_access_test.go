@@ -80,6 +80,11 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 					ID: id, AgentName: "coder", WorkspaceID: foreignWorkspace, ProfileID: "p-y",
 					State: session.StateActive, Name: "deploy with " + seededSecret,
 				}, nil
+			case "sess-peer":
+				return &session.Info{
+					ID: id, AgentName: "coder", WorkspaceID: homeWorkspace, ProfileID: "p-y",
+					State: session.StateStopped,
+				}, nil
 			case "sess-sibling":
 				return &session.Info{
 					ID: id, AgentName: "coder", WorkspaceID: foreignWorkspace, ProfileID: "p-x",
@@ -193,6 +198,31 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		if foreignErr == nil || missingErr == nil || foreignErr.Error() != missingErr.Error() {
 			t.Fatalf("deny-all write denials differ:\nforeign: %v\nmissing: %v", foreignErr, missingErr)
 		}
+	})
+
+	t.Run("Should treat another profile's session in the same project as a crossing for fork", func(t *testing.T) {
+		t.Parallel()
+		forkDescriptor := statusDescriptor
+		forkDescriptor.ID, forkDescriptor.ReadOnly = toolspkg.ToolIDSessionFork, false
+		fork := func(t *testing.T, binder *nativeWorkspaceInputBinder, input string) error {
+			t.Helper()
+			bound, err := binder.BindCallInput(t.Context(), actorScope, forkDescriptor, json.RawMessage(input))
+			if err != nil {
+				return err
+			}
+			return binder.AuthorizeCallInput(t.Context(), actorScope, forkDescriptor, toolspkg.CallRequest{
+				ToolID: forkDescriptor.ID, SessionID: actorScope.SessionID, Input: bound,
+			})
+		}
+		sessions := sessionsFor(workspaceaccess.ModeApproveAll)
+		binder := newNativeWorkspaceInputBinder(nativeTestWorkspaceService(t), sessions, newPolicy(t, sessions), nil)
+		if err := fork(t, binder, `{"session_id":"sess-own"}`); err != nil {
+			t.Fatalf("same-profile fork error = %v, want the caller's own work to fork", err)
+		}
+		// The derive manager checks only the workspace of a project source, so this boundary is
+		// what keeps one profile from copying another profile's transcript in a shared project.
+		err := fork(t, binder, `{"session_id":"sess-peer"}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 	})
 
 	t.Run("Should answer a denied caller the same for foreign and missing sessions", func(t *testing.T) {

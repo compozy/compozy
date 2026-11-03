@@ -29,6 +29,7 @@ import { subscribeWorkspaceSwitchBarrier } from "../lib/workspace-switch-barrier
 import { WindowManagerRuntime } from "../runtime/window-manager-runtime";
 import { selectFocusedSessionId } from "./use-focused-session-id";
 import { useGlobalShortcutReconciliation } from "./use-global-shortcut-reconciliation";
+import { useProfileSwitchWindowSweep } from "./use-profile-switch-window-sweep";
 import { useWindowScopePruning } from "./use-window-scope-pruning";
 import { useWindowManagerClient } from "./use-window-manager-client";
 import { useWindowManagerStream } from "./use-window-manager-stream";
@@ -155,6 +156,9 @@ export function useDesktopChrome(
     manager.setLoadError(client.error);
     shell.coordinator.reportAuthoritativeState();
   }, [activeWorkspaceId, client.client, client.error, manager, profileId, shell]);
+
+  // After the rebind above, so the sweep reads the target desk rather than the one it replaced.
+  useProfileSwitchWindowSweep(shell, activeWorkspaceId);
 
   useEffect(() => {
     if (client.status === "registered" && query.data && configQuery.data) {
