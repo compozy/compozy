@@ -506,6 +506,8 @@ synthetic budget gate.
 Definitions reference data over one namespace with two surfaces, chosen by the field:
 
 - **Values** — Go `{{ }}` templates in string fields (`params.*`, rubrics, `transform.map.*`).
+  Functions: `json`, `toJson`, `join`, `default`, `shellQuote`, and the builtins `len`, `eq`, `ne`,
+  `lt`, `le`, `gt`, `ge`, `not`, `and`, `or`; validation rejects every other function.
 - **Conditions** — CEL returning `bool` (`branch.condition`, `route.routes[].when`,
   `fan-out.filter`, `contract.stop_when`).
 

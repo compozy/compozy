@@ -83,12 +83,22 @@ func funcMap() template.FuncMap {
 }
 
 // allowedBuiltinFunctions lists text/template builtins the walker accepts.
-// Builtins are always available at render time, so rejecting them here would
-// make validation stricter than the runtime contract; only side-effect-free
-// builtins loops rely on are allowed.
+// Builtins are always available at render time, so validation is the only
+// gate: it admits pure, side-effect-free builtins (length, comparison, and
+// boolean logic) and rejects ones that invoke values (call) or format and
+// escape output (print, printf, println, html, js, urlquery, index, slice).
 func allowedBuiltinFunctions() map[string]struct{} {
 	return map[string]struct{}{
 		"len": {},
+		"eq":  {},
+		"ne":  {},
+		"lt":  {},
+		"le":  {},
+		"gt":  {},
+		"ge":  {},
+		"not": {},
+		"and": {},
+		"or":  {},
 	}
 }
 
@@ -275,16 +285,6 @@ func (w *templateWalker) validateCommand(cmd *parse.CommandNode, state templateS
 	if cmd == nil {
 		return nil
 	}
-	if len(cmd.Args) == 0 {
-		return nil
-	}
-	if ident, ok := cmd.Args[0].(*parse.IdentifierNode); ok {
-		_, curated := funcMap()[ident.Ident]
-		_, builtin := allowedBuiltinFunctions()[ident.Ident]
-		if !curated && !builtin {
-			return fmt.Errorf("unsupported template function %q", ident.Ident)
-		}
-	}
 	for _, arg := range cmd.Args {
 		if err := w.validateArg(arg, state); err != nil {
 			return err
@@ -297,6 +297,10 @@ func (w *templateWalker) validateArg(node parse.Node, state templateState) error
 	switch typed := node.(type) {
 	case nil:
 		return nil
+	case *parse.IdentifierNode:
+		// A function identifier in any argument position is invoked, so it must
+		// pass the same allowlist as the command's leading function.
+		return validateTemplateFunction(typed.Ident)
 	case *parse.FieldNode:
 		return w.validatePathNode(typed, state)
 	case *parse.VariableNode:
@@ -313,6 +317,16 @@ func (w *templateWalker) validateArg(node parse.Node, state templateState) error
 	default:
 		return nil
 	}
+}
+
+func validateTemplateFunction(name string) error {
+	if _, curated := funcMap()[name]; curated {
+		return nil
+	}
+	if _, builtin := allowedBuiltinFunctions()[name]; builtin {
+		return nil
+	}
+	return fmt.Errorf("unsupported template function %q", name)
 }
 
 func (w *templateWalker) validatePathNode(node parse.Node, state templateState) error {

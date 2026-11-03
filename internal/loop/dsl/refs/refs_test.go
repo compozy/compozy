@@ -245,14 +245,84 @@ func TestCommandTemplateShouldQuoteRuntimeValuesAsShellData(t *testing.T) {
 func TestTemplateShouldRejectNonAllowlistedFunctions(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should reject builtins outside the allowlist", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name     string
+		template string
+		function string
+	}{
+		{name: "Should reject printf", template: `{{ printf "%s" .item.title }}`, function: "printf"},
+		{name: "Should reject print", template: `{{ print .item.title }}`, function: "print"},
+		{name: "Should reject println", template: `{{ println .item.title }}`, function: "println"},
+		{name: "Should reject call", template: `{{ call .item.title }}`, function: "call"},
+		{name: "Should reject html", template: `{{ html .item.title }}`, function: "html"},
+		{name: "Should reject js", template: `{{ js .item.title }}`, function: "js"},
+		{name: "Should reject urlquery", template: `{{ urlquery .item.title }}`, function: "urlquery"},
+		{name: "Should reject index", template: `{{ index .item "title" }}`, function: "index"},
+		{name: "Should reject slice", template: `{{ slice .item.title 0 1 }}`, function: "slice"},
+		{
+			name:     "Should reject a disallowed builtin nested in a comparison",
+			template: `{{ if eq (printf "%s" .item.title) "x" }}y{{ end }}`,
+			function: "printf",
+		},
+		{
+			name:     "Should reject a disallowed builtin in argument position",
+			template: `{{ if eq html "" }}y{{ end }}`,
+			function: "html",
+		},
+	}
 
-		_, err := refs.CompileTemplate("test", `{{ printf "%s" .item.title }}`, namespace(true))
-		if err == nil || !strings.Contains(err.Error(), `unsupported template function "printf"`) {
-			t.Fatalf("CompileTemplate() error = %v, want unsupported template function", err)
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := refs.CompileTemplate("test", tt.template, namespace(true))
+			want := `unsupported template function "` + tt.function + `"`
+			if err == nil || !strings.Contains(err.Error(), want) {
+				t.Fatalf("CompileTemplate() error = %v, want %s", err, want)
+			}
+		})
+	}
+}
+
+func TestTemplateShouldRouteOnComparisonAndLogicBuiltins(t *testing.T) {
+	t.Parallel()
+
+	raw := `{{ if eq .nodes.review.output.verdict "fail" }}fail{{ else if ne .nodes.review.output.verdict "" }}other{{ else }}none{{ end }}` +
+		`|{{ if and (not .inputs.done) (or (lt (len .inputs.tags) 3) (ge (len .inputs.tags) 9)) }}open{{ end }}` +
+		`|{{ if and (le (len .inputs.tags) 2) (gt (len .inputs.tags) 1) }}pair{{ end }}`
+	compiled, err := refs.CompileTemplate("compare", raw, namespace(false))
+	if err != nil {
+		t.Fatalf("CompileTemplate() error = %v", err)
+	}
+	if len(compiled.References) < 4 {
+		t.Fatalf("References len = %d, want at least 4", len(compiled.References))
+	}
+
+	tests := []struct {
+		name    string
+		verdict string
+		want    string
+	}{
+		{name: "Should route a failing verdict", verdict: "fail", want: "fail|open|pair"},
+		{name: "Should route another verdict", verdict: "pass", want: "other|open|pair"},
+		{name: "Should route the zero-value verdict of a node that did not run", verdict: "", want: "none|open|pair"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rendered, err := refs.RenderTemplateString("compare", raw, map[string]any{
+				"inputs": map[string]any{"done": false, "tags": []string{"one", "two"}},
+				"nodes":  map[string]any{"review": map[string]any{"output": map[string]any{"verdict": tt.verdict}}},
+			})
+			if err != nil {
+				t.Fatalf("RenderTemplateString() error = %v", err)
+			}
+			if rendered != tt.want {
+				t.Fatalf("RenderTemplateString() = %q, want %q", rendered, tt.want)
+			}
+		})
+	}
 }
 
 func TestConditionShouldCompileCacheAndValidateBoolContract(t *testing.T) {
