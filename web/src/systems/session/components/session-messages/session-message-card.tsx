@@ -65,11 +65,11 @@ export function SessionMessageCard({
       data-testid="session-message-card"
       data-delivery={delivery ?? undefined}
       avatar={
-        sender.staysOn ? (
+        sender.alwaysOn ? (
           <AgentMark
             aria-hidden="true"
-            appearance={sender.staysOn.appearance}
-            label={sender.staysOn.label}
+            appearance={sender.alwaysOn.appearance}
+            label={sender.alwaysOn.label}
             quietIdle
             size={24}
             state="unknown"

@@ -6081,8 +6081,10 @@
             "type": "array"
           },
           "kind": {
+            "description": "Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.",
             "enum": [
               "on_demand",
+              "always_on",
               "stays_on"
             ],
             "type": "string"
@@ -7318,6 +7320,12 @@
             "type": "string"
           },
           "kind": {
+            "description": "Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.",
+            "enum": [
+              "on_demand",
+              "always_on",
+              "stays_on"
+            ],
             "type": "string"
           },
           "model": {
@@ -7398,8 +7406,10 @@
       "DuplicateAgentRequest": {
         "properties": {
           "kind": {
+            "description": "Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.",
             "enum": [
               "on_demand",
+              "always_on",
               "stays_on"
             ],
             "type": "string"
@@ -47752,7 +47762,7 @@
             "description": "Request failed"
           }
         },
-        "summary": "Create a stays-on agent instance",
+        "summary": "Create an always-on agent instance",
         "tags": [
           "agents"
         ],
@@ -53739,7 +53749,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -53882,7 +53892,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -54027,7 +54037,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -54170,7 +54180,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -54313,7 +54323,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -54447,7 +54457,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -54592,7 +54602,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -54737,7 +54747,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -54882,7 +54892,7 @@
                 }
               }
             },
-            "description": "agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
+            "description": "agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input"
           },
           "500": {
             "content": {
@@ -70302,7 +70312,7 @@
             }
           },
           {
-            "description": "Exclude stays-on main sessions from the page and its total",
+            "description": "Exclude always-on main sessions from the page and its total",
             "in": "query",
             "name": "exclude_instance_main",
             "schema": {
@@ -91909,7 +91919,7 @@
             }
           },
           {
-            "description": "Exclude stays-on main sessions from the page and its total",
+            "description": "Exclude always-on main sessions from the page and its total",
             "in": "query",
             "name": "exclude_instance_main",
             "schema": {

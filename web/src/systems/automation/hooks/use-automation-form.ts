@@ -303,7 +303,7 @@ export function useAutomationForm({
       patch({ agent_name });
     },
     onPromptChange: (prompt: string) => patch({ prompt }),
-    /** Moves the trigger to the scope of the stays-on instance it names; `""` is Global. */
+    /** Moves the trigger to the scope of the always-on instance it names; `""` is Global. */
     onInstanceScope: (workspaceId: string) =>
       patch(
         workspaceId

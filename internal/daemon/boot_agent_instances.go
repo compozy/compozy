@@ -29,7 +29,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	if !ok {
 		return errors.New("daemon: instance repositories unavailable")
 	}
-	if err := provider.SetUnattendedTurnLimit(state.cfg.Agents.StaysOn.UnattendedTurnLimit); err != nil {
+	if err := provider.SetUnattendedTurnLimit(state.cfg.Agents.AlwaysOn.UnattendedTurnLimit); err != nil {
 		return err
 	}
 	repo := provider.Instances()
@@ -68,7 +68,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 			},
 		}),
 		agentinstance.WithMainSessions(instanceMainSessions{sessions: manager, attempts: repo}),
-		agentinstance.WithActiveLimit(state.cfg.Agents.StaysOn.MaxActiveInstances),
+		agentinstance.WithActiveLimit(state.cfg.Agents.AlwaysOn.MaxActiveInstances),
 		agentinstance.WithClock(d.now),
 		agentinstance.WithInstanceChanged(func(instance agentinstance.Instance) {
 			manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
@@ -85,8 +85,8 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		Metrics:  repo.Metrics,
 		Service:  service, Store: repo, Reports: provider.InstanceReports(),
 		WakeState: repo.WakeState, CountActive: repo.CountActive,
-		HeldWakes: repo.HeldWakes, UnattendedTurnLimit: state.cfg.Agents.StaysOn.UnattendedTurnLimit,
-		MaxActiveInstances: state.cfg.Agents.StaysOn.MaxActiveInstances,
+		HeldWakes: repo.HeldWakes, UnattendedTurnLimit: state.cfg.Agents.AlwaysOn.UnattendedTurnLimit,
+		MaxActiveInstances: state.cfg.Agents.AlwaysOn.MaxActiveInstances,
 		FatigueLimit:       state.cfg.Agents.Heartbeat.FatigueLimit,
 		ReadPayload: func(ctx context.Context, instance agentinstance.Instance) (contract.AgentInstancePayload, error) {
 			return definitions.instancePayload(ctx, instance, repo)

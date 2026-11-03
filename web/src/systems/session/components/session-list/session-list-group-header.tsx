@@ -18,8 +18,8 @@ import {
   sessionListGroupTarget,
   type SessionListGroupSpec,
 } from "../../lib/session-list-groups";
-import { StaysOnCreateMenu } from "../stays-on/stays-on-create-menu";
-import { StaysOnCollapsedSignal } from "../stays-on/stays-on-signals";
+import { AlwaysOnCreateMenu } from "../always-on/always-on-create-menu";
+import { AlwaysOnCollapsedSignal } from "../always-on/always-on-signals";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListCreateMenu } from "./session-list-create-menu";
 import { SessionListGroupProjectMenu } from "./session-list-group-project-menu";
@@ -30,7 +30,7 @@ export function SessionListGroupSignal({ group }: { group: SessionListGroupSpec 
   const scope = group.kind === "project" ? sessionListGroupTarget(group).workspaceId : null;
   return (
     <>
-      {scope ? <StaysOnCollapsedSignal workspaceId={scope} /> : null}
+      {scope ? <AlwaysOnCollapsedSignal workspaceId={scope} /> : null}
       <SessionGroupSignal group={group} />
     </>
   );
@@ -86,7 +86,7 @@ function groupSessionOptions(target: ReturnType<typeof sessionListGroupTarget>) 
   };
 }
 
-function groupStaysOn(
+function groupAlwaysOn(
   group: SessionListGroupSpec,
   workspaceId: string | null | undefined,
   name: string
@@ -156,7 +156,7 @@ export function SessionListGroupHeader({
   const folder = useSessionListGroupFolderCreate(target);
   const testId = `${testIdPrefix}-group-${group.key}`;
   const name = sessionListGroupName(group);
-  const staysOn = groupStaysOn(group, target.workspaceId, name);
+  const alwaysOn = groupAlwaysOn(group, target.workspaceId, name);
   const createMenu = {
     variant: "quiet",
     size: "icon-xs",
@@ -189,8 +189,8 @@ export function SessionListGroupHeader({
             signal={<SessionListGroupSignal group={group} />}
             testId={testId}
           />
-          {staysOn ? (
-            <StaysOnCreateMenu {...createMenu} staysOn={staysOn} />
+          {alwaysOn ? (
+            <AlwaysOnCreateMenu {...createMenu} alwaysOn={alwaysOn} />
           ) : (
             <SessionListCreateMenu {...createMenu} />
           )}

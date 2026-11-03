@@ -25,7 +25,7 @@ func (p *agentMemoryPromptSectionProvider) PromptStartupSection(
 	_ context.Context, startup session.StartupPromptContext, agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 ) (string, error) {
-	if agent.EffectiveKind() != compozyconfig.AgentKindStaysOn {
+	if agent.EffectiveKind() != compozyconfig.AgentKindAlwaysOn {
 		return "", nil
 	}
 	key, err := agentMemoryKey(p.catalog(), startup.ProfileID, agent, workspace)

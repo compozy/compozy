@@ -14,10 +14,10 @@ import {
 
 import { AgentPlaceMenu } from "@/systems/agent/components/agent-profile/agent-place-card";
 
-import { ProjectMark } from "../stays-on-agents-shared/add-pickers";
-import type { AgentState } from "../stays-on-agents-shared/agent-state";
-import { PAUSE_SHORT } from "../stays-on-agents-shared/agents-fixtures";
-import { SCOPE_LABEL } from "../stays-on-agents-shared/fixtures";
+import { ProjectMark } from "../always-on-agents-shared/add-pickers";
+import type { AgentState } from "../always-on-agents-shared/agent-state";
+import { PAUSE_SHORT } from "../always-on-agents-shared/agents-fixtures";
+import { SCOPE_LABEL } from "../always-on-agents-shared/fixtures";
 import { canResume } from "./place-edits";
 import type { ProfilePlace } from "./profile-fixtures";
 
@@ -33,7 +33,7 @@ function status(place: ProfilePlace) {
   if (place.pauseReason) return PAUSE_SHORT[place.pauseReason];
   if (place.state === "paused") return "You paused it";
   if (place.now) return place.now;
-  return place.state === "working" ? "Working" : "Resting until its next check-in";
+  return place.state === "working" ? "Working" : "Resting until its next heartbeat";
 }
 
 function Times({ place }: { place: ProfilePlace }) {
@@ -42,7 +42,7 @@ function Times({ place }: { place: ProfilePlace }) {
   }
   return (
     <span>
-      {place.last ? `Checked in ${place.last}` : "No check-ins yet"}
+      {place.last ? `Checked in ${place.last}` : "No heartbeats yet"}
       {place.next ? ` · next ${place.next}` : ""}
     </span>
   );

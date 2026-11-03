@@ -9,7 +9,7 @@ import { FindingRow } from "@/systems/agent/components/agent-profile/agent-profi
 import type { ProfileData, WorkItem } from "./profile-fixtures";
 
 function openReport() {
-  window.location.assign(protoHref("stays-on-reports", "proposal"));
+  window.location.assign(protoHref("always-on-reports", "proposal"));
 }
 
 export function FindingsPanel({ data }: { data: ProfileData }) {

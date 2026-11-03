@@ -84,7 +84,7 @@ describe("agentNextWakeLine", () => {
         agentInstanceFixture({ next_wake: { kind: "check", description: "" } }),
         now
       )
-    ).toBe("Its next check-in");
+    ).toBe("Its next heartbeat");
     expect(agentNextWakeLine(agentInstanceFixture({ next_wake: null }), now)).toBeNull();
   });
 });
@@ -208,6 +208,6 @@ describe("agentFromOrphanInstance", () => {
 
   it("Should give an orphan enough of an agent to explain itself", () => {
     const agent = agentFromOrphanInstance(agentInstanceFixture({ label: "Triage Lead" }));
-    expect(agent).toMatchObject({ name: "triage", label: "Triage Lead", kind: "stays_on" });
+    expect(agent).toMatchObject({ name: "triage", label: "Triage Lead", kind: "always_on" });
   });
 });

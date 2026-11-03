@@ -108,7 +108,11 @@ func (n *daemonNativeTools) configGet(
 		return toolspkg.ToolResult{}, nativeConfigValidationError(req.ToolID, err)
 	}
 	entries := compozyconfig.FlattenConfigEntries(compozyconfig.RedactedConfigMap(&cfg))
-	entry, ok := compozyconfig.EntryByPath(entries, input.Path)
+	path, deprecated := compozyconfig.CanonicalDottedConfigPath(input.Path)
+	if deprecated {
+		compozyconfig.LogConfigPathAlias(strings.Split(path, "."))
+	}
+	entry, ok := compozyconfig.EntryByPath(entries, path)
 	if !ok {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeNotFound,

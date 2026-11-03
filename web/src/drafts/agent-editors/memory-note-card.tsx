@@ -4,8 +4,8 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 
 import { Button, DateTimePicker, MarkdownEditor, Pill, cn } from "@compozy/ui";
 
-import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
-import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
+import { AgentAvatar } from "../always-on-agents-shared/agent-avatar";
+import type { DraftAgent } from "../always-on-agents-shared/fixtures";
 import type { Note } from "./memory-fixtures";
 
 const MAX_NOTE = 1000;

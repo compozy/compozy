@@ -29,7 +29,7 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 	if !ok {
 		return errors.New("daemon: proactive workspace reader unavailable")
 	}
-	cfg, hb := state.cfg.Agents.StaysOn, state.cfg.Agents.Heartbeat
+	cfg, hb := state.cfg.Agents.AlwaysOn, state.cfg.Agents.Heartbeat
 	environment := &instanceCheckEnvironment{
 		instanceDigestCollector: instanceDigestCollector{
 			instances: provider.Instances(), sessions: manager, monitors: state.sessionMonitors,

@@ -47,7 +47,7 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 			operation.id,
 			"agent_instance_"+operation.name,
 			"Agent Instance "+operation.name,
-			"Manage the caller's stays-on agent instance: "+operation.name,
+			"Manage the caller's always-on agent instance: "+operation.name,
 			schema,
 			risk,
 			operation.read,
@@ -57,7 +57,7 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 				toolspkg.ToolsetIDAuthoredContext,
 			},
 			[]string{descriptorKeywordAgents, "instances"},
-			[]string{"stays-on instance", operation.name},
+			[]string{"always-on instance", operation.name},
 		))
 	}
 	result = append(

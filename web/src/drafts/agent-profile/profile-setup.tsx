@@ -6,7 +6,7 @@ import { Panel, Section } from "@compozy/ui";
 
 import { SetupRow } from "@/systems/agent/components/agent-profile/agent-profile-setup";
 
-import type { DraftAgent } from "../stays-on-agents-shared/fixtures";
+import type { DraftAgent } from "../always-on-agents-shared/fixtures";
 
 export type ProfilePanel = "model" | "tools";
 
@@ -23,10 +23,10 @@ export function SetupPanel({
   readOnly?: boolean;
   onOpen: (panel: ProfilePanel) => void;
 }) {
-  const staysOn = agent.kind === "stays_on";
+  const alwaysOn = agent.kind === "always_on";
   return (
     <Section
-      label="How it's set up"
+      label="Setup"
       right={
         readOnly ? (
           <span className="text-eyebrow text-muted-foreground">From {agent.owner}</span>
@@ -40,7 +40,7 @@ export function SetupPanel({
             locked={readOnly}
             onOpen={editor("what")}
             summary="Direct, and flags what blocks the work"
-            title="How it behaves"
+            title="Instructions"
           />
           <SetupRow
             icon={Bot}
@@ -49,22 +49,22 @@ export function SetupPanel({
             summary={agent.provider === "codex" ? "GPT 6 Astra" : "Claude Opus 5.5"}
             title="Model"
           />
-          {staysOn ? (
+          {alwaysOn ? (
             <SetupRow
               icon={Clock}
               locked={readOnly}
               onOpen={editor("checkins")}
               summary="Every 30 min, 9:00 to 19:00"
-              title="Check-ins"
+              title="Heartbeat"
             />
           ) : null}
-          {staysOn ? (
+          {alwaysOn ? (
             <SetupRow
               icon={Brain}
               locked={readOnly}
               onOpen={editor("memory")}
               summary="14 notes"
-              title="What it remembers"
+              title="Memory"
             />
           ) : null}
           <SetupRow
@@ -72,7 +72,7 @@ export function SetupPanel({
             locked={readOnly}
             onOpen={() => onOpen("tools")}
             summary="12 tools in this project"
-            title="What it can use"
+            title="Tools"
           />
         </div>
       </Panel>

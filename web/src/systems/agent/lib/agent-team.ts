@@ -42,7 +42,7 @@ export interface AgentTeamMember {
   name: string;
   label: string;
   description: string;
-  kind: "stays_on" | "on_demand";
+  kind: "always_on" | "on_demand";
   provider: string | null;
   appearance: AgentAvatarAppearance;
   agent: AgentPayload | null;
@@ -73,14 +73,14 @@ type CountedReason = "" | "fatigue" | "unattended";
 
 const PAUSE_PLAIN: Record<Exclude<AgentInstancePauseReason, CountedReason>, string> = {
   manual: "You paused it.",
-  definition_not_stays_on: "It was changed to on demand, so it can't stay on here anymore.",
-  definition_missing: "Its setup was deleted, so it can't come back. What it remembers is kept.",
+  definition_not_always_on: "It was changed to on-demand, so it can't be always-on here anymore.",
+  definition_missing: "Its setup was deleted, so it can't come back. Its memory is kept.",
 };
 
 /** The same reason, short enough for a card. */
 const PAUSE_SHORT: Record<Exclude<AgentInstancePauseReason, CountedReason>, string> = {
   manual: "You paused it",
-  definition_not_stays_on: "Now on demand, so it can't stay on",
+  definition_not_always_on: "Now on-demand, so it can't be always-on",
   definition_missing: "Its setup was deleted",
 };
 
@@ -88,7 +88,7 @@ export function agentPausePlain(instance: AgentPauseFacts) {
   const reason = instance.pause_reason;
   if (!reason) return "";
   if (reason === "fatigue") {
-    return `It stopped itself after ${instance.fatigue_limit} check-ins in a row went wrong.`;
+    return `It stopped itself after ${instance.fatigue_limit} heartbeats in a row went wrong.`;
   }
   if (reason === "unattended") {
     const steps = agentUnattendedSteps(instance);
@@ -100,7 +100,7 @@ export function agentPausePlain(instance: AgentPauseFacts) {
 export function agentPauseShort(instance: AgentPauseFacts) {
   const reason = instance.pause_reason;
   if (!reason) return "";
-  if (reason === "fatigue") return `Stopped after ${instance.fatigue_limit} failed check-ins`;
+  if (reason === "fatigue") return `Stopped after ${instance.fatigue_limit} failed heartbeats`;
   if (reason === "unattended") {
     const steps = agentUnattendedSteps(instance);
     return steps ? `Took ${steps} steps without you` : "Took many steps without you";
@@ -166,7 +166,7 @@ function memberFromItem(
     name: item.name,
     label: item.label,
     description: agent.description ?? "",
-    kind: item.kind === "stays_on" ? "stays_on" : "on_demand",
+    kind: item.kind === "always_on" ? "always_on" : "on_demand",
     provider: agent.provider || null,
     appearance: agentAppearanceFromPayload(agent.resolved_appearance, item.name),
     agent,
@@ -196,7 +196,7 @@ function memberFromOrphan(
     name,
     label: first.label,
     description: "",
-    kind: "stays_on",
+    kind: "always_on",
     provider: first.provider ?? null,
     appearance: agentAppearanceFromPayload(first.resolved_appearance, name),
     agent: null,
@@ -255,9 +255,9 @@ export function agentsByAttention(left: AgentTeamMember, right: AgentTeamMember)
   );
 }
 
-/** A definition that stopped being stays-on keeps its section while it has places to explain. */
-export function agentStaysOn(member: AgentTeamMember) {
-  return member.kind === "stays_on" || member.places.length > 0;
+/** A definition that stopped being always-on keeps its section while it has places to explain. */
+export function agentAlwaysOn(member: AgentTeamMember) {
+  return member.kind === "always_on" || member.places.length > 0;
 }
 
 export function matchesAgentFocus(member: AgentTeamMember, focus: AgentTeamFocus) {
@@ -329,7 +329,7 @@ export function buildAgentTeamFilterFields(
   ];
 }
 
-/** What a stays-on teammate is up to, in one plain sentence, with the tone of its dot. */
+/** What an always-on teammate is up to, in one plain sentence, with the tone of its dot. */
 export function agentNowLine(member: AgentTeamMember, lastCheckIn: string | null) {
   const running = member.places.filter(place => place.instance.state !== "paused");
   const live = running.find(place => place.state === "needs-you" || place.state === "working");
@@ -347,7 +347,7 @@ export function agentNowLine(member: AgentTeamMember, lastCheckIn: string | null
     return { text: "Waiting to be added to a project", tone: "idle" as const };
   }
   return {
-    text: lastCheckIn ? `Resting. Last check-in ${lastCheckIn}` : "Resting",
+    text: lastCheckIn ? `Resting. Last heartbeat ${lastCheckIn}` : "Resting",
     tone: "idle" as const,
   };
 }

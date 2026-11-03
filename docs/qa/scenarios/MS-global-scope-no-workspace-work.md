@@ -38,7 +38,7 @@ Walk:
    initial state, live updates, and replay.
 7. Place a user-layer resource and confirm it resolves in Global and in every registered workspace.
 8. Turn Global off with a remembered project present, and again with none, and confirm the restore
-   and the honest stays-on reason respectively.
+   and the honest always-on reason respectively.
 
 Expected evidence: first-run capture, the created item's stored representation on all four surfaces,
 request-level proof of server-side filtering, the indeterminate-scope response, paired reconnect and

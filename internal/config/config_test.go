@@ -3375,22 +3375,22 @@ enabled = false
 	})
 }
 
-func TestStaysOnApprovalTimeout(t *testing.T) {
+func TestAlwaysOnApprovalTimeout(t *testing.T) {
 	t.Parallel()
 	t.Run("Should default to twelve hours and validate inclusive bounds", func(t *testing.T) {
 		t.Parallel()
 		cfg := DefaultWithHome(HomePaths{})
-		if cfg.Agents.StaysOn.ApprovalTimeout != 12*time.Hour {
+		if cfg.Agents.AlwaysOn.ApprovalTimeout != 12*time.Hour {
 			t.Fatal("unexpected approval timeout default")
 		}
 		for _, wait := range []time.Duration{time.Minute, 12 * time.Hour, 72 * time.Hour} {
-			cfg.Agents.StaysOn.ApprovalTimeout = wait
+			cfg.Agents.AlwaysOn.ApprovalTimeout = wait
 			if err := cfg.Agents.Validate(); err != nil {
 				t.Fatalf("valid wait %v: %v", wait, err)
 			}
 		}
 		for _, wait := range []time.Duration{0, 30 * time.Second, time.Minute - time.Nanosecond, 72*time.Hour + time.Nanosecond, 73 * time.Hour} {
-			cfg.Agents.StaysOn.ApprovalTimeout = wait
+			cfg.Agents.AlwaysOn.ApprovalTimeout = wait
 			if err := cfg.Agents.Validate(); err == nil {
 				t.Fatalf("accepted invalid wait %v", wait)
 			}
@@ -3398,23 +3398,23 @@ func TestStaysOnApprovalTimeout(t *testing.T) {
 	})
 }
 
-func TestStaysOnTriageConfiguration(t *testing.T) {
+func TestAlwaysOnTriageConfiguration(t *testing.T) {
 	t.Run("Should default the unattended brake and preserve an explicit disabled overlay", func(t *testing.T) {
 		t.Parallel()
 		cfg := DefaultWithHome(HomePaths{})
-		if cfg.Agents.StaysOn.UnattendedTurnLimit != 300 {
-			t.Fatalf("default limit=%d", cfg.Agents.StaysOn.UnattendedTurnLimit)
+		if cfg.Agents.AlwaysOn.UnattendedTurnLimit != 300 {
+			t.Fatalf("default limit=%d", cfg.Agents.AlwaysOn.UnattendedTurnLimit)
 		}
 		for _, limit := range []int64{0, 12, 300} {
-			staysOnOverlay{UnattendedTurnLimit: &limit}.Apply(&cfg.Agents.StaysOn)
-			if cfg.Agents.StaysOn.UnattendedTurnLimit != limit {
-				t.Fatalf("overlay limit=%d want=%d", cfg.Agents.StaysOn.UnattendedTurnLimit, limit)
+			alwaysOnOverlay{UnattendedTurnLimit: &limit}.Apply(&cfg.Agents.AlwaysOn)
+			if cfg.Agents.AlwaysOn.UnattendedTurnLimit != limit {
+				t.Fatalf("overlay limit=%d want=%d", cfg.Agents.AlwaysOn.UnattendedTurnLimit, limit)
 			}
 			if err := cfg.Agents.Validate(); err != nil {
 				t.Fatal(err)
 			}
 		}
-		cfg.Agents.StaysOn.UnattendedTurnLimit = -1
+		cfg.Agents.AlwaysOn.UnattendedTurnLimit = -1
 		if cfg.Agents.Validate() == nil {
 			t.Fatal("negative unattended limit accepted")
 		}
@@ -3423,11 +3423,11 @@ func TestStaysOnTriageConfiguration(t *testing.T) {
 	t.Run("Should default to two proposals and accept every documented proposal limit", func(t *testing.T) {
 		t.Parallel()
 		cfg := DefaultWithHome(HomePaths{})
-		if cfg.Agents.StaysOn.MaxProposals != 2 {
-			t.Fatalf("default proposals = %d", cfg.Agents.StaysOn.MaxProposals)
+		if cfg.Agents.AlwaysOn.MaxProposals != 2 {
+			t.Fatalf("default proposals = %d", cfg.Agents.AlwaysOn.MaxProposals)
 		}
 		for limit := 1; limit <= 20; limit++ {
-			cfg.Agents.StaysOn.MaxProposals = limit
+			cfg.Agents.AlwaysOn.MaxProposals = limit
 			if err := cfg.Agents.Validate(); err != nil {
 				t.Fatalf("limit %d: %v", limit, err)
 			}
@@ -3437,22 +3437,22 @@ func TestStaysOnTriageConfiguration(t *testing.T) {
 	t.Run("Should reject unsafe triage limits while accepting defaults", func(t *testing.T) {
 		t.Parallel()
 		cfg := DefaultWithHome(HomePaths{})
-		if cfg.Agents.StaysOn.TriageTimeout != 10*time.Minute {
-			t.Fatalf("triage timeout=%v", cfg.Agents.StaysOn.TriageTimeout)
+		if cfg.Agents.AlwaysOn.TriageTimeout != 10*time.Minute {
+			t.Fatalf("triage timeout=%v", cfg.Agents.AlwaysOn.TriageTimeout)
 		}
 		if err := cfg.Agents.Validate(); err != nil {
 			t.Fatal(err)
 		}
-		for _, mutate := range []func(*StaysOnConfig){
-			func(c *StaysOnConfig) { c.RotationThreshold = 0 },
-			func(c *StaysOnConfig) { c.RotationThreshold = 1.1 },
-			func(c *StaysOnConfig) { c.MaxProposals = 21 },
-			func(c *StaysOnConfig) { c.TriageTimeout = 0 },
+		for _, mutate := range []func(*AlwaysOnConfig){
+			func(c *AlwaysOnConfig) { c.RotationThreshold = 0 },
+			func(c *AlwaysOnConfig) { c.RotationThreshold = 1.1 },
+			func(c *AlwaysOnConfig) { c.MaxProposals = 21 },
+			func(c *AlwaysOnConfig) { c.TriageTimeout = 0 },
 		} {
 			candidate := cfg.Agents
-			mutate(&candidate.StaysOn)
+			mutate(&candidate.AlwaysOn)
 			if candidate.Validate() == nil {
-				t.Fatalf("invalid limits accepted: %+v", candidate.StaysOn)
+				t.Fatalf("invalid limits accepted: %+v", candidate.AlwaysOn)
 			}
 		}
 	})

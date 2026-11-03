@@ -6,5 +6,5 @@ export function goToProfile(state: string) {
 }
 
 export function goToAgents() {
-  window.location.assign(protoHref("stays-on-agents-list", "cards"));
+  window.location.assign(protoHref("always-on-agents-list", "cards"));
 }

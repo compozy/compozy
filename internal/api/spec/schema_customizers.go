@@ -123,6 +123,7 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.AttachSessionRequest]():           customizeAttachSessionRequestSchema,
 	reflect.TypeFor[contract.CreateAgentPayload]():             customizeCreateAgentPayloadSchema,
 	reflect.TypeFor[contract.DuplicateAgentRequest]():          customizeDuplicateAgentRequestSchema,
+	reflect.TypeFor[contract.DuplicateAgentOverrides]():        customizeDuplicateAgentOverridesSchema,
 	reflect.TypeFor[contract.AgentSpawnRequest]():              customizeAgentSpawnRequestSchema,
 	reflect.TypeFor[contract.AgentNotifyRequest]():             customizeAgentNotifyRequestSchema,
 	reflect.TypeFor[contract.CreateSessionRequest]():           customizeCreateSessionRequestSchema,

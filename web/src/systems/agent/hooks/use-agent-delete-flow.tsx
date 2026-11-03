@@ -71,7 +71,7 @@ export function useAgentDeleteFlow({
     <>
       This removes the agent definition for <code className="font-mono text-fg">{agent.name}</code>.
       Its sessions stay in history.
-      {agent.kind === "stays_on" ? " What it remembers is put away, not erased." : null}
+      {agent.kind === "always_on" ? " Its memory is put away, not erased." : null}
     </>
   ) : null;
   const description = agent ? (

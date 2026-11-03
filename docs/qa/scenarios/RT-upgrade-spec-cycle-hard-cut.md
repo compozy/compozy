@@ -19,7 +19,7 @@ overlaps: RT-upgrade-memory-removal-home; ET-052; TA-web-automations-upgrade
 Spec QA-004, covering US-006, US-007 and US-010.AC-2.
 
 Prepare the home with v0.4.8 itself: a session on `review_fixer`, an automation job and a trigger aimed
-at `implement-tasks`, a stored `loop_configure` override for that Loop, a stays-on instance of a removed
+at `implement-tasks`, a stored `loop_configure` override for that Loop, an always-on instance of a removed
 agent, an active Loop run, an installed Batuta, a same-name workspace Loop, and `.compozy/tasks` content
 with `task_*.md`, `reviews-NNN/` and `memory/`. Include saved scheduled and triggered custom Loops
 whose retired tool node uses `review: {decisions: [respond]}` or
@@ -33,7 +33,7 @@ Upgrade without any manual step and confirm:
 4. The automation records stay unchanged, and each run fails alone with a clear error.
 5. The override row stays and is never read. The active run fails at its first removed step with a clear error, its history stays, and other runs complete. Also rerun from a removed tool node: the run must settle as failed without reattempting or parking in quarantine; its failure names the missing ToolID.
 6. The same-name workspace Loop keeps working.
-7. The stays-on instance pauses as `definition_missing`.
+7. The always-on instance pauses as `definition_missing`.
 8. Batuta still loads, and only `batuta-deliver` fails when run.
 9. Task file hashes are unchanged.
 

@@ -49,8 +49,8 @@ func (a *instanceAdmission) ResolveCreate(
 	if err != nil {
 		return agentinstance.Instance{}, err
 	}
-	if definition.Kind != compozyconfig.AgentKindStaysOn {
-		return agentinstance.Instance{}, agentinstance.ErrNotStaysOn
+	if definition.Kind != compozyconfig.AgentKindAlwaysOn {
+		return agentinstance.Instance{}, agentinstance.ErrNotAlwaysOn
 	}
 	result := agentinstance.Instance{
 		ProfileID:     req.Profile,
@@ -102,8 +102,8 @@ func (a *instanceAdmission) ValidateResume(ctx context.Context, instance agentin
 	if err != nil {
 		return err
 	}
-	if definition.Kind != compozyconfig.AgentKindStaysOn {
-		return agentinstance.ErrNotStaysOn
+	if definition.Kind != compozyconfig.AgentKindAlwaysOn {
+		return agentinstance.ErrNotAlwaysOn
 	}
 	return nil
 }

@@ -14,7 +14,7 @@ func instancePermissionWaitResolver(state *bootState) acp.PermissionWaitResolver
 		return nil
 	}
 	repo := provider.Instances()
-	wait := state.cfg.Agents.StaysOn.ApprovalTimeout
+	wait := state.cfg.Agents.AlwaysOn.ApprovalTimeout
 	return func(sessionID string) time.Duration {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()

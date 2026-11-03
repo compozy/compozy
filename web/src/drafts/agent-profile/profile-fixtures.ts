@@ -1,6 +1,6 @@
 /** Every profile the prototype can show, from a real day's worth of made-up work. */
-import type { AgentState } from "../stays-on-agents-shared/agent-state";
-import { PROJECTS } from "../stays-on-agents-shared/agents-fixtures";
+import type { AgentState } from "../always-on-agents-shared/agent-state";
+import { PROJECTS } from "../always-on-agents-shared/agents-fixtures";
 import {
   GENERAL,
   ORCHESTRATOR,
@@ -8,7 +8,7 @@ import {
   TRIAGE,
   type DraftAgent,
   type PauseReason,
-} from "../stays-on-agents-shared/fixtures";
+} from "../always-on-agents-shared/fixtures";
 
 export interface ProfilePlace {
   scope: string;
@@ -175,7 +175,7 @@ const USAGE_SPLIT = [
   { project: "advos", share: 32, amount: "≈ $4.00" },
 ];
 
-const STAYS_ON: Omit<ProfileData, "places"> = {
+const ALWAYS_ON: Omit<ProfileData, "places"> = {
   agent: TRIAGE,
   days: month(1),
   findings: FINDINGS,
@@ -216,9 +216,9 @@ const MANY_PLACES: readonly ProfilePlace[] = PROJECTS.map((scope, index) => ({
 }));
 
 export const PROFILES = {
-  "stays-on": { ...STAYS_ON, places: [COMPOZY, ADVOS] },
+  "always-on": { ...ALWAYS_ON, places: [COMPOZY, ADVOS] },
   "needs-you": {
-    ...STAYS_ON,
+    ...ALWAYS_ON,
     places: [
       {
         ...COMPOZY,
@@ -231,7 +231,7 @@ export const PROFILES = {
     findings: [{ ...FINDINGS[0]!, waiting: true }, ...FINDINGS.slice(1)],
   },
   paused: {
-    ...STAYS_ON,
+    ...ALWAYS_ON,
     ...PAUSED_SINCE,
     places: [
       pausedPlace("manual"),
@@ -239,28 +239,28 @@ export const PROFILES = {
     ],
   },
   "paused-failures": {
-    ...STAYS_ON,
+    ...ALWAYS_ON,
     ...PAUSED_SINCE,
     places: [pausedPlace("fatigue"), ADVOS],
     work: [
       {
         id: "w0",
         title: "Stopped checking in on compozy",
-        detail: "10 check-ins in a row went wrong",
+        detail: "10 heartbeats in a row went wrong",
         when: "2 days ago",
         tone: "destructive",
       },
       ...WORK.slice(3),
     ],
   },
-  "cant-resume": { ...STAYS_ON, ...PAUSED_SINCE, places: [pausedPlace("definition_missing")] },
-  "no-longer-stays-on": {
-    ...STAYS_ON,
+  "cant-resume": { ...ALWAYS_ON, ...PAUSED_SINCE, places: [pausedPlace("definition_missing")] },
+  "no-longer-always-on": {
+    ...ALWAYS_ON,
     ...PAUSED_SINCE,
-    places: [pausedPlace("definition_not_stays_on")],
+    places: [pausedPlace("definition_not_always_on")],
   },
   "on-demand": {
-    ...STAYS_ON,
+    ...ALWAYS_ON,
     agent: GENERAL,
     places: [],
     findings: [],
@@ -298,7 +298,7 @@ export const PROFILES = {
     pulse: rhythm(10, 17, 0.7),
   },
   extension: {
-    ...STAYS_ON,
+    ...ALWAYS_ON,
     agent: ORCHESTRATOR,
     readOnly: true,
     usageByProject: [
@@ -311,7 +311,7 @@ export const PROFILES = {
     ],
   },
   "no-activity": {
-    ...STAYS_ON,
+    ...ALWAYS_ON,
     agent: SCOUT,
     places: [],
     days: [],
@@ -321,9 +321,9 @@ export const PROFILES = {
     pulse: [],
     fresh: true,
   },
-  invalid: { ...STAYS_ON, ...PAUSED_SINCE, places: [pausedPlace("manual")] },
+  invalid: { ...ALWAYS_ON, ...PAUSED_SINCE, places: [pausedPlace("manual")] },
   "many-places": {
-    ...STAYS_ON,
+    ...ALWAYS_ON,
     places: MANY_PLACES,
     headline: { value: "2,914", unit: "reports", sub: "97 a day across 50 projects" },
   },

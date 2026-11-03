@@ -3,7 +3,7 @@ import { Archive, History } from "@compozy/ui/icons";
 
 import { Button, Disclosure, Timeline, TimelineEvent } from "@compozy/ui";
 
-import { EditorCard } from "../stays-on-agents-shared/rich-controls";
+import { EditorCard } from "../always-on-agents-shared/rich-controls";
 import { PUT_AWAY, REVISIONS } from "./memory-fixtures";
 
 export type { MemoryFullness as Fullness } from "@/systems/agent/lib/agent-memory-notes";

@@ -298,7 +298,7 @@ describe("useAgentCreateDialog", () => {
     });
   });
 
-  function fillStaysOn(
+  function fillAlwaysOn(
     result: { current: ReturnType<typeof useAgentCreateDialog> },
     place: string
   ) {
@@ -318,22 +318,22 @@ describe("useAgentCreateDialog", () => {
     });
   }
 
-  it("Should open on Stays on with the scope chosen from a picker's Create new", () => {
+  it("Should open on Always-on with the scope chosen from a picker's Create new", () => {
     const { result } = renderAgentCreateDialog();
 
     act(() => {
       result.current.openDialog({ place: "ws_beta" });
     });
 
-    expect(result.current.draft).toMatchObject({ kind: "stays_on", place: "ws_beta" });
-    // A Stays on definition lives at the user level, so any project can start it.
+    expect(result.current.draft).toMatchObject({ kind: "always_on", place: "ws_beta" });
+    // An always-on definition lives at the user level, so any project can start it.
     expect(result.current.draft.scope).toBe("global");
   });
 
   it("Should create at the user level, start the first instance and return to sessions", async () => {
     const { result } = renderAgentCreateDialog();
 
-    fillStaysOn(result, "ws_alpha");
+    fillAlwaysOn(result, "ws_alpha");
 
     await waitFor(() => {
       expect(mockCreateInstance).toHaveBeenCalledWith({
@@ -348,7 +348,7 @@ describe("useAgentCreateDialog", () => {
     expect(mockCreateAgent.mock.calls[0]?.[0].params).toMatchObject({
       scope: "global",
       agent: {
-        kind: "stays_on",
+        kind: "always_on",
         display_name: "Release Captain",
         description: "Keeps the release moving",
       },
@@ -358,7 +358,7 @@ describe("useAgentCreateDialog", () => {
   it("Should create no instance for Decide later", async () => {
     const { result } = renderAgentCreateDialog();
 
-    fillStaysOn(result, "later");
+    fillAlwaysOn(result, "later");
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith({
@@ -374,7 +374,7 @@ describe("useAgentCreateDialog", () => {
     mockCapacity.current = { limit: 10, active: 10, reached: true };
     const { result } = renderAgentCreateDialog();
 
-    fillStaysOn(result, "ws_alpha");
+    fillAlwaysOn(result, "ws_alpha");
 
     await waitFor(() => expect(mockCreateAgent).toHaveBeenCalledOnce());
     await waitFor(() => expect(mockNavigate).toHaveBeenCalled());
@@ -385,7 +385,7 @@ describe("useAgentCreateDialog", () => {
     mockCreateInstance.mockRejectedValue(new Error("This agent can't reach that workspace."));
     const { result } = renderAgentCreateDialog();
 
-    fillStaysOn(result, "ws_alpha");
+    fillAlwaysOn(result, "ws_alpha");
 
     await waitFor(() =>
       expect(result.current.startFailure).toBe("This agent can't reach that workspace.")
@@ -642,7 +642,7 @@ describe("useAgentCreateDialog", () => {
     mockDuplicateAgent.mockResolvedValue({ ...source, name: "ops-lead-copy" });
 
     act(() => result.current.openForDuplicate(source, { profile: "ops" }));
-    // Taken names and stays-on slots are read where the copy lands, not in the shell's profile.
+    // Taken names and always-on slots are read where the copy lands, not in the shell's profile.
     expect(mockProfileReads.agents.at(-1)).toBe("ops");
     expect(mockProfileReads.capacity.at(-1)).toBe("ops");
     act(() => result.current.onDraftChange({ ...result.current.draft, name: "ops-lead-copy" }));
@@ -659,13 +659,13 @@ describe("useAgentCreateDialog", () => {
       expect.objectContaining({ profile: "ops", sourceName: "ops-lead" })
     );
 
-    // A stays-on copy starts its first instance in that same profile.
+    // An always-on copy starts its first instance in that same profile.
     act(() => result.current.openForDuplicate(source, { profile: "ops" }));
     act(() =>
       result.current.onDraftChange({
         ...result.current.draft,
         name: "ops-lead-watch",
-        kind: "stays_on",
+        kind: "always_on",
         place: "@user",
       })
     );

@@ -90,7 +90,7 @@ export function messageHasCompactionPart(content: unknown): boolean {
   );
 }
 
-/** True when a message carries a stays-on agent's report. */
+/** True when a message carries an always-on agent's report. */
 export function messageHasReportPart(content: unknown): boolean {
   return (
     Array.isArray(content) &&

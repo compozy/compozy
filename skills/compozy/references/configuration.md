@@ -669,8 +669,11 @@ v0.4.0 and are removed in v0.5.0. On data selectors, `global` resolves only a mi
 on window-manager surfaces it always means the reserved partition. `@user` always means User.
 
 Proactive checks use `[agents.heartbeat]` limits: `max_concurrent_triage = 2` and
-`max_interval = "24h"` (at least `quiet_backoff_cap`). `[agents.stays_on]` retains
+`max_interval = "24h"` (at least `quiet_backoff_cap`). `[agents.always_on]` retains
 `max_proposals = 2` and `triage_timeout = "10m"`.
+`[agents.always_on]` was renamed in v0.5.1. Its v0.5.0 table name, and only that table's config paths, are
+still read through v0.5.1 and removed in v0.5.2; see "Identity and kind" in
+`references/agent-definitions.md`. Validation messages name `agents.always_on.*`.
 All must be positive; `max_proposals` cannot exceed 20. Changes take effect after daemon
 restart. Cadence, enabled state and event retention use the existing `[agents.heartbeat]`
 settings. Boot settles interrupted checks before scheduler timer traffic starts.

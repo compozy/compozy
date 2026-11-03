@@ -16,7 +16,7 @@ interface WebhookStartProps {
 }
 
 /**
- * Link settings: in User, unless the link tells a stays-on agent and so lives where that agent
+ * Link settings: in User, unless the link tells an always-on agent and so lives where that agent
  * runs. The signing secret is write-only and never shown again.
  */
 export function WebhookStart({ draft, form }: WebhookStartProps) {
@@ -26,7 +26,7 @@ export function WebhookStart({ draft, form }: WebhookStartProps) {
         <Info aria-hidden="true" />
         <AlertDescription>
           {automationLinkKeepsScope(draft) ? (
-            <>This link tells a stays-on agent, so it lives where that agent runs.</>
+            <>This link tells an always-on agent, so it lives where that agent runs.</>
           ) : (
             <>
               Link automations always live in <b className="font-medium text-fg">User</b>. They

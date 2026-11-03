@@ -3,10 +3,10 @@ import { Users2 } from "@compozy/ui/icons";
 
 import { Button, Empty, type ListingViewMode } from "@compozy/ui";
 
-import { agentStaysOn, agentsByAttention, type AgentTeamMember } from "../../lib/agent-team";
+import { agentAlwaysOn, agentsByAttention, type AgentTeamMember } from "../../lib/agent-team";
 import { AgentFleetSkeleton } from "../agent-fleet-skeleton";
 import type { AgentTeamActions } from "./agent-team-card";
-import { AgentStaysOnWelcome, AgentTeamSection } from "./agent-team-section";
+import { AgentAlwaysOnWelcome, AgentTeamSection } from "./agent-team-section";
 
 const ON_DEMAND_PAGE = 12;
 
@@ -19,7 +19,7 @@ export interface AgentTeamPageProps {
   /** True when no search, filter or tab narrows the page. */
   unfiltered: boolean;
   actions: AgentTeamActions;
-  onCreate: (options?: { staysOn?: boolean }) => void;
+  onCreate: (options?: { alwaysOn?: boolean }) => void;
   onClearFilters: () => void;
 }
 
@@ -82,25 +82,25 @@ export function AgentTeamPage({
       </div>
     );
   }
-  const staysOn = members.filter(agentStaysOn).sort(agentsByAttention);
-  const onDemand = members.filter(member => !agentStaysOn(member));
+  const alwaysOn = members.filter(agentAlwaysOn).sort(agentsByAttention);
+  const onDemand = members.filter(member => !agentAlwaysOn(member));
   return (
     <div className="flex flex-col gap-8" data-testid="agent-fleet-list">
-      {staysOn.length > 0 ? (
+      {alwaysOn.length > 0 ? (
         <AgentTeamSection
           actions={actions}
-          label="Stays on"
-          members={staysOn}
+          label="Always-on"
+          members={alwaysOn}
           pageSize={ON_DEMAND_PAGE}
           view={view}
         />
       ) : unfiltered ? (
-        <AgentStaysOnWelcome onCreate={() => onCreate({ staysOn: true })} />
+        <AgentAlwaysOnWelcome onCreate={() => onCreate({ alwaysOn: true })} />
       ) : null}
       {onDemand.length > 0 ? (
         <AgentTeamSection
           actions={actions}
-          label="On demand"
+          label="On-demand"
           members={onDemand}
           pageSize={ON_DEMAND_PAGE}
           view={view}

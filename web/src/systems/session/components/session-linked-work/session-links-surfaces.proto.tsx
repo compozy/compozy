@@ -5,7 +5,7 @@ import {
   SessionLinksDialogStage,
   SessionLinksPaletteStage,
   type LinkDialogPreset,
-} from "@/drafts/stays-on-agents-shared/session-links-stage";
+} from "@/drafts/always-on-agents-shared/session-links-stage";
 
 export const meta = definePrototype({
   title: "Session links · Board, palette and link dialog",

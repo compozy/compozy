@@ -3625,3 +3625,38 @@ func resolvedSkillPath(dir string, source string) workspacepkg.SkillPath {
 		Source: strings.TrimSpace(source),
 	}
 }
+
+// TestRegistrySetEnabledForAgentKindAlias owns the UT-004 skill attach case: toggling a skill on a
+// v0.5.0 stays_on definition edits it without a kind change and writes always_on.
+func TestRegistrySetEnabledForAgentKindAlias(t *testing.T) {
+	t.Parallel()
+
+	agentsDir := t.TempDir()
+	path := filepath.Join(agentsDir, "triage", "AGENT.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(
+		path,
+		[]byte("---\nname: triage\nkind: stays_on\ndescription: Watches issues\n---\nWatch.\n"),
+		0o600,
+	); err != nil {
+		t.Fatal(err)
+	}
+	registry := newTestRegistry(t, RegistryConfig{GlobalAgentsDir: agentsDir})
+	if err := registry.SetEnabledForAgent("review", nil, "triage", false); err != nil {
+		t.Fatalf("SetEnabledForAgent() error = %v", err)
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"kind: always_on", "description: Watches issues", "- review"} {
+		if !strings.Contains(string(body), want) {
+			t.Fatalf("AGENT.md = %q, want %q", body, want)
+		}
+	}
+	if strings.Contains(string(body), "stays_on") {
+		t.Fatalf("AGENT.md = %q, want no stays_on", body)
+	}
+}

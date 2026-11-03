@@ -412,7 +412,7 @@ func TestPromptInputCompositeIntegrationAgentMemory(t *testing.T) {
 		t.Parallel()
 		home := t.TempDir()
 		memory := agentmemory.NewStore(home)
-		agent := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn}
+		agent := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindAlwaysOn}
 		catalog := newResourceCatalog(cloneAgentDef)
 		catalog.Replace(
 			1,
@@ -472,7 +472,7 @@ func TestPromptInputCompositeIntegrationActiveAgentMemory(t *testing.T) {
 		cfg := testConfig(t, home)
 		workspace := newHarnessIntegrationWorkspace(t, home, cfg, filepath.Join(home.HomeDir, "workspace"))
 		workspace.ID = workspaceAccessIntegrationHome
-		workspace.Agents[0].Kind = compozyconfig.AgentKindStaysOn
+		workspace.Agents[0].Kind = compozyconfig.AgentKindAlwaysOn
 		agent := workspace.Agents[0]
 		catalog := newResourceCatalog(cloneAgentDef)
 		catalog.Replace(

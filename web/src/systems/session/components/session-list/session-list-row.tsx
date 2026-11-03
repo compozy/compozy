@@ -10,7 +10,7 @@ export type { SessionListRowProps } from "./session-list-row-view";
 /**
  * A session list row bound to the live runtime label, the session-entry intent preload and the
  * row menus (`…` actions and right-click); the presentation is `SessionListRowView`. Linked work
- * and the stays-on agent that started a session show inside the session, not on its row (#1191).
+ * and the always-on agent that started a session show inside the session, not on its row (#1191).
  */
 export function SessionListRow(props: SessionListRowProps) {
   const { session, current = false, selection, sessionActions, layoutMenu } = props;

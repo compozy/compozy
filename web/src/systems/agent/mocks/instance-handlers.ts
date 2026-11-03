@@ -34,7 +34,7 @@ export function resetAgentInstanceMock(): void {
   capacityLimit = 10;
 }
 
-/** `agents.stays_on.max_active_instances`, as the list envelope reports it. */
+/** `agents.always_on.max_active_instances`, as the list envelope reports it. */
 export function seedAgentInstanceLimit(limit: number): void {
   capacityLimit = limit;
 }

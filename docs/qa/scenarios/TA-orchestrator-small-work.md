@@ -1,10 +1,10 @@
 ---
 id: TA-orchestrator-small-work
 area: TA
-title: Hand small work to the stays-on orchestrator
+title: Hand small work to the always-on orchestrator
 persona: Bruno
 journey: J-deliver-through-agents
-expected: On a real provider, a stays-on orchestrator records a work log entry before dispatch, runs the item in its own worktree, closes it with evidence, and a stale entry wakes heartbeat triage.
+expected: On a real provider, an always-on orchestrator records a work log entry before dispatch, runs the item in its own worktree, closes it with evidence, and a stale entry wakes heartbeat triage.
 entry_points: compozy agent instance create orchestrator; compozy session prompt; .compozy/work-log.md; compozy__agent_heartbeat_status
 qa_status: blocked-decision
 bug_ids: BUG-20261102-instance-worktree-ceiling; BUG-20261102-triage-limits
@@ -29,5 +29,7 @@ executor starts.
 Add a `[ ]` entry older than 30 minutes. The next heartbeat digest carries `work:<id>` and triage
 reports or proposes. With the digest unchanged, the following heartbeat makes no model call.
 
-Run this scenario before `cy-orquestrate-issue` is removed, because stays-on triage has not yet run on
+Run this scenario before `cy-orquestrate-issue` is removed, because always-on triage has not yet run on
 real providers.
+
+QA impact 2026-11-03 (#1199 vocabulary, v0.5.1): the bundled `orchestrator` declares `kind: always_on`; `compozy agent instance create orchestrator` reports it as always-on. Not walked; S4 walks it on the integration head.

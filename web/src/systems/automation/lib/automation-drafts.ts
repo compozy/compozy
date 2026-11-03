@@ -166,7 +166,7 @@ export function createAutomationTriggerDraft(
 
 /** The `target_kind` discriminator value marking a loop-target automation. */
 export const LOOP_TARGET_KIND = "loop";
-/** A trigger that stores its event for a stays-on agent's next check (S10); triggers only. */
+/** A trigger that stores its event for an always-on agent's next check (S10); triggers only. */
 export const AGENT_INSTANCE_TARGET_KIND = "agent_instance";
 const AGENT_TARGET_KIND = "agent";
 

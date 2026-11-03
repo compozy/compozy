@@ -52,10 +52,10 @@ import {
 import type { SessionPayload } from "@/systems/session/types";
 import { WorkspaceBadge } from "@/systems/workspace/components/workspace-badge";
 
-import { COMPOZY_ROW } from "../stays-on-agents-shared/sessions-fixtures";
-import { StaysOnRow } from "../stays-on-agents-shared/stays-on-row";
+import { COMPOZY_ROW } from "../always-on-agents-shared/sessions-fixtures";
+import { AlwaysOnRow } from "../always-on-agents-shared/always-on-row";
 import { useIconCatalog } from "../agent-create/hooks/use-icon-catalog";
-import { useCanvasTheme } from "../stays-on-agents-shared/use-canvas-theme";
+import { useCanvasTheme } from "../always-on-agents-shared/use-canvas-theme";
 import {
   BUILTIN_GRAY,
   FOLDER_ROWS,
@@ -175,7 +175,7 @@ function SessionColumn({ threadSegment }: { threadSegment: SessionThreadSegment 
             }
           />
           <div className="flex flex-col gap-0.5 pl-2.5">
-            <StaysOnRow className="px-1 pt-1 pb-1.5" instances={COMPOZY_ROW} scopeName="compozy" />
+            <AlwaysOnRow className="px-1 pt-1 pb-1.5" instances={COMPOZY_ROW} scopeName="compozy" />
             <Row session={SESSIONS.captain} />
             <Row session={SESSIONS.question} />
             <Row session={SESSIONS.chip} />

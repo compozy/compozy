@@ -10955,7 +10955,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 
 	t.Run("Should decide native tools at the session's effective level", func(t *testing.T) {
 		t.Parallel()
-		// #1200: an undeclared stays-on agent runs at approve-edits; its native tools
+		// #1200: an undeclared always-on agent runs at approve-edits; its native tools
 		// must not fall back to the global approve-all while the provider gate defers.
 		cfg := testConfig(t, testHomePaths(t))
 		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
@@ -10967,7 +10967,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			want        toolspkg.PermissionMode
 		}{
 			{
-				name: "Should use the stays-on default level", sessionType: session.SessionTypeUser,
+				name: "Should use the always-on default level", sessionType: session.SessionTypeUser,
 				effective: string(compozyconfig.PermissionModeApproveEdits), want: toolspkg.PermissionModeApproveEdits,
 			},
 			{
@@ -11000,7 +11000,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 					Config:   &cfg,
 					Sessions: &nativeToolPolicySessionStub{info: info},
 					AgentResolver: &nativeToolPolicyAgentResolverStub{err: tc.agentErr, agent: compozyconfig.AgentDef{
-						Name: "orchestrator", Provider: "opencode", Prompt: "Coordinate.", Kind: "stays_on",
+						Name: "orchestrator", Provider: "opencode", Prompt: "Coordinate.", Kind: "always_on",
 					}},
 					ApprovalAvailable: true,
 				})
@@ -16211,11 +16211,11 @@ func TestNativeSessionPromptCrossWorkspaceReply(t *testing.T) {
 }
 
 func TestAgentMemoryNativeTools(t *testing.T) {
-	t.Run("Should mutate only the calling stays-on agent memory through the registry", func(t *testing.T) {
+	t.Run("Should mutate only the calling always-on agent memory through the registry", func(t *testing.T) {
 		t.Parallel()
 		memory := agentmemory.NewStore(t.TempDir())
 		catalog := newResourceCatalog(cloneAgentDef)
-		agent := compozyconfig.AgentDef{Name: "coder", Kind: compozyconfig.AgentKindStaysOn}
+		agent := compozyconfig.AgentDef{Name: "coder", Kind: compozyconfig.AgentKindAlwaysOn}
 		catalog.Replace(
 			1,
 			[]resources.Record[compozyconfig.AgentDef]{
@@ -16319,7 +16319,7 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 			scope,
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentMemoryAdd, Input: json.RawMessage(`{"text":"refuse"}`)},
 		); err == nil ||
-			!strings.Contains(err.Error(), "agent_not_stays_on") {
+			!strings.Contains(err.Error(), "agent_not_always_on") {
 			t.Fatalf("on-demand result: %v", err)
 		}
 	})

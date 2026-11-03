@@ -25,10 +25,10 @@ export interface SessionMessageParty {
    */
   provider?: string | null;
   /**
-   * The stays-on agent this session is the current main of (S12): its face, from the instance as in
+   * The always-on agent this session is the current main of (S12): its face, from the instance as in
    * its reports, replaces the provider's mark.
    */
-  staysOn?: ReportAgent | null;
+  alwaysOn?: ReportAgent | null;
   /** Set only when the party lives in another workspace than this transcript (Gap 5). */
   workspaceName?: string | null;
 }

@@ -26,7 +26,7 @@ Walk:
 3. Arrange a different desktop and window layout under the second profile.
 4. Switch back and forth between the two profiles and confirm each arrangement returns exactly as it
    was left, in both directions, including which desktop is active.
-5. Turn on All profiles, open a session, a terminal, a pinned agent (Open agent on a stays-on
+5. Turn on All profiles, open a session, a terminal, a pinned agent (Open agent on an always-on
    avatar) and an automation job or trigger owned by the second profile, then select the remembered
    profile whose desk you are on. Confirm each of those windows closes, the remembered profile's own
    windows stay, the second profile's desk still shows its own windows when you switch to it, and a

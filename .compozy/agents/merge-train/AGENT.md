@@ -2,7 +2,7 @@
 name: merge-train
 display_name: Merge Train
 description: Verifies handed-off pull requests and merges them into main, one at a time.
-kind: stays_on
+kind: always_on
 provider: claude
 model: claude-opus-5-5
 reasoning_effort: medium

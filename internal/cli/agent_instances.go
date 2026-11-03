@@ -13,7 +13,7 @@ import (
 )
 
 func newAgentInstanceCommand(deps commandDeps) *cobra.Command {
-	parent := &cobra.Command{Use: "instance", Short: "Manage stays-on agent instances"}
+	parent := &cobra.Command{Use: "instance", Short: "Manage always-on agent instances"}
 	for _, action := range []string{
 		automationCreateKey,
 		agentListKey,
@@ -61,7 +61,7 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 		cmd.Flags().IntVar(&options.limit, listLimitField, 50, "Page size (1-100)")
 	}
 	if action == agentListKey {
-		cmd.Flags().BoolVar(&options.peers, "peers", false, "List reachable stays-on peers")
+		cmd.Flags().BoolVar(&options.peers, "peers", false, "List reachable always-on peers")
 		cmd.Flags().BoolVar(&options.all, "all-workspaces", false, "Include every workspace")
 		cmd.Flags().StringVar(&options.agent, "agent", "", "Filter by agent name")
 		cmd.MarkFlagsMutuallyExclusive("all-workspaces", "global", workspaceSkillSource)
@@ -141,7 +141,7 @@ func instanceActionText(instance contract.AgentInstancePayload, action string) s
 	}
 	switch action {
 	case automationCreateKey, agentInstanceAdoptAction:
-		return fmt.Sprintf("%s is stays-on in %s\nMain session: %s\n", label, scope, instance.MainSessionID)
+		return fmt.Sprintf("%s is always-on in %s\nMain session: %s\n", label, scope, instance.MainSessionID)
 	case "pause":
 		return fmt.Sprintf("%s paused in %s\n", label, scope)
 	case "resume":

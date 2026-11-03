@@ -92,7 +92,7 @@ func agentInstanceCatalogOperations() []OperationSpec {
 			Method:      httpMethodPost,
 			Path:        "/api/agent-instances",
 			OperationID: "createAgentInstance",
-			Summary:     "Create a stays-on agent instance",
+			Summary:     "Create an always-on agent instance",
 			RequestBody: contract.AgentInstanceCreateRequest{},
 			Responses: []ResponseSpec{
 				{Status: 201, Description: "Created", Body: contract.AgentInstanceResponse{}},

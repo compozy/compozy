@@ -51,7 +51,7 @@ export function useSessionLabel({
   const workspace = useWorkspace(resolvedWorkspaceId, {
     enabled: crossWorkspace && !userDestination,
   });
-  const staysOn = useStaysOnIdentity(sessionId);
+  const alwaysOn = useAlwaysOnIdentity(sessionId);
   const labelRead = workspaceId === "" && !owner.data ? owner : detail;
   const { title, pending } = sessionLabelTitle(
     { data: detail.data, error: labelRead.error, isError: labelRead.isError },
@@ -61,7 +61,7 @@ export function useSessionLabel({
   return {
     sessionId,
     workspaceId: userDestination ? "" : resolvedWorkspaceId,
-    ...staysOnParty(title, pending, staysOn),
+    ...alwaysOnParty(title, pending, alwaysOn),
     agentName: detail.data?.agent_name || agentName,
     provider: sessionRuntimeProvider(detail.data?.runtime),
     workspaceName: sessionLabelWorkspaceName(
@@ -72,21 +72,21 @@ export function useSessionLabel({
   };
 }
 
-/** A stays-on agent's current main speaks as the agent, not as its session (S12). */
-function useStaysOnIdentity(sessionId: string): ReportAgent | null {
-  const staysOn = useAgentInstances().find(
+/** An always-on agent's current main speaks as the agent, not as its session (S12). */
+function useAlwaysOnIdentity(sessionId: string): ReportAgent | null {
+  const alwaysOn = useAgentInstances().find(
     instance => sessionId !== "" && instance.main_session_id === sessionId
   );
-  return staysOn ? reportAgent(staysOn, staysOn.agent_name) : null;
+  return alwaysOn ? reportAgent(alwaysOn, alwaysOn.agent_name) : null;
 }
 
-/** The title a party reads: a stays-on main names its agent and never waits on its session read. */
-function staysOnParty(
+/** The title a party reads: an always-on main names its agent and never waits on its session read. */
+function alwaysOnParty(
   title: string | null,
   pending: boolean | undefined,
-  staysOn: ReportAgent | null
-): Pick<SessionMessageParty, "title" | "pending" | "staysOn"> {
-  if (staysOn) return { title: staysOn.label, staysOn };
+  alwaysOn: ReportAgent | null
+): Pick<SessionMessageParty, "title" | "pending" | "alwaysOn"> {
+  if (alwaysOn) return { title: alwaysOn.label, alwaysOn };
   return pending ? { title, pending } : { title };
 }
 

@@ -1571,10 +1571,10 @@ digest and triggers a fresh resolution at the next wake decision.
 
 ## `[permissions]`
 
-| Field                  | Type    | Default       | Valid values                               | Description                                                                                                                  |
-| ---------------------- | ------- | ------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `mode`                 | string  | `approve-all` | `deny-all`, `approve-reads`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`.                                     |
-| `provider_full_access` | boolean | `false`       | `true`, `false`                            | Request an unrestricted ACP mode for new `approve-all` sessions on supported providers; enable it only in the global config. |
+| Field                  | Type    | Default       | Valid values                                                        | Description                                                                                                                  |
+| ---------------------- | ------- | ------------- | ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `mode`                 | string  | `approve-all` | `deny-all`, `approve-reads`, `approve-edits`, `auto`, `approve-all` | Default permission policy used when an agent definition does not override `permissions`.                                     |
+| `provider_full_access` | boolean | `false`       | `true`, `false`                                                     | Request an unrestricted ACP mode for new `approve-all` sessions on supported providers; enable it only in the global config. |
 
 The mode also decides cross-workspace requests from agent sessions: `approve-all` crosses without
 asking, `approve-reads` asks at the native-tool boundary and denies elsewhere, and `deny-all` never
@@ -2828,13 +2828,19 @@ See [User scope](/docs/user-scope) for the walkthrough.
 
 ## Proactive checks
 
-The `[agents.stays_on]` section bounds instance lifecycle and triage execution. These settings apply after a daemon restart.
+The `[agents.always_on]` section bounds instance lifecycle and triage execution. These settings apply after a daemon restart.
+
+The section was renamed in v0.5.1. The v0.5.0 table name and its `compozy config` paths still work
+through v0.5.1 with a warning, and a key set in `[agents.always_on]` wins; v0.5.2 removes them. See
+[the migration guide](/docs/migration#always-on-vocabulary). Validation messages name
+`agents.always_on.*`.
 
 | Key                     | Default | Constraint                |
 | ----------------------- | ------- | ------------------------- |
 | `rotation_threshold`    | `0.8`   | Greater than 0, at most 1 |
 | `max_active_instances`  | `10`    | Positive                  |
 | `unattended_turn_limit` | `300`   | Nonnegative; `0` disables |
+| `approval_timeout`      | `"12h"` | 1m–72h                    |
 | `max_proposals`         | `2`     | 1–20                      |
 | `triage_timeout`        | `"10m"` | Positive duration         |
 

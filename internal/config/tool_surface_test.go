@@ -19,11 +19,11 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		kind     ValueKind
 		redacted bool
 	}{
-		{name: "Should allow rotation threshold", path: "agents.stays_on.rotation_threshold", kind: ConfigValueFloat},
-		{name: "Should allow unattended limit", path: "agents.stays_on.unattended_turn_limit", kind: ConfigValueInt},
-		{name: "Should allow instance limit", path: "agents.stays_on.max_active_instances", kind: ConfigValueInt},
-		{name: "Should allow proposal limit", path: "agents.stays_on.max_proposals", kind: ConfigValueInt},
-		{name: "Should allow triage timeout", path: "agents.stays_on.triage_timeout", kind: ConfigValueDuration},
+		{name: "Should allow rotation threshold", path: "agents.always_on.rotation_threshold", kind: ConfigValueFloat},
+		{name: "Should allow unattended limit", path: "agents.always_on.unattended_turn_limit", kind: ConfigValueInt},
+		{name: "Should allow instance limit", path: "agents.always_on.max_active_instances", kind: ConfigValueInt},
+		{name: "Should allow proposal limit", path: "agents.always_on.max_proposals", kind: ConfigValueInt},
+		{name: "Should allow triage timeout", path: "agents.always_on.triage_timeout", kind: ConfigValueDuration},
 		{name: "Should allow maximum check interval", path: "agents.heartbeat.max_interval", kind: ConfigValueDuration},
 		{name: "Should allow triage concurrency", path: "agents.heartbeat.max_concurrent_triage", kind: ConfigValueInt},
 		{name: "Should reject agent mutation of Claude Keychain consent",
@@ -921,4 +921,68 @@ func TestConfigOverlayHookDeclarationsAndValues(t *testing.T) {
 		!*got.Matcher.ToolReadOnly {
 		t.Fatalf("OverlayHookDeclarations() = %#v, want round-tripped hook", got)
 	}
+}
+
+// TestToolConfigPathAlias owns the UT-008 get/set mapping: agents.stays_on.* paths resolve to
+// agents.always_on.* with a deprecation flag; other paths are unchanged. Removal: v0.5.2.
+func TestToolConfigPathAlias(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should classify a set on the old path as the new path", func(t *testing.T) {
+		t.Parallel()
+
+		policy, err := ClassifyToolConfigPath([]string{"agents", "stays_on", "max_proposals"})
+		if err != nil || policy.Denial != ConfigPathAllowed || policy.Kind != ConfigValueInt ||
+			!policy.DeprecatedAlias ||
+			strings.Join(policy.Segments, ".") != "agents.always_on.max_proposals" {
+			t.Fatalf("ClassifyToolConfigPath() = %+v, %v; want agents.always_on.max_proposals", policy, err)
+		}
+		current, err := ClassifyToolConfigPath([]string{"agents", "always_on", "max_proposals"})
+		if err != nil || current.DeprecatedAlias {
+			t.Fatalf("ClassifyToolConfigPath(new path) = %+v, %v; want no alias flag", current, err)
+		}
+	})
+
+	t.Run("Should read the effective value through the old path", func(t *testing.T) {
+		t.Parallel()
+
+		path, deprecated := CanonicalDottedConfigPath("agents.stays_on.approval_timeout")
+		if !deprecated || path != "agents.always_on.approval_timeout" {
+			t.Fatalf("CanonicalDottedConfigPath() = %q, %v", path, deprecated)
+		}
+		cfg := DefaultWithHome(HomePaths{})
+		cfg.Agents.AlwaysOn.ApprovalTimeout = 2 * time.Hour
+		entry, ok := EntryByPath(FlattenConfigEntries(RedactedConfigMap(&cfg)), path)
+		if !ok || fmt.Sprint(entry.Value) != "2h0m0s" {
+			t.Fatalf("EntryByPath(%q) = %+v, %v; want 2h", path, entry, ok)
+		}
+		if unchanged, deprecated := CanonicalDottedConfigPath("agents.heartbeat.enabled"); deprecated ||
+			unchanged != "agents.heartbeat.enabled" {
+			t.Fatalf("CanonicalDottedConfigPath(other) = %q, %v", unchanged, deprecated)
+		}
+	})
+
+	t.Run("Should read the whole table through the old table path", func(t *testing.T) {
+		t.Parallel()
+
+		path, deprecated := CanonicalDottedConfigPath("agents.stays_on")
+		if !deprecated || path != "agents.always_on" {
+			t.Fatalf("CanonicalDottedConfigPath(table) = %q, %v; want agents.always_on", path, deprecated)
+		}
+		cfg := DefaultWithHome(HomePaths{})
+		cfg.Agents.AlwaysOn.MaxProposals = 4
+		agents, ok := RedactedConfigMap(&cfg)["agents"].(map[string]any)
+		if !ok {
+			t.Fatal("RedactedConfigMap() has no agents table")
+		}
+		table, ok := agents["always_on"].(map[string]any)
+		if !ok || fmt.Sprint(table["max_proposals"]) != "4" {
+			t.Fatalf("agents.always_on table = %#v, want max_proposals 4", agents["always_on"])
+		}
+		for _, other := range []string{"agents", "agents.always_on", "agents.stays_onx"} {
+			if unchanged, deprecated := CanonicalDottedConfigPath(other); deprecated || unchanged != other {
+				t.Fatalf("CanonicalDottedConfigPath(%q) = %q, %v; want unchanged", other, unchanged, deprecated)
+			}
+		}
+	})
 }

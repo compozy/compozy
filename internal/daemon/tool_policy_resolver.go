@@ -154,8 +154,8 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 }
 
 // applySessionPermissionLevel decides native tools at the level the session
-// actually runs at, which the provider gate also uses: a stays-on default, a
-// narrowed delegation, or a degraded auto. Without it an undeclared stays-on
+// actually runs at, which the provider gate also uses: an always-on default, a
+// narrowed delegation, or a degraded auto. Without it an undeclared always-on
 // agent would run native tools at the global mode while its provider asks at
 // approve-edits. Triage keeps its read-only level.
 func applySessionPermissionLevel(inputs *toolspkg.PolicyInputs, info *session.Info) {
@@ -399,7 +399,7 @@ func applySessionToolPolicy(inputs *toolspkg.PolicyInputs, info *session.Info) e
 	if info == nil {
 		return nil
 	}
-	inputs.StaysOnLineage = inputs.StaysOnLineage || info.InstanceID != ""
+	inputs.AlwaysOnLineage = inputs.AlwaysOnLineage || info.InstanceID != ""
 	if info.Type == session.SessionTypeTriage {
 		inputs.TriageReadOnly = true
 		inputs.ApprovalAvailable = false
@@ -483,7 +483,7 @@ func (r *nativeToolPolicyResolver) applyInstanceToolPolicy(
 			return err
 		}
 		if caller.InstanceID != "" {
-			inputs.StaysOnLineage = true
+			inputs.AlwaysOnLineage = true
 			if err := applyConcreteSessionToolPolicy(inputs, info.ID, caller.PermissionPolicy); err != nil {
 				return err
 			}

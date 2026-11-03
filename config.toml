@@ -184,7 +184,7 @@ max_bytes_per_session = 268435456
 [log]
 level = "info"
 
-[agents.stays_on]
+[agents.always_on]
 rotation_threshold = 0.8
 max_active_instances = 10
 # Pause after this many non-human turns; 0 disables the brake.

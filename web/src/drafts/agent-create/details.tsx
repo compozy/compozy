@@ -17,8 +17,8 @@ import {
   cn,
 } from "@compozy/ui";
 
-import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
-import type { AgentState } from "../stays-on-agents-shared/agent-state";
+import { AgentAvatar } from "../always-on-agents-shared/agent-avatar";
+import type { AgentState } from "../always-on-agents-shared/agent-state";
 
 import { AvatarChooser } from "./avatar-chooser";
 import { FillWithAi, type FillPreset } from "./fill-with-ai";

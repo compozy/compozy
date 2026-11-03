@@ -13,7 +13,7 @@ export interface AgentHeroIdentity {
   description: string;
   appearance: AgentAvatarAppearance;
   provider: string | null;
-  staysOn: boolean;
+  alwaysOn: boolean;
   owner?: string;
   readOnly: boolean;
 }
@@ -59,7 +59,7 @@ export function AgentProfileHero({
             />
           </h2>
           <Pill data-testid="agent-profile-kind" size="sm" tone="neutral">
-            {identity.staysOn ? "Stays on" : "On demand"}
+            {identity.alwaysOn ? "Always-on" : "On-demand"}
           </Pill>
           {identity.owner ? (
             <Pill form="plain" size="sm">

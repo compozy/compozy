@@ -159,7 +159,25 @@ func upsertArrayTableItemInOverlayDocument(
 	return appendFragment(source, fragment), nil
 }
 
+// deletePathInOverlayDocument removes path and, for an aliased config table, the same key in the
+// other spelling, so an old value cannot resurface after unset. Removal of the twin: v0.5.2.
 func deletePathInOverlayDocument(source []byte, path []string) ([]byte, bool, error) {
+	updated, deleted, err := deleteSinglePathInOverlayDocument(source, path)
+	if err != nil {
+		return nil, false, err
+	}
+	twin, ok := configPathAliasTwin(path)
+	if !ok {
+		return updated, deleted, nil
+	}
+	updated, twinDeleted, err := deleteSinglePathInOverlayDocument(updated, twin)
+	if err != nil {
+		return nil, false, err
+	}
+	return updated, deleted || twinDeleted, nil
+}
+
+func deleteSinglePathInOverlayDocument(source []byte, path []string) ([]byte, bool, error) {
 	document, err := parseOverlayDocument(source)
 	if err != nil {
 		return nil, false, err

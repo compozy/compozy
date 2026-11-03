@@ -17,7 +17,7 @@ import {
   TimelineEvent,
 } from "@compozy/ui";
 
-import { DayStrip, DayStripKey, EditorCard } from "../stays-on-agents-shared/rich-controls";
+import { DayStrip, DayStripKey, EditorCard } from "../always-on-agents-shared/rich-controls";
 import {
   dayCells,
   type CheckInSettings,
@@ -141,7 +141,7 @@ function StandingStatement({
           </span>
           <span className="text-small-body text-muted-foreground">
             {failed
-              ? "10 check-ins in a row failed, so it stopped trying."
+              ? "10 heartbeats in a row failed, so it stopped trying."
               : "You paused it. It waits until you start it again."}
           </span>
         </div>
@@ -157,7 +157,7 @@ function StandingStatement({
         {next ? `${next.day} at ${next.time}` : "None planned"}
       </span>
       <span className="text-small-body text-muted-foreground">
-        {next ? (next.distance ?? "When its hours start") : "Check-ins are off"}
+        {next ? (next.distance ?? "When its hours start") : "Heartbeat is off"}
       </span>
     </div>
   );
@@ -194,7 +194,7 @@ export function NextCard({
   return (
     <EditorCard className="gap-5">
       <div className="-my-1 flex items-center justify-between gap-2">
-        <Eyebrow>{running ? "Next check-in" : "Check-ins"}</Eyebrow>
+        <Eyebrow>{running ? "Next heartbeat" : "Heartbeat"}</Eyebrow>
         <PlacePicker onChange={onPlace} place={place} places={places} />
       </div>
       <StandingStatement next={running ? next : null} onResume={onResume} standing={standing} />
@@ -212,7 +212,7 @@ export function NextCard({
           </span>
           {told > 0 ? <span>{told} worth telling you</span> : null}
         </div>
-        <DayStrip cells={cells} label={`${done} of ${total} check-ins done today`} />
+        <DayStrip cells={cells} label={`${done} of ${total} heartbeats done today`} />
         <div className="flex flex-wrap gap-x-3 gap-y-1">
           {standing === "failed" ? (
             <DayStripKey cell="failed">Failed</DayStripKey>
@@ -249,7 +249,7 @@ export function RecentCard({ activity }: { activity: PlaceActivity }) {
   return (
     <EditorCard className="gap-4">
       <h2 className="text-item-title font-medium text-fg">Today so far</h2>
-      <Timeline ariaLabel="Recent check-ins">
+      <Timeline ariaLabel="Recent heartbeats">
         {activity.recent.map(item => (
           <TimelineEvent
             description={item.description}

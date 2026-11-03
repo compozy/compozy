@@ -3,6 +3,8 @@ import path from "node:path";
 
 import { ensureAppWindow, openAppWindow } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
+import type { Page } from "@playwright/test";
+
 import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace, completeOnboardingIfPrompted } from "../fixtures/workspace";
 import { humanizeAgentSlug } from "@/systems/agent/lib/agent-identity";
@@ -70,7 +72,7 @@ test.describe("seeded agent detail", () => {
       await expect(appPage.getByTestId("agent-detail-header-name")).toHaveText(
         "Agent Detail Primary"
       );
-      await expect(appPage.getByTestId("agent-profile-kind")).toHaveText("On demand");
+      await expect(appPage.getByTestId("agent-profile-kind")).toHaveText("On-demand");
       await expect(appPage.getByTestId("agent-setup-check-ins")).toHaveCount(0);
 
       await appPage.getByTestId("agent-setup-tools").click();
@@ -248,6 +250,115 @@ test.describe("seeded agent detail", () => {
       await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents");
       await expect(fleet.agentRow("agent-detail-secondary")).toHaveCount(0);
     });
+  });
+});
+
+/** Creates an always-on agent through the create screen, unstarted, at the given permission level. */
+async function createAlwaysOnAgent(
+  appPage: Page,
+  runtime: { url: (path: string) => string },
+  name: string,
+  level?: "approve-all"
+) {
+  await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
+  await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
+  await appPage.getByTestId("agents-topbar-create").click();
+  await expect(appPage.getByTestId("agent-create-dialog")).toBeVisible();
+  await appPage.getByTestId("agent-create-name").fill(name);
+  const runtimeTrigger = appPage.getByTestId("agent-create-runtime-select");
+  await runtimeTrigger.click();
+  await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
+  await appPage
+    .locator(`[data-provider="${mockAgentProvider}"][data-model="${reasoningCatalogModel}"]`)
+    .click();
+  await appPage.keyboard.press("Escape");
+  await expect(runtimeTrigger).toContainText(reasoningCatalogModelLabel);
+  await appPage
+    .getByTestId("agent-create-prompt")
+    .locator('[contenteditable="true"]')
+    .fill("Watch the repository and report what needs attention.");
+
+  const alwaysOn = appPage.getByTestId("agent-create-kind-always-on");
+  await expect(alwaysOn).toContainText("Always-on");
+  await expect(appPage.getByTestId("agent-create-kind-on-demand")).toContainText("On-demand");
+  await alwaysOn.click();
+  await appPage.getByTestId("agent-create-where").click();
+  await appPage.getByText("Decide later", { exact: true }).click();
+  await expect(appPage.getByTestId("agent-create-where")).toContainText("Decide later");
+
+  await appPage.getByRole("button", { name: "Advanced", exact: true }).click();
+  const acceptEdits = appPage.getByTestId("agent-create-permissions-approve-edits");
+  await expect(acceptEdits).toContainText("Accept edits");
+  await expect(acceptEdits).toHaveAttribute("aria-checked", "true");
+  if (level) {
+    const fullAccess = appPage.getByTestId(`agent-create-permissions-${level}`);
+    await expect(fullAccess).toContainText("Full access");
+    await fullAccess.click();
+  }
+
+  const createRequest = appPage.waitForRequest(
+    request => request.method() === "POST" && new URL(request.url()).pathname === "/api/agents"
+  );
+  await appPage.getByTestId("submit-agent-create").click();
+  expect((await createRequest).postDataJSON()).toMatchObject({
+    agent: { name, kind: "always_on", ...(level ? { permissions: level } : {}) },
+  });
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${name}`);
+}
+
+test.describe("always-on agent vocabulary", () => {
+  // The seed registers the acpmock provider and its catalog models for the create screen.
+  test.use({
+    runtimeOptions: {
+      seed: {
+        mockAgents: [
+          {
+            fixturePath: browserLifecycleFixture,
+            fixtureAgent: "browser-lifecycle-agent",
+            agentName: "always-on-vocabulary-seed",
+          },
+        ],
+      },
+    },
+  });
+
+  test("E2E-001: an always-on agent created at Full access reads Always-on and Full access", async ({
+    appPage,
+    runtime,
+  }) => {
+    await createAlwaysOnAgent(appPage, runtime, "watch-captain", "approve-all");
+    await expect(appPage.getByTestId("agent-profile-kind")).toHaveText("Always-on");
+    await expect(appPage.getByTestId("agent-setup-permissions")).toContainText("Full access");
+    await expect(appPage.getByText(/Stays on/)).toHaveCount(0);
+  });
+
+  test("E2E-002: the setup rows and pages use one noun, and old slugs still open them", async ({
+    appPage,
+    runtime,
+  }) => {
+    await createAlwaysOnAgent(appPage, runtime, "watch-setup");
+    await expect(appPage.getByText("Setup", { exact: true })).toBeVisible();
+    const setupRows = [
+      ["agent-setup-behavior", /^Instructions/],
+      ["agent-setup-model", /^Model/],
+      ["agent-setup-check-ins", /^Heartbeat/],
+      ["agent-setup-memory", /^Memory/],
+      ["agent-setup-tools", /^Tools/],
+      ["agent-setup-permissions", /^Permissions/],
+    ] as const;
+    for (const [testId, title] of setupRows) {
+      await expect(appPage.getByTestId(testId)).toHaveText(title);
+    }
+
+    await appPage.getByTestId("agent-setup-check-ins").click();
+    await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/watch-setup/check-ins");
+    await expect(appPage.getByRole("heading", { level: 1, name: "Heartbeat" })).toBeVisible();
+
+    await appPage.goto(runtime.url("/agents/watch-setup/what-it-does"), {
+      waitUntil: "domcontentloaded",
+    });
+    await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
+    await expect(appPage.getByRole("heading", { level: 1, name: "Instructions" })).toBeVisible();
   });
 });
 

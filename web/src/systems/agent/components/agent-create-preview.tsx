@@ -27,7 +27,7 @@ export function AgentCreatePreview({
 }) {
   const typed = draft.displayName.trim();
   const name = typed || "Your agent";
-  const stays = draft.kind === "stays_on";
+  const stays = draft.kind === "always_on";
   return (
     <CatalogCard data-testid="agent-create-preview">
       <div className="flex min-w-0 items-start gap-3">

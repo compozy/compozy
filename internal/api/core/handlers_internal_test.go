@@ -130,7 +130,7 @@ func TestAgentIdentityPreservation(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), "AGENT.md")
 		raw := []byte(
-			"---\nname: triage\ndisplay_name: Triage Lead\ndescription: Watches issues\nkind: stays_on\nappearance:\n  version: 99\n  future: true\n---\nTriage issues.\n",
+			"---\nname: triage\ndisplay_name: Triage Lead\ndescription: Watches issues\nkind: always_on\nappearance:\n  version: 99\n  future: true\n---\nTriage issues.\n",
 		)
 		if err := os.WriteFile(path, raw, 0600); err != nil {
 			t.Fatal(err)

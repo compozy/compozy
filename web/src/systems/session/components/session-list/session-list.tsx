@@ -19,8 +19,8 @@ import { useSessionListSelection } from "../../hooks/use-session-list-selection"
 import { useSessionListFolderLayout } from "../../hooks/use-session-list-folder-layout";
 import type { SessionFolderDialogState } from "../../hooks/use-session-list-folder-layout";
 import type { WorkspaceFolderPayload } from "../../types";
-import { StaysOnCreateMenu } from "../stays-on/stays-on-create-menu";
-import { StaysOnListTop } from "../stays-on/stays-on-list-top";
+import { AlwaysOnCreateMenu } from "../always-on/always-on-create-menu";
+import { AlwaysOnListTop } from "../always-on/always-on-list-top";
 import { SessionFolderDialogs } from "./session-folder-dialogs";
 import { SessionListTotals } from "./session-list-totals";
 import { SessionListGroups } from "./session-list-groups";
@@ -162,7 +162,7 @@ export function SessionList({
           containerClassName="min-w-0"
         />
       </div>
-      <StaysOnListTop
+      <AlwaysOnListTop
         currentSessionId={currentSessionId}
         groupBy={view.groupBy}
         onOpenSession={onSelectSession}
@@ -367,11 +367,11 @@ function SessionListControls({
         onNewFolder={onNewFolder}
         newFolderUnavailable={newFolderUnavailable}
         createMenu={
-          <StaysOnCreateMenu
+          <AlwaysOnCreateMenu
             newFolderUnavailable={newFolderUnavailable}
             onNewFolder={onNewFolder}
             onNewSession={onNewSession}
-            staysOn={
+            alwaysOn={
               view.focusedWorkspaceId
                 ? { place: view.focusedWorkspaceId, name: view.focusedScopeName }
                 : null

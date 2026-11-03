@@ -5,9 +5,9 @@ import { useState } from "react";
 
 import { Alert, AlertDescription, AlertTitle, Button, Empty, Panel, Section } from "@compozy/ui";
 
-import type { AgentState } from "../stays-on-agents-shared/agent-state";
-import { PAUSE_PLAIN } from "../stays-on-agents-shared/agents-fixtures";
-import { SCOPE_LABEL } from "../stays-on-agents-shared/fixtures";
+import type { AgentState } from "../always-on-agents-shared/agent-state";
+import { PAUSE_PLAIN } from "../always-on-agents-shared/agents-fixtures";
+import { SCOPE_LABEL } from "../always-on-agents-shared/fixtures";
 import { usePlaces } from "./hooks/use-places";
 import { canResume } from "./place-edits";
 import { Hero, type HeroEdit } from "./profile-hero";
@@ -64,7 +64,7 @@ function MainAction({
   if (state === "needs-you") {
     return (
       <Button
-        onClick={() => window.location.assign(protoHref("stays-on-reports", "proposal"))}
+        onClick={() => window.location.assign(protoHref("always-on-reports", "proposal"))}
         size="sm"
         type="button"
       >
@@ -96,7 +96,7 @@ function Stopped({ places }: { places: readonly ProfilePlace[] }) {
   const resumable = canResume(stopped.pauseReason);
   return (
     <Alert variant="warning">
-      <AlertTitle>{resumable ? "Check-ins kept failing" : "It can't resume"}</AlertTitle>
+      <AlertTitle>{resumable ? "Heartbeats kept failing" : "It can't resume"}</AlertTitle>
       <AlertDescription>{PAUSE_PLAIN[stopped.pauseReason]}</AlertDescription>
     </Alert>
   );
@@ -107,7 +107,7 @@ function Invalid() {
     <Alert variant="warning">
       <AlertTitle>This agent can't start</AlertTitle>
       <AlertDescription>
-        Line 6 of its setup file has a mistake. Fix it in How it behaves.
+        Line 6 of its setup file has a mistake. Fix it in Instructions.
       </AlertDescription>
     </Alert>
   );
@@ -141,7 +141,7 @@ export function ProfileHome({
 }) {
   const { places, actions, resumeAll } = usePlaces(data.places);
   const [panel, setPanel] = useState<ProfilePanel | null>(initialPanel);
-  const staysOn = data.agent.kind === "stays_on";
+  const alwaysOn = data.agent.kind === "always_on";
   const state = overall(data, places);
   return (
     <div className="@container flex flex-col gap-6">
@@ -156,7 +156,7 @@ export function ProfileHome({
       <Stopped places={places} />
       <div className="grid grid-cols-1 items-start gap-5 @5xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="flex min-w-0 flex-col gap-6">
-          {staysOn && places.length > 0 ? <WorkingNow actions={actions} places={places} /> : null}
+          {alwaysOn && places.length > 0 ? <WorkingNow actions={actions} places={places} /> : null}
           {data.fresh ? (
             <FirstDay name={data.agent.label} />
           ) : (

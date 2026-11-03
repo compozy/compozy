@@ -843,7 +843,7 @@ func TestAgentMemoryStartup(t *testing.T) {
 	t.Run("Should read a catalog that boot creates after the assembler", func(t *testing.T) {
 		t.Parallel()
 		memory := agentmemory.NewStore(t.TempDir())
-		agent := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn, Prompt: "Triage."}
+		agent := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindAlwaysOn, Prompt: "Triage."}
 		var catalog *resourceCatalog[compozyconfig.AgentDef]
 		assembler := NewComposedAssembler(WithPromptSectionDescriptors(lateAgentMemoryPromptDescriptor(
 			memory,
@@ -858,7 +858,7 @@ func TestAgentMemoryStartup(t *testing.T) {
 		)
 		startup := session.StartupPromptContext{ProfileID: "profile-a", SessionID: "session-a"}
 		if _, err := assembler.AssembleStartup(t.Context(), startup, agent, nil); err != nil {
-			t.Fatalf("a stays-on session must start once the catalog exists: %v", err)
+			t.Fatalf("an always-on session must start once the catalog exists: %v", err)
 		}
 	})
 
@@ -866,7 +866,7 @@ func TestAgentMemoryStartup(t *testing.T) {
 		t.Parallel()
 		memory := agentmemory.NewStore(t.TempDir())
 		catalog := newResourceCatalog(cloneAgentDef)
-		agent := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn, Prompt: "Triage."}
+		agent := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindAlwaysOn, Prompt: "Triage."}
 		catalog.Replace(
 			1,
 			[]resources.Record[compozyconfig.AgentDef]{
@@ -912,7 +912,7 @@ func TestAgentMemoryStartup(t *testing.T) {
 	})
 	t.Run("Should isolate repository origins and retain extension ownership", func(t *testing.T) {
 		t.Parallel()
-		agent := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn, SourcePath: "global"}
+		agent := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindAlwaysOn, SourcePath: "global"}
 		local := agent
 		local.SourcePath = "repository"
 		catalog := newResourceCatalog(cloneAgentDef)

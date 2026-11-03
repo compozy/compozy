@@ -358,7 +358,7 @@ by another agent, provider, or model while you keep working:
    needs. Optional `title` (≤ 512), `role` (`general`, `implementation`, `research`, `review`, `design`,
    `test`), `target` (`agent`, `provider`, `model`, `reasoning_effort`, `speed`, `acp_options`; omitted
    fields inherit from the caller, and the model is inherited only when the provider is unchanged),
-   `mode`, `timeout_ms`, `idempotency_key` (defaults to the tool call id), `permission_mode` (in a stays-on lineage it is bounded by the child's configured level, and `inherit` uses that level), and
+   `mode`, `timeout_ms`, `idempotency_key` (defaults to the tool call id), `permission_mode` (in an always-on lineage it is bounded by the child's configured level, and `inherit` uses that level), and
    `tools`/`skills`/`mcp_servers`/`workspace_paths`. Unlike `session_spawn`, omitted permission lists
    inherit the caller's full budget, `[]` means none, and every value can only narrow
    (`permission_escalation_denied` otherwise). There is no TTL, depth, or count cap.
@@ -1057,7 +1057,7 @@ from exiting or receiving its parent's or terminal lifecycle's signals.
 ### Paused instances and unattended turns
 
 Instance reads expose `unattended_turns`, `unattended_turn_limit` and `held_wakes`.
-The default limit is 300; `[agents.stays_on].unattended_turn_limit = 0` disables the
+The default limit is 300; `[agents.always_on].unattended_turn_limit = 0` disables the
 brake. Each autonomous lineage turn counts once, including a batched turn; reported
 or failed checks count, while quiet checks and managed Goal/Loop turns do not.
 The turn reaching the limit runs, pauses the instance with reason `unattended`,

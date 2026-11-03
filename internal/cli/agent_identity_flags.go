@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config"
@@ -11,7 +12,7 @@ import (
 func addAgentIdentityFlags(cmd *cobra.Command, f *agentDefinitionFlags) {
 	cmd.Flags().StringVar(&f.displayName, "display-name", "", "Agent display name (up to 80 characters)")
 	cmd.Flags().StringVar(&f.description, "description", "", "Agent purpose (up to 280 characters)")
-	cmd.Flags().StringVar(&f.kind, "kind", "", "Agent kind: on_demand (default) or stays_on; fixed at creation")
+	cmd.Flags().StringVar(&f.kind, "kind", "", "Agent kind: on_demand (default) or always_on; fixed at creation")
 	cmd.Flags().StringVar(&f.avatar, "appearance-avatar", "generated", "Avatar: generated, icon or emoji")
 	cmd.Flags().StringVar(&f.seed, "appearance-seed", "", "Generated avatar seed (default: agent name)")
 	cmd.Flags().IntVar(&f.generation, "appearance-generation", 1, "Avatar generation")
@@ -21,6 +22,19 @@ func addAgentIdentityFlags(cmd *cobra.Command, f *agentDefinitionFlags) {
 	cmd.Flags().StringVar(
 		&f.background, "appearance-background", "", "Icon or emoji background: plate (default) or none",
 	)
+}
+
+// canonicalAgentKindFlag maps the v0.5.0 --kind stays_on spelling to always_on and warns on
+// stderr. Removal: v0.5.2.
+func canonicalAgentKindFlag(cmd *cobra.Command, f *agentDefinitionFlags) {
+	if !cmd.Flags().Changed("kind") {
+		return
+	}
+	kind, deprecated := config.CanonicalAgentKind(f.kind)
+	if deprecated {
+		fmt.Fprintln(cmd.ErrOrStderr(), "warning: --kind stays_on is deprecated; use always_on (removed in v0.5.2)")
+	}
+	f.kind = kind
 }
 
 func agentIdentityFlagsChanged(cmd *cobra.Command) bool {

@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
-import { agentStaysOn, buildAgentTeam } from "../../lib/agent-team";
+import { agentAlwaysOn, buildAgentTeam } from "../../lib/agent-team";
 import { TEAM_WORKSPACES, teamInstances, teamItems } from "../../mocks/team-fixtures";
 import { AgentTeamPage } from "../agent-team/agent-team-page";
 
@@ -43,8 +43,8 @@ export const Cards: Story = {};
 
 export const Rows: Story = { args: { view: "rows" } };
 
-export const NobodyStaysOn: Story = {
-  args: { members: members.filter(member => !agentStaysOn(member)) },
+export const NobodyAlwaysOn: Story = {
+  args: { members: members.filter(member => !agentAlwaysOn(member)) },
 };
 
 export const NothingMatches: Story = { args: { status: "filtered-empty", unfiltered: false } };

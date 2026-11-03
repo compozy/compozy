@@ -36,6 +36,8 @@ type PathPolicy struct {
 	Kind     ValueKind
 	Redacted bool
 	Denial   PathDenial
+	// DeprecatedAlias reports that Segments was rewritten from a v0.5.0 path. Removal: v0.5.2.
+	DeprecatedAlias bool
 }
 
 // Entry is one flattened, redacted effective config value.

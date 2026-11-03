@@ -15,7 +15,7 @@ const GOAL_COMMAND_FAILURE_GUIDANCE = {
   goal_wait_unavailable:
     "Couldn't verify the goal's wait. Check its monitor or child, then resume the goal.",
   goal_on_instance_main:
-    "Start this Goal in another session. Stays-on main sessions cannot run a new Goal.",
+    "Start this Goal in another session. Always-on main sessions cannot run a new Goal.",
   goal_not_active: "Start a Goal before using this control, then try again.",
   goal_replace_required:
     "A Goal is already active. Replace it explicitly or keep the current Goal.",

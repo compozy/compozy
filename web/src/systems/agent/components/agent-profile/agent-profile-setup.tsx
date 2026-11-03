@@ -70,7 +70,7 @@ export interface AgentSetupSummaries {
 }
 
 export function AgentProfileSetup({
-  staysOn,
+  alwaysOn,
   owner,
   readOnly,
   summaries,
@@ -81,7 +81,7 @@ export function AgentProfileSetup({
   onOpenTools,
   onOpenPermissions,
 }: {
-  staysOn: boolean;
+  alwaysOn: boolean;
   owner?: string;
   readOnly: boolean;
   summaries: AgentSetupSummaries;
@@ -94,7 +94,7 @@ export function AgentProfileSetup({
 }) {
   return (
     <Section
-      label="How it's set up"
+      label="Setup"
       right={
         readOnly && owner ? (
           <span className="text-eyebrow text-muted-foreground">From {owner}</span>
@@ -109,27 +109,27 @@ export function AgentProfileSetup({
             onOpen={onOpenBehavior}
             summary={summaries.behavior}
             testId="agent-setup-behavior"
-            title="How it behaves"
+            title="Instructions"
           />
           <AgentSetupModelRow model={model} readOnly={readOnly} />
-          {staysOn ? (
+          {alwaysOn ? (
             <SetupRow
               icon={Clock}
               locked={readOnly}
               onOpen={onOpenCheckIns}
               summary={summaries.checkIns}
               testId="agent-setup-check-ins"
-              title="Check-ins"
+              title="Heartbeat"
             />
           ) : null}
-          {staysOn ? (
+          {alwaysOn ? (
             <SetupRow
               icon={Brain}
               locked={false}
               onOpen={onOpenMemory}
               summary={summaries.memory}
               testId="agent-setup-memory"
-              title="What it remembers"
+              title="Memory"
             />
           ) : null}
           <SetupRow
@@ -138,7 +138,7 @@ export function AgentProfileSetup({
             onOpen={onOpenTools}
             summary={summaries.tools}
             testId="agent-setup-tools"
-            title="What it can use"
+            title="Tools"
           />
           <SetupRow
             icon={ShieldCheck}

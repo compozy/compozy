@@ -30,7 +30,7 @@ interface AgentCreateSubmitArgs {
   providersLoading: boolean;
 }
 
-/** Sends the draft: create or duplicate, then the first instance when a Stays on agent can start. */
+/** Sends the draft: create or duplicate, then the first instance when an always-on agent can start. */
 export function useAgentCreateSubmit({
   activeWorkspaceId,
   dialogStore,
@@ -61,7 +61,7 @@ export function useAgentCreateSubmit({
   ): Promise<AgentCreateOutcome> => {
     const provider = providerOptions.find(option => option.id === draft.provider);
     const skipped =
-      draft.kind !== "stays_on" ||
+      draft.kind !== "always_on" ||
       draft.place === AGENT_PLACE_LATER ||
       instanceCapacity.reached ||
       provider?.needs_auth === true;
