@@ -523,6 +523,8 @@ func TestCoordinationPermissionLevels(t *testing.T) {
 				{mutating(ToolIDSessionReparent), true},
 				{mutating(ToolIDSessionArchive), true},
 				{mutating(ToolIDLoopApprove), true},
+				{mutating("compozy__loop_create"), true},
+				{mutating("compozy__loop_run"), true},
 			}
 			for _, tc := range cases {
 				e, err := NewEffectivePolicyEvaluator(PolicyInputs{

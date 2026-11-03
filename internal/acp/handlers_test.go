@@ -3281,6 +3281,8 @@ func TestHostedToolPermissionGates(t *testing.T) {
 		t.Parallel()
 		proc, active := newProcess(t, compozyconfig.PermissionModeApproveReads, true)
 		gate1 := claudeRequest("compozy-hosted-tools", "dynamic", hostedName)
+		// The provider omitted workspace; the daemon binds it before its own gate.
+		gate1.ToolCall.RawInput = map[string]any{"name": "fix-1200"}
 		assertOutcome(t, answerPrompt(t, proc, active, gate1, permissionActorProvider), "allow-once")
 		gate2 := daemonRequest("compozy__worktree_create", acpsdk.ToolKindExecute)
 		response, err := proc.resolvePermissionRequest(t.Context(), gate2, permissionActorSystem)
@@ -3293,7 +3295,15 @@ func TestHostedToolPermissionGates(t *testing.T) {
 		}
 		changed := daemonRequest("compozy__worktree_create", acpsdk.ToolKindExecute)
 		changed.ToolCall.RawInput = map[string]any{"workspace": "compozy", "name": "other"}
-		for _, request := range []acpsdk.RequestPermissionRequest{gate2, changed} {
+		otherWorkspace := daemonRequest("compozy__worktree_create", acpsdk.ToolKindExecute)
+		otherWorkspace.ToolCall.RawInput = map[string]any{"workspace": "other", "name": "fix-1200"}
+		for index, request := range []acpsdk.RequestPermissionRequest{gate2, changed, otherWorkspace} {
+			if index == 2 {
+				// An explicit workspace the provider sent is never ignored.
+				proc.hostedApprovals.record(hostedToolCall{
+					toolID: "compozy__worktree_create", arguments: []byte(`{"name":"fix-1200","workspace":"compozy"}`),
+				}, timeNowUTC())
+			}
 			response, err := proc.resolvePermissionRequest(t.Context(), request, permissionActorSystem)
 			if err != nil {
 				t.Fatal(err)

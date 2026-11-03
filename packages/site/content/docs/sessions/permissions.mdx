@@ -32,13 +32,13 @@ still auto-rejects at the execution boundary.
 
 CompozyOS supports five ordered permission levels:
 
-| Level           | Backend behavior                                                                                                                                                              | Cross-workspace requests                                 |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `deny-all`      | No automatic tool approvals; rejects ACP permission requests.                                                                                                                 | Denied without a prompt.                                 |
-| `approve-reads` | Reads are allowed; edits and commands require approval.                                                                                                                       | Asks at the native-tool boundary; other boundaries deny. |
-| `approve-edits` | Reads, workspace file edits and Compozy coordination tools are allowed; shell commands, destructive or open-world tools and changes to Compozy's own config require approval. | Same boundary as `approve-reads`.                        |
-| `auto`          | Requests the provider's declared reviewer mode; CompozyOS keeps the `approve-edits` boundary.                                                                                 | Same boundary as `approve-reads`.                        |
-| `approve-all`   | Automatically approves operations within the session's existing authority.                                                                                                    | Allowed without asking.                                  |
+| Level           | Backend behavior                                                                                                                                                                  | Cross-workspace requests                                 |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `deny-all`      | No automatic tool approvals; rejects ACP permission requests.                                                                                                                     | Denied without a prompt.                                 |
+| `approve-reads` | Reads are allowed; edits and commands require approval.                                                                                                                           | Asks at the native-tool boundary; other boundaries deny. |
+| `approve-edits` | Reads, workspace file edits and CompozyOS coordination tools are allowed; shell commands, destructive or open-world tools and changes to CompozyOS's own config require approval. | Same boundary as `approve-reads`.                        |
+| `auto`          | Requests the provider's declared reviewer mode; CompozyOS keeps the `approve-edits` boundary.                                                                                     | Same boundary as `approve-reads`.                        |
+| `approve-all`   | Automatically approves operations within the session's existing authority.                                                                                                        | Allowed without asking.                                  |
 
 `auto` falls back to effective `approve-edits` with `permission_mode_degraded` when the reviewer is
 undeclared, unavailable, or not selected by the adapter. It never falls back to full access.
@@ -122,12 +122,13 @@ the workspace; an edit without file locations, and a request of kind `other` or 
 
 CompozyOS's own tools are decided once, by the risk each built-in tool declares. At `approve-edits`
 and `auto`, a built-in tool that changes CompozyOS coordination state runs without asking: monitors,
-child sessions, worktrees and their bindings, session names and links, tasks, Loops, Automations and
+child sessions, worktrees and their bindings, session names and links, tasks, Automations and
 layouts. These still ask:
 
 - destructive tools, such as removing a worktree, stopping or archiving a session, or deleting
   anything;
-- open-world tools, and terminal commands or input;
+- open-world tools, terminal commands or input, and Loop tools, whose command criteria run shell
+  commands;
 - tools that change what an agent may do: config, tool approvals, hooks, extensions, agent
   definitions and persistent agents, reparenting sessions, and answering another session's prompts
   (a stays-on lineage still answers its own descendants).

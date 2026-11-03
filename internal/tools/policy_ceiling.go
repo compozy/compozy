@@ -57,21 +57,22 @@ func isCoordinationMutation(d Descriptor) bool {
 }
 
 // selfEscalationToolPrefixes are builtin families that change Compozy's own
-// config, approvals, hooks, extensions, or model catalog.
+// config, approvals, hooks, extensions, or model catalog, plus Loops, whose
+// authored command criteria run shell commands outside the terminal approval.
 var selfEscalationToolPrefixes = []string{
 	"compozy__config_", "compozy__tool_approvals_", "compozy__hooks_", "compozy__extensions_",
-	"compozy__provider_models_",
+	"compozy__provider_models_", "compozy__loop_",
 }
 
 // asksAtEditLevel lists builtin mutations that keep asking at approve-edits and
 // auto whatever their declared risk: terminal input or execution, answering
 // another session's prompts, reshaping lineage, authoring or running agent
 // definitions, dispatching arbitrary palette commands, archiving sessions or
-// workspaces, and the self-escalation families above.
+// workspaces, and the families above.
 func asksAtEditLevel(id ToolID) bool {
 	switch id {
 	case ToolIDTerminalExec, ToolIDTerminalWrite, ToolIDTerminalOpen, ToolIDTerminalSignal, ToolIDTerminalClose,
-		ToolIDSessionApprove, ToolIDSessionClarifyAnswer, ToolIDLoopApprove, ToolIDLoopRespond,
+		ToolIDSessionApprove, ToolIDSessionClarifyAnswer,
 		ToolIDSessionReparent, ToolIDAgentCreate, ToolIDAgentInstanceCreate, ToolIDAgentInstanceEnsureMain,
 		ToolIDAgentInstancePause, ToolIDAgentInstanceResume, ToolIDCmdPaletteInvoke,
 		ToolIDSessionArchive, ToolIDWorkspaceArchive:

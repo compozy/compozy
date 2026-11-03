@@ -17,6 +17,10 @@ import (
 // session/new MCP servers Compozy sends. Configured servers never read it.
 const claudeDynamicMCPSource = "dynamic"
 
+// hostedWorkspaceKey is the native tool input the daemon binds to the caller's
+// workspace when the provider omits it.
+const hostedWorkspaceKey = "workspace"
+
 const (
 	// hostedApprovalTTL bounds how long an operator approval of a hosted call at
 	// the provider gate waits for the same call to reach the daemon gate.
@@ -246,12 +250,48 @@ func (a *hostedApprovals) consume(call hostedToolCall, now time.Time) bool {
 	defer a.mu.Unlock()
 	a.pruneLocked(now)
 	for index, entry := range a.entries {
-		if entry.call.toolID == call.toolID && bytes.Equal(entry.call.arguments, call.arguments) {
+		if entry.call.toolID == call.toolID && sameHostedArguments(entry.call.arguments, call.arguments) {
 			a.entries = append(a.entries[:index], a.entries[index+1:]...)
 			return true
 		}
 	}
 	return false
+}
+
+// sameHostedArguments reports whether the daemon gate's input is the call the
+// operator approved. The daemon binds an omitted `workspace` to the session's
+// own workspace before asking, so a `workspace` key the provider never sent is
+// ignored; every other difference, including a changed workspace, is not.
+func sameHostedArguments(approved, requested []byte) bool {
+	if bytes.Equal(approved, requested) {
+		return true
+	}
+	var before, after any
+	if json.Unmarshal(approved, &before) != nil || json.Unmarshal(requested, &after) != nil {
+		return false
+	}
+	stripBoundWorkspace(before, after)
+	normalized, err := json.Marshal(after)
+	return err == nil && bytes.Equal(approved, normalized)
+}
+
+// stripBoundWorkspace removes from requested every `workspace` key that the
+// approved object at the same position lacks.
+func stripBoundWorkspace(approved, requested any) {
+	requestedObject, ok := requested.(map[string]any)
+	if !ok {
+		return
+	}
+	approvedObject, ok := approved.(map[string]any)
+	if !ok {
+		return
+	}
+	if _, sent := approvedObject[hostedWorkspaceKey]; !sent {
+		delete(requestedObject, hostedWorkspaceKey)
+	}
+	for key, value := range requestedObject {
+		stripBoundWorkspace(approvedObject[key], value)
+	}
 }
 
 func (a *hostedApprovals) pruneLocked(now time.Time) {
