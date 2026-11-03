@@ -66,8 +66,18 @@ func (s *SkillProposalService) Approve(
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	// Publish before recording the decision, so an approved review always has its skill on
+	// disk. A crash in between leaves a pending review whose re-approval finds the installed
+	// draft and only records the decision.
+	published, err := publishSkillInstall(stage, target, draft)
+	if err != nil {
+		return err
+	}
 	if review.State == SkillReviewPending {
 		if err := s.Store.DecideReview(ctx, id, digest, "approved", operator); err != nil {
+			if published {
+				return errors.Join(err, os.RemoveAll(target))
+			}
 			return err
 		}
 		slog.InfoContext(
@@ -81,19 +91,24 @@ func (s *SkillProposalService) Approve(
 			"approved",
 		)
 	}
-	return publishSkillInstall(stage, target, draft)
+	return nil
 }
 
-func publishSkillInstall(stage, target string, draft SkillDraft) error {
+// publishSkillInstall moves the staged draft into place and reports whether this call
+// installed it; an already-installed matching draft is left as is.
+func publishSkillInstall(stage, target string, draft SkillDraft) (bool, error) {
 	if _, statErr := os.Lstat(target); statErr == nil {
-		return matchInstalledDraft(target, draft)
+		return false, matchInstalledDraft(target, draft)
 	} else if !errors.Is(statErr, os.ErrNotExist) {
-		return statErr
+		return false, statErr
 	}
 	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
-		return err
+		return false, err
 	}
-	return os.Rename(stage, target)
+	if err := os.Rename(stage, target); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func writeSkillInstallStage(stage string, draft SkillDraft) error {

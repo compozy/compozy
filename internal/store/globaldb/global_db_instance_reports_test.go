@@ -197,6 +197,47 @@ func TestInstanceSkillReviewLedger(t *testing.T) {
 			t.Fatalf("approval ledger: %+v %v", approved, err)
 		}
 	})
+	t.Run("Should never leave an approved review without its installed skill", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		_, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instances
+ (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
+ VALUES ('rollback-instance',?,'coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`, store.DefaultProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		scanRoot := filepath.Join(root, "skills")
+		decideErr := errors.New("ledger write failed")
+		failing := agentinstance.SkillProposalService{
+			Store:     failingDecideStore{SkillReviewStore: db.SkillReviews(), err: decideErr},
+			DraftRoot: filepath.Join(root, "drafts"),
+			ScanRoots: []string{scanRoot},
+		}
+		instance := agentinstance.Instance{
+			ID: "rollback-instance", ProfileID: store.DefaultProfileID, AgentName: "coder",
+		}
+		operator := workspaceaccess.ActorRef{Operator: true}
+		review, err := failing.Propose(ctx, operator, instance, scanRoot, agentinstance.SkillProposalInput{
+			Name: "rollback-skill", Description: "Rollback", Body: "Check the rollback.",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = failing.Approve(ctx, operator, instance, review.ID, review.Digest, "operator", scanRoot)
+		if !errors.Is(err, decideErr) {
+			t.Fatalf("Approve() error = %v, want the ledger failure", err)
+		}
+		if _, statErr := os.Stat(filepath.Join(scanRoot, "rollback-skill")); !errors.Is(statErr, os.ErrNotExist) {
+			t.Fatalf("skill left installed after the decision failed: %v", statErr)
+		}
+		pending, err := db.SkillReviews().GetReview(ctx, review.ID)
+		if err != nil || pending.State != "pending" {
+			t.Fatalf("review after failed decision = %+v, %v; want pending", pending, err)
+		}
+	})
+
 	t.Run("Should atomically create reviews and reports and reject stale decisions", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
@@ -1122,4 +1163,15 @@ func TestInstanceReportReservationUnderSteerDefault(t *testing.T) {
 			}
 		})
 	}
+}
+
+// failingDecideStore records nothing when a decision is written, standing in for a ledger
+// failure after the skill was published.
+type failingDecideStore struct {
+	agentinstance.SkillReviewStore
+	err error
+}
+
+func (s failingDecideStore) DecideReview(context.Context, string, string, string, string) error {
+	return s.err
 }
