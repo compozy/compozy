@@ -87,6 +87,11 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 				}, nil
 			case "sess-user":
 				return &session.Info{ID: id, AgentName: "coder", ProfileID: "p-y", State: session.StateStopped}, nil
+			case "sess-user-actor":
+				return &session.Info{
+					ID: id, AgentName: "coder", ProfileID: "p-x",
+					State: session.StateActive, EffectivePermissions: string(mode),
+				}, nil
 			default:
 				return nil, session.ErrSessionNotFound
 			}
@@ -210,6 +215,28 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		}
 		if _, err := authorize(t, binder, `{"session_id":"sess-own"}`); err != nil {
 			t.Fatalf("authorize(own session) error = %v, want own workspace and profile unchanged", err)
+		}
+	})
+
+	t.Run("Should answer a User-scope caller naming @user the same for foreign and missing sessions", func(t *testing.T) {
+		t.Parallel()
+		sessions := sessionsFor(workspaceaccess.ModeDenyAll)
+		binder := newNativeWorkspaceInputBinder(nativeTestWorkspaceService(t), sessions, newPolicy(t, sessions), nil)
+		userScope := toolspkg.Scope{SessionID: "sess-user-actor", AgentName: "coder"}
+		call := func(input string) error {
+			bound, err := binder.BindCallInput(t.Context(), userScope, statusDescriptor, json.RawMessage(input))
+			if err != nil {
+				return err
+			}
+			return binder.AuthorizeCallInput(t.Context(), userScope, statusDescriptor, toolspkg.CallRequest{
+				ToolID: statusDescriptor.ID, SessionID: userScope.SessionID, Input: bound,
+			})
+		}
+		foreignErr := call(`{"workspace":"@user","session_id":"sess-foreign"}`)
+		missingErr := call(`{"workspace":"@user","session_id":"sess-missing"}`)
+		requireToolReason(t, foreignErr, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if missingErr == nil || foreignErr.Error() != missingErr.Error() {
+			t.Fatalf("denials differ:\nforeign: %v\nmissing: %v", foreignErr, missingErr)
 		}
 	})
 
