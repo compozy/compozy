@@ -1027,11 +1027,12 @@ func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveAgent() error = %v", err)
 		}
+		options := resolved.ACPOptionsValue()
 		got := map[string]string{}
-		for _, option := range resolved.ACPOptionsValue() {
+		for _, option := range options {
 			got[option.ID] = option.ValueID
 		}
-		if len(got) != 2 || got["allow_all"] != "on" || !strings.HasSuffix(got["mode"], "#plan") {
+		if len(options) != 2 || len(got) != 2 || got["allow_all"] != "on" || !strings.HasSuffix(got["mode"], "#plan") {
 			t.Fatalf("ResolveAgent() ACPOptions = %#v, want the explicit mode plus allow_all=on", got)
 		}
 	})
