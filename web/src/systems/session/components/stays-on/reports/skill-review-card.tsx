@@ -1,7 +1,7 @@
 /** S9: the container that reads a proposed skill's review and hands it to the card view. */
 import { Skeleton } from "@compozy/ui";
 
-import { useAgentSkillReview } from "@/systems/agent";
+import { useAgentInstancesState, useAgentSkillReview } from "@/systems/agent";
 
 import type { ReportAgent } from "../../../lib/session-report-identity";
 import { Notice } from "./report-entry";
@@ -11,14 +11,20 @@ export function SkillReviewCard({
   agent,
   when,
   reviewId,
-  profile,
+  instanceId,
 }: {
   agent: ReportAgent;
   when: string;
   reviewId: string;
-  profile?: string;
+  /** The instance that proposed it: the review route answers only under its profile. */
+  instanceId: string;
 }) {
-  const view = useAgentSkillReview({ id: reviewId, profile });
+  const { instances, settled } = useAgentInstancesState();
+  const instance = instances.find(candidate => candidate.id === instanceId);
+  // Wait for the instance read, so nothing goes out under the default profile by mistake.
+  const view = useAgentSkillReview(
+    settled ? { id: reviewId, profile: instance?.profile_name } : null
+  );
   if (view.loading) return <Skeleton className="h-28 w-full rounded-lg" />;
   if (view.loadError || !view.review) {
     return (

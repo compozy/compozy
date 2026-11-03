@@ -8,7 +8,7 @@ export function SessionQueuedHeld() {
       className="inline-flex shrink-0 items-center gap-1.5 text-micro text-subtle tabular-nums"
     >
       <Pause aria-hidden="true" className="size-3" />
-      Held until resume
+      Held until it resumes
     </span>
   );
 }

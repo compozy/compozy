@@ -61,6 +61,22 @@ function useAgentInstancesRead() {
   return useQuery(agentInstancesOptions(key, names)).data;
 }
 
+/**
+ * The instances with whether their read has settled: answered, failed, or never enabled. Surfaces
+ * that act on an instance's profile wait for this rather than treating "not loaded" as "none".
+ */
+export function useAgentInstancesState(): {
+  instances: readonly AgentInstancePayload[];
+  settled: boolean;
+} {
+  const { key, names } = useProfilePerProfileScope();
+  const query = useQuery(agentInstancesOptions(key, names));
+  return {
+    instances: query.data?.instances ?? NO_INSTANCES,
+    settled: !query.isPending || names.length === 0,
+  };
+}
+
 /** Every stays-on instance of the active view; no route behind it yet reads as none, so no row shows. */
 export function useAgentInstances(): readonly AgentInstancePayload[] {
   return useAgentInstancesRead()?.instances ?? NO_INSTANCES;

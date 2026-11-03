@@ -15,7 +15,8 @@ import {
   staysOnTargetModel,
   type StaysOnTargetStatus,
 } from "../../../lib/automation-stays-on-target";
-import { useAgentInstances } from "@/systems/agent";
+import { useAgentInstancesState } from "@/systems/agent";
+import { useProfileReadScope } from "@/systems/profiles";
 
 interface StaysOnTargetProps {
   agent: string;
@@ -64,8 +65,11 @@ export function StaysOnTarget({
   locked,
   form,
 }: StaysOnTargetProps) {
+  const { instances, settled } = useAgentInstancesState();
+  const { destination } = useProfileReadScope();
+  const profile = form.profile || destination;
   const model = staysOnTargetModel({
-    instances: useAgentInstances(),
+    instances: instances.filter(instance => instance.profile_name === profile),
     agent,
     workspaceId,
     isWebhook,
@@ -90,7 +94,11 @@ export function StaysOnTarget({
             value={agent}
           >
             <NativeSelectOption value="">
-              {model.agents.length === 0 ? "No stays-on agents yet" : "Choose an agent…"}
+              {!settled
+                ? "Loading agents…"
+                : model.agents.length === 0
+                  ? "No stays-on agents yet"
+                  : "Choose an agent…"}
             </NativeSelectOption>
             {model.agents.map(name => (
               <NativeSelectOption key={name} value={name}>
@@ -129,7 +137,7 @@ export function StaysOnTarget({
           </NativeSelect>
         </Field>
       </div>
-      <StatusNote status={model.status} />
+      {settled ? <StatusNote status={model.status} /> : null}
       <Field>
         <FieldLabel htmlFor="automation-stays-on-prompt">What to look for</FieldLabel>
         <Textarea
