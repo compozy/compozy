@@ -4628,6 +4628,42 @@ func TestInstanceActivity(t *testing.T) {
 }
 
 func TestInstanceSeen(t *testing.T) {
+	t.Run("Should reset unattended turns without resuming a paused instance", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "seen-brake", "sess-seen-brake")
+		instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Instances().Pause(ctx, instance.ID, "unattended"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(ctx,
+			"UPDATE agent_instance_wake_state SET unattended_turns=300 WHERE instance_id=?", instance.ID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		at := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+		if _, err := db.Instances().MarkSeen(ctx, instance.ID, "operator", at); err != nil {
+			t.Fatal(err)
+		}
+		var turns int64
+		var engaged string
+		if err := db.DB().QueryRowContext(ctx,
+			"SELECT unattended_turns, engaged_at FROM agent_instance_wake_state WHERE instance_id=?", instance.ID,
+		).Scan(&turns, &engaged); err != nil || turns != 0 || engaged != store.FormatTimestamp(at) {
+			t.Fatalf("engagement = %d, %q, %v", turns, engaged, err)
+		}
+		current, err := db.Instances().Get(ctx, instance.ID)
+		if err != nil || current.State != "paused" || current.PauseReason != "unattended" {
+			t.Fatalf("instance = %+v, %v", current, err)
+		}
+	})
 	t.Run("Should preserve monotonic operator-specific seen times across reopen", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

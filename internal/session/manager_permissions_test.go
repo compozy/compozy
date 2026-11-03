@@ -501,7 +501,8 @@ func TestTriageSessionPermissions(t *testing.T) {
 		assertTriage := func() {
 			t.Helper()
 			opts := h.driver.startCalls[len(h.driver.startCalls)-1]
-			if opts.ExecutionPolicyValue() != "triage" || opts.Permissions != compozyconfig.PermissionModeApproveReads ||
+			if opts.ExecutionPolicyValue() != "triage" ||
+				opts.Permissions != compozyconfig.PermissionModeApproveReads ||
 				len(opts.MCPServers) != 0 ||
 				opts.ActivateMCPServers != nil {
 				t.Fatalf(
@@ -1059,7 +1060,8 @@ func TestDueInstanceTriagePolicy(t *testing.T) {
 		}
 		select {
 		case opts := <-starts:
-			if opts.ExecutionPolicyValue() != "triage" || opts.Permissions != compozyconfig.PermissionModeApproveReads ||
+			if opts.ExecutionPolicyValue() != "triage" ||
+				opts.Permissions != compozyconfig.PermissionModeApproveReads ||
 				len(opts.MCPServers) != 0 ||
 				opts.ActivateMCPServers != nil {
 				t.Fatalf("unsafe options: policy=%s permissions=%s", opts.ExecutionPolicyValue(), opts.Permissions)
@@ -1139,7 +1141,11 @@ func TestDraftInstructionsPolicy(t *testing.T) {
 			}
 			for _, opts := range h.startCallsSnapshot() {
 				if opts.ExecutionPolicyValue() != acp.ExecutionPolicyTriage || len(opts.MCPServers) != 0 {
-					t.Fatalf("unsafe launch: policy %s, MCP servers %d", opts.ExecutionPolicyValue(), len(opts.MCPServers))
+					t.Fatalf(
+						"unsafe launch: policy %s, MCP servers %d",
+						opts.ExecutionPolicyValue(),
+						len(opts.MCPServers),
+					)
 				}
 			}
 		})

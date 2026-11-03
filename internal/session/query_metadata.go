@@ -174,7 +174,9 @@ func sessionInfoFromMeta(meta *store.SessionMeta) *Info {
 		EffectiveSessionApproval: meta.EffectiveSessionApproval,
 		PermissionRules:          append([]store.SessionPermissionRule(nil), meta.PermissionRules...),
 		InitiatorKind:            meta.InitiatorKind, InitiatorID: meta.InitiatorID,
-		EffectivePermissions:   reportedPermissionMode(strings.TrimSpace(meta.EffectivePermissionsValue()), meta.PermissionModeDegraded),
+		EffectivePermissions: reportedPermissionMode(
+			strings.TrimSpace(meta.EffectivePermissionsValue()), meta.PermissionModeDegraded,
+		),
 		PermissionModeDegraded: meta.PermissionModeDegraded,
 		WorkspaceID:            meta.WorkspaceID,
 		WorktreeID:             meta.WorktreeIDValue(),

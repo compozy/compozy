@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -2151,6 +2152,54 @@ func TestSessionAttentionLifecycleUpdateBumpsOrderingFenceAtomically(t *testing.
 }
 
 func TestPendingInteractionCanonicalTransactionRedactsAndRollsBackTogether(t *testing.T) {
+	for _, kind := range []string{store.PendingInteractionKindPermission, store.PendingInteractionKindClarify} {
+		for _, actor := range []string{"operator", "operator:control", "agent:child", "policy", "timeout"} {
+			t.Run("Should count only operator engagement for "+kind+" by "+actor, func(t *testing.T) {
+				t.Parallel()
+				ctx := t.Context()
+				db := openTestGlobalDB(t)
+				workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "engagement", "sess-engagement")
+				instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+					ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+					PermissionCeiling: "{}", CreatedByKind: "human",
+				}, main, 10)
+				if err != nil {
+					t.Fatal(err)
+				}
+				at := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+				if _, err := db.CreatePendingInteraction(ctx, store.PendingInteractionCreate{
+					InteractionID: "interaction", SessionID: main, Kind: kind, ProviderRequestID: "request",
+					TurnID: "turn", Title: "Continue?", CreatedAt: at,
+				}); err != nil {
+					t.Fatal(err)
+				}
+				transition := store.PendingInteractionTransition{
+					InteractionID: "interaction", Status: store.PendingInteractionStatusResolved,
+					Resolution: "allow_once", ResolvedBy: actor, At: at.Add(time.Second),
+				}
+				for attempt := range 2 {
+					if _, err := db.DB().ExecContext(ctx,
+						"UPDATE agent_instance_wake_state SET unattended_turns=50 WHERE instance_id=?", instance.ID,
+					); err != nil {
+						t.Fatal(err)
+					}
+					if _, err := db.TransitionPendingInteraction(ctx, transition); err != nil {
+						t.Fatal(err)
+					}
+					want := int64(50)
+					if attempt == 0 && strings.HasPrefix(actor, "operator") {
+						want = 0
+					}
+					var turns int64
+					if err := db.DB().QueryRowContext(ctx,
+						"SELECT unattended_turns FROM agent_instance_wake_state WHERE instance_id=?", instance.ID,
+					).Scan(&turns); err != nil || turns != want {
+						t.Fatalf("attempt %d turns = %d, want %d; error = %v", attempt, turns, want, err)
+					}
+				}
+			})
+		}
+	}
 	t.Parallel()
 
 	ctx := testutil.Context(t)

@@ -201,7 +201,11 @@ func TestApprovalExpiryNotification(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			manager, _ := newNotifyTestManager()
-			manager.attentionWorkspaceMutes = notifyMuteReader{profileID: store.DefaultProfileID, workspaceID: "ws-expiry", muted: muted}
+			manager.attentionWorkspaceMutes = notifyMuteReader{
+				profileID:   store.DefaultProfileID,
+				workspaceID: "ws-expiry",
+				muted:       muted,
+			}
 			events, cancel, err := manager.SubscribeSessionCatalogEvents(t.Context(),
 				CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true})
 			if err != nil {

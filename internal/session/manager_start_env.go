@@ -40,7 +40,9 @@ func (m *Manager) sessionStartOpts(
 	}
 	shellWaitGuard := m.sessionCanRedirectShellWaits(s, resolved)
 	opts := acp.StartOpts{
-		PermissionPolicy:  &acp.StartPermissionPolicy{Rules: configuredPermissionRules(s.permissionRules), Denials: session.permissionDenialsState()},
+		PermissionPolicy: &acp.StartPermissionPolicy{
+			Rules: configuredPermissionRules(s.permissionRules), Denials: session.permissionDenialsState(),
+		},
 		AgentName:         resolved.Name,
 		CompozySessionID:  s.sessionID,
 		WorkspaceID:       s.workspace.ID,

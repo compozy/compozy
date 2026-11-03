@@ -37,20 +37,9 @@ func (m *Manager) PublishInstanceReport(
 		return 0, err
 	}
 	var notification *OperatorNotification
-	title, body := "", ""
-	if report.Kind == "proposal" {
-		title, body = "New agent proposal", "Review the proposed work in the agent thread."
-	}
-	if report.Kind == "failure" {
-		var failure struct {
-			Reason string `json:"reason"`
-		}
-		if err := json.Unmarshal(report.Payload, &failure); err != nil {
-			return 0, err
-		}
-		if failure.Reason == "fatigue" {
-			title, body = "Proactive checks paused", "Consecutive checks failed. Review the agent report before resuming."
-		}
+	title, body, err := instanceReportNotification(report)
+	if err != nil {
+		return 0, err
 	}
 	if title != "" && !report.Republished {
 		if m.attentionWorkspaceMutes == nil {
@@ -100,6 +89,29 @@ func (m *Manager) PublishInstanceReport(
 		m.PublishInstanceCatalogChanged(info.ProfileID, info.WorkspaceID, report.InstanceID)
 	}
 	return persisted.Sequence, nil
+}
+
+func instanceReportNotification(report InstanceReportEvent) (string, string, error) {
+	if report.Kind == "proposal" {
+		return "New agent proposal", "Review the proposed work in the agent thread.", nil
+	}
+	if report.Kind != "failure" {
+		return "", "", nil
+	}
+	var failure struct {
+		Reason string `json:"reason"`
+	}
+	if err := json.Unmarshal(report.Payload, &failure); err != nil {
+		return "", "", err
+	}
+	switch failure.Reason {
+	case "fatigue":
+		return "Proactive checks paused", "Consecutive checks failed. Review the agent report before resuming.", nil
+	case "unattended":
+		return "Agent paused", "The unattended turn limit was reached. Review the agent report before resuming.", nil
+	default:
+		return "", "", nil
+	}
 }
 
 func (m *Manager) reportExhaustedContext(ctx context.Context, sessionID string, event acp.AgentEvent) error {

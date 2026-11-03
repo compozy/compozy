@@ -36,7 +36,8 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 			if err != nil {
 				return err
 			}
-			if row.OccurrenceCancelled != 0 || instance.State != "active" || instance.ArchivedAt.Valid {
+			if row.OccurrenceCancelled != 0 || instance.State != globalDBSessionStateActive ||
+				instance.ArchivedAt.Valid {
 				req.Result, req.Reason, req.Report = instanceWakeCanceledResult, instanceWakeCanceledResult, nil
 				req.NextWakeAt = time.Time{}
 			}

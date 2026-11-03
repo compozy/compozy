@@ -148,7 +148,7 @@ func instanceEventDelivery(instance sqlcgen.AgentInstance, supported bool) autom
 		result.CheckScheduled, result.Reason = false, "triage_unsupported"
 	case instance.ChecksEnabled == 0:
 		result.CheckScheduled, result.Reason = false, "checks_disabled"
-	case instance.State != "active":
+	case instance.State != globalDBSessionStateActive:
 		result.CheckScheduled, result.Reason = false, "instance_"+instance.State
 	}
 	return result

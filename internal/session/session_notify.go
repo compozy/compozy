@@ -83,7 +83,9 @@ func (m *Manager) PublishOperatorNotification(
 	return m.publishOperatorNotification(ctx, req, true)
 }
 
-func (m *Manager) publishOperatorNotification(ctx context.Context, req NotifyRequest, rateLimit bool) (NotifyResult, error) {
+func (m *Manager) publishOperatorNotification(
+	ctx context.Context, req NotifyRequest, rateLimit bool,
+) (NotifyResult, error) {
 	if m == nil {
 		return NotifyResult{}, errors.New("session: manager is required")
 	}
@@ -109,7 +111,11 @@ func (m *Manager) publishOperatorNotification(ctx context.Context, req NotifyReq
 		return NotifyResult{}, fmt.Errorf("session: read attention workspace mute: %w", err)
 	}
 	m.notifyMu.Lock()
-	if retryAfter := m.notificationRetryAfterLocked(notification.SessionID, notification.At); rateLimit && retryAfter > 0 {
+	if retryAfter := m.notificationRetryAfterLocked(
+		notification.SessionID,
+		notification.At,
+	); rateLimit &&
+		retryAfter > 0 {
 		m.notifyMu.Unlock()
 		result := NotifyResult{
 			Outcome: NotifyOutcomeRateLimited, RetryAfterMS: retryAfter.Milliseconds(),
