@@ -3,6 +3,7 @@ package core_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"path/filepath"
@@ -554,6 +555,13 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 					foreign.Code, foreign.Body.String(), name, probe.Code, probe.Body.String())
 			}
 		}
+		broken := testutil.PerformRequestWithHeaders(
+			t, fixture.Engine, http.MethodGet, "/test-layout?profile=broken", nil, headers,
+		)
+		if broken.Code == http.StatusConflict || broken.Code < http.StatusInternalServerError {
+			t.Fatalf("store failure status = %d, want a server error, not the masked conflict; body=%s",
+				broken.Code, broken.Body.String())
+		}
 	})
 
 	t.Run("Should scope agent interaction discovery to the caller workspace", func(t *testing.T) {
@@ -997,6 +1005,8 @@ func (profileExistenceStub) Resolve(_ context.Context, in profilepkg.ResolveInpu
 			Code: "profile_unavailable", Message: "profile busy has lifecycle work op-1",
 			Cause: profilepkg.ErrUnavailable,
 		}
+	case "broken":
+		return profilepkg.Resolution{}, errors.New("profile store unavailable")
 	case "", "default":
 		return profilepkg.Resolution{Profile: profilepkg.Profile{
 			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
