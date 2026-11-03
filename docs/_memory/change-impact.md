@@ -1,5 +1,32 @@
 # Compozy Change Impact
 
+## Approve-all reads across workspaces and profiles — 2026-11-03
+
+Owner: issue #1169, branch `approve-all-cross-workspace-reads`. Owner decision 2026-11-03 reverses
+the part of User Scope Work ADR-003 that kept the profile axis and All projects aggregates out of
+the permission mode. Security posture change: the built-in default mode is `approve-all`, so by
+default agent sessions now read every profile and the aggregates.
+
+- **Native tools / CLI / HTTP / UDS:** no tool ID, schema, route, DTO, error code, or reason code
+  changes, so the generated catalog, OpenAPI, and SDKs are unchanged. Behavior: reads of another
+  profile and aggregate reads follow the permission mode (writes still need the grant); a session
+  tool with only a `session_id` is authorized against that session's own workspace and profile;
+  `workspace_access_denied` and `agent_scope_denied` messages now name the denying axis. Results an
+  agent reads outside its own workspace or profile are redacted at the native dispatch boundary.
+  Operator, app-token and hosted-MCP operator paths are unchanged.
+- **Extensibility / hooks / config:** no manifest, hook, SDK, or `config.toml` change. Post-call
+  hooks and `tool.call.*` events see the redacted result for crossed calls. Audit events gain the
+  `target_kind` value `unresolved` (additive).
+- **User state / workspace isolation:** no schema or migration. Workspace isolation for
+  `deny-all` is unchanged; `approve-reads` prompts for the new axes at the native-tool seam.
+  Desktop `global`, other profiles' partitions, presence, and notification receipts stay
+  operator-only.
+- **Official skill / Web / Docs:** `skills/compozy/references/{native-tools,agent-definitions,
+  runtime-operations}.md`, glossary, site docs (`sessions/permissions`, `sessions/index`,
+  `profiles/index`, `user-scope/unrestricted-agents`, `all-projects/scripts`), QA scenarios
+  `ET-workspace-access-mode-matrix` and `ET-workspace-access-prompt-outcomes`, release note. Web
+  UI unchanged.
+
 ## Concurrent-session responsiveness audit — 2026-11-01
 
 Owner: `perf/responsiveness-audit-20261101`, original baseline `de5ab2f4d`, integrated main `8c025ff8f`.

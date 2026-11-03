@@ -102,13 +102,21 @@ Authority matrix (HTTP, UDS, and native tools enforce the same rules):
 | -------------------------------------------------------------------------- | -------- | ------------------------------------ | ------------------------------------ | ----------------- |
 | Own workspace or own User scope                                            | allow    | allow                                | allow                                | per route         |
 | Another workspace, or User from a project                                  | allow    | permission mode + consent            | allow, audited                       | per route         |
-| Another profile (`profile=`, `all_profiles=true`)                          | allow    | denied                               | allow, audited                       | per route         |
-| All-projects aggregates                                                    | allow    | `403 agent_scope_denied`             | allow, audited (`aggregate`)         | new routes denied |
+| Another profile (`profile=`, `all_profiles=true`, a session id in it)      | allow    | reads: permission mode + consent; writes: denied | allow, audited           | per route         |
+| All-projects aggregates                                                    | allow    | reads: permission mode + consent; writes: `403 agent_scope_denied` | allow, audited (`aggregate`) | new routes denied |
 | Window, desktop, layout tools on project partitions and own-profile `user` | allow    | own workspace only                   | allow, audited                       | per route         |
 | Reserved `global` partition, other profiles' partitions                    | allow    | denied                               | denied                               | denied            |
 | Presence leases, notification receipts and acknowledgements                | allow    | denied                               | denied                               | per route         |
 | Set or raise `workspace_access`                                            | allow    | `403 workspace_access_operator_only` | `403 workspace_access_operator_only` | denied            |
 | Tool-risk approvals                                                        | n/a      | per `permissions`                    | per `permissions`                    | n/a               |
+
+"Permission mode + consent" means `approve-all` allows, `approve-reads` asks the operator at the
+native-tool seam (and honors an `allow_session` answer at every seam), and `deny-all` never crosses.
+Since issue #1169 (owner decision 2026-11-03, superseding the part of User Scope Work ADR-003 that
+kept profiles and aggregates out of `approve-all`), an `approve-all` session reads other profiles
+and All projects as the operator would; changing another profile, or writing through an aggregate
+route, still needs `unrestricted`. Content an agent reads outside its own workspace or profile is
+secret-redacted at the dispatch boundary; see `references/native-tools.md` (Workspace Boundary).
 
 Work a granted agent creates in profile P is owned by P. Older daemons reject AGENT.md files that
 contain `workspace_access` (strict decode), so upgrade every daemon that reads the file first.

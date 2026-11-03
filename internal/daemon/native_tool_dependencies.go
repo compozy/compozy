@@ -58,29 +58,31 @@ type nativeProfileReader interface {
 }
 
 type daemonNativeToolsDeps struct {
-	AgentInstances      func() *core.AgentInstanceAPI
-	AgentMemory         *agentmemory.Store
-	WorkspaceAccess     workspaceaccess.Policy
-	Subagents           func() sessionpkg.SubagentService
-	Logger              *slog.Logger
-	Registry            func() toolspkg.Registry
-	CmdPalette          func() cmdpalette.Registry
-	ToolArtifacts       toolspkg.ToolArtifactStore
-	Config              compozyconfig.Config
-	Skills              daemonNativeSkillsRegistry
-	SkillExposures      store.SkillExposureRepository
-	SkillExposureEvents store.EventSummaryStore
-	Sessions            core.SessionManager
-	Profiles            nativeProfileReader
-	ProfileManager      *profilepkg.Manager
-	SessionAttachments  attachmentspkg.Store
-	Workspaces          core.WorkspaceService
-	Worktrees           core.WorktreeService
-	WorkspaceResolver   workspacepkg.RuntimeResolver
-	ModelCatalog        core.ModelCatalogService
-	ProviderUsage       core.ProviderUsageService
-	MarketplaceCatalog  core.MarketplaceCatalogService
-	Settings            func() core.SettingsService
+	AgentInstances  func() *core.AgentInstanceAPI
+	AgentMemory     *agentmemory.Store
+	WorkspaceAccess workspaceaccess.Policy
+	// WorkspaceAccessPrompter asks the operator when approve-reads meets a profile selection.
+	WorkspaceAccessPrompter workspaceAccessPrompter
+	Subagents               func() sessionpkg.SubagentService
+	Logger                  *slog.Logger
+	Registry                func() toolspkg.Registry
+	CmdPalette              func() cmdpalette.Registry
+	ToolArtifacts           toolspkg.ToolArtifactStore
+	Config                  compozyconfig.Config
+	Skills                  daemonNativeSkillsRegistry
+	SkillExposures          store.SkillExposureRepository
+	SkillExposureEvents     store.EventSummaryStore
+	Sessions                core.SessionManager
+	Profiles                nativeProfileReader
+	ProfileManager          *profilepkg.Manager
+	SessionAttachments      attachmentspkg.Store
+	Workspaces              core.WorkspaceService
+	Worktrees               core.WorktreeService
+	WorkspaceResolver       workspacepkg.RuntimeResolver
+	ModelCatalog            core.ModelCatalogService
+	ProviderUsage           core.ProviderUsageService
+	MarketplaceCatalog      core.MarketplaceCatalogService
+	Settings                func() core.SettingsService
 
 	Tasks            taskpkg.Manager
 	TaskDesignations core.TaskDesignationStore

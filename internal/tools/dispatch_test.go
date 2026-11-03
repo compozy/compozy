@@ -1066,6 +1066,66 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should redact every seeded secret in a result read outside the caller scope", func(t *testing.T) {
+		t.Parallel()
+		const (
+			providerKey = "sk-proj-AbCdEf0123456789xyzQRS"
+			bearer      = "eyJhbGciOiJIUzI1NiJ9.payload.sig"
+			entropy     = "Q7xK2mN9pL4vR8sT1wY6zB3cF5hJ0dG"
+		)
+		seeded := ToolResult{
+			Preview: "assistant said " + providerKey,
+			Structured: json.RawMessage(`{"session":{"session_id":"sess-foreign-1","messages":[` +
+				`{"role":"assistant","text":"the key is ` + providerKey + `"},` +
+				`{"role":"tool","tool_input":{"command":"curl -H 'Authorization: Bearer ` + bearer + `' x"},` +
+				`"tool_output":"export DEPLOY=` + entropy + `"}]}}`),
+			Content: []ToolContent{{Type: "text", Text: "output " + entropy}},
+		}
+		for _, tc := range []struct {
+			name    string
+			outside bool
+		}{
+			{name: "outside", outside: true},
+			{name: "own", outside: false},
+		} {
+			descriptor := validDispatchDescriptor()
+			descriptor.SetMaxResultBytes(8192)
+			provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+				descriptor:   descriptor,
+				availability: availableDispatchHandle(),
+				result:       seeded,
+			})
+			registry := mustDispatchRegistry(t, provider, WithCallInputAuthorizer(scopeMarkingAuthorizer{
+				outside: tc.outside,
+			}))
+			result, err := registry.Call(t.Context(), Scope{}, CallRequest{
+				ToolID: descriptor.ID,
+				Input:  json.RawMessage(`{"query":"x"}`),
+			})
+			if err != nil {
+				t.Fatalf("%s: RuntimeRegistry.Call() error = %v", tc.name, err)
+			}
+			data, err := json.Marshal(result)
+			if err != nil {
+				t.Fatalf("%s: json.Marshal(result) error = %v", tc.name, err)
+			}
+			if !strings.Contains(string(data), "sess-foreign-1") {
+				t.Fatalf("%s: result lost the structural session id: %s", tc.name, data)
+			}
+			if !tc.outside {
+				if !strings.Contains(string(data), providerKey) {
+					t.Fatalf("own-scope result changed beyond the shared sanitizer: %s", data)
+				}
+				continue
+			}
+			for _, secret := range []string{providerKey, bearer, entropy} {
+				if strings.Contains(string(data), secret) {
+					t.Fatalf("outside-scope result leaked %q: %s", secret, data)
+				}
+			}
+		}
+	})
+
 	t.Run("Should redact sensitive result fields before post-call hooks and events", func(t *testing.T) {
 		t.Parallel()
 
@@ -1787,4 +1847,14 @@ func TestInstanceCallApproval(t *testing.T) {
 			}
 		})
 	}
+}
+
+// scopeMarkingAuthorizer admits every call and reports whether it crossed the caller scope.
+type scopeMarkingAuthorizer struct{ outside bool }
+
+func (a scopeMarkingAuthorizer) AuthorizeCallInput(ctx context.Context, _ Scope, _ Descriptor, _ CallRequest) error {
+	if a.outside {
+		MarkOutsideCallerScope(ctx)
+	}
+	return nil
 }

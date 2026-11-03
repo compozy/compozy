@@ -87,6 +87,7 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 	if err := validateCallInput(target.descriptor, patchedReq.Input); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallFailed)
 	}
+	ctx, scopeAccess := withCallScopeAccess(ctx)
 	if err := r.authorizeBoundCallInput(ctx, scope, target.descriptor, patchedReq); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 	}
@@ -115,6 +116,9 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 		normalized := normalizeBackendError(target.descriptor.ID, err)
 		normalized = r.runPostErrorHook(ctx, scope, target, patchedReq, normalized)
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, normalized, ToolCallFailed)
+	}
+	if scopeAccess.outsideCallerScope() {
+		providerResult = redactOutsideScopeResult(providerResult)
 	}
 	return r.completeDispatch(ctx, scope, target, patchedReq, started, providerResult)
 }

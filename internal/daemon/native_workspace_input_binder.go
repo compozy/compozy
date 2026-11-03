@@ -74,6 +74,9 @@ func (b *nativeWorkspaceInputBinder) BindCallInput(
 	if payload == nil {
 		return nil, nativeWorkspaceObjectInputError(descriptor.ID, nil)
 	}
+	if err := b.bindNativeSessionTargetWorkspace(ctx, scope, descriptor.ID, schema, payload); err != nil {
+		return nil, err
+	}
 	if err := b.bindNativeWorkspaceNode(ctx, scope, descriptor, schema, payload); err != nil {
 		return nil, err
 	}

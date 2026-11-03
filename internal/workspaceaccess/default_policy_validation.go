@@ -30,26 +30,13 @@ func validateRequest(ctx context.Context, req Request) error {
 		if !req.ReadOnly || req.Target.ProfileID != "" {
 			return invalidRequest("workspace access: all profiles requires a read without a concrete profile")
 		}
-	} else if req.Target.ProfileID == "" && (req.Actor.Kind != ActorAgentSession || req.Actor.Operator) {
+	} else if req.Target.ProfileID == "" && req.Target.Kind != TargetUnresolved &&
+		(req.Actor.Kind != ActorAgentSession || req.Actor.Operator) {
 		// An agent session that names no profile acts in its own; authorize resolves it.
 		return invalidRequest("workspace access: target profile is required")
 	}
-	switch req.Target.Kind {
-	case TargetWorkspace:
-		if !workspaceIDPattern.MatchString(req.Target.WorkspaceID) {
-			return invalidRequest(
-				fmt.Sprintf("workspace access: target workspace id %q is not canonical", req.Target.WorkspaceID),
-			)
-		}
-	case TargetUser, TargetAggregate:
-		if req.Target.WorkspaceID != "" {
-			return invalidRequest("workspace access: non-workspace target cannot carry a workspace id")
-		}
-		if req.Target.Kind == TargetAggregate && req.Target.Surface == "" {
-			return invalidRequest("workspace access: aggregate surface is required")
-		}
-	default:
-		return invalidRequest("workspace access: target kind is required")
+	if err := validateTarget(req.Target); err != nil {
+		return err
 	}
 	if !validSeam(req.Seam) {
 		return invalidRequest(fmt.Sprintf("workspace access: unknown seam %q", req.Seam))
@@ -76,4 +63,29 @@ func validSeam(seam Seam) bool {
 	default:
 		return false
 	}
+}
+
+func validateTarget(target TargetRef) error {
+	switch target.Kind {
+	case TargetWorkspace:
+		if !workspaceIDPattern.MatchString(target.WorkspaceID) {
+			return invalidRequest(
+				fmt.Sprintf("workspace access: target workspace id %q is not canonical", target.WorkspaceID),
+			)
+		}
+	case TargetUnresolved:
+		if target.WorkspaceID != "" || target.ProfileID != "" || target.AllProfiles {
+			return invalidRequest("workspace access: unresolved target cannot carry an owner")
+		}
+	case TargetUser, TargetAggregate:
+		if target.WorkspaceID != "" {
+			return invalidRequest("workspace access: non-workspace target cannot carry a workspace id")
+		}
+		if target.Kind == TargetAggregate && target.Surface == "" {
+			return invalidRequest("workspace access: aggregate surface is required")
+		}
+	default:
+		return invalidRequest("workspace access: target kind is required")
+	}
+	return nil
 }

@@ -39,7 +39,7 @@ Never guess a tool schema from this reference. Resolve canonical `compozy__tool_
 
 Management-only surfaces include diagnostics, support bundles, scheduler controls, task inspection/pause/force recovery, config apply history, and some session repair/recap/approval flows.
 
-`workspace` is optional and defaults to the bound session's workspace. `"@user"` names the User scope of the caller's profile (work that belongs to no project). Naming another workspace, or User from a project session, is a cross-scope request governed by the session permission mode; see Workspace Boundary below. Aggregate reads require an operator or an effective unrestricted grant; desktop `global` remains operator-only.
+`workspace` is optional and defaults to the bound session's workspace. `"@user"` names the User scope of the caller's profile (work that belongs to no project). Naming another workspace, or User from a project session, is a cross-scope request governed by the session permission mode; see Workspace Boundary below. Reads of another profile and All projects aggregate reads follow the same permission mode; writes there require an operator or an effective unrestricted grant. Desktop `global` remains operator-only.
 
 ## Error Handling
 
@@ -672,19 +672,25 @@ name as a selector with a deprecation warning through v0.4.0; the aliases are re
 the workspace ID or the new name. On data tools `global` is not a workspace selector
 (`workspace_reserved`) unless it is such a migration alias.
 
-A call that names a workspace other than the bound session's is a cross-workspace request. An effective `workspace_access: unrestricted` grant allows it with audit source `agent_grant`; otherwise the session's effective permission mode decides:
+A call that names a workspace other than the bound session's, another profile (`profile`, `all_profiles`), or an All projects aggregate is a cross-scope request. An effective `workspace_access: unrestricted` grant allows it with audit source `agent_grant`; otherwise the session's effective permission mode decides:
 
-- `approve-all`: allowed at every seam.
+- `approve-all`: another workspace is allowed at every seam, for reads and writes, as before. Another profile and aggregates are allowed for reads (read-only tools, `GET` routes); writes there are denied and need the grant.
 - `deny-all`: denied at every seam, including native tools. CompozyOS never prompts for crossing under this mode.
-- `approve-reads`: the native-tool seam prompts the operator while the session is running; the agent-identity, task, spawn, and workspace-coordination seams deny.
+- `approve-reads`: the native-tool seam prompts the operator while the session is running; the agent-identity, task, spawn, and workspace-coordination seams deny unless an `allow_session` answer is already recorded. A write to another profile or through an aggregate is asked like any crossing and, once allowed, still denied for lack of the grant, so a missing target and a real one get the same prompt.
 
-Denied native calls return `workspace_access_denied` with this exact hint:
+A session tool called with a `session_id` and no `workspace` resolves the target from that session: the daemon fills in its workspace (or `@user`) and authorizes against its own workspace and profile, so an `approve-all` session reads `compozy__session_status`, `compozy__session_history`, and the other session tools of any session by id alone. `compozy__session_describe` still describes the calling session. A caller the policy denies gets the same denial, and an `approve-reads` caller the same prompt (`Read session <id> outside this workspace or profile`), whether the session exists or not; a caller the policy allows gets `session_not_found` for a missing id.
+
+Denied native calls return `workspace_access_denied`. The message names the axis that denied the call and what would allow it, never the target: `deny-all` mode, a missing `approve-reads` answer, a rejected answer, or a write to another profile or aggregate that needs `workspace_access: unrestricted`. Branch on the code and reason, not the text. Seams outside native tools keep this hint:
 
     cross-workspace access is denied by this session's permission mode; ask the operator to set the agent's permissions.mode to approve-all, or approve the prompt when asked
 
+When a native call is allowed outside the caller's own workspace and profile, the dispatch boundary redacts the result before hooks, events, and the agent see it. Every string in the result (session names, messages, tool inputs and outputs, previews, metadata) passes the shared secret redactor with its heuristics always on: known credential shapes (`Authorization`/`Bearer` values, `key=value` and `--flag value` pairs whose key names a secret, URL userinfo, `env:`/`vault:` references, Compozy claim and gateway tokens, registered runtime secrets), well-known provider token prefixes (`sk-`, `ghp_`, `github_pat_`, `xox*-`, `AKIA`, and others), and high-entropy mixed-case tokens of 28 or more characters become `[REDACTED]`. Fields named `*_id`, hashes, digests, and cursors stay readable. This is pattern-based: a secret with no recognizable shape or key, a short or low-entropy secret, or a secret split across fields can still pass, and errors and binary artifacts are not rewritten. Own-scope reads are unchanged. Redaction applies to native tool results; HTTP/UDS responses to agent-credentialed requests are not rewritten, because a process in the session can drop the agent headers and read as the operator (the soft boundary in `references/agent-definitions.md`).
+
+Under `approve-reads`, a call that crosses two axes, such as `all_profiles` on another workspace, asks once per axis: first `Access workspace <id>`, then `Read all profiles` or `Read profile <id>`.
+
 The prompt offers four daemon-computed options: `allow_once` (this call), `allow_session` (this call and every later crossing by this session, at every seam), `reject_once` (this call), and `reject_session` (this call and every later crossing by this session). A `*_session` answer lives only in daemon memory, expires when the session stops or the daemon restarts, and has no list or revoke surface. A prompt timeout, transport failure, or unknown answer denies and stores no session answer.
 
-Granted agents may also select any active `profile`, use `all_profiles` on reads, and read aggregate routes. Work a granted agent creates in profile P is owned by P; the acting session's tool-approval grants apply. Tool-risk approvals still follow the session's `permissions` mode. Desktop tools remain restricted to project partitions and the caller profile's `user` partition; `global`, another profile's partitions, presence leases, and notification receipts stay operator-only. The full authority matrix and the operator-only authoring rule are in `references/agent-definitions.md` (Unrestricted Workspace Access). User Scope Work ADR-003 supersedes cross-workspace ADR-007 §1 for this one operator-authored field.
+Granted agents may also select any active `profile` for writes, use `all_profiles` on reads, and read aggregate routes regardless of mode. Work a granted agent creates in profile P is owned by P; the acting session's tool-approval grants apply. Tool-risk approvals still follow the session's `permissions` mode. Desktop tools remain restricted to project partitions and the caller profile's `user` partition; `global`, another profile's partitions, presence leases, and notification receipts stay operator-only. The full authority matrix and the operator-only authoring rule are in `references/agent-definitions.md` (Unrestricted Workspace Access). User Scope Work ADR-003 supersedes cross-workspace ADR-007 §1 for this one operator-authored field.
 
 Each policy evaluation attempts a best-effort `workspace.access_granted` or `workspace.access_denied` audit append with actor/target profiles, target kind/workspace, seam, decision source, and mode. A prompt-eligible miss is a denied policy evaluation even when the operator then allows that one call; later evaluations allowed by `allow_session` are granted. Read persisted events through `compozy__logs`, `compozy__observe_search`, `compozy logs --type <event-type>`, or `GET /api/logs`.
 
@@ -881,9 +887,11 @@ can notify again.
 
 All projects means every registered project plus User rows (`workspace_id` absent or empty), within
 the current profile lens. It never widens the profile lens; that remains `profile=` or
-`all_profiles=true`. Aggregates are operator surfaces: ordinary agent identities get
-`403 agent_scope_denied`, sessions with an effective unrestricted grant are allowed and audited with
-target kind `aggregate`, and the new aggregate routes deny app tokens. Native list tools keep their
+`all_profiles=true`. Agent identities read aggregates through the workspace-access policy: an
+effective unrestricted grant or `approve-all` allows the read (an `approve-reads` session needs a
+recorded `allow_session` answer), audited with target kind `aggregate`; other agents and every
+agent write through an aggregate route without the grant get `403 agent_scope_denied` with the
+denying axis in the message. The new aggregate routes deny app tokens. Native list tools keep their
 workspace-bound inputs and gain no aggregate parameters, so use the CLI or HTTP/UDS for these reads.
 
 Breadth vocabulary, the same on every route (each route keeps its existing selector, omission

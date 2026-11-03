@@ -64,7 +64,7 @@ func (h *BaseHandlers) resolveProfileReadSelectionWithSelector(
 	if err != nil {
 		return resolvedProfileReadScope{}, err
 	}
-	sessionProfileID, granted, grantCaller := caller.sessionProfileID, caller.granted, caller.caller
+	sessionProfileID := caller.sessionProfileID
 	if allProfiles {
 		return h.allProfilesReadScope(c, caller, workspaceID)
 	}
@@ -74,8 +74,11 @@ func (h *BaseHandlers) resolveProfileReadSelectionWithSelector(
 	if h == nil || h.Profiles == nil {
 		return profileReadScopeWithoutService(sessionProfileID, requested)
 	}
+	// An agent session that names another profile is decided by the workspace-access policy
+	// (grant, permission mode, or consent). A denied caller gets the session-bound resolution's
+	// answer, exactly as before the policy could admit it.
 	boundProfileID := sessionProfileID
-	if granted && requested != "" {
+	if sessionProfileID != "" && requested != "" {
 		boundProfileID = ""
 	}
 	resolved, err := h.profileService().Resolve(c.Request.Context(), profilepkg.ResolveInput{
@@ -90,12 +93,33 @@ func (h *BaseHandlers) resolveProfileReadSelectionWithSelector(
 	if err := scope.Validate(); err != nil {
 		return resolvedProfileReadScope{}, fmt.Errorf("api: resolved profile read scope: %w", err)
 	}
-	if granted && scope.ProfileID != sessionProfileID {
-		if err := h.authorizeGrantedProfile(c, grantCaller, workspaceID, scope.ProfileID, false); err != nil {
+	if sessionProfileID != "" && scope.ProfileID != sessionProfileID {
+		if err := h.authorizeGrantedProfile(c, caller.caller, workspaceID, scope.ProfileID, false); err != nil {
+			if !caller.granted {
+				return h.sessionBoundProfileReadScope(c, requested, sessionProfileID, err)
+			}
 			return resolvedProfileReadScope{}, err
 		}
 	}
 	return resolvedProfileReadScope{Scope: scope, ProfileName: strings.TrimSpace(resolved.Profile.Name)}, nil
+}
+
+// sessionBoundProfileReadScope answers a denied cross-profile selection with the error the
+// session-bound resolution reports, keeping the public error code of agents without reach.
+func (h *BaseHandlers) sessionBoundProfileReadScope(
+	c *gin.Context,
+	requested, sessionProfileID string,
+	denied error,
+) (resolvedProfileReadScope, error) {
+	_, err := h.profileService().Resolve(c.Request.Context(), profilepkg.ResolveInput{
+		Flag:             requested,
+		SessionProfileID: sessionProfileID,
+		Lens:             profilepkg.Lens{Kind: profilepkg.SelectionLensGlobal},
+	})
+	if err != nil {
+		return resolvedProfileReadScope{}, err
+	}
+	return resolvedProfileReadScope{}, denied
 }
 
 // profileReadCaller is the authenticated agent session behind a profile read, when there is one.
@@ -142,23 +166,25 @@ func (h *BaseHandlers) resolveProfileReadCaller(c *gin.Context, workspaceID stri
 	return result, nil
 }
 
-// allProfilesReadScope admits the machine-wide read for operators and unrestricted agents only.
+// allProfilesReadScope admits the machine-wide read for operators and for agent sessions the
+// workspace-access policy admits: the unrestricted grant, approve-all, or approve-reads consent.
 func (h *BaseHandlers) allProfilesReadScope(
 	c *gin.Context,
 	caller profileReadCaller,
 	workspaceID string,
 ) (resolvedProfileReadScope, error) {
-	if caller.sessionProfileID != "" && !caller.granted {
-		return resolvedProfileReadScope{}, &profilepkg.Error{
-			Code:    profileSelectionConflictCode,
-			Message: "all_profiles is only available to operators",
-			Action:  "read the agent profile selected by the authenticated session",
-			Cause:   profilepkg.ErrInvalidInput,
-		}
-	}
-	if caller.granted {
+	if caller.sessionProfileID != "" {
 		if err := h.authorizeGrantedProfile(c, caller.caller, workspaceID, "", true); err != nil {
-			return resolvedProfileReadScope{}, err
+			if caller.granted {
+				return resolvedProfileReadScope{}, err
+			}
+			return resolvedProfileReadScope{}, &profilepkg.Error{
+				Code: profileSelectionConflictCode,
+				Message: "all_profiles needs an operator, an agent session with permissions.mode " +
+					"approve-all, or workspace_access: unrestricted",
+				Action: "read the agent profile selected by the authenticated session",
+				Cause:  profilepkg.ErrInvalidInput,
+			}
 		}
 	}
 	return resolvedProfileReadScope{Scope: profilepkg.ReadScope{AllProfiles: true}}, nil

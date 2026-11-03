@@ -35,15 +35,31 @@ func (b *nativeWorkspaceInputBinder) AuthorizeCallInput(
 	if nativeInputHasGlobalScope(payload) {
 		targets[workspaceaccess.UserSelector] = struct{}{}
 	}
-	if len(targets) == 0 {
+	sessionID := nativeSessionTargetID(descriptor.ID, schema, payload)
+	if len(targets) == 0 && sessionID == "" {
 		return nil
 	}
-	actor, err := b.nativeWorkspaceAccessActor(ctx, scope)
+	actor, actorProfileID, err := b.nativeWorkspaceAccessActor(ctx, scope)
 	if err != nil {
 		return errors.Join(nativeWorkspaceAccessDeniedError(descriptor.ID), err)
 	}
+	otherCrossing := false
+	for target := range targets {
+		if target == workspaceaccess.UserSelector || target != actor.WorkspaceID {
+			otherCrossing = true
+		}
+	}
+	covered, err := b.authorizeNativeSessionTarget(ctx, scope, descriptor, call, nativeSessionTargetRequest{
+		actor: actor, actorProfileID: actorProfileID, sessionID: sessionID, otherCrossing: otherCrossing,
+	})
+	if err != nil {
+		return err
+	}
 	targetWorkspaceIDs := make([]string, 0, len(targets))
 	for targetWorkspaceID := range targets {
+		if covered != "" && targetWorkspaceID == covered {
+			continue
+		}
 		targetWorkspaceIDs = append(targetWorkspaceIDs, targetWorkspaceID)
 	}
 	slices.Sort(targetWorkspaceIDs)
@@ -86,37 +102,75 @@ func (b *nativeWorkspaceInputBinder) authorizeWorkspaceTarget(
 			return nil
 		}
 	}
+	_, err := b.authorizeAccessTarget(ctx, scope, descriptor, call, actor, nativeAccessTarget{
+		ref:   workspaceaccess.ScopeTarget(targetWorkspaceID, scope.ProfileID),
+		label: targetWorkspaceID,
+	})
+	return err
+}
+
+// nativeAccessTarget is one policy target plus the label its consent prompt shows.
+type nativeAccessTarget struct {
+	ref   workspaceaccess.TargetRef
+	label string
+}
+
+// authorizeAccessTarget is the single decision path for every target of a native call: policy,
+// approve-reads prompt, axis-specific denial, and the outside-scope mark that redacts the result.
+// It reports whether the call was admitted.
+func (b *nativeWorkspaceInputBinder) authorizeAccessTarget(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	descriptor toolspkg.Descriptor,
+	call toolspkg.CallRequest,
+	actor workspaceaccess.ActorRef,
+	target nativeAccessTarget,
+) (bool, error) {
 	if b == nil || b.workspaceAccess == nil {
-		return nativeWorkspaceAccessDeniedError(descriptor.ID)
+		return false, nativeWorkspaceAccessDeniedError(descriptor.ID)
 	}
 	decision, err := b.workspaceAccess.Authorize(ctx, workspaceaccess.Request{
-		Actor:  actor,
-		Target: workspaceaccess.ScopeTarget(targetWorkspaceID, scope.ProfileID),
-		Seam:   workspaceaccess.SeamTool,
+		Actor:    actor,
+		Target:   target.ref,
+		ReadOnly: descriptor.ReadOnly,
+		Seam:     workspaceaccess.SeamTool,
 	})
 	if err != nil {
-		return errors.Join(
+		return false, errors.Join(
 			nativeWorkspaceAccessDeniedError(descriptor.ID),
 			fmt.Errorf("daemon: authorize native workspace target: %w", err),
 		)
 	}
 	if decision.Allowed {
-		return nil
+		if decision.Source != workspaceaccess.SourceSameWorkspace {
+			toolspkg.MarkOutsideCallerScope(ctx)
+		}
+		return true, nil
 	}
 	if !decision.PromptEligible || b.prompter == nil {
-		return nativeWorkspaceAccessDeniedError(descriptor.ID)
+		return false, nativeWorkspaceAccessDecisionError(descriptor.ID, decision)
 	}
-	allowed, err := b.prompter.RequestWorkspaceAccess(ctx, scope, call, descriptor, targetWorkspaceID)
+	allowed, err := b.prompter.RequestWorkspaceAccess(ctx, scope, call, descriptor, target.label)
 	if err != nil {
-		return errors.Join(
-			nativeWorkspaceAccessDeniedError(descriptor.ID),
+		return false, errors.Join(
+			nativeWorkspaceAccessDecisionError(descriptor.ID, decision),
 			fmt.Errorf("daemon: prompt for native workspace access: %w", err),
 		)
 	}
 	if !allowed {
-		return nativeWorkspaceAccessDeniedError(descriptor.ID)
+		return false, nativeWorkspaceAccessDecisionError(
+			descriptor.ID,
+			workspaceaccess.Decision{Denial: workspaceaccess.DenialConsentRejected},
+		)
 	}
-	return nil
+	if decision.NeedsGrantAfterConsent {
+		return false, nativeWorkspaceAccessDecisionError(
+			descriptor.ID,
+			workspaceaccess.Decision{Denial: workspaceaccess.DenialNeedsGrant},
+		)
+	}
+	toolspkg.MarkOutsideCallerScope(ctx)
+	return true, nil
 }
 
 func nativeWorkspaceScopeHasOperatorAuthority(scope toolspkg.Scope) bool {
@@ -126,11 +180,11 @@ func nativeWorkspaceScopeHasOperatorAuthority(scope toolspkg.Scope) bool {
 func (b *nativeWorkspaceInputBinder) nativeWorkspaceAccessActor(
 	ctx context.Context,
 	scope toolspkg.Scope,
-) (workspaceaccess.ActorRef, error) {
+) (workspaceaccess.ActorRef, string, error) {
 	if workspaceaccess.ActorKind(strings.TrimSpace(scope.ActorKind)) == workspaceaccess.ActorDaemon {
 		workspaceID := strings.TrimSpace(scope.WorkspaceID)
 		if workspaceID == "" {
-			return workspaceaccess.ActorRef{}, errors.New(
+			return workspaceaccess.ActorRef{}, "", errors.New(
 				"daemon: native workspace access daemon scope has no workspace id",
 			)
 		}
@@ -138,29 +192,31 @@ func (b *nativeWorkspaceInputBinder) nativeWorkspaceAccessActor(
 			Kind:        workspaceaccess.ActorDaemon,
 			WorkspaceID: workspaceID,
 			AgentName:   strings.TrimSpace(scope.AgentName),
-		}, nil
+		}, "", nil
 	}
 	sessionID := strings.TrimSpace(scope.SessionID)
 	if sessionID == "" {
-		return workspaceaccess.ActorRef{}, errors.New("daemon: native workspace access requires a session id")
+		return workspaceaccess.ActorRef{}, "", errors.New("daemon: native workspace access requires a session id")
 	}
 	if b == nil || b.sessions == nil {
-		return workspaceaccess.ActorRef{}, errors.New("daemon: native workspace access session lookup is unavailable")
+		return workspaceaccess.ActorRef{}, "", errors.New(
+			"daemon: native workspace access session lookup is unavailable",
+		)
 	}
 	info, err := b.sessions.Status(ctx, sessionID)
 	if err != nil {
-		return workspaceaccess.ActorRef{}, fmt.Errorf("daemon: validate native workspace access session: %w", err)
+		return workspaceaccess.ActorRef{}, "", fmt.Errorf("daemon: validate native workspace access session: %w", err)
 	}
 	if info == nil {
-		return workspaceaccess.ActorRef{}, errors.New("daemon: native workspace access session lookup returned nil")
+		return workspaceaccess.ActorRef{}, "", errors.New("daemon: native workspace access session lookup returned nil")
 	}
 	if strings.TrimSpace(info.ID) != sessionID {
-		return workspaceaccess.ActorRef{}, errors.New(
+		return workspaceaccess.ActorRef{}, "", errors.New(
 			"daemon: native workspace access session lookup returned a different session",
 		)
 	}
 	if info.State != session.StateActive {
-		return workspaceaccess.ActorRef{}, fmt.Errorf(
+		return workspaceaccess.ActorRef{}, "", fmt.Errorf(
 			"daemon: native workspace access session %q is %q",
 			sessionID,
 			info.State,
@@ -168,7 +224,7 @@ func (b *nativeWorkspaceInputBinder) nativeWorkspaceAccessActor(
 	}
 	if strings.TrimSpace(scope.ProfileID) != "" &&
 		strings.TrimSpace(info.ProfileID) != strings.TrimSpace(scope.ProfileID) {
-		return workspaceaccess.ActorRef{}, errors.New(
+		return workspaceaccess.ActorRef{}, "", errors.New(
 			"daemon: native workspace access profile differs from the session profile",
 		)
 	}
@@ -179,7 +235,7 @@ func (b *nativeWorkspaceInputBinder) nativeWorkspaceAccessActor(
 		SessionID:   sessionID,
 		WorkspaceID: workspaceID,
 		AgentName:   strings.TrimSpace(info.AgentName),
-	}, nil
+	}, strings.TrimSpace(info.ProfileID), nil
 }
 
 func collectNativeWorkspaceTargets(
@@ -215,12 +271,12 @@ func collectNativeWorkspaceTargets(
 	}
 }
 
+// nativeWorkspaceAccessDecisionError names the axis that denied the call and what would allow it.
+// The message never names the target, so a missing target and a denied one read the same.
+func nativeWorkspaceAccessDecisionError(id toolspkg.ToolID, decision workspaceaccess.Decision) error {
+	return toolspkg.NewWorkspaceAccessDeniedError(id, workspaceaccess.DenialMessage(decision))
+}
+
 func nativeWorkspaceAccessDeniedError(id toolspkg.ToolID) error {
-	return toolspkg.NewToolError(
-		toolspkg.ErrorCodeDenied,
-		id,
-		fmt.Sprintf("tool %q denied: %s", id, workspaceaccess.DenialHint),
-		toolspkg.ErrToolDenied,
-		toolspkg.ReasonWorkspaceAccessDenied,
-	)
+	return toolspkg.NewWorkspaceAccessDeniedError(id, workspaceaccess.DenialHint)
 }

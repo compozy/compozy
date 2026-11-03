@@ -23,6 +23,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
@@ -460,6 +461,55 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 			if payload.Code != "agent_scope_denied" {
 				t.Fatalf("%s %s error = %#v, want agent_scope_denied", request.method, request.path, payload)
 			}
+		}
+	})
+
+	t.Run("Should admit approve-all aggregate reads while keeping aggregate writes operator-only", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			attentionRouteSessionManager(),
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Engine.GET("/test-layout", fixture.Handlers.GetWorkspaceLayout)
+		fixture.Engine.POST("/test-layout", fixture.Handlers.CreateWorkspaceFolder)
+		var targets []workspaceaccess.Request
+		fixture.Handlers.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{
+			AuthorizeFn: func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+				targets = append(targets, req)
+				if req.Target.Kind == workspaceaccess.TargetAggregate && !req.ReadOnly {
+					return workspaceaccess.Decision{
+						Source: workspaceaccess.SourceDenied, Denial: workspaceaccess.DenialNeedsGrant,
+					}, nil
+				}
+				return workspaceaccess.Decision{Allowed: true, Source: workspaceaccess.SourcePermissionMode}, nil
+			},
+		}
+		headers := map[string]string{
+			agentidentity.HeaderSessionID: "sess-agent",
+			agentidentity.HeaderAgent:     "coder",
+		}
+		read := testutil.PerformRequestWithHeaders(
+			t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true", nil, headers,
+		)
+		if read.Code == http.StatusForbidden {
+			t.Fatalf("approve-all aggregate read status = 403, want admitted; body=%s", read.Body.String())
+		}
+		write := testutil.PerformRequestWithHeaders(
+			t, fixture.Engine, http.MethodPost, "/test-layout", []byte(`{"name":"x"}`), headers,
+		)
+		if write.Code != http.StatusForbidden {
+			t.Fatalf("approve-all aggregate write status = %d, want 403; body=%s", write.Code, write.Body.String())
+		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, write, &payload)
+		if payload.Code != "agent_scope_denied" || !strings.Contains(payload.Error, "workspace_access: unrestricted") {
+			t.Fatalf("aggregate write error = %#v, want agent_scope_denied naming the grant", payload)
+		}
+		if len(targets) < 2 || !targets[0].ReadOnly || targets[len(targets)-1].ReadOnly {
+			t.Fatalf("policy requests = %#v, want a read then a write aggregate request", targets)
 		}
 	})
 
