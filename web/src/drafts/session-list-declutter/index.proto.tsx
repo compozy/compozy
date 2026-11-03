@@ -179,7 +179,7 @@ function SessionColumn({ threadSegment }: { threadSegment: SessionThreadSegment 
             <Row session={SESSIONS.captain} />
             <Row session={SESSIONS.question} />
             <Row session={SESSIONS.chip} />
-            <Thread initialSegment={threadSegment} />
+            <Thread initialSegment={threadSegment} key={threadSegment} />
             <Folder />
             <Row session={SESSIONS.board} />
             <Row session={SESSIONS.review} />
