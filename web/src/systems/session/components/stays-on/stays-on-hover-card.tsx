@@ -95,7 +95,8 @@ function CheckIns({ instance }: { instance: AgentInstancePayload }) {
 
 /** S7: what wakes it next, so a sleeping agent says what it's waiting for. */
 function NextWake({ instance }: { instance: AgentInstancePayload }) {
-  const line = agentNextWakeLine(instance);
+  // The next check-in already reads in the check-ins line above.
+  const line = instance.next_wake?.kind === "check" ? null : agentNextWakeLine(instance);
   if (!line) return null;
   return (
     <div className="flex flex-col gap-0.5">
