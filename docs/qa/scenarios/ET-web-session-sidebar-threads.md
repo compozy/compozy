@@ -196,3 +196,13 @@ same grammar: elapsed clock at the end of line 1, face, provider mark and model 
 "Waiting for you" or "Failed" written in the model's place. Built-in agents (General and the agents of
 the bundled extensions) wear a gray icon without a plate. The rail's default width is 360 px. Reset to
 `untested` for a walk that proves each of these on a live rail in light and dark.
+
+Walk 2026-11-03 (#1191, isolated `targeted` lab, branch fix/issue-1191-session-list-declutter, real daemon
+with the acpmock provider): the rail opened at 360 px; spec_conductor, code_implementer, reviewer, general
+and orchestrator rows wore bare gray icons and read "Opus 5.5"; two orchestrator children read "Needs
+attention · Stopped before delivering" with no model; seeded agents kept their generated faces; hovering
+the reviewer face showed "Reviewer" after the delay; light and dark both checked. Subagent rows and the
+700 ms delay were walked in the gallery and are owned by `session-list.test.tsx`. Evidence:
+https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1191/cded6e2862aa/03-real-dark.png,
+04-real-light.png and 07-real-tooltip-dark.png under the same prefix. Lab teardown clean. The rest of this
+scenario was not re-walked, so it stays `untested`.
