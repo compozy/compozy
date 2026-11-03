@@ -1701,6 +1701,7 @@ type SessionInputQueue struct {
 	OriginSessionID          string         `json:"origin_session_id"`
 	MentionsJson             string         `json:"mentions_json"`
 	HumanIngress             int64          `json:"human_ingress"`
+	UnattendedCounted        int64          `json:"unattended_counted"`
 }
 
 type SessionMonitor struct {

@@ -4641,6 +4641,76 @@ func TestGlobalDBInstanceUnattendedBrake(t *testing.T) {
 			}
 		})
 	}
+	// Invariant (UT-026, DBE2-2): v0.4.8 counted steering reservations in attempt_count and left a reverted
+	// fallback indistinguishable from a released claim. No release ran the brake, so an upgraded row is
+	// counted once on its first claim, keeps its retained attempt_count, and its retry is not counted again.
+	t.Run("Should count a released fallback row once after upgrade and keep its attempt count", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00164_schema.sql"))
+		if err != nil {
+			t.Fatalf("open v0.4.8 prefix: %v", err)
+		}
+		ctx := globalMigrationTestContext(t)
+		const main = "sess-released-fallback"
+		seeded := store.FormatTimestamp(time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC))
+		for _, statement := range []string{
+			`INSERT INTO workspaces (id, root_dir, add_dirs, name, created_at, updated_at)
+			VALUES ('ws-released-fallback', '` + t.TempDir() + `', '[]', 'released-fallback', ?1, ?1)`,
+			`INSERT INTO sessions (id, profile_id, name, agent_name, workspace_id, session_type, state, created_at, updated_at)
+			VALUES ('` + main + `', '` + store.DefaultProfileID + `', 'Released', 'coder', 'ws-released-fallback',
+			'user', 'active', ?1, ?1)`,
+			// v0.4.8 reserved, refused and reverted this steer: mode queue, steer_delivery NULL, attempt 1.
+			`INSERT INTO session_input_queue (id, session_id, status, mode, delivery, text, origin_class,
+			origin_session_id, attempt_count, dispatchable, enqueued_at, updated_at)
+			VALUES ('released-steer', '` + main + `', 'queued', 'queue', 'after_turn', 'work', 'agent', 'peer', 1, 1, ?1, ?1)`,
+		} {
+			if _, err := prefixDB.ExecContext(ctx, statement, seeded); err != nil {
+				t.Fatalf("seed released row: %v", err)
+			}
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatal(err)
+		}
+		db, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("upgrade: %v", err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		var attempts, counted int
+		if err := db.db.QueryRowContext(ctx, `SELECT attempt_count, unattended_counted FROM session_input_queue
+			WHERE id = 'released-steer'`).Scan(&attempts, &counted); err != nil || attempts != 1 || counted != 0 {
+			t.Fatalf("upgraded row attempts=%d counted=%d err=%v", attempts, counted, err)
+		}
+		instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: "ws-released-fallback",
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+		claimed, found, err := db.ClaimNextSessionInput(ctx, main, now)
+		if err != nil || !found || claimed.ID != "released-steer" || claimed.AttemptCount != 2 {
+			t.Fatalf("first claim after upgrade = %+v, %v, %v", claimed, found, err)
+		}
+		if wake, err := db.Instances().WakeState(ctx, instance.ID); err != nil || wake.UnattendedTurns != 1 {
+			t.Fatalf("released row not counted = %+v, %v", wake, err)
+		}
+		if err := db.ReleaseSessionInput(ctx, main, claimed.ID, now.Add(time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if _, found, err := db.ClaimNextSessionInput(ctx, main, now.Add(2*time.Second)); err != nil || !found {
+			t.Fatalf("retry claim = %v, %v", found, err)
+		}
+		if wake, err := db.Instances().WakeState(ctx, instance.ID); err != nil || wake.UnattendedTurns != 1 {
+			t.Fatalf("retried released row counted again = %+v, %v", wake, err)
+		}
+	})
 	for _, limit := range []int64{0, 2, 300} {
 		t.Run(fmt.Sprintf("Should count and enforce unattended limit %d", limit), func(t *testing.T) {
 			t.Parallel()

@@ -116,7 +116,8 @@ CREATE TABLE session_health (
 			origin_class TEXT NOT NULL DEFAULT 'human' CHECK (origin_class IN ('human', 'agent', 'synthetic')),
 			origin_session_id TEXT NOT NULL DEFAULT '',
 			mentions_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(mentions_json)),
-			human_ingress INTEGER NOT NULL DEFAULT 0);
+			human_ingress INTEGER NOT NULL DEFAULT 0,
+			unattended_counted INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE sessions (
  initiator_kind TEXT NOT NULL DEFAULT '',

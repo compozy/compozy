@@ -40,10 +40,14 @@ func advanceLineageUnattended(
 	if err != nil {
 		return nil, err
 	}
-	// attempt_count counts turn claims only (steering reservations do not advance it), so a value above 1
-	// is a retry of a turn this function already counted.
-	if loopOwned || entry.AttemptCount > 1 || entry.LoopRunID != "" || entry.OwnerKind == goalPromptOwnerKind {
+	if loopOwned || entry.LoopRunID != "" || entry.OwnerKind == goalPromptOwnerKind {
 		return nil, nil
+	}
+	// The durable marker, not attempt_count, records that this row's turn was counted: released rows
+	// carry steering reservations in attempt_count, and a retried claim must not count twice.
+	counted, err := q.MarkSessionInputUnattendedCounted(ctx, entry.ID)
+	if err != nil || counted == 0 {
+		return nil, err
 	}
 	return advanceInstanceUnattended(ctx, q, id, entry.ID, limit, now)
 }
