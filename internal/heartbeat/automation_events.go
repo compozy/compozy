@@ -93,23 +93,41 @@ func BoundAutomationEventSummary(summary string) string {
 }
 
 // boundedAutomationEvent serializes one event. When shrink is set and the item
-// exceeds budget, it halves the longer of summary and instruction until the
-// complete serialized item fits; identity and attribution are never truncated.
+// exceeds budget, it halves the longest presentation text until the complete
+// serialized item fits: content (summary, instruction) shrinks first, then the
+// source attribution text (trigger name, event). Durable event, trigger and run
+// IDs are never truncated, and stored metadata is untouched.
 func boundedAutomationEvent(row AutomationEventFact, budget int, shrink bool) (DigestItem, []byte, error) {
 	summary := BoundAutomationEventSummary(redact.String(row.Summary))
 	instruction := BoundAutomationEventSummary(redact.String(row.Instruction))
+	content := []*string{&summary, &instruction}
+	attribution := []*string{&row.TriggerName, &row.Event}
 	for {
 		item := automationEventItem(row, summary, instruction)
 		encoded, err := json.Marshal(item)
-		if err != nil || !shrink || len(encoded) < budget || (summary == "" && instruction == "") {
+		if err != nil || !shrink || len(encoded) < budget {
 			return item, encoded, err
 		}
-		if len(summary) >= len(instruction) {
-			summary = truncateAutomationText(summary, len(summary)/2)
-		} else {
-			instruction = truncateAutomationText(instruction, len(instruction)/2)
+		if !halveLongest(content) && !halveLongest(attribution) {
+			return item, encoded, nil
 		}
 	}
+}
+
+// halveLongest truncates the longest nonempty text to half its length and
+// reports whether any text remained to shrink.
+func halveLongest(texts []*string) bool {
+	var longest *string
+	for _, text := range texts {
+		if longest == nil || len(*text) > len(*longest) {
+			longest = text
+		}
+	}
+	if longest == nil || *longest == "" {
+		return false
+	}
+	*longest = truncateAutomationText(*longest, len(*longest)/2)
+	return true
 }
 
 func automationEventItem(row AutomationEventFact, summary, instruction string) DigestItem {

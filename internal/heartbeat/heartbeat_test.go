@@ -952,6 +952,78 @@ func TestCollectDigest(t *testing.T) {
 		}
 	})
 
+	t.Run(
+		"Should admit a head event with an accepted 8 KiB trigger name then advance [UT-053 UT-072]",
+		func(t *testing.T) {
+			t.Parallel()
+			longName := strings.Repeat("n", 8<<10)
+			head := AutomationEventFact{
+				ID:          "first",
+				InstanceID:  "instance",
+				Summary:     "Long-named event",
+				Instruction: "Review it",
+				TriggerID:   "trigger",
+				RunID:       "run",
+				TriggerName: longName,
+				Event:       strings.Repeat("\x00", 4<<10),
+				ReceivedAt:  "2026-11-03T00:00:00Z",
+			}
+			var ordinary []AutomationEventFact
+			for i := range 3 {
+				ordinary = append(ordinary, AutomationEventFact{
+					ID:          fmt.Sprintf("ordinary-%d", i),
+					InstanceID:  "instance",
+					Summary:     "Ordinary event",
+					TriggerName: "ordinary",
+					ReceivedAt:  fmt.Sprintf("2026-11-03T00:00:0%dZ", i+1),
+				})
+			}
+			facts := CollectorFacts{
+				EventsOmitted:    5,
+				AutomationEvents: append([]AutomationEventFact{head}, ordinary...),
+			}
+			digest, err := CollectDigest(CollectorScope{InstanceID: "instance"}, facts, nil, "", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(digest.EventIDs) == 0 || digest.EventIDs[0] != "first" {
+				t.Fatalf("head event not admitted: %v", digest.EventIDs)
+			}
+			total := 0
+			for _, item := range digest.Items {
+				encoded, err := json.Marshal(item)
+				if err != nil {
+					t.Fatal(err)
+				}
+				total += len(encoded) + 1
+			}
+			if total > AutomationEventBatchBytes {
+				t.Fatalf("bytes=%d", total)
+			}
+			source := digest.Items[1].Source
+			if source == nil || source.EventID != "first" || source.TriggerID != "trigger" || source.RunID != "run" ||
+				source.ReceivedAt != head.ReceivedAt || source.Kind != "event" {
+				t.Fatalf("durable attribution lost: %+v", source)
+			}
+			if source.TriggerName == "" || len(source.TriggerName) >= len(longName) ||
+				!strings.HasPrefix(longName, source.TriggerName) {
+				t.Fatalf("trigger name not bounded to a prefix: len=%d", len(source.TriggerName))
+			}
+			if head.TriggerName != longName {
+				t.Fatal("collector mutated the stored fact")
+			}
+			facts.AutomationEvents = ordinary
+			digest, err = CollectDigest(CollectorScope{InstanceID: "instance"}, facts, nil, "", "")
+			want := []string{"ordinary-0", "ordinary-1", "ordinary-2"}
+			if err != nil || !slices.Equal(digest.EventIDs, want) {
+				t.Fatalf("after consuming head: events=%v err=%v", digest.EventIDs, err)
+			}
+			if got := digest.Items[1].Source.TriggerName; got != "ordinary" {
+				t.Fatalf("ordinary attribution truncated: %q", got)
+			}
+		},
+	)
+
 	t.Run("Should bound event bytes and retain omitted count", func(t *testing.T) {
 		t.Parallel()
 		facts := CollectorFacts{EventsOmitted: 5}
