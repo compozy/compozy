@@ -43,6 +43,13 @@ export interface SessionLinkedWorkListProps {
   openDetailFor?: string;
 }
 
+function reachesToast(event: Event) {
+  const related = "relatedTarget" in event ? event.relatedTarget : null;
+  return [event.target, related].some(
+    node => node instanceof Element && node.closest("[data-sonner-toast]") !== null
+  );
+}
+
 function SessionLinkedWorkPopover({
   trigger,
   children,
@@ -61,6 +68,12 @@ function SessionLinkedWorkPopover({
     setOpenState(next);
     onOpenChange?.(next);
   };
+  const handleOpenChange = (next: boolean, details: { reason: string; event: Event }) => {
+    // Undo lives in the toast, outside this popover: reaching it must leave the list showing.
+    const leaving = details.reason === "outside-press" || details.reason === "focus-out";
+    if (!next && leaving && reachesToast(details.event)) return;
+    setOpen(next);
+  };
   const actions = {
     ...list.actions,
     // The link dialog takes over: left open, this popover would sit on top of it.
@@ -70,7 +83,7 @@ function SessionLinkedWorkPopover({
     },
   };
   return (
-    <Popover onOpenChange={setOpen} open={open}>
+    <Popover onOpenChange={handleOpenChange} open={open}>
       <PopoverTrigger data-testid={testId} render={trigger}>
         {children}
       </PopoverTrigger>
