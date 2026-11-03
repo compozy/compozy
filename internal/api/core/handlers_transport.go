@@ -40,6 +40,7 @@ func (h *BaseHandlers) logServerError(c *gin.Context, status int, err error) {
 	if err == nil {
 		return
 	}
+	status, err = requestErrorStatus(c, status, err)
 	status = normalizeErrorStatus(status, err, false).status
 	if status < http.StatusInternalServerError {
 		return

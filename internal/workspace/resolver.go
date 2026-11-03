@@ -217,7 +217,11 @@ func (r *Resolver) observeResolve(
 		return
 	}
 
-	r.logger.Warn("workspace.resolve.error",
+	level := slog.LevelWarn
+	if errors.Is(*err, context.Canceled) {
+		level = slog.LevelDebug
+	}
+	r.logger.Log(context.Background(), level, "workspace.resolve.error",
 		"workspace_id", *workspaceID,
 		"error_type", errorType(*err),
 		"duration_ms", durationMillis(r.now().Sub(start)),

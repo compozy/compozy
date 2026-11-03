@@ -1,9 +1,12 @@
 package core
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,6 +25,51 @@ import (
 	"github.com/compozy/compozy/internal/worktree"
 	"github.com/gin-gonic/gin"
 )
+
+func TestRespondErrorCancellation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		err      error
+		canceled bool
+		status   int
+	}{
+		{"Should classify wrapped cancellation", fmt.Errorf("read: %w", context.Canceled), false, 499},
+		{"Should classify canceled read commits", sql.ErrTxDone, true, 499},
+		{"Should preserve live double commit errors", sql.ErrTxDone, false, 500},
+		{"Should preserve request deadlines", context.DeadlineExceeded, false, 500},
+		{"Should preserve database lock failures", errors.New("database is locked"), false, 500},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if tc.canceled {
+				cancel()
+			}
+			var logs strings.Builder
+			h := &BaseHandlers{Logger: slog.New(slog.NewTextHandler(&logs, nil)), MaskInternalErrors: true}
+			response := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(response)
+			c.Request = httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/sessions", http.NoBody)
+			h.respondError(c, http.StatusInternalServerError, tc.err)
+			if response.Code != tc.status {
+				t.Fatalf("status = %d, want %d", response.Code, tc.status)
+			}
+			var payload contract.ErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if tc.status == 499 {
+				if payload.Error != context.Canceled.Error() || logs.Len() != 0 {
+					t.Fatalf("cancellation = %s, logs = %s", response.Body.String(), logs.String())
+				}
+			} else if payload.Error != http.StatusText(http.StatusInternalServerError) || !strings.Contains(logs.String(), tc.err.Error()) {
+				t.Fatalf("failure = %s, logs = %s", response.Body.String(), logs.String())
+			}
+		})
+	}
+}
 
 func TestTaskErrorHelpers(t *testing.T) {
 	t.Parallel()
