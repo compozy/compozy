@@ -102,7 +102,7 @@ Web remediation: a relayed ask stays docked until the daemon accepts the answer,
 shows its receipt; force a failed answer and confirm the ask remains. Leave a main session after
 reading fewer than six heartbeats, then come back: nothing already read returns as While you were
 away. Any report kind in `indeterminate` shows the may-not-have-reached note, however old. Read it
-and See check-ins navigate in place, in the instance's own scope, without reloading the app.
+and See heartbeat navigate in place, in the instance's own scope, without reloading the app.
 
 Rotation catalog invalidation regression: after a successful main-session pointer
 swap, subscribers must receive the instance catalog change before predecessor
