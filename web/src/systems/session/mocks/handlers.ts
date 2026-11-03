@@ -369,6 +369,23 @@ export const handlers: HttpHandler[] = [
     }
   ),
   compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen",
+    ({ params }) => {
+      const id = String(params.session_id);
+      const session = sessionById.get(id);
+      if (!session) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+      const seenSession = {
+        ...session,
+        attention_dismissible: false,
+        returned_from_later_at: null,
+      };
+      sessionById.set(id, seenSession);
+      return HttpResponse.json({ session: seenSession });
+    }
+  ),
+  compozyApiMock.post(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments",
     async ({ params, request }) => {
       const id = String(params.session_id);

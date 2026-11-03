@@ -498,6 +498,35 @@ describe("useSessionTopbarSlot", () => {
     expect(screen.queryByRole("button", { name: "Stop session" })).toBeNull();
   });
 
+  // Invariant (#1202): the head offers Mark as seen only for a Needs you the daemon can
+  // clear; a session waiting on an answer keeps its badge without the control.
+  it("Should offer Mark as seen in the head only for a dismissible Needs you", () => {
+    const { rerender } = renderWithTopbar(
+      <SessionPublisher
+        onStop={vi.fn()}
+        session={{
+          ...primarySessionFixture,
+          badge: "needs-attention",
+          attention: "ended_early",
+          attention_dismissible: true,
+        }}
+      />
+    );
+    expect(screen.getByRole("button", { name: "Mark as seen" })).toBeEnabled();
+
+    rerender(
+      <SessionPublisher
+        onStop={vi.fn()}
+        session={{
+          ...primarySessionFixture,
+          badge: "waiting-for-input",
+          attention_dismissible: false,
+        }}
+      />
+    );
+    expect(screen.queryByRole("button", { name: "Mark as seen" })).toBeNull();
+  });
+
   // Invariant (task_06 VC-01..05, integration): the transport chip the window
   // publishes into the OS head reads the window's own transport — the slot
   // consumer renders outside the session runtime provider, so the publisher
