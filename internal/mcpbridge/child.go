@@ -141,7 +141,7 @@ type tailBuffer struct {
 	mu      sync.Mutex
 	buf     []byte
 	limit   int
-	dropped bool
+	partial bool
 }
 
 func (b *tailBuffer) Write(p []byte) (int, error) {
@@ -149,19 +149,19 @@ func (b *tailBuffer) Write(p []byte) (int, error) {
 	defer b.mu.Unlock()
 	b.buf = append(b.buf, p...)
 	if overflow := len(b.buf) - b.limit; overflow > 0 {
+		b.partial = b.buf[overflow-1] != '\n'
 		b.buf = append(b.buf[:0], b.buf[overflow:]...)
-		b.dropped = true
 	}
 	return len(p), nil
 }
 
-// String returns the kept tail. Once bytes were dropped, the first line may
-// start mid-credential, too short for redaction to recognize, so only whole
-// lines are returned.
+// String returns the kept tail. When the cut landed mid-line, the first line
+// may start mid-credential, too short for redaction to recognize, so only
+// whole lines are returned.
 func (b *tailBuffer) String() string {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if !b.dropped {
+	if !b.partial {
 		return string(b.buf)
 	}
 	_, rest, found := bytes.Cut(b.buf, []byte{'\n'})

@@ -259,6 +259,17 @@ func TestTailBuffer(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep the first line when the cut lands on a line boundary", func(t *testing.T) {
+		t.Parallel()
+		tail := &tailBuffer{limit: 5}
+		if _, err := tail.Write([]byte("aaaa\nbbbb\n")); err != nil {
+			t.Fatal(err)
+		}
+		if got := tail.String(); got != "bbbb\n" {
+			t.Fatalf("tail = %q, want the whole retained line", got)
+		}
+	})
+
 	t.Run("Should return nothing when the kept tail is one cut line", func(t *testing.T) {
 		t.Parallel()
 		tail := &tailBuffer{limit: 8}

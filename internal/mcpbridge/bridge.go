@@ -167,6 +167,7 @@ func (b *Bridge) connectChild(ctx context.Context, spec Spec) error {
 		// let the copy finish so the tail includes its last output.
 		select {
 		case <-child.waited:
+		case <-ctx.Done():
 		case <-time.After(childExitTimeout):
 		}
 		if stderr := child.stderrSummary(); stderr != "" {

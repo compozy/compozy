@@ -1713,6 +1713,19 @@ func TestStartMCPServersBridgeOverHTTP(t *testing.T) {
 			!strings.HasPrefix(server.Headers[0].Value, "Bearer ") {
 			t.Fatalf("session/load bridged headers = %#v, want one bearer Authorization header", server.Headers)
 		}
+		client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "agent", Version: "1.0.0"}, nil)
+		session, err := client.Connect(testutil.Context(t), &sdkmcp.StreamableClientTransport{
+			Endpoint:   server.Url,
+			HTTPClient: &http.Client{Transport: bearerRoundTripper{value: server.Headers[0].Value}},
+		}, nil)
+		if err != nil {
+			t.Fatalf("connect to bridged server on session/load: %v", err)
+		}
+		defer func() { _ = session.Close() }()
+		tools, err := session.ListTools(testutil.Context(t), nil)
+		if err != nil || len(tools.Tools) != 1 || tools.Tools[0].Name != "bridged_ping" {
+			t.Fatalf("session/load bridged tools = %#v, %v; want the stdio server tool", tools, err)
+		}
 	})
 
 	t.Run(
