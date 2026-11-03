@@ -65,3 +65,13 @@ agreed on the attributable audit trail.
 2026-10-05: Deferred from this QA cycle by the user's explicit scope reduction.
 Coverage remains outstanding; this skip is not a passing result. Resume from the dated
 report's session matrix in a future QA cycle.
+
+QA impact 2026-11-03 (#1169): an `approve-reads` session that calls a session tool with only a
+foreign `session_id` raises one prompt titled `Read session <id> outside this workspace or
+profile`, with the same title and options whether or not the session exists; `reject_once` returns
+the consent-rejected denial and `allow_once` returns the session (redacted) or `session_not_found`.
+A `profile` or `all_profiles` read raises the same four options titled `Read profile <id>` or
+`Read all profiles`.
+
+
+QA result 2026-11-03 (#1169): targeted isolated acpmock walk over hosted MCP and HTTP passed for the journeys above; Web and live providers were not walked. Evidence: `docs/qa/evidence/2026-11-03-issue-1169/verification-report.md`.

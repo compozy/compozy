@@ -160,16 +160,17 @@ func (n *daemonNativeTools) nativeCurrentProfileIdentity(
 		if sessionProfileID == "" {
 			return "", "", "", errors.New("daemon: session has no bound profile")
 		}
+		reachesProfiles := scope.ProfileSwitchAuthorized ||
+			info.EffectiveWorkspaceAccess == workspaceaccess.Unrestricted
 		if requestedProfileID != "" && requestedProfileID != store.DefaultProfileID &&
-			info.EffectiveWorkspaceAccess != workspaceaccess.Unrestricted &&
-			requestedProfileID != sessionProfileID {
+			!reachesProfiles && requestedProfileID != sessionProfileID {
 			return "", "", "", &profilepkg.Error{
 				Code: "profile_session_conflict", Message: "session is bound to another profile",
 				Action: "drop the acting profile override; the session decides", Cause: profilepkg.ErrSessionConflict,
 			}
 		}
 		profileID, source, workspaceID = sessionProfileID, nativeToolsSessionKey, strings.TrimSpace(info.WorkspaceID)
-		if requestedProfileID != "" && info.EffectiveWorkspaceAccess == workspaceaccess.Unrestricted {
+		if requestedProfileID != "" && reachesProfiles {
 			profileID = requestedProfileID
 		}
 	}

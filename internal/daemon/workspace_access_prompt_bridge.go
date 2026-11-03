@@ -81,12 +81,9 @@ func (b *workspaceAccessPromptBridge) RequestWorkspaceAccess(
 		SessionId: acpsdk.SessionId(sessionID),
 		ToolCall: acpsdk.ToolCallUpdate{
 			ToolCallId: acpsdk.ToolCallId(toolApprovalCallID(call)),
-			Title:      new(fmt.Sprintf("Access workspace %s", strings.TrimSpace(targetWorkspaceID))),
-			RawInput: map[string]any{
-				"tool_id":             descriptor.ID.String(),
-				"target_workspace_id": strings.TrimSpace(targetWorkspaceID),
-			},
-			Status: acpsdk.Ptr(acpsdk.ToolCallStatusPending),
+			Title:      new(workspaceAccessPromptTitle(targetWorkspaceID)),
+			RawInput:   workspaceAccessPromptInput(descriptor.ID, targetWorkspaceID),
+			Status:     acpsdk.Ptr(acpsdk.ToolCallStatusPending),
 		},
 		Options: workspaceAccessPromptOptions(),
 	})
@@ -147,4 +144,43 @@ func workspaceAccessPromptOptions() []acpsdk.PermissionOption {
 			OptionId: workspaceAccessRejectSessionID,
 		},
 	}
+}
+
+// nativeAccessPromptSessionPrefix marks a prompt target that names a session rather than a
+// workspace. The prompt never shows where the session lives, so it reads the same whether the
+// session exists or not.
+const nativeAccessPromptSessionPrefix = "session "
+
+const workspaceAccessPromptToolIDKey = "tool_id"
+
+// nativeAccessPromptProfilePrefix marks a prompt target that names another profile.
+const nativeAccessPromptProfilePrefix = "profile "
+
+func workspaceAccessPromptTitle(target string) string {
+	target = strings.TrimSpace(target)
+	if sessionID, ok := strings.CutPrefix(target, nativeAccessPromptSessionPrefix); ok {
+		return fmt.Sprintf("Read session %s outside this workspace or profile", sessionID)
+	}
+	if profile, ok := strings.CutPrefix(target, nativeAccessPromptProfilePrefix); ok {
+		return fmt.Sprintf("Read %s", workspaceAccessProfileSubject(profile))
+	}
+	return fmt.Sprintf("Access workspace %s", target)
+}
+
+func workspaceAccessPromptInput(id toolspkg.ToolID, target string) map[string]any {
+	target = strings.TrimSpace(target)
+	if sessionID, ok := strings.CutPrefix(target, nativeAccessPromptSessionPrefix); ok {
+		return map[string]any{workspaceAccessPromptToolIDKey: id.String(), "target_session_id": sessionID}
+	}
+	if profile, ok := strings.CutPrefix(target, nativeAccessPromptProfilePrefix); ok {
+		return map[string]any{workspaceAccessPromptToolIDKey: id.String(), "target_profile": profile}
+	}
+	return map[string]any{workspaceAccessPromptToolIDKey: id.String(), "target_workspace_id": target}
+}
+
+func workspaceAccessProfileSubject(profile string) string {
+	if profile == "all profiles" {
+		return "all profiles"
+	}
+	return "profile " + profile
 }

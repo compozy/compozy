@@ -623,14 +623,14 @@ func TestUserScopeAccessPolicy(t *testing.T) {
 		mode                         Mode
 		allowed                      bool
 	}{
-		{"Should deny ungranted aggregate access under approve-all", testWorkspaceA, "p1", TargetRef{Kind: TargetAggregate, ProfileID: "p1", Surface: "gateway-ingress"}, ModeApproveAll, false},
+		{"Should deny ungranted aggregate writes under approve-all", testWorkspaceA, "p1", TargetRef{Kind: TargetAggregate, ProfileID: "p1", Surface: "gateway-ingress"}, ModeApproveAll, false},
 		{"Should allow User in its own profile even under deny-all", "", "p1", ScopeTarget("", "p1"), ModeDenyAll, true},
 		{"Should deny project to User under deny-all", testWorkspaceA, "p1", ScopeTarget("", "p1"), ModeDenyAll, false},
 		{"Should allow project to User under approve-all", testWorkspaceA, "p1", ScopeTarget("", "p1"), ModeApproveAll, true},
 		{"Should deny User to project under approve-reads without consent", "", "p1", ScopeTarget(testWorkspaceA, "p1"), ModeApproveReads, false},
 		{"Should allow User to project under approve-all", "", "p1", ScopeTarget(testWorkspaceA, "p1"), ModeApproveAll, true},
-		{"Should deny same workspace in another profile even under approve-all", testWorkspaceA, "p1", ScopeTarget(testWorkspaceA, "p2"), ModeApproveAll, false},
-		{"Should deny User in another profile even under approve-all", "", "p1", ScopeTarget("", "p2"), ModeApproveAll, false},
+		{"Should deny writes to the same workspace in another profile under approve-all", testWorkspaceA, "p1", ScopeTarget(testWorkspaceA, "p2"), ModeApproveAll, false},
+		{"Should deny writes to User in another profile under approve-all", "", "p1", ScopeTarget("", "p2"), ModeApproveAll, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -706,6 +706,97 @@ func TestUnrestrictedGrant(t *testing.T) {
 			if got := tc.origin.Effective(tc.definition); got != tc.want {
 				t.Fatalf("Effective(%#v,%q)=%q want %q", tc.origin, tc.definition, got, tc.want)
 			}
+		}
+	})
+}
+
+func TestPermissionModeReach(t *testing.T) {
+	t.Parallel()
+	otherProfile := ScopeTarget(testWorkspaceB, "p2")
+	sameWorkspaceOtherProfile := ScopeTarget(testWorkspaceA, "p2")
+	userOtherProfile := ScopeTarget("", "p2")
+	aggregate := TargetRef{Kind: TargetAggregate, Surface: "session-catalog", AllProfiles: true}
+	unresolved := TargetRef{Kind: TargetUnresolved}
+	for _, tc := range []struct {
+		name     string
+		mode     Mode
+		grant    string
+		consent  *consentCacheStub
+		target   TargetRef
+		readOnly bool
+		want     Decision
+	}{
+		{"Should let approve-all read a workspace in another profile", ModeApproveAll, "", nil, otherProfile, true, Decision{Allowed: true, Source: SourcePermissionMode}},
+		{"Should let approve-all read its own workspace in another profile", ModeApproveAll, "", nil, sameWorkspaceOtherProfile, true, Decision{Allowed: true, Source: SourcePermissionMode}},
+		{"Should let approve-all read the User scope of another profile", ModeApproveAll, "", nil, userOtherProfile, true, Decision{Allowed: true, Source: SourcePermissionMode}},
+		{"Should let approve-all read All projects aggregates", ModeApproveAll, "", nil, aggregate, true, Decision{Allowed: true, Source: SourcePermissionMode}},
+		{"Should let approve-all read an unresolved target", ModeApproveAll, "", nil, unresolved, true, Decision{Allowed: true, Source: SourcePermissionMode}},
+		{"Should keep approve-all writes out of another profile", ModeApproveAll, "", nil, otherProfile, false, Decision{Source: SourceDenied, Denial: DenialNeedsGrant}},
+		{"Should keep approve-all writes out of aggregates", ModeApproveAll, "", nil, TargetRef{Kind: TargetAggregate, Surface: "layout", ProfileID: "p1"}, false, Decision{Source: SourceDenied, Denial: DenialNeedsGrant}},
+		{"Should keep approve-all writes out of an unresolved target", ModeApproveAll, "", nil, unresolved, false, Decision{Source: SourceDenied, Denial: DenialNeedsGrant}},
+		{"Should ask approve-reads before reading another profile", ModeApproveReads, "", &consentCacheStub{}, otherProfile, true, Decision{Source: SourceDenied, PromptEligible: true, Denial: DenialConsentRequired}},
+		{"Should ask approve-reads before reading an unresolved target", ModeApproveReads, "", &consentCacheStub{}, unresolved, true, Decision{Source: SourceDenied, PromptEligible: true, Denial: DenialConsentRequired}},
+		{"Should honor approve-reads session consent for aggregates", ModeApproveReads, "", &consentCacheStub{consent: ConsentAllow, ok: true}, aggregate, true, Decision{Allowed: true, Source: SourceSessionConsent}},
+		{"Should honor an approve-reads session rejection", ModeApproveReads, "", &consentCacheStub{consent: ConsentReject, ok: true}, otherProfile, true, Decision{Source: SourceDenied, Denial: DenialConsentRejected}},
+		{"Should never let deny-all read another profile", ModeDenyAll, "", nil, otherProfile, true, Decision{Source: SourceDenied, Denial: DenialModeDenyAll}},
+		{"Should never let deny-all read aggregates", ModeDenyAll, "", nil, aggregate, true, Decision{Source: SourceDenied, Denial: DenialModeDenyAll}},
+		{"Should never let deny-all read an unresolved target", ModeDenyAll, "", nil, unresolved, true, Decision{Source: SourceDenied, Denial: DenialModeDenyAll}},
+		{"Should keep the grant reaching writes in another profile", ModeDenyAll, Unrestricted, nil, otherProfile, false, Decision{Allowed: true, Source: SourceAgentGrant}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			consent := tc.consent
+			if consent == nil {
+				consent = &consentCacheStub{}
+			}
+			facts := factsSourceFunc(func(context.Context, string) (SessionFacts, error) {
+				return SessionFacts{
+					Mode:            tc.mode,
+					WorkspaceAccess: tc.grant,
+					WorkspaceID:     testWorkspaceA,
+					ProfileID:       "p1",
+				}, nil
+			})
+			audit := &auditEmitterSpy{}
+			policy := newPolicyForTest(t, facts, consent, audit, slog.Default())
+			req := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB)
+			req.Target, req.ReadOnly = tc.target, tc.readOnly
+			decision, err := policy.Authorize(t.Context(), req)
+			if err != nil || decision != tc.want {
+				t.Fatalf("Authorize = %#v, %v; want %#v", decision, err, tc.want)
+			}
+			if len(audit.records) != 1 || audit.records[0].Allowed != tc.want.Allowed {
+				t.Fatalf("audit = %#v, want one record of the decision", audit.records)
+			}
+		})
+	}
+	t.Run("Should explain each denial axis without naming the target", func(t *testing.T) {
+		t.Parallel()
+		for _, denial := range []Denial{DenialModeDenyAll, DenialConsentRequired, DenialConsentRejected, DenialNeedsGrant} {
+			message := DenialMessage(Decision{Denial: denial})
+			if message == DenialHint || !strings.Contains(message, "permissions.mode") {
+				t.Fatalf("DenialMessage(%q) = %q, want axis-specific guidance naming permissions.mode", denial, message)
+			}
+			for _, leaked := range []string{testWorkspaceB, "p2", "sess-"} {
+				if strings.Contains(message, leaked) {
+					t.Fatalf("DenialMessage(%q) = %q leaks %q", denial, message, leaked)
+				}
+			}
+		}
+	})
+	t.Run("Should reject an unresolved target that carries an owner", func(t *testing.T) {
+		t.Parallel()
+		policy := newPolicyForTest(
+			t,
+			&modeSourceStub{mode: ModeApproveAll},
+			&consentCacheStub{},
+			&auditEmitterSpy{},
+			slog.Default(),
+		)
+		req := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB)
+		req.Target, req.ReadOnly = TargetRef{Kind: TargetUnresolved, WorkspaceID: testWorkspaceB}, true
+		if _, err := policy.Authorize(t.Context(), req); !errors.Is(err, ErrInvalidRequest) {
+			t.Fatalf("Authorize error = %v, want ErrInvalidRequest", err)
 		}
 	})
 }

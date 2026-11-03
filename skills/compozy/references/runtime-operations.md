@@ -167,7 +167,9 @@ apply. It has no worktrees.
 
 **All projects** is the Web's breadth mode (the topbar globe): every registered project plus User,
 within the profile lens. Agents and scripts read the same aggregates with `--all-workspaces` or
-`all_workspaces=true`; ordinary agent identities are denied (`agent_scope_denied`). The route
+`all_workspaces=true`; agent identities need the unrestricted grant or a permission mode that
+reaches All projects for reads (`approve-all`, or `approve-reads` with a session answer), and are
+otherwise denied (`agent_scope_denied`). The route
 matrix, `workspace_ids` filter, cursors, and per-route rules are in `references/native-tools.md`
 (All-Projects Aggregates). Session lists take `--all-workspaces` and, over HTTP/UDS,
 `workspace_ids` (`@user` selects User rows); facets add `by_profile`.
@@ -665,8 +667,9 @@ Operator clients acquire a per-client visibility lease with
 `POST /api/workspaces/{workspace_id}/sessions/{session_id}/presence`. A first request with
 `{"visible":true}` returns `lease_id`; renew or release only that lease by sending the ID back.
 When a turn settles under any live lease, the daemon marks it seen and does not derive `done`.
-Leases expire after 15 seconds unless renewed. Presence, attention-summary, and cross-workspace
-catalog surfaces are operator-only; agent identity receives `403 agent_scope_denied`. Interaction
+Leases expire after 15 seconds unless renewed. Presence and attention-summary are operator-only;
+agent identity receives `403 agent_scope_denied`. The cross-workspace session catalog and its
+stream follow the All projects aggregate rule above. Interaction
 discovery accepts a validated agent identity only for that agent's workspace.
 
 Subscribe to `session_attention_changed` on the session catalog stream for committed badge edges.

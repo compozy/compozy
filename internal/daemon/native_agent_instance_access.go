@@ -117,6 +117,7 @@ func (n *daemonNativeTools) nativeInstanceQuery(
 		if !decision.Allowed {
 			return agentinstance.ListQuery{}, agentinstance.ErrForbidden
 		}
+		markNativeCrossing(ctx, decision)
 	}
 	query := agentinstance.ListQuery{
 		AgentName:     input.Agent,
@@ -186,6 +187,7 @@ func (n *daemonNativeTools) authorizeNativeInstanceAction(
 		if !decision.Allowed {
 			return agentinstance.ErrWorkspaceAccessDenied
 		}
+		markNativeCrossing(ctx, decision)
 	}
 	return nil
 }

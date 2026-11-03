@@ -42,6 +42,22 @@ func (e *Engine) RedactJSONWithProtection(
 	protectString func(path []string, value string) bool,
 	protectObject func(path []string, value any) bool,
 ) json.RawMessage {
+	return e.redactJSONDocument(raw, fields, false, protectString, protectObject)
+}
+
+// RedactJSONEverywhere applies exact protection and the additive heuristics to
+// every string in a JSON document, keeping only structural identifier fields.
+func (e *Engine) RedactJSONEverywhere(raw json.RawMessage) json.RawMessage {
+	return e.redactJSONDocument(raw, nil, true, nil, nil)
+}
+
+func (e *Engine) redactJSONDocument(
+	raw json.RawMessage,
+	fields []string,
+	heuristic bool,
+	protectString func(path []string, value string) bool,
+	protectObject func(path []string, value any) bool,
+) json.RawMessage {
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
 	var value any
@@ -57,7 +73,7 @@ func (e *Engine) RedactJSONWithProtection(
 	for _, field := range fields {
 		namedFields[normalizeFieldName(field)] = struct{}{}
 	}
-	redactedValue := e.redactJSONValue(value, nil, namedFields, false, protectString, protectObject)
+	redactedValue := e.redactJSONValue(value, nil, namedFields, heuristic, protectString, protectObject)
 	// Decoded JSON contains dynamic maps and slices, so structural equality needs
 	// reflection. BenchmarkEngineRedactStructuredLogValue tracks this hot path.
 	if reflect.DeepEqual(value, redactedValue) {

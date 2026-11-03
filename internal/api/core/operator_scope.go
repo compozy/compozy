@@ -61,21 +61,35 @@ func (h *BaseHandlers) requireOperatorOrGrantedAgent(c *gin.Context, surface str
 				ProfileID:   scope.ProfileID,
 				AllProfiles: scope.AllProfiles,
 			},
-			ReadOnly: true,
+			ReadOnly: isReadRequest(c.Request),
 			Seam:     workspaceaccess.SeamCatalog,
 		})
-		if err == nil && decision.Allowed && decision.Source == workspaceaccess.SourceAgentGrant {
+		if err == nil && decision.Allowed {
 			return true
+		}
+		if err == nil {
+			c.JSON(http.StatusForbidden, contract.ErrorPayload{
+				Error: surface + " requires an operator or an agent allowed to reach All projects: " +
+					workspaceaccess.DenialMessage(decision),
+				Code: operatorScopeDeniedCode,
+			})
+			return false
 		}
 	}
 	c.JSON(
 		http.StatusForbidden,
 		contract.ErrorPayload{
-			Error: surface + " requires an operator or unrestricted agent",
+			Error: surface + " requires an operator or an agent allowed to reach All projects",
 			Code:  operatorScopeDeniedCode,
 		},
 	)
 	return false
+}
+
+// isReadRequest reports whether an HTTP request only reads. The permission mode reaches All
+// projects and other profiles for reads; changing them needs the unrestricted grant.
+func isReadRequest(r *http.Request) bool {
+	return r != nil && (r.Method == http.MethodGet || r.Method == http.MethodHead)
 }
 
 func (h *BaseHandlers) allowWorkspaceAccessWrite(c *gin.Context, value string) bool {
