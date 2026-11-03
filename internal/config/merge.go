@@ -285,10 +285,13 @@ func (o agentsOverlay) applyAlwaysOn(dst *AlwaysOnConfig) {
 	o.AlwaysOn.Apply(dst)
 }
 
+// configTableAliasWarnings holds configTableAliasKey once the config-table warning has fired.
 var configTableAliasWarnings sync.Map
 
-// warnStaysOnAlias warns once per process for each distinct [agents.stays_on] key set read from
-// one layer. ignored lists keys the same layer's [agents.always_on] overrides. Removal: v0.5.2.
+const configTableAliasKey = "agents.stays_on"
+
+// warnStaysOnAlias warns once per process for the first layer that carries [agents.stays_on] keys
+// (Business Rule 5). ignored lists keys that layer's [agents.always_on] overrides. Removal: v0.5.2.
 func warnStaysOnAlias(alias alwaysOnOverlay, current alwaysOnOverlay) {
 	keys := alias.keys()
 	if len(keys) == 0 {
@@ -305,8 +308,7 @@ func warnStaysOnAlias(alias alwaysOnOverlay, current alwaysOnOverlay) {
 	if len(ignored) > 0 {
 		attrs = append(attrs, "ignored", strings.Join(ignored, ","))
 	}
-	fingerprint := strings.Join(keys, ",") + "|" + strings.Join(ignored, ",")
-	if _, loaded := configTableAliasWarnings.LoadOrStore(fingerprint, struct{}{}); loaded {
+	if _, loaded := configTableAliasWarnings.LoadOrStore(configTableAliasKey, struct{}{}); loaded {
 		return
 	}
 	DeprecationLogger().Warn(ConfigPathAliasWarning, attrs...)

@@ -682,7 +682,12 @@ func TestSupervisionTimingCompatibility(t *testing.T) {
 // It swaps the process-wide deprecation logger, so it does not run in parallel.
 func TestStaysOnConfigAlias(t *testing.T) {
 	var logs bytes.Buffer
-	RouteDeprecationWarnings(slog.New(slog.NewTextHandler(&logs, nil)))
+	logger := slog.New(slog.NewTextHandler(&logs, nil))
+	// rearm starts a fresh process-wide warning window for each case.
+	rearm := func() {
+		logs.Reset()
+		RouteDeprecationWarnings(logger)
+	}
 	t.Cleanup(func() { RouteDeprecationWarnings(nil) })
 	load := func(t *testing.T, body string) Config {
 		t.Helper()
@@ -700,7 +705,7 @@ func TestStaysOnConfigAlias(t *testing.T) {
 	}
 
 	t.Run("Should read the old table into always_on and warn", func(t *testing.T) {
-		logs.Reset()
+		rearm()
 		cfg := load(t, "[agents.stays_on]\napproval_timeout = \"2h\"\n")
 		if cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
 			t.Fatalf("ApprovalTimeout = %v, want 2h", cfg.Agents.AlwaysOn.ApprovalTimeout)
@@ -713,13 +718,22 @@ func TestStaysOnConfigAlias(t *testing.T) {
 	})
 
 	t.Run("Should let always_on win per key and report the ignored key", func(t *testing.T) {
-		logs.Reset()
+		rearm()
 		cfg := load(t, "[agents.stays_on]\nmax_proposals = 5\n\n[agents.always_on]\nmax_proposals = 3\n")
 		if cfg.Agents.AlwaysOn.MaxProposals != 3 {
 			t.Fatalf("MaxProposals = %d, want 3", cfg.Agents.AlwaysOn.MaxProposals)
 		}
 		if !strings.Contains(logs.String(), "ignored=max_proposals") {
 			t.Fatalf("logs = %q, want max_proposals listed as ignored", logs.String())
+		}
+	})
+
+	t.Run("Should warn once per process across layers with different key sets", func(t *testing.T) {
+		rearm()
+		load(t, "[agents.stays_on]\napproval_timeout = \"2h\"\n")
+		load(t, "[agents.stays_on]\nmax_proposals = 5\n")
+		if got := strings.Count(logs.String(), "agents.stays_on is deprecated"); got != 1 {
+			t.Fatalf("logs = %q, want exactly one config-table warning per process", logs.String())
 		}
 	})
 
