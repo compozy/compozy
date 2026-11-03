@@ -2,19 +2,23 @@
 
 ## SQLite contention isolation — issue #1227
 
-Owner: `fix/issue-1227-sqlite-contention`; evidence and remaining acceptance work:
+Owner: `fix/issue-1227-sqlite-contention`; implementation, receipts and explicit release follow-up:
 `docs/qa/reports/2026-11-03-sqlite-contention.md`.
 
-- Native tools, CLI, HTTP/UDS DTOs and Observe response shapes remain unchanged. Interactive
-  persistence still acknowledges commits, and mutation authorization fences retain their own
-  commit boundary. Background batching is an internal persistence mechanism.
-- Global request reads use an independent read-only connection pool. Existing profile and
-  workspace filters, ordering and transaction snapshots are retained at the owning repositories.
-- No hook, extension SDK or config key changes in this checkpoint. The official `skills/compozy/`
-  and Web/site interfaces need no new operation or copy. Global DB ownership closes both pools.
-- User-state relocation, its append-only migration, cache flush integration, transcript-lock
-  reduction and measured multi-session QA remain in progress; this entry does not certify them.
-- QA owners: `MS-daemon-host-load-governance` and `RT-session-catalog-server-scope`.
+- Native tools, CLI verbs, HTTP/UDS DTOs, Observe filters/cursors, hooks, extension SDKs and config
+  keys retain their shapes. Interactive acknowledgements and mutation authorization fences retain
+  their commit boundaries. The existing status array gains a telemetry migration-stream entry.
+- Global/profile/transcript reads use independent read pools. Background producers batch writes,
+  health coalesces dirty observations and flushes on clean shutdown, and transcript reduction runs
+  before the publication write lock. Existing profile/workspace read boundaries remain enforced.
+- Append-only migrations relocate event summaries into `compozy.db.telemetry.db`, preserving every
+  value and cursor with resumable verified copy/acknowledgement. Core outbox events preserve atomic
+  lifecycle durability. Deleted scopes are hidden immediately and cleaned in bounded batches.
+- Backup/file-location docs and `skills/compozy/references/runtime-operations.md` name the complete
+  database family and missing-file refusal. Web needs no new control or copy.
+- QA owners: `MS-daemon-host-load-governance` and `RT-session-catalog-server-scope`. The operator's
+  host-load restriction leaves the 30-session measurements and production-size upgrade unverified.
+  Remaining direct writers/multiple handles are listed explicitly in the report.
 
 ## Open transcript file paths in the editor — 2026-11-03
 

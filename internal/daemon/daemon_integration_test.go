@@ -2182,13 +2182,13 @@ func TestBootInitializesRuntimeAssemblerIntegration(t *testing.T) {
 	if !ok {
 		t.Fatalf("registry type = %T, want *globaldb.GlobalDB", d.registry)
 	}
-	// IT-029: the runtime status contract exposes the sole registered global stream.
+	// IT-029: daemon status exposes each independently persisted runtime stream.
 	statuses, err := newDaemonSchemaStreamStatusReader(registry).SchemaStreamStatuses(t.Context())
 	if err != nil {
 		t.Fatalf("schemaStreamStatuses() error = %v", err)
 	}
-	if len(statuses) != 1 || statuses[0].Stream != "global" {
-		t.Fatalf("schema streams = %#v, want one global stream", statuses)
+	if len(statuses) != 2 || statuses[0].Stream != "global" || statuses[1].Stream != "telemetry" {
+		t.Fatalf("schema streams = %#v, want global and telemetry streams", statuses)
 	}
 
 	for _, stream := range daemonMigrationStreams() {

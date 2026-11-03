@@ -11,6 +11,8 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+var seedSuffixes = []string{"", "-wal", "-shm", ".telemetry.db", ".telemetry.db-wal", ".telemetry.db-shm"}
+
 type Seed struct {
 	dir  string
 	path string
@@ -43,7 +45,7 @@ func New(
 	return &Seed{dir: dir, path: path}, nil
 }
 
-// Clone copies the closed seed into an isolated writable database path.
+// Clone copies the complete closed global database family into an isolated path.
 func (s *Seed) Clone(targetPath string) error {
 	if s == nil || s.path == "" {
 		return errors.New("store seed is not initialized")
@@ -58,10 +60,10 @@ func (s *Seed) Clone(targetPath string) error {
 		return fmt.Errorf("clear store seed target: %w", err)
 	}
 
-	for _, suffix := range []string{"", "-wal", "-shm"} {
+	for _, suffix := range seedSuffixes {
 		sourcePath := s.path + suffix
 		if err := copySeedFile(sourcePath, targetPath+suffix); err != nil {
-			if suffix != "" && errors.Is(err, os.ErrNotExist) {
+			if suffix != "" && suffix != ".telemetry.db" && errors.Is(err, os.ErrNotExist) {
 				continue
 			}
 			cleanupErr := removeSQLiteFiles(targetPath)
@@ -114,7 +116,7 @@ func copySeedFile(sourcePath string, targetPath string) (err error) {
 
 func removeSQLiteFiles(path string) error {
 	var cleanupErr error
-	for _, suffix := range []string{"", "-wal", "-shm"} {
+	for _, suffix := range seedSuffixes {
 		if err := os.Remove(path + suffix); err != nil && !errors.Is(err, os.ErrNotExist) {
 			cleanupErr = errors.Join(
 				cleanupErr,

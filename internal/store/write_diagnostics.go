@@ -91,6 +91,28 @@ func trackWriteOwner(db *sql.DB, operation string) func() {
 	}
 }
 
+// trackBackgroundItem preserves the transaction identity while attributing a
+// queued callback's lock use to its producer rather than only to the batch.
+func trackBackgroundItem(db *sql.DB, operation string) func() {
+	started := time.Now()
+	writeOwners.Lock()
+	owner := writeOwners.active[db]
+	previous := owner.operation
+	owner.operation = operation
+	writeOwners.active[db] = owner
+	writeOwners.Unlock()
+	return func() {
+		writeOwners.Lock()
+		owner.operation = previous
+		writeOwners.active[db] = owner
+		writeOwners.Unlock()
+		if elapsed := time.Since(started); elapsed >= time.Second {
+			slog.Warn("sqlite background write item held for at least one second",
+				"operation", operation, "transaction_id", owner.id, "elapsed_ms", elapsed.Milliseconds())
+		}
+	}
+}
+
 func writeContentionError(db *sql.DB, operation string, attempts int, started time.Time, cause error) error {
 	writeOwners.Lock()
 	owner, known := writeOwners.active[db]

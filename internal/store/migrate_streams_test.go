@@ -58,6 +58,10 @@ func productionMigrationStreams() []productionMigrationStream {
 			schemaFS:          globalschema.Files,
 			declarativeSource: "definitions",
 		},
+		{
+			name: "telemetry", stream: telemetrydb.MigrationStream(),
+			schemaFS: telemetryschema.Files, declarativeSource: "schema.sql",
+		},
 	}
 }
 
@@ -65,10 +69,6 @@ func migrationStreamsUnderTest() []productionMigrationStream {
 	// Invariant: each persisted SQLite stream has an independent, lossless migration
 	// history. The canonical migration suites also own the new telemetry file.
 	return append(productionMigrationStreams(), []productionMigrationStream{
-		{
-			name: "telemetry", stream: telemetrydb.MigrationStream(),
-			schemaFS: telemetryschema.Files, declarativeSource: "schema.sql",
-		},
 		{
 			name:              "session",
 			stream:            sessiondb.MigrationStream(),
@@ -89,8 +89,8 @@ func TestProductionMigrationStreams(t *testing.T) {
 		t.Parallel()
 
 		production := productionMigrationStreams()
-		if len(production) != 1 || production[0].name != "global" {
-			t.Fatalf("production migration streams = %+v, want global", production)
+		if len(production) != 2 || production[0].name != "global" || production[1].name != "telemetry" {
+			t.Fatalf("production migration streams = %+v, want global and telemetry", production)
 		}
 		streams := migrationStreamsUnderTest()
 		seenTables := make(map[string]string)

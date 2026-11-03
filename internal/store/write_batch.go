@@ -94,7 +94,14 @@ func (w *BackgroundWriter) submit(
 			return nil, errWriteReentry
 		}
 	}
-	item := &backgroundWrite{db: w.db, queuedAt: time.Now(), ctx: ctx, operation: operation, fn: fn, result: make(chan error, 1)}
+	item := &backgroundWrite{
+		db:        w.db,
+		queuedAt:  time.Now(),
+		ctx:       ctx,
+		operation: operation,
+		fn:        fn,
+		result:    make(chan error, 1),
+	}
 	if err := w.enqueue(item); err != nil {
 		return nil, err
 	}
@@ -275,6 +282,8 @@ func (w *BackgroundWriter) executeItem(
 	defer owner.active.Store(false)
 	itemCtx, cancel := w.itemContext(context.WithValue(item.ctx, writeContextKey{}, owner))
 	defer cancel()
+	finishItem := trackBackgroundItem(w.db, item.operation)
+	defer finishItem()
 	err = item.fn(itemCtx, tx)
 	if IsSQLiteBusy(err) {
 		return nil, err

@@ -20,6 +20,7 @@ directories. The user home defaults to `~/.compozy` and can be changed with `COM
 | `$COMPOZY_HOME/profiles/<name>/.agents/skills/<group>/.../<skill>/SKILL.md`        | Profile (`agents`)      | Profile-owned Agents convention root; group directories are optional.               |
 | `$COMPOZY_HOME/profiles/<name>/.claude/skills/<group>/.../<skill>/SKILL.md`        | Profile (`claude`)      | Profile-owned Claude convention root; group directories are optional.               |
 | `$COMPOZY_HOME/compozy.db`                                                         | Global                  | Global SQLite catalog.                                                              |
+| `$COMPOZY_HOME/compozy.db.telemetry.db` | Global | Cross-session event summaries. Preserve this file and its `-wal` and `-shm` sidecars with the global database. |
 | `$COMPOZY_HOME/daemon.sock`                                                        | Global                  | Default Unix domain socket.                                                         |
 | `$COMPOZY_HOME/daemon.lock`                                                        | Global                  | Daemon lock file.                                                                   |
 | `$COMPOZY_HOME/daemon.json`                                                        | Global                  | Daemon discovery metadata.                                                          |
@@ -101,7 +102,8 @@ folders are how a division of contexts travels with a checkout.
 
 | Path                             | Format             | Description                                                                                                                                                                                        |
 | -------------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `$COMPOZY_HOME/compozy.db`       | SQLite             | Global catalog database for sessions, workspace registrations, observability summaries, extension records, and automation state. SQLite may create `compozy.db-wal` and `compozy.db-shm` sidecars. |
+| `$COMPOZY_HOME/compozy.db`       | SQLite             | Global catalog database for sessions, workspace registrations, extension records, and automation state. SQLite may create `compozy.db-wal` and `compozy.db-shm` sidecars. |
+| `$COMPOZY_HOME/compozy.db.telemetry.db` | SQLite | Cross-session event summaries. SQLite may create `compozy.db.telemetry.db-wal` and `compozy.db.telemetry.db-shm` sidecars. |
 | `$COMPOZY_HOME/daemon.sock`      | Unix domain socket | Default CLI and UDS API socket. `[daemon].socket` can point elsewhere.                                                                                                                             |
 | `$COMPOZY_HOME/daemon.lock`      | Lock file          | Daemon process lock.                                                                                                                                                                               |
 | `$COMPOZY_HOME/daemon.json`      | JSON               | Discovery file containing daemon PID, HTTP port, and start time.                                                                                                                                   |

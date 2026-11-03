@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"fmt"
 	"net/url"
 
 	"github.com/compozy/compozy/internal/store"
@@ -27,6 +28,22 @@ func openGlobalReadPool(ctx context.Context, path string) (*sql.DB, error) {
 			     OR (d.kind = 'workspace' AND d.scope_id = e.workspace_id))`, nil)
 		return err
 	})
+}
+
+// SchemaStreamStatuses reports both daemon-owned files through their read pools.
+func (g *GlobalDB) SchemaStreamStatuses(ctx context.Context) ([]store.StreamStatus, error) {
+	if err := g.ObserveRepo.checkReady(ctx, "read migration statuses"); err != nil {
+		return nil, err
+	}
+	core, err := store.Status(ctx, g.readDB, MigrationStream())
+	if err != nil {
+		return nil, fmt.Errorf("store: read global migration status: %w", err)
+	}
+	telemetry, err := g.telemetry.Status(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("store: read telemetry migration status: %w", err)
+	}
+	return []store.StreamStatus{core, telemetry}, nil
 }
 
 // CountProfileEventSummaries supports profile deletion previews through the

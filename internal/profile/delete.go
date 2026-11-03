@@ -74,9 +74,6 @@ func (m *Manager) Delete(
 		}
 		return DeleteResult{}, err
 	}
-	if err := m.store.PurgeDeletedTelemetry(ctx); err != nil {
-		return DeleteResult{}, err
-	}
 	if err := m.finalizeOperation(context.WithoutCancel(ctx), opID, false); err != nil {
 		return DeleteResult{}, err
 	}

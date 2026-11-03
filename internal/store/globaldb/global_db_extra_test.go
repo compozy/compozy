@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -610,11 +611,19 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 	ctx := t.Context()
 	t.Run("Should resume committed copies without loss or duplicate cursors", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00188_telemetry_export_complete.sql"))
+		source, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00188_telemetry_export_complete.sql"),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { _ = source.Close() })
+		t.Cleanup(func() {
+			if err := source.Close(); err != nil {
+				t.Error(err)
+			}
+		})
 		_, err = source.ExecContext(ctx, `INSERT INTO event_summary_export
 		(seq,id,profile_id,session_id,workspace_id,worktree_id,type,agent_name,content_json,task_id,run_id,
 		workflow_id,claim_token_hash,lease_until,coordinator_session_id,scheduler_reason,hook_event,hook_name,
@@ -625,7 +634,10 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := source.ExecContext(ctx, `UPDATE sqlite_sequence SET seq = 900 WHERE name = 'event_summary_export'`); err != nil {
+		if _, err := source.ExecContext(
+			ctx,
+			`UPDATE sqlite_sequence SET seq = 900 WHERE name = 'event_summary_export'`,
+		); err != nil {
 			t.Fatal(err)
 		}
 		columns, expected, err := readTelemetryExportBatch(ctx, source)
@@ -636,11 +648,19 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 		BEGIN SELECT RAISE(ABORT, 'injected export acknowledgement failure'); END`); err != nil {
 			t.Fatal(err)
 		}
-		if err := applyTelemetryRelocation(ctx, source, path, telemetryExportVersion); err == nil || !strings.Contains(err.Error(), "injected export acknowledgement failure") {
+		if err := applyTelemetryRelocation(
+			ctx,
+			source,
+			path,
+			telemetryExportVersion,
+		); err == nil ||
+			!strings.Contains(err.Error(), "injected export acknowledgement failure") {
 			t.Fatalf("interrupted export = %v, want retained source after committed target", err)
 		}
 		var remaining int
-		if err := source.QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summary_export").Scan(&remaining); err != nil || remaining != 1 {
+		if err := source.QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summary_export").
+			Scan(&remaining); err != nil ||
+			remaining != 1 {
 			t.Fatalf("source after interrupted acknowledgement = %d, %v", remaining, err)
 		}
 		if _, err := source.ExecContext(ctx, "DROP TRIGGER fail_export_ack"); err != nil {
@@ -663,16 +683,24 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 		for i := range actual {
 			dest[i] = &actual[i]
 		}
-		if err := upgraded.telemetry.DB().QueryRowContext(ctx, "SELECT * FROM event_summaries WHERE id = 'relocated'").Scan(dest...); err != nil {
+		if err := upgraded.telemetry.DB().
+			QueryRowContext(ctx, "SELECT * FROM event_summaries WHERE id = 'relocated'").
+			Scan(dest...); err != nil {
 			t.Fatal(err)
 		}
 		if !reflect.DeepEqual(actual, expected[0]) {
 			t.Fatalf("relocated payload changed: got %#v, want %#v", actual, expected[0])
 		}
-		if err := upgraded.WriteEventSummary(ctx, store.EventSummary{ID: "after-relocation", ProfileID: store.DefaultProfileID, Type: "settings.changed"}); err != nil {
+		if err := upgraded.WriteEventSummary(
+			ctx,
+			store.EventSummary{ID: "after-relocation", ProfileID: store.DefaultProfileID, Type: "settings.changed"},
+		); err != nil {
 			t.Fatal(err)
 		}
-		rows, err := upgraded.ListEventSummaries(ctx, store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, AfterSequence: 900})
+		rows, err := upgraded.ListEventSummaries(
+			ctx,
+			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, AfterSequence: 900},
+		)
 		if err != nil || len(rows) != 1 || rows[0].ID != "after-relocation" || rows[0].Sequence != 901 {
 			t.Fatalf("resumed cursor = %#v, %v", rows, err)
 		}
@@ -683,7 +711,11 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := source.ExecContext(ctx, `INSERT INTO event_summaries(seq,id,profile_id,type,timestamp) VALUES(420,'retired',?,'settings.changed','2026-11-03T19:00:00Z')`, store.DefaultProfileID); err != nil {
+		if _, err := source.ExecContext(
+			ctx,
+			`INSERT INTO event_summaries(seq,id,profile_id,type,timestamp) VALUES(420,'retired',?,'settings.changed','2026-11-03T19:00:00Z')`,
+			store.DefaultProfileID,
+		); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := source.ExecContext(ctx, "DELETE FROM event_summaries"); err != nil {
@@ -701,29 +733,69 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 				t.Error(err)
 			}
 		})
-		if err := upgraded.WriteEventSummary(ctx, store.EventSummary{ID: "new", ProfileID: store.DefaultProfileID, Type: "settings.changed"}); err != nil {
+		if err := upgraded.WriteEventSummary(
+			ctx,
+			store.EventSummary{ID: "new", ProfileID: store.DefaultProfileID, Type: "settings.changed"},
+		); err != nil {
 			t.Fatal(err)
 		}
-		rows, err := upgraded.ListEventSummaries(ctx, store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, AfterSequence: 420})
+		rows, err := upgraded.ListEventSummaries(
+			ctx,
+			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, AfterSequence: 420},
+		)
 		if err != nil || len(rows) != 1 || rows[0].Sequence != 421 {
 			t.Fatalf("retired cursor = %#v, %v", rows, err)
 		}
 	})
+	t.Run("Should refuse a missing relocated file without replacing retained telemetry", func(t *testing.T) {
+		db := openTestGlobalDB(t)
+		path := db.Path()
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		target := telemetrydb.Path(path)
+		if err := os.Rename(target, target+".preserved"); err != nil {
+			t.Fatal(err)
+		}
+		opened, err := OpenGlobalDB(ctx, path)
+		if err == nil {
+			if closeErr := opened.Close(ctx); closeErr != nil {
+				t.Error(closeErr)
+			}
+			t.Fatal("missing telemetry silently recreated")
+		}
+		if _, err := os.Stat(target); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("missing file was changed: %v", err)
+		}
+	})
 	t.Run("Should refuse a conflicting destination without deleting the source", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00188_telemetry_export_complete.sql"))
+		source, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00188_telemetry_export_complete.sql"),
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Cleanup(func() { _ = source.Close() })
-		if _, err := source.ExecContext(ctx, `INSERT INTO event_summary_export(seq,id,profile_id,type,summary,timestamp) VALUES(1,'collision',?,'settings.changed','source','2026-11-03T19:00:00Z')`, store.DefaultProfileID); err != nil {
+		t.Cleanup(func() {
+			if err := source.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := source.ExecContext(
+			ctx,
+			`INSERT INTO event_summary_export(seq,id,profile_id,type,summary,timestamp) VALUES(1,'collision',?,'settings.changed','source','2026-11-03T19:00:00Z')`,
+			store.DefaultProfileID,
+		); err != nil {
 			t.Fatal(err)
 		}
 		target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := target.DB().ExecContext(ctx, `INSERT INTO event_summaries(seq,id,profile_id,type,summary,timestamp) VALUES(1,'collision',?,'settings.changed','other','2026-11-03T19:00:00Z')`, store.DefaultProfileID); err != nil {
+		if _, err := target.DB().
+			ExecContext(ctx, `INSERT INTO event_summaries(seq,id,profile_id,type,summary,timestamp) VALUES(1,'collision',?,'settings.changed','other','2026-11-03T19:00:00Z')`, store.DefaultProfileID); err != nil {
 			t.Fatal(err)
 		}
 		if err := target.Close(ctx); err != nil {
@@ -733,7 +805,9 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 			t.Fatal("conflicting payload accepted")
 		}
 		var summary string
-		if err := source.QueryRowContext(ctx, "SELECT summary FROM event_summary_export WHERE id = 'collision'").Scan(&summary); err != nil || summary != "source" {
+		if err := source.QueryRowContext(ctx, "SELECT summary FROM event_summary_export WHERE id = 'collision'").
+			Scan(&summary); err != nil ||
+			summary != "source" {
 			t.Fatalf("preserved source = %q, %v", summary, err)
 		}
 	})
@@ -756,7 +830,10 @@ func TestGlobalDBTelemetryDelivery(t *testing.T) {
 		defer conn.ExecContext(context.Background(), "ROLLBACK")
 		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 		defer cancel()
-		if err := db.WriteEventSummary(ctx, store.EventSummary{ID: "independent", ProfileID: store.DefaultProfileID, Type: "settings.changed"}); err != nil {
+		if err := db.WriteEventSummary(
+			ctx,
+			store.EventSummary{ID: "independent", ProfileID: store.DefaultProfileID, Type: "settings.changed"},
+		); err != nil {
 			t.Fatal(err)
 		}
 		rows, err := db.ListEventSummaries(ctx, store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
@@ -770,33 +847,88 @@ func TestGlobalDBTelemetryDelivery(t *testing.T) {
 		}
 		defer reader.Close()
 		var count int
-		if err := db.readDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summaries").Scan(&count); err != nil || count != 1 {
+		if err := db.readDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summaries").
+			Scan(&count); err != nil ||
+			count != 1 {
 			t.Fatalf("recycled view = %d, %v", count, err)
 		}
 		if _, err := db.readDB.ExecContext(ctx, "DELETE FROM telemetry.event_summaries"); err == nil {
 			t.Fatal("read pool permitted telemetry mutation")
 		}
 	})
+	t.Run("Should hide a deleted workspace before physical telemetry cleanup", func(t *testing.T) {
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		workspaceID := registerWorkspaceForGlobalTests(t, db, "telemetry-deletion", t.TempDir())
+		summary := store.EventSummary{
+			ID:          "deleted-workspace-event",
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: workspaceID,
+			Type:        "settings.changed",
+		}
+		if err := db.WriteEventSummary(ctx, summary); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.StageWorkspaceDeletion(ctx, workspaceID); err != nil {
+			t.Fatal(err)
+		}
+		var physical int
+		if err := db.telemetry.DB().
+			QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summaries").
+			Scan(&physical); err != nil ||
+			physical != 1 {
+			t.Fatalf("pending cleanup = %d, %v", physical, err)
+		}
+		rows, err := db.ListEventSummaries(ctx, store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("deleted workspace leaked events: %#v, %v", rows, err)
+		}
+		summary.ID = "late"
+		if err := db.WriteEventSummary(ctx, summary); err == nil {
+			t.Fatal("late observation accepted for deleted workspace")
+		}
+		if err := db.CompleteWorkspaceDeletion(ctx, workspaceID); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.telemetry.DB().
+			QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summaries").
+			Scan(&physical); err != nil ||
+			physical != 0 {
+			t.Fatalf("final cleanup = %d, %v", physical, err)
+		}
+	})
 	t.Run("Should retain and replay a committed outbox after delivery fails", func(t *testing.T) {
 		db := openTestGlobalDB(t)
 		ctx := t.Context()
-		summary := store.EventSummary{ID: "outbox-delivery", ProfileID: store.DefaultProfileID, Type: "settings.changed"}
+		summary := store.EventSummary{
+			ID:        "outbox-delivery",
+			ProfileID: store.DefaultProfileID,
+			Type:      "settings.changed",
+		}
 		if err := db.prepareEventSummary(ctx, &summary); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := db.telemetry.DB().ExecContext(ctx, `CREATE TRIGGER fail_delivery BEFORE INSERT ON event_summaries BEGIN SELECT RAISE(ABORT,'injected telemetry delivery failure'); END`); err != nil {
+		if _, err := db.telemetry.DB().
+			ExecContext(ctx, `CREATE TRIGGER fail_delivery BEFORE INSERT ON event_summaries BEGIN SELECT RAISE(ABORT,'injected telemetry delivery failure'); END`); err != nil {
 			t.Fatal(err)
 		}
-		if err := store.ExecuteWriteOperation(ctx, db.db, "commit lifecycle outbox", func(ctx context.Context, tx *store.WriteTx) error {
-			return insertEventSummary(ctx, sqlcgen.New(tx), summary)
-		}); err != nil {
+		if err := store.ExecuteWriteOperation(
+			ctx,
+			db.db,
+			"commit lifecycle outbox",
+			func(ctx context.Context, tx *store.WriteTx) error {
+				return insertEventSummary(ctx, sqlcgen.New(tx), summary)
+			},
+		); err != nil {
 			t.Fatal(err)
 		}
 		if err := db.ObserveRepo.flushEventSummaryOutbox(ctx); err == nil {
 			t.Fatal("delivery failure ignored")
 		}
 		var pending int
-		if err := db.readDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summary_outbox").Scan(&pending); err != nil || pending != 1 {
+		if err := db.readDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summary_outbox").
+			Scan(&pending); err != nil ||
+			pending != 1 {
 			t.Fatalf("durable outbox = %d, %v", pending, err)
 		}
 		if _, err := db.telemetry.DB().ExecContext(ctx, "DROP TRIGGER fail_delivery"); err != nil {
@@ -811,11 +943,16 @@ func TestGlobalDBTelemetryDelivery(t *testing.T) {
 			t.Fatal(err)
 		}
 		reopened := openGlobalDBForTest(t, path)
-		rows, err := reopened.ListEventSummaries(ctx, store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
+		rows, err := reopened.ListEventSummaries(
+			ctx,
+			store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}},
+		)
 		if err != nil || len(rows) != 1 || rows[0].ID != summary.ID {
 			t.Fatalf("replayed events = %#v, %v", rows, err)
 		}
-		if err := reopened.readDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summary_outbox").Scan(&pending); err != nil || pending != 0 {
+		if err := reopened.readDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summary_outbox").
+			Scan(&pending); err != nil ||
+			pending != 0 {
 			t.Fatalf("acknowledged outbox = %d, %v", pending, err)
 		}
 	})

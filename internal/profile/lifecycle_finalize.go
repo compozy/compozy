@@ -94,6 +94,15 @@ func (m *Manager) finalizeOperation(ctx context.Context, opID string, recovered 
 			return m.failOperation(ctx, opID, step.Seq, err)
 		}
 	}
+	op, err := m.getOperation(ctx, opID)
+	if err != nil {
+		return m.failOperation(ctx, opID, -1, err)
+	}
+	if op.Kind == "delete" {
+		if err := m.store.PurgeDeletedTelemetry(ctx); err != nil {
+			return m.failOperation(ctx, opID, -1, err)
+		}
+	}
 	if err := m.write(ctx, "complete profile lifecycle operation", func(exec globaldb.ProfileWriteExecutor) error {
 		now := formatTimestamp(m.now())
 		_, err := exec.ExecContext(

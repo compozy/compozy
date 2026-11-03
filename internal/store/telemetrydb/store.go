@@ -61,6 +61,10 @@ func Open(ctx context.Context, path string) (*Store, error) {
 // DB is reserved for the owning cross-file migration coordinator.
 func (s *Store) DB() *sql.DB { return s.db }
 
+func (s *Store) Status(ctx context.Context) (store.StreamStatus, error) {
+	return store.Status(ctx, s.readDB, MigrationStream())
+}
+
 func (s *Store) Write(ctx context.Context, summaries []store.EventSummary, validate func(context.Context) error) error {
 	return s.background.Submit(ctx, "write event summaries", func(ctx context.Context, tx *store.WriteTx) error {
 		if err := validate(ctx); err != nil {

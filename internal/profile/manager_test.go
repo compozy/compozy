@@ -18,7 +18,9 @@ import (
 	mcpauth "github.com/compozy/compozy/internal/mcp/auth"
 	"github.com/compozy/compozy/internal/observe/attention"
 	providerpkg "github.com/compozy/compozy/internal/providers"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	"github.com/compozy/compozy/internal/testutil"
 	globalseed "github.com/compozy/compozy/internal/testutil/storeseed/global"
 	"github.com/compozy/compozy/internal/vault"
@@ -1280,7 +1282,7 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 			t.Fatalf("seed profile credential requirement error = %v", err)
 		}
 		if err := database.WriteEventSummary(ctx, store.EventSummary{
-			ID: "evt-profile-growth", ProfileID: created.ID, Type: "profile.updated",
+			ID: "evt-profile-growth", ProfileID: created.ID, Type: "settings.changed",
 			Timestamp: time.Date(2026, 8, 22, 0, 0, 0, 0, time.UTC),
 		}); err != nil {
 			t.Fatalf("seed profile event summary error = %v", err)
@@ -1943,6 +1945,79 @@ func TestManagerSelectionResolutionAndAvailability(t *testing.T) {
 
 func TestManagerRecoveryAndReservation(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should retry telemetry removal before completing profile deletion", func(t *testing.T) {
+		t.Parallel()
+		manager, db, home := newTestManager(t)
+		ctx := t.Context()
+		profile, err := manager.Create(ctx, CreateInput{Name: "telemetry-owner"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.WriteEventSummary(ctx, store.EventSummary{
+			ID: "profile-telemetry", ProfileID: profile.ID, Type: "settings.changed", Timestamp: time.Now(),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		telemetry, err := store.OpenSQLiteDatabase(ctx, telemetrydb.Path(home.DatabaseFile), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := telemetry.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := telemetry.ExecContext(ctx, `CREATE TRIGGER fail_profile_purge
+			BEFORE DELETE ON event_summaries BEGIN SELECT RAISE(ABORT, 'purge failed'); END`); err != nil {
+			t.Fatal(err)
+		}
+		plan, err := manager.PrepareDelete(ctx, profile.Name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := manager.Delete(ctx, profile.Name, plan.Revision); err == nil {
+			t.Fatal("expected telemetry removal failure")
+		}
+		var opID, status string
+		if err := db.ReadDB().QueryRowContext(ctx,
+			`SELECT id, status FROM profile_lifecycle_ops WHERE profile_id = ? AND kind = 'delete'`,
+			profile.ID).Scan(&opID, &status); err != nil {
+			t.Fatal(err)
+		}
+		if status != opStatusFailed {
+			t.Fatalf("delete status = %q, want retryable failure", status)
+		}
+		var visible int
+		if err := db.ReadDB().QueryRowContext(ctx,
+			`SELECT count(*) FROM event_summaries WHERE profile_id = ?`, profile.ID).Scan(&visible); err != nil {
+			t.Fatal(err)
+		}
+		if visible != 0 {
+			t.Fatalf("deleted profile exposes %d summaries", visible)
+		}
+		if _, err := telemetry.ExecContext(ctx, "DROP TRIGGER fail_profile_purge"); err != nil {
+			t.Fatal(err)
+		}
+		op, err := manager.RetryOp(ctx, opID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if op.Status != opStatusDone {
+			t.Fatalf("retried delete status = %q, want done", op.Status)
+		}
+		var remaining int
+		if err := telemetry.QueryRowContext(ctx,
+			`SELECT count(*) FROM event_summaries WHERE profile_id = ?`, profile.ID).Scan(&remaining); err != nil {
+			t.Fatal(err)
+		}
+		if remaining != 0 {
+			t.Fatalf("completed delete retained %d summaries", remaining)
+		}
+		if err := manager.Recover(ctx); err != nil {
+			t.Fatal(err)
+		}
+	})
 
 	t.Run("Should retry the journal removal before completing profile deletion", func(t *testing.T) {
 		t.Parallel()
