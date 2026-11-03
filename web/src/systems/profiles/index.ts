@@ -132,6 +132,7 @@ export { useProfile, useProfileOperations, useProfiles } from "./hooks/use-profi
 export {
   useActiveProfileView,
   useCurrentProfileName,
+  useProfileSwitchEpoch,
   useRememberedProfile,
   useSwitchProfile,
   useProfilePerProfileScope,

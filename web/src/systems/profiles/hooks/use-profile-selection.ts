@@ -56,6 +56,14 @@ export function useCurrentProfileName(): string {
   return local?.kind === "profile" ? local.profile : PERMANENT_PROFILE;
 }
 
+/**
+ * Advances on every explicit profile switch this client makes, and on nothing else: not the
+ * boot-time entry of the remembered choice, not a sweep of a removed profile.
+ */
+export function useProfileSwitchEpoch(): number {
+  return useSelector(profileViewStore, state => state.context.switchEpoch);
+}
+
 /** A view of routes that serve one profile at a time, for leaves rendered in every row. */
 export interface ProfilePerProfileScope {
   /** Cache-key segment: a profile name, or the reserved `@all`. */

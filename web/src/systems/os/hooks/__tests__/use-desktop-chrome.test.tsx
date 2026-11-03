@@ -3,11 +3,14 @@
 // the settings read that names this client waits for its registration and reads no
 // workspace overlay on a reserved partition (`global`, `user`); per-window
 // sessions-rail state and worktree picks are pruned only against a snapshot fresh
-// since mount, never the cached window list a returning destination starts from.
+// since mount, never the cached window list a returning destination starts from;
+// an explicit switch into one profile closes, once its desk is live, exactly the
+// session windows another profile owns (#1184).
 // Boundary IN: chrome hook projection reads and provider ownership.
 // Boundary OUT: window-manager stream, client registration, and rendered DesktopShell.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
+import { createAtom } from "@xstate/store";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -15,6 +18,12 @@ const queryOptionsSeen = vi.hoisted(() => [] as Array<{ queryKey: unknown; enabl
 const registration = vi.hoisted(() => ({ status: "idle" as string }));
 const pruneSessionSidebarScopes = vi.hoisted(() => vi.fn());
 const pruneWorktreeScopes = vi.hoisted(() => vi.fn());
+const profileScope = vi.hoisted(() => ({
+  aggregate: false,
+  ownerId: "p_yankee",
+  switchEpoch: 0,
+}));
+const sessionOwners = vi.hoisted(() => new Map<string, string>());
 
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({
@@ -46,7 +55,28 @@ vi.mock("@/systems/workspace", async importOriginal => {
 vi.mock("@/systems/session", () => ({
   useSession: () => ({ data: undefined }),
   pruneSessionSidebarScopes,
+  sessionAcrossProfilesOptions: (sessionId: string) => ({
+    queryKey: ["session-owner", sessionId],
+    queryFn: () => {
+      const owner = sessionOwners.get(sessionId);
+      if (owner === undefined) throw new Error("session not found");
+      return { profile_id: owner, profile_name: owner, profile_color: "#000000" };
+    },
+  }),
 }));
+
+vi.mock("@/systems/profiles", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/profiles")>();
+  return {
+    ...actual,
+    useProfileReadScope: () => ({
+      aggregate: profileScope.aggregate,
+      destination: "yankee",
+      destinationOwner: profileScope.aggregate ? null : { id: profileScope.ownerId },
+    }),
+    useProfileSwitchEpoch: () => profileScope.switchEpoch,
+  };
+});
 
 vi.mock("../use-window-manager-client", () => ({
   useWindowManagerClient: () => ({
@@ -67,8 +97,11 @@ vi.mock("../use-global-shortcut-reconciliation", () => ({
   useGlobalShortcutReconciliation: () => ({ registrations: [] }),
 }));
 
+import type { OsShellHandle } from "../../contexts/os-shell-context";
+import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import type { WindowManagerSnapshot } from "../../lib/window-manager-types";
 import { useDesktopChrome } from "../use-desktop-chrome";
+import { useProfileSwitchWindowSweep } from "../use-profile-switch-window-sweep";
 import { useWindowScopePruning } from "../use-window-scope-pruning";
 
 function wrapper() {
@@ -151,5 +184,75 @@ describe("useWindowScopePruning", () => {
       "win_one",
       "win_two",
     ]);
+  });
+});
+
+describe("useProfileSwitchWindowSweep", () => {
+  beforeEach(() => {
+    profileScope.aggregate = false;
+    profileScope.ownerId = "p_yankee";
+    profileScope.switchEpoch = 0;
+    sessionOwners.clear();
+  });
+
+  function deskWindow(id: string, pathname: string): OsWindow {
+    return { id, route: { pathname, search: {} } } as unknown as OsWindow;
+  }
+
+  function fakeShell(live: boolean) {
+    const windows = {
+      w_own: deskWindow("w_own", "/agents/builder/sessions/s_own"),
+      w_foreign: deskWindow("w_foreign", "/agents/builder/sessions/s_xray"),
+      w_gone: deskWindow("w_gone", "/agents/builder/sessions/s_gone"),
+      w_tasks: deskWindow("w_tasks", "/tasks"),
+    };
+    const state = (isLive: boolean) =>
+      ({
+        hydration: isLive ? "live" : "pending",
+        client: isLive ? {} : null,
+        connectionStatus: isLive ? "connected" : "connecting",
+        windows,
+      }) as unknown as OsDesktopRuntimeStore;
+    const projection = createAtom(state(live));
+    const userClose = vi.fn(async () => true);
+    const shell = {
+      projection,
+      manager: { getState: () => projection.get() },
+      coordinator: { userClose },
+    } as unknown as OsShellHandle;
+    return { shell, userClose, goLive: () => projection.set(state(true)) };
+  }
+
+  it("Should close only another profile's session windows once the switched-to desk is live", async () => {
+    sessionOwners.set("s_own", "p_yankee");
+    sessionOwners.set("s_xray", "p_xray");
+    const { shell, userClose, goLive } = fakeShell(false);
+    const { rerender } = renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
+      wrapper: wrapper(),
+    });
+
+    profileScope.switchEpoch = 1;
+    rerender();
+    expect(userClose).not.toHaveBeenCalled();
+
+    goLive();
+    rerender();
+    await waitFor(() => expect(userClose).toHaveBeenCalledExactlyOnceWith("w_foreign"));
+  });
+
+  it("Should leave the desk alone without a switch or when the switch is to All profiles", async () => {
+    sessionOwners.set("s_xray", "p_xray");
+    const { shell, userClose } = fakeShell(true);
+    const { rerender } = renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
+      wrapper: wrapper(),
+    });
+    rerender();
+
+    profileScope.aggregate = true;
+    profileScope.switchEpoch = 1;
+    rerender();
+    // Let any owner read the hook might have started settle before asserting nothing closed.
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(userClose).not.toHaveBeenCalled();
   });
 });

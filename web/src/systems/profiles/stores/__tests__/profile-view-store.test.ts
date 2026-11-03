@@ -1,7 +1,8 @@
 // Suite: profile active-view store transitions
 // Invariant: the active view is one global answer shared by every workspace, rollback-exact —
 // a failed persist restores the previous answer including "there wasn't one" — a profile that
-// stops existing is dropped, and only the All profiles view is persisted for a reload.
+// stops existing is dropped, only the All profiles view is persisted for a reload, and only an
+// explicit change of view counts as a switch.
 // Boundary IN: the module-scoped @xstate/store, its imperative API, and its localStorage envelope.
 // Boundary OUT: the remembered choice (server state, exercised through the selection hooks).
 
@@ -74,6 +75,19 @@ describe("profile view store", () => {
     const snapshot = profileViewStore.getSnapshot().context;
     setProfileView({ kind: "profile", profile: "marketing" });
     expect(profileViewStore.getSnapshot().context).toBe(snapshot);
+  });
+
+  it("Should count a switch only for an explicit change of view", () => {
+    const epoch = () => profileViewStore.getSnapshot().context.switchEpoch;
+    const start = epoch();
+    // Entering the remembered choice and sweeping a removed profile are not operator switches.
+    enterProfileView({ kind: "profile", profile: "default" });
+    sweepProfileView("default");
+    expect(epoch()).toBe(start);
+    setProfileView({ kind: "aggregate" });
+    setProfileView({ kind: "aggregate" });
+    setProfileView({ kind: "profile", profile: "marketing" });
+    expect(epoch()).toBe(start + 2);
   });
 
   it("Should persist only the All profiles view for a reload", () => {

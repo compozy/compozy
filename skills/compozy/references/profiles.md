@@ -11,6 +11,10 @@ it, and every profile-scoped surface reads it. An open Web client keeps its curr
 client changes the remembered selection; reloading resolves the remembered choice. All profiles is never
 remembered by the daemon; the browser keeps it across reloads, and Web creation under it lands in the
 remembered profile (`default` until one is chosen), shown by the destination chip.
+Under All profiles the Web works on that remembered profile's desks, so another profile's session
+opened there lands on them; an explicit switch into one profile closes, through the normal reopenable
+`window.close`, every session window on its desk that another profile owns. A deep link opened while a
+profile is selected keeps its owner banner.
 
 ## Resolve And Inspect
 

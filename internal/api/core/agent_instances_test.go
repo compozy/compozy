@@ -535,6 +535,65 @@ func TestAgentInstanceAway(t *testing.T) {
 	})
 }
 
+func TestAgentInstanceAllProfilesLens(t *testing.T) {
+	t.Run(
+		"Should read another profile's instance under all profiles but refuse to write through it",
+		func(t *testing.T) {
+			t.Parallel()
+			db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "lens.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			instance, _, err := db.Instances().
+				AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixture := newHandlerFixture(
+				t,
+				&testutil.StubSessionManager{},
+				testutil.StubObserver{},
+				testutil.StubWorkspaceService{},
+			)
+			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+				Store:     db.Instances(),
+				Reports:   db.InstanceReports(),
+				Authority: agentinstance.Authority{Callers: db.Instances()},
+			}
+			fixture.Engine.GET("/instances/:id/away", fixture.Handlers.GetAgentInstanceAway)
+			fixture.Engine.POST("/instances/:id/away", fixture.Handlers.MarkAgentInstanceSeen)
+			serve := func(method string) *httptest.ResponseRecorder {
+				response := httptest.NewRecorder()
+				fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(
+					t.Context(), method, "/instances/"+instance.ID+"/away?all_profiles=true", nil,
+				))
+				return response
+			}
+			if response := serve("GET"); response.Code != 200 {
+				t.Fatalf("aggregate read: %d %s", response.Code, response.Body.String())
+			}
+			response := serve("POST")
+			if response.Code != 400 ||
+				!strings.Contains(response.Body.String(), "all_profiles is only available for reads") {
+				t.Fatalf(
+					"aggregate write: %d %s, want the read-only lens refusal",
+					response.Code,
+					response.Body.String(),
+				)
+			}
+			seen, err := db.Instances().LastSeen(t.Context(), instance.ID, agentinstance.LocalOperator)
+			if err != nil || seen != nil {
+				t.Fatalf("refused write changed seen: %v %v", seen, err)
+			}
+		},
+	)
+}
+
 // Activity authorization belongs to the HTTP read boundary; aggregation uses real SQLite.
 type activityReachPolicy struct{}
 
