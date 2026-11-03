@@ -14,6 +14,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/toolmeta"
 	"github.com/compozy/compozy/internal/tools"
 )
 
@@ -23,7 +24,7 @@ const (
 
 const (
 	// HostedServerName is the single stdio MCP server name injected into ACP sessions.
-	HostedServerName = "compozy-hosted-tools"
+	HostedServerName = toolmeta.HostedServerName
 	hostedNonceBytes = 32
 	hostedBindBytes  = 24
 )

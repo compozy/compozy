@@ -95,6 +95,7 @@ type AgentProcess struct {
 	permissionRequestSeq   uint64
 	permissionTimeout      time.Duration
 	permissionWaitResolver PermissionWaitResolver
+	hostedApprovals        hostedApprovals
 	compozySessionID       string
 	controlTimeout         time.Duration
 

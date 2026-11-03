@@ -347,3 +347,11 @@ modes cannot be reviewers, except verified builtin provider/mode pairs.
 If the current provider mode does not confirm the declared reviewer, session status
 reports `effective_permissions: approve-edits` and `permission_mode_degraded: true`.
 This fallback preserves the configured `auto` intent for a later resume.
+
+At `approve-edits` and `auto`, CompozyOS-native tools are decided once, by declared risk:
+built-in coordination tools (monitors, child sessions, worktrees and bindings, session names and
+links, tasks, Loops, Automations, layouts) run without asking. Shell commands, terminal tools,
+destructive or open-world tools, and changes to config, tool approvals, hooks, extensions, agent
+definitions or persistent agents still ask, once per call. Answering another session's prompts
+asks unless the caller is a stays-on lineage answering its descendants. Extension and MCP tools ask
+unless read-only. The built-in stays-on Orchestrator ships `permissions: auto`.

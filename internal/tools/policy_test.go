@@ -489,5 +489,57 @@ func TestCoordinationPermissionLevels(t *testing.T) {
 				}
 			}
 		})
+		t.Run("Should decide builtin tools by declared risk at "+string(mode), func(t *testing.T) {
+			t.Parallel()
+			mutating := func(id ToolID) Descriptor {
+				d := validDescriptor()
+				d.ID, d.ReadOnly, d.Risk = id, false, RiskMutating
+				return d
+			}
+			destructive := mutating("compozy__worktree_remove")
+			destructive.Risk, destructive.Destructive = RiskDestructive, true
+			openWorld := mutating("compozy__provider_usage_refresh")
+			openWorld.OpenWorld = true
+			external := mcpDescriptor("mcp__github__create_issue", "github", "create_issue")
+			external.ReadOnly, external.Risk = false, RiskMutating
+			cases := []struct {
+				descriptor   Descriptor
+				wantApproval bool
+			}{
+				{mutating("compozy__session_create"), false},
+				{mutating("compozy__worktree_create"), false},
+				{mutating("compozy__session_worktree_bind"), false},
+				{mutating("compozy__session_rename"), false},
+				{mutating("compozy__session_link"), false},
+				{mutating("compozy__task_update"), false},
+				{destructive, true},
+				{openWorld, true},
+				{external, true},
+				{mutating(ToolIDTerminalWrite), true},
+				{mutating(ToolIDConfigSet), true},
+				{mutating("compozy__hooks_create"), true},
+				{mutating("compozy__extensions_install"), true},
+				{mutating(ToolIDAgentCreate), true},
+				{mutating(ToolIDSessionReparent), true},
+				{mutating(ToolIDSessionArchive), true},
+				{mutating(ToolIDLoopApprove), true},
+			}
+			for _, tc := range cases {
+				e, err := NewEffectivePolicyEvaluator(PolicyInputs{
+					SystemPermissionMode: mode, StaysOnLineage: true, ApprovalAvailable: true,
+					ExternalDefault: ExternalDefaultEnabled,
+				}, ToolsetCatalog{}, []ToolID{tc.descriptor.ID})
+				if err != nil {
+					t.Fatal(err)
+				}
+				got, err := e.Evaluate(t.Context(), Scope{}, tc.descriptor)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !got.Callable || got.ApprovalRequired != tc.wantApproval {
+					t.Fatalf("mode=%s id=%s decision=%+v", mode, tc.descriptor.ID, got)
+				}
+			}
+		})
 	}
 }
