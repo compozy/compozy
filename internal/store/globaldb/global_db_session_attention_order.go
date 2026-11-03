@@ -12,11 +12,12 @@ const sessionCatalogAttentionRankExpression = `(CASE
 	WHEN (stop_verification_failed = 1 AND state <> 'stopped')
 		OR pending_permission_count > 0
 		OR pending_clarify_count > 0
-		OR trim(COALESCE(failure_kind, '')) IN ('` + string(store.FailurePermission) + `', '` +
-	string(store.FailureProviderAuth) + `')
+		OR (trim(COALESCE(failure_kind, '')) IN ('` + string(store.FailurePermission) + `', '` +
+	string(store.FailureProviderAuth) + `') AND state <> 'stopped')
 		OR (state = 'stopped'
 			AND trim(COALESCE(failure_kind, '')) <> ''
-			AND trim(COALESCE(failure_kind, '')) <> '` + string(store.FailureCanceled) + `')
+			AND trim(COALESCE(failure_kind, '')) <> '` + string(store.FailureCanceled) + `'
+			AND failure_seen_at IS NULL)
 		OR (state = 'stopped' AND later_returned_at IS NOT NULL)
 		OR (state = 'active'
 			AND ended_early_turn_id <> ''
@@ -48,7 +49,8 @@ const sessionCatalogNameExpression = "compozy_unicode_lower(" + sessionCatalogDi
 const sessionCatalogBadgeExpression = `(CASE
  WHEN stop_verification_failed = 1 AND state <> 'stopped' THEN 'needs-attention'
  WHEN state = 'stopped' AND trim(COALESCE(failure_kind, ''))
- NOT IN ('', '` + string(store.FailureCanceled) + `') THEN 'failed'
+ NOT IN ('', '` + string(store.FailureCanceled) + `') THEN (CASE WHEN failure_seen_at IS NULL THEN 'failed'
+ WHEN later_returned_at IS NOT NULL THEN 'needs-attention' ELSE 'stopped' END)
  WHEN pending_permission_count > 0
  OR trim(COALESCE(failure_kind, '')) IN ('` + string(store.FailurePermission) + `', '` +
 	string(store.FailureProviderAuth) + `') THEN 'waiting-for-auth'

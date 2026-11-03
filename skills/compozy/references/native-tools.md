@@ -55,6 +55,7 @@ authoritative. The error envelope is unchanged; messages can include a bounded, 
 | `session_in_later`                             | The session is parked in Later. Bring it back with `compozy__session_resume_later`, or let the operator prompt it.                         |
 | `subagent_later_follows_parent`                | A subagent moves to Later with its parent. Park the parent instead.                                                                        |
 | `session_later_stop_failed`                    | Later could not stop the session tree or its processes; nothing was parked. Inspect the session and retry.                                 |
+| `attention_requires_action`                    | Mark as seen was refused: the session still waits on an answer, a sign-in, a stop, or a work signal. Resolve that instead.                 |
 | `worktree_name_taken`                          | Inspect the existing worktree or choose another name.                                                                                      |
 | `worktree_session_active`                      | Inspect and release the session binding before removing the worktree.                                                                      |
 | `tool_backend_failed` with `backend_unhealthy` | A backend operation failed. Inspect the sanitized cause before retrying; for example, workspace pruning may be blocked by active sessions. |
@@ -124,7 +125,7 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_compact`, `compozy__session_status`, `compozy__session_history`,
 `compozy__session_events`, `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
-`compozy__session_unarchive`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_move_to_profile`, `compozy__session_wait`,
+`compozy__session_unarchive`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_mark_seen`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_move_to_profile`, `compozy__session_wait`,
 `compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
 `compozy__session_clarify_answer`, `compozy__session_prompt_cancel`.
 
@@ -521,7 +522,13 @@ parked sessions unless `later` is `only` or `include`. A `compozy__session_promp
 session queues the message with disposition `later` and does not resume it; only the operator
 resumes it. `compozy__session_resume_later` brings it back without starting it (`with_children`
 also brings back parked children). CLI fallbacks: `compozy session later <id>` and
-`compozy session resume-later <id>`. Archive and conversation clear preserve attachments;
+`compozy session resume-later <id>`. `compozy__session_mark_seen` clears the operator's current
+Needs you for a turn that ended early, a return from Later, or a stopped session's failure until
+it happens again; it never wakes the creator. A session waiting on a permission, a question, a
+sign-in, a stop, or a work signal is refused with `attention_requires_action`; session payloads
+report `attention_dismissible`. A newer occurrence that lands while marking is kept and the call
+fails with `tool_conflict`; read the session again before retrying. CLI fallback: `compozy session mark-seen <id>`. Archive and
+conversation clear preserve attachments;
 conversation clear preserves attachments. `compozy session remove` and `compozy workspace remove`
 remove their scoped attachment trees.
 `compozy__session_rename` changes the durable display name of a user session without changing its

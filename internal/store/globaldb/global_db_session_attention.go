@@ -186,7 +186,7 @@ func getSessionAttention(
 	var row sessionAttentionRow
 	err := exec.QueryRowContext(ctx, `SELECT pending_permission_count, pending_clarify_count,
 attention_revision, last_settled_revision, last_seen_revision, last_seen_at, attention_changed_at,
-ended_early_turn_id
+ended_early_turn_id, failure_seen_at
 FROM sessions WHERE id = ?`, sessionID).Scan(
 		&row.pendingPermissionCount,
 		&row.pendingClarifyCount,
@@ -196,6 +196,7 @@ FROM sessions WHERE id = ?`, sessionID).Scan(
 		&row.lastSeenAt,
 		&row.attentionChangedAt,
 		&row.endedEarlyTurnID,
+		&row.failureSeenAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.SessionAttention{}, fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
@@ -215,6 +216,7 @@ type sessionAttentionRow struct {
 	lastSeenAt             sql.NullString
 	attentionChangedAt     sql.NullString
 	endedEarlyTurnID       string
+	failureSeenAt          sql.NullString
 }
 
 func (r sessionAttentionRow) toStore() (store.SessionAttention, error) {
@@ -232,6 +234,10 @@ func (r sessionAttentionRow) toStore() (store.SessionAttention, error) {
 		return store.SessionAttention{}, err
 	}
 	result.AttentionChangedAt, err = parseNullableAttentionTime(r.attentionChangedAt, "attention changed")
+	if err != nil {
+		return store.SessionAttention{}, err
+	}
+	result.FailureSeenAt, err = parseNullableAttentionTime(r.failureSeenAt, "failure seen")
 	if err != nil {
 		return store.SessionAttention{}, err
 	}

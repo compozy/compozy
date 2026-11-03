@@ -180,6 +180,7 @@ function renderList(
     onMoveToLaterMany: vi.fn(),
     onBackFromLater: vi.fn(),
     onBackFromLaterMany: vi.fn(),
+    onMarkSeen: vi.fn(),
     onDeleteMany: vi.fn(),
     ...overrides.actions,
   };
@@ -1485,6 +1486,41 @@ describe("SessionList Later", () => {
     expect(screen.queryByTestId("session-row-later-parked")).not.toBeInTheDocument();
     await user.click(await screen.findByTestId("session-row-back-from-later-parked"));
     expect(actions.onBackFromLater).toHaveBeenCalledExactlyOnceWith(parked);
+  });
+});
+
+// Invariant (#1202): a row whose Needs you the daemon can clear offers Mark as seen; a row
+// that still waits on an answer keeps its badge and gets no such verb.
+// Owner: SessionList row menu (shared with the Kanban card and the context menu).
+describe("SessionList Mark as seen", () => {
+  it("Should offer Mark as seen only while the daemon says the Needs you can be cleared", async () => {
+    const user = userEvent.setup();
+    const endedEarly: SessionPayload = {
+      ...primarySessionFixture,
+      id: "ended-early",
+      name: "Ended early",
+      badge: "needs-attention",
+      attention: "ended_early",
+      attention_dismissible: true,
+    };
+    const asking: SessionPayload = {
+      ...primarySessionFixture,
+      id: "asking",
+      name: "Asking",
+      badge: "waiting-for-input",
+      attention_dismissible: false,
+    };
+    const { actions } = renderList({ sessions: [endedEarly, asking] });
+
+    await user.click(screen.getByTestId("session-row-actions-ended-early"));
+    const markSeen = await screen.findByTestId("session-row-mark-seen-ended-early");
+    expect(markSeen).toHaveTextContent("Mark as seen");
+    await user.click(markSeen);
+    expect(actions.onMarkSeen).toHaveBeenCalledExactlyOnceWith(endedEarly);
+
+    await user.click(screen.getByTestId("session-row-actions-asking"));
+    expect(await screen.findByTestId("session-row-rename-asking")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-mark-seen-asking")).not.toBeInTheDocument();
   });
 });
 

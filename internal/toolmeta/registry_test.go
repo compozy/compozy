@@ -286,6 +286,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__session_unarchive":             expectedNativeEntry("Unarchiving", " ", false, "💬", "auto"),
 		"compozy__session_later":                 expectedNativeEntry("Moving to Later", " ", false, "💬", "auto"),
 		"compozy__session_resume_later":          expectedNativeEntry("Bringing back", " ", false, "💬", "auto"),
+		"compozy__session_mark_seen":             expectedNativeEntry("Marking as seen", " ", false, "💬", "auto"),
 		"compozy__session_wait":                  expectedNativeEntry("Waiting", " ", false, "💬", "auto"),
 		"compozy__skill_list":                    expectedNativeEntry("Reading", " ", false, "🧰", "auto"),
 		"compozy__skill_search":                  expectedNativeEntry("Searching", " for ", false, "🧰", "query"),

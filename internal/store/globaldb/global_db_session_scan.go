@@ -68,6 +68,7 @@ type sessionInfoRow struct {
 	parkUntil              sql.NullString
 	laterReturnedAt        sql.NullString
 	laterPendingMessages   int
+	failureSeenAt          sql.NullString
 	createdAtRaw           string
 	updatedAtRaw           string
 }
@@ -311,6 +312,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.soulDigest,
 		&row.parentSoulDigest,
 		&row.parkedAt, &row.parkReason, &row.parkUntil, &row.laterReturnedAt, &row.laterPendingMessages,
+		&row.failureSeenAt,
 		&row.createdAtRaw, &row.updatedAtRaw, &row.session.VerdictOnly,
 	); err != nil {
 		return sessionInfoRow{}, fmt.Errorf("store: scan session info: %w", err)

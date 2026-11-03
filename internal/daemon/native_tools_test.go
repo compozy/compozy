@@ -2052,6 +2052,31 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should mark Needs you as seen and keep the refusal code agents branch on", func(t *testing.T) {
+		t.Parallel()
+
+		later := &nativeLaterSessionManager{StubSessionManager: *nativeTestSessionManager("ws-native")}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: later, Workspaces: nativeTestWorkspaceService(t),
+		}, nativeApproveAllPolicyInputs())
+		scope := toolspkg.Scope{WorkspaceID: "ws-native", SessionID: "sess-other", AgentName: "coder"}
+		request := toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionMarkSeen,
+			Input:  json.RawMessage(`{"session_id":"sess-parent"}`),
+		}
+		if _, err := registry.Call(t.Context(), scope, request); err != nil || len(later.seen) != 1 {
+			t.Fatalf("session_mark_seen = %v, seen=%v, want one mark", err, later.seen)
+		}
+		later.err = &session.AttentionRequiresActionError{
+			SessionID: "sess-parent", Blocker: session.AttentionBlockerPendingPermission,
+		}
+		_, err := registry.Call(t.Context(), scope, request)
+		if toolErr, ok := errors.AsType[*toolspkg.ToolError](err); !ok ||
+			toolErr.Code != toolspkg.ErrorCodeAttentionRequiresAction {
+			t.Fatalf("session_mark_seen refusal = %#v, want attention_requires_action", err)
+		}
+	})
+
 	t.Run("Should deny session orchestration self actions before calling services", func(t *testing.T) {
 		t.Parallel()
 
@@ -16066,7 +16091,16 @@ func (s *nativeProcessPolicyService) Terminate(
 type nativeLaterSessionManager struct {
 	apitest.StubSessionManager
 	parked []session.LaterRequest
+	seen   []string
 	err    error
+}
+
+func (m *nativeLaterSessionManager) MarkAttentionSeen(_ context.Context, id string) (*session.Info, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	m.seen = append(m.seen, id)
+	return &session.Info{ID: id, State: session.StateActive}, nil
 }
 
 func (m *nativeLaterSessionManager) MoveToLater(

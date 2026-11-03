@@ -181,6 +181,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"resumeLoopNode",
 			"resumeLoopRun",
 			"resumeSessionFromLater",
+			"markSessionSeen",
 			"resumeTask",
 			"rewindSessionConversation",
 			"runLoop",

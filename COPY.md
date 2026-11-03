@@ -334,6 +334,13 @@ A session's profile never changes; **Move to profile** copies it into another pr
 - Toasts: "{N} session(s) moved to Later", "{N} session(s) back from Later", "Couldn't move {N} session(s) to Later", "Couldn't bring {N} session(s) back from Later", per-session fallbacks "Failed to move session to Later." · "Failed to bring session back from Later."
 - Composer, an agent message for a parked session: "Queued — this session is in Later".
 
+### Mark as Seen Terms
+
+**Mark as seen** clears one occurrence of Needs you the operator has looked at: a turn that ended early, a return from Later, or a stopped session's failure. It never mutes the session; the next occurrence raises Needs you again. Never "dismiss", "snooze", "ignore", or "acknowledge" in UI copy.
+
+- Verb: "Mark as seen" (row `…` menu, context menu, Kanban card menu; header icon button with the same aria label and tooltip). It shows only while the daemon reports `attention_dismissible`; a pending answer, sign-in, or stop keeps its own control and never gets this verb.
+- Toast fallback: "Couldn't mark the session as seen."; a newer occurrence reads "session: attention changed before it was marked as seen: {id}"; daemon refusals read "session {id} needs you to answer its permission request / answer its question / sign in to its provider / stop its agent process / resolve the work signal it cannot check before it can be marked as seen".
+
 ### Model List Issue Terms
 
 The runtime selector reports provider model list problems behind one warning mark in its search header, placed before the refresh control. Nothing appears while every model list is healthy.

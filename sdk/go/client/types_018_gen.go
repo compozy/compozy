@@ -181,6 +181,7 @@ type SessionPayload struct {
 	StopReason               StopReason                       `json:"stop_reason,omitempty"`
 	StopCause                string                           `json:"stop_cause,omitempty"`
 	Attention                string                           `json:"attention,omitempty"`
+	AttentionDismissible     bool                             `json:"attention_dismissible,omitzero"`
 	Verified                 *bool                            `json:"verified,omitzero"`
 	Escalated                *bool                            `json:"escalated,omitzero"`
 	StopDetail               string                           `json:"stop_detail,omitempty"`

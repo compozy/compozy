@@ -16,6 +16,7 @@ import {
   type SessionLinkedWorkStatusProps,
 } from "../components/session-linked-work/session-linked-work-header";
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
+import { SessionMarkSeenAction } from "../components/session-mark-seen-action";
 import { SessionPrimaryAction } from "../components/session-primary-action";
 import { sessionProcessPorts, sessionRunningProcesses } from "../lib/session-processes";
 import { SessionPanelToggle } from "../components/session-panel-toggle";
@@ -248,6 +249,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
       <>
         {linkedWork.clipped ? <SessionLinkedWorkNarrowEntry {...linkedList} /> : null}
         {instance ? <StaysOnAgentMenu instance={instance} /> : null}
+        <SessionMarkSeenAction session={session} />
         <SessionPrimaryAction
           key={session.id}
           {...input}

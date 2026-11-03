@@ -38,6 +38,8 @@ const (
 	ToolIDSessionLater ToolID = "compozy__session_later"
 	// ToolIDSessionResumeLater returns a parked session to the normal flow.
 	ToolIDSessionResumeLater ToolID = "compozy__session_resume_later"
+	// ToolIDSessionMarkSeen clears a session's Needs you until its next occurrence.
+	ToolIDSessionMarkSeen ToolID = "compozy__session_mark_seen"
 	// ToolIDSessionRename changes one user session's durable display name.
 	ToolIDSessionLink   ToolID = "compozy__session_link"
 	ToolIDSessionUnlink ToolID = "compozy__session_unlink"

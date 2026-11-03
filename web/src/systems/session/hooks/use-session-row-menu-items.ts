@@ -2,6 +2,7 @@ import {
   Archive,
   ArrowRightLeft,
   Bookmark,
+  CheckCheck,
   Copy,
   CornerLeftUp,
   CornerDownRight,
@@ -49,6 +50,7 @@ export interface SessionRowMenuItem {
   /** Stable verb id; test ids read `session-row-<id>-<session id>`. */
   id:
     | "rename"
+    | "mark-seen"
     | "copy-id"
     | "copy-title"
     | "continue"
@@ -184,12 +186,22 @@ function sessionProfileMoveMenuItem(
   };
 }
 
-/** Stop, Later, and Archive verbs gated on the session's lifecycle state. */
+/** Mark as seen, Stop, Later, and Archive verbs gated on the session's state. */
 function sessionStateMenuItems(
   session: SessionPayload,
   actions: SessionLifecycleActionHandlers
 ): SessionRowMenuItem[] {
   const items: SessionRowMenuItem[] = [];
+  const { onMarkSeen } = actions;
+  // Only a Needs you the daemon can clear: a pending answer, sign-in, or stop stays.
+  if (onMarkSeen && session.attention_dismissible) {
+    items.push({
+      id: "mark-seen",
+      label: "Mark as seen",
+      icon: CheckCheck,
+      onSelect: () => onMarkSeen(session),
+    });
+  }
   if (session.archived_at === null && isStopEligible(session)) {
     items.push({
       id: "stop",

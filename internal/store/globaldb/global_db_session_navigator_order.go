@@ -9,7 +9,8 @@ import (
 // Navigator preserves the desktop's needs-you/finished/working/rest order.
 const sessionCatalogNavigatorBandExpression = `(CASE
  WHEN stop_verification_failed = 1 AND state <> 'stopped' THEN 0
- WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
+ WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation')
+ THEN (CASE WHEN failure_seen_at IS NULL OR later_returned_at IS NOT NULL THEN 0 ELSE 3 END)
  WHEN pending_permission_count > 0
  OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
  WHEN pending_clarify_count > 0 THEN 0

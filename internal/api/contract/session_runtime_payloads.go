@@ -128,8 +128,11 @@ type SessionPayload struct {
 	StopReason store.StopReason `json:"stop_reason,omitempty"`
 	StopCause  string           `json:"stop_cause,omitempty"`
 	Attention  string           `json:"attention,omitempty"`
-	Verified   *bool            `json:"verified,omitzero"`
-	Escalated  *bool            `json:"escalated,omitzero"`
+	// AttentionDismissible reports a Needs you the operator can mark as seen; it is
+	// false while the session waits on an answer, a sign-in, or a stop.
+	AttentionDismissible bool  `json:"attention_dismissible,omitzero"`
+	Verified             *bool `json:"verified,omitzero"`
+	Escalated            *bool `json:"escalated,omitzero"`
 	// StopDetail is the session-level stop context paired with StopReason.
 	StopDetail        string                       `json:"stop_detail,omitempty"`
 	Failure           *SessionFailurePayload       `json:"failure,omitzero"`

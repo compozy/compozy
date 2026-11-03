@@ -245,6 +245,7 @@ func newHandlerFixtureWithRuntime(
 	engine.GET("/workspaces/:workspace_id/sessions/:session_id/descendants", handlers.ListSessionDescendants)
 	engine.POST("/workspaces/:workspace_id/sessions/:session_id/later", handlers.MoveSessionToLater)
 	engine.POST("/workspaces/:workspace_id/sessions/:session_id/resume-later", handlers.ResumeSessionFromLater)
+	engine.POST("/workspaces/:workspace_id/sessions/:session_id/mark-seen", handlers.MarkSessionSeen)
 	engine.POST("/workspaces/:workspace_id/sessions/:session_id/unarchive", handlers.UnarchiveSession)
 	engine.POST("/workspaces/:workspace_id/sessions/:session_id/attach", handlers.AttachSession)
 	engine.PUT("/workspaces/:workspace_id/sessions/:session_id/runtime", handlers.SetSessionRuntime)
