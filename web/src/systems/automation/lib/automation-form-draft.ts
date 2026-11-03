@@ -270,21 +270,40 @@ export function automationFormJobDraft(draft: AutomationFormDraft): CreateAutoma
   };
 }
 
-/** The trigger create draft; a link start is always in User and carries its identity. */
+/**
+ * Whether a link start keeps the automation's project. Links live in User, except when they tell a
+ * stays-on agent: the daemon resolves that instance in the trigger's own scope, and accepts
+ * project links at `/api/webhooks/workspaces/{workspace_id}/…`.
+ */
+export function automationLinkKeepsScope(
+  draft: Pick<AutomationFormDraft, "start" | "target_kind">
+): boolean {
+  return draft.start === "webhook" && draft.target_kind === AGENT_INSTANCE_TARGET_KIND;
+}
+
+/** Where the automation saves: a plain link start is always in User. */
+export function automationFormScope(
+  draft: Pick<AutomationFormDraft, "start" | "target_kind" | "scope">
+): AutomationFormDraft["scope"] {
+  return draft.start === "webhook" && !automationLinkKeepsScope(draft) ? "global" : draft.scope;
+}
+
+/** The trigger create draft; a link start carries its identity and lives in User unless it keeps its project. */
 export function automationFormTriggerDraft(
   draft: AutomationFormDraft
 ): CreateAutomationTriggerRequest {
   const isWebhook = draft.start === "webhook";
+  const scope = automationFormScope(draft);
   return {
     name: draft.name,
     agent_name: draft.agent_name,
     prompt: draft.prompt,
     event: automationFormEvent(draft),
     filter: automationConditionsFilter(draft.conditions),
-    scope: isWebhook ? "global" : draft.scope,
+    scope,
     target_kind: draft.target_kind,
     loop_target: draft.loop_target,
-    workspace_id: isWebhook ? undefined : draft.workspace_id,
+    workspace_id: scope === "global" ? undefined : draft.workspace_id,
     enabled: draft.enabled,
     retry: draft.retry,
     fire_limit: draft.fire_limit,

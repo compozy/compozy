@@ -5,6 +5,7 @@ import { loopTargetWorkspaceId, retryDraftForStrategy } from "../lib/automation-
 import { useAutomationTimeZone } from "./use-automation-time-zone";
 import {
   automationFormDoes,
+  automationFormScope,
   automationFormEvent,
   automationFormSentenceDraft,
   setAutomationFormDoes,
@@ -124,7 +125,7 @@ function useFormLoopTarget(
   activeWorkspaceId: string | null | undefined,
   does: AutomationDoes
 ) {
-  const effectiveScope = draft.start === "webhook" ? "global" : draft.scope;
+  const effectiveScope = automationFormScope(draft);
   const loopWorkspaceId = loopTargetWorkspaceId(
     { ...draft, scope: effectiveScope },
     activeWorkspaceId

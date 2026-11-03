@@ -757,6 +757,31 @@ describe("AutomationEditorDialog", () => {
       expect(screen.queryByTestId("automation-stays-on-missing")).not.toBeInTheDocument();
     });
 
+    it("Should let a link reach a stays-on agent in its project (BUG-20261103-link-trigger-stays-on-scope)", async () => {
+      staysOnInstances.read = async () => [
+        agentInstanceFixture({
+          id: "ainst-project",
+          agent_name: "inbox",
+          label: "Inbox",
+          workspace_id: "ws_test",
+          scope: "checkout-api",
+        }),
+      ];
+      render(<EditorHarness draft={readyDraft({ start: "webhook", agent_name: "" })} />);
+
+      fireEvent.click(screen.getByTestId("automation-does-stays-on"));
+      const agent = await screen.findByTestId("automation-stays-on-agent");
+      await screen.findByRole("option", { name: "Inbox" });
+      fireEvent.change(agent, { target: { value: "inbox" } });
+
+      expect(screen.getByTestId("automation-stays-on-scope")).toHaveValue("ws_test");
+      expect(screen.getByRole("option", { name: "checkout-api" })).toBeEnabled();
+      expect(screen.queryByTestId("automation-stays-on-missing")).not.toBeInTheDocument();
+      expect(screen.getByTestId("automation-webhook-global-note")).toHaveTextContent(
+        "lives where that agent runs"
+      );
+    });
+
     it("Should say the agent isn't running here, then move the trigger to where it runs", async () => {
       staysOnInstances.read = async () => [GLOBAL_TRIAGE];
       render(<EditorHarness draft={eventDraft()} />);

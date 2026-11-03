@@ -9,6 +9,7 @@ import {
   setAutomationFormStart,
 } from "../automation-form-draft";
 import { staysOnTargetModel } from "../automation-stays-on-target";
+import { webhookUrl } from "../trigger-preview";
 
 function instance(overrides: Partial<AgentInstancePayload>): AgentInstancePayload {
   return {
@@ -48,7 +49,6 @@ describe("staysOnTargetModel", () => {
       instances: [instance({}), GLOBAL],
       agent: "triage",
       workspaceId: "ws_alpha",
-      isWebhook: false,
     });
     expect(model.agents).toEqual([{ name: "triage", label: "Triage Lead" }]);
     expect(model.scopes.map(scope => scope.label)).toEqual(["Global", "alpha"]);
@@ -61,7 +61,6 @@ describe("staysOnTargetModel", () => {
       instances: [instance({}), instance({ id: "ain_3", agent_name: "triage-web" })],
       agent: "",
       workspaceId: "ws_alpha",
-      isWebhook: false,
     });
     expect(model.agents.map(option => option.label)).toEqual([
       "Triage Lead (triage)",
@@ -74,23 +73,9 @@ describe("staysOnTargetModel", () => {
       instances: [GLOBAL],
       agent: "triage",
       workspaceId: "ws_alpha",
-      isWebhook: false,
     });
     expect(model.selectedScope).toBeNull();
     expect(model.status).toEqual({ kind: "missing", agent: "triage", scope: "this project" });
-  });
-
-  it("limits a link start to Global instances", () => {
-    const model = staysOnTargetModel({
-      instances: [instance({}), GLOBAL],
-      agent: "triage",
-      workspaceId: "ws_alpha",
-      isWebhook: true,
-    });
-    expect(model.selectedScope).toBe("");
-    expect(
-      model.scopes.find(scope => scope.workspaceId === "ws_alpha")?.disabledReason
-    ).toBeTruthy();
   });
 
   it("says when events wait for a resume or no check will read them", () => {
@@ -98,14 +83,12 @@ describe("staysOnTargetModel", () => {
       instances: [instance({ state: "paused" })],
       agent: "triage",
       workspaceId: "ws_alpha",
-      isWebhook: false,
     });
     expect(paused.status.kind).toBe("paused");
     const unchecked = staysOnTargetModel({
       instances: [instance({ checks_enabled: false })],
       agent: "triage",
       workspaceId: "ws_alpha",
-      isWebhook: false,
     });
     expect(unchecked.status.kind).toBe("no-checks");
   });
@@ -125,6 +108,35 @@ describe("stays-on trigger request", () => {
       target_instance_scope: "",
       agent_name: "triage",
     });
+  });
+
+  it("keeps a link's project when it tells a stays-on agent there", () => {
+    const draft = setAutomationFormDoes(
+      {
+        ...createAutomationFormDraft("ws_alpha", { start: "webhook" }),
+        agent_name: "triage",
+        endpoint_slug: "deploy-failed",
+        webhook_id: "wbh_1",
+      },
+      "stays-on",
+      "ws_alpha"
+    );
+    const request = buildAutomationFormRequest({ ...draft, prompt: "Which deploy failed?" });
+    expect(request.create).toMatchObject({
+      event: "webhook",
+      scope: "workspace",
+      workspace_id: "ws_alpha",
+      target_kind: "agent_instance",
+    });
+    expect(webhookUrl(request.create as Parameters<typeof webhookUrl>[0])).toBe(
+      "/api/webhooks/workspaces/ws_alpha/deploy-failed--wbh_1"
+    );
+    // Any other link still lives in User.
+    const plain = buildAutomationFormRequest(
+      setAutomationFormDoes({ ...draft, prompt: "Summarize." }, "agent", "ws_alpha")
+    );
+    expect(plain.create).toMatchObject({ scope: "global" });
+    expect(plain.create).not.toHaveProperty("workspace_id", "ws_alpha");
   });
 
   it("falls back to Ask an agent when the start becomes a schedule", () => {
