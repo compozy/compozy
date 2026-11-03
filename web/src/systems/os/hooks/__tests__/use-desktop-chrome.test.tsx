@@ -291,7 +291,23 @@ describe("useProfileSwitchWindowSweep", () => {
     renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), { wrapper: wrapper() });
 
     switchTo({ kind: "profile", profile: "yankee" });
-    await waitFor(() => expect(closed).toEqual(["w_xray"]));
+    await waitFor(() => expect(closed).toEqual(["w_xray"]), { timeout: 2000 });
+  });
+
+  it("Should back off a close that keeps failing instead of hammering the daemon", async () => {
+    sessionOwners.set("s_xray", "p_xray");
+    const { shell, userClose } = fakeShell(true);
+    userClose.mockImplementation(async () => false);
+    const { unmount } = renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
+      wrapper: wrapper(),
+    });
+
+    switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() => expect(userClose).toHaveBeenCalled());
+    await new Promise(resolve => setTimeout(resolve, 1300));
+    // Attempts at about 0, 250 and 750 ms; a fixed 250 ms retry would have made six.
+    expect(userClose.mock.calls.length).toBeLessThanOrEqual(3);
+    unmount();
   });
 
   it("Should stop retrying a refused close once the shell unmounts", async () => {

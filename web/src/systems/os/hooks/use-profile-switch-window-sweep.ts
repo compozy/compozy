@@ -14,20 +14,25 @@ import type { OsShellHandle } from "../contexts/os-shell-context";
 import { foreignProfileSessionWindows, shownSessionId } from "../lib/foreign-profile-windows";
 import type { OsDesktopRuntimeStore } from "../lib/os-types";
 
-const CLOSE_RETRY_DELAY_MS = 250;
+const CLOSE_RETRY_FIRST_DELAY_MS = 250;
+const CLOSE_RETRY_MAX_DELAY_MS = 5_000;
 
 /**
  * Closes one window while it is still the foreign one the sweep inspected. The runtime refuses a
  * close while another one is pending, and a terminal's close confirmation can hold that for a
  * while, so a refused close is asked again until it lands or the window stops being foreign
- * (closed, moved to another session, the view changed, or the shell went away).
+ * (closed, moved to another session, the view changed, or the shell went away). A refusal can
+ * also be a failed command, so the wait doubles up to a cap rather than hammering the daemon.
  */
 async function closeWhileForeign(close: () => Promise<boolean>, stillForeign: () => boolean) {
+  let delay = CLOSE_RETRY_FIRST_DELAY_MS;
   while (stillForeign()) {
     // react-doctor-disable-next-line react-doctor/async-await-in-loop -- each attempt depends on the previous one being refused.
     if (await close()) return;
+    const wait = delay;
     // react-doctor-disable-next-line react-doctor/async-await-in-loop -- the retry waits for the refusing close to settle before asking again.
-    await new Promise(resolve => setTimeout(resolve, CLOSE_RETRY_DELAY_MS));
+    await new Promise(resolve => setTimeout(resolve, wait));
+    delay = Math.min(delay * 2, CLOSE_RETRY_MAX_DELAY_MS);
   }
 }
 
