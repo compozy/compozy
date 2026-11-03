@@ -14,13 +14,6 @@ export const SESSION_ROW_TARGET_FRAME =
 export const SESSION_ROW_END_SLOT_FRAME =
   "col-start-3 row-start-1 grid min-w-6 items-center justify-items-end *:col-start-1 *:row-start-1";
 
-/** The time/actions stack alone, when a one-line row's end slot leads with more marks. */
-export const SESSION_ROW_END_STACK =
-  "grid min-w-6 items-center justify-items-end *:col-start-1 *:row-start-1";
-
-/** A one-line row's end slot: branch toggle and agent face, then the time/actions stack. */
-export const SESSION_ROW_END_LEAD_FRAME = "col-start-3 row-start-1 flex items-center gap-1.5";
-
 /** Line 2: where and who, with the trailing cluster after it. */
 export const SESSION_ROW_META_FRAME =
   "col-span-2 col-start-2 row-start-2 flex min-w-0 items-center gap-2";
@@ -28,7 +21,7 @@ export const SESSION_ROW_META_FRAME =
 /** Line 3 of a session parked in Later: its reason, return date and waiting messages. */
 export const SESSION_ROW_LATER_FRAME = "col-span-2 col-start-2 row-start-3";
 
-/** The who-line itself: provider mark, agent and notes, clipped rather than wrapped. */
+/** The who-line itself: agent face, provider mark and phrase, clipped rather than wrapped. */
 export const SESSION_ROW_WHO_FRAME =
   "flex min-w-0 flex-1 items-center gap-1.25 overflow-hidden text-eyebrow whitespace-nowrap text-subtle";
 
@@ -39,17 +32,6 @@ export const SUBAGENT_ROW_FRAME =
 /** The who-line's trailing cluster (the branch toggle), lifted above the row target. */
 export const SESSION_ROW_TRAILING_FRAME =
   "relative z-10 -mr-0.5 flex shrink-0 items-center gap-0.5";
-
-/** The face-first row: the agent's face spans both lines, the title and its who-line beside it. */
-export const SESSION_ROW_FACE_FRAME =
-  "relative grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 rounded-md px-2 py-1.5";
-
-/** The face-first row's face cell. */
-export const SESSION_ROW_FACE_CELL = "col-start-1 row-span-2 row-start-1 grid place-items-center";
-
-/** The face-first row's title target: the title alone, its state glyph moved to line 2. */
-export const SESSION_ROW_FACE_TARGET_FRAME =
-  "col-start-2 row-start-1 grid min-w-0 grid-cols-[minmax(0,1fr)] items-center text-left text-body text-fg";
 
 /** A row's marks name themselves only when the pointer rests on them, not while it passes, in ms. */
 export const SESSION_ROW_MARK_TOOLTIP_DELAY = 700;

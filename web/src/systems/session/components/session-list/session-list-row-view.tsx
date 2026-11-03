@@ -22,12 +22,7 @@ import type {
 import { SessionListAgentMark } from "./session-list-agent-mark";
 import { SessionListProviderMark } from "./session-list-provider-mark";
 import {
-  SESSION_ROW_END_LEAD_FRAME,
   SESSION_ROW_END_SLOT_FRAME,
-  SESSION_ROW_END_STACK,
-  SESSION_ROW_FACE_CELL,
-  SESSION_ROW_FACE_FRAME,
-  SESSION_ROW_FACE_TARGET_FRAME,
   SESSION_ROW_FRAME,
   SESSION_ROW_LATER_FRAME,
   SESSION_ROW_MARK_TOOLTIP_DELAY,
@@ -52,7 +47,6 @@ import {
   sessionCheckboxGesture,
   sessionSelectionGesture,
 } from "../../lib/session-selection-gesture";
-import { AgentMark } from "@/systems/agent/components/agent-mark";
 import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 export interface SessionListRowProps {
@@ -85,16 +79,7 @@ export interface SessionListRowProps {
   dragging?: boolean;
 }
 
-/**
- * How much a row says (issue #1191, under review in the gallery): `classic` is today's row;
- * `trimmed` keeps two lines and drops every word but needs-you; `trimmed-icons` writes the model
- * where the agent's name was, which its face says on a resting hover; `single-line` folds the who into
- * line 1's end; `face` leads with the agent's face across both lines.
- */
-export type SessionRowLayout = "classic" | "trimmed" | "trimmed-icons" | "single-line" | "face";
-
 export interface SessionListRowViewProps extends SessionListRowProps {
-  layout?: SessionRowLayout;
   /** The live runtime label the provider mark and meta line read. */
   runtime: SessionRuntimeLabel;
   /** Session-entry intent preload on the row target. */
@@ -108,8 +93,9 @@ export interface SessionListRowViewProps extends SessionListRowProps {
 /**
  * Two-line session row. Line 1 belongs to the title: only the end slot shares it,
  * holding the compact time at rest and the row actions on hover or focus. Line 2
- * carries who runs it (owner, provider, agent), attention words, and the trailing
- * cluster. The title button's `::after` stretches over the row so the whole row
+ * carries where and who runs it (project, owner, the agent's face, the provider
+ * mark) and one phrase: the model, or the needs-you words that replace it, then the
+ * trailing cluster. The agent's name rides on its face's resting-hover tooltip. The title button's `::after` stretches over the row so the whole row
  * navigates, while the checkbox, branch toggle, and actions sit above it as
  * siblings — no interactive control nests inside another.
  * `SessionListRow` binds the live runtime label and entry preload to this view.
@@ -120,7 +106,7 @@ export function SessionListRowView(props: SessionListRowViewProps) {
   const row = (
     <SessionRowDragFrame
       className={cn(
-        props.layout === "face" ? SESSION_ROW_FACE_FRAME : SESSION_ROW_FRAME,
+        SESSION_ROW_FRAME,
         "group/session-row transition-colors hover:bg-surface-2 has-[[data-slot=session-row-target]:focus-visible]:shadow-focus-ring",
         (selected || props.current) && "bg-selected"
       )}
@@ -155,7 +141,6 @@ function SessionListRowBody({
   runtime,
   preloadHandlers,
   rowActions,
-  layout = "classic",
 }: SessionListRowViewProps) {
   const selected = selection?.selectedIds.has(session.id) ?? false;
   const title = getSessionDisplayTitle(session);
@@ -167,56 +152,13 @@ function SessionListRowBody({
     profile: session.profile_name,
   });
   const agentLabel = session.agent_name ? agent.label : "";
-  const meta = rowMeta({
-    session,
-    agentLabel,
-    runtime,
-    signal,
-    orphanedSubagent,
-    quiet: layout !== "classic",
-  });
+  const meta = rowMeta({ session, agentLabel, runtime, signal, orphanedSubagent });
   const badgeOf = useContext(SessionListBadgeContext);
   const badge = inheritsProject ? undefined : badgeOf?.(session);
-  const single = layout === "single-line";
-  const face = layout === "face";
-  const iconsOnly = layout === "trimmed-icons";
-  const agentMark = session.agent_name ? (
-    <AgentMark
-      aria-hidden="true"
-      appearance={agent.appearance}
-      data-testid={`session-agent-mark-${session.id}`}
-      label={agent.label}
-      quietIdle
-      size={face ? 24 : 16}
-      state="unknown"
-    />
-  ) : null;
-  const providerMark = (
-    <SessionListProviderMark
-      sessionId={session.id}
-      runtime={runtime}
-      delay={iconsOnly ? SESSION_ROW_MARK_TOOLTIP_DELAY : undefined}
-      keyboardFocus={keyboardFocus}
-      onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
-    />
-  );
-  const trailingCluster =
-    trailing !== undefined ? <SessionRowTrailing>{trailing}</SessionRowTrailing> : null;
-  // A one-line row grows its second line only when it has words, a place or an owner to show.
-  const metaLine = single
-    ? meta.shown.length > 0 ||
-      meta.notes.length > 0 ||
-      badge !== undefined ||
-      owner !== undefined ||
-      sessionIsUnrestricted(session)
-    : meta.visible || trailingCluster !== null;
+  const activate = (event: React.MouseEvent<HTMLElement>) =>
+    activateSessionRow(event, session.id, selection, onSelect);
   return (
     <>
-      {face ? (
-        <span aria-hidden="true" className={SESSION_ROW_FACE_CELL}>
-          {agentMark ?? providerMark}
-        </span>
-      ) : null}
       <SessionRowTarget
         session={session}
         title={title}
@@ -226,10 +168,9 @@ function SessionListRowBody({
         selected={selected}
         selection={selection}
         testId={`${testIdPrefix}-session-${session.id}`}
-        onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
+        onClick={activate}
         focusHandlers={focusHandlers}
         preloadHandlers={preloadHandlers}
-        glyph={!face}
       />
       {selection ? (
         <SessionRowCheckbox
@@ -239,47 +180,36 @@ function SessionListRowBody({
           selection={selection}
         />
       ) : null}
-      <SessionRowEndSlot
+      <SessionRowEndSlot session={session} actions={actionsVisible ? (rowActions ?? null) : null} />
+      <SessionRowMetaLine
         session={session}
-        actions={actionsVisible ? (rowActions ?? null) : null}
-        lead={
-          single ? (
-            <>
-              {trailingCluster}
-              {agentMark ?? providerMark}
-            </>
-          ) : null
+        model={runtime.model ?? ""}
+        badge={badge}
+        owner={owner}
+        meta={meta}
+        mark={
+          <>
+            {session.agent_name ? (
+              <SessionListAgentMark
+                appearance={agent.appearance}
+                label={agent.label}
+                onClick={activate}
+                sessionId={session.id}
+              />
+            ) : null}
+            <SessionListProviderMark
+              sessionId={session.id}
+              runtime={runtime}
+              delay={SESSION_ROW_MARK_TOOLTIP_DELAY}
+              keyboardFocus={keyboardFocus}
+              onClick={activate}
+            />
+          </>
+        }
+        trailing={
+          trailing !== undefined ? <SessionRowTrailing>{trailing}</SessionRowTrailing> : null
         }
       />
-      {metaLine ? (
-        <SessionRowMetaLine
-          session={session}
-          agentLabel={single ? "" : iconsOnly ? (runtime?.model ?? "") : agentLabel}
-          badge={badge}
-          owner={owner}
-          meta={meta}
-          mark={
-            face ? (
-              <SessionBadgeMark badge={session.badge} waitingOn={sessionWaitingOn(session)} />
-            ) : single ? null : (
-              <>
-                {iconsOnly && session.agent_name ? (
-                  <SessionListAgentMark
-                    appearance={agent.appearance}
-                    label={agent.label}
-                    onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
-                    sessionId={session.id}
-                  />
-                ) : (
-                  agentMark
-                )}
-                {providerMark}
-              </>
-            )
-          }
-          trailing={single ? null : trailingCluster}
-        />
-      ) : null}
       <SessionLaterDetails className={SESSION_ROW_LATER_FRAME} session={session} />
     </>
   );
@@ -298,7 +228,6 @@ function SessionRowTarget({
   onClick,
   focusHandlers,
   preloadHandlers,
-  glyph,
 }: {
   session: SessionPayload;
   title: string;
@@ -311,14 +240,12 @@ function SessionRowTarget({
   onClick: (event: React.MouseEvent<HTMLElement>) => void;
   focusHandlers: ReturnType<typeof useKeyboardFocusToken>["focusHandlers"];
   preloadHandlers: ReturnType<typeof useSessionEntryPreload>;
-  /** False when line 2 draws the state glyph (the face-first row). */
-  glyph: boolean;
 }) {
   return (
     <button
       type="button"
       className={cn(
-        glyph ? SESSION_ROW_TARGET_FRAME : SESSION_ROW_FACE_TARGET_FRAME,
+        SESSION_ROW_TARGET_FRAME,
         "outline-none after:absolute after:inset-0 after:rounded-md",
         emphasized && "font-medium"
       )}
@@ -346,13 +273,11 @@ function SessionRowTarget({
         preloadHandlers.onBlur();
       }}
     >
-      {glyph ? (
-        <SessionBadgeMark
-          badge={session.badge}
-          waitingOn={sessionWaitingOn(session)}
-          className={badgeMarkClass(selection)}
-        />
-      ) : null}
+      <SessionBadgeMark
+        badge={session.badge}
+        waitingOn={sessionWaitingOn(session)}
+        className={badgeMarkClass(selection)}
+      />
       <span className="min-w-0 truncate">{title}</span>
       {/* The meta line is drawn outside the target; its words still name the row. */}
       <span className="sr-only">{meta.spoken}</span>
@@ -361,12 +286,12 @@ function SessionRowTarget({
 }
 
 /**
- * Line 2: where and who (project badge, owner, provider, agent), its words, and
- * the trailing cluster. The project name gives way before the agent.
+ * Line 2: where and who (project badge, owner, agent face, provider mark), its
+ * phrase, and the trailing cluster. The project name gives way before the phrase.
  */
 function SessionRowMetaLine({
   session,
-  agentLabel,
+  model,
   badge,
   owner,
   meta,
@@ -374,7 +299,7 @@ function SessionRowMetaLine({
   trailing,
 }: {
   session: SessionPayload;
-  agentLabel: string;
+  model: string;
   badge: WorkspaceBadgeIdentity | undefined;
   owner: ProfileOwner | undefined;
   meta: RowMeta;
@@ -393,7 +318,7 @@ function SessionRowMetaLine({
         ) : null}
         {owner ? <ProfileOwnerTag compact size="xs" owner={owner} /> : null}
         {mark}
-        <SessionListRowWho agentLabel={agentLabel} session={session} meta={meta} />
+        <SessionListRowWho model={model} session={session} meta={meta} />
         {sessionIsUnrestricted(session) ? (
           <SessionUnrestrictedBadge data-testid={`session-row-unrestricted-${session.id}`} />
         ) : null}
@@ -403,21 +328,10 @@ function SessionRowMetaLine({
   );
 }
 
-/**
- * Line 1's end slot: the compact time at rest, the row actions on hover or focus. A one-line row
- * puts its `lead` (branch toggle and agent face) before them.
- */
-function SessionRowEndSlot({
-  session,
-  actions,
-  lead,
-}: {
-  session: SessionPayload;
-  actions: ReactNode;
-  lead: ReactNode;
-}) {
-  const slot = (
-    <span className={lead ? SESSION_ROW_END_STACK : SESSION_ROW_END_SLOT_FRAME}>
+/** Line 1's end slot: the compact time at rest, the row actions on hover or focus. */
+function SessionRowEndSlot({ session, actions }: { session: SessionPayload; actions: ReactNode }) {
+  return (
+    <span className={SESSION_ROW_END_SLOT_FRAME}>
       <Time
         iso={session.updated_at}
         mode="compact"
@@ -432,13 +346,6 @@ function SessionRowEndSlot({
           {actions}
         </span>
       ) : null}
-    </span>
-  );
-  if (!lead) return slot;
-  return (
-    <span className={SESSION_ROW_END_LEAD_FRAME}>
-      {lead}
-      {slot}
     </span>
   );
 }

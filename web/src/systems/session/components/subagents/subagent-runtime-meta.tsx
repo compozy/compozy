@@ -20,7 +20,7 @@ export function SubagentRuntimeMeta({
    * resting hover, and only the model is written.
    */
   quiet?: boolean;
-  /** Words that follow the model, such as a needs-you state. */
+  /** A quiet row's needs-you words, written in the model's place. */
   children?: React.ReactNode;
 }) {
   const { agent, provider, model, reasoning_effort: effort } = subagent.runtime;
@@ -49,7 +49,8 @@ export function SubagentRuntimeMeta({
         />
       )}
       <span className="sr-only">{label}</span>
-      {modelLabel ? (
+      {children ?? null}
+      {modelLabel && !(quiet && children) ? (
         <span aria-hidden="true" className="min-w-0 shrink truncate text-fg-2">
           {modelLabel}
         </span>
@@ -64,7 +65,6 @@ export function SubagentRuntimeMeta({
           {kind}
         </span>
       ) : null}
-      {children}
     </span>
   );
 }

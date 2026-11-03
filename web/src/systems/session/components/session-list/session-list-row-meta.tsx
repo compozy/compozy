@@ -6,31 +6,30 @@ import type { RowMeta } from "../../lib/session-row-meta";
 import type { SessionPayload } from "../../types";
 
 /**
- * The visible who line. Truncation order when the line is full: notes give way
- * first, then the agent name, and attention words only as a last resort. Each
- * separator lives inside the neighbour that gives way first, so a collapsed part
- * never leaves a stray `·`. The words repeat the target's accessible name, so the
- * line itself stays out of the a11y tree.
- *
- * Tone runs title (the row's `fg`) > attention word > agent > notes and the
- * row's counts, chevron and time. `muted`, `subtle` and `faint` are one value in
- * the light theme, so the agent and a neutral word take the steps above them.
+ * The visible who line's phrase: the model, or, while the session needs you, the
+ * words that say why in its place. Notes follow and give way first when the line is
+ * full. Each separator lives inside the neighbour that gives way first, so a
+ * collapsed part never leaves a stray `·`. The words repeat the target's accessible
+ * name, so the line itself stays out of the a11y tree.
  */
 export function SessionListRowWho({
-  agentLabel,
+  model,
   session,
   meta,
 }: {
-  agentLabel: string;
+  model: string;
   session: Pick<SessionPayload, "badge">;
   meta: Pick<RowMeta, "shown" | "notes">;
 }) {
   const { tone } = sessionBadgeSignal(session.badge);
-  const parts: { key: string; kind: "agent" | "attention" | "note"; text: string }[] = [];
-  if (agentLabel) parts.push({ key: "agent", kind: "agent", text: agentLabel });
-  meta.shown.forEach((text, index) =>
-    parts.push({ key: `attention-${index}`, kind: "attention", text })
-  );
+  const parts: { key: string; kind: "model" | "attention" | "note"; text: string }[] = [];
+  if (meta.shown.length > 0) {
+    meta.shown.forEach((text, index) =>
+      parts.push({ key: `attention-${index}`, kind: "attention", text })
+    );
+  } else if (model) {
+    parts.push({ key: "model", kind: "model", text: model });
+  }
   meta.notes.forEach((text, index) => parts.push({ key: `note-${index}`, kind: "note", text }));
   return (
     <>
@@ -44,10 +43,10 @@ export function SessionListRowWho({
             aria-hidden="true"
             className={cn(
               "min-w-0 truncate",
-              part.kind === "agent" && "shrink-[100] text-fg-2",
+              part.kind === "model" && "shrink-[100] text-fg-2",
               part.kind === "attention" && "shrink text-fg-3",
               part.kind === "attention" &&
-                index === firstAttention(parts) &&
+                index === 0 &&
                 tone !== "neutral" &&
                 SESSION_TONE_WORD_CLASS[tone],
               part.kind === "note" && "shrink-[10000]"
@@ -61,8 +60,4 @@ export function SessionListRowWho({
       })}
     </>
   );
-}
-
-function firstAttention(parts: { kind: string }[]): number {
-  return parts.findIndex(part => part.kind === "attention");
 }

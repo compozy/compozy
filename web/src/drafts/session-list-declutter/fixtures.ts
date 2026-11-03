@@ -57,15 +57,12 @@ const USER_AGENTS: AgentIdentitySource[] = [
   },
 ];
 
-/** The catalog the rows resolve faces from: built-ins on a gray plate, bare, or today's faces. */
-export function agentCatalog(background: IconBackground | "today"): readonly AgentIdentitySource[] {
+/** The catalog the rows resolve faces from, with built-ins on a gray plate or bare. */
+export function agentCatalog(background: IconBackground): readonly AgentIdentitySource[] {
   const builtins = (Object.keys(BUILTIN_ICONS) as BuiltinAgent[]).map(name => ({
     name,
     label: BUILTIN_ICONS[name].label,
-    resolved_appearance:
-      background === "today"
-        ? { version: 1, avatar: "generated", seed: name }
-        : { version: 1, ...builtinAppearance(name, background) },
+    resolved_appearance: { version: 1, ...builtinAppearance(name, background) },
   }));
   return [...builtins, ...USER_AGENTS];
 }
@@ -202,6 +199,3 @@ export const FOLDER_ROWS = [
   SESSIONS.batchFailed,
   SESSIONS.batchDone,
 ];
-
-/** Sessions a stays-on agent started: today's rows wear its face as a "Started by" mark. */
-export const STARTED_BY_CAPTAIN = new Set<string>([SESSIONS.chip.id, SESSIONS.batchRunning.id]);

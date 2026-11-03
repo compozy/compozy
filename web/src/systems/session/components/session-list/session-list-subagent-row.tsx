@@ -6,7 +6,6 @@ import { useSubagentDrawerSelected } from "../../hooks/use-subagent-drawer-selec
 import { SESSION_TONE_WORD_CLASS } from "../../lib/session-badge-classes";
 import { SubagentElapsed } from "../subagents/subagent-elapsed";
 import { subagentDisplay, type SubagentDisplay } from "../subagents/subagent-format";
-import { SubagentRowTrail } from "../subagents/subagent-row-trail";
 import { SubagentRuntimeMeta } from "../subagents/subagent-runtime-meta";
 import type { SubagentView } from "../subagents/types";
 import { BRANCH_NODE } from "./session-list-branch-rail";
@@ -17,16 +16,10 @@ export function SessionListSubagentRow({
   subagent,
   current,
   onOpen,
-  quiet = false,
 }: {
   subagent: SubagentView;
   current: boolean;
   onOpen?: (event: MouseEvent<HTMLButtonElement>) => void;
-  /**
-   * The session rows' quiet grammar: the clock in the end slot, the model on line 2, and a word
-   * only when the subagent waits for you or failed.
-   */
-  quiet?: boolean;
 }) {
   const selected = useSubagentDrawerSelected(subagent.id);
   const display = subagentDisplay(subagent);
@@ -38,18 +31,12 @@ export function SessionListSubagentRow({
         <StateGlyph size="sm" state={display.glyph} />
       </span>
       <span className="flex min-w-0 flex-col">
-        <span className={cn("truncate", !quiet && display.settled && "text-muted-foreground")}>
-          {subagent.title}
-        </span>
-        <SubagentRuntimeMeta quiet={quiet} subagent={subagent}>
-          {quiet ? <QuietWord display={display} /> : null}
+        <span className="truncate">{subagent.title}</span>
+        <SubagentRuntimeMeta quiet subagent={subagent}>
+          {needsYou(display) ? <NeedsYouWord display={display} /> : undefined}
         </SubagentRuntimeMeta>
       </span>
-      {quiet ? (
-        <SubagentElapsed className="self-start leading-5" clock={display.clock} />
-      ) : (
-        <SubagentRowTrail subagent={subagent} />
-      )}
+      <SubagentElapsed className="self-start leading-5" clock={display.clock} />
     </>
   );
   const rowClass = cn(SUBAGENT_ROW_FRAME, (current || selected) && "bg-selected");
@@ -82,13 +69,20 @@ export function SessionListSubagentRow({
   );
 }
 
-/** The one word a quiet row keeps: the subagent waits for you or failed. */
-function QuietWord({ display }: { display: SubagentDisplay }) {
-  if (display.tone !== "attention" && display.tone !== "destructive") return null;
-  const tone = display.tone === "attention" ? "brand" : "destructive";
+function needsYou(display: SubagentDisplay): boolean {
+  return display.tone === "attention" || display.tone === "destructive";
+}
+
+/** The words a row keeps, in the model's place: the subagent waits for you or failed. */
+function NeedsYouWord({ display }: { display: SubagentDisplay }) {
   return (
-    <span aria-hidden="true" className={cn("shrink-0", SESSION_TONE_WORD_CLASS[tone])}>
-      <span className="text-faint">· </span>
+    <span
+      aria-hidden="true"
+      className={cn(
+        "min-w-0 truncate",
+        SESSION_TONE_WORD_CLASS[display.tone === "attention" ? "brand" : "destructive"]
+      )}
+    >
       {display.word}
     </span>
   );

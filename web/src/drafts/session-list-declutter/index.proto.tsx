@@ -1,8 +1,9 @@
 /**
- * Issue #1191: three ways to quiet the session list, against today's row. Each state renders the
- * real `SessionListRowView` twice, built-ins on a gray plate (left) and bare (right).
+ * Issue #1191: the quiet session list. Line 2 writes the model, or only the needs-you words in its
+ * place; the agent's name rides on its face's resting-hover tooltip. Each list renders twice,
+ * built-ins on a gray plate (left) and bare (right).
  */
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 import {
   AgentAvatar,
@@ -16,7 +17,6 @@ import {
 
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
 
-import { AgentMark } from "@/systems/agent/components/agent-mark";
 import { AgentIdentityCatalogContext } from "@/systems/agent/lib/agent-identity-context";
 import {
   agentSymbolAppearance,
@@ -28,7 +28,6 @@ import {
   PROFILE_IDENTITY_SWATCHES,
   PROFILE_SPRITE_URL,
 } from "@/systems/profiles/lib/profile-identity";
-import { SessionLinkCountMark } from "@/systems/session/components/session-linked-work/session-link-count-mark";
 import { SessionListBranch } from "@/systems/session/components/session-list/session-list-branch";
 import {
   BRANCH_NODE,
@@ -39,10 +38,7 @@ import { SessionListFolder } from "@/systems/session/components/session-list/ses
 import { SessionListGroupToggle } from "@/systems/session/components/session-list/session-list-group-toggle";
 import { SessionListSubagentRow } from "@/systems/session/components/session-list/session-list-subagent-row";
 import { roster } from "@/systems/session/components/subagents/stories/subagent-story-fixtures";
-import {
-  SessionListRowView,
-  type SessionRowLayout,
-} from "@/systems/session/components/session-list/session-list-row-view";
+import { SessionListRowView } from "@/systems/session/components/session-list/session-list-row-view";
 import { SessionRowActions } from "@/systems/session/components/session-row-actions";
 import { childSessionSignalState } from "@/systems/session/lib/session-hierarchy";
 import { sessionSubagentCounts } from "@/systems/session/lib/session-subagent-summary";
@@ -63,7 +59,6 @@ import {
   BUILTIN_GRAY,
   FOLDER_ROWS,
   SESSIONS,
-  STARTED_BY_CAPTAIN,
   THREAD_CHILDREN,
   agentCatalog,
   builtinAppearance,
@@ -74,13 +69,8 @@ export const meta = definePrototype({
   title: "Session list declutter (#1191)",
   route: "/sessions",
   states: [
-    { id: "before", label: "Today" },
-    { id: "trimmed", label: "A · Trimmed two lines" },
-    { id: "trimmed-icons", label: "A2 · Two lines, model instead of name" },
-    { id: "trimmed-icons-subagents", label: "A2 · Two lines, subagents open" },
-    { id: "single-line", label: "B · One line" },
-    { id: "single-line-subagents", label: "B · One line, subagents open" },
-    { id: "face", label: "C · Face first" },
+    { id: "children", label: "Child sessions open" },
+    { id: "subagents", label: "Subagents open" },
     { id: "editor", label: "Appearance editor: no background" },
   ],
 });
@@ -93,52 +83,9 @@ const SIDEBAR_WIDTH = 360;
 /** The orchestrator's direct subagents: one waiting on you, one failed, one working, one done. */
 const SUBAGENTS = [roster[2]!, roster[0]!, roster[3]!, roster[5]!];
 
-const CAPTAIN_FACE: AgentAvatarAppearance = { avatar: "generated", seed: "release-captain.2" };
-
-const LAYOUTS: Record<string, SessionRowLayout> = {
-  before: "classic",
-  trimmed: "trimmed",
-  "trimmed-icons": "trimmed-icons",
-  "trimmed-icons-subagents": "trimmed-icons",
-  "single-line": "single-line",
-  "single-line-subagents": "single-line",
-  face: "face",
-};
-
-/** Today's row carries the link count and the "Started by" face; the variations drop both. */
-function todayMarks(session: SessionPayload) {
-  const summary = session.linked_work?.total ? session.linked_work : null;
-  const started = STARTED_BY_CAPTAIN.has(session.id);
-  if (!summary && !started) return null;
-  return (
-    <>
-      {summary ? <SessionLinkCountMark summary={summary} /> : null}
-      {started ? (
-        <AgentMark
-          appearance={CAPTAIN_FACE}
-          label="Started by Release captain"
-          quietIdle
-          size={16}
-          surfaceClassName="ring-sunken"
-        />
-      ) : null}
-    </>
-  );
-}
-
-function Row({
-  session,
-  layout,
-  branch,
-}: {
-  session: SessionPayload;
-  layout: SessionRowLayout;
-  branch?: ReactNode;
-}) {
-  const marks = layout === "classic" ? todayMarks(session) : null;
+function Row({ session, branch }: { session: SessionPayload; branch?: ReactNode }) {
   return (
     <SessionListRowView
-      layout={layout}
       onSelect={() => undefined}
       preloadHandlers={SESSION_ENTRY_PRELOAD_FIXTURE}
       rowActions={<SessionRowActions actions={actions} session={session} />}
@@ -146,28 +93,15 @@ function Row({
       session={session}
       sessionActions={actions}
       testIdPrefix="declutter"
-      trailing={
-        marks || branch ? (
-          <>
-            {marks}
-            {branch}
-          </>
-        ) : undefined
-      }
+      trailing={branch}
     />
   );
 }
 
-function Thread({
-  layout,
-  initialSegment,
-}: {
-  layout: SessionRowLayout;
-  initialSegment: SessionThreadSegment;
-}) {
+function Thread({ initialSegment }: { initialSegment: SessionThreadSegment }) {
   const [segment, setSegment] = useState<SessionThreadSegment | null>(initialSegment);
   const root = SESSIONS.orchestrator;
-  const branchId = `declutter-branch-${layout}`;
+  const branchId = useId();
   return (
     <div>
       <Row
@@ -183,7 +117,6 @@ function Thread({
             testIdPrefix="declutter"
           />
         }
-        layout={layout}
         session={root}
       />
       <div id={branchId}>
@@ -192,16 +125,11 @@ function Thread({
             <div className={BRANCH_RAIL}>
               {shown === "subagents"
                 ? SUBAGENTS.map(subagent => (
-                    <SessionListSubagentRow
-                      current={false}
-                      key={subagent.id}
-                      quiet={layout === "trimmed-icons"}
-                      subagent={subagent}
-                    />
+                    <SessionListSubagentRow current={false} key={subagent.id} subagent={subagent} />
                   ))
                 : THREAD_CHILDREN.map(child => (
                     <div className={BRANCH_NODE} key={child.id}>
-                      <Row layout={layout} session={child} />
+                      <Row session={child} />
                     </div>
                   ))}
             </div>
@@ -213,33 +141,31 @@ function Thread({
   );
 }
 
-function Folder({ layout }: { layout: SessionRowLayout }) {
+function Folder() {
   const [expanded, setExpanded] = useState(true);
   return (
     <SessionListFolder
       count={FOLDER_ROWS.length}
       expanded={expanded}
-      folder={{ id: `batch-${layout}`, name: "Issue batch #1176–#1182" }}
+      folder={{ id: "batch", name: "Issue batch #1176–#1182" }}
       onDelete={() => undefined}
       onRename={() => undefined}
       onToggle={() => setExpanded(value => !value)}
       testIdPrefix="declutter"
     >
       {FOLDER_ROWS.map(session => (
-        <Row key={session.id} layout={layout} session={session} />
+        <Row key={session.id} session={session} />
       ))}
     </SessionListFolder>
   );
 }
 
 function SessionColumn({
-  layout,
   background,
   title,
   threadSegment,
 }: {
-  layout: SessionRowLayout;
-  background: IconBackground | "today";
+  background: IconBackground;
   title: string;
   threadSegment: SessionThreadSegment;
 }) {
@@ -262,14 +188,14 @@ function SessionColumn({
           />
           <div className="flex flex-col gap-0.5 pl-2.5">
             <StaysOnRow className="px-1 pt-1 pb-1.5" instances={COMPOZY_ROW} scopeName="compozy" />
-            <Row layout={layout} session={SESSIONS.captain} />
-            <Row layout={layout} session={SESSIONS.question} />
-            <Row layout={layout} session={SESSIONS.chip} />
-            <Thread initialSegment={threadSegment} layout={layout} />
-            <Folder layout={layout} />
-            <Row layout={layout} session={SESSIONS.board} />
-            <Row layout={layout} session={SESSIONS.review} />
-            <Row layout={layout} session={SESSIONS.docs} />
+            <Row session={SESSIONS.captain} />
+            <Row session={SESSIONS.question} />
+            <Row session={SESSIONS.chip} />
+            <Thread initialSegment={threadSegment} />
+            <Folder />
+            <Row session={SESSIONS.board} />
+            <Row session={SESSIONS.review} />
+            <Row session={SESSIONS.docs} />
           </div>
         </aside>
       </section>
@@ -277,34 +203,16 @@ function SessionColumn({
   );
 }
 
-function SessionLists({
-  layout,
-  threadSegment,
-}: {
-  layout: SessionRowLayout;
-  threadSegment: SessionThreadSegment;
-}) {
-  if (layout === "classic") {
-    return (
-      <SessionColumn
-        background="today"
-        layout={layout}
-        threadSegment={threadSegment}
-        title="Today (generated faces)"
-      />
-    );
-  }
+function SessionLists({ threadSegment }: { threadSegment: SessionThreadSegment }) {
   return (
     <div className="flex flex-wrap items-start gap-8">
       <SessionColumn
         background="plate"
-        layout={layout}
         threadSegment={threadSegment}
         title="Built-ins on a gray plate"
       />
       <SessionColumn
         background="none"
-        layout={layout}
         threadSegment={threadSegment}
         title="Built-ins without background"
       />
@@ -371,16 +279,12 @@ function AppearanceEditor() {
 }
 
 export default function SessionListDeclutterDraft({ state }: PrototypeProps) {
-  const layout = LAYOUTS[state];
   return (
     <main className="min-h-dvh bg-canvas p-8">
-      {layout === undefined ? (
+      {state === "editor" ? (
         <AppearanceEditor />
       ) : (
-        <SessionLists
-          layout={layout}
-          threadSegment={state.endsWith("-subagents") ? "subagents" : "children"}
-        />
+        <SessionLists threadSegment={state === "subagents" ? "subagents" : "children"} />
       )}
     </main>
   );
