@@ -81,7 +81,7 @@ const sessionInputPayloadSchema = `{
 		"target_turn_id":{"type":"string"},
 		"status":{"type":"string","enum":["queued","dispatching","sent","failed","canceled"]},
 		"mode":{"type":"string","enum":["queue","interrupt","steer"]},
-		"delivery":{"type":"string","enum":["none","direct","after_turn","interrupt_then_prompt"]},
+		"delivery":{"type":"string","enum":["held","queued","none","direct","after_turn","interrupt_then_prompt"]},
 		"steer_delivery":{"type":"string","enum":["injected","pending_injection","interrupt_fallback"]},
 		"text":{"type":"string"},
 		"queue_generation":{"type":"integer"},

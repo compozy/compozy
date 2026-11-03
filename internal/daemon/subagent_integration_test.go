@@ -4029,16 +4029,19 @@ func TestReplyWatchNativeIntegration(t *testing.T) {
 			if mode == "direct" || mode == "busy sender" {
 				busyMode = "queue"
 			}
-			input, err := json.Marshal(
-				map[string]any{
-					"session_id":         target.ID,
-					"message":            "child work",
-					"message_id":         "native-question",
-					"idempotency_key":    "native-key",
-					"mode":               busyMode,
-					"notify_on_complete": true,
-				},
-			)
+			fields := map[string]any{
+				"session_id":         target.ID,
+				"message":            "child work",
+				"message_id":         "native-question",
+				"idempotency_key":    "native-key",
+				"mode":               busyMode,
+				"notify_on_complete": true,
+			}
+			if mode == "direct" {
+				// The first prompt to a fresh idle session selects its runtime (#1186).
+				fields["runtime"] = map[string]any{"provider": acpmock.ProviderName}
+			}
+			input, err := json.Marshal(fields)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -4062,6 +4065,7 @@ func TestReplyWatchNativeIntegration(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				requireSessionPromptOutputSchemaAccepts(t, result.Structured)
 				return result
 			}
 			result := call()
@@ -5868,6 +5872,7 @@ func TestInstanceContextExhaustionIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		requireSessionPromptOutputSchemaAccepts(t, message.Structured)
 		var sent struct {
 			Prompt contract.SendPromptResultPayload `json:"prompt"`
 		}
