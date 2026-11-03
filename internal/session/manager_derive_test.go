@@ -170,6 +170,55 @@ func (h *deriveHarness) childMeta(t *testing.T, childID string) store.SessionMet
 	return readMeta(t, child.MetaPath())
 }
 
+// The selected source profile fences fresh derivations and receipt replay without changing
+// persisted request fingerprints. Owning suite: manager derive integration with real SQLite.
+func TestDeriveSourceProfileFence(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []string{"continue", "fork"} {
+		t.Run("Should fence "+kind+" before creation and after source deletion", func(t *testing.T) {
+			t.Parallel()
+			h := newDeriveHarness(t)
+			source := h.newDeriveSource(t)
+			derive := func(key, profile string) (DeriveResult, error) {
+				if kind == "continue" {
+					opts := h.continueOpts(source, key)
+					opts.SourceProfileID = profile
+					return h.manager.ContinueSession(t.Context(), opts)
+				}
+				return h.manager.ForkSession(
+					t.Context(),
+					ForkSessionOpts{
+						SourceSessionID: source.ID,
+						WorkspaceID:     h.workspaceID,
+						IdempotencyKey:  key,
+						SourceProfileID: profile,
+					},
+				)
+			}
+			if _, err := derive("foreign-fresh", "foreign-profile"); !errors.Is(err, ErrSessionNotFound) {
+				t.Fatalf("foreign fresh = %v, want not found", err)
+			}
+			first, err := derive("owner-retry", "")
+			if err != nil {
+				t.Fatalf("initial derive: %v", err)
+			}
+			if err := h.manager.Stop(t.Context(), source.ID); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.manager.Delete(t.Context(), source.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := derive("owner-retry", "foreign-profile"); !errors.Is(err, ErrSessionNotFound) {
+				t.Fatalf("foreign replay = %v, want not found", err)
+			}
+			replay, err := derive("owner-retry", store.DefaultProfileID)
+			if err != nil || !replay.Replayed || replay.ChildSessionID != first.ChildSessionID {
+				t.Fatalf("owner replay = %+v, %v, want original child", replay, err)
+			}
+		})
+	}
+}
+
 func TestContinueSession(t *testing.T) {
 	t.Parallel()
 

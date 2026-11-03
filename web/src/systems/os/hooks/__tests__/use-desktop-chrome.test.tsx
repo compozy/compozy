@@ -4,8 +4,9 @@
 // workspace overlay on a reserved partition (`global`, `user`); per-window
 // sessions-rail state and worktree picks are pruned only against a snapshot fresh
 // since mount, never the cached window list a returning destination starts from;
-// an explicit switch into one profile closes, once its desk is live, exactly the
-// session windows another profile owns (#1184).
+// an explicit switch into one profile closes, once each of its desks is live, exactly the
+// session windows another profile owns, finishing a desk's interrupted sweep and stopping on a
+// rolled-back switch (#1184).
 // Boundary IN: chrome hook projection reads and provider ownership.
 // Boundary OUT: window-manager stream, client registration, and rendered DesktopShell.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -102,7 +103,11 @@ vi.mock("../use-global-shortcut-reconciliation", () => ({
   useGlobalShortcutReconciliation: () => ({ registrations: [] }),
 }));
 
-import { resetProfileViews, setProfileView } from "@/systems/profiles/stores/profile-view-store";
+import {
+  resetProfileViews,
+  restoreProfileView,
+  setProfileView,
+} from "@/systems/profiles/stores/profile-view-store";
 
 import type { OsShellHandle } from "../../contexts/os-shell-context";
 import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
@@ -261,6 +266,8 @@ describe("useProfileSwitchWindowSweep", () => {
       userClose,
       closed,
       goLive: () => projection.set(state(true)),
+      // Another desk is presented: this one's windows leave the store while it rebinds.
+      leave: () => projection.set({ ...state(false), windows: {} }),
       showIn: (windowId: string, pathname: string) => {
         windows = { ...windows, [windowId]: deskWindow(windowId, pathname) };
         projection.set(state(true));
@@ -270,6 +277,24 @@ describe("useProfileSwitchWindowSweep", () => {
 
   function switchTo(view: Parameters<typeof setProfileView>[0]) {
     act(() => setProfileView(view));
+  }
+
+  /** A query client whose owner reads wait until `release` is called. */
+  function heldOwnerReads() {
+    let release = () => {};
+    const ownersRead = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const queryClient = new QueryClient();
+    const fetchQuery = queryClient.fetchQuery.bind(queryClient);
+    vi.spyOn(queryClient, "fetchQuery").mockImplementation(async options => {
+      await ownersRead;
+      return fetchQuery(options);
+    });
+    const heldWrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    return { queryClient, wrapper: heldWrapper, release };
   }
 
   it("Should close every session window another profile owns once the switched-to desk is live", async () => {
@@ -377,31 +402,82 @@ describe("useProfileSwitchWindowSweep", () => {
   });
 
   it("Should abandon a sweep when the view changes while the owners are still being read", async () => {
-    let releaseOwners = () => {};
-    const ownersRead = new Promise<void>(resolve => {
-      releaseOwners = resolve;
-    });
     sessionOwners.set("s_xray", "p_xray");
     const { shell, userClose } = fakeShell(true);
-    const queryClient = new QueryClient();
-    const fetchQuery = queryClient.fetchQuery.bind(queryClient);
-    vi.spyOn(queryClient, "fetchQuery").mockImplementation(async options => {
-      await ownersRead;
-      return fetchQuery(options);
-    });
-    renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
-      wrapper: ({ children }: { children: ReactNode }) => (
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-      ),
-    });
+    const held = heldOwnerReads();
+    renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), { wrapper: held.wrapper });
 
     switchTo({ kind: "profile", profile: "yankee" });
-    await waitFor(() => expect(queryClient.fetchQuery).toHaveBeenCalled());
+    await waitFor(() => expect(held.queryClient.fetchQuery).toHaveBeenCalled());
     // Back to All profiles on the same desk: the windows belong on screen again.
     profileScope.aggregate = true;
     switchTo({ kind: "aggregate" });
-    releaseOwners();
+    held.release();
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(userClose).not.toHaveBeenCalled();
+  });
+
+  it("Should cancel pending owner reads without sweeping the restored profile after rollback", async () => {
+    sessionOwners.set("s_xray", "p_xray");
+    const { shell, userClose } = fakeShell(true);
+    const held = heldOwnerReads();
+    const { rerender } = renderHook(
+      ({ partition }) => useProfileSwitchWindowSweep(shell, partition),
+      { wrapper: held.wrapper, initialProps: { partition: "ws_a" } }
+    );
+
+    switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() => expect(held.queryClient.fetchQuery).toHaveBeenCalled());
+    act(() => restoreProfileView({ kind: "profile", profile: "zulu" }));
+    held.release();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(userClose).not.toHaveBeenCalled();
+    // The same epoch cannot authorize a sweep of another desk after rollback either.
+    rerender({ partition: "ws_b" });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(userClose).not.toHaveBeenCalled();
+  });
+
+  it("Should stop closing when a failed switch rolls the view back", async () => {
+    sessionOwners.set("s_xray", "p_xray");
+    sessionOwners.set("s_zulu", "p_zulu");
+    const { shell, userClose } = fakeShell(true);
+    userClose.mockImplementation(async () => false);
+    const { unmount } = renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
+      wrapper: wrapper(),
+    });
+
+    switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() => expect(userClose).toHaveBeenCalledWith("w_xray"));
+    // The persist failed: the previous answer comes back under the same switch epoch.
+    act(() => restoreProfileView({ kind: "profile", profile: "xray" }));
+    const attempts = userClose.mock.calls.length;
+    await new Promise(resolve => setTimeout(resolve, 600));
+    expect(userClose).toHaveBeenCalledTimes(attempts);
+    expect(userClose).not.toHaveBeenCalledWith("w_zulu");
+    unmount();
+  });
+
+  it("Should resume a desk's interrupted sweep when the operator returns to it", async () => {
+    sessionOwners.set("s_xray", "p_xray");
+    const { shell, closed, goLive, leave } = fakeShell(true);
+    const held = heldOwnerReads();
+    const { rerender } = renderHook(
+      ({ partition }) => useProfileSwitchWindowSweep(shell, partition),
+      { wrapper: held.wrapper, initialProps: { partition: "ws_a" } }
+    );
+
+    switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() => expect(held.queryClient.fetchQuery).toHaveBeenCalled());
+    // Another project is presented before the owners are read: its desk is still binding.
+    act(() => leave());
+    rerender({ partition: "ws_b" });
+    held.release();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(closed).toEqual([]);
+
+    rerender({ partition: "ws_a" });
+    act(() => goLive());
+    await waitFor(() => expect(closed).toEqual(["w_xray"]));
   });
 });

@@ -2,19 +2,15 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
-
-// sessionDismissibleFailureCondition matches a stopped session whose failure still
-// raises Needs you; canceled stops are not failures.
-const sessionDismissibleFailureCondition = `state = 'stopped'
- AND trim(COALESCE(failure_kind, '')) NOT IN ('', '` + string(store.FailureCanceled) + `')
- AND failure_seen_at IS NULL`
 
 // DismissSessionAttention marks the operator-dismissible Needs you sources of one
 // session as seen: a turn that ended early, a return from Later, and the failure of
@@ -44,26 +40,15 @@ func (g *SessionRepo) DismissSessionAttention(
 		if readErr != nil {
 			return readErr
 		}
-		// dynamic-sql: one atomic update clears every dismissible source of the attention projection.
-		result, updateErr := exec.ExecContext(ctx, `UPDATE sessions
-SET ended_early_turn_id = '',
-    later_returned_at = NULL,
-    failure_seen_at = CASE WHEN `+sessionDismissibleFailureCondition+` THEN ? ELSE failure_seen_at END,
-    last_seen_revision = CASE WHEN last_settled_revision > last_seen_revision
-        THEN attention_revision + 1 ELSE last_seen_revision END,
-    last_seen_at = CASE WHEN last_settled_revision > last_seen_revision THEN ? ELSE last_seen_at END,
-    attention_revision = attention_revision + 1,
-    attention_changed_at = ?
-WHERE id = ? AND attention_revision = ? AND ended_early_turn_id = ?
-  AND (ended_early_turn_id <> '' OR later_returned_at IS NOT NULL OR (`+
-			sessionDismissibleFailureCondition+`))`,
-			stamp, stamp, stamp, target, fence.AttentionRevision, strings.TrimSpace(fence.EndedEarlyTurnID))
+		affected, updateErr := sqlcgen.New(exec).DismissSessionAttention(ctx, sqlcgen.DismissSessionAttentionParams{
+			Stamp:           sql.NullString{String: stamp, Valid: true},
+			ID:              target,
+			Revision:        fence.AttentionRevision,
+			TurnID:          strings.TrimSpace(fence.EndedEarlyTurnID),
+			FailureIdentity: sql.NullString{String: fence.FailureIdentity, Valid: true},
+		})
 		if updateErr != nil {
 			return fmt.Errorf("store: dismiss session %q attention: %w", target, updateErr)
-		}
-		affected, affectedErr := result.RowsAffected()
-		if affectedErr != nil {
-			return fmt.Errorf("store: read dismissed session rows: %w", affectedErr)
 		}
 		if affected == 0 {
 			if before.Fence() != fence {

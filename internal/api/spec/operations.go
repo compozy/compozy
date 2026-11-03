@@ -33,6 +33,7 @@ func Operations() []OperationSpec {
 	ops = append(ops, cmdPaletteOperations()...)
 	ops = applyToolArtifactContract(ops)
 	ops = applyAgentIdentityContract(ops)
+	ops = applySessionProfileContract(ops)
 	slices.SortStableFunc(ops, func(a, b OperationSpec) int {
 		return cmp.Or(cmp.Compare(a.Path, b.Path), cmp.Compare(a.Method, b.Method))
 	})

@@ -39,6 +39,15 @@ Walk:
    desktops, that the count matches what the CLI and the DELETE response report, and that after the
    delete no arrangement of that profile survives while every other profile's desks are unchanged.
 
+Review follow-up #1221: during step 5, leave the project while session-owner reads are pending,
+then return and confirm the unfinished cleanup resumes. Repeat with a failed profile-selection
+request: after rollback, no pending or retried close may run, and the restored profile's desks
+must not be swept. The existing `use-desktop-chrome.test.tsx` hook suite covers both interleavings;
+the real-browser replay of these additions remains for CI (no local E2E in this dispatch).
+
+Impact: Web cleanup lifecycle only. Native tools, HTTP/UDS contracts, hooks, extensions, config,
+persisted workspace/profile isolation, and `skills/compozy/` have no contract changes.
+
 Expected evidence: screenshots of each profile's desks before and after a switch, the fresh-profile
 clean state, the two-context pair, and the delete preview beside the delete result showing the same
 saved-desktop count.

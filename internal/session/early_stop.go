@@ -68,16 +68,15 @@ func (m *Manager) clearEndedEarly(ctx context.Context, target *Session) {
 // Each attempt has its own deadline because the caller holds the supervision lock; a
 // mark that still fails stays unwritten, and the next settle reconciles a stale one.
 func (m *Manager) setEndedEarly(ctx context.Context, target *Session, turnID string) {
-	var (
-		commit store.SessionAttentionCommit
-		err    error
-	)
+	var err error
 	for attempt := range endedEarlyRetryAttempts {
 		if attempt > 0 {
 			time.Sleep(time.Duration(attempt) * endedEarlyRetryDelay)
 		}
 		writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), endedEarlyWriteTimeout)
-		commit, err = m.attentionStore.MarkSessionEndedEarly(writeCtx, target.ID, turnID)
+		_, err = m.commitAttention(target.ID, func() (store.SessionAttentionCommit, error) {
+			return m.attentionStore.MarkSessionEndedEarly(writeCtx, target.ID, turnID)
+		})
 		cancel()
 		if err == nil {
 			break
@@ -88,7 +87,6 @@ func (m *Manager) setEndedEarly(ctx context.Context, target *Session, turnID str
 			"turn_id", turnID, "attempts", endedEarlyRetryAttempts, "error", err)
 		return
 	}
-	m.applyAttentionProjection(target.ID, commit.After)
 	if turnID != "" {
 		m.sessionLogger(target).InfoContext(ctx, "session.turn.ended_early", "turn_id", turnID)
 	}

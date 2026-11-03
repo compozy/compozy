@@ -40,6 +40,11 @@ func markSessionSeenOperationSpec() OperationSpec {
 		),
 		Responses: []ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.SessionResponse{}},
+			{
+				Status:      400,
+				Description: "Conflicting profile selectors (profile_selection_conflict)",
+				Body:        contract.ErrorPayload{},
+			},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{
 				Status: 409,

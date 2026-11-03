@@ -76,8 +76,15 @@ func AttentionBlockerForInfo(info *Info) AttentionBlocker {
 		}
 	}
 	if info.State == StateStopped && terminalFailureKind(info.Failure) {
+		if info.PendingPermission || info.PendingPermissionCount > 0 {
+			return AttentionBlockerPendingPermission
+		}
+		if info.PendingClarifyCount > 0 {
+			return AttentionBlockerPendingClarify
+		}
 		return AttentionBlockerNone
 	}
+
 	switch {
 	case info.PendingPermission || info.PendingPermissionCount > 0:
 		return AttentionBlockerPendingPermission
@@ -124,14 +131,15 @@ func (m *Manager) MarkAttentionSeen(ctx context.Context, sessionID string) (*Inf
 	if blocker := AttentionBlockerForInfo(before); blocker != AttentionBlockerNone {
 		return nil, &AttentionRequiresActionError{SessionID: target, Blocker: blocker}
 	}
-	commit, err := m.attentionStore.DismissSessionAttention(ctx, target, observed.Fence(), m.now().UTC())
+	commit, err := m.commitAttention(target, func() (store.SessionAttentionCommit, error) {
+		return m.attentionStore.DismissSessionAttention(ctx, target, observed.Fence(), m.now().UTC())
+	})
 	if errors.Is(err, store.ErrSessionAttentionChanged) {
 		return nil, fmt.Errorf("%w: %s", ErrAttentionChanged, target)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("session: mark %q attention seen: %w", target, err)
 	}
-	m.applyAttentionProjection(target, commit.After)
 	after, err := m.Status(ctx, target)
 	if err != nil {
 		return nil, err

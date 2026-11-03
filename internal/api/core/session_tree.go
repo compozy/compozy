@@ -24,16 +24,8 @@ func (h *BaseHandlers) ListSessionDescendants(c *gin.Context) {
 		h.respondError(c, http.StatusServiceUnavailable, errSessionTreeManagerRequired)
 		return
 	}
-	scope, sessionID, existing, ok := h.routeSessionInWorkspace(c)
+	scope, sessionID, _, ok := h.routeScopedSessionInWorkspace(c)
 	if !ok {
-		return
-	}
-	profileScope, err := h.resolveProfileReadScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !h.requireSessionInProfile(c, existing, profileScope) {
 		return
 	}
 	descendants, err := tree.Descendants(c.Request.Context(), scope.SessionWorkspaceID(), sessionID)
