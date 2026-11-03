@@ -78,6 +78,52 @@ func TestDaemonProfileEventRecorder(t *testing.T) {
 		}
 	})
 
+	t.Run("Should start provider usage when a profile is archived", func(t *testing.T) {
+		t.Parallel()
+		database := openDaemonTestGlobalDB(t)
+		home := testHomePaths(t)
+		manager, err := profile.NewManager(profile.WithStore(database), profile.WithHomePaths(home))
+		if err != nil {
+			t.Fatalf("profile.NewManager() error = %v", err)
+		}
+		archived, err := manager.Create(t.Context(), profile.CreateInput{Name: "open-design"})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		plan, err := manager.PrepareArchive(t.Context(), archived.Name)
+		if err != nil {
+			t.Fatalf("PrepareArchive() error = %v", err)
+		}
+		if _, err := manager.Archive(t.Context(), archived.Name, plan.Revision); err != nil {
+			t.Fatalf("Archive() error = %v", err)
+		}
+		cfg := testConfig(t, home)
+		// Disabled usage still reconciles every profile at boot, without collecting.
+		cfg.ProviderUsage.Enabled = false
+		state := &bootState{cfg: cfg, profiles: manager}
+		cleanup := &bootCleanup{}
+		t.Cleanup(func() {
+			for _, fn := range cleanup.fns {
+				if err := fn(context.Background()); err != nil {
+					t.Error(err)
+				}
+			}
+		})
+		daemon := &Daemon{homePaths: home, now: time.Now}
+		if err := daemon.bootProviderUsage(t.Context(), state, cleanup); err != nil {
+			t.Fatalf("bootProviderUsage() error = %v, want an archived profile skipped", err)
+		}
+		resolver := state.providerUsage.resolver
+		targets, err := resolver.Targets(t.Context(), archived.ID)
+		if err != nil || len(targets) != 0 {
+			t.Fatalf("Targets(archived) = %d targets, %v; want none and no error", len(targets), err)
+		}
+		targets, err = resolver.Targets(t.Context(), store.DefaultProfileID)
+		if err != nil || len(targets) == 0 {
+			t.Fatalf("Targets(default) = %d targets, %v; want the active profile resolved", len(targets), err)
+		}
+	})
+
 	t.Run("Should close ProviderUsage subscriptions after profile deletion", func(t *testing.T) {
 		t.Parallel()
 		manager := providerusage.NewService(providerusage.Options{Resolver: &providerusage.TargetCatalog{}})
