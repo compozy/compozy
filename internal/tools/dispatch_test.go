@@ -1157,6 +1157,9 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		if strings.Contains(string(result.Structured), providerKey) {
 			t.Fatalf("envelope-admitted foreign result leaked the key: %s", result.Structured)
 		}
+		if !strings.Contains(string(result.Structured), "foreign key") {
+			t.Fatalf("envelope-admitted result lost its safe text: %s", result.Structured)
+		}
 
 		addSecret := func(_ context.Context, _ CallRequest, result ToolResult) (ToolResult, error) {
 			result.Structured = json.RawMessage(`{"text":"hook added ` + providerKey + `"}`)
@@ -1173,6 +1176,9 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		}
 		if strings.Contains(string(result.Structured), providerKey) {
 			t.Fatalf("post-call hook output leaked the key outside the caller scope: %s", result.Structured)
+		}
+		if !strings.Contains(string(result.Structured), "hook added") {
+			t.Fatalf("post-call hook output was not preserved after redaction: %s", result.Structured)
 		}
 	})
 

@@ -169,6 +169,9 @@ func workspaceAccessPromptTitle(target string, readOnly bool) string {
 	if profile, ok := strings.CutPrefix(target, nativeAccessPromptProfilePrefix); ok {
 		return fmt.Sprintf("%s %s", verb, workspaceAccessProfileSubject(profile))
 	}
+	if !readOnly {
+		return fmt.Sprintf("Change workspace %s", target)
+	}
 	return fmt.Sprintf("Access workspace %s", target)
 }
 

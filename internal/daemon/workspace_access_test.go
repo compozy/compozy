@@ -309,9 +309,10 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_ = binder.AuthorizeCallInput(t.Context(), actorScope, renameDescriptor, toolspkg.CallRequest{
+		renameErr := binder.AuthorizeCallInput(t.Context(), actorScope, renameDescriptor, toolspkg.CallRequest{
 			ToolID: renameDescriptor.ID, SessionID: actorScope.SessionID, Input: bound,
 		})
+		requireToolReason(t, renameErr, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		if len(requester.requests) != 3 {
 			t.Fatalf("permission requests = %d, want the write prompted too", len(requester.requests))
 		}
