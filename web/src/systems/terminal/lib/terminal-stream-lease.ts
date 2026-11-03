@@ -6,7 +6,7 @@ type EventSourceFactory = (url: string) => StreamEventSource;
 
 /** The ticketed browser source every terminal catalog stream opens by default. */
 export function defaultEventSourceFactory(url: string): StreamEventSource {
-  return createStreamEventSource(url);
+  return createStreamEventSource(url, { transport: "websocket", resumeWithLastEventId: true });
 }
 
 const factoryIds = new WeakMap<EventSourceFactory, number>();

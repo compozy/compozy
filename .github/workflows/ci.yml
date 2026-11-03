@@ -67,7 +67,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Filter paths
         id: filter
@@ -91,9 +91,11 @@ jobs:
             desktop=true
           else
             if [[ "$EVENT_NAME" == "pull_request" && -n "$PR_BASE_SHA" && -n "$PR_HEAD_SHA" ]]; then
+              git fetch --no-tags --depth=1 origin "$PR_BASE_SHA" "$PR_HEAD_SHA"
               changed_files=$(git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA")
             elif [[ -n "${PUSH_BEFORE_SHA:-}" && "$PUSH_BEFORE_SHA" != "$zero_sha" ]]; then
-              if git cat-file -e "${PUSH_BEFORE_SHA}^{commit}" 2>/dev/null; then
+              if git cat-file -e "${PUSH_BEFORE_SHA}^{commit}" 2>/dev/null ||
+                git fetch --no-tags --depth=1 origin "$PUSH_BEFORE_SHA"; then
                 changed_files=$(git diff --name-only "$PUSH_BEFORE_SHA" "$CURRENT_SHA")
               else
                 echo "Base push SHA $PUSH_BEFORE_SHA is unavailable; treating current tree as changed."

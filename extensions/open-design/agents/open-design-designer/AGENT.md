@@ -1,6 +1,12 @@
 ---
 name: open-design-designer
 category_path: [Open design]
+appearance:
+  version: 1
+  avatar: icon
+  icon: palette
+  color: "#8a8f98"
+  background: none
 ---
 
 # Open design designer

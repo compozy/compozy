@@ -265,7 +265,7 @@ func (s *StubSessionManager) SessionOwner(ctx context.Context, id string) (store
 	if err != nil {
 		return store.SessionOwner{}, err
 	}
-	return store.SessionOwner{SessionID: info.ID, WorkspaceID: info.WorkspaceID}, nil
+	return store.SessionOwner{SessionID: info.ID, ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID}, nil
 }
 
 func (s *StubSessionManager) ActivePromptRun(

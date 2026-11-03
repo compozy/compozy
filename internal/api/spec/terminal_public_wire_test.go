@@ -22,6 +22,26 @@ func addTerminalClientPartitionHeader(t *testing.T, baseline map[string]any) {
 	}
 }
 
+// The compatibility baseline admits only the optional WebSocket resume cursor on the terminal catalog stream.
+func addTerminalCatalogStreamCursor(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	paths := baseline["paths"].(map[string]any)
+	cursor := map[string]any{
+		"description": "Resume cursor when Last-Event-ID cannot be set; the header takes precedence",
+		"in":          "query", "name": "last_event_id", "schema": map[string]any{"type": "string"},
+	}
+	// The All-projects aggregate stream postdates the baseline, so only the workspace stream is amended.
+	operation := paths[terminalPath+"/stream"].(map[string]any)["get"].(map[string]any)
+	parameters := operation["parameters"].([]any)
+	at := slices.IndexFunc(parameters, func(parameter any) bool {
+		return parameter.(map[string]any)["name"] == "Last-Event-ID"
+	})
+	if at < 0 {
+		t.Fatal("terminal catalog cursor addition: the workspace stream has no Last-Event-ID header")
+	}
+	operation["parameters"] = slices.Concat(parameters[:at+1], []any{cursor}, parameters[at+1:])
+}
+
 func TestTerminalOpenAPIPublicWireContract(t *testing.T) {
 	t.Parallel()
 

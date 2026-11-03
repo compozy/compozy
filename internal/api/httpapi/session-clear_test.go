@@ -231,6 +231,51 @@ func TestContinueSessionHandler(t *testing.T) {
 
 	const continuePath = "/api/workspaces/ws-workspace/sessions/sess-123/continue"
 
+	// Invariant: selected source profile reaches manager authorization; the aggregate lens
+	// cannot reach either mutation. Canonical suite: existing derive HTTP handler tests.
+	t.Run("Should forward the selected profile and reject aggregate derive writes", func(t *testing.T) {
+		t.Parallel()
+		for _, kind := range []string{"continue", "fork"} {
+			for _, aggregate := range []bool{false, true} {
+				called := false
+				manager := continueTestManager(
+					t,
+					"ws-workspace",
+					func(_ context.Context, opts session.ContinueSessionOpts) (session.DeriveResult, error) {
+						called = true
+						if opts.SourceProfileID != store.DefaultProfileID || opts.ProfileID != "" {
+							t.Fatalf("continue scope = %+v", opts)
+						}
+						return continuedResult(false), nil
+					},
+				)
+				manager.ForkFn = func(_ context.Context, opts session.ForkSessionOpts) (session.DeriveResult, error) {
+					called = true
+					if opts.SourceProfileID != store.DefaultProfileID || opts.ProfileID != "" {
+						t.Fatalf("fork scope = %+v", opts)
+					}
+					return forkedResult(), nil
+				}
+				engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+				query := "?profile=default"
+				want := http.StatusCreated
+				if aggregate {
+					query = "?all_profiles=true"
+					want = http.StatusBadRequest
+				}
+				path := "/api/workspaces/ws-workspace/sessions/sess-123/" + kind + query
+				body := []byte(`{"agent_name":"claude-code","idempotency_key":"profile-derive"}`)
+				if kind == "fork" {
+					body = []byte(`{"idempotency_key":"profile-derive"}`)
+				}
+				response := performRequest(t, engine, http.MethodPost, path, body)
+				if response.Code != want || called == aggregate {
+					t.Fatalf("%s = %d %s called=%t, want %d", path, response.Code, response.Body, called, want)
+				}
+			}
+		}
+	})
+
 	t.Run("Should create the continued session with a runtime body", func(t *testing.T) {
 		t.Parallel()
 

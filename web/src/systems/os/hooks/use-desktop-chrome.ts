@@ -94,7 +94,7 @@ export function useDesktopChrome(
   // The read names this client, so it waits until the client is attached to
   // the workspace it is about to present (a switch re-registers it).
   const configQuery = useQuery({
-    ...windowManagerConfigOptions(configWorkspaceId, client.clientId),
+    ...windowManagerConfigOptions(configWorkspaceId, client.clientId, profileId),
     enabled: client.status === "registered",
   });
   const globalShortcuts = useGlobalShortcutReconciliation(configQuery.data?.globalShortcuts);
@@ -193,7 +193,7 @@ export function useDesktopChrome(
       shell.coordinator.reportAuthoritativeState();
       if (view.globalShortcuts.length > 0) {
         void queryClient.invalidateQueries({
-          queryKey: windowManagerKeys.config(configWorkspaceId, client.clientId),
+          queryKey: windowManagerKeys.config(configWorkspaceId, client.clientId, profileId),
           exact: true,
         });
       }

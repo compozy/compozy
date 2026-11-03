@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
@@ -35,6 +36,15 @@ func (h *BaseHandlers) GetSessionOwner(c *gin.Context) {
 	owner, err := reader.SessionOwner(c.Request.Context(), sessionID)
 	if err != nil {
 		h.respondError(c, StatusForSessionError(err), err)
+		return
+	}
+	scope, err := h.sessionProfileScope(c, owner.ProfileID, true)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return
+	}
+	if !scope.Matches(owner.ProfileID) {
+		h.respondError(c, http.StatusNotFound, session.ErrSessionNotFound)
 		return
 	}
 

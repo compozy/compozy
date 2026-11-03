@@ -19,19 +19,20 @@ const deriveFingerprintVersion = "session-derive/v1"
 
 // deriveSpec is the normalized input shared by continue and fork.
 type deriveSpec struct {
-	kind        store.LineageKind
-	workspaceID string
-	profileID   string
-	sourceID    string
-	agentName   string
-	runtime     *DeriveRuntime
-	route       int
-	name        string
-	message     string
-	messageID   string
-	key         string
-	fingerprint string
-	fences      DeriveFences
+	kind            store.LineageKind
+	workspaceID     string
+	profileID       string
+	sourceProfileID string
+	sourceID        string
+	agentName       string
+	runtime         *DeriveRuntime
+	route           int
+	name            string
+	message         string
+	messageID       string
+	key             string
+	fingerprint     string
+	fences          DeriveFences
 	// relocation places the child in another profile and checkout; only the
 	// move-to-profile owner sets it, after archiving the source itself.
 	relocation *deriveRelocation
@@ -63,17 +64,18 @@ func (m *Manager) ContinueSession(ctx context.Context, opts ContinueSessionOpts)
 		return DeriveResult{}, errors.New("session: continue context is required")
 	}
 	spec := deriveSpec{
-		kind:        store.LineageKindContinue,
-		workspaceID: strings.TrimSpace(opts.WorkspaceID),
-		profileID:   strings.TrimSpace(opts.ProfileID),
-		sourceID:    strings.TrimSpace(opts.SourceSessionID),
-		agentName:   strings.TrimSpace(opts.AgentName),
-		runtime:     normalizeDeriveRuntime(opts.Runtime),
-		route:       opts.Route,
-		name:        strings.TrimSpace(opts.Name),
-		message:     strings.TrimSpace(opts.Message),
-		key:         strings.TrimSpace(opts.IdempotencyKey),
-		fences:      opts.Fences,
+		kind:            store.LineageKindContinue,
+		workspaceID:     strings.TrimSpace(opts.WorkspaceID),
+		profileID:       strings.TrimSpace(opts.ProfileID),
+		sourceProfileID: strings.TrimSpace(opts.SourceProfileID),
+		sourceID:        strings.TrimSpace(opts.SourceSessionID),
+		agentName:       strings.TrimSpace(opts.AgentName),
+		runtime:         normalizeDeriveRuntime(opts.Runtime),
+		route:           opts.Route,
+		name:            strings.TrimSpace(opts.Name),
+		message:         strings.TrimSpace(opts.Message),
+		key:             strings.TrimSpace(opts.IdempotencyKey),
+		fences:          opts.Fences,
 	}
 	if spec.agentName == "" {
 		return DeriveResult{}, fmt.Errorf("%w: agent name is required", ErrValidation)
@@ -99,14 +101,15 @@ func (m *Manager) ForkSession(ctx context.Context, opts ForkSessionOpts) (Derive
 		return DeriveResult{}, errors.New("session: fork context is required")
 	}
 	return m.deriveSession(ctx, deriveSpec{
-		kind:        store.LineageKindFork,
-		workspaceID: strings.TrimSpace(opts.WorkspaceID),
-		profileID:   strings.TrimSpace(opts.ProfileID),
-		sourceID:    strings.TrimSpace(opts.SourceSessionID),
-		name:        strings.TrimSpace(opts.Name),
-		messageID:   strings.TrimSpace(opts.MessageID),
-		key:         strings.TrimSpace(opts.IdempotencyKey),
-		fences:      opts.Fences,
+		kind:            store.LineageKindFork,
+		workspaceID:     strings.TrimSpace(opts.WorkspaceID),
+		profileID:       strings.TrimSpace(opts.ProfileID),
+		sourceProfileID: strings.TrimSpace(opts.SourceProfileID),
+		sourceID:        strings.TrimSpace(opts.SourceSessionID),
+		name:            strings.TrimSpace(opts.Name),
+		messageID:       strings.TrimSpace(opts.MessageID),
+		key:             strings.TrimSpace(opts.IdempotencyKey),
+		fences:          opts.Fences,
 	})
 }
 
@@ -289,6 +292,7 @@ func (m *Manager) validateDeriveSource(ctx context.Context, spec deriveSpec, sna
 		return fmt.Errorf("%w: %s", ErrSessionNotFound, spec.sourceID)
 	}
 	if strings.TrimSpace(meta.WorkspaceID) != spec.workspaceID ||
+		(spec.sourceProfileID != "" && meta.ProfileID != spec.sourceProfileID) ||
 		(spec.workspaceID == "" && meta.ProfileID != spec.profileID) {
 		return fmt.Errorf("%w: %s", ErrSessionNotFound, spec.sourceID)
 	}

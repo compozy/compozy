@@ -131,6 +131,9 @@ func (h *BaseHandlers) UpdateSettingsWindowManager(c *gin.Context) {
 		h.respondError(c, StatusForSettingsError(err), err)
 		return
 	}
+	if !h.resolveSettingsClientProfile(c, &req.SectionRequest) {
+		return
+	}
 	result, ok := h.applySettingsSection(c, req, h.respondWindowManagerMutationError)
 	if !ok {
 		return

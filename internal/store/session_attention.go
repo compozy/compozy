@@ -44,6 +44,7 @@ var (
 
 // SessionAttention is the catalog-owned attention projection for one session.
 type SessionAttention struct {
+	FailureIdentity        string
 	PendingPermissionCount int
 	PendingClarifyCount    int
 	AttentionRevision      int64
@@ -328,16 +329,20 @@ type SessionAttentionStore interface {
 // ErrSessionAttentionChanged rejects a dismissal whose observed occurrence was replaced.
 var ErrSessionAttentionChanged = errors.New("store: session attention changed")
 
-// SessionAttentionFence names the attention occurrence an operator saw. A new early
-// stop changes the turn id; every other new occurrence moves the attention revision.
+// SessionAttentionFence identifies the revision, early-stop turn, and failure occurrence the operator saw.
 type SessionAttentionFence struct {
+	FailureIdentity   string
 	AttentionRevision int64
 	EndedEarlyTurnID  string
 }
 
 // Fence returns the occurrence fence of this attention projection.
 func (a SessionAttention) Fence() SessionAttentionFence {
-	return SessionAttentionFence{AttentionRevision: a.AttentionRevision, EndedEarlyTurnID: a.EndedEarlyTurnID}
+	return SessionAttentionFence{
+		FailureIdentity:   a.FailureIdentity,
+		AttentionRevision: a.AttentionRevision,
+		EndedEarlyTurnID:  a.EndedEarlyTurnID,
+	}
 }
 
 // ValidPendingInteractionKind reports whether kind belongs to the durable vocabulary.

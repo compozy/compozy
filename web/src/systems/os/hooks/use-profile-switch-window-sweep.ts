@@ -97,14 +97,6 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
   }
   const live = useAtom(shell.projection, selectDeskLive);
   const swept = useRef<SweptPartitions | null>(null);
-  const mounted = useRef(false);
-
-  useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
 
   useEffect(() => {
     if (request === null || request.profileId === "" || !live || workspaceId === null) return;
@@ -114,8 +106,9 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
     const { coordinator, manager } = shell;
     // The render saw the previous binding; the rebind in this commit is what has to be live.
     if (!selectDeskLive(manager.getState())) return;
-    if (done?.epoch === request.epoch) done.partitions.add(workspaceId);
-    else swept.current = { epoch: request.epoch, partitions: new Set([workspaceId]) };
+    // A desk counts as swept only once its sweep finishes. Leaving the desk (another project, a
+    // rebind, the shell unmounting) interrupts it, and the desk is swept again when it returns.
+    let interrupted = false;
     const partition = workspaceId;
     void (async () => {
       const foreign = await foreignProfileWindows(
@@ -130,13 +123,20 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
           () => coordinator.userClose(windowId, true),
           // A later switch or a rolled-back one owns the desk now; the operator may have moved
           // the window to another item (or to another desk, where its id is gone), so only the
-          // inspected one licenses a close; and nothing retries after the shell unmounts.
+          // inspected one licenses a close; and nothing retries once the desk is left.
           () =>
-            mounted.current &&
+            !interrupted &&
             switchStillCurrent(request) &&
             sameShownItem(shownProfileItem(manager.getState().windows[windowId], partition), item)
         );
       }
+      if (interrupted || !switchStillCurrent(request)) return;
+      const current = swept.current;
+      if (current?.epoch === request.epoch) current.partitions.add(workspaceId);
+      else swept.current = { epoch: request.epoch, partitions: new Set([workspaceId]) };
     })();
+    return () => {
+      interrupted = true;
+    };
   }, [live, queryClient, request, shell, targetProfileId, workspaceId]);
 }

@@ -12,6 +12,8 @@ import {
   type WindowManagerSettingsSection,
 } from "@/systems/os";
 
+import { useProfileReadScope } from "@/systems/profiles";
+
 export interface WindowManagerBindingCommit {
   shortcuts?: WindowManagerSettingsSection["config"]["shortcuts"];
   globalShortcuts?: WindowManagerSettingsSection["config"]["globalShortcuts"];
@@ -39,11 +41,13 @@ export function useWindowManagerBindingMutations(
   clientId?: string
 ): WindowManagerBindingMutations {
   const queryClient = useQueryClient();
+  const clientProfile = useProfileReadScope().destination;
   const queue = useRef<Promise<void> | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [receipt, setReceipt] = useState<{
     workspaceId: string | null;
     clientId: string | undefined;
+    clientProfile: string;
     apply: WindowManagerSettingsApply;
   } | null>(null);
   const reconcile = async (
@@ -51,10 +55,15 @@ export function useWindowManagerBindingMutations(
     scope: WindowManagerBindingUpdate
   ) => {
     queryClient.setQueryData(
-      windowManagerKeys.config(scope.workspaceId, scope.clientId),
+      windowManagerKeys.config(scope.workspaceId, scope.clientId, scope.clientProfile),
       result.section
     );
-    setReceipt({ workspaceId: scope.workspaceId, clientId: scope.clientId, apply: result.apply });
+    setReceipt({
+      workspaceId: scope.workspaceId,
+      clientId: scope.clientId,
+      clientProfile: scope.clientProfile ?? "default",
+      apply: result.apply,
+    });
     await queryClient.invalidateQueries({
       queryKey: cmdPaletteKeys.workspaceCatalogs(scope.workspaceId ?? ""),
     });
@@ -72,7 +81,7 @@ export function useWindowManagerBindingMutations(
     commit: update => {
       setPendingCount(count => count + 1);
       const scope = clientId === undefined ? { workspaceId } : { workspaceId, clientId };
-      const run = () => mutation.mutateAsync({ ...update, ...scope });
+      const run = () => mutation.mutateAsync({ ...update, ...scope, clientProfile });
       const next = (queue.current ?? Promise.resolve()).then(run, run);
       queue.current = next.then(
         () => undefined,
@@ -86,6 +95,10 @@ export function useWindowManagerBindingMutations(
     },
     saving: pendingCount > 0,
     apply:
-      receipt?.workspaceId === workspaceId && receipt.clientId === clientId ? receipt.apply : null,
+      receipt?.workspaceId === workspaceId &&
+      receipt.clientId === clientId &&
+      receipt.clientProfile === clientProfile
+        ? receipt.apply
+        : null,
   };
 }

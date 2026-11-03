@@ -42,7 +42,10 @@ machine:
 - **Unsupported** — Electron cannot convert or register that chord.
 
 Quit releases every registered chord. Relaunch reads the intended map, registers it again, and
-reports fresh status.
+reports fresh status. Settings shows the registration reported by the current profile's shell.
+HTTP/UDS clients can select it with `client_id` and `client_profile` on
+`GET /api/settings/window-manager` and its PATCH echo. `client_profile` identifies the shell's
+profile; `scope` and `workspace_id` continue to select the configuration being edited.
 
 ## Browser mode
 

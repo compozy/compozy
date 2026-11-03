@@ -1,22 +1,21 @@
 import { use, type MouseEvent } from "react";
 import { SubagentDrawerContext } from "../../contexts/subagent-drawer-context";
-import { useSubagentDrawerSelected } from "../../hooks/use-subagent-drawer-selected";
-import { SubagentRuntimeMeta } from "../subagents/subagent-runtime-meta";
-import { Button, StateGlyph, cn } from "@compozy/ui";
+import { Button, cn } from "@compozy/ui";
 
 import { useSessionSubagentBranch } from "../../hooks/use-session-subagent-branch";
 import { subagentNavigationTarget } from "../../lib/subagent-navigation";
 import { SUBAGENT_BRANCH_PAGE_SIZE } from "../../lib/subagent-query-options";
 import type { SessionListTarget } from "../../types";
-import { sortSubagentsByUrgency, subagentDisplay } from "../subagents/subagent-format";
-import { SubagentRowTrail } from "../subagents/subagent-row-trail";
+import { sortSubagentsByUrgency } from "../subagents/subagent-format";
 import type { SubagentView } from "../subagents/types";
 import { BRANCH_NODE } from "./session-list-branch-rail";
-import { SUBAGENT_ROW_FRAME } from "./session-list-row-frame";
 import { SessionSubagentRowsSkeleton } from "./session-list-skeleton";
+import { SessionListSubagentRow } from "./session-list-subagent-row";
 
 export interface SessionListSubagentBranchProps {
   workspaceId: string;
+  workspace?: string;
+  profile?: string;
   sessionId: string;
   /** The parent row's `subagent_summary.total`: sizes the placeholder before rows load. */
   total: number;
@@ -34,6 +33,8 @@ export interface SessionListSubagentBranchProps {
  */
 export function SessionListSubagentBranch({
   workspaceId,
+  workspace,
+  profile,
   sessionId,
   total,
   currentSessionId,
@@ -64,9 +65,11 @@ export function SessionListSubagentBranch({
         <SessionSubagentRowsSkeleton count={Math.min(total, SUBAGENT_BRANCH_PAGE_SIZE)} />
       ) : (
         sortSubagentsByUrgency(branch.rows).map(subagent => (
-          <SubagentBranchRow
+          <SessionListSubagentRow
             key={subagent.id}
             subagent={subagent}
+            workspace={workspace}
+            profile={profile}
             current={
               subagent.child_session_id !== null && subagent.child_session_id === currentSessionId
             }
@@ -99,63 +102,6 @@ export function SessionListSubagentBranch({
           </Button>
         </div>
       ) : null}
-    </div>
-  );
-}
-
-function SubagentBranchRow({
-  subagent,
-  current,
-  onOpen,
-}: {
-  subagent: SubagentView;
-  current: boolean;
-  onOpen?: (event: MouseEvent<HTMLButtonElement>) => void;
-}) {
-  const selected = useSubagentDrawerSelected(subagent.id);
-  const display = subagentDisplay(subagent);
-  const word = display.word;
-  const body = (
-    <>
-      {/* The mark sits on the title line, where the branch elbow lands, not between both lines. */}
-      <span className="flex h-5 items-center justify-center self-start">
-        <StateGlyph size="sm" state={display.glyph} />
-      </span>
-      <span className="flex min-w-0 flex-col">
-        <span className={cn("truncate", display.settled && "text-muted-foreground")}>
-          {subagent.title}
-        </span>
-        <SubagentRuntimeMeta subagent={subagent} />
-      </span>
-      <SubagentRowTrail subagent={subagent} />
-    </>
-  );
-  const rowClass = cn(SUBAGENT_ROW_FRAME, (current || selected) && "bg-selected");
-
-  return (
-    <div
-      className={BRANCH_NODE}
-      data-slot="session-subagent-row"
-      data-status={subagent.status}
-      data-state={display.glyph}
-    >
-      {onOpen ? (
-        <button
-          type="button"
-          className={cn(
-            rowClass,
-            "transition-colors hover:bg-surface-2 focus-visible:shadow-focus-ring"
-          )}
-          aria-label={`Open ${subagent.title}`}
-          aria-description={word}
-          aria-current={current || selected ? "true" : undefined}
-          onClick={onOpen}
-        >
-          {body}
-        </button>
-      ) : (
-        <div className={rowClass}>{body}</div>
-      )}
     </div>
   );
 }

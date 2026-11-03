@@ -10,6 +10,34 @@ import (
 	"strings"
 )
 
+// CancelQueuedSessionPromptParams carries the path, query, and header parameters.
+type CancelQueuedSessionPromptParams struct {
+	WorkspaceID  string  `url:"workspace_id"`
+	SessionID    string  `url:"session_id"`
+	QueueEntryID string  `url:"queue_entry_id"`
+	Profile      *string `url:"profile"`
+}
+
+// CancelQueuedSessionPrompt Cancel a queued session prompt entry
+func (c *Client) CancelQueuedSessionPrompt(ctx context.Context, params CancelQueuedSessionPromptParams) (*SendPromptResultResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	path = strings.ReplaceAll(path, "{queue_entry_id}", url.PathEscape(params.QueueEntryID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SendPromptResultResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // CancelSessionMonitorParams carries the path, query, and header parameters.
 type CancelSessionMonitorParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -40,8 +68,9 @@ func (c *Client) CancelSessionMonitor(ctx context.Context, params CancelSessionM
 
 // CancelSessionPromptParams carries the path, query, and header parameters.
 type CancelSessionPromptParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
 }
 
 // CancelSessionPrompt Cancel the active session prompt
@@ -49,6 +78,13 @@ func (c *Client) CancelSessionPrompt(ctx context.Context, params CancelSessionPr
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
 	var out SessionPromptCancelResponse
 	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
@@ -223,8 +259,9 @@ func (c *Client) ClaimNextAgentTask(ctx context.Context, params ClaimNextAgentTa
 
 // ClearSessionConversationParams carries the path, query, and header parameters.
 type ClearSessionConversationParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
 }
 
 // ClearSessionConversation Clear conversation history and restart the session context
@@ -232,6 +269,13 @@ func (c *Client) ClearSessionConversation(ctx context.Context, params ClearSessi
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/clear"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
 	var out SessionResponse
 	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
@@ -241,8 +285,9 @@ func (c *Client) ClearSessionConversation(ctx context.Context, params ClearSessi
 
 // ClearSessionInputsParams carries the path, query, and header parameters.
 type ClearSessionInputsParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
 }
 
 // ClearSessionInputs Clear queued input with attributed per-entry traces
@@ -250,6 +295,13 @@ func (c *Client) ClearSessionInputs(ctx context.Context, params ClearSessionInpu
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
 	var out SessionInputClearResponse
 	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
@@ -285,9 +337,10 @@ func (c *Client) ClearSessionParent(ctx context.Context, params ClearSessionPare
 
 // ClearSessionRuntimeParams carries the path, query, and header parameters.
 type ClearSessionRuntimeParams struct {
-	WorkspaceID      string `url:"workspace_id"`
-	SessionID        string `url:"session_id"`
-	ExpectedRevision int64  `url:"expected_revision"`
+	WorkspaceID      string  `url:"workspace_id"`
+	SessionID        string  `url:"session_id"`
+	ExpectedRevision int64   `url:"expected_revision"`
+	Profile          *string `url:"profile"`
 }
 
 // ClearSessionRuntime Clear the default runtime for future prompts
@@ -297,6 +350,9 @@ func (c *Client) ClearSessionRuntime(ctx context.Context, params ClearSessionRun
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
 	query := url.Values{}
 	query.Set("expected_revision", strconv.FormatInt(params.ExpectedRevision, 10))
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
@@ -354,8 +410,9 @@ func (c *Client) CloseCmdPaletteViewSession(ctx context.Context, params CloseCmd
 
 // CompactSessionParams carries the path, query, and header parameters.
 type CompactSessionParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
 }
 
 // CompactSession Request advertised native agent compaction (experimental) Experimental: pin the exact SDK version.
@@ -363,6 +420,13 @@ func (c *Client) CompactSession(ctx context.Context, params CompactSessionParams
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/compact"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
 	var out SessionCompactResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
@@ -375,62 +439,4 @@ type CompleteAgentTaskRunParams struct {
 	XCompozySessionID string `url:"X-Compozy-Session-ID"`
 	XCompozyAgent     string `url:"X-Compozy-Agent"`
 	RunID             string `url:"run_id"`
-}
-
-// CompleteAgentTaskRun Complete a claimed task run for the calling agent
-func (c *Client) CompleteAgentTaskRun(ctx context.Context, params CompleteAgentTaskRunParams, body AgentTaskCompleteRequest) (*AgentTaskLeaseResponse, error) {
-	path := "/api/agent/tasks/{run_id}/complete"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	var out AgentTaskLeaseResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CompleteMCPAuthCallbackParams carries the path, query, and header parameters.
-type CompleteMCPAuthCallbackParams struct {
-	Code  *string `url:"code"`
-	State string  `url:"state"`
-	Error *string `url:"error"`
-}
-
-// CompleteMCPAuthCallback Complete a loopback MCP OAuth browser redirect
-func (c *Client) CompleteMCPAuthCallback(ctx context.Context, params CompleteMCPAuthCallbackParams) (*string, error) {
-	path := "/api/mcp/oauth/callback"
-	query := url.Values{}
-	if params.Code != nil {
-		query.Set("code", *params.Code)
-	}
-	query.Set("state", params.State)
-	if params.Error != nil {
-		query.Set("error", *params.Error)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out string
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "text/html"); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CompleteOnboarding Mark first-run onboarding as completed
-func (c *Client) CompleteOnboarding(ctx context.Context) (*OnboardingStatusResponse, error) {
-	path := "/api/onboarding/complete"
-	var out OnboardingStatusResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CompleteTaskRunParams carries the path, query, and header parameters.
-type CompleteTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

@@ -1534,6 +1534,10 @@ export type StreamTerminalsAggregateData = {
      */
     workspace_ids?: Array<string>;
     /**
+     * Resume cursor when Last-Event-ID cannot be set; the header takes precedence
+     */
+    last_event_id?: string;
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -1690,6 +1694,14 @@ export type StreamSessionData = {
      * Maximum entries per transcript snapshot or change batch
      */
     limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/stream";
 };
@@ -1749,6 +1761,10 @@ export type StreamTerminalCatalogData = {
     workspace_id: string;
   };
   query?: {
+    /**
+     * Resume cursor when Last-Event-ID cannot be set; the header takes precedence
+     */
+    last_event_id?: string;
     /**
      * Act as this profile by name
      */

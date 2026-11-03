@@ -138,6 +138,29 @@ function Harness({
 }
 
 describe("SymbolPicker", () => {
+  // Invariant: the plate choice appears only for consumers that store it, and reports each pick.
+  it("Should offer the background choice only when the consumer handles it", async () => {
+    const { rerender } = render(<Harness />);
+    expect(screen.queryByRole("group", { name: "Background" })).toBeNull();
+    const onBackgroundChange = vi.fn();
+    rerender(
+      <SymbolPicker
+        background="plate"
+        color="#8a8f98"
+        emojibaseUrl={EMOJIBASE_URL}
+        icons={ICONS}
+        onBackgroundChange={onBackgroundChange}
+        onColorChange={() => {}}
+        onSymbolChange={() => {}}
+        spriteUrl={SPRITE_URL}
+        swatches={SWATCHES}
+        symbol={{ kind: "icon", value: "megaphone" }}
+      />
+    );
+    await userEvent.click(screen.getByRole("button", { name: "No background" }));
+    expect(onBackgroundChange).toHaveBeenCalledWith("none");
+  });
+
   it("Should mark the chosen icon as the selected option", () => {
     render(<Harness />);
     const selected = screen.getByRole("option", { name: "megaphone" });

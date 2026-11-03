@@ -804,7 +804,7 @@ test.describe("Profiles", () => {
     await expect
       .poll(async () => {
         const clients = await runtime.requestJSON<Array<{ client_id: string }>>(
-          `/api/cmd-palette/clients?workspace=${encodeURIComponent(workspace)}`
+          `/api/cmd-palette/clients?workspace=${encodeURIComponent(workspace)}&profile=marketing`
         );
         return clients.length;
       })
@@ -854,7 +854,7 @@ test.describe("Profiles", () => {
     // Owner: real client-command/selection composition; canonical suite: E2E-027.
     await createProfile(runtime, "dispatch-client", "#22c55e", "folder");
     const attached = await runtime.requestJSON<Array<{ client_id: string }>>(
-      `/api/cmd-palette/clients?workspace=${encodeURIComponent(workspace)}`
+      `/api/cmd-palette/clients?workspace=${encodeURIComponent(workspace)}&profile=marketing`
     );
     expect(attached).toHaveLength(1);
     if (!runtime.requestOperatorJSON) throw new Error("delegated selection requires operator UDS");

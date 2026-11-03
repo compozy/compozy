@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	AgentKindOnDemand = "on_demand"
-	AgentKindStaysOn  = "stays_on"
+	AgentKindOnDemand    = "on_demand"
+	AgentKindStaysOn     = "stays_on"
+	agentAvatarGenerated = "generated"
 )
 
 var (
@@ -27,7 +28,8 @@ var (
 	ErrAgentDisplayNameInvalid = errors.New("display names can have up to 80 characters")
 	ErrAgentDescriptionInvalid = errors.New("descriptions can have up to 280 characters")
 	ErrAgentAppearanceInvalid  = errors.New(
-		"appearance needs version 1, a `#rrggbb` color, and a generated face, one icon, or one emoji",
+		"appearance needs version 1, a `#rrggbb` color, and a generated face, one icon, or one emoji; " +
+			"background, if set, must be `plate` or `none` for an icon or emoji",
 	)
 	agentColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 )
@@ -82,6 +84,11 @@ func cloneAppearanceValue(value any) any {
 // ResolveAppearance returns the face to draw and, for an unsupported saved block, the reason
 // it fell back to the default face. Callers with a diagnostics channel report the error.
 func (a AgentDef) ResolveAppearance() (map[string]any, error) {
+	// Older generated faces could save an ignored plate; preserve their identity on reads.
+	if a.Appearance["avatar"] == agentAvatarGenerated && a.Appearance["background"] == "plate" {
+		a.Appearance = CloneAgentAppearance(a.Appearance)
+		delete(a.Appearance, "background")
+	}
 	if err := ValidateAgentAppearance(a.Appearance); err != nil {
 		return a.defaultAppearance(), err
 	}
@@ -94,14 +101,37 @@ func (a AgentDef) ResolveAppearance() (map[string]any, error) {
 // AppearanceOrDefault is the face reads draw: the saved block when valid, otherwise the
 // default face. It never fails, so an unsupported appearance cannot make an agent unreadable.
 func (a AgentDef) AppearanceOrDefault() map[string]any {
-	if a.Appearance == nil || ValidateAgentAppearance(a.Appearance) != nil {
+	appearance, err := a.ResolveAppearance()
+	if err != nil {
 		return a.defaultAppearance()
 	}
-	return CloneAgentAppearance(a.Appearance)
+	return appearance
 }
 
+// The bootstrap General agent's face: a bare icon in the neutral gray built-in agents wear.
+const (
+	// "icon" names both the avatar kind and the field that holds the icon.
+	appearanceIcon        = "icon"
+	builtinAgentIconColor = "#8a8f98"
+	generalAgentIcon      = "sparkles"
+)
+
 func (a AgentDef) defaultAppearance() map[string]any {
-	return map[string]any{"version": 1, "avatar": "generated", "seed": a.Name, "generation": 1, "color": "#7c5cff"}
+	// The bootstrap General agent is written once and never rewritten, so its icon is resolved
+	// here rather than stored: an existing install draws it without touching the user's file.
+	if a.Name == DefaultAgentName {
+		return map[string]any{
+			"version":      1,
+			"avatar":       appearanceIcon,
+			appearanceIcon: generalAgentIcon,
+			"color":        builtinAgentIconColor,
+			"background":   "none",
+		}
+	}
+	return map[string]any{
+		"version": 1, "avatar": agentAvatarGenerated, "seed": a.Name,
+		"generation": 1, "color": "#7c5cff",
+	}
 }
 
 func (a AgentDef) ValidateIdentity() error {
@@ -135,7 +165,7 @@ func ValidateAgentAppearance(a map[string]any) error {
 		return ErrAgentAppearanceInvalid
 	}
 	switch a["avatar"] {
-	case "generated":
+	case agentAvatarGenerated:
 		seed := agentAppearanceString(a["seed"])
 		if strings.TrimSpace(seed) == "" || !appearanceVersionOne(a["generation"]) || icon != "" || emoji != "" {
 			return ErrAgentAppearanceInvalid
@@ -154,17 +184,14 @@ func ValidateAgentAppearance(a map[string]any) error {
 	return nil
 }
 
-// validAppearanceBackground accepts the optional icon/emoji plate choice: unset or "plate"
-// keeps the tinted plate, "none" draws the symbol alone in its color.
+// Background choices apply only to symbols.
 func validAppearanceBackground(a map[string]any) bool {
 	value, ok := a["background"]
 	if !ok {
 		return true
 	}
 	switch value {
-	case "plate":
-		return true
-	case "none":
+	case "plate", "none":
 		return a["avatar"] == "icon" || a["avatar"] == "emoji"
 	default:
 		return false

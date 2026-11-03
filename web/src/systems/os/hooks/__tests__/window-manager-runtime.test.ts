@@ -74,7 +74,7 @@ const CONFIG: WindowManagerConfig = {
   effectiveShortcuts: {},
 };
 
-const TEST_CONFIG_KEY = windowManagerKeys.config("workspace:test", "client:web");
+const TEST_CONFIG_KEY = windowManagerKeys.config("workspace:test", "client:web", "marketing");
 const SETTINGS_SECTION: WindowManagerSettingsSection = {
   scope: "workspace",
   availableScopes: ["user", "workspace"],
@@ -448,6 +448,50 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should drop clicks still queued past their deadline instead of replaying them", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    const deadlines: AbortController[] = [];
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation(() => {
+      const controller = new AbortController();
+      deadlines.push(controller);
+      return controller.signal;
+    });
+    // A request stalled in the browser's connection pool settles only when its signal aborts.
+    vi.mocked(executeWindowManagerCommand).mockImplementation(
+      (_workspace, _profile, _client, _revision, _command, signal) =>
+        new Promise((_resolve, reject) => {
+          signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+        })
+    );
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const first = runtime.focusWindow("app:first");
+    const second = runtime.focusWindow("app:second");
+    expect(deadlines).toHaveLength(2);
+    await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledOnce());
+    for (const deadline of deadlines) deadline.abort(new DOMException("timed out", "TimeoutError"));
+
+    await expect(first.completion).resolves.toBe(false);
+    await expect(second.completion).resolves.toBe(false);
+    expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
+    expect(vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[5]).toBe(deadlines[0]?.signal);
+    timeout.mockRestore();
+    runtime.stop();
+  });
+
   it("Should open a forced-new terminal at the accepted revision of its queued adoption", async () => {
     const queryClient = new QueryClient();
     const sourceId = "app:agents";
@@ -532,7 +576,8 @@ describe("WindowManagerRuntime", () => {
       "marketing",
       "client:web",
       initial.revision,
-      expect.objectContaining({ commandId: "window.navigate" })
+      expect.objectContaining({ commandId: "window.navigate" }),
+      expect.any(AbortSignal)
     );
     expect(executeWindowManagerCommand).toHaveBeenNthCalledWith(
       2,
@@ -549,7 +594,8 @@ describe("WindowManagerRuntime", () => {
             route: { pathname: "/terminal", search: { new: "1" } },
           }),
         }),
-      })
+      }),
+      expect.any(AbortSignal)
     );
     runtime.stop();
   });
@@ -601,7 +647,8 @@ describe("WindowManagerRuntime", () => {
         payload: expect.objectContaining({
           window: expect.objectContaining({ app: "marketplace" }),
         }),
-      })
+      }),
+      expect.any(AbortSignal)
     );
     runtime.stop();
   });
@@ -646,10 +693,13 @@ describe("WindowManagerRuntime", () => {
       windowManagerKeys.snapshot("workspace:next", "marketing"),
       nextSnapshot
     );
-    queryClient.setQueryData(windowManagerKeys.config("workspace:next", "client:next"), {
-      ...SETTINGS_SECTION,
-      workspaceId: "workspace:next",
-    });
+    queryClient.setQueryData(
+      windowManagerKeys.config("workspace:next", "client:next", "marketing"),
+      {
+        ...SETTINGS_SECTION,
+        workspaceId: "workspace:next",
+      }
+    );
     runtime.bind({
       workspaceId: "workspace:next",
       profileId: "marketing",
@@ -1212,7 +1262,8 @@ describe("WindowManagerRuntime", () => {
             route: { pathname: "/tasks", search: { view: "board" } },
           }),
         }),
-      })
+      }),
+      expect.any(AbortSignal)
     );
     const command = vi.mocked(executeWindowManagerCommand).mock.calls[0]?.[4];
     if (command === undefined) {
@@ -1421,7 +1472,8 @@ describe("WindowManagerRuntime", () => {
         commandId: "window.focus",
         payload: { window_id: "app:tasks", direction: "" },
         rebase: { windowId: "app:tasks" },
-      }
+      },
+      expect.any(AbortSignal)
     );
     runtime.stop();
   });
@@ -1598,7 +1650,8 @@ describe("WindowManagerRuntime", () => {
       "marketing",
       "client:web",
       7,
-      expect.objectContaining({ commandId: "window.open" })
+      expect.objectContaining({ commandId: "window.open" }),
+      expect.any(AbortSignal)
     );
     expect(executeWindowManagerCommand).toHaveBeenNthCalledWith(
       2,
@@ -1610,7 +1663,8 @@ describe("WindowManagerRuntime", () => {
         commandId: "window.focus",
         payload: { window_id: session.id, direction: "" },
         rebase: { windowId: session.id },
-      }
+      },
+      expect.any(AbortSignal)
     );
     expect(runtime.getState().focusedId).toBe(session.id);
     runtime.stop();
@@ -1849,7 +1903,8 @@ describe("WindowManagerRuntime", () => {
         payload: expect.objectContaining({
           frame: { x: 0, y: 0, width: 0.5, height: 1 },
         }),
-      })
+      }),
+      expect.any(AbortSignal)
     );
     runtime.stop();
   });
@@ -2164,7 +2219,8 @@ describe("WindowManagerRuntime", () => {
         commandId: "layout.arrange",
         expectedRevision: 7,
         rebase: { windowId: "app:agents" },
-      })
+      }),
+      expect.any(AbortSignal)
     );
     runtime.stop();
   });
@@ -2212,7 +2268,8 @@ describe("WindowManagerRuntime", () => {
         commandId: "window.zoom",
         expectedRevision: 7,
         rebase: { windowId: "app:agents", sourceNodeId: "node:captured" },
-      })
+      }),
+      expect.any(AbortSignal)
     );
     runtime.stop();
   });
@@ -2311,7 +2368,8 @@ describe("WindowManagerRuntime", () => {
       "marketing",
       "client:web",
       7,
-      expect.objectContaining({ commandId: "window.zoom", payload: { window_id: "app:tasks" } })
+      expect.objectContaining({ commandId: "window.zoom", payload: { window_id: "app:tasks" } }),
+      expect.any(AbortSignal)
     );
     expect(executeWindowManagerCommand).toHaveBeenNthCalledWith(
       2,
@@ -2319,7 +2377,8 @@ describe("WindowManagerRuntime", () => {
       "marketing",
       "client:web",
       expect.any(Number),
-      expect.objectContaining({ commandId: "window.focus" })
+      expect.objectContaining({ commandId: "window.focus" }),
+      expect.any(AbortSignal)
     );
     runtime.stop();
   });
@@ -2724,7 +2783,8 @@ describe("WindowManagerRuntime guarded close", () => {
           minimize: false,
           scope: "group",
         },
-      })
+      }),
+      expect.any(AbortSignal)
     );
     runtime.stop();
   });

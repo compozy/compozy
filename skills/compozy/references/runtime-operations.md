@@ -1200,7 +1200,7 @@ operator profile and keeps them in memory only. Every surface reads one envelope
 `compozy provider usage list [provider] [-o json]` (cache only, never contacts providers),
 `compozy provider usage refresh [provider] [--wait 0s–30s, default 15s] [--max-age <dur>]`,
 `GET /api/provider-usage`, `GET /api/provider-usage/providers/{provider_id}`,
-`POST /api/provider-usage/refresh`, and SSE `GET /api/provider-usage/stream` (`ready`,
+`POST /api/provider-usage/refresh`, and SSE or WebSocket `GET /api/provider-usage/stream` (`ready`,
 `provider_usage_changed`, each with `revision` and `boot_id`; re-read the envelope on every event; a
 new `boot_id` means revisions restarted). The envelope's read-only `keychain_supported` is `true` only
 when the daemon runs on macOS; a provider-filtered read or `refresh <provider>` returns only that row

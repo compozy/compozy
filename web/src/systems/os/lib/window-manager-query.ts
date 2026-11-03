@@ -24,11 +24,12 @@ export function windowManagerScopeKey(workspaceId: string | null): string {
 export const windowManagerKeys = {
   all: ["os", "window-manager"] as const,
   configs: () => ["settings", "section", "window-manager"] as const,
-  config: (workspaceId: string | null = null, clientId?: string) =>
+  config: (workspaceId: string | null = null, clientId?: string, clientProfile?: string) =>
     [
       ...windowManagerKeys.configs(),
       windowManagerScopeKey(workspaceId),
       clientId?.trim() || null,
+      clientProfile?.trim() || "default",
     ] as const,
   snapshots: () => [...windowManagerKeys.all, "snapshot"] as const,
   // One arrangement per (workspace, profile): the profile is part of the key or a
@@ -54,10 +55,15 @@ export function windowManagerSnapshotOptions(workspaceId: string, profile: strin
  * the aliases in force. Only a workspace-scoped read carries `ext.*` ids and
  * real command titles — the daemon cannot resolve the catalog without one.
  */
-export function windowManagerSettingsOptions(workspaceId: string | null = null, clientId?: string) {
+export function windowManagerSettingsOptions(
+  workspaceId: string | null = null,
+  clientId?: string,
+  clientProfile?: string
+) {
   return queryOptions({
-    queryKey: windowManagerKeys.config(workspaceId, clientId),
-    queryFn: ({ signal }) => fetchWindowManagerSettings({ workspaceId, clientId }, signal),
+    queryKey: windowManagerKeys.config(workspaceId, clientId, clientProfile),
+    queryFn: ({ signal }) =>
+      fetchWindowManagerSettings({ workspaceId, clientId, clientProfile }, signal),
     staleTime: 15_000,
     refetchInterval: 60_000,
     retry: 1,
@@ -65,9 +71,13 @@ export function windowManagerSettingsOptions(workspaceId: string | null = null, 
 }
 
 /** The keymap half of the same cache entry — never a second request. */
-export function windowManagerConfigOptions(workspaceId: string | null = null, clientId?: string) {
+export function windowManagerConfigOptions(
+  workspaceId: string | null = null,
+  clientId?: string,
+  clientProfile?: string
+) {
   return queryOptions({
-    ...windowManagerSettingsOptions(workspaceId, clientId),
+    ...windowManagerSettingsOptions(workspaceId, clientId, clientProfile),
     select: section => section.config,
   });
 }

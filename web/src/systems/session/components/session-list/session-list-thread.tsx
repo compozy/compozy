@@ -253,6 +253,8 @@ function SessionListBranchRow({
       <div className={BRANCH_RAIL}>
         <SessionListSubagentBranch
           workspaceId={session.workspace_id ?? ""}
+          workspace={session.workspace_id}
+          profile={session.profile_name}
           sessionId={session.id}
           total={subagentCounts?.total ?? 0}
           currentSessionId={currentSessionId}

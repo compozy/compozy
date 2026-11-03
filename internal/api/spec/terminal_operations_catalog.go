@@ -16,8 +16,14 @@ func terminalCatalogOperation(transports []Transport, workspace ParameterSpec) O
 		Parameters: withProfileSelector(
 			workspace,
 			optionalLastEventIDHeaderParam("Resume after the last terminal catalog event"),
+			queryParam(
+				"last_event_id",
+				"Resume cursor when Last-Event-ID cannot be set; the header takes precedence",
+				false,
+			),
 		),
 		Responses: terminalResponseMatrix([]ResponseSpec{
+			{Status: 101, Description: specEventStreamUpgrade},
 			{
 				Status:      200,
 				Description: "Terminal catalog event stream",

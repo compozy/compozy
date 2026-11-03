@@ -1,7 +1,7 @@
 import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 import { SessionListProviderMark } from "../session-list/session-list-provider-mark";
-import { subagentModelLabel, subagentNativeKind } from "./subagent-row-format";
+import { subagentRuntimeWords } from "./subagent-row-format";
 import type { SubagentView } from "./types";
 
 /** Recorded runtime only: absent metadata must not inherit the parent runtime. */
@@ -12,12 +12,9 @@ export function SubagentRuntimeMeta({
   subagent: SubagentView;
   providerMark?: boolean;
 }) {
-  const { agent, provider, model, reasoning_effort: effort } = subagent.runtime;
+  const { agent, provider } = subagent.runtime;
   const identity = useAgentIdentityView(agent ?? "");
-  const native = subagent.origin === "provider_native";
-  const kind = native ? subagentNativeKind(subagent) : agent ? identity.label : null;
-  const modelLabel = [model ? subagentModelLabel(model) : null, effort].filter(Boolean).join(" ");
-  const label = [provider, modelLabel, kind].filter(Boolean).join(" · ");
+  const { modelLabel, kind, label } = subagentRuntimeWords(subagent, identity.label);
   return (
     <span
       className="flex min-w-0 items-center gap-1 text-transcript-meta text-muted-foreground"

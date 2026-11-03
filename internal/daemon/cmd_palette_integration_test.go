@@ -691,6 +691,7 @@ type cmdPaletteIntegrationWindowManagers struct {
 
 func (d cmdPaletteIntegrationWindowManagers) CommandClientsInWorkspace(
 	ctx context.Context,
+	_ clientProfileScope,
 	workspaceID windowmanager.WorkspaceID,
 ) ([]windowmanager.ClientView, error) {
 	return d.manager.CommandClients(ctx, workspaceID)
@@ -698,6 +699,7 @@ func (d cmdPaletteIntegrationWindowManagers) CommandClientsInWorkspace(
 
 func (d cmdPaletteIntegrationWindowManagers) ClientsInWorkspace(
 	ctx context.Context,
+	_ clientProfileScope,
 	workspaceID windowmanager.WorkspaceID,
 ) ([]windowmanager.ClientView, error) {
 	return d.manager.Clients(ctx, workspaceID)
@@ -705,6 +707,7 @@ func (d cmdPaletteIntegrationWindowManagers) ClientsInWorkspace(
 
 func (d cmdPaletteIntegrationWindowManagers) ManagerForClient(
 	ctx context.Context,
+	_ clientProfileScope,
 	workspaceID windowmanager.WorkspaceID,
 	clientID windowmanager.ClientID,
 ) (*windowmanager.Manager, error) {

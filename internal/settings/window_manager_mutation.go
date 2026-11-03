@@ -16,12 +16,16 @@ import (
 func (s *service) windowManagerBindableIDs(
 	ctx context.Context,
 	workspaceID string,
+	profileLens cmdpalette.ProfileLens,
 ) (windowmanager.BindableIDs, error) {
 	if s.cmdPalette == nil || workspaceID == "" {
 		return windowmanager.DefaultBindableIDs(), nil
 	}
+	if profileLens.ID == "" {
+		profileLens = cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default")
+	}
 	catalog, err := s.cmdPalette.Catalog(ctx, cmdpalette.CatalogRequest{
-		ProfileLens: cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default"),
+		ProfileLens: profileLens,
 		WorkspaceID: cmdpalette.WorkspaceID(workspaceID),
 	})
 	if err != nil {

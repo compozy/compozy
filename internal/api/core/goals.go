@@ -19,10 +19,14 @@ func (h *BaseHandlers) GetSessionGoal(c *gin.Context) {
 	if !ok {
 		return
 	}
+	scope, sessionID, _, ok := h.routeSessionInWorkspace(c)
+	if !ok {
+		return
+	}
 	snapshot, err := service.GetSessionGoal(
 		c.Request.Context(),
-		c.Param("workspace_id"),
-		c.Param("session_id"),
+		scope.SessionWorkspaceID(),
+		sessionID,
 	)
 	if err != nil {
 		if errors.Is(err, sessionpkg.ErrSessionNotFound) {
