@@ -558,8 +558,21 @@ describe("Permissions", () => {
     renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
     const auto = await screen.findByTestId("agent-permissions-level-auto");
     await waitFor(() => expect(auto).toHaveTextContent("Not available"));
+    // As in the draft, the named alert explains the choice only once it is the selected level.
+    expect(screen.queryByTestId("agent-permissions-no-reviewer")).toBeNull();
     await user.click(auto);
     expect(await screen.findByText("Claude Code has no AI reviewer")).toBeTruthy();
+  });
+
+  it("Should name the provider with no reviewer for an agent saved at Let a reviewer decide", async () => {
+    const reviewer: AgentPayload = { ...staysOn, permissions: "auto" };
+    serveAgent(reviewer);
+    serveProvider("claude", "");
+    renderEditor(<AgentPermissionsEditor {...props({ agent: reviewer })} />);
+    expect(await screen.findByText("Claude Code has no AI reviewer")).toBeTruthy();
+    expect(screen.getByTestId("agent-permissions-no-reviewer")).toHaveTextContent(
+      "This agent will use Edit on its own instead."
+    );
   });
 
   it("Should not warn about the reviewer when an older daemon sends no reviewer_mode", async () => {
