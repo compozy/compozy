@@ -288,7 +288,7 @@ func (p *AgentProcess) resolvePermissionRequest(
 	if appliedDecision == "" {
 		appliedDecision = decisionCanceled
 	}
-	if actor == "timeout" || (actor == permissionActorProvider && decision == decisionCanceled) {
+	if p.permissionExpiryCountsAsDenial(actor, decision) {
 		p.permissionDenials.Record(digest, denialEpoch)
 	}
 	raw = buildPermissionEventRaw(requestID, appliedDecision, request)

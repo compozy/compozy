@@ -235,3 +235,23 @@ func (p *AgentProcess) permissionConnectionDone() <-chan struct{} {
 	}
 	return p.Done()
 }
+
+// permissionExpiryCountsAsDenial reports whether a pending request that ended
+// without an answer suppresses repeats: it expired, or the provider
+// canceled it over a live connection. A lost connection is not a denial;
+// nobody could answer, so the recovered runtime must be able to ask again.
+func (p *AgentProcess) permissionExpiryCountsAsDenial(actor string, decision permissionDecision) bool {
+	if actor == "timeout" {
+		return true
+	}
+	return actor == permissionActorProvider && decision == decisionCanceled && !p.permissionConnectionClosed()
+}
+
+func (p *AgentProcess) permissionConnectionClosed() bool {
+	select {
+	case <-p.permissionConnectionDone():
+		return true
+	default:
+		return false
+	}
+}

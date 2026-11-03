@@ -3032,4 +3032,45 @@ func TestExpiredPermissionRepeatSuppression(t *testing.T) {
 			t.Fatal("human reset retained an expired request")
 		}
 	})
+
+	t.Run("Should not suppress a request canceled because the connection dropped", func(t *testing.T) {
+		t.Parallel()
+		shared := &PermissionDenials{}
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		proc.permissionDenials = shared
+		active, err := proc.beginPrompt("disconnect", 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		request := acpsdk.RequestPermissionRequest{
+			SessionId: "sess-direct",
+			ToolCall: acpsdk.ToolCallUpdate{
+				Kind:     new(acpsdk.ToolKindEdit),
+				Title:    new("Edit docs"),
+				RawInput: map[string]any{"path": "docs.md"},
+			},
+			Options: []acpsdk.PermissionOption{
+				{OptionId: "allow-once", Kind: acpsdk.PermissionOptionKindAllowOnce},
+				{OptionId: "reject-once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+			},
+		}
+		result := make(chan error, 1)
+		go func() {
+			_, err := proc.handleRequestPermission(t.Context(), request)
+			result <- err
+		}()
+		collectEventsUntilCount(t, active.events, 1)
+		close(proc.done)
+		if err := <-result; err != nil {
+			t.Fatal(err)
+		}
+		event := collectEventsUntilCount(t, active.events, 1)[0]
+		if event.Decision != string(decisionCanceled) {
+			t.Fatalf("disconnect decision=%q, want %q", event.Decision, decisionCanceled)
+		}
+		if shared.Contains(permissionRequestDigest(request)) {
+			t.Fatal("connection loss recorded a repeat denial")
+		}
+	})
 }
