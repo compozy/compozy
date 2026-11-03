@@ -1315,7 +1315,10 @@ func (failingInstanceOwners) ListIdentities(context.Context) ([]profilepkg.Profi
 func TestAgentInstancePayloadShouldKeepTheRowWhenTheOwnerLabelLookupFails(t *testing.T) {
 	t.Parallel()
 	api := core.AgentInstanceAPI{Profiles: failingInstanceOwners{}}
-	payload, err := api.Payload(t.Context(), agentinstance.Instance{ID: "ainst-a", ProfileID: "profile-b", State: "paused"})
+	payload, err := api.Payload(
+		t.Context(),
+		agentinstance.Instance{ID: "ainst-a", ProfileID: "profile-b", State: "paused"},
+	)
 	if err != nil {
 		t.Fatalf("payload error = %v, want the committed row", err)
 	}
