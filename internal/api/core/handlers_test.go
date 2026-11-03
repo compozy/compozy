@@ -1684,7 +1684,7 @@ func TestWorkspaceSessionRoutesFollowTheSessionProfile(t *testing.T) {
 				*writes = append(*writes, runtimeWrite{id: id, revision: revision})
 				return infoFor(id), nil
 			},
-			RenameFn:                func(_ context.Context, _, id, _ string) (*session.Info, error) { return infoFor(id), nil },
+			RenameFn: func(_ context.Context, _, id, _ string) (*session.Info, error) { return infoFor(id), nil },
 			Attention: testutil.StubSessionAttention{
 				WaitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
 					return session.WaitOutcome{}, nil

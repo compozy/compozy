@@ -16588,7 +16588,9 @@ func TestNativeSessionMoveToProfile(t *testing.T) {
 			t.Context(), toolspkg.Scope{WorkspaceID: "ws-move"}, request("sess-source"), "work", targetID,
 		)
 		if !errors.Is(err, toolspkg.ErrToolDenied) || policy.calls != 0 {
-			t.Fatalf("sessionless authorization error = %v policy = %d, want denied before the policy", err, policy.calls)
+			t.Fatalf(
+				"sessionless authorization error = %v policy = %d, want denied before the policy", err, policy.calls,
+			)
 		}
 	})
 
