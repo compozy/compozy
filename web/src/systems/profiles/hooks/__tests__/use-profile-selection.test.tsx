@@ -207,13 +207,50 @@ describe("global profile selection", () => {
       .mockImplementation(async params => params as never);
     const { result } = renderHook(() => useSwitchProfile(), { wrapper });
 
-    act(() => result.current.mutate({ kind: "profile", profile: "open-design" }));
-    await act(() => result.current.mutateAsync({ kind: "profile", profile: "default" }));
+    act(() => {
+      result.current.mutate({ kind: "profile", profile: "open-design" });
+      result.current.mutate({ kind: "profile", profile: "default" });
+    });
+    // Writes run in switch order: the newer one waits for the older one to settle.
+    await waitFor(() => expect(putProfileSelection).toHaveBeenCalledTimes(1));
     act(() => failFirst());
 
     await waitFor(() => expect(putProfileSelection).toHaveBeenCalledTimes(2));
-    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(putProfileSelection).toHaveBeenLastCalledWith({ scope: "global", profile: "default" });
+    await waitFor(() => expect(result.current.isPending).toBe(false));
     expect(localProfileView()).toEqual({ kind: "profile", profile: "default" });
+  });
+
+  it("Should act as the newest switch under All profiles while an older write is pending [#1194]", async () => {
+    const { wrapper } = createWrapper();
+    let settleFirst: () => void = () => {};
+    vi.mocked(putProfileSelection)
+      .mockImplementationOnce(
+        params =>
+          new Promise(resolve => {
+            settleFirst = () => resolve(params as never);
+          })
+      )
+      .mockImplementation(async params => params as never);
+    const { result } = renderHook(
+      () => ({ read: useProfileReadScope(), switchProfile: useSwitchProfile() }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.read.destination).toBe("marketing"));
+
+    act(() => {
+      result.current.switchProfile.mutate({ kind: "profile", profile: "open-design" });
+      result.current.switchProfile.mutate({ kind: "profile", profile: "default" });
+      result.current.switchProfile.mutate({ kind: "aggregate" });
+    });
+    await waitFor(() => expect(result.current.read.aggregate).toBe(true));
+    // The older write still pending must not stand in for the newer choice.
+    expect(result.current.read.destination).toBe("default");
+
+    vi.mocked(fetchProfileSelection).mockResolvedValue({ scope: "global", profile: "default" });
+    act(() => settleFirst());
+    await waitFor(() => expect(putProfileSelection).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(result.current.read.destination).toBe("default"));
   });
 
   it("Should restore the remembered choice when the switch cannot be persisted [#1194]", async () => {

@@ -7,15 +7,15 @@ import { notifyUser } from "@/lib/user-feedback";
 import { putProfileSelection } from "../adapters/profiles-api";
 import { PERMANENT_PROFILE, actingProfile, isArchived } from "../lib/profile-rows";
 import { profileViewKey } from "../lib/profile-scope";
-import { latestPendingProfile } from "../lib/profile-scope-resolver";
+import { rememberedAfterSwitches, type SelectionSwitch } from "../lib/profile-scope-resolver";
 import { profileKeys } from "../lib/query-keys";
 import { profileSelectionOptions } from "../lib/query-options";
 import {
   enterProfileView,
-  localProfileView,
+  failProfileSwitch,
   profileViewStore,
-  restoreProfileView,
   setProfileView,
+  settleProfileSwitch,
 } from "../stores/profile-view-store";
 import { PROFILE_AGGREGATE, type ProfileSelectionPayload, type ProfileView } from "../types";
 import { usePinnedProfileView } from "./use-pinned-profile";
@@ -33,11 +33,14 @@ export function useRememberedProfile(enabled = true) {
  */
 export function useRememberedProfileName(enabled = true): string | undefined {
   const remembered = useRememberedProfile(enabled);
-  const pending = useMutationState({
-    filters: { mutationKey: profileKeys.selectionWrite(), status: "pending" },
-    select: mutation => mutation.state.variables as ProfileView | undefined,
+  const switches = useMutationState({
+    filters: { mutationKey: profileKeys.selectionWrite() },
+    select: (mutation): SelectionSwitch => ({
+      status: mutation.state.status,
+      view: mutation.state.variables as ProfileView | undefined,
+    }),
   });
-  return latestPendingProfile(pending) ?? remembered.data?.profile;
+  return rememberedAfterSwitches(switches, remembered.data?.profile);
 }
 
 /**
@@ -152,19 +155,19 @@ export function useSwitchProfile() {
   };
   const mutation = useMutation({
     mutationKey: profileKeys.selectionWrite(),
+    // Writes run in the order the operator switched, so the daemon ends on the newest choice
+    // even when an older write is slow; the view itself still moves at once in onMutate.
+    scope: { id: "profile-selection-write" },
     mutationFn: rememberProfileView,
-    onMutate: (view: ProfileView) => {
-      const previous = localProfileView();
-      setProfileView(view);
-      return { previous, epoch: profileViewStore.getSnapshot().context.switchEpoch };
+    onMutate: (view: ProfileView) => ({ switchId: setProfileView(view) }),
+    onSuccess: async (view, _view, context) => {
+      if (context.switchId !== null) settleProfileSwitch(context.switchId);
+      await rememberPersisted(view);
     },
-    onSuccess: view => rememberPersisted(view),
     onError: (error, _view, context) => {
-      // A later switch owns the view now; rolling back to what preceded this one would leave the
-      // shell on a profile the daemon no longer remembers.
-      if (context && profileViewStore.getSnapshot().context.switchEpoch === context.epoch) {
-        restoreProfileView(context.previous);
-      }
+      // Switches overlap: the store rolls this one back along the pending chain, so a later
+      // switch keeps the view and a chain of failures returns to where the operator started.
+      if (context && context.switchId !== null) failProfileSwitch(context.switchId);
       notifyUser({
         message: error instanceof Error ? error.message : "Could not switch profile.",
         tone: "error",
@@ -182,7 +185,9 @@ export function useSwitchProfile() {
       await rememberProfileView(view);
       await rememberPersisted(view);
       return () => {
-        setProfileView(view);
+        // Already persisted: the switch is settled the moment it is shown.
+        const switchId = setProfileView(view);
+        if (switchId !== null) settleProfileSwitch(switchId);
         invalidateSelection(view);
       };
     },

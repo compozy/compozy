@@ -31,25 +31,39 @@ export function readActingProfile(queryClient: QueryClient): string {
 }
 
 function readRememberedProfile(queryClient: QueryClient): string | undefined {
-  const pending = queryClient
+  const switches = queryClient
     .getMutationCache()
-    .findAll({ mutationKey: profileKeys.selectionWrite(), status: "pending" })
-    .map(mutation => mutation.state.variables as ProfileView | undefined);
-  return (
-    latestPendingProfile(pending) ??
+    .findAll({ mutationKey: profileKeys.selectionWrite() })
+    .map((mutation): SelectionSwitch => ({
+      status: mutation.state.status,
+      view: mutation.state.variables as ProfileView | undefined,
+    }));
+  return rememberedAfterSwitches(
+    switches,
     queryClient.getQueryData<ProfileSelectionPayload>(profileKeys.selection())?.profile
   );
 }
 
+/** One switch's write, as the mutation cache records it. */
+export interface SelectionSwitch {
+  status: "idle" | "pending" | "success" | "error";
+  view: ProfileView | undefined;
+}
+
 /**
- * The newest concrete profile among switches still being persisted, oldest first. While one is
- * pending it is the remembered choice: a reread landing before the write would answer with the
- * previous one (#1194).
+ * The remembered choice given this client's switch writes, oldest first. The newest concrete
+ * switch that has not failed decides: while it is being written it is the remembered choice (a
+ * reread landing before the write would answer with the previous one), and once written the
+ * daemon's answer is. An older write still pending never overrides a newer one (#1194).
  */
-export function latestPendingProfile(
-  views: readonly (ProfileView | undefined)[]
+export function rememberedAfterSwitches(
+  switches: readonly SelectionSwitch[],
+  cached: string | undefined
 ): string | undefined {
-  let latest: string | undefined;
-  for (const view of views) if (view?.kind === "profile") latest = view.profile;
-  return latest;
+  for (let index = switches.length - 1; index >= 0; index -= 1) {
+    const { status, view } = switches[index];
+    if (view?.kind !== "profile" || status === "error" || status === "idle") continue;
+    return status === "pending" ? view.profile : cached;
+  }
+  return cached;
 }

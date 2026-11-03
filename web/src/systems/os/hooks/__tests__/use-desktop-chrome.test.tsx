@@ -160,9 +160,10 @@ vi.mock("../use-global-shortcut-reconciliation", () => ({
 }));
 
 import {
+  failProfileSwitch,
   resetProfileViews,
-  restoreProfileView,
   setProfileView,
+  settleProfileSwitch,
 } from "@/systems/profiles/stores/profile-view-store";
 
 import type { OsShellHandle } from "../../contexts/os-shell-context";
@@ -344,8 +345,17 @@ describe("useProfileSwitchWindowSweep", () => {
     };
   }
 
-  function switchTo(view: Parameters<typeof setProfileView>[0]) {
-    act(() => setProfileView(view));
+  function switchTo(view: Parameters<typeof setProfileView>[0]): number {
+    let switchId: number | null = null;
+    act(() => {
+      switchId = setProfileView(view);
+    });
+    return switchId ?? 0;
+  }
+
+  /** Where the operator already is before the test's switch: a switch that persisted. */
+  function startOn(profile: string) {
+    settleProfileSwitch(setProfileView({ kind: "profile", profile }) ?? 0);
   }
 
   /** A query client whose owner reads wait until `release` is called. */
@@ -512,7 +522,7 @@ describe("useProfileSwitchWindowSweep", () => {
     switchTo({ kind: "profile", profile: "yankee" });
     await waitFor(() => expect(fake.closed).toEqual(["w_xray"]));
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(fake.userClose).not.toHaveBeenCalledWith("w_zulu");
+    expect(fake.userClose.mock.calls.map(([id]) => id)).not.toContain("w_zulu");
   });
 
   it("Should leave the desk alone without a switch or when the switch is to All profiles", async () => {
@@ -548,6 +558,7 @@ describe("useProfileSwitchWindowSweep", () => {
 
   it("Should cancel pending owner reads without sweeping the restored profile after rollback", async () => {
     sessionOwners.set("s_xray", "p_xray");
+    startOn("zulu");
     const { shell, userClose } = fakeShell(true);
     const held = heldOwnerReads();
     const { rerender } = renderHook(
@@ -555,9 +566,9 @@ describe("useProfileSwitchWindowSweep", () => {
       { wrapper: held.wrapper, initialProps: { partition: "ws_a" } }
     );
 
-    switchTo({ kind: "profile", profile: "yankee" });
+    const yankee = switchTo({ kind: "profile", profile: "yankee" });
     await waitFor(() => expect(held.queryClient.fetchQuery).toHaveBeenCalled());
-    act(() => restoreProfileView({ kind: "profile", profile: "zulu" }));
+    act(() => failProfileSwitch(yankee));
     held.release();
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(userClose).not.toHaveBeenCalled();
@@ -570,20 +581,21 @@ describe("useProfileSwitchWindowSweep", () => {
   it("Should stop closing when a failed switch rolls the view back", async () => {
     sessionOwners.set("s_xray", "p_xray");
     sessionOwners.set("s_zulu", "p_zulu");
+    startOn("xray");
     const { shell, userClose } = fakeShell(true);
     userClose.mockImplementation(async () => false);
     const { unmount } = renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
       wrapper: wrapper(),
     });
 
-    switchTo({ kind: "profile", profile: "yankee" });
-    await waitFor(() => expect(userClose).toHaveBeenCalledWith("w_xray"));
+    const yankee = switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() => expect(userClose).toHaveBeenCalledWith("w_xray", true));
     // The persist failed: the previous answer comes back under the same switch epoch.
-    act(() => restoreProfileView({ kind: "profile", profile: "xray" }));
+    act(() => failProfileSwitch(yankee));
     const attempts = userClose.mock.calls.length;
     await new Promise(resolve => setTimeout(resolve, 600));
     expect(userClose).toHaveBeenCalledTimes(attempts);
-    expect(userClose).not.toHaveBeenCalledWith("w_zulu");
+    expect(userClose.mock.calls.map(([id]) => id)).not.toContain("w_zulu");
     unmount();
   });
 
