@@ -88,9 +88,14 @@ func removalCommitComparison(item Worktree, status *Status, baseResolved bool) [
 		// hide the commits that removal would orphan.
 		return removalUnreachableFromOtherRefs("")
 	case item.BaseRef != "":
-		// Without the base, count commits no other ref keeps. The worktree's own
-		// branch is excluded because it would hide every commit removal orphans.
-		return removalUnreachableFromOtherRefs(item.Branch)
+		// Without the base, count commits no other ref keeps. The checked-out
+		// branch, which may have been renamed since creation, is excluded
+		// because it would hide every commit removal orphans.
+		ownBranch := item.Branch
+		if status.Branch != nil && *status.Branch != "" {
+			ownBranch = *status.Branch
+		}
+		return removalUnreachableFromOtherRefs(ownBranch)
 	case status.HasUpstream != nil && *status.HasUpstream:
 		if status.Ahead != nil {
 			return []string{"@{upstream}..HEAD"}

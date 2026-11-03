@@ -1116,18 +1116,22 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		commitOn(merged, "merged.txt")
 		orphaned := create("Orphaned Slice")
 		commitOn(orphaned, "orphaned.txt")
+		renamed := create("Renamed Slice")
+		commitOn(renamed, "renamed.txt")
+		f.git(renamed.Path, "branch", "-m", "slice-after-rename")
 		f.git(f.workspace.Root, "merge", "--no-ff", "-m", "land slice", merged.Branch)
 		f.git(f.workspace.Root, "branch", "-D", "integration")
 
-		refusalResult, err := f.service.Remove(t.Context(), f.workspace.ID, orphaned.ID, false)
-		if !errors.Is(err, ErrUnpushedRequiresForce) || refusalResult == nil ||
-			refusalResult.Risk.UnpushedCommits != 1 {
-			t.Fatalf("Remove(orphaned) = (%#v, %v), want one-commit unpushed refusal", refusalResult, err)
+		for _, item := range []*Worktree{orphaned, renamed} {
+			refusalResult, err := f.service.Remove(t.Context(), f.workspace.ID, item.ID, false)
+			if !errors.Is(err, ErrUnpushedRequiresForce) || refusalResult == nil ||
+				refusalResult.Risk.UnpushedCommits != 1 {
+				t.Fatalf("Remove(%s) = (%#v, %v), want one-commit unpushed refusal", item.Name, refusalResult, err)
+			}
 		}
 		assertFileContent(t, filepath.Join(orphaned.Path, "orphaned.txt"), "orphaned.txt\n")
-		if refusalResult, err = f.service.Remove(
-			t.Context(), f.workspace.ID, orphaned.ID, true,
-		); err != nil || refusalResult != nil {
+		refusalResult, err := f.service.Remove(t.Context(), f.workspace.ID, orphaned.ID, true)
+		if err != nil || refusalResult != nil {
 			t.Fatalf("Remove(orphaned forced) = (%#v, %v), want success", refusalResult, err)
 		}
 		if refusalResult, err = f.service.Remove(
