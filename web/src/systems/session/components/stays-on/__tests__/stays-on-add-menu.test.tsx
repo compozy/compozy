@@ -140,6 +140,11 @@ describe("Project + Add stays-on agent", () => {
 
     expect(await screen.findByText("Global")).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /compozy/ })).toHaveAttribute("data-checked", "true");
+    // Enter accepts the preselected place, not the first row.
+    expect(screen.getByRole("option", { name: /compozy/ })).toHaveAttribute(
+      "data-selected",
+      "true"
+    );
     await user.click(screen.getByRole("option", { name: /site/ }));
     expect(await screen.findByText("Add to site")).toBeInTheDocument();
     await user.click(screen.getByText("Scout"));
@@ -148,5 +153,19 @@ describe("Project + Add stays-on agent", () => {
       expect(mockApi.create.mock.calls[0]?.[0]).toEqual({ agent: "scout", workspace: "ws-site" })
     );
     expect(mockApi.catalog.mock.calls.at(-1)?.[0]).toMatchObject({ workspace: "ws-site" });
+  });
+
+  it("Should add a Global agent with no project in the catalog read", async () => {
+    const user = userEvent.setup();
+    renderMenu(null);
+
+    await openPicker(user);
+    await user.click(await screen.findByRole("option", { name: /Global/ }));
+    await user.click(await screen.findByText("Scout"));
+
+    await waitFor(() =>
+      expect(mockApi.create.mock.calls[0]?.[0]).toEqual({ agent: "scout", workspace: "@user" })
+    );
+    expect(mockApi.catalog.mock.calls.at(-1)?.[0]).not.toHaveProperty("workspace");
   });
 });

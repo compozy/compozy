@@ -53,8 +53,10 @@ function StaysOnPlaceStep({
   onPick: (target: SessionListStaysOnTarget) => void;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { places, preselected } = useStaysOnPlaces();
+  const { places, preselected, pending } = useStaysOnPlaces();
   const capacity = useAgentInstanceCapacity();
+  // The list opens on the preselected row once, so it waits for the projects that settle it.
+  if (pending) return null;
   return (
     <AgentScopePicker
       capacity={capacity}
