@@ -1,0 +1,76 @@
+{
+    "section": "general",
+    "scope": "user",
+    "available_scopes": ["user"],
+    "config_paths": {
+        "home_dir": "/Users/d/.compozy",
+        "global_config": "/Users/d/.compozy/config.toml",
+        "global_mcp_sidecar": "/Users/d/.compozy/mcp.json",
+        "log_file": "/Users/d/.compozy/logs/compozy.log",
+        "daemon_info": "/Users/d/.compozy/daemon.json"
+    },
+    "config": {
+        "busy_input": {
+            "default_mode": "steer"
+        },
+        "limits": {
+            "max_concurrent_agents": 20
+        },
+        "permissions": {
+            "mode": "approve-all"
+        },
+        "session_timeout": "0s",
+        "idle_release_after": "30m0s",
+        "http": {
+            "host": "localhost",
+            "port": 21991
+        },
+        "daemon": {
+            "socket": "/Users/d/.compozy/daemon.sock",
+            "memory_report_interval": "5m0s",
+            "reload_timeouts": {
+                "providers": "5s",
+                "mcp": "10s"
+            }
+        },
+        "redact": {
+            "enabled": true
+        },
+        "terminal": {
+            "default_shell": "",
+            "shell_integration": true,
+            "scrollback_bytes": 1048576,
+            "detached_ttl": "24h0m0s",
+            "exit_retention": "15m0s",
+            "recording": false,
+            "recording_retention_days": 30,
+            "max_per_workspace": 8,
+            "max_per_daemon": 32,
+            "max_subscribers": 16
+        },
+        "desktop": {
+            "editor_command": "code -g {path}:{line}"
+        }
+    },
+    "runtime": {
+        "available": true,
+        "status": "running",
+        "pid": 40502,
+        "started_at": "2026-11-03T18:25:59Z",
+        "uptime_seconds": 25,
+        "socket": "/Users/d/.compozy/daemon.sock",
+        "http_host": "localhost",
+        "http_port": 21991,
+        "active_sessions": 0,
+        "active_agents": 0,
+        "total_sessions": 0,
+        "version": "dev"
+    },
+    "actions": {
+        "restart": {
+            "name": "restart",
+            "available": true,
+            "behavior": "action_trigger"
+        }
+    }
+}
