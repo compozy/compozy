@@ -18,11 +18,13 @@ export function OpenInEditorButton({
   token,
   pending,
   modifier,
+  windows,
   onOpen,
 }: {
   token: FilePathToken;
   pending: boolean;
   modifier: OpenInEditor["modifier"];
+  windows: boolean;
   onOpen: () => void;
 }) {
   return (
@@ -33,7 +35,7 @@ export function OpenInEditorButton({
             type="button"
             variant="ghost"
             size="icon-xs"
-            aria-label={`Open ${filePathBasename(token.path)} in editor`}
+            aria-label={`Open ${filePathBasename(token.path, { windows })} in editor`}
             className={OPEN_BUTTON_CLASS}
             data-testid="open-in-editor-button"
             disabled={pending}
@@ -74,6 +76,7 @@ function FilePathAffordance({
         token={token}
         pending={pending}
         modifier={opener.modifier}
+        windows={opener.windows}
         onOpen={() => void run()}
       />
     </span>
@@ -88,9 +91,7 @@ export function FilePathInlineCode({ text, element }: { text: string; element: R
   const opener = use(FilePathOpenerContext);
   const insideLink = use(FilePathInsideLinkContext);
   const token =
-    opener && !insideLink
-      ? detectFilePath(text, "inline_code", { drivePaths: opener.drivePaths })
-      : null;
+    opener && !insideLink ? detectFilePath(text, "inline_code", { windows: opener.windows }) : null;
   if (!opener || !token) return element;
   return (
     <FilePathAffordance opener={opener} token={token}>
@@ -133,7 +134,7 @@ function FilePathLinkText({ children }: { children: ReactNode }) {
 /** `StreamMarkdown` local-link component: path hrefs open in the editor and never navigate. */
 export function FilePathLocalLink({ href, children }: { href: string; children: ReactNode }) {
   const opener = use(FilePathOpenerContext);
-  const token = opener ? detectFilePath(href, "href", { drivePaths: opener.drivePaths }) : null;
+  const token = opener ? detectFilePath(href, "href", { windows: opener.windows }) : null;
   if (!opener || !token) return <BlockedLink href={href}>{children}</BlockedLink>;
   return (
     <FilePathAffordance opener={opener} token={token}>
@@ -152,7 +153,7 @@ export function FilePathAnchor({
   const opener = use(FilePathOpenerContext);
   const token =
     opener && typeof href === "string" && href.startsWith("/")
-      ? detectFilePath(href, "href", { drivePaths: opener.drivePaths })
+      ? detectFilePath(href, "href", { windows: opener.windows })
       : null;
   if (!opener || !token) {
     return (

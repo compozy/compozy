@@ -274,6 +274,85 @@ describe("file opener", () => {
     expect(run.spawned).toEqual([]);
   });
 
+  it("Should compare macOS paths case-sensitively and trust only the real path's case", async () => {
+    const project = { "/Users/d/project": "dir" } as const;
+    // Case-sensitive volume: a case variant of the root is a different, outside directory.
+    const sensitive = harness({ entries: { ...project, "/Users/d/PROJECT/x.ts": "file" } });
+    const roots = ["/Users/d/project"];
+    expect(await sensitive.open({ path: "/Users/d/PROJECT/x.ts", roots })).toEqual({
+      status: "cancelled",
+    });
+    expect(at(sensitive.dialogs, 0).detail).toContain("/Users/d/PROJECT/x.ts\n\n");
+    expect(sensitive.fsCalls).toEqual([]);
+
+    // Case-insensitive volume: the lexical mismatch still confirms first, and realpath's
+    // on-disk case then places the target inside, so no second dialog follows.
+    const insensitive = {
+      entries: { ...project, "/Users/d/project/x.ts": "file" },
+      links: { "/users/d/project/x.ts": "/Users/d/project/x.ts" },
+    } as const;
+    const cancelled = harness(insensitive);
+    expect(await cancelled.open({ path: "/users/d/project/x.ts", roots })).toEqual({
+      status: "cancelled",
+    });
+    expect(cancelled.fsCalls).toEqual([]);
+    const opened = harness({ ...insensitive, answers: [0] });
+    expect(await opened.open({ path: "/users/d/project/x.ts", roots })).toEqual({
+      status: "opened",
+    });
+    expect(opened.dialogs).toHaveLength(1);
+    expect(at(opened.logs, 0)).toMatchObject({ status: "opened", inside: true });
+    expect(at(opened.spawned, 0).args).toEqual(["-g", "/Users/d/project/x.ts:1"]);
+  });
+
+  it("Should refuse a link that resolves to a network or device path before any stat or dialog", async () => {
+    const cases = [
+      {
+        platform: "win32" as const,
+        home: "C:\\Users\\d",
+        root: "C:\\repo",
+        path: "C:\\repo\\link.txt",
+        real: "\\\\host\\share\\x.txt",
+      },
+      {
+        platform: "darwin" as const,
+        home: "/Users/d",
+        root: "/repo",
+        path: "/repo/link.ts",
+        real: "//host/x.ts",
+      },
+    ];
+    for (const { platform, home, root, path, real } of cases) {
+      const run = harness({
+        platform,
+        home,
+        entries: { [root]: "dir", [real]: "file" },
+        links: { [path]: real },
+        answers: [0],
+      });
+      expect(await run.open({ path, roots: [root] })).toEqual({
+        status: "error",
+        code: "not_a_file",
+        message: `Not a local file: ${path}`,
+      });
+      expect(run.fsCalls.filter(call => call.startsWith("stat"))).toEqual([]);
+      expect(run.dialogs).toEqual([]);
+      expect(run.fetches).toEqual([]);
+      expect(run.spawned).toEqual([]);
+    }
+
+    // A root whose real path is a network path never makes a target inside.
+    const root = harness({
+      entries: { "/host/a.ts": "file" },
+      links: { "/net": "//host", "/net/a.ts": "/host/a.ts" },
+    });
+    expect(await root.open({ path: "/net/a.ts", roots: ["/net"] })).toEqual({
+      status: "cancelled",
+    });
+    expect(at(root.dialogs, 0).detail).toContain("/host/a.ts\n\n");
+    expect(root.spawned).toEqual([]);
+  });
+
   it("Should discard home, its ancestors, and the filesystem root as inside roots", async () => {
     for (const roots of [["/Users/d"], ["/"], ["/Users"]]) {
       const notes = harness({ entries: { "/Users/d/notes.md": "file" } });

@@ -22,8 +22,10 @@ export class FileOpenPolicy {
 
   constructor(platform: NodeJS.Platform) {
     this.#path = platform === "win32" ? win32 : posix;
-    // win32 and default macOS volumes compare paths case-insensitively.
-    this.#foldCase = platform === "win32" || platform === "darwin";
+    // Only win32 folds case. macOS volumes may be case-sensitive, so a lexical case mismatch
+    // stays outside (and confirms); on a case-insensitive volume `realpath` returns the
+    // on-disk case for both the target and the roots, so the real-path check still matches.
+    this.#foldCase = platform === "win32";
   }
 
   /** Expands a leading `~/` with `home` and normalizes `.`/`..` segments lexically. */

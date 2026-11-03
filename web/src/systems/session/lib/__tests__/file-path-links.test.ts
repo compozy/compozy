@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { detectFilePath, resolveFilePath, type FilePathToken } from "../file-path-links";
+import {
+  detectFilePath,
+  filePathBasename,
+  resolveFilePath,
+  type FilePathToken,
+} from "../file-path-links";
 
 describe("detectFilePath", () => {
   // UT-030. Invariant: only whole-token path grammar qualifies, keeping `:line[:col]`.
@@ -13,7 +18,6 @@ describe("detectFilePath", () => {
     ["/tmp/x", "inline_code", { path: "/tmp/x", relative: false }],
     ["~/.compozy/config.toml", "inline_code", { path: "~/.compozy/config.toml", relative: false }],
     ["./a.ts:3:7", "inline_code", { path: "./a.ts", line: 3, column: 7, relative: true }],
-    ["C:\\Users\\a\\b.txt", "inline_code", { path: "C:\\Users\\a\\b.txt", relative: false }],
     ["main.go:42", "inline_code", { path: "main.go", line: 42, relative: true }],
     [".github/workflows/ci.yml", "inline_code", { path: ".github/workflows/ci.yml" }],
     ["file:///Users/d/a%20b.md", "href", { path: "/Users/d/a b.md", relative: false }],
@@ -52,17 +56,18 @@ describe("detectFilePath", () => {
     ["C:/Users/a/b.txt:3", "inline_code"],
     ["file:///C:/Users/a/b.txt", "href"],
   ])("Should not detect the drive path %j off Windows", (text, source) => {
-    expect(detectFilePath(text, source, { drivePaths: false })).toBeNull();
-    expect(detectFilePath(text, source, { drivePaths: true })).toMatchObject({ relative: false });
-    expect(detectFilePath("/tmp/x", source, { drivePaths: false })).toMatchObject({
+    expect(detectFilePath(text, source)).toBeNull();
+    expect(detectFilePath(text, source, { windows: false })).toBeNull();
+    expect(detectFilePath(text, source, { windows: true })).toMatchObject({ relative: false });
+    expect(detectFilePath("/tmp/x", source, { windows: false })).toMatchObject({
       path: "/tmp/x",
     });
   });
 });
 
 describe("resolveFilePath", () => {
-  const token = (text: string) => {
-    const detected = detectFilePath(text, "inline_code");
+  const token = (text: string, windows = false) => {
+    const detected = detectFilePath(text, "inline_code", { windows });
     if (!detected) throw new Error(`not a path: ${text}`);
     return detected;
   };
@@ -86,6 +91,20 @@ describe("resolveFilePath", () => {
     expect(resolveFilePath(token("src/app.tsx"), {})).toBeNull();
     expect(resolveFilePath(token("/tmp/a/./b.md"), {})).toBe("/tmp/a/b.md");
     expect(resolveFilePath(token("~/notes.md"), {})).toBe("~/notes.md");
-    expect(resolveFilePath(token("C:\\Users\\a\\b.txt"), {})).toBe("C:\\Users\\a\\b.txt");
+    expect(resolveFilePath(token("C:\\Users\\a\\b.txt", true), {})).toBe("C:\\Users\\a\\b.txt");
+  });
+
+  // FR-004. Invariant: only a Windows desktop treats `\\` as a separator.
+  it("Should keep POSIX backslashes literal and normalize Windows separators", () => {
+    expect(resolveFilePath(token("/repo/a\\b.ts"), {})).toBe("/repo/a\\b.ts");
+    expect(resolveFilePath(token("a\\b.ts:3"), { workingDir: "/repo" })).toBe("/repo/a\\b.ts");
+    expect(filePathBasename("/repo/a\\b.ts")).toBe("a\\b.ts");
+    expect(resolveFilePath(token("C:\\repo\\..\\x.ts", true), {}, { windows: true })).toBe(
+      "C:\\x.ts"
+    );
+    expect(
+      resolveFilePath(token("..\\x.ts:1", true), { workingDir: "C:\\repo\\web" }, { windows: true })
+    ).toBe("C:\\repo\\x.ts");
+    expect(filePathBasename("C:\\repo\\x.ts", { windows: true })).toBe("x.ts");
   });
 });

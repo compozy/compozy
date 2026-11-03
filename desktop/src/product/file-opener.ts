@@ -155,7 +155,8 @@ export class ElectronFileOpener implements FileOpener {
     const realHome = await this.#realpathOrNull(home);
     const homes = realHome && !policy.same(realHome, home) ? [home, realHome] : [home];
     const realRoots = (await Promise.all(keptRoots.map(root => this.#realpathOrNull(root)))).filter(
-      (root): root is string => root !== null && !policy.discardsRoot(root, homes)
+      (root): root is string =>
+        root !== null && !isNetworkOrDevicePath(root) && !policy.discardsRoot(root, homes)
     );
     const inside = realRoots.some(root => policy.contains(root, real));
     const sensitive = policy.isSensitive(real, homes);
@@ -215,6 +216,10 @@ export class ElectronFileOpener implements FileOpener {
       real = await this.#deps.fs.realpath(lexical);
     } catch {
       throw new OpenFailure("not_found", `File not found: ${lexical}`);
+    }
+    // A local link can resolve to a UNC or device path; never stat or open it.
+    if (isNetworkOrDevicePath(real)) {
+      throw new OpenFailure("not_a_file", `Not a local file: ${lexical}`);
     }
     let file = false;
     try {

@@ -59,29 +59,33 @@ function decodeFileUrl(href: string): string | null {
   return /^\/[A-Za-z]:\//.test(pathname) ? pathname.slice(1) : pathname;
 }
 
-function lastSegment(path: string): string {
-  const parts = path.split(/[\\/]/);
+/** Only Windows treats `\\` as a separator; on POSIX it is a literal file-name character. */
+function separators(windows: boolean): RegExp {
+  return windows ? /[\\/]/ : /\//;
+}
+
+function lastSegment(path: string, windows: boolean): string {
+  const parts = path.split(separators(windows));
   return parts[parts.length - 1] ?? "";
 }
 
-export interface FilePathDetectOptions {
-  /** Whether Windows drive paths count; only a Windows desktop can open them. Default true. */
-  drivePaths?: boolean;
+export interface FilePathPlatformOptions {
+  /**
+   * Whether the desktop runs Windows: drive paths count and `\\` separates segments.
+   * Default false; when resolving, a drive path always implies Windows.
+   */
+  windows?: boolean;
 }
 
-function classify(
-  path: string,
-  hasLine: boolean,
-  drivePaths: boolean
-): { relative: boolean } | null {
+function classify(path: string, hasLine: boolean, windows: boolean): { relative: boolean } | null {
   if (path === "" || isNetworkPath(path) || path.startsWith("@")) return null;
   if (path.startsWith("/")) return /[^/]/.test(path) ? { relative: false } : null;
   if (path.startsWith("~/")) return path.length > 2 ? { relative: false } : null;
-  if (WINDOWS_DRIVE.test(path)) return drivePaths && path.length > 3 ? { relative: false } : null;
+  if (WINDOWS_DRIVE.test(path)) return windows && path.length > 3 ? { relative: false } : null;
   if (path.startsWith("./") || path.startsWith("../")) {
     return path.replace(/^(\.\.?\/)+/, "") === "" ? null : { relative: true };
   }
-  const hasExtension = EXTENSION.test(lastSegment(path));
+  const hasExtension = EXTENSION.test(lastSegment(path, windows));
   if (path.includes("/")) return hasExtension ? { relative: true } : null;
   return hasExtension && hasLine ? { relative: true } : null;
 }
@@ -96,7 +100,7 @@ function positive(value: string | undefined): number | null | undefined {
 export function detectFilePath(
   text: string,
   source: FilePathSource,
-  options: FilePathDetectOptions = {}
+  options: FilePathPlatformOptions = {}
 ): FilePathToken | null {
   const raw = text.trim();
   if (raw.length === 0 || raw.length > MAX_TOKEN_LENGTH || FORBIDDEN_CHARS.test(raw)) return null;
@@ -123,7 +127,7 @@ export function detectFilePath(
     path = candidate.slice(0, suffix.index);
   }
 
-  const kind = classify(path, line !== undefined, options.drivePaths ?? true);
+  const kind = classify(path, line !== undefined, options.windows ?? false);
   if (!kind) return null;
   return {
     raw,
@@ -135,13 +139,15 @@ export function detectFilePath(
 }
 
 /** Lexically resolves `.` and `..` segments; `..` never climbs above the root. */
-function normalizeLexically(path: string): string {
+function normalizeLexically(path: string, windowsHost: boolean): string {
   const drive = WINDOWS_DRIVE.test(path) ? path.slice(0, 2) : "";
-  const separator = drive !== "" || (path.includes("\\") && !path.includes("/")) ? "\\" : "/";
+  const windows = windowsHost || drive !== "";
+  const separator =
+    drive !== "" || (windows && path.includes("\\") && !path.includes("/")) ? "\\" : "/";
   const rest = drive === "" ? path : path.slice(2);
-  const absolute = /^[\\/]/.test(rest);
+  const absolute = (windows ? /^[\\/]/ : /^\//).test(rest);
   const segments: string[] = [];
-  for (const segment of rest.split(/[\\/]/)) {
+  for (const segment of rest.split(separators(windows))) {
     if (segment === "" || segment === ".") continue;
     if (segment === "..") {
       if (segments.length > 0 && segments[segments.length - 1] !== "..") segments.pop();
@@ -166,16 +172,21 @@ function firstBase(base: FilePathBase): string | undefined {
  * through (the shell expands `~`), and relative paths join the session's working directory,
  * then its bound worktree, then the workspace root. `null` when a relative path has no base.
  */
-export function resolveFilePath(token: FilePathToken, base: FilePathBase): string | null {
+export function resolveFilePath(
+  token: FilePathToken,
+  base: FilePathBase,
+  options: FilePathPlatformOptions = {}
+): string | null {
+  const windows = options.windows ?? false;
   if (!token.relative) {
-    return token.path.startsWith("~/") ? token.path : normalizeLexically(token.path);
+    return token.path.startsWith("~/") ? token.path : normalizeLexically(token.path, windows);
   }
   const root = firstBase(base);
   if (root === undefined) return null;
-  return normalizeLexically(`${root}/${token.path}`);
+  return normalizeLexically(`${root}/${token.path}`, windows);
 }
 
 /** The basename shown in the open button's accessible name. */
-export function filePathBasename(path: string): string {
-  return lastSegment(path) || path;
+export function filePathBasename(path: string, options: FilePathPlatformOptions = {}): string {
+  return lastSegment(path, options.windows ?? false) || path;
 }
