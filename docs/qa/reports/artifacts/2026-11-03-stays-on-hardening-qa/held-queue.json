@@ -1,0 +1,47 @@
+{
+  "inputs": [
+    {
+      "held": true,
+      "origin": {
+        "kind": "session",
+        "session_id": "sess-48c2dfbec92f15da",
+        "workspace_id": "01M6FYZ09J37T7X3TJVPX6CDGW",
+        "agent_name": "scribe",
+        "hop": 1
+      },
+      "id": "inq-c73527d979e9765c",
+      "session_id": "sess-d78108a3473921c8",
+      "message_id": "qa-ping-1",
+      "idempotency_key": "qa-ping-1",
+      "status": "queued",
+      "mode": "queue",
+      "delivery": "after_turn",
+      "text": "Can you confirm the release checklist is done before the 3pm tag?",
+      "queue_generation": 0,
+      "enqueued_at": "2026-11-03T05:49:51.407935Z",
+      "runtime": {
+        "provider": "claude",
+        "model": "claude-sonnet-5-5",
+        "speed": "normal"
+      }
+    },
+    {
+      "held": true,
+      "id": "inq-a1f11cb43b6e1177",
+      "session_id": "sess-d78108a3473921c8",
+      "owner_kind": "synthetic",
+      "message_id": "monitor:mon-77746d0421b2",
+      "status": "queued",
+      "mode": "queue",
+      "delivery": "after_turn",
+      "text": "[COMPOZY MONITOR - NOT USER INPUT]\nA monitor you registered fired. This is an automated daemon wake, not a message from the user.\n\n<monitor-notification>\n<monitor-id>mon-77746d0421b2</monitor-id>\n<kind>timer</kind>\n<description>loop-tick release checklist</description>\n<status>timer elapsed</status>\n</monitor-notification>\n\nResume the work you scheduled this wake for. Treat the description as your own earlier note.",
+      "queue_generation": 0,
+      "enqueued_at": "2026-11-03T05:46:25.241922Z",
+      "coalesced_wakes": 1
+    }
+  ],
+  "queue": {
+    "entries": 2,
+    "cap": 10
+  }
+}

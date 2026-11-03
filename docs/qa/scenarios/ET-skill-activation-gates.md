@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: .cache/qa-labs/compozy-pr-531-profile-scopes-20260902-170122-478233-lab/qa-artifacts/qa/notes/skill-gate.md; .cache/gate/logs/go-test-1788369547-28708.log
-last_report: docs/qa/reports/2026-09-02-pr-531-remediation.md
+evidence: .cache/qa-labs/compozy-pr-531-profile-scopes-20260902-170122-478233-lab/qa-artifacts/qa/notes/skill-gate.md; .cache/gate/logs/go-test-1788369547-28708.log; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: ET-001; ET-002; ET-003
 ---
 
@@ -59,3 +59,5 @@ Stays-on hardening, 2026-11-03 — operator review before discovery:
 Focused backend owner: `TestInstanceSkillApprovalIntegration` (native proposal, HTTP approval,
 real ACP session and canonical offer-time catalog). Shared HTTP/UDS decision and paging boundaries:
 `TestAgentSkillReviews`. Web report-card interaction remains a separate UI scenario check.
+
+QA verification 2026-11-03 (stays-on hardening, soh/qa 583415ef5, isolated acpmock lab): Pass. A stays-on main called `compozy__agent_skill_propose` (`release-checklist` with `scripts/verify.sh`), which produced pending review `skr-c8734f73f505256e` with `runs_automatically.scripts=1` and a linked proposal card. `compozy agent skill review show` listed SKILL.md, references/notes.md and scripts/verify.sh. Pending drafts were absent from `compozy skill list`. With the main's agent credentials, approve and reject both returned 403 `skill_review_operator_only`. A stale digest returned `skill_review_stale` (CLI, and HTTP 409). An HTTP approve with the shown digest approved `deploy-notes`, and a fresh `curator` session's commands offered it. A rejected `scratch-notes`, proposed again with the same contents, stayed `rejected` with no new pending review. Evidence: `skill-decisions.txt`, `skill-catalog.txt`.
