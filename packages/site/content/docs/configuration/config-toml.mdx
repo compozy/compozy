@@ -1298,12 +1298,12 @@ for eligibility, pending-interaction handling, and external-effect limits.
 
 ## `[session.auth_recovery]`
 
-| Field           | Type     | Default | Valid values                    | Description                                                                 |
-| --------------- | -------- | ------- | ------------------------------- | --------------------------------------------------------------------------- |
-| `enabled`       | boolean  | `true`  | `true`, `false`                 | Wait for a lost provider sign-in and retry the turn instead of failing it.  |
-| `window`        | duration | `"10m"` | `initial_delay`–`"1h"`          | Total wait; retries are scheduled only while they fit inside it.            |
-| `initial_delay` | duration | `"15s"` | `"1s"`–`"10m"`                  | Wait before the first retry; each later wait doubles.                       |
-| `max_delay`     | duration | `"1m"`  | `initial_delay`–`"10m"`         | Cap on the wait between retries.                                            |
+| Field           | Type     | Default | Valid values            | Description                                                                |
+| --------------- | -------- | ------- | ----------------------- | -------------------------------------------------------------------------- |
+| `enabled`       | boolean  | `true`  | `true`, `false`         | Wait for a lost provider sign-in and retry the turn instead of failing it. |
+| `window`        | duration | `"10m"` | `initial_delay`–`"1h"`  | Total wait; retries are scheduled only while they fit inside it.           |
+| `initial_delay` | duration | `"15s"` | `"1s"`–`"10m"`          | Wait before the first retry; each later wait doubles.                      |
+| `max_delay`     | duration | `"1m"`  | `initial_delay`–`"10m"` | Cap on the wait between retries.                                           |
 
 The defaults retry after 15 s, 30 s, and then every minute, eleven attempts inside ten minutes. When the
 window ends, the turn fails with the usual provider guidance. The wait does not count as turn activity, so
