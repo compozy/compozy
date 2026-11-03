@@ -81,3 +81,11 @@ export function agentPermissionSummary(agent: Pick<AgentPayload, "kind" | "permi
     ? permissionLabel(STAYS_ON_DEFAULT_PERMISSION)
     : FOLLOW_SETTINGS_LABEL;
 }
+
+/** Why another page can't save until a level is picked on Permissions. */
+export function permissionsBlockedMessage(legacy: string | null | undefined): string {
+  const stored = legacy?.trim() ?? "";
+  return stored
+    ? `Its permission level (${stored}) isn't one CompozyOS knows. Pick a level on the Permissions page, then save here.`
+    : "This agent has no permission level yet. Pick one on the Permissions page, then save here.";
+}
