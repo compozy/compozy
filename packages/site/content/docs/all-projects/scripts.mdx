@@ -11,8 +11,10 @@ Expect about ten minutes.
 ## Before you start
 
 - The daemon is v0.4.0 or later, and you run commands as the operator (not from inside an agent
-  session). Agent sessions are refused with `agent_scope_denied` unless their agent holds the
-  [unrestricted grant](/docs/user-scope/unrestricted-agents).
+  session). Agent sessions can read these lists
+  when their permission mode is `approve-all` (or `approve-reads` with an answer for the session) or
+  their agent holds the [unrestricted grant](/docs/user-scope/unrestricted-agents); otherwise they
+  are refused with `agent_scope_denied`.
 - Two projects are registered. The examples use `checkout-api` and `marketing-site`.
 
 ## Step 1: One flag on every list

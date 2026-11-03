@@ -153,6 +153,15 @@ type PermissionsConfig struct {
 
 const acpModeAuto = "auto"
 
+const (
+	// CopilotAllowAllOptionID is the GitHub Copilot CLI ACP option that approves every tool, path, and URL.
+	CopilotAllowAllOptionID = "allow_all"
+	// CopilotAllowAllOn is the CopilotAllowAllOptionID value that turns approvals off.
+	CopilotAllowAllOn = "on"
+	// copilotAutopilotMode is the GitHub Copilot CLI mode that enables allow-all for the session.
+	copilotAutopilotMode = "https://agentclientprotocol.com/protocol/session-modes#autopilot"
+)
+
 // IsUnrestrictedACPMode reports provider mode IDs that bypass the provider's normal sandbox or approvals.
 func IsUnrestrictedACPMode(provider, mode string) bool {
 	if provider == "claude" && mode == acpModeAuto {
@@ -165,8 +174,23 @@ func IsUnrestrictedACPMode(provider, mode string) bool {
 		"bypassPermissions",
 		"bypass_permissions",
 		"yolo",
-		acpModeAuto:
+		acpModeAuto,
+		copilotAutopilotMode:
 		return true
+	default:
+		return false
+	}
+}
+
+// IsUnrestrictedACPOption reports ACP config selections that bypass the
+// provider's normal sandbox or approvals: an unrestricted mode, or an
+// approval option switched to approve everything.
+func IsUnrestrictedACPOption(provider, optionID, valueID string) bool {
+	switch optionID {
+	case "mode":
+		return IsUnrestrictedACPMode(provider, valueID)
+	case CopilotAllowAllOptionID:
+		return valueID == CopilotAllowAllOn
 	default:
 		return false
 	}

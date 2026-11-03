@@ -658,6 +658,11 @@ func TestEngineRedactJSONPreservesStructuredEnvelope(t *testing.T) {
 				`"missing":true,"api_key":"[REDACTED]"}]}`,
 		},
 		{
+			name: "Should redact a numeric value under a sensitive key and keep other numbers",
+			raw:  `{"password":123456,"pins":{"client_secret":[42]},"max_output_tokens":4096,"count":7}`,
+			want: `{"password":"[REDACTED]","pins":{"client_secret":["[REDACTED]"]},"max_output_tokens":4096,"count":7}`,
+		},
+		{
 			name: "Should preserve the public credential requirements discovery schema",
 			raw: `{"output_schema":{"properties":{"credential_requirements":{"type":"array",` +
 				`"items":{"type":"object","required":["provider","slot","missing"],` +

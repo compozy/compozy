@@ -9,6 +9,7 @@ const providerKeys = [
   "agy",
   "claude",
   "codex",
+  "copilot",
   "gemini",
   "kimi-cli",
   "ollama",
@@ -32,6 +33,12 @@ describe("KindIcon", () => {
       expect(icon.querySelector("svg")).toBeInTheDocument();
       unmount();
     }
+  });
+
+  it("Should render the GitHub Copilot mark for the copilot kind", () => {
+    render(<KindIcon kind="copilot" data-testid="icon" />);
+
+    expect(screen.getByTestId("icon").querySelector("title")).toHaveTextContent("GitHub Copilot");
   });
 
   it("Should normalize casing and whitespace before reading the registry", () => {

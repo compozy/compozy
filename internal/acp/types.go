@@ -163,8 +163,15 @@ func ValidateACPModePermissions(
 	permissions compozyconfig.PermissionMode,
 ) error {
 	for _, option := range options {
-		if option.ID == sessionConfigModeKey && compozyconfig.IsUnrestrictedACPMode(provider, option.ValueID) &&
+		if compozyconfig.IsUnrestrictedACPOption(provider, option.ID, option.ValueID) &&
 			permissions != compozyconfig.PermissionModeApproveAll {
+			if option.ID != sessionConfigModeKey {
+				return fmt.Errorf(
+					"acp: unrestricted ACP option %q=%q requires approve-all permissions",
+					option.ID,
+					option.ValueID,
+				)
+			}
 			return fmt.Errorf("acp: unrestricted ACP mode %q requires approve-all permissions", option.ValueID)
 		}
 	}

@@ -62,6 +62,11 @@ type Decision struct {
 	Allowed        bool
 	Source         DecisionSource
 	PromptEligible bool
+	// Denial names the axis that refused a denied decision; empty when allowed.
+	Denial Denial
+	// NeedsGrantAfterConsent marks a prompt-eligible write to another profile or through an
+	// aggregate: an operator "allow" grants reach, but the write itself still needs the grant.
+	NeedsGrantAfterConsent bool
 }
 
 // Policy is the single decision funnel for cross-workspace access.
@@ -75,6 +80,10 @@ const (
 	TargetWorkspace TargetKind = "workspace"
 	TargetUser      TargetKind = "user"
 	TargetAggregate TargetKind = "aggregate"
+	// TargetUnresolved is a named target, such as a session id, that resolves to no visible
+	// owner. The policy treats it as outside the actor's workspace and profile so a denied
+	// caller learns nothing about whether the target exists.
+	TargetUnresolved TargetKind = "unresolved"
 )
 
 type TargetRef struct {

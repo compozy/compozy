@@ -82,10 +82,18 @@ var builtinProviders = map[string]ProviderConfig{
 			},
 		},
 	},
-	"copilot": {
-		Command:     "copilot --acp --stdio",
-		DisplayName: "GitHub Copilot CLI",
-		Harness:     ProviderHarnessACP,
+	providerCopilotKey: {
+		Command:      "copilot --acp --stdio",
+		DisplayName:  "GitHub Copilot CLI",
+		Harness:      ProviderHarnessACP,
+		AuthLoginCmd: "copilot login",
+		// The advertised terminal-auth method enables the promptless readiness
+		// probe; login keeps the native command, which takes precedence.
+		AuthACPMethod: "copilot-login",
+		Models:        ProviderModelsConfig{Reasoning: ProviderReasoningConfig{Apply: ReasoningApplyACPOption}},
+		// Copilot CLI ignores stdio MCP servers sent over ACP and advertises
+		// only HTTP and SSE MCP capabilities, so hosted tools need the bridge.
+		SessionMCPTransport: MCPServerTransportHTTP,
 	},
 	"cursor": {
 		Command:     "cursor-agent acp",

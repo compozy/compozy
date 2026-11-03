@@ -45,15 +45,18 @@ func (d *Daemon) bootWorkspaceAccess(state *bootState, sessions SessionManager) 
 }
 
 func nativeWorkspaceAccessBinderForBoot(state *bootState) *nativeWorkspaceInputBinder {
-	prompt := newWorkspaceAccessPromptBridge(
-		sessionPermissionRequesterProvider(state),
-		state.cfg.Tools.Policy.ApprovalTimeout(),
-		state.accessConsent,
-	)
 	return newNativeWorkspaceInputBinder(
 		state.workspaceResolver,
 		state.sessions,
 		state.accessPolicy,
-		prompt,
+		nativeWorkspaceAccessPrompterForBoot(state),
+	)
+}
+
+func nativeWorkspaceAccessPrompterForBoot(state *bootState) *workspaceAccessPromptBridge {
+	return newWorkspaceAccessPromptBridge(
+		sessionPermissionRequesterProvider(state),
+		state.cfg.Tools.Policy.ApprovalTimeout(),
+		state.accessConsent,
 	)
 }

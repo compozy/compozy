@@ -117,7 +117,8 @@ and on what (trimmed):
 }
 ```
 
-`target_kind` is `workspace`, `user`, or `aggregate`.
+`target_kind` is `workspace`, `user`, `aggregate`, or `unresolved` (a session id that matches no
+session).
 
 ## What the grant allows
 
@@ -125,8 +126,10 @@ and on what (trimmed):
 | ---------------------------------------------------------------- | -------------------------------- | -------------------------------- |
 | Work in its own project or User scope                            | allowed                          | allowed                          |
 | Reach another project, or User from a project                    | permission mode and consent      | allowed, audited                 |
-| Another profile (`profile=`, `all_profiles=true`)                | denied                           | allowed, audited                 |
-| All projects aggregates                                          | `agent_scope_denied`             | allowed, audited                 |
+| Read another profile (`profile=`, `all_profiles=true`)           | permission mode and consent      | allowed, audited                 |
+| Change work in another profile                                   | denied                           | allowed, audited                 |
+| Read All projects aggregates                                     | permission mode and consent      | allowed, audited                 |
+| Write through an All projects route                              | `agent_scope_denied`             | allowed, audited                 |
 | Windows and layouts on project desktops and its own User desktop | own project only                 | allowed, audited                 |
 | The All projects desktop, other profiles' desktops               | denied                           | denied                           |
 | Presence, notification receipts and acknowledgements             | denied                           | denied                           |
