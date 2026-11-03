@@ -21,13 +21,7 @@ export function AgentSetupModelRow({
 }) {
   const labelId = useId();
   const triggerId = useId();
-  const problem = model.conflictMessage ?? model.error ?? model.providerSourceError;
-  // A failed conflict reread or provider load leaves nothing to pick from; both can retry.
-  const retry =
-    model.onReload ??
-    (problem !== null && problem === model.providerSourceError
-      ? model.onRetryProviderSource
-      : null);
+  const saveProblem = model.conflictMessage ?? model.error;
   return (
     <div className="px-4 py-3" data-testid="agent-setup-model">
       <div className={cn(HOME_RUN_ROW_CLASS, "p-0")}>
@@ -78,17 +72,40 @@ export function AgentSetupModelRow({
           {...(model.modelCatalogError ? { catalogStatus: model.modelCatalogError } : {})}
         />
       </div>
-      {problem ? (
-        <div className="mt-2 flex min-w-0 items-center gap-1.5 pl-6" role="alert">
-          <p className="text-small-body text-destructive" data-testid="agent-setup-model-error">
-            {problem}
-          </p>
-          {retry ? (
-            <Button className="shrink-0" onClick={retry} size="xs" type="button" variant="ghost">
-              Retry
-            </Button>
-          ) : null}
-        </div>
+      {/* A failed conflict reread or provider load leaves nothing to pick from; each can retry. */}
+      <ModelRowProblem
+        message={saveProblem}
+        onRetry={model.onReload}
+        testId="agent-setup-model-error"
+      />
+      <ModelRowProblem
+        message={model.providerSourceError}
+        onRetry={model.onRetryProviderSource}
+        testId="agent-setup-model-provider-error"
+      />
+    </div>
+  );
+}
+
+function ModelRowProblem({
+  message,
+  onRetry,
+  testId,
+}: {
+  message: string | null;
+  onRetry: (() => void) | null;
+  testId: string;
+}) {
+  if (!message) return null;
+  return (
+    <div className="mt-2 flex min-w-0 items-center gap-1.5 pl-6" role="alert">
+      <p className="text-small-body text-destructive" data-testid={testId}>
+        {message}
+      </p>
+      {onRetry ? (
+        <Button className="shrink-0" onClick={onRetry} size="xs" type="button" variant="ghost">
+          Retry
+        </Button>
       ) : null}
     </div>
   );

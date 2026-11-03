@@ -275,19 +275,25 @@ describe("AgentProfileHome", () => {
     expect(onUseDefault).toHaveBeenCalledOnce();
   });
 
-  it("Should offer Retry when providers fail to load", async () => {
+  it("Should offer Retry for a failed provider load even beside a save message", async () => {
     const onRetryProviderSource = vi.fn();
     renderHome(
       pageFixture({
         model: modelFixture({
           providerOptions: [],
           providerSourceError: "Couldn't load providers",
+          conflictMessage: "This agent changed somewhere else. Pick the model again.",
           onRetryProviderSource,
         }),
       })
     );
     const row = screen.getByTestId("agent-setup-model");
-    expect(within(row).getByRole("alert")).toHaveTextContent("Couldn't load providers");
+    expect(within(row).getByTestId("agent-setup-model-error")).toHaveTextContent(
+      "This agent changed somewhere else."
+    );
+    expect(within(row).getByTestId("agent-setup-model-provider-error")).toHaveTextContent(
+      "Couldn't load providers"
+    );
     await userEvent.setup().click(within(row).getByRole("button", { name: "Retry" }));
     expect(onRetryProviderSource).toHaveBeenCalledOnce();
   });

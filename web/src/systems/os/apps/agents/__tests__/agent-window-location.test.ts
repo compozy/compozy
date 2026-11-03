@@ -57,8 +57,8 @@ describe("parseAgentWindowLocation", () => {
     const pin = { workspace: "ws-compozy", profile: "ops" };
     expect(at("/agents/triage", pin)).toMatchObject({ kind: "detail", search: pin });
     expect(at("/agents/triage/memory", pin)).toMatchObject({ kind: "page", search: pin });
-    expect(at("/agents/triage/settings", { ...pin, section: "runtime" })).toMatchObject({
-      search: { ...pin, panel: "model" },
+    expect(at("/agents/triage/settings", { ...pin, section: "access" })).toMatchObject({
+      search: { ...pin, panel: "tools" },
     });
     expect(at("/agents/triage", { profile: "  " })).toMatchObject({ search: {} });
   });

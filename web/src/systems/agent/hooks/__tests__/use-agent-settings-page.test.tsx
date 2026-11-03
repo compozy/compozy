@@ -1,10 +1,10 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { primaryAgentFixture } from "@/systems/agent/testing";
-import { resetProfileViews, setProfileView } from "@/systems/profiles";
+import { resetProfileViews, setProfileView, useProfileReadScope } from "@/systems/profiles";
 
 const mocks = vi.hoisted(() => ({
   agent: undefined as unknown,
@@ -75,6 +75,7 @@ vi.mock("../use-unsaved-guard", () => ({
 }));
 
 import { AgentApiError, AgentDigestConflictError } from "../../adapters/agent-api";
+import { agentKeys } from "../../lib/query-keys";
 import { useAgentRuntimeEditor } from "../use-agent-runtime-editor";
 import { useAgentSettingsPage } from "../use-agent-settings-page";
 
@@ -388,54 +389,68 @@ describe("useAgentRuntimeEditor", () => {
     expect(mocks.updateMutateAsync).toHaveBeenCalledTimes(2);
   });
 
+  // The page reads the agent through the detail query; the conflict reread refreshes that query.
+  function renderQueryBacked(server: { agent: unknown; offline: boolean }) {
+    return renderHook(
+      () => {
+        const { destination } = useProfileReadScope();
+        const { data } = useQuery({
+          queryKey: agentKeys.detail(primaryAgentFixture.name, "ws-test", destination),
+          queryFn: () =>
+            server.offline ? Promise.reject(new Error("offline")) : Promise.resolve(server.agent),
+        });
+        return { agent: data, editor: useAgentRuntimeEditor({ agent: data as never }) };
+      },
+      { wrapper: createWrapper() }
+    );
+  }
+
   it("Should hold picks until a conflict's reread brings the fresh digest", async () => {
-    let finishReread = () => {};
-    const reread = vi
-      .spyOn(QueryClient.prototype, "refetchQueries")
-      .mockReturnValue(new Promise<void>(resolve => (finishReread = resolve)));
-    const agent = workspaceAgent();
-    const { result, rerender } = renderEditor(agent);
+    const server = { agent: workspaceAgent() as unknown, offline: false };
+    const { result } = renderQueryBacked(server);
+    await waitFor(() => expect(result.current.agent).toBeDefined());
 
     act(() =>
-      result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
+      result.current.editor.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
     );
+    server.agent = workspaceAgent({ definition_digest: "fresh-digest" });
     await act(async () => saves[0]!.reject(new AgentDigestConflictError("stale")));
-
-    expect(result.current.isPending).toBe(true);
-    expect(result.current.conflictMessage).toBe(
+    expect(result.current.editor.conflictMessage).toBe(
       "This agent changed somewhere else. Pick the model again."
     );
-    await act(async () => finishReread());
-    await waitFor(() => expect(result.current.isPending).toBe(false));
+    await waitFor(() => expect(result.current.editor.isPending).toBe(false));
 
-    rerender({ current: { ...agent, definition_digest: "fresh-digest" } });
-    act(() => result.current.onChange({ provider: "claude", model: "opus", reasoning_effort: "" }));
+    act(() =>
+      result.current.editor.onChange({ provider: "claude", model: "opus", reasoning_effort: "" })
+    );
     expect(savedParams(1).params).toMatchObject({ expected_digest: "fresh-digest" });
-    reread.mockRestore();
   });
 
   it("Should keep picks held when the conflict reread fails, until a retry succeeds", async () => {
-    const reread = vi
-      .spyOn(QueryClient.prototype, "refetchQueries")
-      .mockRejectedValueOnce(new Error("offline"))
-      .mockResolvedValueOnce(undefined);
-    const { result } = renderEditor(workspaceAgent());
+    const server = { agent: workspaceAgent() as unknown, offline: false };
+    const { result } = renderQueryBacked(server);
+    await waitFor(() => expect(result.current.agent).toBeDefined());
 
     act(() =>
-      result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
+      result.current.editor.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
     );
+    server.offline = true;
     await act(async () => saves[0]!.reject(new AgentDigestConflictError("stale")));
-
     await waitFor(() =>
-      expect(result.current.error).toBe("Couldn't load this agent's latest version.")
+      expect(result.current.editor.error).toBe("Couldn't load this agent's latest version.")
     );
-    expect(result.current.isPending).toBe(true);
-    expect(result.current.onReload).not.toBeNull();
+    expect(result.current.editor.isPending).toBe(true);
 
-    await act(async () => result.current.onReload!());
-    await waitFor(() => expect(result.current.isPending).toBe(false));
-    expect(result.current.onReload).toBeNull();
-    reread.mockRestore();
+    server.offline = false;
+    server.agent = workspaceAgent({ definition_digest: "fresh-digest" });
+    await act(async () => result.current.editor.onReload!());
+    await waitFor(() => expect(result.current.editor.isPending).toBe(false));
+    expect(result.current.editor.onReload).toBeNull();
+
+    act(() =>
+      result.current.editor.onChange({ provider: "claude", model: "opus", reasoning_effort: "" })
+    );
+    expect(savedParams(1).params).toMatchObject({ expected_digest: "fresh-digest" });
   });
 
   it("Should restore server truth and show the error when a save fails", async () => {
@@ -463,7 +478,8 @@ describe("useAgentRuntimeEditor", () => {
 
     act(() => result.current.onUseDefault());
 
-    expect(result.current.overridden).toBe(false);
+    // The saved override still shows until the return to the default lands.
+    expect(result.current.overridden).toBe(true);
     // The server resolves the default's speed; the current one stays until the reread.
     expect(result.current.speed).toBe("fast");
     expect(result.current.isPending).toBe(true);

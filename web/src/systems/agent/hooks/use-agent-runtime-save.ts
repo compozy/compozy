@@ -58,7 +58,8 @@ function runtimeView(agent: AgentPayload | undefined, pending: Intended | null) 
   const value: RuntimeSelectorValue = pending?.value ?? resolveAgentRuntimeValue(agent);
   const speed: RuntimeSpeed =
     pending?.speed ?? agent?.effective_runtime?.speed ?? agent?.speed ?? "normal";
-  if (pending) return { value, speed, overridden: pending.value !== null };
+  // A pending pick overrides; a pending return to the default keeps the saved state until it lands.
+  if (pending?.value) return { value, speed, overridden: true };
   const overridden = agent ? hasAgentRuntimeOverride(buildSettingsDraftFromAgent(agent)) : false;
   return { value, speed, overridden };
 }
@@ -103,7 +104,9 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
     report(owner, { conflict: CONFLICT, reread: "running" });
     void queryClient
       .invalidateQueries({ queryKey: detailKey })
-      .then(() => queryClient.refetchQueries({ queryKey: detailKey }, { throwOnError: true }))
+      .then(() =>
+        queryClient.refetchQueries({ queryKey: detailKey, exact: true }, { throwOnError: true })
+      )
       .then(
         () => report(owner, { conflict: CONFLICT }),
         () => report(owner, { error: REREAD_FAILED, reread: "failed" })
