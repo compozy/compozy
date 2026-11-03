@@ -222,7 +222,10 @@ func newProfileMoveHarness(t *testing.T) *profileMoveHarness {
 	return newProfileMoveHarnessWith(t, nil)
 }
 
-func newProfileMoveHarnessWith(t *testing.T, catalog func(*globaldb.GlobalDB) store.SessionCatalog) *profileMoveHarness {
+func newProfileMoveHarnessWith(
+	t *testing.T,
+	catalog func(*globaldb.GlobalDB) store.SessionCatalog,
+) *profileMoveHarness {
 	t.Helper()
 	h := newHarness(t)
 	db := openManagerInputQueueStore(t)
