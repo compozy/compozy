@@ -60,6 +60,7 @@ func addStaysOnHardeningSchemas(t *testing.T, baseline map[string]any) {
 			t.Fatal("approved agent instance tool errors: no historical tool error enums found")
 		}
 	}
+	relaxTriggerCreatePrompt(t, baseline)
 	components := current["components"].(map[string]any)["schemas"].(map[string]any)
 	walker := approvedAdditionWalker{
 		oldComponents: baseline["components"].(map[string]any)["schemas"].(map[string]any),
@@ -237,4 +238,26 @@ func copyApprovedRequired(expected, actual map[string]any, added []string) {
 
 func escapePointerToken(token string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(token, "~", "~0"), "/", "~1")
+}
+
+// relaxTriggerCreatePrompt records the one approved loosening: an agent_instance trigger may omit
+// its prompt, so the create request no longer lists it as required. Agent targets still need one,
+// which the automation model enforces.
+func relaxTriggerCreatePrompt(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	node := baseline
+	for _, key := range []string{
+		"paths", "/api/automation/triggers", "post", "requestBody", "content", "application/json", "schema",
+	} {
+		next, ok := node[key].(map[string]any)
+		if !ok {
+			t.Fatalf("approved trigger prompt relaxation: missing object %q", key)
+		}
+		node = next
+	}
+	required, ok := node["required"].([]any)
+	if !ok || !slices.Contains(required, any("prompt")) {
+		t.Fatal("approved trigger prompt relaxation: historical create request does not require prompt")
+	}
+	node["required"] = slices.DeleteFunc(slices.Clone(required), func(value any) bool { return value == "prompt" })
 }

@@ -9422,7 +9422,7 @@ export interface components {
       fire_limit?: components["schemas"]["FireLimitConfig"] | null;
       loop_target?: components["schemas"]["LoopTarget"] | null;
       name: string;
-      prompt: string;
+      prompt?: string;
       retry?: components["schemas"]["RetryConfig"] | null;
       /** @enum {string} */
       scope: "global" | "workspace" | "user" | "@user";

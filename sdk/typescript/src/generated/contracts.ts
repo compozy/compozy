@@ -965,7 +965,7 @@ export interface AutomationTriggerCreateParams {
   target_kind?: TargetKind;
   agent_name: string;
   workspace_id?: string;
-  prompt: string;
+  prompt?: string;
   event: string;
   filter?: Record<string, string>;
   loop_target?: LoopTarget;

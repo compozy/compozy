@@ -1794,7 +1794,7 @@ export type CreateTriggerRequest = {
   fire_limit?: FireLimitConfig | null;
   loop_target?: LoopTarget | null;
   name: string;
-  prompt: string;
+  prompt?: string;
   retry?: RetryConfig | null;
   scope: "global" | "workspace" | "user" | "@user";
   target_instance_scope?: string;

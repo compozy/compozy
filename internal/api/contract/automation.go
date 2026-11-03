@@ -260,22 +260,23 @@ func (r UpdateJobRequest) HasChanges() bool {
 
 // CreateTriggerRequest is the shared automation trigger create payload.
 type CreateTriggerRequest struct {
-	TargetInstanceScope string                         `json:"target_instance_scope,omitempty"`
-	Scope               automationpkg.Scope            `json:"scope"`
-	Name                string                         `json:"name"`
-	TargetKind          automationpkg.TargetKind       `json:"target_kind,omitempty"`
-	AgentName           string                         `json:"agent_name"`
-	WorkspaceID         string                         `json:"workspace_id,omitempty"`
-	Prompt              string                         `json:"prompt"`
-	Event               string                         `json:"event"`
-	Filter              map[string]string              `json:"filter,omitempty"`
-	LoopTarget          *automationpkg.LoopTarget      `json:"loop_target,omitempty"`
-	Enabled             *bool                          `json:"enabled,omitempty"`
-	Retry               *automationpkg.RetryConfig     `json:"retry,omitempty"`
-	FireLimit           *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
-	WebhookID           string                         `json:"webhook_id,omitempty"`
-	EndpointSlug        string                         `json:"endpoint_slug,omitempty"`
-	WebhookSecretValue  string                         `json:"webhook_secret_value,omitempty"`
+	TargetInstanceScope string                   `json:"target_instance_scope,omitempty"`
+	Scope               automationpkg.Scope      `json:"scope"`
+	Name                string                   `json:"name"`
+	TargetKind          automationpkg.TargetKind `json:"target_kind,omitempty"`
+	AgentName           string                   `json:"agent_name"`
+	WorkspaceID         string                   `json:"workspace_id,omitempty"`
+	// Prompt is required for an agent target and optional for an agent_instance target.
+	Prompt             string                         `json:"prompt,omitempty"`
+	Event              string                         `json:"event"`
+	Filter             map[string]string              `json:"filter,omitempty"`
+	LoopTarget         *automationpkg.LoopTarget      `json:"loop_target,omitempty"`
+	Enabled            *bool                          `json:"enabled,omitempty"`
+	Retry              *automationpkg.RetryConfig     `json:"retry,omitempty"`
+	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
+	WebhookID          string                         `json:"webhook_id,omitempty"`
+	EndpointSlug       string                         `json:"endpoint_slug,omitempty"`
+	WebhookSecretValue string                         `json:"webhook_secret_value,omitempty"`
 }
 
 // UpdateTriggerRequest is the shared automation trigger patch payload.

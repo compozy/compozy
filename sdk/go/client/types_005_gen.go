@@ -171,7 +171,7 @@ type CreateTriggerRequest struct {
 	TargetKind          TargetKind        `json:"target_kind,omitempty"`
 	AgentName           string            `json:"agent_name"`
 	WorkspaceID         string            `json:"workspace_id,omitempty"`
-	Prompt              string            `json:"prompt"`
+	Prompt              string            `json:"prompt,omitempty"`
 	Event               string            `json:"event"`
 	Filter              map[string]string `json:"filter,omitempty"`
 	LoopTarget          *LoopTarget       `json:"loop_target,omitempty"`

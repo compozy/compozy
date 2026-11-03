@@ -150,6 +150,7 @@ export function automationTriggerToFormDraft(trigger: AutomationTrigger): Automa
   const isWebhook = event.trim() === WEBHOOK_EVENT;
   return {
     ...shared,
+    prompt: shared.prompt ?? "",
     schedule: createAutomationJobDraft().schedule,
     start: isWebhook ? "webhook" : "event",
     event: isWebhook ? DEFAULT_EVENT : event,
