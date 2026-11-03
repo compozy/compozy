@@ -2,7 +2,7 @@ import { Folder } from "@compozy/ui/icons";
 
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@compozy/ui";
-import { AgentIdentityMark } from "@/systems/agent/components/agent-identity-mark";
+import { AgentMark } from "@/systems/agent/components/agent-mark";
 
 import {
   sessionPartyMark,
@@ -25,8 +25,15 @@ export function SessionQueuedSender({
       title={party.pending ? undefined : `From ${title}`}
       className="inline-flex max-w-[70%] min-w-0 items-center gap-1.5 text-micro text-muted-foreground"
     >
-      {party.staysOnAgent ? (
-        <AgentIdentityMark aria-hidden="true" name={party.staysOnAgent} quietIdle size={18} />
+      {party.staysOn ? (
+        <AgentMark
+          aria-hidden="true"
+          appearance={party.staysOn.appearance}
+          label={party.staysOn.label}
+          quietIdle
+          size={18}
+          state="unknown"
+        />
       ) : (
         <SubagentAvatar provider={sessionPartyMark(party)} size="sm" className="size-4.5" />
       )}

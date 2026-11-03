@@ -53,9 +53,18 @@ export function staysOnTargetModel(input: {
       labels.set(instance.agent_name, instance.label || instance.agent_name);
     }
   }
+  const counts = new Map<string, number>();
+  for (const label of labels.values()) counts.set(label, (counts.get(label) ?? 0) + 1);
+  // Two agents can share a display name; only then does the name tell them apart.
   const agents = [...labels]
-    .map(([name, label]) => ({ name, label }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .sort(
+      ([nameA, labelA], [nameB, labelB]) =>
+        labelA.localeCompare(labelB) || nameA.localeCompare(nameB)
+    )
+    .map(([name, label]) => ({
+      name,
+      label: (counts.get(label) ?? 0) > 1 ? `${label} (${name})` : label,
+    }));
   const own = input.instances.filter(instance => instance.agent_name === agent);
   const scopes = own
     .map(instance => ({

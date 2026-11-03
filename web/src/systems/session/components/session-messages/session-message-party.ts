@@ -1,3 +1,5 @@
+import type { ReportAgent } from "../../lib/session-report-identity";
+
 // The other session a session-message surface names (S1–S4), and the copy
 // built from it. COPY.md §6 "Session Message Terms".
 
@@ -22,8 +24,11 @@ export interface SessionMessageParty {
    * `billing-reviewer` running on Claude still draws the Claude mark.
    */
   provider?: string | null;
-  /** The stays-on agent this session is the current main of (S12): its mark replaces the provider's. */
-  staysOnAgent?: string | null;
+  /**
+   * The stays-on agent this session is the current main of (S12): its face, from the instance as in
+   * its reports, replaces the provider's mark.
+   */
+  staysOn?: ReportAgent | null;
   /** Set only when the party lives in another workspace than this transcript (Gap 5). */
   workspaceName?: string | null;
 }

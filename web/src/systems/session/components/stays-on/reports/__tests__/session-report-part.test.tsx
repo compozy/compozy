@@ -627,6 +627,30 @@ describe("SessionReportPart skill review", () => {
     expect(await screen.findByText(/You rejected/)).toBeInTheDocument();
   });
 
+  it("Should offer only Reject for a review whose draft can't be read [UT-059]", async () => {
+    skillReviews.fetch.mockResolvedValue(
+      skillReview({
+        files: undefined,
+        problem: "skill_review_invalid",
+        runs_automatically: { hooks: 0, mcp_servers: 0, scripts: 0 },
+      })
+    );
+    skillReviews.decide.mockResolvedValue(skillReview({ state: "rejected" }));
+    render(<SessionReportPart data={SKILL_REPORT} />, { wrapper: harness(vi.fn()) });
+
+    const card = await screen.findByRole("article", { name: "New skill to review: triage-sync" });
+    expect(card).toHaveTextContent("CompozyOS can't read this version.");
+    expect(screen.queryByRole("button", { name: "Review skill" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+
+    expect(skillReviews.decide).toHaveBeenCalledWith(
+      { id: "skr-1", profile: INSTANCE.profile_name },
+      "reject",
+      "sha256:one"
+    );
+    expect(await screen.findByText(/You rejected/)).toBeInTheDocument();
+  });
+
   it("Should warn about invisible characters in a script [UT-059]", async () => {
     skillReviews.fetch.mockResolvedValue(
       skillReview({
