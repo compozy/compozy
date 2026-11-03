@@ -12,7 +12,18 @@ import {
   REPORT_ENGINEER,
   REPORT_TRIAGE,
 } from "../../../mocks/report-fixtures";
+import { SessionReportSendContext } from "../../../lib/session-report-send";
 import { AwayDigest } from "./away-digest";
+import {
+  ContextBlockedReport,
+  ContextFullReport,
+  ContextRotatedNotice,
+  PauseNotice,
+  ResumeButton,
+  ResumedReceipt,
+  WakeLostReport,
+} from "./pause-reports";
+import { RotatedMarker } from "./rotated-marker";
 import { Notice, SettledAsk, ShoulderTap } from "./report-entry";
 import { SupersededNotice } from "./superseded-notice";
 
@@ -32,6 +43,16 @@ export const meta = definePrototype({
     { id: "interrupted", label: "Interrupted run" },
     { id: "rotation-failed", label: "Rotation failed" },
     { id: "superseded", label: "Superseded, read-only" },
+    { id: "pause", label: "S2 · Paused at the limit" },
+    { id: "pause-resuming", label: "S2 · Resume pending" },
+    { id: "pause-resume-failed", label: "S2 · Resume failed" },
+    { id: "pause-resumed", label: "S2 · After you resume" },
+    { id: "away-paused", label: "S3 · Paused while you were away" },
+    { id: "expired-action", label: "S8 · Expired, tool and action" },
+    { id: "wake-lost", label: "A wake-up was lost" },
+    { id: "context-full", label: "Context full" },
+    { id: "context-blocked", label: "Context full, can't move yet" },
+    { id: "context-rotated", label: "Context full, new conversation" },
   ],
 });
 
@@ -50,6 +71,32 @@ function Tap({ chosen, footnote }: { chosen?: string; footnote?: string }) {
     />
   );
 }
+
+function Pause({ pending, failed }: { pending?: boolean; failed?: boolean }) {
+  return (
+    <PauseNotice
+      action={<ResumeButton failed={failed} onResume={() => undefined} pending={pending} />}
+      agent={REPORT_TRIAGE}
+      held={2}
+      steps={300}
+      when="04:12"
+    />
+  );
+}
+
+const PAUSED_AWAY = {
+  ...AWAY_FIXTURE,
+  reports: [
+    ...AWAY_FIXTURE.reports,
+    {
+      id: "arpt-pause",
+      kind: "failure" as const,
+      reason: "unattended",
+      state: "pending" as const,
+      created_at: "2026-11-01T04:12:00Z",
+    },
+  ],
+};
 
 function Settled({ provider = false }: { provider?: boolean }) {
   return (
@@ -134,6 +181,60 @@ function View({ state }: { state?: string }) {
       );
     case "superseded":
       return <SupersededNotice onOpenCurrent={() => undefined} />;
+    case "pause":
+      return <Pause />;
+    case "pause-resuming":
+      return <Pause pending />;
+    case "pause-resume-failed":
+      return <Pause failed />;
+    case "pause-resumed":
+      return <ResumedReceipt agent={REPORT_TRIAGE} delivered={2} />;
+    case "away-paused": {
+      const paused = deriveAwayDigest(PAUSED_AWAY, REPORT_TRIAGE.label, AWAY_NOW, [], 2);
+      return paused ? (
+        <AwayDigest
+          action={<ResumeButton onResume={() => undefined} />}
+          agent={REPORT_TRIAGE}
+          digest={paused}
+        />
+      ) : null;
+    }
+    case "expired-action":
+      return (
+        <SettledAsk
+          actions={
+            <Button size="sm" type="button" variant="secondary">
+              Ask it to try again
+            </Button>
+          }
+          agent={REPORT_ENGINEER}
+          outcome="Didn't run"
+          session="Migrate tokens"
+          subject="make migrate"
+          title="Code Engineer's request went unanswered"
+          when="11:30"
+          why="Nobody answered in time, so the Bash request wasn't allowed."
+        />
+      );
+    case "wake-lost":
+      return <WakeLostReport agent={REPORT_TRIAGE} detail="CI on #1166" when="03:02" />;
+    case "context-full":
+      return <ContextFullReport agent={REPORT_TRIAGE} when="05:48" />;
+    case "context-blocked":
+      return (
+        <ContextBlockedReport
+          agent={REPORT_TRIAGE}
+          blockers={["live_descendant", "queued_input"]}
+          when="05:48"
+        />
+      );
+    case "context-rotated":
+      return (
+        <>
+          <ContextRotatedNotice agent={REPORT_TRIAGE} when="05:48" />
+          <RotatedMarker predecessorId="sess-before" />
+        </>
+      );
     default:
       return <Tap />;
   }
@@ -141,8 +242,10 @@ function View({ state }: { state?: string }) {
 
 export default function SessionReportsProto({ state }: PrototypeProps) {
   return (
-    <ThreadContentRail inset="px-8">
-      <View state={state} />
-    </ThreadContentRail>
+    <SessionReportSendContext value={() => undefined}>
+      <ThreadContentRail inset="px-8">
+        <View state={state} />
+      </ThreadContentRail>
+    </SessionReportSendContext>
   );
 }

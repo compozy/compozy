@@ -2,10 +2,9 @@
 import { useAuiState } from "@assistant-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { History } from "@compozy/ui/icons";
 import { use, useState, type ReactNode } from "react";
 
-import { Button, Marker } from "@compozy/ui";
+import { Button } from "@compozy/ui";
 
 import {
   agentInstanceAwayOptions,
@@ -29,11 +28,11 @@ import {
   ContextBlockedReport,
   ContextFullReport,
   ContextRotatedNotice,
-  ResumeAction,
-  UnattendedPauseReport,
   WakeLostReport,
 } from "./pause-reports";
+import { ResumeAction, UnattendedPauseReport } from "./unattended-pause-report";
 import { Notice, SettledAsk, ShoulderTap } from "./report-entry";
+import { RotatedMarker } from "./rotated-marker";
 
 const NO_INSTANCE = { id: "", profile_name: "" };
 
@@ -333,26 +332,5 @@ export function SessionReportPart({ data }: { data: SessionReportData }) {
         <p className="text-eyebrow text-subtle">{MAYBE_NOT_RECEIVED(agent.label)}</p>
       ) : null}
     </div>
-  );
-}
-
-export function RotatedMarker({ predecessorId }: { predecessorId: string | undefined }) {
-  const navigate = useNavigate();
-  return (
-    <Marker icon={<History aria-hidden="true" className="size-3" />}>
-      This conversation continues from an earlier one.{" "}
-      {predecessorId ? (
-        <a
-          className="underline"
-          href={`/session/${encodeURIComponent(predecessorId)}`}
-          onClick={event => {
-            event.preventDefault();
-            void navigate({ to: "/session/$id", params: { id: predecessorId } });
-          }}
-        >
-          Read it
-        </a>
-      ) : null}
-    </Marker>
   );
 }

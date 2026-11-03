@@ -1,47 +1,38 @@
 /**
  * S2 and the context and wake reports: why it stopped, what's waiting, and the one way forward.
- * Resume happens in place; the report settles into a record once the agent runs again.
+ * Pure views; `unattended-pause-report.tsx` owns the resume they offer.
  */
 import { Bell, Play } from "@compozy/ui/icons";
 import { use, useState, type ReactNode } from "react";
 
 import { Button, Receipt } from "@compozy/ui";
 
-import {
-  agentInstancePausedUnattended as pausedUnattended,
-  agentUnattendedSteps,
-  useResumeAgentInstances,
-  type AgentInstancePayload,
-} from "@/systems/agent";
-
 import { blockerPhrases, deliveredPhrase, heldPhrase } from "../../../lib/session-pause";
 import { SessionReportSendContext } from "../../../lib/session-report-send";
 import type { ReportAgent } from "../../../lib/session-report-identity";
 import { Notice } from "./report-entry";
 
-/** Resume with its pending and failed states, for every place a paused report sits. */
-export function ResumeAction({
-  instances,
+/** The Resume control as it looks pending and failed; the caller owns the mutation. */
+export function ResumeButton({
   label = "Resume",
-  onResumed,
+  pending = false,
+  failed = false,
+  disabled = false,
+  onResume,
 }: {
-  instances: readonly AgentInstancePayload[];
   label?: string;
-  onResumed?: () => void;
+  pending?: boolean;
+  failed?: boolean;
+  disabled?: boolean;
+  onResume?: () => void;
 }) {
-  const resume = useResumeAgentInstances();
   return (
     <span className="flex flex-wrap items-center gap-2">
-      <Button
-        disabled={resume.isPending || instances.length === 0}
-        onClick={() => resume.mutate(instances, { onSuccess: onResumed })}
-        size="sm"
-        type="button"
-      >
+      <Button disabled={pending || disabled} onClick={onResume} size="sm" type="button">
         <Play aria-hidden="true" />
-        {resume.isPending ? "Resuming…" : label}
+        {pending ? "Resuming…" : label}
       </Button>
-      {resume.isError ? (
+      {failed ? (
         <span className="text-small-body text-destructive" role="alert">
           Couldn't resume. Try again.
         </span>
@@ -60,45 +51,42 @@ function AskAction({ prompt, children }: { prompt: string; children: ReactNode }
   );
 }
 
-/** The brake tripped: it stopped, says what's waiting, and resumes in place. */
-export function UnattendedPauseReport({
+/** The brake tripped: it stopped and says what's waiting. */
+export function PauseNotice({
   agent,
-  instance,
+  steps,
+  held,
   when,
+  action,
 }: {
   agent: ReportAgent;
-  instance: AgentInstancePayload | undefined;
+  /** The limit it reached; 0 when unknown. */
+  steps: number;
+  held: number;
   when: string;
+  action?: ReactNode;
 }) {
-  // What was waiting when you resumed here, so the record can say what it delivered.
-  const [delivered, setDelivered] = useState<number | null>(null);
-  if (instance && !pausedUnattended(instance)) {
-    const handed = deliveredPhrase(delivered ?? 0);
-    return (
-      <Receipt icon={<Play aria-hidden="true" />}>
-        You resumed <b>{agent.label}</b>.{handed ? ` ${handed}` : null}
-      </Receipt>
-    );
-  }
-  const steps = instance ? agentUnattendedSteps(instance) : 0;
-  const held = heldPhrase(instance?.held_wakes ?? 0);
+  const waiting = heldPhrase(held);
   return (
     <Notice
-      actions={
-        instance ? (
-          <ResumeAction
-            instances={[instance]}
-            onResumed={() => setDelivered(instance.held_wakes ?? 0)}
-          />
-        ) : null
-      }
+      actions={action}
       agent={agent}
       body={`I took ${steps || "many"} steps without hearing from you, so I stopped here. You can still message me; I'll answer and stay paused.`}
-      detail={held ? <p className="text-body text-fg">{held} for you to resume.</p> : null}
+      detail={waiting ? <p className="text-body text-fg">{waiting} for you to resume.</p> : null}
       state="paused"
       title="Paused until you're back"
       when={when}
     />
+  );
+}
+
+/** What the report settles into once it runs again. */
+export function ResumedReceipt({ agent, delivered }: { agent: ReportAgent; delivered: number }) {
+  const handed = deliveredPhrase(delivered);
+  return (
+    <Receipt icon={<Play aria-hidden="true" />}>
+      You resumed <b>{agent.label}</b>.{handed ? ` ${handed}` : null}
+    </Receipt>
   );
 }
 
