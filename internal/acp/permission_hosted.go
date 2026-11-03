@@ -21,7 +21,8 @@ const (
 	// hostedApprovalTTL bounds how long an operator approval of a hosted call at
 	// the provider gate waits for the same call to reach the daemon gate.
 	hostedApprovalTTL = 2 * time.Minute
-	// maxHostedApprovals caps remembered provider-gate approvals per process.
+	// maxHostedApprovals caps remembered provider-gate approvals and announced
+	// hosted calls per process.
 	maxHostedApprovals = 64
 )
 
@@ -35,8 +36,9 @@ type hostedToolCall struct {
 // hostedToolCall identifies a provider permission request for Compozy's hosted
 // MCP server from the provider's structured identity, never from the title: the
 // Claude adapter reports the serving MCP server and its config source, and
-// Codex reports the server and tool it dispatches to. The process must also
-// have sent that server in session/new or session/load.
+// Codex reports the server and tool it dispatches to, in the request or in the
+// tool call it announced under the same id. The process must also have sent
+// that server in session/new or session/load.
 func (p *AgentProcess) hostedToolCall(request acpsdk.RequestPermissionRequest) (hostedToolCall, bool) {
 	if p == nil || !p.sentHostedMCPServer() {
 		return hostedToolCall{}, false
@@ -44,7 +46,34 @@ func (p *AgentProcess) hostedToolCall(request acpsdk.RequestPermissionRequest) (
 	if call, ok := claudeHostedToolCall(request); ok {
 		return call, true
 	}
-	return codexHostedToolCall(request)
+	if call, ok := codexHostedToolCall(request.ToolCall.RawInput); ok {
+		return call, true
+	}
+	if request.ToolCall.RawInput != nil {
+		return hostedToolCall{}, false
+	}
+	return p.hostedAnnounced.lookup(string(request.ToolCall.ToolCallId))
+}
+
+// observeHostedToolCall remembers a hosted call the provider announced on the
+// bound session. Codex asks permission for an MCP call with only the tool call
+// id; the announcement carries the server, tool, and arguments.
+func (p *AgentProcess) observeHostedToolCall(update acpsdk.SessionUpdate) {
+	var (
+		id       acpsdk.ToolCallId
+		rawInput any
+	)
+	switch {
+	case update.ToolCall != nil:
+		id, rawInput = update.ToolCall.ToolCallId, update.ToolCall.RawInput
+	case update.ToolCallUpdate != nil:
+		id, rawInput = update.ToolCallUpdate.ToolCallId, update.ToolCallUpdate.RawInput
+	default:
+		return
+	}
+	if call, ok := codexHostedToolCall(rawInput); ok && strings.TrimSpace(string(id)) != "" {
+		p.hostedAnnounced.record(string(id), call)
+	}
 }
 
 func (p *AgentProcess) sentHostedMCPServer() bool {
@@ -86,8 +115,8 @@ func claudeHostedToolCall(request acpsdk.RequestPermissionRequest) (hostedToolCa
 	return newHostedToolCall(toolID, request.ToolCall.RawInput)
 }
 
-func codexHostedToolCall(request acpsdk.RequestPermissionRequest) (hostedToolCall, bool) {
-	input, ok := request.ToolCall.RawInput.(map[string]any)
+func codexHostedToolCall(rawInput any) (hostedToolCall, bool) {
+	input, ok := rawInput.(map[string]any)
 	if !ok || stringMapValue(input, "server") != toolmeta.HostedServerName {
 		return hostedToolCall{}, false
 	}
@@ -155,6 +184,37 @@ func (p *AgentProcess) defersHostedTool(request acpsdk.RequestPermissionRequest)
 	}
 	_, ok := p.hostedToolCall(request)
 	return ok
+}
+
+// hostedAnnouncements maps recent provider tool call ids to the hosted call
+// they announced, oldest evicted first.
+type hostedAnnouncements struct {
+	mu    sync.Mutex
+	order []string
+	calls map[string]hostedToolCall
+}
+
+func (a *hostedAnnouncements) record(id string, call hostedToolCall) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.calls == nil {
+		a.calls = make(map[string]hostedToolCall)
+	}
+	if _, ok := a.calls[id]; !ok {
+		if len(a.order) >= maxHostedApprovals {
+			delete(a.calls, a.order[0])
+			a.order = a.order[1:]
+		}
+		a.order = append(a.order, id)
+	}
+	a.calls[id] = call
+}
+
+func (a *hostedAnnouncements) lookup(id string) (hostedToolCall, bool) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	call, ok := a.calls[strings.TrimSpace(id)]
+	return call, ok
 }
 
 // hostedApprovals remembers hosted calls the operator approved at the provider

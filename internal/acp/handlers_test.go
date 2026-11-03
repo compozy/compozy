@@ -3117,6 +3117,22 @@ func TestHostedToolPermissionGates(t *testing.T) {
 			},
 		}
 	}
+	codexAnnounced := func(t *testing.T, proc *AgentProcess) acpsdk.RequestPermissionRequest {
+		t.Helper()
+		proc.observeHostedToolCall(acpsdk.SessionUpdate{ToolCall: &acpsdk.SessionUpdateToolCall{
+			ToolCallId: "exec-announced",
+			Title:      "mcp.compozy-hosted-tools.compozy__worktree_create",
+			Kind:       acpsdk.ToolKindExecute,
+			RawInput: map[string]any{
+				"server": "compozy-hosted-tools", "tool": "compozy__worktree_create", "arguments": input,
+			},
+		}})
+		return acpsdk.RequestPermissionRequest{
+			SessionId: "sess-direct",
+			Options:   options,
+			ToolCall:  acpsdk.ToolCallUpdate{ToolCallId: "exec-announced", Kind: new(acpsdk.ToolKindExecute)},
+		}
+	}
 	titleOnly := claudeRequest("", "", hostedName)
 	titleOnly.ToolCall.Meta = nil
 	newProcess := func(t *testing.T, mode compozyconfig.PermissionMode, hosted bool) (*AgentProcess, *activePromptState) {
@@ -3231,6 +3247,19 @@ func TestHostedToolPermissionGates(t *testing.T) {
 		collectEventsUntilCount(t, active.events, 1)
 		return <-result
 	}
+
+	t.Run("Should not prompt for a Codex call identified by its announced tool call", func(t *testing.T) {
+		t.Parallel()
+		proc, active := newProcess(t, compozyconfig.PermissionModeApproveEdits, true)
+		response, err := proc.handleRequestPermission(t.Context(), codexAnnounced(t, proc))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertOutcome(t, response, "allow-once")
+		if len(active.events) != 0 {
+			t.Fatalf("announced hosted call prompted: events=%d", len(active.events))
+		}
+	})
 
 	t.Run("Should ask once for a destructive hosted call at approve-edits", func(t *testing.T) {
 		t.Parallel()

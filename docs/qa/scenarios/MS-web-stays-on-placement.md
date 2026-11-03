@@ -67,6 +67,15 @@ keeps the instance's tool, skill, MCP server, and path ceilings. Hidden triage s
 `TestInstancePermissionMode` and `TestTriageSessionPermissions` own the level rules; the same walk ran
 through a real daemon with a scripted ACP provider.
 
+Stays-on CompozyOS tool prompts (#1200): create the built-in Orchestrator instance (it ships
+`permissions: auto`) and a stays-on agent pinned to `approve-edits`, both on Claude, with
+`[permissions].mode = "approve-all"`. Ask each to call `monitor_create`, `worktree_create` and
+`session_create`, then `worktree_remove` on the worktree it made. Count `permission` events in
+`compozy session events <main>`: the three coordination calls produce none, and `worktree_remove`
+produces exactly one pending prompt, which runs once approved. Repeat on Codex (`workspace-write`).
+`TestHostedToolPermissionGates`, `TestCoordinationPermissionLevels` and
+`TestDaemonNativeRuntimePolicyResolver` own the gate rules.
+
 B1 resume authority: race an own-instance agent resume against an operator pause,
 then against a fatigue pause. Resume must read and authorize the current pause
 reason inside the same write transaction as the cap check and state transition.

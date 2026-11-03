@@ -10928,6 +10928,46 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
 	})
 
+	t.Run("Should decide native tools at the session's effective level", func(t *testing.T) {
+		t.Parallel()
+		// #1200: an undeclared stays-on agent runs at approve-edits; its native tools
+		// must not fall back to the global approve-all while the provider gate defers.
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		for _, tc := range []struct {
+			sessionType session.Type
+			effective   string
+			want        toolspkg.PermissionMode
+		}{
+			{session.SessionTypeUser, string(compozyconfig.PermissionModeApproveEdits), toolspkg.PermissionModeApproveEdits},
+			{session.SessionTypeUser, "", toolspkg.PermissionModeApproveAll},
+			{session.SessionTypeSpawned, string(compozyconfig.PermissionModeApproveReads), toolspkg.PermissionModeApproveReads},
+		} {
+			resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+				Config: &cfg,
+				Sessions: &nativeToolPolicySessionStub{info: &session.Info{
+					ID: "sess-level", ProfileID: store.DefaultProfileID, AgentName: "orchestrator",
+					State: session.StateActive, Type: tc.sessionType, EffectivePermissions: tc.effective,
+				}},
+				AgentResolver: &nativeToolPolicyAgentResolverStub{agent: compozyconfig.AgentDef{
+					Name: "orchestrator", Provider: "opencode", Prompt: "Coordinate.", Kind: "stays_on",
+				}},
+				ApprovalAvailable: true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: "sess-level"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if inputs.SystemPermissionMode != tc.want {
+				t.Fatalf("type=%s effective=%q mode = %q, want %q",
+					tc.sessionType, tc.effective, inputs.SystemPermissionMode, tc.want)
+			}
+		}
+	})
+
 	t.Run("Should resolve daemon policy without treating its audit label as an authored agent", func(t *testing.T) {
 		t.Parallel()
 

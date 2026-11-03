@@ -96,6 +96,7 @@ type AgentProcess struct {
 	permissionTimeout      time.Duration
 	permissionWaitResolver PermissionWaitResolver
 	hostedApprovals        hostedApprovals
+	hostedAnnounced        hostedAnnouncements
 	compozySessionID       string
 	controlTimeout         time.Duration
 
