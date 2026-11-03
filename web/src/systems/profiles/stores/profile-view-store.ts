@@ -38,6 +38,11 @@ export const profileViewStore = createStore({
       if (context.view && sameView(context.view, event.view)) return undefined;
       return { ...context, view: event.view, switchEpoch: context.switchEpoch + 1 };
     },
+    /** A failed switch's rollback: the view returns, and it was never a switch. */
+    viewRestored: (context, event: { view: ProfileView }) => {
+      if (context.view && sameView(context.view, event.view)) return undefined;
+      return { ...context, view: event.view };
+    },
     viewCleared: context => (context.view === null ? undefined : { ...context, view: null }),
     /** Drops a deleted or archived profile so the next read resolves a live one. */
     profileSwept: (context, event: { profile: string }) => {
@@ -79,7 +84,7 @@ export function restoreProfileView(previous: ProfileView | null): void {
     profileViewStore.trigger.viewCleared();
     return;
   }
-  profileViewStore.trigger.viewChanged({ view: previous });
+  profileViewStore.trigger.viewRestored({ view: previous });
 }
 
 export function sweepProfileView(profile: string): void {
