@@ -1254,6 +1254,9 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		if marked.Session.Badge != session.BadgeStopped || marked.Session.AttentionDismissible {
 			t.Fatalf("mark-seen session = %#v, want a stopped session with nothing left to dismiss", marked.Session)
 		}
+		if marked.Session.Failure == nil || marked.Session.Failure.Kind != store.FailureProcess {
+			t.Fatalf("mark-seen failure = %#v, want the retained process failure", marked.Session.Failure)
+		}
 		later.seenRefusal = session.AttentionBlockerPendingClarify
 		refused := performRequest(
 			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/mark-seen", nil,
@@ -2027,7 +2030,7 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 // TestSessionLifecycleProfileScope verifies owner access and wrong-profile mutation refusal.
 func TestSessionLifecycleProfileScope(t *testing.T) {
 	t.Parallel()
-	for _, action := range []string{"archive", "unarchive", "rename", "adopt", "detach"} {
+	for _, action := range []string{"archive", "unarchive", "rename", "adopt", "detach", "mark-seen"} {
 		for _, selector := range []string{"", "?profile=default", "?profile=marketing", "?all_profiles=true"} {
 			t.Run("Should scope "+action+" with "+selector, func(t *testing.T) {
 				t.Parallel()
@@ -2061,6 +2064,14 @@ func TestSessionLifecycleProfileScope(t *testing.T) {
 				}
 				fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
 				fixture.Handlers.Profiles = sessionProfileServiceStub{}
+				if action == "mark-seen" {
+					fixture.Handlers.Sessions = &laterHandlerSessionManager{
+						StubSessionManager: *manager,
+						seenFn: func(ctx context.Context, id string) (*session.Info, error) {
+							return mutate(ctx, info.WorkspaceID, id)
+						},
+					}
+				}
 				path := "/workspaces/ws-workspace/sessions/sess-profile/" + action
 				method := http.MethodPost
 				var body []byte
@@ -6986,9 +6997,13 @@ type laterHandlerSessionManager struct {
 	withChildren []bool
 	seenRefusal  session.AttentionBlocker
 	seenErr      error
+	seenFn       func(context.Context, string) (*session.Info, error)
 }
 
-func (s *laterHandlerSessionManager) MarkAttentionSeen(_ context.Context, id string) (*session.Info, error) {
+func (s *laterHandlerSessionManager) MarkAttentionSeen(ctx context.Context, id string) (*session.Info, error) {
+	if s.seenFn != nil {
+		return s.seenFn(ctx, id)
+	}
 	if s.seenRefusal != session.AttentionBlockerNone {
 		return nil, &session.AttentionRequiresActionError{SessionID: id, Blocker: s.seenRefusal}
 	}
