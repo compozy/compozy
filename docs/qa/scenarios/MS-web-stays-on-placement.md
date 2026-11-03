@@ -212,7 +212,10 @@ without you." in the hover card and context menu, and "Took N steps without you"
 agent's places. The hover card shows "Wakes up next" with the wake's description or kind
 and its time, and for a paused agent how many things wait for resume. With two or more
 agents paused for `unattended` in one scope, the `+N` crew panel offers Resume all,
-which resumes only those; one such pause offers none. The agent's What it cost reads
+which resumes only those, one at a time; one such pause offers none. When the
+`agents.stays_on.max_active_instances` cap refuses some, the panel names them with the
+daemon's reason ("Ops Lead and Release Watch didn't resume. You have 10 active stays-on
+agents. …"); a refused resume leaves the agent paused with its counter unchanged. The agent's What it cost reads
 the token count with "No price available" when usage has no price, never "≈ $0.00" and
 never a plan claim, since the data carries no billing basis.
 Web suites: `stays-on-row.test.tsx`, `agent-instance.test.ts`, `agent-team.test.ts`
