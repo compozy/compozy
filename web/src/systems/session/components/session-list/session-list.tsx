@@ -367,15 +367,17 @@ function SessionListControls({
         onNewFolder={onNewFolder}
         newFolderUnavailable={newFolderUnavailable}
         createMenu={
-          view.groupBy === "none" && view.focusedWorkspaceId ? (
-            <StaysOnCreateMenu
-              newFolderUnavailable={newFolderUnavailable}
-              onNewFolder={onNewFolder}
-              onNewSession={onNewSession}
-              staysOn={{ place: view.focusedWorkspaceId, name: view.focusedScopeName }}
-              testId={testIdPrefix}
-            />
-          ) : undefined
+          <StaysOnCreateMenu
+            newFolderUnavailable={newFolderUnavailable}
+            onNewFolder={onNewFolder}
+            onNewSession={onNewSession}
+            staysOn={
+              view.focusedWorkspaceId
+                ? { place: view.focusedWorkspaceId, name: view.focusedScopeName }
+                : null
+            }
+            testId={testIdPrefix}
+          />
         }
         testIdPrefix={testIdPrefix}
       />

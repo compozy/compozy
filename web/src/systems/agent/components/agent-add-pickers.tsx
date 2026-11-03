@@ -87,6 +87,11 @@ function PlaceRow({
   );
 }
 
+/** The list row value of a place; Global's row reads "global" so search matches the word. */
+function placeRowValue(place: string) {
+  return place === GLOBAL_SCOPE ? "global" : place;
+}
+
 export interface AgentPlaceOption {
   id: string;
   name: string;
@@ -126,7 +131,7 @@ export function AgentPlaceList({
             onSelect={() => onChange?.(GLOBAL_SCOPE)}
             selected={value === GLOBAL_SCOPE}
             title="Global"
-            value="global"
+            value={placeRowValue(GLOBAL_SCOPE)}
           />
         </CommandSelectGroup>
       ) : null}
@@ -173,6 +178,7 @@ function PickerFrame({
   trigger,
   search,
   align = "start",
+  highlighted,
   open,
   onOpenChange,
   children,
@@ -181,6 +187,8 @@ function PickerFrame({
   /** Omitted when there's nothing to search: the popover is a plain note. */
   search?: string;
   align?: "start" | "end";
+  /** The row the list opens on, so Enter accepts it. */
+  highlighted?: string;
   children: ReactNode;
 }) {
   if (!search) {
@@ -196,7 +204,12 @@ function PickerFrame({
   return (
     <CommandSelect onOpenChange={onOpenChange} open={open}>
       <PopoverTrigger render={trigger} />
-      <CommandSelectShell align={align} className="w-80" inputPlaceholder={search}>
+      <CommandSelectShell
+        align={align}
+        className="w-80"
+        commandProps={highlighted ? { defaultValue: highlighted } : undefined}
+        inputPlaceholder={search}
+      >
         {children}
       </CommandSelectShell>
     </CommandSelect>
@@ -368,6 +381,8 @@ export function AgentPicker({
 export interface AgentScopePickerProps extends PickerOpenState {
   /** Scopes the agent doesn't run in yet. */
   scopes: readonly AgentPlaceOption[];
+  /** The preselected scope: checked, and where the list opens. */
+  value?: string;
   capacity?: AgentInstanceCapacity;
   /** Provider name when it isn't signed in. */
   signedOut?: string | null;
@@ -379,6 +394,7 @@ export interface AgentScopePickerProps extends PickerOpenState {
 /** From a card or profile `+`: where to add this agent. */
 export function AgentScopePicker({
   scopes,
+  value,
   capacity,
   signedOut = null,
   onSignIn,
@@ -392,6 +408,7 @@ export function AgentScopePicker({
   return (
     <PickerFrame
       align="end"
+      highlighted={value ? placeRowValue(value) : undefined}
       onOpenChange={onOpenChange}
       open={open}
       search={none ? undefined : "Search projects…"}
@@ -409,6 +426,7 @@ export function AgentScopePicker({
           heading="Add to"
           onChange={onPick}
           places={scopes}
+          value={value}
         />
       )}
     </PickerFrame>

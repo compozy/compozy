@@ -1,27 +1,84 @@
+import { useState } from "react";
+
 import {
   AgentPicker,
+  AgentScopePicker,
   useAgentCreateHost,
   useAgentInstanceActions,
   useAgentInstanceCapacity,
 } from "@/systems/agent";
 
 import { useSignedOutProviders } from "../../hooks/use-signed-out-providers";
+import { useStaysOnPlaces } from "../../hooks/use-stays-on-places";
 import { useUnplacedAgents } from "../../hooks/use-unplaced-agents";
 
-/**
- * S16 from a project `+`: a popover over the same button. It mounts only while open, so nothing
- * reads the catalog until someone asks.
- */
-export function StaysOnAddPicker({
-  place,
-  name,
-  onOpenChange,
-}: {
+/** Where an added stays-on agent lives. */
+export interface SessionListStaysOnTarget {
   /** A workspace id, or `@user` for Global. */
   place: string;
   name: string;
+}
+
+interface StaysOnAddPickerProps {
+  /** The list's one concrete scope, or `null` when it spans several: the operator picks one first. */
+  target: SessionListStaysOnTarget | null;
+  onOpenChange: (open: boolean) => void;
+}
+
+/** Invisible anchor: the picker opens over the `+` that mounted it. */
+const ANCHOR = (
+  <button
+    aria-hidden="true"
+    className="pointer-events-none absolute inset-0 opacity-0"
+    tabIndex={-1}
+    type="button"
+  />
+);
+
+/**
+ * S16 from a `+`: a popover over the same button. It mounts only while open, so nothing
+ * reads the catalog until someone asks.
+ */
+export function StaysOnAddPicker({ target, onOpenChange }: StaysOnAddPickerProps) {
+  const [picked, setPicked] = useState(target);
+  if (picked === null) return <StaysOnPlaceStep onOpenChange={onOpenChange} onPick={setPicked} />;
+  return <StaysOnAgentStep onOpenChange={onOpenChange} target={picked} />;
+}
+
+/** Where the agent lives, for a list showing several projects. */
+function StaysOnPlaceStep({
+  onPick,
+  onOpenChange,
+}: {
+  onPick: (target: SessionListStaysOnTarget) => void;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { places, preselected } = useStaysOnPlaces();
+  const capacity = useAgentInstanceCapacity();
+  return (
+    <AgentScopePicker
+      capacity={capacity}
+      onOpenChange={onOpenChange}
+      onPick={place =>
+        onPick({ place, name: places.find(option => option.id === place)?.name ?? place })
+      }
+      open
+      scopes={places}
+      trigger={ANCHOR}
+      value={preselected}
+    />
+  );
+}
+
+/** Which agent to add to the settled place. */
+function StaysOnAgentStep({
+  target,
+  onOpenChange,
+}: {
+  target: SessionListStaysOnTarget;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { place, name } = target;
   const host = useAgentCreateHost();
   const capacity = useAgentInstanceCapacity();
   const actions = useAgentInstanceActions();
@@ -44,14 +101,7 @@ export function StaysOnAddPicker({
       }}
       open
       signedOut={signedOut}
-      trigger={
-        <button
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-0"
-          tabIndex={-1}
-          type="button"
-        />
-      }
+      trigger={ANCHOR}
     />
   );
 }

@@ -1902,7 +1902,11 @@ describe("SessionList folders and manual order", () => {
     const { layout, onNewSession } = renderLayout();
     await user.click(screen.getByTestId("session-sidebar-new"));
     const items = await screen.findAllByRole("menuitem");
-    expect(items.map(item => item.textContent)).toEqual(["New session", "New folder"]);
+    expect(items.map(item => item.textContent)).toEqual([
+      "New session",
+      "New folder",
+      "Add stays-on agentStays here and checks in on its own",
+    ]);
     await user.click(screen.getByRole("menuitem", { name: "New session" }));
     expect(onNewSession).toHaveBeenCalledWith();
 
@@ -2961,6 +2965,20 @@ describe("SessionList breadth and Group by", () => {
     expect(toggleGroup).not.toHaveBeenCalled();
   });
 
+  // Invariant: the toolbar + offers Add stays-on agent in any grouping, and a list spanning
+  // several projects asks where the agent lives first (#1181).
+  it("Should offer Add stays-on agent from the toolbar + of a grouped All projects list", async () => {
+    const user = userEvent.setup();
+    renderList({ sessions: [], view: grouped() });
+
+    await user.click(screen.getByTestId("session-sidebar-new"));
+    await user.click(await screen.findByTestId("session-sidebar-add-stays-on"));
+
+    for (const place of ["Global", "Alpha", "Beta"]) {
+      expect(await screen.findByRole("option", { name: new RegExp(place) })).toBeInTheDocument();
+    }
+  });
+
   it("Should ask which profile a group + New folder belongs to under All profiles", async () => {
     const user = userEvent.setup();
     const groups = projectSessionGroups(
@@ -3267,7 +3285,7 @@ describe("SessionList loading", () => {
     expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
     // The rail's own controls are real and already usable while its rows load.
     expect(screen.getByRole("searchbox", { name: "Filter sessions" })).toBeEnabled();
-    expect(screen.getByTestId("session-sidebar-new-session")).toBeEnabled();
+    expect(screen.getByTestId("session-sidebar-new")).toBeEnabled();
 
     update(sessions, { ...view, catalog: sessionListCatalogFixture({ sessions }) });
 

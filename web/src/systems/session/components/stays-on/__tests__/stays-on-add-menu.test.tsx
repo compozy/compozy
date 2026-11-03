@@ -8,6 +8,7 @@ import { UIProvider } from "@compozy/ui";
 
 import { AgentCreateHostProvider } from "@/systems/agent";
 import { agentFixtures, agentInstanceFixture } from "@/systems/agent/mocks";
+import { workspaceFixtures } from "@/systems/workspace/mocks/fixtures";
 
 import { StaysOnCreateMenu } from "../stays-on-create-menu";
 
@@ -17,6 +18,14 @@ const { mockApi } = vi.hoisted(() => ({
     create: vi.fn(),
     catalog: vi.fn(),
   },
+}));
+
+vi.mock("@/systems/workspace/adapters/workspace-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/workspace/adapters/workspace-api")>()),
+  fetchWorkspaces: async () => [
+    { ...workspaceFixtures[0]!, id: "ws-compozy", name: "compozy", archived_at: null },
+    { ...workspaceFixtures[0]!, id: "ws-site", name: "site", archived_at: null },
+  ],
 }));
 
 vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
@@ -49,7 +58,12 @@ function grouped(name: string, label: string, kind = "stays_on") {
 
 const openDialog = vi.fn();
 
-function renderMenu() {
+function renderMenu(
+  staysOn: Parameters<typeof StaysOnCreateMenu>[0]["staysOn"] = {
+    place: "ws-compozy",
+    name: "compozy",
+  }
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>
@@ -60,14 +74,9 @@ function renderMenu() {
       </UIProvider>
     </QueryClientProvider>
   );
-  render(
-    <StaysOnCreateMenu
-      onNewSession={vi.fn()}
-      staysOn={{ place: "ws-compozy", name: "compozy" }}
-      testId="group"
-    />,
-    { wrapper }
-  );
+  render(<StaysOnCreateMenu onNewSession={vi.fn()} staysOn={staysOn} testId="group" />, {
+    wrapper,
+  });
 }
 
 async function openPicker(user: ReturnType<typeof userEvent.setup>) {
@@ -119,5 +128,25 @@ describe("Project + Add stays-on agent", () => {
     await user.click(await screen.findByText("Create new"));
 
     expect(openDialog).toHaveBeenCalledWith({ place: "ws-compozy" });
+  });
+
+  // Invariant: a list spanning several places asks where the agent lives before adding it,
+  // preselecting a place and accepting another.
+  it("Should ask where the agent lives when the list spans several places", async () => {
+    const user = userEvent.setup();
+    renderMenu(null);
+
+    await openPicker(user);
+
+    expect(await screen.findByText("Global")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /compozy/ })).toHaveAttribute("data-checked", "true");
+    await user.click(screen.getByRole("option", { name: /site/ }));
+    expect(await screen.findByText("Add to site")).toBeInTheDocument();
+    await user.click(screen.getByText("Scout"));
+
+    await waitFor(() =>
+      expect(mockApi.create.mock.calls[0]?.[0]).toEqual({ agent: "scout", workspace: "ws-site" })
+    );
+    expect(mockApi.catalog.mock.calls.at(-1)?.[0]).toMatchObject({ workspace: "ws-site" });
   });
 });
