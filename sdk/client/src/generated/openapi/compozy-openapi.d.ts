@@ -4701,7 +4701,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Stream one profile-scoped terminal catalog */
+    /** Stream the workspace terminal catalog */
     get: operations["streamTerminalsAggregate"];
     put?: never;
     post?: never;
@@ -7076,7 +7076,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Stream one profile-scoped terminal catalog */
+    /** Stream the workspace terminal catalog */
     get: operations["streamTerminalCatalog"];
     put?: never;
     post?: never;
@@ -7943,6 +7943,7 @@ export interface components {
       now: string;
       pause_reason: string;
       profile_id: string;
+      profile_name: string;
       provider: string;
       /** Format: int64 */
       quiet_streak: number;
@@ -21279,8 +21280,10 @@ export interface operations {
         cursor?: string;
         /** @description Page size */
         limit?: string;
-        /** @description Act as this profile by name */
+        /** @description Read one profile's rows by name */
         profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;
@@ -21295,6 +21298,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentInstanceListResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Request failed */
@@ -21397,6 +21409,15 @@ export interface operations {
           "application/json": components["schemas"]["AgentInstanceResponse"];
         };
       };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
       /** @description Request failed */
       403: {
         headers: {
@@ -21488,6 +21509,15 @@ export interface operations {
           "application/json": components["schemas"]["AgentInstanceResponse"];
         };
       };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
       /** @description Request failed */
       403: {
         headers: {
@@ -21556,8 +21586,10 @@ export interface operations {
   getAgentInstance: {
     parameters: {
       query?: {
-        /** @description Act as this profile by name */
+        /** @description Read one profile's rows by name */
         profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -21575,6 +21607,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentInstanceResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Request failed */
@@ -21663,6 +21704,15 @@ export interface operations {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
       };
       /** @description Request failed */
       403: {
@@ -21758,6 +21808,15 @@ export interface operations {
           "application/json": components["schemas"]["AgentInstanceResponse"];
         };
       };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
       /** @description Request failed */
       403: {
         headers: {
@@ -21826,8 +21885,10 @@ export interface operations {
   getAgentInstanceAway: {
     parameters: {
       query?: {
-        /** @description Act as this profile by name */
+        /** @description Read one profile's rows by name */
         profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -21845,6 +21906,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentInstanceAwayResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Request failed */
@@ -21934,6 +22004,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentInstanceSeenResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Request failed */
@@ -22039,6 +22118,15 @@ export interface operations {
           "application/json": components["schemas"]["AgentInstanceCheckResponse"];
         };
       };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
       /** @description Request failed */
       403: {
         headers: {
@@ -22111,8 +22199,10 @@ export interface operations {
         cursor?: string;
         /** @description Page size from 1 to 100; defaults to 50 */
         limit?: number;
-        /** @description Act as this profile by name */
+        /** @description Read one profile's rows by name */
         profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -22130,6 +22220,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentInstanceCheckInsResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Request failed */
@@ -22221,6 +22320,15 @@ export interface operations {
           "application/json": components["schemas"]["AgentInstanceResponse"];
         };
       };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
       /** @description Request failed */
       403: {
         headers: {
@@ -22289,8 +22397,10 @@ export interface operations {
   getAgentInstanceOccurrence: {
     parameters: {
       query?: {
-        /** @description Act as this profile by name */
+        /** @description Read one profile's rows by name */
         profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -22310,6 +22420,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentInstanceOccurrenceResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Request failed */
@@ -22401,6 +22520,15 @@ export interface operations {
           "application/json": components["schemas"]["AgentInstanceResponse"];
         };
       };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
       /** @description Request failed */
       403: {
         headers: {
@@ -22475,8 +22603,10 @@ export interface operations {
         cursor?: string;
         /** @description Page size */
         limit?: string;
-        /** @description Act as this profile by name */
+        /** @description Read one profile's rows by name */
         profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -22494,6 +22624,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentInstanceReportsResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Request failed */
@@ -22583,6 +22722,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentInstanceResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Request failed */
@@ -22681,6 +22829,15 @@ export interface operations {
           "application/json": components["schemas"]["AgentSkillReviewsResponse"];
         };
       };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
       /** @description Request failed */
       403: {
         headers: {
@@ -22768,6 +22925,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentSkillReviewResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Request failed */
@@ -22864,6 +23030,15 @@ export interface operations {
           "application/json": components["schemas"]["AgentSkillReviewResponse"];
         };
       };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
       /** @description Request failed */
       403: {
         headers: {
@@ -22956,6 +23131,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentSkillReviewResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Request failed */
@@ -24707,6 +24891,15 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentActivityResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
         };
       };
       /** @description Request failed */
@@ -44662,8 +44855,10 @@ export interface operations {
         all_workspaces?: boolean;
         /** @description Repeatable project IDs or @user; requires all_workspaces=true */
         workspace_ids?: string[];
-        /** @description Act as this profile by name */
+        /** @description Read one profile's rows by name */
         profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: {
         /** @description Resume after the last terminal catalog event */
@@ -56548,8 +56743,10 @@ export interface operations {
   downloadTerminalArtifact: {
     parameters: {
       query?: {
-        /** @description Act as this profile by name */
+        /** @description Read one profile's rows by name */
         profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -56938,8 +57135,10 @@ export interface operations {
   downloadTerminalRecording: {
     parameters: {
       query?: {
-        /** @description Act as this profile by name */
+        /** @description Read one profile's rows by name */
         profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -57029,8 +57228,10 @@ export interface operations {
   streamTerminalCatalog: {
     parameters: {
       query?: {
-        /** @description Act as this profile by name */
+        /** @description Read one profile's rows by name */
         profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: {
         /** @description Resume after the last terminal catalog event */
@@ -57121,8 +57322,10 @@ export interface operations {
   getTerminal: {
     parameters: {
       query?: {
-        /** @description Act as this profile by name */
+        /** @description Read one profile's rows by name */
         profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {

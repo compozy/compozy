@@ -386,6 +386,7 @@ type DownloadTerminalArtifactParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	ID          string  `url:"id"`
 	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // DownloadTerminalArtifact Download one terminal spill artifact
@@ -396,6 +397,9 @@ func (c *Client) DownloadTerminalArtifact(ctx context.Context, params DownloadTe
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -412,6 +416,7 @@ type DownloadTerminalRecordingParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	ID          string  `url:"id"`
 	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // DownloadTerminalRecording Download one terminal recording
@@ -422,6 +427,9 @@ func (c *Client) DownloadTerminalRecording(ctx context.Context, params DownloadT
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()

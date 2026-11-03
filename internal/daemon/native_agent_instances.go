@@ -104,7 +104,7 @@ func (n *daemonNativeTools) agentInstanceCall(
 		return toolspkg.ToolResult{}, err
 	}
 	if action == "list" {
-		return n.listNativeInstances(ctx, api, scope, input, actor, query)
+		return n.listNativeInstances(ctx, api, input, actor, query)
 	}
 	instance, err := nativeInstanceTarget(ctx, api, actor, input.ID, query)
 	if err != nil {
@@ -273,7 +273,7 @@ const (
 )
 
 func (n *daemonNativeTools) listNativeInstances(ctx context.Context, api *core.AgentInstanceAPI,
-	scope toolspkg.Scope, input nativeInstanceInput, actor workspaceaccess.ActorRef,
+	input nativeInstanceInput, actor workspaceaccess.ActorRef,
 	query agentinstance.ListQuery) (toolspkg.ToolResult, error) {
 	if input.Peers {
 		query.AllWorkspaces = input.AllWorkspaces || input.Workspace == ""
@@ -283,5 +283,5 @@ func (n *daemonNativeTools) listNativeInstances(ctx context.Context, api *core.A
 		}
 		return structuredResult(page, "Reachable instance peers")
 	}
-	return nativeInstanceList(ctx, api, scope.ProfileID, actor, query)
+	return nativeInstanceList(ctx, api, actor, query)
 }

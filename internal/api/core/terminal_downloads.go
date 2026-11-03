@@ -11,20 +11,19 @@ import (
 	"os"
 	"strings"
 
-	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/gin-gonic/gin"
 )
 
 func (h *BaseHandlers) DownloadTerminalRecording(c *gin.Context) {
-	service, profileID, ok := h.terminalService(c, false)
+	service, scope, ok := h.terminalReadService(c)
 	if !ok {
 		return
 	}
 	workspaceID := strings.TrimSpace(c.Param("workspace_id"))
 	recordingID := strings.TrimSpace(c.Param("id"))
 	ref, reader, err := service.Journal().Recording(
-		c.Request.Context(), workspaceID, store.ReadScope{ProfileID: profileID}, recordingID,
+		c.Request.Context(), workspaceID, scope, recordingID,
 	)
 	if err != nil {
 		h.respondTerminalError(c, terminalDownloadError(recordingID, err))
@@ -40,14 +39,14 @@ func (h *BaseHandlers) DownloadTerminalRecording(c *gin.Context) {
 }
 
 func (h *BaseHandlers) DownloadTerminalArtifact(c *gin.Context) {
-	service, profileID, ok := h.terminalService(c, false)
+	service, scope, ok := h.terminalReadService(c)
 	if !ok {
 		return
 	}
 	workspaceID := strings.TrimSpace(c.Param("workspace_id"))
 	artifactID := strings.TrimSpace(c.Param("id"))
 	reader, err := service.Journal().Artifact(
-		c.Request.Context(), workspaceID, store.ReadScope{ProfileID: profileID}, artifactID,
+		c.Request.Context(), workspaceID, scope, artifactID,
 	)
 	if err != nil {
 		h.respondTerminalError(c, terminalDownloadError(artifactID, err))

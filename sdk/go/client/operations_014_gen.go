@@ -292,6 +292,7 @@ type GetTerminalParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	ID          string  `url:"id"`
 	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // GetTerminal Read one terminal
@@ -302,6 +303,9 @@ func (c *Client) GetTerminal(ctx context.Context, params GetTerminalParams) (*Te
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()

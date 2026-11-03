@@ -29,6 +29,7 @@ type AgentInstancePayload struct {
 	NeedsAttention      bool                   `json:"needs_attention"`
 	ID                  string                 `json:"id"`
 	ProfileID           string                 `json:"profile_id"`
+	ProfileName         string                 `json:"profile_name"`
 	AgentName           string                 `json:"agent_name"`
 	WorkspaceID         string                 `json:"workspace_id"`
 	State               string                 `json:"state"`

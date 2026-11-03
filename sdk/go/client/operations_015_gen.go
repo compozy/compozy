@@ -430,8 +430,9 @@ func (c *Client) ListAgentHeartbeatHistory(ctx context.Context, params ListAgent
 
 // ListAgentInstanceCheckInsParams carries the path, query, and header parameters.
 type ListAgentInstanceCheckInsParams struct {
-	ID      string  `url:"id"`
-	Cursor  *string `url:"cursor"`
-	Limit   *int    `url:"limit"`
-	Profile *string `url:"profile"`
+	ID          string  `url:"id"`
+	Cursor      *string `url:"cursor"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }

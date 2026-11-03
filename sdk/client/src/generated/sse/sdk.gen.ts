@@ -243,7 +243,7 @@ export const streamTask = <ThrowOnError extends boolean = true>(
   });
 
 /**
- * Stream one profile-scoped terminal catalog
+ * Stream the workspace terminal catalog
  */
 export const streamTerminalsAggregate = <ThrowOnError extends boolean = true>(
   options?: Options<StreamTerminalsAggregateData, ThrowOnError, StreamTerminalsAggregateResponse>
@@ -294,7 +294,7 @@ export const streamSession = <ThrowOnError extends boolean = true>(
   });
 
 /**
- * Stream one profile-scoped terminal catalog
+ * Stream the workspace terminal catalog
  */
 export const streamTerminalCatalog = <ThrowOnError extends boolean = true>(
   options: Options<StreamTerminalCatalogData, ThrowOnError, StreamTerminalCatalogResponse>

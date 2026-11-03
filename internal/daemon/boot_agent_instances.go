@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store/globaldb"
 )
@@ -91,6 +92,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 			return definitions.instancePayload(ctx, instance, repo)
 		},
 		Authority: agentinstance.Authority{Callers: repo},
+		Profiles:  instanceProfileOwners(state.profiles),
 	}
 	d.bindInstanceSkillReviews(state, provider, definitions)
 	state.deps.AgentInstances = state.agentInstances
@@ -132,4 +134,13 @@ func instanceStateEffects(
 		}
 		return err
 	}
+}
+
+// instanceProfileOwners keeps an unwired profile manager a nil reader, so payloads fall back to
+// the default owner label instead of calling through a nil manager.
+func instanceProfileOwners(profiles *profile.Manager) core.ProfileOwnerReader {
+	if profiles == nil {
+		return nil
+	}
+	return profiles
 }

@@ -3247,6 +3247,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		correctProviderSettingsCommandAuthorship(t, baseline)
 		addProviderUsageSettingsSection(t, baseline)
 		addStaysOnHardeningSchemas(t, baseline)
+		// #1195: instance payloads label their owner profile.
+		if addAgentInstanceProfileName(baseline) == 0 {
+			t.Fatal("approved instance profile_name addition: no historical instance schemas found")
+		}
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -3523,6 +3527,11 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	t.Helper()
+	// #1195: terminal detail, catalog stream and downloads document the owner-labeled aggregate.
+	addAllProfilesReadParameter(baseline, []string{
+		terminalPath + "/{id}", terminalPath + "/stream",
+		terminalPath + "/recordings/{id}", terminalPath + "/artifacts/{id}",
+	})
 	// #1076: optional Later state on session payloads; existing fields and required sets stay unchanged.
 	if addSessionLaterSchemas(baseline) == 0 {
 		t.Fatal("approved Later addition: no historical session schemas found")
@@ -4975,6 +4984,61 @@ func addSessionCatalogFacetsLater(value any) int {
 		if ok && properties["by_profile"] != nil && properties["by_workspace"] != nil &&
 			properties["facets"] != nil {
 			properties["later"] = map[string]any{"type": "integer"}
+			count++
+		}
+	}
+	return count
+}
+
+// addAllProfilesReadParameter documents all_profiles after the scoped profile selector on GETs
+// that already existed in the baseline; paths absent from the baseline stay untouched.
+func addAllProfilesReadParameter(baseline map[string]any, paths []string) {
+	items := baseline["paths"].(map[string]any)
+	for _, path := range paths {
+		item, ok := items[path].(map[string]any)
+		if !ok {
+			continue
+		}
+		operation, ok := item["get"].(map[string]any)
+		if !ok {
+			continue
+		}
+		parameters, _ := operation["parameters"].([]any)
+		at := slices.IndexFunc(parameters, func(parameter any) bool {
+			return parameter.(map[string]any)["name"] == specProfileKey
+		})
+		if at < 0 {
+			continue
+		}
+		parameters[at].(map[string]any)["description"] = "Read one profile's rows by name"
+		operation["parameters"] = slices.Concat(parameters[:at+1], []any{map[string]any{
+			"description": "Read the owner-labeled all-profiles aggregate",
+			"in":          "query", "name": "all_profiles",
+			"schema": map[string]any{"type": "boolean"},
+		}}, parameters[at+1:])
+	}
+}
+
+func addAgentInstanceProfileName(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addAgentInstanceProfileName(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addAgentInstanceProfileName(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["held_wakes"] != nil && properties["main_session_id"] != nil &&
+			properties["profile_name"] == nil {
+			properties["profile_name"] = map[string]any{"type": "string"}
+			if required, ok := node["required"].([]any); ok {
+				required = append(required, "profile_name")
+				slices.SortFunc(required, func(a, b any) int { return strings.Compare(a.(string), b.(string)) })
+				node["required"] = required
+			}
 			count++
 		}
 	}

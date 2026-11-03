@@ -11,9 +11,9 @@ func terminalCatalogOperation(transports []Transport, workspace ParameterSpec) O
 		Path:        terminalPath + "/stream",
 		AppAccess:   AppAccessDenied,
 		OperationID: "streamTerminalCatalog",
-		Summary:     "Stream one profile-scoped terminal catalog", Tags: []string{specWorkspacesKey},
+		Summary:     "Stream the workspace terminal catalog", Tags: []string{specWorkspacesKey},
 		Transports: transports,
-		Parameters: withProfileSelector(
+		Parameters: withProfileScope(
 			workspace,
 			optionalLastEventIDHeaderParam("Resume after the last terminal catalog event"),
 		),
@@ -77,7 +77,7 @@ func terminalGetOperation(transports []Transport, workspace, id ParameterSpec) O
 		"getTerminal",
 		"Read one terminal",
 		transports,
-		withProfileSelector(workspace, id),
+		withProfileScope(workspace, id),
 		nil,
 		[]ResponseSpec{
 			{Status: 200, Description: "OK", Body: contract.TerminalResponse{}},

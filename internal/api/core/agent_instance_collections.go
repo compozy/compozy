@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/gin-gonic/gin"
 )
 
@@ -135,10 +136,6 @@ func (h *BaseHandlers) ListAgentInstances(c *gin.Context) {
 		h.respondProfileReadScopeError(c, err)
 		return
 	}
-	if scope.AllProfiles {
-		h.respondError(c, 422, errors.New("choose one profile"))
-		return
-	}
 	all, err := parseBoolQuery(c, "all_workspaces")
 	if err != nil {
 		h.respondError(c, 422, err)
@@ -155,7 +152,7 @@ func (h *BaseHandlers) ListAgentInstances(c *gin.Context) {
 	if all && !peers && !h.requireOperatorOrGrantedAgent(c, "agent instances") {
 		return
 	}
-	query, err := h.agentInstanceListQuery(c, scope.ProfileID, all)
+	query, err := h.agentInstanceListQuery(c, scope, all)
 	if err != nil {
 		h.respondError(c, 422, err)
 		return
@@ -208,7 +205,7 @@ func (h *BaseHandlers) allowAgentDefinitionDeletion(c *gin.Context, profileID, w
 
 func (h *BaseHandlers) agentInstanceListQuery(
 	c *gin.Context,
-	profileID string,
+	scope profilepkg.ReadScope,
 	all bool,
 ) (agentinstance.ListQuery, error) {
 	workspaceID := ""
@@ -228,7 +225,8 @@ func (h *BaseHandlers) agentInstanceListQuery(
 		limit = parsed
 	}
 	return agentinstance.ListQuery{
-		ProfileID: profileID, WorkspaceID: workspaceID, AllWorkspaces: all, AfterID: c.Query("cursor"),
+		ProfileID: scope.ProfileID, AllProfiles: scope.AllProfiles,
+		WorkspaceID: workspaceID, AllWorkspaces: all, AfterID: c.Query("cursor"),
 		AgentName: c.Query("agent"), State: c.Query("state"), Limit: limit,
 	}, nil
 }

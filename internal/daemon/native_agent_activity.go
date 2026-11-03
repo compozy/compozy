@@ -29,6 +29,9 @@ func (n *daemonNativeTools) nativeAgentActivity(
 	if input.AllWorkspaces {
 		return toolspkg.ToolResult{}, errors.New("choose one workspace for agent activity")
 	}
+	if scope.AllProfiles {
+		return toolspkg.ToolResult{}, nativeInputError(req.ToolID, errors.New("agent activity belongs to one profile"))
+	}
 	target, err := n.nativeResolvedWorkspace(ctx, req.ToolID, input.Workspace, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err

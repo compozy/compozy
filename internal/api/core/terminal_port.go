@@ -1,9 +1,9 @@
 package core
 
 import (
+	"context"
 	"strings"
 
-	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/gin-gonic/gin"
@@ -12,7 +12,9 @@ import (
 // TerminalProvider is the daemon-owned terminal domain authority.
 type TerminalProvider interface{ terminalpkg.Manager }
 
-func (h *BaseHandlers) terminalAggregateService(
+// terminalReadService resolves a terminal read that admits the owner-labeled all-profiles
+// aggregate, through the same profile read policy every other read uses.
+func (h *BaseHandlers) terminalReadService(
 	c *gin.Context,
 ) (terminalpkg.Manager, store.ReadScope, bool) {
 	if h == nil || h.Terminal == nil {
@@ -22,7 +24,7 @@ func (h *BaseHandlers) terminalAggregateService(
 		return nil, store.ReadScope{}, false
 	}
 	workspaceID := strings.TrimSpace(c.Param("workspace_id"))
-	resolved, err := h.resolveTerminalProfileReadSelection(c, workspaceID)
+	resolved, err := h.resolveProfileReadSelectionForWorkspace(c, workspaceID)
 	if err != nil {
 		h.respondTerminalProfileError(c, err)
 		return nil, store.ReadScope{}, false
@@ -30,6 +32,7 @@ func (h *BaseHandlers) terminalAggregateService(
 	return h.Terminal, resolved.Scope, true
 }
 
+// terminalService resolves the one profile that owns a terminal interaction or mutation.
 func (h *BaseHandlers) terminalService(
 	c *gin.Context,
 	mutation bool,
@@ -40,25 +43,46 @@ func (h *BaseHandlers) terminalService(
 		}
 		return nil, "", false
 	}
-	var scopeID string
-	var err error
 	workspaceID := strings.TrimSpace(c.Param("workspace_id"))
+	var resolved resolvedProfileReadScope
+	var err error
 	if mutation {
-		resolved, scopeErr := h.resolveProfileMutationSelectionForWorkspace(c, workspaceID)
-		err, scopeID = scopeErr, resolved.Scope.ProfileID
+		resolved, err = h.resolveProfileMutationSelectionForWorkspace(c, workspaceID)
 	} else {
-		resolved, scopeErr := h.resolveTerminalProfileReadSelection(c, workspaceID)
-		err, scopeID = scopeErr, resolved.Scope.ProfileID
-		if scopeErr == nil && resolved.Scope.AllProfiles {
-			err = &profilepkg.Error{
-				Code: profileSelectionConflictCode, Message: "this terminal read belongs to one profile",
-				Action: "choose one profile", Cause: profilepkg.ErrInvalidInput,
-			}
+		resolved, err = h.resolveProfileReadSelectionForWorkspace(c, workspaceID)
+		if err == nil && resolved.Scope.AllProfiles {
+			err = singleProfileReadError("this terminal interaction belongs to one profile")
 		}
 	}
 	if err != nil {
 		h.respondTerminalProfileError(c, err)
 		return nil, "", false
 	}
-	return h.Terminal, scopeID, true
+	return h.Terminal, resolved.Scope.ProfileID, true
+}
+
+// terminalInScope reads one terminal from the resolved scope. The aggregate finds the
+// terminal in whichever profile owns it; the payload's profile_name labels that owner.
+func terminalInScope(
+	ctx context.Context,
+	service terminalpkg.Manager,
+	workspaceID string,
+	scope store.ReadScope,
+	id terminalpkg.ID,
+) (*terminalpkg.Info, error) {
+	if !scope.AllProfiles {
+		return service.Get(ctx, workspaceID, scope.ProfileID, id)
+	}
+	items, err := service.List(ctx, workspaceID, scope)
+	if err != nil {
+		return nil, err
+	}
+	for index := range items {
+		if items[index].ID == id {
+			return &items[index], nil
+		}
+	}
+	return nil, &terminalpkg.Error{
+		Code: terminalpkg.ErrorCodeNotFound, Message: "terminal not found", Err: terminalpkg.ErrNotFound,
+	}
 }

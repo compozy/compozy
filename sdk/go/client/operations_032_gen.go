@@ -256,9 +256,10 @@ type StreamTerminalCatalogParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	LastEventID *string `url:"Last-Event-ID"`
 	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
-// StreamTerminalCatalog Stream one profile-scoped terminal catalog
+// StreamTerminalCatalog Stream the workspace terminal catalog
 func (c *Client) StreamTerminalCatalog(ctx context.Context, params StreamTerminalCatalogParams) (*Stream[TerminalCatalogSnapshot], error) {
 	path := "/api/workspaces/{workspace_id}/terminals/stream"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
@@ -269,6 +270,9 @@ func (c *Client) StreamTerminalCatalog(ctx context.Context, params StreamTermina
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -282,9 +286,10 @@ type StreamTerminalsAggregateParams struct {
 	WorkspaceIds  *[]string `url:"workspace_ids"`
 	LastEventID   *string   `url:"Last-Event-ID"`
 	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
 }
 
-// StreamTerminalsAggregate Stream one profile-scoped terminal catalog
+// StreamTerminalsAggregate Stream the workspace terminal catalog
 func (c *Client) StreamTerminalsAggregate(ctx context.Context, params StreamTerminalsAggregateParams) (*Stream[TerminalCatalogSnapshot], error) {
 	path := "/api/terminals/catalog-stream"
 	query := url.Values{}
@@ -302,6 +307,9 @@ func (c *Client) StreamTerminalsAggregate(ctx context.Context, params StreamTerm
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -432,16 +440,6 @@ func (c *Client) TriggerAutomationJob(ctx context.Context, params TriggerAutomat
 		path += "?" + query.Encode()
 	}
 	var out RunResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// TriggerSettingsRestart Trigger a daemon restart using the persisted relaunch helper flow
-func (c *Client) TriggerSettingsRestart(ctx context.Context) (*RestartActionResponse, error) {
-	path := "/api/settings/actions/restart"
-	var out RestartActionResponse
 	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

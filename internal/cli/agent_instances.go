@@ -75,8 +75,16 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
 		return options.run(cmd, deps, action, args)
 	}
+	if action == agentListKey || action == configShowKey {
+		configureProfileReadCommand(cmd, deps)
+		cmd.Annotations = map[string]string{agentAggregateProfileReadAnnotation: "true"}
+	}
 	return cmd
 }
+
+// agentAggregateProfileReadAnnotation marks an agent read that offers --all-profiles, so the
+// single-profile default is not applied over it.
+const agentAggregateProfileReadAnnotation = "compozy.profile_read.aggregate"
 
 func resolveInstanceID(cmd *cobra.Command, client agentInstancesClient, target, workspace string) (string, error) {
 	if strings.HasPrefix(target, "ainst-") {

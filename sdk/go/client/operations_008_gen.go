@@ -240,8 +240,9 @@ func (c *Client) GetAgentHeartbeatStatus(ctx context.Context, params GetAgentHea
 
 // GetAgentInstanceParams carries the path, query, and header parameters.
 type GetAgentInstanceParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // GetAgentInstance Get an agent instance
@@ -251,6 +252,9 @@ func (c *Client) GetAgentInstance(ctx context.Context, params GetAgentInstancePa
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -264,8 +268,9 @@ func (c *Client) GetAgentInstance(ctx context.Context, params GetAgentInstancePa
 
 // GetAgentInstanceAwayParams carries the path, query, and header parameters.
 type GetAgentInstanceAwayParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // GetAgentInstanceAway Read the operator's instance away digest
@@ -275,6 +280,9 @@ func (c *Client) GetAgentInstanceAway(ctx context.Context, params GetAgentInstan
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -288,9 +296,10 @@ func (c *Client) GetAgentInstanceAway(ctx context.Context, params GetAgentInstan
 
 // GetAgentInstanceOccurrenceParams carries the path, query, and header parameters.
 type GetAgentInstanceOccurrenceParams struct {
-	ID         string  `url:"id"`
-	Occurrence string  `url:"occurrence"`
-	Profile    *string `url:"profile"`
+	ID          string  `url:"id"`
+	Occurrence  string  `url:"occurrence"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // GetAgentInstanceOccurrence Read an instance check occurrence
@@ -301,6 +310,9 @@ func (c *Client) GetAgentInstanceOccurrence(ctx context.Context, params GetAgent
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()

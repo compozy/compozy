@@ -23,6 +23,9 @@ func (c *Client) ListAgentInstanceCheckIns(ctx context.Context, params ListAgent
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
@@ -35,11 +38,12 @@ func (c *Client) ListAgentInstanceCheckIns(ctx context.Context, params ListAgent
 
 // ListAgentInstanceReportsParams carries the path, query, and header parameters.
 type ListAgentInstanceReportsParams struct {
-	ID      string  `url:"id"`
-	State   *string `url:"state"`
-	Cursor  *string `url:"cursor"`
-	Limit   *string `url:"limit"`
-	Profile *string `url:"profile"`
+	ID          string  `url:"id"`
+	State       *string `url:"state"`
+	Cursor      *string `url:"cursor"`
+	Limit       *string `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // ListAgentInstanceReports List durable instance reports
@@ -58,6 +62,9 @@ func (c *Client) ListAgentInstanceReports(ctx context.Context, params ListAgentI
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -79,6 +86,7 @@ type ListAgentInstancesParams struct {
 	Cursor        *string `url:"cursor"`
 	Limit         *string `url:"limit"`
 	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
 }
 
 // ListAgentInstances List agent instances
@@ -108,6 +116,9 @@ func (c *Client) ListAgentInstances(ctx context.Context, params ListAgentInstanc
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()

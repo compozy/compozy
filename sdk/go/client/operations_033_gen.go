@@ -8,6 +8,16 @@ import (
 	"strings"
 )
 
+// TriggerSettingsRestart Trigger a daemon restart using the persisted relaunch helper flow
+func (c *Client) TriggerSettingsRestart(ctx context.Context) (*RestartActionResponse, error) {
+	path := "/api/settings/actions/restart"
+	var out RestartActionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UnarchiveProfileParams carries the path, query, and header parameters.
 type UnarchiveProfileParams struct {
 	Name string `url:"name"`
@@ -427,16 +437,6 @@ func (c *Client) UpdateSettingsAttention(ctx context.Context, params UpdateSetti
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsAutomation Update the automation settings section
-func (c *Client) UpdateSettingsAutomation(ctx context.Context, body UpdateSettingsAutomationRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/automation"
 	var out SettingsApplyResponse
 	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
 		return nil, err

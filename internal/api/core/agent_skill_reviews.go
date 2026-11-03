@@ -34,10 +34,10 @@ func (h *BaseHandlers) ListAgentSkillReviews(c *gin.Context) {
 		return
 	}
 	if profile.AllProfiles {
-		h.respondError(c, 422, errors.New("choose one profile"))
+		h.respondProfileReadScopeError(c, singleProfileReadError("skill reviews belong to one profile"))
 		return
 	}
-	list, err := h.agentInstanceListQuery(c, profile.ProfileID, false)
+	list, err := h.agentInstanceListQuery(c, profile, false)
 	if err != nil {
 		h.respondError(c, 422, err)
 		return

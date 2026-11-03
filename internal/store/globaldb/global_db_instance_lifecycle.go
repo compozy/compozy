@@ -217,16 +217,21 @@ func (r *InstanceRepo) List(ctx context.Context, query agentinstance.ListQuery) 
 	if err := r.checkReady(ctx, "list instances"); err != nil {
 		return nil, err
 	}
-	if query.ProfileID == "" || query.Limit < 1 || query.Limit > 100 {
-		return nil, errors.New("instance list requires profile and limit from 1 to 100")
+	oneProfile := query.ProfileID != ""
+	if oneProfile == query.AllProfiles || query.Limit < 1 || query.Limit > 100 {
+		return nil, errors.New("instance list requires one profile or all profiles and limit from 1 to 100")
 	}
-	all := 0
+	all, allProfiles := 0, 0
 	if query.AllWorkspaces {
 		all = 1
+	}
+	if query.AllProfiles {
+		allProfiles = 1
 	}
 	rows, err := r.queries.ListAgentInstances(
 		ctx,
 		sqlcgen.ListAgentInstancesParams{
+			AllProfiles:   allProfiles,
 			ProfileID:     query.ProfileID,
 			WorkspaceID:   query.WorkspaceID,
 			AllWorkspaces: all,

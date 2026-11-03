@@ -255,6 +255,14 @@ func (h *BaseHandlers) resolveProfileMutationSelectionForWorkspace(
 	return resolved, nil
 }
 
+// singleProfileReadError refuses the all-profiles lens on a read that belongs to one profile.
+func singleProfileReadError(message string) error {
+	return &profilepkg.Error{
+		Code: profileSelectionConflictCode, Message: message,
+		Action: "choose one profile", Cause: profilepkg.ErrInvalidInput,
+	}
+}
+
 func (h *BaseHandlers) respondProfileReadScopeError(c *gin.Context, err error) {
 	if isProfileDomainError(err) {
 		respondProfileError(c, err)

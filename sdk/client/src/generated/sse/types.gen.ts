@@ -46,6 +46,7 @@ export type AgentInstancePayload = {
   now: string;
   pause_reason: string;
   profile_id: string;
+  profile_name: string;
   provider: string;
   quiet_streak: number;
   resolved_appearance: {
@@ -1534,9 +1535,13 @@ export type StreamTerminalsAggregateData = {
      */
     workspace_ids?: Array<string>;
     /**
-     * Act as this profile by name
+     * Read one profile's rows by name
      */
     profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/terminals/catalog-stream";
 };
@@ -1750,9 +1755,13 @@ export type StreamTerminalCatalogData = {
   };
   query?: {
     /**
-     * Act as this profile by name
+     * Read one profile's rows by name
      */
     profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/terminals/stream";
 };

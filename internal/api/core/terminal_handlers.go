@@ -56,7 +56,7 @@ func (h *BaseHandlers) CreateTerminal(c *gin.Context) {
 }
 
 func (h *BaseHandlers) ListTerminals(c *gin.Context) {
-	service, scope, ok := h.terminalAggregateService(c)
+	service, scope, ok := h.terminalReadService(c)
 	if !ok {
 		return
 	}
@@ -74,12 +74,12 @@ func (h *BaseHandlers) ListTerminals(c *gin.Context) {
 }
 
 func (h *BaseHandlers) GetTerminal(c *gin.Context) {
-	service, profileID, ok := h.terminalService(c, false)
+	service, scope, ok := h.terminalReadService(c)
 	if !ok {
 		return
 	}
-	info, err := service.Get(
-		c.Request.Context(), strings.TrimSpace(c.Param("workspace_id")), profileID,
+	info, err := terminalInScope(
+		c.Request.Context(), service, strings.TrimSpace(c.Param("workspace_id")), scope,
 		terminalpkg.ID(strings.TrimSpace(c.Param("id"))),
 	)
 	if err != nil {
@@ -193,12 +193,13 @@ func (h *BaseHandlers) terminalInfoPayloads(c *gin.Context, infos []terminalpkg.
 	return payloads, nil
 }
 
-func (h *BaseHandlers) terminalListForProfile(
+func (h *BaseHandlers) terminalListInScope(
 	c *gin.Context,
 	service terminalpkg.Manager,
-	workspaceID, profileID string,
+	workspaceID string,
+	scope store.ReadScope,
 ) ([]terminalInfoPayload, error) {
-	infos, err := service.List(c.Request.Context(), workspaceID, store.ReadScope{ProfileID: profileID})
+	infos, err := service.List(c.Request.Context(), workspaceID, scope)
 	if err != nil {
 		return nil, err
 	}

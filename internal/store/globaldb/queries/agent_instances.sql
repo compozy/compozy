@@ -35,7 +35,7 @@ DELETE FROM agent_instances WHERE agent_instances.id = ? AND state = 'starting' 
 AND NOT EXISTS (SELECT 1 FROM sessions WHERE instance_id = agent_instances.id);
 
 -- name: ListAgentInstances :many
-SELECT * FROM agent_instances WHERE profile_id = sqlc.arg(profile_id)
+SELECT * FROM agent_instances WHERE (sqlc.arg(all_profiles) = 1 OR profile_id = sqlc.arg(profile_id))
 AND (sqlc.arg(all_workspaces) = 1 OR workspace_id = sqlc.arg(workspace_id))
 AND (sqlc.arg(agent_name) = '' OR agent_name = sqlc.arg(agent_name))
 AND (sqlc.arg(state) = '' OR state = sqlc.arg(state))

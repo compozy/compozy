@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -28,6 +29,11 @@ func (n *daemonNativeTools) agentList(
 	var input agentListInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	if scope.AllProfiles {
+		return toolspkg.ToolResult{}, nativeInputError(
+			req.ToolID, errors.New("agent definitions are read from one profile; choose one profile"),
+		)
 	}
 	workspaceID := nativeCallerWorkspaceInput(input.Workspace, scope)
 	profileID, _, sessionWorkspaceID, err := n.nativeCurrentProfileIdentity(ctx, scope)

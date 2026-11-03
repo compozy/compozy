@@ -9,6 +9,16 @@ import (
 	"strings"
 )
 
+// UpdateSettingsAutomation Update the automation settings section
+func (c *Client) UpdateSettingsAutomation(ctx context.Context, body UpdateSettingsAutomationRequest) (*SettingsApplyResponse, error) {
+	path := "/api/settings/automation"
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UpdateSettingsCmdPaletteParams carries the path, query, and header parameters.
 type UpdateSettingsCmdPaletteParams struct {
 	Scope       *string `url:"scope"`
