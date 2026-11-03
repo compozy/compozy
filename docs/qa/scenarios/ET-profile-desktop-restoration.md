@@ -43,7 +43,10 @@ Walk:
 Review follow-up #1221: during step 5, leave the project while session-owner reads are pending,
 then return and confirm the unfinished cleanup resumes. Repeat with a failed profile-selection
 request: after rollback, no pending or retried close may run, and the restored profile's desks
-must not be swept. The existing `use-desktop-chrome.test.tsx` hook suite covers both interleavings;
+must not be swept. Then make one session-owner read fail (drop the request): its window stays
+open, and returning to the desk during the same switch closes it once the read succeeds; a window
+whose session is gone stays without re-sweeping the desk. The existing `use-desktop-chrome.test.tsx`
+hook suite covers these interleavings;
 the real-browser replay of these additions remains for CI (no local E2E in this dispatch).
 
 Impact: Web cleanup lifecycle only. Native tools, HTTP/UDS contracts, hooks, extensions, config,

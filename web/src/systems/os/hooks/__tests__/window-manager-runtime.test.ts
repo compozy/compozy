@@ -30,7 +30,10 @@ import {
 } from "../../stores/window-manager-store";
 import { beginWindowManagerCommand } from "../../stores/window-manager-store-commands";
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
-import { WINDOW_MANAGER_DIAGNOSTIC_TTL_MS } from "../../runtime/window-manager-runtime-helpers";
+import {
+  WINDOW_MANAGER_COMMAND_DEADLINE_MS,
+  WINDOW_MANAGER_DIAGNOSTIC_TTL_MS,
+} from "../../runtime/window-manager-runtime-helpers";
 
 vi.mock("../../adapters/window-manager-api", async importOriginal => {
   const actual = await importOriginal<typeof import("../../adapters/window-manager-api")>();
@@ -481,6 +484,11 @@ describe("WindowManagerRuntime", () => {
     const first = runtime.focusWindow("app:first");
     const second = runtime.focusWindow("app:second");
     expect(deadlines).toHaveLength(2);
+    expect(WINDOW_MANAGER_COMMAND_DEADLINE_MS).toBe(8_000);
+    expect(timeout.mock.calls).toEqual([
+      [WINDOW_MANAGER_COMMAND_DEADLINE_MS],
+      [WINDOW_MANAGER_COMMAND_DEADLINE_MS],
+    ]);
     await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledOnce());
     for (const deadline of deadlines) deadline.abort(new DOMException("timed out", "TimeoutError"));
 
@@ -2813,7 +2821,8 @@ describe("WindowManagerRuntime guarded close", () => {
       expect.objectContaining({
         expectedRevision: snapshot.revision,
         payload: { window_id: "app:tasks", minimize: false },
-      })
+      }),
+      expect.any(AbortSignal)
     );
     runtime.stop();
   });

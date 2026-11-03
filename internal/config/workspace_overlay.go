@@ -68,6 +68,9 @@ func validateWorkspaceConfigOverlay(path string, overlay *configOverlay) error {
 			overlay.Providers[name] = provider
 		}
 	}
+	if overlay.Session.AuthRecovery != (sessionAuthRecoveryOverlay{}) {
+		return fmt.Errorf("workspace config %q: session.auth_recovery settings are global-only", path)
+	}
 	if overlay.ProviderUsage != nil {
 		return fmt.Errorf("workspace config %q: provider_usage settings are global-only", path)
 	}

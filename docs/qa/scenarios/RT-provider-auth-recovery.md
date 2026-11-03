@@ -50,3 +50,15 @@ Verification 2026-11-03: isolated daemon and ACP subprocess walk passed recovery
 followup failure, restored sign-in and Web wait/automatic completion. Strict audit passed with no
 blockers or warnings; teardown was clean. The provider and credential were synthetic, so this does
 not establish live OAuth account-switch behavior. See the linked run report for timestamps and limits.
+
+Review follow-up (#1229): workspace TOML containing any `session.auth_recovery` value must fail
+with a global-only error. ACP -32000 takes precedence over model wording. Only `login` failures
+enter the sign-in wait; `bind_secret` and `inspect` failures immediately show their existing
+provider guidance (handoff for user sessions). Canceling a later turn must not rearm an exhausted provider;
+a successful turn or an effective provider change does. Process-exit finalization must allow the
+whole configured auth window, including replacement startup time. The expiry remains a hard
+boundary: no replacement may start at or after it.
+
+Follow-up verification: focused Go suites cover these invariants. The previous live lab evidence
+above predates this follow-up; a new scenario walk and broad gates are deferred under the host-load
+restriction.

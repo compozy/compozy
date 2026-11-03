@@ -101,6 +101,13 @@ func ProviderFailureDiagnosticFromError(err error) (ProviderFailureDiagnostic, b
 	if errors.Is(err, execpkg.ErrNotFound) {
 		return providerFailureDiagnosticFromClassification(authproviders.ClassifyError(err))
 	}
+	// ACP reserves -32000 for auth_required, so the code classifies even without auth wording.
+	if IsAuthRequiredError(err) {
+		return providerFailureDiagnosticFromClassification(authproviders.Classification{
+			Kind:   authproviders.ProviderFailureNotAuthenticated,
+			Action: authproviders.ProviderFailureActionLogin,
+		})
+	}
 	text := err.Error()
 	if reqErr, ok := errors.AsType[*acpsdk.RequestError](err); ok {
 		text = requestErrorDiagnosticText(reqErr)
@@ -110,13 +117,6 @@ func ProviderFailureDiagnosticFromError(err error) (ProviderFailureDiagnostic, b
 	}
 	if diagnostic, matched := providerAuthFailureDiagnosticFromText(text); matched {
 		return diagnostic, true
-	}
-	// ACP reserves -32000 for auth_required, so the code classifies even without auth wording.
-	if IsAuthRequiredError(err) {
-		return providerFailureDiagnosticFromClassification(authproviders.Classification{
-			Kind:   authproviders.ProviderFailureNotAuthenticated,
-			Action: authproviders.ProviderFailureActionLogin,
-		})
 	}
 	return ProviderFailureDiagnostic{}, false
 }

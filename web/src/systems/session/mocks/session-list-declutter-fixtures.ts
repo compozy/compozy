@@ -6,7 +6,7 @@ import type { AgentAvatarAppearance } from "@compozy/ui";
 
 import type { AgentIdentitySource } from "@/systems/agent/lib/agent-identity";
 import type { SessionLinkedWorkSummary } from "../lib/session-linked-work";
-import { primarySessionFixture, sessionRuntime } from "./fixtures";
+import { primarySessionFixture, sessionRuntimeWithModel } from "./fixtures";
 import type { SessionPayload } from "../types";
 
 const NOW = Date.now();
@@ -78,7 +78,7 @@ function session(
   return {
     ...primarySessionFixture,
     id,
-    runtime: sessionRuntime(provider),
+    runtime: sessionRuntimeWithModel(provider),
     state: "active",
     badge: "idle",
     archived_at: null,

@@ -106,26 +106,28 @@ export function detectFilePath(
   const raw = text.trim();
   if (raw.length === 0 || raw.length > MAX_TOKEN_LENGTH || FORBIDDEN_CHARS.test(raw)) return null;
 
-  let candidate = raw;
-  if (URL_SCHEME.test(raw)) {
-    if (source !== "href" || !/^file:\/\//i.test(raw)) return null;
-    const decoded = decodeFileUrl(raw);
-    // A decoded `file://` path may hold spaces (`a%20b.md`), never control characters.
-    if (decoded === null || CONTROL_CHARS.test(decoded)) return null;
-    candidate = decoded;
-  }
-
-  let path = candidate;
+  // The `:line[:col]` suffix is read before decoding, so an encoded colon (`%3A12`) stays
+  // part of a `file://` href's file name.
+  let located = raw;
   let line: number | undefined;
   let column: number | undefined;
-  const suffix = LOCATION_SUFFIX.exec(candidate);
+  const suffix = LOCATION_SUFFIX.exec(raw);
   if (suffix) {
     const parsedLine = positive(suffix[1]);
     const parsedColumn = positive(suffix[2]);
     if (parsedLine === null || parsedColumn === null) return null;
     line = parsedLine;
     column = parsedColumn;
-    path = candidate.slice(0, suffix.index);
+    located = raw.slice(0, suffix.index);
+  }
+
+  let path = located;
+  if (URL_SCHEME.test(raw)) {
+    if (source !== "href" || !/^file:\/\//i.test(raw)) return null;
+    const decoded = decodeFileUrl(located);
+    // A decoded `file://` path may hold spaces (`a%20b.md`), never control characters.
+    if (decoded === null || CONTROL_CHARS.test(decoded)) return null;
+    path = decoded;
   }
 
   const kind = classify(path, line !== undefined, options.windows ?? false);

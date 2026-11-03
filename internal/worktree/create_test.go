@@ -349,6 +349,25 @@ func TestServiceCreate(t *testing.T) {
 		}
 	})
 
+	t.Run("Should return and store the requested worktree ID", func(t *testing.T) {
+		t.Parallel()
+		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())
+
+		item, err := fixture.service.Create(t.Context(), fixture.workspace.ID, CreateOptions{
+			ID: "wt-requested", ProfileID: testWorktreeProfileID, Name: "Requested ID",
+		})
+		if err != nil {
+			t.Fatalf("Create(requested ID) error = %v", err)
+		}
+		if item.ID != "wt-requested" {
+			t.Fatalf("Create(requested ID) ID = %q, want wt-requested", item.ID)
+		}
+		stored, err := fixture.store.Get(t.Context(), fixture.workspace.ID, "wt-requested")
+		if err != nil || stored == nil {
+			t.Fatalf("store.Get(wt-requested) = %#v, %v, want the created record", stored, err)
+		}
+	})
+
 	t.Run("Should record an incomplete synchronous rollback and finish it on recovery", func(t *testing.T) {
 		t.Parallel()
 		fixture := newCreateTestFixture(t, config.DefaultWorktreesConfig())

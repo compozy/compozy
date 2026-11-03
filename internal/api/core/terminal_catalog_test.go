@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -415,6 +416,76 @@ func TestTerminalStreamsEndOnStreamDone(t *testing.T) {
 			kind, payload, err := connection.ReadMessage()
 			if err != nil || kind != websocket.TextMessage || !strings.Contains(string(payload), "event: ") {
 				t.Fatalf("first frame = %d %q, error = %v, want an SSE-framed event", kind, payload, err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			if err := handlers.ShutdownEventStreams(ctx); err != nil {
+				t.Fatal(err)
+			}
+		})
+		t.Run("Should resume the "+testCase.name+" over WebSocket from last_event_id", func(t *testing.T) {
+			t.Parallel()
+			stub := &terminalProviderStub{Manager: terminalManagerStub{}}
+			handlers := NewBaseHandlers(&BaseHandlerConfig{
+				TransportName: "udsapi",
+				Terminal:      terminalAggregateProviderStub{stub},
+				Workspaces: workspaceServiceStub{list: func(context.Context) ([]workspacepkg.Workspace, error) {
+					return []workspacepkg.Workspace{{ID: "workspace-a"}}, nil
+				}},
+			})
+			stub.emit(terminalpkg.Event{
+				Kind: terminalpkg.EventKindOpened, WorkspaceID: "workspace-a", ProfileID: store.DefaultProfileID,
+				TerminalID: "term-a", Info: &terminalpkg.Info{ID: "term-a"},
+			})
+			stub.emit(terminalpkg.Event{
+				Kind: terminalpkg.EventKindTitleChanged, WorkspaceID: "workspace-a", ProfileID: store.DefaultProfileID,
+				TerminalID: "term-a", Detail: &terminalpkg.EventDetail{Title: "build"},
+			})
+			router := gin.New()
+			router.GET(testCase.route, testCase.mount(handlers))
+			server := httptest.NewServer(router)
+			t.Cleanup(server.Close)
+			firstFrame := func(query string) string {
+				t.Helper()
+				dialer := websocket.Dialer{HandshakeTimeout: time.Second}
+				connection, response, err := dialer.DialContext(t.Context(),
+					"ws"+strings.TrimPrefix(server.URL, "http")+testCase.path+query, nil)
+				if response != nil && response.Body != nil {
+					if closeErr := response.Body.Close(); closeErr != nil {
+						t.Errorf("close upgrade response: %v", closeErr)
+					}
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer func() {
+					if err := connection.Close(); err != nil {
+						t.Errorf("close terminal stream connection: %v", err)
+					}
+				}()
+				if err := connection.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+					t.Fatal(err)
+				}
+				_, payload, err := connection.ReadMessage()
+				if err != nil {
+					t.Fatalf("read first frame: %v", err)
+				}
+				return string(payload)
+			}
+			// The fresh snapshot's id carries the cursor shape of this route: a bare
+			// sequence, or a sequence bound to the aggregate selection fingerprint.
+			snapshot := firstFrame("")
+			id, _, _ := strings.Cut(strings.TrimPrefix(snapshot, "id: "), "\n")
+			_, selection, bound := strings.Cut(id, ".")
+			cursor := "1"
+			if bound {
+				cursor += "." + selection
+			}
+			// Browser WebSocket clients cannot set Last-Event-ID, so the query is their resume cursor.
+			resumed := firstFrame("&last_event_id=" + cursor)
+			if !strings.Contains(resumed, "event: terminal.title_changed") ||
+				!strings.HasPrefix(resumed, "id: 2\n") && !strings.HasPrefix(resumed, "id: 2.") {
+				t.Fatalf("first resumed frame = %q, want the missed title event replayed", resumed)
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 			defer cancel()

@@ -2,8 +2,7 @@ import { ArrowRightLeft, FolderGit2, Link2 } from "@compozy/ui/icons";
 
 import { CommandGroup, CommandItem, MonoId } from "@compozy/ui";
 
-import { ProfileOwnerTag } from "@/systems/profiles/components/profile-owner-tag";
-import { ownerFromRow } from "@/systems/profiles/lib/profile-scope";
+import { ownerFromRow, ProfileOwnerTag } from "@/systems/profiles";
 
 import type { OsPaletteEntities, OsPaletteWorktreeResult } from "../hooks/use-os-palette-entities";
 import { OS_APP_DESCRIPTORS } from "../lib/app-catalog";

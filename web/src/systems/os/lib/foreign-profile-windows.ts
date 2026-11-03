@@ -24,7 +24,8 @@ export interface ShownItemWindow {
 
 /**
  * Who owns an item: a profile id where the read labels the row, a profile name where only the
- * window's own pin names it. `null` when it cannot be told (gone, unreadable).
+ * window's own pin names it. `null` when the item is gone; a lookup that could not read the
+ * owner throws instead.
  */
 export type ProfileOwnerRef = { id: string } | { name: string };
 
@@ -38,34 +39,44 @@ export interface SweepTargetProfile {
 
 const AUTOMATION_DETAIL_PATTERN = /^\/automations\/(jobs|triggers)\/([^/]+)$/;
 
+/** The foreign windows a desk inspection found, and whether every owner read answered. */
+export interface ForeignProfileWindows {
+  foreign: ShownItemWindow[];
+  /** `false` when an owner read failed: those windows stay, so the desk needs another look. */
+  complete: boolean;
+}
+
 /**
  * The windows of a profile's desk that show another profile's item.
  *
  * Under All profiles the client works on the destination profile's desk, so an item of any
  * profile opened there lands in that desk. Once the operator switches to one profile, those
- * windows are not part of it. Only a confirmed foreign owner counts: an item whose owner cannot
- * be read stays, because the owning surface already handles an item that is gone.
+ * windows are not part of it. Only a confirmed foreign owner counts: a gone item stays, because
+ * its owning surface already handles that; an item whose owner read failed stays too, and the
+ * inspection reports itself incomplete so the caller can look again.
  */
 export async function foreignProfileWindows(
   windows: Readonly<Record<string, OsWindow>>,
   partition: string,
   target: SweepTargetProfile,
   ownerOf: ProfileItemOwnerLookup
-): Promise<ShownItemWindow[]> {
+): Promise<ForeignProfileWindows> {
   const shown = Object.values(windows).flatMap(win => {
     const item = shownProfileItem(win, partition);
     return item === null ? [] : [{ windowId: win.id, item }];
   });
+  let complete = true;
   const owners = await Promise.all(
     shown.map(async ({ item }) => {
       try {
         return await ownerOf(item);
       } catch {
+        complete = false;
         return null;
       }
     })
   );
-  return shown.filter((_, index) => isForeignOwner(owners[index], target));
+  return { foreign: shown.filter((_, index) => isForeignOwner(owners[index], target)), complete };
 }
 
 function isForeignOwner(

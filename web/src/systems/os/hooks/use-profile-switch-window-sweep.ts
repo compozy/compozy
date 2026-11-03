@@ -106,12 +106,13 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
     const { coordinator, manager } = shell;
     // The render saw the previous binding; the rebind in this commit is what has to be live.
     if (!selectDeskLive(manager.getState())) return;
-    // A desk counts as swept only once its sweep finishes. Leaving the desk (another project, a
-    // rebind, the shell unmounting) interrupts it, and the desk is swept again when it returns.
+    // A desk counts as swept only once its sweep finishes with every owner read. Leaving the desk
+    // (another project, a rebind, the shell unmounting) interrupts it, and the desk is swept again
+    // when it returns.
     let interrupted = false;
     const partition = workspaceId;
     void (async () => {
-      const foreign = await foreignProfileWindows(
+      const { foreign, complete } = await foreignProfileWindows(
         manager.getState().windows,
         partition,
         { id: request.profileId, name: request.profile },
@@ -130,7 +131,9 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
             sameShownItem(shownProfileItem(manager.getState().windows[windowId], partition), item)
         );
       }
-      if (interrupted || !switchStillCurrent(request)) return;
+      // A failed owner read leaves its window open, so the desk stays eligible: it is swept again
+      // the next time it is live during this switch.
+      if (interrupted || !complete || !switchStillCurrent(request)) return;
       const current = swept.current;
       if (current?.epoch === request.epoch) current.partitions.add(workspaceId);
       else swept.current = { epoch: request.epoch, partitions: new Set([workspaceId]) };

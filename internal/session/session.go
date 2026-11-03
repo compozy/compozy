@@ -201,7 +201,7 @@ type Session struct {
 	RuntimeGeneration int64
 	RuntimeRecovery   *store.SessionRuntimeRecovery
 	// authRecoveryExhausted skips the provider sign-in wait after a turn exhausted it, until a
-	// turn completes again, so queued turns fail as before instead of each waiting. Protected by mu.
+	// turn completes or its provider changes, so queued turns fail immediately. Protected by mu.
 	authRecoveryExhausted     bool
 	SelectedRuntime           *RuntimeSelection
 	RuntimeSelectionRevision  int64

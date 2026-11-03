@@ -267,7 +267,7 @@ func (m *Manager) handlePromptPumpEvent(
 		failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
 		return failure, errorText, true
 	}
-	notePromptEventDelivered(session, turnState, normalized.Type)
+	notePromptEventDelivered(session, turnState, normalized)
 	if stop := m.sendPromptPumpEvent(ctx, deliveryCtx, out, loop, normalized, runtimeEvent); stop {
 		return fatalPromptFailure, normalized.Error, true
 	}

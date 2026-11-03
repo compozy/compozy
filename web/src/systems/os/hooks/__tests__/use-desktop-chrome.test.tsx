@@ -6,7 +6,7 @@
 // since mount, never the cached window list a returning destination starts from;
 // an explicit switch into one profile closes, once each of its desks is live, exactly the
 // session, terminal, pinned agent and automation windows another profile owns, finishing a
-// desk's interrupted sweep and stopping on a rolled-back switch (#1184, #1194).
+// desk's interrupted or partly unread sweep and stopping on a rolled-back switch (#1184, #1194).
 // Boundary IN: chrome hook projection reads and provider ownership.
 // Boundary OUT: window-manager stream, client registration, and rendered DesktopShell.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -31,6 +31,8 @@ const terminalOwners = vi.hoisted(
 // Agent definitions by `<profile>/<name>`: a pinned window's owner read finds it there.
 const agentDefinitions = vi.hoisted(() => new Set<string>());
 const automationOwners = vi.hoisted(() => new Map<string, string>());
+// Sessions whose owner read fails without the session being gone (a dropped request, say).
+const unreadableSessions = vi.hoisted(() => new Set<string>());
 
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({
@@ -59,18 +61,23 @@ vi.mock("@/systems/workspace", async importOriginal => {
   };
 });
 
-vi.mock("@/systems/session", () => ({
-  useSession: () => ({ data: undefined }),
-  pruneSessionSidebarScopes,
-  sessionAcrossProfilesOptions: (sessionId: string) => ({
-    queryKey: ["session-owner", sessionId],
-    queryFn: () => {
-      const owner = sessionOwners.get(sessionId);
-      if (owner === undefined) throw new Error("session not found");
-      return { profile_id: owner, profile_name: owner, profile_color: "#000000" };
-    },
-  }),
-}));
+vi.mock("@/systems/session", async importOriginal => {
+  const { SessionNotFoundError } = await importOriginal<typeof import("@/systems/session")>();
+  return {
+    SessionNotFoundError,
+    useSession: () => ({ data: undefined }),
+    pruneSessionSidebarScopes,
+    sessionAcrossProfilesOptions: (sessionId: string) => ({
+      queryKey: ["session-owner", sessionId],
+      queryFn: () => {
+        if (unreadableSessions.has(sessionId)) throw new Error("daemon unreachable");
+        const owner = sessionOwners.get(sessionId);
+        if (owner === undefined) throw new SessionNotFoundError(sessionId);
+        return { profile_id: owner, profile_name: owner, profile_color: "#000000" };
+      },
+    }),
+  };
+});
 
 vi.mock("@/systems/terminal", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/terminal")>();
@@ -94,7 +101,9 @@ vi.mock("@/systems/agent", async importOriginal => {
     agentDetailOptions: (name: string, _workspace: string | null, profile: string) => ({
       queryKey: ["agent", profile, name],
       queryFn: () => {
-        if (!agentDefinitions.has(`${profile}/${name}`)) throw new Error("agent not found");
+        if (!agentDefinitions.has(`${profile}/${name}`)) {
+          throw new actual.AgentApiError(`Agent not found: ${name}`, 404);
+        }
         return { name };
       },
     }),
@@ -105,7 +114,7 @@ vi.mock("@/systems/automation", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/automation")>();
   const read = (id: string) => {
     const owner = automationOwners.get(id);
-    if (owner === undefined) throw new Error("automation not found");
+    if (owner === undefined) throw new actual.AutomationApiError("Automation not found", 404);
     return { id, profile_id: owner };
   };
   return {
@@ -270,6 +279,7 @@ describe("useProfileSwitchWindowSweep", () => {
     terminalOwners.clear();
     agentDefinitions.clear();
     automationOwners.clear();
+    unreadableSessions.clear();
     resetProfileViews();
   });
 
@@ -338,6 +348,11 @@ describe("useProfileSwitchWindowSweep", () => {
       goLive: () => projection.set(state(true)),
       // Another desk is presented: this one's windows leave the store while it rebinds.
       leave: () => projection.set({ ...state(false), windows: {} }),
+      // Another desk is presented live with its own windows.
+      present: (next: Record<string, OsWindow>) => {
+        windows = next;
+        projection.set(state(true));
+      },
       showIn: (windowId: string, pathname: string) => {
         windows = { ...windows, [windowId]: deskWindow(windowId, pathname) };
         projection.set(state(true));
@@ -390,25 +405,6 @@ describe("useProfileSwitchWindowSweep", () => {
     await waitFor(() => expect(closed).toEqual(["w_xray", "w_zulu"]));
   });
 
-  it("Should sweep each desk of the profile the first time it is live after the switch", async () => {
-    sessionOwners.set("s_xray", "p_xray");
-    const { shell, userClose } = fakeShell(true);
-    const { rerender } = renderHook(
-      ({ partition }) => useProfileSwitchWindowSweep(shell, partition),
-      { wrapper: wrapper(), initialProps: { partition: "ws_a" } }
-    );
-
-    switchTo({ kind: "profile", profile: "yankee" });
-    await waitFor(() => expect(userClose).toHaveBeenCalledTimes(1));
-    // Moving to All projects later presents another desk of the same profile: it is swept too.
-    rerender({ partition: "global" });
-    await waitFor(() => expect(userClose).toHaveBeenCalledTimes(2));
-    // Coming back to a desk already swept for this switch does not sweep it again.
-    rerender({ partition: "ws_a" });
-    await new Promise(resolve => setTimeout(resolve, 0));
-    expect(userClose).toHaveBeenCalledTimes(2);
-  });
-
   it("Should close terminal, pinned agent and automation windows another profile owns [#1194]", async () => {
     terminalOwners.set("ws_a", [
       { id: "t_own", profile_id: "p_yankee" },
@@ -451,22 +447,56 @@ describe("useProfileSwitchWindowSweep", () => {
   });
 
   it("Should sweep each desk of the profile the first time it is live after the switch", async () => {
+    sessionOwners.set("s_own", "p_yankee");
     sessionOwners.set("s_xray", "p_xray");
-    const { shell, userClose } = fakeShell(true);
+    sessionOwners.set("s_zulu", "p_zulu");
+    const fake = fakeShell(true);
+    const deskA = fake.shell.manager.getState().windows;
     const { rerender } = renderHook(
-      ({ partition }) => useProfileSwitchWindowSweep(shell, partition),
+      ({ partition }) => useProfileSwitchWindowSweep(fake.shell, partition),
       { wrapper: wrapper(), initialProps: { partition: "ws_a" } }
     );
 
     switchTo({ kind: "profile", profile: "yankee" });
-    await waitFor(() => expect(userClose).toHaveBeenCalledTimes(1));
-    // Moving to All projects later presents another desk of the same profile: it is swept too.
+    await waitFor(() => expect(fake.closed).toEqual(["w_xray", "w_zulu"]));
+    // Moving to All projects later presents another desk of the same profile: it is swept too,
+    // and only its own foreign window closes.
+    act(() =>
+      fake.present({
+        g_own: deskWindow("g_own", "/agents/builder/sessions/s_own"),
+        g_xray: deskWindow("g_xray", "/agents/builder/sessions/s_xray"),
+      })
+    );
     rerender({ partition: "global" });
-    await waitFor(() => expect(userClose).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(fake.closed).toEqual(["w_xray", "w_zulu", "g_xray"]));
+    expect(fake.userClose).toHaveBeenCalledTimes(3);
     // Coming back to a desk already swept for this switch does not sweep it again.
+    act(() => fake.present(deskA));
     rerender({ partition: "ws_a" });
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(userClose).toHaveBeenCalledTimes(2);
+    expect(fake.userClose).toHaveBeenCalledTimes(3);
+  });
+
+  it("Should sweep a desk again when an owner read failed during its sweep", async () => {
+    sessionOwners.set("s_xray", "p_xray");
+    sessionOwners.set("s_zulu", "p_zulu");
+    unreadableSessions.add("s_zulu");
+    const fake = fakeShell(true);
+    const deskA = fake.shell.manager.getState().windows;
+    const { rerender } = renderHook(
+      ({ partition }) => useProfileSwitchWindowSweep(fake.shell, partition),
+      { wrapper: wrapper(), initialProps: { partition: "ws_a" } }
+    );
+
+    switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() => expect(fake.closed).toEqual(["w_xray"]));
+    // The unread window stays; the desk is not counted as swept, so returning to it looks again.
+    unreadableSessions.clear();
+    act(() => fake.leave());
+    rerender({ partition: "ws_b" });
+    rerender({ partition: "ws_a" });
+    act(() => fake.present(deskA));
+    await waitFor(() => expect(fake.closed).toContain("w_zulu"));
   });
 
   it("Should retry a close the runtime refused while another close was pending", async () => {
