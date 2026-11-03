@@ -59102,6 +59102,97 @@
         ]
       }
     },
+    "/api/daemon/profile/{kind}": {
+      "get": {
+        "operationId": "captureDaemonProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "cpu",
+                "heap",
+                "allocs",
+                "goroutine",
+                "mutex",
+                "block",
+                "threadcreate"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "Capture window for cpu, mutex and block only; snapshot profiles reject this parameter",
+            "in": "query",
+            "name": "seconds",
+            "schema": {
+              "default": 30,
+              "format": "int32",
+              "maximum": 120,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Raw gzip-compressed pprof protobuf"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "daemon_profile_invalid: unsupported kind or duration"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "profile_busy: CPU or contention capture already active"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "profile_failed: capture canceled or failed"
+          }
+        },
+        "summary": "Capture a runtime profile over the local socket",
+        "tags": [
+          "diagnostics"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-auth": {
+          "uds": "local_socket"
+        },
+        "x-compozy-transports": [
+          "uds"
+        ],
+        "x-stability": "experimental"
+      }
+    },
     "/api/doctor": {
       "get": {
         "operationId": "getDoctor",

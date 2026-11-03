@@ -5611,3 +5611,50 @@ func TestPermissionRollupClient(t *testing.T) {
 		}
 	})
 }
+
+func TestDaemonProfileClient(t *testing.T) {
+	t.Parallel()
+	t.Run("Should stream profile bytes with the bounded duration and preserve API errors", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{target: LocalClientTarget("/tmp/compozy.sock"), httpClient: &http.Client{
+			Transport: roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+				if req.URL.Path != "/api/daemon/profile/cpu" || req.URL.Query().Get("seconds") != "120" {
+					t.Errorf("request=%s", req.URL)
+				}
+				return newHTTPResponse(http.StatusOK, "profile"), nil
+			}),
+		}}
+		var data bytes.Buffer
+		if err := client.CaptureDaemonProfile(t.Context(), "cpu", 120, &data); err != nil {
+			t.Fatal(err)
+		}
+		if data.String() != "profile" {
+			t.Fatalf("payload=%q", data.String())
+		}
+		client.httpClient.Transport = roundTripperFunc(func(_ *http.Request) (*http.Response, error) {
+			return newHTTPResponse(http.StatusConflict, `{"error":"capture already active","code":"profile_busy"}`), nil
+		})
+		if err := client.CaptureDaemonProfile(
+			t.Context(),
+			"cpu",
+			1,
+			&data,
+		); err == nil ||
+			!strings.Contains(err.Error(), "capture already active") {
+			t.Fatalf("error=%v", err)
+		}
+	})
+	t.Run("Should refuse gateway profiles before making a network request", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{target: ClientTarget{kind: clientTargetGateway}}
+		if err := client.CaptureDaemonProfile(
+			t.Context(),
+			"heap",
+			30,
+			io.Discard,
+		); err == nil ||
+			!strings.Contains(err.Error(), "local Unix socket") {
+			t.Fatalf("error=%v", err)
+		}
+	})
+}

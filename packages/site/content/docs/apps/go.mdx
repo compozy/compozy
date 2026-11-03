@@ -151,7 +151,10 @@ discovery wraps `client.ErrUnavailable`. Canceling the stream context makes `Nex
 before resubmitting interrupted work, and explicitly cancel the session prompt when that is your intent.
 
 Set a deadline on the request context for long waits, uploads, or downloads. JSON calls use a
-30-second default only when the caller provides no deadline; an explicit longer deadline is preserved.
+30-second default only when the caller provides no deadline; an explicit longer deadline is preserved. The experimental
+`CaptureDaemonProfile` operation uses a 130-second default to allow the server's bounded
+120-second capture window and completion work. It also preserves an explicit caller deadline
+and is available only over the local Unix socket.
 
 Custom JSON values use `json.RawMessage` aliases so the client preserves scalar/object unions and
 explicit nulls. `client.StrategyThreshold` carries either the JSON string `"66%"` or the object

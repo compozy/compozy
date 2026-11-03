@@ -10,6 +10,55 @@ import (
 	"strings"
 )
 
+// DismissWorktree Dismiss a worktree tombstone
+func (c *Client) DismissWorktree(ctx context.Context, params DismissWorktreeParams) (*WorktreeCleanupResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/dismiss"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
+	query := url.Values{}
+	if params.DeleteBranch != nil {
+		query.Set("delete_branch", strconv.FormatBool(*params.DeleteBranch))
+	}
+	if params.Force != nil {
+		query.Set("force", strconv.FormatBool(*params.Force))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorktreeCleanupResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DownloadSupportBundleParams carries the path, query, and header parameters.
+type DownloadSupportBundleParams struct {
+	OperationID string `url:"operation_id"`
+}
+
+// DownloadSupportBundle Download a completed support bundle archive
+func (c *Client) DownloadSupportBundle(ctx context.Context, params DownloadSupportBundleParams) (*[]byte, error) {
+	path := "/api/support/bundles/{operation_id}/download"
+	path = strings.ReplaceAll(path, "{operation_id}", url.PathEscape(params.OperationID))
+	var out []byte
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "application/gzip"); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DownloadTerminalArtifactParams carries the path, query, and header parameters.
+type DownloadTerminalArtifactParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // DownloadTerminalArtifact Download one terminal spill artifact
 func (c *Client) DownloadTerminalArtifact(ctx context.Context, params DownloadTerminalArtifactParams) (*[]byte, error) {
 	path := "/api/workspaces/{workspace_id}/terminals/artifacts/{id}"
@@ -381,54 +430,6 @@ func (c *Client) FailAgentTaskRun(ctx context.Context, params FailAgentTaskRunPa
 
 // FailTaskRunParams carries the path, query, and header parameters.
 type FailTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// FailTaskRun Fail one task run
-func (c *Client) FailTaskRun(ctx context.Context, params FailTaskRunParams, body FailTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/task-runs/{id}/fail"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// FanOutTaskRunsParams carries the path, query, and header parameters.
-type FanOutTaskRunsParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// FanOutTaskRuns Enqueue designated sibling runs for one task
-func (c *Client) FanOutTaskRuns(ctx context.Context, params FanOutTaskRunsParams, body FanOutTaskRunsRequest) (*FanOutTaskRunsResponse, error) {
-	path := "/api/tasks/{id}/runs/fan-out"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out FanOutTaskRunsResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ForceFailTaskRunParams carries the path, query, and header parameters.
-type ForceFailTaskRunParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
 }

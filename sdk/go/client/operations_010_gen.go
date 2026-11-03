@@ -9,6 +9,40 @@ import (
 	"strings"
 )
 
+// GetGatewayAudit Audit the current gateway security posture
+func (c *Client) GetGatewayAudit(ctx context.Context) (*GatewayAuditPayload, error) {
+	path := "/api/gateway/audit"
+	var out GatewayAuditPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetGatewayStatus Get the operator-global gateway posture
+func (c *Client) GetGatewayStatus(ctx context.Context) (*GatewayStatusPayload, error) {
+	path := "/api/gateway/status"
+	var out GatewayStatusPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetGlobalSessionHistoryParams carries the path, query, and header parameters.
+type GetGlobalSessionHistoryParams struct {
+	SessionID     string  `url:"session_id"`
+	Since         *string `url:"since"`
+	Limit         *int    `url:"limit"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Type          *string `url:"type"`
+	AgentName     *string `url:"agent_name"`
+	TurnID        *string `url:"turn_id"`
+	Archive       *string `url:"archive"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // GetGlobalSessionHistory List grouped session turn history for a Global session
 func (c *Client) GetGlobalSessionHistory(ctx context.Context, params GetGlobalSessionHistoryParams) (*SessionHistoryResponse, error) {
 	path := "/api/sessions/{session_id}/history"
@@ -392,41 +426,6 @@ type GetLoopRequestParams struct {
 	NodeID      string  `url:"node_id"`
 	Generation  int     `url:"generation"`
 	ItemIndex   *int    `url:"item_index"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetLoopRequest Get one Loop human request
-func (c *Client) GetLoopRequest(ctx context.Context, params GetLoopRequestParams) (*LoopRequestPayload, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/request"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	path = strings.ReplaceAll(path, "{node_id}", url.PathEscape(params.NodeID))
-	query := url.Values{}
-	query.Set("generation", strconv.Itoa(params.Generation))
-	if params.ItemIndex != nil {
-		query.Set("item_index", strconv.Itoa(*params.ItemIndex))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopRequestPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetLoopRunParams carries the path, query, and header parameters.
-type GetLoopRunParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 }

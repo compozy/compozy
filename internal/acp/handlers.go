@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/profiling"
+
 	acpsdk "github.com/coder/acp-go-sdk"
 )
 
@@ -83,6 +85,24 @@ type wireCost struct {
 }
 
 func (p *AgentProcess) handleInbound(
+	ctx context.Context,
+	method string,
+	params json.RawMessage,
+) (any, *acpsdk.RequestError) {
+	var result any
+	var err *acpsdk.RequestError
+	profiling.Do(
+		ctx,
+		func(ctx context.Context) { result, err = p.handleInboundRequest(ctx, method, params) },
+		"operation",
+		"acp",
+		"session_id",
+		p.compozySessionID,
+	)
+	return result, err
+}
+
+func (p *AgentProcess) handleInboundRequest(
 	ctx context.Context,
 	method string,
 	params json.RawMessage,
