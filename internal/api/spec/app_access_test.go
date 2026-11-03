@@ -211,6 +211,8 @@ func TestAppAccessPolicy(t *testing.T) {
 		},
 		AppAccessDenied: {
 			"addSessionWorkLink", "refreshSessionWorkLink", "removeSessionWorkLink",
+			// Skill review: drafts an agent proposed and the operator-only approve/reject decision.
+			"listAgentSkillReviews", "getAgentSkillReview", "approveAgentSkillReview", "rejectAgentSkillReview",
 			"searchSessionWorkCandidates",
 			"draftAgentInstructions",
 			"getPermissionRollup",

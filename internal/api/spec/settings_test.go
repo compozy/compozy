@@ -268,7 +268,9 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		assertParameterEnumValues(t, updatePersona, "scope", "profile", "user", "workspace")
 		assertEnumValues(t, propertySchema(t, propertySchema(t, generalConfig, "permissions"), "mode"),
 			"approve-all",
+			"approve-edits",
 			"approve-reads",
+			"auto",
 			"deny-all",
 		)
 

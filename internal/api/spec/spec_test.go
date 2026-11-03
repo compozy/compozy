@@ -1104,6 +1104,8 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					propertySchema(t, agentSchema, "permissions"),
 					"deny-all",
 					"approve-reads",
+					"approve-edits",
+					"auto",
 					"approve-all",
 				)
 				assertPropertyAbsent(t, agentSchema, "mcp_servers")
@@ -3242,6 +3244,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		addAttentionTerminalApprovalSchema(t, baseline)
 		correctProviderSettingsCommandAuthorship(t, baseline)
 		addProviderUsageSettingsSection(t, baseline)
+		addStaysOnHardeningSchemas(t, baseline)
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
