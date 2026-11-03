@@ -114,6 +114,18 @@ without a CompozyOS code change when the provider advertises it through ACP, `cu
 configured discovery source, or an extension `model.source`. The built-in catalog is only an offline
 fallback; it includes Claude Opus 5 so that model remains visible before the first successful live refresh.
 
+A source blocked by a missing credential, discovery configuration, executable, or required login
+stays `failed` with its reason and no scheduled refresh. Background sweeps check configuration,
+credentials, and PATH without starting discovery or writing catalog state. A changed preflight
+result permits another attempt, including after a daemon restart. Login changes require an explicit
+`compozy provider models refresh <provider>` after signing in; this attempts a parked source without
+`--force`. Provider configuration changes also trigger a refresh. Cached rows and failure diagnostics
+remain available while the source is parked.
+
+Transient network failures, HTTP 5xx, timeouts, and process crashes retry automatically with
+exponential backoff, starting at five minutes and capped at two hours per execution context.
+A successful refresh restores the normal five-minute freshness window.
+
 An explicit `models.curated` set still controls the default curated view. A newly discovered model may
 first appear only under `view=all` until it is featured or added to that set.
 
