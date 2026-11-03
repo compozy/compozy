@@ -29,12 +29,13 @@ export async function preloadAgentsRoute(queryClient: QueryClient): Promise<void
 export async function preloadAgentSettingsRoute(
   queryClient: QueryClient,
   name: string,
-  routeWorkspaceId?: string
+  routeWorkspaceId?: string,
+  routeProfile?: string
 ): Promise<void> {
   const dataScope = await resolveRouteScope(queryClient, routeWorkspaceId);
   if (!dataScope) return;
   const workspaceId = workspaceSelectorOrAll(dataScope);
-  const profile = readActingProfile(queryClient);
+  const profile = routeProfile ?? readActingProfile(queryClient);
   await settleRouteQueries([
     queryClient.query({ ...agentDetailOptions(name, workspaceId, profile), staleTime: "static" }),
     ...(dataScope.kind === "project"
@@ -52,15 +53,19 @@ export async function preloadAgentSettingsRoute(
 export async function preloadAgentDetailRoute(
   queryClient: QueryClient,
   name: string,
-  routeWorkspaceId?: string
+  routeWorkspaceId?: string,
+  routeProfile?: string
 ): Promise<void> {
   const dataScope = await resolveRouteScope(queryClient, routeWorkspaceId);
   if (!dataScope) return;
   const workspaceId = workspaceSelectorOrAll(dataScope);
-  const profileScope = readProfileScopeParams(queryClient);
+  // A pinned agent window reads its own profile, the same answer `ProfilePin` gives (#1183).
+  const profileScope = routeProfile
+    ? { profile: routeProfile }
+    : readProfileScopeParams(queryClient);
   const workspaceScope = workspaceId ? { workspace_id: workspaceId } : { all_workspaces: true };
 
-  const profile = readActingProfile(queryClient);
+  const profile = routeProfile ?? readActingProfile(queryClient);
   // These are the home's real consumers: exact catalog metrics and recent work.
   await settleRouteQueries([
     queryClient.query({ ...agentDetailOptions(name, workspaceId, profile), staleTime: "static" }),

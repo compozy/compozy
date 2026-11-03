@@ -8,6 +8,7 @@ import {
   useAgentWindowScope,
   type AgentPayload,
 } from "@/systems/agent";
+import { usePinnedProfile } from "@/systems/profiles";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 export interface UseAgentDetailResult {
@@ -29,6 +30,7 @@ export function useAgentDetail(name: string): UseAgentDetailResult {
   const { pending } = useActiveWorkspace();
   const { workspace, projectId, bindingSearch } = useAgentWindowScope();
   const createHost = useAgentCreateHost();
+  const pinned = usePinnedProfile();
   const { data: agent, isLoading: agentLoading, error: agentError } = useAgent(name, workspace);
   const metrics = useAgentCatalogMetrics(workspace, name, { enabled: !pending });
   const deleteFlow = useAgentDeleteFlow({ agent, workspaceId: projectId });
@@ -39,7 +41,7 @@ export function useAgentDetail(name: string): UseAgentDetailResult {
     agentError: (agentError as Error | null) ?? null,
     active: metrics.active,
     onDuplicate: () => {
-      if (agent) createHost.openForDuplicate(agent);
+      if (agent) createHost.openForDuplicate(agent, pinned ? { profile: pinned } : {});
     },
     onDelete: deleteFlow.openDialog,
     onBackToAgents: () => void navigate({ to: "/agents" }),

@@ -7,7 +7,7 @@ journey: J-12
 expected: Mermaid fences retain a stable bounded frame while streaming and rendering; completed diagrams fit within half the column and their natural size, with viewport fullscreen, button/keyboard/Ctrl-or-Cmd-wheel/pinch zoom anchored where the user points, drag/Space/middle-button pan, source and copy actions. Invalid syntax and unavailable chunks retain readable source without swallowing subsequent Markdown.
 entry_points: Session messages; shared StreamMarkdown stories
 qa_status: pass
-bug_ids: 818, 981, 1056
+bug_ids: 818, 981, 1056, 1164
 fix_status: in_progress
 retest_status: pass
 fix_commits:
@@ -36,7 +36,8 @@ session journey and desktop verification; a passing story alone does not establi
 Stream several tall top-to-bottom flowcharts, sequence diagrams and wide flowcharts in one response.
 The source scrolls inside a reserved frame; completing each fence and decoding its image must not
 change that frame's height. Inline diagrams use at most half the column and never exceed their natural
-size or the frame's height limit. Check both a narrow pane and a wide desktop, in light and dark themes.
+size or the frame's height limit. With the pointer over an inline diagram or its fallback source,
+the mouse wheel scrolls the transcript; the frame never swallows it. Check both a narrow pane and a wide desktop, in light and dark themes.
 Open Fullscreen from a window smaller than the viewport: its dialog must use the viewport, not the
 window bounds. Zoom in/out, drag to inspect clipped details, focus the viewer and pan with all four
 arrow keys, reset, and dismiss with Escape/Close.
@@ -47,6 +48,10 @@ pinch zoom the diagram in proportional steps while that detail stays under the p
 With the viewer focused, `+`/`=` zooms in, `-` zooms out and `0` resets; Cmd/Ctrl+0 stays with the
 app. Pan by Space+drag and middle-button drag as well as left drag. The toolbar hint reads
 "⌘+scroll to zoom · drag to pan" on macOS and "Ctrl+scroll to zoom · drag to pan" elsewhere.
+
+2026-11-03 #1164 Storybook probe in real Chromium: inside a scrollable transcript wrapper, a 300px
+wheel over the inline diagram and over the invalid-syntax source left `scrollTop` unchanged before the
+fix and moved it by 300px after; fullscreen Ctrl+wheel still zoomed 100%→128% with page scale 1.
 
 2026-10-30 #1056 Storybook probe in real Chromium: Ctrl+wheel and synthesized trackpad pinch zoomed
 with at most 1px anchor drift while `visualViewport.scale` stayed 1 (a pinch outside the viewer

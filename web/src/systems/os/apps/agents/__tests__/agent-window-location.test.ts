@@ -1,6 +1,6 @@
 // Suite: agents window location
 // Invariant: every URL the agents window can hold lands somewhere, including the old `section` and
-//   `tab` links from before the profile (UT-075).
+//   `tab` links from before the profile (UT-075), and keeps the agent's own profile pin (#1183).
 // Boundary IN: `parseAgentWindowLocation`. Boundary OUT: the locations it selects.
 import { describe, expect, it } from "vitest";
 
@@ -51,6 +51,16 @@ describe("parseAgentWindowLocation", () => {
       name: "triage",
       search: { workspace: "ws-compozy" },
     });
+  });
+
+  it("Should keep the agent's profile pin on every agent location [#1183]", () => {
+    const pin = { workspace: "ws-compozy", profile: "ops" };
+    expect(at("/agents/triage", pin)).toMatchObject({ kind: "detail", search: pin });
+    expect(at("/agents/triage/memory", pin)).toMatchObject({ kind: "page", search: pin });
+    expect(at("/agents/triage/settings", { ...pin, section: "runtime" })).toMatchObject({
+      search: { ...pin, panel: "model" },
+    });
+    expect(at("/agents/triage", { profile: "  " })).toMatchObject({ search: {} });
   });
 
   it.each([
