@@ -277,39 +277,51 @@ describe("useAgentSettingsPage", () => {
 });
 
 // Invariant: the agent home's Model row saves a pick, or a return to the default, in one
-//   digest-guarded update that keeps the rest of the definition.
+//   digest-guarded update that keeps the rest of the definition; a choice made during a save
+//   applies on that agent's saved definition, never on another agent's.
 describe("useAgentRuntimeEditor", () => {
+  type Saved = { resolve: (agent: unknown) => void; reject: (error: unknown) => void };
+  let saves: Saved[];
+
   afterEach(() => act(() => resetProfileViews()));
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.workspaceId = "ws-test";
     resetProfileViews();
+    saves = [];
+    mocks.updateMutateAsync = vi.fn(
+      () => new Promise((resolve, reject) => saves.push({ resolve, reject }))
+    );
+  });
+
+  const workspaceAgent = (overrides: Record<string, unknown> = {}) => ({
+    ...primaryAgentFixture,
+    origin: "workspace",
+    provider: "",
+    model: "",
+    reasoning_effort: "",
+    ...overrides,
   });
 
   function renderEditor(agent: unknown) {
-    mocks.agent = agent;
-    return renderHook(() => useAgentRuntimeEditor({ agent: mocks.agent as never }), {
-      wrapper: createWrapper(),
-    });
+    return renderHook(
+      ({ current }: { current: unknown }) => useAgentRuntimeEditor({ agent: current as never }),
+      { wrapper: createWrapper(), initialProps: { current: agent } }
+    );
   }
 
+  const savedParams = (index: number) => mocks.updateMutateAsync.mock.calls[index]![0];
+
   it("Should save a picked model at once and keep the agent's command", () => {
-    const { result } = renderEditor({
-      ...primaryAgentFixture,
-      origin: "workspace",
-      provider: "",
-      model: "",
-      reasoning_effort: "",
-      command: "my-claude --fast",
-    });
+    const { result } = renderEditor(workspaceAgent({ command: "my-claude --fast" }));
     expect(result.current.overridden).toBe(false);
 
     act(() =>
       result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "high" })
     );
 
-    expect(mocks.updateMutate).toHaveBeenCalledOnce();
-    expect(mocks.updateMutate.mock.calls[0]![0]).toMatchObject({
+    expect(mocks.updateMutateAsync).toHaveBeenCalledOnce();
+    expect(savedParams(0)).toMatchObject({
       name: primaryAgentFixture.name,
       cacheWorkspace: "ws-test",
       params: {
@@ -323,42 +335,83 @@ describe("useAgentRuntimeEditor", () => {
         },
       },
     });
+    // The pick shows while it saves, so the next control builds on it.
+    expect(result.current.value).toMatchObject({ provider: "claude", model: "sonnet" });
   });
 
-  it("Should apply a choice made during a save on the saved definition, not drop it", () => {
-    const agent = { ...primaryAgentFixture, origin: "workspace", provider: "", model: "" };
+  it("Should apply a choice made during a save on the saved definition, not drop it", async () => {
+    const agent = workspaceAgent();
     const { result } = renderEditor(agent);
 
     act(() =>
       result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
     );
-    act(() => result.current.onChange({ provider: "claude", model: "opus", reasoning_effort: "" }));
-    expect(mocks.updateMutate).toHaveBeenCalledOnce();
+    act(() =>
+      result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "high" })
+    );
+    expect(mocks.updateMutateAsync).toHaveBeenCalledOnce();
 
-    const saved = { ...agent, provider: "claude", model: "sonnet", definition_digest: "saved" };
-    act(() => mocks.updateMutate.mock.calls[0]![1].onSuccess(saved));
+    await act(async () =>
+      saves[0]!.resolve({ ...agent, provider: "claude", model: "sonnet", definition_digest: "s1" })
+    );
 
-    expect(mocks.updateMutate).toHaveBeenCalledTimes(2);
-    expect(mocks.updateMutate.mock.calls[1]![0].params).toMatchObject({
-      expected_digest: "saved",
-      agent: { provider: "claude", model: "opus" },
+    expect(mocks.updateMutateAsync).toHaveBeenCalledTimes(2);
+    expect(savedParams(1).params).toMatchObject({
+      expected_digest: "s1",
+      agent: { provider: "claude", model: "sonnet", reasoning_effort: "high" },
     });
   });
 
-  it("Should drop the agent's own runtime when it goes back to the default", () => {
-    const { result } = renderEditor({
-      ...primaryAgentFixture,
-      origin: "workspace",
-      provider: "claude",
-      model: "sonnet",
-      reasoning_effort: "high",
-      speed: "fast",
+  it("Should save another agent's choice on that agent while the first save runs", async () => {
+    const first = workspaceAgent({ name: "triage" });
+    const second = workspaceAgent({ name: "reviewer", definition_digest: "reviewer-digest" });
+    const { result, rerender } = renderEditor(first);
+
+    act(() =>
+      result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
+    );
+    rerender({ current: second });
+    expect(result.current.value.model).toBe("");
+    act(() => result.current.onChange({ provider: "claude", model: "opus", reasoning_effort: "" }));
+
+    expect(mocks.updateMutateAsync).toHaveBeenCalledTimes(2);
+    expect(savedParams(1)).toMatchObject({
+      name: "reviewer",
+      params: { expected_digest: "reviewer-digest", agent: { model: "opus" } },
     });
+
+    await act(async () => saves[0]!.resolve({ ...first, model: "sonnet" }));
+    expect(mocks.updateMutateAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it("Should restore server truth and show the error when a save fails", async () => {
+    const { result } = renderEditor(workspaceAgent());
+
+    act(() =>
+      result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
+    );
+    await act(async () => saves[0]!.reject(new Error("disk full")));
+
+    expect(result.current.value.model).toBe("");
+    expect(result.current.error).toBe("disk full");
+  });
+
+  it("Should drop the agent's own runtime when it goes back to the default", () => {
+    const { result } = renderEditor(
+      workspaceAgent({
+        provider: "claude",
+        model: "sonnet",
+        reasoning_effort: "high",
+        speed: "fast",
+      })
+    );
     expect(result.current.overridden).toBe(true);
 
     act(() => result.current.onUseDefault());
 
-    const { agent } = mocks.updateMutate.mock.calls[0]![0].params;
+    expect(result.current.overridden).toBe(false);
+    expect(result.current.isPending).toBe(true);
+    const { agent } = savedParams(0).params;
     expect(agent).not.toHaveProperty("provider");
     expect(agent).not.toHaveProperty("model");
     expect(agent).not.toHaveProperty("reasoning_effort");
