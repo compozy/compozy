@@ -22,8 +22,14 @@ describe("detectFilePath", () => {
     [".github/workflows/ci.yml", "inline_code", { path: ".github/workflows/ci.yml" }],
     ["file:///Users/d/a%20b.md", "href", { path: "/Users/d/a b.md", relative: false }],
     ["file://localhost/tmp/x.md", "href", { path: "/tmp/x.md", relative: false }],
+    ["file:///tmp/notes%3A12", "href", { path: "/tmp/notes:12", relative: false }],
+    ["file:///tmp/a%3A1.md:12", "href", { path: "/tmp/a:1.md", line: 12, relative: false }],
   ])("Should detect %j as a path", (text, source, expected) => {
     expect(detectFilePath(text, source)).toMatchObject({ raw: text, ...expected });
+  });
+
+  it("Should keep an encoded colon in a file href's name instead of reading a line", () => {
+    expect(detectFilePath("file:///tmp/notes%3A12", "href")).not.toHaveProperty("line");
   });
 
   it.each<[string, "inline_code" | "href"]>([
