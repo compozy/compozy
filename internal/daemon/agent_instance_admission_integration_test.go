@@ -1431,94 +1431,107 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 			t.Fatalf("decisions=%v want=%v", decisions, want)
 		}
 	})
-	// Invariant (rule 15, SEC-1): a stays-on lineage cannot widen its own approval reach by adopting a session,
-	// or detach one, on any surface; the operator still can.
-	t.Run("Should refuse stays-on adopt and detach on every surface", func(t *testing.T) {
-		const refusal = "session_reparent_operator_required"
-		scope := toolspkg.Scope{
-			SessionID: main.ID, WorkspaceID: workspace, ProfileID: store.DefaultProfileID, AgentName: main.AgentName,
-		}
-		native := func(input string) {
-			t.Helper()
-			_, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{
-				ToolID: toolspkg.ToolIDSessionReparent, Input: []byte(input), ApprovalGranted: true,
-			})
-			failure, ok := errors.AsType[*toolspkg.ToolError](err)
-			if !ok || string(failure.Code) != refusal {
-				t.Fatalf("native reparent %s error=%v", input, err)
+	// Invariant (rule 15, SEC-1, DFE2-2): only the operator moves a session into or out of a stays-on lineage.
+	// Neither the stays-on main itself nor an ordinary on-demand agent may adopt a session under the main or
+	// detach one from it, on any surface; the operator still can.
+	onDemand, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, actor := range []struct{ name, id string }{{"stays-on main", main.ID}, {"on-demand agent", onDemand.ID}} {
+		t.Run("Should refuse "+actor.name+" adopt and detach on every surface", func(t *testing.T) {
+			const refusal = "session_reparent_operator_required"
+			scope := toolspkg.Scope{
+				SessionID: actor.id, WorkspaceID: workspace, ProfileID: store.DefaultProfileID,
+				AgentName: main.AgentName,
 			}
-		}
-		reparent := func(base string, client *http.Client, method string, agent bool) (int, []byte) {
-			t.Helper()
-			var body io.Reader = http.NoBody
-			if method == http.MethodPut {
-				body = strings.NewReader(fmt.Sprintf(`{"parent_session_id":%q}`, main.ID))
+			native := func(input string) {
+				t.Helper()
+				_, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionReparent, Input: []byte(input), ApprovalGranted: true,
+				})
+				failure, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok || string(failure.Code) != refusal {
+					t.Fatalf("native reparent %s error=%v", input, err)
+				}
 			}
-			request, err := http.NewRequestWithContext(t.Context(), method,
-				base+"/api/workspaces/"+workspace+"/sessions/"+stranger.ID+"/parent", body)
-			if err != nil {
-				t.Fatal(err)
+			reparent := func(base string, client *http.Client, method string, agent bool) (int, []byte) {
+				t.Helper()
+				var body io.Reader = http.NoBody
+				if method == http.MethodPut {
+					body = strings.NewReader(fmt.Sprintf(`{"parent_session_id":%q}`, main.ID))
+				}
+				request, err := http.NewRequestWithContext(t.Context(), method,
+					base+"/api/workspaces/"+workspace+"/sessions/"+stranger.ID+"/parent", body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				request.Header.Set("Content-Type", "application/json")
+				if agent {
+					request.Header.Set(agentidentity.HeaderSessionID, actor.id)
+					request.Header.Set(agentidentity.HeaderAgent, main.AgentName)
+				}
+				response, err := client.Do(request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer response.Body.Close()
+				raw, err := io.ReadAll(response.Body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return response.StatusCode, raw
 			}
-			request.Header.Set("Content-Type", "application/json")
-			if agent {
-				request.Header.Set(agentidentity.HeaderSessionID, main.ID)
-				request.Header.Set(agentidentity.HeaderAgent, main.AgentName)
+			parentOf := func() string {
+				info, err := manager.Status(t.Context(), stranger.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if info.Lineage == nil {
+					return ""
+				}
+				return info.Lineage.ParentSessionID
 			}
-			response, err := client.Do(request)
-			if err != nil {
-				t.Fatal(err)
+			httpBase := fmt.Sprintf("http://127.0.0.1:%d", d.info.Port)
+			native(fmt.Sprintf(`{"session_id":%q,"parent_session_id":%q}`, stranger.ID, main.ID))
+			for _, transport := range []struct {
+				base   string
+				client *http.Client
+			}{{httpBase, http.DefaultClient}, {"http://unix", uds}} {
+				status, raw := reparent(transport.base, transport.client, http.MethodPut, true)
+				if status != http.StatusConflict || !bytes.Contains(raw, []byte(refusal)) {
+					t.Fatalf("agent adopt through %s=%d %s", transport.base, status, raw)
+				}
 			}
-			defer response.Body.Close()
-			raw, err := io.ReadAll(response.Body)
-			if err != nil {
-				t.Fatal(err)
+			if got := parentOf(); got != "" {
+				t.Fatalf("refused adopt changed parent to %q", got)
 			}
-			return response.StatusCode, raw
-		}
-		parentOf := func() string {
-			info, err := manager.Status(t.Context(), stranger.ID)
-			if err != nil {
-				t.Fatal(err)
+			if status, raw := reparent(httpBase, http.DefaultClient, http.MethodPut, false); status != http.StatusOK {
+				t.Fatalf("operator adopt=%d %s", status, raw)
 			}
-			if info.Lineage == nil {
-				return ""
+			native(fmt.Sprintf(`{"session_id":%q,"top_level":true}`, stranger.ID))
+			for _, transport := range []struct {
+				base   string
+				client *http.Client
+			}{{httpBase, http.DefaultClient}, {"http://unix", uds}} {
+				status, raw := reparent(transport.base, transport.client, http.MethodDelete, true)
+				if status != http.StatusConflict || !bytes.Contains(raw, []byte(refusal)) {
+					t.Fatalf("agent detach through %s=%d %s", transport.base, status, raw)
+				}
 			}
-			return info.Lineage.ParentSessionID
-		}
-		httpBase := fmt.Sprintf("http://127.0.0.1:%d", d.info.Port)
-		native(fmt.Sprintf(`{"session_id":%q,"parent_session_id":%q}`, stranger.ID, main.ID))
-		for _, transport := range []struct {
-			base   string
-			client *http.Client
-		}{{httpBase, http.DefaultClient}, {"http://unix", uds}} {
-			status, raw := reparent(transport.base, transport.client, http.MethodPut, true)
-			if status != http.StatusConflict || !bytes.Contains(raw, []byte(refusal)) {
-				t.Fatalf("agent adopt through %s=%d %s", transport.base, status, raw)
+			if got := parentOf(); got != main.ID {
+				t.Fatalf("refused detach changed parent to %q", got)
 			}
-		}
-		if got := parentOf(); got != "" {
-			t.Fatalf("refused adopt changed parent to %q", got)
-		}
-		if status, raw := reparent(httpBase, http.DefaultClient, http.MethodPut, false); status != http.StatusOK {
-			t.Fatalf("operator adopt=%d %s", status, raw)
-		}
-		native(fmt.Sprintf(`{"session_id":%q,"top_level":true}`, stranger.ID))
-		for _, transport := range []struct {
-			base   string
-			client *http.Client
-		}{{httpBase, http.DefaultClient}, {"http://unix", uds}} {
-			status, raw := reparent(transport.base, transport.client, http.MethodDelete, true)
-			if status != http.StatusConflict || !bytes.Contains(raw, []byte(refusal)) {
-				t.Fatalf("agent detach through %s=%d %s", transport.base, status, raw)
+			if status, raw := reparent(
+				httpBase,
+				http.DefaultClient,
+				http.MethodDelete,
+				false,
+			); status != http.StatusOK {
+				t.Fatalf("operator detach=%d %s", status, raw)
 			}
-		}
-		if got := parentOf(); got != main.ID {
-			t.Fatalf("refused detach changed parent to %q", got)
-		}
-		if status, raw := reparent(httpBase, http.DefaultClient, http.MethodDelete, false); status != http.StatusOK {
-			t.Fatalf("operator detach=%d %s", status, raw)
-		}
-	})
+		})
+	}
 }
 
 // Invariant (UT-007, IT-022, IT-032): child Goals remain supported; maintenance

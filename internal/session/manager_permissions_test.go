@@ -94,6 +94,20 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 		if got, want := stopped.EffectivePermissions, string(compozyconfig.PermissionModeApproveAll); got != want {
 			t.Fatalf("stopped info effective permissions = %q, want %q", got, want)
 		}
+		// UT-017/UT-094: editing the definition between create and resume changes nothing the session froze.
+		h.resolver.upsert(&workspacepkg.ResolvedWorkspace{
+			ID: h.workspaceID, RootDir: h.workspace, Name: h.workspaceName, Config: h.cfg,
+			Agents: []compozyconfig.AgentDef{
+				{Name: compozyconfig.DefaultAgentName, Provider: "claude", Prompt: "You are a coding assistant."},
+				{
+					Name: "coder", SessionApproval: "children", Provider: "claude",
+					Prompt: "You are a coding assistant.",
+					PermissionRules: []compozyconfig.PermissionRule{
+						{Kind: "edit", Decision: "allow"}, {Kind: "execute", Decision: "allow"},
+					},
+				},
+			},
+		})
 		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
 		if err != nil {
 			t.Fatalf("Resume() error = %v", err)
@@ -125,6 +139,23 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 		}
 		if got, want := resumedMeta.EffectiveProviderAuthModeValue(), wantAuthMode; got != want {
 			t.Fatalf("resumed metadata provider auth mode = %q, want %q", got, want)
+		}
+		// UT-094: a child runs its own definition's rules; the parent's frozen rules are not inherited.
+		child, err := h.manager.Spawn(testutil.Context(t), SpawnOpts{
+			ParentSessionID: resumed.ID, AgentName: compozyconfig.DefaultAgentName, Workspace: h.workspaceID,
+			Name: "Rule child", TTL: time.Minute,
+		})
+		if err != nil {
+			t.Fatalf("Spawn() error = %v", err)
+		}
+		t.Cleanup(func() { _ = h.manager.Stop(testutil.Context(t), child.ID) })
+		childMeta := readMeta(t, child.MetaPath())
+		if len(childMeta.PermissionRules) != 0 || childMeta.EffectiveSessionApproval == "workspace" {
+			t.Fatalf("child inherited parent policy: rules=%+v approval=%q",
+				childMeta.PermissionRules, childMeta.EffectiveSessionApproval)
+		}
+		if rules := h.driver.startCalls[len(h.driver.startCalls)-1].PermissionRulesValue(); len(rules) != 0 {
+			t.Fatalf("child ACP start carried parent rules: %+v", rules)
 		}
 	})
 }
