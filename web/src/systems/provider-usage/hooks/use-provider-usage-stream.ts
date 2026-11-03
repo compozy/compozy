@@ -19,7 +19,7 @@ export interface UseProviderUsageStreamOptions {
 }
 
 function defaultEventSourceFactory(url: string): StreamEventSource {
-  return createStreamEventSource(url);
+  return createStreamEventSource(url, { transport: "websocket" });
 }
 
 interface StreamLease {

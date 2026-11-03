@@ -218,7 +218,8 @@ describe("terminal creation scope", () => {
                 instance_key: DEV_SERVER_TERMINAL.id,
                 route: { pathname: `/terminal/${DEV_SERVER_TERMINAL.id}`, search: {} },
               },
-            }
+            },
+            expect.any(AbortSignal)
           );
           expect(push).toHaveBeenCalledOnce();
         } else {
