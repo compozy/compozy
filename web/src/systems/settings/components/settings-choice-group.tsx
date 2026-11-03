@@ -1,6 +1,6 @@
 import { Check } from "@compozy/ui/icons";
 
-import { RadioCard, RadioCardGroup, SkeletonText } from "@compozy/ui";
+import { RadioCard, RadioCardGroup, SkeletonText, type RadioCardGroupOption } from "@compozy/ui";
 
 const CHOICE_GRID_CLASS = "grid gap-2 p-3 @min-settings-takeover:grid-cols-3";
 /** Longer ladders (five permission levels) read top to bottom in one column. */
@@ -15,6 +15,8 @@ export interface SettingsChoiceOption<V extends string> {
   name: string;
   /** One-line consequence. */
   description: string;
+  /** The option's own glyph; a group whose options carry icons drops the check mark. */
+  icon?: RadioCardGroupOption<V>["icon"];
 }
 
 export interface SettingsChoiceGroupProps<V extends string> {
@@ -46,8 +48,10 @@ export function SettingsChoiceGroup<V extends string>({
         value: option.value,
         title: option.name,
         description: <span className="block leading-snug">{option.description}</span>,
-        // The card's own selected treatment (selected fill + inset ring) carries the choice.
-        badge: (
+        icon: option.icon,
+        // The card's own selected treatment (selected fill + inset ring) carries the choice;
+        // icon-less cards keep a check so the choice still reads without a glyph.
+        badge: option.icon ? undefined : (
           <Check
             aria-hidden="true"
             className={option.value === value ? "size-3.5 text-fg" : "size-3.5 opacity-0"}

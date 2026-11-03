@@ -44,6 +44,7 @@ const PERMISSION_OPTIONS = AGENT_PERMISSION_LEVELS.map(level => ({
   value: level.value,
   name: level.label,
   description: level.description,
+  icon: level.icon,
 }));
 
 /**
