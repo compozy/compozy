@@ -55,18 +55,19 @@ type AgentInstanceAdoptRequest struct {
 	SessionID string `json:"session_id"`
 }
 type AgentInstanceReportPayload struct {
-	ID        string                  `json:"id"`
-	Kind      string                  `json:"kind"`
-	State     string                  `json:"state"`
-	Proposals []AgentInstanceProposal `json:"proposals,omitempty"`
-	Reason    string                  `json:"reason,omitempty"`
-	Detail    string                  `json:"detail,omitempty"`
-	SessionID string                  `json:"session_id,omitempty"`
-	Tool      string                  `json:"tool,omitempty"`
-	ExpiredBy string                  `json:"expired_by,omitempty"`
-	Cause     string                  `json:"cause,omitempty"`
-	Since     string                  `json:"since,omitempty"`
-	CreatedAt time.Time               `json:"created_at"`
+	SkillReviewID string                  `json:"skill_review_id,omitempty"`
+	ID            string                  `json:"id"`
+	Kind          string                  `json:"kind"`
+	State         string                  `json:"state"`
+	Proposals     []AgentInstanceProposal `json:"proposals,omitempty"`
+	Reason        string                  `json:"reason,omitempty"`
+	Detail        string                  `json:"detail,omitempty"`
+	SessionID     string                  `json:"session_id,omitempty"`
+	Tool          string                  `json:"tool,omitempty"`
+	ExpiredBy     string                  `json:"expired_by,omitempty"`
+	Cause         string                  `json:"cause,omitempty"`
+	Since         string                  `json:"since,omitempty"`
+	CreatedAt     time.Time               `json:"created_at"`
 }
 type AgentInstanceReportsResponse struct {
 	Reports    []AgentInstanceReportPayload `json:"reports"`
@@ -74,9 +75,10 @@ type AgentInstanceReportsResponse struct {
 }
 
 type AgentInstanceProposal struct {
-	Title    string   `json:"title"`
-	Body     string   `json:"body"`
-	ItemKeys []string `json:"item_keys"`
+	Sources  []AgentInstanceProposalSource `json:"sources,omitempty"`
+	Title    string                        `json:"title"`
+	Body     string                        `json:"body"`
+	ItemKeys []string                      `json:"item_keys"`
 }
 
 type AgentInstanceCheckRequest struct {
@@ -124,4 +126,13 @@ type AgentInstanceCheckInPayload struct {
 type AgentInstanceCheckInsResponse struct {
 	CheckIns   []AgentInstanceCheckInPayload `json:"check_ins"`
 	NextCursor string                        `json:"next_cursor"`
+}
+
+// AgentInstanceProposalSource identifies daemon-observed input to a proactive proposal.
+type AgentInstanceProposalSource struct {
+	Kind       string `json:"kind"`
+	EventID    string `json:"event_id"`
+	TriggerID  string `json:"trigger_id"`
+	RunID      string `json:"run_id"`
+	ReceivedAt string `json:"received_at"`
 }

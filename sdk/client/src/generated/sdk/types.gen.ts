@@ -318,7 +318,16 @@ export type AgentInstancePayload = {
 export type AgentInstanceProposal = {
   body: string;
   item_keys: Array<string>;
+  sources?: Array<AgentInstanceProposalSource>;
   title: string;
+};
+
+export type AgentInstanceProposalSource = {
+  event_id: string;
+  kind: string;
+  received_at: string;
+  run_id: string;
+  trigger_id: string;
 };
 
 export type AgentInstanceReportPayload = {
@@ -332,6 +341,7 @@ export type AgentInstanceReportPayload = {
   reason?: string;
   session_id?: string;
   since?: string;
+  skill_review_id?: string;
   state: string;
   tool?: string;
 };
@@ -1769,6 +1779,7 @@ export type CreateTriggerRequest = {
   prompt: string;
   retry?: RetryConfig | null;
   scope: "global" | "workspace" | "user" | "@user";
+  target_instance_scope?: string;
   target_kind?: string;
   webhook_id?: string;
   webhook_secret_value?: string;
@@ -11923,6 +11934,7 @@ export type TriggerPayload = {
   retry: RetryConfig;
   scope: "global" | "workspace";
   source: "config" | "package" | "dynamic";
+  target_instance_scope?: string;
   target_kind: string;
   updated_at: string;
   webhook_id?: string;
@@ -17632,7 +17644,7 @@ export type ListAutomationTriggersData = {
     /**
      * Filter by target kind; task matches no trigger
      */
-    target?: "agent" | "loop" | "task";
+    target?: "agent" | "loop" | "task" | "agent_instance";
     /**
      * Filter by enabled state
      */

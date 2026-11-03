@@ -12,9 +12,18 @@ import (
 	"github.com/compozy/compozy/internal/redact"
 )
 
+type AutomationEventSource struct {
+	Kind       string `json:"kind"`
+	EventID    string `json:"event_id"`
+	TriggerID  string `json:"trigger_id"`
+	RunID      string `json:"run_id"`
+	ReceivedAt string `json:"received_at"`
+}
+
 type AutomationEventFact struct {
 	ID, InstanceID, Summary, ReceivedAt string
 	Instruction                         string
+	TriggerID, RunID                    string
 }
 
 const (
@@ -57,14 +66,18 @@ func collectAutomationEvents(scope CollectorScope, facts CollectorFacts) ([]Dige
 		quoted := strconv.Quote(summary)
 		quoted = strings.NewReplacer("<", `\u003c`, ">", `\u003e`, "&", `\u0026`).Replace(quoted)
 		item := DigestItem{
+			Source: &AutomationEventSource{
+				Kind:       "automation_event",
+				EventID:    row.ID,
+				TriggerID:  row.TriggerID,
+				RunID:      row.RunID,
+				ReceivedAt: row.ReceivedAt,
+			},
 			Key:     "automation_event:" + row.ID,
 			Summary: "<untrusted_automation_event>\n" + quoted + "\n</untrusted_automation_event>",
 		}
-		if row.Instruction != "" {
-			item.Summary = "Trigger instruction:\n" + BoundAutomationEventSummary(
-				redact.String(row.Instruction),
-			) + "\n" + item.Summary
-		}
+		item.Instruction = BoundAutomationEventSummary(redact.String(row.Instruction))
+
 		encoded, err := json.Marshal(item)
 		if err != nil || used+len(encoded)+1 > AutomationEventBatchBytes {
 			break

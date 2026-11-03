@@ -19,14 +19,23 @@ func (d *Dispatcher) dispatchInstanceEvent(
 	if d.instanceEvents == nil {
 		return d.finishRun(ctx, run, RunFailed, errors.New("automation: instance event sink is unavailable"))
 	}
-	_, canceled, err := d.dispatchPreFireHook(ctx, req, "", attempt)
+	prompt, err := req.prompt()
+	if err != nil {
+		return d.finishRun(ctx, run, RunFailed, err)
+	}
+	prompt, canceled, err := d.dispatchPreFireHook(ctx, req, prompt, attempt)
 	if err != nil {
 		return d.finishRun(ctx, run, RunFailed, err)
 	}
 	if canceled {
 		return d.finishRun(ctx, run, RunCancelled, nil)
 	}
-	data, err := json.Marshal(req.Envelope.Data)
+	// Rendered template values can contain external text. Keep the entire rendered prompt
+	// inside the event fence; the stored trigger template remains the trusted instruction.
+	data, err := json.Marshal(struct {
+		Prompt string         `json:"prompt"`
+		Data   map[string]any `json:"data"`
+	}{Prompt: prompt, Data: req.envelopeData()})
 	if err != nil {
 		return d.finishRun(ctx, run, RunFailed, err)
 	}
@@ -47,5 +56,6 @@ func (d *Dispatcher) dispatchInstanceEvent(
 	run.Metadata["instance_event_instance_id"] = result.InstanceID
 	run.Metadata["instance_event_check_scheduled"] = result.CheckScheduled
 	run.Metadata["instance_event_reason"] = result.Reason
+	d.dispatchPostFireHook(ctx, req, *run)
 	return d.finishRun(ctx, run, RunCompleted, nil)
 }

@@ -89,3 +89,27 @@ resource publisher before returning an approval. No catalog filter or change to 
 was introduced. Native descriptor inventory is the owning public-contract test for the two new IDs.
 Official skill guidance, skills site docs and `ET-skill-activation-gates` carry the reviewed workflow.
 The Web approval card remains outside this backend assignment.
+
+## Event target public surfaces (rules 37-41)
+
+The inherited event sink now has public trigger creation and filtering in CLI, HTTP/UDS, native tools
+and TOML, with generated clients. `--target-instance` infers workspace/global scope for the documented
+CLI path; scheduled jobs reject it. Template rendering and pre/post-fire hooks run before the event
+sink, with rendered values fenced as untrusted data. The operator-authored instruction stays separate.
+Proposals carry daemon-owned event/run/trigger provenance; the public report decoder preserves it and
+the skill review link. The collector remains independent of `context.include` and enforces batch bytes.
+
+| Contract | Canonical suite | Focused result |
+| --- | --- | --- |
+| UT-051, UT-056 | `automation.TestDispatchInstanceEvents` (webhook and `ext.acme.ticket`) | Passed, 1.513s |
+| UT-052, UT-054, UT-055, UT-073, UT-074 | `globaldb.TestInstanceEventDelivery` | Passed in 4.291s focused store run |
+| UT-053 | `heartbeat` event digest cases, `session.TestTriagePromptStatesProposalLimits` | Passed; session 4.220s |
+| UT-071, UT-072 | `globaldb.TestInstanceWakeTransactions`, `TestInstanceCollectorFacts` | Passed in same store run |
+| Public target admission | `cli.TestAutomationInstanceTargets`, `config.TestAutomationInstanceTargets` | Passed, 3.314s and 3.832s |
+| IT-023 | `daemon.TestInstanceWebhookCheckIntegration` | Passed, 4.129s; real signed HTTP webhook, SQLite, read-only ACP and public proposal read |
+| IT-020 report link | `daemon.TestInstanceSkillApprovalIntegration` | Passed again with IT-023, combined 6.476s |
+
+The real event journey refuses an attempted edit and proves the main has no user-message event.
+A creation hook is not a model turn; the assertion queries canonical user-message events.
+`make codegen` passed. Site event/heartbeat docs, the bundled configuration/native reference and
+`TA-automation-last-run-agent` describe the verified backend journey. Full E2E remains CI-owned.

@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// CancelWorktreeExitActionRequest is a daemon API value.
+type CancelWorktreeExitActionRequest struct {
+	OperationID string `json:"op_id"`
+}
+
+// CatalogMeta is a daemon API value.
+type CatalogMeta struct {
+	UseWhen  string   `json:"use_when,omitempty"`
+	Keywords []string `json:"keywords,omitempty"`
+	Category string   `json:"category,omitempty"`
+}
+
 // ChangeSet is a daemon API value.
 type ChangeSet struct {
 	DesktopIDs     []DesktopID             `json:"desktop_ids,omitempty"`
@@ -413,33 +425,4 @@ type CountedCursorPagePayload struct {
 	HasMore    bool   `json:"has_more"`
 	Total      int    `json:"total"`
 	Limit      int    `json:"limit"`
-}
-
-// CreateAgentPayload is a daemon API value.
-type CreateAgentPayload struct {
-	DisplayName        *string                             `json:"display_name,omitempty"`
-	Description        *string                             `json:"description,omitempty"`
-	Kind               string                              `json:"kind,omitempty"`
-	Appearance         map[string]any                      `json:"appearance,omitempty"`
-	Label              string                              `json:"label,omitempty"`
-	ResolvedAppearance map[string]any                      `json:"resolved_appearance,omitempty"`
-	SessionEnv         map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
-	Name               string                              `json:"name"`
-	Provider           string                              `json:"provider,omitempty"`
-	Command            string                              `json:"command,omitempty"`
-	Model              string                              `json:"model,omitempty"`
-	ReasoningEffort    Effort                              `json:"reasoning_effort,omitempty"`
-	Speed              Speed                               `json:"speed,omitempty"`
-	ACPOptions         []AgentACPOptionSelection           `json:"acp_options,omitempty"`
-	Tools              []string                            `json:"tools,omitempty"`
-	Toolsets           []string                            `json:"toolsets,omitempty"`
-	DenyTools          []string                            `json:"deny_tools,omitempty"`
-	SessionApproval    string                              `json:"session_approval,omitempty"`
-	PermissionRules    []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
-	WorkspaceAccess    string                              `json:"workspace_access,omitempty"`
-	Permissions        SettingsPermissionMode              `json:"permissions,omitempty"`
-	CategoryPath       []string                            `json:"category_path,omitempty"`
-	Skills             *CreateAgentSkillsConfig            `json:"skills,omitzero"`
-	FallbackChain      []AgentFallbackRoutePayload         `json:"fallback_chain,omitempty"`
-	Prompt             string                              `json:"prompt"`
 }

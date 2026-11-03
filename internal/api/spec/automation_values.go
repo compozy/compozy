@@ -29,5 +29,6 @@ func automationJobTargetParam() ParameterSpec {
 }
 
 func automationTriggerTargetParam() ParameterSpec {
-	return enumQueryParam("target", "Filter by target kind; task matches no trigger", automationTargetFilterValues())
+	return enumQueryParam("target", "Filter by target kind; task matches no trigger",
+		append(automationTargetFilterValues(), string(automationpkg.TargetKindAgentInstance)))
 }

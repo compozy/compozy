@@ -205,6 +205,7 @@ type TranscriptSnapshotPayload struct {
 
 // TriggerPayload is a daemon API value.
 type TriggerPayload struct {
+	TargetInstanceScope  string                    `json:"target_instance_scope,omitempty"`
 	ID                   string                    `json:"id"`
 	ProfileID            string                    `json:"profile_id"`
 	ProfileName          string                    `json:"profile_name"`

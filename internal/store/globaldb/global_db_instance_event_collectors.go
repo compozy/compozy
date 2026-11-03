@@ -20,6 +20,7 @@ func (r *InstanceRepo) collectAutomationEventFacts(
 	}
 	for _, row := range rows {
 		facts.AutomationEvents = append(facts.AutomationEvents, heartbeat.AutomationEventFact{
+			TriggerID: row.TriggerID, RunID: row.RunID,
 			Instruction: row.Instruction,
 			ID:          row.ID, InstanceID: row.InstanceID, Summary: row.Summary, ReceivedAt: row.ReceivedAt,
 		})

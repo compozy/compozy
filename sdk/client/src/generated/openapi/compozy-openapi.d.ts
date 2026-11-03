@@ -7961,7 +7961,15 @@ export interface components {
     AgentInstanceProposal: {
       body: string;
       item_keys: string[];
+      sources?: components["schemas"]["AgentInstanceProposalSource"][];
       title: string;
+    };
+    AgentInstanceProposalSource: {
+      event_id: string;
+      kind: string;
+      received_at: string;
+      run_id: string;
+      trigger_id: string;
     };
     AgentInstanceReportPayload: {
       cause?: string;
@@ -7975,6 +7983,7 @@ export interface components {
       reason?: string;
       session_id?: string;
       since?: string;
+      skill_review_id?: string;
       state: string;
       tool?: string;
     };
@@ -9401,6 +9410,7 @@ export interface components {
       retry?: components["schemas"]["RetryConfig"] | null;
       /** @enum {string} */
       scope: "global" | "workspace" | "user" | "@user";
+      target_instance_scope?: string;
       target_kind?: string;
       webhook_id?: string;
       webhook_secret_value?: string;
@@ -19874,6 +19884,7 @@ export interface components {
       scope: "global" | "workspace";
       /** @enum {string} */
       source: "config" | "package" | "dynamic";
+      target_instance_scope?: string;
       target_kind: string;
       /** Format: date-time */
       updated_at: string;
@@ -27810,7 +27821,7 @@ export interface operations {
         /** @description Filter by trigger source */
         source?: "config" | "package" | "dynamic";
         /** @description Filter by target kind; task matches no trigger */
-        target?: "agent" | "loop" | "task";
+        target?: "agent" | "loop" | "task" | "agent_instance";
         /** @description Filter by enabled state */
         enabled?: boolean;
         /** @description Filter by trigger event */

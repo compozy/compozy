@@ -17,3 +17,19 @@ overlaps: TA-web-automations-listing; TA-schedule-catchup-overlap
 ---
 
 New in the Automations spec (task 07; US-034, US-035; ADR-003). Produce one completed, one failed, one `self_overlap` skip and one never-run automation of each kind, then compare the four surfaces against `…/runs?limit=1` for the same ids and against the Web row text. Check a workspace-scoped read never returns another project's runs in `last_run`.
+
+## Stays-on event delivery
+
+Create a workspace webhook trigger with `--target-instance`, sign one delivery and inspect its
+completed run: `session_id` is empty and metadata identifies the stored instance event and check
+status. Run the check with a provider advertising read-only mode, including an attempted edit.
+The edit is refused, a proposal retains trigger/run/event source IDs, and the main has no new user
+message. Repeat with `ext.acme.ticket`; it uses the same dispatcher. Disable checks and verify the
+run explains why no check reads the event. A missing target fails the run while keeping the trigger
+enabled. Verify pause retains events, retention counts omissions, and a successful check consumes
+only its bounded batch.
+
+Backend evidence: `daemon.TestInstanceWebhookCheckIntegration` (signed HTTP ingress, real ACP,
+SQLite and public proposal read), `automation.TestDispatchInstanceEvents`, and the canonical
+`globaldb.TestInstanceEventDelivery` / `TestInstanceWakeTransactions` suites. Results are recorded
+in `docs/qa/reports/2026-11-03-stays-on-hardening-backend.md`; Web presentation remains separate.

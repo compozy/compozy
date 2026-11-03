@@ -427,9 +427,9 @@ func decodeListCursor(raw string, kind string, fingerprint string) (ListCursorPo
 
 func validateListTarget(target string) error {
 	switch target {
-	case "", "agent", "loop", "task":
+	case "", "agent", "loop", "task", "agent_instance":
 		return nil
 	default:
-		return fmt.Errorf("automation: target must be one of agent, loop or task: %q", target)
+		return fmt.Errorf("automation: target must be one of agent, agent_instance, loop or task: %q", target)
 	}
 }
