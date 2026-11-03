@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+// AppTokenRevokeResponse is a daemon API value.
+type AppTokenRevokeResponse struct {
+	AppToken AppTokenPayload `json:"app_token"`
+	Changed  bool            `json:"changed"`
+	Canceled int             `json:"canceled"`
+}
+
+// AppTokensResponse is a daemon API value.
+type AppTokensResponse struct {
+	AppTokens []AppTokenPayload `json:"app_tokens"`
+}
+
 // ApprovalExecutionStatus is a daemon API value.
 type ApprovalExecutionStatus string
 
@@ -433,17 +445,4 @@ type ClarifyAnswer struct {
 // ClearTaskBlockRequest is a daemon API value.
 type ClearTaskBlockRequest struct {
 	Note string `json:"note,omitempty"`
-}
-
-// ClientID is a daemon API value.
-type ClientID string
-
-// ClientKind is a daemon API value.
-type ClientKind string
-
-// CmdPaletteCatalogChangedEvent is a daemon API value.
-type CmdPaletteCatalogChangedEvent struct {
-	ProfileLens     ProfileLens `json:"profile_lens"`
-	Workspace       WorkspaceID `json:"workspace"`
-	CatalogRevision string      `json:"catalog_revision"`
 }

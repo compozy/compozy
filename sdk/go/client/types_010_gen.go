@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// LoopGenerationStartedRunEventPayload is a daemon API value.
+type LoopGenerationStartedRunEventPayload struct {
+	ID          string                            `json:"id"`
+	LoopRunID   string                            `json:"loop_run_id"`
+	WorkspaceID string                            `json:"workspace_id"`
+	Seq         int64                             `json:"seq"`
+	Kind        RunEventKind                      `json:"kind"`
+	Payload     LoopGenerationStartedEventPayload `json:"payload"`
+	At          time.Time                         `json:"at"`
+}
+
+// LoopInput is a daemon API value.
+type LoopInput struct {
+	Type        InputType     `json:"type"`
+	Required    bool          `json:"required,omitzero"`
+	Description string        `json:"description,omitempty"`
+	Ref         *LoopInputRef `json:"ref,omitzero"`
+	Enum        []string      `json:"enum,omitempty"`
+	Default     any           `json:"default,omitempty"`
+}
+
 // LoopInputDefaultResponse is a daemon API value.
 type LoopInputDefaultResponse struct {
 	LoopName string                 `json:"loop_name"`
@@ -423,24 +444,4 @@ type LoopRunsAggregatePayload struct {
 	Succeeded  int `json:"succeeded"`
 	Failed     int `json:"failed"`
 	Historical int `json:"historical"`
-}
-
-// LoopRunsResponse is a daemon API value.
-type LoopRunsResponse struct {
-	Runs       []LoopRunPayload         `json:"runs"`
-	Aggregates LoopRunsAggregatePayload `json:"aggregates"`
-	NextCursor string                   `json:"next_cursor,omitempty"`
-}
-
-// LoopRuntimeDefaults is a daemon API value.
-type LoopRuntimeDefaults struct {
-	Worker LoopRuntimeSpec `json:"worker,omitempty,omitzero"`
-	Judge  LoopRuntimeSpec `json:"judge,omitempty,omitzero"`
-}
-
-// LoopRuntimeMatch is a daemon API value.
-type LoopRuntimeMatch struct {
-	ID         string `json:"id,omitempty"`
-	Type       string `json:"type,omitempty"`
-	Complexity string `json:"complexity,omitempty"`
 }

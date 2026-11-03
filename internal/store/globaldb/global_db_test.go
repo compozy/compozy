@@ -22,6 +22,7 @@ import (
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	automation "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/extensionenv"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -469,6 +470,47 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	t.Run("Should preserve instance wakes and reports while adding exhaustion rotation state", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00179_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, statement := range []string{
+			`INSERT INTO agent_instances (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
+ VALUES ('retained-instance','00000000000000000000000000','coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`,
+			`INSERT INTO agent_instance_wake_state (instance_id,next_wake_at,last_digest,quiet_streak)
+ VALUES ('retained-instance','2026-11-04T00:00:00Z','retained-digest',3)`,
+			`INSERT INTO agent_instance_reports (id,instance_id,source_key,kind,payload,created_at)
+ VALUES ('retained-report','retained-instance','retained-source','failure','{"reason":"retained"}','2026-11-03T00:00:00Z')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded := openGlobalDBForTest(t, path)
+		state, err := upgraded.Instances().WakeState(ctx, "retained-instance")
+		if err != nil || state.RotationDueSession != "" || state.NextWakeAt != "2026-11-04T00:00:00Z" ||
+			state.LastDigest != "retained-digest" || state.QuietStreak != 3 {
+			t.Fatalf("upgraded wake = %+v, %v", state, err)
+		}
+		reports, err := upgraded.InstanceReports().
+			ListReports(ctx, agentinstance.ReportQuery{InstanceID: "retained-instance", Limit: 100})
+		if err != nil || len(reports) != 1 || reports[0].ID != "retained-report" {
+			t.Fatalf("upgraded reports = %+v, %v", reports, err)
+		}
+	})
+
 	// Invariant: closing preserves committed rows without waiting for an external reader's snapshot.
 	t.Run("Should close with a retained reader and preserve committed metadata across reopen", func(t *testing.T) {
 		t.Parallel()

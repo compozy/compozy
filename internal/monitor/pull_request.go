@@ -246,6 +246,10 @@ func (e *entry) target() PullRequestTarget {
 
 // sameWatch reports whether e already covers the watch candidate would add.
 func (e *entry) sameWatch(candidate *entry) bool {
+	if e.state.Kind == KindTimer && candidate.state.Kind == KindTimer {
+		return e.state.Description == candidate.state.Description &&
+			e.state.DeadlineAt.Sub(candidate.state.DeadlineAt).Abs() <= time.Second
+	}
 	if e.pullRequest != nil && candidate.pullRequest != nil {
 		return e.target() == candidate.target()
 	}

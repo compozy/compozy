@@ -207,7 +207,8 @@ func (m TurnMatch) Validate(path string) error {
 	}
 	if normalized.TurnSource == "" && normalized.UserText == "" && normalized.UserTextContains == "" &&
 		normalized.RawUserTextContains == "" &&
-		normalized.Goal == nil && normalized.Judge == nil {
+		normalized.Goal == nil && normalized.Judge == nil &&
+		normalized.CompactionNotice == nil && normalized.SituationFull == nil {
 		return fmt.Errorf("acpmock: %s requires at least one stable selector", path)
 	}
 
@@ -227,7 +228,8 @@ func (m TurnMatch) Validate(path string) error {
 // Normalize returns a trimmed copy of the turn matcher.
 func (m TurnMatch) Normalize() TurnMatch {
 	normalized := TurnMatch{
-		TurnSource:          strings.TrimSpace(m.TurnSource),
+		TurnSource:       strings.TrimSpace(m.TurnSource),
+		CompactionNotice: m.CompactionNotice, SituationFull: m.SituationFull,
 		UserText:            strings.TrimSpace(m.UserText),
 		UserTextContains:    canonicalUserText(m.UserTextContains),
 		RawUserTextContains: strings.TrimSpace(m.RawUserTextContains),
@@ -256,6 +258,10 @@ type turnMatchInput struct {
 func (m TurnMatch) matches(input turnMatchInput) bool {
 	normalized := m.Normalize()
 	canonicalText := canonicalUserText(input.UserText)
+	if !normalized.matchesContext(input.UserText) {
+		return false
+	}
+
 	if normalized.TurnSource != "" && input.Meta.Normalize().TurnSource != normalized.TurnSource {
 		return false
 	}
@@ -284,5 +290,21 @@ func (m TurnMatch) matches(input turnMatchInput) bool {
 			return false
 		}
 	}
+	return true
+}
+
+func (m TurnMatch) matchesContext(prompt string) bool {
+	if m.CompactionNotice != nil &&
+		strings.Contains(prompt, "<compozy-context-notice>") != *m.CompactionNotice {
+		return false
+	}
+	if m.SituationFull != nil {
+		full := strings.Contains(prompt, "<compozy-situation-context>") &&
+			!strings.Contains(prompt, `"unchanged":true`)
+		if full != *m.SituationFull {
+			return false
+		}
+	}
+
 	return true
 }

@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+// LogTailStatusPayload is a daemon API value.
+type LogTailStatusPayload struct {
+	Available bool   `json:"available"`
+	Status    string `json:"status"`
+}
+
+// LogsListResponse is a daemon API value.
+type LogsListResponse struct {
+	Events []LogEventPayload `json:"events"`
+}
+
+// LookupState is a daemon API value.
+type LookupState string
+
+// LoopAmendmentValueSummary is a daemon API value.
+type LoopAmendmentValueSummary struct {
+	ByteSize    int    `json:"byte_size"`
+	ContentHash string `json:"content_hash"`
+}
+
 // LoopAnnotationPayload is a daemon API value.
 type LoopAnnotationPayload struct {
 	NodeID string  `json:"node_id"`
@@ -418,25 +438,4 @@ type LoopGenerationStartedEventPayload struct {
 	Origin            LoopGenerationOrigin  `json:"origin"`
 	ReattemptStrategy LoopReattemptStrategy `json:"reattempt_strategy"`
 	LoopName          string                `json:"loop_name"`
-}
-
-// LoopGenerationStartedRunEventPayload is a daemon API value.
-type LoopGenerationStartedRunEventPayload struct {
-	ID          string                            `json:"id"`
-	LoopRunID   string                            `json:"loop_run_id"`
-	WorkspaceID string                            `json:"workspace_id"`
-	Seq         int64                             `json:"seq"`
-	Kind        RunEventKind                      `json:"kind"`
-	Payload     LoopGenerationStartedEventPayload `json:"payload"`
-	At          time.Time                         `json:"at"`
-}
-
-// LoopInput is a daemon API value.
-type LoopInput struct {
-	Type        InputType     `json:"type"`
-	Required    bool          `json:"required,omitzero"`
-	Description string        `json:"description,omitempty"`
-	Ref         *LoopInputRef `json:"ref,omitzero"`
-	Enum        []string      `json:"enum,omitempty"`
-	Default     any           `json:"default,omitempty"`
 }

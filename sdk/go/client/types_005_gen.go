@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+// CreateSessionRequest is a daemon API value.
+type CreateSessionRequest struct {
+	Scope           string                     `json:"scope,omitempty"`
+	AgentName       string                     `json:"agent_name,omitempty"`
+	Name            string                     `json:"name,omitempty"`
+	Workspace       string                     `json:"workspace,omitempty"`
+	WorkspacePath   string                     `json:"workspace_path,omitempty"`
+	Worktree        string                     `json:"worktree,omitempty"`
+	NewWorktree     *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
+	ParentSessionID string                     `json:"parent_session_id,omitempty"`
+	LineageKind     string                     `json:"lineage_kind,omitempty"`
+	FolderID        string                     `json:"folder_id,omitempty"`
+}
+
+// CreateSupportBundleRequest is a daemon API value.
+type CreateSupportBundleRequest struct {
+	Yes           bool  `json:"yes"`
+	IncludeStatus *bool `json:"include_status,omitzero"`
+}
+
 // CreateTaskBlockRequest is a daemon API value.
 type CreateTaskBlockRequest struct {
 	Kind      BlockKind       `json:"kind"`
@@ -426,22 +446,4 @@ type ExtensionCommandGroupPayload struct {
 	Extension string `json:"extension"`
 	Path      string `json:"path"`
 	Summary   string `json:"summary"`
-}
-
-// ExtensionCommandPayload is a daemon API value.
-type ExtensionCommandPayload struct {
-	Extension        string        `json:"extension"`
-	Verb             string        `json:"verb"`
-	ToolID           string        `json:"tool_id"`
-	Summary          string        `json:"summary"`
-	Example          string        `json:"example,omitempty"`
-	Flags            []CommandFlag `json:"flags"`
-	RiskClass        RiskClass     `json:"risk_class"`
-	ApprovalRequired bool          `json:"approval_required"`
-}
-
-// ExtensionCommandsResponse is a daemon API value.
-type ExtensionCommandsResponse struct {
-	Commands []ExtensionCommandPayload      `json:"commands"`
-	Groups   []ExtensionCommandGroupPayload `json:"groups"`
 }

@@ -21,6 +21,12 @@ export type ActorIdentity = {
   ref: string;
 };
 
+export type AgentInstanceNextWake = {
+  at?: string;
+  description: string;
+  kind: string;
+};
+
 export type AgentInstancePayload = {
   activity: string;
   agent_name: string;
@@ -34,6 +40,7 @@ export type AgentInstancePayload = {
   last_wake_at: string;
   main_session_id: string;
   needs_attention: boolean;
+  next_wake?: AgentInstanceNextWake | null;
   next_wake_at: string;
   now: string;
   pause_reason: string;

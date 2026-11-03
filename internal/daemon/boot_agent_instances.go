@@ -32,6 +32,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		soul: state.soulCatalog, heartbeat: state.heartbeatCatalog,
 	})
 	definitions := instanceDefinitions{
+		monitors:   state.sessionMonitors,
 		workspaces: state.workspaceResolver,
 		profiles:   state.profiles,
 		agents:     catalog,
@@ -55,7 +56,6 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 			},
 			reports:    provider.InstanceReports(),
 			now:        d.now,
-			threshold:  state.cfg.Agents.StaysOn.RotationThreshold,
 			retryDelay: state.cfg.Agents.Heartbeat.DefaultInterval,
 			changed: func(instance agentinstance.Instance) {
 				manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)

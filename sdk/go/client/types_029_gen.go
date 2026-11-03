@@ -4,6 +4,82 @@ package client
 
 import "time"
 
+// WorkspaceFolderPayload is a daemon API value.
+type WorkspaceFolderPayload struct {
+	ID             string    `json:"id"`
+	ProfileID      string    `json:"profile_id"`
+	Name           string    `json:"name"`
+	Position       int       `json:"position"`
+	WorkspaceCount int       `json:"workspace_count"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
+// WorkspaceFolderResponse is a daemon API value.
+type WorkspaceFolderResponse struct {
+	Folder WorkspaceFolderPayload `json:"folder"`
+}
+
+// WorkspaceID is a daemon API value.
+type WorkspaceID string
+
+// WorkspaceLayoutResponse is a daemon API value.
+type WorkspaceLayoutResponse struct {
+	Folders    []WorkspaceFolderPayload    `json:"folders"`
+	Placements []WorkspacePlacementPayload `json:"placements"`
+}
+
+// WorkspacePayload is a daemon API value.
+type WorkspacePayload struct {
+	RootMissing  bool       `json:"root_missing,omitzero"`
+	ArchivedAt   *time.Time `json:"archived_at,omitzero"`
+	ID           string     `json:"id"`
+	RootDir      string     `json:"root_dir"`
+	AddDirs      []string   `json:"add_dirs"`
+	Name         string     `json:"name"`
+	DefaultAgent string     `json:"default_agent,omitempty"`
+	CreatedAt    time.Time  `json:"created_at"`
+	UpdatedAt    time.Time  `json:"updated_at"`
+}
+
+// WorkspacePlacementPayload is a daemon API value.
+type WorkspacePlacementPayload struct {
+	WorkspaceID string `json:"workspace_id"`
+	FolderID    string `json:"folder_id,omitempty"`
+	Position    int    `json:"position"`
+}
+
+// WorkspaceProfileHintPayload is a daemon API value.
+type WorkspaceProfileHintPayload struct {
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	Message string `json:"message"`
+	Action  string `json:"action"`
+}
+
+// WorkspaceResponse is a daemon API value.
+type WorkspaceResponse struct {
+	Workspace WorkspacePayload `json:"workspace"`
+}
+
+// WorkspaceSkillPayload is a daemon API value.
+type WorkspaceSkillPayload struct {
+	Name   string `json:"name"`
+	Dir    string `json:"dir"`
+	Source string `json:"source"`
+}
+
+// WorkspacesResponse is a daemon API value.
+type WorkspacesResponse struct {
+	Workspaces []WorkspacePayload `json:"workspaces"`
+}
+
+// WorktreeBindingAvailability is a daemon API value.
+type WorktreeBindingAvailability struct {
+	Available         bool   `json:"available"`
+	UnavailableReason string `json:"unavailable_reason,omitempty"`
+}
+
 // WorktreeBindingsPayload is a daemon API value.
 type WorktreeBindingsPayload struct {
 	AgentActivity string `json:"agent_activity"`

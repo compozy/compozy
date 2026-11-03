@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+// HeartbeatContextProjectionPayload is a daemon API value.
+type HeartbeatContextProjectionPayload struct {
+	Include []string `json:"include,omitzero"`
+}
+
+// HeartbeatDeleteByPathRequest is a daemon API value.
+type HeartbeatDeleteByPathRequest struct {
+	WorkspaceID    string `json:"workspace_id,omitempty"`
+	ExpectedDigest string `json:"expected_digest"`
+}
+
+// HeartbeatFrontmatterPayload is a daemon API value.
+type HeartbeatFrontmatterPayload struct {
+	Version     int                                    `json:"version"`
+	Enabled     bool                                   `json:"enabled"`
+	Summary     string                                 `json:"summary,omitempty"`
+	Preferences HeartbeatFrontmatterPreferencesPayload `json:"preferences"`
+	Context     HeartbeatContextProjectionPayload      `json:"context"`
+}
+
 // HeartbeatFrontmatterPreferencesPayload is a daemon API value.
 type HeartbeatFrontmatterPreferencesPayload struct {
 	MinInterval  string                       `json:"min_interval,omitempty"`
@@ -427,24 +447,4 @@ type LogEventPayload struct {
 	SpawnDepth           int             `json:"spawn_depth"`
 	Summary              string          `json:"summary,omitempty"`
 	Timestamp            time.Time       `json:"timestamp"`
-}
-
-// LogTailStatusPayload is a daemon API value.
-type LogTailStatusPayload struct {
-	Available bool   `json:"available"`
-	Status    string `json:"status"`
-}
-
-// LogsListResponse is a daemon API value.
-type LogsListResponse struct {
-	Events []LogEventPayload `json:"events"`
-}
-
-// LookupState is a daemon API value.
-type LookupState string
-
-// LoopAmendmentValueSummary is a daemon API value.
-type LoopAmendmentValueSummary struct {
-	ByteSize    int    `json:"byte_size"`
-	ContentHash string `json:"content_hash"`
 }

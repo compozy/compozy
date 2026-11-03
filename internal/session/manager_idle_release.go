@@ -44,13 +44,13 @@ func (r *runtimeRelease) unverifiedProcess() *AgentProcess {
 }
 
 // idleRuntimeReleaseDueLocked advances the idle episode of a session that has no turn in
-// flight and reports whether its runtime has been idle long enough to release. Any work
+// flight and reports whether its runtime has been idle long enough to release. Non-monitor work
 // signal, unknown source, pending operator interaction, or ineligible runtime resets the
 // episode. The caller holds target.mu.
 func idleRuntimeReleaseDueLocked(
 	target *Session, state *SupervisionState, after time.Duration, now time.Time,
 ) bool {
-	if after <= 0 || len(state.WorkSignals) > 0 || supervisionSourceUnknown(state) ||
+	if after <= 0 || runtimeWorkPending(state.WorkSignals) || supervisionSourceUnknown(state) ||
 		!target.idleRuntimeReleasableLocked() {
 		target.supervisionIdleSince = time.Time{}
 		return false
@@ -60,6 +60,17 @@ func idleRuntimeReleaseDueLocked(
 		return false
 	}
 	return !now.Before(target.supervisionIdleSince.Add(after))
+}
+
+func runtimeWorkPending(signals []WorkSignal) bool {
+	for _, signal := range signals {
+		switch signal.Kind {
+		case WorkSignalActiveMonitor:
+		default:
+			return true
+		}
+	}
+	return false
 }
 
 // idleRuntimeReleasableLocked reports a live runtime that is idle and can be restored

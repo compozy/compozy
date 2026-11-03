@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -146,6 +147,9 @@ func (m *Manager) assembleAcceptedStartupDefinition(
 ) error {
 	agentDef := compozyconfig.CloneAgentDef(runtime.agentDef)
 	startupCtx := spec.startupPromptContext(updatedAt)
+	if err := m.populateStartupInstanceIdentity(ctx, &startupCtx); err != nil {
+		return err
+	}
 	startupCtx.NativeToolsUnavailable = runtime.nativeToolsUnavailable
 	if strings.TrimSpace(startupCtx.AgentName) == "" {
 		startupCtx.AgentName = strings.TrimSpace(agentDef.Name)
@@ -220,4 +224,39 @@ func (s *sessionStartSpec) startLogger(m *Manager) *slog.Logger {
 		"workspace_id", strings.TrimSpace(s.workspace.ID),
 		"provider_command_fingerprint", s.commandFingerprint,
 	)
+}
+
+func (m *Manager) populateStartupInstanceIdentity(ctx context.Context, startupCtx *StartupPromptContext) error {
+	if startupCtx.InstanceID == "" {
+		current, err := m.Status(ctx, startupCtx.SessionID)
+		if err != nil && !errors.Is(err, ErrSessionNotFound) {
+			return fmt.Errorf("session: resolve startup instance: %w", err)
+		}
+		if current != nil {
+			startupCtx.InstanceID = current.InstanceID
+		}
+	}
+	if startupCtx.InstanceID == "" && startupCtx.Lineage != nil {
+		seen := map[string]bool{startupCtx.SessionID: true}
+		parentID := startupCtx.Lineage.ParentSessionID
+		for parentID != "" && !seen[parentID] {
+			seen[parentID] = true
+			parent, err := m.Status(ctx, parentID)
+			if errors.Is(err, ErrSessionNotFound) {
+				break
+			}
+			if err != nil {
+				return fmt.Errorf("session: resolve startup instance lineage: %w", err)
+			}
+			if parent.InstanceID != "" {
+				startupCtx.AncestorInstanceID = parent.InstanceID
+				break
+			}
+			if parent.Lineage == nil {
+				break
+			}
+			parentID = parent.Lineage.ParentSessionID
+		}
+	}
+	return nil
 }

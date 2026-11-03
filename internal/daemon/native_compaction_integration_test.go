@@ -30,11 +30,37 @@ func TestDaemonNativeCompaction(t *testing.T) {
 		t.Run("Should persist one native compaction for "+adapter, func(t *testing.T) {
 			t.Parallel()
 			capture := filepath.Join(t.TempDir(), "compaction-hooks.jsonl")
+			fixture, err := acpmock.LoadFixture(mockFixturePath(t, "native_compaction_fixture.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := range fixture.Agents {
+				for j := range fixture.Agents[i].Turns {
+					turn := &fixture.Agents[i].Turns[j]
+					if turn.Name == "ordinary" {
+						turn.Match.CompactionNotice, turn.Match.SituationFull = new(true), new(true)
+						subsequent := *turn
+						subsequent.Name = "ordinary-after-notice"
+						subsequent.Match.CompactionNotice, subsequent.Match.SituationFull = new(false), nil
+						fixture.Agents[i].Turns = append(fixture.Agents[i].Turns, subsequent)
+						break
+					}
+				}
+			}
+			fixtureData, err := json.Marshal(fixture)
+			if err != nil {
+				t.Fatal(err)
+			}
+			fixturePath := filepath.Join(t.TempDir(), "post-compaction.json")
+			if err := os.WriteFile(fixturePath, fixtureData, 0600); err != nil {
+				t.Fatal(err)
+			}
+
 			agent := "compaction-" + adapter
 			harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 				MockAgents: []e2etest.MockAgentSpec{
 					{
-						FixturePath:  mockFixturePath(t, "native_compaction_fixture.json"),
+						FixturePath:  fixturePath,
 						FixtureAgent: agent,
 						AgentName:    agent,
 					},
@@ -56,11 +82,14 @@ func TestDaemonNativeCompaction(t *testing.T) {
 			}
 			assertNativeCompactionReads(ctx, t, harness, base, adapter)
 			assertNativeContextReading(ctx, t, harness, base, nil)
+			if _, err := harness.PromptSession(ctx, active.ID, "ordinary continuation"); err != nil {
+				t.Fatal(err)
+			}
 			// Reopening the persisted database must not restore the pre-terminal reading.
 			if err := harness.StopSession(ctx, active.ID); err != nil {
 				t.Fatal(err)
 			}
-			assertNativeContextReading(ctx, t, harness, base, nil)
+			assertNativeContextReading(ctx, t, harness, base, new(int64(30)))
 			assertNativeCompactionReads(ctx, t, harness, base, adapter)
 			raw, err := os.ReadFile(capture)
 			if err != nil {

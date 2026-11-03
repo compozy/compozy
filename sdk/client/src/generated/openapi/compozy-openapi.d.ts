@@ -7841,6 +7841,11 @@ export interface components {
       max_active_instances: number;
       next_cursor: string;
     };
+    AgentInstanceNextWake: {
+      at?: string;
+      description: string;
+      kind: string;
+    };
     AgentInstanceOccurrenceResponse: {
       reason?: string;
       report_id?: string;
@@ -7862,6 +7867,7 @@ export interface components {
       last_wake_at: string;
       main_session_id: string;
       needs_attention: boolean;
+      next_wake?: components["schemas"]["AgentInstanceNextWake"] | null;
       next_wake_at: string;
       now: string;
       pause_reason: string;
@@ -10159,6 +10165,7 @@ export interface components {
         | "continuous_binding_mismatch"
         | "goal_runtime_invalid"
         | "goal_caller_unauthorized"
+        | "goal_on_instance_main"
         | "goal_wait_deferred"
         | "goal_wait_timeout"
         | "goal_wait_unavailable"
@@ -10259,6 +10266,7 @@ export interface components {
         | "continuous_binding_mismatch"
         | "goal_runtime_invalid"
         | "goal_caller_unauthorized"
+        | "goal_on_instance_main"
         | "goal_wait_deferred"
         | "goal_wait_timeout"
         | "goal_wait_unavailable"
@@ -10361,6 +10369,7 @@ export interface components {
         | "continuous_binding_mismatch"
         | "goal_runtime_invalid"
         | "goal_caller_unauthorized"
+        | "goal_on_instance_main"
         | "goal_wait_deferred"
         | "goal_wait_timeout"
         | "goal_wait_unavailable"

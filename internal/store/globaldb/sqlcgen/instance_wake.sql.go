@@ -170,7 +170,7 @@ func (q *Queries) GetInstanceOccurrence(ctx context.Context, arg GetInstanceOccu
 }
 
 const getInstanceWakeState = `-- name: GetInstanceWakeState :one
-SELECT instance_id, next_wake_at, last_wake_at, last_digest, last_digest_at, automation_cursor, quiet_streak, failure_streak, occurrence_id, triage_session_id, occurrence_started_at, occurrence_cancelled FROM agent_instance_wake_state WHERE instance_id = ?
+SELECT instance_id, next_wake_at, last_wake_at, last_digest, last_digest_at, automation_cursor, quiet_streak, failure_streak, occurrence_id, triage_session_id, occurrence_started_at, rotation_due_session, occurrence_cancelled FROM agent_instance_wake_state WHERE instance_id = ?
 `
 
 func (q *Queries) GetInstanceWakeState(ctx context.Context, instanceID string) (AgentInstanceWakeState, error) {
@@ -188,6 +188,7 @@ func (q *Queries) GetInstanceWakeState(ctx context.Context, instanceID string) (
 		&i.OccurrenceID,
 		&i.TriageSessionID,
 		&i.OccurrenceStartedAt,
+		&i.RotationDueSession,
 		&i.OccurrenceCancelled,
 	)
 	return i, err
@@ -240,7 +241,7 @@ func (q *Queries) InsertInstanceWakeState(ctx context.Context, instanceID string
 }
 
 const listDueInstanceWakes = `-- name: ListDueInstanceWakes :many
-SELECT w.instance_id, w.next_wake_at, w.last_wake_at, w.last_digest, w.last_digest_at, w.automation_cursor, w.quiet_streak, w.failure_streak, w.occurrence_id, w.triage_session_id, w.occurrence_started_at, w.occurrence_cancelled FROM agent_instance_wake_state w JOIN agent_instances i ON i.id=w.instance_id
+SELECT w.instance_id, w.next_wake_at, w.last_wake_at, w.last_digest, w.last_digest_at, w.automation_cursor, w.quiet_streak, w.failure_streak, w.occurrence_id, w.triage_session_id, w.occurrence_started_at, w.rotation_due_session, w.occurrence_cancelled FROM agent_instance_wake_state w JOIN agent_instances i ON i.id=w.instance_id
 WHERE i.state='active' AND i.archived_at IS NULL AND i.checks_enabled=1
 AND w.occurrence_id='' AND w.next_wake_at<=?1
 ORDER BY w.next_wake_at,w.instance_id LIMIT ?2
@@ -272,6 +273,7 @@ func (q *Queries) ListDueInstanceWakes(ctx context.Context, arg ListDueInstanceW
 			&i.OccurrenceID,
 			&i.TriageSessionID,
 			&i.OccurrenceStartedAt,
+			&i.RotationDueSession,
 			&i.OccurrenceCancelled,
 		); err != nil {
 			return nil, err
@@ -288,7 +290,7 @@ func (q *Queries) ListDueInstanceWakes(ctx context.Context, arg ListDueInstanceW
 }
 
 const listInflightInstanceWakes = `-- name: ListInflightInstanceWakes :many
-SELECT instance_id, next_wake_at, last_wake_at, last_digest, last_digest_at, automation_cursor, quiet_streak, failure_streak, occurrence_id, triage_session_id, occurrence_started_at, occurrence_cancelled FROM agent_instance_wake_state WHERE occurrence_id<>'' ORDER BY instance_id
+SELECT instance_id, next_wake_at, last_wake_at, last_digest, last_digest_at, automation_cursor, quiet_streak, failure_streak, occurrence_id, triage_session_id, occurrence_started_at, rotation_due_session, occurrence_cancelled FROM agent_instance_wake_state WHERE occurrence_id<>'' ORDER BY instance_id
 `
 
 func (q *Queries) ListInflightInstanceWakes(ctx context.Context) ([]AgentInstanceWakeState, error) {
@@ -312,6 +314,7 @@ func (q *Queries) ListInflightInstanceWakes(ctx context.Context) ([]AgentInstanc
 			&i.OccurrenceID,
 			&i.TriageSessionID,
 			&i.OccurrenceStartedAt,
+			&i.RotationDueSession,
 			&i.OccurrenceCancelled,
 		); err != nil {
 			return nil, err

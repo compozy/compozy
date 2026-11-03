@@ -126,9 +126,18 @@ func (r *InstanceRepo) Skip(ctx context.Context, req heartbeat.SkipRequest) (boo
 }
 func instanceWakeState(row sqlcgen.AgentInstanceWakeState) heartbeat.InstanceWakeState {
 	return heartbeat.InstanceWakeState{
-		InstanceID: row.InstanceID, NextWakeAt: row.NextWakeAt, LastWakeAt: row.LastWakeAt, LastDigest: row.LastDigest,
-		LastDigestAt: row.LastDigestAt, AutomationCursor: row.AutomationCursor, OccurrenceID: row.OccurrenceID,
-		TriageSessionID: row.TriageSessionID, OccurrenceStartedAt: row.OccurrenceStartedAt,
-		QuietStreak: row.QuietStreak, FailureStreak: row.FailureStreak, Canceled: row.OccurrenceCancelled != 0,
+		RotationDueSession:  row.RotationDueSession,
+		InstanceID:          row.InstanceID,
+		NextWakeAt:          row.NextWakeAt,
+		LastWakeAt:          row.LastWakeAt,
+		LastDigest:          row.LastDigest,
+		LastDigestAt:        row.LastDigestAt,
+		AutomationCursor:    row.AutomationCursor,
+		OccurrenceID:        row.OccurrenceID,
+		TriageSessionID:     row.TriageSessionID,
+		OccurrenceStartedAt: row.OccurrenceStartedAt,
+		QuietStreak:         row.QuietStreak,
+		FailureStreak:       row.FailureStreak,
+		Canceled:            row.OccurrenceCancelled != 0,
 	}
 }

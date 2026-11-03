@@ -7,6 +7,68 @@ import (
 	"time"
 )
 
+// SettingsWindowManagerConfigPayload is a daemon API value.
+type SettingsWindowManagerConfigPayload struct {
+	NewWindowPolicy     SettingsWindowNewPolicy             `json:"new_window_policy"`
+	SmallViewportPolicy SettingsWindowSmallViewportPolicy   `json:"small_viewport_policy"`
+	FocusPolicy         SettingsWindowFocusPolicy           `json:"focus_policy"`
+	FocusWrap           bool                                `json:"focus_wrap"`
+	FocusFollowsPointer bool                                `json:"focus_follows_pointer"`
+	RaiseOnFocus        bool                                `json:"raise_on_focus"`
+	DragAwayPolicy      SettingsWindowDragAwayPolicy        `json:"drag_away_policy"`
+	GroupMoveModifier   SettingsWindowDragModifier          `json:"group_move_modifier"`
+	SwapModifier        SettingsWindowDragModifier          `json:"swap_modifier"`
+	HistoryLimit        int                                 `json:"history_limit"`
+	NavStackLimit       int                                 `json:"nav_stack_limit"`
+	ClosedEntryLimit    int                                 `json:"closed_entry_limit"`
+	DesktopTransition   SettingsWindowDesktopTransition     `json:"desktop_transition"`
+	Gaps                SettingsWindowManagerGapsPayload    `json:"gaps"`
+	Snap                SettingsWindowManagerSnapPayload    `json:"snap"`
+	Bindings            SettingsWindowManagerBindingPayload `json:"bindings"`
+	Shortcuts           map[string][]string                 `json:"shortcuts"`
+	GlobalShortcuts     map[string]string                   `json:"global_shortcuts"`
+}
+
+// SettingsWindowManagerDefaultPayload is a daemon API value.
+type SettingsWindowManagerDefaultPayload struct {
+	CommandID    string   `json:"command"`
+	Binding      []string `json:"binding"`
+	Dormant      bool     `json:"dormant"`
+	ConflictWith string   `json:"conflict_with,omitempty"`
+}
+
+// SettingsWindowManagerDiagnosticPayload is a daemon API value.
+type SettingsWindowManagerDiagnosticPayload struct {
+	CommandID string `json:"command_id"`
+	Message   string `json:"message"`
+}
+
+// SettingsWindowManagerGapsPayload is a daemon API value.
+type SettingsWindowManagerGapsPayload struct {
+	Inner  int `json:"inner"`
+	Top    int `json:"top"`
+	Right  int `json:"right"`
+	Bottom int `json:"bottom"`
+	Left   int `json:"left"`
+}
+
+// SettingsWindowManagerMutationResponse is a daemon API value.
+type SettingsWindowManagerMutationResponse struct {
+	Section            SettingsSectionName                      `json:"section"`
+	Scope              SettingsWorkspaceScopeKind               `json:"scope"`
+	WorkspaceID        string                                   `json:"workspace_id,omitempty"`
+	AvailableScopes    []SettingsWorkspaceScopeKind             `json:"available_scopes"`
+	Config             SettingsWindowManagerConfigPayload       `json:"config"`
+	Defaults           map[string][]string                      `json:"defaults"`
+	EffectiveShortcuts map[string][]string                      `json:"effective_shortcuts"`
+	Aliases            map[string]string                        `json:"aliases"`
+	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
+	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
+	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
+	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
+	Apply              SettingsApplyResponse                    `json:"apply"`
+}
+
 // SettingsWindowManagerResponse is a daemon API value.
 type SettingsWindowManagerResponse struct {
 	Section            SettingsSectionName                      `json:"section"`
@@ -381,66 +443,3 @@ type StrategySpec = json.RawMessage
 // StrategyThreshold is a daemon API value.
 // StrategyThreshold preserves its custom JSON wire representation.
 type StrategyThreshold = json.RawMessage
-
-// StuckTaskRunPayload is a daemon API value.
-type StuckTaskRunPayload struct {
-	TaskID     string `json:"task_id"`
-	RunID      string `json:"run_id"`
-	Status     string `json:"status"`
-	OriginKind string `json:"origin_kind"`
-	SessionID  string `json:"session_id,omitempty"`
-	AgeMillis  int64  `json:"age_ms"`
-}
-
-// SubagentCancelPayload is a daemon API value.
-type SubagentCancelPayload struct {
-	SubagentID string `json:"subagent_id"`
-	Status     string `json:"status"`
-}
-
-// SubagentCancelRequest is a daemon API value.
-type SubagentCancelRequest struct {
-	Reason string `json:"reason"`
-}
-
-// SubagentChildActivity is a daemon API value.
-type SubagentChildActivity string
-
-// SubagentListPayload is a daemon API value.
-type SubagentListPayload struct {
-	Subagents  []SubagentPayload `json:"subagents"`
-	NextCursor *string           `json:"next_cursor"`
-}
-
-// SubagentPayload is a daemon API value.
-type SubagentPayload struct {
-	Isolation          string                   `json:"isolation"`
-	Worktree           *SubagentWorktreePayload `json:"worktree,omitempty"`
-	SubagentID         string                   `json:"subagent_id"`
-	WorkspaceID        string                   `json:"workspace_id"`
-	ParentSessionID    string                   `json:"parent_session_id"`
-	ParentTurnID       string                   `json:"parent_turn_id"`
-	ChildSessionID     *string                  `json:"child_session_id"`
-	Origin             string                   `json:"origin"`
-	ProviderToolCallID *string                  `json:"provider_tool_call_id"`
-	Title              string                   `json:"title"`
-	Role               string                   `json:"role"`
-	Status             string                   `json:"status"`
-	WorkState          string                   `json:"work_state"`
-	ChildActivity      SubagentChildActivity    `json:"child_activity,omitempty"`
-	Runtime            SubagentRuntimePayload   `json:"runtime"`
-	Usage              *SubagentUsagePayload    `json:"usage,omitempty"`
-	Depth              int                      `json:"depth"`
-	Progress           string                   `json:"progress"`
-	Result             *string                  `json:"result"`
-	ResultPreview      string                   `json:"result_preview"`
-	ResultTruncated    bool                     `json:"result_truncated"`
-	Error              *string                  `json:"error"`
-	WaitTimedOut       bool                     `json:"wait_timed_out"`
-	Hint               string                   `json:"hint,omitempty"`
-	Delivery           string                   `json:"delivery"`
-	StartedAt          *time.Time               `json:"started_at"`
-	SettledAt          *time.Time               `json:"settled_at"`
-	CreatedAt          time.Time                `json:"created_at"`
-	UpdatedAt          time.Time                `json:"updated_at"`
-}

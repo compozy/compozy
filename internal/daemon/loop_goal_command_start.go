@@ -156,6 +156,11 @@ func (s *daemonLoopAPIService) prepareSessionGoalDefinition(
 	session.GoalDispatchDecision,
 	error,
 ) {
+	if main, err := s.goalOnInstanceMain(ctx, sessionID); err != nil {
+		return sessionGoalDefinitionInput{}, session.GoalDispatchDecision{}, err
+	} else if main {
+		return sessionGoalDefinitionInput{}, goalCommandErrorDecision(session.GoalReasonOnInstanceMain, nil), nil
+	}
 	details, reason, err := s.sessionGoalOrigin(ctx, workspaceID, sessionID)
 	if err != nil {
 		return sessionGoalDefinitionInput{}, session.GoalDispatchDecision{}, err
@@ -397,4 +402,29 @@ func (s *daemonLoopAPIService) requireSessionGoalSnapshot(
 		return nil, fmt.Errorf("%w: post-operation Goal snapshot is unavailable", looppkg.ErrTransitionConflict)
 	}
 	return snapshot, nil
+}
+
+func (s *daemonLoopAPIService) goalOnInstanceMain(ctx context.Context, sessionID string) (bool, error) {
+	if s.sessionStatus == nil {
+		return false, nil
+	}
+	info, err := s.sessionStatus.Status(ctx, strings.TrimSpace(sessionID))
+	if errors.Is(err, store.ErrSessionNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if info == nil || info.InstanceID == "" {
+		return false, nil
+	}
+	provider, ok := s.creationStore.(instanceRepositoryProvider)
+	if !ok {
+		return false, errors.New("daemon: Goal instance reader is unavailable")
+	}
+	instance, err := provider.Instances().Get(ctx, info.InstanceID)
+	if err != nil {
+		return false, err
+	}
+	return instance.MainSessionID == sessionID, nil
 }

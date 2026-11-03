@@ -7,6 +7,70 @@ import (
 	"time"
 )
 
+// ToolPolicyDecisionPayload is a daemon API value.
+type ToolPolicyDecisionPayload struct {
+	VisibleToOperator    bool         `json:"visible_to_operator"`
+	VisibleToSession     bool         `json:"visible_to_session"`
+	Callable             bool         `json:"callable"`
+	ApprovalRequired     bool         `json:"approval_required"`
+	SystemPermissionMode string       `json:"system_permission_mode,omitempty"`
+	SessionPolicyResult  string       `json:"session_policy_result,omitempty"`
+	AgentPolicyResult    string       `json:"agent_policy_result,omitempty"`
+	RegistryPolicyResult string       `json:"registry_policy_result,omitempty"`
+	SourcePolicyResult   string       `json:"source_policy_result,omitempty"`
+	AvailabilityResult   string       `json:"availability_result,omitempty"`
+	HookResult           string       `json:"hook_result,omitempty"`
+	ReasonCodes          []ReasonCode `json:"reason_codes,omitempty"`
+}
+
+// ToolResponse is a daemon API value.
+type ToolResponse struct {
+	Tool ToolPayload `json:"tool"`
+}
+
+// ToolResult is a daemon API value.
+type ToolResult struct {
+	Content    []ToolContent              `json:"content,omitempty"`
+	Structured json.RawMessage            `json:"structured,omitempty"`
+	Preview    string                     `json:"preview,omitempty"`
+	Artifacts  []ArtifactRef              `json:"artifacts,omitempty"`
+	Metadata   map[string]json.RawMessage `json:"metadata,omitempty"`
+	Redactions []Redaction                `json:"redactions,omitempty"`
+	Truncated  bool                       `json:"truncated"`
+	Bytes      int64                      `json:"bytes"`
+	DurationMS int64                      `json:"duration_ms"`
+	Trust      ResultTrust                `json:"trust,omitempty"`
+}
+
+// ToolSearchRequest is a daemon API value.
+type ToolSearchRequest struct {
+	Query       string `json:"query"`
+	Limit       int    `json:"limit,omitzero"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
+	SessionID   string `json:"session_id,omitempty"`
+	AgentName   string `json:"agent_name,omitempty"`
+}
+
+// ToolSourceRefPayload is a daemon API value.
+type ToolSourceRefPayload struct {
+	Kind            SourceKind `json:"kind"`
+	Owner           string     `json:"owner"`
+	RawServerName   string     `json:"raw_server_name,omitempty"`
+	RawToolName     string     `json:"raw_tool_name,omitempty"`
+	ResourceID      string     `json:"resource_id,omitempty"`
+	ResourceVersion string     `json:"resource_version,omitempty"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	Scope           string     `json:"scope,omitempty"`
+}
+
+// ToolsResponse is a daemon API value.
+type ToolsResponse struct {
+	Tools []ToolPayload `json:"tools"`
+}
+
+// ToolsetID is a daemon API value.
+type ToolsetID string
+
 // ToolsetPayload is a daemon API value.
 type ToolsetPayload struct {
 	ID            ToolsetID    `json:"id"`
@@ -368,81 +432,4 @@ type VerdictPolicy string
 type ViewBadge struct {
 	Label string `json:"label"`
 	Tone  string `json:"tone"`
-}
-
-// ViewChrome is a daemon API value.
-type ViewChrome struct {
-	IsLoading   bool        `json:"is_loading,omitempty"`
-	SearchText  *string     `json:"search_text,omitempty"`
-	EventCount  int64       `json:"event_count,omitempty"`
-	Placeholder string      `json:"search_placeholder,omitempty"`
-	ThrottleMs  int         `json:"throttle_ms,omitempty"`
-	Filtering   *bool       `json:"filtering,omitempty"`
-	Complete    bool        `json:"complete,omitempty"`
-	ActiveChip  string      `json:"active_chip,omitempty"`
-	Columns     int         `json:"columns,omitempty"`
-	Pagination  *Pagination `json:"pagination,omitempty"`
-	OnSearch    string      `json:"on_search,omitempty"`
-	OnChip      string      `json:"on_chip,omitempty"`
-	OnSelection string      `json:"on_selection,omitempty"`
-	OnLoadMore  string      `json:"on_load_more,omitempty"`
-}
-
-// ViewFrame is a daemon API value.
-type ViewFrame struct {
-	ViewSession string       `json:"view_session"`
-	Revision    string       `json:"revision"`
-	InReplyTo   int64        `json:"in_reply_to,omitempty"`
-	Generation  uint64       `json:"generation"`
-	Payload     *ViewPayload `json:"payload,omitempty"`
-	Patch       *ViewPatch   `json:"patch,omitempty"`
-	Effects     []Effect     `json:"effects,omitempty"`
-	Handlers    []string     `json:"handlers"`
-}
-
-// ViewKind is a daemon API value.
-type ViewKind string
-
-// ViewPatch is a daemon API value.
-type ViewPatch struct {
-	ViewID string    `json:"view_id"`
-	From   string    `json:"from"`
-	To     string    `json:"to"`
-	Ops    []PatchOp `json:"ops"`
-}
-
-// ViewPayload is a daemon API value.
-type ViewPayload struct {
-	View     string      `json:"view"`
-	Chrome   *ViewChrome `json:"chrome,omitempty"`
-	Sections []Section   `json:"sections,omitempty"`
-	Chips    []Chip      `json:"chips,omitempty"`
-	Empty    *EmptyState `json:"empty,omitempty"`
-	Detail   *DetailBody `json:"detail,omitempty"`
-	Form     *FormBody   `json:"form,omitempty"`
-	Grid     *GridBody   `json:"grid,omitempty"`
-}
-
-// Visibility is a daemon API value.
-type Visibility string
-
-// WaitExpiry is a daemon API value.
-type WaitExpiry struct {
-	After    string       `json:"after"`
-	Escalate []EffectSpec `json:"escalate,omitempty"`
-	Route    NodeID       `json:"route,omitempty"`
-}
-
-// WaitingOn is a daemon API value.
-type WaitingOn string
-
-// WebhookDeliveryPayload is a daemon API value.
-type WebhookDeliveryPayload struct {
-	Matched int          `json:"matched"`
-	Runs    []RunPayload `json:"runs,omitempty"`
-}
-
-// WebhookDeliveryResponse is a daemon API value.
-type WebhookDeliveryResponse struct {
-	Result WebhookDeliveryPayload `json:"result"`
 }

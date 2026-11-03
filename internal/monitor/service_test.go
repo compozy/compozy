@@ -242,8 +242,10 @@ func TestServiceWakesOwningSessionWhenMonitorFires(t *testing.T) {
 				t.Fatalf("monitor after refusal = %+v, want delivering", got)
 			}
 			// A delivering monitor still occupies its cap slot.
-			for range MaxActivePerSession - 1 {
-				if _, err := service.Create(t.Context(), timerSpec("sess-a")); err != nil {
+			for i := range MaxActivePerSession - 1 {
+				spec := timerSpec("sess-a")
+				spec.Description = fmt.Sprintf("timer-%d", i)
+				if _, err := service.Create(t.Context(), spec); err != nil {
 					t.Fatalf("Create() error = %v", err)
 				}
 			}
@@ -317,8 +319,10 @@ func TestServiceCancelAndLimits(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			waker := &recordingWaker{}
 			service := newTestService(t, nil, waker)
-			for range 3 {
-				if _, err := service.Create(t.Context(), timerSpec("sess-a")); err != nil {
+			for i := range 3 {
+				spec := timerSpec("sess-a")
+				spec.Description = fmt.Sprintf("timer-%d", i)
+				if _, err := service.Create(t.Context(), spec); err != nil {
 					t.Fatalf("Create() error = %v", err)
 				}
 			}
@@ -333,8 +337,10 @@ func TestServiceCancelAndLimits(t *testing.T) {
 			if got := len(waker.notifications()); got != 0 {
 				t.Fatalf("notifications after stop = %d, want 0", got)
 			}
-			for range MaxActivePerSession {
-				if _, err := service.Create(t.Context(), timerSpec("sess-a")); err != nil {
+			for i := range MaxActivePerSession {
+				spec := timerSpec("sess-a")
+				spec.Description = fmt.Sprintf("timer-%d", i)
+				if _, err := service.Create(t.Context(), spec); err != nil {
 					t.Fatalf("Create() after stop released slots error = %v", err)
 				}
 			}
@@ -441,8 +447,10 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				t.Fatalf("Create() error = %v", err)
 			}
 			synctest.Wait()
-			for _, sessionID := range []string{"sess-b", "sess-b", "sess-c", "sess-a", "sess-c"} {
-				if _, err := service.Create(t.Context(), timerSpec(sessionID)); err != nil {
+			for i, sessionID := range []string{"sess-b", "sess-b", "sess-c", "sess-a", "sess-c"} {
+				spec := timerSpec(sessionID)
+				spec.Description = fmt.Sprintf("burst-%d", i)
+				if _, err := service.Create(t.Context(), spec); err != nil {
 					t.Fatalf("Create(%s) error = %v", sessionID, err)
 				}
 			}
@@ -505,8 +513,10 @@ func TestServiceCancelAndLimits(t *testing.T) {
 			if _, err := service.Create(t.Context(), terminalSpec("sess-b")); !errors.Is(err, ErrLimit) {
 				t.Fatalf("Create() on a full terminal error = %v, want ErrLimit", err)
 			}
-			for range MaxActivePerSession - MaxActivePerTerminal {
-				if _, err := service.Create(t.Context(), timerSpec("sess-a")); err != nil {
+			for i := range MaxActivePerSession - MaxActivePerTerminal {
+				spec := timerSpec("sess-a")
+				spec.Description = fmt.Sprintf("timer-%d", i)
+				if _, err := service.Create(t.Context(), spec); err != nil {
 					t.Fatalf("Create() error = %v", err)
 				}
 			}
@@ -515,6 +525,28 @@ func TestServiceCancelAndLimits(t *testing.T) {
 			}
 			if _, err := service.Create(t.Context(), timerSpec("sess-b")); err != nil {
 				t.Fatalf("Create() for another session error = %v", err)
+			}
+		})
+	})
+
+	t.Run("Should reuse a retried timer and deliver exactly one wake", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			waker := &recordingWaker{}
+			service := newTestService(t, nil, waker)
+			first, err := service.Create(t.Context(), timerSpec("sess-a"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			time.Sleep(500 * time.Millisecond)
+			again, err := service.Create(t.Context(), timerSpec("sess-a"))
+			if err != nil || !again.Reused || again.ID != first.ID {
+				t.Fatalf("retry = %+v, %v", again, err)
+			}
+			time.Sleep(time.Minute)
+			synctest.Wait()
+			if got := len(waker.notifications()); got != 1 {
+				t.Fatalf("wakes = %d, want 1", got)
 			}
 		})
 	})

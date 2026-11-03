@@ -131,6 +131,7 @@ type AgentInstanceWakeState struct {
 	OccurrenceID        string `json:"occurrence_id"`
 	TriageSessionID     string `json:"triage_session_id"`
 	OccurrenceStartedAt string `json:"occurrence_started_at"`
+	RotationDueSession  string `json:"rotation_due_session"`
 	OccurrenceCancelled int64  `json:"occurrence_cancelled"`
 }
 

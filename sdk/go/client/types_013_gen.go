@@ -4,6 +4,57 @@ package client
 
 import "time"
 
+// PermissionEntriesResponse is a daemon API value.
+type PermissionEntriesResponse struct {
+	Entries []PermissionEntryPayload `json:"entries"`
+}
+
+// PermissionEntryPayload is a daemon API value.
+type PermissionEntryPayload struct {
+	ID            string    `json:"id"`
+	SessionID     string    `json:"session_id"`
+	AgentName     string    `json:"agent_name"`
+	Action        string    `json:"action"`
+	Resource      string    `json:"resource"`
+	Decision      string    `json:"decision"`
+	InitiatorKind string    `json:"initiator_kind"`
+	InitiatorID   string    `json:"initiator_id"`
+	Timestamp     time.Time `json:"timestamp"`
+}
+
+// PermissionRollupResponse is a daemon API value.
+type PermissionRollupResponse struct {
+	Since   time.Time                      `json:"since"`
+	Until   time.Time                      `json:"until"`
+	Rollups []PermissionDailyRollupPayload `json:"rollups"`
+}
+
+// PickFilesEffect is a daemon API value.
+type PickFilesEffect struct {
+	Directories bool `json:"directories,omitempty"`
+}
+
+// Predicate is a daemon API value.
+type Predicate struct {
+	Key      ContextKey        `json:"key"`
+	Operator PredicateOperator `json:"operator,omitempty"`
+	Value    any               `json:"value"`
+	Reason   string            `json:"reason,omitempty"`
+}
+
+// PredicateOperator is a daemon API value.
+type PredicateOperator string
+
+// Priority is a daemon API value.
+type Priority string
+
+// ProcessesResponse is a daemon API value.
+type ProcessesResponse struct {
+	Supported bool                         `json:"supported"`
+	ScannedAt time.Time                    `json:"scanned_at"`
+	Groups    []SessionProcessGroupPayload `json:"groups"`
+}
+
 // Profile is a daemon API value.
 type Profile struct {
 	ID                     string                         `json:"id"`
@@ -387,63 +438,4 @@ type ProviderUsageRefreshRequest struct {
 type ProviderUsageSource struct {
 	Kind  string `json:"kind"`
 	Label string `json:"label"`
-}
-
-// ProviderUsageSpendCap is a daemon API value.
-type ProviderUsageSpendCap struct {
-	ID          string               `json:"id"`
-	Label       string               `json:"label"`
-	Used        ProviderUsageAmount  `json:"used"`
-	Limit       *ProviderUsageAmount `json:"limit"`
-	UsedPercent *float64             `json:"used_percent"`
-	ResetsAt    *time.Time           `json:"resets_at"`
-	Enabled     *bool                `json:"enabled"`
-}
-
-// ProviderUsageStreamEvent is a daemon API value.
-type ProviderUsageStreamEvent struct {
-	Revision uint64 `json:"revision"`
-	BootID   string `json:"boot_id"`
-}
-
-// ProviderUsageTarget is a daemon API value.
-type ProviderUsageTarget struct {
-	ProviderID    string                  `json:"provider_id"`
-	ProviderName  string                  `json:"provider_name"`
-	Status        string                  `json:"status"`
-	Source        *ProviderUsageSource    `json:"source"`
-	Account       *ProviderUsageAccount   `json:"account"`
-	Windows       []ProviderUsageWindow   `json:"windows"`
-	Balances      []ProviderUsageBalance  `json:"balances"`
-	SpendCaps     []ProviderUsageSpendCap `json:"spend_caps"`
-	Confidence    string                  `json:"confidence"`
-	MeasuredAt    *time.Time              `json:"measured_at"`
-	CheckedAt     *time.Time              `json:"checked_at"`
-	NextRefreshAt *time.Time              `json:"next_refresh_at"`
-	Refreshing    bool                    `json:"refreshing"`
-	Error         *ProviderUsageError     `json:"error"`
-}
-
-// ProviderUsageTraySignal is a daemon API value.
-type ProviderUsageTraySignal struct {
-	ProviderID  string     `json:"provider_id"`
-	WindowID    string     `json:"window_id"`
-	Label       string     `json:"label"`
-	UsedPercent float64    `json:"used_percent"`
-	ResetsAt    *time.Time `json:"resets_at"`
-	Severity    string     `json:"severity"`
-	Stale       bool       `json:"stale"`
-}
-
-// ProviderUsageWindow is a daemon API value.
-type ProviderUsageWindow struct {
-	ID              string               `json:"id"`
-	Label           string               `json:"label"`
-	Kind            string               `json:"kind"`
-	DurationSeconds *int64               `json:"duration_seconds"`
-	UsedPercent     *float64             `json:"used_percent"`
-	Used            *ProviderUsageAmount `json:"used"`
-	Limit           *ProviderUsageAmount `json:"limit"`
-	ResetsAt        *time.Time           `json:"resets_at"`
-	ResetText       string               `json:"reset_text"`
 }

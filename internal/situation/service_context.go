@@ -202,7 +202,25 @@ func (s *Service) Augment(
 	if err != nil {
 		return "", err
 	}
-	sections = s.promptSections.compact(info, sections)
+	var boundary int64
+	if s.compactionBoundary != nil {
+		cleared, err := s.compactionBoundary(ctx, info.ID)
+		if err != nil {
+			return "", err
+		}
+		if cleared != nil {
+			boundary = *cleared
+		}
+	}
+	var observation ContextObservation
+	if s.contextUsage != nil {
+		observation, err = s.contextUsage(ctx, info)
+		if err != nil {
+			return "", err
+		}
+	}
+	var compacted, reminder bool
+	sections, compacted, reminder = s.promptSections.compact(info, sections, boundary, observation)
 	sections, err = s.appendSubagentSection(ctx, sections, info.WorkspaceID, info.ID)
 	if err != nil {
 		return "", err
@@ -210,6 +228,16 @@ func (s *Service) Augment(
 	rendered, err := renderPromptFromSections(sections)
 	if err != nil {
 		return "", err
+	}
+	if reminder {
+		rendered = "<compozy-context-reminder>Context is nearing capacity. " +
+			"Preserve durable facts, current work, and the next concrete step in memory or files " +
+			"before provider compaction.</compozy-context-reminder>\n\n" + rendered
+	}
+	if compacted {
+		rendered = "<compozy-context-notice>Provider compaction completed. " +
+			"Continue the current task using durable facts and the full situation sections below." +
+			"</compozy-context-notice>\n\n" + rendered
 	}
 	if strings.TrimSpace(rendered) == "" {
 		return message, nil

@@ -229,6 +229,22 @@ func (api *AgentInstanceAPI) Payload(
 		}
 		payload.LastWakeAt, payload.NextWakeAt = state.LastWakeAt, state.NextWakeAt
 		payload.QuietStreak, payload.FailureStreak = state.QuietStreak, state.FailureStreak
+		if i.ChecksEnabled && i.State == "active" && i.ArchivedAt == nil {
+			checkAt, err := time.Parse(time.RFC3339Nano, state.NextWakeAt)
+			if err == nil {
+				current := payload.NextWake
+				var monitorAt time.Time
+				if current != nil {
+					parsed, parseErr := time.Parse(time.RFC3339Nano, current.At)
+					if parseErr == nil {
+						monitorAt = parsed
+					}
+				}
+				if current == nil || monitorAt.IsZero() || checkAt.Before(monitorAt) {
+					payload.NextWake = &contract.AgentInstanceNextWake{Kind: "check", At: state.NextWakeAt}
+				}
+			}
+		}
 	}
 	return payload, nil
 }

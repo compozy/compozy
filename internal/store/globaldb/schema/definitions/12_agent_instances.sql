@@ -70,6 +70,7 @@ CREATE TABLE agent_instance_wake_state (
     occurrence_id TEXT NOT NULL DEFAULT '',
     triage_session_id TEXT NOT NULL DEFAULT '',
     occurrence_started_at TEXT NOT NULL DEFAULT '',
+    rotation_due_session TEXT NOT NULL DEFAULT '',
     occurrence_cancelled INTEGER NOT NULL DEFAULT 0 CHECK (occurrence_cancelled IN (0, 1))
 );
 

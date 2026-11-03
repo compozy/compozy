@@ -37,8 +37,8 @@ type AutomationFact struct {
 	ID, ProfileID, WorkspaceID, Status, Cursor string
 }
 type MonitorFact struct {
-	ID, SessionID string
-	Fired         bool
+	ID, SessionID  string
+	NeedsAttention bool
 }
 type CollectorFacts struct {
 	Tasks            []TaskFact
@@ -214,7 +214,7 @@ func collectAutomationFacts(scope CollectorScope, automations []AutomationFact, 
 
 func collectMonitorFacts(scope CollectorScope, monitors []MonitorFact, buckets map[string][]string) {
 	for _, monitor := range monitors {
-		if monitor.Fired && scope.MainSessionID != "" && monitor.SessionID == scope.MainSessionID {
+		if monitor.NeedsAttention && scope.MainSessionID != "" && monitor.SessionID == scope.MainSessionID {
 			buckets["monitors_fired"] = append(buckets["monitors_fired"], "monitor:"+monitor.ID)
 		}
 	}

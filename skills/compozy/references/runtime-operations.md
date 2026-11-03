@@ -1582,10 +1582,10 @@ authorized stop surface. Canonical events are `session.supervision_warning`,
 metadata remains timeout/inactivity.
 
 Idle runtime release: after `session.supervision.idle_release_after` (default 30m, `0` disables) a
-session with no turn in flight, no work signal, no unknown source, no pending permission/clarify,
+session with no turn in flight, no work signal other than daemon-owned monitors, no unknown source, no pending permission/clarify,
 and an agent that advertised ACP `session/load` has its agent process stopped silently. The session
 is not stopped: it stays `state: "active"` with `runtime.status: "unbound"`, keeps its transcript and
-ACP session id, shows the `idle` badge, records no supervision warning/stop event, and dispatches no
+ACP session id, retains its idle or monitor-waiting badge, records no supervision warning/stop event, and dispatches no
 `session.post_stop` hook (the process-level `agent.stopped` hook still fires). Agents without
 `session/load` keep their runtime. Treat `runtime.status: "unbound"` on an active session as
 released, not broken: just prompt it. The next prompt from any surface (composer, CLI, HTTP/UDS,
@@ -1873,3 +1873,42 @@ In `approve-reads`, instance pause, ensure-main, checks-off (`enabled: false`) a
 dry-run checks (`dry_run: true`) do not require an approval handoff. These calls still
 enforce instance ownership, grants and workspace reach. Real checks, create and archive
 retain approval requirements; `deny-all` still requires approval for every call.
+
+A repeated timer request in the same session with the same description and a
+deadline within one second reuses the active monitor. A successfully admitted
+monitor wake does not trigger an additional stays-on check; `monitors_fired`
+collects only undelivered and interrupted wakes.
+
+Instance reads expose optional `next_wake` with `kind`, `description`, and an
+optional `at` timestamp. The earliest known timer or enabled check wins; when
+none has a time, an active monitor can still supply its description without
+an invented timestamp. `next_wake_at` remains the check schedule. The `now`
+field is empty unless the main session is working.
+
+Stays-on mains and their descendants receive daemon-composed doctrine about
+authorization, bounded follow-ups, daemon monitors, refusal handling, delegation,
+and durable context. Session identity and ancestry select it, not the agent name
+or Orchestrator role. Only the main receives the direction to start Goals in
+another session. This guidance does not itself enforce Goal refusal.
+
+The first prompt after a completed provider compaction includes a short notice
+and full situation sections. Subsequent prompts reuse unchanged sections again.
+This applies to all sessions and does not request compaction or replay input.
+
+When known context usage reaches `agents.stays_on.rotation_threshold`, the
+current stays-on main receives one reminder on its next prompt to preserve
+durable facts and its next step. A usage drop re-arms the reminder and restores
+full situation sections. Unknown usage sends no reminder, and this mechanism
+starts no turn.
+
+Goal `set` and `replace` on the current stays-on main return
+`goal_on_instance_main`; start the Goal in another session. Existing Goals keep
+their status and lifecycle controls. An active Goal also blocks main-session
+rotation until it settles.
+
+Instance mains rotate for context only after a real provider context-exhaustion
+refusal. Usage percentage alone sends a reminder. Exhaustion persists the main
+session ID until successful rotation. Rotation retains the existing brief and
+dependency gate; a deferred report lists blocking dependencies, and reconciliation
+retries on later ticks. Active monitors, queued input, and active Goals can keep
+an exhausted main blocked until the operator resolves them.

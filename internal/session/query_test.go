@@ -2622,6 +2622,10 @@ func TestManagerEventsAndHistoryUseStoredEvents(t *testing.T) {
 					two.ContextAfter.Sequence != secondAfter {
 					t.Fatalf("zero used-only after=%#v", two.ContextAfter)
 				}
+				completed, completedErr := h.manager.CompletedCompactionBoundary(t.Context(), target.ID)
+				if completedErr != nil || completed == nil || *completed != first {
+					t.Fatalf("completed compaction boundary=%v, error=%v", completed, completedErr)
+				}
 				cause, err := h.manager.CompactionClearBoundary(t.Context(), target.ID)
 				if err != nil || cause == nil || cause.CompactionID != "c2" || cause.Sequence != second {
 					t.Fatalf("first-terminal cause=%#v error=%v", cause, err)

@@ -13,6 +13,7 @@ import (
 )
 
 type instanceDefinitions struct {
+	monitors   instanceRotationMonitors
 	workspaces *workspacepkg.Resolver
 	profiles   session.ProfileNameResolver
 	agents     session.AgentResolver

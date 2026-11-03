@@ -317,6 +317,13 @@ type AgentInstanceListResponse struct {
 	NextCursor         string                 `json:"next_cursor"`
 }
 
+// AgentInstanceNextWake is a daemon API value.
+type AgentInstanceNextWake struct {
+	Kind        string `json:"kind"`
+	At          string `json:"at,omitempty"`
+	Description string `json:"description"`
+}
+
 // AgentInstanceOccurrenceResponse is a daemon API value.
 type AgentInstanceOccurrenceResponse struct {
 	State    string `json:"state"`
@@ -327,29 +334,30 @@ type AgentInstanceOccurrenceResponse struct {
 
 // AgentInstancePayload is a daemon API value.
 type AgentInstancePayload struct {
-	Created            bool           `json:"created"`
-	ChecksEnabled      bool           `json:"checks_enabled"`
-	LastWakeAt         string         `json:"last_wake_at"`
-	NextWakeAt         string         `json:"next_wake_at"`
-	QuietStreak        int64          `json:"quiet_streak"`
-	FailureStreak      int64          `json:"failure_streak"`
-	FatigueLimit       int            `json:"fatigue_limit"`
-	Label              string         `json:"label"`
-	Provider           string         `json:"provider"`
-	ResolvedAppearance map[string]any `json:"resolved_appearance"`
-	Scope              string         `json:"scope"`
-	Activity           string         `json:"activity"`
-	Now                string         `json:"now"`
-	NeedsAttention     bool           `json:"needs_attention"`
-	ID                 string         `json:"id"`
-	ProfileID          string         `json:"profile_id"`
-	AgentName          string         `json:"agent_name"`
-	WorkspaceID        string         `json:"workspace_id"`
-	State              string         `json:"state"`
-	PauseReason        string         `json:"pause_reason"`
-	MainSessionID      string         `json:"main_session_id"`
-	CreatedAt          time.Time      `json:"created_at"`
-	UpdatedAt          time.Time      `json:"updated_at"`
+	NextWake           *AgentInstanceNextWake `json:"next_wake,omitempty"`
+	Created            bool                   `json:"created"`
+	ChecksEnabled      bool                   `json:"checks_enabled"`
+	LastWakeAt         string                 `json:"last_wake_at"`
+	NextWakeAt         string                 `json:"next_wake_at"`
+	QuietStreak        int64                  `json:"quiet_streak"`
+	FailureStreak      int64                  `json:"failure_streak"`
+	FatigueLimit       int                    `json:"fatigue_limit"`
+	Label              string                 `json:"label"`
+	Provider           string                 `json:"provider"`
+	ResolvedAppearance map[string]any         `json:"resolved_appearance"`
+	Scope              string                 `json:"scope"`
+	Activity           string                 `json:"activity"`
+	Now                string                 `json:"now"`
+	NeedsAttention     bool                   `json:"needs_attention"`
+	ID                 string                 `json:"id"`
+	ProfileID          string                 `json:"profile_id"`
+	AgentName          string                 `json:"agent_name"`
+	WorkspaceID        string                 `json:"workspace_id"`
+	State              string                 `json:"state"`
+	PauseReason        string                 `json:"pause_reason"`
+	MainSessionID      string                 `json:"main_session_id"`
+	CreatedAt          time.Time              `json:"created_at"`
+	UpdatedAt          time.Time              `json:"updated_at"`
 }
 
 // AgentInstanceProposal is a daemon API value.
@@ -434,10 +442,4 @@ type AgentMePayload struct {
 // AgentMeResponse is a daemon API value.
 type AgentMeResponse struct {
 	Me AgentMePayload `json:"me"`
-}
-
-// AgentMemoryAddRequest is a daemon API value.
-type AgentMemoryAddRequest struct {
-	Text  string `json:"text"`
-	Until string `json:"until,omitempty"`
 }

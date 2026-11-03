@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// ExtensionCommandPayload is a daemon API value.
+type ExtensionCommandPayload struct {
+	Extension        string        `json:"extension"`
+	Verb             string        `json:"verb"`
+	ToolID           string        `json:"tool_id"`
+	Summary          string        `json:"summary"`
+	Example          string        `json:"example,omitempty"`
+	Flags            []CommandFlag `json:"flags"`
+	RiskClass        RiskClass     `json:"risk_class"`
+	ApprovalRequired bool          `json:"approval_required"`
+}
+
+// ExtensionCommandsResponse is a daemon API value.
+type ExtensionCommandsResponse struct {
+	Commands []ExtensionCommandPayload      `json:"commands"`
+	Groups   []ExtensionCommandGroupPayload `json:"groups"`
+}
+
 // ExtensionContentsPayload is a daemon API value.
 type ExtensionContentsPayload struct {
 	Skills     int `json:"skills"`
@@ -426,25 +444,4 @@ type GatewayAuditAuthPayload struct {
 	Mode              string `json:"mode"`
 	RequiredRemotely  bool   `json:"required_remotely"`
 	ActiveDeviceCount int    `json:"active_device_count"`
-}
-
-// GatewayAuditFindingPayload is a daemon API value.
-type GatewayAuditFindingPayload struct {
-	ID          string `json:"id"`
-	Severity    string `json:"severity"`
-	Summary     string `json:"summary"`
-	Remediation string `json:"remediation"`
-	Tier        string `json:"tier,omitempty"`
-	Resource    string `json:"resource,omitempty"`
-}
-
-// GatewayAuditPayload is a daemon API value.
-type GatewayAuditPayload struct {
-	Ran              bool                         `json:"ran"`
-	NoFindings       bool                         `json:"no_findings"`
-	LocalOnly        bool                         `json:"local_only"`
-	Status           GatewayStatusPayload         `json:"status"`
-	Auth             GatewayAuditAuthPayload      `json:"auth"`
-	DeviceHighlights GatewayDeviceHighlights      `json:"device_highlights"`
-	Findings         []GatewayAuditFindingPayload `json:"findings"`
 }

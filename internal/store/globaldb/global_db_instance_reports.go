@@ -255,17 +255,31 @@ func (r *SessionRepo) ReportContextExhaustion(ctx context.Context, sessionID, tu
 	if instance.ArchivedAt.Valid {
 		return nil
 	}
-	reports := &InstanceReportRepo{repoBase: r.repoBase}
-	_, err = reports.AppendReport(
+
+	reportID, err := store.NewID("arpt")
+	if err != nil {
+		return err
+	}
+	return store.ExecuteWriteOperation(
 		ctx,
-		id,
-		agentinstance.ReportInput{
-			SourceKey: "turn:" + turnID,
-			Kind:      "failure",
-			Payload: []byte(
-				`{"reason":"context_exhausted","detail":"The provider refused the prompt because its context limit was reached."}`,
-			),
+		r.db,
+		"report exhausted context",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			q := sqlcgen.New(tx)
+			if err := q.InsertAgentInstanceReport(ctx, sqlcgen.InsertAgentInstanceReportParams{
+				ID:         reportID,
+				InstanceID: id,
+				SourceKey:  "turn:" + turnID,
+				Kind:       "failure",
+				Payload:    `{"reason":"context_exhausted","detail":"The provider refused the prompt because its context limit was reached."}`,
+				CreatedAt:  store.FormatTimestamp(r.now()),
+			}); err != nil {
+				return err
+			}
+			return q.MarkInstanceRotationDue(
+				ctx,
+				sqlcgen.MarkInstanceRotationDueParams{InstanceID: id, SessionID: sessionID},
+			)
 		},
 	)
-	return err
 }

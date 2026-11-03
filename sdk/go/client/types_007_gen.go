@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// GatewayAuditFindingPayload is a daemon API value.
+type GatewayAuditFindingPayload struct {
+	ID          string `json:"id"`
+	Severity    string `json:"severity"`
+	Summary     string `json:"summary"`
+	Remediation string `json:"remediation"`
+	Tier        string `json:"tier,omitempty"`
+	Resource    string `json:"resource,omitempty"`
+}
+
+// GatewayAuditPayload is a daemon API value.
+type GatewayAuditPayload struct {
+	Ran              bool                         `json:"ran"`
+	NoFindings       bool                         `json:"no_findings"`
+	LocalOnly        bool                         `json:"local_only"`
+	Status           GatewayStatusPayload         `json:"status"`
+	Auth             GatewayAuditAuthPayload      `json:"auth"`
+	DeviceHighlights GatewayDeviceHighlights      `json:"device_highlights"`
+	Findings         []GatewayAuditFindingPayload `json:"findings"`
+}
+
 // GatewayDeviceHighlights is a daemon API value.
 type GatewayDeviceHighlights struct {
 	Active         int      `json:"active"`
@@ -422,24 +443,4 @@ type HeartbeatConfigSubsetPayload struct {
 	WakeEventRetention           string `json:"wake_event_retention"`
 	SessionHealthStaleAfter      string `json:"session_health_stale_after"`
 	SessionHealthHookMinInterval string `json:"session_health_hook_min_interval"`
-}
-
-// HeartbeatContextProjectionPayload is a daemon API value.
-type HeartbeatContextProjectionPayload struct {
-	Include []string `json:"include,omitzero"`
-}
-
-// HeartbeatDeleteByPathRequest is a daemon API value.
-type HeartbeatDeleteByPathRequest struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	ExpectedDigest string `json:"expected_digest"`
-}
-
-// HeartbeatFrontmatterPayload is a daemon API value.
-type HeartbeatFrontmatterPayload struct {
-	Version     int                                    `json:"version"`
-	Enabled     bool                                   `json:"enabled"`
-	Summary     string                                 `json:"summary,omitempty"`
-	Preferences HeartbeatFrontmatterPreferencesPayload `json:"preferences"`
-	Context     HeartbeatContextProjectionPayload      `json:"context"`
 }

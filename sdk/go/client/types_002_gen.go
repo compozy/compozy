@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// AgentMemoryAddRequest is a daemon API value.
+type AgentMemoryAddRequest struct {
+	Text  string `json:"text"`
+	Until string `json:"until,omitempty"`
+}
+
 // AgentMemoryBudget is a daemon API value.
 type AgentMemoryBudget struct {
 	Lines    int `json:"lines"`
@@ -435,16 +441,4 @@ type AppTokenPayload struct {
 // AppTokenResponse is a daemon API value.
 type AppTokenResponse struct {
 	AppToken AppTokenPayload `json:"app_token"`
-}
-
-// AppTokenRevokeResponse is a daemon API value.
-type AppTokenRevokeResponse struct {
-	AppToken AppTokenPayload `json:"app_token"`
-	Changed  bool            `json:"changed"`
-	Canceled int             `json:"canceled"`
-}
-
-// AppTokensResponse is a daemon API value.
-type AppTokensResponse struct {
-	AppTokens []AppTokenPayload `json:"app_tokens"`
 }

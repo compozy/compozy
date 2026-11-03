@@ -21,6 +21,7 @@ export {
 export type {
   Action,
   ActorIdentity,
+  AgentInstanceNextWake,
   AgentInstancePayload,
   Chip,
   ClientOptions,

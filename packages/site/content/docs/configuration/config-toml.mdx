@@ -1363,7 +1363,8 @@ Session supervision uses fresh work evidence across live sessions. `quiet_after`
 are a hung-turn watchdog: silence accrues only while a turn is in flight and waiting on the agent,
 so a session waiting for you is never warned or stopped for inactivity. `idle_release_after`
 silently releases the agent process of an idle session whose agent supports ACP `session/load`; the
-session stays active and the next prompt binds a runtime again. See
+session stays active and the next prompt binds a runtime again. Daemon-owned monitors of any kind
+may remain active during release; other work signals and unknown sources still prevent it. See
 [session lifecycle](/docs/sessions/lifecycle#runtime-activity-supervision) for signal validity,
 quiet warnings, unknown-source attention, the stop ladder, and
 [idle runtime release](/docs/sessions/lifecycle#idle-runtime-release).

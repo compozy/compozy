@@ -4390,6 +4390,22 @@ func TestInstanceRotationPublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if scenario == "publish" {
+				for range 2 {
+					if err := db.ReportContextExhaustion(t.Context(), main, "exhausted-turn"); err != nil {
+						t.Fatal(err)
+					}
+				}
+				state, err := repo.WakeState(t.Context(), instance.ID)
+				if err != nil || state.RotationDueSession != main {
+					t.Fatalf("rotation due = %+v, %v", state, err)
+				}
+				reports, err := db.InstanceReports().
+					ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 100})
+				if err != nil || len(reports) != 1 {
+					t.Fatalf("exhaustion reports = %v, %v", reports, err)
+				}
+			}
 			count, err := repo.RotationAdmissionCount(t.Context(), main)
 			if err != nil {
 				t.Fatal(err)
@@ -4467,6 +4483,12 @@ func TestInstanceRotationPublication(t *testing.T) {
 			if (scenario != "publish" && scenario != "indeterminate admission") &&
 				!errors.Is(err, agentinstance.ErrRotationChanged) {
 				t.Fatalf("publication = %v", err)
+			}
+			if scenario == "publish" {
+				state, err := repo.WakeState(t.Context(), instance.ID)
+				if err != nil || state.RotationDueSession != "" {
+					t.Fatalf("published rotation due = %+v, %v", state, err)
+				}
 			}
 			got, err := repo.Get(t.Context(), instance.ID)
 			if err != nil {

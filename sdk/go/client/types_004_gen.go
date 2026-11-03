@@ -7,6 +7,19 @@ import (
 	"time"
 )
 
+// ClientID is a daemon API value.
+type ClientID string
+
+// ClientKind is a daemon API value.
+type ClientKind string
+
+// CmdPaletteCatalogChangedEvent is a daemon API value.
+type CmdPaletteCatalogChangedEvent struct {
+	ProfileLens     ProfileLens `json:"profile_lens"`
+	Workspace       WorkspaceID `json:"workspace"`
+	CatalogRevision string      `json:"catalog_revision"`
+}
+
 // CmdPaletteClient is a daemon API value.
 type CmdPaletteClient struct {
 	ClientID   ClientID    `json:"client_id"`
@@ -424,24 +437,4 @@ type CreateProfileRequest struct {
 // CreateSessionFolderRequest is a daemon API value.
 type CreateSessionFolderRequest struct {
 	Name string `json:"name"`
-}
-
-// CreateSessionRequest is a daemon API value.
-type CreateSessionRequest struct {
-	Scope           string                     `json:"scope,omitempty"`
-	AgentName       string                     `json:"agent_name,omitempty"`
-	Name            string                     `json:"name,omitempty"`
-	Workspace       string                     `json:"workspace,omitempty"`
-	WorkspacePath   string                     `json:"workspace_path,omitempty"`
-	Worktree        string                     `json:"worktree,omitempty"`
-	NewWorktree     *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
-	ParentSessionID string                     `json:"parent_session_id,omitempty"`
-	LineageKind     string                     `json:"lineage_kind,omitempty"`
-	FolderID        string                     `json:"folder_id,omitempty"`
-}
-
-// CreateSupportBundleRequest is a daemon API value.
-type CreateSupportBundleRequest struct {
-	Yes           bool  `json:"yes"`
-	IncludeStatus *bool `json:"include_status,omitzero"`
 }

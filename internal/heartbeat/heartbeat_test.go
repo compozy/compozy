@@ -898,7 +898,7 @@ func TestCollectDigest(t *testing.T) {
 				{ID: "session", ProfileID: "p", Health: "stale", LastEventAt: now.Add(-2 * time.Hour), LastSeq: 1},
 			},
 			Automations: []AutomationFact{{ID: "auto", ProfileID: "p", Status: "failed", Cursor: "1"}},
-			Monitors:    []MonitorFact{{ID: "monitor", SessionID: "main", Fired: true}},
+			Monitors:    []MonitorFact{{ID: "monitor", SessionID: "main", NeedsAttention: true}},
 		}
 		digest, err := CollectDigest(scope, facts, policy.Preferences.Context.Include, "policy", "Check pending work.")
 		if err != nil {
@@ -932,8 +932,8 @@ func TestCollectDigest(t *testing.T) {
 				{ID: "workspace", ProfileID: "p", WorkspaceID: "w", Health: "dead"},
 			},
 			Monitors: []MonitorFact{
-				{ID: "own", SessionID: "main", Fired: true},
-				{ID: "other", SessionID: "old", Fired: true},
+				{ID: "own", SessionID: "main", NeedsAttention: true},
+				{ID: "other", SessionID: "old", NeedsAttention: true},
 			},
 		}
 		got, err := CollectDigest(scope, facts, nil, "policy", "")

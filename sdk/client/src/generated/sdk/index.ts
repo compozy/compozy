@@ -122,6 +122,7 @@ export type {
   AgentInstanceCheckResponse,
   AgentInstanceCreateRequest,
   AgentInstanceListResponse,
+  AgentInstanceNextWake,
   AgentInstanceOccurrenceResponse,
   AgentInstancePayload,
   AgentInstanceProposal,

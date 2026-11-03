@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
-	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
-	"github.com/compozy/compozy/internal/session/contextusage"
 )
 
 type instanceRotationStore interface {
+	RotationDueSession(context.Context, string) (string, error)
+	RotationBlockers(context.Context, string) ([]string, error)
 	RotationWaitingSince(context.Context, string, string, time.Time) (time.Time, error)
 	ClearRotationWait(context.Context, string, string) error
 	SupersededSessions(context.Context, string) ([]string, error)
@@ -46,7 +46,6 @@ type instanceMainRotator struct {
 	sessions   instanceRotationSessions
 	store      instanceRotationStore
 	monitors   instanceRotationMonitors
-	threshold  float64
 }
 
 func (r *instanceMainRotator) Eligible(
@@ -71,39 +70,28 @@ func (r *instanceMainRotator) Eligible(
 	if err != nil {
 		return decision, err
 	}
-	telemetry := loopGoalContextRuntime{sessions: r.sessions}
-	usage, err := telemetry.Usage(ctx, loop.ActionSessionBinding{SessionID: instance.MainSessionID})
+
+	due, err := r.store.RotationDueSession(ctx, instance.ID)
 	if err != nil {
 		return decision, err
 	}
-	_, hasCompact := session.ResolveCompactionCommand(info.AdvertisedCommands)
-	if contextusage.DecideMaintenance(
-		usage.Known,
-		usage.Used,
-		usage.Size,
-		r.threshold,
-		hasCompact,
-	) != contextusage.MaintenanceRotate {
-		return decision, r.store.ClearRotationWait(ctx, instance.ID, instance.MainSessionID)
+	if due != instance.MainSessionID {
+		return decision, nil
 	}
+	blockers := []string{}
 	defer func() {
 		if err == nil {
-			err = r.recordRotationDeferral(ctx, instance, decision.Eligible)
+			err = r.recordRotationDeferral(ctx, instance, decision.Eligible, blockers)
 		}
 	}()
-	if info.State != session.StateActive || info.PendingPermissionCount > 0 || info.PendingClarifyCount > 0 {
+	if blocker := rotationRuntimeBlocker(info, r.monitors.List(instance.MainSessionID)); blocker != "" {
+		blockers = append(blockers, blocker)
 		return decision, nil
-	}
-	if info.Liveness != nil && info.Liveness.Activity != nil && info.Liveness.Activity.TurnID != "" {
-		return decision, nil
-	}
-
-	for _, item := range r.monitors.List(instance.MainSessionID) {
-		if item.Status == monitor.StatusActive || item.Status == monitor.StatusDelivering {
-			return decision, nil
-		}
 	}
 	decision.Eligible, err = r.store.RotationPersistenceReady(ctx, instance.MainSessionID)
+	if err == nil && !decision.Eligible {
+		blockers, err = r.store.RotationBlockers(ctx, instance.MainSessionID)
+	}
 	return decision, err
 }
 
@@ -144,4 +132,20 @@ func (r *instanceMainRotator) deferRotationRetry(id string) {
 		r.retryAfter = make(map[string]time.Time)
 	}
 	r.retryAfter[id] = now.Add(r.retryDelay)
+}
+
+func rotationRuntimeBlocker(info *session.Info, monitors []monitor.Monitor) string {
+	if info.State != session.StateActive || info.PendingPermissionCount > 0 || info.PendingClarifyCount > 0 {
+		return "session_state_or_interaction"
+	}
+	if info.Liveness != nil && info.Liveness.Activity != nil && info.Liveness.Activity.TurnID != "" {
+		return "active_turn"
+	}
+
+	for _, item := range monitors {
+		if item.Status == monitor.StatusActive || item.Status == monitor.StatusDelivering {
+			return "active_monitor:" + item.ID
+		}
+	}
+	return ""
 }

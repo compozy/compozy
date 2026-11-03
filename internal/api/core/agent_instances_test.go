@@ -1180,3 +1180,37 @@ func TestAgentInstanceCreateResult(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: the instance read chooses the earliest timed wake and preserves untimed monitors.
+func TestAgentInstanceNextWake(t *testing.T) {
+	for _, tc := range []struct{ name, monitorAt, checkAt, want string }{
+		{"Should prefer an earlier timer", "2026-11-03T10:00:00Z", "2026-11-03T11:00:00Z", "timer"},
+		{"Should prefer an earlier check", "2026-11-03T12:00:00Z", "2026-11-03T11:00:00Z", "check"},
+		{"Should preserve an untimed monitor without a check", "", "", "timer"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			api := core.AgentInstanceAPI{
+				ReadPayload: func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error) {
+					return contract.AgentInstancePayload{
+						NextWake: &contract.AgentInstanceNextWake{
+							Kind:        "timer",
+							At:          tc.monitorAt,
+							Description: "follow up",
+						},
+					}, nil
+				},
+				WakeState: func(context.Context, string) (heartbeat.InstanceWakeState, error) {
+					return heartbeat.InstanceWakeState{NextWakeAt: tc.checkAt}, nil
+				},
+			}
+			payload, err := api.Payload(t.Context(), agentinstance.Instance{State: "active", ChecksEnabled: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if payload.NextWake == nil || payload.NextWake.Kind != tc.want {
+				t.Fatalf("next wake = %+v", payload.NextWake)
+			}
+		})
+	}
+}
