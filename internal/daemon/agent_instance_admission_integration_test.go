@@ -30,6 +30,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -1843,6 +1844,7 @@ func TestAgentKindAliasBootIntegration(t *testing.T) {
 			profiles    []string
 			extension   string
 			linkedAgent string
+			workID      string
 		)
 		writeAgent := func(path, name string) {
 			t.Helper()
@@ -1856,6 +1858,29 @@ func TestAgentKindAliasBootIntegration(t *testing.T) {
 		}
 		d, manager, _ := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
 			logs = captureDaemonLogs(d)
+			db, err := globaldb.OpenGlobalDB(t.Context(), d.homePaths.DatabaseFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			profilesManager, err := profilepkg.NewManager(
+				profilepkg.WithStore(db), profilepkg.WithHomePaths(d.homePaths),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			work, err := profilesManager.Create(t.Context(), profilepkg.CreateInput{Name: "work"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			workID = work.ID
+			if err := profilesManager.PutSelection(t.Context(), profilepkg.Selection{
+				Lens: profilepkg.SelectionLensGlobal, ProfileID: workID,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Close(t.Context()); err != nil {
+				t.Fatal(err)
+			}
 			global = filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
 			body, err := os.ReadFile(global)
 			if err != nil {
@@ -1922,7 +1947,10 @@ func TestAgentKindAliasBootIntegration(t *testing.T) {
 			}
 		}
 
-		main, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		// Native instance creation is restricted to the caller's own agent identity.
+		main, err := manager.Create(t.Context(), &session.CreateOpts{
+			AgentName: "triage", Workspace: workspace, ProfileID: workID,
+		})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1935,14 +1963,17 @@ func TestAgentKindAliasBootIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !strings.Contains(string(listed.Structured), `"triage"`) {
+		if !strings.Contains(string(listed.Structured), `"triage"`) ||
+			!strings.Contains(string(listed.Structured), `"wp"`) {
 			t.Fatalf("agent list = %s, want the workspace triage agent", listed.Structured)
 		}
-		if got := logs.count("agent kind stays_on is deprecated", "path="+workspaceAgent); got != 1 {
-			t.Fatalf("workspace deprecation lines = %d, want 1\n%s", got, logs.String())
+		for _, path := range []string{workspaceAgent, workspaceProfileAgent} {
+			if got := logs.count("agent kind stays_on is deprecated", "path="+path); got != 1 {
+				t.Fatalf("deprecation lines for %s = %d, want 1\n%s", path, got, logs.String())
+			}
 		}
 		result, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAgentInstanceCreate, Input: []byte(`{}`), ApprovalGranted: true,
+			ToolID: toolspkg.ToolIDAgentInstanceCreate, Input: []byte(`{"agent":"triage"}`), ApprovalGranted: true,
 			ToolCallID: "create-instance",
 		})
 		if err != nil {
@@ -1952,7 +1983,8 @@ func TestAgentKindAliasBootIntegration(t *testing.T) {
 		if err := json.Unmarshal(result.Structured, &response); err != nil {
 			t.Fatal(err)
 		}
-		if response.Instance.MainSessionID == "" {
+		if response.Instance.MainSessionID == "" || response.Instance.AgentName != "triage" ||
+			response.Instance.State != "active" {
 			t.Fatalf("instance = %s, want a main session", result.Structured)
 		}
 		waitForRuntimeCondition(t, "instance main active", 15*time.Second, func() bool {
@@ -1962,13 +1994,47 @@ func TestAgentKindAliasBootIntegration(t *testing.T) {
 		agent, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentList, Input: []byte(`{}`), ApprovalGranted: true, ToolCallID: "list-again",
 		})
-		if err != nil || !strings.Contains(string(agent.Structured), `"kind":"always_on"`) ||
-			strings.Contains(string(agent.Structured), `"stays_on"`) {
-			t.Fatalf("agent payloads = %s %v, want always_on kinds only", agent.Structured, err)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload struct {
+			Agents []contract.AgentPayload `json:"agents"`
+		}
+		if err := json.Unmarshal(agent.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range []string{"triage", "wp"} {
+			index := slices.IndexFunc(
+				payload.Agents,
+				func(agent contract.AgentPayload) bool { return agent.Name == name },
+			)
+			if index < 0 || payload.Agents[index].Kind != "always_on" {
+				t.Fatalf("agent payloads = %s, want %s with kind always_on", agent.Structured, name)
+			}
+		}
+		for _, path := range []string{workspaceAgent, workspaceProfileAgent} {
+			body, err := os.ReadFile(path)
+			if err != nil || !strings.Contains(string(body), legacy) {
+				t.Fatalf("%s changed after admission: %q %v", path, body, err)
+			}
+			if got := logs.count("agent kind stays_on is deprecated", "path="+path); got != 1 {
+				t.Fatalf("deprecation lines for %s = %d, want 1", path, got)
+			}
 		}
 
-		second := &daemonLogCapture{}
-		rewriteDaemonAgentKindAliases(d.homePaths, slog.New(slog.NewTextHandler(second, nil)))
+		if err := d.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		restarted := newTestDaemon(t, d.homePaths, &d.config)
+		second := captureDaemonLogs(restarted)
+		if err := restarted.boot(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := restarted.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
 		if got := second.count("rewrote agent kind"); got != 0 {
 			t.Fatalf("second boot pass rewrites = %d, want 0\n%s", got, second.String())
 		}
