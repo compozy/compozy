@@ -589,6 +589,21 @@ describe("useSessionTopbarSlot", () => {
       closeSessionLinkDialog();
     });
 
+    it("Should keep the open list when an unlink leaves one item", async () => {
+      const view = renderLinks(model(SESSION_LINK_SETS.mixed));
+      fireEvent.click(screen.getByTestId("session-links-more"));
+      await screen.findByRole("dialog");
+      view.rerender(
+        <SessionPublisher
+          linkedWork={model(SESSION_LINK_SETS.onePr)}
+          onStop={vi.fn()}
+          session={undefined}
+        />
+      );
+      const list = await screen.findByRole("dialog");
+      expect(list.querySelectorAll('[data-slot="session-link-row"]')).toHaveLength(1);
+    });
+
     it("Should say +N more when the rest are not all pull requests", () => {
       renderLinks(model(SESSION_LINK_SETS.addedBy));
       expect(screen.getByTestId("session-links-more")).toHaveTextContent("+3 more");

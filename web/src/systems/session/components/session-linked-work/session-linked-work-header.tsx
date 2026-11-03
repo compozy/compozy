@@ -48,13 +48,19 @@ function SessionLinkedWorkPopover({
   children,
   list,
   testId,
+  onOpenChange,
 }: {
   trigger: ReactElement;
   children: ReactNode;
   list: SessionLinkedWorkListProps;
   testId: string;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(list.listOpen ?? false);
+  const [open, setOpenState] = useState(list.listOpen ?? false);
+  const setOpen = (next: boolean) => {
+    setOpenState(next);
+    onOpenChange?.(next);
+  };
   const actions = {
     ...list.actions,
     // The link dialog takes over: left open, this popover would sit on top of it.
@@ -149,6 +155,8 @@ export function SessionLinkedWorkStatus(props: SessionLinkedWorkStatusProps) {
   const { lead, more, ownFacts, ownChip, actions, onClippedChange } = props;
   const anchor = useSessionTopbarClipped(onClippedChange);
   const own = lead === null || actions.isOwn(lead);
+  // An unlink can drop the last overflow item: the open list stays so its Undo keeps its context.
+  const [listOpen, setListOpen] = useState(false);
   return (
     <span className="flex min-w-0 shrink-0 items-center gap-1" ref={anchor}>
       <SessionPullRequestChip
@@ -170,9 +178,10 @@ export function SessionLinkedWorkStatus(props: SessionLinkedWorkStatusProps) {
         }
         onPrompt={own && actions.onPrompt ? (_kind, text) => actions.onPrompt?.(text) : undefined}
       />
-      {more ? (
+      {more || listOpen ? (
         <SessionLinkedWorkPopover
           list={props}
+          onOpenChange={setListOpen}
           testId="session-links-more"
           trigger={
             <Button
@@ -183,7 +192,7 @@ export function SessionLinkedWorkStatus(props: SessionLinkedWorkStatusProps) {
             />
           }
         >
-          {more}
+          {more ?? "Linked work"}
         </SessionLinkedWorkPopover>
       ) : null}
     </span>
