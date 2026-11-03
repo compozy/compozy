@@ -542,13 +542,17 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 		foreign := testutil.PerformRequestWithHeaders(
 			t, fixture.Engine, http.MethodGet, "/test-layout?profile=marketing", nil, headers,
 		)
-		missing := testutil.PerformRequestWithHeaders(
-			t, fixture.Engine, http.MethodGet, "/test-layout?profile=ghost", nil, headers,
-		)
-		if foreign.Code != http.StatusConflict || missing.Code != foreign.Code ||
-			missing.Body.String() != foreign.Body.String() {
-			t.Fatalf("denied profile answers differ:\nforeign: %d %s\nmissing: %d %s",
-				foreign.Code, foreign.Body.String(), missing.Code, missing.Body.String())
+		if foreign.Code != http.StatusConflict {
+			t.Fatalf("denied foreign profile status = %d, want 409; body=%s", foreign.Code, foreign.Body.String())
+		}
+		for _, name := range []string{"ghost", "archived", "busy"} {
+			probe := testutil.PerformRequestWithHeaders(
+				t, fixture.Engine, http.MethodGet, "/test-layout?profile="+name, nil, headers,
+			)
+			if probe.Code != foreign.Code || probe.Body.String() != foreign.Body.String() {
+				t.Fatalf("denied profile answers differ:\nforeign: %d %s\n%s: %d %s",
+					foreign.Code, foreign.Body.String(), name, probe.Code, probe.Body.String())
+			}
 		}
 	})
 
@@ -967,7 +971,8 @@ func TestSessionInteractionDescendants(t *testing.T) {
 	})
 }
 
-// profileExistenceStub knows only the default and marketing profiles and binds sessions like
+// profileExistenceStub knows the default and marketing profiles, an archived and a busy one, and
+// binds sessions like
 // the profile manager: a session-bound resolution rejects any other name without a lookup.
 type profileExistenceStub struct{ sessionProfileServiceStub }
 
@@ -983,6 +988,15 @@ func (profileExistenceStub) Resolve(_ context.Context, in profilepkg.ResolveInpu
 		return profilepkg.Resolution{Profile: profilepkg.Profile{
 			ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive,
 		}}, nil
+	case "archived":
+		return profilepkg.Resolution{}, &profilepkg.Error{
+			Code: "profile_archived", Message: "profile archived is archived", Cause: profilepkg.ErrArchived,
+		}
+	case "busy":
+		return profilepkg.Resolution{}, &profilepkg.Error{
+			Code: "profile_unavailable", Message: "profile busy has lifecycle work op-1",
+			Cause: profilepkg.ErrUnavailable,
+		}
 	case "", "default":
 		return profilepkg.Resolution{Profile: profilepkg.Profile{
 			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,

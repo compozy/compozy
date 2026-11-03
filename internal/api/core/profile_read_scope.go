@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -101,8 +100,10 @@ func (h *BaseHandlers) resolveProfileReadSelectionWithSelector(
 	return resolvedProfileReadScope{Scope: scope, ProfileName: strings.TrimSpace(resolved.Profile.Name)}, nil
 }
 
-// resolveRequestedProfile resolves the selection. For an agent session without a grant, a missing
-// name answers like an existing foreign one, so the status does not reveal which profiles exist.
+// resolveRequestedProfile resolves the selection. For an agent session without a grant, any
+// failure (missing, archived, or unavailable) answers like an existing foreign profile, so the
+// status does not reveal which profiles exist or what state they are in. A name that is the
+// session's own profile still gets its real error from the session-bound resolution.
 func (h *BaseHandlers) resolveRequestedProfile(
 	c *gin.Context,
 	caller profileReadCaller,
@@ -113,8 +114,7 @@ func (h *BaseHandlers) resolveRequestedProfile(
 		SessionProfileID: boundProfileID,
 		Lens:             profilepkg.Lens{Kind: profilepkg.SelectionLensGlobal},
 	})
-	if err != nil && boundProfileID == "" && caller.sessionProfileID != "" && !caller.granted &&
-		errors.Is(err, profilepkg.ErrNotFound) {
+	if err != nil && boundProfileID == "" && caller.sessionProfileID != "" && !caller.granted {
 		_, err = h.sessionBoundProfileReadScope(c, requested, caller.sessionProfileID, err)
 	}
 	return resolved, err
