@@ -1168,9 +1168,12 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 	d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
 		configureInstancePermissionFixture(t, d, "approve-all", "", func(f *acpmock.AgentFixture) {
 			var steps []acpmock.Step
-			for _, id := range []string{"agent-http", "agent-uds", "operator-http"} {
-				steps = append(steps, acpmock.Step{Kind: acpmock.StepKindPermission, ToolCallID: id,
-					Title: "Edit " + id, ToolKind: "edit", Path: id + ".txt", ExpectDecision: "allow-once"})
+			for _, step := range []struct{ id, expect string }{
+				{"agent-http", "allow-once"}, {"agent-uds", "reject-once"},
+				{"agent-native", "allow-once"}, {"operator-http", "allow-always"},
+			} {
+				steps = append(steps, acpmock.Step{Kind: acpmock.StepKindPermission, ToolCallID: step.id,
+					Title: "Edit " + step.id, ToolKind: "edit", Path: step.id + ".txt", ExpectDecision: step.expect})
 			}
 			steps = append(steps, acpmock.Step{Kind: acpmock.StepKindAssistant, Text: "lineage approvals complete"})
 			f.Turns = append(f.Turns, acpmock.TurnFixture{
@@ -1234,8 +1237,9 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 			})
 		}
 	}
-	// Invariant (UT-005, IT-013; rules 6 and 19): an authorized agent approval over HTTP or UDS is recorded
-	// as that agent and leaves the unattended counter alone; only the operator's approval resets it.
+	// Invariant (UT-005, IT-013; rules 6, 15 and 19): an authorized agent approval over HTTP, UDS or the native
+	// tool is recorded as that agent, leaves the unattended counter alone, and has its "always" answer narrowed
+	// to once so no durable grant is written; only the operator's approval resets the counter and stays always.
 	t.Run("Should attribute lineage approvals and reset the counter only for the operator", func(t *testing.T) {
 		child, err := manager.Spawn(t.Context(), session.SpawnOpts{ParentSessionID: main.ID, AgentName: main.AgentName,
 			Workspace: workspace, Name: "Approval child", Permissions: "approve-reads", TTL: time.Minute})
@@ -1247,14 +1251,16 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		approvers := []struct {
-			base   string
-			client *http.Client
-			agent  bool
-			turns  int
+			base     string
+			client   *http.Client
+			agent    bool
+			decision string
+			turns    int
 		}{
-			{fmt.Sprintf("http://127.0.0.1:%d", d.info.Port), http.DefaultClient, true, 5},
-			{"http://unix", uds, true, 5},
-			{fmt.Sprintf("http://127.0.0.1:%d", d.info.Port), http.DefaultClient, false, 0},
+			{fmt.Sprintf("http://127.0.0.1:%d", d.info.Port), http.DefaultClient, true, "allow-always", 5},
+			{"http://unix", uds, true, "reject-always", 5},
+			{"native", nil, true, "allow-always", 5},
+			{fmt.Sprintf("http://127.0.0.1:%d", d.info.Port), http.DefaultClient, false, "allow-always", 0},
 		}
 		counter := func() int {
 			wake, err := db.Instances().WakeState(t.Context(), instance.ID)
@@ -1263,7 +1269,7 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 			}
 			return int(wake.UnattendedTurns)
 		}
-		var sources []string
+		var sources, decisions []string
 		for event := range events {
 			if event.Type == acp.EventTypeError {
 				t.Fatalf("provider error: %+v", event)
@@ -1283,6 +1289,7 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 					}
 				}
 				sources = append(sources, event.ResolvedByValue())
+				decisions = append(decisions, event.Decision)
 				continue
 			}
 			index := len(sources)
@@ -1294,7 +1301,21 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 				"UPDATE agent_instance_wake_state SET unattended_turns=5 WHERE instance_id=?", instance.ID); err != nil {
 				t.Fatal(err)
 			}
-			body := fmt.Sprintf(`{"request_id":%q,"decision":"allow-once"}`, event.RequestIDValue())
+			if approver.client == nil {
+				if _, err := d.toolRegistry.Call(t.Context(), toolspkg.Scope{
+					SessionID: main.ID, WorkspaceID: workspace, ProfileID: store.DefaultProfileID,
+					AgentName: main.AgentName,
+				}, toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDSessionApprove, ApprovalGranted: true, Input: []byte(fmt.Sprintf(
+						`{"session_id":%q,"request_id":%q,"decision":%q}`,
+						child.ID, event.RequestIDValue(), approver.decision,
+					)),
+				}); err != nil {
+					t.Fatalf("native approval: %v", err)
+				}
+				continue
+			}
+			body := fmt.Sprintf(`{"request_id":%q,"decision":%q}`, event.RequestIDValue(), approver.decision)
 			request, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
 				approver.base+"/api/workspaces/"+workspace+"/sessions/"+child.ID+"/approve", strings.NewReader(body))
 			if err != nil {
@@ -1316,8 +1337,11 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 			}
 		}
 		agentActor := "agent_session:" + main.ID
-		if want := []string{agentActor, agentActor, "operator"}; !slices.Equal(sources, want) {
+		if want := []string{agentActor, agentActor, agentActor, "operator"}; !slices.Equal(sources, want) {
 			t.Fatalf("resolved_by=%v want=%v", sources, want)
+		}
+		if want := []string{"allow-once", "reject-once", "allow-once", "allow-always"}; !slices.Equal(decisions, want) {
+			t.Fatalf("decisions=%v want=%v", decisions, want)
 		}
 	})
 	// Invariant (rule 15, SEC-1): a stays-on lineage cannot widen its own approval reach by adopting a session,
