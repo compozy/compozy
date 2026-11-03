@@ -427,5 +427,7 @@ WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
   );
 
 -- name: HumanSessionTurn :one
-SELECT EXISTS (SELECT 1 FROM session_input_queue WHERE session_id = sqlc.arg(session_id)
- AND turn_id = sqlc.arg(turn_id) AND origin_class = 'human' AND status IN ('dispatching','sent'));
+SELECT EXISTS (SELECT 1 FROM session_input_queue AS queued WHERE queued.session_id = sqlc.arg(session_id)
+ AND queued.turn_id = sqlc.arg(turn_id) AND queued.origin_class = 'human' AND queued.status IN ('dispatching','sent')
+ UNION ALL SELECT 1 FROM session_prompt_admissions AS admitted WHERE admitted.session_id = sqlc.arg(session_id)
+ AND admitted.turn_id = sqlc.arg(turn_id) AND admitted.human_ingress = 1 AND admitted.dispatch_committed_at IS NOT NULL);
