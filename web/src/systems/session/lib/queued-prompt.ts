@@ -62,20 +62,7 @@ export interface QueuedPrompt {
  */
 function queuedInputHeld(input: SessionInputPayload): boolean {
   const raw = input as SessionInputPayload & { held?: unknown };
-  return raw.held === true || (input.status as string) === "held";
-}
-
-/**
- * A non-operator row that waits while the viewing session is a paused stays-on agent's main:
- * agent messages and wakes are held until resume, while the operator's own input still runs.
- */
-export function queuedPromptHeld(
-  prompt: Pick<QueuedPrompt, "held" | "owner" | "sender" | "status">,
-  instancePaused: boolean
-): boolean {
-  if (prompt.held) return true;
-  if (!instancePaused || prompt.status === "dispatching") return false;
-  return Boolean(prompt.sender) || (prompt.owner !== null && prompt.owner.kind !== "human");
+  return raw.held === true;
 }
 
 export function queuedPromptAttachmentSummary(

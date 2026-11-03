@@ -19,7 +19,6 @@ import { SubagentAvatar } from "./subagents/subagent-avatar";
 import { DELETED_SESSION_LABEL, sessionPartyMark } from "./session-messages/session-message-party";
 import { useSessionLabel } from "./session-messages/use-session-label";
 import { AgentIdentityChip } from "@/systems/agent/components/agent-identity-mark";
-import { useQueuedHeld } from "../hooks/use-queued-held";
 import { SessionQueuedHeld } from "./session-queued-held";
 
 function queuedAttachmentSuffix(summary: QueuedPromptAttachmentSummary): string {
@@ -370,7 +369,7 @@ export function SessionQueueEntryRow({
   onEdit,
   onRemove,
 }: SessionQueueEntryRowProps) {
-  const held = useQueuedHeld(prompt);
+  const held = prompt.held === true;
   if (prompt.sender) {
     return (
       <SessionQueuedSessionMessageRow

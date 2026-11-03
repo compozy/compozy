@@ -4,7 +4,6 @@ import {
   coalescedWakesLabel,
   operatorQueuedCount,
   queueCapFromInputs,
-  queuedPromptHeld,
   queuedPromptOwner,
   queuedPromptsFromInputs,
   withCachedInputs,
@@ -148,12 +147,25 @@ describe("queued prompt read model", () => {
     expect(withCachedInputs(undefined, [])).toEqual({ inputs: [] });
   });
 
-  it("Should hold agent rows, never the operator's, while the stays-on agent is paused (UT-080)", () => {
-    const agentRow = { owner: queuedPromptOwner("agent", "triage"), status: "queued" };
-    const operatorRow = { owner: null, status: "queued" };
-    expect(queuedPromptHeld(agentRow, true)).toBe(true);
-    expect(queuedPromptHeld(agentRow, false)).toBe(false);
-    expect(queuedPromptHeld(operatorRow, true)).toBe(false);
-    expect(queuedPromptHeld({ ...operatorRow, held: true }, false)).toBe(true);
+  it("Should mark a row held only when the daemon says so (UT-080)", () => {
+    const base: SessionInputPayload = {
+      delivery: "after_turn",
+      enqueued_at: "2026-11-03T04:00:00Z",
+      id: "inp-held",
+      mode: "queue",
+      owner_kind: "agent",
+      owner_id: "triage",
+      queue_generation: 1,
+      session_id: "sess-main",
+      status: "queued",
+      text: "Deploy 412 failed.",
+    };
+    const [held, plain] = queuedPromptsFromInputs(
+      [{ ...base, held: true } as SessionInputPayload, { ...base, id: "inp-plain" }],
+      "ws",
+      "sess-main"
+    );
+    expect(held?.held).toBe(true);
+    expect(plain?.held).toBeUndefined();
   });
 });

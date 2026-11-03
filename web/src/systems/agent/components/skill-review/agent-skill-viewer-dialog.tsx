@@ -98,7 +98,10 @@ export function AgentSkillViewerDialog({
   error,
   onApprove,
   onReject,
+  initialPath,
 }: {
+  /** The file shown first; SKILL.md when absent. */
+  initialPath?: string;
   name: string;
   agentLabel: string;
   files: readonly SkillReviewFile[];
@@ -113,7 +116,7 @@ export function AgentSkillViewerDialog({
   onApprove: () => void;
   onReject: () => void;
 }) {
-  const [selected, setSelected] = useState(SKILL_DEFINITION_FILE);
+  const [selected, setSelected] = useState(initialPath ?? SKILL_DEFINITION_FILE);
   const file = files.find(item => item.path === selected) ?? files[0];
   const count = files.length;
   return (
