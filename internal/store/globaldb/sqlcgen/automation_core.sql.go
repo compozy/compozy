@@ -169,7 +169,7 @@ func (q *Queries) GetAutomationRun(ctx context.Context, id string) (GetAutomatio
 const getAutomationTrigger = `-- name: GetAutomationTrigger :one
 SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
-       webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
+       webhook_secret_ref, target_kind, target_instance_scope, loop_workspace_id, loop_name,
 	   loop_inputs, loop_input_mapping, created_at, updated_at
 FROM automation_triggers WHERE id = ?1
 `
@@ -196,6 +196,7 @@ func (q *Queries) GetAutomationTrigger(ctx context.Context, id string) (Automati
 		&i.EndpointSlug,
 		&i.WebhookSecretRef,
 		&i.TargetKind,
+		&i.TargetInstanceScope,
 		&i.LoopWorkspaceID,
 		&i.LoopName,
 		&i.LoopInputs,
@@ -209,7 +210,7 @@ func (q *Queries) GetAutomationTrigger(ctx context.Context, id string) (Automati
 const getAutomationTriggerByWebhookID = `-- name: GetAutomationTriggerByWebhookID :one
 SELECT grant_ceiling, id, profile_id, scope, name, agent_name, workspace_id, prompt, event, filter,
        enabled, retry, fire_limit, source, webhook_id, endpoint_slug,
-       webhook_secret_ref, target_kind, loop_workspace_id, loop_name,
+       webhook_secret_ref, target_kind, target_instance_scope, loop_workspace_id, loop_name,
 	   loop_inputs, loop_input_mapping, created_at, updated_at
 FROM automation_triggers WHERE webhook_id = ?1
 `
@@ -236,6 +237,7 @@ func (q *Queries) GetAutomationTriggerByWebhookID(ctx context.Context, webhookID
 		&i.EndpointSlug,
 		&i.WebhookSecretRef,
 		&i.TargetKind,
+		&i.TargetInstanceScope,
 		&i.LoopWorkspaceID,
 		&i.LoopName,
 		&i.LoopInputs,
@@ -398,7 +400,7 @@ INSERT INTO automation_triggers (
   profile_id,
   id, scope, name, agent_name, workspace_id, prompt, event, filter,
   enabled, retry, fire_limit, source, webhook_id, endpoint_slug, webhook_secret_ref,
-  target_kind, loop_workspace_id, loop_name, loop_inputs, loop_input_mapping,
+  target_kind, target_instance_scope, loop_workspace_id, loop_name, loop_inputs, loop_input_mapping,
 	created_at, updated_at
 ) VALUES (
  ?1,
@@ -407,36 +409,37 @@ INSERT INTO automation_triggers (
   ?7, ?8, ?9, ?10,
   ?11, ?12, ?13, ?14,
   ?15, ?16, ?17,
-  ?18, ?19, ?20,
-	?21, ?22, ?23, ?24
+  ?18, ?19, ?20, ?21,
+	?22, ?23, ?24, ?25
 )
 `
 
 type InsertAutomationTriggerParams struct {
-	GrantCeiling     string         `json:"grant_ceiling"`
-	ProfileID        string         `json:"profile_id"`
-	ID               string         `json:"id"`
-	Scope            string         `json:"scope"`
-	Name             string         `json:"name"`
-	AgentName        string         `json:"agent_name"`
-	WorkspaceID      sql.NullString `json:"workspace_id"`
-	Prompt           string         `json:"prompt"`
-	Event            string         `json:"event"`
-	Filter           sql.NullString `json:"filter"`
-	Enabled          bool           `json:"enabled"`
-	Retry            string         `json:"retry"`
-	FireLimit        string         `json:"fire_limit"`
-	Source           string         `json:"source"`
-	WebhookID        sql.NullString `json:"webhook_id"`
-	EndpointSlug     sql.NullString `json:"endpoint_slug"`
-	WebhookSecretRef sql.NullString `json:"webhook_secret_ref"`
-	TargetKind       string         `json:"target_kind"`
-	LoopWorkspaceID  sql.NullString `json:"loop_workspace_id"`
-	LoopName         sql.NullString `json:"loop_name"`
-	LoopInputs       sql.NullString `json:"loop_inputs"`
-	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
-	CreatedAt        string         `json:"created_at"`
-	UpdatedAt        string         `json:"updated_at"`
+	GrantCeiling        string         `json:"grant_ceiling"`
+	ProfileID           string         `json:"profile_id"`
+	ID                  string         `json:"id"`
+	Scope               string         `json:"scope"`
+	Name                string         `json:"name"`
+	AgentName           string         `json:"agent_name"`
+	WorkspaceID         sql.NullString `json:"workspace_id"`
+	Prompt              string         `json:"prompt"`
+	Event               string         `json:"event"`
+	Filter              sql.NullString `json:"filter"`
+	Enabled             bool           `json:"enabled"`
+	Retry               string         `json:"retry"`
+	FireLimit           string         `json:"fire_limit"`
+	Source              string         `json:"source"`
+	WebhookID           sql.NullString `json:"webhook_id"`
+	EndpointSlug        sql.NullString `json:"endpoint_slug"`
+	WebhookSecretRef    sql.NullString `json:"webhook_secret_ref"`
+	TargetKind          string         `json:"target_kind"`
+	TargetInstanceScope string         `json:"target_instance_scope"`
+	LoopWorkspaceID     sql.NullString `json:"loop_workspace_id"`
+	LoopName            sql.NullString `json:"loop_name"`
+	LoopInputs          sql.NullString `json:"loop_inputs"`
+	LoopInputMapping    sql.NullString `json:"loop_input_mapping"`
+	CreatedAt           string         `json:"created_at"`
+	UpdatedAt           string         `json:"updated_at"`
 }
 
 func (q *Queries) InsertAutomationTrigger(ctx context.Context, arg InsertAutomationTriggerParams) error {
@@ -459,6 +462,7 @@ func (q *Queries) InsertAutomationTrigger(ctx context.Context, arg InsertAutomat
 		arg.EndpointSlug,
 		arg.WebhookSecretRef,
 		arg.TargetKind,
+		arg.TargetInstanceScope,
 		arg.LoopWorkspaceID,
 		arg.LoopName,
 		arg.LoopInputs,
@@ -657,37 +661,38 @@ UPDATE automation_triggers SET
   filter = ?9, enabled = ?10, retry = ?11,
   fire_limit = ?12, source = ?13,
   webhook_id = ?14, endpoint_slug = ?15,
-  webhook_secret_ref = ?16, target_kind = ?17,
-  loop_workspace_id = ?18, loop_name = ?19,
-	loop_inputs = ?20, loop_input_mapping = ?21,
-  updated_at = ?22
-WHERE id = ?23
+  webhook_secret_ref = ?16, target_kind = ?17, target_instance_scope = ?18,
+  loop_workspace_id = ?19, loop_name = ?20,
+	loop_inputs = ?21, loop_input_mapping = ?22,
+  updated_at = ?23
+WHERE id = ?24
 `
 
 type UpdateAutomationTriggerParams struct {
-	Operator         bool           `json:"operator"`
-	GrantCeiling     string         `json:"grant_ceiling"`
-	Scope            string         `json:"scope"`
-	Name             string         `json:"name"`
-	AgentName        string         `json:"agent_name"`
-	WorkspaceID      sql.NullString `json:"workspace_id"`
-	Prompt           string         `json:"prompt"`
-	Event            string         `json:"event"`
-	Filter           sql.NullString `json:"filter"`
-	Enabled          bool           `json:"enabled"`
-	Retry            string         `json:"retry"`
-	FireLimit        string         `json:"fire_limit"`
-	Source           string         `json:"source"`
-	WebhookID        sql.NullString `json:"webhook_id"`
-	EndpointSlug     sql.NullString `json:"endpoint_slug"`
-	WebhookSecretRef sql.NullString `json:"webhook_secret_ref"`
-	TargetKind       string         `json:"target_kind"`
-	LoopWorkspaceID  sql.NullString `json:"loop_workspace_id"`
-	LoopName         sql.NullString `json:"loop_name"`
-	LoopInputs       sql.NullString `json:"loop_inputs"`
-	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
-	UpdatedAt        string         `json:"updated_at"`
-	ID               string         `json:"id"`
+	Operator            bool           `json:"operator"`
+	GrantCeiling        string         `json:"grant_ceiling"`
+	Scope               string         `json:"scope"`
+	Name                string         `json:"name"`
+	AgentName           string         `json:"agent_name"`
+	WorkspaceID         sql.NullString `json:"workspace_id"`
+	Prompt              string         `json:"prompt"`
+	Event               string         `json:"event"`
+	Filter              sql.NullString `json:"filter"`
+	Enabled             bool           `json:"enabled"`
+	Retry               string         `json:"retry"`
+	FireLimit           string         `json:"fire_limit"`
+	Source              string         `json:"source"`
+	WebhookID           sql.NullString `json:"webhook_id"`
+	EndpointSlug        sql.NullString `json:"endpoint_slug"`
+	WebhookSecretRef    sql.NullString `json:"webhook_secret_ref"`
+	TargetKind          string         `json:"target_kind"`
+	TargetInstanceScope string         `json:"target_instance_scope"`
+	LoopWorkspaceID     sql.NullString `json:"loop_workspace_id"`
+	LoopName            sql.NullString `json:"loop_name"`
+	LoopInputs          sql.NullString `json:"loop_inputs"`
+	LoopInputMapping    sql.NullString `json:"loop_input_mapping"`
+	UpdatedAt           string         `json:"updated_at"`
+	ID                  string         `json:"id"`
 }
 
 func (q *Queries) UpdateAutomationTrigger(ctx context.Context, arg UpdateAutomationTriggerParams) (int64, error) {
@@ -709,6 +714,7 @@ func (q *Queries) UpdateAutomationTrigger(ctx context.Context, arg UpdateAutomat
 		arg.EndpointSlug,
 		arg.WebhookSecretRef,
 		arg.TargetKind,
+		arg.TargetInstanceScope,
 		arg.LoopWorkspaceID,
 		arg.LoopName,
 		arg.LoopInputs,

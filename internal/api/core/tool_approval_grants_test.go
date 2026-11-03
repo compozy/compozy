@@ -10,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -19,6 +21,39 @@ import (
 
 func TestToolApprovalGrantHandlers(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should refuse grant creation and revocation for a stays-on descendant", func(t *testing.T) {
+		t.Parallel()
+		sessions := sessionManagerStub{status: func(_ context.Context, id string) (*session.Info, error) {
+			info := &session.Info{ID: id, AgentName: "coder", State: session.StateActive, WorkspaceID: "registry-ws",
+				ProfileID: store.DefaultProfileID}
+			if id == "main" {
+				info.InstanceID = "instance"
+			} else {
+				info.Lineage = &store.SessionLineage{ParentSessionID: "main"}
+			}
+			return info, nil
+		}}
+		engine := newToolApprovalGrantHandlerFixture(&stubToolApprovalGrantService{}, sessions)
+		for _, method := range []string{http.MethodPut, http.MethodDelete} {
+			target := "/tool-approval-grants?workspace_id=alpha"
+			if method == http.MethodDelete {
+				target = "/tool-approval-grants/grant-id?workspace_id=alpha"
+			}
+			request := httptest.NewRequestWithContext(t.Context(), method, target, strings.NewReader("{}"))
+			request.Header.Set(agentidentity.HeaderSessionID, "child")
+			request.Header.Set(agentidentity.HeaderAgent, "coder")
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, request)
+			var payload contract.ErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != http.StatusForbidden || payload.Code != "tool_approval_grants_denied" {
+				t.Fatalf("method=%s status=%d body=%s", method, response.Code, response.Body.String())
+			}
+		}
+	})
 
 	t.Run("Should set an agent-wide grant in the resolved workspace", func(t *testing.T) {
 		t.Parallel()
@@ -192,7 +227,7 @@ func TestToolApprovalGrantHandlers(t *testing.T) {
 	})
 }
 
-func newToolApprovalGrantHandlerFixture(service ToolApprovalGrantService) *gin.Engine {
+func newToolApprovalGrantHandlerFixture(service ToolApprovalGrantService, sessions ...SessionManager) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	resolver := workspaceResolveServiceStub{
 		resolve: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
@@ -207,6 +242,9 @@ func newToolApprovalGrantHandlerFixture(service ToolApprovalGrantService) *gin.E
 		ApprovalGrants: service,
 		Workspaces:     resolver,
 	})
+	if len(sessions) > 0 {
+		handlers.Sessions = sessions[0]
+	}
 	engine := gin.New()
 	engine.PUT("/tool-approval-grants", handlers.SetToolApprovalGrant)
 	engine.GET("/tool-approval-grants", handlers.ListToolApprovalGrants)

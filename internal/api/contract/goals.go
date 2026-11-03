@@ -77,6 +77,7 @@ const (
 	GoalReasonWaitDeferred               GoalReasonCode = "goal_wait_deferred"
 	GoalReasonWaitTimeout                GoalReasonCode = "goal_wait_timeout"
 	GoalReasonWaitUnavailable            GoalReasonCode = "goal_wait_unavailable"
+	GoalReasonOnInstanceMain             GoalReasonCode = "goal_on_instance_main"
 	GoalReasonNotActive                  GoalReasonCode = "goal_not_active"
 	GoalReasonReplaceRequired            GoalReasonCode = "goal_replace_required"
 	GoalReasonReplaceStale               GoalReasonCode = "goal_replace_stale"

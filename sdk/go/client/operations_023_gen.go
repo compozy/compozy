@@ -10,6 +10,111 @@ import (
 	"strings"
 )
 
+// ListVaultSecretsParams carries the path, query, and header parameters.
+type ListVaultSecretsParams struct {
+	Prefix    *string `url:"prefix"`
+	Namespace *string `url:"namespace"`
+}
+
+// ListVaultSecrets List redacted vault secret metadata
+func (c *Client) ListVaultSecrets(ctx context.Context, params ListVaultSecretsParams) (*VaultSecretsResponse, error) {
+	path := "/api/vault/secrets"
+	query := url.Values{}
+	if params.Prefix != nil {
+		query.Set("prefix", *params.Prefix)
+	}
+	if params.Namespace != nil {
+		query.Set("namespace", *params.Namespace)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out VaultSecretsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListWindowManagerClientsParams carries the path, query, and header parameters.
+type ListWindowManagerClientsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ListWindowManagerClients List connected window-manager clients
+func (c *Client) ListWindowManagerClients(ctx context.Context, params ListWindowManagerClientsParams) (*WindowManagerClientsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/clients"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WindowManagerClientsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListWindowManagerLayoutProfilesParams carries the path, query, and header parameters.
+type ListWindowManagerLayoutProfilesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ListWindowManagerLayoutProfiles List layout profiles visible to one workspace
+func (c *Client) ListWindowManagerLayoutProfiles(ctx context.Context, params ListWindowManagerLayoutProfilesParams) (*ResourcesResponse, error) {
+	path := "/api/workspaces/{workspace_id}/window-manager/layout-profiles"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ResourcesResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListWorkspaceSessionsParams carries the path, query, and header parameters.
+type ListWorkspaceSessionsParams struct {
+	WorkspaceID               string    `url:"workspace_id"`
+	WorkspaceIds              *[]string `url:"workspace_ids"`
+	IncludeHealth             *bool     `url:"include_health"`
+	SkipTotal                 *bool     `url:"skip_total"`
+	ExcludeInstanceMain       *bool     `url:"exclude_instance_main"`
+	ExcludeFinishedAutomation *bool     `url:"exclude_finished_automation"`
+	State                     *string   `url:"state"`
+	Type                      *string   `url:"type"`
+	Agent                     *string   `url:"agent"`
+	Subagents                 *string   `url:"subagents"`
+	Children                  *string   `url:"children"`
+	Parent                    *string   `url:"parent"`
+	Root                      *string   `url:"root"`
+	Worktree                  *string   `url:"worktree"`
+	Q                         *string   `url:"q"`
+	SearchFields              *string   `url:"search_fields"`
+	Resumable                 *bool     `url:"resumable"`
+	Attention                 *bool     `url:"attention"`
+	BoardColumn               *[]string `url:"board_column"`
+	Badge                     *string   `url:"badge"`
+	Archive                   *string   `url:"archive"`
+	Later                     *string   `url:"later"`
+	Sort                      *string   `url:"sort"`
+	Cursor                    *string   `url:"cursor"`
+	Limit                     *int      `url:"limit"`
+	Profile                   *string   `url:"profile"`
+	AllProfiles               *bool     `url:"all_profiles"`
+}
+
 // ListWorkspaceSessions List sessions
 func (c *Client) ListWorkspaceSessions(ctx context.Context, params ListWorkspaceSessionsParams) (*SessionCatalogResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions"
@@ -328,115 +433,4 @@ type MoveSessionParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
-}
-
-// MoveSession Move a session into a folder or back to the workspace root
-func (c *Client) MoveSession(ctx context.Context, params MoveSessionParams, body MoveSessionRequest) (*SessionFoldersResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/move"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionFoldersResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MoveSessionToLaterParams carries the path, query, and header parameters.
-type MoveSessionToLaterParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-}
-
-// MoveSessionToLater Stop a session and its children and park them in Later, with an optional reason and return time
-func (c *Client) MoveSessionToLater(ctx context.Context, params MoveSessionToLaterParams, body MoveSessionToLaterRequest) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/later"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MoveWorkspaceParams carries the path, query, and header parameters.
-type MoveWorkspaceParams struct {
-	Profile *string `url:"profile"`
-}
-
-// MoveWorkspace Move a workspace into a folder or back to the root
-func (c *Client) MoveWorkspace(ctx context.Context, params MoveWorkspaceParams, body MoveWorkspaceRequest) (*WorkspaceLayoutResponse, error) {
-	path := "/api/workspace-order/move"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorkspaceLayoutResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// MutateSessionGoalParams carries the path, query, and header parameters.
-type MutateSessionGoalParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
-}
-
-// MutateSessionGoal Set or control the authenticated session Goal
-func (c *Client) MutateSessionGoal(ctx context.Context, params MutateSessionGoalParams, body SessionGoalCommandRequest) (*GoalCommandResult, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/goal"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out GoalCommandResult
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// NotifyOperatorParams carries the path, query, and header parameters.
-type NotifyOperatorParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-}
-
-// NotifyOperator Notify live operator clients from the calling agent
-func (c *Client) NotifyOperator(ctx context.Context, params NotifyOperatorParams, body AgentNotifyRequest) (*AgentNotifyResponse, error) {
-	path := "/api/agent/notify"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	var out AgentNotifyResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// OpenCmdPaletteViewSessionParams carries the path, query, and header parameters.
-type OpenCmdPaletteViewSessionParams struct {
-	ID                  string  `url:"id"`
-	XCompozyClientToken string  `url:"X-Compozy-Client-Token"`
-	Profile             *string `url:"profile"`
 }

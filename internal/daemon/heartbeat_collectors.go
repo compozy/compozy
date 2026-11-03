@@ -70,11 +70,10 @@ func (c instanceDigestCollector) Collect(
 	return heartbeat.CollectDigest(scope, facts, include, policy, instructions)
 }
 
-// monitorDigestFact keeps pull_request monitors out of the fired bucket: their wakes already reached
-// the session, so none of them may buy a check on top.
+// monitorDigestFact excludes admitted wakes so retention cannot trigger another check.
 func monitorDigestFact(item monitor.Monitor) heartbeat.MonitorFact {
 	return heartbeat.MonitorFact{
 		ID: item.ID, SessionID: item.SessionID,
-		Fired: item.Status == monitor.StatusFired && item.Kind != monitor.KindPullRequest,
+		NeedsAttention: item.Status == monitor.StatusUndelivered || item.Status == monitor.StatusInterrupted,
 	}
 }

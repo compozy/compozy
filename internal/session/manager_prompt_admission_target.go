@@ -66,3 +66,17 @@ func (m *Manager) resolvePromptAdmissionTarget(
 	}
 	return promptAdmissionTarget{workspaceID: meta.WorkspaceID, runtime: resolved, meta: meta}, nil
 }
+
+func (m *Manager) queueInstancePrompt(ctx context.Context, req promptRequest) (bool, error) {
+	if req.meta.Origin == nil && req.meta.Synthetic == nil {
+		return false, nil
+	}
+	reader, ok := m.promptAdmissionStore.(interface {
+		SessionLineageInstanceID(context.Context, string) (string, error)
+	})
+	if !ok {
+		return false, nil
+	}
+	id, err := reader.SessionLineageInstanceID(ctx, req.target)
+	return id != "", err
+}

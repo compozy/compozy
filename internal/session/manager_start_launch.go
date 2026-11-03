@@ -60,7 +60,7 @@ func (m *Manager) prepareSessionLaunch(
 	startOpts = m.preparePiBridgeStartup(spec, session, runtime, startOpts)
 	startOpts = m.prepareHostedMCPStartup(session, runtime, startOpts)
 	if spec.sessionType == SessionTypeTriage {
-		startOpts.ExecutionPolicy = acp.ExecutionPolicyTriage
+		startOpts.SetExecutionPolicy(acp.ExecutionPolicyTriage)
 		startOpts.Permissions = compozyconfig.PermissionModeApproveReads
 		startOpts.MCPServers = nil
 		startOpts.ActivateMCPServers = nil

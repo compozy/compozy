@@ -5,6 +5,7 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -199,6 +200,17 @@ func waitTriageEvents(ctx context.Context, events <-chan acp.AgentEvent) (int64,
 }
 
 func triagePrompt(items []heartbeat.DigestItem, reports []agentinstance.Report, guidance string) (string, error) {
+	var instructions []string
+	items = slices.Clone(items)
+	for i := range items {
+		if items[i].Instruction != "" && !slices.Contains(instructions, items[i].Instruction) {
+			instructions = append(instructions, items[i].Instruction)
+		}
+		items[i].Instruction = ""
+	}
+	if len(instructions) > 0 {
+		guidance += "\nEvent trigger instructions:\n" + strings.Join(instructions, "\n\n")
+	}
 	data, err := json.Marshal(struct {
 		Items   []heartbeat.DigestItem `json:"items"`
 		Reports []agentinstance.Report `json:"recent_reports"`

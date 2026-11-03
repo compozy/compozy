@@ -11,6 +11,14 @@ import (
 
 // Validate ensures the parsed agent definition is usable.
 func (a AgentDef) Validate() error {
+	switch a.SessionApproval {
+	case "", "children", "workspace":
+	default:
+		return fmt.Errorf("agent.session_approval must be children or workspace")
+	}
+	if err := ValidatePermissionRules(a.PermissionRules); err != nil {
+		return err
+	}
 	if err := a.ValidateIdentity(); err != nil {
 		return err
 	}

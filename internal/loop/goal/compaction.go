@@ -74,7 +74,7 @@ func (e *Executor) maybeCompactBeforeWork(
 		return nil, false, nil
 	}
 	if contextusage.DecideMaintenance(usage.Known, usage.Used, usage.Size,
-		segment.checkpoint.ContextNudgeRatio, hasCompact) == contextusage.MaintenanceRotate {
+		segment.checkpoint.ContextNudgeRatio, hasCompact) == contextusage.MaintenanceRemind {
 		boundary, recoveryErr := e.reseedOrEscalate(ctx, segment, segment.lastResult)
 		return boundary, true, recoveryErr
 	}

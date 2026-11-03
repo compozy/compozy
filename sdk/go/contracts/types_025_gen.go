@@ -145,6 +145,7 @@ type ToolResultPatch struct {
 type ToolsetID string
 
 type Trigger struct {
+	TargetInstanceScope  string                    `json:"target_instance_scope,omitempty"`
 	ID                   string                    `json:"id"`
 	ProfileID            string                    `json:"profile_id"`
 	ProfileName          string                    `json:"profile_name"`

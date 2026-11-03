@@ -7,6 +7,107 @@ import (
 	"time"
 )
 
+// ProviderUsageBalance is a daemon API value.
+type ProviderUsageBalance struct {
+	ID        string              `json:"id"`
+	Label     string              `json:"label"`
+	Remaining ProviderUsageAmount `json:"remaining"`
+	ExpiresAt *time.Time          `json:"expires_at"`
+}
+
+// ProviderUsageEnvelope is a daemon API value.
+type ProviderUsageEnvelope struct {
+	KeychainSupported bool                     `json:"keychain_supported"`
+	ProfileID         string                   `json:"profile_id"`
+	Revision          uint64                   `json:"revision"`
+	GeneratedAt       time.Time                `json:"generated_at"`
+	Enabled           bool                     `json:"enabled"`
+	Tray              *ProviderUsageTraySignal `json:"tray"`
+	Targets           []ProviderUsageTarget    `json:"targets"`
+}
+
+// ProviderUsageError is a daemon API value.
+type ProviderUsageError struct {
+	Code       string     `json:"code"`
+	Message    string     `json:"message"`
+	Action     string     `json:"action"`
+	RetryAfter *time.Time `json:"retry_after"`
+}
+
+// ProviderUsageRefreshRequest is a daemon API value.
+type ProviderUsageRefreshRequest struct {
+	Profile       string   `json:"profile,omitempty"`
+	ProviderIDs   []string `json:"provider_ids,omitempty"`
+	MaxAgeSeconds int64    `json:"max_age_seconds,omitempty"`
+	WaitMS        *int64   `json:"wait_ms,omitempty"`
+	Intent        string   `json:"intent,omitempty"`
+}
+
+// ProviderUsageSource is a daemon API value.
+type ProviderUsageSource struct {
+	Kind  string `json:"kind"`
+	Label string `json:"label"`
+}
+
+// ProviderUsageSpendCap is a daemon API value.
+type ProviderUsageSpendCap struct {
+	ID          string               `json:"id"`
+	Label       string               `json:"label"`
+	Used        ProviderUsageAmount  `json:"used"`
+	Limit       *ProviderUsageAmount `json:"limit"`
+	UsedPercent *float64             `json:"used_percent"`
+	ResetsAt    *time.Time           `json:"resets_at"`
+	Enabled     *bool                `json:"enabled"`
+}
+
+// ProviderUsageStreamEvent is a daemon API value.
+type ProviderUsageStreamEvent struct {
+	Revision uint64 `json:"revision"`
+	BootID   string `json:"boot_id"`
+}
+
+// ProviderUsageTarget is a daemon API value.
+type ProviderUsageTarget struct {
+	ProviderID    string                  `json:"provider_id"`
+	ProviderName  string                  `json:"provider_name"`
+	Status        string                  `json:"status"`
+	Source        *ProviderUsageSource    `json:"source"`
+	Account       *ProviderUsageAccount   `json:"account"`
+	Windows       []ProviderUsageWindow   `json:"windows"`
+	Balances      []ProviderUsageBalance  `json:"balances"`
+	SpendCaps     []ProviderUsageSpendCap `json:"spend_caps"`
+	Confidence    string                  `json:"confidence"`
+	MeasuredAt    *time.Time              `json:"measured_at"`
+	CheckedAt     *time.Time              `json:"checked_at"`
+	NextRefreshAt *time.Time              `json:"next_refresh_at"`
+	Refreshing    bool                    `json:"refreshing"`
+	Error         *ProviderUsageError     `json:"error"`
+}
+
+// ProviderUsageTraySignal is a daemon API value.
+type ProviderUsageTraySignal struct {
+	ProviderID  string     `json:"provider_id"`
+	WindowID    string     `json:"window_id"`
+	Label       string     `json:"label"`
+	UsedPercent float64    `json:"used_percent"`
+	ResetsAt    *time.Time `json:"resets_at"`
+	Severity    string     `json:"severity"`
+	Stale       bool       `json:"stale"`
+}
+
+// ProviderUsageWindow is a daemon API value.
+type ProviderUsageWindow struct {
+	ID              string               `json:"id"`
+	Label           string               `json:"label"`
+	Kind            string               `json:"kind"`
+	DurationSeconds *int64               `json:"duration_seconds"`
+	UsedPercent     *float64             `json:"used_percent"`
+	Used            *ProviderUsageAmount `json:"used"`
+	Limit           *ProviderUsageAmount `json:"limit"`
+	ResetsAt        *time.Time           `json:"resets_at"`
+	ResetText       string               `json:"reset_text"`
+}
+
 // PullRequestState is a daemon API value.
 type PullRequestState string
 
@@ -344,107 +445,4 @@ type RespondLoopRequest struct {
 	Decision   string          `json:"decision,omitempty"`
 	Payload    json.RawMessage `json:"payload"`
 	Note       string          `json:"note,omitempty"`
-}
-
-// RespondLoopRequestResponse is a daemon API value.
-type RespondLoopRequestResponse struct {
-	OK         bool                  `json:"ok"`
-	RunID      string                `json:"run_id"`
-	NodeID     string                `json:"node_id"`
-	Decision   string                `json:"decision"`
-	State      string                `json:"state"`
-	Provenance LoopRequestProvenance `json:"provenance"`
-}
-
-// ResponderAgentPolicy is a daemon API value.
-type ResponderAgentPolicy string
-
-// ResponderSpec is a daemon API value.
-type ResponderSpec struct {
-	Agents ResponderAgentPolicy `json:"agents,omitempty"`
-}
-
-// RestartActionResponse is a daemon API value.
-type RestartActionResponse struct {
-	OperationID        string                 `json:"operation_id"`
-	Status             RestartOperationStatus `json:"status"`
-	StatusURL          string                 `json:"status_url"`
-	ActiveSessionCount int                    `json:"active_session_count"`
-}
-
-// RestartActionStatus is a daemon API value.
-type RestartActionStatus struct {
-	OperationID        string                 `json:"operation_id"`
-	Status             RestartOperationStatus `json:"status"`
-	OldPID             int                    `json:"old_pid"`
-	OldStartedAt       time.Time              `json:"old_started_at"`
-	OldSocketPath      string                 `json:"old_socket_path"`
-	NewPID             int                    `json:"new_pid,omitzero"`
-	ActiveSessionCount int                    `json:"active_session_count"`
-	FailureReason      string                 `json:"failure_reason,omitempty"`
-	StartedAt          time.Time              `json:"started_at"`
-	UpdatedAt          time.Time              `json:"updated_at"`
-	CompletedAt        *time.Time             `json:"completed_at,omitempty"`
-}
-
-// RestartOperationStatus is a daemon API value.
-type RestartOperationStatus string
-
-// ResultContract is a daemon API value.
-type ResultContract struct {
-	FailureField string `json:"failure_field"`
-	MessageField string `json:"message_field,omitempty"`
-}
-
-// ResultTrust is a daemon API value.
-type ResultTrust string
-
-// ResumeSessionFromLaterRequest is a daemon API value.
-type ResumeSessionFromLaterRequest struct {
-	WithChildren bool `json:"with_children,omitempty"`
-}
-
-// ResumeTaskRequest is a daemon API value.
-type ResumeTaskRequest struct {
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// RetryConfig is a daemon API value.
-type RetryConfig struct {
-	Strategy   RetryStrategy `json:"strategy"`
-	MaxRetries int           `json:"max_retries"`
-	BaseDelay  string        `json:"base_delay"`
-}
-
-// RetrySpec is a daemon API value.
-type RetrySpec struct {
-	MaxAttempts  int          `json:"max_attempts,omitzero"`
-	OnFailure    string       `json:"on_failure,omitempty"`
-	Backoff      *BackoffSpec `json:"backoff,omitzero"`
-	NonRetryable []string     `json:"non_retryable,omitempty"`
-}
-
-// RetryStrategy is a daemon API value.
-type RetryStrategy string
-
-// RetryTaskRunRequest is a daemon API value.
-type RetryTaskRunRequest struct {
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// RetryTaskRunResponse is a daemon API value.
-type RetryTaskRunResponse struct {
-	PreviousRun TaskRunPayload `json:"previous_run"`
-	Run         TaskRunPayload `json:"run"`
-}
-
-// ReviewContinuation is a daemon API value.
-type ReviewContinuation struct {
-	ReviewID          string   `json:"review_id"`
-	ReviewedRunID     string   `json:"reviewed_run_id"`
-	ReviewRound       int      `json:"review_round"`
-	Outcome           string   `json:"outcome"`
-	Reason            string   `json:"reason"`
-	MissingWork       []string `json:"missing_work"`
-	NextRoundGuidance string   `json:"next_round_guidance"`
 }

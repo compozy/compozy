@@ -75,9 +75,18 @@ func (r SessionInputRuntime) Normalize() SessionInputRuntime {
 	return r
 }
 
+// InstancePauseTrip is the committed snapshot of a pause caused by a queue dispatch.
+// It must survive a concurrent resume without turning the pause event into an active event.
+type InstancePauseTrip struct {
+	InstanceID, ProfileID, WorkspaceID, AgentName, MainSessionID, Reason string
+	CreatedAt, PausedAt                                                  time.Time
+}
+
 // SessionInputQueueEntry is one persisted busy-input item.
 type SessionInputQueueEntry struct {
-	Priority int
+	Held           bool
+	PausedInstance *InstancePauseTrip
+	Priority       int
 	// SupersededIDs identifies entries canceled by the transaction creating this input.
 	SupersededIDs     []string
 	ID                string
@@ -182,6 +191,7 @@ type SessionInputQueueInsert struct {
 	Supersede bool
 	// HumanIngress records that the human operator authored this input; unknown or agent authorship is false.
 	HumanIngress      bool
+	HumanSpawnOrigin  bool
 	Attachments       []SessionInputAttachment
 	SessionGeneration int64
 	TaskRunID         string

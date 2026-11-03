@@ -892,6 +892,12 @@
           },
           "next_cursor": {
             "type": "string"
+          },
+          "peers": {
+            "items": {
+              "$ref": "#/components/schemas/AgentInstancePeer"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -899,6 +905,24 @@
           "instances",
           "max_active_instances",
           "next_cursor"
+        ],
+        "type": "object"
+      },
+      "AgentInstanceNextWake": {
+        "properties": {
+          "at": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "kind"
         ],
         "type": "object"
       },
@@ -947,6 +971,10 @@
           "fatigue_limit": {
             "type": "integer"
           },
+          "held_wakes": {
+            "format": "int64",
+            "type": "integer"
+          },
           "id": {
             "type": "string"
           },
@@ -961,6 +989,19 @@
           },
           "needs_attention": {
             "type": "boolean"
+          },
+          "next_wake": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgentInstanceNextWake"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           },
           "next_wake_at": {
             "type": "string"
@@ -991,6 +1032,14 @@
           "state": {
             "type": "string"
           },
+          "unattended_turn_limit": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unattended_turns": {
+            "format": "int64",
+            "type": "integer"
+          },
           "updated_at": {
             "format": "date-time",
             "type": "string"
@@ -1007,6 +1056,7 @@
           "created_at",
           "failure_streak",
           "fatigue_limit",
+          "held_wakes",
           "id",
           "label",
           "last_wake_at",
@@ -1021,8 +1071,33 @@
           "resolved_appearance",
           "scope",
           "state",
+          "unattended_turn_limit",
+          "unattended_turns",
           "updated_at",
           "workspace_id"
+        ],
+        "type": "object"
+      },
+      "AgentInstancePeer": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "description",
+          "name",
+          "scope",
+          "state"
         ],
         "type": "object"
       },
@@ -1037,6 +1112,12 @@
             },
             "type": "array"
           },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/AgentInstanceProposalSource"
+            },
+            "type": "array"
+          },
           "title": {
             "type": "string"
           }
@@ -1048,8 +1129,38 @@
         ],
         "type": "object"
       },
+      "AgentInstanceProposalSource": {
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "received_at": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "trigger_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "kind",
+          "received_at",
+          "run_id",
+          "trigger_id"
+        ],
+        "type": "object"
+      },
       "AgentInstanceReportPayload": {
         "properties": {
+          "action": {
+            "type": "string"
+          },
           "cause": {
             "type": "string"
           },
@@ -1078,11 +1189,30 @@
           "reason": {
             "type": "string"
           },
+          "resource": {
+            "type": "string"
+          },
           "session_id": {
             "type": "string"
           },
           "since": {
             "type": "string"
+          },
+          "skill_review_id": {
+            "type": "string"
+          },
+          "source": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgentInstanceReportSource"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           },
           "state": {
             "type": "string"
@@ -1096,6 +1226,28 @@
           "id",
           "kind",
           "state"
+        ],
+        "type": "object"
+      },
+      "AgentInstanceReportSource": {
+        "properties": {
+          "event": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "trigger_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "event",
+          "kind",
+          "trigger_name"
         ],
         "type": "object"
       },
@@ -1654,6 +1806,12 @@
           "package_owned": {
             "type": "boolean"
           },
+          "permission_rules": {
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionRulePayload"
+            },
+            "type": "array"
+          },
           "permissions": {
             "type": "string"
           },
@@ -1669,6 +1827,9 @@
           "resolved_appearance": {
             "additionalProperties": {},
             "type": "object"
+          },
+          "session_approval": {
+            "type": "string"
           },
           "session_env": {
             "additionalProperties": {
@@ -1729,6 +1890,23 @@
           "prompt",
           "provider",
           "resolved_appearance"
+        ],
+        "type": "object"
+      },
+      "AgentPermissionRulePayload": {
+        "properties": {
+          "decision": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
         ],
         "type": "object"
       },
@@ -1861,6 +2039,141 @@
           "id",
           "state",
           "updated_at"
+        ],
+        "type": "object"
+      },
+      "AgentSkillAutomaticContents": {
+        "properties": {
+          "hooks": {
+            "type": "integer"
+          },
+          "mcp_servers": {
+            "type": "integer"
+          },
+          "scripts": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hooks",
+          "mcp_servers",
+          "scripts"
+        ],
+        "type": "object"
+      },
+      "AgentSkillDraftFile": {
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "path"
+        ],
+        "type": "object"
+      },
+      "AgentSkillReviewDecisionRequest": {
+        "properties": {
+          "digest": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "digest"
+        ],
+        "type": "object"
+      },
+      "AgentSkillReviewPayload": {
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decided_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "decided_by": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/AgentSkillDraftFile"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "instance_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "profile_id": {
+            "type": "string"
+          },
+          "runs_automatically": {
+            "$ref": "#/components/schemas/AgentSkillAutomaticContents"
+          },
+          "state": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent",
+          "created_at",
+          "digest",
+          "id",
+          "instance_id",
+          "name",
+          "profile_id",
+          "runs_automatically",
+          "state",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
+      "AgentSkillReviewResponse": {
+        "properties": {
+          "review": {
+            "$ref": "#/components/schemas/AgentSkillReviewPayload"
+          }
+        },
+        "required": [
+          "review"
+        ],
+        "type": "object"
+      },
+      "AgentSkillReviewsResponse": {
+        "properties": {
+          "next_cursor": {
+            "type": "string"
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/AgentSkillReviewPayload"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "reviews"
         ],
         "type": "object"
       },
@@ -5778,10 +6091,18 @@
             "pattern": "^[a-z][a-z0-9_-]{0,105}$",
             "type": "string"
           },
+          "permission_rules": {
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionRulePayload"
+            },
+            "type": "array"
+          },
           "permissions": {
             "enum": [
               "deny-all",
               "approve-reads",
+              "approve-edits",
+              "auto",
               "approve-all"
             ],
             "type": "string"
@@ -5798,6 +6119,9 @@
           "resolved_appearance": {
             "additionalProperties": {},
             "type": "object"
+          },
+          "session_approval": {
+            "type": "string"
           },
           "session_env": {
             "additionalProperties": {
@@ -6379,6 +6703,9 @@
               "user",
               "@user"
             ],
+            "type": "string"
+          },
+          "target_instance_scope": {
             "type": "string"
           },
           "target_kind": {
@@ -6990,10 +7317,18 @@
           "model": {
             "type": "string"
           },
+          "permission_rules": {
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionRulePayload"
+            },
+            "type": "array"
+          },
           "permissions": {
             "enum": [
               "deny-all",
               "approve-reads",
+              "approve-edits",
+              "auto",
               "approve-all"
             ],
             "type": "string"
@@ -7005,6 +7340,9 @@
             "type": "string"
           },
           "reasoning_effort": {
+            "type": "string"
+          },
+          "session_approval": {
             "type": "string"
           },
           "session_env": {
@@ -9735,6 +10073,7 @@
               "continuous_binding_mismatch",
               "goal_runtime_invalid",
               "goal_caller_unauthorized",
+              "goal_on_instance_main",
               "goal_wait_deferred",
               "goal_wait_timeout",
               "goal_wait_unavailable"
@@ -9982,6 +10321,7 @@
               "continuous_binding_mismatch",
               "goal_runtime_invalid",
               "goal_caller_unauthorized",
+              "goal_on_instance_main",
               "goal_wait_deferred",
               "goal_wait_timeout",
               "goal_wait_unavailable"
@@ -10209,6 +10549,7 @@
               "continuous_binding_mismatch",
               "goal_runtime_invalid",
               "goal_caller_unauthorized",
+              "goal_on_instance_main",
               "goal_wait_deferred",
               "goal_wait_timeout",
               "goal_wait_unavailable"
@@ -17940,11 +18281,17 @@
       },
       "OperatorNotificationEventPayload": {
         "properties": {
+          "action": {
+            "type": "string"
+          },
           "at": {
             "format": "date-time",
             "type": "string"
           },
           "body": {
+            "type": "string"
+          },
+          "kind": {
             "type": "string"
           },
           "notification_id": {
@@ -17954,6 +18301,9 @@
             "type": "string"
           },
           "profile_name": {
+            "type": "string"
+          },
+          "resource": {
             "type": "string"
           },
           "session_id": {
@@ -19796,6 +20146,9 @@
             "type": "string"
           },
           "name": {
+            "type": "string"
+          },
+          "reviewer_mode": {
             "type": "string"
           },
           "runtime_strategy": {
@@ -23344,6 +23697,9 @@
             ],
             "type": "string"
           },
+          "target_session_id": {
+            "type": "string"
+          },
           "target_workspace_id": {
             "type": "string"
           },
@@ -25431,6 +25787,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "held": {
+            "type": "boolean"
+          },
           "id": {
             "type": "string"
           },
@@ -25522,6 +25881,7 @@
         "required": [
           "delivery",
           "enqueued_at",
+          "held",
           "id",
           "mode",
           "queue_generation",
@@ -26091,6 +26451,9 @@
             },
             "type": "array"
           },
+          "effective_permissions": {
+            "type": "string"
+          },
           "effective_workspace_access": {
             "type": "string"
           },
@@ -26196,6 +26559,9 @@
               "$ref": "#/components/schemas/PendingInteractionPayload"
             },
             "type": "array"
+          },
+          "permission_mode_degraded": {
+            "type": "boolean"
           },
           "process_summary": {
             "oneOf": [
@@ -26400,9 +26766,11 @@
           "badge",
           "board_column",
           "created_at",
+          "effective_permissions",
           "effective_workspace_access",
           "id",
           "pending_interactions",
+          "permission_mode_degraded",
           "profile_id",
           "profile_name",
           "pull_request",
@@ -30203,6 +30571,8 @@
             "enum": [
               "deny-all",
               "approve-reads",
+              "approve-edits",
+              "auto",
               "approve-all"
             ],
             "type": "string"
@@ -41426,6 +41796,9 @@
             ],
             "type": "string"
           },
+          "target_instance_scope": {
+            "type": "string"
+          },
           "target_kind": {
             "type": "string"
           },
@@ -42180,6 +42553,10 @@
                 "nullable": true
               }
             ]
+          },
+          "target_instance_scope": {
+            "nullable": true,
+            "type": "string"
           },
           "webhook_id": {
             "nullable": true,
@@ -47010,6 +47387,14 @@
             }
           },
           {
+            "description": "Read reachable peers without private instance details",
+            "in": "query",
+            "name": "peers",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Agent name",
             "in": "query",
             "name": "agent",
@@ -48824,6 +49209,520 @@
           }
         },
         "summary": "Resume an agent instance",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/agent-skill-reviews": {
+      "get": {
+        "operationId": "listAgentSkillReviews",
+        "parameters": [
+          {
+            "description": "Instance ID",
+            "in": "query",
+            "name": "instance_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace reference",
+            "in": "query",
+            "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "pending, approved or rejected",
+            "in": "query",
+            "name": "state",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page cursor",
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, 1-100; default 50",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSkillReviewsResponse"
+                }
+              }
+            },
+            "description": "Skill reviews"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          }
+        },
+        "summary": "List agent skill reviews (experimental)",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/agent-skill-reviews/{id}": {
+      "get": {
+        "operationId": "getAgentSkillReview",
+        "parameters": [
+          {
+            "description": "Review ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSkillReviewResponse"
+                }
+              }
+            },
+            "description": "Skill review"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          }
+        },
+        "summary": "Read exact proposed skill contents (experimental)",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/agent-skill-reviews/{id}/approve": {
+      "post": {
+        "operationId": "approveAgentSkillReview",
+        "parameters": [
+          {
+            "description": "Review ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentSkillReviewDecisionRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSkillReviewResponse"
+                }
+              }
+            },
+            "description": "Decided review"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          }
+        },
+        "summary": "Decide a skill review as the operator (experimental)",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/agent-skill-reviews/{id}/reject": {
+      "post": {
+        "operationId": "rejectAgentSkillReview",
+        "parameters": [
+          {
+            "description": "Review ID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgentSkillReviewDecisionRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentSkillReviewResponse"
+                }
+              }
+            },
+            "description": "Decided review"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Request failed"
+          }
+        },
+        "summary": "Decide a skill review as the operator (experimental)",
         "tags": [
           "agents"
         ],
@@ -55862,7 +56761,8 @@
               "enum": [
                 "agent",
                 "loop",
-                "task"
+                "task",
+                "agent_instance"
               ],
               "type": "string"
             }

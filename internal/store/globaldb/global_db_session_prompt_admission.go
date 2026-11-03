@@ -267,13 +267,8 @@ func claimSessionPromptAdmission(
 	if err := insertPromptAdmissionClaim(ctx, queries, &req); err != nil {
 		return store.SessionPromptAdmission{}, false, err
 	}
-	if req.HumanIngress && req.Operation == store.SessionPromptOperationPrompt {
-		if err := queries.ResetMainInstanceQuietStreak(
-			ctx,
-			sql.NullString{String: req.SessionID, Valid: true},
-		); err != nil {
-			return store.SessionPromptAdmission{}, false, fmt.Errorf("store: reset instance quiet streak: %w", err)
-		}
+	if err := resetHumanPromptInstanceState(ctx, queries, &req); err != nil {
+		return store.SessionPromptAdmission{}, false, err
 	}
 	if req.HumanIngress && req.Operation == store.SessionPromptOperationPrompt &&
 		(req.DirectDispatch || req.Mode != store.SessionInputQueueModeSteer) {
@@ -485,4 +480,18 @@ func insertPromptAdmissionClaim(
 		return fmt.Errorf("store: insert session prompt admission: %w", err)
 	}
 	return nil
+}
+
+func resetHumanPromptInstanceState(
+	ctx context.Context,
+	q *sqlcgen.Queries,
+	req *store.SessionPromptAdmissionRequest,
+) error {
+	if !req.HumanIngress || req.Operation != store.SessionPromptOperationPrompt {
+		return nil
+	}
+	if err := resetLineageUnattended(ctx, q, req.SessionID, store.FormatTimestamp(req.Now)); err != nil {
+		return err
+	}
+	return q.ResetMainInstanceQuietStreak(ctx, sql.NullString{String: req.SessionID, Valid: true})
 }

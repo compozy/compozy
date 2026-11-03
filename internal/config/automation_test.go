@@ -402,3 +402,41 @@ func prepareAutomationConfigTestEnv(t *testing.T) (string, HomePaths) {
 
 	return workspaceRoot, homePaths
 }
+
+// Invariant: config preserves instance targets and constrains them to their trigger scope.
+// Owning layer: authored configuration; canonical automation load/validation suite.
+func TestAutomationInstanceTargets(t *testing.T) {
+	t.Run("Should load a trigger instance target and refuse a cross-scope target", func(t *testing.T) {
+		workspaceRoot, homePaths := prepareAutomationConfigTestEnv(t)
+		writeFile(t, homePaths.ConfigFile, `
+[[automation.triggers]]
+scope = "workspace"
+name = "event-review"
+workspace = "/repo"
+event = "ext.acme.changed"
+agent = "reviewer"
+target_kind = "agent_instance"
+target_instance_scope = "/repo"
+prompt = "Review {{ index .Data \"change\" }}"
+`)
+		cfg, err := Load(WithWorkspaceRoot(workspaceRoot))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(cfg.Automation.Triggers) != 1 {
+			t.Fatalf("triggers: %+v", cfg.Automation.Triggers)
+		}
+		trigger := cfg.Automation.Triggers[0]
+		if trigger.TargetKind != automationpkg.TargetKindAgentInstance || trigger.TargetInstanceScope != "/repo" {
+			t.Fatalf("target: %+v", trigger)
+		}
+		trigger.TargetInstanceScope = "other-workspace"
+		if err := trigger.Validate("trigger"); err == nil {
+			t.Fatal("cross-scope target accepted")
+		}
+		job := AutomationJob{TargetKind: automationpkg.TargetKindAgentInstance}
+		if err := job.validateTarget("job"); err == nil {
+			t.Fatal("scheduled instance target accepted")
+		}
+	})
+}

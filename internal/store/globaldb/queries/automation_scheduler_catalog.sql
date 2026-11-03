@@ -112,7 +112,7 @@ SELECT t.grant_ceiling, t.profile_id, t.id, t.scope, t.name, t.agent_name, t.wor
   CASE WHEN t.source IN ('config', 'package') AND o.enabled_override IS NOT NULL
     THEN o.enabled_override ELSE t.enabled END AS enabled,
   t.retry, t.fire_limit, t.source, t.webhook_id, t.endpoint_slug, t.webhook_secret_ref,
-  t.target_kind, t.loop_workspace_id, t.loop_name, t.loop_inputs, t.loop_input_mapping,
+  t.target_kind, t.target_instance_scope, t.loop_workspace_id, t.loop_name, t.loop_inputs, t.loop_input_mapping,
 	t.created_at, t.updated_at
 FROM requested
 JOIN automation_triggers AS t ON t.id = requested.trigger_id

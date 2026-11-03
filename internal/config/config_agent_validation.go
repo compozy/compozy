@@ -50,6 +50,9 @@ func (c AgentsConfig) Validate() error {
 	if !(c.StaysOn.RotationThreshold > 0 && c.StaysOn.RotationThreshold <= 1) {
 		return fmt.Errorf("agents.stays_on.rotation_threshold must be greater than zero and at most one")
 	}
+	if c.StaysOn.UnattendedTurnLimit < 0 {
+		return fmt.Errorf("agents.stays_on.unattended_turn_limit must be nonnegative")
+	}
 	if c.StaysOn.MaxActiveInstances <= 0 {
 		return fmt.Errorf("agents.stays_on.max_active_instances must be positive")
 	}
@@ -331,14 +334,20 @@ func (c PermissionsConfig) Validate() error {
 // Validate ensures the permission mode is supported.
 func (m PermissionMode) Validate(path string) error {
 	switch m {
-	case PermissionModeDenyAll, PermissionModeApproveReads, PermissionModeApproveAll:
+	case PermissionModeDenyAll,
+		PermissionModeApproveReads,
+		PermissionModeApproveEdits,
+		PermissionModeAuto,
+		PermissionModeApproveAll:
 		return nil
 	default:
 		return fmt.Errorf(
-			"%s must be one of %q, %q, %q: %q",
+			"%s must be one of %q, %q, %q, %q, %q: %q",
 			path,
 			PermissionModeDenyAll,
 			PermissionModeApproveReads,
+			PermissionModeApproveEdits,
+			PermissionModeAuto,
 			PermissionModeApproveAll,
 			m,
 		)

@@ -39,6 +39,15 @@ func (g *SessionRepo) EnqueueSessionInput(
 	}
 
 	err = g.withImmediateTransaction(ctx, "enqueue session input", func(exec globalSQLExecutor) error {
+		loopOwned, err := loopOwnedTask(ctx, sqlcgen.New(exec), normalized.TaskRunID)
+		if err != nil {
+			return err
+		}
+		if loopOwned {
+			if err := requireInstanceSessionActive(ctx, sqlcgen.New(exec), normalized.SessionID); err != nil {
+				return err
+			}
+		}
 		if normalized.OwnerKind == store.SessionInputOwnerSynthetic && normalized.MessageID != "" {
 			existing, lookupErr := sqlcgen.New(exec).GetSyntheticSessionInputByMessage(
 				ctx,
@@ -79,6 +88,7 @@ func (g *SessionRepo) EnqueueSessionInput(
 	if err != nil {
 		return store.SessionInputQueueEntry{}, 0, err
 	}
+	g.observeHeldInstanceInput(ctx, &entry)
 	return entry, position, nil
 }
 
@@ -181,12 +191,20 @@ func (g *SessionRepo) ClaimNextSessionInput(
 		if claimErr != nil {
 			return claimErr
 		}
+		pauseTrip, countErr := advanceLineageUnattended(ctx, exec, &refreshed, g.unattendedTurnLimit.Load(), now)
+		if countErr != nil {
+			return countErr
+		}
+		refreshed.PausedInstance = pauseTrip
 		entry = refreshed
 		ok = true
 		return nil
 	})
 	if err != nil {
 		return store.SessionInputQueueEntry{}, false, err
+	}
+	if ok {
+		observeReleasedInstanceInput(ctx, &entry)
 	}
 	return entry, ok, nil
 }
@@ -411,29 +429,6 @@ func insertSessionInputQueueEntry(
 		return store.SessionInputQueueEntry{}, fmt.Errorf("store: insert session input queue entry: %w", err)
 	}
 	return getSessionInputQueueEntry(ctx, exec, normalized.SessionID, normalized.ID)
-}
-
-// countPendingSessionInputs counts the capacity pool of originClass: human
-// input and agent/synthetic input are capped separately so other sessions can
-// never exhaust the operator's slots.
-func countPendingSessionInputs(
-	ctx context.Context,
-	exec globalSQLExecutor,
-	sessionID string,
-	originClass string,
-) (int, error) {
-	pool := store.SessionInputOriginClassAgent
-	if store.IsHumanSessionInputOriginClass(originClass) {
-		pool = store.SessionInputOriginClassHuman
-	}
-	count, err := sqlcgen.New(exec).CountPendingSessionInputs(ctx, sqlcgen.CountPendingSessionInputsParams{
-		SessionID: sessionID, QueuedStatus: store.SessionInputQueueStatusQueued,
-		DispatchingStatus: store.SessionInputQueueStatusDispatching, PoolClass: pool,
-	})
-	if err != nil {
-		return 0, fmt.Errorf("store: count pending session inputs: %w", err)
-	}
-	return int(count), nil
 }
 
 // checkSessionInputQueueCap refuses an insert whose capacity pool is full.

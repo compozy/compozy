@@ -1973,3 +1973,39 @@ func TestAgentIdentityContract(t *testing.T) {
 		}
 	})
 }
+
+func TestAgentPermissionPolicyRoundTrip(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve operator policy through rendering parsing and cloning", func(t *testing.T) {
+		t.Parallel()
+		contents, _, err := RenderAgentDefinition(AgentDefinitionDraft{
+			Name: "policy-test", Prompt: "Assist.", SessionApproval: "workspace",
+			PermissionRules: []PermissionRule{{Kind: "edit", Path: "docs/**", Decision: "allow"}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := ParseAgentDef(contents)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cloned := CloneAgentDef(decoded)
+		if cloned.SessionApproval != "workspace" || len(cloned.PermissionRules) != 1 ||
+			cloned.PermissionRules[0].Path != "docs/**" {
+			t.Fatalf("policy not preserved: %#v", cloned)
+		}
+		cloned.PermissionRules[0].Decision = "deny"
+		if decoded.PermissionRules[0].Decision != "allow" {
+			t.Fatal("clone aliases permission rules")
+		}
+	})
+	t.Run("Should refuse unknown approval authority", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := RenderAgentDefinition(AgentDefinitionDraft{
+			Name: "policy-test", Prompt: "Assist.", SessionApproval: "all",
+		})
+		if err == nil {
+			t.Fatal("unknown authority accepted")
+		}
+	})
+}

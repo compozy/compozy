@@ -649,6 +649,23 @@ func TestAgentInstanceActivityReach(t *testing.T) {
 }
 
 func TestAgentInstanceReadFacets(t *testing.T) {
+	// Invariant: authorized instance reads expose durable spend and held-input counts.
+	// Owning layer/canonical suite: instance API projection, TestAgentInstanceReadFacets.
+	t.Run("Should expose unattended turns and held wakes", func(t *testing.T) {
+		t.Parallel()
+		api := core.AgentInstanceAPI{
+			UnattendedTurnLimit: 300,
+			WakeState: func(context.Context, string) (heartbeat.InstanceWakeState, error) {
+				return heartbeat.InstanceWakeState{UnattendedTurns: 300}, nil
+			},
+			HeldWakes: func(context.Context, string) (int64, error) { return 7, nil },
+		}
+		payload, err := api.Payload(t.Context(), agentinstance.Instance{ID: "paused", State: "paused"})
+		if err != nil || payload.UnattendedTurns != 300 || payload.UnattendedTurnLimit != 300 ||
+			payload.HeldWakes != 7 {
+			t.Fatalf("spend projection = %+v, %v", payload, err)
+		}
+	})
 	// Invariant: authorized rows fill pages and only a visible successor creates a cursor.
 	// Owner: instance API projection; canonical suite: TestAgentInstanceReadFacets.
 	t.Run("Should page after authorization and omit a full terminal cursor", func(t *testing.T) {
@@ -1177,6 +1194,282 @@ func TestAgentInstanceCreateResult(t *testing.T) {
 		}
 		if count != 1 {
 			t.Fatalf("main sessions = %d", count)
+		}
+	})
+}
+
+// Invariant: the instance read chooses the earliest timed wake and preserves untimed monitors.
+func TestAgentInstanceNextWake(t *testing.T) {
+	for _, tc := range []struct{ name, monitorAt, checkAt, want string }{
+		{"Should prefer an earlier timer", "2026-11-03T10:00:00Z", "2026-11-03T11:00:00Z", "timer"},
+		{"Should prefer an earlier check", "2026-11-03T12:00:00Z", "2026-11-03T11:00:00Z", "check"},
+		{"Should preserve an untimed monitor without a check", "", "", "timer"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			api := core.AgentInstanceAPI{
+				ReadPayload: func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error) {
+					return contract.AgentInstancePayload{
+						NextWake: &contract.AgentInstanceNextWake{
+							Kind:        "timer",
+							At:          tc.monitorAt,
+							Description: "follow up",
+						},
+					}, nil
+				},
+				WakeState: func(context.Context, string) (heartbeat.InstanceWakeState, error) {
+					return heartbeat.InstanceWakeState{NextWakeAt: tc.checkAt}, nil
+				},
+			}
+			payload, err := api.Payload(t.Context(), agentinstance.Instance{State: "active", ChecksEnabled: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if payload.NextWake == nil || payload.NextWake.Kind != tc.want {
+				t.Fatalf("next wake = %+v", payload.NextWake)
+			}
+		})
+	}
+}
+
+// Invariant: review pages are scoped before pagination; only operators can decide exact contents.
+// Owning layer: shared HTTP/UDS core; canonical suite: TestAgentSkillReviews.
+func TestAgentSkillReviews(t *testing.T) {
+	t.Run("Should bind pages to their scope and require operator decisions [UT-045]", func(t *testing.T) {
+		t.Parallel()
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "reviews.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		repo := db.Instances()
+		instance, _, err := repo.AdmitCreate(
+			t.Context(),
+			agentinstance.Instance{
+				AgentName:         "coder",
+				ProfileID:         store.DefaultProfileID,
+				CreatedByKind:     "human",
+				PermissionCeiling: "{}",
+			},
+			10,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		boundary := instanceAPIInputs{instance: instance}
+		authority := agentinstance.Authority{Callers: boundary}
+		scanRoot := filepath.Join(t.TempDir(), "skills")
+		service := &agentinstance.SkillProposalService{
+			Store:     db.SkillReviews(),
+			Authority: authority,
+			DraftRoot: t.TempDir(),
+			ScanRoots: []string{scanRoot},
+		}
+		var reviews []agentinstance.SkillReview
+		for _, name := range []string{"first", "second"} {
+			review, err := service.Propose(
+				t.Context(),
+				workspaceaccess.ActorRef{Operator: true},
+				instance,
+				scanRoot,
+				agentinstance.SkillProposalInput{
+					Name:        name,
+					Description: "Review changes",
+					Body:        "Read the diff.",
+					Files:       []agentinstance.SkillDraftFile{{Path: "scripts/read.sh", Content: "echo reviewed"}},
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			reviews = append(reviews, review)
+		}
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
+				return &session.Info{
+					ID:                   "caller",
+					AgentName:            "coder",
+					ProfileID:            store.DefaultProfileID,
+					State:                session.StateActive,
+					EffectivePermissions: "approve-all",
+				}, nil
+			}},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+			Store:          repo,
+			Authority:      authority,
+			SkillProposals: service,
+			SkillTarget: func(context.Context, agentinstance.Instance) (string, []string, error) {
+				return scanRoot, []string{scanRoot}, nil
+			},
+		}
+		fixture.Handlers.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{
+			AuthorizeFn: func(context.Context, workspaceaccess.Request) (workspaceaccess.Decision, error) {
+				return workspaceaccess.Decision{Allowed: true}, nil
+			},
+		}
+		fixture.Engine.GET("/reviews", fixture.Handlers.ListAgentSkillReviews)
+		fixture.Engine.GET("/reviews/:id", fixture.Handlers.GetAgentSkillReview)
+		fixture.Engine.POST("/reviews/:id/approve", fixture.Handlers.ApproveAgentSkillReview)
+		fixture.Engine.POST("/reviews/:id/reject", fixture.Handlers.RejectAgentSkillReview)
+		request := func(method, path, body string, agent bool) *httptest.ResponseRecorder {
+			t.Helper()
+			req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
+			if agent {
+				req.Header.Set(agentidentity.HeaderSessionID, "caller")
+				req.Header.Set(agentidentity.HeaderAgent, "coder")
+			}
+			recorder := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(recorder, req)
+			return recorder
+		}
+		first := request("GET", "/reviews?limit=1", "", true)
+		if first.Code != 200 {
+			t.Fatal(first.Code, first.Body.String())
+		}
+		var page contract.AgentSkillReviewsResponse
+		decodeJSON(t, first.Body.Bytes(), &page)
+		if len(page.Reviews) != 1 || page.NextCursor == "" || len(page.Reviews[0].Files) != 0 ||
+			page.Reviews[0].RunsAutomatically.Scripts != 1 {
+			t.Fatalf("first page: %+v", page)
+		}
+		next := request("GET", "/reviews?limit=1&cursor="+page.NextCursor, "", true)
+		var second contract.AgentSkillReviewsResponse
+		decodeJSON(t, next.Body.Bytes(), &second)
+		if next.Code != 200 || len(second.Reviews) != 1 || second.Reviews[0].ID == page.Reviews[0].ID ||
+			second.NextCursor != "" {
+			t.Fatalf("next page: %d %+v", next.Code, second)
+		}
+		mismatch := request("GET", "/reviews?state=pending&cursor="+page.NextCursor, "", true)
+		if mismatch.Code != 422 {
+			t.Fatalf("changed filters: %d %s", mismatch.Code, mismatch.Body.String())
+		}
+		for _, action := range []string{"approve", "reject"} {
+			denial := request("POST", "/reviews/"+reviews[0].ID+"/"+action, `{"digest":"`+reviews[0].Digest+`"}`, true)
+			var failure contract.ErrorPayload
+			decodeJSON(t, denial.Body.Bytes(), &failure)
+			if denial.Code != 403 || failure.Code != "skill_review_operator_only" {
+				t.Fatalf("agent decision: %d %+v", denial.Code, failure)
+			}
+		}
+		stale := request("POST", "/reviews/"+reviews[0].ID+"/approve", `{"digest":"old"}`, false)
+		if stale.Code != 409 {
+			t.Fatalf("stale: %d %s", stale.Code, stale.Body.String())
+		}
+		accepted := request("POST", "/reviews/"+reviews[0].ID+"/approve", `{"digest":"`+reviews[0].Digest+`"}`, false)
+		var decision contract.AgentSkillReviewResponse
+		decodeJSON(t, accepted.Body.Bytes(), &decision)
+		if accepted.Code != 200 || decision.Review.State != "approved" || len(decision.Review.Files) != 2 {
+			t.Fatalf("approval: %d %+v", accepted.Code, decision)
+		}
+		installed, err := os.ReadFile(filepath.Join(scanRoot, "first", "SKILL.md"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(installed) != decision.Review.Files[0].Content {
+			t.Fatal("installed bytes differ from review")
+		}
+	})
+}
+
+// Invariant UT-064: inaccessible peers never occupy pages or expose private instance details.
+func TestAgentInstancePeers(t *testing.T) {
+	t.Run("Should filter before pagination and bind cursors to caller and scope", func(t *testing.T) {
+		t.Parallel()
+		db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "peers.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		for _, id := range []string{"allowed", "denied"} {
+			now := time.Now()
+			if err := db.InsertWorkspace(
+				t.Context(),
+				workspacepkg.Workspace{
+					ID:        id,
+					Name:      id,
+					RootDir:   filepath.Join(t.TempDir(), id),
+					CreatedAt: now,
+					UpdatedAt: now,
+				},
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		repo := db.Instances()
+		for i, workspace := range []string{"denied", "allowed", "denied", "allowed"} {
+			_, _, err := repo.AdmitCreate(
+				t.Context(),
+				agentinstance.Instance{
+					ProfileID:         store.DefaultProfileID,
+					WorkspaceID:       workspace,
+					AgentName:         fmt.Sprintf("agent-%d", i),
+					PermissionCeiling: "{}",
+					CreatedByKind:     "human",
+				},
+				10,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		api := &core.AgentInstanceAPI{
+			Store: repo,
+			Authority: agentinstance.Authority{
+				Callers: instanceAPIInputs{
+					instance: agentinstance.Instance{ID: "caller-instance", ProfileID: store.DefaultProfileID},
+				},
+			},
+		}
+		actor := workspaceaccess.ActorRef{
+			Kind:        workspaceaccess.ActorAgentSession,
+			SessionID:   "caller",
+			WorkspaceID: "allowed",
+		}
+		query := agentinstance.ListQuery{ProfileID: store.DefaultProfileID, AllWorkspaces: true, Limit: 1}
+		first, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{})
+		if err != nil || len(first.Peers) != 1 || first.Peers[0].Scope != "allowed" || first.NextCursor == "" ||
+			len(first.Instances) != 0 {
+			t.Fatalf("first peers: %+v %v", first, err)
+		}
+		raw, err := json.Marshal(first.Peers[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fields map[string]any
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			t.Fatal(err)
+		}
+		if len(fields) != 4 || fields["name"] == nil || fields["description"] == nil ||
+			fields["scope"] == nil ||
+			fields["state"] == nil {
+			t.Fatalf("private peer fields: %s", raw)
+		}
+		query.AfterID = first.NextCursor
+		next, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{})
+		if err != nil || len(next.Peers) != 1 || next.Peers[0].Name == first.Peers[0].Name || next.NextCursor != "" {
+			t.Fatalf("next peers: %+v %v", next, err)
+		}
+		query.State = "paused"
+		if _, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{}); err == nil {
+			t.Fatal("cursor crossed filters")
+		}
+		query.State = ""
+		actor.SessionID = "another"
+		if _, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{}); err == nil {
+			t.Fatal("cursor crossed callers")
 		}
 	})
 }

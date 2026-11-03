@@ -390,7 +390,7 @@ func TestDecideMaintenance(t *testing.T) {
 		{"Should ignore invalid threshold", true, 90, 100, math.NaN(), false, MaintenanceNone},
 		{"Should wait below threshold", true, 79, 100, .8, false, MaintenanceNone},
 		{"Should compact at threshold", true, 80, 100, .8, true, MaintenanceCompact},
-		{"Should rotate at threshold without compaction", true, 80, 100, .8, false, MaintenanceRotate},
+		{"Should remind at threshold without compaction", true, 80, 100, .8, false, MaintenanceRemind},
 		{"Should prefer compaction above capacity", true, 110, 100, .8, true, MaintenanceCompact},
 	}
 	for _, tt := range tests {

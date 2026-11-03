@@ -279,7 +279,12 @@ func (b *loopActionSessionBinder) PromptActionSession(
 	if b == nil || b.sessions == nil {
 		return looppkg.ActionPromptResult{}, errors.New("daemon: loop action sessions are unavailable")
 	}
-	return collectLoopPromptResult(ctx, b.sessions, strings.TrimSpace(binding.SessionID), req)
+	return collectLoopPromptResult(
+		session.WithManagedRun(ctx, string(binding.LoopRunID)),
+		b.sessions,
+		strings.TrimSpace(binding.SessionID),
+		req,
+	)
 }
 
 func (b *loopActionSessionBinder) CancelActionSession(

@@ -7,7 +7,7 @@ type MaintenanceAction string
 const (
 	MaintenanceNone    MaintenanceAction = "none"
 	MaintenanceCompact MaintenanceAction = "compact"
-	MaintenanceRotate  MaintenanceAction = "rotate"
+	MaintenanceRemind  MaintenanceAction = "remind"
 )
 
 // DecideMaintenance leaves execution and dependency admission to the caller.
@@ -19,5 +19,5 @@ func DecideMaintenance(known bool, used, size int64, threshold float64, hasCompa
 	if hasCompaction {
 		return MaintenanceCompact
 	}
-	return MaintenanceRotate
+	return MaintenanceRemind
 }

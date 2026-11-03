@@ -13,6 +13,7 @@ func (m *Manager) notifyManagedPromptEvent(
 	event acp.AgentEvent,
 ) {
 	reportManagedInputUsage(turnState, event.Usage)
+	m.notifyApprovalExpiry(ctx, session, event)
 	m.notifyAgentEvent(ctx, session, event)
 }
 

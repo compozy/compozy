@@ -328,6 +328,17 @@ Automation schedule catch-up policy is part of the public schedule contract. Rec
 
 CLI automation creation supports the Agent-or-Loop target union. Use `automation jobs create --loop` with repeatable `--loop-input` values for scheduled Loop starts; triggers also accept repeatable `--loop-input-mapping` templates. Global definitions require `--loop-workspace`. CLI updates change common fields without replacing the target; use native tools or HTTP/UDS for target replacement.
 
+Triggers additionally accept experimental `target_kind = "agent_instance"`, `agent`, `prompt`, and
+`target_instance_scope` equal to their own workspace or `global`. CLI creation uses `--target-instance`
+and `--workspace` (or `@user` for global). Scheduled jobs do not support this target. Delivery feeds
+the existing instance's read-only check and completes the run without prompting its main. Events
+stay pending across pause and quiet windows: newest 200 retained, at most 20 and 8 KiB read per check,
+2 KiB per summary, and `events_omitted` counts retention loss. This collector ignores `context.include`.
+A failed/cancelled check retains its batch; successful completion consumes only admitted event IDs.
+Run metadata states whether a check was scheduled, disabled or unsupported. A missing instance gives
+`trigger_target_instance_not_found` without disabling the trigger. Proposals retain event/run/trigger
+sources. Payloads grant no authority; picking a proposal is the operator's decision.
+
 Trigger events are `session.created`, `session.stopped`, `hook.<hook_name>.completed`, `webhook`, or `ext.*`. Unknown names and surrounding whitespace are rejected; `ext.*` suffixes stay free-form.
 
 ## Session Rebuild Bounds

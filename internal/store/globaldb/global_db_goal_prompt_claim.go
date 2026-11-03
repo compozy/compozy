@@ -282,6 +282,9 @@ func validatePreparedGoalClaim(
 	allowedKinds []string,
 	decision goal.BudgetDecision,
 ) (goal.Checkpoint, goalPromptRow, error) {
+	if err := requireInstanceRunResumable(ctx, sqlcgen.New(exec), string(key.LoopRunID)); err != nil {
+		return goal.Checkpoint{}, goalPromptRow{}, err
+	}
 	if err := validateGoalRunWorkspace(ctx, exec, key); err != nil {
 		return goal.Checkpoint{}, goalPromptRow{}, err
 	}

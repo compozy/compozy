@@ -454,3 +454,38 @@ func TestTriageToolPolicy(t *testing.T) {
 		}
 	})
 }
+
+func TestCoordinationPermissionLevels(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []PermissionMode{PermissionModeApproveEdits, PermissionModeAuto} {
+		t.Run("Should restrict coordination approvals at "+string(mode), func(t *testing.T) {
+			t.Parallel()
+			for _, lineage := range []bool{false, true} {
+				for _, id := range []ToolID{ToolIDMonitorCreate, ToolIDMonitorCancel, ToolIDSubagentDelegate,
+					ToolIDSubagentCancel, ToolIDSessionSpawn, ToolIDSessionPrompt, ToolIDGoalControl,
+					ToolIDNotify, "compozy__agent_skill_propose", ToolIDSessionApprove,
+					ToolIDSessionClarifyAnswer, ToolIDTerminalExec} {
+					d := validDescriptor()
+					d.ID = id
+					d.ReadOnly = false
+					d.Risk = RiskMutating
+					e, err := NewEffectivePolicyEvaluator(PolicyInputs{
+						SystemPermissionMode: mode, StaysOnLineage: lineage, ApprovalAvailable: true,
+					}, ToolsetCatalog{}, []ToolID{id})
+					if err != nil {
+						t.Fatal(err)
+					}
+					got, err := e.Evaluate(t.Context(), Scope{}, d)
+					if err != nil {
+						t.Fatal(err)
+					}
+					wantApproval := id == ToolIDTerminalExec ||
+						(!lineage && (id == ToolIDSessionApprove || id == ToolIDSessionClarifyAnswer))
+					if !got.Callable || got.ApprovalRequired != wantApproval {
+						t.Fatalf("mode=%s lineage=%v id=%s decision=%+v", mode, lineage, id, got)
+					}
+				}
+			}
+		})
+	}
+}

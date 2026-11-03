@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -207,7 +208,7 @@ func (p *AgentProcess) handleRequestPermission(
 	if !p.permissionRequestIsBound(request.SessionId) {
 		return acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
 	}
-	return p.resolvePermissionRequest(ctx, request, "provider")
+	return p.resolvePermissionRequest(ctx, request, permissionActorProvider)
 }
 
 // resolvePermissionRequest decides one permission request through the provider
@@ -225,40 +226,37 @@ func (p *AgentProcess) resolvePermissionRequest(
 	sessionID := string(request.SessionId)
 	toolCallID := strings.TrimSpace(string(request.ToolCall.ToolCallId))
 	requestID := p.nextPermissionRequestID(turnID, request)
-	if handled, err := p.interceptProviderNativePermissionRequest(ctx, request); handled {
-		switch {
-		case err == nil:
-		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-			return acpsdk.RequestPermissionResponse{
-				Outcome: acpsdk.NewRequestPermissionOutcomeCancelled(),
-			}, nil
-		case errors.Is(err, ErrPermissionDenied):
-			outcome, appliedDecision := selectPermissionOutcome(request.Options, decisionRejectOnce)
-			raw := buildPermissionEventRaw(requestID, appliedDecision, request)
-			p.emitPermissionEvent(
-				sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, "provider", raw,
-			)
-			return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
-		default:
-			return acpsdk.RequestPermissionResponse{}, err
+	if response, err := p.interceptPermissionResponse(ctx, request, turnID, requestID); response != nil || err != nil {
+		if response != nil {
+			return *response, err
 		}
+		return acpsdk.RequestPermissionResponse{}, err
 	}
 
 	host, err := p.toolHostOrDefault()
 	if err != nil {
 		return acpsdk.RequestPermissionResponse{}, err
 	}
-	decision, interactive := host.PermissionDecision(request)
+	decision, interactive, resolvedBy := resolveHostPermissionDecision(host, request)
 
 	if !interactive {
-		outcome, appliedDecision := selectPermissionOutcome(request.Options, decision)
-		raw := buildPermissionEventRaw(requestID, appliedDecision, request)
+		outcome, appliedDecision, raw := p.automaticPermissionOutcome(requestID, request, decision, resolvedBy)
 		p.emitPermissionEvent(
-			sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, "provider", raw,
+			sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, resolvedBy, raw,
 		)
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 	}
 
+	digest := permissionRequestDigest(request)
+	denialEpoch := p.permissionDenials.Epoch()
+	if p.permissionDenials.Contains(digest) {
+		slog.InfoContext(ctx, "permission.repeat_denied", "session_id", sessionID, "request_id", requestID)
+		outcome, appliedDecision := selectPermissionOutcome(request.Options, decisionRejectOnce)
+		raw := buildPermissionEventRaw(requestID, appliedDecision, request)
+		p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource,
+			appliedDecision, "repeat_denied", raw)
+		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+	}
 	requestID, pending, err := p.registerPendingPermission(turnID, request)
 	if err != nil {
 		return acpsdk.RequestPermissionResponse{}, err
@@ -290,9 +288,33 @@ func (p *AgentProcess) resolvePermissionRequest(
 	if appliedDecision == "" {
 		appliedDecision = decisionCanceled
 	}
+	if actor == "timeout" || (actor == permissionActorProvider && decision == decisionCanceled) {
+		p.permissionDenials.Record(digest, denialEpoch)
+	}
 	raw = buildPermissionEventRaw(requestID, appliedDecision, request)
 	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, actor, raw)
 	return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+}
+
+func (p *AgentProcess) interceptPermissionResponse(ctx context.Context, request acpsdk.RequestPermissionRequest,
+	turnID, requestID string) (*acpsdk.RequestPermissionResponse, error) {
+	handled, err := p.interceptProviderNativePermissionRequest(ctx, request)
+	if !handled || err == nil {
+		return nil, nil
+	}
+	switch {
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return &acpsdk.RequestPermissionResponse{Outcome: acpsdk.NewRequestPermissionOutcomeCancelled()}, nil
+	case errors.Is(err, ErrPermissionDenied):
+		outcome, applied := selectPermissionOutcome(request.Options, decisionRejectOnce)
+		resource, title := permissionRequestDisplay(request)
+		p.emitPermissionEvent(string(request.SessionId), turnID, requestID, title,
+			strings.TrimSpace(string(request.ToolCall.ToolCallId)), resource, applied, permissionActorProvider,
+			buildPermissionEventRaw(requestID, applied, request))
+		return &acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+	default:
+		return nil, err
+	}
 }
 
 func permissionRequestDisplay(request acpsdk.RequestPermissionRequest) (string, string) {

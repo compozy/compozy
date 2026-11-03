@@ -40,6 +40,9 @@ func (m *Manager) sessionStartOpts(
 	}
 	shellWaitGuard := m.sessionCanRedirectShellWaits(s, resolved)
 	opts := acp.StartOpts{
+		PermissionPolicy: &acp.StartPermissionPolicy{
+			Rules: configuredPermissionRules(s.permissionRules), Denials: session.permissionDenialsState(),
+		},
 		AgentName:         resolved.Name,
 		CompozySessionID:  s.sessionID,
 		WorkspaceID:       s.workspace.ID,
@@ -67,7 +70,7 @@ func (m *Manager) sessionStartOpts(
 		),
 	}
 	if s.sessionType == SessionTypeTriage {
-		opts.ExecutionPolicy = acp.ExecutionPolicyTriage
+		opts.SetExecutionPolicy(acp.ExecutionPolicyTriage)
 		opts.Permissions = compozyconfig.PermissionModeApproveReads
 		opts.MCPServers = nil
 		opts.ActivateMCPServers = nil

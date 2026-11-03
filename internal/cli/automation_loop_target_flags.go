@@ -18,6 +18,7 @@ const (
 )
 
 type automationCreateTargetInput struct {
+	TargetInstance        string
 	AgentName             string
 	Prompt                string
 	LoopName              string
@@ -27,10 +28,11 @@ type automationCreateTargetInput struct {
 }
 
 type automationCreateTarget struct {
-	Kind       automationpkg.TargetKind
-	AgentName  string
-	Prompt     string
-	LoopTarget *automationpkg.LoopTarget
+	InstanceScope string
+	Kind          automationpkg.TargetKind
+	AgentName     string
+	Prompt        string
+	LoopTarget    *automationpkg.LoopTarget
 }
 
 func bindAutomationCreateTargetFlags(
@@ -69,6 +71,8 @@ func bindAutomationCreateTargetFlags(
 		"Static Loop input as key=value; repeat for multiple inputs",
 	)
 	if allowInputMapping {
+		cmd.Flags().
+			StringVar(&input.TargetInstance, "target-instance", "", "Stays-on agent whose read-only check receives the event")
 		cmd.Flags().StringArrayVar(
 			&input.LoopInputMappingFlags,
 			automationLoopInputMappingFlag,
@@ -87,6 +91,25 @@ func buildAutomationCreateTarget(
 	input automationCreateTargetInput,
 	allowInputMapping bool,
 ) (automationCreateTarget, error) {
+	if input.TargetInstance != "" {
+		if !allowInputMapping {
+			return automationCreateTarget{}, errors.New("cli: scheduled jobs cannot target an instance")
+		}
+		if input.AgentName != "" || input.LoopName != "" {
+			return automationCreateTarget{}, errors.New(
+				"cli: --target-instance cannot be combined with --agent or --loop",
+			)
+		}
+		target, err := buildAutomationAgentTarget(strings.TrimSpace(input.TargetInstance), input)
+		if err != nil {
+			return automationCreateTarget{}, err
+		}
+		target.Kind, target.InstanceScope = automationpkg.TargetKindAgentInstance, scopeWorkspaceID
+		if scope == automationpkg.AutomationScopeGlobal {
+			target.InstanceScope = layoutProfileScopeGlobal
+		}
+		return target, nil
+	}
 	agentName := strings.TrimSpace(input.AgentName)
 	loopName := strings.TrimSpace(input.LoopName)
 	switch {

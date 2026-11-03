@@ -229,6 +229,19 @@ func TestSubagentTargetAndPermissions(t *testing.T) {
 
 // Invariant: one semantic request owns one child, failure cleanup, and one terminal event; owner: service.
 func TestSubagentDelegate(t *testing.T) {
+	t.Run("Should return held from wait mode without waiting for a paused child", func(t *testing.T) {
+		t.Parallel()
+		service, _, runtime := newSubagentTestService(t)
+		first := requireSubagent(t, service, subagentTestRequest())
+		snapshot := runtime.snapshots[*first.ChildSessionID]
+		snapshot.Held = true
+		runtime.snapshots[*first.ChildSessionID] = snapshot
+		result, err := service.wait(t.Context(), first.SessionSubagent, time.Minute)
+		if err != nil || result.Delivery != "held" || result.WaitTimedOut {
+			t.Fatalf("held wait: %+v %v", result, err)
+		}
+	})
+
 	t.Parallel()
 	t.Run("Should replay without another child and reject changed task UT-016 UT-059", func(t *testing.T) {
 		t.Parallel()

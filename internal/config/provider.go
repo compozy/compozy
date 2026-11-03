@@ -129,6 +129,7 @@ type ModelsDevSourceConfig struct {
 
 // ProviderConfig describes how to launch a provider in ACP mode.
 type ProviderConfig struct {
+	ReviewerMode     string                   `toml:"reviewer_mode,omitempty"`
 	SessionEnv       SessionEnv               `toml:"session_env,omitempty"`
 	Command          string                   `toml:"command"`
 	CommandIsBuiltin bool                     `toml:"-"                             json:"-" yaml:"-"`
@@ -182,33 +183,34 @@ type MCPAuthConfig struct {
 
 // ResolvedAgent is the effective runtime configuration for a parsed agent definition.
 type ResolvedAgent struct {
-	SessionEnv         SessionEnv
-	ToolPolicyEnforced bool `json:"-"`
-	Name               string
-	ProfileName        string
-	Provider           string
-	Command            string
-	CommandIsBuiltin   bool `json:"-" toml:"-" yaml:"-"`
-	DisplayName        string
-	Model              string
-	ReasoningEffort    string
+	ReviewerMode    string
+	SessionEnv      SessionEnv
+	Name            string
+	ProfileName     string
+	Provider        string
+	Command         string
+	DisplayName     string
+	Model           string
+	ReasoningEffort string
 	*AgentRuntimeDefaults
-	Tools           []string
-	Toolsets        []string
-	DenyTools       []string
-	Permissions     string
-	Harness         ProviderHarness
-	RuntimeProvider string
-	Transport       string
-	BaseURL         string
-	AuthMode        ProviderAuthMode
-	EnvPolicy       ProviderEnvPolicy
-	HomePolicy      ProviderHomePolicy
-	NoneSecurity    ProviderNoneSecurity
-	AuthStatusCmd   string
-	AuthLoginCmd    string
-	AuthACPMethod   string
-	SessionMCP      bool
+	Tools              []string
+	Toolsets           []string
+	DenyTools          []string
+	Permissions        string
+	Harness            ProviderHarness
+	RuntimeProvider    string
+	Transport          string
+	BaseURL            string
+	AuthMode           ProviderAuthMode
+	EnvPolicy          ProviderEnvPolicy
+	HomePolicy         ProviderHomePolicy
+	NoneSecurity       ProviderNoneSecurity
+	AuthStatusCmd      string
+	AuthLoginCmd       string
+	AuthACPMethod      string
+	ToolPolicyEnforced bool `json:"-"`
+	CommandIsBuiltin   bool `json:"-" toml:"-" yaml:"-"`
+	SessionMCP         bool
 	// PermissionsConfigured reports that the definition set Permissions; false means settings supplied it.
 	// It sits beside SessionMCP so the struct stays under the hugeParam threshold.
 	PermissionsConfigured bool

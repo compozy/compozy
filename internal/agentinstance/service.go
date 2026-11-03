@@ -26,10 +26,15 @@ type InstanceStore interface {
 	AdmitCreate(context.Context, Instance, int) (Instance, bool, error)
 	BindMain(context.Context, string, string) (Instance, error)
 	DeleteUnstarted(context.Context, string) error
-	Pause(context.Context, string, string) (Instance, error)
+	Pause(context.Context, string, string) (PauseResult, error)
 	Resume(context.Context, string, int, bool) (Instance, error)
 	Archive(context.Context, string) (Instance, error)
 	List(context.Context, ListQuery) ([]Instance, error)
+}
+
+type PauseResult struct {
+	Instance
+	Changed bool
 }
 
 type CreateRequest struct {
@@ -52,15 +57,16 @@ type MainSessionStarter interface {
 }
 
 type Service struct {
-	reconcileMu sync.Mutex
-	rotator     MainSessionRotator
-	changed     func(Instance)
-	hooks       LifecycleHooks
-	store       InstanceStore
-	admission   Admission
-	starter     MainSessionStarter
-	limit       int
-	now         func() time.Time
+	stateEffects func(context.Context, Instance) error
+	reconcileMu  sync.Mutex
+	rotator      MainSessionRotator
+	changed      func(Instance)
+	hooks        LifecycleHooks
+	store        InstanceStore
+	admission    Admission
+	starter      MainSessionStarter
+	limit        int
+	now          func() time.Time
 }
 
 type Option func(*Service)
@@ -121,20 +127,17 @@ func (s *Service) deleteUnstarted(ctx context.Context, id string) error {
 
 func (s *Service) Pause(ctx context.Context, id, reason string) (Instance, error) {
 	switch reason {
-	case pauseReasonManual, "fatigue", "definition_not_stays_on", "definition_missing":
+	case pauseReasonManual, "fatigue", "unattended", "definition_not_stays_on", "definition_missing":
 	default:
 		return Instance{}, errors.New("agentinstance: invalid pause reason")
 	}
-	before, err := s.store.Get(ctx, id)
-	if err != nil {
-		return Instance{}, err
+	result, err := s.store.Pause(ctx, id, reason)
+	if err == nil && result.Changed {
+		err = s.ApplyPause(ctx, result.Instance)
 	}
-	instance, err := s.store.Pause(ctx, id, reason)
-	if err == nil && before.State != instance.State {
-		s.notifyLifecycle(ctx, hooks.HookAgentInstancePaused, instance)
-	}
-	return instance, err
+	return result.Instance, err
 }
+
 func (s *Service) Resume(ctx context.Context, id string, actor workspaceaccess.ActorRef) (Instance, error) {
 	instance, err := s.store.Get(ctx, id)
 	if err != nil {
@@ -146,6 +149,9 @@ func (s *Service) Resume(ctx context.Context, id string, actor workspaceaccess.A
 	resumed, err := s.store.Resume(ctx, id, s.limit, actor.Operator)
 	if err == nil && instance.State != resumed.State {
 		s.notifyLifecycle(ctx, hooks.HookAgentInstanceResumed, resumed)
+	}
+	if err == nil {
+		err = s.reconcileEffects(ctx, id)
 	}
 	return resumed, err
 }

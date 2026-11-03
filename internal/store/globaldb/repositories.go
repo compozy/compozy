@@ -57,7 +57,10 @@ type WorkspaceRepo struct {
 }
 type AppMetadataRepo struct{ *repoBase }
 type PermissionRepo struct{ *repoBase }
-type SessionRepo struct{ *repoBase }
+type SessionRepo struct {
+	*repoBase
+	unattendedTurnLimit atomic.Int64
+}
 type TaskRepo struct {
 	*repoBase
 	runs                       *TaskRunRepo
@@ -126,6 +129,7 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	g.AppMetadataRepo = &AppMetadataRepo{repoBase: base}
 	g.PermissionRepo = &PermissionRepo{repoBase: base}
 	g.SessionRepo = &SessionRepo{repoBase: base}
+	g.unattendedTurnLimit.Store(300)
 	base.sessions = g.SessionRepo
 	taskRepo := &TaskRepo{repoBase: base, newID: store.NewID}
 	taskRunRepo := &TaskRunRepo{repoBase: base}

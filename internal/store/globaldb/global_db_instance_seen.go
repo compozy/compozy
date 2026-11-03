@@ -44,12 +44,21 @@ func (r *InstanceRepo) MarkSeen(ctx context.Context, instance, operator string, 
 	if instance == "" || operator == "" || at.IsZero() {
 		return time.Time{}, errors.New("instance operator and timestamp are required")
 	}
-	raw, err := r.queries.MarkAgentInstanceSeen(
+	var raw string
+	err := store.ExecuteWriteOperation(
 		ctx,
-		sqlcgen.MarkAgentInstanceSeenParams{
-			InstanceID: instance,
-			OperatorID: operator,
-			LastSeenAt: store.FormatTimestamp(at),
+		r.db,
+		"mark instance seen",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			q := sqlcgen.New(tx)
+			var err error
+			raw, err = q.MarkAgentInstanceSeen(ctx, sqlcgen.MarkAgentInstanceSeenParams{
+				InstanceID: instance, OperatorID: operator, LastSeenAt: store.FormatTimestamp(at),
+			})
+			if err != nil {
+				return err
+			}
+			return q.ResetInstanceUnattended(ctx, sqlcgen.ResetInstanceUnattendedParams{InstanceID: instance, Now: raw})
 		},
 	)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type LifecycleHooks interface {
@@ -16,6 +17,8 @@ func WithLifecycleHooks(dispatcher LifecycleHooks) Option {
 }
 
 func (s *Service) notifyLifecycle(ctx context.Context, event hooks.HookEvent, instance Instance) {
+	slog.InfoContext(ctx, string(event), "instance_id", instance.ID, "profile_id", instance.ProfileID,
+		"workspace_id", instance.WorkspaceID, "reason", instance.PauseReason)
 	if s.changed != nil {
 		s.changed(instance)
 	}
@@ -48,4 +51,38 @@ func (s *Service) notifyLifecycle(ctx context.Context, event hooks.HookEvent, in
 			err,
 		)
 	}
+}
+
+// WithStateEffects reconciles durable pause/resume obligations through their owning services.
+func WithStateEffects(effects func(context.Context, Instance) error) Option {
+	return func(s *Service) { s.stateEffects = effects }
+}
+
+func (s *Service) AfterPause(ctx context.Context, trip store.InstancePauseTrip) error {
+	return s.ApplyPause(ctx, Instance{
+		ID: trip.InstanceID, ProfileID: trip.ProfileID, WorkspaceID: trip.WorkspaceID,
+		AgentName: trip.AgentName, MainSessionID: trip.MainSessionID, State: "paused", PauseReason: trip.Reason,
+		CreatedAt: trip.CreatedAt, UpdatedAt: trip.PausedAt,
+	})
+}
+
+func (s *Service) ApplyPause(ctx context.Context, instance Instance) error {
+	if instance.State != "paused" || instance.ArchivedAt != nil {
+		return nil
+	}
+	// Hooks describe the committed transition. Effects reconcile current state so a concurrent
+	// resume cannot be undone by a delayed post-commit callback.
+	s.notifyLifecycle(ctx, hooks.HookAgentInstancePaused, instance)
+	return s.reconcileEffects(ctx, instance.ID)
+}
+
+func (s *Service) reconcileEffects(ctx context.Context, id string) error {
+	if s.stateEffects == nil {
+		return nil
+	}
+	current, err := s.store.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	return s.stateEffects(ctx, current)
 }

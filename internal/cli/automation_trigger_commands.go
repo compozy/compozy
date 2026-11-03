@@ -69,7 +69,6 @@ func bindAutomationTriggerCreateFlags(
 	cmd.Flags().StringVar(&input.EndpointSlug, "endpoint-slug", "", "Public endpoint slug for webhook events")
 	cmd.Flags().StringVar(&input.WebhookSecretValue, "webhook-secret-value", "", "Write-only webhook secret value")
 	mustMarkFlagRequired(cmd, automationNameKey)
-	mustMarkFlagRequired(cmd, automationScopeKey)
 	mustMarkFlagRequired(cmd, automationEventKey)
 	configureProfileMutationCommand(cmd, deps)
 }

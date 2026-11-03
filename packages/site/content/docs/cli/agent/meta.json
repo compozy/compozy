@@ -13,6 +13,7 @@
         "heartbeat",
         "instance",
         "memory",
+        "skill",
         "soul"
     ]
 }

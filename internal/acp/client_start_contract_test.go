@@ -2422,9 +2422,16 @@ func TestTriageStartup(t *testing.T) {
 			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
 			process, err := driver.Start(t.Context(), StartOpts{
 				ProviderConfig: &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
-				AgentName:      "helper", ProviderName: tc.provider, Command: helperCommand(t), Cwd: t.TempDir(),
-				Env: helperEnv(tc.scenario, ""), ExecutionPolicy: ExecutionPolicyTriage,
-				Permissions: compozyconfig.PermissionModeApproveAll,
+				AgentName:      "helper",
+				ProviderName:   tc.provider,
+				Command:        helperCommand(t),
+				Cwd:            t.TempDir(),
+				Env: helperEnv(
+					tc.scenario,
+					"",
+				),
+				PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage},
+				Permissions:      compozyconfig.PermissionModeApproveAll,
 			})
 			if process != nil {
 				defer stopProcess(t, driver, process)
@@ -2445,9 +2452,16 @@ func TestTriageStartup(t *testing.T) {
 		driver := New(WithProviderPreStarter(providers.NewPreStarter()))
 		process, err := driver.Start(t.Context(), StartOpts{
 			ProviderConfig: &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
-			AgentName:      "helper", ProviderName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
-			Env: helperEnv("mode_mapping", ""), ExecutionPolicy: ExecutionPolicyTriage,
-			Permissions: compozyconfig.PermissionModeApproveAll,
+			AgentName:      "helper",
+			ProviderName:   "helper",
+			Command:        helperCommand(t),
+			Cwd:            t.TempDir(),
+			Env: helperEnv(
+				"mode_mapping",
+				"",
+			),
+			PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage},
+			Permissions:      compozyconfig.PermissionModeApproveAll,
 		})
 		if process != nil {
 			stopProcess(t, driver, process)
@@ -2456,4 +2470,34 @@ func TestTriageStartup(t *testing.T) {
 			t.Fatalf("startup error=%v, want triage_unsupported", err)
 		}
 	})
+}
+
+func TestPermissionLevelModeSelection(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		provider string
+		reviewer string
+		level    compozyconfig.PermissionMode
+		modes    []string
+		want     string
+	}{
+		{"Should select Claude reviewer", "claude", "auto", compozyconfig.PermissionModeAuto, []string{"auto", "acceptEdits", "default"}, "auto"},
+		{"Should select Codex reviewer", "codex", "agent", compozyconfig.PermissionModeAuto, []string{"agent", "workspace-write", "default"}, "agent"},
+		{"Should fall back when reviewer is unadvertised", "custom", "smart", compozyconfig.PermissionModeAuto, []string{"auto", "acceptEdits", "default"}, "acceptEdits"},
+		{"Should never infer an undeclared reviewer", "custom", "", compozyconfig.PermissionModeAuto, []string{"auto", "workspace-write", "default"}, "workspace-write"},
+		{"Should reject an unrestricted reviewer", "custom", "auto", compozyconfig.PermissionModeAuto, []string{"auto", "acceptEdits"}, "acceptEdits"},
+		{"Should select Claude edit mode", "claude", "auto", compozyconfig.PermissionModeApproveEdits, []string{"auto", "acceptEdits", "default"}, "acceptEdits"},
+		{"Should select Codex sandbox edits", "codex", "agent", compozyconfig.PermissionModeApproveEdits, []string{"agent", "workspace-write", "default"}, "workspace-write"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, gateway := range []bool{false, true} {
+				got := preferredSessionMode(tc.modes, tc.level, gateway, tc.provider, tc.reviewer)
+				if got != tc.want {
+					t.Fatalf("gateway=%v mode=%q, want %q", gateway, got, tc.want)
+				}
+			}
+		})
+	}
 }

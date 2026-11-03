@@ -95,6 +95,8 @@ func (a SessionAttention) Unseen() bool {
 
 // PendingInteractionPayload is the allowlisted display-only interaction body.
 type PendingInteractionPayload struct {
+	Action    string   `json:"action,omitempty"`
+	Resource  string   `json:"resource,omitempty"`
 	Choices   []string `json:"choices,omitempty"`
 	Decisions []string `json:"decisions,omitempty"`
 	ToolID    string   `json:"tool_id,omitempty"`
@@ -331,6 +333,8 @@ func ValidPendingInteractionStatus(status string) bool {
 
 func normalizePendingInteractionPayload(payload PendingInteractionPayload) PendingInteractionPayload {
 	result := PendingInteractionPayload{
+		Action:    diagnostics.RedactAndBound(payload.Action, PendingInteractionTitleMaxBytes),
+		Resource:  diagnostics.RedactAndBound(payload.Resource, PendingInteractionTitleMaxBytes),
 		Choices:   make([]string, 0, len(payload.Choices)),
 		Decisions: make([]string, 0, len(payload.Decisions)),
 		ToolID:    diagnostics.RedactAndBound(payload.ToolID, PendingInteractionTitleMaxBytes),

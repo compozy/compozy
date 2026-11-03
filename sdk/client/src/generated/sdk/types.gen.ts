@@ -268,6 +268,13 @@ export type AgentInstanceListResponse = {
   instances: Array<AgentInstancePayload>;
   max_active_instances: number;
   next_cursor: string;
+  peers?: Array<AgentInstancePeer>;
+};
+
+export type AgentInstanceNextWake = {
+  at?: string;
+  description: string;
+  kind: string;
 };
 
 export type AgentInstanceOccurrenceResponse = {
@@ -285,11 +292,13 @@ export type AgentInstancePayload = {
   created_at: string;
   failure_streak: number;
   fatigue_limit: number;
+  held_wakes: number;
   id: string;
   label: string;
   last_wake_at: string;
   main_session_id: string;
   needs_attention: boolean;
+  next_wake?: AgentInstanceNextWake | null;
   next_wake_at: string;
   now: string;
   pause_reason: string;
@@ -301,17 +310,36 @@ export type AgentInstancePayload = {
   };
   scope: string;
   state: string;
+  unattended_turn_limit: number;
+  unattended_turns: number;
   updated_at: string;
   workspace_id: string;
+};
+
+export type AgentInstancePeer = {
+  description: string;
+  name: string;
+  scope: string;
+  state: string;
 };
 
 export type AgentInstanceProposal = {
   body: string;
   item_keys: Array<string>;
+  sources?: Array<AgentInstanceProposalSource>;
   title: string;
 };
 
+export type AgentInstanceProposalSource = {
+  event_id: string;
+  kind: string;
+  received_at: string;
+  run_id: string;
+  trigger_id: string;
+};
+
 export type AgentInstanceReportPayload = {
+  action?: string;
   cause?: string;
   created_at: string;
   detail?: string;
@@ -320,10 +348,20 @@ export type AgentInstanceReportPayload = {
   kind: string;
   proposals?: Array<AgentInstanceProposal>;
   reason?: string;
+  resource?: string;
   session_id?: string;
   since?: string;
+  skill_review_id?: string;
+  source?: AgentInstanceReportSource | null;
   state: string;
   tool?: string;
+};
+
+export type AgentInstanceReportSource = {
+  event: string;
+  kind: string;
+  summary?: string;
+  trigger_name: string;
 };
 
 export type AgentInstanceReportsResponse = {
@@ -492,6 +530,7 @@ export type AgentPayload = {
   name: string;
   origin: "global" | "workspace";
   package_owned?: boolean;
+  permission_rules?: Array<AgentPermissionRulePayload>;
   permissions?: string;
   prompt: string;
   provider: string;
@@ -499,6 +538,7 @@ export type AgentPayload = {
   resolved_appearance: {
     [key: string]: unknown;
   };
+  session_approval?: string;
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
   };
@@ -509,6 +549,12 @@ export type AgentPayload = {
   toolsets?: Array<string>;
   workspace_access?: string;
   workspace_id?: string;
+};
+
+export type AgentPermissionRulePayload = {
+  decision: string;
+  kind?: string;
+  path?: string;
 };
 
 export type AgentProbeHealthPayload = {
@@ -542,6 +588,46 @@ export type AgentSessionPayload = {
   state: "starting" | "active" | "stopping" | "stopped";
   type?: "user" | "system" | "coordinator" | "spawned";
   updated_at: string;
+};
+
+export type AgentSkillAutomaticContents = {
+  hooks: number;
+  mcp_servers: number;
+  scripts: number;
+};
+
+export type AgentSkillDraftFile = {
+  content: string;
+  path: string;
+};
+
+export type AgentSkillReviewDecisionRequest = {
+  digest: string;
+};
+
+export type AgentSkillReviewPayload = {
+  agent: string;
+  created_at: string;
+  decided_at?: string | null;
+  decided_by?: string;
+  digest: string;
+  files?: Array<AgentSkillDraftFile>;
+  id: string;
+  instance_id: string;
+  name: string;
+  profile_id: string;
+  runs_automatically: AgentSkillAutomaticContents;
+  state: string;
+  workspace_id: string;
+};
+
+export type AgentSkillReviewResponse = {
+  review: AgentSkillReviewPayload;
+};
+
+export type AgentSkillReviewsResponse = {
+  next_cursor?: string;
+  reviews: Array<AgentSkillReviewPayload>;
 };
 
 export type AgentSoulConfigProvenancePayload = {
@@ -1571,13 +1657,15 @@ export type CreateAgentPayload = {
   label?: string;
   model?: string;
   name: string;
-  permissions?: "deny-all" | "approve-reads" | "approve-all";
+  permission_rules?: Array<AgentPermissionRulePayload>;
+  permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
   prompt: string;
   provider?: string;
   reasoning_effort?: string;
   resolved_appearance?: {
     [key: string]: unknown;
   };
+  session_approval?: string;
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
   };
@@ -1709,6 +1797,7 @@ export type CreateTriggerRequest = {
   prompt: string;
   retry?: RetryConfig | null;
   scope: "global" | "workspace" | "user" | "@user";
+  target_instance_scope?: string;
   target_kind?: string;
   webhook_id?: string;
   webhook_secret_value?: string;
@@ -1888,10 +1977,12 @@ export type DuplicateAgentOverrides = {
   display_name?: string | null;
   kind?: string;
   model?: string;
-  permissions?: "deny-all" | "approve-reads" | "approve-all";
+  permission_rules?: Array<AgentPermissionRulePayload>;
+  permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
   prompt?: string;
   provider?: string;
   reasoning_effort?: string;
+  session_approval?: string;
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
   };
@@ -2629,6 +2720,7 @@ export type GoalCommandResult = {
     | "continuous_binding_mismatch"
     | "goal_runtime_invalid"
     | "goal_caller_unauthorized"
+    | "goal_on_instance_main"
     | "goal_wait_deferred"
     | "goal_wait_timeout"
     | "goal_wait_unavailable";
@@ -2722,6 +2814,7 @@ export type GoalSnapshot = {
     | "continuous_binding_mismatch"
     | "goal_runtime_invalid"
     | "goal_caller_unauthorized"
+    | "goal_on_instance_main"
     | "goal_wait_deferred"
     | "goal_wait_timeout"
     | "goal_wait_unavailable";
@@ -2809,6 +2902,7 @@ export type GoalTurn = {
     | "continuous_binding_mismatch"
     | "goal_runtime_invalid"
     | "goal_caller_unauthorized"
+    | "goal_on_instance_main"
     | "goal_wait_deferred"
     | "goal_wait_timeout"
     | "goal_wait_unavailable";
@@ -5483,6 +5577,7 @@ export type ProviderSummaryPayload = {
   default: boolean;
   display_name?: string;
   name: string;
+  reviewer_mode?: string;
   runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
   session_env_status?: Array<SettingsProviderCredentialStatusPayload>;
 };
@@ -6478,6 +6573,7 @@ export type SendPromptResultPayload = {
   reply_watch?: ReplyWatchRefPayload | null;
   status: string;
   steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+  target_session_id?: string;
   target_workspace_id?: string;
   turn_id?: string;
 };
@@ -7011,6 +7107,7 @@ export type SessionInputPayload = {
   coalesced_wakes?: number;
   delivery: string;
   enqueued_at: string;
+  held: boolean;
   id: string;
   idempotency_key?: string;
   mentions?: Array<SessionInputMentionPayload>;
@@ -7172,6 +7269,7 @@ export type SessionPayload = {
   created_at: string;
   derivation?: SessionDerivationPayload | null;
   diagnostics?: Array<DiagnosticItem>;
+  effective_permissions: string;
   effective_workspace_access: string;
   escalated?: boolean | null;
   failure?: SessionFailurePayload | null;
@@ -7186,6 +7284,7 @@ export type SessionPayload = {
   name?: string;
   parent_title?: string;
   pending_interactions: Array<PendingInteractionPayload>;
+  permission_mode_degraded: boolean;
   process_summary?: SessionProcessSummaryPayload | null;
   profile_archived?: boolean;
   profile_color?: string;
@@ -8368,7 +8467,7 @@ export type SettingsOperationalLinkPayload = {
 };
 
 export type SettingsPermissionsPayload = {
-  mode: "deny-all" | "approve-reads" | "approve-all";
+  mode: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
 };
 
 export type SettingsPersonaResponse = {
@@ -11856,6 +11955,7 @@ export type TriggerPayload = {
   retry: RetryConfig;
   scope: "global" | "workspace";
   source: "config" | "package" | "dynamic";
+  target_instance_scope?: string;
   target_kind: string;
   updated_at: string;
   webhook_id?: string;
@@ -12076,6 +12176,7 @@ export type UpdateTriggerRequest = {
   name?: string | null;
   prompt?: string | null;
   retry?: RetryConfig | null;
+  target_instance_scope?: string | null;
   webhook_id?: string | null;
   webhook_secret_value?: string | null;
 };
@@ -12736,6 +12837,10 @@ export type ListAgentInstancesData = {
      * Include all workspaces
      */
     all_workspaces?: string;
+    /**
+     * Read reachable peers without private instance details
+     */
+    peers?: string;
     /**
      * Agent name
      */
@@ -13682,6 +13787,270 @@ export type ResumeAgentInstanceResponses = {
 
 export type ResumeAgentInstanceResponse =
   ResumeAgentInstanceResponses[keyof ResumeAgentInstanceResponses];
+
+export type ListAgentSkillReviewsData = {
+  body?: never;
+  path?: never;
+  query?: {
+    /**
+     * Instance ID
+     */
+    instance_id?: string;
+    /**
+     * Workspace reference
+     */
+    workspace?: string;
+    /**
+     * pending, approved or rejected
+     */
+    state?: string;
+    /**
+     * Page cursor
+     */
+    cursor?: string;
+    /**
+     * Page size, 1-100; default 50
+     */
+    limit?: number;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-skill-reviews";
+};
+
+export type ListAgentSkillReviewsErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ListAgentSkillReviewsError =
+  ListAgentSkillReviewsErrors[keyof ListAgentSkillReviewsErrors];
+
+export type ListAgentSkillReviewsResponses = {
+  /**
+   * Skill reviews
+   */
+  200: AgentSkillReviewsResponse;
+};
+
+export type ListAgentSkillReviewsResponse =
+  ListAgentSkillReviewsResponses[keyof ListAgentSkillReviewsResponses];
+
+export type GetAgentSkillReviewData = {
+  body?: never;
+  path: {
+    /**
+     * Review ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-skill-reviews/{id}";
+};
+
+export type GetAgentSkillReviewErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type GetAgentSkillReviewError = GetAgentSkillReviewErrors[keyof GetAgentSkillReviewErrors];
+
+export type GetAgentSkillReviewResponses = {
+  /**
+   * Skill review
+   */
+  200: AgentSkillReviewResponse;
+};
+
+export type GetAgentSkillReviewResponse =
+  GetAgentSkillReviewResponses[keyof GetAgentSkillReviewResponses];
+
+export type ApproveAgentSkillReviewData = {
+  /**
+   * JSON request body
+   */
+  body: AgentSkillReviewDecisionRequest;
+  path: {
+    /**
+     * Review ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-skill-reviews/{id}/approve";
+};
+
+export type ApproveAgentSkillReviewErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type ApproveAgentSkillReviewError =
+  ApproveAgentSkillReviewErrors[keyof ApproveAgentSkillReviewErrors];
+
+export type ApproveAgentSkillReviewResponses = {
+  /**
+   * Decided review
+   */
+  200: AgentSkillReviewResponse;
+};
+
+export type ApproveAgentSkillReviewResponse =
+  ApproveAgentSkillReviewResponses[keyof ApproveAgentSkillReviewResponses];
+
+export type RejectAgentSkillReviewData = {
+  /**
+   * JSON request body
+   */
+  body: AgentSkillReviewDecisionRequest;
+  path: {
+    /**
+     * Review ID
+     */
+    id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agent-skill-reviews/{id}/reject";
+};
+
+export type RejectAgentSkillReviewErrors = {
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type RejectAgentSkillReviewError =
+  RejectAgentSkillReviewErrors[keyof RejectAgentSkillReviewErrors];
+
+export type RejectAgentSkillReviewResponses = {
+  /**
+   * Decided review
+   */
+  200: AgentSkillReviewResponse;
+};
+
+export type RejectAgentSkillReviewResponse =
+  RejectAgentSkillReviewResponses[keyof RejectAgentSkillReviewResponses];
 
 export type GetAgentContextData = {
   body?: never;
@@ -17301,7 +17670,7 @@ export type ListAutomationTriggersData = {
     /**
      * Filter by target kind; task matches no trigger
      */
-    target?: "agent" | "loop" | "task";
+    target?: "agent" | "loop" | "task" | "agent_instance";
     /**
      * Filter by enabled state
      */

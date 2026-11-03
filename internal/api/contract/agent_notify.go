@@ -13,6 +13,9 @@ type AgentNotifyResponse struct {
 }
 
 type OperatorNotificationEventPayload struct {
+	Kind           string    `json:"kind,omitempty"`
+	Action         string    `json:"action,omitempty"`
+	Resource       string    `json:"resource,omitempty"`
 	NotificationID string    `json:"notification_id"`
 	SessionID      string    `json:"session_id"`
 	ProfileID      string    `json:"profile_id"`

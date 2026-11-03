@@ -47,6 +47,9 @@ func (h *BaseHandlers) AnswerSessionClarification(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if !h.RequireSessionApprovalAuthority(c, sessionID) {
+		return
+	}
 	requestID := strings.TrimSpace(c.Param("request_id"))
 	if requestID == "" {
 		h.respondError(c, http.StatusBadRequest, errors.New("api: clarification request_id is required"))

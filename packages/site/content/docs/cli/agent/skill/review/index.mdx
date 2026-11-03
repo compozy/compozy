@@ -1,0 +1,42 @@
+---
+title: "compozy agent skill review"
+description: "Review proposed skill contents before activation"
+---
+
+## compozy agent skill review
+
+Review proposed skill contents before activation
+
+### Options
+
+```
+  -h, --help   help for review
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+This command displays human-readable help and its subcommand list. The inherited `-o, --output` and `--json` flags do not serialize help output.
+
+| Format  | Output                   |
+| ------- | ------------------------ |
+| `human` | Help and subcommand list |
+| `json`  | Not emitted for help     |
+| `jsonl` | Not emitted for help     |
+| `toon`  | Not emitted for help     |
+
+## Subcommands
+
+| Command                                                                    | Description                   |
+| -------------------------------------------------------------------------- | ----------------------------- |
+| [compozy agent skill review approve](/docs/cli/agent/skill/review/approve) | Manage skill reviews: approve |
+| [compozy agent skill review list](/docs/cli/agent/skill/review/list)       | Manage skill reviews: list    |
+| [compozy agent skill review reject](/docs/cli/agent/skill/review/reject)   | Manage skill reviews: reject  |
+| [compozy agent skill review show](/docs/cli/agent/skill/review/show)       | Manage skill reviews: show    |

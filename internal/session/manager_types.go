@@ -141,6 +141,7 @@ type sessionResumeRun struct {
 // Manager owns active session lifecycle and runtime orchestration.
 type Manager struct {
 	instanceCeiling            InstanceCeilingReader
+	instancePaused             func(context.Context, store.InstancePauseTrip) error
 	metadataCacheMu            sync.Mutex
 	metadataCache              map[string]cachedSessionMetadata
 	restartInputsHeld          sync.Map

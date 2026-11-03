@@ -112,7 +112,7 @@ func startHelperProcess(
 	opts.ActivateMCPServers = overrides.ActivateMCPServers
 	opts.FinalizeStartup = overrides.FinalizeStartup
 	opts.InputOnly = overrides.InputOnly
-	opts.ExecutionPolicy = overrides.ExecutionPolicy
+	opts.SetExecutionPolicy(overrides.ExecutionPolicyValue())
 
 	proc, err := driver.Start(testutil.Context(t), opts)
 	if err != nil {

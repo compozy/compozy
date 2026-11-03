@@ -403,3 +403,26 @@ declarations stay blocked.
 - [Bundled Skill](/docs/skills/bundled) documents the `compozy` skill shipped in the CompozyOS binary.
 - [Agent Definitions](/docs/agents/definitions) explains how agents and skill-aware MCP servers meet at session start.
 - [Spawning](/docs/agents/spawning) follows the ACP startup path that receives skill MCP servers.
+
+## Review a proposed skill
+
+A stays-on agent can propose a reusable procedure with `compozy__agent_skill_propose`
+(experimental). The proposal stays inactive until you approve its exact contents. It appears as a
+proposal report, and each instance may have at most five pending reviews.
+
+Use the operator CLI to inspect and decide:
+
+```bash
+compozy agent skill review list --workspace my-project
+compozy agent skill review show <review-id>
+compozy agent skill review approve <review-id> --expected-digest <reviewed-digest>
+```
+
+Inspect **Runs automatically**, then the proposed files. Use `reject` instead of `approve` to decline
+those contents. Changed contents require a new decision; an agent cannot approve its own proposal,
+even with Approve all permissions. Repeating a rejected proposal keeps it rejected until its
+contents change.
+
+Approval installs workspace skills in `.compozy/skills/` and User-scope skills beside the owning
+agent definition, in its `skills/` directory. The installed skill then follows normal discovery and
+activation. Direct file authoring and marketplace installation keep their existing behavior.

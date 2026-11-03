@@ -3,22 +3,27 @@ package config
 import "time"
 
 type StaysOnConfig struct {
-	RotationThreshold  float64       `toml:"rotation_threshold"`
-	ApprovalTimeout    time.Duration `toml:"approval_timeout"`
-	MaxProposals       int           `toml:"max_proposals"`
-	TriageTimeout      time.Duration `toml:"triage_timeout"`
-	MaxActiveInstances int           `toml:"max_active_instances"`
+	UnattendedTurnLimit int64         `toml:"unattended_turn_limit"`
+	RotationThreshold   float64       `toml:"rotation_threshold"`
+	ApprovalTimeout     time.Duration `toml:"approval_timeout"`
+	MaxProposals        int           `toml:"max_proposals"`
+	TriageTimeout       time.Duration `toml:"triage_timeout"`
+	MaxActiveInstances  int           `toml:"max_active_instances"`
 }
 
 type staysOnOverlay struct {
-	RotationThreshold  *float64       `toml:"rotation_threshold"`
-	ApprovalTimeout    *time.Duration `toml:"approval_timeout"`
-	MaxProposals       *int           `toml:"max_proposals"`
-	TriageTimeout      *time.Duration `toml:"triage_timeout"`
-	MaxActiveInstances *int           `toml:"max_active_instances"`
+	UnattendedTurnLimit *int64         `toml:"unattended_turn_limit"`
+	RotationThreshold   *float64       `toml:"rotation_threshold"`
+	ApprovalTimeout     *time.Duration `toml:"approval_timeout"`
+	MaxProposals        *int           `toml:"max_proposals"`
+	TriageTimeout       *time.Duration `toml:"triage_timeout"`
+	MaxActiveInstances  *int           `toml:"max_active_instances"`
 }
 
 func (o staysOnOverlay) Apply(dst *StaysOnConfig) {
+	if o.UnattendedTurnLimit != nil {
+		dst.UnattendedTurnLimit = *o.UnattendedTurnLimit
+	}
 	if o.RotationThreshold != nil {
 		dst.RotationThreshold = *o.RotationThreshold
 	}

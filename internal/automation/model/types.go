@@ -53,7 +53,8 @@ const (
 	// TargetKindAgent starts the existing agent-session automation path.
 	TargetKindAgent TargetKind = "agent"
 	// TargetKindLoop starts a declared Loop through loop.Service.Start.
-	TargetKindLoop TargetKind = "loop"
+	TargetKindLoop          TargetKind = "loop"
+	TargetKindAgentInstance TargetKind = "agent_instance"
 )
 
 // ScheduleMode identifies how a scheduled job determines its next fire time.
@@ -190,27 +191,28 @@ type ScheduleSpec struct {
 
 // Trigger is the canonical event-driven automation definition used by runtime and storage layers.
 type Trigger struct {
-	GrantCeiling     string            `json:"grant_ceiling"`
-	ID               string            `json:"id"`
-	ProfileID        string            `json:"profile_id"`
-	Scope            Scope             `json:"scope"`
-	Name             string            `json:"name"`
-	TargetKind       TargetKind        `json:"target_kind"`
-	AgentName        string            `json:"agent_name"`
-	WorkspaceID      string            `json:"workspace_id,omitempty"`
-	Prompt           string            `json:"prompt"`
-	Event            string            `json:"event"`
-	Filter           map[string]string `json:"filter,omitempty"`
-	LoopTarget       *LoopTarget       `json:"loop_target,omitzero"`
-	Enabled          bool              `json:"enabled"`
-	Retry            RetryConfig       `json:"retry"`
-	FireLimit        FireLimitConfig   `json:"fire_limit"`
-	Source           JobSource         `json:"source"`
-	WebhookID        string            `json:"webhook_id,omitempty"`
-	EndpointSlug     string            `json:"endpoint_slug,omitempty"`
-	WebhookSecretRef string            `json:"webhook_secret_ref,omitempty"`
-	CreatedAt        time.Time         `json:"created_at"`
-	UpdatedAt        time.Time         `json:"updated_at"`
+	TargetInstanceScope string            `json:"target_instance_scope,omitempty"`
+	GrantCeiling        string            `json:"grant_ceiling"`
+	ID                  string            `json:"id"`
+	ProfileID           string            `json:"profile_id"`
+	Scope               Scope             `json:"scope"`
+	Name                string            `json:"name"`
+	TargetKind          TargetKind        `json:"target_kind"`
+	AgentName           string            `json:"agent_name"`
+	WorkspaceID         string            `json:"workspace_id,omitempty"`
+	Prompt              string            `json:"prompt"`
+	Event               string            `json:"event"`
+	Filter              map[string]string `json:"filter,omitempty"`
+	LoopTarget          *LoopTarget       `json:"loop_target,omitzero"`
+	Enabled             bool              `json:"enabled"`
+	Retry               RetryConfig       `json:"retry"`
+	FireLimit           FireLimitConfig   `json:"fire_limit"`
+	Source              JobSource         `json:"source"`
+	WebhookID           string            `json:"webhook_id,omitempty"`
+	EndpointSlug        string            `json:"endpoint_slug,omitempty"`
+	WebhookSecretRef    string            `json:"webhook_secret_ref,omitempty"`
+	CreatedAt           time.Time         `json:"created_at"`
+	UpdatedAt           time.Time         `json:"updated_at"`
 }
 
 // RetryConfig defines retry behavior for a failed automation run.

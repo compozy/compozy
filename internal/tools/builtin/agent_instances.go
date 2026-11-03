@@ -83,6 +83,6 @@ func agentInstanceDescriptors() []toolspkg.Descriptor {
 const agentInstanceInputSchema = `{"type":"object","properties":{
 "enabled":{"type":"boolean"},"dry_run":{"type":"boolean"},"occurrence_id":{"type":"string"},
 "agent":{"type":"string"},"workspace":{"type":"string"},"id":{"type":"string"},
-"all_workspaces":{"type":"boolean"},"state":{"type":"string"},"cursor":{"type":"string"},
+"peers":{"type":"boolean"},"all_workspaces":{"type":"boolean"},"state":{"type":"string"},"cursor":{"type":"string"},
 "days":{"type":"integer","minimum":1,"maximum":365},
 "limit":{"type":"integer","minimum":1,"maximum":100}},"additionalProperties":false}`

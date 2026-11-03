@@ -70,9 +70,18 @@ type SoulSnapshotStore interface {
 // Deps wires situation context to daemon-owned services. Function fields are
 // evaluated at render time so daemon boot can install the provider before late
 // runtime services are available.
+type ContextObservation struct {
+	Known      bool
+	Used, Size int64
+	Main       bool
+	Threshold  float64
+}
+
 type Deps struct {
-	Subagents func() SubagentProvider
-	Now       func() time.Time
+	ContextUsage       func(context.Context, *session.Info) (ContextObservation, error)
+	CompactionBoundary func(context.Context, string) (*int64, error)
+	Subagents          func() SubagentProvider
+	Now                func() time.Time
 
 	SectionLimit int
 
@@ -94,9 +103,11 @@ type Deps struct {
 
 // Service assembles contract.AgentContextPayload and renders prompt sections.
 type Service struct {
-	subagents    func() SubagentProvider
-	now          func() time.Time
-	sectionLimit int
+	contextUsage       func(context.Context, *session.Info) (ContextObservation, error)
+	compactionBoundary func(context.Context, string) (*int64, error)
+	subagents          func() SubagentProvider
+	now                func() time.Time
+	sectionLimit       int
 
 	workspaceResolver     WorkspaceResolver
 	workspaceResolverFunc func() WorkspaceResolver
@@ -126,6 +137,8 @@ func NewService(deps Deps) *Service {
 	}
 
 	return &Service{
+		contextUsage:          deps.ContextUsage,
+		compactionBoundary:    deps.CompactionBoundary,
 		subagents:             deps.Subagents,
 		now:                   now,
 		sectionLimit:          limit,

@@ -25,6 +25,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
+	"github.com/compozy/compozy/internal/api/contract"
 	compozycontract "github.com/compozy/compozy/internal/api/contract"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -497,6 +498,19 @@ func newSubagentDaemonWithSetup(
 	}
 	fixture.Agents[0].Turns = append(
 		fixture.Agents[0].Turns,
+		acpmock.TurnFixture{
+			Name:  "exhausted-context",
+			Match: acpmock.TurnMatch{UserText: "exhaust context"},
+			Steps: []acpmock.Step{
+				{
+					Kind: acpmock.StepKindDriverControl,
+					DriverControl: &acpmock.DriverControlStep{
+						Action:       acpmock.DriverControlFailPrompt,
+						ErrorMessage: "context_length_exceeded",
+					},
+				},
+			},
+		},
 		acpmock.TurnFixture{
 			Name:  "reply-failure",
 			Match: acpmock.TurnMatch{UserText: "reply failure"},
@@ -4693,7 +4707,10 @@ func TestInstanceNativeCreateJourney(t *testing.T) {
 				workspace,
 				store.SessionPermissionPolicy{WorkspacePaths: []string{ws.RootDir}},
 			)
-			allowed := []string{toolspkg.ToolIDAgentInstanceCreate.String(), toolspkg.ToolIDSessionStatus.String()}
+			allowed := []string{
+				toolspkg.ToolIDAgentInstanceCreate.String(), toolspkg.ToolIDSessionStatus.String(),
+				toolspkg.ToolIDGoalControl.String(),
+			}
 			child, err := d.SubagentService().
 				Delegate(t.Context(), session.SubagentRequest{Caller: caller, Task: "hold parent", Title: "Instance creator", Mode: "async", Narrowing: &session.SubagentPermissionNarrowing{Tools: allowed}, PermissionMode: compozyconfig.PermissionModeApproveReads})
 			if err != nil || child.ChildSessionID == nil {
@@ -4775,6 +4792,22 @@ func TestInstanceNativeCreateJourney(t *testing.T) {
 					childInfo.Lineage.PermissionPolicy,
 				)
 			}
+
+			for _, command := range []string{"/goal set Work elsewhere", "/goal replace prior-run Work elsewhere"} {
+				result, err := manager.SendPrompt(t.Context(), id, session.SendPromptOpts{
+					Message:       command,
+					AllowCommands: true,
+					Caller:        session.PromptCaller{Kind: "human", ID: "operator", Source: "http"},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if result.Goal == nil || result.Goal.ReasonCode == nil ||
+					*result.Goal.ReasonCode != session.GoalReasonOnInstanceMain {
+					t.Fatalf("main Goal command = %+v", result)
+				}
+			}
+			assertInstanceMainGoalTransports(t, d, workspace, info)
 			initialEvents, err := manager.Prompt(t.Context(), id, "child work")
 			if err != nil {
 				t.Fatal(err)
@@ -5481,4 +5514,317 @@ func mustWorkLogCeiling(t *testing.T, path string) []byte {
 		t.Fatal(err)
 	}
 	return value
+}
+
+// Invariant: all public Goal inputs refuse the current main with the same reason.
+// Owner: daemon command composition; canonical instance native journey (B3 IT-022).
+func assertInstanceMainGoalTransports(t *testing.T, d *Daemon, workspace string, info *session.Info) {
+	t.Helper()
+	for _, operation := range []string{"set", "replace"} {
+		input := map[string]string{"operation": operation, "objective": "Use another session"}
+		if operation == "replace" {
+			input["expected_run_id"] = "prior-run"
+		}
+		body, err := json.Marshal(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		target := fmt.Sprintf("http://127.0.0.1:%d/api/workspaces/%s/sessions/%s/goal", d.info.Port, workspace, info.ID)
+		request, err := http.NewRequestWithContext(t.Context(), http.MethodPost, target, bytes.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		request.Header.Set("Content-Type", "application/json")
+		response, err := http.DefaultClient.Do(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, readErr := io.ReadAll(response.Body)
+		closeErr := response.Body.Close()
+		var outcome compozycontract.GoalCommandResult
+		if readErr != nil || closeErr != nil || response.StatusCode != http.StatusUnprocessableEntity {
+			t.Fatal(response.StatusCode, string(body), readErr, closeErr)
+		}
+		if err := json.Unmarshal(body, &outcome); err != nil {
+			t.Fatal(err)
+		}
+		if outcome.ReasonCode == nil || *outcome.ReasonCode != compozycontract.GoalReasonOnInstanceMain {
+			t.Fatalf("HTTP %s = %+v", operation, outcome)
+		}
+		input["session_id"] = info.ID
+		body, err = json.Marshal(input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := d.toolRegistry.Call(t.Context(), toolspkg.Scope{
+			WorkspaceID: workspace, SessionID: info.ID, ProfileID: info.ProfileID, AgentName: info.AgentName,
+		}, toolspkg.CallRequest{
+			ToolID:          toolspkg.ToolIDGoalControl,
+			Input:           body,
+			ApprovalGranted: true,
+			ToolCallID:      "main-goal-" + operation,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(result.Structured, &outcome); err != nil {
+			t.Fatal(err)
+		}
+		if outcome.ReasonCode == nil || *outcome.ReasonCode != compozycontract.GoalReasonOnInstanceMain {
+			t.Fatalf("native %s = %+v", operation, outcome)
+		}
+	}
+}
+
+// Invariant: daemon monitors survive process release and their wake reloads the same ACP session.
+// Owner: session lifecycle through real daemon wiring (B3 IT-014).
+func TestMonitorIdleReleaseIntegration(t *testing.T) {
+	t.Run("Should release a monitor-only runtime and reload its ACP session", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
+			cfg.Session.Supervision.IdleReleaseAfter = time.Second
+		})
+		target, err := manager.Create(
+			t.Context(),
+			new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		events, err := manager.Prompt(t.Context(), target.ID, "child work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for event := range events {
+			if event.Type == acp.EventTypeError {
+				t.Fatalf("initial turn: %+v", event)
+			}
+		}
+		before, err := manager.Status(t.Context(), target.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !before.ACPCaps.SupportsLoadSession {
+			t.Fatal("fixture must advertise session/load")
+		}
+		created, err := d.sessionMonitors.Create(t.Context(), monitorpkg.Spec{
+			SessionID: target.ID, WorkspaceID: workspace, ProfileID: before.ProfileID,
+			Kind: monitorpkg.KindTimer, Delay: 5 * time.Second, Description: "inspect result on wake",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := d.now().Add(2*d.config.Session.Supervision.ActivityHeartbeatInterval + time.Second)
+		if err := manager.Supervise(t.Context(), now); err != nil {
+			t.Fatal(err)
+		}
+		idle, err := manager.Status(t.Context(), target.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, signal := range idle.Supervision.WorkSignals {
+			if signal.Kind != session.WorkSignalActiveMonitor {
+				t.Fatalf("not monitor-only yet: %+v", idle.Supervision)
+			}
+		}
+		if err := manager.Supervise(t.Context(), now.Add(2*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		released, err := manager.Status(t.Context(), target.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if released.State != session.StateActive || released.RuntimeStatus != session.RuntimeStatusUnbound {
+			t.Fatalf(
+				"release state=%s runtime=%s supervision=%+v",
+				released.State,
+				released.RuntimeStatus,
+				released.Supervision,
+			)
+		}
+		listed := d.sessionMonitors.List(target.ID)
+		if len(listed) != 1 || listed[0].ID != created.ID || listed[0].Status != monitorpkg.StatusActive {
+			t.Fatalf("monitor lost: %+v", listed)
+		}
+		waitForRuntimeCondition(t, "timer wakes and reloads the released ACP session", 20*time.Second, func() bool {
+			info, err := manager.Status(t.Context(), target.ID)
+			if err != nil || info.RuntimeStatus == session.RuntimeStatusUnbound {
+				return false
+			}
+			rows, err := manager.Events(
+				t.Context(),
+				target.ID,
+				store.EventQuery{Type: acp.EventTypeAgentMessage, Limit: 100},
+			)
+			if err != nil {
+				return false
+			}
+			for _, row := range rows {
+				if strings.Contains(row.Content, "wake received") {
+					return true
+				}
+			}
+			return false
+		})
+		resumed, err := manager.Status(t.Context(), target.ID)
+		if err != nil || resumed.ACPSessionID != before.ACPSessionID {
+			t.Fatalf("ACP reload = %+v, %v", resumed, err)
+		}
+	})
+}
+
+func TestInstanceContextExhaustionIntegration(t *testing.T) {
+	t.Run("Should report exhaustion block on queued input and rotate after it clears", func(t *testing.T) {
+		d, manager, workspace := newSubagentDaemonConfigured(t, nil)
+		target, err := manager.Create(
+			t.Context(),
+			new(session.CreateOpts{AgentName: "subagent-test", Workspace: workspace}),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		db := d.registry.(*globaldb.GlobalDB)
+		repo := db.Instances()
+		ceiling, err := json.Marshal(store.SessionPermissionPolicy{WorkspacePaths: []string{target.Workspace}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		instance, err := repo.Adopt(t.Context(), agentinstance.Instance{
+			ProfileID:         target.ProfileID,
+			WorkspaceID:       workspace,
+			AgentName:         "subagent-test",
+			PermissionCeiling: string(ceiling),
+			CreatedByKind:     "human",
+		}, target.ID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rotator := instanceMainRotator{
+			sessions:   manager,
+			store:      repo,
+			monitors:   d.sessionMonitors,
+			reports:    db.InstanceReports(),
+			now:        d.now,
+			starter:    instanceMainSessions{sessions: manager, attempts: repo},
+			retryDelay: time.Minute,
+		}
+		before, err := rotator.Eligible(t.Context(), instance)
+		if err != nil || before.Eligible {
+			t.Fatalf("pre-exhaustion eligibility = %+v, %v", before, err)
+		}
+		events, err := manager.Prompt(t.Context(), target.ID, "exhaust context")
+		if err != nil {
+			t.Fatal(err)
+		}
+		refused := false
+		for event := range events {
+			refused = refused || event.Type == acp.EventTypeError
+		}
+		if !refused {
+			t.Fatal("provider did not refuse exhausted context")
+		}
+		state, err := repo.WakeState(t.Context(), instance.ID)
+		if err != nil || state.RotationDueSession != target.ID {
+			t.Fatalf("exhaustion state = %+v, %v", state, err)
+		}
+		queue := d.registry.(store.SessionInputQueueStore)
+		entry, _, err := queue.EnqueueSessionInput(t.Context(), store.SessionInputQueueInsert{
+			ID: "inq-rotation-gate", SessionID: target.ID, Text: "child work", QueueCap: 10, Now: d.now(),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		blocked, err := rotator.Eligible(t.Context(), instance)
+		if err != nil || blocked.Eligible {
+			t.Fatalf("queued input gate = %+v, %v", blocked, err)
+		}
+		reports, err := db.InstanceReports().
+			ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 100})
+		if err != nil {
+			t.Fatal(err)
+		}
+		named := false
+		for _, report := range reports {
+			named = named ||
+				report.Kind == "rotation_deferred" && strings.Contains(string(report.Payload), "queued_input")
+		}
+		if !named {
+			t.Fatalf("queued input blocker missing: %+v", reports)
+		}
+		if _, err := queue.CancelSessionInput(t.Context(), target.ID, entry.ID, d.now()); err != nil {
+			t.Fatal(err)
+		}
+		decision, err := rotator.Eligible(t.Context(), instance)
+		if err != nil || !decision.Eligible {
+			t.Fatalf("released gate = %+v, %v", decision, err)
+		}
+		if err := rotator.Rotate(t.Context(), instance, decision); err != nil {
+			t.Fatal(err)
+		}
+		rotated, err := repo.Get(t.Context(), instance.ID)
+		if err != nil || rotated.MainSessionID == target.ID {
+			t.Fatalf("rotation = %+v, %v", rotated, err)
+		}
+		// IT-026: address the instance after a real exhaustion rotation.
+		sender, err := manager.Create(
+			t.Context(),
+			&session.CreateOpts{AgentName: "subagent-test", Workspace: workspace},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sending, err := manager.SendPrompt(t.Context(), sender.ID, session.SendPromptOpts{Message: "hold parent"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		go func() {
+			for range sending.Events {
+			}
+		}()
+		waitForRuntimeCondition(t, "sender work turn", 10*time.Second, func() bool { return sender.IsPrompting() })
+		messageID := "message-after-rotation"
+		input, err := json.Marshal(
+			map[string]any{
+				"agent":           "subagent-test",
+				"workspace":       workspace,
+				"message":         "child work",
+				"message_id":      messageID,
+				"idempotency_key": messageID,
+				"wait":            true,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		message, err := d.toolRegistry.Call(
+			t.Context(),
+			toolspkg.Scope{
+				ProfileID:   target.ProfileID,
+				WorkspaceID: workspace,
+				SessionID:   sender.ID,
+				AgentName:   sender.AgentName,
+			},
+			toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPrompt, Input: input, ToolCallID: messageID},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var sent struct {
+			Prompt contract.SendPromptResultPayload `json:"prompt"`
+		}
+		if err := json.Unmarshal(message.Structured, &sent); err != nil {
+			t.Fatal(err)
+		}
+		if sent.Prompt.Delivery != "queued" || sent.Prompt.TargetSessionID != rotated.MainSessionID {
+			t.Fatalf("named delivery: %s", message.Structured)
+		}
+		waitForRuntimeCondition(t, "named message delivered to successor", 10*time.Second, func() bool {
+			row, err := db.GetSessionInputQueueEntry(t.Context(), rotated.MainSessionID, sent.Prompt.QueueEntryID)
+			return err == nil && row.Status == store.SessionInputQueueStatusSent
+		})
+
+		state, err = repo.WakeState(t.Context(), instance.ID)
+		if err != nil || state.RotationDueSession != "" {
+			t.Fatalf("published state = %+v, %v", state, err)
+		}
+	})
 }

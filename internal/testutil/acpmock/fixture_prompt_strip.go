@@ -62,6 +62,8 @@ func lastLineMarkerIndex(text string, marker string) int {
 
 func stripKnownPromptAugmentation(prompt string) string {
 	next := stripTrailingRunAgentPromptContract(prompt)
+	next = stripLeadingPromptBlock(next, "<compozy-context-notice>", "</compozy-context-notice>")
+	next = stripLeadingPromptBlock(next, "<compozy-context-reminder>", "</compozy-context-reminder>")
 	next = stripLeadingPromptBlock(next, "<compozy-environment-change>", "</compozy-environment-change>")
 	next = stripLeadingPromptBlock(next, compozySituationContextOpen, compozySituationContextClose)
 	next = stripLeadingSkillsCatalogBlock(next, currentAvailableSkillsOpen, currentAvailableSkillsClose)

@@ -366,6 +366,16 @@ func (d *Daemon) bootHarnessPromptRuntime(
 
 func (d *Daemon) buildSituationContext(state *bootState) *situation.Service {
 	return situation.NewService(situation.Deps{
+		ContextUsage: instanceContextObservation(state),
+		CompactionBoundary: func(ctx context.Context, id string) (*int64, error) {
+			reader, ok := state.sessions.(interface {
+				CompletedCompactionBoundary(context.Context, string) (*int64, error)
+			})
+			if !ok {
+				return nil, nil
+			}
+			return reader.CompletedCompactionBoundary(ctx, id)
+		},
 		Subagents: func() situation.SubagentProvider {
 			provider, ok := state.registry.(situation.SubagentProvider)
 			if !ok {

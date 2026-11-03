@@ -33,10 +33,11 @@ func (s *sessionStartSpec) applyResolvedRuntimeDefaults(
 	s.speed = normalizedSpeed
 
 	agentOptions := ACPOptionSelectionsFromConfig(resolved.ACPOptionsValue())
-	authoredUnrestricted := hasUnrestrictedACPMode(authoredOptions)
+	authoredUnrestricted := hasUnrestrictedACPMode(resolved.Provider, authoredOptions)
 	if permissions != compozyconfig.PermissionModeApproveAll && (dropInheritedUnrestricted || authoredUnrestricted) {
 		agentOptions = slices.DeleteFunc(agentOptions, func(option acp.SessionConfigOptionSelection) bool {
-			return option.ID == acpModeOptionID && compozyconfig.IsUnrestrictedACPMode(option.ValueID)
+			return option.ID == acpModeOptionID &&
+				compozyconfig.IsUnrestrictedACPMode(resolved.Provider, option.ValueID)
 		})
 	}
 	merged, err := MergeRuntimeACPOptions(agentOptions, s.acpOptions)
@@ -47,9 +48,9 @@ func (s *sessionStartSpec) applyResolvedRuntimeDefaults(
 	return nil
 }
 
-func hasUnrestrictedACPMode(options []compozyconfig.ACPOptionSelection) bool {
+func hasUnrestrictedACPMode(provider string, options []compozyconfig.ACPOptionSelection) bool {
 	return slices.ContainsFunc(options, func(option compozyconfig.ACPOptionSelection) bool {
-		return option.ID == acpModeOptionID && compozyconfig.IsUnrestrictedACPMode(option.ValueID)
+		return option.ID == acpModeOptionID && compozyconfig.IsUnrestrictedACPMode(provider, option.ValueID)
 	})
 }
 

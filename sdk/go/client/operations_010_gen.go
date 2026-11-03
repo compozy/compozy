@@ -9,6 +9,91 @@ import (
 	"strings"
 )
 
+// GetGlobalSessionTranscriptOutline Get the full retained operator-message trail with reply previews for a Global session
+func (c *Client) GetGlobalSessionTranscriptOutline(ctx context.Context, params GetGlobalSessionTranscriptOutlineParams) (*OutlineResult, error) {
+	path := "/api/sessions/{session_id}/transcript/outline"
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out OutlineResult
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetHookCatalogParams carries the path, query, and header parameters.
+type GetHookCatalogParams struct {
+	Workspace *string `url:"workspace"`
+	Agent     *string `url:"agent"`
+	Event     *string `url:"event"`
+	Source    *string `url:"source"`
+	Mode      *string `url:"mode"`
+}
+
+// GetHookCatalog List the resolved hook catalog
+func (c *Client) GetHookCatalog(ctx context.Context, params GetHookCatalogParams) (*HookCatalogResponse, error) {
+	path := "/api/hooks/catalog"
+	query := url.Values{}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.Agent != nil {
+		query.Set("agent", *params.Agent)
+	}
+	if params.Event != nil {
+		query.Set("event", *params.Event)
+	}
+	if params.Source != nil {
+		query.Set("source", *params.Source)
+	}
+	if params.Mode != nil {
+		query.Set("mode", *params.Mode)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HookCatalogResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetHookEventsParams carries the path, query, and header parameters.
+type GetHookEventsParams struct {
+	Family   *string `url:"family"`
+	SyncOnly *bool   `url:"sync_only"`
+}
+
+// GetHookEvents List supported hook taxonomy metadata
+func (c *Client) GetHookEvents(ctx context.Context, params GetHookEventsParams) (*HookEventsResponse, error) {
+	path := "/api/hooks/events"
+	query := url.Values{}
+	if params.Family != nil {
+		query.Set("family", *params.Family)
+	}
+	if params.SyncOnly != nil {
+		query.Set("sync_only", strconv.FormatBool(*params.SyncOnly))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HookEventsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetHookRunsParams carries the path, query, and header parameters.
 type GetHookRunsParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -341,88 +426,4 @@ type GetLoopRunTimelineParams struct {
 	AfterSequence *int64  `url:"after_sequence"`
 	Profile       *string `url:"profile"`
 	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// GetLoopRunTimeline Read the durable Loop run timeline
-func (c *Client) GetLoopRunTimeline(ctx context.Context, params GetLoopRunTimelineParams) (*TimelinePage, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/timeline"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.View != nil {
-		query.Set("view", *params.View)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TimelinePage
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetMarketplaceCatalogEntryParams carries the path, query, and header parameters.
-type GetMarketplaceCatalogEntryParams struct {
-	Source        *string `url:"source"`
-	EntryID       string  `url:"entry_id"`
-	InstalledName *string `url:"installed_name"`
-	Scope         *string `url:"scope"`
-	Profile       *string `url:"profile"`
-	WorkspaceID   *string `url:"workspace_id"`
-}
-
-// GetMarketplaceCatalogEntry Get a catalog entry or an explicitly selected installed extension
-func (c *Client) GetMarketplaceCatalogEntry(ctx context.Context, params GetMarketplaceCatalogEntryParams) (*MarketplaceEntryResponse, error) {
-	path := "/api/marketplace/entries/{entry_id}"
-	query := url.Values{}
-	if params.Source != nil {
-		query.Set("source", *params.Source)
-	}
-	path = strings.ReplaceAll(path, "{entry_id}", url.PathEscape(params.EntryID))
-	if params.InstalledName != nil {
-		query.Set("installed_name", *params.InstalledName)
-	}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out MarketplaceEntryResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetObserveOverviewParams carries the path, query, and header parameters.
-type GetObserveOverviewParams struct {
-	AllWorkspaces  *bool   `url:"all_workspaces"`
-	ReceiptProfile *string `url:"receipt_profile"`
-	Workspace      *string `url:"workspace"`
-	UsageWindow    *string `url:"usage_window"`
-	Profile        *string `url:"profile"`
-	AllProfiles    *bool   `url:"all_profiles"`
 }

@@ -15,6 +15,24 @@ import (
 
 func TestStartOptsUnrestrictedModesRequireApproveAll(t *testing.T) {
 	t.Parallel()
+	t.Run("Should allow only the verified Claude auto reviewer below approve-all", func(t *testing.T) {
+		t.Parallel()
+		for _, provider := range []string{"claude", "codex", "custom", ""} {
+			base := StartOpts{
+				AgentName: "reviewer", Command: "adapter", Cwd: t.TempDir(),
+				ProviderName: provider, Permissions: compozyconfig.PermissionModeAuto,
+				ACPOptions: []SessionConfigOptionSelection{{ID: "mode", ValueID: "auto"}},
+			}
+			wantAllowed := provider == "claude"
+			if err := base.Validate(); (err == nil) != wantAllowed {
+				t.Fatalf("Validate(provider=%q) = %v, want allowed=%v", provider, err, wantAllowed)
+			}
+			if _, err := normalizeStartOpts(base); (err == nil) != wantAllowed {
+				t.Fatalf("normalizeStartOpts(provider=%q) = %v, want allowed=%v", provider, err, wantAllowed)
+			}
+		}
+	})
+
 	for _, tc := range []struct {
 		name string
 		mode string
@@ -757,4 +775,34 @@ func TestPromptStopReasonShouldRequireExactWireValue(t *testing.T) {
 			t.Fatal("PromptStopReason(whitespace).Valid() = true, want false")
 		}
 	})
+}
+
+func TestAutoPermissionDegradation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		provider string
+		reviewer string
+		current  string
+		degraded bool
+	}{
+		{"Should preserve Claude reviewer after negotiation", "claude", "auto", "auto", false},
+		{"Should detect adapter fallback to edit mode", "claude", "auto", "acceptEdits", true},
+		{"Should preserve Codex reviewer after negotiation", "codex", "agent", "agent", false},
+		{"Should reject an undeclared reviewer", "custom", "", "auto", true},
+		{"Should reject unrestricted reviewer pairs", "custom", "auto", "auto", true},
+		{"Should degrade without current mode evidence", "custom", "smart", "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			proc := &AgentProcess{
+				providerName: tc.provider, reviewerMode: tc.reviewer,
+				permissions: permissionPolicy{mode: compozyconfig.PermissionModeAuto},
+				caps:        Caps{ConfigOptions: []SessionConfigOption{{ID: "mode", CurrentValueID: tc.current}}},
+			}
+			if got := proc.CapsSnapshot().PermissionModeDegraded; got != tc.degraded {
+				t.Fatalf("degraded=%v, want %v", got, tc.degraded)
+			}
+		})
+	}
 }

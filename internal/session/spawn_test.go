@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -257,6 +258,65 @@ func TestSpawnWorkspaceAccess(t *testing.T) {
 }
 
 func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testing.T) {
+	// Invariant (UT-083): a first child prompt inherits the active turn's dispatch origin,
+	// preserves agent attribution, and never inherits human permission authority.
+	// Owning layer/canonical suite: session spawn admission.
+	for _, human := range []bool{true, false} {
+		name := "Should hold a child spawned by an autonomous turn"
+		if human {
+			name = "Should run a child spawned by a human turn while paused"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			f := newSessionMessageFixture(t)
+			instance, err := f.db.Instances().Adopt(t.Context(), agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, WorkspaceID: f.h.workspaceID, AgentName: f.sender.AgentName,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, f.sender.ID, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.db.Instances().Pause(t.Context(), instance.ID, "manual"); err != nil {
+				t.Fatal(err)
+			}
+			meta := acp.PromptMeta{}
+			if !human {
+				meta.Origin = f.origin(f.peer, 1)
+			}
+			f.driveTurn(t, meta)
+			child, err := f.h.manager.Spawn(t.Context(), SpawnOpts{
+				ParentSessionID: f.sender.ID, AgentName: "coder", TTL: time.Minute,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			cleanupSessionStop(t, f.h, child.ID)
+			result, err := f.h.manager.SendSpawnPrompt(t.Context(), SpawnPromptRequest{
+				ParentSessionID: f.sender.ID,
+				ParentAgentName: f.sender.AgentName,
+				ChildSessionID:  child.ID,
+				Message:         "Work",
+				Source:          "compozy__session_spawn",
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			entry, err := f.db.GetSessionInputQueueEntry(t.Context(), child.ID, result.QueueEntryID)
+			if err != nil || store.IsHumanSessionInputOriginClass(entry.OriginClass) != human || entry.HumanIngress ||
+				len(entry.Origin) == 0 {
+				t.Fatalf("child origin=%+v %v", entry, err)
+			}
+			if human {
+				waitForCondition(t, "human child dispatch", func() bool {
+					f.h.driver.mu.Lock()
+					defer f.h.driver.mu.Unlock()
+					return len(f.h.driver.promptCalls) == 1
+				})
+			} else if _, found, err := f.db.ClaimNextSessionInput(t.Context(), child.ID, time.Now()); err != nil || found {
+				t.Fatalf("autonomous child escaped pause: %v %v", found, err)
+			}
+		})
+	}
 	t.Parallel()
 
 	t.Run("Should inherit the parent profile ownership", func(t *testing.T) {

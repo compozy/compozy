@@ -11,20 +11,22 @@ import (
 func (r *instanceMainRotator) recordRotationDeferral(
 	ctx context.Context,
 	instance agentinstance.Instance,
-	eligible bool,
+	eligible bool, blockers []string,
 ) error {
 	if eligible {
 		return r.store.ClearRotationWait(ctx, instance.ID, instance.MainSessionID)
 	}
 	now := r.now()
 	since, err := r.store.RotationWaitingSince(ctx, instance.ID, instance.MainSessionID, now)
-	if err != nil || now.Sub(since) < time.Hour {
+	if err != nil {
 		return err
 	}
 	payload, err := json.Marshal(
-		map[string]string{
+		map[string]any{
 			loopActionRuntimeReasonKey: "dependencies_pending",
 			"since":                    since.UTC().Format(time.RFC3339Nano),
+			"blockers":                 blockers,
+			"detail":                   "Context exhausted. Resolve the listed dependencies to allow rotation.",
 		},
 	)
 	if err != nil {

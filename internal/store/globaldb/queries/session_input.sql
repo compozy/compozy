@@ -18,13 +18,23 @@ WITH prepared_goal AS (
 )
 SELECT queued.* FROM session_input_queue AS queued
 WHERE queued.session_id = sqlc.arg(session_id)
+  AND (queued.origin_class = 'human' OR NOT EXISTS (
+    SELECT 1 FROM sessions AS target
+    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances AS instance ON instance.id = root.instance_id
+    WHERE target.id = queued.session_id AND instance.state = 'paused'
+  ))
   AND queued.status = sqlc.arg(queued_status)
   AND queued.dispatchable = 1
   AND (queued.owner_kind IS NULL OR queued.owner_kind = 'synthetic')
   AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
   AND ((SELECT cutoff FROM prepared_goal) IS NULL
        OR queued.rowid <= (SELECT cutoff FROM prepared_goal)
-       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human'))
+       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human')
+       OR (queued.origin_class = 'human' AND EXISTS (
+         SELECT 1 FROM sessions target JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+         JOIN agent_instances i ON i.id = root.instance_id WHERE target.id = queued.session_id AND i.state = 'paused'
+       )))
 ORDER BY CASE
            WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
            WHEN queued.owner_kind = 'goal' THEN 2
@@ -73,6 +83,12 @@ WITH prepared_goal AS (
 )
 SELECT queued.* FROM session_input_queue AS queued
 WHERE queued.session_id = sqlc.arg(session_id)
+  AND (queued.origin_class = 'human' OR NOT EXISTS (
+    SELECT 1 FROM sessions AS target
+    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances AS instance ON instance.id = root.instance_id
+    WHERE target.id = queued.session_id AND instance.state = 'paused'
+  ))
   AND queued.status = sqlc.arg(queued_status)
   AND queued.terminal_at IS NULL
   AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
@@ -125,6 +141,12 @@ UPDATE session_input_queue
 SET status = 'dispatching', dispatch_started_at = sqlc.arg(now),
     attempt_count = attempt_count + 1, updated_at = sqlc.arg(now)
 WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
+  AND (session_input_queue.origin_class = 'human' OR NOT EXISTS (
+    SELECT 1 FROM sessions AS target
+    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances AS instance ON instance.id = root.instance_id
+    WHERE target.id = session_input_queue.session_id AND instance.state = 'paused'
+  ))
   AND mode = 'steer' AND status = 'queued' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id));
 
@@ -327,13 +349,23 @@ WITH prepared_goal AS (
 )
 SELECT queued.* FROM session_input_queue AS queued
 WHERE queued.session_id = sqlc.arg(session_id)
+  AND (queued.origin_class = 'human' OR NOT EXISTS (
+    SELECT 1 FROM sessions AS target
+    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances AS instance ON instance.id = root.instance_id
+    WHERE target.id = queued.session_id AND instance.state = 'paused'
+  ))
   AND queued.status = 'queued'
   AND queued.dispatchable = 1
   AND (queued.owner_kind IS NULL OR queued.owner_kind = 'synthetic')
   AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
   AND ((SELECT cutoff FROM prepared_goal) IS NULL
        OR queued.rowid <= (SELECT cutoff FROM prepared_goal)
-       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human'))
+       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human')
+       OR (queued.origin_class = 'human' AND EXISTS (
+         SELECT 1 FROM sessions target JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+         JOIN agent_instances i ON i.id = root.instance_id WHERE target.id = queued.session_id AND i.state = 'paused'
+       )))
 ORDER BY CASE
            WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
            WHEN (SELECT cutoff FROM prepared_goal) IS NULL
@@ -358,6 +390,12 @@ UPDATE session_input_queue
 SET mode = 'steer', delivery = 'interrupt_then_prompt', steer_delivery = NULL, dispatchable = 0,
     target_turn_id = sqlc.arg(target_turn_id), updated_at = sqlc.arg(now)
 WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
+  AND (session_input_queue.origin_class = 'human' OR NOT EXISTS (
+    SELECT 1 FROM sessions AS target
+    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances AS instance ON instance.id = root.instance_id
+    WHERE target.id = session_input_queue.session_id AND instance.state = 'paused'
+  ))
   AND session_input_queue.status = 'queued' AND session_input_queue.mode = 'queue'
   AND ((session_input_queue.origin_class = 'agent' AND session_input_queue.owner_kind IS NULL)
     OR (session_input_queue.owner_kind = 'synthetic'
@@ -387,3 +425,9 @@ WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
     (status IN ('queued', 'dispatching') AND steer_delivery IS NULL)
     OR (status = 'queued' AND steer_delivery = 'interrupt_fallback')
   );
+
+-- name: HumanSessionTurn :one
+SELECT EXISTS (SELECT 1 FROM session_input_queue AS queued WHERE queued.session_id = sqlc.arg(session_id)
+ AND queued.turn_id = sqlc.arg(turn_id) AND queued.origin_class = 'human' AND queued.status IN ('dispatching','sent')
+ UNION ALL SELECT 1 FROM session_prompt_admissions AS admitted WHERE admitted.session_id = sqlc.arg(session_id)
+ AND admitted.turn_id = sqlc.arg(turn_id) AND admitted.human_ingress = 1 AND admitted.dispatch_committed_at IS NOT NULL);

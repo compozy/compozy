@@ -731,6 +731,14 @@ func TestCanonicalUserTextStripsPromptAugmentationLayers(t *testing.T) {
 		want   string
 	}{
 		{
+			name: "Should strip context notice and reminder before situation",
+			prompt: "<compozy-context-notice>Completed.</compozy-context-notice>\n" +
+				"<compozy-context-reminder>Preserve facts.</compozy-context-reminder>\n" +
+				"<compozy-situation-context>{}</compozy-situation-context>\nhello alpha",
+			want: "hello alpha",
+		},
+
+		{
 			name: "Should strip the environment change notice before situation context",
 			prompt: "<compozy-environment-change>Directory changed.</compozy-environment-change>\n" +
 				"<compozy-situation-context>{}</compozy-situation-context>\nhello alpha",

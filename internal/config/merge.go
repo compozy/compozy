@@ -122,6 +122,7 @@ type permissionsOverlay struct {
 }
 
 type providerOverlay struct {
+	ReviewerMode    *string                     `toml:"reviewer_mode"`
 	Command         *string                     `toml:"command"`
 	SessionEnv      SessionEnv                  `toml:"session_env"`
 	SteerCapability *SteerCapability            `toml:"steer_capability"`

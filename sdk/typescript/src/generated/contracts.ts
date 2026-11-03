@@ -959,6 +959,7 @@ export interface AutomationTargetParams {
 }
 
 export interface AutomationTriggerCreateParams {
+  target_instance_scope?: string;
   scope: Scope;
   name: string;
   target_kind?: TargetKind;
@@ -1014,6 +1015,7 @@ export interface AutomationTriggerRunsParams {
 
 export interface AutomationTriggerUpdateParams {
   id: string;
+  target_instance_scope?: string;
   name?: string;
   prompt?: string;
   event?: string;
@@ -1061,6 +1063,7 @@ export interface AutomationLastRunPayload {
 }
 
 export interface Trigger {
+  target_instance_scope?: string;
   id: string;
   profile_id: string;
   profile_name: string;

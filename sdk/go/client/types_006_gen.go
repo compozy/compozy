@@ -7,6 +7,117 @@ import (
 	"time"
 )
 
+// EffectSpec is a daemon API value.
+type EffectSpec struct {
+	Emit *EmitSpec      `json:"emit,omitzero"`
+	Tool string         `json:"tool,omitempty"`
+	With map[string]any `json:"with,omitempty"`
+}
+
+// Effort is a daemon API value.
+type Effort string
+
+// EmitSpec is a daemon API value.
+type EmitSpec struct {
+	Kind    string         `json:"kind"`
+	Payload map[string]any `json:"payload,omitempty"`
+}
+
+// EmptyState is a daemon API value.
+type EmptyState struct {
+	Title string `json:"title"`
+	Hint  string `json:"hint,omitempty"`
+	Icon  string `json:"icon,omitempty"`
+}
+
+// EnqueueTaskRunRequest is a daemon API value.
+type EnqueueTaskRunRequest struct {
+	IdempotencyKey string          `json:"idempotency_key,omitempty"`
+	Metadata       json.RawMessage `json:"metadata,omitempty"`
+}
+
+// Entry is a daemon API value.
+type Entry struct {
+	Message       UIMessage `json:"message"`
+	StartSequence int64     `json:"start_sequence"`
+	Sequence      int64     `json:"sequence"`
+}
+
+// ErrorCode is a daemon API value.
+type ErrorCode string
+
+// ErrorPayload is a daemon API value.
+type ErrorPayload struct {
+	Blockers      []WorkspaceArchiveBlocker `json:"blockers,omitempty"`
+	Error         string                    `json:"error"`
+	Code          string                    `json:"code,omitempty"`
+	CurrentTurnID string                    `json:"current_turn_id,omitempty"`
+	Details       map[string]string         `json:"details,omitempty"`
+	Diagnostic    *DiagnosticItem           `json:"diagnostic,omitzero"`
+	ConfigPath    string                    `json:"config_path,omitempty"`
+	UnknownKeys   []string                  `json:"unknown_keys,omitempty"`
+}
+
+// ErrorPolicy is a daemon API value.
+type ErrorPolicy struct {
+	Route     NodeID       `json:"route,omitempty"`
+	AllowFail bool         `json:"allow_fail,omitzero"`
+	Effects   []EffectSpec `json:"effects,omitempty"`
+}
+
+// EvalErrorPolicy is a daemon API value.
+type EvalErrorPolicy string
+
+// EventSubscription is a daemon API value.
+type EventSubscription struct {
+	Kind   string `json:"kind"`
+	Filter string `json:"filter,omitempty"`
+}
+
+// ExecutionPolicy is a daemon API value.
+type ExecutionPolicy struct {
+	SingleFlight bool `json:"single_flight"`
+	RetrySafe    bool `json:"retry_safe"`
+}
+
+// ExecutionProfile is a daemon API value.
+type ExecutionProfile struct {
+	TaskID       string             `json:"task_id"`
+	Coordinator  CoordinatorProfile `json:"coordinator"`
+	Worker       WorkerProfile      `json:"worker"`
+	Review       ReviewProfile      `json:"review"`
+	Participants ParticipantPolicy  `json:"participants"`
+	Worktree     WorktreePolicy     `json:"worktree"`
+	Runtime      RuntimePolicy      `json:"runtime"`
+	CreatedAt    time.Time          `json:"created_at"`
+	UpdatedAt    time.Time          `json:"updated_at"`
+}
+
+// ExtensionCommandGroupPayload is a daemon API value.
+type ExtensionCommandGroupPayload struct {
+	Extension string `json:"extension"`
+	Path      string `json:"path"`
+	Summary   string `json:"summary"`
+}
+
+// ExtensionCommandPayload is a daemon API value.
+type ExtensionCommandPayload struct {
+	Extension        string        `json:"extension"`
+	Verb             string        `json:"verb"`
+	ToolID           string        `json:"tool_id"`
+	Summary          string        `json:"summary"`
+	Example          string        `json:"example,omitempty"`
+	Flags            []CommandFlag `json:"flags"`
+	RiskClass        RiskClass     `json:"risk_class"`
+	ApprovalRequired bool          `json:"approval_required"`
+}
+
+// ExtensionCommandsResponse is a daemon API value.
+type ExtensionCommandsResponse struct {
+	Commands []ExtensionCommandPayload      `json:"commands"`
+	Groups   []ExtensionCommandGroupPayload `json:"groups"`
+}
+
 // ExtensionContentsPayload is a daemon API value.
 type ExtensionContentsPayload struct {
 	Skills     int `json:"skills"`
@@ -330,121 +441,4 @@ type ForceFailTaskRunRequest struct {
 type ForceReleaseTaskRunRequest struct {
 	Reason   string          `json:"reason,omitempty"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// ForkLoopRequest is a daemon API value.
-type ForkLoopRequest struct {
-	Generation int64          `json:"generation"`
-	Inputs     map[string]any `json:"inputs,omitempty"`
-	Reason     string         `json:"reason,omitempty"`
-	RequestID  string         `json:"request_id,omitempty"`
-}
-
-// ForkLoopResponse is a daemon API value.
-type ForkLoopResponse struct {
-	Run      LoopRunPayload `json:"run"`
-	Replayed bool           `json:"replayed,omitzero"`
-}
-
-// ForkSessionRequest is a daemon API value.
-type ForkSessionRequest struct {
-	MessageID           string `json:"message_id,omitempty"`
-	Name                string `json:"name,omitempty"`
-	IdempotencyKey      string `json:"idempotency_key"`
-	ExpectedEpoch       *int64 `json:"expected_epoch,omitzero"`
-	ExpectedGeneration  *int64 `json:"expected_generation,omitzero"`
-	ExpectedMaxSequence *int64 `json:"expected_max_sequence,omitzero"`
-}
-
-// ForkSessionWorktreeRequest is a daemon API value.
-type ForkSessionWorktreeRequest struct {
-	Worktree    string                     `json:"worktree,omitempty"`
-	NewWorktree *NewSessionWorktreeRequest `json:"new_worktree,omitzero"`
-	Confirmed   bool                       `json:"confirmed"`
-}
-
-// FormBody is a daemon API value.
-type FormBody struct {
-	Fields   []FormField `json:"fields"`
-	Submit   *RowAction  `json:"submit,omitempty"`
-	OnSubmit string      `json:"on_submit,omitempty"`
-}
-
-// FormField is a daemon API value.
-type FormField struct {
-	ID          string            `json:"id"`
-	Type        string            `json:"type"`
-	Label       string            `json:"label"`
-	Placeholder string            `json:"placeholder,omitempty"`
-	Required    bool              `json:"required,omitempty"`
-	Options     []string          `json:"options,omitempty"`
-	Directories bool              `json:"directories,omitempty"`
-	Default     any               `json:"default,omitempty"`
-	Error       string            `json:"error,omitempty"`
-	EmptyHint   string            `json:"empty_hint,omitempty"`
-	OnChange    string            `json:"on_change,omitempty"`
-	OnBlur      string            `json:"on_blur,omitempty"`
-	EventCount  int64             `json:"event_count,omitempty"`
-	Requires    map[string]string `json:"requires,omitempty"`
-	Fallback    string            `json:"fallback,omitempty"`
-}
-
-// GapsConfig is a daemon API value.
-type GapsConfig struct {
-	Inner  float64 `json:"inner"`
-	Top    float64 `json:"top"`
-	Right  float64 `json:"right"`
-	Bottom float64 `json:"bottom"`
-	Left   float64 `json:"left"`
-}
-
-// GateCriterion is a daemon API value.
-type GateCriterion struct {
-	ID       string         `json:"id"`
-	Type     CriterionType  `json:"type"`
-	Check    string         `json:"check,omitempty"`
-	Expect   string         `json:"expect,omitempty"`
-	Contains string         `json:"contains,omitempty"`
-	Agent    string         `json:"agent,omitempty"`
-	Runtime  RuntimeSpec    `json:"runtime,omitzero"`
-	Rubric   string         `json:"rubric,omitempty"`
-	Prompt   string         `json:"prompt,omitempty"`
-	Tool     string         `json:"tool,omitempty"`
-	Inputs   map[string]any `json:"inputs,omitempty"`
-	Metric   *MetricSpec    `json:"metric,omitzero"`
-}
-
-// GatewayAddressPayload is a daemon API value.
-type GatewayAddressPayload struct {
-	Tier    string `json:"tier"`
-	Address string `json:"address"`
-	Live    bool   `json:"live"`
-}
-
-// GatewayAuditAuthPayload is a daemon API value.
-type GatewayAuditAuthPayload struct {
-	Mode              string `json:"mode"`
-	RequiredRemotely  bool   `json:"required_remotely"`
-	ActiveDeviceCount int    `json:"active_device_count"`
-}
-
-// GatewayAuditFindingPayload is a daemon API value.
-type GatewayAuditFindingPayload struct {
-	ID          string `json:"id"`
-	Severity    string `json:"severity"`
-	Summary     string `json:"summary"`
-	Remediation string `json:"remediation"`
-	Tier        string `json:"tier,omitempty"`
-	Resource    string `json:"resource,omitempty"`
-}
-
-// GatewayAuditPayload is a daemon API value.
-type GatewayAuditPayload struct {
-	Ran              bool                         `json:"ran"`
-	NoFindings       bool                         `json:"no_findings"`
-	LocalOnly        bool                         `json:"local_only"`
-	Status           GatewayStatusPayload         `json:"status"`
-	Auth             GatewayAuditAuthPayload      `json:"auth"`
-	DeviceHighlights GatewayDeviceHighlights      `json:"device_highlights"`
-	Findings         []GatewayAuditFindingPayload `json:"findings"`
 }

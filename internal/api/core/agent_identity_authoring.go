@@ -48,6 +48,12 @@ func duplicateAgentDraft(
 		return draft, nil
 	}
 	overrides := req.Overrides
+	if overrides.SessionApproval != "" {
+		draft.SessionApproval = overrides.SessionApproval
+	}
+	if overrides.PermissionRules != nil {
+		draft.PermissionRules = permissionRulesFromPayload(overrides.PermissionRules)
+	}
 	if err := applyDuplicateAgentIdentity(&draft, overrides); err != nil {
 		return compozyconfig.AgentDefinitionDraft{}, err
 	}

@@ -33,6 +33,7 @@ var builtinProviders = map[string]ProviderConfig{
 		Models:        ProviderModelsConfig{Reasoning: ProviderReasoningConfig{Apply: ReasoningApplyACPOption}},
 	},
 	providerClaudeKey: {
+		ReviewerMode: acpModeAuto,
 		Command:      claudeProviderCommand,
 		DisplayName:  "Claude Code",
 		Harness:      ProviderHarnessACP,
@@ -40,6 +41,7 @@ var builtinProviders = map[string]ProviderConfig{
 		Models:       builtinClaudeModelsConfig(),
 	},
 	providerCodexKey: {
+		ReviewerMode: "agent",
 		Command:      "npx -y @agentclientprotocol/codex-acp@latest",
 		DisplayName:  "Codex",
 		Harness:      ProviderHarnessACP,

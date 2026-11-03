@@ -1338,6 +1338,71 @@ func TestAugmentPrefixesFreshSituationWithoutRewritingMessage(t *testing.T) {
 func TestAugmentCompactsRepeatedSituationSections(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should remind the main once at threshold and rearm after a usage drop", func(t *testing.T) {
+		t.Parallel()
+		observation := ContextObservation{Known: true, Main: true, Size: 100, Threshold: .8}
+		service := NewService(
+			Deps{
+				Now:          fixedNow,
+				ContextUsage: func(context.Context, *session.Info) (ContextObservation, error) { return observation, nil },
+			},
+		)
+		sess := newSituationCompactionSession()
+		for _, step := range []struct {
+			used                      int64
+			known, main, remind, full bool
+		}{
+			{79, true, true, false, true}, {80, true, true, true, false}, {90, true, true, false, false},
+			{20, true, true, false, true}, {80, true, true, true, false}, {99, false, true, false, false},
+			{99, true, false, false, false},
+		} {
+			observation.Used, observation.Known, observation.Main = step.used, step.known, step.main
+			got, err := service.Augment(t.Context(), sess, "continue")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(got, "<compozy-context-reminder>") != step.remind {
+				t.Fatalf("reminder mismatch at %+v: %s", step, got)
+			}
+			if strings.Contains(got, `"unchanged":true`) == step.full {
+				t.Fatalf("full sections mismatch at %+v: %s", step, got)
+			}
+		}
+	})
+
+	t.Run("Should restore full sections once after each completed compaction", func(t *testing.T) {
+		t.Parallel()
+		var boundary int64
+		service := NewService(
+			Deps{
+				Now:                fixedNow,
+				CompactionBoundary: func(context.Context, string) (*int64, error) { return new(boundary), nil },
+			},
+		)
+		sess := newSituationCompactionSession()
+		for _, step := range []struct {
+			boundary     int64
+			full, notice bool
+		}{
+			{0, true, false}, {0, false, false}, {42, true, true}, {42, false, false}, {84, true, true},
+		} {
+			boundary = step.boundary
+			got, err := service.Augment(t.Context(), sess, "continue")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(got, `"unchanged":true`) == step.full {
+				t.Fatalf("full sections mismatch at boundary %d: %s", boundary, got)
+			}
+			if strings.Contains(got, "<compozy-context-notice>") != step.notice {
+				t.Fatalf("notice mismatch at boundary %d: %s", boundary, got)
+			}
+			if !strings.HasSuffix(got, "continue") {
+				t.Fatal("original input lost")
+			}
+		}
+	})
+
 	t.Run("Should compact unchanged sections for the same ACP session and workspace", func(t *testing.T) {
 		t.Parallel()
 

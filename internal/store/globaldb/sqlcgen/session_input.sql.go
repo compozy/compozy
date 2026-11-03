@@ -421,13 +421,23 @@ WITH prepared_goal AS (
 )
 SELECT queued.goal_input_batch_max_rowid, queued.id, queued.session_id, queued.prompt_admission_id, queued.message_id, queued.idempotency_key, queued.turn_id, queued.target_turn_id, queued.event_id, queued.status, queued.mode, queued.delivery, queued.steer_delivery, queued.text, queued.synthetic_prompt_json, queued.skill_invocations_json, queued.attachments_json, queued.origin_json, queued.runtime_provider, queued.runtime_model, queued.runtime_reasoning_effort, queued.runtime_speed, queued.runtime_acp_options_json, queued.session_generation, queued.task_run_id, queued.run_generation, queued.attempt_count, queued.enqueued_at, queued.dispatch_started_at, queued.sent_at, queued.failed_at, queued.failure_summary, queued.canceled_at, queued.updated_at, queued.loop_run_id, queued.owner_kind, queued.owner_epoch, queued.binding_epoch, queued.prompt_id, queued.prompt_kind, queued.operation_usage_base_tokens, queued.prompt_attempt, queued.dispatchable, queued.activated_at, queued.dispatch_token_hash, queued.fence_kind, queued.fence_disposition, queued.fence_reason_code, queued.fenced_at, queued.terminal_event_start_seq, queued.terminal_event_end_seq, queued.terminal_kind, queued.terminal_stop_reason, queued.terminal_disposition, queued.terminal_reason_code, queued.terminal_tokens_reported, queued.terminal_tokens_used, queued.terminal_at, queued.priority, queued.origin_class, queued.origin_session_id, queued.mentions_json, queued.human_ingress FROM session_input_queue AS queued
 WHERE queued.session_id = ?1
+  AND (queued.origin_class = 'human' OR NOT EXISTS (
+    SELECT 1 FROM sessions AS target
+    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances AS instance ON instance.id = root.instance_id
+    WHERE target.id = queued.session_id AND instance.state = 'paused'
+  ))
   AND queued.status = ?2
   AND queued.dispatchable = 1
   AND (queued.owner_kind IS NULL OR queued.owner_kind = 'synthetic')
   AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?1)
   AND ((SELECT cutoff FROM prepared_goal) IS NULL
        OR queued.rowid <= (SELECT cutoff FROM prepared_goal)
-       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human'))
+       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human')
+       OR (queued.origin_class = 'human' AND EXISTS (
+         SELECT 1 FROM sessions target JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+         JOIN agent_instances i ON i.id = root.instance_id WHERE target.id = queued.session_id AND i.state = 'paused'
+       )))
 ORDER BY CASE
            WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
            WHEN queued.owner_kind = 'goal' THEN 2
@@ -770,6 +780,25 @@ func (q *Queries) GetSyntheticSessionInputByMessage(ctx context.Context, arg Get
 	return i, err
 }
 
+const humanSessionTurn = `-- name: HumanSessionTurn :one
+SELECT EXISTS (SELECT 1 FROM session_input_queue AS queued WHERE queued.session_id = ?1
+ AND queued.turn_id = ?2 AND queued.origin_class = 'human' AND queued.status IN ('dispatching','sent')
+ UNION ALL SELECT 1 FROM session_prompt_admissions AS admitted WHERE admitted.session_id = ?1
+ AND admitted.turn_id = ?2 AND admitted.human_ingress = 1 AND admitted.dispatch_committed_at IS NOT NULL)
+`
+
+type HumanSessionTurnParams struct {
+	SessionID string `json:"session_id"`
+	TurnID    string `json:"turn_id"`
+}
+
+func (q *Queries) HumanSessionTurn(ctx context.Context, arg HumanSessionTurnParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, humanSessionTurn, arg.SessionID, arg.TurnID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const insertSessionInputQueueEntry = `-- name: InsertSessionInputQueueEntry :exec
 INSERT INTO session_input_queue (
   priority, id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id,
@@ -877,13 +906,23 @@ WITH prepared_goal AS (
 )
 SELECT queued.goal_input_batch_max_rowid, queued.id, queued.session_id, queued.prompt_admission_id, queued.message_id, queued.idempotency_key, queued.turn_id, queued.target_turn_id, queued.event_id, queued.status, queued.mode, queued.delivery, queued.steer_delivery, queued.text, queued.synthetic_prompt_json, queued.skill_invocations_json, queued.attachments_json, queued.origin_json, queued.runtime_provider, queued.runtime_model, queued.runtime_reasoning_effort, queued.runtime_speed, queued.runtime_acp_options_json, queued.session_generation, queued.task_run_id, queued.run_generation, queued.attempt_count, queued.enqueued_at, queued.dispatch_started_at, queued.sent_at, queued.failed_at, queued.failure_summary, queued.canceled_at, queued.updated_at, queued.loop_run_id, queued.owner_kind, queued.owner_epoch, queued.binding_epoch, queued.prompt_id, queued.prompt_kind, queued.operation_usage_base_tokens, queued.prompt_attempt, queued.dispatchable, queued.activated_at, queued.dispatch_token_hash, queued.fence_kind, queued.fence_disposition, queued.fence_reason_code, queued.fenced_at, queued.terminal_event_start_seq, queued.terminal_event_end_seq, queued.terminal_kind, queued.terminal_stop_reason, queued.terminal_disposition, queued.terminal_reason_code, queued.terminal_tokens_reported, queued.terminal_tokens_used, queued.terminal_at, queued.priority, queued.origin_class, queued.origin_session_id, queued.mentions_json, queued.human_ingress FROM session_input_queue AS queued
 WHERE queued.session_id = ?1
+  AND (queued.origin_class = 'human' OR NOT EXISTS (
+    SELECT 1 FROM sessions AS target
+    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances AS instance ON instance.id = root.instance_id
+    WHERE target.id = queued.session_id AND instance.state = 'paused'
+  ))
   AND queued.status = 'queued'
   AND queued.dispatchable = 1
   AND (queued.owner_kind IS NULL OR queued.owner_kind = 'synthetic')
   AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?1)
   AND ((SELECT cutoff FROM prepared_goal) IS NULL
        OR queued.rowid <= (SELECT cutoff FROM prepared_goal)
-       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human'))
+       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human')
+       OR (queued.origin_class = 'human' AND EXISTS (
+         SELECT 1 FROM sessions target JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+         JOIN agent_instances i ON i.id = root.instance_id WHERE target.id = queued.session_id AND i.state = 'paused'
+       )))
 ORDER BY CASE
            WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
            WHEN (SELECT cutoff FROM prepared_goal) IS NULL
@@ -1267,6 +1306,12 @@ WITH prepared_goal AS (
 )
 SELECT queued.goal_input_batch_max_rowid, queued.id, queued.session_id, queued.prompt_admission_id, queued.message_id, queued.idempotency_key, queued.turn_id, queued.target_turn_id, queued.event_id, queued.status, queued.mode, queued.delivery, queued.steer_delivery, queued.text, queued.synthetic_prompt_json, queued.skill_invocations_json, queued.attachments_json, queued.origin_json, queued.runtime_provider, queued.runtime_model, queued.runtime_reasoning_effort, queued.runtime_speed, queued.runtime_acp_options_json, queued.session_generation, queued.task_run_id, queued.run_generation, queued.attempt_count, queued.enqueued_at, queued.dispatch_started_at, queued.sent_at, queued.failed_at, queued.failure_summary, queued.canceled_at, queued.updated_at, queued.loop_run_id, queued.owner_kind, queued.owner_epoch, queued.binding_epoch, queued.prompt_id, queued.prompt_kind, queued.operation_usage_base_tokens, queued.prompt_attempt, queued.dispatchable, queued.activated_at, queued.dispatch_token_hash, queued.fence_kind, queued.fence_disposition, queued.fence_reason_code, queued.fenced_at, queued.terminal_event_start_seq, queued.terminal_event_end_seq, queued.terminal_kind, queued.terminal_stop_reason, queued.terminal_disposition, queued.terminal_reason_code, queued.terminal_tokens_reported, queued.terminal_tokens_used, queued.terminal_at, queued.priority, queued.origin_class, queued.origin_session_id, queued.mentions_json, queued.human_ingress FROM session_input_queue AS queued
 WHERE queued.session_id = ?1
+  AND (queued.origin_class = 'human' OR NOT EXISTS (
+    SELECT 1 FROM sessions AS target
+    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances AS instance ON instance.id = root.instance_id
+    WHERE target.id = queued.session_id AND instance.state = 'paused'
+  ))
   AND queued.status = ?2
   AND queued.terminal_at IS NULL
   AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?1)
@@ -1365,6 +1410,12 @@ UPDATE session_input_queue
 SET mode = 'steer', delivery = 'interrupt_then_prompt', steer_delivery = NULL, dispatchable = 0,
     target_turn_id = ?1, updated_at = ?2
 WHERE session_input_queue.session_id = ?3 AND session_input_queue.id = ?4
+  AND (session_input_queue.origin_class = 'human' OR NOT EXISTS (
+    SELECT 1 FROM sessions AS target
+    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances AS instance ON instance.id = root.instance_id
+    WHERE target.id = session_input_queue.session_id AND instance.state = 'paused'
+  ))
   AND session_input_queue.status = 'queued' AND session_input_queue.mode = 'queue'
   AND ((session_input_queue.origin_class = 'agent' AND session_input_queue.owner_kind IS NULL)
     OR (session_input_queue.owner_kind = 'synthetic'
@@ -1482,6 +1533,12 @@ UPDATE session_input_queue
 SET status = 'dispatching', dispatch_started_at = ?1,
     attempt_count = attempt_count + 1, updated_at = ?1
 WHERE session_input_queue.session_id = ?2 AND session_input_queue.id = ?3
+  AND (session_input_queue.origin_class = 'human' OR NOT EXISTS (
+    SELECT 1 FROM sessions AS target
+    JOIN sessions AS root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+    JOIN agent_instances AS instance ON instance.id = root.instance_id
+    WHERE target.id = session_input_queue.session_id AND instance.state = 'paused'
+  ))
   AND mode = 'steer' AND status = 'queued' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?2)
 `

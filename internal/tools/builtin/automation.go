@@ -341,7 +341,7 @@ const automationTriggersListInputSchema = `{
 		"event":{"type":"string"},
 		"source":{"type":"string","enum":["config","package","dynamic"]},
 		"enabled":{"type":"boolean"},
-		"target":{"type":"string","enum":["agent","loop","task"]},
+		"target":{"type":"string","enum":["agent","loop","task","agent_instance"]},
 		"loop":{"type":"string"},
 		"q":{"type":"string"},
 		"cursor":{"type":"string"},
@@ -426,6 +426,8 @@ const automationJobPatchProperties = `{
 }`
 
 var automationTriggerProperties = `{
+ "target_kind":{"type":"string","enum":["agent","agent_instance"]},
+ "target_instance_scope":{"type":"string","description":"Owning workspace ID or global; defaults to trigger scope."},
 	"scope":{
 		"type":"string",
 		"description":"global, user, or @user select User; workspace selects a project. Responses use global or workspace."
@@ -445,6 +447,8 @@ var automationTriggerProperties = `{
 }`
 
 const automationTriggerPatchProperties = `{
+ "target_instance_scope":{"type":"string",
+ "description":"Existing instance scope; target changes require a new trigger."},
 	"trigger_id":{"type":"string"},
 	"workspace":{"type":"string"},
 	"name":{"type":"string"},

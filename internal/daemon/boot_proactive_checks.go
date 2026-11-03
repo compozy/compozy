@@ -52,19 +52,21 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 		StopTimeout:  state.cfg.Session.Supervision.StopGrace,
 	}
 	service, err := heartbeat.NewCheckService(ctx, provider.Instances(), environment, dispatcher, heartbeat.CheckConfig{
-		QuietBackoffCap: hb.QuietBackoffCap,
-		FatigueLimit:    hb.FatigueLimit,
-		Enabled:         hb.Enabled,
-		Interval:        hb.DefaultInterval,
-		MaxInterval:     hb.MaxInterval,
-		Retention:       hb.WakeEventRetention,
-		Timeout:         cfg.TriageTimeout,
-		MaxConcurrent:   hb.MaxConcurrentTriage,
-		BatchSize:       hb.MaxWakesPerCycle,
+		UnattendedTurnLimit: cfg.UnattendedTurnLimit,
+		QuietBackoffCap:     hb.QuietBackoffCap,
+		FatigueLimit:        hb.FatigueLimit,
+		Enabled:             hb.Enabled,
+		Interval:            hb.DefaultInterval,
+		MaxInterval:         hb.MaxInterval,
+		Retention:           hb.WakeEventRetention,
+		Timeout:             cfg.TriageTimeout,
+		MaxConcurrent:       hb.MaxConcurrentTriage,
+		BatchSize:           hb.MaxWakesPerCycle,
 	}, d.now)
 	if err != nil {
 		return fmt.Errorf("daemon: create proactive checks: %w", err)
 	}
+	service.SetPauseHandler(state.agentInstances.Service.ApplyPause)
 	if err := service.Recover(ctx); err != nil {
 		return errors.Join(err, service.Shutdown(ctx))
 	}

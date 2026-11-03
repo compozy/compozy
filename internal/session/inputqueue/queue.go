@@ -292,31 +292,6 @@ func (s *Service) StageAdmittedSteer(
 	return admissionStore.StageAdmittedSessionSteer(ctx, admission, insert)
 }
 
-func (s *Service) prepareAdmittedEntry(
-	admission store.SessionPromptAdmissionRequest,
-	spec insertSpec,
-) (store.SessionPromptAdmissionStore, store.SessionInputQueueInsert, error) {
-	admissionStore, ok := s.store.(store.SessionPromptAdmissionStore)
-	if !ok {
-		return nil, store.SessionInputQueueInsert{}, errors.New(
-			"inputqueue: prompt admission store is required",
-		)
-	}
-	spec.sessionID = admission.SessionID
-	spec.origin = append(json.RawMessage(nil), admission.Origin...)
-	spec.text = admission.AuthoredText
-	spec.runtime = admission.Runtime
-	spec.skillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
-	spec.mentionsJSON = admission.MentionsJSON
-	spec.humanIngress = admission.HumanIngress
-	spec.attachments = append([]store.SessionInputAttachment(nil), admission.Attachments...)
-	insert, err := s.newInsert(spec)
-	if err != nil {
-		return nil, store.SessionInputQueueInsert{}, err
-	}
-	return admissionStore, insert, nil
-}
-
 // ClaimNext leases the next input eligible for dispatch.
 func (s *Service) ClaimNext(
 	ctx context.Context,

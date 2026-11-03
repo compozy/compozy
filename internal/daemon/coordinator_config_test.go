@@ -141,7 +141,7 @@ func TestCoordinatorRoleResolverUsesAgentFallbackForProviderModel(t *testing.T) 
 		resolver := coordinatorRoleResolverFor(newRoleResolver(
 			&cfg,
 			nil,
-			coordinatorAgentResolverStub{
+			&coordinatorAgentResolverStub{
 				agent: compozyconfig.AgentDef{
 					Name:     "custom-coordinator",
 					Provider: "claude",
@@ -194,7 +194,7 @@ type coordinatorAgentResolverStub struct {
 	err   error
 }
 
-func (s coordinatorAgentResolverStub) ResolveAgent(
+func (s *coordinatorAgentResolverStub) ResolveAgent(
 	string,
 	*workspacepkg.ResolvedWorkspace,
 ) (compozyconfig.AgentDef, error) {

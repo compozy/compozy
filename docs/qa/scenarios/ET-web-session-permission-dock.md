@@ -85,3 +85,17 @@ now renders with that tool, behind its work group, and no longer splits the run;
 shows it once it stops. Rejected, expired, pending and unmatched permissions stay standalone. Native
 `compozy__terminal_exec` approvals carry a synthetic id, so they stay standalone. Rendered in Chromium
 through the `AllowedReceiptInGroup` story; the dock walk above remains outstanding.
+
+B2 hosted-tool denial follow-up (verification pending): let a hosted tool approval
+expire without answering. The calling agent receives the existing
+`approval_timed_out` reason and text explaining that nobody answered, elapsed
+time is not approval, and it should finish unaffected work without repeating the
+unchanged request. Explicit rejection retains its existing error identity and
+directs the agent to finish unaffected work and report the approval need.
+
+B2 repeat expiry extension (verification pending): expire an approval without an
+answer, then request the same action again in the same session. The repeat must
+be refused immediately with resolved_by=repeat_denied and no new pending dock.
+Release and restore the provider process between those requests; the refusal
+must survive. A later human-authored prompt clears the suppression. An agent or
+monitor prompt does not clear it. Different action input follows normal policy.

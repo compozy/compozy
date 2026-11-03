@@ -35,11 +35,11 @@ func triageReadOnlyMode(provider string, modes []string) string {
 }
 
 func constrainTriageStart(opts StartOpts) (StartOpts, error) {
-	if opts.ExecutionPolicy == "" {
+	if opts.ExecutionPolicyValue() == "" {
 		return opts, nil
 	}
-	if opts.ExecutionPolicy != ExecutionPolicyTriage {
-		return StartOpts{}, fmt.Errorf("unknown execution policy %q", opts.ExecutionPolicy)
+	if opts.ExecutionPolicyValue() != ExecutionPolicyTriage {
+		return StartOpts{}, fmt.Errorf("unknown execution policy %q", opts.ExecutionPolicyValue())
 	}
 	if opts.Inspection || opts.ProviderName == "" {
 		return StartOpts{}, ErrTriageUnsupported

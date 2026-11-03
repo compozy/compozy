@@ -22,6 +22,11 @@ func registerAgentKernelRoutes(api gin.IRouter, handlers *Handlers) {
 }
 
 func registerAgentManagementRoutes(api gin.IRouter, handlers *Handlers) {
+	reviews := api.Group("/agent-skill-reviews")
+	reviews.GET("", handlers.ListAgentSkillReviews)
+	reviews.GET("/:id", handlers.GetAgentSkillReview)
+	reviews.POST("/:id/approve", handlers.ApproveAgentSkillReview)
+	reviews.POST("/:id/reject", handlers.RejectAgentSkillReview)
 	instances := api.Group("/agent-instances")
 	instances.POST("", handlers.CreateAgentInstance)
 	instances.GET("", handlers.ListAgentInstances)

@@ -13,7 +13,304 @@ import (
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
+
+func TestInstanceSkillReviewLedger(t *testing.T) {
+	t.Run("Should propose an inert draft and link its report [UT-040]", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		_, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instances
+ (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
+ VALUES ('proposal-instance',?,'coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`, store.DefaultProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		scanRoot := filepath.Join(root, "skills")
+		service := agentinstance.SkillProposalService{
+			Store:     db.SkillReviews(),
+			DraftRoot: filepath.Join(root, "drafts"),
+			ScanRoots: []string{scanRoot},
+		}
+		instance := agentinstance.Instance{
+			ID:        "proposal-instance",
+			ProfileID: store.DefaultProfileID,
+			AgentName: "coder",
+		}
+		input := agentinstance.SkillProposalInput{
+			Name:        "review-changes",
+			Description: "Review changes",
+			Body:        "Read the diff and report findings.",
+		}
+		review, err := service.Propose(ctx, workspaceaccess.ActorRef{Operator: true}, instance, scanRoot, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if review.State != "pending" {
+			t.Fatalf("state=%s", review.State)
+		}
+		if _, err := os.Stat(scanRoot); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("proposal created a scan root: %v", err)
+		}
+		if _, err := agentinstance.ReadSkillDraft(review.DraftPath, review.Digest); err != nil {
+			t.Fatal(err)
+		}
+		var payload string
+		if err := db.DB().
+			QueryRowContext(ctx, "SELECT payload FROM agent_instance_reports WHERE source_key = ?", "skill_review:"+review.ID).
+			Scan(&payload); err != nil {
+			t.Fatal(err)
+		}
+		var report struct {
+			SkillReviewID string `json:"skill_review_id"`
+		}
+		if err := json.Unmarshal([]byte(payload), &report); err != nil || report.SkillReviewID != review.ID {
+			t.Fatalf("report link: %+v %v", report, err)
+		}
+		retry, err := service.Propose(ctx, workspaceaccess.ActorRef{Operator: true}, instance, scanRoot, input)
+		if err != nil || retry.ID != review.ID {
+			t.Fatalf("retry: %+v %v", retry, err)
+		}
+		entries, err := os.ReadDir(service.DraftRoot)
+		if err != nil || len(entries) != 1 {
+			t.Fatalf("draft retention: %d %v", len(entries), err)
+		}
+		if err := service.Reject(
+			ctx,
+			workspaceaccess.ActorRef{},
+			instance,
+			review.ID,
+			review.Digest,
+			"operator",
+		); !errors.Is(
+			err,
+			agentinstance.ErrSkillReviewOperatorOnly,
+		) {
+			t.Fatalf("agent rejection: %v", err)
+		}
+		operator := workspaceaccess.ActorRef{Operator: true}
+		foreign := instance
+		foreign.WorkspaceID = "foreign-workspace"
+		if _, _, err := service.Review(
+			ctx,
+			operator,
+			foreign,
+			review.ID,
+		); !errors.Is(
+			err,
+			agentinstance.ErrSkillReviewNotFound,
+		) {
+			t.Fatalf("foreign review: %v", err)
+		}
+		if err := service.Reject(
+			ctx,
+			operator,
+			instance,
+			review.ID,
+			"stale-digest",
+			"operator",
+		); !errors.Is(
+			err,
+			agentinstance.ErrSkillReviewStale,
+		) {
+			t.Fatalf("stale rejection: %v", err)
+		}
+		if err := service.Reject(ctx, operator, instance, review.ID, review.Digest, "operator"); err != nil {
+			t.Fatal(err)
+		}
+		rejected, err := service.Propose(ctx, operator, instance, scanRoot, input)
+		if err != nil || rejected.State != "rejected" {
+			t.Fatalf("rejected reproposal: %+v %v", rejected, err)
+		}
+		rows, err := service.Reviews(ctx, operator, instance, agentinstance.SkillReviewQuery{Limit: 10})
+		if err != nil || len(rows) != 1 || rows[0].State != "rejected" {
+			t.Fatalf("reviews: %+v %v", rows, err)
+		}
+		input.Body = "Read the diff and verify the changed behavior."
+		changed, err := service.Propose(ctx, operator, instance, scanRoot, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := service.Approve(
+			ctx,
+			workspaceaccess.ActorRef{},
+			instance,
+			changed.ID,
+			changed.Digest,
+			"operator",
+			scanRoot,
+		); !errors.Is(
+			err,
+			agentinstance.ErrSkillReviewOperatorOnly,
+		) {
+			t.Fatalf("agent approval: %v", err)
+		}
+		if err := service.Approve(
+			ctx,
+			operator,
+			instance,
+			changed.ID,
+			"old-digest",
+			"operator",
+			scanRoot,
+		); !errors.Is(
+			err,
+			agentinstance.ErrSkillReviewStale,
+		) {
+			t.Fatalf("stale approval: %v", err)
+		}
+		if err := service.Approve(
+			ctx,
+			operator,
+			instance,
+			changed.ID,
+			changed.Digest,
+			"operator",
+			scanRoot,
+		); err != nil {
+			t.Fatal(err)
+		}
+		draft, err := agentinstance.ReadSkillDraft(changed.DraftPath, changed.Digest)
+		if err != nil {
+			t.Fatal(err)
+		}
+		installed, err := os.ReadFile(filepath.Join(scanRoot, input.Name, "SKILL.md"))
+		if err != nil || string(installed) != draft.Files[0].Content {
+			t.Fatalf("installed contents: %v", err)
+		}
+		if err := service.Approve(
+			ctx,
+			operator,
+			instance,
+			changed.ID,
+			changed.Digest,
+			"operator",
+			scanRoot,
+		); err != nil {
+			t.Fatalf("approval retry: %v", err)
+		}
+		approved, err := db.SkillReviews().GetReview(ctx, changed.ID)
+		if err != nil || approved.State != "approved" {
+			t.Fatalf("approval ledger: %+v %v", approved, err)
+		}
+	})
+	t.Run("Should atomically create reviews and reports and reject stale decisions", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		var repo agentinstance.SkillReviewStore = db.SkillReviews()
+		ctx := t.Context()
+		input := agentinstance.SkillReview{
+			ID:         "review",
+			InstanceID: "review-instance",
+			ProfileID:  store.DefaultProfileID,
+			SkillName:  "skill",
+			Digest:     "digest",
+			DraftPath:  "/drafts/skill",
+		}
+		report := agentinstance.ReportInput{
+			SourceKey: "turn:skill-review",
+			Kind:      "proposal",
+			Payload: []byte(
+				`{"skill_review_id":"review","proposals":[{"title":"Review skill","body":"Inspect proposed contents"}]}`,
+			),
+		}
+		if _, err := repo.CreateReview(ctx, input, report); err == nil {
+			t.Fatal("missing report instance must fail")
+		}
+		if _, err := repo.GetReview(ctx, input.ID); !errors.Is(err, agentinstance.ErrSkillReviewNotFound) {
+			t.Fatalf("rollback: %v", err)
+		}
+		_, err := db.DB().ExecContext(ctx, `INSERT INTO agent_instances
+ (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
+ VALUES ('review-instance',?,'coder','active','human','operator','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`, store.DefaultProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		created, err := repo.CreateReview(ctx, input, report)
+		if err != nil || created.State != "pending" {
+			t.Fatalf("create: %+v %v", created, err)
+		}
+		input.ID = "retry"
+		retried, err := repo.CreateReview(ctx, input, report)
+		if err != nil || retried.ID != created.ID {
+			t.Fatalf("retry: %+v %v", retried, err)
+		}
+		if err := repo.DecideReview(
+			ctx,
+			created.ID,
+			"old-digest",
+			"approved",
+			"operator",
+		); !errors.Is(
+			err,
+			agentinstance.ErrSkillReviewStale,
+		) {
+			t.Fatalf("stale: %v", err)
+		}
+		if err := repo.DecideReview(ctx, created.ID, created.Digest, "rejected", "operator"); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := repo.ListReviews(
+			ctx,
+			agentinstance.SkillReviewQuery{ProfileID: store.DefaultProfileID, State: "rejected", Limit: 10},
+		)
+		if err != nil || len(rows) != 1 || rows[0].DecidedAt == nil {
+			t.Fatalf("list: %+v %v", rows, err)
+		}
+		var count int
+		if err := db.DB().
+			QueryRowContext(ctx, "SELECT count(*) FROM agent_instance_reports WHERE instance_id = ?", input.InstanceID).
+			Scan(&count); err != nil ||
+			count != 1 {
+			t.Fatalf("reports: %d %v", count, err)
+		}
+	})
+	t.Run("Should cap pending reviews and retain rejected content [UT-041 UT-044]", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		q := sqlcgen.New(db.DB())
+		ctx := t.Context()
+		input := sqlcgen.InsertAgentSkillReviewParams{
+			InstanceID: "review-instance", ProfileID: store.DefaultProfileID,
+			SkillName: "review-skill", DraftPath: "/drafts/skill", CreatedAt: "2026-11-03T00:00:00Z",
+		}
+		for i := range 6 {
+			input.ID = fmt.Sprintf("review-%d", i)
+			input.Digest = fmt.Sprintf("digest-%d", i)
+			count, err := q.InsertAgentSkillReview(ctx, input)
+			want := int64(1)
+			if i == 5 {
+				want = 0
+			}
+			if err != nil || count != want {
+				t.Fatalf("insert %d: count=%d err=%v", i, count, err)
+			}
+		}
+		count, err := q.DecideAgentSkillReview(ctx, sqlcgen.DecideAgentSkillReviewParams{
+			ID: "review-0", Digest: "digest-0", State: "rejected", DecidedBy: "operator",
+		})
+		if err != nil || count != 1 {
+			t.Fatalf("reject: count=%d err=%v", count, err)
+		}
+		input.ID, input.Digest = "retry", "digest-0"
+		count, err = q.InsertAgentSkillReview(ctx, input)
+		if err != nil || count != 0 {
+			t.Fatalf("rejected retry: count=%d err=%v", count, err)
+		}
+		input.ID, input.Digest = "changed", "changed-digest"
+		count, err = q.InsertAgentSkillReview(ctx, input)
+		if err != nil || count != 1 {
+			t.Fatalf("changed content: count=%d err=%v", count, err)
+		}
+		row, err := q.GetAgentSkillReview(ctx, "review-0")
+		if err != nil || row.State != "rejected" {
+			t.Fatalf("retained rejection: state=%s err=%v", row.State, err)
+		}
+	})
+}
 
 func TestInstanceReports(t *testing.T) {
 	t.Run("Should preserve report recovery acknowledgement across migration and reopen", func(t *testing.T) {
@@ -336,10 +633,14 @@ func TestPendingInteractionReportsAtomicity(t *testing.T) {
 			_, err = db.CreatePendingInteraction(
 				t.Context(),
 				store.PendingInteractionCreate{
-					InteractionID:     "pending-report",
-					SessionID:         "child-report",
-					Title:             "Read workspace files",
-					Payload:           store.PendingInteractionPayload{ToolID: toolID},
+					InteractionID: "pending-report",
+					SessionID:     "child-report",
+					Title:         "Read workspace files",
+					Payload: store.PendingInteractionPayload{
+						ToolID:   toolID,
+						Action:   "execute",
+						Resource: "make build",
+					},
 					Kind:              store.PendingInteractionKindPermission,
 					ProviderRequestID: "request-report",
 					TurnID:            "turn-report",
@@ -460,6 +761,8 @@ func TestPendingInteractionReportsAtomicity(t *testing.T) {
 			}
 			if tc.expiredBy != "" {
 				var payload struct {
+					Action    string `json:"action"`
+					Resource  string `json:"resource"`
 					ExpiredBy string `json:"expired_by"`
 					Tool      string `json:"tool"`
 				}
@@ -472,6 +775,9 @@ func TestPendingInteractionReportsAtomicity(t *testing.T) {
 				}
 				if payload.Tool != wantTool {
 					t.Fatalf("tool = %q", payload.Tool)
+				}
+				if payload.Action != "execute" || payload.Resource != "make build" {
+					t.Fatalf("expiry details: %+v", payload)
 				}
 				if payload.ExpiredBy != tc.expiredBy {
 					t.Fatalf("expired_by = %q, want %q", payload.ExpiredBy, tc.expiredBy)

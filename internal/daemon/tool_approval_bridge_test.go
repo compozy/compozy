@@ -121,6 +121,11 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 			&view,
 		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalTimedOut)
+		for _, text := range []string{"nobody answered", "Elapsed time is not approval", "Do not repeat", "unaffected work"} {
+			if !strings.Contains(err.Error(), text) {
+				t.Fatalf("timeout error %q does not explain %q", err, text)
+			}
+		}
 	})
 
 	t.Run(

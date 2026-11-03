@@ -95,6 +95,8 @@ const subagentDelegateInputSchema = `{
         "inherit",
         "deny-all",
         "approve-reads",
+        "approve-edits",
+        "auto",
         "approve-all"
       ],
       "default": "inherit"

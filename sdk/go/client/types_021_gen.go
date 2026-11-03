@@ -7,6 +7,115 @@ import (
 	"time"
 )
 
+// SettingsProviderSettingsPayload is a daemon API value.
+type SettingsProviderSettingsPayload struct {
+	SessionEnv       map[string]SessionEnvBindingPayload     `json:"session_env,omitempty"`
+	SteerCapability  SteerCapability                         `json:"steer_capability,omitempty"`
+	Command          string                                  `json:"command,omitempty"`
+	CommandInherited bool                                    `json:"command_inherited,omitempty"`
+	DisplayName      string                                  `json:"display_name,omitempty"`
+	Models           *SettingsProviderModelsPayload          `json:"models,omitzero"`
+	Harness          string                                  `json:"harness,omitempty"`
+	RuntimeProvider  string                                  `json:"runtime_provider,omitempty"`
+	Transport        string                                  `json:"transport,omitempty"`
+	BaseURL          string                                  `json:"base_url,omitempty"`
+	AuthMode         string                                  `json:"auth_mode,omitempty"`
+	EnvPolicy        string                                  `json:"env_policy,omitempty"`
+	HomePolicy       string                                  `json:"home_policy,omitempty"`
+	AuthStatusCmd    string                                  `json:"auth_status_command,omitempty"`
+	AuthACPMethod    string                                  `json:"auth_acp_method,omitempty"`
+	CredentialSlots  []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
+}
+
+// SettingsProviderUsagePayload is a daemon API value.
+type SettingsProviderUsagePayload struct {
+	Enabled         bool                                            `json:"enabled"`
+	RefreshInterval string                                          `json:"refresh_interval"`
+	Providers       map[string]SettingsProviderUsageProviderPayload `json:"providers"`
+}
+
+// SettingsProviderUsageProviderPayload is a daemon API value.
+type SettingsProviderUsageProviderPayload struct {
+	Enabled        *bool `json:"enabled,omitempty"`
+	KeychainAccess *bool `json:"keychain_access,omitempty"`
+}
+
+// SettingsProviderUsageResponse is a daemon API value.
+type SettingsProviderUsageResponse struct {
+	KeychainSupported bool                         `json:"keychain_supported"`
+	Section           SettingsSectionName          `json:"section"`
+	Scope             SettingsUserScopeKind        `json:"scope"`
+	AvailableScopes   []SettingsUserScopeKind      `json:"available_scopes"`
+	Config            SettingsProviderUsagePayload `json:"config"`
+}
+
+// SettingsProviderUsageUpdateRequest is a daemon API value.
+type SettingsProviderUsageUpdateRequest struct {
+	Config SettingsProviderUsagePayload `json:"config"`
+}
+
+// SettingsProviderWritePayload is a daemon API value.
+type SettingsProviderWritePayload struct {
+	SessionEnv      map[string]SessionEnvBindingPayload     `json:"session_env,omitzero"`
+	SteerCapability SteerCapability                         `json:"steer_capability,omitempty"`
+	Command         string                                  `json:"command,omitempty"`
+	DisplayName     string                                  `json:"display_name,omitempty"`
+	Models          *SettingsProviderModelsPayload          `json:"models,omitzero"`
+	Harness         string                                  `json:"harness,omitempty"`
+	RuntimeProvider string                                  `json:"runtime_provider,omitempty"`
+	Transport       string                                  `json:"transport,omitempty"`
+	BaseURL         string                                  `json:"base_url,omitempty"`
+	AuthMode        string                                  `json:"auth_mode,omitempty"`
+	EnvPolicy       string                                  `json:"env_policy,omitempty"`
+	HomePolicy      string                                  `json:"home_policy,omitempty"`
+	AuthStatusCmd   string                                  `json:"auth_status_command,omitempty"`
+	AuthLoginCmd    *string                                 `json:"auth_login_command,omitzero"`
+	AuthACPMethod   *string                                 `json:"auth_acp_method,omitzero"`
+	CredentialSlots []SettingsProviderCredentialSlotPayload `json:"credential_slots,omitempty"`
+}
+
+// SettingsProvidersResponse is a daemon API value.
+type SettingsProvidersResponse struct {
+	Collection      SettingsCollectionName        `json:"collection"`
+	Scope           SettingsUserScopeKind         `json:"scope"`
+	AvailableScopes []SettingsUserScopeKind       `json:"available_scopes"`
+	Providers       []SettingsProviderItemPayload `json:"providers"`
+}
+
+// SettingsRedactPayload is a daemon API value.
+type SettingsRedactPayload struct {
+	Enabled bool `json:"enabled"`
+}
+
+// SettingsRoleConfigPayload is a daemon API value.
+type SettingsRoleConfigPayload struct {
+	Enabled         bool                          `json:"enabled"`
+	Agent           string                        `json:"agent"`
+	Provider        string                        `json:"provider"`
+	Model           string                        `json:"model"`
+	ReasoningEffort string                        `json:"reasoning_effort"`
+	Speed           *Speed                        `json:"speed,omitzero"`
+	ACPOptions      []AgentACPOptionSelection     `json:"acp_options"`
+	FallbackChain   []SettingsRoleFallbackPayload `json:"fallback_chain"`
+}
+
+// SettingsRoleFallbackPayload is a daemon API value.
+type SettingsRoleFallbackPayload struct {
+	SessionEnv      map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Provider        string                              `json:"provider"`
+	Model           string                              `json:"model"`
+	ReasoningEffort string                              `json:"reasoning_effort"`
+	Speed           *Speed                              `json:"speed,omitzero"`
+	ACPOptions      []AgentACPOptionSelection           `json:"acp_options"`
+	Command         string                              `json:"command"`
+}
+
+// SettingsRolesConfigPayload is a daemon API value.
+type SettingsRolesConfigPayload struct {
+	Coordinator SettingsCoordinatorRoleConfigPayload `json:"coordinator"`
+	AutoTitle   SettingsRoleConfigPayload            `json:"auto_title"`
+}
+
 // SettingsRolesResponse is a daemon API value.
 type SettingsRolesResponse struct {
 	Section         SettingsSectionName          `json:"section"`
@@ -328,123 +437,4 @@ type SettingsUpdateResponse struct {
 	Operation *SettingsUpdateOperationPayload `json:"operation"`
 	Runtime   SettingsUpdateRuntimePayload    `json:"runtime"`
 	App       *SettingsUpdateAppPayload       `json:"app"`
-}
-
-// SettingsUpdateRuntimePayload is a daemon API value.
-type SettingsUpdateRuntimePayload struct {
-	CheckedAt       *time.Time                  `json:"checked_at,omitempty"`
-	Status          SettingsUpdateStatusKind    `json:"status"`
-	InstallMethod   SettingsUpdateInstallMethod `json:"install_method"`
-	Managed         bool                        `json:"managed"`
-	CurrentVersion  string                      `json:"current_version"`
-	LatestVersion   string                      `json:"latest_version"`
-	ReleaseURL      string                      `json:"release_url"`
-	Recommendation  string                      `json:"recommendation"`
-	RestoredVersion string                      `json:"restored_version"`
-	DaemonRestarted bool                        `json:"daemon_restarted"`
-	Message         string                      `json:"message"`
-	LastError       string                      `json:"last_error"`
-}
-
-// SettingsUpdateStatusKind is a daemon API value.
-type SettingsUpdateStatusKind string
-
-// SettingsUpdateTarget is a daemon API value.
-type SettingsUpdateTarget string
-
-// SettingsUpdateWaitingState is a daemon API value.
-type SettingsUpdateWaitingState string
-
-// SettingsUserScopeKind is a daemon API value.
-type SettingsUserScopeKind string
-
-// SettingsWindowBindingAction is a daemon API value.
-type SettingsWindowBindingAction string
-
-// SettingsWindowDesktopTransition is a daemon API value.
-type SettingsWindowDesktopTransition string
-
-// SettingsWindowDragAwayPolicy is a daemon API value.
-type SettingsWindowDragAwayPolicy string
-
-// SettingsWindowDragModifier is a daemon API value.
-type SettingsWindowDragModifier string
-
-// SettingsWindowFocusPolicy is a daemon API value.
-type SettingsWindowFocusPolicy string
-
-// SettingsWindowManagerBindingPayload is a daemon API value.
-type SettingsWindowManagerBindingPayload struct {
-	TopCenter    SettingsWindowBindingAction `json:"top_center"`
-	BottomCenter SettingsWindowBindingAction `json:"bottom_center"`
-}
-
-// SettingsWindowManagerCommandPayload is a daemon API value.
-type SettingsWindowManagerCommandPayload struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Section string `json:"section"`
-	Source  string `json:"source"`
-}
-
-// SettingsWindowManagerConfigPayload is a daemon API value.
-type SettingsWindowManagerConfigPayload struct {
-	NewWindowPolicy     SettingsWindowNewPolicy             `json:"new_window_policy"`
-	SmallViewportPolicy SettingsWindowSmallViewportPolicy   `json:"small_viewport_policy"`
-	FocusPolicy         SettingsWindowFocusPolicy           `json:"focus_policy"`
-	FocusWrap           bool                                `json:"focus_wrap"`
-	FocusFollowsPointer bool                                `json:"focus_follows_pointer"`
-	RaiseOnFocus        bool                                `json:"raise_on_focus"`
-	DragAwayPolicy      SettingsWindowDragAwayPolicy        `json:"drag_away_policy"`
-	GroupMoveModifier   SettingsWindowDragModifier          `json:"group_move_modifier"`
-	SwapModifier        SettingsWindowDragModifier          `json:"swap_modifier"`
-	HistoryLimit        int                                 `json:"history_limit"`
-	NavStackLimit       int                                 `json:"nav_stack_limit"`
-	ClosedEntryLimit    int                                 `json:"closed_entry_limit"`
-	DesktopTransition   SettingsWindowDesktopTransition     `json:"desktop_transition"`
-	Gaps                SettingsWindowManagerGapsPayload    `json:"gaps"`
-	Snap                SettingsWindowManagerSnapPayload    `json:"snap"`
-	Bindings            SettingsWindowManagerBindingPayload `json:"bindings"`
-	Shortcuts           map[string][]string                 `json:"shortcuts"`
-	GlobalShortcuts     map[string]string                   `json:"global_shortcuts"`
-}
-
-// SettingsWindowManagerDefaultPayload is a daemon API value.
-type SettingsWindowManagerDefaultPayload struct {
-	CommandID    string   `json:"command"`
-	Binding      []string `json:"binding"`
-	Dormant      bool     `json:"dormant"`
-	ConflictWith string   `json:"conflict_with,omitempty"`
-}
-
-// SettingsWindowManagerDiagnosticPayload is a daemon API value.
-type SettingsWindowManagerDiagnosticPayload struct {
-	CommandID string `json:"command_id"`
-	Message   string `json:"message"`
-}
-
-// SettingsWindowManagerGapsPayload is a daemon API value.
-type SettingsWindowManagerGapsPayload struct {
-	Inner  int `json:"inner"`
-	Top    int `json:"top"`
-	Right  int `json:"right"`
-	Bottom int `json:"bottom"`
-	Left   int `json:"left"`
-}
-
-// SettingsWindowManagerMutationResponse is a daemon API value.
-type SettingsWindowManagerMutationResponse struct {
-	Section            SettingsSectionName                      `json:"section"`
-	Scope              SettingsWorkspaceScopeKind               `json:"scope"`
-	WorkspaceID        string                                   `json:"workspace_id,omitempty"`
-	AvailableScopes    []SettingsWorkspaceScopeKind             `json:"available_scopes"`
-	Config             SettingsWindowManagerConfigPayload       `json:"config"`
-	Defaults           map[string][]string                      `json:"defaults"`
-	EffectiveShortcuts map[string][]string                      `json:"effective_shortcuts"`
-	Aliases            map[string]string                        `json:"aliases"`
-	Commands           []SettingsWindowManagerCommandPayload    `json:"commands"`
-	ExtensionDefaults  []SettingsWindowManagerDefaultPayload    `json:"extension_defaults"`
-	Diagnostics        []SettingsWindowManagerDiagnosticPayload `json:"diagnostics"`
-	GlobalShortcuts    []SettingsGlobalShortcutPayload          `json:"global_shortcuts"`
-	Apply              SettingsApplyResponse                    `json:"apply"`
 }

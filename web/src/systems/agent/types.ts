@@ -114,6 +114,7 @@ export interface AgentInstancePayload {
   last_wake_at: string;
   /** Empty when no check is scheduled. */
   next_wake_at: string;
+  next_wake?: OperationResponse<"listAgentInstances", 200>["instances"][number]["next_wake"];
   quiet_streak: number;
   failure_streak: number;
   /** Failed checks in a row that pause it: `agents.heartbeat.fatigue_limit`. */

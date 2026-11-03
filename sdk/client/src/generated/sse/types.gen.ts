@@ -21,6 +21,12 @@ export type ActorIdentity = {
   ref: string;
 };
 
+export type AgentInstanceNextWake = {
+  at?: string;
+  description: string;
+  kind: string;
+};
+
 export type AgentInstancePayload = {
   activity: string;
   agent_name: string;
@@ -29,11 +35,13 @@ export type AgentInstancePayload = {
   created_at: string;
   failure_streak: number;
   fatigue_limit: number;
+  held_wakes: number;
   id: string;
   label: string;
   last_wake_at: string;
   main_session_id: string;
   needs_attention: boolean;
+  next_wake?: AgentInstanceNextWake | null;
   next_wake_at: string;
   now: string;
   pause_reason: string;
@@ -45,6 +53,8 @@ export type AgentInstancePayload = {
   };
   scope: string;
   state: string;
+  unattended_turn_limit: number;
+  unattended_turns: number;
   updated_at: string;
   workspace_id: string;
 };
@@ -387,11 +397,14 @@ export type OpenURLEffect = {
 };
 
 export type OperatorNotificationEventPayload = {
+  action?: string;
   at: string;
   body: string;
+  kind?: string;
   notification_id: string;
   profile_id: string;
   profile_name: string;
+  resource?: string;
   session_id: string;
   title: string;
   workspace_id: string;

@@ -37,7 +37,8 @@ const (
 	// TargetKindAgent starts the existing agent-session automation path.
 	TargetKindAgent = modelpkg.TargetKindAgent
 	// TargetKindLoop starts a declared Loop through loop.Service.Start.
-	TargetKindLoop = modelpkg.TargetKindLoop
+	TargetKindLoop          = modelpkg.TargetKindLoop
+	TargetKindAgentInstance = modelpkg.TargetKindAgentInstance
 )
 
 // ScheduleMode identifies how a scheduled job determines its next fire time.

@@ -11,6 +11,143 @@ import (
 	"strings"
 )
 
+// StreamCmdPaletteView Stream declarative command palette view patches
+func (c *Client) StreamCmdPaletteView(ctx context.Context, params StreamCmdPaletteViewParams) (*Stream[CmdPaletteViewPatch], error) {
+	path := "/api/cmd-palette/views/{id}/stream"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	query.Set("workspace", params.Workspace)
+	if params.After != nil {
+		query.Set("after", *params.After)
+	}
+	if params.StreamEpoch != nil {
+		query.Set("stream_epoch", *params.StreamEpoch)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[CmdPaletteViewPatch](ctx, c, "GET", path, nil, nil, "streamCmdPaletteView")
+}
+
+// StreamCmdPaletteViewSessionParams carries the path, query, and header parameters.
+type StreamCmdPaletteViewSessionParams struct {
+	Session string `url:"session"`
+	Token   string `url:"token"`
+}
+
+// StreamCmdPaletteViewSession Stream one programmable command palette view
+func (c *Client) StreamCmdPaletteViewSession(ctx context.Context, params StreamCmdPaletteViewSessionParams) (*Stream[ViewFrame], error) {
+	path := "/api/cmd-palette/view-sessions/{session}/stream"
+	path = strings.ReplaceAll(path, "{session}", url.PathEscape(params.Session))
+	query := url.Values{}
+	query.Set("token", params.Token)
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[ViewFrame](ctx, c, "GET", path, nil, nil, "streamCmdPaletteViewSession")
+}
+
+// StreamGlobalSessionParams carries the path, query, and header parameters.
+type StreamGlobalSessionParams struct {
+	SessionID     string  `url:"session_id"`
+	LastEventID   *string `url:"Last-Event-ID"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Frames        *string `url:"frames"`
+	Epoch         *int64  `url:"epoch"`
+	Generation    *int64  `url:"generation"`
+	Limit         *int    `url:"limit"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
+// StreamGlobalSessionFrame preserves each response payload; select its variant using the event name or HTTP status.
+type StreamGlobalSessionFrame struct {
+	Raw json.RawMessage
+}
+
+var _ json.Unmarshaler = (*StreamGlobalSessionFrame)(nil)
+
+var _ json.Marshaler = StreamGlobalSessionFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *StreamGlobalSessionFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f StreamGlobalSessionFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+// AsSubagentsSnapshotEvent decodes this payload as SubagentsSnapshotEvent.
+func (f StreamGlobalSessionFrame) AsSubagentsSnapshotEvent() (*SubagentsSnapshotEvent, error) {
+	var out SubagentsSnapshotEvent
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSubagentUpdatedEvent decodes this payload as SubagentUpdatedEvent.
+func (f StreamGlobalSessionFrame) AsSubagentUpdatedEvent() (*SubagentUpdatedEvent, error) {
+	var out SubagentUpdatedEvent
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionUsageChangedPayload decodes this payload as SessionUsageChangedPayload.
+func (f StreamGlobalSessionFrame) AsSessionUsageChangedPayload() (*SessionUsageChangedPayload, error) {
+	var out SessionUsageChangedPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionConsumerDegradedPayload decodes this payload as SessionConsumerDegradedPayload.
+func (f StreamGlobalSessionFrame) AsSessionConsumerDegradedPayload() (*SessionConsumerDegradedPayload, error) {
+	var out SessionConsumerDegradedPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsSessionEventPayload decodes this payload as SessionEventPayload.
+func (f StreamGlobalSessionFrame) AsSessionEventPayload() (*SessionEventPayload, error) {
+	var out SessionEventPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsTranscriptSnapshotPayload decodes this payload as TranscriptSnapshotPayload.
+func (f StreamGlobalSessionFrame) AsTranscriptSnapshotPayload() (*TranscriptSnapshotPayload, error) {
+	var out TranscriptSnapshotPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsTranscriptDeltaPayload decodes this payload as TranscriptDeltaPayload.
+func (f StreamGlobalSessionFrame) AsTranscriptDeltaPayload() (*TranscriptDeltaPayload, error) {
+	var out TranscriptDeltaPayload
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // AsGoalSnapshotChangedPayload decodes this payload as GoalSnapshotChangedPayload.
 func (f StreamGlobalSessionFrame) AsGoalSnapshotChangedPayload() (*GoalSnapshotChangedPayload, error) {
 	var out GoalSnapshotChangedPayload
@@ -306,145 +443,4 @@ func (f StreamSessionFrame) AsSubagentsSnapshotEvent() (*SubagentsSnapshotEvent,
 		return nil, err
 	}
 	return &out, nil
-}
-
-// AsSubagentUpdatedEvent decodes this payload as SubagentUpdatedEvent.
-func (f StreamSessionFrame) AsSubagentUpdatedEvent() (*SubagentUpdatedEvent, error) {
-	var out SubagentUpdatedEvent
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionUsageChangedPayload decodes this payload as SessionUsageChangedPayload.
-func (f StreamSessionFrame) AsSessionUsageChangedPayload() (*SessionUsageChangedPayload, error) {
-	var out SessionUsageChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionConsumerDegradedPayload decodes this payload as SessionConsumerDegradedPayload.
-func (f StreamSessionFrame) AsSessionConsumerDegradedPayload() (*SessionConsumerDegradedPayload, error) {
-	var out SessionConsumerDegradedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionEventPayload decodes this payload as SessionEventPayload.
-func (f StreamSessionFrame) AsSessionEventPayload() (*SessionEventPayload, error) {
-	var out SessionEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsTranscriptSnapshotPayload decodes this payload as TranscriptSnapshotPayload.
-func (f StreamSessionFrame) AsTranscriptSnapshotPayload() (*TranscriptSnapshotPayload, error) {
-	var out TranscriptSnapshotPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsTranscriptDeltaPayload decodes this payload as TranscriptDeltaPayload.
-func (f StreamSessionFrame) AsTranscriptDeltaPayload() (*TranscriptDeltaPayload, error) {
-	var out TranscriptDeltaPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsGoalSnapshotChangedPayload decodes this payload as GoalSnapshotChangedPayload.
-func (f StreamSessionFrame) AsGoalSnapshotChangedPayload() (*GoalSnapshotChangedPayload, error) {
-	var out GoalSnapshotChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsSessionCommandsChangedPayload decodes this payload as SessionCommandsChangedPayload.
-func (f StreamSessionFrame) AsSessionCommandsChangedPayload() (*SessionCommandsChangedPayload, error) {
-	var out SessionCommandsChangedPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// AsErrorPayload decodes this payload as ErrorPayload.
-func (f StreamSessionFrame) AsErrorPayload() (*ErrorPayload, error) {
-	var out ErrorPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StreamSession Stream raw session events or fenced transcript changes
-func (c *Client) StreamSession(ctx context.Context, params StreamSessionParams) (*Stream[StreamSessionFrame], error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/stream"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	headers := http.Header{}
-	if params.LastEventID != nil {
-		headers.Set("Last-Event-ID", *params.LastEventID)
-	}
-	query := url.Values{}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	if params.Frames != nil {
-		query.Set("frames", *params.Frames)
-	}
-	if params.Epoch != nil {
-		query.Set("epoch", strconv.FormatInt(*params.Epoch, 10))
-	}
-	if params.Generation != nil {
-		query.Set("generation", strconv.FormatInt(*params.Generation, 10))
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[StreamSessionFrame](ctx, c, "GET", path, headers, nil, "streamSession")
-}
-
-// StreamSessionCatalogParams carries the path, query, and header parameters.
-type StreamSessionCatalogParams struct {
-	WorkspaceID      *string `url:"workspace_id"`
-	AllWorkspaces    *bool   `url:"all_workspaces"`
-	LastEventID      *string `url:"Last-Event-ID"`
-	LastEventIDQuery *string `url:"last_event_id"`
-	Profile          *string `url:"profile"`
-	AllProfiles      *bool   `url:"all_profiles"`
-}
-
-// StreamSessionCatalogFrame preserves each response payload; select its variant using the event name or HTTP status.
-type StreamSessionCatalogFrame struct {
-	Raw json.RawMessage
-}
-
-var _ json.Unmarshaler = (*StreamSessionCatalogFrame)(nil)
-
-var _ json.Marshaler = StreamSessionCatalogFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *StreamSessionCatalogFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f StreamSessionCatalogFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
 }

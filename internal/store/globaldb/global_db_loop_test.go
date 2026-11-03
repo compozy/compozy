@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/diagnostics"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -8087,6 +8088,118 @@ func TestGlobalDBLoopUserScope(t *testing.T) {
 		foreignQueued, err := db.GetLoopRun(ctx, "", "user-run-1-queued")
 		if err != nil || foreignQueued.Status != looppkg.StatusQueued {
 			t.Fatalf("foreign queue was changed: %+v, %v", foreignQueued, err)
+		}
+	})
+}
+
+// Invariant (rule 10): instance-owned pause records commit with the winning pause actor;
+// operator pauses are never recorded, and every transactional resume is fenced by instance state.
+// Owning layer/canonical suite: globaldb Loop control persistence.
+func TestGlobalDBInstanceRunPause(t *testing.T) {
+	t.Run("Should record only instance pauses and fence resume until the instance resumes", func(t *testing.T) {
+		t.Parallel()
+		db := openLoopTestGlobalDB(t)
+		ctx := t.Context()
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "run-pause", "sess-run-pause")
+		instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+			ProfileID: storepkg.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{"instance-owned", "operator-owned"} {
+			run := testLoopRun(id, time.Now(), looppkg.StatusRunning)
+			run.WorkspaceID = looppkg.WorkspaceID(workspace)
+			run.StartedBy = taskpkg.ActorIdentity{Kind: taskpkg.ActorKindAgentSession, Ref: main}
+			if _, err := db.CreateLoopRunForStart(ctx, run, dsl.ConcurrencyAllow); err != nil {
+				t.Fatal(err)
+			}
+		}
+		operator := operatorActorContextForTest("operator")
+		if err := db.SetLoopRunPauseRequested(
+			ctx,
+			looppkg.WorkspaceID(workspace),
+			"operator-owned",
+			true,
+			operator,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Instances().Pause(ctx, instance.ID, "manual"); err != nil {
+			t.Fatal(err)
+		}
+		actor, err := taskpkg.DeriveDaemonActorContext("agent_instance:"+instance.ID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.SetLoopRunPauseRequested(
+			ctx,
+			looppkg.WorkspaceID(workspace),
+			"instance-owned",
+			true,
+			actor,
+		); err != nil {
+			t.Fatal(err)
+		}
+		runs, err := db.Instances().ManagedRuns(ctx, instance.ID, "")
+		if err != nil || len(runs) != 2 {
+			t.Fatalf("managed runs=%+v %v", runs, err)
+		}
+		for _, run := range runs {
+			if run.Recorded != (run.ID == "instance-owned") || !run.PauseRequested {
+				t.Fatalf("ownership=%+v", run)
+			}
+			if err := db.SetLoopRunPauseRequested(
+				ctx,
+				looppkg.WorkspaceID(workspace),
+				looppkg.RunID(run.ID),
+				false,
+				operator,
+			); err == nil ||
+				!strings.Contains(err.Error(), "agent_instance_paused") {
+				t.Fatalf("paused resume %s=%v", run.ID, err)
+			}
+		}
+		if _, err := db.Instances().Resume(ctx, instance.ID, 10, true); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.SetLoopRunPauseRequested(
+			ctx,
+			looppkg.WorkspaceID(workspace),
+			"instance-owned",
+			false,
+			actor,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Instances().ForgetSettledRuns(ctx, instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		runs, err = db.Instances().ManagedRuns(ctx, instance.ID, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, run := range runs {
+			if run.Recorded || run.PauseRequested != (run.ID == "operator-owned") {
+				t.Fatalf("restored=%+v", run)
+			}
+		}
+		if err := db.SetLoopRunPauseRequested(
+			ctx,
+			looppkg.WorkspaceID(workspace),
+			"instance-owned",
+			true,
+			actor,
+		); !errors.Is(
+			err,
+			looppkg.ErrTransitionConflict,
+		) {
+			t.Fatalf("late pause after resume=%v", err)
+		}
+		current, err := db.GetLoopRun(ctx, looppkg.WorkspaceID(workspace), "instance-owned")
+		if err != nil || current.PauseRequested {
+			t.Fatalf("late pause was not rolled back: %+v %v", current, err)
 		}
 	})
 }

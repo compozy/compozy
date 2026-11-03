@@ -124,3 +124,66 @@ evidence: `TestDetectPullRequest`, `TestServicePullRequestMonitor`, `TestService
 `TestProviderGraphQL`, `TestMonitorPullRequestObservation`, `TestGlobalDBSessionMonitorKindMigration`, and step 13.
 A wake that the queue refuses keeps its durable fire and id; a pull request first seen ended is history; thread
 wakes follow the head through each thread's opening commit; a failed review read differs from a forge without reviews.
+
+B3 idle-release regression (pending integrated re-walk): with a provider supporting
+`session/load`, leave only a daemon-owned monitor active and pass `idle_release_after`.
+Expect the session to remain active with runtime unbound, without cancelling the monitor.
+On its wake, verify the same ACP session is loaded. Repeat for each monitor kind.
+Without session/load, or with another work signal, expect the runtime to remain bound.
+
+B3 collector and retry regression (pending integrated re-walk): retry the same
+timer request within one second and verify the same monitor ID, `reused`, and
+one wake. For every monitor kind, a delivered wake must leave the heartbeat
+fingerprint unchanged, including when its retained history expires. Interrupted
+and undelivered wakes remain eligible facts for `monitors_fired`.
+
+B3 next-wake projection (pending integrated re-walk): list instances with a
+timer earlier than the next check and verify timer kind, timestamp, and
+description. Without a scheduled check, an untimed terminal monitor must still
+appear without `at`. Finish a working turn and confirm `now` becomes empty.
+
+B3 doctrine regression (pending integrated re-walk): inspect startup guidance
+for an instance main and its child. Both receive stays-on doctrine; only the main
+is told to start Goals elsewhere. An ordinary session and an Orchestrator
+conductor without instance ancestry must not receive this section.
+
+B3 post-compaction regression (pending integrated re-walk): after a provider
+reports completed compaction, send the next prompt and verify a context notice
+and full situation sections. A subsequent prompt returns to unchanged markers.
+Failed compactions must not produce the completion notice.
+
+B3 Goal regression (pending integrated re-walk): set and replace on a current
+instance main return `goal_on_instance_main` through each public caller. A Goal
+started before main binding keeps status/pause/stop, and blocks rotation until
+it ends. A created independent session may still start a Goal.
+
+B3 exhaustion regression (pending integrated re-walk): high occupancy alone
+must not rotate. A real context refusal records one exhaustion report and marks
+the current main for rotation. Hold a monitor or queued input and verify a
+rotation-deferred report names the blocker. Resolve it; a later reconcile uses
+the existing brief and publishes a successor, clearing the marker.
+
+B3 backend evidence (2026-11-03, branch soh/b3-waits-context):
+TestMonitorIdleReleaseIntegration passed with the actual timer waking a released
+runtime and loading the same ACP session. TestDaemonNativeCompaction passed with
+notice/full-section and subsequent-no-notice assertions.
+TestInstanceContextExhaustionIntegration passed with a real provider refusal,
+queued-input blocker report and successor publication after that input clears.
+TestInstanceNativeCreateJourney passed set/replace refusal through command, HTTP
+and native registry. The unit inventory and validation limits are recorded in
+`docs/qa/stays-on-hardening-b3-progress.md`; integrated Web walks remain pending.
+
+### Stays-on pause and restart
+
+Pause an instance, stop its main session, and send an agent message. Confirm that it
+is queued and the provider stays stopped. Restart the daemon: the unattended count
+and queue entry remain unchanged, and queue selection returns no autonomous row.
+Resume the instance and confirm one delivery in the same main. Repeat the resume
+nudge; no second prompt appears. A stopped descendant keeps its queue until it is
+started. Archive cancels held input; quiet windows alone do not hold monitor wakes.
+
+Backend evidence: `TestInstancePausedRuntimeIntegration` exercises the stopped-main
+path with a real ACP process, durable SQLite and daemon restart. The queue suite
+covers descendants through two levels and a rotated predecessor, human priority,
+prepared Goals, batch accounting, independent capacity pools and archive. UI walks
+remain owned by the frontend delivery.

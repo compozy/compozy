@@ -201,6 +201,7 @@ func sessionCatalogSSEMessage(event session.CatalogEvent) (string, any) {
 	if event.Name == session.CatalogEventNameOperatorNotification && event.OperatorNotification != nil {
 		notification := event.OperatorNotification
 		return string(session.CatalogEventNameOperatorNotification), contract.OperatorNotificationEventPayload{
+			Kind: notification.Kind, Action: notification.Action, Resource: notification.Resource,
 			NotificationID: notification.NotificationID,
 			SessionID:      notification.SessionID, ProfileID: event.ProfileID, ProfileName: event.ProfileName,
 			WorkspaceID: notification.WorkspaceID,

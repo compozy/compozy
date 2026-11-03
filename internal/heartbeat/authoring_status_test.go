@@ -94,9 +94,15 @@ func TestManagedHeartbeatAuthoringServicePutValidateAndCAS(t *testing.T) {
 		if include == nil || len(include) != 0 {
 			t.Fatalf("rollback include=%#v", include)
 		}
-		digest, err := heartbeat.CollectDigest(heartbeat.CollectorScope{MainSessionID: "main"},
-			heartbeat.CollectorFacts{Monitors: []heartbeat.MonitorFact{{ID: "fired", SessionID: "main", Fired: true}}},
-			include, rolledBack.Policy.Digest, rolledBack.Policy.GuidanceMarkdown)
+		digest, err := heartbeat.CollectDigest(
+			heartbeat.CollectorScope{MainSessionID: "main"},
+			heartbeat.CollectorFacts{
+				Monitors: []heartbeat.MonitorFact{{ID: "fired", SessionID: "main", NeedsAttention: true}},
+			},
+			include,
+			rolledBack.Policy.Digest,
+			rolledBack.Policy.GuidanceMarkdown,
+		)
 		if err != nil || len(digest.Items) != 0 {
 			t.Fatalf("disabled collectors: digest=%+v error=%v", digest, err)
 		}

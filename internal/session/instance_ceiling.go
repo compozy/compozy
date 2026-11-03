@@ -101,10 +101,7 @@ func withinCeiling(ceiling store.SessionPermissionPolicy, path string) bool {
 	})
 }
 
-// instanceLevel keeps every instance-lineage session at or below the level configured for its own
-// agent. The instance's main session always uses that level, so a level persisted by an older
-// daemon does not survive a resume, and settings alone never lift it above approve-reads. A
-// descendant resolves like any other session and keeps a narrower level it was started with.
+// instanceLevel resolves the main definition independently from descendant settings.
 func (m *Manager) instanceLevel(
 	spec *sessionStartSpec,
 	resolved compozyconfig.ResolvedAgent,
@@ -113,8 +110,8 @@ func (m *Manager) instanceLevel(
 	configured := m.startPermissions(resolved.Permissions)
 	requested := m.startPermissions(startSpecPermissions(spec, resolved.Permissions))
 	if main {
-		if !resolved.PermissionsConfigured && configured.Rank() > compozyconfig.PermissionModeApproveReads.Rank() {
-			return compozyconfig.PermissionModeApproveReads
+		if !resolved.PermissionsConfigured {
+			return compozyconfig.PermissionModeApproveEdits
 		}
 		return configured
 	}
@@ -146,4 +143,8 @@ func validateInstanceLaunch(spec *sessionStartSpec, before, after acp.StartOpts)
 		}
 	}
 	return nil
+}
+
+func (m *Manager) SetInstancePauseHandler(handler func(context.Context, store.InstancePauseTrip) error) {
+	m.instancePaused = handler
 }

@@ -48,6 +48,21 @@ func (q *Queries) CanRegisterRotationCandidate(ctx context.Context, instanceID s
 	return exists, err
 }
 
+const clearInstanceRotationDue = `-- name: ClearInstanceRotationDue :exec
+UPDATE agent_instance_wake_state SET rotation_due_session=''
+WHERE instance_id=?1 AND rotation_due_session=?2
+`
+
+type ClearInstanceRotationDueParams struct {
+	InstanceID string `json:"instance_id"`
+	SessionID  string `json:"session_id"`
+}
+
+func (q *Queries) ClearInstanceRotationDue(ctx context.Context, arg ClearInstanceRotationDueParams) error {
+	_, err := q.db.ExecContext(ctx, clearInstanceRotationDue, arg.InstanceID, arg.SessionID)
+	return err
+}
+
 const clearInstanceRotationWait = `-- name: ClearInstanceRotationWait :exec
 DELETE FROM agent_instance_rotation_wait WHERE instance_id=?1 AND main_session_id=?2
 `
@@ -73,6 +88,44 @@ func (q *Queries) InstanceRotationAdmissionCount(ctx context.Context, sessionID 
 	return count, err
 }
 
+const instanceRotationBlockers = `-- name: InstanceRotationBlockers :many
+WITH RECURSIVE descendants(id,state) AS (
+ SELECT root.id,root.state FROM sessions root WHERE root.parent_session_id=?1
+ UNION SELECT s.id,s.state FROM sessions s JOIN descendants d ON s.parent_session_id=d.id
+)
+SELECT 'queued_input' AS reason WHERE EXISTS(SELECT 1 FROM session_input_queue WHERE session_id=?1 AND status IN ('queued','dispatching'))
+UNION ALL SELECT 'active_goal' WHERE EXISTS(SELECT 1 FROM loop_runs WHERE origin_kind='session' AND origin_session_id=?1 AND historical=0 AND status IN ('queued','running','watching','needs-approval','paused'))
+UNION ALL SELECT 'prompt_admission' WHERE EXISTS(SELECT 1 FROM session_prompt_admissions WHERE session_id=?1 AND state IN ('reserved','dispatch_committed'))
+UNION ALL SELECT 'pending_interaction' WHERE EXISTS(SELECT 1 FROM session_pending_interactions WHERE session_id=?1 AND status IN ('pending','orphaned'))
+UNION ALL SELECT 'reply_watch' WHERE EXISTS(SELECT 1 FROM session_prompt_reply_watches WHERE (sender_session_id=?1 OR target_session_id=?1) AND state IN ('armed','fired'))
+UNION ALL SELECT 'child_wake' WHERE EXISTS(SELECT 1 FROM session_subagent_wakes WHERE parent_session_id=?1 AND state IN ('open','dispatched'))
+UNION ALL SELECT 'child_delivery' WHERE EXISTS(SELECT 1 FROM session_subagents WHERE parent_session_id=?1 AND origin='delegated' AND delivery NOT IN ('delivered','acknowledged','disposed'))
+UNION ALL SELECT 'live_descendant' WHERE EXISTS(SELECT 1 FROM descendants WHERE state NOT IN ('stopped','failed','crashed'))
+`
+
+func (q *Queries) InstanceRotationBlockers(ctx context.Context, sessionID sql.NullString) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, instanceRotationBlockers, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var reason string
+		if err := rows.Scan(&reason); err != nil {
+			return nil, err
+		}
+		items = append(items, reason)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const instanceRotationPersistenceReady = `-- name: InstanceRotationPersistenceReady :one
 WITH RECURSIVE descendants(id) AS (
  SELECT id FROM sessions WHERE parent_session_id=?1
@@ -88,6 +141,8 @@ AND NOT EXISTS(SELECT 1 FROM session_pending_interactions WHERE session_id=?1 AN
 AND NOT EXISTS(SELECT 1 FROM session_prompt_reply_watches WHERE (sender_session_id=?1 OR target_session_id=?1) AND state IN ('armed','fired'))
 AND NOT EXISTS(SELECT 1 FROM session_prompt_admissions WHERE session_id=?1 AND state IN ('reserved','dispatch_committed'))
 AND NOT EXISTS(SELECT 1 FROM session_input_queue WHERE session_id=?1 AND status IN ('queued','dispatching'))
+AND NOT EXISTS(SELECT 1 FROM loop_runs WHERE origin_kind='session' AND origin_session_id=?1
+ AND historical=0 AND status IN ('queued','running','watching','needs-approval','paused'))
 `
 
 func (q *Queries) InstanceRotationPersistenceReady(ctx context.Context, sessionID string) (sql.NullBool, error) {
@@ -125,6 +180,22 @@ func (q *Queries) ListSupersededInstanceSessions(ctx context.Context, instanceID
 		return nil, err
 	}
 	return items, nil
+}
+
+const markInstanceRotationDue = `-- name: MarkInstanceRotationDue :exec
+UPDATE agent_instance_wake_state SET rotation_due_session=?1
+WHERE instance_id=?2 AND EXISTS(SELECT 1 FROM agent_instances
+ WHERE id=?2 AND main_session_id=?1 AND archived_at IS NULL)
+`
+
+type MarkInstanceRotationDueParams struct {
+	SessionID  string `json:"session_id"`
+	InstanceID string `json:"instance_id"`
+}
+
+func (q *Queries) MarkInstanceRotationDue(ctx context.Context, arg MarkInstanceRotationDueParams) error {
+	_, err := q.db.ExecContext(ctx, markInstanceRotationDue, arg.SessionID, arg.InstanceID)
+	return err
 }
 
 const publishRotatedInstanceMain = `-- name: PublishRotatedInstanceMain :execrows

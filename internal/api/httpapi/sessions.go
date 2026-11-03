@@ -36,6 +36,9 @@ func (h *Handlers) approveSession(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if !h.RequireSessionApprovalAuthority(c, sessionID) {
+		return
+	}
 	result, err := h.Sessions.ApprovePermission(c.Request.Context(), sessionID, approve)
 	if err != nil {
 		core.RespondError(c, core.StatusForSessionError(err), err, true)

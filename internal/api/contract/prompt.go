@@ -20,6 +20,8 @@ const (
 type PromptDelivery string
 
 const (
+	PromptDeliveryHeld                PromptDelivery = "held"
+	PromptDeliveryQueued              PromptDelivery = "queued"
 	PromptDeliveryNone                PromptDelivery = "none"
 	PromptDeliveryDirect              PromptDelivery = "direct"
 	PromptDeliveryAfterTurn           PromptDelivery = "after_turn"
@@ -84,6 +86,7 @@ type ReplyWatchRefPayload struct {
 }
 
 type SendPromptResultPayload struct {
+	TargetSessionID       string                  `json:"target_session_id,omitempty"`
 	ReplyWatch            *ReplyWatchRefPayload   `json:"reply_watch,omitempty"`
 	TargetWorkspaceID     string                  `json:"target_workspace_id,omitempty"`
 	Disposition           session.Disposition     `json:"disposition,omitempty"`
@@ -108,6 +111,7 @@ type SendPromptResultPayload struct {
 
 // SessionInputPayload is one durable operator input waiting for session dispatch.
 type SessionInputPayload struct {
+	Held             bool                            `json:"held"`
 	Origin           *PromptOriginMeta               `json:"origin,omitzero"`
 	ID               string                          `json:"id"`
 	SessionID        string                          `json:"session_id"`

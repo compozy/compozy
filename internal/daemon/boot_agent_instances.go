@@ -13,8 +13,10 @@ import (
 )
 
 type instanceRepositoryProvider interface {
+	SetUnattendedTurnLimit(int64) error
 	Instances() *globaldb.InstanceRepo
 	InstanceReports() *globaldb.InstanceReportRepo
+	SkillReviews() *globaldb.SkillReviewRepo
 }
 
 func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error {
@@ -26,12 +28,16 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	if !ok {
 		return errors.New("daemon: instance repositories unavailable")
 	}
+	if err := provider.SetUnattendedTurnLimit(state.cfg.Agents.StaysOn.UnattendedTurnLimit); err != nil {
+		return err
+	}
 	repo := provider.Instances()
 	manager.SetInstanceCeilingReader(instanceCeilingReader(repo))
 	catalog := agentCatalogDependency(state.agentCatalog, agentSidecarCatalogs{
 		soul: state.soulCatalog, heartbeat: state.heartbeatCatalog,
 	})
 	definitions := instanceDefinitions{
+		monitors:   state.sessionMonitors,
 		workspaces: state.workspaceResolver,
 		profiles:   state.profiles,
 		agents:     catalog,
@@ -55,7 +61,6 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 			},
 			reports:    provider.InstanceReports(),
 			now:        d.now,
-			threshold:  state.cfg.Agents.StaysOn.RotationThreshold,
 			retryDelay: state.cfg.Agents.Heartbeat.DefaultInterval,
 			changed: func(instance agentinstance.Instance) {
 				manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
@@ -68,13 +73,18 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 			manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
 		}),
 		agentinstance.WithLifecycleHooks(state.hookDispatcher),
+		agentinstance.WithStateEffects(instanceStateEffects(state, repo)),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create instance service: %w", err)
 	}
+	manager.SetInstancePauseHandler(service.AfterPause)
 	state.agentInstances = &core.AgentInstanceAPI{
-		Service: service, Store: repo, Reports: provider.InstanceReports(),
+		ReadPeer: definitions.instancePeer,
+		Metrics:  repo.Metrics,
+		Service:  service, Store: repo, Reports: provider.InstanceReports(),
 		WakeState: repo.WakeState, CountActive: repo.CountActive,
+		HeldWakes: repo.HeldWakes, UnattendedTurnLimit: state.cfg.Agents.StaysOn.UnattendedTurnLimit,
 		MaxActiveInstances: state.cfg.Agents.StaysOn.MaxActiveInstances,
 		FatigueLimit:       state.cfg.Agents.Heartbeat.FatigueLimit,
 		ReadPayload: func(ctx context.Context, instance agentinstance.Instance) (contract.AgentInstancePayload, error) {
@@ -82,6 +92,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		},
 		Authority: agentinstance.Authority{Callers: repo},
 	}
+	d.bindInstanceSkillReviews(state, provider, definitions)
 	state.deps.AgentInstances = state.agentInstances
 	bindInstanceCatalogReconciliation(ctx, state, service.Reconcile)
 	if err := service.Reconcile(ctx); err != nil {
@@ -100,5 +111,25 @@ func bindInstanceCatalogReconciliation(ctx context.Context, state *bootState, re
 				state.logger.ErrorContext(ctx, "daemon: reconcile instances after agent catalog change", "error", err)
 			}
 		})
+	}
+}
+
+func cancelInstanceCheck(ctx context.Context, state *bootState, id string) error {
+	if state.runtimeWorkers.proactiveChecks == nil {
+		return nil
+	}
+	return state.runtimeWorkers.proactiveChecks.CancelInstance(ctx, id)
+}
+
+func instanceStateEffects(
+	state *bootState,
+	repo *globaldb.InstanceRepo,
+) func(context.Context, agentinstance.Instance) error {
+	return func(ctx context.Context, instance agentinstance.Instance) error {
+		err := reconcileInstanceState(ctx, state, repo, instance)
+		if instance.State == "paused" {
+			return errors.Join(err, sweepInstanceReports(ctx, state))
+		}
+		return err
 	}
 }

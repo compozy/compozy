@@ -641,3 +641,34 @@ func newPromptInputTestSession(workspaceRoot string) *session.Session {
 		Workspace: workspaceRoot,
 	}
 }
+
+func TestStaysOnDoctrineStartup(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		startup    session.StartupPromptContext
+		want, main bool
+	}{
+		{"Should include doctrine for an instance main", session.StartupPromptContext{InstanceID: "instance", SessionType: session.SessionTypeUser}, true, true},
+		{"Should include doctrine for an instance descendant", session.StartupPromptContext{AncestorInstanceID: "instance", SessionType: session.SessionTypeUser}, true, false},
+		{"Should omit doctrine for an ordinary session", session.StartupPromptContext{SessionType: session.SessionTypeUser}, false, false},
+		{"Should omit doctrine for a conductor without instance identity", session.StartupPromptContext{AgentName: "orchestrator", SessionType: session.SessionTypeUser}, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assembler := NewComposedAssembler(
+				WithPromptSectionDescriptors(defaultStartupPromptSectionDescriptors(nil, nil)...),
+			)
+			workspace := testResolvedWorkspace(t.TempDir())
+			got, err := assembler.AssembleStartup(t.Context(), tc.startup, testPromptAgent("Base prompt."), &workspace)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(got, "<compozy-stays-on-doctrine>") != tc.want {
+				t.Fatalf("doctrine presence mismatch: %s", got)
+			}
+			if strings.Contains(got, "Do not start a Goal on this main session") != tc.main {
+				t.Fatalf("main instruction mismatch: %s", got)
+			}
+		})
+	}
+}

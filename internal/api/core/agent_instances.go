@@ -19,17 +19,24 @@ import (
 )
 
 type AgentInstanceAPI struct {
-	WakeState          func(context.Context, string) (heartbeat.InstanceWakeState, error)
-	CountActive        func(context.Context, string) (int64, error)
-	MaxActiveInstances int
-	FatigueLimit       int
-	ReadPayload        func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error)
-	CheckSettings      AgentInstanceCheckSettings
-	Checks             AgentInstanceChecker
-	Service            *agentinstance.Service
-	Store              agentinstance.InstanceStore
-	Reports            agentinstance.ReportStore
-	Authority          agentinstance.Authority
+	Metrics             func(context.Context, string, string) (agentinstance.Metrics, error)
+	ReadPeer            func(context.Context, agentinstance.Instance) (contract.AgentInstancePeer, error)
+	SkillPublished      func(context.Context) error
+	SkillProposals      *agentinstance.SkillProposalService
+	SkillTarget         func(context.Context, agentinstance.Instance) (string, []string, error)
+	HeldWakes           func(context.Context, string) (int64, error)
+	UnattendedTurnLimit int64
+	WakeState           func(context.Context, string) (heartbeat.InstanceWakeState, error)
+	CountActive         func(context.Context, string) (int64, error)
+	MaxActiveInstances  int
+	FatigueLimit        int
+	ReadPayload         func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error)
+	CheckSettings       AgentInstanceCheckSettings
+	Checks              AgentInstanceChecker
+	Service             *agentinstance.Service
+	Store               agentinstance.InstanceStore
+	Reports             agentinstance.ReportStore
+	Authority           agentinstance.Authority
 }
 
 func (h *BaseHandlers) instanceActor(c *gin.Context) (workspaceaccess.ActorRef, bool) {
@@ -51,6 +58,10 @@ func (h *BaseHandlers) instanceActor(c *gin.Context) (workspaceaccess.ActorRef, 
 }
 
 func (h *BaseHandlers) instanceTarget(c *gin.Context, verb string) (agentinstance.Instance, bool) {
+	return h.instanceByID(c, c.Param("id"), verb)
+}
+
+func (h *BaseHandlers) instanceByID(c *gin.Context, id, verb string) (agentinstance.Instance, bool) {
 	if h.AgentInstances == nil {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("agent instances unavailable"))
 		return agentinstance.Instance{}, false
@@ -59,7 +70,7 @@ func (h *BaseHandlers) instanceTarget(c *gin.Context, verb string) (agentinstanc
 	if !ok {
 		return agentinstance.Instance{}, false
 	}
-	instance, err := h.AgentInstances.Store.Get(c.Request.Context(), c.Param("id"))
+	instance, err := h.AgentInstances.Store.Get(c.Request.Context(), id)
 	if err != nil {
 		h.instanceError(c, err)
 		return agentinstance.Instance{}, false
@@ -85,10 +96,11 @@ func (h *BaseHandlers) instanceTarget(c *gin.Context, verb string) (agentinstanc
 		decision, err := h.WorkspaceAccess.Authorize(
 			c.Request.Context(),
 			workspaceaccess.Request{
-				Actor:    actor,
-				Target:   workspaceaccess.ScopeTarget(instance.WorkspaceID, instance.ProfileID),
-				ReadOnly: verb == "occurrence" || verb == "reports" || verb == "list" || verb == "check_dry_run",
-				Seam:     workspaceaccess.SeamTool,
+				Actor:  actor,
+				Target: workspaceaccess.ScopeTarget(instance.WorkspaceID, instance.ProfileID),
+				ReadOnly: verb == "occurrence" || verb == "reports" || verb == "list" || verb == "check_dry_run" ||
+					verb == "skill_reviews",
+				Seam: workspaceaccess.SeamTool,
 			},
 		)
 		if err != nil || !decision.Allowed {
@@ -222,6 +234,14 @@ func (api *AgentInstanceAPI) Payload(
 		}
 	}
 	payload.FatigueLimit = api.FatigueLimit
+	payload.UnattendedTurnLimit = api.UnattendedTurnLimit
+	if api.HeldWakes != nil {
+		var err error
+		payload.HeldWakes, err = api.HeldWakes(ctx, i.ID)
+		if err != nil {
+			return payload, err
+		}
+	}
 	if api.WakeState != nil {
 		state, err := api.WakeState(ctx, i.ID)
 		if err != nil {
@@ -229,6 +249,23 @@ func (api *AgentInstanceAPI) Payload(
 		}
 		payload.LastWakeAt, payload.NextWakeAt = state.LastWakeAt, state.NextWakeAt
 		payload.QuietStreak, payload.FailureStreak = state.QuietStreak, state.FailureStreak
+		payload.UnattendedTurns = state.UnattendedTurns
+		if i.ChecksEnabled && i.State == "active" && i.ArchivedAt == nil {
+			checkAt, err := time.Parse(time.RFC3339Nano, state.NextWakeAt)
+			if err == nil {
+				current := payload.NextWake
+				var monitorAt time.Time
+				if current != nil {
+					parsed, parseErr := time.Parse(time.RFC3339Nano, current.At)
+					if parseErr == nil {
+						monitorAt = parsed
+					}
+				}
+				if current == nil || monitorAt.IsZero() || checkAt.Before(monitorAt) {
+					payload.NextWake = &contract.AgentInstanceNextWake{Kind: "check", At: state.NextWakeAt}
+				}
+			}
+		}
 	}
 	return payload, nil
 }
@@ -249,6 +286,10 @@ func AgentInstancePayload(i agentinstance.Instance) contract.AgentInstancePayloa
 	}
 }
 func (h *BaseHandlers) instanceError(c *gin.Context, err error) {
+	if errors.Is(err, errInvalidPeersQuery) {
+		h.respondError(c, http.StatusUnprocessableEntity, err)
+		return
+	}
 	if errors.Is(err, store.ErrWorkspaceArchived) {
 		c.JSON(
 			http.StatusConflict,

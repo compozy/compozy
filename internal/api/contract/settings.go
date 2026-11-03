@@ -151,6 +151,8 @@ const (
 	SettingsPermissionModeDenyAll      SettingsPermissionMode = "deny-all"
 	SettingsPermissionModeApproveReads SettingsPermissionMode = "approve-reads"
 	SettingsPermissionModeApproveAll   SettingsPermissionMode = "approve-all"
+	SettingsPermissionModeApproveEdits SettingsPermissionMode = "approve-edits"
+	SettingsPermissionModeAuto         SettingsPermissionMode = "auto"
 )
 
 type SettingsSourceKind string

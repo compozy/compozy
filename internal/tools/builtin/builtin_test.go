@@ -1323,6 +1323,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: toolspkg.ToolIDAgentInstanceList, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDAgentInstancePause, risk: toolspkg.RiskMutating},
 		{id: toolspkg.ToolIDAgentInstanceReports, risk: toolspkg.RiskRead, readOnly: true},
+		{id: toolspkg.ToolIDAgentSkillPropose, risk: toolspkg.RiskMutating},
+		{id: toolspkg.ToolIDAgentSkillReviews, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDAgentActivity, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDAgentInstanceGet, risk: toolspkg.RiskRead, readOnly: true},
 		{id: toolspkg.ToolIDAgentInstanceAway, risk: toolspkg.RiskRead, readOnly: true},
@@ -2031,6 +2033,7 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		descriptor.ID.String()+" input",
 		input,
 		[]string{
+			"agent",
 			"attachments",
 			"expected_turn_id",
 			"idempotency_key",
@@ -2048,10 +2051,10 @@ func assertSessionPromptMutationSchema(t *testing.T, descriptor toolspkg.Descrip
 		},
 	)
 	if !slices.Equal(input.Required, []string{
-		"session_id", "message_id", "idempotency_key",
+		"message_id", "idempotency_key",
 	}) {
 		t.Fatalf(
-			"%s input required = %#v, want session_id/message_id/idempotency_key",
+			"%s input required = %#v, want message_id/idempotency_key",
 			descriptor.ID,
 			input.Required,
 		)
@@ -3528,7 +3531,7 @@ func TestSubagentDescriptorSchemas(t *testing.T) {
 		}
 		for _, mode := range []string{"async", "wait"} {
 			for _, role := range []string{"general", "implementation", "research", "review", "design", "test"} {
-				for _, permission := range []string{"inherit", "deny-all", "approve-reads", "approve-all"} {
+				for _, permission := range []string{"inherit", "deny-all", "approve-reads", "approve-edits", "auto", "approve-all"} {
 					if err := schema.Validate(
 						map[string]any{"task": "work", "mode": mode, "role": role, "permission_mode": permission},
 					); err != nil {

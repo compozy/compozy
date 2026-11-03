@@ -46,6 +46,8 @@ type DuplicateAgentOverrides struct {
 	Tools           []string                            `json:"tools,omitempty"`
 	Toolsets        []string                            `json:"toolsets,omitempty"`
 	DenyTools       []string                            `json:"deny_tools,omitempty"`
+	SessionApproval string                              `json:"session_approval,omitempty"`
+	PermissionRules []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
 	WorkspaceAccess string                              `json:"workspace_access,omitempty"`
 	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
 	CategoryPath    []string                            `json:"category_path,omitempty"`
@@ -119,6 +121,8 @@ type AgentPayload struct {
 	Tools            []string                            `json:"tools,omitempty"`
 	Toolsets         []string                            `json:"toolsets,omitempty"`
 	DenyTools        []string                            `json:"deny_tools,omitempty"`
+	SessionApproval  string                              `json:"session_approval,omitempty"`
+	PermissionRules  []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
 	WorkspaceAccess  string                              `json:"workspace_access,omitempty"`
 	Permissions      string                              `json:"permissions,omitempty"`
 	CategoryPath     []string                            `json:"category_path,omitempty"`
@@ -134,4 +138,11 @@ type AgentPayload struct {
 	Prompt           string                              `json:"prompt"`
 	Diagnostics      []AgentDiagnosticPayload            `json:"diagnostics,omitempty"`
 	EffectiveRuntime *AgentEffectiveRuntimePayload       `json:"effective_runtime,omitzero"`
+}
+
+// AgentPermissionRulePayload matches only provider actions submitted for approval.
+type AgentPermissionRulePayload struct {
+	Kind     string `json:"kind,omitempty"`
+	Path     string `json:"path,omitempty"`
+	Decision string `json:"decision"`
 }

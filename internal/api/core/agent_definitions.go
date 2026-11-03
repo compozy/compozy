@@ -38,6 +38,9 @@ func (h *BaseHandlers) UpdateAgent(c *gin.Context) {
 		)
 		return
 	}
+	if !h.allowAgentPermissionPolicyWrite(c, req.Agent.SessionApproval, req.Agent.PermissionRules != nil) {
+		return
+	}
 	if !h.allowWorkspaceAccessWrite(c, req.Agent.WorkspaceAccess) {
 		return
 	}
@@ -243,6 +246,9 @@ func (h *BaseHandlers) DuplicateAgent(c *gin.Context) {
 		h.respondError(c, statusForAgentDefinitionError(err), err)
 		return
 	}
+	if !h.allowAgentPermissionPolicyWrite(c, draft.SessionApproval, len(draft.PermissionRules) > 0) {
+		return
+	}
 	if !h.allowWorkspaceAccessWrite(c, draft.WorkspaceAccess) {
 		return
 	}
@@ -302,6 +308,12 @@ func updateAgentDraft(
 		if err := compozyconfig.ValidateAgentAppearance(draft.Appearance); err != nil {
 			return compozyconfig.AgentDefinitionDraft{}, errors.Join(compozyconfig.ErrInvalidAgentDefinition, err)
 		}
+	}
+	if payload.SessionApproval == "" {
+		draft.SessionApproval = currentDraft.SessionApproval
+	}
+	if payload.PermissionRules == nil {
+		draft.PermissionRules = currentDraft.PermissionRules
 	}
 	draft.MCPServers = currentDraft.MCPServers
 	draft.Hooks = currentDraft.Hooks

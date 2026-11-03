@@ -96,7 +96,7 @@ func (m *Manager) applyAttentionAgentEvent(
 }
 
 func permissionInteractionPayload(event acp.AgentEvent) (store.PendingInteractionPayload, string) {
-	payload := store.PendingInteractionPayload{}
+	payload := store.PendingInteractionPayload{Action: event.Action, Resource: event.Resource}
 	title := strings.TrimSpace(event.Title)
 	if len(event.Raw) == 0 {
 		return payload, title
