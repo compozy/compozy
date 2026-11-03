@@ -133,8 +133,9 @@ func (r *modelCatalogRuntime) refreshDynamicSourcesInBackground() {
 		defer r.finishBackgroundRefresh()
 		slots := make(chan struct{}, modelCatalogBackgroundRefreshParallelism)
 		var refreshes sync.WaitGroup
+		holds := r.newHoldSweep()
 		for _, executionContext := range r.catalogExecutionContexts() {
-			for _, target := range r.dueRefreshTargets(executionContext, targets) {
+			for _, target := range r.dueRefreshTargets(executionContext, targets, holds) {
 				select {
 				case slots <- struct{}{}:
 				case <-r.ctx.Done():
@@ -156,14 +157,15 @@ func (r *modelCatalogRuntime) refreshDynamicSourcesInBackground() {
 			}
 		}
 		refreshes.Wait()
+		holds.finish()
 	}()
 }
 
-// dueRefreshTargets drops targets whose stored statuses all defer their next refresh
-// past now, so a sweep spawns no refresh work for sources still inside their TTL.
+// dueRefreshTargets skips fresh or parked sources unless a process-free preflight detects a change.
 func (r *modelCatalogRuntime) dueRefreshTargets(
 	executionContext modelcatalog.CatalogExecutionContext,
 	targets []modelCatalogRefreshTarget,
+	holds *modelCatalogHoldSweep,
 ) []modelCatalogRefreshTarget {
 	statuses, err := r.ListSourceStatus(r.ctx, modelcatalog.StatusOptions{ExecutionContext: executionContext})
 	if err != nil {
@@ -172,30 +174,42 @@ func (r *modelCatalogRuntime) dueRefreshTargets(
 	now := r.now().UTC()
 	due := make([]modelCatalogRefreshTarget, 0, len(targets))
 	for _, target := range targets {
-		if !modelCatalogTargetFresh(target, statuses, now) {
+		scheduled, held := modelCatalogTargetSchedule(target, statuses, now)
+		switch {
+		case scheduled:
+			due = append(due, target)
+		case len(held) > 0 && holds != nil && holds.causeChanged(executionContext, target, held):
 			due = append(due, target)
 		}
 	}
 	return due
 }
 
-func modelCatalogTargetFresh(
+// modelCatalogTargetSchedule separates scheduled refreshes from permanent holds.
+func modelCatalogTargetSchedule(
 	target modelCatalogRefreshTarget,
 	statuses []modelcatalog.SourceStatus,
 	now time.Time,
-) bool {
+) (due bool, held []modelcatalog.SourceStatus) {
 	matched := false
 	for _, status := range statuses {
 		if status.SourceID != target.sourceID ||
 			(target.providerID != "" && status.ProviderID != target.providerID) {
 			continue
 		}
-		if !status.FreshAt(now) {
-			return false
-		}
 		matched = true
+		if status.PermanentFailureHeld() {
+			held = append(held, status)
+			continue
+		}
+		if !status.FreshAt(now) {
+			return true, nil
+		}
 	}
-	return matched
+	if !matched {
+		return true, nil
+	}
+	return false, held
 }
 
 func (r *modelCatalogRuntime) beginBackgroundRefresh() bool {

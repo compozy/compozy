@@ -45,6 +45,9 @@ type modelCatalogRuntime struct {
 
 	backgroundRefreshMu      sync.Mutex
 	backgroundRefreshRunning bool
+
+	failureCauses  modelCatalogFailureCauses
+	heldPreflights modelCatalogHeldPreflights
 }
 
 var _ modelcatalog.Service = (*modelCatalogRuntime)(nil)
@@ -253,6 +256,8 @@ func (r *modelCatalogRuntime) refresh(
 		statuses, err := r.service.Refresh(refreshCtx, refreshOpts)
 		if err != nil {
 			r.logRefreshFailure(refreshOpts, err)
+		} else {
+			r.failureCauses.clear(modelCatalogFailureScope(refreshOpts))
 		}
 		resultCh <- modelCatalogRefreshResult{statuses: statuses, err: err}
 	}(releaseGeneration)
@@ -318,7 +323,15 @@ func (r *modelCatalogRuntime) logRefreshFailure(opts modelcatalog.RefreshOptions
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return
 	}
-	r.logger.Warn(
+	cause := modelcatalog.RedactString(err.Error())
+	level := slog.LevelWarn
+	// WARN reports the first failure and each change of cause; identical retries stay at DEBUG.
+	if !r.failureCauses.record(modelCatalogFailureScope(opts), cause) {
+		level = slog.LevelDebug
+	}
+	r.logger.Log(
+		context.Background(),
+		level,
 		"daemon.model_catalog.refresh_failed",
 		"refresh_request_id",
 		opts.RequestID,
@@ -327,7 +340,7 @@ func (r *modelCatalogRuntime) logRefreshFailure(opts modelcatalog.RefreshOptions
 		"source_id",
 		strings.TrimSpace(opts.SourceID),
 		"error",
-		modelcatalog.RedactString(err.Error()),
+		cause,
 	)
 }
 

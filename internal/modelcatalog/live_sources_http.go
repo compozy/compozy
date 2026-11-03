@@ -145,14 +145,22 @@ func (s *LiveProviderSource) listHTTP(
 	return rows, nil
 }
 
-func (s *LiveProviderSource) applyRequestAuth(req *http.Request, env []string) error {
-	credential := firstEnvValue(env, s.adapter.credentialEnvKeys...)
-	if credential == "" && s.adapter.authRequired {
-		return fmt.Errorf(
+// requireRequestCredential fails permanently when an auth-required endpoint has no credential.
+func (s *LiveProviderSource) requireRequestCredential(env []string) error {
+	if s.adapter.authRequired && firstEnvValue(env, s.adapter.credentialEnvKeys...) == "" {
+		return permanentSourceFailure(fmt.Errorf(
 			"model catalog: provider %q live discovery requires a bound_secret credential",
 			s.providerID,
-		)
+		))
 	}
+	return nil
+}
+
+func (s *LiveProviderSource) applyRequestAuth(req *http.Request, env []string) error {
+	if err := s.requireRequestCredential(env); err != nil {
+		return err
+	}
+	credential := firstEnvValue(env, s.adapter.credentialEnvKeys...)
 	if credential == "" {
 		return nil
 	}

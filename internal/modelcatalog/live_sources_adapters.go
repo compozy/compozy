@@ -170,10 +170,10 @@ func (s *LiveProviderSource) discoveryTarget(
 		if hasConfiguredPath {
 			return liveDiscoveryTarget{}, ErrSourceDisabled
 		}
-		return liveDiscoveryTarget{}, fmt.Errorf(
+		return liveDiscoveryTarget{}, permanentSourceFailure(fmt.Errorf(
 			"model catalog: provider %q has no configured model discovery path",
 			s.providerID,
-		)
+		))
 	}
 	timeout, err := s.discoveryTimeout(discovery.Timeout)
 	if err != nil {
@@ -181,10 +181,10 @@ func (s *LiveProviderSource) discoveryTarget(
 	}
 	if configuredEndpoint != "" {
 		if s.adapter.commandOnly {
-			return liveDiscoveryTarget{}, fmt.Errorf(
+			return liveDiscoveryTarget{}, permanentSourceFailure(fmt.Errorf(
 				"model catalog: provider %q requires a model discovery command, not an endpoint",
 				s.providerID,
-			)
+			))
 		}
 		return liveDiscoveryTarget{kind: liveDiscoveryHTTP, endpoint: configuredEndpoint, timeout: timeout}, nil
 	}
@@ -204,10 +204,10 @@ func (s *LiveProviderSource) discoveryTarget(
 		}, nil
 	case liveDiscoveryCommand:
 		if _, registered := liveProviderAdapters[s.providerID]; !registered {
-			return liveDiscoveryTarget{}, fmt.Errorf(
+			return liveDiscoveryTarget{}, permanentSourceFailure(fmt.Errorf(
 				"model catalog: provider overlay %q requires models.discovery.command for command discovery",
 				s.providerID,
-			)
+			))
 		}
 		return liveDiscoveryTarget{
 			kind:    liveDiscoveryCommand,
@@ -225,10 +225,10 @@ func (s *LiveProviderSource) discoveryTarget(
 			timeout: timeout,
 		}, nil
 	default:
-		return liveDiscoveryTarget{}, fmt.Errorf(
+		return liveDiscoveryTarget{}, permanentSourceFailure(fmt.Errorf(
 			"model catalog: provider %q has no configured model discovery path",
 			s.providerID,
-		)
+		))
 	}
 }
 

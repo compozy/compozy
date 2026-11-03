@@ -1697,6 +1697,207 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 	})
 
+	t.Run("Should park permanently failed targets until their preflight cause changes", func(t *testing.T) {
+		t.Parallel()
+
+		start := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+		var nowMu sync.Mutex
+		now := start
+		service := newCatalogReadRefreshService()
+		// Parked statuses persisted by an earlier daemon process: the runtime below
+		// starts with no in-memory baseline, as after a cold restart.
+		parked := func(sourceID string, lastError string) modelcatalog.SourceStatus {
+			return modelcatalog.SourceStatus{
+				SourceID: sourceID, ProviderID: strings.TrimPrefix(sourceID, "extension/"),
+				RefreshState: modelcatalog.RefreshStateFailed,
+				LastRefresh:  start.Add(-time.Hour),
+				LastError:    lastError,
+			}
+		}
+		service.statuses = []modelcatalog.SourceStatus{
+			parked("extension/held", "resolve provider credential: vault: secret value missing"),
+			parked("extension/login", "exit status 1: Error: Authentication required. Run 'agent login' first."),
+			parked("extension/fixed", "resolve provider credential: vault: secret value missing"),
+			{
+				SourceID: "extension/transient", ProviderID: "transient",
+				RefreshState: modelcatalog.RefreshStateFailed,
+				LastRefresh:  start.Add(-10 * time.Minute),
+				NextRefresh:  start.Add(30 * time.Minute),
+				LastError:    "HTTP 503",
+			},
+		}
+		runtime, err := newModelCatalogRuntime(
+			testutil.Context(t),
+			service,
+			discardLogger(),
+			func() time.Time {
+				nowMu.Lock()
+				defer nowMu.Unlock()
+				return now
+			},
+			5*time.Second,
+		)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+		held := &catalogPreflightSource{
+			catalogDynamicSource: catalogDynamicSource{id: "extension/held"},
+			outcome:              errors.New("vault: secret value missing"),
+		}
+		login := &catalogPreflightSource{catalogDynamicSource: catalogDynamicSource{id: "extension/login"}}
+		// The secret was bound while the daemon was down: preflight now passes.
+		fixed := &catalogPreflightSource{catalogDynamicSource: catalogDynamicSource{id: "extension/fixed"}}
+		transient := &catalogPreflightSource{
+			catalogDynamicSource: catalogDynamicSource{id: "extension/transient"},
+			outcome:              errors.New("upstream unavailable"),
+		}
+		runtime.dynamicSources = map[string]modelcatalog.Source{
+			held.ID(): held, login.ID(): login, fixed.ID(): fixed, transient.ID(): transient,
+		}
+		targets := runtime.dynamicRefreshTargets()
+		if _, err := runtime.resolveCatalogExecutionContext(modelcatalog.CatalogExecutionContext{ProfileID: "other-profile"}); err != nil {
+			t.Fatal(err)
+		}
+		executionContexts := runtime.catalogExecutionContexts()
+		if len(executionContexts) == 0 {
+			t.Fatal("catalogExecutionContexts() is empty, want the default context")
+		}
+		// Preflight is shared, but persisted causes remain local to each context.
+		sweep := func() []string {
+			holds := runtime.newHoldSweep()
+			var due []string
+			for _, executionContext := range executionContexts {
+				for _, target := range runtime.dueRefreshTargets(executionContext, targets, holds) {
+					due = append(due, target.sourceID)
+				}
+			}
+			holds.finish()
+			return due
+		}
+		if due := sweep(); !slices.Equal(due, []string{fixed.ID(), fixed.ID()}) {
+			t.Fatalf("first sweep due = %#v, want only the target fixed since its persisted failure", due)
+		}
+		// Weeks pass: a parked target never comes due by time, and the fixed target
+		// is not retried again while its preflight outcome stays the same. Only the
+		// transient target returns, once its backoff elapses.
+		for index, elapsed := range []time.Duration{time.Minute, 48 * time.Hour, 21 * 24 * time.Hour} {
+			nowMu.Lock()
+			now = start.Add(elapsed)
+			nowMu.Unlock()
+			want := []string(nil)
+			if elapsed > 30*time.Minute {
+				want = []string{transient.ID(), transient.ID()}
+			}
+			if due := sweep(); !slices.Equal(due, want) {
+				t.Fatalf("sweep %d due = %#v, want %#v with parked targets skipped", index, due, want)
+			}
+		}
+		if got := held.preflightCalls(); got != 4 {
+			t.Fatalf("held preflight calls = %d, want one per sweep", got)
+		}
+		if got := transient.preflightCalls(); got != 0 {
+			t.Fatalf("transient preflight calls = %d, want backoff targets never preflighted", got)
+		}
+
+		held.setOutcome(nil)
+		wantChanged := []string{held.ID(), transient.ID(), held.ID(), transient.ID()}
+		if due := sweep(); !slices.Equal(due, wantChanged) {
+			t.Fatalf("sweep after cause change due = %#v, want %#v", due, wantChanged)
+		}
+		wantSettled := []string{transient.ID(), transient.ID()}
+		if due := sweep(); !slices.Equal(due, wantSettled) {
+			t.Fatalf("sweep after acting on the change due = %#v, want %#v", due, wantSettled)
+		}
+
+		runtime.refreshDynamicSourcesInBackground()
+		refresh := service.waitForRefresh(t)
+		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		if refresh.SourceID != transient.ID() || refresh.Force {
+			t.Fatalf("background refresh = %#v, want only the transient target once its backoff elapsed", refresh)
+		}
+		if got := len(service.refreshes); got != len(executionContexts)-1 {
+			t.Fatalf("extra refreshes = %d, want parked targets left alone", got)
+		}
+	})
+
+	t.Run("Should evaluate parked causes separately across execution contexts", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+		service := newCatalogReadRefreshService()
+		runtime, err := newModelCatalogRuntime(testutil.Context(t), service, discardLogger(), func() time.Time {
+			return now
+		}, time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		first := runtime.catalogExecutionContexts()[0]
+		second, err := runtime.resolveCatalogExecutionContext(modelcatalog.CatalogExecutionContext{
+			ProfileID: "other-profile", WorkspaceID: "other-workspace",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		source := &catalogPreflightSource{catalogDynamicSource: catalogDynamicSource{id: "extension/held"}}
+		runtime.dynamicSources = map[string]modelcatalog.Source{source.ID(): source}
+		status := modelcatalog.SourceStatus{
+			SourceID: source.ID(), RefreshState: modelcatalog.RefreshStateFailed,
+			LastRefresh: now.Add(-time.Hour), LastError: "Authentication required. Run 'agent login' first.",
+		}
+		fixed := status
+		fixed.LastError = "vault: secret value missing"
+		service.statusesByContext = map[modelcatalog.CatalogExecutionContext][]modelcatalog.SourceStatus{
+			first: {status}, second: {fixed},
+		}
+		targets := runtime.dynamicRefreshTargets()
+		for sweep := range 2 {
+			holds := runtime.newHoldSweep()
+			if due := runtime.dueRefreshTargets(first, targets, holds); len(due) != 0 {
+				t.Fatalf("login context due = %#v, want explicit refresh required", due)
+			}
+			due := runtime.dueRefreshTargets(second, targets, holds)
+			want := 0
+			if sweep == 0 {
+				want = 1
+			}
+			if len(due) != want {
+				t.Fatalf("fixed context due on sweep %d = %#v, want %d", sweep, due, want)
+			}
+			holds.finish()
+		}
+		if got := source.preflightCalls(); got != 2 {
+			t.Fatalf("preflight calls = %d, want once per sweep across contexts", got)
+		}
+		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("Should warn once per refresh failure cause", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+		runtime := &modelCatalogRuntime{logger: slog.New(slog.NewTextHandler(&logs, nil))}
+		opts := modelcatalog.RefreshOptions{ProviderID: "openrouter", SourceID: "provider_live:openrouter"}
+		missing := errors.New("vault: secret value missing")
+		runtime.logRefreshFailure(opts, missing)
+		runtime.logRefreshFailure(opts, missing)
+		if got := strings.Count(logs.String(), "level=WARN"); got != 1 {
+			t.Fatalf("WARN lines after repeated cause = %d, want 1:\n%s", got, logs.String())
+		}
+		runtime.logRefreshFailure(opts, errors.New("HTTP 503"))
+		if got := strings.Count(logs.String(), "level=WARN"); got != 2 {
+			t.Fatalf("WARN lines after changed cause = %d, want 2:\n%s", got, logs.String())
+		}
+		runtime.failureCauses.clear(modelCatalogFailureScope(opts))
+		runtime.logRefreshFailure(opts, errors.New("HTTP 503"))
+		if got := strings.Count(logs.String(), "level=WARN"); got != 3 {
+			t.Fatalf("WARN lines after recovery = %d, want 3:\n%s", got, logs.String())
+		}
+	})
+
 	t.Run("Should return shutdown deadline when refresh worker does not stop in time", func(t *testing.T) {
 		t.Parallel()
 
@@ -2278,8 +2479,9 @@ type recordingModelCatalogService struct {
 }
 
 type catalogReadRefreshService struct {
-	refreshes chan modelcatalog.RefreshOptions
-	statuses  []modelcatalog.SourceStatus
+	refreshes         chan modelcatalog.RefreshOptions
+	statuses          []modelcatalog.SourceStatus
+	statusesByContext map[modelcatalog.CatalogExecutionContext][]modelcatalog.SourceStatus
 }
 
 type blockingCatalogReadRefreshService struct {
@@ -2306,6 +2508,33 @@ func (catalogDynamicSource) ListModels(
 	modelcatalog.ListOptions,
 ) ([]modelcatalog.ModelRow, error) {
 	return nil, nil
+}
+
+// catalogPreflightSource reports a mutable discovery precondition at the preflight boundary.
+type catalogPreflightSource struct {
+	catalogDynamicSource
+	mu      sync.Mutex
+	outcome error
+	calls   int
+}
+
+func (s *catalogPreflightSource) DiscoveryPreflight(context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls++
+	return s.outcome
+}
+
+func (s *catalogPreflightSource) setOutcome(outcome error) {
+	s.mu.Lock()
+	s.outcome = outcome
+	s.mu.Unlock()
+}
+
+func (s *catalogPreflightSource) preflightCalls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls
 }
 
 type manualModelCatalogRefreshTicker struct {
@@ -2395,9 +2624,12 @@ func (s *catalogReadRefreshService) Refresh(
 }
 
 func (s *catalogReadRefreshService) ListSourceStatus(
-	context.Context,
-	modelcatalog.StatusOptions,
+	_ context.Context,
+	opts modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
+	if s.statusesByContext != nil {
+		return slices.Clone(s.statusesByContext[opts.ExecutionContext]), nil
+	}
 	return slices.Clone(s.statuses), nil
 }
 
