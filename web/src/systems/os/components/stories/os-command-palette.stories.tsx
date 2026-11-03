@@ -258,6 +258,7 @@ function PaletteLifecycleHandoffStory(args: React.ComponentProps<typeof OsComman
             <ProfileLifecycleDialogs
               profiles={profileFixtures}
               onSetAutomationEnabled={async () => undefined}
+              onProfileRenamed={() => undefined}
             />
           </DesktopShell>
         </SessionCreateProvider>

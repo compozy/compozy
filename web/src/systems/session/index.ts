@@ -287,7 +287,10 @@ export {
   isUserControllableSession,
   runningAgentNames,
 } from "./lib/session-running";
-export { invalidateSessionMutationQueries } from "./lib/session-query-invalidation";
+export {
+  invalidateSessionMutationQueries,
+  invalidateSessionOwnerLabelReads,
+} from "./lib/session-query-invalidation";
 // Busy-input surface — default mode, steer delivery, refusals, send outcome.
 // Grouped in ./busy-input; re-exported here.
 export * from "./busy-input";

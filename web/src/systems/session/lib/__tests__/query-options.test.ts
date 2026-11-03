@@ -29,6 +29,7 @@ import {
   invalidateSessionMonitorsQueries,
   invalidateSessionProcessesQueries,
   invalidateSessionMutationQueries,
+  invalidateSessionOwnerLabelReads,
   invalidateSessionUsageQueries,
   invalidateWorkspaceSessionCatalog,
 } from "../session-query-invalidation";
@@ -494,7 +495,9 @@ describe("stream-backed session reads", () => {
 
 // Invariant: each wake rereads its active read models once, invalidates inactive siblings,
 // and preserves all other workspace/session data. A session's row also lives in the All projects
-// aggregate, so every catalog wake reaches it too. Owner: canonical Query cache boundaries.
+// aggregate, so every catalog wake reaches it too. A profile rename relabels every row a catalog,
+// by-id lens, or detail read holds, in every workspace, without touching transcript-side reads
+// (#1220). Owner: canonical Query cache boundaries.
 describe("session read invalidation", () => {
   const keys = {
     detail: sessionKeys.detail("ws", "session"),
@@ -615,6 +618,23 @@ describe("session read invalidation", () => {
       ],
     },
     { name: "usage", invalidate: invalidateSessionUsageQueries, affected: ["usage", "usageTurns"] },
+    {
+      // The All profiles catalog keys on the aggregate, not a name, so the rename moves no key.
+      name: "profile rename",
+      invalidate: (client: QueryClient) => invalidateSessionOwnerLabelReads(client),
+      affected: [
+        "detail",
+        "profile",
+        "otherProfile",
+        "catalog",
+        "folders",
+        "aggregate",
+        "otherCatalog",
+        "otherSession",
+        "otherWorkspace",
+        "otherOwner",
+      ],
+    },
   ]) {
     it(`Should preserve the ${testCase.name} wake scope for active and inactive reads`, async () => {
       const client = new QueryClient({

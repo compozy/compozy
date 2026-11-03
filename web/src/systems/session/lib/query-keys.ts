@@ -54,7 +54,8 @@ export const sessionKeys = {
    * it answers "may I see this at all", which no workspace-scoped invalidation
    * should disturb.
    */
-  byIdRoot: (id: string) => [...sessionKeys.all, "by-id", id.trim()] as const,
+  byIdAll: () => [...sessionKeys.all, "by-id"] as const,
+  byIdRoot: (id: string) => [...sessionKeys.byIdAll(), id.trim()] as const,
   byId: (id: string, profileKey: string) =>
     [...sessionKeys.byIdRoot(id), profileKey.trim()] as const,
   descendants: (id: string, profile: string) =>

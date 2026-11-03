@@ -13,6 +13,8 @@ import {
 export interface UseProfileEventStreamOptions {
   enabled?: boolean;
   eventSourceFactory?: ProfileEventSourceFactory;
+  /** Runs after a `profile.renamed` event, for caches outside this system. */
+  onProfileRenamed?: () => void;
 }
 
 /**
@@ -25,10 +27,12 @@ export interface UseProfileEventStreamOptions {
 export function useProfileEventStream({
   enabled = true,
   eventSourceFactory,
+  onProfileRenamed,
 }: UseProfileEventStreamOptions = {}): ProfileStreamStatus {
   const queryClient = useQueryClient();
   const onProfileEvent = useEffectEvent((event: ProfileEvent) => {
     applyProfileEvent(queryClient, event);
+    if (event.name === "profile.renamed") onProfileRenamed?.();
   });
   const onReconcile = useEffectEvent(() => reconcileProfiles(queryClient));
 
