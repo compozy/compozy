@@ -1090,7 +1090,9 @@ func TestAgentIdentityFlags(t *testing.T) {
 			Name:       "triage",
 			Appearance: map[string]any{"version": 1, "avatar": "icon", "icon": "compass", "color": "#123456"},
 		}
-		applyAgentIdentityFlags(cmd, &p, agentDefinitionFlags{avatar: "generated"})
+		if err := applyAgentIdentityFlags(cmd, &p, agentDefinitionFlags{avatar: "generated"}); err != nil {
+			t.Fatal(err)
+		}
 		if p.Appearance["icon"] != nil || p.Appearance["emoji"] != nil || p.Appearance["seed"] != "triage" ||
 			p.Appearance["generation"] != 1 {
 			t.Fatalf("appearance=%v", p.Appearance)
@@ -1109,7 +1111,11 @@ func TestAgentIdentityFlags(t *testing.T) {
 			t.Fatal(err)
 		}
 		p := contract.CreateAgentPayload{Name: "builder"}
-		applyAgentIdentityFlags(cmd, &p, agentDefinitionFlags{icon: "code-xml", background: "none", color: "#7c5cff"})
+		if err := applyAgentIdentityFlags(
+			cmd, &p, agentDefinitionFlags{icon: "code-xml", background: "none", color: "#7c5cff"},
+		); err != nil {
+			t.Fatal(err)
+		}
 		if p.Appearance["avatar"] != "icon" || p.Appearance["background"] != "none" ||
 			compozyconfig.ValidateAgentAppearance(p.Appearance) != nil {
 			t.Fatalf("appearance=%v", p.Appearance)
@@ -1118,9 +1124,22 @@ func TestAgentIdentityFlags(t *testing.T) {
 		if err := generated.ParseFlags([]string{"--appearance-avatar", "generated"}); err != nil {
 			t.Fatal(err)
 		}
-		applyAgentIdentityFlags(generated, &p, agentDefinitionFlags{avatar: "generated"})
+		if err := applyAgentIdentityFlags(generated, &p, agentDefinitionFlags{avatar: "generated"}); err != nil {
+			t.Fatal(err)
+		}
 		if _, kept := p.Appearance["background"]; kept || compozyconfig.ValidateAgentAppearance(p.Appearance) != nil {
 			t.Fatalf("generated appearance=%v", p.Appearance)
+		}
+	})
+	t.Run("Should refuse a lone plate choice that would replace a duplicate's face", func(t *testing.T) {
+		t.Parallel()
+		cmd := newAgentCreateCommand(commandDeps{})
+		if err := cmd.ParseFlags([]string{"--appearance-background", "none"}); err != nil {
+			t.Fatal(err)
+		}
+		overrides, err := duplicateAgentOverridesFromFlags(cmd, "copy", agentDefinitionFlags{background: "none"})
+		if !errors.Is(err, errAppearanceBackgroundNeedsSymbol) || overrides != nil {
+			t.Fatalf("duplicate=%+v err=%v", overrides, err)
 		}
 	})
 	t.Parallel()
@@ -1134,7 +1153,9 @@ func TestAgentIdentityFlags(t *testing.T) {
 		}
 		f := agentDefinitionFlags{displayName: "Triage Lead", kind: "stays_on", emoji: "🦊"}
 		p := contract.CreateAgentPayload{Name: "triage"}
-		applyAgentIdentityFlags(cmd, &p, f)
+		if err := applyAgentIdentityFlags(cmd, &p, f); err != nil {
+			t.Fatal(err)
+		}
 		if p.DisplayName == nil || *p.DisplayName != "Triage Lead" || p.Kind != "stays_on" ||
 			p.Appearance["avatar"] != "emoji" {
 			t.Fatalf("identity flags: %#v", p)

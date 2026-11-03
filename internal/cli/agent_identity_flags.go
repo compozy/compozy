@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"errors"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
@@ -41,7 +43,13 @@ func agentIdentityFlagsChanged(cmd *cobra.Command) bool {
 	return false
 }
 
-func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload, f agentDefinitionFlags) {
+// errAppearanceBackgroundNeedsSymbol keeps a plate choice from silently turning an icon or emoji
+// into a generated face: the flag only applies where a symbol is drawn.
+var errAppearanceBackgroundNeedsSymbol = errors.New(
+	"--appearance-background applies to an icon or emoji; pass --appearance-icon or --appearance-emoji with it",
+)
+
+func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload, f agentDefinitionFlags) error {
 	if cmd.Flags().Changed("display-name") {
 		p.DisplayName = new(f.displayName)
 	}
@@ -64,7 +72,7 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 		changed = changed || cmd.Flags().Changed("appearance-"+name)
 	}
 	if !changed {
-		return
+		return nil
 	}
 	a := config.CloneAgentAppearance(p.Appearance)
 	if a == nil {
@@ -99,6 +107,10 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 	}
 	switch a[agentAppearanceAvatarKey] {
 	case "generated":
+		// A duplicate starts from no appearance, so a lone plate choice would replace its face.
+		if cmd.Flags().Changed("appearance-" + agentAppearanceBackgroundKey) {
+			return errAppearanceBackgroundNeedsSymbol
+		}
 		// A generated face has no plate to drop.
 		delete(a, agentAppearanceIconKey)
 		delete(a, agentAppearanceEmojiKey)
@@ -119,6 +131,7 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 		delete(a, loopGenerationKey)
 	}
 	p.Appearance = a
+	return nil
 }
 
 const agentAppearanceAvatarKey = "avatar"

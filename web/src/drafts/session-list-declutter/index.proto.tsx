@@ -63,7 +63,7 @@ import {
   THREAD_CHILDREN,
   agentCatalog,
   builtinAppearance,
-} from "./fixtures";
+} from "@/systems/session/mocks/session-list-declutter-fixtures";
 
 export const meta = definePrototype({
   title: "Session list declutter (#1191)",

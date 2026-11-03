@@ -1,10 +1,13 @@
-/** Sessions and agents for the #1191 declutter review: one project, a folder, a thread. */
+/**
+ * Sessions and agents for the session-list declutter gallery (#1191): one project, a folder and a
+ * thread, with built-in agents on bare icons and people's agents on their generated faces.
+ */
 import type { AgentAvatarAppearance } from "@compozy/ui";
 
 import type { AgentIdentitySource } from "@/systems/agent/lib/agent-identity";
-import type { SessionLinkedWorkSummary } from "@/systems/session/lib/session-linked-work";
-import { primarySessionFixture, sessionRuntime } from "@/systems/session/mocks/fixtures";
-import type { SessionPayload } from "@/systems/session/types";
+import type { SessionLinkedWorkSummary } from "../lib/session-linked-work";
+import { primarySessionFixture, sessionRuntime } from "./fixtures";
+import type { SessionPayload } from "../types";
 
 const NOW = Date.now();
 const ago = (minutes: number) => new Date(NOW - minutes * 60_000).toISOString();
