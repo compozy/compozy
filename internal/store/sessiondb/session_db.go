@@ -54,6 +54,7 @@ type sessionShutdownRequest struct {
 // SessionDB owns a per-session SQLite database and its dedicated writer loop.
 type SessionDB struct {
 	db         *sql.DB
+	readDB     *sql.DB
 	path       string
 	owner      store.SessionDBOwner
 	writeCh    chan sessionWriteRequest
@@ -96,9 +97,16 @@ func OpenSessionDB(ctx context.Context, owner store.SessionDBOwner, path string)
 	if err != nil {
 		return nil, err
 	}
+	readDB, err := openGuardedSessionSQLite(ctx, normalizedOwner, path, true)
+	if err != nil {
+		return nil, errors.Join(err, db.Close())
+	}
+	readDB.SetMaxOpenConns(4)
+	readDB.SetMaxIdleConns(4)
 
 	sessionDB := &SessionDB{
 		db:           db,
+		readDB:       readDB,
 		path:         strings.TrimSpace(path),
 		owner:        normalizedOwner,
 		writeCh:      make(chan sessionWriteRequest, defaultWriteBufferSize),

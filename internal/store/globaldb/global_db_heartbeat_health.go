@@ -28,7 +28,29 @@ func (g *HeartbeatRepo) UpsertSessionHealth(
 		return heartbeat.SessionHealth{}, err
 	}
 
-	params := sqlcgen.UpsertSessionHealthParams{
+	if g.healthBuffer != nil {
+		if err := g.healthBuffer.put(ctx, normalized); err != nil {
+			return heartbeat.SessionHealth{}, err
+		}
+		return normalized, nil
+	}
+	params := sessionHealthParams(normalized)
+	err := store.ExecuteWriteOperation(
+		ctx,
+		g.db,
+		"upsert session health",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			return sqlcgen.New(tx).UpsertSessionHealth(ctx, params)
+		},
+	)
+	if err != nil {
+		return heartbeat.SessionHealth{}, fmt.Errorf("store: upsert session health %q: %w", normalized.SessionID, err)
+	}
+	return normalized, nil
+}
+
+func sessionHealthParams(normalized heartbeat.SessionHealth) sqlcgen.UpsertSessionHealthParams {
+	return sqlcgen.UpsertSessionHealthParams{
 		SessionID:           normalized.SessionID,
 		WorkspaceID:         normalized.WorkspaceID,
 		AgentName:           normalized.AgentName,
@@ -45,18 +67,6 @@ func (g *HeartbeatRepo) UpsertSessionHealth(
 		),
 		UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
 	}
-	err := store.ExecuteWriteOperation(
-		ctx,
-		g.db,
-		"upsert session health",
-		func(ctx context.Context, tx *store.WriteTx) error {
-			return sqlcgen.New(tx).UpsertSessionHealth(ctx, params)
-		},
-	)
-	if err != nil {
-		return heartbeat.SessionHealth{}, fmt.Errorf("store: upsert session health %q: %w", normalized.SessionID, err)
-	}
-	return normalized, nil
 }
 
 // GetSessionHealth returns metadata-only health for one session.
@@ -69,6 +79,20 @@ func (g *HeartbeatRepo) GetSessionHealth(ctx context.Context, sessionID string) 
 		return heartbeat.SessionHealth{}, fmt.Errorf("%w: session id is required", heartbeat.ErrInvalidSessionHealth)
 	}
 
+	if g.healthBuffer != nil {
+		g.healthBuffer.mu.Lock()
+		defer g.healthBuffer.mu.Unlock()
+		if entry, ok := g.healthBuffer.pending[trimmedID]; ok {
+			owner, err := g.readQueries.GetSessionHealthOwner(ctx, trimmedID)
+			if err == nil && owner == entry.health.WorkspaceID {
+				return entry.health, nil
+			}
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return heartbeat.SessionHealth{}, err
+			}
+			return heartbeat.SessionHealth{}, heartbeat.ErrSessionHealthNotFound
+		}
+	}
 	row, err := g.readQueries.GetSessionHealth(ctx, trimmedID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return heartbeat.SessionHealth{}, fmt.Errorf(
@@ -95,6 +119,17 @@ func (g *HeartbeatRepo) ListSessionHealth(
 		return nil, err
 	}
 
+	if g.healthBuffer == nil {
+		return g.listSessionHealthRows(ctx, query)
+	}
+	g.healthBuffer.mu.Lock()
+	defer g.healthBuffer.mu.Unlock()
+	return g.healthBuffer.listLocked(ctx, query)
+}
+
+func (g *HeartbeatRepo) listSessionHealthRows(
+	ctx context.Context, query heartbeat.SessionHealthListQuery,
+) ([]heartbeat.SessionHealth, error) {
 	// dynamic-sql: optional workspace/agent/session/state/health/wake filters and limit change the statement shape.
 	sqlQuery := `SELECT session_id, workspace_id, agent_name, state, health, active_prompt, attachable,
 			eligible_for_wake, ineligibility_reason, last_activity_at, last_presence_at,
@@ -147,6 +182,9 @@ func (g *HeartbeatRepo) MarkSessionHealthStale(
 	}
 	if updatedAt.IsZero() {
 		updatedAt = g.now()
+	}
+	if g.healthBuffer != nil {
+		return g.healthBuffer.markStale(ctx, cutoff, updatedAt)
 	}
 	affected, err := g.queries.MarkSessionHealthStale(ctx, sqlcgen.MarkSessionHealthStaleParams{
 		Health:              string(heartbeat.SessionHealthStale),

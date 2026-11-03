@@ -21,6 +21,42 @@ import (
 )
 
 func TestBackgroundWrites(t *testing.T) {
+	// Invariant: an expired shutdown cancels and joins its worker before the owner
+	// can close SQLite; the background writer suite owns this lifecycle boundary.
+	t.Run("Should join the active callback when shutdown expires", func(t *testing.T) {
+		t.Parallel()
+		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "batch-shutdown.db"))
+		writer := NewBackgroundWriter(db)
+		started := make(chan struct{})
+		exited := make(chan struct{})
+		result := make(chan error, 1)
+		go func() {
+			result <- writer.Submit(t.Context(), "wait for shutdown", func(ctx context.Context, _ *WriteTx) error {
+				close(started)
+				<-ctx.Done()
+				close(exited)
+				return ctx.Err()
+			})
+		}()
+		<-started
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		if err := writer.Close(ctx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("close = %v, want cancellation", err)
+		}
+		select {
+		case <-exited:
+		default:
+			t.Fatal("close returned before callback exited")
+		}
+		if err := <-result; !errors.Is(err, context.Canceled) {
+			t.Fatalf("write = %v, want cancellation", err)
+		}
+		if err := ExecuteWrite(t.Context(), db, func(context.Context, *WriteTx) error { return nil }); err != nil {
+			t.Fatalf("writer still held after shutdown: %v", err)
+		}
+	})
+
 	t.Run("Should coalesce concurrent writes and isolate each rejected item", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

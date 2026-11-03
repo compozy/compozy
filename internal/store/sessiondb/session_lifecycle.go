@@ -39,13 +39,17 @@ func (s *SessionDB) Close(ctx context.Context) error {
 
 	writerErr := waitForShutdownResult(drainCtx, resultCh)
 	writerExitErr := waitForWriterExit(drainCtx, s.writerDone)
+	var readerCloseErr error
+	if s.readDB != nil {
+		readerCloseErr = s.readDB.Close()
+	}
 	// A retained reader must not turn optional WAL truncation into a shutdown failure.
 	checkpointErr := store.CheckpointPassive(drainCtx, s.db)
 	closeErr := s.db.Close()
 
 	s.state.Store(sessionStateClosed)
 
-	return errors.Join(writerErr, writerExitErr, checkpointErr, closeErr)
+	return errors.Join(writerErr, writerExitErr, readerCloseErr, checkpointErr, closeErr)
 }
 
 func (s *SessionDB) enqueueWrite(ctx context.Context, req sessionWriteRequest) error {

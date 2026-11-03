@@ -82,7 +82,7 @@ func restoreCompactionTranscriptEntry(
 		return fmt.Errorf("store: inspect restored entry %q: %w", key, err)
 	}
 	if projected != nil {
-		identity.MessageID, err = allocateProjectionMessageID(ctx, tx, key, identity.BaseMessageID)
+		identity.MessageID, err = allocateProjectionMessageID(ctx, tx, key, identity.BaseMessageID, nil)
 		if err != nil {
 			return err
 		}

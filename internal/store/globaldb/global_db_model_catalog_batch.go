@@ -53,7 +53,7 @@ func (g *ModelCatalogRepo) ReplaceSourceRowsBatch(
 	return g.withModelCatalogImmediateTransaction(
 		ctx,
 		"model catalog source replacement batch",
-		func(exec modelCatalogSQLExecutor) error {
+		func(ctx context.Context, exec modelCatalogSQLExecutor) error {
 			for _, replacement := range normalized {
 				if replacement.removeSource {
 					if err := deleteModelCatalogSource(ctx, exec, replacement.status); err != nil {

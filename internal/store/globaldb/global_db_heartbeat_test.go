@@ -490,6 +490,128 @@ func TestGlobalDBHeartbeatSnapshotAndRevisionStore(t *testing.T) {
 func TestGlobalDBSessionHealthStore(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: health reads see the latest update without waiting for the core writer,
+	// and a clean close persists that latest value. The global health store owns this contract.
+	t.Run("Should coalesce health during writer contention and preserve it across reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		db, err := OpenGlobalDB(ctx, path, WithHealthFlushInterval(time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		workspaceID, sessionID := registerHeartbeatWorkspaceAndSession(t, db, "health-buffer", "sess-buffer")
+		writer, err := db.db.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		// The connection must be released before Close drains pending health.
+		defer func() {
+			if err := writer.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
+				t.Error(err)
+			}
+		}()
+		bounded, cancel := context.WithTimeout(ctx, time.Second)
+		defer cancel()
+		health := heartbeatSessionHealthForTest(sessionID, workspaceID, "coder", time.Now().UTC())
+		for range 100 {
+			health.UpdatedAt = health.UpdatedAt.Add(time.Second)
+			if _, err := db.UpsertSessionHealth(bounded, health); err != nil {
+				t.Fatal(err)
+			}
+		}
+		got, err := db.GetSessionHealth(bounded, sessionID)
+		if err != nil || !got.UpdatedAt.Equal(health.UpdatedAt) {
+			t.Fatalf("latest health = %#v, %v", got, err)
+		}
+		rows, err := db.ListSessionHealth(bounded, heartbeat.SessionHealthListQuery{
+			WorkspaceID: " " + workspaceID + " ", Limit: 1,
+		})
+		if err != nil || len(rows) != 1 || !rows[0].UpdatedAt.Equal(health.UpdatedAt) {
+			t.Fatalf("latest health page = %#v, %v", rows, err)
+		}
+		var persisted int
+		if err := db.readDB.QueryRowContext(bounded, "SELECT COUNT(*) FROM session_health").
+			Scan(&persisted); err != nil {
+			t.Fatal(err)
+		}
+		if persisted != 0 {
+			t.Fatalf("persisted health rows while writer held = %d, want 0", persisted)
+		}
+		if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		got, err = reopened.GetSessionHealth(ctx, sessionID)
+		if err != nil || !got.UpdatedAt.Equal(health.UpdatedAt) {
+			t.Fatalf("reopened health = %#v, %v", got, err)
+		}
+	})
+
+	// Invariant: a rejected flush does not discard the latest dirty value; a later
+	// successful flush makes it durable. The same global health suite owns retries.
+	t.Run("Should retain dirty health after a failed flush", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, err := OpenGlobalDB(ctx, filepath.Join(t.TempDir(), GlobalDatabaseName), WithHealthFlushInterval(time.Hour))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		workspaceID, sessionID := registerHeartbeatWorkspaceAndSession(t, db, "health-retry", "sess-retry")
+		health := heartbeatSessionHealthForTest(sessionID, workspaceID, "coder", time.Now().UTC())
+		if _, err := db.UpsertSessionHealth(ctx, health); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(ctx, `CREATE TRIGGER reject_health BEFORE INSERT ON session_health
+			BEGIN SELECT RAISE(ABORT, 'health unavailable'); END`); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.healthBuffer.flush(ctx); err == nil {
+			t.Fatal("flush unexpectedly succeeded")
+		}
+		got, err := db.GetSessionHealth(ctx, sessionID)
+		if err != nil || !got.UpdatedAt.Equal(health.UpdatedAt) {
+			t.Fatalf("dirty health after rejected flush = %#v, %v", got, err)
+		}
+		if _, err := db.db.ExecContext(ctx, "DROP TRIGGER reject_health"); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.healthBuffer.flush(ctx); err != nil {
+			t.Fatal(err)
+		}
+		row, err := db.HeartbeatRepo.readQueries.GetSessionHealth(ctx, sessionID)
+		if err != nil || row.UpdatedAt != store.FormatTimestamp(health.UpdatedAt) {
+			t.Fatalf("persisted health after retry = %#v, %v", row, err)
+		}
+	})
+
 	t.Run("Should load one bounded page of health rows by ids", func(t *testing.T) {
 		t.Parallel()
 

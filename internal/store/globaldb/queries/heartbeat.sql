@@ -139,3 +139,9 @@ DELETE FROM agent_heartbeat_revisions
 WHERE profile_id = sqlc.arg(profile_id) AND workspace_id = sqlc.arg(workspace_id)
   AND agent_name = sqlc.arg(agent_name)
   AND source_path = sqlc.arg(source_path);
+
+-- name: GetSessionHealthOwner :one
+SELECT workspace_id FROM sessions WHERE id = sqlc.arg(session_id);
+
+-- name: ListSessionHealthOwners :many
+SELECT id, workspace_id FROM sessions WHERE id IN (sqlc.slice('session_ids'));

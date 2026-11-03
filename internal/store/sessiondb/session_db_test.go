@@ -1778,6 +1778,103 @@ func sessionMigrationPrefixBefore(t *testing.T, excludedMigration string) store.
 func TestSessionDBTranscriptProjection(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: preparation and transcript reads do not need the writer; a
+	// changed durable prefix invalidates preparation before any row is published.
+	// Owner: SessionDB atomic append; canonical suite: TestSessionDBTranscriptProjection.
+	for _, mutation := range []string{"append", "archive", "clear"} {
+		t.Run("Should prepare outside the writer and reject stale "+mutation+" projections", func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestSessionDB(t, "sess-prepare-"+mutation)
+			event := func(id string, kind string, text string) store.SessionEvent {
+				stored := canonicalStoreEvent(t, acp.AgentEvent{
+					Type: kind, SessionID: db.SessionID(), TurnID: "turn-prepare", Text: text,
+					Timestamp: time.Now().UTC(),
+				}, "coder")
+				stored.ID = id
+				return stored
+			}
+			seed, err := db.RecordPersistedBatch(ctx, []store.SessionEvent{
+				event("user", acp.EventTypeUserMessage, "question"),
+				event("answer", acp.EventTypeAgentMessage, "answer"),
+				event("done", acp.EventTypeDone, ""),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			other, err := OpenSessionDB(ctx, db.owner, db.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := other.Close(testutil.Context(t)); err != nil {
+					t.Error(err)
+				}
+			})
+			db.db.SetMaxOpenConns(1)
+			writer, err := db.db.Conn(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				if err := writer.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
+					t.Error(err)
+				}
+			}()
+			if _, err := writer.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
+				t.Fatal(err)
+			}
+			bounded, cancel := context.WithTimeout(ctx, time.Second)
+			defer cancel()
+			candidate := event("candidate", acp.EventTypeAgentMessage, "prepared answer")
+			plan, err := db.prepareTranscriptWrite(bounded, []store.SessionEvent{candidate}, false)
+			if err != nil {
+				t.Fatalf("prepare with occupied writer: %v", err)
+			}
+			if _, err := db.TranscriptPage(bounded, transcript.PageQuery{Limit: 10}); err != nil {
+				t.Fatalf("read with occupied writer: %v", err)
+			}
+			if _, err := writer.ExecContext(ctx, "ROLLBACK"); err != nil {
+				t.Fatal(err)
+			}
+			if err := writer.Close(); err != nil {
+				t.Fatal(err)
+			}
+			switch mutation {
+			case "append":
+				err = other.Record(ctx, event("concurrent", acp.EventTypeAgentMessage, "concurrent answer"))
+			case "archive":
+				_, err = other.ArchiveEvents(ctx, store.EventArchiveRequest{
+					FromSequence: seed[0].Sequence, ToSequence: seed[len(seed)-1].Sequence,
+				})
+			case "clear":
+				err = other.Clear(ctx)
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := db.commitTranscriptWrite(ctx, plan); !errors.Is(err, errTranscriptChanged) {
+				t.Fatalf("stale commit = %v, want invalidation", err)
+			}
+			if err := db.Record(ctx, candidate); err != nil {
+				t.Fatal(err)
+			}
+			rows, err := db.Query(ctx, store.EventQuery{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			count := 0
+			for _, row := range rows {
+				if row.ID == candidate.ID {
+					count++
+				}
+			}
+			if count != 1 {
+				t.Fatalf("candidate persisted %d times, want once", count)
+			}
+		})
+	}
+
 	t.Run("Should identify the exact projected part and field of a navigation hit", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t)

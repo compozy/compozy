@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/sessionprocess"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
@@ -58,49 +59,43 @@ func (g *SessionProcessRepo) SaveProcessObservations(
 	if err := g.checkReady(ctx, "save process observations"); err != nil {
 		return err
 	}
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("store: begin process observations: %w", err)
-	}
-	defer func() {
+	params := make([]sqlcgen.UpsertSessionProcessObservationParams, 0, len(updates))
+	for _, observation := range updates {
+		param, err := processObservationParams(observation)
 		if err != nil {
-			err = errors.Join(err, tx.Rollback())
-		}
-	}()
-	q := g.queries.WithTx(tx)
-	for _, id := range deletes {
-		if err := q.DeleteSessionProcessObservation(
-			ctx,
-			sqlcgen.DeleteSessionProcessObservationParams{
-				Pid:       int64(id.PID),
-				StartedAt: id.StartedAt.UTC().Format(time.RFC3339Nano),
-			},
-		); err != nil {
 			return err
 		}
+		params = append(params, param)
 	}
-	for _, o := range updates {
-		if o.PID <= 1 || o.StartedAt.IsZero() || o.Owner.SessionID == "" || o.Owner.ProfileID == "" ||
-			o.FirstSeen.IsZero() {
-			return errors.New("store: incomplete process observation")
+	return g.writeBackground(ctx, "persist process observations", func(ctx context.Context, tx *store.WriteTx) error {
+		q := sqlcgen.New(tx)
+		for _, id := range deletes {
+			if err := q.DeleteSessionProcessObservation(ctx, sqlcgen.DeleteSessionProcessObservationParams{
+				Pid: int64(id.PID), StartedAt: id.StartedAt.UTC().Format(time.RFC3339Nano),
+			}); err != nil {
+				return err
+			}
 		}
-		err = q.UpsertSessionProcessObservation(ctx, sqlcgen.UpsertSessionProcessObservationParams{
-			Pid:         int64(o.PID),
-			StartedAt:   o.StartedAt.UTC().Format(time.RFC3339Nano),
-			SessionID:   o.Owner.SessionID,
-			WorkspaceID: o.Owner.WorkspaceID,
-			ProfileID:   o.Owner.ProfileID,
-			SessionName: o.Owner.Name,
-			Pgid:        int64(o.PGID),
-			FirstSeen: o.FirstSeen.UTC().
-				Format(time.RFC3339Nano),
-			GroupObservedAt: o.GroupObservedAt.UTC().Format(time.RFC3339Nano),
-			Attribution:     o.Attribution,
-			KernelToken:     o.KernelToken,
-		})
-		if err != nil {
-			return fmt.Errorf("store: save process observation: %w", err)
+		for _, param := range params {
+			if err := q.UpsertSessionProcessObservation(ctx, param); err != nil {
+				return fmt.Errorf("store: save process observation: %w", err)
+			}
 		}
+		return nil
+	})
+}
+
+func processObservationParams(o sessionprocess.Observation) (sqlcgen.UpsertSessionProcessObservationParams, error) {
+	if o.PID <= 1 || o.StartedAt.IsZero() || o.Owner.SessionID == "" || o.Owner.ProfileID == "" ||
+		o.FirstSeen.IsZero() {
+		return sqlcgen.UpsertSessionProcessObservationParams{}, errors.New("store: incomplete process observation")
 	}
-	return tx.Commit()
+	return sqlcgen.UpsertSessionProcessObservationParams{
+		Pid: int64(o.PID), StartedAt: o.StartedAt.UTC().Format(time.RFC3339Nano),
+		SessionID: o.Owner.SessionID, WorkspaceID: o.Owner.WorkspaceID,
+		ProfileID: o.Owner.ProfileID, SessionName: o.Owner.Name, Pgid: int64(o.PGID),
+		FirstSeen:       o.FirstSeen.UTC().Format(time.RFC3339Nano),
+		GroupObservedAt: o.GroupObservedAt.UTC().Format(time.RFC3339Nano),
+		Attribution:     o.Attribution, KernelToken: o.KernelToken,
+	}, nil
 }

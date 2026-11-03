@@ -52,7 +52,7 @@ func (g *ModelCatalogRepo) ReplaceSourceRows(
 	return g.withModelCatalogImmediateTransaction(
 		ctx,
 		"model catalog source replacement",
-		func(exec modelCatalogSQLExecutor) error {
+		func(ctx context.Context, exec modelCatalogSQLExecutor) error {
 			return replaceModelCatalogSourceRows(ctx, exec, normalizedContext, normalizedRows, normalizedStatus)
 		},
 	)

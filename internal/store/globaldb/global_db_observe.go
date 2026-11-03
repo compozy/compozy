@@ -41,9 +41,8 @@ func (g *ObserveRepo) WriteEventSummaries(
 		return nil
 	}
 
-	return store.ExecuteWriteOperation(
+	return g.writeBackground(
 		ctx,
-		g.db,
 		"write event summaries",
 		func(ctx context.Context, tx *store.WriteTx) error {
 			queries := sqlcgen.New(tx)

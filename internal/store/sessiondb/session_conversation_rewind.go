@@ -21,7 +21,7 @@ func (s *SessionDB) ConversationRewindTarget(
 	if s == nil {
 		return store.ConversationRewindTarget{}, errors.New("store: session database is required")
 	}
-	return conversationRewindTarget(ctx, s.db, messageID)
+	return conversationRewindTarget(ctx, s.readDB, messageID)
 }
 
 func (s *SessionDB) ConversationRewindState(
@@ -30,7 +30,7 @@ func (s *SessionDB) ConversationRewindState(
 	if s == nil {
 		return store.ConversationRewindState{}, false, errors.New("store: session database is required")
 	}
-	return conversationRewindState(ctx, s.db)
+	return conversationRewindState(ctx, s.readDB)
 }
 
 func (s *SessionDB) ConversationRewindReceipt(
@@ -41,7 +41,7 @@ func (s *SessionDB) ConversationRewindReceipt(
 	if s == nil {
 		return store.ConversationRewindResult{}, false, errors.New("store: session database is required")
 	}
-	return conversationRewindReceipt(ctx, s.db, idempotencyKey, requestHash)
+	return conversationRewindReceipt(ctx, s.readDB, idempotencyKey, requestHash)
 }
 
 func (s *SessionDB) RewindConversation(

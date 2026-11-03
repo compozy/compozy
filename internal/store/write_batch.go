@@ -25,16 +25,24 @@ type backgroundWrite struct {
 	started   bool
 }
 
+type BackgroundWriteOperation struct {
+	Name string
+	Run  func(context.Context, *WriteTx) error
+}
+
 // BackgroundWriter owns a bounded queue of coalesced writes until Close drains it.
 type BackgroundWriter struct {
-	db      *sql.DB
-	mu      sync.Mutex
-	queue   []*backgroundWrite
-	closed  bool
-	slots   chan struct{}
-	wake    chan struct{}
-	closing chan struct{}
-	done    chan struct{}
+	db       *sql.DB
+	ctx      context.Context
+	cancel   context.CancelCauseFunc
+	mu       sync.Mutex
+	queue    []*backgroundWrite
+	closed   bool
+	closeErr error
+	slots    chan struct{}
+	wake     chan struct{}
+	closing  chan struct{}
+	done     chan struct{}
 }
 
 func NewBackgroundWriter(db *sql.DB) *BackgroundWriter {
@@ -42,6 +50,7 @@ func NewBackgroundWriter(db *sql.DB) *BackgroundWriter {
 		db: db, slots: make(chan struct{}, backgroundWriteQueueSize),
 		wake: make(chan struct{}, 1), closing: make(chan struct{}), done: make(chan struct{}),
 	}
+	w.ctx, w.cancel = context.WithCancelCause(context.Background())
 	go w.run()
 	return w
 }
@@ -50,27 +59,56 @@ func NewBackgroundWriter(db *sql.DB) *BackgroundWriter {
 func (w *BackgroundWriter) Submit(
 	ctx context.Context, operation string, fn func(context.Context, *WriteTx) error,
 ) error {
+	item, err := w.submit(ctx, operation, fn)
+	if err != nil {
+		return err
+	}
+	return item.wait()
+}
+
+// SubmitBatch returns one committed outcome per operation, in submission order.
+func (w *BackgroundWriter) SubmitBatch(ctx context.Context, operations []BackgroundWriteOperation) []error {
+	items := make([]*backgroundWrite, len(operations))
+	results := make([]error, len(operations))
+	for i, operation := range operations {
+		items[i], results[i] = w.submit(ctx, operation.Name, operation.Run)
+	}
+	for i, item := range items {
+		if item != nil {
+			results[i] = item.wait()
+		}
+	}
+	return results
+}
+
+func (w *BackgroundWriter) submit(
+	ctx context.Context, operation string, fn func(context.Context, *WriteTx) error,
+) (*backgroundWrite, error) {
 	if ctx == nil || w.db == nil || fn == nil {
-		return errors.New("store: background write requires context, database and callback")
+		return nil, errors.New("store: background write requires context, database and callback")
 	}
 	for owner := writeContextParent(ctx); owner != nil; owner = owner.parent {
 		if owner.db == w.db && owner.active.Load() {
-			return errWriteReentry
+			return nil, errWriteReentry
 		}
 	}
 	item := &backgroundWrite{ctx: ctx, operation: operation, fn: fn, result: make(chan error, 1)}
 	if err := w.enqueue(item); err != nil {
-		return err
+		return nil, err
 	}
+	return item, nil
+}
+
+func (item *backgroundWrite) wait() error {
 	select {
 	case err := <-item.result:
 		return err
-	case <-ctx.Done():
+	case <-item.ctx.Done():
 		item.mu.Lock()
 		started := item.started
 		item.mu.Unlock()
 		if !started {
-			return ctx.Err()
+			return item.ctx.Err()
 		}
 		// A running callback may already have committed; return its actual outcome.
 		return <-item.result
@@ -98,6 +136,9 @@ func (w *BackgroundWriter) enqueue(item *backgroundWrite) error {
 
 // Close stops admission and waits for every accepted item to receive its commit outcome.
 func (w *BackgroundWriter) Close(ctx context.Context) error {
+	if ctx == nil {
+		return errors.New("store: close background writer context is required")
+	}
 	w.mu.Lock()
 	if !w.closed {
 		w.closed = true
@@ -107,10 +148,19 @@ func (w *BackgroundWriter) Close(ctx context.Context) error {
 	w.mu.Unlock()
 	select {
 	case <-w.done:
-		return nil
 	case <-ctx.Done():
-		return ctx.Err()
+		w.mu.Lock()
+		if w.closeErr == nil {
+			w.closeErr = ctx.Err()
+		}
+		w.cancel(w.closeErr)
+		w.mu.Unlock()
+		<-w.done
 	}
+	w.cancel(nil)
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.closeErr
 }
 
 func (w *BackgroundWriter) signal() {
@@ -158,7 +208,9 @@ func (w *BackgroundWriter) commit(batch []*backgroundWrite, admission *writeAdmi
 	// Authenticated mutations retain their fence immediately before their own commit.
 	if hasMutationCommitFence(batch[0].ctx) {
 		item := batch[0]
-		item.result <- ExecuteWriteOperation(item.ctx, w.db, item.operation, func(ctx context.Context, tx *WriteTx) error {
+		ctx, cancel := w.itemContext(item.ctx)
+		defer cancel()
+		item.result <- ExecuteWriteOperation(ctx, w.db, item.operation, func(ctx context.Context, tx *WriteTx) error {
 			item.mu.Lock()
 			item.started = true
 			item.mu.Unlock()
@@ -172,7 +224,7 @@ func (w *BackgroundWriter) commit(batch []*backgroundWrite, admission *writeAdmi
 	cfg := defaultExecuteWriteConfig()
 	cfg.operation = "coalesced background writes"
 	cfg.background = true
-	err := executeWrite(context.Background(), w.db, cfg, func(ctx context.Context, tx *WriteTx) error {
+	err := executeWrite(w.ctx, w.db, cfg, func(ctx context.Context, tx *WriteTx) error {
 		completed = 0
 		started := time.Now()
 		for i, item := range batch {
@@ -219,7 +271,8 @@ func (w *BackgroundWriter) executeItem(
 	owner := &writeContextOwner{db: w.db, parent: writeContextParent(item.ctx)}
 	owner.active.Store(true)
 	defer owner.active.Store(false)
-	itemCtx := context.WithValue(item.ctx, writeContextKey{}, owner)
+	itemCtx, cancel := w.itemContext(context.WithValue(item.ctx, writeContextKey{}, owner))
+	defer cancel()
 	err = item.fn(itemCtx, tx)
 	if IsSQLiteBusy(err) {
 		return nil, err
@@ -237,6 +290,15 @@ func (w *BackgroundWriter) executeItem(
 		return err, releaseErr
 	}
 	return err, nil
+}
+
+func (w *BackgroundWriter) itemContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(w.ctx, cancel)
+	return ctx, func() {
+		stop()
+		cancel()
+	}
 }
 
 func writeContextParent(ctx context.Context) *writeContextOwner {

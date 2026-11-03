@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -10,6 +11,7 @@ import (
 type OpenOption func(*openConfig)
 
 type openConfig struct {
+	healthFlushInterval      time.Duration
 	openSessionEventMetadata store.SessionEventMetadataOpener
 	operatorHomeDir          string
 }
@@ -28,8 +30,17 @@ func WithOperatorHomeDir(operatorHomeDir string) OpenOption {
 	}
 }
 
+// WithHealthFlushInterval controls health write-behind latency; nonpositive values use the default.
+func WithHealthFlushInterval(interval time.Duration) OpenOption {
+	return func(config *openConfig) {
+		if interval > 0 {
+			config.healthFlushInterval = interval
+		}
+	}
+}
+
 func newOpenConfig(options []OpenOption) openConfig {
-	var config openConfig
+	config := openConfig{healthFlushInterval: 500 * time.Millisecond}
 	for _, option := range options {
 		if option != nil {
 			option(&config)
