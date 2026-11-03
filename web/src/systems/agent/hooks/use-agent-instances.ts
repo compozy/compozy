@@ -115,7 +115,9 @@ export function useCreateAgentInstance() {
   const queryClient = useQueryClient();
   const { destination } = useProfilePerProfileScope();
   return useMutation({
-    mutationFn: (params: CreateAgentInstanceParams) => createAgentInstance(params, destination),
+    /** `profile` starts it in a profile other than the acting one, e.g. a duplicate's source's. */
+    mutationFn: ({ profile, ...params }: CreateAgentInstanceParams & { profile?: string }) =>
+      createAgentInstance(params, profile ?? destination),
     onSettled: () => invalidateAgentInstances(queryClient),
   });
 }

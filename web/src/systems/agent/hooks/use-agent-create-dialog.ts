@@ -71,7 +71,7 @@ export interface AgentCreateOpenOptions {
 
 export interface AgentCreateDialogApi extends AgentCreateDialogState {
   openDialog: (options?: AgentCreateOpenOptions) => void;
-  openForDuplicate: (agent: AgentPayload) => void;
+  openForDuplicate: (agent: AgentPayload, options?: { profile?: string }) => void;
   onDraftChange: (draft: AgentCreateDialogDraft) => void;
   onOpenChange: (open: boolean) => void;
   onRefreshCatalog: () => void;
@@ -113,6 +113,8 @@ function useAgentCreateNavigation(
   useEffect(() => {
     if (!navigationTarget) return;
     const { agentName, attempt, landing, workspace } = navigationTarget;
+    // A copy made in another profile opens pinned there, like its source.
+    const profile = navigationTarget.kind === "duplicate" ? navigationTarget.profile : undefined;
     dialogStore.trigger.navigationRequested({
       attempt,
       draft: createDefaultAgentCreateDraft(Boolean(activeWorkspace), activeWorkspace?.id),
@@ -123,7 +125,10 @@ function useAgentCreateNavigation(
           await navigate({
             to: "/agents/$name",
             params: { name: agentName },
-            search: workspace ? { workspace } : undefined,
+            search: {
+              ...(workspace ? { workspace } : {}),
+              ...(profile ? { profile } : {}),
+            },
           });
       },
     });
@@ -184,10 +189,11 @@ export function useAgentCreateDialog({
     });
   };
 
-  const openForDuplicate = (agent: AgentPayload) => {
+  const openForDuplicate = (agent: AgentPayload, options: { profile?: string } = {}) => {
     dialogStore.trigger.duplicateOpened({
       draft: buildDraftFromAgentPayload(agent, Boolean(activeWorkspace)),
       source: agent,
+      profile: options.profile,
     });
   };
 

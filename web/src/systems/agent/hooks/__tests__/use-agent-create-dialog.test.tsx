@@ -608,4 +608,60 @@ describe("useAgentCreateDialog", () => {
       });
     });
   });
+  it("Should duplicate in the source's own profile under All profiles [#1183]", async () => {
+    setProfileView({ kind: "aggregate" });
+    const { result } = renderAgentCreateDialog();
+    const source = {
+      label: "Ops Lead",
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: "ops-lead",
+        generation: 1,
+        color: "#7c5cff",
+      },
+      name: "ops-lead",
+      provider: "codex",
+      prompt: "Lead ops.",
+      origin: "workspace" as const,
+      definition_digest: "e".repeat(64),
+    };
+    mockDuplicateAgent.mockResolvedValue({ ...source, name: "ops-lead-copy" });
+
+    act(() => result.current.openForDuplicate(source, { profile: "ops" }));
+    act(() => result.current.onDraftChange({ ...result.current.draft, name: "ops-lead-copy" }));
+    act(() => result.current.onSubmit());
+
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/agents/$name",
+        params: { name: "ops-lead-copy" },
+        search: { workspace: "ws_alpha", profile: "ops" },
+      })
+    );
+    expect(mockDuplicateAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ profile: "ops", sourceName: "ops-lead" })
+    );
+
+    // A stays-on copy starts its first instance in that same profile.
+    act(() => result.current.openForDuplicate(source, { profile: "ops" }));
+    act(() =>
+      result.current.onDraftChange({
+        ...result.current.draft,
+        name: "ops-lead-watch",
+        kind: "stays_on",
+        place: "@user",
+      })
+    );
+    act(() => result.current.onSubmit());
+
+    await waitFor(() =>
+      expect(mockCreateInstance).toHaveBeenCalledWith({
+        agent: "ops-lead-copy",
+        workspace: "@user",
+        profile: "ops",
+      })
+    );
+  });
 });
