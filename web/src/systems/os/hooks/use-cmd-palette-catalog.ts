@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { readCatalogRecord, writeCatalogRecord } from "../lib/cmd-palette-catalog-cache";
 import { toCatalogRecord, type CmdPaletteCatalogRecord } from "../lib/cmd-palette-catalog-record";
@@ -27,6 +27,31 @@ export interface UseCmdPaletteCatalogOptions {
   readonly workspaceId: string | null;
   readonly clientId: string | null;
   readonly enabled?: boolean;
+}
+
+function usePersistedCatalog(
+  workspace: string,
+  profileKey: string,
+  served: CmdPaletteCatalogResponse | undefined
+) {
+  const pending = useRef<CmdPaletteCatalogRecord | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const flush = useEffectEvent(() => {
+    clearTimeout(timer.current);
+    timer.current = undefined;
+    const record = pending.current;
+    pending.current = null;
+    if (record) void writeCatalogRecord(record);
+  });
+  // Leaving a scope flushes its final revision rather than discarding the pending write.
+  useEffect(() => () => flush(), [profileKey, workspace]);
+  useEffect(() => {
+    if (workspace === "" || served === undefined) return undefined;
+    pending.current = toCatalogRecord(workspace, profileKey, served);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(flush, 250);
+    return () => clearTimeout(timer.current);
+  }, [profileKey, served, workspace]);
 }
 
 /**
@@ -77,13 +102,7 @@ export function useCmdPaletteCatalog({
         )
       : undefined;
   const activeCatalog = served ?? workspaceCatalog;
-  useEffect(() => {
-    if (workspace === "" || served === undefined) return undefined;
-    const timer = setTimeout(() => {
-      void writeCatalogRecord(toCatalogRecord(workspace, profileKey, served));
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [profileKey, served, workspace]);
+  usePersistedCatalog(workspace, profileKey, served);
 
   const cacheHydrated =
     enabled && cached?.workspaceId === workspace && cached.profileKey === profileKey;

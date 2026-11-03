@@ -12,6 +12,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { resetProfileViews, setProfileView } from "@/systems/profiles";
+
 import * as api from "../../adapters/cmd-palette-api";
 import { CmdPaletteApiError } from "../../adapters/cmd-palette-api";
 import {
@@ -86,6 +88,8 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+    resetProfileViews();
     vi.restoreAllMocks();
   });
 
@@ -154,6 +158,44 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
     });
     expect(put).toHaveBeenCalledTimes(1);
   });
+
+  it.each(["workspace", "profile", "unmount"] as const)(
+    "Should persist the final pending catalog when leaving by %s",
+    async transition => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const put = vi.spyOn(IDBObjectStore.prototype, "put");
+      vi.spyOn(api, "listCmdPaletteCommands").mockImplementation(() => new Promise(() => {}));
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      queryClient.setQueryData(
+        cmdPaletteKeys.catalog(WORKSPACE, "default", CLIENT),
+        catalog("sha256:final-pending", ["Final pending"])
+      );
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      );
+      const { rerender, unmount } = renderHook(
+        ({ workspaceId }) => useCmdPaletteCatalog({ workspaceId, clientId: CLIENT }),
+        { wrapper, initialProps: { workspaceId: WORKSPACE } }
+      );
+      expect(put).not.toHaveBeenCalled();
+      await act(async () => {
+        if (transition === "workspace") rerender({ workspaceId: OTHER_WORKSPACE });
+        else if (transition === "profile")
+          setProfileView({ kind: "profile", profile: "marketing" });
+        else unmount();
+      });
+      await act(async () => {
+        await expect(readCatalogRecord(WORKSPACE, "default")).resolves.toMatchObject({
+          catalogRevision: "sha256:final-pending",
+          workspaceId: WORKSPACE,
+          profileKey: "default",
+        });
+      });
+      expect(put).toHaveBeenCalledTimes(1);
+      unmount();
+      queryClient.clear();
+    }
+  );
 
   it("Should carry a catalog only across client attachment in the same workspace", async () => {
     let releaseClientCatalog: (value: CmdPaletteCatalogResponse) => void = () => {};
