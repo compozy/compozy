@@ -156,6 +156,7 @@ func (s *Service) resolveAttachedViewClient(
 	if request.Client != "" {
 		if err := s.clients.Authorize(
 			ctx,
+			request.ProfileLens,
 			request.Workspace,
 			request.Client,
 			request.AttachmentToken,
@@ -164,7 +165,7 @@ func (s *Service) resolveAttachedViewClient(
 		}
 		return request.Client, nil
 	}
-	clients, err := s.clients.AttachedClients(ctx, request.Workspace)
+	clients, err := s.clients.AttachedClients(ctx, request.ProfileLens, request.Workspace)
 	if err != nil {
 		return "", fmt.Errorf("cmd palette view: list attached clients: %w", err)
 	}
@@ -172,6 +173,7 @@ func (s *Service) resolveAttachedViewClient(
 	for _, candidate := range clients {
 		if err := s.clients.Authorize(
 			ctx,
+			request.ProfileLens,
 			request.Workspace,
 			candidate.ID,
 			request.AttachmentToken,

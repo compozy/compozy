@@ -217,8 +217,10 @@ func (c *Client) UpdateSettingsSkills(ctx context.Context, params UpdateSettings
 
 // UpdateSettingsWindowManagerParams carries the path, query, and header parameters.
 type UpdateSettingsWindowManagerParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
+	Scope         *string `url:"scope"`
+	WorkspaceID   *string `url:"workspace_id"`
+	ClientID      *string `url:"client_id"`
+	ClientProfile *string `url:"client_profile"`
 }
 
 // UpdateSettingsWindowManager Update the window-manager settings section
@@ -230,6 +232,12 @@ func (c *Client) UpdateSettingsWindowManager(ctx context.Context, params UpdateS
 	}
 	if params.WorkspaceID != nil {
 		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.ClientID != nil {
+		query.Set("client_id", *params.ClientID)
+	}
+	if params.ClientProfile != nil {
+		query.Set("client_profile", *params.ClientProfile)
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()

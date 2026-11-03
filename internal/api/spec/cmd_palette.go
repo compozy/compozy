@@ -39,7 +39,7 @@ var (
 			AppAccess:   AppAccessDenied,
 			OperationID: "listCmdPaletteClients", Summary: "List attached command palette clients",
 			Tags: []string{specCmdPaletteKey}, Transports: cmdPaletteTransports,
-			Parameters: []ParameterSpec{queryParam("workspace", "Workspace id, name, or path", true)},
+			Parameters: withProfileScope(queryParam("workspace", "Workspace id, name, or path", true)),
 			Responses: []ResponseSpec{
 				{Status: 200, Description: "OK", Body: []contract.CmdPaletteClient{}},
 				{Status: 400, Description: cmdPaletteInvalidWorkspaceDescription, Body: contract.CmdPaletteError{}},

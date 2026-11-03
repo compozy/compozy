@@ -3913,6 +3913,37 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			},
 		),
 	)
+	// #1196: attached palette clients belong to one profile, so the client list takes the
+	// optional profile selector and aggregate; the workspace parameter keeps its meaning.
+	paletteClients := paths["/api/cmd-palette/clients"].(map[string]any)["get"].(map[string]any)
+	paletteClients["parameters"] = append(paletteClients["parameters"].([]any),
+		map[string]any{
+			"description": "Read one profile's rows by name", "in": "query", "name": "profile",
+			"schema": map[string]any{"type": "string"},
+		},
+		map[string]any{
+			"description": "Read the owner-labeled all-profiles aggregate", "in": "query", "name": "all_profiles",
+			"schema": map[string]any{"type": "boolean"},
+		},
+	)
+	for _, method := range []string{"get", "patch"} {
+		operation := paths["/api/settings/window-manager"].(map[string]any)[method].(map[string]any)
+		operation["parameters"] = append(
+			operation["parameters"].([]any),
+			map[string]any{
+				"name":        "client_id",
+				"in":          "query",
+				"description": "Select the shell attachment for shortcut statuses",
+				"schema":      map[string]any{"type": "string"},
+			},
+			map[string]any{
+				"name":        "client_profile",
+				"in":          "query",
+				"description": "Select the shell profile without changing settings scope",
+				"schema":      map[string]any{"type": "string"},
+			},
+		)
+	}
 	addStaysOnAdditiveSchemas(baseline)
 }
 

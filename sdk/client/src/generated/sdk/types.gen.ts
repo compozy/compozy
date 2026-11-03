@@ -18040,6 +18040,14 @@ export type ListCmdPaletteClientsData = {
      * Workspace id, name, or path
      */
     workspace: string;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/cmd-palette/clients";
 };
@@ -27375,6 +27383,14 @@ export type GetSettingsWindowManagerData = {
      * Select the workspace id for workspace scope
      */
     workspace_id?: string;
+    /**
+     * Select the shell attachment for shortcut statuses
+     */
+    client_id?: string;
+    /**
+     * Select the shell profile without changing settings scope
+     */
+    client_profile?: string;
   };
   url: "/api/settings/window-manager";
 };
@@ -27422,6 +27438,14 @@ export type UpdateSettingsWindowManagerData = {
      * Select the workspace id for workspace scope
      */
     workspace_id?: string;
+    /**
+     * Select the shell attachment for shortcut statuses
+     */
+    client_id?: string;
+    /**
+     * Select the shell profile without changing settings scope
+     */
+    client_profile?: string;
   };
   url: "/api/settings/window-manager";
 };

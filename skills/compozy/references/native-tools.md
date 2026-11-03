@@ -106,8 +106,9 @@ patch bindings and aliases through `/api/settings/window-manager`.
 
 Add `--global` to `bind|unbind` for desktop-global hotkeys. Read the complete
 `window_manager.global_shortcuts` map before mutation because the Settings PATCH replaces it. Pass a
-shell `client_id` when reading `/api/settings/window-manager` to receive that shell's confirmed
-registration state; an intended chord without `active_chord` is not active.
+shell `client_id` and `client_profile` when reading `/api/settings/window-manager` to receive that
+shell's confirmed registration state in its profile. `client_profile` selects the shell without
+changing the user/workspace settings scope; an intended chord without `active_chord` is not active.
 
 Palette personalization is profile-owned within a workspace and management-only. Inspect or reset
 the selected profile's state with `compozy --profile <profile> cmd-palette personalization

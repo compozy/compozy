@@ -21,6 +21,7 @@ func (s *service) buildWindowManagerSection(
 	cfg *compozyconfig.Config,
 	workspaceID string,
 	clientID string,
+	clientProfile cmdpalette.ProfileLens,
 ) (WindowManagerSection, error) {
 	section := WindowManagerSection{
 		Config:            cloneWindowManagerConfig(cfg.WindowManager),
@@ -28,7 +29,7 @@ func (s *service) buildWindowManagerSection(
 		ExtensionDefaults: []WindowManagerExtensionDefault{},
 	}
 	if s.cmdPalette != nil && workspaceID != "" {
-		return s.buildCatalogWindowManagerSection(ctx, cfg, workspaceID, clientID, section)
+		return s.buildCatalogWindowManagerSection(ctx, cfg, workspaceID, clientID, clientProfile, section)
 	}
 	return buildDefaultWindowManagerSection(cfg, section)
 }
@@ -38,10 +39,14 @@ func (s *service) buildCatalogWindowManagerSection(
 	cfg *compozyconfig.Config,
 	workspaceID string,
 	clientID string,
+	clientProfile cmdpalette.ProfileLens,
 	section WindowManagerSection,
 ) (WindowManagerSection, error) {
+	if clientProfile.ID == "" {
+		clientProfile = cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default")
+	}
 	request := cmdpalette.CatalogRequest{
-		ProfileLens: cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default"),
+		ProfileLens: clientProfile,
 		WorkspaceID: cmdpalette.WorkspaceID(workspaceID),
 		ClientID:    cmdpalette.ClientID(clientID),
 	}
@@ -93,7 +98,7 @@ func (s *service) buildCatalogWindowManagerSection(
 		return WindowManagerSection{}, fmt.Errorf("settings: diagnose stored shortcuts: %w", err)
 	}
 	section.ExtensionDefaults, err = s.buildWindowManagerExtensionDefaults(
-		ctx, workspaceID, cfg.WindowManager.Shortcuts, bindableIDs,
+		ctx, request.ProfileLens, workspaceID, cfg.WindowManager.Shortcuts, bindableIDs,
 	)
 	if err != nil {
 		return WindowManagerSection{}, err
@@ -142,6 +147,7 @@ func buildDefaultWindowManagerSection(
 
 func (s *service) buildWindowManagerExtensionDefaults(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID string,
 	overrides map[string]windowmanager.ShortcutBinding,
 	bindableIDs windowmanager.BindableIDs,
@@ -152,7 +158,7 @@ func (s *service) buildWindowManagerExtensionDefaults(
 	}
 	defaults, err := provider.ExtensionDefaults(
 		ctx,
-		cmdpalette.ScopedProfileLens(cmdpalette.DefaultProfileLensID, "default"),
+		profileLens,
 		cmdpalette.WorkspaceID(workspaceID),
 	)
 	if err != nil {

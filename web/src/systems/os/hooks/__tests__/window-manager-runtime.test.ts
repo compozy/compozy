@@ -73,7 +73,7 @@ const CONFIG: WindowManagerConfig = {
   effectiveShortcuts: {},
 };
 
-const TEST_CONFIG_KEY = windowManagerKeys.config("workspace:test", "client:web");
+const TEST_CONFIG_KEY = windowManagerKeys.config("workspace:test", "client:web", "marketing");
 const SETTINGS_SECTION: WindowManagerSettingsSection = {
   scope: "workspace",
   availableScopes: ["user", "workspace"],
@@ -645,10 +645,13 @@ describe("WindowManagerRuntime", () => {
       windowManagerKeys.snapshot("workspace:next", "marketing"),
       nextSnapshot
     );
-    queryClient.setQueryData(windowManagerKeys.config("workspace:next", "client:next"), {
-      ...SETTINGS_SECTION,
-      workspaceId: "workspace:next",
-    });
+    queryClient.setQueryData(
+      windowManagerKeys.config("workspace:next", "client:next", "marketing"),
+      {
+        ...SETTINGS_SECTION,
+        workspaceId: "workspace:next",
+      }
+    );
     runtime.bind({
       workspaceId: "workspace:next",
       profileId: "marketing",

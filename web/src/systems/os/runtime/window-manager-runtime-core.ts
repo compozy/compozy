@@ -361,7 +361,7 @@ export abstract class WindowManagerRuntimeCore {
     const binding = this.binding;
     return binding === null
       ? windowManagerKeys.config()
-      : windowManagerKeys.config(binding.workspaceId, binding.clientId);
+      : windowManagerKeys.config(binding.workspaceId, binding.clientId, binding.profileId);
   }
 
   protected config(): WindowManagerConfig | null {
