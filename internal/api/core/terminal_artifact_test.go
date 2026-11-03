@@ -293,11 +293,23 @@ func (j *perProfileTerminalJournal) Artifact(
 // expiredTerminalManager lists nothing and reports one profile's tombstoned terminal as expired.
 type expiredTerminalManager struct{ scopeRecordingTerminalManager }
 
-func (*expiredTerminalManager) Get(_ context.Context, _, profileID string, _ terminalpkg.ID) (*terminalpkg.Info, error) {
+func (*expiredTerminalManager) Get(
+	_ context.Context,
+	_, profileID string,
+	_ terminalpkg.ID,
+) (*terminalpkg.Info, error) {
 	if profileID == "profile-b" {
-		return nil, &terminalpkg.Error{Code: terminalpkg.ErrorCodeExpired, Message: "expired", Err: terminalpkg.ErrExpired}
+		return nil, &terminalpkg.Error{
+			Code:    terminalpkg.ErrorCodeExpired,
+			Message: "expired",
+			Err:     terminalpkg.ErrExpired,
+		}
 	}
-	return nil, &terminalpkg.Error{Code: terminalpkg.ErrorCodeNotFound, Message: "missing", Err: terminalpkg.ErrNotFound}
+	return nil, &terminalpkg.Error{
+		Code:    terminalpkg.ErrorCodeNotFound,
+		Message: "missing",
+		Err:     terminalpkg.ErrNotFound,
+	}
 }
 
 func TestTerminalAggregateReadsShouldAnswerLikeTheOwnerProfileRead(t *testing.T) {
@@ -342,7 +354,11 @@ func TestTerminalAggregateReadsShouldAnswerLikeTheOwnerProfileRead(t *testing.T)
 			"/api/workspaces/workspace-a/terminals/term-gone?all_profiles=true", http.NoBody,
 		))
 		if response.Code != http.StatusGone || !strings.Contains(response.Body.String(), `"code":"terminal_expired"`) {
-			t.Fatalf("aggregate expired status/body = %d/%s, want 410 terminal_expired", response.Code, response.Body.String())
+			t.Fatalf(
+				"aggregate expired status/body = %d/%s, want 410 terminal_expired",
+				response.Code,
+				response.Body.String(),
+			)
 		}
 	})
 }

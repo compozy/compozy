@@ -222,7 +222,10 @@ func (s nativeInstanceTargetStore) Get(context.Context, string) (agentinstance.I
 }
 
 // List answers the one target row for the profiles the query names.
-func (s nativeInstanceTargetStore) List(_ context.Context, query agentinstance.ListQuery) ([]agentinstance.Instance, error) {
+func (s nativeInstanceTargetStore) List(
+	_ context.Context,
+	query agentinstance.ListQuery,
+) ([]agentinstance.Instance, error) {
 	if (!query.AllProfiles && query.ProfileID != s.target.ProfileID) || query.AfterID != "" {
 		return nil, nil
 	}
