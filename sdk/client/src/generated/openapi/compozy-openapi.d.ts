@@ -6332,6 +6332,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mark a session's Needs you as seen until its next occurrence; a session waiting on an answer, a sign-in, or a stop is refused */
+    post: operations["markSessionSeen"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors": {
     parameters: {
       query?: never;
@@ -15080,6 +15097,7 @@ export interface components {
       attention?: string;
       /** Format: date-time */
       attention_changed_at?: string | null;
+      attention_dismissible?: boolean;
       available_commands: components["schemas"]["ACPAvailableCommandPayload"][];
       /** @enum {string} */
       badge:
@@ -19239,6 +19257,7 @@ export interface components {
         | "agent_instance_not_found"
         | "agent_instance_starting"
         | "approval_rejected"
+        | "attention_requires_action"
         | "compaction_unsupported"
         | "generation_fenced"
         | "input_request_already_answered"
@@ -19449,6 +19468,7 @@ export interface components {
         | "agent_instance_not_found"
         | "agent_instance_starting"
         | "approval_rejected"
+        | "attention_requires_action"
         | "compaction_unsupported"
         | "generation_fenced"
         | "input_request_already_answered"
@@ -53495,6 +53515,70 @@ export interface operations {
         };
       };
       /** @description Linked work unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  markSessionSeen: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionResponse"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description The session still waits on an answer, a sign-in, or a stop */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
       503: {
         headers: {
           [name: string]: unknown;

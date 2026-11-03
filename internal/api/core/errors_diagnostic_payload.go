@@ -69,6 +69,9 @@ func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	if code := sessionLaterErrorCode(err); code != "" {
 		payload.Code = code
 	}
+	if code := attentionSeenErrorCode(err); code != "" {
+		payload.Code = code
+	}
 	if errors.Is(err, session.ErrBoardFilterInvalid) {
 		payload.Code = "session_list_query_invalid"
 	}

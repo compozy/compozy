@@ -1232,6 +1232,35 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
+	t.Run("Should mark Needs you as seen and refuse a session waiting on an answer", func(t *testing.T) {
+		previous := fixture.Handlers.Sessions
+		later := &laterHandlerSessionManager{StubSessionManager: *manager, now: now}
+		fixture.Handlers.Sessions = later
+		defer func() { fixture.Handlers.Sessions = previous }()
+		seen := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/mark-seen", nil,
+		)
+		if seen.Code != http.StatusOK {
+			t.Fatalf("mark-seen status = %d body=%s, want %d", seen.Code, seen.Body.String(), http.StatusOK)
+		}
+		var marked contract.SessionResponse
+		if err := json.Unmarshal(seen.Body.Bytes(), &marked); err != nil {
+			t.Fatalf("json.Unmarshal(mark-seen response) error = %v", err)
+		}
+		if marked.Session.Badge != session.BadgeStopped || marked.Session.AttentionDismissible {
+			t.Fatalf("mark-seen session = %#v, want a stopped session with nothing left to dismiss", marked.Session)
+		}
+		later.seenRefusal = session.AttentionBlockerPendingClarify
+		refused := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/mark-seen", nil,
+		)
+		if refused.Code != http.StatusConflict ||
+			!strings.Contains(refused.Body.String(), "attention_requires_action") ||
+			!strings.Contains(refused.Body.String(), "answer its question") {
+			t.Fatalf("mark-seen(refused) = %d %s, want 409 attention_requires_action", refused.Code, refused.Body)
+		}
+	})
+
 	t.Run("Should attach sessions", func(t *testing.T) {
 		attachResp := performRequest(
 			t,
@@ -6563,6 +6592,19 @@ type laterHandlerSessionManager struct {
 	testutil.StubSessionManager
 	now          time.Time
 	withChildren []bool
+	seenRefusal  session.AttentionBlocker
+}
+
+func (s *laterHandlerSessionManager) MarkAttentionSeen(_ context.Context, id string) (*session.Info, error) {
+	if s.seenRefusal != session.AttentionBlockerNone {
+		return nil, &session.AttentionRequiresActionError{SessionID: id, Blocker: s.seenRefusal}
+	}
+	info := testutil.NewSessionInfo(id)
+	info.ProfileID = store.DefaultProfileID
+	info.State = session.StateStopped
+	info.Failure = &store.SessionFailure{Kind: store.FailureProcess}
+	info.FailureSeenAt = new(s.now)
+	return info, nil
 }
 
 func (s *laterHandlerSessionManager) MoveToLater(

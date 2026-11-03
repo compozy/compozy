@@ -26401,6 +26401,9 @@
             "nullable": true,
             "type": "string"
           },
+          "attention_dismissible": {
+            "type": "boolean"
+          },
           "available_commands": {
             "items": {
               "$ref": "#/components/schemas/ACPAvailableCommandPayload"
@@ -40527,6 +40530,7 @@
               "agent_instance_not_found",
               "agent_instance_starting",
               "approval_rejected",
+              "attention_requires_action",
               "compaction_unsupported",
               "generation_fenced",
               "input_request_already_answered",
@@ -40894,6 +40898,7 @@
               "agent_instance_not_found",
               "agent_instance_starting",
               "approval_rejected",
+              "attention_requires_action",
               "compaction_unsupported",
               "generation_fenced",
               "input_request_already_answered",
@@ -95132,6 +95137,100 @@
           "sessions"
         ],
         "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen": {
+      "post": {
+        "operationId": "markSessionSeen",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "The session still waits on an answer, a sign-in, or a stop"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Mark a session's Needs you as seen until its next occurrence; a session waiting on an answer, a sign-in, or a stop is refused",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
         "x-compozy-transports": [
           "http",
           "uds"
