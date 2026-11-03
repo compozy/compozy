@@ -3370,7 +3370,7 @@ type cancelSamplingContext struct {
 var _ context.Context = (*cancelSamplingContext)(nil)
 
 func (c *cancelSamplingContext) Done() <-chan struct{} {
-	if c.Context.Err() == nil {
+	if c.Err() == nil {
 		c.observedRate = runtime.SetMutexProfileFraction(-1)
 		c.cancel()
 	}
