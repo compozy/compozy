@@ -20169,7 +20169,8 @@
         "required": [
           "auth_status",
           "default",
-          "name"
+          "name",
+          "reviewer_mode"
         ],
         "type": "object"
       },

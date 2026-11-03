@@ -15,7 +15,6 @@ import (
 type AutomationEventSource struct {
 	TriggerName string `json:"trigger_name"`
 	Event       string `json:"event"`
-	Summary     string `json:"summary,omitempty"`
 	Kind        string `json:"kind"`
 	EventID     string `json:"event_id"`
 	TriggerID   string `json:"trigger_id"`
@@ -66,25 +65,11 @@ func collectAutomationEvents(scope CollectorScope, facts CollectorFacts) ([]Dige
 		if len(ids) == AutomationEventBatchLimit {
 			break
 		}
-		summary := BoundAutomationEventSummary(redact.String(row.Summary))
-		quoted := strconv.Quote(summary)
-		quoted = strings.NewReplacer("<", `\u003c`, ">", `\u003e`, "&", `\u0026`).Replace(quoted)
-		item := DigestItem{
-			Source: &AutomationEventSource{
-				Kind:        "event",
-				TriggerName: row.TriggerName, Event: row.Event, Summary: summary,
-				EventID:    row.ID,
-				TriggerID:  row.TriggerID,
-				RunID:      row.RunID,
-				ReceivedAt: row.ReceivedAt,
-			},
-			Key:     "automation_event:" + row.ID,
-			Summary: "<untrusted_automation_event>\n" + quoted + "\n</untrusted_automation_event>",
-		}
-		item.Instruction = BoundAutomationEventSummary(redact.String(row.Instruction))
-
-		encoded, err := json.Marshal(item)
-		if err != nil || used+len(encoded)+1 > AutomationEventBatchBytes {
+		// The oldest pending event always fits by shrinking its content, so one
+		// escaping-heavy event cannot starve the events queued behind it.
+		budget := AutomationEventBatchBytes - used
+		item, encoded, err := boundedAutomationEvent(row, budget, len(ids) == 0)
+		if err != nil || len(encoded)+1 > budget {
 			break
 		}
 		used += len(encoded) + 1
@@ -105,4 +90,51 @@ func BoundAutomationEventSummary(summary string) string {
 		summary = summary[:len(summary)-1]
 	}
 	return summary
+}
+
+// boundedAutomationEvent serializes one event. When shrink is set and the item
+// exceeds budget, it halves the longer of summary and instruction until the
+// complete serialized item fits; identity and attribution are never truncated.
+func boundedAutomationEvent(row AutomationEventFact, budget int, shrink bool) (DigestItem, []byte, error) {
+	summary := BoundAutomationEventSummary(redact.String(row.Summary))
+	instruction := BoundAutomationEventSummary(redact.String(row.Instruction))
+	for {
+		item := automationEventItem(row, summary, instruction)
+		encoded, err := json.Marshal(item)
+		if err != nil || !shrink || len(encoded) < budget || (summary == "" && instruction == "") {
+			return item, encoded, err
+		}
+		if len(summary) >= len(instruction) {
+			summary = truncateAutomationText(summary, len(summary)/2)
+		} else {
+			instruction = truncateAutomationText(instruction, len(instruction)/2)
+		}
+	}
+}
+
+func automationEventItem(row AutomationEventFact, summary, instruction string) DigestItem {
+	quoted := strconv.Quote(summary)
+	quoted = strings.NewReplacer("<", `\u003c`, ">", `\u003e`, "&", `\u0026`).Replace(quoted)
+	return DigestItem{
+		Source: &AutomationEventSource{
+			Kind:        "event",
+			TriggerName: row.TriggerName,
+			Event:       row.Event,
+			EventID:     row.ID,
+			TriggerID:   row.TriggerID,
+			RunID:       row.RunID,
+			ReceivedAt:  row.ReceivedAt,
+		},
+		Key:         "automation_event:" + row.ID,
+		Summary:     "<untrusted_automation_event>\n" + quoted + "\n</untrusted_automation_event>",
+		Instruction: instruction,
+	}
+}
+
+func truncateAutomationText(text string, limit int) string {
+	text = text[:limit]
+	for !utf8.ValidString(text) {
+		text = text[:len(text)-1]
+	}
+	return text
 }

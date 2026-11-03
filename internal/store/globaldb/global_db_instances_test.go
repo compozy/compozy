@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -1997,10 +1998,20 @@ func TestInstanceWakeTransactions(t *testing.T) {
 					if err != nil {
 						t.Fatal(err)
 					}
-					if i < 20 {
-						eventIDs = append(eventIDs, id)
-					}
 				}
+				scope, facts, err := repo.CollectorFacts(t.Context(), instance.ID, heartbeat.CollectorScope{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				digest, err := heartbeat.CollectDigest(scope, facts, nil, "", "")
+				if err != nil {
+					t.Fatal(err)
+				}
+				eventIDs = digest.EventIDs
+				if len(eventIDs) != 20 || eventIDs[0] != "event-00" || eventIDs[19] != "event-19" {
+					t.Fatalf("events=%v", eventIDs)
+				}
+
 				admitted, err := repo.Admit(
 					t.Context(),
 					heartbeat.AdmitRequest{
@@ -2059,6 +2070,19 @@ func TestInstanceWakeTransactions(t *testing.T) {
 				if consumed != want {
 					t.Fatalf("consumed=%d want=%d", consumed, want)
 				}
+				scope, facts, err = repo.CollectorFacts(t.Context(), instance.ID, heartbeat.CollectorScope{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				next, err := heartbeat.CollectDigest(scope, facts, nil, "", "")
+				if err != nil {
+					t.Fatal(err)
+				}
+				first := fmt.Sprintf("event-%02d", want)
+				if len(next.EventIDs) != 20 || next.EventIDs[0] != first {
+					t.Fatalf("next events=%v want first=%s", next.EventIDs, first)
+				}
+
 				state, err := repo.WakeState(t.Context(), instance.ID)
 				if err != nil || state.NextWakeAt != earlier {
 					t.Fatalf("deadline: %+v %v", state, err)
@@ -2113,6 +2137,83 @@ func TestInstanceWakeTransactions(t *testing.T) {
 		state, err := repo.WakeState(t.Context(), instance.ID)
 		if err != nil || state.NextWakeAt != due {
 			t.Fatalf("deadline: %+v %v", state, err)
+		}
+	})
+	t.Run("Should consume an escaping heavy head event and progress to ordinary events [UT-072]", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "event-escaped", "event-escaped-main")
+		repo := db.Instances()
+		instance, err := repo.Adopt(
+			t.Context(),
+			agentinstance.Instance{
+				ProfileID:         store.DefaultProfileID,
+				AgentName:         "coder",
+				WorkspaceID:       workspace,
+				PermissionCeiling: "{}",
+				CreatedByKind:     "human",
+			},
+			main,
+			10,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+		for i := range 25 {
+			id := fmt.Sprintf("event-%02d", i)
+			summary := "Selected event"
+			if i == 0 {
+				summary = strings.Repeat("<\\", 700)
+			}
+			if _, err := db.DB().
+				ExecContext(t.Context(), `INSERT INTO agent_instance_events (id,instance_id,trigger_id,run_id,summary,received_at) VALUES (?,?,'trigger',?,?,?)`, id, instance.ID, "run-"+id, summary, store.FormatTimestamp(now)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		collect := func() heartbeat.CheckDigest {
+			t.Helper()
+			scope, facts, err := repo.CollectorFacts(t.Context(), instance.ID, heartbeat.CollectorScope{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			digest, err := heartbeat.CollectDigest(scope, facts, nil, "", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			return digest
+		}
+		digest := collect()
+		if !slices.Equal(digest.EventIDs, []string{"event-00"}) {
+			t.Fatalf("head events=%v", digest.EventIDs)
+		}
+		admitted, err := repo.Admit(t.Context(), heartbeat.AdmitRequest{
+			InstanceID:    instance.ID,
+			OccurrenceID:  "escaped-occ",
+			Now:           now,
+			NextWakeAt:    now.Add(time.Hour),
+			MaxConcurrent: 1,
+			ManualCheck:   true,
+			EventIDs:      digest.EventIDs,
+		})
+		if err != nil || !admitted {
+			t.Fatalf("admit: %v %v", admitted, err)
+		}
+		if changed, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
+			InstanceID:   instance.ID,
+			OccurrenceID: "escaped-occ",
+			Source:       "timer",
+			Result:       "quiet",
+			Reason:       "quiet",
+			Now:          now.Add(time.Minute),
+			NextWakeAt:   now.Add(2 * time.Hour),
+			ExpiresAt:    now.Add(24 * time.Hour),
+		}); err != nil || !changed.Changed {
+			t.Fatalf("finish: %v %v", changed, err)
+		}
+		next := collect()
+		if len(next.EventIDs) != 20 || next.EventIDs[0] != "event-01" || next.EventIDs[19] != "event-20" {
+			t.Fatalf("next events=%v", next.EventIDs)
 		}
 	})
 	t.Run("Should admit once finalize once and retain cancellation across resume", func(t *testing.T) {

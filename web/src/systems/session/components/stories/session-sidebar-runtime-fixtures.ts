@@ -9,6 +9,7 @@ function catalogProvider(name: string, displayName: string): ProviderSummary {
     name,
     display_name: displayName,
     default: false,
+    reviewer_mode: "",
     auth_status: {
       mode: "native_cli",
       env_policy: "inherit",

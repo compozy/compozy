@@ -2725,6 +2725,9 @@ func TestPermissionLevelModeSelection(t *testing.T) {
 		modes    []string
 		want     string
 	}{
+		{"Should reject mixed case bypass reviewer", "claude", "BYPASSPERMISSIONS", compozyconfig.PermissionModeAuto, []string{"bypassPermissions", "acceptEdits"}, "acceptEdits"},
+		{"Should reject mixed case full access advertisement", "custom", "full-access", compozyconfig.PermissionModeAuto, []string{"FULL-ACCESS", "acceptEdits"}, "acceptEdits"},
+		{"Should select mixed case Claude auto", "Claude", "AUTO", compozyconfig.PermissionModeAuto, []string{"Auto", "acceptEdits"}, "Auto"},
 		{"Should select Claude reviewer", "claude", "auto", compozyconfig.PermissionModeAuto, []string{"auto", "acceptEdits", "default"}, "auto"},
 		{"Should select Codex reviewer", "codex", "agent", compozyconfig.PermissionModeAuto, []string{"agent", "workspace-write", "default"}, "agent"},
 		{"Should fall back when reviewer is unadvertised", "custom", "smart", compozyconfig.PermissionModeAuto, []string{"auto", "acceptEdits", "default"}, "acceptEdits"},

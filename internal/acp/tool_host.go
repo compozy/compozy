@@ -178,6 +178,12 @@ func (h *localToolHost) PermissionDecisionSource(
 	return h.permissions.permissionDecisionSource(req)
 }
 
+func (h *localToolHost) DaemonPermissionDecisionSource(
+	req acpsdk.RequestPermissionRequest,
+) (PermissionDecision, bool, string) {
+	return h.permissions.daemonPermissionDecisionSource(req)
+}
+
 func (h *localToolHost) PermissionDecision(
 	req acpsdk.RequestPermissionRequest,
 ) (PermissionDecision, bool) {

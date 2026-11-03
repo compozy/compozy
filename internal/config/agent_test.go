@@ -1999,6 +1999,35 @@ func TestAgentPermissionPolicyRoundTrip(t *testing.T) {
 			t.Fatal("clone aliases permission rules")
 		}
 	})
+	t.Run("Should reject invalid permission rules [UT-093]", func(t *testing.T) {
+		t.Parallel()
+		limit := make([]PermissionRule, 64)
+		for i := range limit {
+			limit[i] = PermissionRule{Kind: "edit", Decision: "allow"}
+		}
+		if _, _, err := RenderAgentDefinition(AgentDefinitionDraft{
+			Name: "policy-test", Prompt: "Assist.", PermissionRules: limit,
+		}); err != nil {
+			t.Fatalf("64 rules rejected: %v", err)
+		}
+		for _, tc := range []struct {
+			name  string
+			rules []PermissionRule
+			want  string
+		}{
+			{"unknown kind", []PermissionRule{{Kind: "shell", Decision: "allow"}}, "permission_rules[0].kind is unknown"},
+			{"65 rules", append(limit, PermissionRule{Kind: "edit", Decision: "allow"}), "at most 64 rules"},
+			{"ask decision", []PermissionRule{{Kind: "edit", Decision: "ask"}}, "decision must be allow or deny"},
+			{"neither kind nor path", []PermissionRule{{Decision: "deny"}}, "requires kind or path"},
+		} {
+			_, _, err := RenderAgentDefinition(AgentDefinitionDraft{
+				Name: "policy-test", Prompt: "Assist.", PermissionRules: tc.rules,
+			})
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("%s: error = %v, want %q", tc.name, err, tc.want)
+			}
+		}
+	})
 	t.Run("Should refuse unknown approval authority", func(t *testing.T) {
 		t.Parallel()
 		_, _, err := RenderAgentDefinition(AgentDefinitionDraft{

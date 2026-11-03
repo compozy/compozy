@@ -76,6 +76,7 @@ function provider(
     default: name === "codex",
     display_name: name,
     name,
+    reviewer_mode: "",
   };
 }
 

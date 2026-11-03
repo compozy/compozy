@@ -60,6 +60,28 @@ func TestProviderAuthHandlers(t *testing.T) {
 					!strings.Contains(response.Body.String(), `"reviewer_mode":"auto"`) {
 					t.Fatalf("reviewer metadata: %s", response.Body.String())
 				}
+				if endpoint.path == "/providers" {
+					// FE-1: a provider without a reviewer still sends reviewer_mode, empty.
+					var inventory struct {
+						Providers []map[string]any `json:"providers"`
+					}
+					if err := json.Unmarshal(response.Body.Bytes(), &inventory); err != nil {
+						t.Fatal(err)
+					}
+					found := false
+					for _, provider := range inventory.Providers {
+						if provider["name"] != "native" {
+							continue
+						}
+						found = true
+						if mode, ok := provider["reviewer_mode"]; !ok || mode != "" {
+							t.Fatalf("native reviewer_mode = %v present=%v, want explicit empty", mode, ok)
+						}
+					}
+					if !found {
+						t.Fatalf("native provider missing: %s", response.Body.String())
+					}
+				}
 				if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "local-overlay") {
 					t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 				}

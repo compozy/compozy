@@ -380,3 +380,16 @@ conversation opens with "I started a new conversation" above the link back. Web 
 fields render gracefully when absent; walk them once the backend emits them.
 
 QA impact 2026-11-03 (stays-on hardening S9, S13): a proposal report carrying `skill_review_id` renders as New skill to review: <name>, with the agent's description, then Runs automatically (hooks and MCP servers first, then scripts) or "Nothing runs automatically", and one Review skill action. The viewer lists the files in a tree, opens Markdown in Read with Source beside it, warns and links to Source when Read hides HTML, comments or extra frontmatter, shows scripts as code, and decides with Approve or Reject in the footer by the digest that was read. A `skill_review_stale` refusal rereads and asks for the latest. Approved and rejected reviews fold to receipts. An event-derived proposal shows Prompted by an event (trigger, event, plain-text summary) before its choices; it needs the backend `source` field. Owner: `session-report-part.test.tsx` (UT-059, UT-080). Not walked.
+
+Automation event hardening (UT-053, UT-072, UT-073): deliver an escaping-heavy
+summary followed by ordinary events. The complete serialized batch stays within
+8 KiB, preserves event/trigger/run attribution, and includes the first event so a
+successful check consumes it and later events progress. The digest carries the
+summary once, inside its untrusted fence. `TestCollectDigest` and
+`TestInstanceWakeTransactions` own the collector and real SQLite checks.
+
+With the instance checks switch enabled, disable checks in HEARTBEAT.md or the
+workspace heartbeat policy and deliver a signed webhook. The run completes with
+`instance_event_check_scheduled=false` and `instance_event_reason=policy_disabled`;
+the event remains unconsumed. `TestInstanceWebhookCheckIntegration` exercises both
+policy sources through the real daemon and HTTP webhook boundary.

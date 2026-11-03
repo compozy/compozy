@@ -237,7 +237,7 @@ func (p *AgentProcess) resolvePermissionRequest(
 	if err != nil {
 		return acpsdk.RequestPermissionResponse{}, err
 	}
-	decision, interactive, resolvedBy := resolveHostPermissionDecision(host, request)
+	decision, interactive, resolvedBy := resolveHostPermissionDecision(host, request, cancellationActor)
 
 	if !interactive {
 		outcome, appliedDecision, raw := p.automaticPermissionOutcome(requestID, request, decision, resolvedBy)
@@ -279,7 +279,7 @@ func (p *AgentProcess) resolvePermissionRequest(
 	case <-p.permissionConnectionDone():
 		decision, actor = p.expirePendingPermission(pending, decisionCanceled, cancellationActor)
 	case <-ctx.Done():
-		if cancellationActor == "system" && errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
+		if cancellationActor == permissionActorSystem && errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
 			cancellationActor = "timeout"
 		}
 		decision, actor = p.expirePendingPermission(pending, decisionCanceled, cancellationActor)

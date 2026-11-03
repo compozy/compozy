@@ -176,7 +176,7 @@ func (p *AgentProcess) RequestPermission(
 		return RequestPermissionResponse{}, errors.New("acp: agent process is stopped")
 	default:
 	}
-	return p.resolvePermissionRequest(ctx, req, "system")
+	return p.resolvePermissionRequest(ctx, req, permissionActorSystem)
 }
 
 func (p *AgentProcess) permissionTimeoutOrDefault() time.Duration {
