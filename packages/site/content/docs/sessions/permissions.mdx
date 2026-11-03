@@ -122,13 +122,14 @@ the workspace; an edit without file locations, and a request of kind `other` or 
 
 CompozyOS's own tools are decided once, by the risk each built-in tool declares. At `approve-edits`
 and `auto`, a built-in tool that changes CompozyOS coordination state runs without asking: monitors,
-child sessions, worktrees and their bindings, session names and links, tasks, Automations and
-layouts. These still ask:
+child sessions, worktrees and their bindings, session names and links, tasks and layouts. A child
+session runs at its own agent's level, not the caller's. These still ask:
 
 - destructive tools, such as removing a worktree, stopping or archiving a session, or deleting
   anything;
 - open-world tools, terminal commands or input, and Loop tools, whose command criteria run shell
   commands;
+- Automations, which persist schedules that run other agents, and changing the agent a task runs;
 - tools that change what an agent may do: config, tool approvals, hooks, extensions, agent
   definitions and persistent agents, reparenting sessions, and answering another session's prompts
   (a stays-on lineage still answers its own descendants).

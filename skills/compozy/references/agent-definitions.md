@@ -350,8 +350,9 @@ This fallback preserves the configured `auto` intent for a later resume.
 
 At `approve-edits` and `auto`, CompozyOS-native tools are decided once, by declared risk:
 built-in coordination tools (monitors, child sessions, worktrees and bindings, session names and
-links, tasks, Automations, layouts) run without asking. Shell commands, terminal tools, Loop
-tools (their command criteria run shell commands), destructive or open-world tools, and changes to config, tool approvals, hooks, extensions, agent
-definitions or persistent agents still ask, once per call. Answering another session's prompts
-asks unless the caller is a stays-on lineage answering its descendants. Extension and MCP tools ask
-unless read-only. The built-in stays-on Orchestrator ships `permissions: auto`.
+links, tasks, layouts) run without asking. A child session runs at its own agent's level, not the
+caller's. Shell commands, terminal tools, Loop tools (their command criteria run shell commands),
+Automations, task execution profiles, destructive or open-world tools, and changes to config, tool
+approvals, hooks, extensions, agent definitions or persistent agents still ask, once per call.
+Answering another session's prompts asks unless the caller is a stays-on lineage answering its
+descendants. Extension and MCP tools ask unless read-only. The built-in stays-on Orchestrator ships `permissions: auto`.

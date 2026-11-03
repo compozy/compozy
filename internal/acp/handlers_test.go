@@ -3245,10 +3245,16 @@ func TestHostedToolPermissionGates(t *testing.T) {
 		})
 	}
 
+	// The daemon bridge offers allow-always unless it forces a once-only prompt.
+	daemonOptions := []acpsdk.PermissionOption{
+		{OptionId: "allow-once", Kind: acpsdk.PermissionOptionKindAllowOnce},
+		{OptionId: "allow-always", Kind: acpsdk.PermissionOptionKindAllowAlways},
+		{OptionId: "reject-once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+	}
 	daemonRequest := func(toolID string, kind acpsdk.ToolKind) acpsdk.RequestPermissionRequest {
 		return acpsdk.RequestPermissionRequest{
 			SessionId: "sess-direct",
-			Options:   options,
+			Options:   daemonOptions,
 			Meta:      map[string]any{PermissionToolIDMetaKey: toolID},
 			ToolCall: acpsdk.ToolCallUpdate{
 				ToolCallId: "call-1200",
@@ -3331,9 +3337,12 @@ func TestHostedToolPermissionGates(t *testing.T) {
 		changed.ToolCall.RawInput = map[string]any{"workspace": "compozy", "name": "other"}
 		otherWorkspace := daemonRequest("compozy__worktree_create", acpsdk.ToolKindExecute)
 		otherWorkspace.ToolCall.RawInput = map[string]any{"workspace": "other", "name": "fix-1200"}
-		for index, request := range []acpsdk.RequestPermissionRequest{gate2, changed, otherWorkspace} {
-			if index == 2 {
-				// An explicit workspace the provider sent is never ignored.
+		forced := daemonRequest("compozy__worktree_create", acpsdk.ToolKindExecute)
+		forced.Options = options
+		for index, request := range []acpsdk.RequestPermissionRequest{gate2, changed, otherWorkspace, forced} {
+			if index >= 2 {
+				// An explicit workspace the provider sent is never ignored, and a forced
+				// once-only daemon prompt is never answered by a provider approval.
 				proc.hostedApprovals.record(hostedToolCall{
 					toolID: "compozy__worktree_create", arguments: []byte(`{"name":"fix-1200","workspace":"compozy"}`),
 				}, timeNowUTC())

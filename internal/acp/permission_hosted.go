@@ -339,6 +339,11 @@ func (p *AgentProcess) rememberHostedApproval(request acpsdk.RequestPermissionRe
 // approval repeats a hosted call the operator already approved at the provider
 // gate. The daemon request carries the canonical tool ID and the call input.
 func (p *AgentProcess) consumeHostedApproval(request acpsdk.RequestPermissionRequest) bool {
+	if !offersRememberedApproval(request.Options) {
+		// The daemon forces a once-only prompt (an irreversible or unclassified
+		// terminal command); a provider dialog never answers it.
+		return false
+	}
 	toolID, ok := request.Meta[PermissionToolIDMetaKey].(string)
 	if !ok {
 		return false
@@ -348,4 +353,13 @@ func (p *AgentProcess) consumeHostedApproval(request acpsdk.RequestPermissionReq
 		return false
 	}
 	return p.hostedApprovals.consume(call, timeNowUTC())
+}
+
+func offersRememberedApproval(options []acpsdk.PermissionOption) bool {
+	for _, option := range options {
+		if option.Kind == acpsdk.PermissionOptionKindAllowAlways {
+			return true
+		}
+	}
+	return false
 }
