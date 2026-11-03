@@ -1704,6 +1704,15 @@ func TestStartMCPServersBridgeOverHTTP(t *testing.T) {
 		if len(request.MCPServers) != 1 || request.MCPServers[0].Http == nil || request.MCPServers[0].Stdio != nil {
 			t.Fatalf("session/load mcpServers = %#v, want one bridged HTTP server", request.MCPServers)
 		}
+		server := request.MCPServers[0].Http
+		endpoint, err := url.Parse(server.Url)
+		if err != nil || endpoint.Hostname() != "127.0.0.1" || server.Name != "compozy-hosted-tools" {
+			t.Fatalf("session/load bridged server = %#v, want named loopback endpoint", server)
+		}
+		if len(server.Headers) != 1 || server.Headers[0].Name != "Authorization" ||
+			!strings.HasPrefix(server.Headers[0].Value, "Bearer ") {
+			t.Fatalf("session/load bridged headers = %#v, want one bearer Authorization header", server.Headers)
+		}
 	})
 
 	t.Run(

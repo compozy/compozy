@@ -1890,10 +1890,11 @@ opencode/provider-managed
 			t.Fatalf("gpt-5.6-luna reasoning = %v %#v, want advertised Copilot efforts", luna.SupportsReasoning,
 				luna.ReasoningEfforts)
 		}
-		if sonnet := requireModelRow(t, rows, "claude-sonnet-5"); !slices.Equal(
-			sonnet.ReasoningEfforts, []ReasoningEffort{"low", "medium", "high"},
-		) {
-			t.Fatalf("claude-sonnet-5 efforts = %#v, want its own advertised set", sonnet.ReasoningEfforts)
+		if sonnet := requireModelRow(t, rows, "claude-sonnet-5"); sonnet.SupportsReasoning == nil ||
+			!*sonnet.SupportsReasoning ||
+			!slices.Equal(sonnet.ReasoningEfforts, []ReasoningEffort{"low", "medium", "high"}) {
+			t.Fatalf("claude-sonnet-5 reasoning = %v %#v, want its own advertised set", sonnet.SupportsReasoning,
+				sonnet.ReasoningEfforts)
 		}
 		if auto := requireModelRow(t, rows, "auto"); len(auto.ReasoningEfforts) != 0 {
 			t.Fatalf("auto efforts = %#v, want none when Copilot advertises no effort for Auto", auto.ReasoningEfforts)

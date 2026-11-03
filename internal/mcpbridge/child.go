@@ -58,6 +58,9 @@ func startStdioChild(ctx context.Context, name string, spec Spec) (_ *stdioChild
 	cmd.Stdin = stdinReader
 	cmd.Stdout = stdoutWriter
 	cmd.Stderr = stderr
+	// A detached helper that inherits stderr would otherwise keep Wait copying
+	// it forever after the group is killed; bound that wait so close returns.
+	cmd.WaitDelay = childExitTimeout
 	procutil.ConfigureCommandProcessGroup(cmd)
 	startErr := cmd.Start()
 	// The child holds its own copies; the parent keeps only its ends.
