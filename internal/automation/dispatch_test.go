@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -26,9 +27,15 @@ import (
 )
 
 func TestDispatchInstanceEvents(t *testing.T) {
-	for _, eventKind := range []string{"webhook", "ext.acme.ticket"} {
+	for _, tc := range []struct{ eventKind, prompt string }{
+		{"webhook", `Review {{ index .Data "payload" }}`},
+		{"ext.acme.ticket", `Review {{ index .Data "payload" }}`},
+		{"webhook", ""},
+	} {
+		eventKind := tc.eventKind
 		t.Run(
-			"Should deliver "+eventKind+" through the check without a session [UT-051 UT-056 IT-023]",
+			"Should deliver "+eventKind+" (prompt "+strconv.Quote(tc.prompt)+
+				") through the check without a session [UT-051 UT-056 IT-023]",
 			func(t *testing.T) {
 				t.Parallel()
 				ctx := t.Context()
@@ -57,7 +64,7 @@ func TestDispatchInstanceEvents(t *testing.T) {
 				trigger := testTrigger(AutomationScopeGlobal, "instance-event", "")
 				trigger.TargetKind, trigger.TargetInstanceScope = TargetKindAgentInstance, "global"
 				trigger.Event = eventKind
-				trigger.Prompt = `Review {{ index .Data "payload" }}`
+				trigger.Prompt = tc.prompt
 				if eventKind != "webhook" {
 					trigger.WebhookID, trigger.EndpointSlug, trigger.WebhookSecretRef = "", "", ""
 				}
@@ -98,7 +105,7 @@ func TestDispatchInstanceEvents(t *testing.T) {
 					facts.AutomationEvents[0].Instruction != trigger.Prompt {
 					t.Fatalf("event facts: %+v %v", facts.AutomationEvents, err)
 				}
-				if !strings.Contains(facts.AutomationEvents[0].Summary, "Review ") ||
+				if (tc.prompt != "" && !strings.Contains(facts.AutomationEvents[0].Summary, "Review ")) ||
 					facts.AutomationEvents[0].TriggerID != trigger.ID || facts.AutomationEvents[0].RunID != run.ID {
 					t.Fatalf("rendered event identity: %+v", facts.AutomationEvents[0])
 				}
@@ -131,6 +138,33 @@ func TestDispatchInstanceEvents(t *testing.T) {
 		trigger.TargetKind, trigger.TargetInstanceScope = TargetKindAgentInstance, "workspace-b"
 		if err := trigger.Validate("trigger"); err == nil {
 			t.Fatal("cross-scope instance target accepted")
+		}
+	})
+	t.Run("Should accept an instance target by agent name without a prompt", func(t *testing.T) {
+		t.Parallel()
+		trigger := testTrigger(AutomationScopeWorkspace, "named", "workspace-a")
+		trigger.TargetKind, trigger.TargetInstanceScope, trigger.Prompt = TargetKindAgentInstance, "workspace-a", ""
+		if err := trigger.Validate("trigger"); err != nil {
+			t.Fatalf("prompt-less instance target: %v", err)
+		}
+		if err := ValidateTriggerAgentName(trigger, "trigger"); err != nil {
+			t.Fatalf("agent name target: %v", err)
+		}
+		agentTarget := testTrigger(AutomationScopeWorkspace, "agent", "workspace-a")
+		agentTarget.Prompt = ""
+		if err := agentTarget.Validate("trigger"); err == nil {
+			t.Fatal("agent target accepted an empty prompt")
+		}
+	})
+	t.Run("Should reject an instance ID in place of the agent name", func(t *testing.T) {
+		t.Parallel()
+		trigger := testTrigger(AutomationScopeWorkspace, "by-id", "workspace-a")
+		trigger.TargetKind, trigger.TargetInstanceScope = TargetKindAgentInstance, "workspace-a"
+		trigger.AgentName = "ainst-0123456789abcdef"
+		err := ValidateTriggerAgentName(trigger, "trigger")
+		if err == nil || !strings.Contains(err.Error(), "agent instance id") ||
+			!strings.Contains(err.Error(), "agent name") {
+			t.Fatalf("instance id target: %v", err)
 		}
 	})
 }
