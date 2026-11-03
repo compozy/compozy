@@ -337,13 +337,13 @@ export class RoutingCoordinator {
     return true;
   }
 
-  /** Close: successor focus follows ADR-002 (next-top window, else desktop). */
-  async userClose(windowId: string): Promise<boolean> {
+  /** Close: successor focus follows ADR-002. `viewOnly` skips the operator guard (see closeWindow). */
+  async userClose(windowId: string, viewOnly = false): Promise<boolean> {
     const state = this.manager.getState();
     if (!state.windows[windowId]) return false;
     this.nextUserIntentToken += 1;
     const wasFocused = state.focusedId === windowId;
-    if (!(await this.manager.closeWindow(windowId))) return false;
+    if (!(await this.manager.closeWindow(windowId, viewOnly))) return false;
     if (wasFocused) this.navigateToFocusedOrDesktop();
     return true;
   }

@@ -2203,7 +2203,8 @@ describe("useOsWindowCommands", () => {
     const actions = result.current.focusedWindowActions;
     if (actions === null) throw new Error("a focused live window must expose lifecycle actions");
     await act(async () => actions.close());
-    expect(shell.controller.closeWindow).toHaveBeenCalledWith("window:primary");
+    // An operator close keeps the close guard (a running terminal asks before it ends).
+    expect(shell.controller.closeWindow).toHaveBeenCalledWith("window:primary", false);
     await act(async () => actions.minimize());
     expect(shell.controller.minimizeWindow).toHaveBeenCalledWith("window:primary");
     expect(actions.zoom).not.toBeNull();

@@ -1,7 +1,8 @@
 // Suite: window-manager runtime projection and command admission
 // Invariant: cache data changes drive projections while observer lifecycle stays render-pure;
 // unchanged window subscribers skip renders, and accepted presentation intents persist until
-// the serialized daemon command settles.
+// the serialized daemon command settles. A view-only close takes a window off the desk without
+// the operator close guard and never races a close that guard is confirming (#1194).
 // Owning layer: the Query cache → runtime projection and runtime → command boundaries.
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { act, renderHook } from "@testing-library/react";
@@ -2725,6 +2726,48 @@ describe("WindowManagerRuntime guarded close", () => {
         },
       })
     );
+    runtime.stop();
+  });
+
+  it("Should take a window off the desk without the guard on a view-only close [#1194]", async () => {
+    const { runtime, snapshot } = setup();
+    const guard = vi.fn<WindowCloseGuard>(async () => true);
+    runtime.setCloseGuard(guard);
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot,
+      applied: true,
+      changes: EMPTY_CHANGES,
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+    await expect(runtime.closeWindow("app:tasks", true)).resolves.toBe(true);
+    // The guard is what terminates a running terminal; a view-only close never asks it.
+    expect(guard).not.toHaveBeenCalled();
+    expect(executeWindowManagerCommand).toHaveBeenCalledWith(
+      "workspace:test",
+      "marketing",
+      "client:web",
+      snapshot.revision,
+      expect.objectContaining({ payload: { window_id: "app:tasks", minimize: false } })
+    );
+    runtime.stop();
+  });
+
+  it("Should refuse a view-only close while an operator close is being confirmed [#1194]", async () => {
+    const { runtime } = setup();
+    let finish!: (allowed: boolean) => void;
+    runtime.setCloseGuard(
+      () =>
+        new Promise<boolean>(resolve => {
+          finish = resolve;
+        })
+    );
+    const pending = runtime.closeWindow("app:agents");
+    await expect(runtime.closeWindow("app:tasks", true)).resolves.toBe(false);
+    expect(executeWindowManagerCommand).not.toHaveBeenCalled();
+    finish(false);
+    await pending;
     runtime.stop();
   });
 });

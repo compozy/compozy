@@ -56,3 +56,10 @@ QA 2026-11-03 (#1184, step 5 only): in an isolated lab with profiles `xray` and 
 (the daemon snapshot for `yankee` no longer lists it), `yankee`'s own session window stays,
 switching to `xray` restores both of its windows, and a deep link to a `xray` session while
 `yankee` is selected still shows the owner banner. The remaining steps stay unwalked.
+
+QA 2026-11-03 (#1194, step 5 only): in an isolated lab with profiles `xray` and `yankee` (remembered
+`yankee`), switching `xray` → `yankee` → All profiles and opening `xray`'s terminal, automation job,
+and pinned agent stored them on `yankee`'s desk. Before the fix they stayed after selecting `yankee`
+(the terminal read "This terminal isn't here"). After the fix the switch closes all three (the daemon
+snapshot for `yankee` keeps only `yankee`'s own terminal window), and `xray`'s terminal is still
+`running`: the sweep's close is view-only and never asks the terminal close guard to terminate it.

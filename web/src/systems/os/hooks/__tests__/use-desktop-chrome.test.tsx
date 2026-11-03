@@ -303,7 +303,7 @@ describe("useProfileSwitchWindowSweep", () => {
     let pending = false;
     const closed: string[] = [];
     let refused = !refuseFirst;
-    const userClose = vi.fn(async (windowId: string) => {
+    const userClose = vi.fn(async (windowId: string, _viewOnly?: boolean) => {
       if (pending) return false;
       if (!refused) {
         // Another surface's close is pending for a while (a terminal confirmation, say): the
@@ -385,13 +385,15 @@ describe("useProfileSwitchWindowSweep", () => {
       tr_xray: deskWindow("tr_xray", "/automations/triggers/tr_xray", "automations"),
       j_list: deskWindow("j_list", "/automations", "automations"),
     };
-    const { shell, closed } = fakeShell(true, undefined, false, desk);
+    const { shell, closed, userClose } = fakeShell(true, undefined, false, desk);
     renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), { wrapper: wrapper() });
 
     switchTo({ kind: "profile", profile: "yankee" });
     await waitFor(() =>
       expect([...closed].sort()).toEqual(["a_xray", "j_xray", "t_user", "t_xray", "tr_xray"])
     );
+    // View-only: another profile's terminal leaves this desk but keeps running.
+    expect(userClose.mock.calls.every(([, viewOnly]) => viewOnly === true)).toBe(true);
   });
 
   it("Should retry a close the runtime refused while another close was pending", async () => {

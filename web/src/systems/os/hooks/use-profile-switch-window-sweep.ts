@@ -57,7 +57,8 @@ function selectDeskLive(state: OsDesktopRuntimeStore): boolean {
  * in it. A switch to that profile would leave them on screen, resolving under the wrong profile.
  * The switch is the moment they stop belonging: once the target desk is live, each window whose
  * item another profile owns closes through the normal close command, so it stays reopenable and
- * the other profile's own desk is untouched. Only an explicit switch triggers this; a deep link
+ * the other profile's own desk is untouched. The close is view-only: the operator's close guard
+ * never runs, so another profile's running terminal leaves this desk without being terminated. Only an explicit switch triggers this; a deep link
  * opened while a profile is selected keeps its owner banner.
  */
 export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: string | null) {
@@ -109,7 +110,7 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
       for (const { windowId, item } of foreign) {
         // react-doctor-disable-next-line react-doctor/async-await-in-loop -- one close at a time is the point: the runtime's close guard admits a single close and refuses the rest while it is pending.
         await closeWhileForeign(
-          () => coordinator.userClose(windowId),
+          () => coordinator.userClose(windowId, true),
           // Any later view change, All profiles included, owns the desk now; the operator may have
           // moved the window to another item, so only the inspected one licenses a close; and
           // nothing retries after the shell unmounts.
