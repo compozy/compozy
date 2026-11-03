@@ -50,7 +50,14 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 		hasBuiltin = retiredBase
 	}
 	if overridden {
+		baseRuntime := resolved.RuntimeProviderName(providerName)
 		resolved = mergeProvider(resolved, override)
+		// A builtin reviewer mode names a mode of the builtin runtime. Routing the provider to
+		// another runtime drops that inherited default, which can mean something else there.
+		if strings.TrimSpace(override.ReviewerMode) == "" &&
+			!strings.EqualFold(resolved.RuntimeProviderName(providerName), baseRuntime) {
+			resolved.ReviewerMode = ""
+		}
 	}
 	if retiredBase {
 		warnRetiredBuiltinProvider(providerName, override, overridden)

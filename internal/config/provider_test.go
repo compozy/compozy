@@ -3974,6 +3974,30 @@ func TestReviewerModeTrustBoundary(t *testing.T) {
 			}
 		}
 	})
+	t.Run("Should drop the builtin reviewer mode when the provider is routed to another runtime", func(t *testing.T) {
+		t.Parallel()
+		rerouted := &Config{Providers: map[string]ProviderConfig{
+			providerClaudeKey: {RuntimeProvider: "acpmock", Command: "mock-acp"},
+		}}
+		resolved, err := rerouted.ResolveProvider(providerClaudeKey)
+		if err != nil {
+			t.Fatalf("ResolveProvider(rerouted claude) error = %v, want the inherited auto reviewer dropped", err)
+		}
+		if resolved.ReviewerMode != "" {
+			t.Fatalf("rerouted reviewer = %q, want none inherited from the Claude runtime", resolved.ReviewerMode)
+		}
+		explicit := &Config{Providers: map[string]ProviderConfig{
+			providerClaudeKey: {RuntimeProvider: "acpmock", Command: "mock-acp", ReviewerMode: "review"},
+		}}
+		resolved, err = explicit.ResolveProvider(providerClaudeKey)
+		if err != nil || resolved.ReviewerMode != "review" {
+			t.Fatalf("explicit rerouted reviewer = %q, %v; want review kept", resolved.ReviewerMode, err)
+		}
+		builtin, err := (&Config{}).ResolveProvider(providerClaudeKey)
+		if err != nil || builtin.ReviewerMode != "auto" {
+			t.Fatalf("builtin claude reviewer = %q, %v; want auto", builtin.ReviewerMode, err)
+		}
+	})
 	t.Run("Should drop workspace reviewer declarations while preserving global review", func(t *testing.T) {
 		t.Parallel()
 		overlay, err := loadWorkspaceConfigOverlayBytes(
