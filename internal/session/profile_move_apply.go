@@ -7,64 +7,64 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/worktree"
 )
 
 // profileMoveTimeout bounds the steps after the archive, which finish (or roll back)
 // on their own lifetime so a disconnected caller cannot strand a move halfway.
 const profileMoveTimeout = 5 * time.Minute
 
-// profileMoveProgress records the steps a failed move has to undo.
-type profileMoveProgress struct {
-	released         bool
-	targetWorktreeID string
-}
-
-// applyProfileMove archives the source, moves its checkout, and forks the copy into
-// the target profile. Archive comes first: an archived session cannot resume, so
-// nothing reopens the source while its worktree is released.
+// applyProfileMove journals the move, archives the source, moves its checkout, and
+// forks the copy into the target profile. Archive comes first: an archived session
+// cannot resume, so nothing reopens the source while its worktree is released. The
+// journal row is written before the archive, so a daemon stop at any later step is
+// settled at the next boot.
 func (m *Manager) applyProfileMove(ctx context.Context, plan *profileMovePlan) (MoveToProfileResult, error) {
 	meta := &plan.meta
 	if err := ctx.Err(); err != nil {
 		return MoveToProfileResult{}, err
 	}
-	// From the archive on, the move finishes or rolls back on its own lifetime.
+	journal, err := m.profileMoveJournal()
+	if err != nil {
+		return MoveToProfileResult{}, err
+	}
+	move, err := m.newProfileMoveRecord(plan)
+	if err != nil {
+		return MoveToProfileResult{}, err
+	}
+	// From the journal on, the move finishes or rolls back on its own lifetime.
 	execCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), profileMoveTimeout)
 	defer cancel()
+	if err := journal.InsertSessionProfileMove(execCtx, move); err != nil {
+		return MoveToProfileResult{}, fmt.Errorf("session: journal move of %s: %w", meta.ID, err)
+	}
 	original, err := m.Archive(execCtx, meta.WorkspaceID, meta.ID)
 	if err != nil {
-		return MoveToProfileResult{}, m.rollbackFailedArchive(execCtx, plan, err)
+		return MoveToProfileResult{}, m.rollbackFailedArchive(execCtx, plan, &move, err)
 	}
-	var progress profileMoveProgress
 	if err := m.requireProfileMoveBinding(execCtx, plan); err != nil {
-		return MoveToProfileResult{}, m.rollbackProfileMove(ctx, plan, progress, err)
+		return MoveToProfileResult{}, m.rollbackProfileMove(execCtx, plan, &move, err)
 	}
 	relocation := &deriveRelocation{profileID: plan.opts.TargetProfileID}
 	if plan.checkout != nil {
 		err := plan.worktree.ReleaseProfileMoveWorktree(execCtx, meta.WorkspaceID, plan.checkout.ID)
 		if err != nil {
-			progress.released = m.profileMoveCheckoutGone(execCtx, plan)
-			return MoveToProfileResult{}, m.rollbackProfileMove(ctx, plan, progress, err)
+			return MoveToProfileResult{}, m.rollbackProfileMove(execCtx, plan, &move, err)
 		}
-		progress.released = true
 		id, root, err := plan.worktree.CreateProfileMoveWorktree(
-			execCtx, meta.WorkspaceID, plan.opts.TargetProfileID, *plan.checkout,
+			execCtx, meta.WorkspaceID, plan.opts.TargetProfileID, move.TargetWorktreeID, *plan.checkout,
 		)
 		if err != nil {
-			return MoveToProfileResult{}, m.rollbackProfileMove(ctx, plan, progress, err)
+			return MoveToProfileResult{}, m.rollbackProfileMove(execCtx, plan, &move, err)
 		}
-		progress.targetWorktreeID = id
 		relocation.worktreeID, relocation.cwd = id, root
-	}
-	key, err := m.createSessionID("")
-	if err != nil {
-		return MoveToProfileResult{}, m.rollbackProfileMove(ctx, plan, progress, err)
 	}
 	derived, err := m.deriveSession(execCtx, deriveSpec{
 		kind: store.LineageKindFork, workspaceID: meta.WorkspaceID, profileID: plan.opts.ProfileID,
-		sourceID: meta.ID, key: "profile-move:" + key, relocation: relocation,
+		sourceID: meta.ID, key: move.CopyKey, relocation: relocation,
 	})
 	if err != nil && derived.ChildSessionID == "" {
-		return MoveToProfileResult{}, m.rollbackProfileMove(ctx, plan, progress, err)
+		return MoveToProfileResult{}, m.rollbackProfileMove(execCtx, plan, &move, err)
 	}
 	if err != nil {
 		// The copy committed before a later step failed; it exists, so the move stands.
@@ -73,6 +73,7 @@ func (m *Manager) applyProfileMove(ctx context.Context, plan *profileMovePlan) (
 			"session_id", meta.ID, "copy_session_id", derived.ChildSessionID, "error", err,
 		)
 	}
+	m.closeProfileMove(execCtx, journal, meta.ID)
 	result := MoveToProfileResult{Copy: derived.Child, Original: original, WorktreeID: relocation.worktreeID}
 	if plan.checkout != nil {
 		result.Branch = plan.checkout.Branch
@@ -93,39 +94,70 @@ func (m *Manager) applyProfileMove(ctx context.Context, plan *profileMovePlan) (
 	return result, nil
 }
 
+// newProfileMoveRecord chooses every id the move may create before any of them is
+// created, so recovery finds each one from the journal alone.
+func (m *Manager) newProfileMoveRecord(plan *profileMovePlan) (store.SessionProfileMove, error) {
+	key, err := m.createSessionID("")
+	if err != nil {
+		return store.SessionProfileMove{}, err
+	}
+	move := store.SessionProfileMove{
+		SessionID: plan.meta.ID, WorkspaceID: plan.meta.WorkspaceID, ProfileID: plan.opts.ProfileID,
+		TargetProfileID: plan.opts.TargetProfileID, CopyKey: "profile-move:" + key,
+	}
+	if plan.checkout == nil {
+		return move, nil
+	}
+	move.SourceWorktreeID, move.Branch, move.HeadSHA = plan.checkout.ID, plan.checkout.Branch, plan.checkout.HeadSHA
+	if move.TargetWorktreeID, err = newProfileMoveWorktreeID(); err != nil {
+		return store.SessionProfileMove{}, err
+	}
+	if move.RestoreWorktreeID, err = newProfileMoveWorktreeID(); err != nil {
+		return store.SessionProfileMove{}, err
+	}
+	return move, nil
+}
+
+func newProfileMoveWorktreeID() (string, error) {
+	id, err := worktree.NewID()
+	if err != nil {
+		return "", fmt.Errorf("session: choose a move worktree id: %w", err)
+	}
+	return id, nil
+}
+
 // rollbackFailedArchive keeps a failed archive harmless: when it committed before a
 // later step of the archive failed, the source is unarchived again. The archive state
 // is read on a fresh lifetime, and a read that fails is reported, never taken as proof
-// that nothing was archived.
-func (m *Manager) rollbackFailedArchive(ctx context.Context, plan *profileMovePlan, cause error) error {
+// that nothing was archived; the journal then stays open for the next boot.
+func (m *Manager) rollbackFailedArchive(
+	ctx context.Context,
+	plan *profileMovePlan,
+	move *store.SessionProfileMove,
+	cause error,
+) error {
 	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), profileMoveTimeout)
 	defer cancel()
 	err := m.requireSessionUnarchived(readCtx, plan.meta.WorkspaceID, plan.meta.ID)
 	switch {
 	case err == nil:
+		if journal, journalErr := m.profileMoveJournal(); journalErr == nil {
+			m.closeProfileMove(readCtx, journal, plan.meta.ID)
+		}
 		return cause
 	case errors.Is(err, ErrSessionArchived):
-		return m.rollbackProfileMove(ctx, plan, profileMoveProgress{}, cause)
+		return m.rollbackProfileMove(ctx, plan, move, cause)
 	default:
 		return &ProfileMoveError{
 			Reason: ProfileMoveRefusalRecoveryIncomplete,
 			Message: fmt.Sprintf(
 				"archiving session %s failed (%v) and its archive state could not be read (%v); "+
-					"unarchive it if it stays archived",
+					"it is unarchived when the move is retried or the daemon restarts",
 				plan.meta.ID, cause, err,
 			),
 			cause: errors.Join(cause, err),
 		}
 	}
-}
-
-// profileMoveCheckoutGone reports whether a release that failed still removed the
-// checkout, so the rollback checks the branch out again instead of rebinding a
-// session to a removed worktree. An unreadable checkout counts as gone: recreating
-// it either succeeds or reports what is left.
-func (m *Manager) profileMoveCheckoutGone(ctx context.Context, plan *profileMovePlan) bool {
-	checkout, err := plan.worktree.InspectProfileMoveWorktree(ctx, plan.meta.WorkspaceID, plan.checkout.ID)
-	return err != nil || !checkout.Ready
 }
 
 // requireProfileMoveBinding rereads the archived source: a worktree binding that changed
@@ -145,74 +177,42 @@ func (m *Manager) requireProfileMoveBinding(ctx context.Context, plan *profileMo
 	return nil
 }
 
-// rollbackProfileMove undoes a failed move in reverse order: the target checkout is
-// released, the branch is checked out again for the source profile, and the
-// original is unarchived and rebound to it. It runs on its own detached, bounded
-// lifetime, so a move that spent its deadline still recovers. The cause is returned
-// as is when the rollback completes; otherwise a recovery_incomplete refusal names
-// what is left.
+// rollbackProfileMove undoes a failed move from the state it left. The cause is
+// returned as is when the rollback completes; otherwise a recovery_incomplete
+// refusal names what is left, and the open journal retries it on the next move of
+// the session or at the next boot.
 func (m *Manager) rollbackProfileMove(
 	ctx context.Context,
 	plan *profileMovePlan,
-	progress profileMoveProgress,
+	move *store.SessionProfileMove,
 	cause error,
 ) error {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), profileMoveTimeout)
-	defer cancel()
-	meta := &plan.meta
-	var errs []error
-	if progress.targetWorktreeID != "" {
-		if err := plan.worktree.ReleaseProfileMoveWorktree(
-			ctx,
-			meta.WorkspaceID,
-			progress.targetWorktreeID,
-		); err != nil {
-			errs = append(errs, fmt.Errorf("release the target worktree %s: %w", progress.targetWorktreeID, err))
-		}
-	}
-	restoredID := ""
-	if progress.released && len(errs) == 0 {
-		id, _, err := plan.worktree.CreateProfileMoveWorktree(
-			ctx,
-			meta.WorkspaceID,
-			plan.opts.ProfileID,
-			*plan.checkout,
-		)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("check out branch %s again: %w", plan.checkout.Branch, err))
-		}
-		restoredID = id
-	}
-	// The move holds the lock the public Unarchive takes.
-	if _, err := m.setArchived(ctx, meta.WorkspaceID, meta.ID, false); err != nil {
-		errs = append(errs, fmt.Errorf("unarchive session %s: %w", meta.ID, err))
-	} else if restoredID != "" {
-		expected := plan.checkout.ID
-		if _, err := m.ChangeWorktreeBinding(ctx, meta.ID, restoredID, &expected); err != nil {
-			errs = append(errs, fmt.Errorf("bind session %s to worktree %s: %w", meta.ID, restoredID, err))
-		}
-	}
-	if len(errs) == 0 {
+	completed, err := m.settleProfileMove(ctx, *move)
+	switch {
+	case err == nil && completed:
+		// The copy's receipt committed although the fork reported no child; the move stands.
+		return fmt.Errorf("session: moved %s, but the copy reported an error: %w", plan.meta.ID, cause)
+	case err == nil:
 		return cause
 	}
-	rollbackErr := errors.Join(errs...)
 	m.logger.Error(
 		"session.profile_move.rollback_incomplete",
-		"session_id", meta.ID, "cause", cause, "error", rollbackErr,
+		"session_id", plan.meta.ID, "cause", cause, "error", err,
 	)
 	return &ProfileMoveError{
 		Reason: ProfileMoveRefusalRecoveryIncomplete,
 		Message: fmt.Sprintf(
-			"moving session %s failed (%v) and its rollback did not finish (%v); the session is kept%s",
-			meta.ID, cause, rollbackErr, profileMoveBranchNote(plan),
+			"moving session %s failed (%v) and its rollback did not finish (%v); the session is kept%s, "+
+				"and the rollback is retried when the move is retried or the daemon restarts",
+			plan.meta.ID, cause, err, profileMoveBranchNote(move),
 		),
-		cause: errors.Join(cause, rollbackErr),
+		cause: errors.Join(cause, err),
 	}
 }
 
-func profileMoveBranchNote(plan *profileMovePlan) string {
-	if plan.checkout == nil {
+func profileMoveBranchNote(move *store.SessionProfileMove) string {
+	if move.Branch == "" {
 		return ""
 	}
-	return fmt.Sprintf(" and branch %s keeps every commit", plan.checkout.Branch)
+	return fmt.Sprintf(" and branch %s keeps every commit", move.Branch)
 }

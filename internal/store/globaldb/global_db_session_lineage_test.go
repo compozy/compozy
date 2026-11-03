@@ -525,3 +525,57 @@ func TestGlobalDBUserDerivationReceipts(t *testing.T) {
 		}
 	})
 }
+
+func TestGlobalDBSessionProfileMoves(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should journal one open move per session until it closes or the session is deleted", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		sessionID := "session-profile-move"
+		workspaceID := registerSessionForGlobalTests(t, globalDB, sessionID)
+		move := store.SessionProfileMove{
+			SessionID: sessionID, WorkspaceID: workspaceID, ProfileID: store.DefaultProfileID,
+			TargetProfileID: "profile-work", CopyKey: "profile-move:key", SourceWorktreeID: "wt_source",
+			Branch: "feat/move", HeadSHA: "abc123", TargetWorktreeID: "wt_target", RestoreWorktreeID: "wt_restore",
+		}
+		if err := globalDB.InsertSessionProfileMove(ctx, move); err != nil {
+			t.Fatalf("InsertSessionProfileMove() error = %v", err)
+		}
+		if err := globalDB.InsertSessionProfileMove(ctx, move); !errors.Is(err, store.ErrSessionProfileMoveExists) {
+			t.Fatalf("InsertSessionProfileMove(second) error = %v, want ErrSessionProfileMoveExists", err)
+		}
+		if err := globalDB.SetSessionProfileMoveRestoreWorktree(ctx, sessionID, "wt_restore_2"); err != nil {
+			t.Fatalf("SetSessionProfileMoveRestoreWorktree() error = %v", err)
+		}
+		stored, found, err := globalDB.SessionProfileMove(ctx, sessionID)
+		want := move
+		want.RestoreWorktreeID = "wt_restore_2"
+		want.CreatedAt, want.UpdatedAt = stored.CreatedAt, stored.UpdatedAt
+		if err != nil || !found || stored != want || stored.CreatedAt.IsZero() {
+			t.Fatalf("SessionProfileMove() = %#v, %t, %v; want %#v", stored, found, err, want)
+		}
+		listed, err := globalDB.ListSessionProfileMoves(ctx)
+		if err != nil || len(listed) != 1 || listed[0] != stored {
+			t.Fatalf("ListSessionProfileMoves() = %#v, %v", listed, err)
+		}
+		if err := globalDB.DeleteSessionProfileMove(ctx, sessionID); err != nil {
+			t.Fatalf("DeleteSessionProfileMove() error = %v", err)
+		}
+		if _, found, err := globalDB.SessionProfileMove(ctx, sessionID); err != nil || found {
+			t.Fatalf("SessionProfileMove(closed) found = %t, %v; want none", found, err)
+		}
+
+		if err := globalDB.InsertSessionProfileMove(ctx, move); err != nil {
+			t.Fatalf("InsertSessionProfileMove(reopened) error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `DELETE FROM sessions WHERE id = ?`, sessionID); err != nil {
+			t.Fatalf("delete session: %v", err)
+		}
+		if listed, err := globalDB.ListSessionProfileMoves(ctx); err != nil || len(listed) != 0 {
+			t.Fatalf("ListSessionProfileMoves() after the session was deleted = %#v, %v; want none", listed, err)
+		}
+	})
+}

@@ -26,6 +26,9 @@ CREATE TABLE worktrees (
 		run_id TEXT NOT NULL DEFAULT '',
 		created_at TEXT NOT NULL,
 		updated_at TEXT NOT NULL,
+		-- removal_mode is what an in-flight removal may discard; boot recovery of a
+		-- removing row finishes it in the same mode. keep_branch never reclaims the branch.
+		removal_mode TEXT NOT NULL DEFAULT '' CHECK (removal_mode IN ('', 'keep_branch')),
 		UNIQUE (workspace_id, id)
 	);
 

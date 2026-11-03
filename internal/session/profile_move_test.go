@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -40,6 +41,9 @@ type fakeProfileMoveWorktrees struct {
 	onInspect func()
 	// failAfterRelease is returned once the checkout was already removed.
 	failAfterRelease error
+	// stopAt names the step whose goroutine stops, as a daemon stop would leave it.
+	stopAt  string
+	creates map[string]int
 }
 
 type fakeMoveWorktree struct {
@@ -53,7 +57,21 @@ func newFakeProfileMoveWorktrees(
 	t.Helper()
 	return &fakeProfileMoveWorktrees{
 		db: db, workspace: workspaceID, base: t.TempDir(),
-		worktrees: map[string]*fakeMoveWorktree{}, failCreate: map[string]error{},
+		worktrees: map[string]*fakeMoveWorktree{}, failCreate: map[string]error{}, creates: map[string]int{},
+	}
+}
+
+// step stops the calling goroutine at the scripted step: deferred unlocks run, and
+// nothing after the step does, which is the state a daemon stop leaves behind.
+func (f *fakeProfileMoveWorktrees) step(name string) {
+	f.mu.Lock()
+	stop := f.stopAt == name
+	if stop {
+		f.stopAt = ""
+	}
+	f.mu.Unlock()
+	if stop {
+		runtime.Goexit()
 	}
 }
 
@@ -61,16 +79,21 @@ func (f *fakeProfileMoveWorktrees) add(t *testing.T, profileID string) string {
 	t.Helper()
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	id, _, err := f.addLocked(profileID)
+	id, _, err := f.addLocked(profileID, "")
 	if err != nil {
 		t.Fatalf("add worktree: %v", err)
 	}
 	return id
 }
 
-func (f *fakeProfileMoveWorktrees) addLocked(profileID string) (string, string, error) {
+func (f *fakeProfileMoveWorktrees) addLocked(profileID, id string) (string, string, error) {
 	f.next++
-	id := fmt.Sprintf("wt-%d", f.next)
+	if id == "" {
+		id = fmt.Sprintf("wt-%d", f.next)
+	}
+	if _, exists := f.worktrees[id]; exists {
+		return "", "", fmt.Errorf("worktree %s already exists", id)
+	}
 	root := filepath.Join(f.base, id)
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return "", "", err
@@ -129,7 +152,7 @@ func (f *fakeProfileMoveWorktrees) InspectProfileMoveWorktree(
 ) (ProfileMoveCheckout, error) {
 	item, ok := f.get(worktreeID)
 	if !ok {
-		return ProfileMoveCheckout{}, fmt.Errorf("worktree %s not found", worktreeID)
+		return ProfileMoveCheckout{}, fmt.Errorf("%w: %s", ErrProfileMoveWorktreeNotFound, worktreeID)
 	}
 	f.mu.Lock()
 	onInspect := f.onInspect
@@ -140,11 +163,13 @@ func (f *fakeProfileMoveWorktrees) InspectProfileMoveWorktree(
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return ProfileMoveCheckout{
-		ID: worktreeID, Branch: item.branch, HeadSHA: "abc123", Ready: !item.released, DirtyFiles: f.dirty,
+		ID: worktreeID, Branch: item.branch, HeadSHA: "abc123", Ready: !item.released, Gone: item.released,
+		DirtyFiles: f.dirty,
 	}, nil
 }
 
 func (f *fakeProfileMoveWorktrees) ReleaseProfileMoveWorktree(_ context.Context, _ string, worktreeID string) error {
+	f.step("release")
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	item, ok := f.worktrees[worktreeID]
@@ -161,7 +186,18 @@ func (f *fakeProfileMoveWorktrees) ReleaseProfileMoveWorktree(_ context.Context,
 }
 
 func (f *fakeProfileMoveWorktrees) CreateProfileMoveWorktree(
-	_ context.Context, _ string, profileID string, checkout ProfileMoveCheckout,
+	_ context.Context, _ string, profileID, worktreeID string, checkout ProfileMoveCheckout,
+) (string, string, error) {
+	f.step("create:" + profileID)
+	id, root, err := f.createLocked(profileID, worktreeID, checkout)
+	if err == nil {
+		f.step("created:" + profileID)
+	}
+	return id, root, err
+}
+
+func (f *fakeProfileMoveWorktrees) createLocked(
+	profileID, worktreeID string, checkout ProfileMoveCheckout,
 ) (string, string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -173,7 +209,8 @@ func (f *fakeProfileMoveWorktrees) CreateProfileMoveWorktree(
 			return "", "", fmt.Errorf("branch %s is still checked out", checkout.Branch)
 		}
 	}
-	return f.addLocked(profileID)
+	f.creates[profileID]++
+	return f.addLocked(profileID, worktreeID)
 }
 
 func (f *fakeProfileMoveWorktrees) releaseCount() int {
@@ -588,6 +625,252 @@ func TestManagerMoveToProfile(t *testing.T) {
 		if _, err := h.manager.Status(testutil.Context(t), source.ID); err != nil || h.archivedAt(t, source.ID) {
 			t.Fatalf("original after failed rollback: status err %v, archived %t; want kept and unarchived",
 				err, h.archivedAt(t, source.ID))
+		}
+	})
+}
+
+// stoppingJournalCatalog stops a move right after its journal row commits, or right
+// before a settled move closes the row, through the fake's scripted step.
+type stoppingJournalCatalog struct {
+	*globaldb.GlobalDB
+	worktrees *fakeProfileMoveWorktrees
+}
+
+func (c *stoppingJournalCatalog) InsertSessionProfileMove(ctx context.Context, move store.SessionProfileMove) error {
+	err := c.GlobalDB.InsertSessionProfileMove(ctx, move)
+	if err == nil {
+		c.worktrees.step("journaled")
+	}
+	return err
+}
+
+func (c *stoppingJournalCatalog) DeleteSessionProfileMove(ctx context.Context, sessionID string) error {
+	c.worktrees.step("close")
+	return c.GlobalDB.DeleteSessionProfileMove(ctx, sessionID)
+}
+
+func newStoppingProfileMoveHarness(t *testing.T) *profileMoveHarness {
+	t.Helper()
+	catalog := &stoppingJournalCatalog{}
+	h := newProfileMoveHarnessWith(t, func(db *globaldb.GlobalDB) store.SessionCatalog {
+		catalog.GlobalDB = db
+		return catalog
+	})
+	catalog.worktrees = h.worktrees
+	return h
+}
+
+// stopAt runs work until it reaches step and stops there, as a daemon stop would.
+func (h *profileMoveHarness) stopAt(t *testing.T, step string, work func()) {
+	t.Helper()
+	h.worktrees.mu.Lock()
+	h.worktrees.stopAt = step
+	h.worktrees.mu.Unlock()
+	done := make(chan struct{})
+	finished := false
+	go func() {
+		defer close(done)
+		work()
+		finished = true
+	}()
+	<-done
+	if finished {
+		t.Fatalf("work finished without reaching step %q", step)
+	}
+}
+
+func (h *profileMoveHarness) openMove(t *testing.T, sessionID string) (store.SessionProfileMove, bool) {
+	t.Helper()
+	move, found, err := h.db.SessionProfileMove(testutil.Context(t), sessionID)
+	if err != nil {
+		t.Fatalf("SessionProfileMove(%q) error = %v", sessionID, err)
+	}
+	return move, found
+}
+
+func (h *profileMoveHarness) targetSessions(t *testing.T) []store.SessionInfo {
+	t.Helper()
+	rows, err := h.db.ListSessions(testutil.Context(t), store.SessionListQuery{
+		ReadScope: store.ReadScope{ProfileID: profileMoveTargetID}, WorkspaceID: h.workspaceID,
+	})
+	if err != nil {
+		t.Fatalf("ListSessions(target profile) error = %v", err)
+	}
+	return rows
+}
+
+// requireRolledBack asserts the original is unarchived on a live source-profile
+// checkout of its branch, with no copy and no target checkout left.
+func (h *profileMoveHarness) requireRolledBack(t *testing.T, sessionID string, move store.SessionProfileMove) {
+	t.Helper()
+	original, err := h.manager.Status(testutil.Context(t), sessionID)
+	if err != nil {
+		t.Fatalf("Status(original) error = %v", err)
+	}
+	bound, ok := h.worktrees.get(original.WorktreeID)
+	if h.archivedAt(t, sessionID) || !ok || bound.released || bound.profileID != store.DefaultProfileID ||
+		bound.branch != profileMoveBranch {
+		t.Fatalf("original = archived %t on %q (%#v), want unarchived on a source-profile checkout of %s",
+			h.archivedAt(t, sessionID), original.WorktreeID, bound, profileMoveBranch)
+	}
+	if target, ok := h.worktrees.get(move.TargetWorktreeID); ok && !target.released {
+		t.Fatalf("target worktree %s is still checked out", move.TargetWorktreeID)
+	}
+	if rows := h.targetSessions(t); len(rows) != 0 {
+		t.Fatalf("target profile sessions = %#v, want none", rows)
+	}
+	if _, open := h.openMove(t, sessionID); open {
+		t.Fatal("the move is still journaled after it settled")
+	}
+}
+
+func TestManagerRecoverProfileMoves(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should settle a move a daemon stop interrupted at each step", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			step      string
+			completed bool
+		}{
+			{name: "Should restore the original when the stop follows the journal", step: "journaled"},
+			{name: "Should unarchive the original when the stop follows the archive", step: "release"},
+			{
+				name: "Should check the branch out again when the stop follows the release",
+				step: "create:" + profileMoveTargetID,
+			},
+			{
+				name: "Should release the target checkout when the stop follows its creation",
+				step: "created:" + profileMoveTargetID,
+			},
+			{name: "Should complete the move when the stop follows the copy", step: "close", completed: true},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				h := newStoppingProfileMoveHarness(t)
+				source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+				h.stopAt(t, tt.step, func() { _, _ = h.move(testutil.Context(t), source.ID) })
+				move, open := h.openMove(t, source.ID)
+				if !open || move.TargetWorktreeID == "" || move.RestoreWorktreeID == "" ||
+					move.Branch != profileMoveBranch {
+					t.Fatalf("journal after the stop = %#v, open %t; want the move's ids and branch", move, open)
+				}
+
+				if err := h.manager.RecoverProfileMoves(testutil.Context(t)); err != nil {
+					t.Fatalf("RecoverProfileMoves() error = %v", err)
+				}
+				if !tt.completed {
+					h.requireRolledBack(t, source.ID, move)
+					return
+				}
+				rows := h.targetSessions(t)
+				target, ok := h.worktrees.get(move.TargetWorktreeID)
+				if !h.archivedAt(t, source.ID) || len(rows) != 1 || rows[0].WorktreeID != move.TargetWorktreeID ||
+					!ok || target.released {
+					t.Fatalf("completed move: archived %t, copies %#v, target %#v; want the copy on %s",
+						h.archivedAt(t, source.ID), rows, target, move.TargetWorktreeID)
+				}
+				if _, open := h.openMove(t, source.ID); open {
+					t.Fatal("the completed move is still journaled")
+				}
+			})
+		}
+	})
+
+	t.Run("Should reuse the restored checkout when a stop interrupts the rollback", func(t *testing.T) {
+		t.Parallel()
+
+		h := newStoppingProfileMoveHarness(t)
+		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+		h.stopAt(t, "created:"+profileMoveTargetID, func() { _, _ = h.move(testutil.Context(t), source.ID) })
+		move, _ := h.openMove(t, source.ID)
+		h.stopAt(t, "created:"+store.DefaultProfileID, func() {
+			_ = h.manager.RecoverProfileMoves(testutil.Context(t))
+		})
+
+		if err := h.manager.RecoverProfileMoves(testutil.Context(t)); err != nil {
+			t.Fatalf("RecoverProfileMoves() after the interrupted rollback error = %v", err)
+		}
+		h.requireRolledBack(t, source.ID, move)
+		original, _ := h.manager.Status(testutil.Context(t), source.ID)
+		h.worktrees.mu.Lock()
+		restores := h.worktrees.creates[store.DefaultProfileID]
+		h.worktrees.mu.Unlock()
+		if original.WorktreeID != move.RestoreWorktreeID || restores != 1 {
+			t.Fatalf("original on %q after %d restore checkout(s), want the one restore checkout %s",
+				original.WorktreeID, restores, move.RestoreWorktreeID)
+		}
+	})
+
+	t.Run("Should check the branch out under a fresh id when the restore checkout is gone", func(t *testing.T) {
+		t.Parallel()
+
+		h := newStoppingProfileMoveHarness(t)
+		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+		h.stopAt(t, "create:"+profileMoveTargetID, func() { _, _ = h.move(testutil.Context(t), source.ID) })
+		move, _ := h.openMove(t, source.ID)
+		h.stopAt(t, "created:"+store.DefaultProfileID, func() {
+			_ = h.manager.RecoverProfileMoves(testutil.Context(t))
+		})
+		// The restore checkout's creation failed and rolled back.
+		h.worktrees.mu.Lock()
+		h.worktrees.worktrees[move.RestoreWorktreeID].released = true
+		h.worktrees.mu.Unlock()
+
+		if err := h.manager.RecoverProfileMoves(testutil.Context(t)); err != nil {
+			t.Fatalf("RecoverProfileMoves() error = %v", err)
+		}
+		h.requireRolledBack(t, source.ID, move)
+		original, _ := h.manager.Status(testutil.Context(t), source.ID)
+		if original.WorktreeID == move.RestoreWorktreeID || original.WorktreeID == move.SourceWorktreeID {
+			t.Fatalf("original on %q, want a fresh restore checkout", original.WorktreeID)
+		}
+	})
+
+	t.Run("Should keep the move journaled until a later recovery can finish it", func(t *testing.T) {
+		t.Parallel()
+
+		h := newStoppingProfileMoveHarness(t)
+		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+		h.stopAt(t, "created:"+profileMoveTargetID, func() { _, _ = h.move(testutil.Context(t), source.ID) })
+		move, _ := h.openMove(t, source.ID)
+		h.worktrees.mu.Lock()
+		h.worktrees.failCreate[store.DefaultProfileID] = errors.New("source checkout failed")
+		h.worktrees.mu.Unlock()
+
+		if err := h.manager.RecoverProfileMoves(testutil.Context(t)); err == nil {
+			t.Fatal("RecoverProfileMoves() error = nil, want the unfinished restore reported")
+		}
+		if _, open := h.openMove(t, source.ID); !open || h.archivedAt(t, source.ID) {
+			t.Fatalf("after a failed restore: journaled %t archived %t, want journaled and unarchived",
+				open, h.archivedAt(t, source.ID))
+		}
+		h.worktrees.mu.Lock()
+		delete(h.worktrees.failCreate, store.DefaultProfileID)
+		h.worktrees.mu.Unlock()
+		if err := h.manager.RecoverProfileMoves(testutil.Context(t)); err != nil {
+			t.Fatalf("RecoverProfileMoves() retry error = %v", err)
+		}
+		h.requireRolledBack(t, source.ID, move)
+	})
+
+	t.Run("Should settle an interrupted move before a retry moves the session", func(t *testing.T) {
+		t.Parallel()
+
+		h := newStoppingProfileMoveHarness(t)
+		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+		h.stopAt(t, "release", func() { _, _ = h.move(testutil.Context(t), source.ID) })
+
+		result, err := h.move(testutil.Context(t), source.ID)
+		if err != nil || result.Copy == nil || result.Copy.ProfileID != profileMoveTargetID {
+			t.Fatalf("retried MoveToProfile() = %#v, %v; want the copy in the target profile", result.Copy, err)
+		}
+		if _, open := h.openMove(t, source.ID); open || !h.archivedAt(t, source.ID) {
+			t.Fatal("the retried move left its journal open or the original unarchived")
 		}
 	})
 }

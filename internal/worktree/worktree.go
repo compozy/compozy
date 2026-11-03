@@ -77,8 +77,11 @@ type Worktree struct {
 	RunNamespace        string
 	CreatedHead         string
 	RunID               string
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	// RemovalKeepsBranch marks a removing row whose removal keeps its branch, so an
+	// interrupted removal finishes in the same mode after a daemon restart.
+	RemovalKeepsBranch bool
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 // CreateFailure reports a failed creation's cause and, while it is
@@ -215,6 +218,9 @@ type Store interface {
 	// CompleteFailedCreateRollback clears a failed row's incomplete rollback.
 	CompleteFailedCreateRollback(context.Context, string, string, time.Time) error
 	CompareAndSwapState(context.Context, string, string, State, State, time.Time) (bool, error)
+	// FenceRemoval moves a ready row to removing with its removal mode, unless an
+	// exit action is running on it; it reports whether the fence was taken.
+	FenceRemoval(ctx context.Context, workspaceID, id string, keepBranch bool, updatedAt time.Time) (bool, error)
 	SetState(context.Context, string, string, State, time.Time) error
 	SaveStatus(context.Context, string, string, Status) error
 	GetStatus(context.Context, string, string) (*Status, error)

@@ -97,7 +97,10 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND state = 'pending';
 
 -- name: CompareAndSwapWorktreeState :execrows
-UPDATE worktrees SET state = sqlc.arg(next_state), updated_at = sqlc.arg(updated_at)
+UPDATE worktrees SET
+  state = sqlc.arg(next_state),
+  removal_mode = CASE WHEN sqlc.arg(next_state) = 'removing' THEN removal_mode ELSE '' END,
+  updated_at = sqlc.arg(updated_at)
 WHERE worktrees.workspace_id = sqlc.arg(workspace_id)
   AND worktrees.id = sqlc.arg(worktree_id)
   AND worktrees.state = sqlc.arg(expected_state)
@@ -130,9 +133,27 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND state = 'failed';
 
 -- name: SetWorktreeState :execrows
-UPDATE worktrees SET state = sqlc.arg(state), updated_at = sqlc.arg(updated_at)
+UPDATE worktrees SET
+  state = sqlc.arg(state),
+  removal_mode = CASE WHEN sqlc.arg(state) = 'removing' THEN removal_mode ELSE '' END,
+  updated_at = sqlc.arg(updated_at)
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND id = sqlc.arg(worktree_id);
+
+-- name: FenceWorktreeRemoval :execrows
+UPDATE worktrees SET
+  state = 'removing',
+  removal_mode = sqlc.arg(removal_mode),
+  updated_at = sqlc.arg(updated_at)
+WHERE worktrees.workspace_id = sqlc.arg(workspace_id)
+  AND worktrees.id = sqlc.arg(worktree_id)
+  AND worktrees.state = 'ready'
+  AND NOT EXISTS (
+    SELECT 1 FROM worktree_exit_ops
+    WHERE worktree_exit_ops.workspace_id = sqlc.arg(workspace_id)
+      AND worktree_exit_ops.worktree_id = sqlc.arg(worktree_id)
+      AND worktree_exit_ops.state = 'running'
+  );
 
 -- name: UpsertWorktreeStatus :execrows
 INSERT INTO worktree_status (

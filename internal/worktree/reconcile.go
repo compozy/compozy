@@ -61,12 +61,14 @@ func (s *Service) RecoverCreations(ctx context.Context) error {
 	return recoverErr
 }
 
-// recoverRemoval finishes a removal interrupted by a daemon stop. Anything
-// that keeps it from finishing, such as a checkout the interrupted Git command
-// left orphaned or an unreadable leftover, returns the record to the user and
-// is logged; one worktree must not fail daemon startup.
+// recoverRemoval finishes a removal interrupted by a daemon stop in the mode it
+// was fenced with, so a keep-branch removal is not refused for the unpushed
+// commits its branch keeps. Anything that keeps it from finishing, such as a
+// checkout the interrupted Git command left orphaned or an unreadable leftover,
+// returns the record to the user and is logged; one worktree must not fail
+// daemon startup.
 func (s *Service) recoverRemoval(ctx context.Context, item Worktree) error {
-	refusalResult, err := s.removeFenced(ctx, item, removalMode{})
+	refusalResult, err := s.removeFenced(ctx, item, removalMode{keepBranch: item.RemovalKeepsBranch})
 	if err == nil && refusalResult == nil {
 		return nil
 	}

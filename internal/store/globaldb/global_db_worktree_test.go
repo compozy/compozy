@@ -1237,6 +1237,72 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 
 	// Invariant: explicit binding CAS preserves owner and rejects stale or unavailable destinations.
 	// Owner: global SQLite session/worktree storage; canonical worktree store suite.
+	t.Run("Should persist a keep-branch removal fence until the row leaves removing", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t, globalDB, "keep-branch-fence", filepath.Join(t.TempDir(), "workspace"),
+		)
+		now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+		for _, id := range []string{"wt_keep", "wt_exit"} {
+			if err := globalDB.Worktrees.Insert(ctx, worktreepkg.Worktree{
+				ProfileID: store.DefaultProfileID, ID: id, WorkspaceID: workspaceID, Name: id,
+				Branch: "feature/" + id, Path: filepath.Join(t.TempDir(), id), State: worktreepkg.StateReady,
+				Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone, CreatedAt: now, UpdatedAt: now,
+			}); err != nil {
+				t.Fatalf("Insert(%s) error = %v", id, err)
+			}
+		}
+		if fenced, err := globalDB.Worktrees.FenceRemoval(
+			ctx,
+			workspaceID,
+			"wt_keep",
+			true,
+			now,
+		); err != nil ||
+			!fenced {
+			t.Fatalf("FenceRemoval(keep branch) = %t, %v", fenced, err)
+		}
+		recoverable, err := globalDB.Worktrees.ListRecoverable(ctx)
+		if err != nil || len(recoverable) != 1 || recoverable[0].State != worktreepkg.StateRemoving ||
+			!recoverable[0].RemovalKeepsBranch {
+			t.Fatalf("ListRecoverable() = %#v, %v; want the removing row with its keep-branch mode", recoverable, err)
+		}
+		if err := globalDB.Worktrees.SetState(ctx, workspaceID, "wt_keep", worktreepkg.StateReady, now); err != nil {
+			t.Fatalf("SetState(ready) error = %v", err)
+		}
+		if fenced, err := globalDB.Worktrees.FenceRemoval(
+			ctx,
+			workspaceID,
+			"wt_keep",
+			false,
+			now,
+		); err != nil ||
+			!fenced {
+			t.Fatalf("FenceRemoval(default) = %t, %v", fenced, err)
+		}
+		if item, err := globalDB.Worktrees.Get(ctx, workspaceID, "wt_keep"); err != nil || item.RemovalKeepsBranch {
+			t.Fatalf("Get() after a default fence = %#v, %v; want the keep-branch mode cleared", item, err)
+		}
+		if err := globalDB.Worktrees.InsertExitOperation(ctx, worktreepkg.ExitOperation{
+			ID: "op-exit", WorkspaceID: workspaceID, WorktreeID: "wt_exit", Action: "push", State: "running",
+			StartedAt: now,
+		}); err != nil {
+			t.Fatalf("InsertExitOperation() error = %v", err)
+		}
+		if fenced, err := globalDB.Worktrees.FenceRemoval(
+			ctx,
+			workspaceID,
+			"wt_exit",
+			true,
+			now,
+		); err != nil ||
+			fenced {
+			t.Fatalf("FenceRemoval(during an exit action) = %t, %v; want refused", fenced, err)
+		}
+	})
+
 	t.Run("Should change existing session bindings only through guarded updates", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

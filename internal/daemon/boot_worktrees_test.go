@@ -315,6 +315,7 @@ func (r *recordingTurnWorktreeRefresher) Status(
 // the ones a case scripts.
 type profileMoveWorktreeStub struct {
 	item       worktree.Worktree
+	getErr     error
 	status     worktree.Status
 	refreshes  []bool
 	removeErrs []error
@@ -324,6 +325,9 @@ type profileMoveWorktreeStub struct {
 }
 
 func (s *profileMoveWorktreeStub) Get(context.Context, string, string) (*worktree.Worktree, error) {
+	if s.getErr != nil {
+		return nil, s.getErr
+	}
 	item := s.item
 	return &item, nil
 }
@@ -402,14 +406,47 @@ func TestDaemonProfileMoveWorktrees(t *testing.T) {
 		t.Parallel()
 		stub := &profileMoveWorktreeStub{createErrs: []error{worktree.ErrBaseRefNotFound}}
 		checkout := session.ProfileMoveCheckout{Branch: "feat/move", HeadSHA: "abc123"}
-		id, root, err := resolverFor(stub).CreateProfileMoveWorktree(t.Context(), "ws", "profile-work", checkout)
+		id, root, err := resolverFor(stub).CreateProfileMoveWorktree(
+			t.Context(), "ws", "profile-work", "wt_chosen", checkout,
+		)
 		if err != nil || id != "wt-new" || root != "/worktrees/new" {
 			t.Fatalf("CreateProfileMoveWorktree() = %q %q %v", id, root, err)
 		}
 		if len(stub.creates) != 2 || stub.creates[0].ExistingBranch != "feat/move" ||
 			stub.creates[1].Branch != "feat/move" || stub.creates[1].BaseRef != "abc123" ||
-			stub.creates[1].ProfileID != "profile-work" {
-			t.Fatalf("creates = %#v, want the existing branch, then the branch recreated at abc123", stub.creates)
+			stub.creates[1].ProfileID != "profile-work" ||
+			stub.creates[0].ID != "wt_chosen" || stub.creates[1].ID != "wt_chosen" {
+			t.Fatalf("creates = %#v, want the existing branch, then the branch recreated at abc123, both "+
+				"under the move's chosen id", stub.creates)
+		}
+	})
+
+	t.Run("Should tell a never-created worktree from one whose checkout is gone", func(t *testing.T) {
+		t.Parallel()
+		_, err := resolverFor(&profileMoveWorktreeStub{getErr: worktree.ErrNotFound}).
+			InspectProfileMoveWorktree(t.Context(), "ws", "wt_never")
+		if !errors.Is(err, session.ErrProfileMoveWorktreeNotFound) {
+			t.Fatalf("InspectProfileMoveWorktree(never created) error = %v, want ErrProfileMoveWorktreeNotFound", err)
+		}
+		tests := []struct {
+			name string
+			item worktree.Worktree
+			gone bool
+		}{
+			{name: "removed", item: worktree.Worktree{State: worktree.StateRemoved}, gone: true},
+			{name: "failed and rolled back", item: worktree.Worktree{State: worktree.StateFailed}, gone: true},
+			{
+				name: "failed with its rollback incomplete",
+				item: worktree.Worktree{State: worktree.StateFailed, CreateRollbackError: "checkout left in place"},
+			},
+			{name: "pending", item: worktree.Worktree{State: worktree.StatePending}},
+		}
+		for _, tt := range tests {
+			checkout, err := resolverFor(&profileMoveWorktreeStub{item: tt.item}).
+				InspectProfileMoveWorktree(t.Context(), "ws", "wt_move")
+			if err != nil || checkout.Gone != tt.gone || checkout.Ready {
+				t.Fatalf("InspectProfileMoveWorktree(%s) = %#v, %v; want gone=%t", tt.name, checkout, err, tt.gone)
+			}
 		}
 	})
 }
