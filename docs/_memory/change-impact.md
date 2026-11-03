@@ -5239,3 +5239,18 @@ Owner: `docs/prompts/20261102-1950_backend-task.md`, branch `proto/session-links
 ### PR #1161 backend review corrections
 
 Updates the Session linked work audit above. Native link/unlink metadata and risk inventories now include both existing mutating tool descriptors. HTTP/UDS routes and DTOs, CLI verbs, hooks, config and official `skills/compozy/` instructions retain their existing shapes. Legacy forge providers need only their original required methods; discovery methods remain optional. Automatic upserts enrich worktree identity while retaining provenance and unlink tombstones; no schema or migration changes. Link mutations wake the child and each ancestor within the same workspace/profile, with visited IDs bounding cyclic lineage. Web consumes existing catalog upserts to refresh rolled-up summaries. QA additions are in `ET-session-pull-request-link`; evidence and limits are in `docs/qa/reports/session-linked-work/backend-fixes.md`.
+
+## Stays-on hardening
+
+**Owning spec:** `.compozy/tasks/stays-on-hardening/_spec.md`. Slices link to this entry and update only what they affect.
+
+- **Native tools.** New experimental `compozy__agent_skill_propose`, `compozy__agent_skill_reviews`. `compozy__session_approve` narrowed for stays-on callers. `compozy__goal_control` refuses `set` and `replace` on a main session. `compozy__tool_approvals_set` and `compozy__tool_approvals_revoke` are denied to stays-on lineages. `compozy__subagent_delegate` description updated. Automation trigger tools accept target `agent_instance`. `compozy__session_prompt` accepts `agent`; instance list reads peers.
+- **CLI/HTTP/UDS.** `compozy agent skill review …`, `/api/agent-skill-reviews`, instance read fields, trigger target flag.
+- **Extensibility and hooks.** `agent.instance.paused` covers daemon-set pauses. `session_approval` and `permission_rules` dropped from extension and marketplace definitions. `ext.*` and `webhook` can reach instances. Generated SDK contracts regenerate.
+- **Config.** `agents.stays_on.unattended_turn_limit`, `[providers.<id>] reviewer_mode`, global and profile only. AGENT.md `permissions` values `approve-edits` and `auto`; new `session_approval` and `permission_rules`.
+- **Workspace data isolation.** Skill reviews and events are workspace and profile guarded; trigger targets stay inside the trigger's scope. `session_approval` improves isolation by default.
+- **User state.** Append-only Goose migrations: additive columns on wake state and `sessions`, new tables including paused runs, one lossless `automation_triggers` rebuild. No file rewritten on upgrade.
+- **Web.** Pause copy, reports, permission editor, approval scope, hover card, review card, trigger target. No new page.
+- **Docs and official skill.** `skills/compozy/references/` runtime, agent-definitions, loops, tools-and-skills (corrects line 260), new skill-authoring reference; site tutorials; glossary.
+- **QA.** `docs/qa/scenarios/` for pause and brake, held wakes, approvals, permission rules, skill review, events, compaction; extend `MS-web-stays-on-reports.md` and `RT-session-monitor-wake.md`.
+- **Final review corrections.** Daemon-originated tool approvals skip `permission_rules`; deny path rules match regardless of letter case; `approve-edits` and `auto` ask for edits without a contained location and for requests of kind `other` or no kind. `reviewer_mode` is always present on provider summaries (empty means no reviewer); mixed-case reviewer declarations cannot select a full-access mode. Automation event digests always admit the oldest event, and receipts report `policy_disabled` when effective heartbeat policy disables checks. Copilot declares no reviewer, so its `auto` falls back to `approve-edits`.
