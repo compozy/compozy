@@ -2482,6 +2482,37 @@ func TestSessionMoveToProfileHandler(t *testing.T) {
 			t.Fatalf("MoveToProfile() calls = %d, want %d", moveCalls, before)
 		}
 	})
+
+	t.Run("Should report the committed move when payload enrichment fails", func(t *testing.T) {
+		enrichmentFails := &testutil.StubSessionManager{
+			ListAllFn: manager.ListAllFn,
+			MoveToProfileFn: func(context.Context, session.MoveToProfileOpts) (session.MoveToProfileResult, error) {
+				copied := *base
+				copied.ID, copied.ProfileID = "sess-copy", "profile-marketing"
+				original := *base
+				original.ArchivedAt = new(time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC))
+				return session.MoveToProfileResult{Copy: &copied, Original: &original}, nil
+			},
+			InputQueueFn: func(context.Context, string) (session.InputQueueSummary, error) {
+				return session.InputQueueSummary{}, errors.New("input queue unavailable")
+			},
+		}
+		enrichFixture := newHandlerFixture(t, enrichmentFails, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+		enrichFixture.Handlers.Profiles = sessionProfileServiceStub{}
+		response := performRequest(
+			t, enrichFixture.Engine, http.MethodPost, path, []byte(`{"target_profile":"marketing"}`),
+		)
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.MoveSessionToProfileResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if payload.Session.ID != "sess-copy" || payload.Original.ID != base.ID || payload.Original.ArchivedAt == nil {
+			t.Fatalf("move response = %#v, want the committed copy and archived original", payload)
+		}
+	})
 }
 
 func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
