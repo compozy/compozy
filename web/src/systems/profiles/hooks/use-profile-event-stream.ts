@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -13,7 +13,11 @@ import {
 export interface UseProfileEventStreamOptions {
   enabled?: boolean;
   eventSourceFactory?: ProfileEventSourceFactory;
-  /** Runs after a `profile.renamed` event, for caches outside this system. */
+  /**
+   * Runs after a `profile.renamed` event, for caches outside this system, and
+   * after every reconnect: `replay=false` means a rename made while the socket
+   * was down never arrives as an event (#1220).
+   */
   onProfileRenamed?: () => void;
 }
 
@@ -34,7 +38,13 @@ export function useProfileEventStream({
     applyProfileEvent(queryClient, event);
     if (event.name === "profile.renamed") onProfileRenamed?.();
   });
-  const onReconcile = useEffectEvent(() => reconcileProfiles(queryClient));
+  // The first open has nothing to catch up on; every later one may have missed a rename.
+  const connectedBefore = useRef(false);
+  const onReconcile = useEffectEvent(() => {
+    reconcileProfiles(queryClient);
+    if (connectedBefore.current) onProfileRenamed?.();
+    connectedBefore.current = true;
+  });
 
   const connectable = enabled && (Boolean(eventSourceFactory) || typeof WebSocket !== "undefined");
   const [connection, setConnection] = useState<"live" | "stale">("stale");
