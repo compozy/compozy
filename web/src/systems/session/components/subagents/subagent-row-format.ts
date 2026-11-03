@@ -28,6 +28,22 @@ export function subagentNativeKind(subagent: SubagentView): string | null {
   return subagent.origin === "provider_native" ? subagent.role?.trim() || null : null;
 }
 
+/** A subagent's recorded runtime as words: the model with its effort, who ran it, and both joined. */
+export function subagentRuntimeWords(
+  subagent: SubagentView,
+  agentLabel: string
+): { modelLabel: string; kind: string | null; label: string } {
+  const { agent, provider, model, reasoning_effort: effort } = subagent.runtime;
+  const kind =
+    subagent.origin === "provider_native"
+      ? subagentNativeKind(subagent)
+      : agent
+        ? agentLabel
+        : null;
+  const modelLabel = [model ? subagentModelLabel(model) : null, effort].filter(Boolean).join(" ");
+  return { modelLabel, kind, label: [provider, modelLabel, kind].filter(Boolean).join(" · ") };
+}
+
 const TOKEN_FORMAT = new Intl.NumberFormat("en", {
   notation: "compact",
   maximumFractionDigits: 1,

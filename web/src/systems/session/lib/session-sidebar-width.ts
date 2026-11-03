@@ -1,10 +1,10 @@
 /**
- * Session-window rail width, in CSS pixels. The default is the rail's
- * historical fixed width (`w-66`); the bounds keep two-line rows legible at
+ * Session-window rail width, in CSS pixels. The default leaves a row's title
+ * room beside its branch toggle (#1191); the bounds keep two-line rows legible at
  * the narrow end and stop the rail from becoming the window at the wide end.
  * The transcript's own floor lives with the layout (half the window).
  */
-export const SESSION_SIDEBAR_DEFAULT_WIDTH = 264;
+export const SESSION_SIDEBAR_DEFAULT_WIDTH = 360;
 export const SESSION_SIDEBAR_MIN_WIDTH = 200;
 export const SESSION_SIDEBAR_MAX_WIDTH = 480;
 

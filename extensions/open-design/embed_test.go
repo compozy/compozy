@@ -58,6 +58,10 @@ func TestEmbeddedResources(t *testing.T) {
 			if err != nil || agent.Name != name {
 				t.Fatalf("agent %s = %#v, %v", name, agent, err)
 			}
+			appearance, err := agent.ResolveAppearance()
+			if err != nil || appearance["avatar"] != "icon" || appearance["background"] != "none" {
+				t.Fatalf("%s appearance = %#v, %v", name, appearance, err)
+			}
 		}
 		descriptors, err := extensionpkg.ResolveManifestToolDescriptors(manifest)
 		if err != nil || len(descriptors) != 1 {

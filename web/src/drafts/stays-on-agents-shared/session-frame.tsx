@@ -1,7 +1,7 @@
 /** The Sessions app's window: its rail of project groups beside the session pane. */
 import { protoHref } from "@compozy/proto";
 import { FolderPlus, MessageSquare, MessageSquarePlus, Plus, UserPlus } from "@compozy/ui/icons";
-import { createContext, use, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import {
   Button,
@@ -49,9 +49,6 @@ import { boardSession, railTotals, SPAWNED_BY } from "./sessions-fixtures";
 
 const actions = sessionLifecycleActionsFixture();
 
-/** Extra facts a draft shows on a row's meta line, by session id. */
-const RailRowExtra = createContext<((id: string) => ReactNode) | null>(null);
-
 function CreatorBadge({ instance }: { instance: DraftInstance }) {
   return (
     <AgentAvatar
@@ -78,7 +75,6 @@ export function RailRow({
 }) {
   const session = boardSession(id);
   const creator = badge ? SPAWNED_BY[id] : undefined;
-  const extra = use(RailRowExtra)?.(id);
   return (
     <SessionListRowView
       current={current}
@@ -90,9 +86,8 @@ export function RailRow({
       sessionActions={actions}
       testIdPrefix="draft"
       trailing={
-        branch || creator || extra ? (
+        branch || creator ? (
           <>
-            {extra}
             {creator ? <CreatorBadge instance={creator} /> : null}
             {branch}
           </>
@@ -425,8 +420,6 @@ export interface SessionsWindowProps {
   overlay?: ReactNode;
   /** Starts with the sessions rail closed, as a narrow window does. */
   railClosed?: boolean;
-  /** Extra facts on a rail row's meta line, by session id. */
-  rowExtra?: (id: string) => ReactNode;
   children: ReactNode;
 }
 
@@ -441,7 +434,6 @@ export function SessionsWindow({
   sessionBadge,
   overlay,
   railClosed = false,
-  rowExtra,
   children,
 }: SessionsWindowProps) {
   const [railOpen, setRailOpen] = useState(!railClosed);
@@ -472,11 +464,7 @@ export function SessionsWindow({
       }}
     >
       <div className="flex min-h-0 min-w-0 flex-1">
-        {railOpen ? (
-          <RailRowExtra value={rowExtra ?? null}>
-            <SessionRail {...rail} />
-          </RailRowExtra>
-        ) : null}
+        {railOpen ? <SessionRail {...rail} /> : null}
         <div className="flex min-w-0 flex-1 flex-col border-l border-line">{children}</div>
       </div>
     </DraftShell>

@@ -168,11 +168,13 @@ export function agentAvatarAppearance(
   name: string
 ): AgentAvatarAppearance {
   const color = appearance?.color;
+  // Only `none` changes the mark; any other value keeps the plate.
+  const background = appearance?.background === "none" ? { background: "none" as const } : {};
   if (appearance?.avatar === "icon" && appearance.icon) {
-    return { avatar: "icon", icon: appearance.icon, color };
+    return { avatar: "icon", icon: appearance.icon, color, ...background };
   }
   if (appearance?.avatar === "emoji" && appearance.emoji) {
-    return { avatar: "emoji", emoji: appearance.emoji, color };
+    return { avatar: "emoji", emoji: appearance.emoji, color, ...background };
   }
   const seed = appearance?.seed || name;
   const derived = seed === name && color === DERIVED_APPEARANCE_COLOR;

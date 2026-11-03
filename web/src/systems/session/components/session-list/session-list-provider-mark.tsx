@@ -24,6 +24,8 @@ export interface SessionListProviderMarkProps {
    * tooltip; a click on it activates the row as the target would.
    */
   onClick?: (event: React.MouseEvent<HTMLElement>) => void;
+  /** Hover delay before the tooltip opens, in ms; keyboard focus still opens it at once. */
+  delay?: number;
 }
 
 /**
@@ -40,6 +42,7 @@ export function SessionListProviderMark({
   runtime,
   keyboardFocus = null,
   onClick,
+  delay,
 }: SessionListProviderMarkProps) {
   const [hovered, setHovered] = useState(false);
   const [dismissedFocus, setDismissedFocus] = useState<number | null>(null);
@@ -54,6 +57,7 @@ export function SessionListProviderMark({
       }}
     >
       <TooltipTrigger
+        delay={delay}
         render={
           <KindIcon
             aria-hidden="true"

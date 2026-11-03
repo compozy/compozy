@@ -9,6 +9,9 @@ import { formatHexColor, parseHexColor } from "./contrast";
 
 export type SymbolKind = "icon" | "emoji";
 
+/** A symbol on its color plate, or standing alone with the color as its ink. */
+export type SymbolBackground = "plate" | "none";
+
 export interface SymbolPickerLabels {
   kind: string;
   icons: string;
@@ -22,6 +25,9 @@ export interface SymbolPickerLabels {
   skinTone: string;
   loadingEmojis: string;
   loadingIcons: string;
+  background: string;
+  backgroundPlate: string;
+  backgroundNone: string;
   noResults: (kind: SymbolKind, query: string, otherTab: string) => string;
 }
 
@@ -39,6 +45,9 @@ export const SYMBOL_PICKER_DEFAULT_LABELS: SymbolPickerLabels = {
   skinTone: "Change skin tone",
   loadingEmojis: "Loading emojis…",
   loadingIcons: "Loading icons…",
+  background: "Background",
+  backgroundPlate: "Filled",
+  backgroundNone: "No background",
   noResults: (kind, query, otherTab) =>
     `No ${kind === "icon" ? "icons" : "emojis"} match "${query}". Try the ${otherTab} tab.`,
 };

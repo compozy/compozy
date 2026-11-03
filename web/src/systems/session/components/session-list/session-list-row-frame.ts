@@ -21,7 +21,7 @@ export const SESSION_ROW_META_FRAME =
 /** Line 3 of a session parked in Later: its reason, return date and waiting messages. */
 export const SESSION_ROW_LATER_FRAME = "col-span-2 col-start-2 row-start-3";
 
-/** The who-line itself: provider mark, agent and notes, clipped rather than wrapped. */
+/** The who-line itself: agent face, provider mark and phrase, clipped rather than wrapped. */
 export const SESSION_ROW_WHO_FRAME =
   "flex min-w-0 flex-1 items-center gap-1.25 overflow-hidden text-eyebrow whitespace-nowrap text-subtle";
 
@@ -32,3 +32,6 @@ export const SUBAGENT_ROW_FRAME =
 /** The who-line's trailing cluster (the branch toggle), lifted above the row target. */
 export const SESSION_ROW_TRAILING_FRAME =
   "relative z-10 -mr-0.5 flex shrink-0 items-center gap-0.5";
+
+/** A row's marks name themselves only when the pointer rests on them, not while it passes, in ms. */
+export const SESSION_ROW_MARK_TOOLTIP_DELAY = 700;
