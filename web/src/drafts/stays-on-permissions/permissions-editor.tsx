@@ -71,8 +71,8 @@ function LevelNote({
       <Alert>
         <AlertTitle>Codex keeps its own reviewer here</AlertTitle>
         <AlertDescription>
-          Compozy won't ask you, but Codex still reviews risky actions, inside the project and with
-          no network. Turning that off is a separate setting.
+          CompozyOS won't ask you, but Codex still reviews risky actions, inside the project and
+          with no network. Turning that off is a separate setting.
         </AlertDescription>
       </Alert>
     );
