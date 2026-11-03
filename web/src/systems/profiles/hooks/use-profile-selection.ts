@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useMutationState, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSelector } from "@xstate/store-react";
 
 import { notifyUser } from "@/lib/user-feedback";
@@ -7,6 +7,7 @@ import { notifyUser } from "@/lib/user-feedback";
 import { putProfileSelection } from "../adapters/profiles-api";
 import { PERMANENT_PROFILE, actingProfile, isArchived } from "../lib/profile-rows";
 import { profileViewKey } from "../lib/profile-scope";
+import { latestPendingProfile } from "../lib/profile-scope-resolver";
 import { profileKeys } from "../lib/query-keys";
 import { profileSelectionOptions } from "../lib/query-options";
 import {
@@ -23,6 +24,20 @@ import { useProfiles } from "./use-profiles";
 /** The remembered Global choice — daemon state, cached for instant render. */
 export function useRememberedProfile(enabled = true) {
   return useQuery(profileSelectionOptions(enabled));
+}
+
+/**
+ * The remembered choice the aggregate acts as. A switch still being persisted wins over the
+ * daemon's answer: the aggregate rereads the choice freely, and a reread landing before the write
+ * would otherwise bring the previous profile back, so X → Y → All could act as X (#1194).
+ */
+export function useRememberedProfileName(enabled = true): string | undefined {
+  const remembered = useRememberedProfile(enabled);
+  const pending = useMutationState({
+    filters: { mutationKey: profileKeys.selectionWrite(), status: "pending" },
+    select: mutation => mutation.state.variables as ProfileView | undefined,
+  });
+  return latestPendingProfile(pending) ?? remembered.data?.profile;
 }
 
 /**
@@ -89,7 +104,7 @@ export function useProfilePerProfileScope(): ProfilePerProfileScope {
     }
   );
   const aggregate = view.kind === "aggregate";
-  const remembered = useRememberedProfile(aggregate);
+  const remembered = useRememberedProfileName(aggregate);
   const profiles = useProfiles(aggregate);
   return {
     key: profileViewKey(view),
@@ -97,7 +112,7 @@ export function useProfilePerProfileScope(): ProfilePerProfileScope {
       view.kind === "aggregate"
         ? (profiles.data ?? []).flatMap(row => (isArchived(row) ? [] : [row.name]))
         : [view.profile],
-    destination: actingProfile(view, remembered.data?.profile),
+    destination: actingProfile(view, remembered),
   };
 }
 
@@ -123,11 +138,11 @@ export function useSwitchProfile() {
       void queryClient.invalidateQueries({ queryKey: profileKeys.selections() });
     }
   };
-  // The aggregate acts as the remembered choice, so the cached choice moves with the switch: a
-  // quick X → Y → All would otherwise act as X until the reread lands, and a window opened in
-  // that gap would land on X's desk (#1194). A read already in flight is dropped first so its
-  // older answer cannot overwrite the new choice.
-  const rememberLocally = async (view: ProfileView) => {
+  // Once the daemon holds the new choice the cache says so at once, so the gap between the write
+  // and its reread never acts as the previous choice; a read already in flight is dropped first so
+  // its older answer cannot land on top. While the write is pending, useRememberedProfileName
+  // answers from the mutation instead.
+  const rememberPersisted = async (view: ProfileView) => {
     if (view.kind !== "profile") return;
     await queryClient.cancelQueries({ queryKey: profileKeys.selection(), exact: true });
     queryClient.setQueryData<ProfileSelectionPayload>(profileKeys.selection(), {
@@ -136,20 +151,19 @@ export function useSwitchProfile() {
     });
   };
   const mutation = useMutation({
+    mutationKey: profileKeys.selectionWrite(),
     mutationFn: rememberProfileView,
-    onMutate: async (view: ProfileView) => {
+    onMutate: (view: ProfileView) => {
       const previous = localProfileView();
-      const previousSelection = queryClient.getQueryData<ProfileSelectionPayload>(
-        profileKeys.selection()
-      );
       setProfileView(view);
-      await rememberLocally(view);
-      return { previous, previousSelection };
+      return { previous, epoch: profileViewStore.getSnapshot().context.switchEpoch };
     },
+    onSuccess: view => rememberPersisted(view),
     onError: (error, _view, context) => {
-      restoreProfileView(context?.previous ?? null);
-      if (context?.previousSelection !== undefined) {
-        queryClient.setQueryData(profileKeys.selection(), context.previousSelection);
+      // A later switch owns the view now; rolling back to what preceded this one would leave the
+      // shell on a profile the daemon no longer remembers.
+      if (context && profileViewStore.getSnapshot().context.switchEpoch === context.epoch) {
+        restoreProfileView(context.previous);
       }
       notifyUser({
         message: error instanceof Error ? error.message : "Could not switch profile.",
@@ -166,7 +180,7 @@ export function useSwitchProfile() {
     // replaces the connection carrying that command.
     prepare: async (view: ProfileView) => {
       await rememberProfileView(view);
-      await rememberLocally(view);
+      await rememberPersisted(view);
       return () => {
         setProfileView(view);
         invalidateSelection(view);

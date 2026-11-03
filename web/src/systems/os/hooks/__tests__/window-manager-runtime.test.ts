@@ -2749,7 +2749,11 @@ describe("WindowManagerRuntime guarded close", () => {
       "marketing",
       "client:web",
       snapshot.revision,
-      expect.objectContaining({ payload: { window_id: "app:tasks", minimize: false } })
+      // Fenced: a command that repurposes the window first makes the daemon refuse this close.
+      expect.objectContaining({
+        expectedRevision: snapshot.revision,
+        payload: { window_id: "app:tasks", minimize: false },
+      })
     );
     runtime.stop();
   });

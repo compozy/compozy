@@ -31,5 +31,25 @@ export function readActingProfile(queryClient: QueryClient): string {
 }
 
 function readRememberedProfile(queryClient: QueryClient): string | undefined {
-  return queryClient.getQueryData<ProfileSelectionPayload>(profileKeys.selection())?.profile;
+  const pending = queryClient
+    .getMutationCache()
+    .findAll({ mutationKey: profileKeys.selectionWrite(), status: "pending" })
+    .map(mutation => mutation.state.variables as ProfileView | undefined);
+  return (
+    latestPendingProfile(pending) ??
+    queryClient.getQueryData<ProfileSelectionPayload>(profileKeys.selection())?.profile
+  );
+}
+
+/**
+ * The newest concrete profile among switches still being persisted, oldest first. While one is
+ * pending it is the remembered choice: a reread landing before the write would answer with the
+ * previous one (#1194).
+ */
+export function latestPendingProfile(
+  views: readonly (ProfileView | undefined)[]
+): string | undefined {
+  let latest: string | undefined;
+  for (const view of views) if (view?.kind === "profile") latest = view.profile;
+  return latest;
 }

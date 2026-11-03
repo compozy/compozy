@@ -284,11 +284,16 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
   /**
    * Removes one tab from the desk without the operator's close guard, so what it shows keeps
    * running: a terminal window leaves the desk and its terminal is not terminated. Refused while
-   * an operator close is being confirmed, so it never races that close's fenced command.
+   * an operator close is being confirmed, so it never races that close's fenced command. Fenced to
+   * the layout revision the caller inspected: a command queued earlier that repurposes the window
+   * moves the revision, so the daemon refuses this close instead of closing what it shows now.
    */
   closeWindowViewOnly = async (windowId: string): Promise<boolean> => {
     if (this.closePending || !windowManagerCommandsAvailable(this.view)) return false;
-    return this.dispatch(closeWindowCommand(windowId)).completion;
+    return this.dispatch({
+      ...closeWindowCommand(windowId),
+      expectedRevision: this.view.snapshot?.revision,
+    }).completion;
   };
 
   /** Serializes close admission and fences the final command to the inspected targets and revision. */

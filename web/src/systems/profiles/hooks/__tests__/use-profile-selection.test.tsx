@@ -156,7 +156,7 @@ describe("global profile selection", () => {
   });
 
   it("Should act as the switched-to profile under All profiles before the persist settles [#1194]", async () => {
-    const { wrapper } = createWrapper();
+    const { queryClient, wrapper } = createWrapper();
     let settlePut: () => void = () => {};
     vi.mocked(putProfileSelection).mockImplementation(
       params =>
@@ -170,15 +170,50 @@ describe("global profile selection", () => {
     );
     await waitFor(() => expect(result.current.read.destination).toBe("marketing"));
 
-    act(() => result.current.switchProfile.mutate({ kind: "profile", profile: "open-design" }));
-    await waitFor(() => expect(putProfileSelection).toHaveBeenCalled());
-    act(() => result.current.switchProfile.mutate({ kind: "aggregate" }));
-
-    // The daemon still answers "marketing" until the persist lands; the switch already moved it.
+    // X → Y → All with no pause: All lands before the write has even started.
+    act(() => {
+      result.current.switchProfile.mutate({ kind: "profile", profile: "open-design" });
+      result.current.switchProfile.mutate({ kind: "aggregate" });
+    });
     await waitFor(() => expect(result.current.read.aggregate).toBe(true));
     expect(result.current.read.destination).toBe("open-design");
+
+    // The aggregate rereads the choice while the write is pending; the daemon still answers
+    // "marketing", and that answer must not bring it back.
+    await act(() => queryClient.refetchQueries({ queryKey: ["profiles", "selection", "global"] }));
+    expect(result.current.read.destination).toBe("open-design");
+
     vi.mocked(fetchProfileSelection).mockResolvedValue({ scope: "global", profile: "open-design" });
     act(() => settlePut());
+    await waitFor(() =>
+      expect(queryClient.getQueryData(["profiles", "selection", "global"])).toEqual({
+        scope: "global",
+        profile: "open-design",
+      })
+    );
+    expect(result.current.read.destination).toBe("open-design");
+  });
+
+  it("Should keep a later switch when an earlier one fails to persist [#1194]", async () => {
+    const { wrapper } = createWrapper();
+    let failFirst: () => void = () => {};
+    vi.mocked(putProfileSelection)
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            failFirst = () => reject(new Error("daemon unavailable"));
+          })
+      )
+      .mockImplementation(async params => params as never);
+    const { result } = renderHook(() => useSwitchProfile(), { wrapper });
+
+    act(() => result.current.mutate({ kind: "profile", profile: "open-design" }));
+    await act(() => result.current.mutateAsync({ kind: "profile", profile: "default" }));
+    act(() => failFirst());
+
+    await waitFor(() => expect(putProfileSelection).toHaveBeenCalledTimes(2));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(localProfileView()).toEqual({ kind: "profile", profile: "default" });
   });
 
   it("Should restore the remembered choice when the switch cannot be persisted [#1194]", async () => {
@@ -202,7 +237,8 @@ describe("global profile selection", () => {
       scope: "global",
       profile: "marketing",
     });
-    expect(result.current.read.destination).toBe("marketing");
+    // The failed write stops counting as the remembered choice once it settles.
+    await waitFor(() => expect(result.current.read.destination).toBe("marketing"));
   });
 
   it("Should keep All profiles across a reload and resolve a concrete view from the daemon", async () => {
