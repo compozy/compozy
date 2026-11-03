@@ -1917,11 +1917,11 @@ test("Issue 836: the sessions rail resizes by drag and keyboard, persists, and r
     await appPage.mouse.move(start.x + deltaX, start.y, { steps: 8 });
     await appPage.mouse.up();
   };
-  await expect.poll(railWidth).toBe(264);
+  await expect.poll(railWidth).toBe(360);
   await browserArtifacts.captureScreenshot("rail-default", appPage);
 
   await dragHandleBy(96);
-  await expect.poll(railWidth).toBeCloseTo(360, -1);
+  await expect.poll(railWidth).toBeCloseTo(456, -1);
   await browserArtifacts.captureScreenshot("rail-dragged", appPage);
   await dragHandleBy(400);
   await expect.poll(railWidth).toBe(480);
@@ -1946,14 +1946,14 @@ test("Issue 836: the sessions rail resizes by drag and keyboard, persists, and r
     handleBox.x + handleBox.width / 2,
     handleBox.y + handleBox.height / 2
   );
-  await expect.poll(railWidth).toBe(264);
+  await expect.poll(railWidth).toBe(360);
   await appPage.reload({ waitUntil: "domcontentloaded" });
   await expect(sessionWin).toBeVisible();
-  await expect.poll(railWidth).toBe(264);
+  await expect.poll(railWidth).toBe(360);
 
   // Collapse and reopen keep the chosen width; the handle leaves with the rail.
   await dragHandleBy(-24);
-  await expect.poll(railWidth).toBeCloseTo(240, -1);
+  await expect.poll(railWidth).toBeCloseTo(336, -1);
   const chosen = await railWidth();
   const railToggle = sessionWin.getByTestId("session-sidebar-toggle");
   await railToggle.click();

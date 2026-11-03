@@ -32,7 +32,6 @@ import { SessionBoardCardView } from "@/systems/session/components/session-board
 import type { SessionBoardCardProps } from "@/systems/session/components/session-board/session-board-card";
 import { SessionBoardLinkedWorkCount } from "@/systems/session/components/session-board/session-board-linked-work-count";
 import { SessionEnvironmentChip } from "@/systems/session/components/session-environment-chip";
-import { SessionLinkCountMark } from "@/systems/session/components/session-linked-work/session-link-count-mark";
 import { SessionLinkDialog } from "@/systems/session/components/session-linked-work/session-link-dialog";
 import type { SessionLinkActions } from "@/systems/session/components/session-linked-work/session-link-row";
 import {
@@ -249,14 +248,6 @@ function Stage({
       </>
     ),
   };
-  const rowExtra = (id: string) => {
-    if (id === scenario.sessionId) {
-      return <SessionLinkCountMark summary={sessionLinkSummaryFixture(items)} />;
-    }
-    return id === "s1" ? (
-      <SessionLinkCountMark summary={sessionLinkSummaryFixture(SESSION_LINKS_DOZEN)} />
-    ) : null;
-  };
   const screen = (
     <SessionsWindow
       overlay={
@@ -274,7 +265,6 @@ function Stage({
       }
       rail={{ groups: [{ ...COMPOZY_GROUP, currentRow: scenario.sessionId }], top: GLOBAL_ROW }}
       railClosed={scenario.narrow}
-      rowExtra={rowExtra}
       title={getSessionDisplayTitle(session)}
       topbar={topbar}
     >
