@@ -35172,6 +35172,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
+      /** @description WebSocket upgrade; each text message contains one complete SSE frame */
+      101: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
       /** @description ready and provider_usage_changed revision events */
       200: {
         headers: {
@@ -44725,6 +44732,8 @@ export interface operations {
         all_workspaces?: boolean;
         /** @description Repeatable project IDs or @user; requires all_workspaces=true */
         workspace_ids?: string[];
+        /** @description Resume cursor when Last-Event-ID cannot be set; the header takes precedence */
+        last_event_id?: string;
         /** @description Act as this profile by name */
         profile?: string;
       };
@@ -44737,6 +44746,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
+      /** @description WebSocket upgrade; each text message contains one complete SSE frame */
+      101: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
       /** @description Terminal catalog event stream */
       200: {
         headers: {
@@ -57423,6 +57439,8 @@ export interface operations {
   streamTerminalCatalog: {
     parameters: {
       query?: {
+        /** @description Resume cursor when Last-Event-ID cannot be set; the header takes precedence */
+        last_event_id?: string;
         /** @description Act as this profile by name */
         profile?: string;
       };
@@ -57438,6 +57456,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
+      /** @description WebSocket upgrade; each text message contains one complete SSE frame */
+      101: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
       /** @description Terminal catalog event stream */
       200: {
         headers: {

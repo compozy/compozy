@@ -9,6 +9,12 @@ import (
 	"strings"
 )
 
+// UpdateSettingsAttentionParams carries the path, query, and header parameters.
+type UpdateSettingsAttentionParams struct {
+	Scope   *string `url:"scope"`
+	Profile *string `url:"profile"`
+}
+
 // UpdateSettingsAttention Update the operator attention settings section
 func (c *Client) UpdateSettingsAttention(ctx context.Context, params UpdateSettingsAttentionParams, body UpdateSettingsAttentionRequest) (*SettingsApplyResponse, error) {
 	path := "/api/settings/attention"
