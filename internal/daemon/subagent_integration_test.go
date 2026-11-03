@@ -2556,6 +2556,33 @@ func readSubagentsHTTP(
 	return page
 }
 
+// replyWatchEdgeBudget bounds one wait for an observed runtime edge by the test's own deadline, so a loaded
+// runner stretches the wait instead of failing it; the reserved tail still reports a stuck edge by name
+// before the binary's -timeout panic.
+func replyWatchEdgeBudget(t *testing.T) time.Duration {
+	t.Helper()
+	deadline, ok := t.Deadline()
+	if !ok {
+		return 5 * time.Minute
+	}
+	remaining := time.Until(deadline)
+	budget := max(remaining-max(remaining/10, 30*time.Second), time.Second)
+	return min(budget, max(remaining, 0))
+}
+
+func awaitReplyWatchHeldTurnDrained(t *testing.T, drained <-chan struct{}) {
+	t.Helper()
+	timer := time.NewTimer(replyWatchEdgeBudget(t))
+	defer timer.Stop()
+	select {
+	case <-drained:
+	case <-t.Context().Done():
+		t.Fatal("test context ended before the held turn drained")
+	case <-timer.C:
+		t.Fatal("timed out waiting for the held turn to drain")
+	}
+}
+
 // Invariant: reply delivery survives daemon restart and executes through the existing ACP queue.
 func TestReplyWatchDaemonIntegration(t *testing.T) {
 	// Invariant: real lifecycle and queue edges settle only the message's consuming turn.
@@ -2643,7 +2670,7 @@ func TestReplyWatchDaemonIntegration(t *testing.T) {
 				if err := manager.Stop(ctx, target.ID); err != nil {
 					t.Fatal(err)
 				}
-				<-drained
+				awaitReplyWatchHeldTurnDrained(t, drained)
 				row, err := db.GetReplyWatch(ctx, watch.ID)
 				if err != nil || row.State != "armed" {
 					t.Fatalf("stopped queued = %+v, %v", row, err)
@@ -2655,28 +2682,44 @@ func TestReplyWatchDaemonIntegration(t *testing.T) {
 				if err := manager.CancelTurn(ctx, target.ID, held.NewTurnID, session.CauseUserRequested); err != nil {
 					t.Fatal(err)
 				}
-				<-drained
+				awaitReplyWatchHeldTurnDrained(t, drained)
+				var consumed store.SessionInputQueueEntry
+				waitForRuntimeCondition(t, "watched input consumed", replyWatchEdgeBudget(t), func() bool {
+					row, err := db.GetSessionInputQueueEntry(ctx, target.ID, sent.QueueEntryID)
+					consumed = row
+					return err == nil && row.Status == store.SessionInputQueueStatusSent &&
+						(action != "stop active" || target.IsPrompting())
+				})
 				if action == "stop active" {
 					want = "canceled"
-					waitForRuntimeCondition(t, "watched input consumed", 10*time.Second, func() bool {
-						row, err := db.GetSessionInputQueueEntry(ctx, target.ID, sent.QueueEntryID)
-						return err == nil && row.Status == store.SessionInputQueueStatusSent && target.IsPrompting()
-					})
 					if err := manager.Stop(ctx, target.ID); err != nil {
 						t.Fatal(err)
 					}
 				} else {
 					want = "failed"
+					// The consuming turn's failure settles the watch: wait for that edge, not for a clock.
+					waitForRuntimeCondition(t, "consuming turn failed", replyWatchEdgeBudget(t), func() bool {
+						_, activeErr := manager.ActivePromptRun(ctx, target.ID)
+						if !errors.Is(activeErr, session.ErrPromptNotActive) {
+							return false
+						}
+						result, err := manager.TurnResult(ctx, target.ID, consumed.TurnID)
+						return err == nil && result.Outcome == store.ReplyOutcomeFailed
+					})
 				}
 			}
-			waitForRuntimeCondition(t, "reply outcome "+want, 10*time.Second, func() bool {
-				row, err := db.GetReplyWatch(ctx, watch.ID)
-				return err == nil && row.State == "fired" && row.Outcome == want
+			var row store.ReplyWatch
+			waitForRuntimeCondition(t, "reply outcome "+want, replyWatchEdgeBudget(t), func() bool {
+				current, err := db.GetReplyWatch(ctx, watch.ID)
+				if err != nil || current.State != store.ReplyWatchFired {
+					return false
+				}
+				if current.Outcome != want {
+					t.Fatalf("reply outcome = %q, want %q: %+v", current.Outcome, want, current)
+				}
+				row = current
+				return true
 			})
-			row, err := db.GetReplyWatch(ctx, watch.ID)
-			if err != nil {
-				t.Fatal(err)
-			}
 			if want == "failed" && !strings.Contains(row.ReplyText, "reply provider failed") {
 				t.Fatalf("failure summary = %q", row.ReplyText)
 			}
