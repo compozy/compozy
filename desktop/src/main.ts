@@ -54,6 +54,7 @@ import { ProductWindow } from "./window/product-window";
 import { WindowTheme } from "./window/window-theme";
 import type { WindowPresentation } from "./window/window-presentation";
 import { applyDefaultDenyPermissions } from "./window/security";
+import { configureDiskCache, trimOversizedDiskCache } from "./window/cache-policy";
 import { installApplicationMenu } from "./window/application-menu";
 
 declare const __COMPOZY_DESKTOP_E2E_BUILD__: boolean;
@@ -106,6 +107,7 @@ if (app.isPackaged && !__COMPOZY_DESKTOP_E2E_BUILD__) {
 }
 
 app.setPath("userData", join(paths.home, "electron"));
+configureDiskCache(app.commandLine);
 app.on("open-url", (event, url) => {
   event.preventDefault();
   links.push(url);
@@ -457,6 +459,9 @@ if (!app.requestSingleInstanceLock()) {
     .whenReady()
     .then(async () => {
       applyDefaultDenyPermissions(session.defaultSession);
+      void trimOversizedDiskCache(session.defaultSession).catch(error => {
+        logger.error("trim desktop HTTP cache", error);
+      });
       if (process.platform === "linux" && app.isPackaged) {
         try {
           await registerLinuxDesktop(
