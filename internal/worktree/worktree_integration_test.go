@@ -1090,6 +1090,58 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should apply the normal removal policy after the base branch is deleted", func(t *testing.T) {
+		t.Parallel()
+		f := newRealGitFixture(t)
+		f.git(f.workspace.Root, "branch", "integration")
+		commitOn := func(item *Worktree, file string) {
+			t.Helper()
+			if err := os.WriteFile(filepath.Join(item.Path, file), []byte(file+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			f.git(item.Path, "add", file)
+			f.git(item.Path, "commit", "-m", file)
+		}
+		create := func(name string) *Worktree {
+			t.Helper()
+			item, err := f.service.Create(t.Context(), f.workspace.ID, CreateOptions{
+				ProfileID: testWorktreeProfileID, Name: name, BaseRef: "integration",
+			})
+			if err != nil {
+				t.Fatalf("Create(%s) error = %v", name, err)
+			}
+			return item
+		}
+		merged := create("Merged Slice")
+		commitOn(merged, "merged.txt")
+		orphaned := create("Orphaned Slice")
+		commitOn(orphaned, "orphaned.txt")
+		f.git(f.workspace.Root, "merge", "--no-ff", "-m", "land slice", merged.Branch)
+		f.git(f.workspace.Root, "branch", "-D", "integration")
+
+		refusalResult, err := f.service.Remove(t.Context(), f.workspace.ID, orphaned.ID, false)
+		if !errors.Is(err, ErrUnpushedRequiresForce) || refusalResult == nil ||
+			refusalResult.Risk.UnpushedCommits != 1 {
+			t.Fatalf("Remove(orphaned) = (%#v, %v), want one-commit unpushed refusal", refusalResult, err)
+		}
+		assertFileContent(t, filepath.Join(orphaned.Path, "orphaned.txt"), "orphaned.txt\n")
+		if refusalResult, err = f.service.Remove(
+			t.Context(), f.workspace.ID, orphaned.ID, true,
+		); err != nil || refusalResult != nil {
+			t.Fatalf("Remove(orphaned forced) = (%#v, %v), want success", refusalResult, err)
+		}
+		if refusalResult, err = f.service.Remove(
+			t.Context(), f.workspace.ID, merged.ID, false,
+		); err != nil || refusalResult != nil {
+			t.Fatalf("Remove(merged) = (%#v, %v), want success", refusalResult, err)
+		}
+		for _, item := range []*Worktree{merged, orphaned} {
+			if _, err := os.Stat(item.Path); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("Stat(%s) error = %v, want not-exist", item.Name, err)
+			}
+		}
+	})
+
 	t.Run("Should recognize patch-equivalent landings without losing unique commits", func(t *testing.T) {
 		t.Parallel()
 		for _, target := range []string{"base", "pinned base", "custom default", "remote", "split refs", "split mixed", "mixed", "hook"} {
