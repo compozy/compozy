@@ -1059,8 +1059,9 @@ main can restart to deliver its queue; stopped descendants retain theirs. Archiv
 cancels held rows. Quiet windows do not hold monitor wakes.
 
 A main's lost monitor wake produces one `failure` report with `reason: "wake_lost"` and `detail` describing the wait per wake identity,
-including each pull-request fire sequence. A delivered wake or shutdown cancellation
-does not produce a lost-wake report.
+including each pull-request fire sequence. A delivered wake, a shutdown cancellation, or
+the session's own `compozy__monitor_cancel` (even of a fired wake still being delivered)
+does not produce a lost-wake report; stopping the main session still reports its waits.
 
 ### Instance proactive checks
 
