@@ -46,6 +46,8 @@ export const meta = definePrototype({
     { id: "sidebar-hover-needs", label: "S10 · Hover card, failed" },
     { id: "sidebar-crew", label: "S10 · Twelve agents in one project" },
     { id: "sidebar-crew-open", label: "S10 · The whole crew" },
+    { id: "sidebar-crew-resume", label: "S4 · Resume all after the limit" },
+    { id: "sidebar-hover-wake", label: "S7 · Hover card, next wake" },
     { id: "sidebar-two-need-you", label: "S10 · Two agents need you" },
     { id: "sidebar-toast", label: "S10 · Needs you arrives elsewhere" },
     { id: "sidebar-none", label: "S10 · No instances, no row" },
@@ -73,6 +75,13 @@ export const meta = definePrototype({
     { id: "kanban-instance-only", label: "S15 · Scope with only an instance" },
   ],
 });
+
+const UNATTENDED_CREW: typeof CREW = CREW.map((instance, index) =>
+  index < 2 ? { ...instance, state: "paused", pauseReason: "unattended", held: 2 } : instance
+);
+const WAKE_CREW: typeof CREW = CREW.map((instance, index) =>
+  index === 0 ? { ...instance, nextWake: "Check CI on #1166, in 12 minutes" } : instance
+);
 
 const COMPOZY: RailGroup = {
   name: "compozy",
@@ -103,6 +112,14 @@ const RAILS: Record<string, SessionRailProps> = {
   },
   "sidebar-hover-needs": {
     groups: [{ ...COMPOZY, instances: CREW, rowProps: { cardFor: "c-release" } }, RELOADDEV],
+    top: GLOBAL_ROW,
+  },
+  "sidebar-crew-resume": {
+    groups: [{ ...COMPOZY, instances: UNATTENDED_CREW, rowProps: { crewOpen: true } }, RELOADDEV],
+    top: GLOBAL_ROW,
+  },
+  "sidebar-hover-wake": {
+    groups: [{ ...COMPOZY, instances: WAKE_CREW, rowProps: { cardFor: WAKE_CREW[0]!.id } }, RELOADDEV],
     top: GLOBAL_ROW,
   },
   "sidebar-crew": { groups: [{ ...COMPOZY, instances: CREW }, RELOADDEV], top: GLOBAL_ROW },

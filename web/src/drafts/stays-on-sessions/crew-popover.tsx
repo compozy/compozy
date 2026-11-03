@@ -1,7 +1,7 @@
 /** The whole crew of a project, for when the row runs out of room. */
 import { useState } from "react";
 
-import { Eyebrow, Item, Popover, PopoverContent, PopoverTrigger, SearchInput } from "@compozy/ui";
+import { Button, Eyebrow, Item, Popover, PopoverContent, PopoverTrigger, SearchInput } from "@compozy/ui";
 
 import { AgentAvatar } from "../stays-on-agents-shared/agent-avatar";
 import type { AgentState } from "../stays-on-agents-shared/agent-state";
@@ -76,11 +76,18 @@ export function CrewPopover({
         +{hidden}
       </PopoverTrigger>
       <PopoverContent align="start" className="flex w-96 flex-col gap-3 p-3">
-        <div className="flex flex-col gap-0.5 px-1 pt-1">
-          <span className="text-heading font-medium text-fg-strong">
-            {instances.length} agents in {scopeName}
-          </span>
-          <span className="text-small-body text-muted-foreground">{summary(instances)}</span>
+        <div className="flex items-start gap-3 px-1 pt-1">
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-heading font-medium text-fg-strong">
+              {instances.length} agents in {scopeName}
+            </span>
+            <span className="text-small-body text-muted-foreground">{summary(instances)}</span>
+          </div>
+          {instances.filter(instance => instance.pauseReason === "unattended").length >= 2 ? (
+            <Button size="sm" type="button" variant="secondary">
+              Resume all
+            </Button>
+          ) : null}
         </div>
         {instances.length >= SEARCH_FROM ? (
           <SearchInput

@@ -15,6 +15,7 @@ import {
 export const PAUSE_PLAIN: Record<PauseReason, string> = {
   manual: "You paused it.",
   fatigue: "It stopped itself after 10 check-ins in a row went wrong.",
+  unattended: "It took 300 steps without you.",
   definition_not_stays_on: "It was changed to on demand, so it can't stay on here anymore.",
   definition_missing: "Its setup was deleted, so it can't come back. What it remembers is kept.",
 };
@@ -24,6 +25,7 @@ export const PAUSE_PLAIN: Record<PauseReason, string> = {
 export const PAUSE_SHORT: Record<PauseReason, string> = {
   manual: "You paused it",
   fatigue: "Stopped after 10 failed check-ins",
+  unattended: "Took 300 steps without you",
   definition_not_stays_on: "Now on demand, so it can't stay on",
   definition_missing: "Its setup was deleted",
 };
