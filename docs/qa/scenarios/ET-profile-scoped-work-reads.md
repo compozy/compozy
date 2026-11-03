@@ -28,6 +28,19 @@ Walk:
 Expected evidence: paired structured CLI responses, HTTP and UDS payloads, native-tool results, and the
 foreign-detail error body.
 
+Session route regression #1193: in one project, create sessions in profiles X and Y. Read X's
+events and owner projection with `profile=X` (200), then `profile=Y` (404). Rename X with
+`profile=X` (200), then `profile=Y` (404). `all_profiles=true` permits the events read but
+returns `400 profile_selection_conflict` for rename and pull-request refresh. A request carrying
+Y's agent-session identity without a selector must return 404 for X's events. An operator runtime
+read without a selector still follows the identified session; existing detail/lifecycle defaults
+remain profile scoped. Verify HTTP/UDS parity in the owning transport suite.
+
+2026-11-03: this regression passed 12 real API/CLI checks in a fresh two-profile lab using the
+branch binary; HTTP/UDS parity passed in `TestWorkspaceSessionProfileFenceHTTPUDSTransportParity`.
+See [the targeted report](../reports/2026-11-03-issue-1193-session-profile-routes.md). This evidence
+covers the session regression only; the broader scenario retains its existing status.
+
 Regression #573: open a Loop run owned by a non-default Profile and verify its detail, briefing,
 roster, timeline, requests, and event stream load. Switch to another Profile and confirm the run
 and cached content disappear; direct reads of the three projections must return not found.

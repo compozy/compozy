@@ -37335,7 +37335,12 @@ export interface operations {
   };
   getSessionOwner: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Session id */
@@ -51525,7 +51530,10 @@ export interface operations {
   };
   approveSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -51661,7 +51669,10 @@ export interface operations {
   };
   attachSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -51736,7 +51747,10 @@ export interface operations {
   };
   uploadSessionAttachment: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -51823,7 +51837,10 @@ export interface operations {
   };
   deleteSessionAttachment: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -51884,7 +51901,12 @@ export interface operations {
   };
   readSessionAttachmentBytes: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -51947,7 +51969,12 @@ export interface operations {
   };
   listSessionClarifications: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -51990,7 +52017,10 @@ export interface operations {
   };
   answerSessionClarification: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -52058,7 +52088,10 @@ export interface operations {
   };
   clearSessionConversation: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -52119,7 +52152,12 @@ export interface operations {
   };
   getSessionCommands: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -52171,7 +52209,10 @@ export interface operations {
   };
   compactSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -52237,7 +52278,10 @@ export interface operations {
   };
   continueSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -52333,6 +52377,10 @@ export interface operations {
       query?: {
         /** @description Durable user message to cut through (fork from here) */
         message_id?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -52466,6 +52514,10 @@ export interface operations {
         turn_id?: string;
         /** @description Select active, archived, or all events */
         archive?: "active" | "archived" | "all";
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -52588,7 +52640,10 @@ export interface operations {
   };
   forkSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -52681,7 +52736,12 @@ export interface operations {
   };
   getSessionGoal: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -52742,7 +52802,10 @@ export interface operations {
   };
   mutateSessionGoal: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -52844,7 +52907,12 @@ export interface operations {
   };
   getSessionHealth: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -52911,6 +52979,10 @@ export interface operations {
         turn_id?: string;
         /** @description Select active, archived, or all events */
         archive?: "active" | "archived" | "all";
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -52966,6 +53038,10 @@ export interface operations {
       query?: {
         /** @description Include recent wake audit rows */
         include_recent_wake_events?: boolean;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -53023,6 +53099,10 @@ export interface operations {
         descendants?: boolean;
         /** @description Filter by interaction status */
         status?: "pending" | "orphaned" | "resolved" | "timed_out" | "canceled";
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -54044,6 +54124,10 @@ export interface operations {
         descendants?: boolean;
         /** @description Filter by interaction status */
         status?: "pending" | "orphaned" | "resolved" | "timed_out" | "canceled";
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -54114,7 +54198,10 @@ export interface operations {
   };
   updateSessionPresence: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -54358,7 +54445,10 @@ export interface operations {
   };
   sendSessionPrompt: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -54469,7 +54559,10 @@ export interface operations {
   };
   cancelSessionPrompt: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -54512,7 +54605,12 @@ export interface operations {
   };
   listSessionInputs: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -54555,7 +54653,10 @@ export interface operations {
   };
   clearSessionInputs: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -54607,7 +54708,10 @@ export interface operations {
   };
   replaceSessionInput: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -54666,7 +54770,10 @@ export interface operations {
   };
   cancelQueuedSessionPrompt: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -54711,7 +54818,10 @@ export interface operations {
   };
   promoteSessionInput: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -54782,6 +54892,10 @@ export interface operations {
       query?: {
         /** @description Maximum recent messages to include */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -54839,6 +54953,8 @@ export interface operations {
         dry_run?: boolean;
         /** @description Allow repair for stopped sessions whose stop reason is not crash or error */
         force?: boolean;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -55047,7 +55163,10 @@ export interface operations {
   };
   setSessionRuntime: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -55116,6 +55235,8 @@ export interface operations {
       query: {
         /** @description Current runtime selection revision */
         expected_revision: number;
+        /** @description Act as this profile by name */
+        profile?: string;
       };
       header?: never;
       path: {
@@ -55177,7 +55298,10 @@ export interface operations {
   };
   refreshSessionSoul: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -55252,7 +55376,12 @@ export interface operations {
   };
   getSessionStatus: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -55304,7 +55433,10 @@ export interface operations {
   };
   steerSessionPrompt: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -55475,6 +55607,10 @@ export interface operations {
         generation?: number;
         /** @description Maximum entries per transcript snapshot or change batch */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: {
         /** @description Resume after the last applied SSE cursor; transcript reconnects also require epoch and generation */
@@ -55560,6 +55696,10 @@ export interface operations {
         cursor?: string;
         /** @description Row order: newest first (default), or most urgent first (waiting, failed, working, queued, settled) then newest */
         order?: "newest" | "urgency";
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -55633,6 +55773,10 @@ export interface operations {
       query?: {
         /** @description Effective agent name */
         agent_name?: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -55676,7 +55820,10 @@ export interface operations {
   };
   searchSessionTools: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -55738,6 +55885,10 @@ export interface operations {
         limit?: number;
         /** @description Return entries whose stable start sequence is before this cursor */
         before_sequence?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -55799,7 +55950,12 @@ export interface operations {
   };
   getSessionTranscriptOutline: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -55865,6 +56021,10 @@ export interface operations {
         q: string;
         /** @description Maximum matches; defaults to 200, capped at 1000; truncated reports omitted matches */
         limit?: number;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path: {
@@ -55981,7 +56141,12 @@ export interface operations {
   };
   getSessionUsage: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -56024,7 +56189,12 @@ export interface operations {
   };
   getSessionUsageTurns: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -56067,7 +56237,10 @@ export interface operations {
   };
   waitForSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */
@@ -56313,7 +56486,10 @@ export interface operations {
   };
   forkSessionToWorktree: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */

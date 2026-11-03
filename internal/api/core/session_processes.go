@@ -42,18 +42,11 @@ func (h *BaseHandlers) requireSessionProcesses(c *gin.Context) bool {
 }
 
 func (h *BaseHandlers) ListSessionProcesses(c *gin.Context) {
-	_, id, info, ok := h.routeSessionInWorkspace(c)
-	if !ok {
+	route, id, _, ok := h.routeScopedSessionInWorkspace(c)
+	if !ok || !h.requireSessionProcesses(c) {
 		return
 	}
-	scope, err := h.resolveProfileReadScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !h.requireSessionInProfile(c, info, scope) || !h.requireSessionProcesses(c) {
-		return
-	}
+	scope := route.Profile
 	snapshot, err := h.SessionProcesses.Refresh(c.Request.Context())
 	if err != nil {
 		h.respondError(c, http.StatusInternalServerError, err)
@@ -76,18 +69,11 @@ func (h *BaseHandlers) ListSessionProcesses(c *gin.Context) {
 }
 
 func (h *BaseHandlers) TerminateSessionProcesses(c *gin.Context) {
-	_, id, info, ok := h.routeSessionInWorkspace(c)
-	if !ok {
+	route, id, info, ok := h.routeScopedSessionInWorkspace(c)
+	if !ok || !h.requireSessionProcesses(c) {
 		return
 	}
-	scope, err := h.resolveProfileMutationScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !h.requireSessionInProfile(c, info, scope) || !h.requireSessionProcesses(c) {
-		return
-	}
+	scope := route.Profile
 	var req contract.TerminateSessionProcessesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.respondError(c, http.StatusBadRequest, err)

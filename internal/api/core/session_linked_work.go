@@ -105,20 +105,8 @@ func (h *BaseHandlers) RefreshSessionWorkLink(c *gin.Context) {
 }
 
 func (h *BaseHandlers) sessionLinkedWork(c *gin.Context, action linkedWorkAction) {
-	_, id, info, ok := h.routeSessionInWorkspace(c)
+	_, id, info, ok := h.routeScopedSessionInWorkspace(c)
 	if !ok {
-		return
-	}
-	resolveScope := h.resolveProfileMutationScope
-	if action == linkedWorkList {
-		resolveScope = h.resolveProfileReadScope
-	}
-	scope, err := resolveScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !h.requireSessionInProfile(c, info, scope) {
 		return
 	}
 	manager, ok := h.Sessions.(SessionLinkedWorkManager)
@@ -193,16 +181,8 @@ func linkCandidateQueryInt(c *gin.Context, key string, fallback int) int {
 }
 
 func (h *BaseHandlers) SearchSessionWorkCandidates(c *gin.Context) {
-	_, id, info, ok := h.routeSessionInWorkspace(c)
+	_, id, _, ok := h.routeScopedSessionInWorkspace(c)
 	if !ok {
-		return
-	}
-	scope, err := h.resolveProfileReadScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !h.requireSessionInProfile(c, info, scope) {
 		return
 	}
 	reader, ok := h.Sessions.(interface {

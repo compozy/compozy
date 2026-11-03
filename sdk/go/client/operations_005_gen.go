@@ -9,6 +9,70 @@ import (
 	"strings"
 )
 
+// CreateWorkspaceFolder Create a root workspace folder
+func (c *Client) CreateWorkspaceFolder(ctx context.Context, params CreateWorkspaceFolderParams, body CreateWorkspaceFolderRequest) (*WorkspaceFolderResponse, error) {
+	path := "/api/workspace-folders"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorkspaceFolderResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateWorktreeParams carries the path, query, and header parameters.
+type CreateWorktreeParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// CreateWorktree Accept a worktree creation
+func (c *Client) CreateWorktree(ctx context.Context, params CreateWorktreeParams, body CreateWorktreeRequest) (*WorktreeResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorktreeResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CurateProviderModelParams carries the path, query, and header parameters.
+type CurateProviderModelParams struct {
+	ProviderID string `url:"provider_id"`
+}
+
+// CurateProviderModel Curate one provider model through the live settings lifecycle
+func (c *Client) CurateProviderModel(ctx context.Context, params CurateProviderModelParams, body ProviderModelCurationRequest) (*ProviderModelCurationResponse, error) {
+	path := "/api/model-catalog/providers/{provider_id}/models/curate"
+	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
+	var out ProviderModelCurationResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteAgentParams carries the path, query, and header parameters.
+type DeleteAgentParams struct {
+	Name      string  `url:"name"`
+	Workspace *string `url:"workspace"`
+	Profile   *string `url:"profile"`
+}
+
 // DeleteAgent Durably delete one effective authored agent definition
 func (c *Client) DeleteAgent(ctx context.Context, params DeleteAgentParams) (*DeleteAgentResponse, error) {
 	path := "/api/agents/{name}"
@@ -260,9 +324,10 @@ func (c *Client) DeleteSession(ctx context.Context, params DeleteSessionParams) 
 
 // DeleteSessionAttachmentParams carries the path, query, and header parameters.
 type DeleteSessionAttachmentParams struct {
-	WorkspaceID  string `url:"workspace_id"`
-	SessionID    string `url:"session_id"`
-	AttachmentID string `url:"attachment_id"`
+	WorkspaceID  string  `url:"workspace_id"`
+	SessionID    string  `url:"session_id"`
+	AttachmentID string  `url:"attachment_id"`
+	Profile      *string `url:"profile"`
 }
 
 // DeleteSessionAttachment Delete a session attachment
@@ -271,6 +336,13 @@ func (c *Client) DeleteSessionAttachment(ctx context.Context, params DeleteSessi
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
 	path = strings.ReplaceAll(path, "{attachment_id}", url.PathEscape(params.AttachmentID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
 	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
 }
 
@@ -375,62 +447,4 @@ func (c *Client) DeleteSettingsMCPServer(ctx context.Context, params DeleteSetti
 // DeleteSettingsProviderParams carries the path, query, and header parameters.
 type DeleteSettingsProviderParams struct {
 	Name string `url:"name"`
-}
-
-// DeleteSettingsProvider Delete one settings-backed provider overlay
-func (c *Client) DeleteSettingsProvider(ctx context.Context, params DeleteSettingsProviderParams) (*SettingsApplyResponse, error) {
-	path := "/api/settings/providers/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteTaskParams carries the path, query, and header parameters.
-type DeleteTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// DeleteTask Delete one task
-func (c *Client) DeleteTask(ctx context.Context, params DeleteTaskParams) error {
-	path := "/api/tasks/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteTaskExecutionProfileParams carries the path, query, and header parameters.
-type DeleteTaskExecutionProfileParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// DeleteTaskExecutionProfile Delete one task execution profile
-func (c *Client) DeleteTaskExecutionProfile(ctx context.Context, params DeleteTaskExecutionProfileParams) error {
-	path := "/api/tasks/{id}/execution-profile"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
-}
-
-// DeleteTerminalParams carries the path, query, and header parameters.
-type DeleteTerminalParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
 }

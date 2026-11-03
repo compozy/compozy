@@ -9,6 +9,64 @@ import (
 	"strings"
 )
 
+// CompleteAgentTaskRun Complete a claimed task run for the calling agent
+func (c *Client) CompleteAgentTaskRun(ctx context.Context, params CompleteAgentTaskRunParams, body AgentTaskCompleteRequest) (*AgentTaskLeaseResponse, error) {
+	path := "/api/agent/tasks/{run_id}/complete"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	var out AgentTaskLeaseResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CompleteMCPAuthCallbackParams carries the path, query, and header parameters.
+type CompleteMCPAuthCallbackParams struct {
+	Code  *string `url:"code"`
+	State string  `url:"state"`
+	Error *string `url:"error"`
+}
+
+// CompleteMCPAuthCallback Complete a loopback MCP OAuth browser redirect
+func (c *Client) CompleteMCPAuthCallback(ctx context.Context, params CompleteMCPAuthCallbackParams) (*string, error) {
+	path := "/api/mcp/oauth/callback"
+	query := url.Values{}
+	if params.Code != nil {
+		query.Set("code", *params.Code)
+	}
+	query.Set("state", params.State)
+	if params.Error != nil {
+		query.Set("error", *params.Error)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out string
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "text/html"); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CompleteOnboarding Mark first-run onboarding as completed
+func (c *Client) CompleteOnboarding(ctx context.Context) (*OnboardingStatusResponse, error) {
+	path := "/api/onboarding/complete"
+	var out OnboardingStatusResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CompleteTaskRunParams carries the path, query, and header parameters.
+type CompleteTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // CompleteTaskRun Complete one running task run
 func (c *Client) CompleteTaskRun(ctx context.Context, params CompleteTaskRunParams, body CompleteTaskRunRequest) (*TaskRunResponse, error) {
 	path := "/api/task-runs/{id}/complete"
@@ -29,8 +87,9 @@ func (c *Client) CompleteTaskRun(ctx context.Context, params CompleteTaskRunPara
 
 // ContinueSessionParams carries the path, query, and header parameters.
 type ContinueSessionParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
 }
 
 // ContinueSession Continue a session with another agent, runtime, or declared route
@@ -38,6 +97,13 @@ func (c *Client) ContinueSession(ctx context.Context, params ContinueSessionPara
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/continue"
 	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
 	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
 	var out SessionDeriveResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
@@ -375,68 +441,4 @@ func (c *Client) CreateWorkspace(ctx context.Context, body CreateWorkspaceReques
 // CreateWorkspaceFolderParams carries the path, query, and header parameters.
 type CreateWorkspaceFolderParams struct {
 	Profile *string `url:"profile"`
-}
-
-// CreateWorkspaceFolder Create a root workspace folder
-func (c *Client) CreateWorkspaceFolder(ctx context.Context, params CreateWorkspaceFolderParams, body CreateWorkspaceFolderRequest) (*WorkspaceFolderResponse, error) {
-	path := "/api/workspace-folders"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorkspaceFolderResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateWorktreeParams carries the path, query, and header parameters.
-type CreateWorktreeParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// CreateWorktree Accept a worktree creation
-func (c *Client) CreateWorktree(ctx context.Context, params CreateWorktreeParams, body CreateWorktreeRequest) (*WorktreeResponse, error) {
-	path := "/api/workspaces/{workspace_id}/worktrees"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorktreeResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CurateProviderModelParams carries the path, query, and header parameters.
-type CurateProviderModelParams struct {
-	ProviderID string `url:"provider_id"`
-}
-
-// CurateProviderModel Curate one provider model through the live settings lifecycle
-func (c *Client) CurateProviderModel(ctx context.Context, params CurateProviderModelParams, body ProviderModelCurationRequest) (*ProviderModelCurationResponse, error) {
-	path := "/api/model-catalog/providers/{provider_id}/models/curate"
-	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
-	var out ProviderModelCurationResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteAgentParams carries the path, query, and header parameters.
-type DeleteAgentParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
 }
