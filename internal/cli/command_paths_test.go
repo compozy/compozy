@@ -570,7 +570,7 @@ func TestTerminalCommandsShouldKeepProfileContracts(t *testing.T) { // IT-037
 	}{
 		{commandName: "attach", command: newTerminalAttachCommand(deps)},
 		{commandName: "exec", command: newTerminalExecCommand(deps)},
-		{commandName: "get", command: newTerminalGetCommand(deps)},
+		{commandName: "get", command: newTerminalGetCommand(deps), wantAllProfilesFlag: true},
 		{
 			commandName:         "input-requests",
 			command:             newTerminalInputRequestsCommand(deps),
@@ -613,5 +613,21 @@ func TestTerminalCommandsShouldKeepProfileContracts(t *testing.T) { // IT-037
 	}
 	if !reflect.DeepEqual(gotNames, wantNames) {
 		t.Fatalf("terminal commands = %#v, want %#v", gotNames, wantNames)
+	}
+}
+
+func TestAgentInstanceCommandsShouldOfferAllProfilesOnReadsOnly(t *testing.T) {
+	t.Parallel()
+	// Invariant: instance list and show read the owner-labeled aggregate; other agent commands stay single-profile.
+	instance, _, err := newAgentCommand(commandDeps{}).Find([]string{"instance"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, child := range instance.Commands() {
+		name := child.Name()
+		want := name == "list" || name == "show"
+		if got := child.Flags().Lookup(allProfilesFlagName) != nil; got != want {
+			t.Fatalf("agent instance %s --all-profiles present = %t, want %t", name, got, want)
+		}
 	}
 }

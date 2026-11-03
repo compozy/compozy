@@ -1,6 +1,10 @@
 package spec
 
-import "github.com/compozy/compozy/internal/api/contract"
+import (
+	"strings"
+
+	"github.com/compozy/compozy/internal/api/contract"
+)
 
 func agentInstanceOperations() []OperationSpec {
 	operations := append(agentInstanceCheckOperations(), agentInstanceCatalogOperations()...)
@@ -10,7 +14,10 @@ func agentInstanceOperations() []OperationSpec {
 		operations[i].AppAccess = AppAccessDenied
 		operations[i].Tags = []string{specAgentsKey}
 		operations[i].Transports = []Transport{TransportHTTP, TransportUDS}
-		operations[i].Parameters = withProfileSelector(operations[i].Parameters...)
+		operations[i].Parameters = agentInstanceProfileParameters(operations[i])
+		operations[i].Responses = append(operations[i].Responses, ResponseSpec{
+			Status: 400, Description: "Invalid profile selection", Body: contract.ProfileErrorPayload{},
+		})
 		for _, status := range []int{403, 404, 409, 422, 429, 500, 503} {
 			operations[i].Responses = append(
 				operations[i].Responses,
@@ -19,6 +26,15 @@ func agentInstanceOperations() []OperationSpec {
 		}
 	}
 	return operations
+}
+
+// agentInstanceProfileParameters offers the owner-labeled aggregate on instance reads.
+// Writes, agent activity, and skill reviews belong to one profile and offer the selector only.
+func agentInstanceProfileParameters(operation OperationSpec) []ParameterSpec {
+	if operation.Method == httpMethodGet && strings.HasPrefix(operation.Path, "/api/agent-instances") {
+		return withProfileScope(operation.Parameters...)
+	}
+	return withProfileSelector(operation.Parameters...)
 }
 
 func agentInstanceCheckOperations() []OperationSpec {

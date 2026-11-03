@@ -30,7 +30,7 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 		return
 	}
 	if scope.AllProfiles {
-		h.respondError(c, 422, errors.New("choose one profile"))
+		h.respondProfileReadScopeError(c, singleProfileReadError("agent activity belongs to one profile"))
 		return
 	}
 	reader, err := h.agentActivityReader()

@@ -106,7 +106,7 @@ func newTerminalGetCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	addTerminalWorkspaceFlag(command, &workspace)
-	configureSingleProfileReadCommand(command, deps)
+	configureProfileReadCommand(command, deps)
 	return command
 }
 

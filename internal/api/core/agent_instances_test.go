@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -1303,6 +1304,26 @@ func TestAgentInstanceNextWake(t *testing.T) {
 	}
 }
 
+type failingInstanceOwners struct{}
+
+func (failingInstanceOwners) ListIdentities(context.Context) ([]profilepkg.Profile, error) {
+	return nil, errors.New("profile store unavailable")
+}
+
+// Invariant: the owner label is best-effort; a failed profile lookup never fails the payload of
+// a committed mutation or a read. Owning layer: shared core payload hydration.
+func TestAgentInstancePayloadShouldKeepTheRowWhenTheOwnerLabelLookupFails(t *testing.T) {
+	t.Parallel()
+	api := core.AgentInstanceAPI{Profiles: failingInstanceOwners{}}
+	payload, err := api.Payload(t.Context(), agentinstance.Instance{ID: "ainst-a", ProfileID: "profile-b", State: "paused"})
+	if err != nil {
+		t.Fatalf("payload error = %v, want the committed row", err)
+	}
+	if payload.ID != "ainst-a" || payload.ProfileID != "profile-b" || payload.ProfileName != "" {
+		t.Fatalf("payload = %+v, want the row without an owner label", payload)
+	}
+}
+
 // Invariant: review pages are scoped before pagination; only operators can decide exact contents.
 // Owning layer: shared HTTP/UDS core; canonical suite: TestAgentSkillReviews.
 func TestAgentSkillReviews(t *testing.T) {
@@ -1642,6 +1663,116 @@ func TestAgentInstancePeers(t *testing.T) {
 		actor.SessionID = "another"
 		if _, err := api.PeersPage(t.Context(), query, actor, activityReachPolicy{}); err == nil {
 			t.Fatal("cursor crossed callers")
+		}
+	})
+}
+
+type instanceProfileOwners []profilepkg.Profile
+
+func (owners instanceProfileOwners) ListIdentities(context.Context) ([]profilepkg.Profile, error) {
+	return owners, nil
+}
+
+func TestAgentInstanceAllProfilesReads(t *testing.T) {
+	// Invariant: all_profiles is one owner-labeled read on instance lists and details, and a
+	// typed selection conflict on reads that belong to one profile.
+	// Owning layer/canonical suite: instance HTTP handlers, TestAgentInstanceAllProfilesReads.
+	db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "all-profiles.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := db.Close(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	foreign := "ffffffffffffffffffffffffff"
+	if _, err := db.DB().ExecContext(t.Context(),
+		`INSERT INTO profiles(id,name,color,icon,state,created_at) VALUES (?, 'foreign', '#8E8EB5', 'circle', 'active', ?)`,
+		foreign, store.FormatTimestamp(time.Now())); err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]string{}
+	for profileID, agent := range map[string]string{store.DefaultProfileID: "own", foreign: "theirs"} {
+		instance, _, err := db.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+			ProfileID: profileID, AgentName: agent, PermissionCeiling: "{}", CreatedByKind: "human",
+		}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		ids[agent] = instance.ID
+	}
+	fixture := newHandlerFixture(
+		t,
+		&testutil.StubSessionManager{},
+		testutil.StubObserver{},
+		testutil.StubWorkspaceService{},
+	)
+	fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
+		Service:            &agentinstance.Service{},
+		Store:              db.Instances(),
+		CountActive:        db.Instances().CountActive,
+		MaxActiveInstances: 3,
+		SkillProposals:     &agentinstance.SkillProposalService{},
+		Profiles: instanceProfileOwners{
+			{ID: store.DefaultProfileID, Name: "default"}, {ID: foreign, Name: "foreign"},
+		},
+	}
+	fixture.Engine.GET("/api/agent-instances", fixture.Handlers.ListAgentInstances)
+	fixture.Engine.GET("/api/agent-instances/:id", fixture.Handlers.GetAgentInstance)
+	fixture.Engine.GET("/api/agents/:name/activity", fixture.Handlers.GetAgentActivity)
+	fixture.Engine.GET("/api/agent-skill-reviews", fixture.Handlers.ListAgentSkillReviews)
+
+	t.Run("Should list every profile's instances with their owner labels", func(t *testing.T) {
+		response := performRequest(
+			t,
+			fixture.Engine,
+			"GET",
+			"/api/agent-instances?all_workspaces=true&all_profiles=true",
+			nil,
+		)
+		var body contract.AgentInstanceListResponse
+		decodeJSON(t, response.Body.Bytes(), &body)
+		owners := map[string]string{}
+		for _, instance := range body.Instances {
+			owners[instance.AgentName] = instance.ProfileName
+		}
+		// The cap applies per profile, so the aggregate counts every owner's active slots.
+		if response.Code != 200 || len(body.Instances) != 2 || body.ActiveCount != 2 || owners["own"] != "default" ||
+			owners["theirs"] != "foreign" {
+			t.Fatalf("aggregate list = %d %+v", response.Code, body)
+		}
+		scoped := performRequest(t, fixture.Engine, "GET", "/api/agent-instances?all_workspaces=true", nil)
+		decodeJSON(t, scoped.Body.Bytes(), &body)
+		if scoped.Code != 200 || len(body.Instances) != 1 || body.ActiveCount != 1 ||
+			body.Instances[0].ProfileName != "default" {
+			t.Fatalf("scoped list = %d %+v", scoped.Code, body)
+		}
+	})
+	t.Run("Should read another profile's instance detail with its owner label", func(t *testing.T) {
+		response := performRequest(
+			t,
+			fixture.Engine,
+			"GET",
+			"/api/agent-instances/"+ids["theirs"]+"?all_profiles=true",
+			nil,
+		)
+		var body contract.AgentInstanceResponse
+		decodeJSON(t, response.Body.Bytes(), &body)
+		if response.Code != 200 || body.Instance.ProfileID != foreign || body.Instance.ProfileName != "foreign" {
+			t.Fatalf("aggregate detail = %d %s", response.Code, response.Body.String())
+		}
+	})
+	t.Run("Should refuse all_profiles on single-profile reads with the typed conflict", func(t *testing.T) {
+		for _, path := range []string{
+			"/api/agents/own/activity?all_profiles=true",
+			"/api/agent-skill-reviews?all_profiles=true",
+		} {
+			response := performRequest(t, fixture.Engine, "GET", path, nil)
+			if response.Code != 400 ||
+				!strings.Contains(response.Body.String(), `"code":"profile_selection_conflict"`) {
+				t.Fatalf("%s = %d %s, want typed 400", path, response.Code, response.Body.String())
+			}
 		}
 	})
 }

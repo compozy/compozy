@@ -303,6 +303,7 @@ export type AgentInstancePayload = {
   now: string;
   pause_reason: string;
   profile_id: string;
+  profile_name: string;
   provider: string;
   quiet_streak: number;
   resolved_appearance: {
@@ -12884,14 +12885,22 @@ export type ListAgentInstancesData = {
      */
     limit?: string;
     /**
-     * Act as this profile by name
+     * Read one profile's rows by name
      */
     profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/agent-instances";
 };
 
 export type ListAgentInstancesErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Request failed
    */
@@ -12950,6 +12959,10 @@ export type CreateAgentInstanceData = {
 };
 
 export type CreateAgentInstanceErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Request failed
    */
@@ -13013,6 +13026,10 @@ export type AdoptAgentInstanceData = {
 
 export type AdoptAgentInstanceErrors = {
   /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
    * Request failed
    */
   403: ErrorPayload;
@@ -13073,6 +13090,10 @@ export type ArchiveAgentInstanceData = {
 
 export type ArchiveAgentInstanceErrors = {
   /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
    * Request failed
    */
   403: ErrorPayload;
@@ -13125,14 +13146,22 @@ export type GetAgentInstanceData = {
   };
   query?: {
     /**
-     * Act as this profile by name
+     * Read one profile's rows by name
      */
     profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/agent-instances/{id}";
 };
 
 export type GetAgentInstanceErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Request failed
    */
@@ -13196,6 +13225,10 @@ export type UpdateAgentInstanceData = {
 
 export type UpdateAgentInstanceErrors = {
   /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
    * Request failed
    */
   403: ErrorPayload;
@@ -13247,14 +13280,22 @@ export type GetAgentInstanceAwayData = {
   };
   query?: {
     /**
-     * Act as this profile by name
+     * Read one profile's rows by name
      */
     profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/agent-instances/{id}/away";
 };
 
 export type GetAgentInstanceAwayErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Request failed
    */
@@ -13316,6 +13357,10 @@ export type MarkAgentInstanceSeenData = {
 };
 
 export type MarkAgentInstanceSeenErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Request failed
    */
@@ -13381,6 +13426,10 @@ export type CheckAgentInstanceData = {
 
 export type CheckAgentInstanceErrors = {
   /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
    * Request failed
    */
   403: ErrorPayload;
@@ -13444,14 +13493,22 @@ export type ListAgentInstanceCheckInsData = {
      */
     limit?: number;
     /**
-     * Act as this profile by name
+     * Read one profile's rows by name
      */
     profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/agent-instances/{id}/check-ins";
 };
 
 export type ListAgentInstanceCheckInsErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Request failed
    */
@@ -13514,6 +13571,10 @@ export type EnsureAgentInstanceMainData = {
 
 export type EnsureAgentInstanceMainErrors = {
   /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
    * Request failed
    */
   403: ErrorPayload;
@@ -13570,14 +13631,22 @@ export type GetAgentInstanceOccurrenceData = {
   };
   query?: {
     /**
-     * Act as this profile by name
+     * Read one profile's rows by name
      */
     profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/agent-instances/{id}/occurrences/{occurrence}";
 };
 
 export type GetAgentInstanceOccurrenceErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Request failed
    */
@@ -13639,6 +13708,10 @@ export type PauseAgentInstanceData = {
 };
 
 export type PauseAgentInstanceErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Request failed
    */
@@ -13703,14 +13776,22 @@ export type ListAgentInstanceReportsData = {
      */
     limit?: string;
     /**
-     * Act as this profile by name
+     * Read one profile's rows by name
      */
     profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/agent-instances/{id}/reports";
 };
 
 export type ListAgentInstanceReportsErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Request failed
    */
@@ -13772,6 +13853,10 @@ export type ResumeAgentInstanceData = {
 };
 
 export type ResumeAgentInstanceErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Request failed
    */
@@ -13848,6 +13933,10 @@ export type ListAgentSkillReviewsData = {
 
 export type ListAgentSkillReviewsErrors = {
   /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
    * Request failed
    */
   403: ErrorPayload;
@@ -13908,6 +13997,10 @@ export type GetAgentSkillReviewData = {
 };
 
 export type GetAgentSkillReviewErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Request failed
    */
@@ -13972,6 +14065,10 @@ export type ApproveAgentSkillReviewData = {
 
 export type ApproveAgentSkillReviewErrors = {
   /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
    * Request failed
    */
   403: ErrorPayload;
@@ -14035,6 +14132,10 @@ export type RejectAgentSkillReviewData = {
 };
 
 export type RejectAgentSkillReviewErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Request failed
    */
@@ -15342,6 +15443,10 @@ export type GetAgentActivityData = {
 };
 
 export type GetAgentActivityErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
   /**
    * Request failed
    */
@@ -40171,9 +40276,13 @@ export type DownloadTerminalArtifactData = {
   };
   query?: {
     /**
-     * Act as this profile by name
+     * Read one profile's rows by name
      */
     profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/terminals/artifacts/{id}";
 };
@@ -40460,9 +40569,13 @@ export type DownloadTerminalRecordingData = {
   };
   query?: {
     /**
-     * Act as this profile by name
+     * Read one profile's rows by name
      */
     profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/terminals/recordings/{id}";
 };
@@ -40595,9 +40708,13 @@ export type GetTerminalData = {
   };
   query?: {
     /**
-     * Act as this profile by name
+     * Read one profile's rows by name
      */
     profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/terminals/{id}";
 };

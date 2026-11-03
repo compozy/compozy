@@ -237,6 +237,7 @@ When a native tool is absent or denied, use the matching structured CLI surface:
 
 Use `compozy terminal list|get|exec|kill|signal|respond|input-requests|journal|record|quote` with
 `-o json`; `open` also needs `--detach` for structured output. `attach` is an interactive byte stream
-and does not support structured output. Use `journal --all-profiles` or `list --all-profiles` only as
-an operator. Grant administration stays under `compozy tool approvals`; there is no second terminal
+and does not support structured output. `list`, `get`, `journal`, and `input-requests` accept
+`--all-profiles`; an agent session needs approve-all or an unrestricted grant for it, and is otherwise
+refused with `profile_selection_conflict`. Interactions and mutations stay single-profile. Grant administration stays under `compozy tool approvals`; there is no second terminal
 policy store.

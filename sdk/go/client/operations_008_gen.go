@@ -10,6 +10,30 @@ import (
 	"strings"
 )
 
+// ForceFailTaskRun Force fail one queued or claimed task run
+func (c *Client) ForceFailTaskRun(ctx context.Context, params ForceFailTaskRunParams, body ForceFailTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/runs/{id}/fail"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ForceReleaseTaskRunParams carries the path, query, and header parameters.
+type ForceReleaseTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // ForceReleaseTaskRun Force release one claimed task run
 func (c *Client) ForceReleaseTaskRun(ctx context.Context, params ForceReleaseTaskRunParams, body ForceReleaseTaskRunRequest) (*TaskRunResponse, error) {
 	path := "/api/runs/{id}/release"
@@ -306,8 +330,9 @@ func (c *Client) GetAgentHeartbeatStatus(ctx context.Context, params GetAgentHea
 
 // GetAgentInstanceParams carries the path, query, and header parameters.
 type GetAgentInstanceParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // GetAgentInstance Get an agent instance
@@ -317,6 +342,9 @@ func (c *Client) GetAgentInstance(ctx context.Context, params GetAgentInstancePa
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -330,8 +358,9 @@ func (c *Client) GetAgentInstance(ctx context.Context, params GetAgentInstancePa
 
 // GetAgentInstanceAwayParams carries the path, query, and header parameters.
 type GetAgentInstanceAwayParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // GetAgentInstanceAway Read the operator's instance away digest
@@ -341,6 +370,9 @@ func (c *Client) GetAgentInstanceAway(ctx context.Context, params GetAgentInstan
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -354,9 +386,10 @@ func (c *Client) GetAgentInstanceAway(ctx context.Context, params GetAgentInstan
 
 // GetAgentInstanceOccurrenceParams carries the path, query, and header parameters.
 type GetAgentInstanceOccurrenceParams struct {
-	ID         string  `url:"id"`
-	Occurrence string  `url:"occurrence"`
-	Profile    *string `url:"profile"`
+	ID          string  `url:"id"`
+	Occurrence  string  `url:"occurrence"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // GetAgentInstanceOccurrence Read an instance check occurrence
@@ -367,6 +400,9 @@ func (c *Client) GetAgentInstanceOccurrence(ctx context.Context, params GetAgent
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -402,49 +438,4 @@ type GetAgentMemoryParams struct {
 	Name      string  `url:"name"`
 	Workspace *string `url:"workspace"`
 	Profile   *string `url:"profile"`
-}
-
-// GetAgentMemory Inspect agent memory (experimental) Experimental: pin the exact SDK version.
-func (c *Client) GetAgentMemory(ctx context.Context, params GetAgentMemoryParams) (*AgentMemoryDocument, error) {
-	path := "/api/agents/{name}/memory"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentMemoryDocument
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentSkillReviewParams carries the path, query, and header parameters.
-type GetAgentSkillReviewParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// GetAgentSkillReview Read exact proposed skill contents (experimental)
-func (c *Client) GetAgentSkillReview(ctx context.Context, params GetAgentSkillReviewParams) (*AgentSkillReviewResponse, error) {
-	path := "/api/agent-skill-reviews/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentSkillReviewResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

@@ -9,6 +9,74 @@ import (
 	"strings"
 )
 
+// GetSessionStatus Read compact session status and wake eligibility
+func (c *Client) GetSessionStatus(ctx context.Context, params GetSessionStatusParams) (*SessionStatusResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/status"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionTranscriptParams carries the path, query, and header parameters.
+type GetSessionTranscriptParams struct {
+	WorkspaceID    string  `url:"workspace_id"`
+	SessionID      string  `url:"session_id"`
+	Limit          *int    `url:"limit"`
+	BeforeSequence *int64  `url:"before_sequence"`
+	Profile        *string `url:"profile"`
+	AllProfiles    *bool   `url:"all_profiles"`
+}
+
+// GetSessionTranscript Get a bounded materialized transcript page
+func (c *Client) GetSessionTranscript(ctx context.Context, params GetSessionTranscriptParams) (*SessionTranscriptResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.BeforeSequence != nil {
+		query.Set("before_sequence", strconv.FormatInt(*params.BeforeSequence, 10))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionTranscriptResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionTranscriptOutlineParams carries the path, query, and header parameters.
+type GetSessionTranscriptOutlineParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetSessionTranscriptOutline Get the full retained operator-message trail with reply previews
 func (c *Client) GetSessionTranscriptOutline(ctx context.Context, params GetSessionTranscriptOutlineParams) (*OutlineResult, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline"
@@ -365,82 +433,4 @@ type GetSettingsSkillsParams struct {
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`
 	AgentName   *string `url:"agent_name"`
-}
-
-// GetSettingsSkills Read the skills settings section
-func (c *Client) GetSettingsSkills(ctx context.Context, params GetSettingsSkillsParams) (*SettingsSkillsResponse, error) {
-	path := "/api/settings/skills"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsSkillsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsUpdate Read the current CompozyOS software update status
-func (c *Client) GetSettingsUpdate(ctx context.Context) (*SettingsUpdateResponse, error) {
-	path := "/api/settings/update"
-	var out SettingsUpdateResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsWindowManagerParams carries the path, query, and header parameters.
-type GetSettingsWindowManagerParams struct {
-	Scope         *string `url:"scope"`
-	WorkspaceID   *string `url:"workspace_id"`
-	ClientID      *string `url:"client_id"`
-	ClientProfile *string `url:"client_profile"`
-}
-
-// GetSettingsWindowManager Read the window-manager settings section
-func (c *Client) GetSettingsWindowManager(ctx context.Context, params GetSettingsWindowManagerParams) (*SettingsWindowManagerResponse, error) {
-	path := "/api/settings/window-manager"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.ClientID != nil {
-		query.Set("client_id", *params.ClientID)
-	}
-	if params.ClientProfile != nil {
-		query.Set("client_profile", *params.ClientProfile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsWindowManagerResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSkillParams carries the path, query, and header parameters.
-type GetSkillParams struct {
-	Name        string  `url:"name"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	ForAgent    *string `url:"for_agent"`
 }

@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 )
 
@@ -17,6 +18,9 @@ func (c *Client) DownloadTerminalArtifact(ctx context.Context, params DownloadTe
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -33,6 +37,7 @@ type DownloadTerminalRecordingParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	ID          string  `url:"id"`
 	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // DownloadTerminalRecording Download one terminal recording
@@ -43,6 +48,9 @@ func (c *Client) DownloadTerminalRecording(ctx context.Context, params DownloadT
 	query := url.Values{}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
 	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
@@ -421,30 +429,6 @@ func (c *Client) FanOutTaskRuns(ctx context.Context, params FanOutTaskRunsParams
 
 // ForceFailTaskRunParams carries the path, query, and header parameters.
 type ForceFailTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ForceFailTaskRun Force fail one queued or claimed task run
-func (c *Client) ForceFailTaskRun(ctx context.Context, params ForceFailTaskRunParams, body ForceFailTaskRunRequest) (*TaskRunResponse, error) {
-	path := "/api/runs/{id}/fail"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskRunResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ForceReleaseTaskRunParams carries the path, query, and header parameters.
-type ForceReleaseTaskRunParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
 }

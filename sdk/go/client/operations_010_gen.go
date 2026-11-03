@@ -9,6 +9,55 @@ import (
 	"strings"
 )
 
+// GetGlobalSessionHistory List grouped session turn history for a Global session
+func (c *Client) GetGlobalSessionHistory(ctx context.Context, params GetGlobalSessionHistoryParams) (*SessionHistoryResponse, error) {
+	path := "/api/sessions/{session_id}/history"
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
+	}
+	if params.Type != nil {
+		query.Set("type", *params.Type)
+	}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if params.TurnID != nil {
+		query.Set("turn_id", *params.TurnID)
+	}
+	if params.Archive != nil {
+		query.Set("archive", *params.Archive)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionHistoryResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetGlobalSessionStatusParams carries the path, query, and header parameters.
+type GetGlobalSessionStatusParams struct {
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // GetGlobalSessionStatus Read compact session status and wake eligibility for a Global session
 func (c *Client) GetGlobalSessionStatus(ctx context.Context, params GetGlobalSessionStatusParams) (*SessionStatusResponse, error) {
 	path := "/api/sessions/{session_id}/status"
@@ -378,70 +427,6 @@ func (c *Client) GetLoopRequest(ctx context.Context, params GetLoopRequestParams
 type GetLoopRunParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	RunID       string  `url:"run_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetLoopRun Get one Loop run
-func (c *Client) GetLoopRun(ctx context.Context, params GetLoopRunParams) (*LoopRunResponse, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out LoopRunResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetLoopRunBriefingParams carries the path, query, and header parameters.
-type GetLoopRunBriefingParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetLoopRunBriefing Explain the current Loop run state
-func (c *Client) GetLoopRunBriefing(ctx context.Context, params GetLoopRunBriefingParams) (*Briefing, error) {
-	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out Briefing
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetLoopRunNodesParams carries the path, query, and header parameters.
-type GetLoopRunNodesParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	RunID       string  `url:"run_id"`
-	State       *string `url:"state"`
-	Generation  *int    `url:"generation"`
-	Cursor      *string `url:"cursor"`
-	Limit       *int    `url:"limit"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 }

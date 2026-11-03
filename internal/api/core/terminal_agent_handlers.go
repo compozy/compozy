@@ -143,7 +143,7 @@ func (h *BaseHandlers) SignalTerminal(c *gin.Context) {
 }
 
 func (h *BaseHandlers) ListTerminalInputRequests(c *gin.Context) {
-	service, scope, ok := h.terminalAggregateService(c)
+	service, scope, ok := h.terminalReadService(c)
 	if !ok {
 		return
 	}
@@ -263,7 +263,7 @@ func (h *BaseHandlers) ControlTerminalRecording(c *gin.Context) {
 }
 
 func (h *BaseHandlers) QueryTerminalJournal(c *gin.Context) {
-	service, scope, ok := h.terminalAggregateService(c)
+	service, scope, ok := h.terminalReadService(c)
 	if !ok {
 		return
 	}

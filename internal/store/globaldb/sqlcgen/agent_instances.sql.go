@@ -405,14 +405,15 @@ func (q *Queries) IsSupersededInstanceSession(ctx context.Context, sessionID str
 }
 
 const listAgentInstances = `-- name: ListAgentInstances :many
-SELECT id, profile_id, agent_name, workspace_id, state, pause_reason, main_session_id, grant_ceiling, permission_ceiling, checks_enabled, depth, created_by_kind, created_by_id, created_at, updated_at, archived_at FROM agent_instances WHERE profile_id = ?1
-AND (?2 = 1 OR workspace_id = ?3)
-AND (?4 = '' OR agent_name = ?4)
-AND (?5 = '' OR state = ?5)
-AND archived_at IS NULL AND id > ?6 ORDER BY id LIMIT ?7
+SELECT id, profile_id, agent_name, workspace_id, state, pause_reason, main_session_id, grant_ceiling, permission_ceiling, checks_enabled, depth, created_by_kind, created_by_id, created_at, updated_at, archived_at FROM agent_instances WHERE (?1 = 1 OR profile_id = ?2)
+AND (?3 = 1 OR workspace_id = ?4)
+AND (?5 = '' OR agent_name = ?5)
+AND (?6 = '' OR state = ?6)
+AND archived_at IS NULL AND id > ?7 ORDER BY id LIMIT ?8
 `
 
 type ListAgentInstancesParams struct {
+	AllProfiles   any    `json:"all_profiles"`
 	ProfileID     string `json:"profile_id"`
 	AllWorkspaces any    `json:"all_workspaces"`
 	WorkspaceID   string `json:"workspace_id"`
@@ -424,6 +425,7 @@ type ListAgentInstancesParams struct {
 
 func (q *Queries) ListAgentInstances(ctx context.Context, arg ListAgentInstancesParams) ([]AgentInstance, error) {
 	rows, err := q.db.QueryContext(ctx, listAgentInstances,
+		arg.AllProfiles,
 		arg.ProfileID,
 		arg.AllWorkspaces,
 		arg.WorkspaceID,

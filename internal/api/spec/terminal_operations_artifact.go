@@ -53,7 +53,7 @@ func terminalDownloadOperation(
 		operationID,
 		summary,
 		transports,
-		withProfileSelector(workspace, id),
+		withProfileScope(workspace, id),
 		nil,
 		[]ResponseSpec{
 			{Status: 200, Description: "Artifact bytes", Body: binaryResponse{}, ContentType: contentType},
