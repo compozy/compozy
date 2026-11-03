@@ -101,3 +101,18 @@ Busy-target policy regression (#760)
 16. Web: the queue strip shows "From {title}" with Steer and Remove; consecutive inbound cards from one
     sender collapse into "{title} · N messages"; a reply shows the "In reply" chip; a session in
     Needs attention shows its reason.
+
+## Stays-on peer addressing and pause
+
+1. List reachable peers with `agent instance list --peers`; a denied workspace contributes neither a
+   row nor a private count. Keep the cursor bound to the same caller and filters.
+2. Rotate a peer and send from an active work turn using its agent name and workspace. The receipt's
+   `target_session_id` names the successor; the original session receives no new input.
+3. Pause that peer, send again with `wait:true`, and inspect `delivery: held` and queue `held: true`.
+   Restart the daemon, confirm the row remains held, then resume as operator. It is delivered once.
+4. A human prompt on the paused main runs without resuming autonomy; a check cannot call the message
+   tool, and a missing name produces `agent_instance_not_found`.
+
+Automated backend owners: `TestAgentInstancePeers`, `TestGlobalDBSessionPromptAdmission`,
+`TestInstanceContextExhaustionIntegration` and `TestInstancePausedRuntimeIntegration`.
+The real ACP journeys cover successor delivery and restart retention.

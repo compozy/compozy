@@ -117,8 +117,10 @@ func (q *Queries) LatestInstanceEventCheckReason(ctx context.Context, instanceID
 }
 
 const listPendingAgentInstanceEvents = `-- name: ListPendingAgentInstanceEvents :many
-SELECT e.id, e.instance_id, e.trigger_id, e.run_id, e.summary, e.received_at, e.consumed_at, e.occurrence_id, CAST(coalesce(t.prompt, '') AS TEXT) AS instruction
+SELECT e.id, e.instance_id, e.trigger_id, e.run_id, e.summary, e.received_at, e.consumed_at, e.occurrence_id, CAST(coalesce(json_extract(r.metadata_json, '$.instance_event_instruction'), t.prompt, '') AS TEXT) AS instruction,
+CAST(coalesce(json_extract(r.metadata_json, '$.instance_event_trigger_name'), t.name, '') AS TEXT) AS trigger_name, CAST(coalesce(json_extract(r.metadata_json, '$.instance_event_event'), t.event, '') AS TEXT) AS event
 FROM agent_instance_events e LEFT JOIN automation_triggers t ON t.id = e.trigger_id
+LEFT JOIN automation_runs r ON r.id = e.run_id
 WHERE e.instance_id = ? AND e.consumed_at IS NULL
 ORDER BY e.received_at, e.id LIMIT 20
 `
@@ -133,6 +135,8 @@ type ListPendingAgentInstanceEventsRow struct {
 	ConsumedAt   sql.NullString `json:"consumed_at"`
 	OccurrenceID sql.NullString `json:"occurrence_id"`
 	Instruction  string         `json:"instruction"`
+	TriggerName  string         `json:"trigger_name"`
+	Event        string         `json:"event"`
 }
 
 func (q *Queries) ListPendingAgentInstanceEvents(ctx context.Context, instanceID string) ([]ListPendingAgentInstanceEventsRow, error) {
@@ -154,6 +158,8 @@ func (q *Queries) ListPendingAgentInstanceEvents(ctx context.Context, instanceID
 			&i.ConsumedAt,
 			&i.OccurrenceID,
 			&i.Instruction,
+			&i.TriggerName,
+			&i.Event,
 		); err != nil {
 			return nil, err
 		}
@@ -202,18 +208,30 @@ func (q *Queries) RecordInstanceEventBatch(ctx context.Context, arg RecordInstan
 
 const recordInstanceEventReceipt = `-- name: RecordInstanceEventReceipt :exec
 UPDATE automation_runs SET metadata_json = json_set(metadata_json,
-'$.instance_event_id', ?1, '$.instance_event_instance_id', ?2)
-WHERE id = ?3
+'$.instance_event_id', ?1,
+'$.instance_event_trigger_name', ?2, '$.instance_event_event', ?3,
+'$.instance_event_instruction', ?4, '$.instance_event_instance_id', ?5)
+WHERE id = ?6
 `
 
 type RecordInstanceEventReceiptParams struct {
-	EventID    any    `json:"event_id"`
-	InstanceID any    `json:"instance_id"`
-	RunID      string `json:"run_id"`
+	EventID     any    `json:"event_id"`
+	TriggerName any    `json:"trigger_name"`
+	Event       any    `json:"event"`
+	Instruction any    `json:"instruction"`
+	InstanceID  any    `json:"instance_id"`
+	RunID       string `json:"run_id"`
 }
 
 func (q *Queries) RecordInstanceEventReceipt(ctx context.Context, arg RecordInstanceEventReceiptParams) error {
-	_, err := q.db.ExecContext(ctx, recordInstanceEventReceipt, arg.EventID, arg.InstanceID, arg.RunID)
+	_, err := q.db.ExecContext(ctx, recordInstanceEventReceipt,
+		arg.EventID,
+		arg.TriggerName,
+		arg.Event,
+		arg.Instruction,
+		arg.InstanceID,
+		arg.RunID,
+	)
 	return err
 }
 

@@ -12,7 +12,9 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -22,6 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -88,6 +91,11 @@ func TestInstancePausedRuntimeIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		held, err := manager.SendPrompt(t.Context(), main.ID, session.SendPromptOpts{
+			InstanceTarget: &store.InstancePromptTarget{
+				ProfileID:   store.DefaultProfileID,
+				WorkspaceID: resolved.ID,
+				AgentName:   main.AgentName,
+			},
 			Message:        "retained peer work",
 			MessageID:      "held-peer",
 			IdempotencyKey: "held-peer",
@@ -98,8 +106,12 @@ func TestInstancePausedRuntimeIntegration(t *testing.T) {
 				Hop:         1,
 			},
 		})
-		if err != nil || held.Status != store.SessionPromptResultStatusQueued {
+		if err != nil || held.Status != store.SessionPromptResultStatusQueued || held.Delivery != "held" {
 			t.Fatalf("held=%+v %v", held, err)
+		}
+		inputs, err := manager.ListPendingInputs(t.Context(), main.ID)
+		if err != nil || len(inputs) != 1 || !core.SessionInputPayloadFromSession(inputs[0]).Held {
+			t.Fatalf("held queue projection: %+v %v", inputs, err)
 		}
 		if info, err := manager.Status(t.Context(), main.ID); err != nil || info.State != session.StateStopped {
 			t.Fatalf("paused wake started runtime: %+v %v", info, err)
@@ -511,7 +523,7 @@ func TestInstanceWebhookCheckIntegration(t *testing.T) {
 		waitForRuntimeCondition(t, "event proposal", 15*time.Second, func() bool {
 			var err error
 			reports, err = db.InstanceReports().
-				ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 10})
+				ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, State: "pending", Limit: 10})
 			return err == nil && len(reports) > 0
 		})
 		if reports[0].Kind != "proposal" {
@@ -528,6 +540,11 @@ func TestInstanceWebhookCheckIntegration(t *testing.T) {
 		if len(public.Reports) != 1 || len(public.Reports[0].Proposals) != 1 ||
 			len(public.Reports[0].Proposals[0].Sources) != 1 {
 			t.Fatalf("public proposals: %+v", public)
+		}
+		if public.Reports[0].Source == nil || public.Reports[0].Source.Kind != "event" ||
+			public.Reports[0].Source.TriggerName != created.Trigger.Name ||
+			public.Reports[0].Source.Event != "webhook" {
+			t.Fatalf("report source: %+v", public.Reports[0].Source)
 		}
 		source := public.Reports[0].Proposals[0].Sources[0]
 		if source.TriggerID != created.Trigger.ID || source.RunID != run.ID || source.EventID == "" {
@@ -550,4 +567,378 @@ func TestInstanceWebhookCheckIntegration(t *testing.T) {
 			t.Fatalf("triage edit occurred: %v", err)
 		}
 	})
+}
+
+// Invariant (IT-004, IT-007, IT-015): 300 real monitor turns trip once, the next wake is held,
+// a human can work without resuming autonomy, and an operator resume delivers the held wake once.
+// Owning layer: daemon admission, using the real monitor service, SQLite and ACP process.
+func TestInstanceUnattendedRuntimeIntegration(t *testing.T) {
+	d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
+		path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		body = []byte(
+			strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: stays_on\n", 1),
+		)
+		if err := os.WriteFile(path, body, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	})
+	main, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := d.registry.(*globaldb.GlobalDB)
+	instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+		ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
+		PermissionCeiling: string(mustWorkLogCeiling(t, main.Info().Workspace)), CreatedByKind: "human",
+	}, main.ID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, cancel, err := manager.SubscribeSessionCatalogEvents(t.Context(), session.CatalogScope{
+		ReadScope: store.ReadScope{ProfileID: main.ProfileID}, WorkspaceID: workspace,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cancel()
+	var notifications atomic.Int32
+	go func() {
+		for event := range events {
+			if event.Name == session.CatalogEventNameOperatorNotification {
+				notifications.Add(1)
+			}
+		}
+	}()
+	waker := monitorSessionWaker{sessions: func() monitorSessionManager { return manager }}
+
+	for count := int64(1); count <= 300; count++ {
+		if err := waker.WakeSession(t.Context(), monitorpkg.Notification{
+			Monitor: monitorpkg.Monitor{ID: fmt.Sprintf("mon-%012d", count), SessionID: main.ID,
+				Kind:        monitorpkg.KindTimer,
+				Description: "Inspect unattended work"},
+			Outcome: monitorpkg.Outcome{Reason: "timer"},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, fmt.Sprintf("monitor turn %d completed", count), 15*time.Second, func() bool {
+			wake, err := db.Instances().WakeState(t.Context(), instance.ID)
+			return err == nil && wake.UnattendedTurns == count && !manager.IsPrompting(main.ID)
+		})
+	}
+	current, err := db.Instances().Get(t.Context(), instance.ID)
+	if err != nil || current.State != "paused" || current.PauseReason != "unattended" {
+		t.Fatalf("brake state: %+v %v", current, err)
+	}
+	waitForCondition(t, "one pause notification", func() bool { return notifications.Load() == 1 })
+	if _, err := d.sessionMonitors.Create(t.Context(), monitorpkg.Spec{
+		SessionID: main.ID, ProfileID: main.ProfileID, WorkspaceID: workspace,
+		Kind: monitorpkg.KindTimer, Delay: monitorpkg.MinTimerDelay, Description: "Inspect held work",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	waitForRuntimeCondition(t, "next monitor wake held", 15*time.Second, func() bool {
+		rows, err := manager.ListPendingInputs(t.Context(), main.ID)
+		return err == nil && len(rows) == 1 && rows[0].Held
+	})
+	if manager.IsPrompting(main.ID) {
+		t.Fatal("held monitor started a turn")
+	}
+	if _, err := db.Instances().
+		Resume(t.Context(), instance.ID, 10, false); !errors.Is(
+		err,
+		agentinstance.ErrForbidden,
+	) {
+		t.Fatalf("agent resume: %v", err)
+	}
+	human, err := manager.SendPrompt(t.Context(), main.ID, session.SendPromptOpts{
+		Message: "child work", MessageID: "human-after-pause", IdempotencyKey: "human-after-pause",
+		Caller: session.PromptCaller{Kind: "human", ID: "operator", Source: "integration"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for event := range human.Events {
+		if event.Type == acp.EventTypeError {
+			t.Fatalf("human turn: %+v", event)
+		}
+	}
+
+	current, err = db.Instances().Get(t.Context(), instance.ID)
+	wake, wakeErr := db.Instances().WakeState(t.Context(), instance.ID)
+	if err != nil || wakeErr != nil || current.State != "paused" || wake.UnattendedTurns != 0 {
+		t.Fatalf("human engagement resumed autonomy: instance=%+v wake=%+v errors=%v/%v", current, wake, err, wakeErr)
+	}
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+		fmt.Sprintf("http://127.0.0.1:%d/api/agent-instances/%s/resume", d.info.Port, instance.ID), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(response.Body)
+	response.Body.Close()
+	if err != nil || response.StatusCode != http.StatusOK {
+		t.Fatalf("HTTP resume: %d %s %v", response.StatusCode, body, err)
+	}
+	waitForCondition(t, "held wake delivered once after HTTP resume", func() bool {
+		wake, err := db.Instances().WakeState(t.Context(), instance.ID)
+		rows, rowsErr := manager.ListPendingInputs(t.Context(), main.ID)
+		return err == nil && rowsErr == nil && wake.UnattendedTurns == 1 && len(rows) == 0 &&
+			!manager.IsPrompting(main.ID)
+	})
+	if notifications.Load() != 1 {
+		t.Fatalf("pause notifications=%d", notifications.Load())
+	}
+}
+
+// Invariant (IT-009, IT-013, IT-033): provider negotiation cannot widen Auto, and real ACP
+// permission requests retain their rule, level and operator decision sources.
+// Owning layer: daemon permission integration using the existing deterministic ACP fixture.
+func TestInstancePermissionRuntimeIntegration(t *testing.T) {
+	for _, tc := range []struct {
+		name, level, reviewer, want string
+		advertise, rules, approve   bool
+	}{
+		{name: "advertised reviewer", level: "auto", reviewer: "review", want: "auto", advertise: true},
+		{name: "undeclared reviewer", level: "auto", want: "approve-edits", advertise: true},
+		{name: "unadvertised reviewer", level: "auto", reviewer: "review", want: "approve-edits"},
+		{name: "rule decisions", level: "approve-reads", want: "approve-reads", rules: true},
+		{name: "operator decision", level: "approve-reads", want: "approve-reads", approve: true},
+		{name: "configured approve all", level: "approve-all", want: "approve-all"},
+	} {
+		t.Run("Should enforce "+tc.name, func(t *testing.T) {
+			_, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
+				provider := cfg.Providers[acpmock.ProviderName]
+				provider.ReviewerMode = tc.reviewer
+				cfg.Providers[acpmock.ProviderName] = provider
+			}, "", func(d *Daemon) {
+				rules := ""
+				if tc.rules {
+					rules = "permission_rules:\n  - kind: edit\n    path: docs/**\n    decision: allow\n  - kind: execute\n    decision: deny\n"
+				}
+				configureInstancePermissionFixture(t, d, tc.level, rules, func(f *acpmock.AgentFixture) {
+					values := []acpmock.SessionConfigOptionValueFixture{{Value: "plan"}, {Value: "workspace-write"}}
+					if tc.advertise {
+						values = append(values, acpmock.SessionConfigOptionValueFixture{Value: "review"})
+					}
+					f.ConfigOptions = []acpmock.SessionConfigOptionFixture{
+						{ID: "mode", Name: "Mode", Category: "mode", Current: "plan", Values: values},
+					}
+					steps := []acpmock.Step{
+						{
+							Kind:           acpmock.StepKindPermission,
+							ToolCallID:     "edit-doc",
+							Title:          "Edit docs",
+							ToolKind:       "edit",
+							Path:           "docs/guide.md",
+							ExpectDecision: "allow-once",
+						},
+					}
+					if tc.rules {
+						steps = append(
+							steps,
+							acpmock.Step{
+								Kind:           acpmock.StepKindPermission,
+								ToolCallID:     "execute",
+								Title:          "Execute",
+								ToolKind:       "execute",
+								ExpectDecision: "reject-once",
+							},
+							acpmock.Step{
+								Kind:           acpmock.StepKindPermission,
+								ToolCallID:     "read",
+								Title:          "Read",
+								ToolKind:       "read",
+								Path:           "source.go",
+								ExpectDecision: "allow-once",
+							},
+						)
+					}
+					steps = append(
+						steps,
+						acpmock.Step{Kind: acpmock.StepKindAssistant, Text: "permission decisions complete"},
+					)
+					f.Turns = append(
+						f.Turns,
+						acpmock.TurnFixture{
+							Name:  "permission matrix",
+							Match: acpmock.TurnMatch{UserText: "permission matrix"},
+							Steps: steps,
+						},
+					)
+				})
+			})
+			main, err := manager.Create(
+				t.Context(),
+				&session.CreateOpts{AgentName: "subagent-test", Workspace: workspace},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			events, err := manager.Prompt(t.Context(), main.ID, "permission matrix")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var sources []string
+			for event := range events {
+				if event.Type == acp.EventTypeError {
+					t.Fatalf("provider error: %+v", event)
+				}
+				if event.Type != acp.EventTypePermission {
+					continue
+				}
+				if event.Decision == "" {
+					if !tc.approve {
+						t.Fatalf("unexpected pending permission: %+v", event)
+					}
+					if _, err := manager.ApprovePermission(
+						t.Context(),
+						main.ID,
+						acp.ApproveRequest{RequestID: event.RequestIDValue(), Decision: "allow-once"},
+					); err != nil {
+						t.Fatal(err)
+					}
+				} else {
+					sources = append(sources, event.ResolvedByValue())
+				}
+			}
+			info, err := manager.Status(t.Context(), main.ID)
+			if err != nil || info.EffectivePermissions != tc.want {
+				t.Fatalf("effective permissions=%+v error=%v", info, err)
+			}
+			want := []string{"policy"}
+			if tc.rules {
+				want = []string{"rule", "rule", "policy"}
+			}
+			if tc.approve {
+				want = []string{"operator"}
+			}
+			if !slices.Equal(sources, want) {
+				t.Fatalf("resolved_by=%v want=%v", sources, want)
+			}
+		})
+	}
+}
+
+func configureInstancePermissionFixture(
+	t *testing.T,
+	d *Daemon,
+	level, rules string,
+	mutate func(*acpmock.AgentFixture),
+) {
+	t.Helper()
+	path := filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body = []byte(
+		strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: stays_on\n"+rules, 1),
+	)
+	body = []byte(strings.Replace(string(body), "permissions: approve-all", "permissions: "+level, 1))
+	if err := os.WriteFile(path, body, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	path = filepath.Join(d.homePaths.HomeDir, "subagents-fixture.json")
+	body, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fixture acpmock.Fixture
+	if err := json.Unmarshal(body, &fixture); err != nil {
+		t.Fatal(err)
+	}
+	mutate(&fixture.Agents[0])
+	writeSessionOriginFixture(t, path, fixture)
+}
+
+// Invariant (IT-012, IT-013): an unanswered request creates one expiry report and notification;
+// the same request in the same autonomous turn is rejected without another pending interval.
+func TestInstancePermissionExpiryIntegration(t *testing.T) {
+	d, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
+		cfg.Agents.StaysOn.ApprovalTimeout = time.Minute
+	}, "", func(d *Daemon) {
+		configureInstancePermissionFixture(t, d, "approve-reads", "", func(f *acpmock.AgentFixture) {
+			steps := []acpmock.Step{}
+			for _, id := range []string{"first", "repeat"} {
+				steps = append(steps, acpmock.Step{Kind: acpmock.StepKindPermission, ToolCallID: id,
+					Title: "Edit expired", ToolKind: "edit", Path: "pending.txt", ExpectDecision: "reject-once"})
+			}
+			f.Turns = append(
+				f.Turns,
+				acpmock.TurnFixture{
+					Name:  "permission expiry",
+					Match: acpmock.TurnMatch{UserText: "permission expiry"},
+					Steps: steps,
+				},
+			)
+		})
+	})
+	main, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+	if err != nil {
+		t.Fatal(err)
+	}
+	db := d.registry.(*globaldb.GlobalDB)
+	instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+		ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
+		PermissionCeiling: string(mustWorkLogCeiling(t, main.Info().Workspace)), CreatedByKind: "human",
+	}, main.ID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	catalog, cancel, err := manager.SubscribeSessionCatalogEvents(t.Context(), session.CatalogScope{
+		ReadScope: store.ReadScope{ProfileID: main.ProfileID}, WorkspaceID: workspace,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cancel()
+	var notifications atomic.Int32
+	go func() {
+		for event := range catalog {
+			if event.Name == session.CatalogEventNameOperatorNotification {
+				notifications.Add(1)
+			}
+		}
+	}()
+	events, err := manager.Prompt(t.Context(), main.ID, "permission expiry")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sources []string
+	pending := 0
+	for event := range events {
+		if event.Type == acp.EventTypeError {
+			t.Fatalf("provider error: %+v", event)
+		}
+		if event.Type == acp.EventTypePermission {
+			if event.Decision == "" {
+				pending++
+			} else {
+				sources = append(sources, event.ResolvedByValue())
+			}
+		}
+	}
+	if pending != 1 || !slices.Equal(sources, []string{"timeout", "repeat_denied"}) {
+		t.Fatalf("pending=%d sources=%v", pending, sources)
+	}
+	waitForCondition(t, "expiry notification", func() bool { return notifications.Load() == 1 })
+	reports, err := db.InstanceReports().
+		ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, State: "pending", Limit: 10})
+	if err != nil || len(reports) != 1 || reports[0].Kind != "approval_expired" {
+		t.Fatalf("reports=%+v error=%v", reports, err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(reports[0].Payload, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload["resource"] == "" || payload["action"] == "" {
+		t.Fatalf("expiry payload=%v", payload)
+	}
 }

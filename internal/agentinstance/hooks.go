@@ -17,6 +17,8 @@ func WithLifecycleHooks(dispatcher LifecycleHooks) Option {
 }
 
 func (s *Service) notifyLifecycle(ctx context.Context, event hooks.HookEvent, instance Instance) {
+	slog.InfoContext(ctx, string(event), "instance_id", instance.ID, "profile_id", instance.ProfileID,
+		"workspace_id", instance.WorkspaceID, "reason", instance.PauseReason)
 	if s.changed != nil {
 		s.changed(instance)
 	}

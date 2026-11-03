@@ -19,6 +19,8 @@ import (
 )
 
 type AgentInstanceAPI struct {
+	Metrics             func(context.Context, string, string) (agentinstance.Metrics, error)
+	ReadPeer            func(context.Context, agentinstance.Instance) (contract.AgentInstancePeer, error)
 	SkillPublished      func(context.Context) error
 	SkillProposals      *agentinstance.SkillProposalService
 	SkillTarget         func(context.Context, agentinstance.Instance) (string, []string, error)
@@ -284,6 +286,10 @@ func AgentInstancePayload(i agentinstance.Instance) contract.AgentInstancePayloa
 	}
 }
 func (h *BaseHandlers) instanceError(c *gin.Context, err error) {
+	if errors.Is(err, errInvalidPeersQuery) {
+		h.respondError(c, http.StatusUnprocessableEntity, err)
+		return
+	}
 	if errors.Is(err, store.ErrWorkspaceArchived) {
 		c.JSON(
 			http.StatusConflict,

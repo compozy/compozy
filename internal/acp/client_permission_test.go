@@ -3,6 +3,7 @@ package acp
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -339,10 +340,15 @@ func TestTriagePolicy(t *testing.T) {
 		) {
 			t.Fatalf("unknown provider err=%v", err)
 		}
-		got, err := constrainTriageStart(StartOpts{PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage}, ProviderName: "test",
-			Permissions: compozyconfig.PermissionModeApproveAll, MCPServers: []compozyconfig.MCPServer{{}},
-			ActivateMCPServers: func(context.Context) error { t.Fatal("sidecars activated"); return nil },
-		})
+		got, err := constrainTriageStart(
+			StartOpts{
+				PermissionPolicy:   &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage},
+				ProviderName:       "test",
+				Permissions:        compozyconfig.PermissionModeApproveAll,
+				MCPServers:         []compozyconfig.MCPServer{{}},
+				ActivateMCPServers: func(context.Context) error { t.Fatal("sidecars activated"); return nil },
+			},
+		)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -384,6 +390,46 @@ func TestEditLevelPermissionRequests(t *testing.T) {
 
 func TestPermissionRuleDecisions(t *testing.T) {
 	t.Parallel()
+	// Invariant (UT-091/095): one allowed path cannot authorize another path or a symlink escape.
+	// Owning layer: ACP request permission; canonical suite: TestPermissionRuleDecisions.
+	t.Run("Should require allow coverage for every location and resolve symlinks", func(t *testing.T) {
+		root := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(root, "docs"), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		outside := t.TempDir()
+		if err := os.Symlink(outside, filepath.Join(root, "docs", "escape")); err != nil {
+			t.Fatal(err)
+		}
+		policy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveReads, root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		policy.rules = []compozyconfig.PermissionRule{{Kind: "edit", Path: "docs/**", Decision: "allow"}}
+		for _, tc := range []struct {
+			name    string
+			paths   []string
+			want    permissionDecision
+			pending bool
+		}{
+			{"all allowed", []string{"docs/a.md", "docs/b.md"}, decisionAllowOnce, false},
+			{"mixed locations", []string{"docs/a.md", "src/main.go"}, decisionPending, true},
+			{"symlink escape", []string{"docs/escape/secret.txt"}, decisionRejectOnce, false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				request := acpsdk.RequestPermissionRequest{
+					ToolCall: acpsdk.ToolCallUpdate{Kind: new(acpsdk.ToolKindEdit)},
+				}
+				for _, path := range tc.paths {
+					request.ToolCall.Locations = append(request.ToolCall.Locations, acpsdk.ToolCallLocation{Path: path})
+				}
+				decision, pending := policy.permissionDecision(request)
+				if decision != tc.want || pending != tc.pending {
+					t.Fatalf("decision=%s pending=%v", decision, pending)
+				}
+			})
+		}
+	})
 	for _, tc := range []struct {
 		name     string
 		mode     compozyconfig.PermissionMode

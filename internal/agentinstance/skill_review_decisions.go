@@ -3,6 +3,7 @@ package agentinstance
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -71,5 +72,9 @@ func (s *SkillProposalService) Reject(
 	if review.State != SkillReviewPending || review.Digest != digest {
 		return ErrSkillReviewStale
 	}
-	return s.Store.DecideReview(ctx, id, digest, "rejected", operator)
+	if err := s.Store.DecideReview(ctx, id, digest, "rejected", operator); err != nil {
+		return err
+	}
+	slog.InfoContext(ctx, "skill.review.decided", "instance_id", instance.ID, "review_id", id, "decision", "rejected")
+	return nil
 }

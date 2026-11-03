@@ -13,6 +13,7 @@ import (
 
 // PendingInput is one daemon-owned operator input waiting for dispatch.
 type PendingInput struct {
+	Held             bool
 	Origin           json.RawMessage
 	ID               string
 	SessionID        string
@@ -72,6 +73,7 @@ const (
 
 // SendPromptOpts carries one user-facing prompt plus optional busy-input mode.
 type SendPromptOpts struct {
+	InstanceTarget *store.InstancePromptTarget
 	// humanSpawnOrigin is attested by SendSpawnPrompt, never by a public request.
 	humanSpawnOrigin bool
 	Origin           *acp.PromptOriginMeta
@@ -95,6 +97,7 @@ type ReplyWatchRef struct{ ID, State string }
 
 // SendPromptResult reports how and when the daemon accepted input for delivery.
 type SendPromptResult struct {
+	TargetSessionID       string
 	TargetWorkspaceID     string
 	ReplyWatch            *ReplyWatchRef
 	Status                string

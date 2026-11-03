@@ -73,16 +73,16 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 			manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
 		}),
 		agentinstance.WithLifecycleHooks(state.hookDispatcher),
-		agentinstance.WithStateEffects(func(ctx context.Context, instance agentinstance.Instance) error {
-			return reconcileInstanceState(ctx, state, repo, instance)
-		}),
+		agentinstance.WithStateEffects(instanceStateEffects(state, repo)),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create instance service: %w", err)
 	}
 	manager.SetInstancePauseHandler(service.AfterPause)
 	state.agentInstances = &core.AgentInstanceAPI{
-		Service: service, Store: repo, Reports: provider.InstanceReports(),
+		ReadPeer: definitions.instancePeer,
+		Metrics:  repo.Metrics,
+		Service:  service, Store: repo, Reports: provider.InstanceReports(),
 		WakeState: repo.WakeState, CountActive: repo.CountActive,
 		HeldWakes: repo.HeldWakes, UnattendedTurnLimit: state.cfg.Agents.StaysOn.UnattendedTurnLimit,
 		MaxActiveInstances: state.cfg.Agents.StaysOn.MaxActiveInstances,
@@ -119,4 +119,17 @@ func cancelInstanceCheck(ctx context.Context, state *bootState, id string) error
 		return nil
 	}
 	return state.runtimeWorkers.proactiveChecks.CancelInstance(ctx, id)
+}
+
+func instanceStateEffects(
+	state *bootState,
+	repo *globaldb.InstanceRepo,
+) func(context.Context, agentinstance.Instance) error {
+	return func(ctx context.Context, instance agentinstance.Instance) error {
+		err := reconcileInstanceState(ctx, state, repo, instance)
+		if instance.State == "paused" {
+			return errors.Join(err, sweepInstanceReports(ctx, state))
+		}
+		return err
+	}
 }

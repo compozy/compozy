@@ -26,33 +26,32 @@ func (d *Driver) applySessionMode(
 		return false, nil
 	}
 
-	modeID := preferredSessionMode(process.CapsSnapshot().SupportedModes, permissions, process.toolGateway != nil, process.providerName, process.reviewerMode)
+	caps := process.CapsSnapshot()
+	option, configurable := findSelectConfigOption(caps.ConfigOptions, sessionConfigModeKey)
+	modes := caps.SupportedModes
+	if configurable {
+		modes = configOptionChoices(option)
+	}
+	modeID := preferredSessionMode(modes, permissions, process.toolGateway != nil,
+		process.permissionModeProvider(), process.reviewerMode)
 	if process.executionPolicy == ExecutionPolicyTriage {
-		caps := process.CapsSnapshot()
-		option, configurable := findSelectConfigOption(caps.ConfigOptions, sessionConfigModeKey)
-		modes := caps.SupportedModes
-		if configurable {
-			modes = configOptionChoices(option)
-		}
 		modeID = triageReadOnlyMode(process.providerName, modes)
 		if modeID == "" {
 			return false, ErrTriageUnsupported
-		}
-		if configurable {
-			if option.CurrentValueID == modeID {
-				return false, nil
-			}
-			return true, d.applySessionConfigOption(ctx, process, SessionConfigOptionSelection{
-				ID: option.ID, ValueID: modeID,
-			})
 		}
 	}
 	if modeID == "" {
 		return false, nil
 	}
-	if option, ok := findSelectConfigOption(process.CapsSnapshot().ConfigOptions, sessionConfigModeKey); ok &&
-		strings.TrimSpace(option.CurrentValueID) == modeID {
-		return false, nil
+	if configurable {
+		if strings.TrimSpace(option.CurrentValueID) == modeID {
+			return false, nil
+		}
+		return true, d.applySessionConfigOption(
+			ctx,
+			process,
+			SessionConfigOptionSelection{ID: option.ID, ValueID: modeID},
+		)
 	}
 
 	_, err := process.sendControlRequest[acpsdk.SetSessionModeResponse](ctx,
@@ -250,7 +249,8 @@ func preferredSessionMode(
 		}
 		permissions = compozyconfig.PermissionModeApproveEdits
 	}
-	if permissions == compozyconfig.PermissionModeApproveAll || permissions == compozyconfig.PermissionModeApproveEdits {
+	if permissions == compozyconfig.PermissionModeApproveAll ||
+		permissions == compozyconfig.PermissionModeApproveEdits {
 		for _, candidate := range sessionModeCandidates(permissions) {
 			if matched, ok := lookup[strings.ToLower(candidate)]; ok {
 				return matched

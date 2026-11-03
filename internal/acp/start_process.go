@@ -151,10 +151,12 @@ func (d *Driver) newAgentProcess(
 		denials = normalized.PermissionPolicy.Denials
 	}
 	reviewerMode := ""
+	modeProvider := normalized.ProviderName
 	providerAuthMode := compozyconfig.ProviderAuthModeNativeCLI
 	if normalized.ProviderConfig != nil {
 		providerAuthMode = normalized.ProviderConfig.EffectiveAuthMode()
 		reviewerMode = strings.TrimSpace(normalized.ProviderConfig.ReviewerMode)
+		modeProvider = normalized.ProviderConfig.RuntimeProviderName(normalized.ProviderName)
 	}
 	return &AgentProcess{
 		logger:                 d.logger,
@@ -163,6 +165,7 @@ func (d *Driver) newAgentProcess(
 		AgentName:              normalized.AgentName,
 		providerName:           normalized.ProviderName,
 		reviewerMode:           reviewerMode,
+		modeProviderName:       modeProvider,
 		permissionDenials:      denials,
 		providerAuthMode:       providerAuthMode,
 		Command:                command,

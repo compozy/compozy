@@ -141,3 +141,23 @@ WHERE status = 'queued' AND session_id IN (
  JOIN agent_instances i ON i.id = root.instance_id
  WHERE i.id = sqlc.arg(instance_id) AND target.profile_id = i.profile_id
 );
+
+-- name: CountInstancePausesByReason :many
+SELECT pause_reason, COUNT(*) AS count FROM agent_instances
+WHERE profile_id = sqlc.arg(profile_id) AND workspace_id = sqlc.arg(workspace_id)
+AND state = 'paused' AND archived_at IS NULL GROUP BY pause_reason;
+
+-- name: CountScopedInstanceHeldInputs :one
+WITH RECURSIVE instance_sessions(id, profile_id) AS (
+ SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
+ WHERE i.profile_id = sqlc.arg(profile_id) AND i.workspace_id = sqlc.arg(workspace_id)
+ AND s.profile_id = i.profile_id AND i.state = 'paused' AND i.archived_at IS NULL
+ UNION
+ SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
+ WHERE s.profile_id = parent.profile_id
+)
+SELECT CAST(COALESCE(SUM(1 + COALESCE(json_array_length(q.synthetic_prompt_json, '$.coalesced_message_ids'), 0)), 0) AS INTEGER)
+FROM session_input_queue q JOIN instance_sessions s ON s.id = q.session_id
+JOIN sessions current ON current.id = s.id
+WHERE q.status = 'queued' AND q.origin_class <> 'human'
+AND q.session_generation = current.input_generation;

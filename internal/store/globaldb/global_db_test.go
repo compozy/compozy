@@ -470,6 +470,61 @@ func isRepositoryField(field reflect.StructField) bool {
 }
 
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
+	// IT-024: v0.4.8 ends at migration 163. Preserve its heartbeat wake state,
+	// permission history and automation trigger through the real upgrade and reopen.
+	t.Run("Should preserve v0.4.8 wake permission and trigger data through hardening", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00164_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, statement := range []string{
+			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES ('upgrade-ws','/upgrade-ws','Upgrade','2026-11-01T00:00:00Z','2026-11-01T00:00:00Z')`,
+			`INSERT INTO sessions(id,profile_id,agent_name,workspace_id,state,created_at,updated_at) VALUES ('upgrade-session','00000000000000000000000000','coder','upgrade-ws','stopped','2026-11-01T00:00:00Z','2026-11-01T00:00:00Z')`,
+			`INSERT INTO agent_heartbeat_wake_state(workspace_id,agent_name,session_id,last_wake_at,next_allowed_at,coalesced_count,last_result,last_reason,updated_at) VALUES ('upgrade-ws','coder','upgrade-session','2026-11-01T01:00:00Z','2026-11-04T00:00:00Z',7,'sent','wake_sent','2026-11-01T01:00:00Z')`,
+			`INSERT INTO permission_log(id,session_id,agent_name,action,resource,decision,policy_used,timestamp) VALUES ('upgrade-permission','upgrade-session','coder','edit','docs/guide.md','allow_once','operator','2026-11-01T01:00:00Z')`,
+			`INSERT INTO automation_triggers(id,profile_id,scope,name,agent_name,prompt,event,enabled,retry,fire_limit,source,target_kind,created_at,updated_at) VALUES ('upgrade-trigger','00000000000000000000000000','global','Upgrade trigger','coder','Review event','webhook',1,'{}','{}','dynamic','agent','2026-11-01T00:00:00Z','2026-11-01T00:00:00Z')`,
+		} {
+			if _, err := prior.ExecContext(ctx, statement); err != nil {
+				_ = prior.Close()
+				t.Fatal(err)
+			}
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for pass := range 2 {
+			upgraded := openGlobalDBForTest(t, path)
+			var next, resource, scope string
+			var count int64
+			if err := upgraded.DB().
+				QueryRowContext(ctx, `SELECT next_allowed_at,coalesced_count FROM agent_heartbeat_wake_state WHERE session_id='upgrade-session'`).
+				Scan(&next, &count); err != nil {
+				t.Fatal(err)
+			}
+			if next != "2026-11-04T00:00:00Z" || count != 7 {
+				t.Fatalf("wake after reopen %d=%q/%d", pass, next, count)
+			}
+			if err := upgraded.DB().
+				QueryRowContext(ctx, `SELECT resource FROM permission_log WHERE id='upgrade-permission'`).
+				Scan(&resource); err != nil ||
+				resource != "docs/guide.md" {
+				t.Fatalf("permission=%q %v", resource, err)
+			}
+			if err := upgraded.DB().
+				QueryRowContext(ctx, `SELECT target_instance_scope FROM automation_triggers WHERE id='upgrade-trigger'`).
+				Scan(&scope); err != nil ||
+				scope != "" {
+				t.Fatalf("trigger=%q %v", scope, err)
+			}
+			assertGlobalMigrationIntegrity(ctx, t, upgraded.DB())
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 	t.Run("Should preserve instance wakes and reports while adding exhaustion rotation state", func(t *testing.T) {
 		t.Parallel()
 		ctx := globalMigrationTestContext(t)

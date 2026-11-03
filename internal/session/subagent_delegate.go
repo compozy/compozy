@@ -335,7 +335,8 @@ func (s *subagentService) wait(
 		if err != nil {
 			return Subagent{}, err
 		}
-		if store.IsSubagentStatusTerminal(current.Status) || current.Delivery == store.SubagentDeliveryDisposed {
+		if store.IsSubagentStatusTerminal(current.Status) || current.Delivery == store.SubagentDeliveryDisposed ||
+			current.Delivery == "held" {
 			return current, nil
 		}
 		select {

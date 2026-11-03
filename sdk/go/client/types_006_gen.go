@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// EffectSpec is a daemon API value.
+type EffectSpec struct {
+	Emit *EmitSpec      `json:"emit,omitzero"`
+	Tool string         `json:"tool,omitempty"`
+	With map[string]any `json:"with,omitempty"`
+}
+
 // Effort is a daemon API value.
 type Effort string
 
@@ -434,12 +441,4 @@ type ForceFailTaskRunRequest struct {
 type ForceReleaseTaskRunRequest struct {
 	Reason   string          `json:"reason,omitempty"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// ForkLoopRequest is a daemon API value.
-type ForkLoopRequest struct {
-	Generation int64          `json:"generation"`
-	Inputs     map[string]any `json:"inputs,omitempty"`
-	Reason     string         `json:"reason,omitempty"`
-	RequestID  string         `json:"request_id,omitempty"`
 }

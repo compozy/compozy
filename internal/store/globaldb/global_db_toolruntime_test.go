@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -252,8 +253,14 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 				t.Fatal(err)
 			}
 			record := monitor.Record{Monitor: monitor.Monitor{
-				ID: "mon-lost", SessionID: main, Kind: monitor.KindPullRequest, Status: monitor.StatusActive,
-				CreatedAt: time.Now(), DeadlineAt: time.Now().Add(time.Hour), FireCount: 1,
+				ID:          "mon-lost",
+				Description: "PR completion",
+				SessionID:   main,
+				Kind:        monitor.KindPullRequest,
+				Status:      monitor.StatusActive,
+				CreatedAt:   time.Now(),
+				DeadlineAt:  time.Now().Add(time.Hour),
+				FireCount:   1,
 			}, ProfileID: instance.ProfileID, WorkspaceID: workspaceID, Version: 2}
 			if err := db.SaveMonitor(t.Context(), record); err != nil {
 				t.Fatal(err)
@@ -279,8 +286,12 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 			}
 			reports, err = db.InstanceReports().ListReports(t.Context(), query)
 			if err != nil || len(reports) != 1 || reports[0].SourceKey != "monitor:mon-lost:1" ||
-				reports[0].Kind != "interrupted" {
+				reports[0].Kind != "failure" {
 				t.Fatalf("lost wake reports: %+v, %v", reports, err)
+			}
+			if !strings.Contains(string(reports[0].Payload), `"reason":"wake_lost"`) ||
+				!strings.Contains(string(reports[0].Payload), `"detail":"PR completion"`) {
+				t.Fatalf("lost wake payload: %s", reports[0].Payload)
 			}
 			if err := reports[0].Validate(); err != nil {
 				t.Fatal(err)

@@ -248,7 +248,8 @@ func sendPromptResultFromAdmission(admission store.SessionPromptAdmission) (Send
 	}
 	stored := admission.Result
 	result := SendPromptResult{
-		Status: stored.Status, Mode: BusyInputMode(stored.Mode),
+		TargetSessionID: admission.SessionID,
+		Status:          stored.Status, Mode: BusyInputMode(stored.Mode),
 		Delivery:      stored.Delivery,
 		SteerDelivery: stored.SteerDelivery,
 		MessageID:     admission.MessageID, IdempotencyKey: admission.IdempotencyKey,

@@ -280,22 +280,23 @@ type CreateTriggerRequest struct {
 
 // UpdateTriggerRequest is the shared automation trigger patch payload.
 type UpdateTriggerRequest struct {
-	Name               *string                        `json:"name,omitempty"`
-	Prompt             *string                        `json:"prompt,omitempty"`
-	Event              *string                        `json:"event,omitempty"`
-	Filter             map[string]string              `json:"filter,omitempty"`
-	LoopTarget         *automationpkg.LoopTarget      `json:"loop_target,omitempty"`
-	Enabled            *bool                          `json:"enabled,omitempty"`
-	Retry              *automationpkg.RetryConfig     `json:"retry,omitempty"`
-	FireLimit          *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
-	WebhookID          *string                        `json:"webhook_id,omitempty"`
-	EndpointSlug       *string                        `json:"endpoint_slug,omitempty"`
-	WebhookSecretValue *string                        `json:"webhook_secret_value,omitempty"`
+	TargetInstanceScope *string                        `json:"target_instance_scope,omitempty"`
+	Name                *string                        `json:"name,omitempty"`
+	Prompt              *string                        `json:"prompt,omitempty"`
+	Event               *string                        `json:"event,omitempty"`
+	Filter              map[string]string              `json:"filter,omitempty"`
+	LoopTarget          *automationpkg.LoopTarget      `json:"loop_target,omitempty"`
+	Enabled             *bool                          `json:"enabled,omitempty"`
+	Retry               *automationpkg.RetryConfig     `json:"retry,omitempty"`
+	FireLimit           *automationpkg.FireLimitConfig `json:"fire_limit,omitempty"`
+	WebhookID           *string                        `json:"webhook_id,omitempty"`
+	EndpointSlug        *string                        `json:"endpoint_slug,omitempty"`
+	WebhookSecretValue  *string                        `json:"webhook_secret_value,omitempty"`
 }
 
 // HasChanges reports whether the patch includes any mutable field.
 func (r UpdateTriggerRequest) HasChanges() bool {
-	return r.Name != nil ||
+	return r.TargetInstanceScope != nil || r.Name != nil ||
 		r.Prompt != nil ||
 		r.Event != nil ||
 		r.Filter != nil ||

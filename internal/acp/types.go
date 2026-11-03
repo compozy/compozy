@@ -148,7 +148,11 @@ func (o StartOpts) Validate() error {
 	if err := validateSessionConfigOptionSelections(o.ACPOptions); err != nil {
 		return fmt.Errorf("acp: validate start ACP options: %w", err)
 	}
-	return ValidateACPModePermissions(o.ProviderName, o.ACPOptions, o.Permissions)
+	provider := o.ProviderName
+	if o.ProviderConfig != nil {
+		provider = o.ProviderConfig.RuntimeProviderName(provider)
+	}
+	return ValidateACPModePermissions(provider, o.ACPOptions, o.Permissions)
 }
 
 // ValidateACPModePermissions keeps unrestricted provider modes behind the effective

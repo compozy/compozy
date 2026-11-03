@@ -24,6 +24,9 @@ func ValidateImmutableJobTarget(current, next Job) error {
 
 // ValidateImmutableTriggerTarget rejects changes to the execution target selected at creation.
 func ValidateImmutableTriggerTarget(current, next Trigger) error {
+	if strings.TrimSpace(current.TargetInstanceScope) != strings.TrimSpace(next.TargetInstanceScope) {
+		return ErrTargetIdentityImmutable
+	}
 	return validateImmutableTargetIdentity(
 		current.TargetKind,
 		current.AgentName,

@@ -154,3 +154,38 @@ func (r instanceDefinitions) projectInstanceDefinition(
 	}
 	return nil
 }
+
+func (r instanceDefinitions) instancePeer(
+	ctx context.Context,
+	instance agentinstance.Instance,
+) (contract.AgentInstancePeer, error) {
+	peer := contract.AgentInstancePeer{
+		Name:  instance.AgentName,
+		Scope: extensionInstallationScopeGlobal,
+		State: instance.State,
+	}
+	var resolved workspacepkg.ResolvedWorkspace
+	var err error
+	if instance.WorkspaceID == "" {
+		resolved, err = r.workspaces.ResolveUser(ctx, instance.ProfileID)
+	} else {
+		name, lookupErr := r.profiles.ProfileName(ctx, instance.ProfileID)
+		if lookupErr != nil {
+			return peer, lookupErr
+		}
+		resolved, err = r.workspaces.ResolveForProfile(ctx, instance.WorkspaceID, name)
+		peer.Scope = resolved.Name
+	}
+	if err != nil {
+		return peer, err
+	}
+	agent, err := r.agents.ResolveAgent(instance.AgentName, &resolved)
+	if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+		return peer, nil
+	}
+	if err != nil {
+		return peer, err
+	}
+	peer.Description = agent.Description
+	return peer, nil
+}

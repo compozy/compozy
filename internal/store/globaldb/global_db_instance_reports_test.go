@@ -633,10 +633,14 @@ func TestPendingInteractionReportsAtomicity(t *testing.T) {
 			_, err = db.CreatePendingInteraction(
 				t.Context(),
 				store.PendingInteractionCreate{
-					InteractionID:     "pending-report",
-					SessionID:         "child-report",
-					Title:             "Read workspace files",
-					Payload:           store.PendingInteractionPayload{ToolID: toolID},
+					InteractionID: "pending-report",
+					SessionID:     "child-report",
+					Title:         "Read workspace files",
+					Payload: store.PendingInteractionPayload{
+						ToolID:   toolID,
+						Action:   "execute",
+						Resource: "make build",
+					},
 					Kind:              store.PendingInteractionKindPermission,
 					ProviderRequestID: "request-report",
 					TurnID:            "turn-report",
@@ -757,6 +761,8 @@ func TestPendingInteractionReportsAtomicity(t *testing.T) {
 			}
 			if tc.expiredBy != "" {
 				var payload struct {
+					Action    string `json:"action"`
+					Resource  string `json:"resource"`
 					ExpiredBy string `json:"expired_by"`
 					Tool      string `json:"tool"`
 				}
@@ -769,6 +775,9 @@ func TestPendingInteractionReportsAtomicity(t *testing.T) {
 				}
 				if payload.Tool != wantTool {
 					t.Fatalf("tool = %q", payload.Tool)
+				}
+				if payload.Action != "execute" || payload.Resource != "make build" {
+					t.Fatalf("expiry details: %+v", payload)
 				}
 				if payload.ExpiredBy != tc.expiredBy {
 					t.Fatalf("expired_by = %q, want %q", payload.ExpiredBy, tc.expiredBy)

@@ -1,6 +1,8 @@
 -- name: ListPendingAgentInstanceEvents :many
-SELECT e.*, CAST(coalesce(t.prompt, '') AS TEXT) AS instruction
+SELECT e.*, CAST(coalesce(json_extract(r.metadata_json, '$.instance_event_instruction'), t.prompt, '') AS TEXT) AS instruction,
+CAST(coalesce(json_extract(r.metadata_json, '$.instance_event_trigger_name'), t.name, '') AS TEXT) AS trigger_name, CAST(coalesce(json_extract(r.metadata_json, '$.instance_event_event'), t.event, '') AS TEXT) AS event
 FROM agent_instance_events e LEFT JOIN automation_triggers t ON t.id = e.trigger_id
+LEFT JOIN automation_runs r ON r.id = e.run_id
 WHERE e.instance_id = ? AND e.consumed_at IS NULL
 ORDER BY e.received_at, e.id LIMIT 20;
 
@@ -24,7 +26,9 @@ FROM automation_runs WHERE id = ? AND profile_id = ? AND trigger_id = ?;
 
 -- name: RecordInstanceEventReceipt :exec
 UPDATE automation_runs SET metadata_json = json_set(metadata_json,
-'$.instance_event_id', sqlc.arg(event_id), '$.instance_event_instance_id', sqlc.arg(instance_id))
+'$.instance_event_id', sqlc.arg(event_id),
+'$.instance_event_trigger_name', sqlc.arg(trigger_name), '$.instance_event_event', sqlc.arg(event),
+'$.instance_event_instruction', sqlc.arg(instruction), '$.instance_event_instance_id', sqlc.arg(instance_id))
 WHERE id = sqlc.arg(run_id);
 
 -- name: CountOmittedInstanceEvents :one

@@ -43,7 +43,7 @@ The prompt body is required. CompozyOS rejects an agent definition with no promp
 - tools grants exact ToolIDs or namespace-prefix wildcard patterns.
 - toolsets grants named ToolsetIDs such as compozy\_\_catalog.
 - deny_tools narrows grants.
-- permissions must be one of deny-all, approve-reads, or approve-all. It sets static tool policy and the ordinary session cross-workspace boundary; see references/native-tools.md (Workspace Boundary).
+- permissions must be one of deny-all, approve-reads, approve-edits, auto, or approve-all. It sets static tool policy and the ordinary session cross-workspace boundary; see references/native-tools.md (Workspace Boundary).
 - `workspace_access` accepts only omission (default) or `unrestricted`; see Unrestricted Workspace Access below.
 - category_path is display-only hierarchy and must be an array.
 - mcp_servers declares per-agent MCP servers.
@@ -241,8 +241,8 @@ never rendered into a session, and CompozyOS does not rewrite the file.
 ## Stays-On Permission Level
 
 - A stays-on agent runs at the `permissions` set on its own definition, and `approve-all` stays
-  `approve-all`. With no level on the definition it runs at `approve-reads`, or at `[permissions].mode`
-  when that is narrower. This holds for instances created by the operator or by an agent,
+  `approve-all`. With no level on a stays-on definition it runs at `approve-edits`; on-demand sessions use `[permissions].mode`
+  without a permission-level rewrite. This holds for instances created by the operator or by an agent,
   and for main sessions resumed after an older release lowered them.
 - Sessions an instance starts do not inherit its level. Each uses the `permissions` of its own
   definition, or `[permissions].mode`. A delegation that omits `permission_mode` or sets `inherit` gets
@@ -324,12 +324,12 @@ The `permissions` agent field and `[permissions].mode` accept `deny-all`,
 An unset stays-on definition uses `approve-edits`; triage remains read-only.
 On-demand children resolve their own definition or settings level.
 
-| Level | Claude | Codex |
-| --- | --- | --- |
-| `deny-all`, `approve-reads` | Existing read-only candidates | `read-only` |
-| `approve-edits` | `acceptEdits` | `workspace-write` |
-| `auto` | Declared and advertised `auto` reviewer | Declared and advertised `agent` reviewer |
-| `approve-all` | Existing permissive candidates | `agent`, or explicit `provider_full_access` |
+| Level                       | Claude                                  | Codex                                       |
+| --------------------------- | --------------------------------------- | ------------------------------------------- |
+| `deny-all`, `approve-reads` | Existing read-only candidates           | `read-only`                                 |
+| `approve-edits`             | `acceptEdits`                           | `workspace-write`                           |
+| `auto`                      | Declared and advertised `auto` reviewer | Declared and advertised `agent` reviewer    |
+| `approve-all`               | Existing permissive candidates          | `agent`, or explicit `provider_full_access` |
 
 Reviewer declarations use `[providers.<id>].reviewer_mode` in global or profile
 configuration. Workspace declarations are ignored with a diagnostic. Unrestricted

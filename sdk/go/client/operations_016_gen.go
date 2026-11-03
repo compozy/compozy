@@ -73,6 +73,7 @@ func (c *Client) ListAgentInstanceReports(ctx context.Context, params ListAgentI
 type ListAgentInstancesParams struct {
 	Workspace     *string `url:"workspace"`
 	AllWorkspaces *string `url:"all_workspaces"`
+	Peers         *string `url:"peers"`
 	Agent         *string `url:"agent"`
 	State         *string `url:"state"`
 	Cursor        *string `url:"cursor"`
@@ -89,6 +90,9 @@ func (c *Client) ListAgentInstances(ctx context.Context, params ListAgentInstanc
 	}
 	if params.AllWorkspaces != nil {
 		query.Set("all_workspaces", *params.AllWorkspaces)
+	}
+	if params.Peers != nil {
+		query.Set("peers", *params.Peers)
 	}
 	if params.Agent != nil {
 		query.Set("agent", *params.Agent)

@@ -2131,6 +2131,73 @@ func openSessionPromptAdmissionMigrationFixture(t *testing.T) sessionPromptAdmis
 }
 
 func TestGlobalDBSessionPromptAdmission(t *testing.T) {
+	t.Run("Should resolve named messages in admission and return held without claiming a turn", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "named-message", "sess-named-main")
+		instance, err := db.Instances().
+			Adopt(ctx, agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace, PermissionCeiling: "{}", CreatedByKind: "human"}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now()
+		req := promptAdmissionRequest(workspace, "stale-main", "named", now)
+		req.InstanceTarget = &store.InstancePromptTarget{
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: workspace,
+			AgentName:   "coder",
+		}
+		req.Origin = []byte(`{"kind":"session","session_id":"sender","hop":1}`)
+		insert := store.SessionInputQueueInsert{
+			ID:        "named-input",
+			SessionID: req.SessionID,
+			Text:      req.AuthoredText,
+			QueueCap:  10,
+			Now:       now,
+		}
+		if _, _, _, _, err := db.EnqueueAdmittedSessionInput(
+			ctx,
+			req,
+			insert,
+		); !errors.Is(
+			err,
+			store.ErrInstancePromptTargetChanged,
+		) {
+			t.Fatalf("stale name resolution: %v", err)
+		}
+		if _, err := db.Instances().Pause(ctx, instance.ID, "manual"); err != nil {
+			t.Fatal(err)
+		}
+		req.SessionID, insert.SessionID = main, main
+		receipt, entry, _, created, err := db.EnqueueAdmittedSessionInput(ctx, req, insert)
+		if err != nil || !created || receipt.Result.Delivery != "held" {
+			t.Fatalf("held receipt: %+v %v", receipt, err)
+		}
+		if _, found, err := db.ClaimNextSessionInput(ctx, main, now); err != nil || found {
+			t.Fatalf("held selection: %v %v", found, err)
+		}
+		rows, err := db.ListPendingSessionInputs(ctx, main)
+		if err != nil || len(rows) != 1 || !rows[0].Held {
+			t.Fatalf("held rows: %+v %v", rows, err)
+		}
+		replay, _, _, created, err := db.EnqueueAdmittedSessionInput(ctx, req, insert)
+		if err != nil || created || replay.Result.QueueEntryID != entry.ID {
+			t.Fatalf("held replay: %+v %v", replay, err)
+		}
+		req.InstanceTarget.AgentName = "missing"
+		if _, _, _, _, err := db.EnqueueAdmittedSessionInput(
+			ctx,
+			req,
+			insert,
+		); !errors.Is(
+			err,
+			agentinstance.ErrNotFound,
+		) {
+			t.Fatalf("missing address: %v", err)
+		}
+	})
+
 	t.Run(
 		"Should admit and replay interrupt at capacity without canceling parked or dispatching input",
 		func(t *testing.T) {
@@ -4188,6 +4255,15 @@ func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
 			if held, err := db.Instances().HeldWakes(ctx, instance.ID); err != nil || held != 3 {
 				t.Fatalf("held=%d %v", held, err)
 			}
+			metrics, err := db.Instances().Metrics(ctx, store.DefaultProfileID, workspace)
+			if err != nil || metrics.HeldInputCount != 3 || metrics.PauseCounts["manual"] != 1 {
+				t.Fatalf("scoped metrics=%+v %v", metrics, err)
+			}
+			other, err := db.Instances().Metrics(ctx, "another-profile", workspace)
+			if err != nil || other.HeldInputCount != 0 || len(other.PauseCounts) != 0 {
+				t.Fatalf("metrics leaked profile=%+v %v", other, err)
+			}
+
 			if _, err := db.Instances().Archive(ctx, instance.ID); err != nil {
 				t.Fatal(err)
 			}

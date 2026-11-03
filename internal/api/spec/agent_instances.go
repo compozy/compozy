@@ -91,6 +91,7 @@ func agentInstanceCatalogOperations() []OperationSpec {
 			Parameters: []ParameterSpec{
 				queryParam("workspace", "Workspace reference", false),
 				queryParam("all_workspaces", "Include all workspaces", false),
+				queryParam("peers", "Read reachable peers without private instance details", false),
 				queryParam("agent", "Agent name", false),
 				queryParam("state", "Instance state", false),
 				queryParam("cursor", "Pagination cursor", false),

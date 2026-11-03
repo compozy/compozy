@@ -219,6 +219,7 @@ type Selection struct {
 
 // SendPromptResultPayload is a daemon API value.
 type SendPromptResultPayload struct {
+	TargetSessionID       string                `json:"target_session_id,omitempty"`
 	ReplyWatch            *ReplyWatchRefPayload `json:"reply_watch,omitempty"`
 	TargetWorkspaceID     string                `json:"target_workspace_id,omitempty"`
 	Disposition           Disposition           `json:"disposition,omitempty"`

@@ -2422,9 +2422,16 @@ func TestTriageStartup(t *testing.T) {
 			driver := New(WithProviderPreStarter(providers.NewPreStarter()))
 			process, err := driver.Start(t.Context(), StartOpts{
 				ProviderConfig: &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
-				AgentName:      "helper", ProviderName: tc.provider, Command: helperCommand(t), Cwd: t.TempDir(),
-				Env: helperEnv(tc.scenario, ""), PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage},
-				Permissions: compozyconfig.PermissionModeApproveAll,
+				AgentName:      "helper",
+				ProviderName:   tc.provider,
+				Command:        helperCommand(t),
+				Cwd:            t.TempDir(),
+				Env: helperEnv(
+					tc.scenario,
+					"",
+				),
+				PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage},
+				Permissions:      compozyconfig.PermissionModeApproveAll,
 			})
 			if process != nil {
 				defer stopProcess(t, driver, process)
@@ -2445,9 +2452,16 @@ func TestTriageStartup(t *testing.T) {
 		driver := New(WithProviderPreStarter(providers.NewPreStarter()))
 		process, err := driver.Start(t.Context(), StartOpts{
 			ProviderConfig: &compozyconfig.ProviderConfig{AuthMode: compozyconfig.ProviderAuthModeNone},
-			AgentName:      "helper", ProviderName: "helper", Command: helperCommand(t), Cwd: t.TempDir(),
-			Env: helperEnv("mode_mapping", ""), PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage},
-			Permissions: compozyconfig.PermissionModeApproveAll,
+			AgentName:      "helper",
+			ProviderName:   "helper",
+			Command:        helperCommand(t),
+			Cwd:            t.TempDir(),
+			Env: helperEnv(
+				"mode_mapping",
+				"",
+			),
+			PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage},
+			Permissions:      compozyconfig.PermissionModeApproveAll,
 		})
 		if process != nil {
 			stopProcess(t, driver, process)

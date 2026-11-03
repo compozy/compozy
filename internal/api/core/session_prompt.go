@@ -45,6 +45,7 @@ func RespondPromptResult(c *gin.Context, result session.SendPromptResult, maskIn
 func PromptResultPayloadFromSession(result session.SendPromptResult) (contract.SendPromptResultPayload, error) {
 	outcome := result.Outcome()
 	payload := contract.SendPromptResultPayload{
+		TargetSessionID:       result.TargetSessionID,
 		TargetWorkspaceID:     result.TargetWorkspaceID,
 		Disposition:           outcome.Disposition,
 		SteerDelivery:         outcome.Delivery,

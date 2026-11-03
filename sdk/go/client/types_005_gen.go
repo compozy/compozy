@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// CountedCursorPagePayload is a daemon API value.
+type CountedCursorPagePayload struct {
+	NextCursor string `json:"next_cursor,omitempty"`
+	HasMore    bool   `json:"has_more"`
+	Total      int    `json:"total"`
+	Limit      int    `json:"limit"`
+}
+
 // CreateAgentPayload is a daemon API value.
 type CreateAgentPayload struct {
 	DisplayName        *string                             `json:"display_name,omitempty"`
@@ -439,11 +447,4 @@ type Effect struct {
 type EffectResult struct {
 	EffectID string          `json:"effect_id"`
 	Payload  json.RawMessage `json:"payload,omitempty"`
-}
-
-// EffectSpec is a daemon API value.
-type EffectSpec struct {
-	Emit *EmitSpec      `json:"emit,omitzero"`
-	Tool string         `json:"tool,omitempty"`
-	With map[string]any `json:"with,omitempty"`
 }

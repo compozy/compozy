@@ -15,9 +15,10 @@ type InstanceTarget struct {
 }
 
 type InstanceEvent struct {
-	RunID     string
-	TriggerID string
-	Summary   string
+	TriggerName, Event, Instruction string
+	RunID                           string
+	TriggerID                       string
+	Summary                         string
 }
 
 type InstanceEventDelivery struct {

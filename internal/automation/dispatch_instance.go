@@ -45,13 +45,17 @@ func (d *Dispatcher) dispatchInstanceEvent(
 		WorkspaceID:     trigger.WorkspaceID,
 		AgentName:       trigger.AgentName,
 		ChecksSupported: true,
-	}, InstanceEvent{RunID: run.ID, TriggerID: trigger.ID, Summary: string(data)})
+	}, InstanceEvent{RunID: run.ID, TriggerID: trigger.ID, Summary: string(data),
+		TriggerName: trigger.Name, Event: trigger.Event, Instruction: trigger.Prompt})
 	if err != nil {
 		return d.finishRun(ctx, run, RunFailed, err)
 	}
 	if run.Metadata == nil {
 		run.Metadata = map[string]any{}
 	}
+	run.Metadata["instance_event_trigger_name"] = trigger.Name
+	run.Metadata["instance_event_event"] = trigger.Event
+	run.Metadata["instance_event_instruction"] = trigger.Prompt
 	run.Metadata["instance_event_id"] = result.EventID
 	run.Metadata["instance_event_instance_id"] = result.InstanceID
 	run.Metadata["instance_event_check_scheduled"] = result.CheckScheduled

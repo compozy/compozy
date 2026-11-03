@@ -91,6 +91,23 @@ func (g *SessionRepo) ListPendingSessionInputs(
 		}
 		entries = append(entries, entry)
 	}
+	if len(entries) > 0 {
+		caller, err := g.queries.GetInstanceCaller(ctx, target)
+		if err != nil {
+			return nil, err
+		}
+		if id, ok := caller.OriginatingInstanceID.(string); ok && id != "" {
+			instance, err := g.queries.GetAgentInstance(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+			for i := range entries {
+				entries[i].Held = instance.State == goalStatusPaused &&
+					entries[i].Status == store.SessionInputQueueStatusQueued &&
+					!store.IsHumanSessionInputOriginClass(entries[i].OriginClass)
+			}
+		}
+	}
 	return entries, nil
 }
 

@@ -79,14 +79,14 @@ func (g *SessionMonitorRepo) reportLostInstanceMonitor(
 	if mon.Reason == "shutdown" {
 		return nil
 	}
-	cause := mon.Reason
-	if cause == "" {
-		cause = string(mon.Status)
+	detail := mon.Description
+	if detail == "" {
+		detail = string(mon.Kind) + " monitor"
 	}
 	payload, err := json.Marshal(struct {
-		SessionID string `json:"session_id"`
-		Cause     string `json:"cause"`
-	}{SessionID: mon.SessionID, Cause: cause})
+		Reason string `json:"reason"`
+		Detail string `json:"detail"`
+	}{Reason: "wake_lost", Detail: detail})
 	if err != nil {
 		return fmt.Errorf("encode lost monitor report: %w", err)
 	}

@@ -1925,3 +1925,21 @@ session ID until successful rotation. Rotation retains the existing brief and
 dependency gate; a deferred report lists blocking dependencies, and reconciliation
 retries on later ticks. Active monitors, queued input, and active Goals can keep
 an exhausted main blocked until the operator resolves them.
+
+### Addressing stays-on peers
+
+During a work turn, `compozy__session_prompt` accepts either `session_id` or `agent` plus the normal
+`workspace` selector. The latter resolves the current main transactionally with admission, including
+after rotation. A missing instance returns `agent_instance_not_found`. Existing identity, hop, rate,
+workspace and reply-watch rules apply. Checks cannot send messages.
+
+Lineage messages return `prompt.delivery: queued`, or `held` while their instance is paused, with
+`target_session_id` and the durable queue receipt. `wait:true` returns immediately for queued/held
+work. Queue rows expose `held`; resume releases retained work, while human input can run during pause
+without resuming the instance. A peer message never grants operator approval.
+
+Read reachable peers with `compozy agent instance list --peers` or
+`compozy__agent_instance_list` with `peers:true`. HTTP/UDS use `GET /api/agent-instances?peers=true`.
+The `peers` array carries only the addressable `name`, `description`, `scope` and `state`.
+Workspace access filters rows before pagination. Omit workspace to inspect reachable scopes in the
+current profile, and retain filters with each `next_cursor`. No roster is injected into prompts.

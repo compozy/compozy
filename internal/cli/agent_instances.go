@@ -60,6 +60,7 @@ func newAgentInstanceAction(deps commandDeps, action string) *cobra.Command {
 		cmd.Flags().IntVar(&options.limit, listLimitField, 50, "Page size (1-100)")
 	}
 	if action == agentListKey {
+		cmd.Flags().BoolVar(&options.peers, "peers", false, "List reachable stays-on peers")
 		cmd.Flags().BoolVar(&options.all, "all-workspaces", false, "Include every workspace")
 		cmd.Flags().StringVar(&options.agent, "agent", "", "Filter by agent name")
 		cmd.MarkFlagsMutuallyExclusive("all-workspaces", "global", workspaceSkillSource)
@@ -145,6 +146,9 @@ func instanceText(instance contract.AgentInstancePayload) string {
 }
 func instanceListText(page contract.AgentInstanceListResponse) string {
 	var text strings.Builder
+	for _, peer := range page.Peers {
+		fmt.Fprintf(&text, "%s\t%s\t%s\t%s\n", peer.Name, peer.Description, peer.Scope, peer.State)
+	}
 	for _, instance := range page.Instances {
 		text.WriteString(instanceText(instance))
 	}
@@ -155,9 +159,9 @@ func instanceListText(page contract.AgentInstanceListResponse) string {
 }
 
 type agentInstanceOptions struct {
-	global, all, dryRun, noWait     bool
-	state, cursor, sessionID, agent string
-	limit                           int
+	global, all, peers, dryRun, noWait bool
+	state, cursor, sessionID, agent    string
+	limit                              int
 }
 
 func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, action string, args []string) error {
@@ -175,6 +179,7 @@ func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, ac
 	}
 	workspace := query.Get(workspaceSkillSource)
 	if action == agentListKey {
+		query.Set("peers", strconv.FormatBool(options.peers))
 		query.Set("all_workspaces", strconv.FormatBool(options.all))
 		query.Set("agent", strings.TrimSpace(options.agent))
 		result, err := client.ListAgentInstances(cmd.Context(), query)
@@ -226,6 +231,9 @@ func (options agentInstanceOptions) query(
 			return nil, err
 		}
 		workspace = query.Workspace
+	}
+	if options.peers && !options.global && !cmd.Flags().Changed(workspaceSkillSource) {
+		workspace = ""
 	}
 	query := url.Values{workspaceSkillSource: {workspace}}
 	if action == agentListKey || action == agentInstanceReportsAction || action == agentInstanceCheckInsAction {

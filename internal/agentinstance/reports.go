@@ -134,7 +134,7 @@ func (r ReportInput) validSourceKey() bool {
 	prefix, suffix, ok := strings.Cut(r.SourceKey, ":")
 	rotation := prefix == "rotation" && (r.Kind == "rotation_failed" || r.Kind == "rotation_deferred")
 	skillReview := prefix == "skill_review" && r.Kind == ReportKindProposal
-	lostMonitor := prefix == "monitor" && r.Kind == "interrupted"
+	lostMonitor := prefix == "monitor" && (r.Kind == "interrupted" || r.Kind == "failure")
 	if !ok || strings.TrimSpace(suffix) == "" ||
 		(!rotation && !skillReview && !lostMonitor && prefix != "occ" && prefix != "interaction" && prefix != "turn") {
 		return false

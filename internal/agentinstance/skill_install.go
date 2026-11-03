@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -69,6 +70,16 @@ func (s *SkillProposalService) Approve(
 		if err := s.Store.DecideReview(ctx, id, digest, "approved", operator); err != nil {
 			return err
 		}
+		slog.InfoContext(
+			ctx,
+			"skill.review.decided",
+			"instance_id",
+			instance.ID,
+			"review_id",
+			id,
+			"decision",
+			"approved",
+		)
 	}
 	return publishSkillInstall(stage, target, draft)
 }

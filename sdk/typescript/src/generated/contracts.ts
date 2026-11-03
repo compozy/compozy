@@ -1015,6 +1015,7 @@ export interface AutomationTriggerRunsParams {
 
 export interface AutomationTriggerUpdateParams {
   id: string;
+  target_instance_scope?: string;
   name?: string;
   prompt?: string;
   event?: string;

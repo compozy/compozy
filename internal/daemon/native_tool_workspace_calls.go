@@ -179,7 +179,7 @@ func (n *daemonNativeTools) listLogs(
 
 func (n *daemonNativeTools) observeMetrics(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input struct{}
@@ -194,6 +194,16 @@ func (n *daemonNativeTools) observeMetrics(
 	result := map[string]any{nativeToolsHealthKey: payload}
 	if usage, ok := n.deps.ProviderUsage.(interface{ UsageMetrics() map[string]any }); ok {
 		maps.Copy(result, usage.UsageMetrics())
+	}
+	if n.deps.AgentInstances != nil {
+		api := n.deps.AgentInstances()
+		if api != nil && api.Metrics != nil {
+			metrics, err := api.Metrics(ctx, scope.ProfileID, scope.WorkspaceID)
+			if err != nil {
+				return toolspkg.ToolResult{}, err
+			}
+			result["agent_instances"] = metrics
+		}
 	}
 	return structuredResult(result, payload.Status)
 }

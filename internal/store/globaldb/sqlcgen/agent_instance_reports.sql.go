@@ -100,7 +100,7 @@ func (q *Queries) InsertAgentInstanceReport(ctx context.Context, arg InsertAgent
 
 const insertLostInstanceMonitorReport = `-- name: InsertLostInstanceMonitorReport :exec
 INSERT INTO agent_instance_reports (id, instance_id, source_key, kind, payload, created_at)
-SELECT ?1, i.id, ?2, 'interrupted', ?3, ?4
+SELECT ?1, i.id, ?2, 'failure', ?3, ?4
 FROM agent_instances i
 WHERE i.main_session_id = ?5 AND i.profile_id = ?6
 AND i.workspace_id = ?7 AND i.archived_at IS NULL

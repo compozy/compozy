@@ -84,6 +84,7 @@ type InstancePauseTrip struct {
 
 // SessionInputQueueEntry is one persisted busy-input item.
 type SessionInputQueueEntry struct {
+	Held           bool
 	PausedInstance *InstancePauseTrip
 	Priority       int
 	// SupersededIDs identifies entries canceled by the transaction creating this input.

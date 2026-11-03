@@ -3,6 +3,8 @@ package session
 import (
 	"context"
 	"errors"
+
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 var ErrApprovalOutsideLineage = errors.New("session_approve_outside_lineage")
@@ -12,6 +14,7 @@ func AuthorizeSessionApproval(
 	ctx context.Context,
 	actorID, targetID string,
 	lookup func(context.Context, string) (*Info, error),
+	access workspaceaccess.Policy,
 ) error {
 	if actorID == "" {
 		return nil
@@ -37,9 +40,33 @@ func AuthorizeSessionApproval(
 	if target == nil {
 		return ErrSessionNotFound
 	}
-	if actor.EffectiveSessionApproval == "workspace" && actor.WorkspaceID == target.WorkspaceID &&
-		actor.ProfileID == target.ProfileID {
-		return nil
+	if actor.EffectiveSessionApproval == "workspace" {
+		if access == nil {
+			if actor.WorkspaceID == target.WorkspaceID && actor.ProfileID == target.ProfileID {
+				return nil
+			}
+			return ErrApprovalOutsideLineage
+		}
+		decision, err := access.Authorize(ctx, workspaceaccess.Request{
+			Actor: workspaceaccess.ActorRef{
+				Kind:        workspaceaccess.ActorAgentSession,
+				SessionID:   actor.ID,
+				WorkspaceID: actor.WorkspaceID,
+				AgentName:   actor.AgentName,
+			},
+			Target: workspaceaccess.ScopeTarget(
+				target.WorkspaceID,
+				target.ProfileID,
+			),
+			Seam: workspaceaccess.SeamCatalog,
+		})
+		if err != nil {
+			return err
+		}
+		if decision.Allowed {
+			return nil
+		}
+		return ErrApprovalOutsideLineage
 	}
 	seen := map[string]bool{}
 	for target != nil && !seen[target.ID] {

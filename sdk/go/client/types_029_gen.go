@@ -4,6 +4,13 @@ package client
 
 import "time"
 
+// WorkSignal is a daemon API value.
+type WorkSignal struct {
+	Kind  WorkSignalKind `json:"kind"`
+	Since time.Time      `json:"since"`
+	Ref   string         `json:"ref,omitempty"`
+}
+
 // WorkSignalKind is a daemon API value.
 type WorkSignalKind string
 

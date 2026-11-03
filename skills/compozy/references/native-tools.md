@@ -1050,7 +1050,7 @@ Goal/Loop resume during an instance pause returns `agent_instance_paused`. A sto
 main can restart to deliver its queue; stopped descendants retain theirs. Archive
 cancels held rows. Quiet windows do not hold monitor wakes.
 
-A main's lost monitor wake produces one `interrupted` report per wake identity,
+A main's lost monitor wake produces one `failure` report with `reason: "wake_lost"` and `detail` describing the wait per wake identity,
 including each pull-request fire sequence. A delivered wake or shutdown cancellation
 does not produce a lost-wake report.
 
@@ -1101,3 +1101,7 @@ Candidate page 1 may include one extra exact PR match; that match is omitted fro
 an additive `linked_work` summary (`total`, `pull_requests`, `needs_you`, `lead`). Use the session
 resource's `links` endpoint for the full list; child items carry `source_session_id`
 and `source_session_title` and are read-only on their parent.
+
+`compozy__observe_metrics` includes `agent_instances.pause_counts` (current paused instances keyed
+by reason) and `agent_instances.held_input_count` (queued autonomous inputs, including coalesced
+members). These counts belong to the caller's profile and workspace, including its User scope.
