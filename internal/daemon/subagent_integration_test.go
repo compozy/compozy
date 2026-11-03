@@ -2566,7 +2566,8 @@ func replyWatchEdgeBudget(t *testing.T) time.Duration {
 		return 5 * time.Minute
 	}
 	remaining := time.Until(deadline)
-	return max(remaining-max(remaining/10, 30*time.Second), time.Second)
+	budget := max(remaining-max(remaining/10, 30*time.Second), time.Second)
+	return min(budget, max(remaining, 0))
 }
 
 func awaitReplyWatchHeldTurnDrained(t *testing.T, drained <-chan struct{}) {
