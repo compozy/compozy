@@ -352,14 +352,21 @@ func mockAgentDiagnosticsPath(
 
 // disableBuiltinLiveDiscovery keeps a mock-agent daemon hermetic: the model catalog's background sweep would
 // otherwise probe every built-in provider, launching real provider CLIs (for example through npx) into the
-// harness home. A provider the scenario configures explicitly keeps its own discovery setting.
+// harness home. A provider the scenario configures explicitly (an enabled flag, a discovery command, or an
+// endpoint) keeps its own discovery setting.
 func disableBuiltinLiveDiscovery(cfg *compozyconfig.Config) {
 	for providerID := range compozyconfig.BuiltinProviders() {
 		provider := cfg.Providers[providerID]
-		if provider.Models.Discovery.Enabled != nil {
+		if discoveryConfiguredExplicitly(provider.Models.Discovery) {
 			continue
 		}
 		provider.Models.Discovery.Enabled = new(false)
 		cfg.Providers[providerID] = provider
 	}
+}
+
+func discoveryConfiguredExplicitly(discovery compozyconfig.ProviderModelsDiscoveryConfig) bool {
+	return discovery.Enabled != nil ||
+		strings.TrimSpace(discovery.Command) != "" ||
+		strings.TrimSpace(discovery.Endpoint) != ""
 }
