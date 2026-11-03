@@ -9,6 +9,27 @@ import (
 	"context"
 )
 
+const closeCompletedSessionProfileMove = `-- name: CloseCompletedSessionProfileMove :execrows
+DELETE FROM session_profile_moves
+WHERE session_profile_moves.session_id = ?1
+  AND EXISTS (
+    SELECT 1 FROM session_derivations AS d
+    JOIN sessions AS c ON c.id = d.child_session_id
+    WHERE d.workspace_id = session_profile_moves.workspace_id
+      AND d.profile_id = session_profile_moves.target_profile_id
+      AND d.idempotency_key = session_profile_moves.copy_key
+      AND d.child_deleted_at IS NULL
+  )
+`
+
+func (q *Queries) CloseCompletedSessionProfileMove(ctx context.Context, sessionID string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, closeCompletedSessionProfileMove, sessionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteSessionProfileMove = `-- name: DeleteSessionProfileMove :exec
 DELETE FROM session_profile_moves WHERE session_id = ?1
 `

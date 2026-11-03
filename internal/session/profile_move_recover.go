@@ -119,16 +119,23 @@ func (m *Manager) settleProfileMove(ctx context.Context, move store.SessionProfi
 	if err != nil {
 		return false, fmt.Errorf("read the copy's derive receipt: %w", err)
 	}
-	copied := found && receipt.ChildDeletedAt == nil
-	if !copied {
-		if err := m.rollbackProfileMoveState(ctx, journal, &move); err != nil {
-			return false, err
+	if found && receipt.ChildDeletedAt == nil {
+		closed, err := journal.CloseCompletedSessionProfileMove(ctx, move.SessionID)
+		if err != nil {
+			return false, fmt.Errorf("close the move journal: %w", err)
 		}
+		if closed {
+			return true, nil
+		}
+		// The copy was deleted after the receipt read; nothing is left to keep.
+	}
+	if err := m.rollbackProfileMoveState(ctx, journal, &move); err != nil {
+		return false, err
 	}
 	if err := journal.DeleteSessionProfileMove(ctx, move.SessionID); err != nil {
-		return copied, fmt.Errorf("close the move journal: %w", err)
+		return false, fmt.Errorf("close the move journal: %w", err)
 	}
-	return copied, nil
+	return false, nil
 }
 
 func (m *Manager) rollbackProfileMoveState(

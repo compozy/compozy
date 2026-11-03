@@ -44,4 +44,8 @@ type SessionProfileMoveStore interface {
 	// restore attempt left its row unusable.
 	SetSessionProfileMoveRestoreWorktree(ctx context.Context, sessionID string, worktreeID string) error
 	DeleteSessionProfileMove(ctx context.Context, sessionID string) error
+	// CloseCompletedSessionProfileMove deletes the row only while the copy its derive
+	// receipt names still exists, in one statement, so a concurrent delete of the copy
+	// either lands first (and the move rolls back) or deletes a completed move's copy.
+	CloseCompletedSessionProfileMove(ctx context.Context, sessionID string) (bool, error)
 }

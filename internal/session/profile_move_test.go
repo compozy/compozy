@@ -725,6 +725,24 @@ type stoppingJournalCatalog struct {
 	worktrees *fakeProfileMoveWorktrees
 	// deleteErr fails the next journal close.
 	deleteErr error
+	// onReceipt runs once after the next derive receipt read.
+	onReceipt func()
+	// onClose runs after each journal close.
+	onClose func()
+}
+
+func (c *stoppingJournalCatalog) SessionDerivationReceipt(
+	ctx context.Context, workspaceID, key, profileID string,
+) (store.SessionDerivationReceipt, bool, error) {
+	receipt, found, err := c.GlobalDB.SessionDerivationReceipt(ctx, workspaceID, key, profileID)
+	c.worktrees.mu.Lock()
+	hook := c.onReceipt
+	c.onReceipt = nil
+	c.worktrees.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	return receipt, found, err
 }
 
 func (c *stoppingJournalCatalog) InsertSessionProfileMove(ctx context.Context, move store.SessionProfileMove) error {
@@ -744,7 +762,16 @@ func (c *stoppingJournalCatalog) DeleteSessionProfileMove(ctx context.Context, s
 	if err != nil {
 		return err
 	}
-	return c.GlobalDB.DeleteSessionProfileMove(ctx, sessionID)
+	if err := c.GlobalDB.DeleteSessionProfileMove(ctx, sessionID); err != nil {
+		return err
+	}
+	c.worktrees.mu.Lock()
+	hook := c.onClose
+	c.worktrees.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	return nil
 }
 
 func newStoppingProfileMoveHarness(t *testing.T) *profileMoveHarness {
@@ -1112,18 +1139,59 @@ func TestManagerRecoverProfileMoves(t *testing.T) {
 	t.Run("Should leave the remaining moves journaled when boot is canceled", func(t *testing.T) {
 		t.Parallel()
 
-		h := newStoppingProfileMoveHarness(t)
-		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
-		h.stopAt(t, "release", func() { _, _ = h.move(testutil.Context(t), source.ID) })
+		h, catalog := newStoppingProfileMoveHarnessWithCatalog(t)
+		var sources []string
+		for range 5 {
+			source := h.stoppedSource(t, "", "")
+			h.stopAt(t, "journaled", func() { _, _ = h.move(testutil.Context(t), source.ID) })
+			sources = append(sources, source.ID)
+		}
 		ctx, cancel := context.WithCancel(testutil.Context(t))
-		cancel()
+		defer cancel()
+		// Boot is canceled after the first move settles. The lock a settle takes may
+		// still be won on a canceled context, so only the check before each settle
+		// keeps the remaining moves untouched.
+		h.worktrees.mu.Lock()
+		catalog.onClose = cancel
+		h.worktrees.mu.Unlock()
 
 		if err := h.manager.RecoverProfileMoves(ctx); !errors.Is(err, context.Canceled) {
 			t.Fatalf("RecoverProfileMoves(canceled) error = %v, want context.Canceled", err)
 		}
-		if _, open := h.openMove(t, source.ID); !open || !h.archivedAt(t, source.ID) {
-			t.Fatal("a canceled boot settled the move; want it left journaled for the next boot")
+		settled := 0
+		for _, id := range sources {
+			if _, open := h.openMove(t, id); !open {
+				settled++
+			}
 		}
+		if settled != 1 {
+			t.Fatalf("settled %d move(s) after the cancel, want only the one in flight", settled)
+		}
+	})
+
+	t.Run("Should roll back when the copy is deleted between the receipt read and the close", func(t *testing.T) {
+		t.Parallel()
+
+		h, catalog := newStoppingProfileMoveHarnessWithCatalog(t)
+		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+		h.stopAt(t, "close", func() { _, _ = h.move(testutil.Context(t), source.ID) })
+		move, _ := h.openMove(t, source.ID)
+		copies := h.targetSessions(t)
+		if len(copies) != 1 {
+			t.Fatalf("copies after the stop = %#v, want the committed copy", copies)
+		}
+		h.worktrees.mu.Lock()
+		catalog.onReceipt = func() {
+			if err := h.manager.Delete(testutil.Context(t), copies[0].ID); err != nil {
+				t.Errorf("Delete(copy) error = %v", err)
+			}
+		}
+		h.worktrees.mu.Unlock()
+
+		if err := h.manager.RecoverProfileMoves(testutil.Context(t)); err != nil {
+			t.Fatalf("RecoverProfileMoves() error = %v", err)
+		}
+		h.requireRolledBack(t, source.ID, move)
 	})
 
 	t.Run("Should settle an interrupted move before a retry moves the session", func(t *testing.T) {

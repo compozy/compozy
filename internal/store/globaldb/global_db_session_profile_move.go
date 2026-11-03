@@ -115,6 +115,18 @@ func (g *SessionRepo) DeleteSessionProfileMove(ctx context.Context, sessionID st
 	return nil
 }
 
+// CloseCompletedSessionProfileMove closes a move whose copy still exists.
+func (g *SessionRepo) CloseCompletedSessionProfileMove(ctx context.Context, sessionID string) (bool, error) {
+	if err := g.checkReady(ctx, "close completed session profile move"); err != nil {
+		return false, err
+	}
+	count, err := g.queries.CloseCompletedSessionProfileMove(ctx, strings.TrimSpace(sessionID))
+	if err != nil {
+		return false, fmt.Errorf("store: close completed session profile move %q: %w", sessionID, err)
+	}
+	return count == 1, nil
+}
+
 func sessionProfileMoveFromRow(row sqlcgen.SessionProfileMove) (store.SessionProfileMove, error) {
 	createdAt, err := store.ParseTimestamp(row.CreatedAt)
 	if err != nil {

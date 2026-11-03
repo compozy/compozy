@@ -23,3 +23,15 @@ WHERE session_id = sqlc.arg(session_id);
 
 -- name: DeleteSessionProfileMove :exec
 DELETE FROM session_profile_moves WHERE session_id = sqlc.arg(session_id);
+
+-- name: CloseCompletedSessionProfileMove :execrows
+DELETE FROM session_profile_moves
+WHERE session_profile_moves.session_id = sqlc.arg(session_id)
+  AND EXISTS (
+    SELECT 1 FROM session_derivations AS d
+    JOIN sessions AS c ON c.id = d.child_session_id
+    WHERE d.workspace_id = session_profile_moves.workspace_id
+      AND d.profile_id = session_profile_moves.target_profile_id
+      AND d.idempotency_key = session_profile_moves.copy_key
+      AND d.child_deleted_at IS NULL
+  );
