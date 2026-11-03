@@ -67,8 +67,8 @@ keeps the instance's tool, skill, MCP server, and path ceilings. Hidden triage s
 `TestInstancePermissionMode` and `TestTriageSessionPermissions` own the level rules; the same walk ran
 through a real daemon with a scripted ACP provider.
 
-Stays-on CompozyOS tool prompts (#1200): create the built-in Orchestrator instance (it ships
-`permissions: auto`) and a stays-on agent pinned to `approve-edits`, both on Claude, with
+Always-on CompozyOS tool prompts (#1200): create the built-in Orchestrator instance (it ships
+`permissions: auto`) and an always-on agent pinned to `approve-edits`, both on Claude, with
 `[permissions].mode = "approve-all"`. Ask each to call `monitor_create`, `worktree_create` and
 `session_create`, then `worktree_remove` on the worktree it made. Count `permission` events in
 `compozy session events <main>`: the three coordination calls produce none, and `worktree_remove`
@@ -242,10 +242,10 @@ QA verification 2026-11-03 (always-on hardening B1/F1, soh/qa 583415ef5, isolate
 Re-walk 2026-11-03 on feat/stays-on-hardening 4056dbcc2 (S4): Pass. BUG-20261103-resume-all-rate-limited is verified fixed. With `max_active_instances = 7`, 6 active and 3 agents paused for `unattended`, Resume all resumed Alpha Watch first. The other two requests, each sent after the previous one finished, returned 429. The panel read "Beta Watch and Ops Lead didn't resume. You have 7 active always-on agents. Pause one or raise `agents.always_on.max_active_instances`." (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/stays-on-hardening/4056dbcc2/04-s4-resume-all.png`). With `max_active_instances = 20`, all three resumed in sequence (200, 180–214 ms; `https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/stays-on-hardening/4056dbcc2/04b-s4-resume-all-room-for-all.png`, `rewalk-s4-resume-requests.txt`). Paper cuts: the open panel keeps a resumed agent under Needs you and its count until it refetches, and the config key renders with literal backticks.
 
 Issue #1181 (toolbar `+`): in a grouped All projects list, the toolbar `+` shows New session,
-New folder and Add stays-on agent. Add opens a place list (Global, then Projects) with the
+New folder and Add always-on agent. Add opens a place list (Global, then Projects) with the
 preselected place checked; picking a project opens that project's agent picker, and adding
 creates the instance there. A list bound to one project still adds there without asking.
-Web suites: `session-list.test.tsx` and `stays-on-add-menu.test.tsx`.
+Web suites: `session-list.test.tsx` and `always-on-add-menu.test.tsx`.
 
 ## Open agent from All profiles (#1183)
 

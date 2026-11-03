@@ -100,7 +100,7 @@ failed triage. User/global instances collect nothing. A symlink outside the work
 read; overflow produces `work:log-truncated`. Backend execution evidence and remaining release
 walks are tracked in `docs/qa/reports/2026-11-02-spec-cycle/B1.md`; the editor change belongs to F1.
 
-Issue 1204 regression: break a stays-on agent's `appearance` in its AGENT.md by hand (drop
+Issue 1204 regression: break an always-on agent's `appearance` in its AGENT.md by hand (drop
 `version` and `color`). `/agents` and the agent's home still open and its places still list, on
 the default face, with an `agent_appearance_invalid` warning on the definition read. Picking a new
 face in the header saves and replaces the broken block.

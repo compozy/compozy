@@ -136,7 +136,7 @@ session runs at its own agent's level, not the caller's. These still ask:
 - Automations, which persist schedules that run other agents, and changing the agent a task runs;
 - tools that change what an agent may do: config, tool approvals, hooks, extensions, agent
   definitions and persistent agents, reparenting sessions, and answering another session's prompts
-  (a stays-on lineage still answers its own descendants).
+  (an always-on lineage still answers its own descendants).
 
 Extension and MCP tools ask unless they are read-only. The provider's own permission request for a
 CompozyOS tool does not prompt a second time: the daemon recognizes its hosted tool server from the

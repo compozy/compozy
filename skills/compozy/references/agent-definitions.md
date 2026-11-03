@@ -382,5 +382,5 @@ links, tasks, layouts) run without asking. A child session runs at its own agent
 caller's. Shell commands, terminal tools, Loop tools (their command criteria run shell commands),
 Automations, task execution profiles, destructive or open-world tools, and changes to config, tool
 approvals, hooks, extensions, agent definitions or persistent agents still ask, once per call.
-Answering another session's prompts asks unless the caller is a stays-on lineage answering its
-descendants. Extension and MCP tools ask unless read-only. The built-in stays-on Orchestrator ships `permissions: auto`.
+Answering another session's prompts asks unless the caller is an always-on lineage answering its
+descendants. Extension and MCP tools ask unless read-only. The built-in always-on Orchestrator ships `permissions: auto`.
