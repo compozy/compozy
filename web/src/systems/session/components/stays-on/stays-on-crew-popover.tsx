@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import {
+  Button,
   Eyebrow,
   Item,
   Popover,
@@ -14,7 +15,9 @@ import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
   agentAvatarAppearance,
   agentInstanceAvatarState,
+  agentInstancePausedUnattended,
   agentInstancesByUrgency,
+  useResumeAgentInstances,
   type AgentInstancePayload,
 } from "@/systems/agent";
 
@@ -26,6 +29,26 @@ const BANDS: readonly { label: string; states: readonly AgentAvatarState[] }[] =
 ];
 
 const SEARCH_FROM = 7;
+/** Resume all appears once the brake paused at least this many. */
+const RESUME_ALL_FROM = 2;
+
+/** S4: resume every agent the brake paused, in one step. Each resume is the operator's. */
+function ResumeAll({ instances }: { instances: readonly AgentInstancePayload[] }) {
+  const resume = useResumeAgentInstances();
+  const paused = instances.filter(agentInstancePausedUnattended);
+  if (paused.length < RESUME_ALL_FROM) return null;
+  return (
+    <Button
+      disabled={resume.isPending}
+      onClick={() => resume.mutate(paused)}
+      size="sm"
+      type="button"
+      variant="secondary"
+    >
+      {resume.isPending ? "Resuming…" : "Resume all"}
+    </Button>
+  );
+}
 
 function summary(instances: readonly AgentInstancePayload[]) {
   return BANDS.flatMap(band => {
@@ -97,11 +120,14 @@ export function StaysOnCrewPopover({
         +{hidden}
       </PopoverTrigger>
       <PopoverContent align="start" className="flex w-96 flex-col gap-3 p-3">
-        <div className="flex flex-col gap-0.5 px-1 pt-1">
-          <span className="text-heading font-medium text-fg-strong">
-            {instances.length} agents in {scopeName}
-          </span>
-          <span className="text-small-body text-muted-foreground">{summary(instances)}</span>
+        <div className="flex items-start gap-3 px-1 pt-1">
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-heading font-medium text-fg-strong">
+              {instances.length} agents in {scopeName}
+            </span>
+            <span className="text-small-body text-muted-foreground">{summary(instances)}</span>
+          </div>
+          <ResumeAll instances={instances} />
         </div>
         {instances.length >= SEARCH_FROM ? (
           <SearchInput

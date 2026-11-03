@@ -14,6 +14,7 @@ import {
 
 import { AgentMark } from "@/systems/agent/components/agent-mark";
 import {
+  agentNextWakeLine,
   agentPauseCopy,
   agentAvatarAppearance,
   agentInstanceAvatarState,
@@ -25,6 +26,8 @@ import {
 } from "@/systems/agent";
 
 import { formatRelativeClock } from "@/systems/agent";
+
+import { heldPhrase } from "../../lib/session-pause";
 
 const STATE_TONE: Partial<Record<AgentAvatarState, PillTone>> = {
   "needs-you": "brand",
@@ -90,6 +93,18 @@ function CheckIns({ instance }: { instance: AgentInstancePayload }) {
   );
 }
 
+/** S7: what wakes it next, so a sleeping agent says what it's waiting for. */
+function NextWake({ instance }: { instance: AgentInstancePayload }) {
+  const line = agentNextWakeLine(instance);
+  if (!line) return null;
+  return (
+    <div className="flex flex-col gap-0.5">
+      <Eyebrow className="text-subtle">Wakes up next</Eyebrow>
+      <span className="text-small-body text-fg">{line}</span>
+    </div>
+  );
+}
+
 function doingLine(instance: AgentInstancePayload) {
   return agentPauseCopy(instance) || instance.now.trim() || null;
 }
@@ -107,6 +122,7 @@ export function StaysOnHoverCardContent({
   const state = agentInstanceAvatarState(instance);
   const paused = instance.state === "paused";
   const doing = doingLine(instance);
+  const held = heldPhrase(instance.held_wakes ?? 0);
   return (
     <HoverCardContent align="start" className="flex w-80 flex-col gap-3.5 p-4" sideOffset={8}>
       <div className="flex items-center gap-3">
@@ -133,6 +149,10 @@ export function StaysOnHoverCardContent({
       </div>
       {doing ? <p className="text-body text-fg">{doing}</p> : null}
       <CheckIns instance={instance} />
+      <NextWake instance={instance} />
+      {paused && held ? (
+        <p className="text-small-body text-muted-foreground">{held} for you to resume</p>
+      ) : null}
       <div className="flex gap-2">
         <Button className="flex-1" onClick={onOpen} size="sm" type="button" variant="secondary">
           Open conversation

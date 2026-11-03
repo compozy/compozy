@@ -50,6 +50,16 @@ describe("agentPauseCopy", () => {
     const instance = agentInstanceFixture({ pause_reason: "fatigue", fatigue_limit: 3 });
     expect(agentPauseCopy(instance)).toBe("Paused after 3 failed checks in a row.");
   });
+
+  it("Should say how many steps it took without you [UT-057]", () => {
+    const instance = agentInstanceFixture({
+      state: "paused",
+      pause_reason: "unattended",
+      unattended_turn_limit: 300,
+      unattended_turns: 300,
+    });
+    expect(agentPauseCopy(instance)).toBe("Paused after 300 steps without you.");
+  });
 });
 
 describe("agentAvatarAppearance", () => {

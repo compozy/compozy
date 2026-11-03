@@ -10,7 +10,10 @@ export interface ReportPayload {
   detail?: string;
   sessionId?: string;
   tool?: string;
+  action?: string;
   expiredBy?: string;
+  reason?: string;
+  blockers: string[];
 }
 
 function text(value: unknown) {
@@ -29,6 +32,11 @@ export function reportPayload(data: SessionReportData): ReportPayload {
       return title ? [{ title, body: text((item as { body?: unknown }).body) ?? "" }] : [];
     }),
     detail: text(raw.detail) ?? text(raw.reason),
+    reason: text(raw.reason),
+    action: text(raw.action),
+    blockers: Array.isArray(raw.blockers)
+      ? raw.blockers.flatMap(item => (text(item) ? [item as string] : []))
+      : [],
     sessionId: text(raw.session_id),
     tool: text(raw.tool),
     expiredBy: text(raw.expired_by),

@@ -1,3 +1,4 @@
+import { heldPhrase } from "./session-pause";
 import { pickedProposal } from "./session-report";
 
 import type { AgentInstanceAway, AgentInstanceReport } from "@/systems/agent";
@@ -19,6 +20,8 @@ export interface AwayDigestView {
   foldedIds: ReadonlySet<string>;
   headline: string;
   summary: string;
+  /** Set when the brake paused it while you were away: the digest says so and offers Resume. */
+  paused: boolean;
   stripLabel: string;
   beats: readonly AwayBeat[];
   hours: readonly string[];
@@ -70,7 +73,7 @@ function eventOf(report: AgentInstanceReport): AwayEvent {
       id: report.id,
       tone: "unanswered",
       title: "A request went unanswered",
-      description: report.tool ? `${report.tool} wasn't allowed.` : "It wasn't allowed.",
+      description: expiredLine(report),
       time,
     };
   }
@@ -80,6 +83,34 @@ function eventOf(report: AgentInstanceReport): AwayEvent {
       tone: "failed",
       title: "Some work stopped",
       description: "CompozyOS restarted while it was waiting for an answer.",
+      time,
+    };
+  }
+  if (report.kind === "failure" && report.reason === "unattended") {
+    return {
+      id: report.id,
+      tone: "failed",
+      title: "It paused until you're back",
+      description: "It reached its limit of steps without you.",
+      time,
+    };
+  }
+  if (report.kind === "failure" && report.reason === "wake_lost") {
+    return {
+      id: report.id,
+      tone: "failed",
+      title: "A wake-up didn't arrive",
+      description: "An update it was waiting for never reached it.",
+      time,
+    };
+  }
+  if (report.kind === "failure" && report.reason === "context_exhausted") {
+    return {
+      id: report.id,
+      tone: "failed",
+      title: "It ran out of room",
+      description:
+        "The conversation is full. It continues in a new one once nothing is in the way.",
       time,
     };
   }
@@ -101,6 +132,13 @@ function eventOf(report: AgentInstanceReport): AwayEvent {
   };
 }
 
+function expiredLine({ tool, action }: AgentInstanceReport) {
+  const named = tool && tool !== "provider" ? tool : "";
+  if (named && action) return `${named} for ${action} wasn't allowed.`;
+  if (named || action) return `${named || action} wasn't allowed.`;
+  return "It wasn't allowed.";
+}
+
 function hourLabels(start: number, end: number) {
   return [0, 1, 2, 3].map(step =>
     reportClock(new Date(start + ((end - start) * step) / 3).toISOString())
@@ -112,7 +150,9 @@ export function deriveAwayDigest(
   away: AgentInstanceAway,
   agentLabel: string,
   now: number,
-  messages: Parameters<typeof pickedProposal>[0] = []
+  messages: Parameters<typeof pickedProposal>[0] = [],
+  /** Input held for resume, from the instance read. */
+  held = 0
 ): AwayDigestView | null {
   const reports = [...away.reports].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const picked = (report: AgentInstanceReport) =>
@@ -148,16 +188,27 @@ export function deriveAwayDigest(
   const mostlyQuiet = away.quiet_check_ins >= reports.length;
   const lead = mostlyQuiet ? "quiet " : "";
 
+  const pause = reports
+    .filter(report => report.kind === "failure" && report.reason === "unattended")
+    .at(-1);
+  const waiting = heldPhrase(held);
+  const headline = pause
+    ? `${hours === 0 ? "Under an hour" : `${countWord(hours)} ${span}`} of work, then it paused.`
+    : hours === 0
+      ? `Under an hour, ${decisions}`
+      : `${countWord(hours)} ${lead}${span}, ${decisions}`;
+  const summary = pause
+    ? `${agentLabel} reached its limit at ${reportClock(pause.created_at)}.${waiting ? ` ${waiting}.` : ""}`
+    : mostlyQuiet
+      ? `${agentLabel} checked in ${total} times. Most had nothing to report.`
+      : `${agentLabel} checked in ${total} times.`;
+
   return {
     firstReportId: first.id,
     foldedIds: new Set(told.map(report => report.id)),
-    headline:
-      hours === 0
-        ? `Under an hour, ${decisions}`
-        : `${countWord(hours)} ${lead}${span}, ${decisions}`,
-    summary: mostlyQuiet
-      ? `${agentLabel} checked in ${total} times. Most had nothing to report.`
-      : `${agentLabel} checked in ${total} times.`,
+    headline,
+    summary,
+    paused: Boolean(pause),
     stripLabel: `Check-ins while you were away: ${needing.length} needs you, ${worth.length} worth knowing, ${wrong.length} went wrong, ${away.quiet_check_ins} with nothing to report`,
     beats,
     hours: hourLabels(start, now),

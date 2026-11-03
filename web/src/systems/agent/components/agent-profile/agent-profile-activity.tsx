@@ -140,7 +140,7 @@ export function AgentActivitySection({
         right={<span className="text-eyebrow text-muted-foreground">Last 30 days</span>}
       >
         <Panel bodyClassName="flex flex-col gap-3">
-          <Headline note={`${cost.tokens}, estimated`} value={cost.cost} />
+          <Headline note={cost.note} value={cost.cost} />
           {cost.projects.length > 0 ? (
             <div className="-mx-5 flex flex-col gap-2.5 border-t border-line-soft px-5 pt-3.5">
               <Eyebrow className="text-subtle">By project</Eyebrow>

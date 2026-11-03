@@ -119,6 +119,18 @@ export function useAgentInstanceActions() {
   };
 }
 
+/**
+ * Resume one or several instances, with the pending and failed states a report shows in place.
+ * Every resume is attempted; it fails when any one of them did.
+ */
+export function useResumeAgentInstances() {
+  return useInstanceMutation(async (instances: readonly AgentInstancePayload[]) => {
+    const settled = await Promise.allSettled(instances.map(resumeAgentInstance));
+    const failed = settled.find(result => result.status === "rejected");
+    if (failed) throw failed.reason;
+  }, "Failed to resume this agent.");
+}
+
 /** Instances must belong to the same profile and resolved definition as the open agent. */
 export function useAgentDefinitionInstances(agent: AgentPayload) {
   const { destination } = useProfileReadScope();

@@ -3,6 +3,7 @@
  * Quiet check-ins stay a texture; whatever needs you stays a full card below.
  */
 import { ChevronRight, CircleAlert, ShieldAlert, Sparkles } from "@compozy/ui/icons";
+import type { ReactNode } from "react";
 
 import {
   AgentAvatar,
@@ -81,7 +82,16 @@ function Event({ event }: { event: AwayEvent }) {
 }
 
 /** The reports that came in, read as one story. Whatever needs you follows it as its own card. */
-export function AwayDigest({ agent, digest }: { agent: ReportAgent; digest: AwayDigestView }) {
+export function AwayDigest({
+  agent,
+  digest,
+  action,
+}: {
+  agent: ReportAgent;
+  digest: AwayDigestView;
+  /** Resume in place, when it paused while you were away. */
+  action?: ReactNode;
+}) {
   return (
     <section aria-label="While you were away" className="flex flex-col gap-4">
       <Separator label="While you were away" />
@@ -93,11 +103,13 @@ export function AwayDigest({ agent, digest }: { agent: ReportAgent; digest: Away
             quietIdle
             size={48}
             spriteUrl={PROFILE_SPRITE_URL}
+            state={digest.paused ? "paused" : undefined}
           />
-          <div className="flex min-w-0 flex-col gap-0.5">
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <h3 className="text-detail-h1 font-medium text-fg-strong">{digest.headline}</h3>
             <p className="text-body text-muted-foreground">{digest.summary}</p>
           </div>
+          {action}
         </div>
         <NightStrip digest={digest} />
         <Legend digest={digest} />
