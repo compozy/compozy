@@ -141,6 +141,10 @@ func WriteSkillDraft(root string, scanRoots []string, draft SkillDraft) (path, d
 
 func ReadSkillDraft(path, digest string) (SkillDraft, error) {
 	info, err := os.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		// A deleted draft can't be installed or shown; the review stays readable and rejectable.
+		return SkillDraft{}, ErrSkillReviewInvalid
+	}
 	if err != nil {
 		return SkillDraft{}, err
 	}

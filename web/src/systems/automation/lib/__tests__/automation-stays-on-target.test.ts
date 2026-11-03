@@ -56,6 +56,19 @@ describe("staysOnTargetModel", () => {
     expect(model.status).toEqual({ kind: "ready", label: "Triage Lead" });
   });
 
+  it("tells agents that share a display name apart by their name", () => {
+    const model = staysOnTargetModel({
+      instances: [instance({}), instance({ id: "ain_3", agent_name: "triage-web" })],
+      agent: "",
+      workspaceId: "ws_alpha",
+      isWebhook: false,
+    });
+    expect(model.agents.map(option => option.label)).toEqual([
+      "Triage Lead (triage)",
+      "Triage Lead (triage-web)",
+    ]);
+  });
+
   it("reports a missing instance when the agent does not run in that scope", () => {
     const model = staysOnTargetModel({
       instances: [GLOBAL],

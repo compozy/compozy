@@ -6,6 +6,7 @@ import { getSessionDisplayTitle } from "@/systems/session/lib/session-display-ti
 import { useAgentInstances } from "@/systems/agent";
 import { useWorkspace } from "@/systems/workspace";
 
+import { reportAgent, type ReportAgent } from "../../lib/session-report-identity";
 import type { SessionMessageParty } from "./session-message-party";
 
 export interface SessionLabelInput {
@@ -72,22 +73,20 @@ export function useSessionLabel({
 }
 
 /** A stays-on agent's current main speaks as the agent, not as its session (S12). */
-function useStaysOnIdentity(sessionId: string): { label: string; agentName: string } | null {
+function useStaysOnIdentity(sessionId: string): ReportAgent | null {
   const staysOn = useAgentInstances().find(
     instance => sessionId !== "" && instance.main_session_id === sessionId
   );
-  return staysOn
-    ? { label: staysOn.label || staysOn.agent_name, agentName: staysOn.agent_name }
-    : null;
+  return staysOn ? reportAgent(staysOn, staysOn.agent_name) : null;
 }
 
 /** The title a party reads: a stays-on main names its agent and never waits on its session read. */
 function staysOnParty(
   title: string | null,
   pending: boolean | undefined,
-  staysOn: { label: string; agentName: string } | null
-): Pick<SessionMessageParty, "title" | "pending" | "staysOnAgent"> {
-  if (staysOn) return { title: staysOn.label, staysOnAgent: staysOn.agentName };
+  staysOn: ReportAgent | null
+): Pick<SessionMessageParty, "title" | "pending" | "staysOn"> {
+  if (staysOn) return { title: staysOn.label, staysOn };
   return pending ? { title, pending } : { title };
 }
 

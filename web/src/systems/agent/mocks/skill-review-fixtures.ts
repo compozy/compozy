@@ -122,6 +122,7 @@ export function skillReviewViewFixture(
     stale: false,
     deciding: false,
     invalid: false,
+    unreadable: false,
     decideError: null,
     decide: () => undefined,
     ...overrides,

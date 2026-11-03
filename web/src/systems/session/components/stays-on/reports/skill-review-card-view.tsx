@@ -51,6 +51,47 @@ export function RunsAutomatically({ items }: { items: readonly SkillAutomaticIte
   );
 }
 
+/** A review whose stored draft no longer verifies: nothing to read, so the only way out is Reject. */
+function UnreadableSkillReview({
+  agent,
+  name,
+  view,
+  when,
+}: {
+  agent: ReportAgent;
+  name: string;
+  view: AgentSkillReviewView;
+  when: string;
+}) {
+  return (
+    <Notice
+      actions={
+        <Button
+          disabled={view.deciding}
+          onClick={() => view.decide("reject")}
+          size="sm"
+          type="button"
+          variant="secondary"
+        >
+          Reject
+        </Button>
+      }
+      agent={agent}
+      body="CompozyOS can't read this version. Reject it, or wait for the agent to propose it again."
+      detail={
+        view.decideError ? (
+          <Alert variant="destructive">
+            <AlertDescription>{view.decideError.message}</AlertDescription>
+          </Alert>
+        ) : null
+      }
+      state="needs-you"
+      title={`New skill to review: ${name}`}
+      when={when}
+    />
+  );
+}
+
 /** The card for a loaded review; the container below reads and decides it. */
 export function SkillReviewCardView({
   agent,
@@ -87,6 +128,9 @@ export function SkillReviewCardView({
       stale={view.stale}
     />
   );
+  if (view.unreadable && view.state === "pending") {
+    return <UnreadableSkillReview agent={agent} name={review.name} view={view} when={when} />;
+  }
   if (view.state === "approved") {
     return (
       <Receipt icon={<Check aria-hidden="true" />} tone="allowed">

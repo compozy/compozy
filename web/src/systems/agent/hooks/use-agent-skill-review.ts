@@ -53,7 +53,9 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
     },
   });
   const files = review ? skillReviewFiles(review) : [];
-  const invalid = isSkillReviewInvalid(mutation.error);
+  // The daemon marks a review whose stored draft no longer verifies; it can only be rejected.
+  const unreadable = review?.problem === "skill_review_invalid";
+  const invalid = unreadable || isSkillReviewInvalid(mutation.error);
   return {
     review,
     loading: ref === null || (query.isPending && Boolean(ref.id)),
@@ -67,7 +69,9 @@ export function useAgentSkillReview(ref: AgentSkillReviewRef | null) {
     deciding: mutation.isPending || query.isFetching,
     /** This version can't be installed: Approve is off, Reject stays available. */
     invalid,
-    decideError: invalid
+    /** CompozyOS can't read the draft at all: there is nothing to show, only Reject. */
+    unreadable,
+    decideError: isSkillReviewInvalid(mutation.error)
       ? new Error(
           "CompozyOS can't install this version. Reject it, or wait for the agent to propose it again."
         )

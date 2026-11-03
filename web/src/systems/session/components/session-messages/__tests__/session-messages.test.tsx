@@ -563,7 +563,7 @@ describe("useSessionLabel", () => {
       { wrapper }
     );
     await waitFor(() => expect(result.current.title).toBe("Triage Lead"));
-    expect(result.current.staysOnAgent).toBe(INSTANCE_AGENT);
+    expect(result.current.staysOn?.label).toBe("Triage Lead");
   });
 
   it("Should show the current title once the detail read lands, not the recorded one (UT-063)", async () => {

@@ -36,6 +36,9 @@ type AgentSkillReviewPayload struct {
 	CreatedAt         time.Time                   `json:"created_at"`
 	DecidedAt         *time.Time                  `json:"decided_at,omitempty"`
 	DecidedBy         string                      `json:"decided_by,omitempty"`
+	// Problem is set when the stored draft no longer verifies: `skill_review_invalid`. The review then
+	// carries no files and no automatic contents, and it can only be rejected.
+	Problem string `json:"problem,omitempty"`
 }
 
 type AgentSkillReviewResponse struct {
