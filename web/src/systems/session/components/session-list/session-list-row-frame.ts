@@ -50,3 +50,6 @@ export const SESSION_ROW_FACE_CELL = "col-start-1 row-span-2 row-start-1 grid pl
 /** The face-first row's title target: the title alone, its state glyph moved to line 2. */
 export const SESSION_ROW_FACE_TARGET_FRAME =
   "col-start-2 row-start-1 grid min-w-0 grid-cols-[minmax(0,1fr)] items-center text-left text-body text-fg";
+
+/** A row's marks name themselves only when the pointer rests on them, not while it passes, in ms. */
+export const SESSION_ROW_MARK_TOOLTIP_DELAY = 700;

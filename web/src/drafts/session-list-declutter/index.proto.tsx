@@ -76,6 +76,7 @@ export const meta = definePrototype({
   states: [
     { id: "before", label: "Today" },
     { id: "trimmed", label: "A · Trimmed two lines" },
+    { id: "trimmed-icons", label: "A2 · Two lines, name on hover" },
     { id: "single-line", label: "B · One line" },
     { id: "single-line-subagents", label: "B · One line, subagents open" },
     { id: "face", label: "C · Face first" },
@@ -96,6 +97,7 @@ const CAPTAIN_FACE: AgentAvatarAppearance = { avatar: "generated", seed: "releas
 const LAYOUTS: Record<string, SessionRowLayout> = {
   before: "classic",
   trimmed: "trimmed",
+  "trimmed-icons": "trimmed-icons",
   "single-line": "single-line",
   "single-line-subagents": "single-line",
   face: "face",

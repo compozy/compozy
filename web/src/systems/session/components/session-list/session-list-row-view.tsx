@@ -19,6 +19,7 @@ import type {
   SessionDropPosition,
   SessionRowDropEdge,
 } from "../../hooks/use-session-list-dnd";
+import { SessionListAgentMark } from "./session-list-agent-mark";
 import { SessionListProviderMark } from "./session-list-provider-mark";
 import {
   SESSION_ROW_END_LEAD_FRAME,
@@ -29,6 +30,7 @@ import {
   SESSION_ROW_FACE_TARGET_FRAME,
   SESSION_ROW_FRAME,
   SESSION_ROW_LATER_FRAME,
+  SESSION_ROW_MARK_TOOLTIP_DELAY,
   SESSION_ROW_META_FRAME,
   SESSION_ROW_TARGET_FRAME,
   SESSION_ROW_TRAILING_FRAME,
@@ -85,10 +87,11 @@ export interface SessionListRowProps {
 
 /**
  * How much a row says (issue #1191, under review in the gallery): `classic` is today's row;
- * `trimmed` keeps two lines and drops every word but needs-you; `single-line` folds the who into
+ * `trimmed` keeps two lines and drops every word but needs-you; `trimmed-icons` also drops the
+ * agent's name, which its face says on a resting hover; `single-line` folds the who into
  * line 1's end; `face` leads with the agent's face across both lines.
  */
-export type SessionRowLayout = "classic" | "trimmed" | "single-line" | "face";
+export type SessionRowLayout = "classic" | "trimmed" | "trimmed-icons" | "single-line" | "face";
 
 export interface SessionListRowViewProps extends SessionListRowProps {
   layout?: SessionRowLayout;
@@ -176,6 +179,7 @@ function SessionListRowBody({
   const badge = inheritsProject ? undefined : badgeOf?.(session);
   const single = layout === "single-line";
   const face = layout === "face";
+  const iconsOnly = layout === "trimmed-icons";
   const agentMark = session.agent_name ? (
     <AgentMark
       aria-hidden="true"
@@ -191,6 +195,7 @@ function SessionListRowBody({
     <SessionListProviderMark
       sessionId={session.id}
       runtime={runtime}
+      delay={iconsOnly ? SESSION_ROW_MARK_TOOLTIP_DELAY : undefined}
       keyboardFocus={keyboardFocus}
       onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
     />
@@ -249,7 +254,7 @@ function SessionListRowBody({
       {metaLine ? (
         <SessionRowMetaLine
           session={session}
-          agentLabel={single ? "" : agentLabel}
+          agentLabel={single || iconsOnly ? "" : agentLabel}
           badge={badge}
           owner={owner}
           meta={meta}
@@ -258,7 +263,16 @@ function SessionListRowBody({
               <SessionBadgeMark badge={session.badge} waitingOn={sessionWaitingOn(session)} />
             ) : single ? null : (
               <>
-                {agentMark}
+                {iconsOnly && session.agent_name ? (
+                  <SessionListAgentMark
+                    appearance={agent.appearance}
+                    label={agent.label}
+                    onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
+                    sessionId={session.id}
+                  />
+                ) : (
+                  agentMark
+                )}
                 {providerMark}
               </>
             )
