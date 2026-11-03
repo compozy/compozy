@@ -418,6 +418,24 @@ describe("SessionReportPart", () => {
       ).toBeInTheDocument();
     });
 
+    it("Should name the tool and action when the report has no resource [DFE2-3]", async () => {
+      const { container } = render(
+        <SessionReportPart
+          data={{
+            ...PROPOSAL,
+            kind: "approval_expired",
+            payload: { tool: "Bash", action: "execute", expired_by: "timeout" },
+          }}
+        />,
+        { wrapper: harness(vi.fn()) }
+      );
+
+      expect(
+        await screen.findByText("Nobody answered in time, so it wasn't allowed.")
+      ).toBeInTheDocument();
+      await waitFor(() => expect(container).toHaveTextContent("Bash execute"));
+    });
+
     it("Should show the expired command with the draft reason", async () => {
       const { container } = render(
         <SessionReportPart

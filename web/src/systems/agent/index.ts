@@ -59,7 +59,11 @@ export {
   type AgentSkillReviewRef,
 } from "./adapters/agent-skill-review-api";
 export { AgentInstanceApiError } from "./adapters/agent-instance-api";
-export { AgentResumeError, type AgentResumeFailure } from "./lib/agent-instance-resume";
+export {
+  AgentResumeError,
+  agentResumeFailureCopy,
+  type AgentResumeFailure,
+} from "./lib/agent-instance-resume";
 export {
   AgentApiError,
   isAgentNotFound,

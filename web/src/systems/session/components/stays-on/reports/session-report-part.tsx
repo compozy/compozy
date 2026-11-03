@@ -197,8 +197,10 @@ function ExpiredApproval({
   const { agent, session } = useReportSource(payload.sessionId, instances);
   const provider = payload.expiredBy === "provider";
   const tool = payload.tool === "provider" ? undefined : payload.tool;
-  // The resource is what it wanted to run or change; older reports carry only the tool.
-  const subject = payload.resource ?? (payload.action ? undefined : tool);
+  // The resource is what it wanted to run or change; without one, the tool and its action
+  // name the request. Older reports carry only the tool.
+  const subject =
+    payload.resource ?? ([tool, payload.action].filter(Boolean).join(" ") || undefined);
   return (
     <SettledAsk
       actions={

@@ -144,6 +144,42 @@ describe("StaysOnRow", () => {
     expect(mockApi.resume).toHaveBeenCalledTimes(3);
   });
 
+  it("Should drop an agent from the Resume all error once it resumes elsewhere [DFE2-4]", async () => {
+    const user = userEvent.setup();
+    const crew = Array.from({ length: 5 }, (_, index) =>
+      agentInstanceFixture({
+        id: `i-${index}`,
+        label: `Agent ${index}`,
+        ...(index < 3 ? { state: "paused", pause_reason: "unattended" } : {}),
+      })
+    );
+    mockApi.resume.mockImplementation(async (instance: AgentInstancePayload) => {
+      if (instance.id !== "i-0") throw new Error("At the cap.");
+    });
+    const view = (instances: readonly AgentInstancePayload[]) =>
+      wrap(
+        <StaysOnRow instances={instances} limit={3} onOpenSession={vi.fn()} scopeName="compozy" />
+      );
+    const { rerender } = render(view(crew));
+
+    await user.click(screen.getByRole("button", { name: "Show all 5 agents in compozy" }));
+    await user.click(screen.getByRole("button", { name: "Resume all" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Agent 1 and Agent 2 didn't resume. At the cap."
+    );
+
+    const active = (id: string) => (instance: AgentInstancePayload) =>
+      instance.id === id
+        ? { ...instance, state: "active" as const, pause_reason: "" as const }
+        : instance;
+    const afterOne = crew.map(active("i-0")).map(active("i-1"));
+    rerender(view(afterOne));
+    expect(screen.getByRole("alert")).toHaveTextContent("Agent 2 didn't resume. At the cap.");
+
+    rerender(view(afterOne.map(active("i-2"))));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   it("Should offer no Resume all for a single brake pause", async () => {
     const user = userEvent.setup();
     const crew = Array.from({ length: 5 }, (_, index) =>
