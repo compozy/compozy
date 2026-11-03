@@ -5577,7 +5577,7 @@ export type ProviderSummaryPayload = {
   default: boolean;
   display_name?: string;
   name: string;
-  reviewer_mode?: string;
+  reviewer_mode: string;
   runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
   session_env_status?: Array<SettingsProviderCredentialStatusPayload>;
 };

@@ -26,6 +26,7 @@ const runtimeProvidersFixture = {
       default: true,
       display_name: "Claude Code",
       name: "claude",
+      reviewer_mode: "auto",
     },
     {
       auth_status: {
@@ -46,6 +47,7 @@ const runtimeProvidersFixture = {
       default: false,
       display_name: "Codex",
       name: "codex",
+      reviewer_mode: "agent",
     },
     {
       auth_status: {
@@ -64,6 +66,7 @@ const runtimeProvidersFixture = {
       default: false,
       display_name: "Gemini CLI",
       name: "gemini",
+      reviewer_mode: "",
     },
   ],
 } satisfies CompozyApiOkJsonResponseFor<"get", "/api/providers">;
