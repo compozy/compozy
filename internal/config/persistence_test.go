@@ -2182,6 +2182,8 @@ func TestEditConfigOverlayUnsetAlwaysOnAlias(t *testing.T) {
 	for _, path := range [][]string{
 		{"agents", "stays_on", "max_proposals"},
 		{"agents", "always_on", "max_proposals"},
+		{"agents", "stays_on"},
+		{"agents", "always_on"},
 	} {
 		t.Run("Should clear both tables when unsetting "+strings.Join(path, "."), func(t *testing.T) {
 			t.Parallel()

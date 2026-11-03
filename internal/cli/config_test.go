@@ -2906,6 +2906,23 @@ func TestConfigCommandsAlwaysOnPathAlias(t *testing.T) {
 	if fmt.Sprint(valueRecord.Value) != "3" || !strings.Contains(stderr, warning) {
 		t.Fatalf("get record = %#v stderr = %q, want 3 and the warning", valueRecord, stderr)
 	}
+	out, stderr, err = executeRootCommand(t, deps, "config", "get", "agents.stays_on", "-o", "json")
+	if err != nil {
+		t.Fatalf("config get old table error = %v", err)
+	}
+	var tableRecord configValueRecord
+	if err := json.Unmarshal([]byte(out), &tableRecord); err != nil {
+		t.Fatal(err)
+	}
+	table, ok := tableRecord.Value.(map[string]any)
+	if tableRecord.Path != "agents.always_on" || !ok || fmt.Sprint(table["max_proposals"]) != "3" ||
+		!strings.Contains(stderr, warning) {
+		t.Fatalf(
+			"get table record = %#v stderr = %q, want the agents.always_on table and the warning",
+			tableRecord,
+			stderr,
+		)
+	}
 	if _, stderr, err = executeRootCommand(
 		t,
 		deps,

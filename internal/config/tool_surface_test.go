@@ -961,4 +961,28 @@ func TestToolConfigPathAlias(t *testing.T) {
 			t.Fatalf("CanonicalDottedConfigPath(other) = %q, %v", unchanged, deprecated)
 		}
 	})
+
+	t.Run("Should read the whole table through the old table path", func(t *testing.T) {
+		t.Parallel()
+
+		path, deprecated := CanonicalDottedConfigPath("agents.stays_on")
+		if !deprecated || path != "agents.always_on" {
+			t.Fatalf("CanonicalDottedConfigPath(table) = %q, %v; want agents.always_on", path, deprecated)
+		}
+		cfg := DefaultWithHome(HomePaths{})
+		cfg.Agents.AlwaysOn.MaxProposals = 4
+		agents, ok := RedactedConfigMap(&cfg)["agents"].(map[string]any)
+		if !ok {
+			t.Fatal("RedactedConfigMap() has no agents table")
+		}
+		table, ok := agents["always_on"].(map[string]any)
+		if !ok || fmt.Sprint(table["max_proposals"]) != "4" {
+			t.Fatalf("agents.always_on table = %#v, want max_proposals 4", agents["always_on"])
+		}
+		for _, other := range []string{"agents", "agents.always_on", "agents.stays_onx"} {
+			if unchanged, deprecated := CanonicalDottedConfigPath(other); deprecated || unchanged != other {
+				t.Fatalf("CanonicalDottedConfigPath(%q) = %q, %v; want unchanged", other, unchanged, deprecated)
+			}
+		}
+	})
 }

@@ -263,8 +263,10 @@ func configPathAliasTwin(path []string) ([]string, bool) {
 	return nil, false
 }
 
+// configPathHasPrefix reports whether path is prefix itself or a key under it, so the whole
+// aliased table resolves the same way as its keys.
 func configPathHasPrefix(path []string, prefix []string) bool {
-	return len(path) > len(prefix) && slices.Equal(path[:len(prefix)], prefix)
+	return len(path) >= len(prefix) && slices.Equal(path[:len(prefix)], prefix)
 }
 
 // ParseDottedConfigPath parses a user-facing dotted config path.
