@@ -10,12 +10,6 @@ export function heldPhrase(held: number) {
   return `${thingsCount(held)} ${held === 1 ? "is" : "are"} waiting`;
 }
 
-/** What resuming hands over, for the record the report settles into. */
-export function deliveredPhrase(held: number) {
-  if (held <= 0) return "";
-  return `Delivering ${thingsCount(held)} that ${held === 1 ? "was" : "were"} waiting.`;
-}
-
 const BLOCKER: Record<string, string> = {
   active_turn: "I'm still finishing a step",
   session_state_or_interaction: "a question is waiting for your answer",
