@@ -1118,6 +1118,44 @@ func TestSessionArchiveCommandsReturnUpdatedSession(t *testing.T) {
 	})
 }
 
+func TestSessionMarkSeenCommandForwardsTheSession(t *testing.T) {
+	t.Run("Should mark the session as seen and surface a refusal", func(t *testing.T) {
+		t.Parallel()
+
+		var marked []string
+		refuse := false
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			markSessionSeenFn: func(_ context.Context, id string) (SessionRecord, error) {
+				if refuse {
+					return SessionRecord{}, errors.New("session sess-1 needs you to answer its question")
+				}
+				marked = append(marked, id)
+				return SessionRecord{
+					ID: id, AgentName: "coder", WorkspaceID: "ws-1", State: session.StateActive,
+					Badge: session.BadgeIdle, CreatedAt: fixedTestNow, UpdatedAt: fixedTestNow,
+				}, nil
+			},
+		})
+
+		output, _, err := executeRootCommand(t, deps, "session", "mark-seen", "sess-1", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session mark-seen) error = %v", err)
+		}
+		var record SessionRecord
+		if err := json.Unmarshal([]byte(output), &record); err != nil {
+			t.Fatalf("json.Unmarshal(session mark-seen) error = %v", err)
+		}
+		if !slices.Equal(marked, []string{"sess-1"}) || record.Badge != session.BadgeIdle {
+			t.Fatalf("session mark-seen = %#v marked=%v, want sess-1 out of Needs you", record, marked)
+		}
+		refuse = true
+		_, _, err = executeRootCommand(t, deps, "session", "mark-seen", "sess-1")
+		if err == nil || !strings.Contains(err.Error(), "answer its question") {
+			t.Fatalf("executeRootCommand(session mark-seen refused) error = %v, want the blocker", err)
+		}
+	})
+}
+
 func TestSessionLaterCommandsForwardTheParkRequest(t *testing.T) {
 	t.Run("Should forward reason and return time and bring the session back", func(t *testing.T) {
 		t.Parallel()
