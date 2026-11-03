@@ -4921,6 +4921,17 @@ export type MoveSessionToLaterRequest = {
   return_at?: string | null;
 };
 
+export type MoveSessionToProfileRequest = {
+  target_profile: string;
+};
+
+export type MoveSessionToProfileResponse = {
+  branch?: string;
+  original: SessionPayload;
+  session: SessionPayload;
+  worktree_id?: string;
+};
+
 export type MoveWorkspaceRequest = {
   folder_id?: string;
   workspace_id: string;
@@ -37591,6 +37602,70 @@ export type MoveSessionResponses = {
 };
 
 export type MoveSessionResponse = MoveSessionResponses[keyof MoveSessionResponses];
+
+export type MoveSessionToProfileData = {
+  /**
+   * JSON request body
+   */
+  body: MoveSessionToProfileRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile";
+};
+
+export type MoveSessionToProfileErrors = {
+  /**
+   * Invalid move request or target profile
+   */
+  400: ErrorPayload;
+  /**
+   * The caller cannot write to the target profile
+   */
+  403: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Move refused by a rule; code names the rule
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session profile move unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type MoveSessionToProfileError =
+  MoveSessionToProfileErrors[keyof MoveSessionToProfileErrors];
+
+export type MoveSessionToProfileResponses = {
+  /**
+   * OK
+   */
+  200: MoveSessionToProfileResponse;
+};
+
+export type MoveSessionToProfileResponse2 =
+  MoveSessionToProfileResponses[keyof MoveSessionToProfileResponses];
 
 export type ClearSessionParentData = {
   body?: never;

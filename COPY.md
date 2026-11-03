@@ -314,6 +314,14 @@ A session's child sessions are the rows nested under it in the session list; con
 - Checkbox: "Also archive {N} child session(s)", checked by default. In the delete dialogs "Also delete {N} child session(s)", unchecked by default because deletion cannot be undone. Subagents always follow an archived parent, so archive does not count them.
 - Failed count read: "Couldn't read child sessions." with "Try again". Archive reports the read error and does not run.
 
+### Session Move to Profile Terms
+
+A session's profile never changes; **Move to profile** copies it into another profile and archives the original. Never "transfer", "migrate", or "reassign" in UI copy.
+
+- Verb: "Move to profile" (row menu submenu of the other active profile names). Not offered for archived, subagent, or spawned sessions, or when no other active profile exists.
+- Dialog: title "Move to profile"; description "A copy with this conversation starts in {profile}. This session is archived here and keeps its history."; worktree note "Its worktree moves too: the branch is checked out again for {profile}."; refusals "Stop this session before moving it." · "This session has child sessions. Make them top-level first.", and the daemon's own reason (for example uncommitted worktree changes) verbatim; pending "Moving the session…"; confirm "Move to {profile}".
+- Toast: "Moved to {profile}" with "The original is archived here."
+
 ### Session Later Terms
 
 **Later** parks a session the operator will come back to: it stops, leaves the normal lists and the board columns, and comes back on its own on an optional return date. The noun is always capitalized "Later"; never "snooze", "park", "shelve", "defer", or "backlog" in UI copy ("Parked {relative}" is the only use of "park", as a timestamp).

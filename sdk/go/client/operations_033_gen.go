@@ -8,6 +8,34 @@ import (
 	"strings"
 )
 
+// TriggerAutomationJob Trigger one automation job immediately
+func (c *Client) TriggerAutomationJob(ctx context.Context, params TriggerAutomationJobParams) (*RunResponse, error) {
+	path := "/api/automation/jobs/{id}/trigger"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RunResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// TriggerSettingsRestart Trigger a daemon restart using the persisted relaunch helper flow
+func (c *Client) TriggerSettingsRestart(ctx context.Context) (*RestartActionResponse, error) {
+	path := "/api/settings/actions/restart"
+	var out RestartActionResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // UnarchiveProfileParams carries the path, query, and header parameters.
 type UnarchiveProfileParams struct {
 	Name string `url:"name"`
@@ -412,34 +440,4 @@ func (c *Client) UpdateSessionPresence(ctx context.Context, params UpdateSession
 type UpdateSettingsAttentionParams struct {
 	Scope   *string `url:"scope"`
 	Profile *string `url:"profile"`
-}
-
-// UpdateSettingsAttention Update the operator attention settings section
-func (c *Client) UpdateSettingsAttention(ctx context.Context, params UpdateSettingsAttentionParams, body UpdateSettingsAttentionRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/attention"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateSettingsAutomation Update the automation settings section
-func (c *Client) UpdateSettingsAutomation(ctx context.Context, body UpdateSettingsAutomationRequest) (*SettingsApplyResponse, error) {
-	path := "/api/settings/automation"
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

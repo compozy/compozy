@@ -311,6 +311,118 @@ func (r *recordingTurnWorktreeRefresher) Status(
 	return &worktree.Status{WorktreeID: worktreeID}, nil
 }
 
+// profileMoveWorktreeStub records the worktree calls a session move makes and fails
+// the ones a case scripts.
+type profileMoveWorktreeStub struct {
+	item       worktree.Worktree
+	status     worktree.Status
+	refreshes  []bool
+	removeErrs []error
+	removes    []bool
+	createErrs []error
+	creates    []worktree.CreateOptions
+}
+
+func (s *profileMoveWorktreeStub) Get(context.Context, string, string) (*worktree.Worktree, error) {
+	item := s.item
+	return &item, nil
+}
+
+func (s *profileMoveWorktreeStub) Status(_ context.Context, _, _ string, refresh bool) (*worktree.Status, error) {
+	s.refreshes = append(s.refreshes, refresh)
+	status := s.status
+	return &status, nil
+}
+
+func (s *profileMoveWorktreeStub) Remove(_ context.Context, _, _ string, force bool) (*worktree.RemovalRefusal, error) {
+	s.removes = append(s.removes, force)
+	if len(s.removeErrs) == 0 {
+		return nil, nil
+	}
+	err := s.removeErrs[0]
+	s.removeErrs = s.removeErrs[1:]
+	return nil, err
+}
+
+func (s *profileMoveWorktreeStub) Create(
+	_ context.Context, workspaceID string, options worktree.CreateOptions,
+) (*worktree.Worktree, error) {
+	s.creates = append(s.creates, options)
+	if len(s.createErrs) > 0 {
+		err := s.createErrs[0]
+		s.createErrs = s.createErrs[1:]
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &worktree.Worktree{
+		ID: "wt-new", WorkspaceID: workspaceID, ProfileID: options.ProfileID, Path: "/worktrees/new",
+		State: worktree.StateReady,
+	}, nil
+}
+
+func TestDaemonProfileMoveWorktrees(t *testing.T) {
+	t.Parallel()
+
+	resolverFor := func(stub *profileMoveWorktreeStub) daemonSessionWorktreeResolver {
+		return daemonSessionWorktreeResolver{lookup: func() sessionWorktreeLookup { return stub }}
+	}
+
+	t.Run("Should read the branch, head, and uncommitted files from a fresh status", func(t *testing.T) {
+		t.Parallel()
+		stub := &profileMoveWorktreeStub{
+			item: worktree.Worktree{ID: "wt-src", Branch: "feat/old", State: worktree.StateReady},
+			status: worktree.Status{
+				Branch: new("feat/move"), HeadSHA: new("abc123"), Detached: new(false), DirtyFiles: new(3),
+			},
+		}
+		checkout, err := resolverFor(stub).InspectProfileMoveWorktree(t.Context(), "ws", "wt-src")
+		if err != nil {
+			t.Fatalf("InspectProfileMoveWorktree() error = %v", err)
+		}
+		if checkout.Branch != "feat/move" || checkout.HeadSHA != "abc123" || checkout.DirtyFiles != 3 ||
+			!checkout.Ready || len(stub.refreshes) != 1 || !stub.refreshes[0] {
+			t.Fatalf("checkout = %#v refreshes = %v, want a refreshed status", checkout, stub.refreshes)
+		}
+	})
+
+	t.Run("Should remove a clean checkout with unpushed commits because its branch keeps them", func(t *testing.T) {
+		t.Parallel()
+		stub := &profileMoveWorktreeStub{removeErrs: []error{worktree.ErrUnpushedRequiresForce}}
+		if err := resolverFor(stub).ReleaseProfileMoveWorktree(t.Context(), "ws", "wt-src"); err != nil {
+			t.Fatalf("ReleaseProfileMoveWorktree() error = %v", err)
+		}
+		if len(stub.removes) != 2 || stub.removes[0] || !stub.removes[1] {
+			t.Fatalf("removals = %v, want an unforced attempt then a forced one", stub.removes)
+		}
+	})
+
+	t.Run("Should refuse to remove a checkout with uncommitted changes", func(t *testing.T) {
+		t.Parallel()
+		stub := &profileMoveWorktreeStub{removeErrs: []error{worktree.ErrDirtyRequiresForce}}
+		err := resolverFor(stub).ReleaseProfileMoveWorktree(t.Context(), "ws", "wt-src")
+		refusal, ok := errors.AsType[*session.ProfileMoveError](err)
+		if !ok || refusal.Reason != session.ProfileMoveRefusalWorktreeDirty || len(stub.removes) != 1 {
+			t.Fatalf("release error = %v removals = %v, want one unforced worktree_dirty refusal", err, stub.removes)
+		}
+	})
+
+	t.Run("Should check the branch out again and recreate it at the head when it is gone", func(t *testing.T) {
+		t.Parallel()
+		stub := &profileMoveWorktreeStub{createErrs: []error{worktree.ErrBaseRefNotFound}}
+		checkout := session.ProfileMoveCheckout{Branch: "feat/move", HeadSHA: "abc123"}
+		id, root, err := resolverFor(stub).CreateProfileMoveWorktree(t.Context(), "ws", "profile-work", checkout)
+		if err != nil || id != "wt-new" || root != "/worktrees/new" {
+			t.Fatalf("CreateProfileMoveWorktree() = %q %q %v", id, root, err)
+		}
+		if len(stub.creates) != 2 || stub.creates[0].ExistingBranch != "feat/move" ||
+			stub.creates[1].Branch != "feat/move" || stub.creates[1].BaseRef != "abc123" ||
+			stub.creates[1].ProfileID != "profile-work" {
+			t.Fatalf("creates = %#v, want the existing branch, then the branch recreated at abc123", stub.creates)
+		}
+	})
+}
+
 type sessionWorktreeLookupFunc func(context.Context, string, string) (*worktree.Worktree, error)
 
 func (f sessionWorktreeLookupFunc) Get(

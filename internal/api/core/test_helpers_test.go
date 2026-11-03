@@ -233,6 +233,7 @@ func newHandlerFixtureWithRuntime(
 	engine.PATCH("/workspaces/:workspace_id/sessions/:session_id", handlers.RenameSession)
 	engine.PUT("/workspaces/:workspace_id/sessions/:session_id/parent", handlers.SetSessionParent)
 	engine.DELETE("/workspaces/:workspace_id/sessions/:session_id/parent", handlers.ClearSessionParent)
+	engine.POST("/workspaces/:workspace_id/sessions/:session_id/move-to-profile", handlers.MoveSessionToProfile)
 	engine.GET("/workspaces/:workspace_id/sessions/:session_id/commands", handlers.GetSessionCommands)
 	engine.POST("/workspaces/:workspace_id/sessions/:session_id/presence", handlers.SessionPresence)
 	engine.POST("/workspaces/:workspace_id/sessions/:session_id/wait", handlers.SessionWait)

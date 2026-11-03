@@ -34,6 +34,19 @@ type MoveSessionToLaterRequest struct {
 	ReturnAt *time.Time `json:"return_at,omitempty"`
 }
 
+// MoveSessionToProfileRequest is a daemon API value.
+type MoveSessionToProfileRequest struct {
+	TargetProfile string `json:"target_profile"`
+}
+
+// MoveSessionToProfileResponse is a daemon API value.
+type MoveSessionToProfileResponse struct {
+	Session    SessionPayload `json:"session"`
+	Original   SessionPayload `json:"original"`
+	WorktreeID string         `json:"worktree_id,omitempty"`
+	Branch     string         `json:"branch,omitempty"`
+}
+
 // MoveWorkspaceRequest is a daemon API value.
 type MoveWorkspaceRequest struct {
 	WorkspaceID string `json:"workspace_id"`
@@ -429,21 +442,4 @@ type OwnerKind string
 type Ownership struct {
 	Kind OwnerKind `json:"kind"`
 	Ref  string    `json:"ref"`
-}
-
-// Pagination is a daemon API value.
-type Pagination struct {
-	HasMore  bool `json:"has_more"`
-	PageSize int  `json:"page_size,omitempty"`
-}
-
-// ParentClosePolicy is a daemon API value.
-type ParentClosePolicy string
-
-// ParticipantPolicy is a daemon API value.
-type ParticipantPolicy struct {
-	AllowedAgentNames     []string `json:"allowed_agent_names,omitempty"`
-	PreferredAgentNames   []string `json:"preferred_agent_names,omitempty"`
-	RequiredCapabilities  []string `json:"required_capabilities,omitempty"`
-	PreferredCapabilities []string `json:"preferred_capabilities,omitempty"`
 }

@@ -7,6 +7,32 @@ import (
 	"time"
 )
 
+// SettingsProviderModelsPayload is a daemon API value.
+type SettingsProviderModelsPayload struct {
+	Default   string                                  `json:"default,omitempty"`
+	Curated   []SettingsProviderModelPayload          `json:"curated,omitempty"`
+	Discovery *SettingsProviderModelsDiscoveryPayload `json:"discovery,omitzero"`
+	Reasoning *SettingsProviderReasoningPayload       `json:"reasoning,omitzero"`
+}
+
+// SettingsProviderReasoningPayload is a daemon API value.
+type SettingsProviderReasoningPayload struct {
+	Apply string `json:"apply"`
+}
+
+// SettingsProviderResponse is a daemon API value.
+type SettingsProviderResponse struct {
+	Provider SettingsProviderItemPayload `json:"provider"`
+}
+
+// SettingsProviderSecretWritePayload is a daemon API value.
+type SettingsProviderSecretWritePayload struct {
+	Name      string `json:"name,omitempty"`
+	SecretRef string `json:"secret_ref"`
+	Kind      string `json:"kind,omitempty"`
+	Value     string `json:"value"`
+}
+
 // SettingsProviderSettingsPayload is a daemon API value.
 type SettingsProviderSettingsPayload struct {
 	SessionEnv       map[string]SessionEnvBindingPayload     `json:"session_env,omitempty"`
@@ -413,28 +439,3 @@ type SettingsUpdateHolderPayload struct {
 
 // SettingsUpdateInstallMethod is a daemon API value.
 type SettingsUpdateInstallMethod string
-
-// SettingsUpdateOperationPayload is a daemon API value.
-type SettingsUpdateOperationPayload struct {
-	ID           string                       `json:"id"`
-	Revision     int64                        `json:"revision"`
-	Targets      []SettingsUpdateTarget       `json:"targets"`
-	ActiveTarget *SettingsUpdateTarget        `json:"active_target,omitzero"`
-	Phase        SettingsUpdatePhase          `json:"phase"`
-	Percent      int                          `json:"percent"`
-	Holder       *SettingsUpdateHolderPayload `json:"holder"`
-	Waiting      SettingsUpdateWaitingState   `json:"waiting"`
-	StartedAt    time.Time                    `json:"started_at"`
-	LastError    string                       `json:"last_error"`
-}
-
-// SettingsUpdatePhase is a daemon API value.
-type SettingsUpdatePhase string
-
-// SettingsUpdateResponse is a daemon API value.
-type SettingsUpdateResponse struct {
-	Aggregate SettingsUpdateStatusKind        `json:"aggregate"`
-	Operation *SettingsUpdateOperationPayload `json:"operation"`
-	Runtime   SettingsUpdateRuntimePayload    `json:"runtime"`
-	App       *SettingsUpdateAppPayload       `json:"app"`
-}

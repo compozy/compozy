@@ -300,6 +300,44 @@ compozy session reparent sess_worker --top-level   # take over a stopped spawned
 A spawned worker stopped because its parent stopped can also be resumed directly: send it a
 prompt, and it keeps running even though the parent is gone.
 
+## Move a session to another profile
+
+A session belongs to the profile it was created in, and that never changes. When a session was
+started in the wrong profile, **Move to profile** in its row menu copies it into another profile
+and archives the original. Pick the profile from the submenu, then confirm. The copy is a fork with
+the same agent, title, and conversation, owned by the target profile, so it runs with that
+profile's agents, credentials, and settings. The original stays archived in its own profile with
+its history, and its past token usage stays counted there.
+
+If the session has a worktree, the worktree moves too: the daemon removes the original's
+checkout, keeps the branch and every commit, and checks the branch out again in a new worktree
+owned by the target profile. The copy runs in that new worktree.
+
+The move is refused, with the reason in the dialog, when the session:
+
+- is running (stop it first)
+- has child sessions (make them top-level first)
+- is archived, or is a subagent or spawned worker
+- has a worktree with uncommitted changes, a worktree another unarchived session still uses, a
+  detached checkout, or a worktree that belongs to a task run
+
+If a step fails after the original was archived, the daemon undoes the move: it releases the new
+checkout, checks the branch out again for the original profile, unarchives the original, and
+binds it to that worktree. If that recovery cannot finish, the error says what is left; the
+session and the branch are never deleted.
+
+```bash
+compozy session move-to-profile sess_1234 work -o json
+# {"session":{"id":"sess-…","profile_name":"work",…},"original":{"id":"sess_1234",…},
+#  "worktree_id":"wt_…","branch":"feat/…"}
+```
+
+Agents use `compozy__session_move_to_profile` with `session_id` and `target_profile`. An agent
+cannot move its own session, and writing to the target profile follows the same permission rules
+as any other cross-profile write. A refused request returns HTTP 409 with a
+`session_move_to_profile_*` error code naming the rule. `compozy session move` is a different
+command: it only places a session in a folder.
+
 ## Copy a session's ID or title
 
 Open a row's **…** menu or right-click it and choose **Copy session ID** (the `sess-…` ID that

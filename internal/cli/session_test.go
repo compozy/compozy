@@ -1322,6 +1322,57 @@ func TestSessionReparentCommand(t *testing.T) {
 	})
 }
 
+func TestSessionMoveToProfileCommand(t *testing.T) {
+	t.Parallel()
+
+	deps := newWorkspaceTestDeps(t, &stubClient{
+		moveSessionToProfileFn: func(
+			_ context.Context, id string, request MoveSessionToProfileRequest,
+		) (MoveSessionToProfileResponse, error) {
+			if id != "sess-src" || request.TargetProfile != "work" {
+				t.Fatalf("MoveSessionToProfile() = id %q request %#v", id, request)
+			}
+			return MoveSessionToProfileResponse{
+				Session: SessionRecord{
+					ID: "sess-copy", AgentName: "coder", WorkspaceID: "ws-1", State: session.StateStopped,
+					CreatedAt: fixedTestNow, UpdatedAt: fixedTestNow,
+				},
+				Original: SessionRecord{
+					ID: id, AgentName: "coder", WorkspaceID: "ws-1", State: session.StateStopped,
+					CreatedAt: fixedTestNow, UpdatedAt: fixedTestNow,
+				},
+				WorktreeID: "wt-new", Branch: "feat/move",
+			}, nil
+		},
+	})
+
+	t.Run("Should print the copy, the archived original, and the new worktree", func(t *testing.T) {
+		t.Parallel()
+		stdout, _, err := executeRootCommand(t, deps, "session", "move-to-profile", "sess-src", "work", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session move-to-profile) error = %v", err)
+		}
+		var moved MoveSessionToProfileResponse
+		if err := json.Unmarshal([]byte(stdout), &moved); err != nil {
+			t.Fatalf("json.Unmarshal(session move-to-profile) error = %v", err)
+		}
+		if moved.Session.ID != "sess-copy" || moved.Original.ID != "sess-src" || moved.WorktreeID != "wt-new" {
+			t.Fatalf("session move-to-profile output = %#v", moved)
+		}
+		human, _, err := executeRootCommand(t, deps, "session", "move-to-profile", "sess-src", "work")
+		if err != nil || !strings.Contains(human, "sess-src (archived)") || !strings.Contains(human, "feat/move") {
+			t.Fatalf("session move-to-profile human output = %q, %v", human, err)
+		}
+	})
+
+	t.Run("Should require the session and the target profile", func(t *testing.T) {
+		t.Parallel()
+		if _, _, err := executeRootCommand(t, deps, "session", "move-to-profile", "sess-src"); err == nil {
+			t.Fatal("executeRootCommand(session move-to-profile without profile) error = nil")
+		}
+	})
+}
+
 func TestSessionListRejectsConflictingArchiveFilters(t *testing.T) {
 	t.Run("Should reject conflicting archive filters", func(t *testing.T) {
 		t.Parallel()

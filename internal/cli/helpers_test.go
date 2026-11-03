@@ -153,6 +153,7 @@ type stubClient struct {
 	renameSessionFn                  func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
 	setSessionParentFn               func(context.Context, string, SetSessionParentRequest) (SessionRecord, error)
 	clearSessionParentFn             func(context.Context, string) (SessionRecord, error)
+	moveSessionToProfileFn           func(context.Context, string, MoveSessionToProfileRequest) (MoveSessionToProfileResponse, error)
 	deleteSessionFn                  func(context.Context, string, bool, contract.SessionProcessPolicy) error
 	resumeSessionFn                  func(context.Context, string) (SessionRecord, error)
 	uploadSessionAttachmentFn        func(context.Context, string, string) (SessionAttachmentRecord, error)
@@ -1388,6 +1389,17 @@ func (s *stubClient) ClearSessionParent(ctx context.Context, id string) (Session
 		return s.clearSessionParentFn(ctx, id)
 	}
 	return SessionRecord{}, errors.New("unexpected ClearSessionParent call")
+}
+
+func (s *stubClient) MoveSessionToProfile(
+	ctx context.Context,
+	id string,
+	request MoveSessionToProfileRequest,
+) (MoveSessionToProfileResponse, error) {
+	if s.moveSessionToProfileFn != nil {
+		return s.moveSessionToProfileFn(ctx, id, request)
+	}
+	return MoveSessionToProfileResponse{}, errors.New("unexpected MoveSessionToProfile call")
 }
 
 func (s *stubClient) DeleteSession(

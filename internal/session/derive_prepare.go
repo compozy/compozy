@@ -36,7 +36,7 @@ func (m *Manager) prepareDerive(
 	}
 	meta := &snapshot.meta
 	agentName := firstTrimmedNonEmpty(spec.agentName, meta.AgentName)
-	agentDef, workspace, err := m.resolveDeriveTargetAgent(ctx, meta, agentName)
+	agentDef, workspace, err := m.resolveDeriveTargetAgent(ctx, deriveResolutionMeta(spec, meta), agentName)
 	if err != nil {
 		return preparedDerive{}, err
 	}
@@ -59,7 +59,7 @@ func (m *Manager) prepareDerive(
 	if err != nil {
 		return preparedDerive{}, err
 	}
-	profileID := deriveChildProfileID(spec.profileID, meta)
+	profileID := deriveChildProfileID(spec.childProfileID(), meta)
 	now := m.now().UTC()
 	firstPrompt, outcomePrompt := deriveFirstPrompt(spec)
 	seed := deriveSeedOutcome{seed: store.SessionDerivationSeedReplay}
@@ -94,9 +94,7 @@ func (m *Manager) prepareDerive(
 		ImportedContext: imported,
 		deriveReceipt:   &receipt,
 	}
-	if workspace.Scope == workspacepkg.ScopeUser {
-		opts.CWD = ""
-	}
+	placeDeriveChild(&opts, spec, workspace.Scope)
 	runtime := spec.runtime
 	if spec.kind == store.LineageKindFork {
 		runtime = forkRuntimeFromMeta(meta)
@@ -279,6 +277,28 @@ func (m *Manager) deriveBudget(workspace *workspacepkg.ResolvedWorkspace) replay
 		MaxBytes: cfg.MaxReplayBytes, MaxMessageBytes: cfg.MaxMessageBytes,
 		PinFirstUser: true,
 	}
+}
+
+// placeDeriveChild drops a User child's cwd and moves a relocated child to its checkout.
+func placeDeriveChild(opts *CreateOpts, spec deriveSpec, scope workspacepkg.ScopeKind) {
+	if scope == workspacepkg.ScopeUser {
+		opts.CWD = ""
+		return
+	}
+	if spec.relocation != nil {
+		opts.Worktree, opts.CWD = spec.relocation.worktreeID, spec.relocation.cwd
+	}
+}
+
+// deriveResolutionMeta is the source as seen from the child's profile: a relocated copy
+// resolves its agent, route, and context budget from the target profile's layers.
+func deriveResolutionMeta(spec deriveSpec, meta *store.SessionMeta) *store.SessionMeta {
+	if spec.relocation == nil || meta == nil {
+		return meta
+	}
+	resolved := *meta
+	resolved.ProfileID = spec.relocation.profileID
+	return &resolved
 }
 
 // deriveChildProfileID keeps the requested profile, else the source session's profile.

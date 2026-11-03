@@ -53,6 +53,11 @@ replacement. Sessions an agent creates through `compozy__session_create`, `compo
 `compozy__subagent_delegate`, or the in-session `compozy session create` bind the caller session's
 profile.
 
+A session's profile never changes. To move work started in the wrong profile, use
+`compozy session move-to-profile <id> <profile>` (native `compozy__session_move_to_profile`): it
+copies a stopped session into the target profile as a fork, moves its worktree branch to a new
+worktree owned by that profile, and archives the original, whose history and usage stay put.
+
 Worktrees are intentionally visible across profiles because they represent workspace filesystem state;
 their rows still identify the owner.
 

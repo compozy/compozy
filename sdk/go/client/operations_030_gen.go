@@ -10,6 +10,46 @@ import (
 	"strings"
 )
 
+// SearchSessionTranscriptParams carries the path, query, and header parameters.
+type SearchSessionTranscriptParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+	Q           string `url:"q"`
+	Limit       *int   `url:"limit"`
+}
+
+// SearchSessionTranscript Search retained transcript messages with bounded literal matches
+func (c *Client) SearchSessionTranscript(ctx context.Context, params SearchSessionTranscriptParams) (*SearchResult, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	query.Set("q", params.Q)
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SearchResult
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// SearchSessionWorkCandidatesParams carries the path, query, and header parameters.
+type SearchSessionWorkCandidatesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+	Kind        *string `url:"kind"`
+	Q           *string `url:"q"`
+	Page        *string `url:"page"`
+	Limit       *string `url:"limit"`
+}
+
 // SearchSessionWorkCandidates Search this project for link candidates
 func (c *Client) SearchSessionWorkCandidates(ctx context.Context, params SearchSessionWorkCandidatesParams) (*WorkCandidates, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/link-candidates"
@@ -401,33 +441,6 @@ func (c *Client) StopSession(ctx context.Context, params StopSessionParams, body
 // StreamCmdPaletteParams carries the path, query, and header parameters.
 type StreamCmdPaletteParams struct {
 	Workspace   string  `url:"workspace"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// StreamCmdPalette Stream command palette catalog invalidations
-func (c *Client) StreamCmdPalette(ctx context.Context, params StreamCmdPaletteParams) (*Stream[CmdPaletteCatalogChangedEvent], error) {
-	path := "/api/cmd-palette/stream"
-	query := url.Values{}
-	query.Set("workspace", params.Workspace)
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return newStream[CmdPaletteCatalogChangedEvent](ctx, c, "GET", path, nil, nil, "streamCmdPalette")
-}
-
-// StreamCmdPaletteViewParams carries the path, query, and header parameters.
-type StreamCmdPaletteViewParams struct {
-	ID          string  `url:"id"`
-	Workspace   string  `url:"workspace"`
-	After       *string `url:"after"`
-	StreamEpoch *string `url:"stream_epoch"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
 }

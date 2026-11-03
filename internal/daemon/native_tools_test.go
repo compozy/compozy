@@ -16353,3 +16353,110 @@ func (s *subagentLimitStub) PermissionLimit(
 ) (session.SubagentPermissionLimit, error) {
 	return s.limit, nil
 }
+
+// The native move-to-profile binding owns the caller fence, the target-profile write
+// authorization, and public refusal codes; the session manager owns the move itself.
+func TestNativeSessionMoveToProfile(t *testing.T) {
+	t.Parallel()
+
+	const targetID = "01PROFILEWORK00000000000000"
+	newRegistry := func(
+		t *testing.T, decision workspaceaccess.Decision, move func(session.MoveToProfileOpts) error,
+	) (*toolspkg.RuntimeRegistry, *recordingNativeWorkspaceAccessPolicy, *[]session.MoveToProfileOpts) {
+		t.Helper()
+		calls := []session.MoveToProfileOpts{}
+		sessions := nativeTestSessionManager("ws-move")
+		sessions.MoveToProfileFn = func(
+			_ context.Context, opts session.MoveToProfileOpts,
+		) (session.MoveToProfileResult, error) {
+			calls = append(calls, opts)
+			if err := move(opts); err != nil {
+				return session.MoveToProfileResult{}, err
+			}
+			return session.MoveToProfileResult{
+				Copy:     &session.Info{ID: "sess-copy", ProfileID: targetID, WorkspaceID: "ws-move"},
+				Original: &session.Info{ID: opts.SessionID, ProfileID: opts.ProfileID, WorkspaceID: "ws-move"},
+			}, nil
+		}
+		policy := &recordingNativeWorkspaceAccessPolicy{decision: decision}
+		registry := newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(t, &daemonNativeToolsDeps{
+			Sessions: sessions, Workspaces: nativeTestWorkspaceService(t), WorkspaceAccess: policy,
+			Profiles: nativeProfileReaderStub{profiles: []profilepkg.WithCounts{
+				{ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive},
+				{ID: targetID, Name: "work", State: profilepkg.StateActive},
+			}},
+		}, toolspkg.NewStaticPolicyInputResolver(nativeApproveAllPolicyInputs()), policy)
+		return registry, policy, &calls
+	}
+	request := func(sessionID string) toolspkg.CallRequest {
+		return toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDSessionMoveToProfile,
+			Input:  json.RawMessage(`{"session_id":"` + sessionID + `","target_profile":"work"}`),
+		}
+	}
+	agent := toolspkg.Scope{SessionID: "sess-agent", WorkspaceID: "ws-move", AgentName: "coder"}
+
+	t.Run("Should move another session once the policy admits the target-profile write", func(t *testing.T) {
+		t.Parallel()
+		registry, policy, calls := newRegistry(t, workspaceaccess.Decision{Allowed: true}, func(
+			session.MoveToProfileOpts,
+		) error {
+			return nil
+		})
+		result, err := registry.Call(t.Context(), agent, request("sess-source"))
+		if err != nil {
+			t.Fatalf("Registry.Call(session_move_to_profile) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"id":"sess-copy"`))
+		requireNativeStructuredContains(t, result, []byte(`"original":{`))
+		if len(*calls) != 1 || (*calls)[0].TargetProfileID != targetID || (*calls)[0].SessionID != "sess-source" ||
+			(*calls)[0].ProfileID != store.DefaultProfileID {
+			t.Fatalf("MoveToProfile() calls = %#v, want one move of sess-source to %s", *calls, targetID)
+		}
+		if policy.calls != 1 || policy.last.Target.ProfileID != targetID || policy.last.ReadOnly {
+			t.Fatalf("policy request = %d %#v, want one write to %s", policy.calls, policy.last, targetID)
+		}
+	})
+
+	t.Run("Should deny the move without permission to write the target profile", func(t *testing.T) {
+		t.Parallel()
+		registry, _, calls := newRegistry(t, workspaceaccess.Decision{
+			Denial: workspaceaccess.DenialNeedsGrant,
+		}, func(session.MoveToProfileOpts) error { return nil })
+		_, err := registry.Call(t.Context(), agent, request("sess-source"))
+		if !errors.Is(err, toolspkg.ErrToolDenied) || len(*calls) != 0 {
+			t.Fatalf("denied move error = %v calls = %d, want denied before moving", err, len(*calls))
+		}
+	})
+
+	t.Run("Should refuse an agent moving its own session", func(t *testing.T) {
+		t.Parallel()
+		registry, policy, calls := newRegistry(t, workspaceaccess.Decision{Allowed: true}, func(
+			session.MoveToProfileOpts,
+		) error {
+			return nil
+		})
+		_, err := registry.Call(t.Context(), agent, request(agent.SessionID))
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSelfTargetDenied)
+		if len(*calls) != 0 || policy.calls != 0 {
+			t.Fatalf("self move calls = %d policy = %d, want none", len(*calls), policy.calls)
+		}
+	})
+
+	t.Run("Should preserve the refusal code of a move the manager refuses", func(t *testing.T) {
+		t.Parallel()
+		registry, _, _ := newRegistry(t, workspaceaccess.Decision{Allowed: true}, func(
+			session.MoveToProfileOpts,
+		) error {
+			return &session.ProfileMoveError{
+				Reason: session.ProfileMoveRefusalWorktreeDirty, Message: "uncommitted changes",
+			}
+		})
+		operator := toolspkg.Scope{Operator: true, WorkspaceID: "ws-move"}
+		_, err := registry.Call(t.Context(), operator, request("sess-source"))
+		got, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || string(got.Code) != "session_move_to_profile_worktree_dirty" {
+			t.Fatalf("refused move error = %v, want session_move_to_profile_worktree_dirty", err)
+		}
+	})
+}

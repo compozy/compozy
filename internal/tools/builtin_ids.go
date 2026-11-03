@@ -44,6 +44,8 @@ const (
 	ToolIDSessionRename ToolID = "compozy__session_rename"
 	// ToolIDSessionReparent nests a top-level user session under another session, or detaches it.
 	ToolIDSessionReparent ToolID = "compozy__session_reparent"
+	// ToolIDSessionMoveToProfile copies a stopped user session into another profile and archives it.
+	ToolIDSessionMoveToProfile ToolID = "compozy__session_move_to_profile"
 	// ToolIDSessionFolderList lists one workspace's session folders.
 	ToolIDSessionFolderList ToolID = "compozy__session_folder_list"
 	// ToolIDSessionFolderCreate creates one session folder.
