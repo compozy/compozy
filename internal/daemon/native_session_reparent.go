@@ -49,6 +49,9 @@ func (n *daemonNativeTools) sessionReparent(
 	if !ok {
 		return toolspkg.ToolResult{}, errors.New("daemon: session reparent manager is required")
 	}
+	if !scope.Operator {
+		ctx = session.WithActingSession(ctx, scope.SessionID)
+	}
 	if input.TopLevel {
 		if err := requireOperatorTakeOver(scope, target); err != nil {
 			return toolspkg.ToolResult{}, nativeReparentError(req.ToolID, err)
