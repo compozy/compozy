@@ -16,7 +16,7 @@ import {
   restoreProfileView,
   setProfileView,
 } from "../stores/profile-view-store";
-import { PROFILE_AGGREGATE, type ProfileView } from "../types";
+import { PROFILE_AGGREGATE, type ProfileSelectionPayload, type ProfileView } from "../types";
 import { usePinnedProfileView } from "./use-pinned-profile";
 import { useProfiles } from "./use-profiles";
 
@@ -123,15 +123,34 @@ export function useSwitchProfile() {
       void queryClient.invalidateQueries({ queryKey: profileKeys.selections() });
     }
   };
+  // The aggregate acts as the remembered choice, so the cached choice moves with the switch: a
+  // quick X → Y → All would otherwise act as X until the reread lands, and a window opened in
+  // that gap would land on X's desk (#1194). A read already in flight is dropped first so its
+  // older answer cannot overwrite the new choice.
+  const rememberLocally = async (view: ProfileView) => {
+    if (view.kind !== "profile") return;
+    await queryClient.cancelQueries({ queryKey: profileKeys.selection(), exact: true });
+    queryClient.setQueryData<ProfileSelectionPayload>(profileKeys.selection(), {
+      scope: "global",
+      profile: view.profile,
+    });
+  };
   const mutation = useMutation({
     mutationFn: rememberProfileView,
-    onMutate: (view: ProfileView) => {
+    onMutate: async (view: ProfileView) => {
       const previous = localProfileView();
+      const previousSelection = queryClient.getQueryData<ProfileSelectionPayload>(
+        profileKeys.selection()
+      );
       setProfileView(view);
-      return { previous };
+      await rememberLocally(view);
+      return { previous, previousSelection };
     },
     onError: (error, _view, context) => {
       restoreProfileView(context?.previous ?? null);
+      if (context?.previousSelection !== undefined) {
+        queryClient.setQueryData(profileKeys.selection(), context.previousSelection);
+      }
       notifyUser({
         message: error instanceof Error ? error.message : "Could not switch profile.",
         tone: "error",
@@ -147,6 +166,7 @@ export function useSwitchProfile() {
     // replaces the connection carrying that command.
     prepare: async (view: ProfileView) => {
       await rememberProfileView(view);
+      await rememberLocally(view);
       return () => {
         setProfileView(view);
         invalidateSelection(view);

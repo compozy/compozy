@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "@tanstack/react-router";
 import { cn } from "@compozy/ui";
 
 import { CmdPaletteRegistryProvider } from "../contexts/cmd-palette-registry-context";
+import { DeskProfileContext } from "../contexts/desk-profile-context";
 import { OsShellContext } from "../contexts/os-shell-context";
 import { useCmdPaletteRegistry } from "../hooks/use-cmd-palette-registry";
 import { WorktreeDialogActionsContext } from "../contexts/worktree-dialog-actions-context";
@@ -86,16 +87,18 @@ function DesktopChrome({ firstRun, update }: { firstRun: boolean; update: Menuba
   return (
     <WorktreeDialogActionsContext.Provider value={controller.worktreeDialogs}>
       <OsShellContext.Provider value={controller.chrome.shell}>
-        <TerminalCloseDialog controller={controller.chrome.terminalClose} />
-        <DesktopChromeContent
-          client={controller.chrome.client}
-          firstRun={firstRun}
-          model={controller.model}
-          clientCommandChannel={controller.chrome.clientCommandChannel}
-          update={update}
-          worktreeDialogs={controller.worktreeDialogs}
-          workspaceSetupDefaults={controller.workspaceSetupDefaults}
-        />
+        <DeskProfileContext value={controller.chrome.profileId}>
+          <TerminalCloseDialog controller={controller.chrome.terminalClose} />
+          <DesktopChromeContent
+            client={controller.chrome.client}
+            firstRun={firstRun}
+            model={controller.model}
+            clientCommandChannel={controller.chrome.clientCommandChannel}
+            update={update}
+            worktreeDialogs={controller.worktreeDialogs}
+            workspaceSetupDefaults={controller.workspaceSetupDefaults}
+          />
+        </DeskProfileContext>
       </OsShellContext.Provider>
     </WorktreeDialogActionsContext.Provider>
   );

@@ -5,7 +5,8 @@
 // sessions-rail state and worktree picks are pruned only against a snapshot fresh
 // since mount, never the cached window list a returning destination starts from;
 // an explicit switch into one profile closes, once its desk is live, exactly the
-// session windows another profile owns (#1184).
+// session, terminal, pinned agent and automation windows another profile owns
+// (#1184, #1194).
 // Boundary IN: chrome hook projection reads and provider ownership.
 // Boundary OUT: window-manager stream, client registration, and rendered DesktopShell.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -23,6 +24,13 @@ const profileScope = vi.hoisted(() => ({
   ownerId: "p_yankee",
 }));
 const sessionOwners = vi.hoisted(() => new Map<string, string>());
+// Terminals by the catalog selector they are listed in ("@all" for the aggregate read).
+const terminalOwners = vi.hoisted(
+  () => new Map<string, Array<{ id: string; profile_id: string }>>()
+);
+// Agent definitions by `<profile>/<name>`: a pinned window's owner read finds it there.
+const agentDefinitions = vi.hoisted(() => new Set<string>());
+const automationOwners = vi.hoisted(() => new Map<string, string>());
 
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({
@@ -63,6 +71,55 @@ vi.mock("@/systems/session", () => ({
     },
   }),
 }));
+
+vi.mock("@/systems/terminal", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/terminal")>();
+  return {
+    ...actual,
+    terminalAggregateQuery: () => ({
+      queryKey: ["terminals", "@all"],
+      queryFn: () => terminalOwners.get("@all") ?? [],
+    }),
+    terminalCatalogQuery: (scope: { key: { workspaceId: string } }) => ({
+      queryKey: ["terminals", scope.key.workspaceId],
+      queryFn: () => terminalOwners.get(scope.key.workspaceId) ?? [],
+    }),
+  };
+});
+
+vi.mock("@/systems/agent", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/agent")>();
+  return {
+    ...actual,
+    agentDetailOptions: (name: string, _workspace: string | null, profile: string) => ({
+      queryKey: ["agent", profile, name],
+      queryFn: () => {
+        if (!agentDefinitions.has(`${profile}/${name}`)) throw new Error("agent not found");
+        return { name };
+      },
+    }),
+  };
+});
+
+vi.mock("@/systems/automation", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/automation")>();
+  const read = (id: string) => {
+    const owner = automationOwners.get(id);
+    if (owner === undefined) throw new Error("automation not found");
+    return { id, profile_id: owner };
+  };
+  return {
+    ...actual,
+    automationJobDetailOptions: (id: string, scope: unknown) => ({
+      queryKey: ["job", id, scope],
+      queryFn: () => read(id),
+    }),
+    automationTriggerDetailOptions: (id: string, scope: unknown) => ({
+      queryKey: ["trigger", id, scope],
+      queryFn: () => read(id),
+    }),
+  };
+});
 
 vi.mock("@/systems/profiles", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/profiles")>();
@@ -204,15 +261,28 @@ describe("useProfileSwitchWindowSweep", () => {
     profileScope.aggregate = false;
     profileScope.ownerId = "p_yankee";
     sessionOwners.clear();
+    terminalOwners.clear();
+    agentDefinitions.clear();
+    automationOwners.clear();
     resetProfileViews();
   });
 
-  function deskWindow(id: string, pathname: string): OsWindow {
-    return { id, route: { pathname, search: {} } } as unknown as OsWindow;
+  function deskWindow(
+    id: string,
+    pathname: string,
+    app = "session",
+    search: Record<string, unknown> = {}
+  ): OsWindow {
+    return { id, app, route: { pathname, search } } as unknown as OsWindow;
   }
 
-  function fakeShell(live: boolean, duringFirstClose?: () => void, refuseFirst = false) {
-    let windows: Record<string, OsWindow> = {
+  function fakeShell(
+    live: boolean,
+    duringFirstClose?: () => void,
+    refuseFirst = false,
+    desk?: Record<string, OsWindow>
+  ) {
+    let windows: Record<string, OsWindow> = desk ?? {
       w_own: deskWindow("w_own", "/agents/builder/sessions/s_own"),
       w_xray: deskWindow("w_xray", "/agents/builder/sessions/s_xray"),
       w_zulu: deskWindow("w_zulu", "/agents/builder/sessions/s_zulu"),
@@ -283,6 +353,45 @@ describe("useProfileSwitchWindowSweep", () => {
 
     act(() => goLive());
     await waitFor(() => expect(closed).toEqual(["w_xray", "w_zulu"]));
+  });
+
+  it("Should close terminal, pinned agent and automation windows another profile owns [#1194]", async () => {
+    terminalOwners.set("ws_a", [
+      { id: "t_own", profile_id: "p_yankee" },
+      { id: "t_xray", profile_id: "p_xray" },
+    ]);
+    terminalOwners.set("@user", [{ id: "t_user", profile_id: "p_xray" }]);
+    agentDefinitions.add("xray/builder");
+    agentDefinitions.add("yankee/builder");
+    automationOwners.set("j_xray", "p_xray");
+    automationOwners.set("j_own", "p_yankee");
+    automationOwners.set("tr_xray", "p_xray");
+    const desk = {
+      t_own: deskWindow("t_own", "/terminal/t_own", "terminal"),
+      t_xray: deskWindow("t_xray", "/terminal/t_xray", "terminal"),
+      // A bound window reads its own scope's catalog, not the desk's.
+      t_user: deskWindow("t_user", "/terminal/t_user", "terminal", { workspace: "@user" }),
+      // Gone from every catalog: the terminal surface owns that, so the window stays.
+      t_gone: deskWindow("t_gone", "/terminal/t_gone", "terminal"),
+      a_xray: deskWindow("a_xray", "/agents/builder", "agents", { profile: "xray" }),
+      a_own: deskWindow("a_own", "/agents/builder", "agents", { profile: "yankee" }),
+      // Unpinned: it reads whatever profile the client acts as, so it never leaves.
+      a_free: deskWindow("a_free", "/agents/builder", "agents"),
+      // Pinned to a definition that is gone: no owner read, so the window stays.
+      a_gone: deskWindow("a_gone", "/agents/ghost", "agents", { profile: "xray" }),
+      a_catalog: deskWindow("a_catalog", "/agents", "agents"),
+      j_xray: deskWindow("j_xray", "/automations/jobs/j_xray", "automations"),
+      j_own: deskWindow("j_own", "/automations/jobs/j_own", "automations"),
+      tr_xray: deskWindow("tr_xray", "/automations/triggers/tr_xray", "automations"),
+      j_list: deskWindow("j_list", "/automations", "automations"),
+    };
+    const { shell, closed } = fakeShell(true, undefined, false, desk);
+    renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), { wrapper: wrapper() });
+
+    switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() =>
+      expect([...closed].sort()).toEqual(["a_xray", "j_xray", "t_user", "t_xray", "tr_xray"])
+    );
   });
 
   it("Should retry a close the runtime refused while another close was pending", async () => {

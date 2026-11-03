@@ -43,6 +43,8 @@ export interface DesktopChromeModel {
   client: WindowManagerRegisteredClientView | null;
   /** Executes a `client_op` the daemon pushed over the window-manager channel. */
   clientCommandChannel: ClientCommandChannel;
+  /** The profile whose desk this render presents; the runtime catches up in effects. */
+  profileId: string;
 }
 
 function navigateTo(
@@ -209,5 +211,6 @@ export function useDesktopChrome(
     query,
     client: client.client,
     clientCommandChannel,
+    profileId,
   };
 }

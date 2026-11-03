@@ -3,7 +3,8 @@
 // workspaces or breadth never moves it, a switch persists only the Global slot, All profiles survives
 // a reload while a concrete view defers to the remembered Global choice, and the aggregate creates
 // into that remembered choice (issue #792). A window pinned to one profile reads only that profile,
-// whatever the shell shows (issue #1183).
+// whatever the shell shows (issue #1183). A switch moves the remembered choice the aggregate acts as
+// at once, so X → Y → All never acts as X while the persist and reread are in flight (issue #1194).
 // Owning layer: useActiveProfileView / useSwitchProfile / useProfileReadScope.
 // Boundary IN: the real profile view and active workspace stores.
 // Boundary OUT: profile HTTP adapters (mocked I/O).
@@ -152,6 +153,56 @@ describe("global profile selection", () => {
     await act(() => result.current.mutateAsync({ kind: "aggregate" }));
     expect(putProfileSelection).toHaveBeenCalledTimes(1);
     expect(localProfileView()).toEqual({ kind: "aggregate" });
+  });
+
+  it("Should act as the switched-to profile under All profiles before the persist settles [#1194]", async () => {
+    const { wrapper } = createWrapper();
+    let settlePut: () => void = () => {};
+    vi.mocked(putProfileSelection).mockImplementation(
+      params =>
+        new Promise(resolve => {
+          settlePut = () => resolve(params as never);
+        })
+    );
+    const { result } = renderHook(
+      () => ({ read: useProfileReadScope(), switchProfile: useSwitchProfile() }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.read.destination).toBe("marketing"));
+
+    act(() => result.current.switchProfile.mutate({ kind: "profile", profile: "open-design" }));
+    await waitFor(() => expect(putProfileSelection).toHaveBeenCalled());
+    act(() => result.current.switchProfile.mutate({ kind: "aggregate" }));
+
+    // The daemon still answers "marketing" until the persist lands; the switch already moved it.
+    await waitFor(() => expect(result.current.read.aggregate).toBe(true));
+    expect(result.current.read.destination).toBe("open-design");
+    vi.mocked(fetchProfileSelection).mockResolvedValue({ scope: "global", profile: "open-design" });
+    act(() => settlePut());
+  });
+
+  it("Should restore the remembered choice when the switch cannot be persisted [#1194]", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    vi.mocked(putProfileSelection).mockRejectedValue(new Error("daemon unavailable"));
+    const { result } = renderHook(
+      () => ({ read: useProfileReadScope(), switchProfile: useSwitchProfile() }),
+      { wrapper }
+    );
+    act(() => setProfileView({ kind: "aggregate" }));
+    await waitFor(() => expect(result.current.read.destination).toBe("marketing"));
+
+    await act(async () => {
+      await result.current.switchProfile
+        .mutateAsync({ kind: "profile", profile: "open-design" })
+        .catch(() => undefined);
+    });
+
+    expect(localProfileView()).toEqual({ kind: "aggregate" });
+    expect(queryClient.getQueryData(["profiles", "selection", "global"])).toEqual({
+      scope: "global",
+      profile: "marketing",
+    });
+    expect(result.current.read.destination).toBe("marketing");
   });
 
   it("Should keep All profiles across a reload and resolve a concrete view from the daemon", async () => {
