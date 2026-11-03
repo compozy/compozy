@@ -168,6 +168,9 @@ func (m *Manager) replayDeriveReceipt(
 	if err != nil || !found {
 		return DeriveResult{}, false, err
 	}
+	if spec.sourceProfileID != "" && receipt.ProfileID != spec.sourceProfileID {
+		return DeriveResult{}, true, ErrSessionNotFound
+	}
 	if receipt.RequestFingerprint != spec.fingerprint {
 		return DeriveResult{}, true, deriveErr(
 			ErrDeriveIdempotencyConflict, "idempotency key %s was used with a different request", spec.key,

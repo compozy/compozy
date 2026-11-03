@@ -11,7 +11,7 @@ import (
 )
 
 func (h *BaseHandlers) RefreshSessionPullRequest(c *gin.Context) {
-	scope, err := h.resolveProfileReadScope(c)
+	scope, err := h.resolveProfileMutationScope(c)
 	if err != nil {
 		h.respondProfileReadScopeError(c, err)
 		return

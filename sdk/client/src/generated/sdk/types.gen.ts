@@ -24970,7 +24970,16 @@ export type GetSessionOwnerData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/sessions/{session_id}/owner";
 };
 
@@ -35827,7 +35836,12 @@ export type ApproveSessionData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/approve";
 };
 
@@ -35939,7 +35953,12 @@ export type AttachSessionData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/attach";
 };
 
@@ -35994,7 +36013,12 @@ export type UploadSessionAttachmentData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments";
 };
 
@@ -36054,7 +36078,12 @@ export type DeleteSessionAttachmentData = {
      */
     attachment_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}";
 };
 
@@ -36106,7 +36135,16 @@ export type ReadSessionAttachmentBytesData = {
      */
     attachment_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes";
 };
 
@@ -36154,7 +36192,16 @@ export type ListSessionClarificationsData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications";
 };
 
@@ -36201,7 +36248,12 @@ export type AnswerSessionClarificationData = {
      */
     request_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/clarifications/{request_id}/answer";
 };
 
@@ -36249,7 +36301,12 @@ export type ClearSessionConversationData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/clear";
 };
 
@@ -36297,7 +36354,16 @@ export type GetSessionCommandsData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/commands";
 };
 
@@ -36343,7 +36409,12 @@ export type CompactSessionData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/compact";
 };
 
@@ -36392,7 +36463,12 @@ export type ContinueSessionData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/continue";
 };
 
@@ -36455,6 +36531,14 @@ export type PreviewSessionDeriveData = {
      * Durable user message to cut through (fork from here)
      */
     message_id?: string;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/derive/preview";
 };
@@ -36585,6 +36669,14 @@ export type ListSessionEventsData = {
      * Select active, archived, or all events
      */
     archive?: "active" | "archived" | "all";
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/events";
 };
@@ -36695,7 +36787,12 @@ export type ForkSessionData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/fork";
 };
 
@@ -36753,7 +36850,16 @@ export type GetSessionGoalData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/goal";
 };
 
@@ -36802,7 +36908,12 @@ export type MutateSessionGoalData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/goal";
 };
 
@@ -36865,7 +36976,16 @@ export type GetSessionHealthData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/health";
 };
 
@@ -36936,6 +37056,14 @@ export type GetSessionHistoryData = {
      * Select active, archived, or all events
      */
     archive?: "active" | "archived" | "all";
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/history";
 };
@@ -36984,6 +37112,14 @@ export type InspectSessionData = {
      * Include recent wake audit rows
      */
     include_recent_wake_events?: boolean;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect";
 };
@@ -37035,6 +37171,14 @@ export type ListSessionInteractionsData = {
      * Filter by interaction status
      */
     status?: "pending" | "orphaned" | "resolved" | "timed_out" | "canceled";
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/interactions";
 };
@@ -37860,6 +38004,14 @@ export type ListSessionPendingInteractionsData = {
      * Filter by interaction status
      */
     status?: "pending" | "orphaned" | "resolved" | "timed_out" | "canceled";
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/pending-interactions";
 };
@@ -37915,7 +38067,12 @@ export type UpdateSessionPresenceData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/presence";
 };
 
@@ -38096,7 +38253,12 @@ export type CancelSessionPromptData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/cancel";
 };
 
@@ -38135,7 +38297,12 @@ export type ClearSessionInputsData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue";
 };
 
@@ -38178,7 +38345,16 @@ export type ListSessionInputsData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue";
 };
 
@@ -38221,7 +38397,12 @@ export type CancelQueuedSessionPromptData = {
      */
     queue_entry_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}";
 };
 
@@ -38268,7 +38449,12 @@ export type ReplaceSessionInputData = {
      */
     queue_entry_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}";
 };
 
@@ -38318,7 +38504,12 @@ export type PromoteSessionInputData = {
      */
     queue_entry_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/prompt/queue/{queue_entry_id}/steer";
 };
 
@@ -38370,6 +38561,14 @@ export type GetSessionRecapData = {
      * Maximum recent messages to include
      */
     limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/recap";
 };
@@ -38421,6 +38620,10 @@ export type RepairSessionData = {
      * Allow repair for stopped sessions whose stop reason is not crash or error
      */
     force?: boolean;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/repair";
 };
@@ -38588,6 +38791,10 @@ export type ClearSessionRuntimeData = {
      * Current runtime selection revision
      */
     expected_revision: number;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime";
 };
@@ -38638,7 +38845,12 @@ export type SetSessionRuntimeData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/runtime";
 };
 
@@ -38688,7 +38900,12 @@ export type RefreshSessionSoulData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/soul/refresh";
 };
 
@@ -38739,7 +38956,16 @@ export type GetSessionStatusData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/status";
 };
 
@@ -38784,7 +39010,12 @@ export type SteerSessionPromptData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/steer";
 };
 
@@ -38918,6 +39149,14 @@ export type ListSessionSubagentsData = {
      * Row order: newest first (default), or most urgent first (waiting, failed, working, queued, settled) then newest
      */
     order?: "newest" | "urgency";
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/subagents";
 };
@@ -38975,6 +39214,14 @@ export type ListSessionToolsData = {
      * Effective agent name
      */
     agent_name?: string;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/tools";
 };
@@ -39016,7 +39263,12 @@ export type SearchSessionToolsData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/tools/search";
 };
 
@@ -39068,6 +39320,14 @@ export type GetSessionTranscriptData = {
      * Return entries whose stable start sequence is before this cursor
      */
     before_sequence?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript";
 };
@@ -39116,7 +39376,16 @@ export type GetSessionTranscriptOutlineData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline";
 };
 
@@ -39173,6 +39442,14 @@ export type SearchSessionTranscriptData = {
      * Maximum matches; defaults to 200, capped at 1000; truncated reports omitted matches
      */
     limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/search";
 };
@@ -39268,7 +39545,16 @@ export type GetSessionUsageData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/usage";
 };
 
@@ -39306,7 +39592,16 @@ export type GetSessionUsageTurnsData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns";
 };
 
@@ -39349,7 +39644,12 @@ export type WaitForSessionData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/wait";
 };
 
@@ -39530,7 +39830,12 @@ export type ForkSessionToWorktreeData = {
      */
     session_id: string;
   };
-  query?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork";
 };
 

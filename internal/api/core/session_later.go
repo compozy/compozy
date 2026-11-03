@@ -66,16 +66,8 @@ func (h *BaseHandlers) changeSessionLater(
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session later manager is required"))
 		return
 	}
-	scope, sessionID, existing, ok := h.routeSessionInWorkspace(c)
+	scope, sessionID, _, ok := h.routeScopedSessionInWorkspace(c)
 	if !ok {
-		return
-	}
-	profileScope, err := h.resolveProfileMutationScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !h.requireSessionInProfile(c, existing, profileScope) {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), laterOperationTimeout)

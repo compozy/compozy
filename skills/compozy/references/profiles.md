@@ -63,6 +63,15 @@ A session's profile never changes. To move work started in the wrong profile, us
 copies a stopped session into the target profile as a fork, moves its worktree branch to a new
 worktree owned by that profile, and archives the original, whose history and usage stay put.
 
+Routes that name one session (`/api/workspaces/{workspace_id}/sessions/{session_id}/...` and
+`/api/sessions/{session_id}/owner`) treat that session's profile as authoritative. A selected profile,
+from `profile=` or an authenticated agent session's binding, must own the session or the route returns
+not found. `all_profiles=true` is accepted only on reads; a write answers `profile_selection_conflict`.
+An operator request that selects no profile acts in the owner profile on runtime routes (prompt, stream,
+transcript, events, queue, and the rest of the per-session surface). Detail and lifecycle routes (get,
+rename, delete, stop, archive, later, parent, rewind, monitors, descendants, links, processes) stay
+scoped reads of the resolved profile.
+
 Worktrees are intentionally visible across profiles because they represent workspace filesystem state;
 their rows still identify the owner.
 

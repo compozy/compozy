@@ -1690,6 +1690,14 @@ export type StreamSessionData = {
      * Maximum entries per transcript snapshot or change batch
      */
     limit?: number;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/workspaces/{workspace_id}/sessions/{session_id}/stream";
 };

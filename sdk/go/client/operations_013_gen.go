@@ -9,6 +9,174 @@ import (
 	"strings"
 )
 
+// GetSessionTranscriptOutline Get the full retained operator-message trail with reply previews
+func (c *Client) GetSessionTranscriptOutline(ctx context.Context, params GetSessionTranscriptOutlineParams) (*OutlineResult, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/transcript/outline"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out OutlineResult
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionUsageParams carries the path, query, and header parameters.
+type GetSessionUsageParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetSessionUsage Get aggregated token usage for a session
+func (c *Client) GetSessionUsage(ctx context.Context, params GetSessionUsageParams) (*SessionUsageResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/usage"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionUsageResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionUsageTurnsParams carries the path, query, and header parameters.
+type GetSessionUsageTurnsParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetSessionUsageTurns Get per-turn session usage and native compaction markers
+func (c *Client) GetSessionUsageTurns(ctx context.Context, params GetSessionUsageTurnsParams) (*SessionUsageTurnsResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/usage/turns"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionUsageTurnsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsAttentionParams carries the path, query, and header parameters.
+type GetSettingsAttentionParams struct {
+	Scope   *string `url:"scope"`
+	Profile *string `url:"profile"`
+}
+
+// GetSettingsAttention Read the operator attention settings section
+func (c *Client) GetSettingsAttention(ctx context.Context, params GetSettingsAttentionParams) (*SettingsAttentionResponse, error) {
+	path := "/api/settings/attention"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsAttentionResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsAutomation Read the automation settings section
+func (c *Client) GetSettingsAutomation(ctx context.Context) (*SettingsAutomationResponse, error) {
+	path := "/api/settings/automation"
+	var out SettingsAutomationResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsCmdPaletteParams carries the path, query, and header parameters.
+type GetSettingsCmdPaletteParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// GetSettingsCmdPalette Read command-palette settings
+func (c *Client) GetSettingsCmdPalette(ctx context.Context, params GetSettingsCmdPaletteParams) (*SettingsCmdPaletteResponse, error) {
+	path := "/api/settings/cmd-palette"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsCmdPaletteResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsGeneral Read the general settings section
+func (c *Client) GetSettingsGeneral(ctx context.Context) (*SettingsGeneralResponse, error) {
+	path := "/api/settings/general"
+	var out SettingsGeneralResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsHooksExtensions Read the hooks and extensions settings section
+func (c *Client) GetSettingsHooksExtensions(ctx context.Context) (*SettingsHooksExtensionsResponse, error) {
+	path := "/api/settings/hooks-extensions"
+	var out SettingsHooksExtensionsResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSettingsMCPAuthStatusParams carries the path, query, and header parameters.
 type GetSettingsMCPAuthStatusParams struct {
 	Name        string  `url:"name"`
@@ -267,178 +435,4 @@ type GetSkillParams struct {
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`
 	ForAgent    *string `url:"for_agent"`
-}
-
-// GetSkill Get one skill definition
-func (c *Client) GetSkill(ctx context.Context, params GetSkillParams) (*SkillResponse, error) {
-	path := "/api/skills/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSkillContentParams carries the path, query, and header parameters.
-type GetSkillContentParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-	ForAgent  *string `url:"for_agent"`
-}
-
-// GetSkillContent Get the raw content for one skill
-func (c *Client) GetSkillContent(ctx context.Context, params GetSkillContentParams) (*SkillContentResponse, error) {
-	path := "/api/skills/{name}/content"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillContentResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSkillShadowsParams carries the path, query, and header parameters.
-type GetSkillShadowsParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-	ForAgent  *string `url:"for_agent"`
-}
-
-// GetSkillShadows Get resolver provenance and shadow declarations for one skill
-func (c *Client) GetSkillShadows(ctx context.Context, params GetSkillShadowsParams) (*SkillShadowsResponse, error) {
-	path := "/api/skills/{name}/shadows"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.ForAgent != nil {
-		query.Set("for_agent", *params.ForAgent)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SkillShadowsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetStatus Get the runtime status snapshot
-func (c *Client) GetStatus(ctx context.Context) (*StatusPayload, error) {
-	path := "/api/status"
-	var out StatusPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSubagentParams carries the path, query, and header parameters.
-type GetSubagentParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SubagentID  string `url:"subagent_id"`
-}
-
-// GetSubagent Read one subagent
-func (c *Client) GetSubagent(ctx context.Context, params GetSubagentParams) (*SubagentPayload, error) {
-	path := "/api/workspaces/{workspace_id}/subagents/{subagent_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{subagent_id}", url.PathEscape(params.SubagentID))
-	var out SubagentPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSupportBundleParams carries the path, query, and header parameters.
-type GetSupportBundleParams struct {
-	OperationID string `url:"operation_id"`
-}
-
-// GetSupportBundle Get support bundle operation status
-func (c *Client) GetSupportBundle(ctx context.Context, params GetSupportBundleParams) (*SupportBundleOperationResponse, error) {
-	path := "/api/support/bundles/{operation_id}"
-	path = strings.ReplaceAll(path, "{operation_id}", url.PathEscape(params.OperationID))
-	var out SupportBundleOperationResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetTaskParams carries the path, query, and header parameters.
-type GetTaskParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetTask Get one task with detail
-func (c *Client) GetTask(ctx context.Context, params GetTaskParams) (*TaskDetailResponse, error) {
-	path := "/api/tasks/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskDetailResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetTaskDashboardParams carries the path, query, and header parameters.
-type GetTaskDashboardParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Scope         *string   `url:"scope"`
-	Workspace     *string   `url:"workspace"`
-	Worktree      *string   `url:"worktree"`
-	OwnerKind     *string   `url:"owner_kind"`
-	OwnerRef      *string   `url:"owner_ref"`
-	OriginKind    *string   `url:"origin_kind"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
 }

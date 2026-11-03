@@ -3247,6 +3247,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		correctProviderSettingsCommandAuthorship(t, baseline)
 		addProviderUsageSettingsSection(t, baseline)
 		addStaysOnHardeningSchemas(t, baseline)
+		addSessionRouteProfileSelectors(t, baseline)
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -3519,6 +3520,44 @@ func streamVariantSchema(t *testing.T, schema *openapi3.Schema, name string) *op
 	}
 	t.Fatalf("missing raw stream frame component %s", name)
 	return nil
+}
+
+// #1193: every route that names one session documents its optional profile selector; reads also
+// offer the all-profiles lens. Existing parameters keep their order and meaning.
+func addSessionRouteProfileSelectors(t *testing.T, baseline map[string]any) {
+	t.Helper()
+	const prefix = "/api/workspaces/{workspace_id}/sessions/{session_id}"
+	added := 0
+	for path, item := range baseline["paths"].(map[string]any) {
+		if path != "/api/sessions/{session_id}/owner" && path != prefix && !strings.HasPrefix(path, prefix+"/") {
+			continue
+		}
+		for method, rawOperation := range item.(map[string]any) {
+			operation, ok := rawOperation.(map[string]any)
+			if !ok {
+				continue
+			}
+			parameters, _ := operation["parameters"].([]any)
+			if slices.ContainsFunc(parameters, func(parameter any) bool {
+				return parameter.(map[string]any)["name"] == "profile"
+			}) {
+				continue
+			}
+			parameters = append(parameters, map[string]any{
+				"in": "query", "name": "profile", "schema": map[string]any{"type": "string"},
+			})
+			if method == "get" {
+				parameters = append(parameters, map[string]any{
+					"in": "query", "name": "all_profiles", "schema": map[string]any{"type": "boolean"},
+				})
+			}
+			operation["parameters"] = parameters
+			added++
+		}
+	}
+	if added == 0 {
+		t.Fatal("approved session profile selectors: no historical session routes without a selector")
+	}
 }
 
 func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {

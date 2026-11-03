@@ -21,16 +21,8 @@ type SessionMonitorService interface {
 
 // ListSessionMonitors returns the session's monitors, active first.
 func (h *BaseHandlers) ListSessionMonitors(c *gin.Context) {
-	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	_, sessionID, _, ok := h.routeScopedSessionInWorkspace(c)
 	if !ok {
-		return
-	}
-	scope, err := h.resolveProfileReadScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !h.requireSessionInProfile(c, info, scope) {
 		return
 	}
 	if h.SessionMonitors == nil {
@@ -44,16 +36,8 @@ func (h *BaseHandlers) ListSessionMonitors(c *gin.Context) {
 
 // CancelSessionMonitor stops one monitor without waking its session.
 func (h *BaseHandlers) CancelSessionMonitor(c *gin.Context) {
-	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	_, sessionID, _, ok := h.routeScopedSessionInWorkspace(c)
 	if !ok {
-		return
-	}
-	scope, err := h.resolveProfileMutationScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !h.requireSessionInProfile(c, info, scope) {
 		return
 	}
 	if h.SessionMonitors == nil {
