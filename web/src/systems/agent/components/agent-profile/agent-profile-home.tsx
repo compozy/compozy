@@ -147,6 +147,7 @@ export function AgentProfileHome({ page }: { page: UseAgentProfile }) {
             onOpenCheckIns={() => page.onOpenEditor("check-ins")}
             onOpenMemory={() => page.onOpenEditor("memory")}
             onOpenModel={() => page.setPanel("model")}
+            onOpenPermissions={() => page.onOpenEditor("permissions")}
             onOpenTools={() => page.setPanel("tools")}
             owner={identity.owner}
             readOnly={identity.readOnly}

@@ -5,6 +5,7 @@ import {
   ChevronRight,
   Clock,
   Lock,
+  ShieldCheck,
   Sparkles,
   Wrench,
   type LucideIcon,
@@ -64,6 +65,7 @@ export interface AgentSetupSummaries {
   checkIns: string;
   memory: string;
   tools: string;
+  permissions: string;
 }
 
 export function AgentProfileSetup({
@@ -76,6 +78,7 @@ export function AgentProfileSetup({
   onOpenCheckIns,
   onOpenMemory,
   onOpenTools,
+  onOpenPermissions,
 }: {
   staysOn: boolean;
   owner?: string;
@@ -86,6 +89,7 @@ export function AgentProfileSetup({
   onOpenCheckIns: () => void;
   onOpenMemory: () => void;
   onOpenTools: () => void;
+  onOpenPermissions: () => void;
 }) {
   return (
     <Section
@@ -141,6 +145,14 @@ export function AgentProfileSetup({
             summary={summaries.tools}
             testId="agent-setup-tools"
             title="What it can use"
+          />
+          <SetupRow
+            icon={ShieldCheck}
+            locked={readOnly}
+            onOpen={onOpenPermissions}
+            summary={summaries.permissions}
+            testId="agent-setup-permissions"
+            title="Permissions"
           />
         </div>
       </Panel>

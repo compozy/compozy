@@ -124,6 +124,7 @@ import { toast } from "@compozy/ui";
 import { notifyUser } from "@/lib/user-feedback";
 import { withSessionProcessSummary } from "../../mocks/process-fixtures";
 import { useSessionLifecycleActions } from "../use-session-lifecycle-actions";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 beforeEach(() => {
   vi.mocked(listSessionDescendants).mockResolvedValue([]);
@@ -157,6 +158,7 @@ const createdSession: SessionPayload = {
   profile_id: "00000000000000000000000000",
   profile_name: "default",
   scope: "workspace",
+  ...sessionPermissionDefaults,
   effective_workspace_access: "",
   id: "sess-created",
   name: "Created session",

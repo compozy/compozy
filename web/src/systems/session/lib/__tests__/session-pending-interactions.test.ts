@@ -18,6 +18,7 @@ import {
   permissionDecisionActor,
   resolvedInteractionsByRequest,
 } from "../session-pending-interactions";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 function interaction(
   overrides: Partial<SessionPendingInteraction> & Pick<SessionPendingInteraction, "kind">
@@ -41,6 +42,7 @@ function sessionWith(rows: SessionPendingInteraction[]): SessionPayload {
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     id: "sess-1",
     name: "Review",

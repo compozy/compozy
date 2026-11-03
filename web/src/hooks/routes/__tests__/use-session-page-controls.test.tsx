@@ -94,6 +94,7 @@ vi.mock("@/systems/session", async () => {
 
 import { SessionApiError, type SessionPayload } from "@/systems/session";
 import { useSessionPageControls } from "../use-session-page-controls";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 const WORKSPACE_ID = "ws_alpha";
 
@@ -110,6 +111,7 @@ function makeSession(
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     id: "sess-1",
     agent_name: "codex-agent",

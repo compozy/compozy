@@ -114,6 +114,7 @@ import {
   useScopedWorktreeFilter,
   type WorkspacePayload,
 } from "@/systems/workspace";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 const workspace: WorkspacePayload = {
   id: "ws_alpha",
@@ -159,6 +160,7 @@ function waitingSession(id: string): SessionPayload {
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     id,
     agent_name: "atlas",

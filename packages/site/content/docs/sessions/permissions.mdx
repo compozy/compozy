@@ -43,6 +43,32 @@ undeclared, unavailable, or not selected by the adapter. It never falls back to 
 Only trusted global provider configuration may declare `reviewer_mode`; workspace overlays cannot.
 The provider catalog exposes this declaration for choosing a level.
 
+### Choosing a level in the Web app
+
+The Web app names the five levels the same way in every place it shows them: **Settings → General →
+Permissions** for the global mode, the **Permissions** page of an agent (open the agent, then
+**Permissions** under "How it's set up"), and the Advanced section of **New agent**.
+
+| Value           | Label                   | What it means                                                             |
+| --------------- | ----------------------- | ------------------------------------------------------------------------- |
+| `deny-all`      | Ask before every action | Every action waits for your approval.                                     |
+| `approve-reads` | Ask before changes      | Reading is automatic. Changes and commands still ask.                     |
+| `approve-edits` | Edit on its own         | Edits files and organizes its own work. Riskier actions still ask.        |
+| `auto`          | Let a reviewer decide   | The provider's AI reviewer approves routine work and stops risky actions. |
+| `approve-all`   | Never ask               | Acts without asking. For agents you trust.                                |
+
+An on-demand agent with no `permissions` shows **Follow Settings** and names the current Settings
+level. A stays-on agent with no `permissions` shows **Edit on its own** marked Default. When the
+agent's provider declares no reviewer, **Let a reviewer decide** is marked Not available and the page
+says the agent uses Edit on its own instead. On Codex, **Never ask** explains that Codex keeps its own
+reviewer unless full access is turned on separately.
+
+The agent's Permissions page also holds two operator-only controls. **Whose requests can it answer?**
+writes `session_approval` for stays-on agents: "Only its own sessions" (`children`) or "Any session it
+can reach" (`workspace`). **Exceptions** writes `permission_rules`: up to 64 rows of action, a path
+inside the project, and Allow or Never (`deny`). Exceptions apply only when the provider asks first;
+they can't see inside shell commands. An agent that comes from an extension shows the page read-only.
+
 ### Defaults and overrides
 
 The current built-in default configuration is:

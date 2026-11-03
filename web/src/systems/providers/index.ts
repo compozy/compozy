@@ -14,3 +14,4 @@ export {
   type ProviderDetailOptionsArgs,
 } from "./lib/query-options";
 export { useProvider, useProviders } from "./hooks/use-providers";
+export { providerReviewer, type ProviderReviewer } from "./lib/provider-reviewer";

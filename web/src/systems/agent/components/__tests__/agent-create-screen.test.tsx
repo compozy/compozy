@@ -481,21 +481,33 @@ describe("AgentCreateScreen", () => {
     expect(screen.getByTestId("runtime-selector-speed")).toHaveAttribute("aria-checked", "true");
   });
 
-  it("Should translate the selected permission policy into its contract consequence", async () => {
+  it("Should offer Follow Settings plus the five levels for an on-demand agent", async () => {
     const user = userEvent.setup();
-    renderScreen({ draft: validDraft() });
+    renderScreen({ draft: validDraft({ kind: "on_demand" }) });
 
     await user.click(advancedToggle());
 
-    expect(screen.getByTestId("agent-create-permissions-consequence")).toHaveTextContent(
-      "The agent's provider decides when to ask you."
+    expect(screen.getByTestId("agent-create-permissions-inherit")).toHaveAttribute(
+      "aria-checked",
+      "true"
     );
-
-    await user.click(screen.getByTestId("agent-create-permissions-approve-reads"));
-
-    expect(screen.getByTestId("agent-create-permissions-consequence")).toHaveTextContent(
-      "New sessions read freely and ask before changing anything."
+    await user.click(screen.getByTestId("agent-create-permissions-auto"));
+    expect(screen.getByTestId("agent-create-permissions-auto")).toHaveAttribute(
+      "aria-checked",
+      "true"
     );
+  });
+
+  it("Should show nothing set on a stays-on agent as the Edit on its own default", async () => {
+    const user = userEvent.setup();
+    renderScreen({ draft: validDraft({ kind: "stays_on" }) });
+
+    await user.click(advancedToggle());
+
+    expect(screen.queryByTestId("agent-create-permissions-inherit")).toBeNull();
+    const edits = screen.getByTestId("agent-create-permissions-approve-edits");
+    expect(edits).toHaveAttribute("aria-checked", "true");
+    expect(edits).toHaveTextContent("Default");
   });
 
   it("Should accept comma and newline token input while preserving de-duped order", async () => {

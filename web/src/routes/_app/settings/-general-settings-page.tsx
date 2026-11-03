@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { WorkspaceManagement } from "@/systems/workspace";
+import { AGENT_PERMISSION_LEVELS } from "@/systems/agent";
 
 import { useSettingsGeneralPage } from "@/systems/settings/hooks/use-settings-general-page";
 import {
@@ -39,23 +40,11 @@ import { SessionDefaultsGroup } from "./-general-session-defaults";
 import { generalUpdateNeedsAttention } from "./-general-update-attention";
 import { GeneralUpdateSection } from "./-general-update-section";
 
-const PERMISSION_OPTIONS = [
-  {
-    value: "deny-all" as const,
-    name: "Ask first",
-    description: "Every action waits for your approval.",
-  },
-  {
-    value: "approve-reads" as const,
-    name: "Allow reading",
-    description: "Reads run on their own; changes still ask.",
-  },
-  {
-    value: "approve-all" as const,
-    name: "Allow everything",
-    description: "Agents act freely. For trusted work only.",
-  },
-];
+const PERMISSION_OPTIONS = AGENT_PERMISSION_LEVELS.map(level => ({
+  value: level.value,
+  name: level.label,
+  description: level.description,
+}));
 
 /**
  * Follow-up behavior mirrors `session.busy_input.default_mode` — daemon-owned,
@@ -388,6 +377,7 @@ export function GeneralSettingsPage() {
         <SettingsChoiceGroup
           ariaLabel="Permission mode"
           data-testid="settings-page-general-permissions-group"
+          layout="stack"
           onChange={mode =>
             setDraft(prev => {
               const current = prev ?? draft;

@@ -20,6 +20,7 @@ import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import { shortcutLabel } from "../../lib/window-manager-shortcuts";
 import { OsWindowDeck } from "../os-window-deck";
 import type { SessionPayload } from "@/systems/session";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 vi.mock("../../hooks/use-desktop", () => ({ useDesktop: vi.fn() }));
 vi.mock("../../hooks/use-os-window-deck", () => ({ useOsWindowDeck: vi.fn() }));
@@ -73,6 +74,7 @@ function sessionFixture(overrides: Partial<SessionPayload> = {}): SessionPayload
     pull_request_lookup: null,
     supervision: null,
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     profile_name: "default",
     profile_id: "00000000000000000000000000",

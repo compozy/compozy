@@ -143,6 +143,7 @@ vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
 
 import { SessionWindowContent } from "../session-window-content";
 import { sessionInspectorFocusStore } from "@/systems/session/hooks/use-session-inspector-focus";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 const deadSession: SessionPayload = {
   board_column: "done",
@@ -151,6 +152,7 @@ const deadSession: SessionPayload = {
   profile_id: "00000000000000000000000000",
   profile_name: "default",
   scope: "workspace",
+  ...sessionPermissionDefaults,
   effective_workspace_access: "",
   agent_name: "codex-agent",
   archived_at: null,

@@ -15,6 +15,7 @@ import {
   filterThreadSessions,
 } from "../session-hierarchy";
 import { subagentContextRequests, withSubagentContext } from "../session-subagent-context";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 function treeSession(
   id: string,
@@ -30,6 +31,7 @@ function treeSession(
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     id,
     name: `Session ${id}`,
