@@ -33,6 +33,7 @@ type providerUsageResolver struct {
 	collectors providerusage.Registry
 }
 
+// Targets skips archived and reserved profiles so they cannot block reconciliation.
 func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) ([]providerusage.Target, error) {
 	r.mu.RLock()
 	cfg := config.CloneConfig(&r.cfg)
