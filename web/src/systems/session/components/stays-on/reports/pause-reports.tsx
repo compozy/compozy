@@ -17,12 +17,15 @@ export function ResumeButton({
   label = "Resume",
   pending = false,
   failed = false,
+  reason,
   disabled = false,
   onResume,
 }: {
   label?: string;
   pending?: boolean;
   failed?: boolean;
+  /** The daemon's reason for refusing, such as the active-agent cap. */
+  reason?: string;
   disabled?: boolean;
   onResume?: () => void;
 }) {
@@ -34,7 +37,7 @@ export function ResumeButton({
       </Button>
       {failed ? (
         <span className="text-small-body text-destructive" role="alert">
-          Couldn't resume. Try again.
+          Couldn't resume. {reason || "Try again."}
         </span>
       ) : null}
     </span>

@@ -2,6 +2,7 @@
 import { useAuiState } from "@assistant-ui/react";
 
 import {
+  AgentResumeError,
   agentInstancePausedUnattended,
   agentUnattendedSteps,
   useResumeAgentInstances,
@@ -19,6 +20,11 @@ export function ResumeAction({ instances }: { instances: readonly AgentInstanceP
     <ResumeButton
       disabled={instances.length === 0}
       failed={resume.isError}
+      reason={
+        resume.error instanceof AgentResumeError
+          ? resume.error.failures.map(failure => failure.message).join(" ")
+          : undefined
+      }
       onResume={() => resume.mutate(instances)}
       pending={resume.isPending}
     />

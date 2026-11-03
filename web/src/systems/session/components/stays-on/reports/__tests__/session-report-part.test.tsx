@@ -341,7 +341,7 @@ describe("SessionReportPart", () => {
 
       await userEvent.click(await screen.findByRole("button", { name: "Resume" }));
 
-      expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't resume. Try again.");
+      expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't resume. nope");
       expect(screen.getByRole("article", { name: "Paused until you're back" })).toBeInTheDocument();
       expect(reads.notify).not.toHaveBeenCalled();
     });
