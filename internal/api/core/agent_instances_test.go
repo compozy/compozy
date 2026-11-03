@@ -1440,6 +1440,43 @@ func TestAgentSkillReviews(t *testing.T) {
 		if dropped.Code != 200 || droppedReview.Review.State != "rejected" {
 			t.Fatalf("reject damaged draft: %d %s", dropped.Code, dropped.Body.String())
 		}
+		durable := request("GET", "/reviews/"+reviews[1].ID, "", true)
+		var settled contract.AgentSkillReviewResponse
+		decodeJSON(t, durable.Body.Bytes(), &settled)
+		if durable.Code != 200 || settled.Review.State != "rejected" {
+			t.Fatalf("damaged draft rejection not durable: %d %+v", durable.Code, settled)
+		}
+
+		// A deleted draft reads and rejects the same way.
+		deleted, err := service.Propose(
+			t.Context(),
+			workspaceaccess.ActorRef{Operator: true},
+			instance,
+			scanRoot,
+			agentinstance.SkillProposalInput{Name: "third", Description: "Review changes", Body: "Read the diff."},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(deleted.DraftPath); err != nil {
+			t.Fatal(err)
+		}
+		missing := request("GET", "/reviews/"+deleted.ID, "", true)
+		var missingReview contract.AgentSkillReviewResponse
+		decodeJSON(t, missing.Body.Bytes(), &missingReview)
+		if missing.Code != 200 || missingReview.Review.Problem != "skill_review_invalid" {
+			t.Fatalf("read deleted draft: %d %s", missing.Code, missing.Body.String())
+		}
+		gone := request("POST", "/reviews/"+deleted.ID+"/reject", `{"digest":"`+deleted.Digest+`"}`, false)
+		var goneReview contract.AgentSkillReviewResponse
+		decodeJSON(t, gone.Body.Bytes(), &goneReview)
+		if gone.Code != 200 || goneReview.Review.State != "rejected" {
+			t.Fatalf("reject deleted draft: %d %s", gone.Code, gone.Body.String())
+		}
+		retried := request("POST", "/reviews/"+deleted.ID+"/reject", `{"digest":"`+deleted.Digest+`"}`, false)
+		if retried.Code != 409 {
+			t.Fatalf("a repeated reject must report the settled state: %d %s", retried.Code, retried.Body.String())
+		}
 	})
 }
 
