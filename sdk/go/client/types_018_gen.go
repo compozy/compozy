@@ -142,6 +142,7 @@ type SessionPayload struct {
 	WorkspaceID              string                           `json:"workspace_id,omitempty"`
 	WorkspacePath            string                           `json:"workspace_path,omitempty"`
 	WorktreeID               string                           `json:"worktree_id,omitempty"`
+	WorkingDir               string                           `json:"working_dir,omitempty"`
 	Type                     Type                             `json:"type,omitempty"`
 	State                    State                            `json:"state"`
 	Badge                    Badge                            `json:"badge"`

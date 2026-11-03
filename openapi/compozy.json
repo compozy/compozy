@@ -26738,6 +26738,9 @@
             ],
             "type": "string"
           },
+          "working_dir": {
+            "type": "string"
+          },
           "workspace_id": {
             "type": "string"
           },

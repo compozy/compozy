@@ -7322,6 +7322,7 @@ export type SessionPayload = {
   updated_at: string;
   verified?: boolean | null;
   waiting_on?: "sessions" | "monitor";
+  working_dir?: string;
   workspace_id?: string;
   workspace_path?: string;
   worktree_binding?: WorktreeBindingAvailability | null;

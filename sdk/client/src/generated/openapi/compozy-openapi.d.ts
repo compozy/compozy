@@ -15137,6 +15137,7 @@ export interface components {
       verified?: boolean | null;
       /** @enum {string} */
       waiting_on?: "sessions" | "monitor";
+      working_dir?: string;
       workspace_id?: string;
       workspace_path?: string;
       worktree_binding?: components["schemas"]["WorktreeBindingAvailability"] | null;
