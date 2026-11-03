@@ -14,6 +14,8 @@ export interface RowMeta {
   visible: boolean;
   /** Attention words that never truncate. */
   attention: string[];
+  /** The attention words drawn on the line; quiet rows keep only the needs-you words. */
+  shown: string[];
   /** Why the daemon raised attention; its detail is the row's hover title. */
   reason: SessionAttentionReason | null;
   /** Secondary notes, the first to give way when the line is full. */
@@ -28,6 +30,7 @@ export function rowMeta({
   runtime,
   signal,
   orphanedSubagent,
+  quiet = false,
 }: {
   /** What the row calls the agent; `agent_name` stays its id. */
   agentLabel?: string;
@@ -35,6 +38,8 @@ export function rowMeta({
   runtime: { label: string } | null;
   signal: ReturnType<typeof sessionBadgeSignal>;
   orphanedSubagent: boolean;
+  /** The glyph alone says the state; only a session that needs you says it in words too. */
+  quiet?: boolean;
 }): RowMeta {
   const attention: string[] = [];
   // The mark carries the state; the word speaks up whenever the glyph is shared.
@@ -57,6 +62,7 @@ export function rowMeta({
   return {
     visible: true,
     attention,
+    shown: !quiet || signal.attention === "needs-you" ? attention : [],
     reason,
     notes,
     spoken,

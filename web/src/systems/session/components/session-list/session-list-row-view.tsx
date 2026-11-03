@@ -21,7 +21,12 @@ import type {
 } from "../../hooks/use-session-list-dnd";
 import { SessionListProviderMark } from "./session-list-provider-mark";
 import {
+  SESSION_ROW_END_LEAD_FRAME,
   SESSION_ROW_END_SLOT_FRAME,
+  SESSION_ROW_END_STACK,
+  SESSION_ROW_FACE_CELL,
+  SESSION_ROW_FACE_FRAME,
+  SESSION_ROW_FACE_TARGET_FRAME,
   SESSION_ROW_FRAME,
   SESSION_ROW_LATER_FRAME,
   SESSION_ROW_META_FRAME,
@@ -78,7 +83,15 @@ export interface SessionListRowProps {
   dragging?: boolean;
 }
 
+/**
+ * How much a row says (issue #1191, under review in the gallery): `classic` is today's row;
+ * `trimmed` keeps two lines and drops every word but needs-you; `single-line` folds the who into
+ * line 1's end; `face` leads with the agent's face across both lines.
+ */
+export type SessionRowLayout = "classic" | "trimmed" | "single-line" | "face";
+
 export interface SessionListRowViewProps extends SessionListRowProps {
+  layout?: SessionRowLayout;
   /** The live runtime label the provider mark and meta line read. */
   runtime: SessionRuntimeLabel;
   /** Session-entry intent preload on the row target. */
@@ -104,7 +117,7 @@ export function SessionListRowView(props: SessionListRowViewProps) {
   const row = (
     <SessionRowDragFrame
       className={cn(
-        SESSION_ROW_FRAME,
+        props.layout === "face" ? SESSION_ROW_FACE_FRAME : SESSION_ROW_FRAME,
         "group/session-row transition-colors hover:bg-surface-2 has-[[data-slot=session-row-target]:focus-visible]:shadow-focus-ring",
         (selected || props.current) && "bg-selected"
       )}
@@ -139,6 +152,7 @@ function SessionListRowBody({
   runtime,
   preloadHandlers,
   rowActions,
+  layout = "classic",
 }: SessionListRowViewProps) {
   const selected = selection?.selectedIds.has(session.id) ?? false;
   const title = getSessionDisplayTitle(session);
@@ -150,12 +164,54 @@ function SessionListRowBody({
     profile: session.profile_name,
   });
   const agentLabel = session.agent_name ? agent.label : "";
-  const meta = rowMeta({ session, agentLabel, runtime, signal, orphanedSubagent });
+  const meta = rowMeta({
+    session,
+    agentLabel,
+    runtime,
+    signal,
+    orphanedSubagent,
+    quiet: layout !== "classic",
+  });
   const badgeOf = useContext(SessionListBadgeContext);
   const badge = inheritsProject ? undefined : badgeOf?.(session);
-  const hasTrailing = trailing !== undefined;
+  const single = layout === "single-line";
+  const face = layout === "face";
+  const agentMark = session.agent_name ? (
+    <AgentMark
+      aria-hidden="true"
+      appearance={agent.appearance}
+      data-testid={`session-agent-mark-${session.id}`}
+      label={agent.label}
+      quietIdle
+      size={face ? 24 : 16}
+      state="unknown"
+    />
+  ) : null;
+  const providerMark = (
+    <SessionListProviderMark
+      sessionId={session.id}
+      runtime={runtime}
+      keyboardFocus={keyboardFocus}
+      onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
+    />
+  );
+  const trailingCluster =
+    trailing !== undefined ? <SessionRowTrailing>{trailing}</SessionRowTrailing> : null;
+  // A one-line row grows its second line only when it has words, a place or an owner to show.
+  const metaLine = single
+    ? meta.shown.length > 0 ||
+      meta.notes.length > 0 ||
+      badge !== undefined ||
+      owner !== undefined ||
+      sessionIsUnrestricted(session)
+    : meta.visible || trailingCluster !== null;
   return (
     <>
+      {face ? (
+        <span aria-hidden="true" className={SESSION_ROW_FACE_CELL}>
+          {agentMark ?? providerMark}
+        </span>
+      ) : null}
       <SessionRowTarget
         session={session}
         title={title}
@@ -168,6 +224,7 @@ function SessionListRowBody({
         onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
         focusHandlers={focusHandlers}
         preloadHandlers={preloadHandlers}
+        glyph={!face}
       />
       {selection ? (
         <SessionRowCheckbox
@@ -177,36 +234,36 @@ function SessionListRowBody({
           selection={selection}
         />
       ) : null}
-      <SessionRowEndSlot session={session} actions={actionsVisible ? (rowActions ?? null) : null} />
-      {meta.visible || hasTrailing ? (
+      <SessionRowEndSlot
+        session={session}
+        actions={actionsVisible ? (rowActions ?? null) : null}
+        lead={
+          single ? (
+            <>
+              {trailingCluster}
+              {agentMark ?? providerMark}
+            </>
+          ) : null
+        }
+      />
+      {metaLine ? (
         <SessionRowMetaLine
           session={session}
-          agentLabel={agentLabel}
+          agentLabel={single ? "" : agentLabel}
           badge={badge}
           owner={owner}
           meta={meta}
           mark={
-            <>
-              {session.agent_name ? (
-                <AgentMark
-                  aria-hidden="true"
-                  appearance={agent.appearance}
-                  data-testid={`session-agent-mark-${session.id}`}
-                  label={agent.label}
-                  quietIdle
-                  size={16}
-                  state="unknown"
-                />
-              ) : null}
-              <SessionListProviderMark
-                sessionId={session.id}
-                runtime={runtime}
-                keyboardFocus={keyboardFocus}
-                onClick={event => activateSessionRow(event, session.id, selection, onSelect)}
-              />
-            </>
+            face ? (
+              <SessionBadgeMark badge={session.badge} waitingOn={sessionWaitingOn(session)} />
+            ) : single ? null : (
+              <>
+                {agentMark}
+                {providerMark}
+              </>
+            )
           }
-          trailing={hasTrailing ? <SessionRowTrailing>{trailing}</SessionRowTrailing> : null}
+          trailing={single ? null : trailingCluster}
         />
       ) : null}
       <SessionLaterDetails className={SESSION_ROW_LATER_FRAME} session={session} />
@@ -227,6 +284,7 @@ function SessionRowTarget({
   onClick,
   focusHandlers,
   preloadHandlers,
+  glyph,
 }: {
   session: SessionPayload;
   title: string;
@@ -239,12 +297,14 @@ function SessionRowTarget({
   onClick: (event: React.MouseEvent<HTMLElement>) => void;
   focusHandlers: ReturnType<typeof useKeyboardFocusToken>["focusHandlers"];
   preloadHandlers: ReturnType<typeof useSessionEntryPreload>;
+  /** False when line 2 draws the state glyph (the face-first row). */
+  glyph: boolean;
 }) {
   return (
     <button
       type="button"
       className={cn(
-        SESSION_ROW_TARGET_FRAME,
+        glyph ? SESSION_ROW_TARGET_FRAME : SESSION_ROW_FACE_TARGET_FRAME,
         "outline-none after:absolute after:inset-0 after:rounded-md",
         emphasized && "font-medium"
       )}
@@ -272,11 +332,13 @@ function SessionRowTarget({
         preloadHandlers.onBlur();
       }}
     >
-      <SessionBadgeMark
-        badge={session.badge}
-        waitingOn={sessionWaitingOn(session)}
-        className={badgeMarkClass(selection)}
-      />
+      {glyph ? (
+        <SessionBadgeMark
+          badge={session.badge}
+          waitingOn={sessionWaitingOn(session)}
+          className={badgeMarkClass(selection)}
+        />
+      ) : null}
       <span className="min-w-0 truncate">{title}</span>
       {/* The meta line is drawn outside the target; its words still name the row. */}
       <span className="sr-only">{meta.spoken}</span>
@@ -327,10 +389,21 @@ function SessionRowMetaLine({
   );
 }
 
-/** Line 1's end slot: the compact time at rest, the row actions on hover or focus. */
-function SessionRowEndSlot({ session, actions }: { session: SessionPayload; actions: ReactNode }) {
-  return (
-    <span className={SESSION_ROW_END_SLOT_FRAME}>
+/**
+ * Line 1's end slot: the compact time at rest, the row actions on hover or focus. A one-line row
+ * puts its `lead` (branch toggle and agent face) before them.
+ */
+function SessionRowEndSlot({
+  session,
+  actions,
+  lead,
+}: {
+  session: SessionPayload;
+  actions: ReactNode;
+  lead: ReactNode;
+}) {
+  const slot = (
+    <span className={lead ? SESSION_ROW_END_STACK : SESSION_ROW_END_SLOT_FRAME}>
       <Time
         iso={session.updated_at}
         mode="compact"
@@ -345,6 +418,13 @@ function SessionRowEndSlot({ session, actions }: { session: SessionPayload; acti
           {actions}
         </span>
       ) : null}
+    </span>
+  );
+  if (!lead) return slot;
+  return (
+    <span className={SESSION_ROW_END_LEAD_FRAME}>
+      {lead}
+      {slot}
     </span>
   );
 }

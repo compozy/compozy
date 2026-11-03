@@ -23,12 +23,12 @@ export function SessionListRowWho({
 }: {
   agentLabel: string;
   session: Pick<SessionPayload, "badge">;
-  meta: Pick<RowMeta, "attention" | "notes">;
+  meta: Pick<RowMeta, "shown" | "notes">;
 }) {
   const { tone } = sessionBadgeSignal(session.badge);
   const parts: { key: string; kind: "agent" | "attention" | "note"; text: string }[] = [];
   if (agentLabel) parts.push({ key: "agent", kind: "agent", text: agentLabel });
-  meta.attention.forEach((text, index) =>
+  meta.shown.forEach((text, index) =>
     parts.push({ key: `attention-${index}`, kind: "attention", text })
   );
   meta.notes.forEach((text, index) => parts.push({ key: `note-${index}`, kind: "note", text }));

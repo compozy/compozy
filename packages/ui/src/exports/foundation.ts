@@ -111,6 +111,7 @@ export {
   matchesSymbolQuery,
   normalizeHexColor,
   SYMBOL_PICKER_DEFAULT_LABELS,
+  type SymbolBackground,
   type SymbolPickerLabels,
   type SymbolIconOption,
   type SymbolKind,

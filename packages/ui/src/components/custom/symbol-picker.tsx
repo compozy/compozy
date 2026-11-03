@@ -2,6 +2,7 @@ import * as React from "react";
 import type { Locale as EmojiLocale } from "frimousse";
 
 import type {
+  SymbolBackground,
   SymbolIconOption,
   SymbolKind,
   SymbolPickerLabels,
@@ -36,6 +37,10 @@ export interface SymbolPickerProps extends Omit<React.ComponentProps<"div">, "on
   surface?: string;
   /** Generic English by default; override to localize or re-word. */
   labels?: SymbolPickerLabels;
+  /** Whether the symbol sits on its color plate; offered only with `onBackgroundChange`. */
+  background?: SymbolBackground;
+  /** Shows the Background choice; with `none` the color becomes the symbol's ink. */
+  onBackgroundChange?: (next: SymbolBackground) => void;
 }
 
 /** Picks a symbol and color while previewing their combined identity. */
@@ -54,6 +59,8 @@ export function SymbolPicker({
   swatches,
   surface,
   labels = SYMBOL_PICKER_DEFAULT_LABELS,
+  background = "plate",
+  onBackgroundChange,
   ...props
 }: SymbolPickerProps) {
   // An explicit tab choice persists until the component remounts.
@@ -71,17 +78,31 @@ export function SymbolPicker({
 
   return (
     <div data-slot="symbol-picker" className={cn("flex flex-col gap-3", className)} {...props}>
-      <PillGroup
-        items={[
-          { value: "icon", label: labels.icons },
-          { value: "emoji", label: labels.emojis },
-        ]}
-        value={kind}
-        onChange={handleKindChange}
-        size="sm"
-        aria-label={labels.kind}
-        className="self-start"
-      />
+      <div className="flex items-center justify-between gap-2">
+        <PillGroup
+          items={[
+            { value: "icon", label: labels.icons },
+            { value: "emoji", label: labels.emojis },
+          ]}
+          value={kind}
+          onChange={handleKindChange}
+          size="sm"
+          aria-label={labels.kind}
+        />
+        {onBackgroundChange ? (
+          <PillGroup
+            items={[
+              { value: "plate" as const, label: labels.backgroundPlate },
+              { value: "none" as const, label: labels.backgroundNone },
+            ]}
+            value={background}
+            onChange={onBackgroundChange}
+            size="sm"
+            aria-label={labels.background}
+            data-slot="symbol-picker-background"
+          />
+        ) : null}
+      </div>
       <SymbolPickerColorSection
         color={color}
         onChange={onColorChange}
