@@ -271,6 +271,7 @@ func (m *Manager) unregisterResources(ctx context.Context, ext *managedExtension
 	ext.sessionNonce = ""
 	ext.registered = false
 	m.mu.Unlock()
+	m.releaseSkillResources(key)
 	if capabilityGrantID != "" {
 		m.capChecker.Unregister(capabilityGrantID)
 	}

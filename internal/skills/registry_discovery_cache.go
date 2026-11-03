@@ -1,11 +1,17 @@
 package skills
 
 import (
+	"maps"
 	"slices"
+	"strings"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 )
+
+// workspaceSourceKeyMarker separates a workspace cache key's scope from its source-config hash.
+const workspaceSourceKeyMarker = "@src:"
 
 // Unchanged publication inputs reuse parsed definitions across callback retries.
 type discoveryCacheEntry struct {
@@ -16,6 +22,7 @@ type discoveryCacheEntry struct {
 	snapshots   map[string]filesnap.Snapshot
 	candidates  []*Skill
 	diagnostics []SkillDiagnostic
+	lastAccess  time.Time
 }
 
 func (e *discoveryCacheEntry) matches(key discoveryCacheEntry) bool {
@@ -28,12 +35,14 @@ func (e *discoveryCacheEntry) matches(key discoveryCacheEntry) bool {
 }
 
 func (r *Registry) cachedDiscovery(cacheKey string, key discoveryCacheEntry) ([]*Skill, []SkillDiagnostic, bool) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	now := r.now()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	entry, ok := r.discoveryCache[cacheKey]
 	if !ok || !entry.matches(key) {
 		return nil, nil, false
 	}
+	entry.lastAccess = now
 	return cloneCommandSkillSlice(entry.candidates), cloneDiagnostics(entry.diagnostics), true
 }
 
@@ -43,6 +52,7 @@ func (r *Registry) storeDiscovery(
 	candidates []*Skill,
 	diagnostics []SkillDiagnostic,
 ) {
+	now := r.now()
 	entry := &discoveryCacheEntry{
 		generation:  key.generation,
 		roots:       slices.Clone(key.roots),
@@ -51,8 +61,33 @@ func (r *Registry) storeDiscovery(
 		snapshots:   filesnap.Clone(key.snapshots),
 		candidates:  cloneCommandSkillSlice(candidates),
 		diagnostics: cloneDiagnostics(diagnostics),
+		lastAccess:  now,
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.evictExpiredWorkspaceLocked(now)
+	if scope, ok := workspaceDiscoveryScope(cacheKey); ok {
+		// A new source configuration replaces the scope's previous variants.
+		maps.DeleteFunc(r.discoveryCache, func(existing string, _ *discoveryCacheEntry) bool {
+			existingScope, variant := workspaceDiscoveryScope(existing)
+			return variant && existing != cacheKey && existingScope == scope
+		})
+	}
 	r.discoveryCache[cacheKey] = entry
+}
+
+// evictExpiredDiscoveryLocked keeps the global snapshot warm and drops idle workspace variants.
+func (r *Registry) evictExpiredDiscoveryLocked(cutoff time.Time) {
+	maps.DeleteFunc(r.discoveryCache, func(key string, entry *discoveryCacheEntry) bool {
+		return key != registryGlobalKey && entry.lastAccess.Before(cutoff)
+	})
+}
+
+// workspaceDiscoveryScope strips the source-config hash that workspaceCacheKey appends.
+func workspaceDiscoveryScope(cacheKey string) (string, bool) {
+	index := strings.LastIndex(cacheKey, workspaceSourceKeyMarker)
+	if index < 0 {
+		return "", false
+	}
+	return cacheKey[:index], true
 }

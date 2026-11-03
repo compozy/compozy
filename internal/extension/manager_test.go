@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -3284,4 +3285,136 @@ func TestManagerReusesUnchangedSkillParses(t *testing.T) {
 			t.Fatalf("parses=%d, servers=%#v", reads, skill.MCPServers)
 		}
 	})
+
+	t.Run(
+		"Should release superseded, removed, and unloaded skill parses while siblings stay cached",
+		func(t *testing.T) {
+			t.Parallel()
+			firstInstall, secondInstall := t.TempDir(), t.TempDir()
+			writeCachedSkills(t, firstInstall, "alpha", "beta")
+			writeCachedSkills(t, secondInstall, "alpha")
+			manager := NewManager(nil)
+			global := GlobalInstanceKey("ext-cache")
+			profile := InstanceKey{Name: "ext-cache", ProfileID: "profile-b"}
+			sibling := cachedSkillExtension(profile, firstInstall, "skills/beta")
+			loadCachedSkills(t, manager, cachedSkillExtension(global, firstInstall, "skills"))
+			loadCachedSkills(t, manager, sibling)
+			loadCachedSkills(t, manager, sibling)
+			want := []string{cachedSkillFile(t, firstInstall, "alpha"), cachedSkillFile(t, firstInstall, "beta")}
+			if got := cachedSkillFiles(manager); !slices.Equal(got, want) {
+				t.Fatalf("cached files = %#v, want %#v", got, want)
+			}
+
+			loadCachedSkills(t, manager, cachedSkillExtension(global, secondInstall, "skills"))
+			want = []string{cachedSkillFile(t, firstInstall, "beta"), cachedSkillFile(t, secondInstall, "alpha")}
+			if got := cachedSkillFiles(manager); !slices.Equal(got, want) {
+				t.Fatalf("cached files after reinstall = %#v, want sibling and current installation %#v", got, want)
+			}
+
+			if err := os.RemoveAll(filepath.Join(secondInstall, "skills", "alpha")); err != nil {
+				t.Fatal(err)
+			}
+			loadCachedSkills(t, manager, cachedSkillExtension(global, secondInstall, "skills"))
+			want = []string{cachedSkillFile(t, firstInstall, "beta")}
+			if got := cachedSkillFiles(manager); !slices.Equal(got, want) {
+				t.Fatalf("cached files after skill removal = %#v, want %#v", got, want)
+			}
+
+			if err := manager.unregisterResources(t.Context(), sibling); err != nil {
+				t.Fatalf("unregisterResources() error = %v", err)
+			}
+			if got := cachedSkillFiles(manager); len(got) != 0 {
+				t.Fatalf("cached files after unload = %#v, want none", got)
+			}
+		},
+	)
+
+	t.Run("Should expire idle projection owners while recently used siblings stay cached", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeCachedSkills(t, root, "stale", "fresh")
+		now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+		manager := NewManager(nil, WithNow(func() time.Time { return now }))
+		reads := 0
+		removed := cachedSkillExtension(
+			InstanceKey{Name: "ext-cache", ProfileID: "profile-removed", WorkspaceID: "ws"}, root, "skills/stale",
+		)
+		fresh := cachedSkillExtension(
+			InstanceKey{Name: "ext-cache", ProfileID: "profile-live", WorkspaceID: "ws"}, root, "skills/fresh",
+		)
+		loadCachedSkills(t, manager, removed)
+		loadCachedSkills(t, manager, fresh)
+		now = now.Add(skillResourceOwnerTTL / 2)
+		loadCachedSkills(t, manager, fresh)
+		now = now.Add(skillResourceOwnerTTL/2 + time.Minute)
+		want := []string{cachedSkillFile(t, root, "fresh"), cachedSkillFile(t, root, "stale")}
+		if got := cachedSkillFiles(manager); !slices.Equal(got, want) {
+			t.Fatalf("cached files before expiry pass = %#v, want %#v", got, want)
+		}
+		file := cachedSkillFile(t, root, "fresh")
+		for range 3 {
+			if _, err := manager.cachedSkillResource(file, skillspkg.SourceUser, func(
+				path string, source skillspkg.SkillSource,
+			) (*skillspkg.Skill, error) {
+				reads++
+				return skillspkg.ParseSkillFileWithSource(path, source)
+			}); err != nil {
+				t.Fatal(err)
+			}
+			loadCachedSkills(t, manager, fresh)
+		}
+		if reads != 0 {
+			t.Fatalf("fresh sibling parses after expiry pass = %d, want 0", reads)
+		}
+		want = []string{cachedSkillFile(t, root, "fresh")}
+		if got := cachedSkillFiles(manager); !slices.Equal(got, want) {
+			t.Fatalf("cached files after expiry pass = %#v, want idle projection released %#v", got, want)
+		}
+	})
+}
+
+func writeCachedSkills(t *testing.T, root string, names ...string) {
+	t.Helper()
+	for _, name := range names {
+		dir := filepath.Join(root, "skills", name)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, filepath.Join(dir, "SKILL.md"), managerSkillFile(name, "cached "+name))
+	}
+}
+
+func cachedSkillFile(t *testing.T, root string, name string) string {
+	t.Helper()
+	canonical, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Join(canonical, "skills", name, "SKILL.md")
+}
+
+func cachedSkillExtension(key InstanceKey, root string, paths ...string) *managedExtension {
+	resources := make([]ManifestResourcePath, 0, len(paths))
+	for _, path := range paths {
+		resources = append(resources, ManifestResourcePath{Path: path})
+	}
+	return &managedExtension{
+		key:      key,
+		info:     ExtensionInfo{Name: "ext-cache", Source: SourceUser},
+		rootDir:  root,
+		manifest: &Manifest{Name: "ext-cache", Resources: ResourcesConfig{Skills: resources}},
+	}
+}
+
+func cachedSkillFiles(manager *Manager) []string {
+	manager.skillResourceCacheMu.Lock()
+	defer manager.skillResourceCacheMu.Unlock()
+	return slices.Sorted(maps.Keys(manager.skillResourceCache))
+}
+
+func loadCachedSkills(t *testing.T, manager *Manager, ext *managedExtension) {
+	t.Helper()
+	if _, err := manager.loadSkillResources(ext); err != nil {
+		t.Fatalf("loadSkillResources(%s) error = %v", ext.instanceKey().runtimeID(), err)
+	}
 }

@@ -259,6 +259,7 @@ func (r *Registry) evictExpiredWorkspaceLocked(now time.Time) {
 	maps.DeleteFunc(r.wsCache, func(_ string, entry *wsCache) bool {
 		return entry.lastAccess.Before(cutoff)
 	})
+	r.evictExpiredDiscoveryLocked(cutoff)
 }
 
 func workspaceCacheKey(resolved *workspacepkg.ResolvedWorkspace) string {
@@ -294,5 +295,5 @@ func workspaceSourceConfigGeneration(resolved *workspacepkg.ResolvedWorkspace) s
 	parts = append(parts, "\x01")
 	parts = append(parts, resolved.Config.Skills.CustomSources...)
 	digest := sha256.Sum256([]byte(strings.Join(parts, "\x00")))
-	return "@src:" + hex.EncodeToString(digest[:8])
+	return workspaceSourceKeyMarker + hex.EncodeToString(digest[:8])
 }

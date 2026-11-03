@@ -263,6 +263,7 @@ type Manager struct {
 	viewCallGates        viewCallGateRegistry
 	skillResourceCacheMu sync.Mutex
 	skillResourceCache   map[string]skillResourceCacheEntry
+	skillResourceOwners  map[InstanceKey]skillResourceOwner
 
 	extensions          map[string]*managedExtension
 	devExtensions       map[InstanceKey]*managedExtension

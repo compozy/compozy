@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -687,6 +688,84 @@ func TestDiscoverReusesParsedDefinitionsWithoutChange(t *testing.T) {
 			t.Fatalf("DiscoverWorkspace() after removal = %#v, want guarded removed", discovered)
 		}
 	})
+
+	t.Run(
+		"Should release idle and superseded workspace variants while the global parse stays warm",
+		func(t *testing.T) {
+			t.Parallel()
+
+			userDir := filepath.Join(t.TempDir(), "user")
+			writeSkillFile(t, userDir, filepath.Join("guarded", skillFileName), guardedSkill("Guarded"))
+			workspace := func(id string) *workspacepkg.ResolvedWorkspace {
+				root := t.TempDir()
+				writeSkillFile(
+					t,
+					filepath.Join(root, ".compozy", "skills", "local"),
+					skillFileName,
+					"---\nname: local\ndescription: Local "+id+"\n---\nBody\n",
+				)
+				resolved := &workspacepkg.ResolvedWorkspace{ID: id, RootDir: root, WorkspaceID: id}
+				resolved.Config.Skills.Sources = []string{"agents"}
+				return resolved
+			}
+			now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+			var logs bytes.Buffer
+			registry := NewRegistry(
+				RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(userDir)},
+				WithLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+				WithNow(func() time.Time { return now }),
+			)
+			discover := func(resolved *workspacepkg.ResolvedWorkspace) {
+				if _, _, err := registry.DiscoverWorkspace(t.Context(), resolved); err != nil {
+					t.Fatalf("DiscoverWorkspace(%s) error = %v", resolved.ID, err)
+				}
+			}
+			cached := func() []string {
+				registry.mu.RLock()
+				defer registry.mu.RUnlock()
+				return slices.Sorted(maps.Keys(registry.discoveryCache))
+			}
+			if _, _, err := registry.DiscoverGlobal(t.Context()); err != nil {
+				t.Fatalf("DiscoverGlobal() error = %v", err)
+			}
+
+			alpha := workspace("ws-alpha")
+			discover(alpha)
+			alphaNext := *alpha
+			alphaNext.Config = compozyconfig.CloneConfig(&alpha.Config)
+			alphaNext.Config.Skills.Sources = []string{"claude"}
+			discover(&alphaNext)
+			beta := workspace("ws-beta")
+			discover(beta)
+			want := slices.Sorted(slices.Values([]string{
+				registryGlobalKey, workspaceCacheKey(&alphaNext), workspaceCacheKey(beta),
+			}))
+			if got := cached(); !slices.Equal(got, want) {
+				t.Fatalf("discovery cache keys = %#v, want superseded source variant released %#v", got, want)
+			}
+
+			now = now.Add(workspaceCacheTTL / 2)
+			discover(beta)
+			now = now.Add(workspaceCacheTTL/2 + time.Minute)
+			gamma := workspace("ws-gamma")
+			discover(gamma)
+			want = slices.Sorted(slices.Values([]string{
+				registryGlobalKey, workspaceCacheKey(beta), workspaceCacheKey(gamma),
+			}))
+			if got := cached(); !slices.Equal(got, want) {
+				t.Fatalf("discovery cache keys after idle expiry = %#v, want %#v", got, want)
+			}
+
+			for range 3 {
+				if _, _, err := registry.DiscoverGlobal(t.Context()); err != nil {
+					t.Fatalf("DiscoverGlobal() error = %v", err)
+				}
+			}
+			if got := parseCount(&logs); got != 1 {
+				t.Fatalf("global parses after workspace eviction = %d, want 1", got)
+			}
+		},
+	)
 }
 
 func findSkillByName(skills []*Skill, name string) *Skill {
