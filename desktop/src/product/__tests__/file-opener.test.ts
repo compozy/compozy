@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { BrowserWindow, MessageBoxOptions } from "electron";
 
 import { EditorTemplateError, expandEditorArgv, parseEditorCommand } from "../editor-command";
-import { ElectronFileOpener, SETTINGS_TIMEOUT_MS } from "../file-opener";
+import { ElectronFileOpener, LAUNCHER_EXIT_TIMEOUT_MS, SETTINGS_TIMEOUT_MS } from "../file-opener";
 import type { OpenInEditorParams } from "../open-in-editor-contract";
 import settingsGeneral from "./fixtures/settings-general.json" with { type: "json" };
 
@@ -37,18 +37,23 @@ function harness(
     home?: string;
     entries?: Record<string, Entry>;
     links?: Record<string, string>;
+    /** Where a path resolves from its second `realpath` on, as if replaced mid-open. */
+    swaps?: Record<string, string>;
     answers?: number[];
     settings?: SettingsReply;
     xdgMime?: string | Error;
     loginPath?: string | null | Error;
     executables?: string[];
     spawnEvent?: "spawn" | "error";
+    /** The child's exit code after `spawn`; `"never"` keeps it running. */
+    exitCode?: number | "never";
     env?: NodeJS.ProcessEnv;
   } = {}
 ) {
   const home = options.home ?? "/Users/d";
   const entries = { [home]: "dir" as Entry, ...options.entries };
   const links = options.links ?? {};
+  const resolved = new Set<string>();
   const fsCalls: string[] = [];
   const dialogs: MessageBoxOptions[] = [];
   const answers = [...(options.answers ?? [])];
@@ -68,6 +73,9 @@ function harness(
     fs: {
       async realpath(path) {
         fsCalls.push(`realpath ${path}`);
+        const swap = options.swaps?.[path];
+        if (swap && resolved.has(path)) return swap;
+        resolved.add(path);
         if (links[path]) return links[path];
         if (entries[path]) return path;
         throw enoent(path);
@@ -101,11 +109,15 @@ function harness(
       spawned.push({ command, args, options: spawnOptions });
       const child = Object.assign(new EventEmitter(), { unref: vi.fn() });
       const event = options.spawnEvent ?? "spawn";
-      queueMicrotask(() =>
-        event === "spawn"
-          ? child.emit("spawn")
-          : child.emit("error", Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" }))
-      );
+      const exitCode = options.exitCode ?? 0;
+      queueMicrotask(() => {
+        if (event === "error") {
+          child.emit("error", Object.assign(new Error("spawn ENOENT"), { code: "ENOENT" }));
+          return;
+        }
+        child.emit("spawn");
+        if (exitCode !== "never") queueMicrotask(() => child.emit("exit", exitCode, null));
+      });
       return child as unknown as ChildProcess;
     },
     async run(file, args) {
@@ -114,7 +126,8 @@ function harness(
       return options.xdgMime ?? "";
     },
     loginShellPath,
-    isExecutable: async path => (options.executables ?? []).includes(path),
+    isExecutable: async path =>
+      (options.executables ?? ["/usr/bin/code", "/usr/bin/gtk-launch"]).includes(path),
     log: (_message, fields) => logs.push(fields),
   });
   const open = async (params: Partial<OpenInEditorParams> & { path: string }) =>
@@ -134,7 +147,7 @@ describe("editor command template", () => {
     expect(await run.open({ path, line: 3, roots: ["/tmp"] })).toEqual({ status: "opened" });
     expect(run.spawned).toHaveLength(1);
     expect(at(run.spawned, 0)).toMatchObject({
-      command: "code",
+      command: "/usr/bin/code",
       args: ["-g", '/tmp/a b;rm -rf ~/x".ts:3'],
       options: { shell: false, detached: true, stdio: "ignore" },
     });
@@ -176,7 +189,10 @@ describe("file opener", () => {
     const run = harness({ entries: REPO });
     expect(await run.open({ path: "/repo/a.ts", line: 42 })).toEqual({ status: "opened" });
     expect(run.dialogs).toEqual([]);
-    expect(at(run.spawned, 0)).toMatchObject({ command: "code", args: ["-g", "/repo/a.ts:42"] });
+    expect(at(run.spawned, 0)).toMatchObject({
+      command: "/usr/bin/code",
+      args: ["-g", "/repo/a.ts:42"],
+    });
     expect(at(run.fetches, 0).url).toBe("http://127.0.0.1:2123/api/settings/general");
     expect(run.logs).toEqual([
       { event: "file_open", status: "opened", code: "", inside: true, fallback: false },
@@ -484,7 +500,7 @@ describe("file opener", () => {
     });
     expect(await linux.open({ path: "/repo/a.ts" })).toEqual({ status: "opened" });
     expect(at(linux.spawned, 0)).toMatchObject({
-      command: "gtk-launch",
+      command: "/usr/bin/gtk-launch",
       args: ["code.desktop", "/repo/a.ts"],
     });
 
@@ -544,7 +560,84 @@ describe("file opener", () => {
 
     const failed = harness({ entries: REPO, loginPath: new Error("timed out") });
     expect(await failed.open({ path: "/repo/a.ts" })).toEqual({ status: "opened" });
-    expect(at(failed.spawned, 0).command).toBe("code");
+    expect(at(failed.spawned, 0).command).toBe("/usr/bin/code");
     expect(at(failed.spawned, 0).options.env?.PATH).toBe("/usr/bin:/bin");
+  });
+
+  it("Should fail instead of spawning a bare editor no absolute PATH directory supplies", async () => {
+    for (const platform of ["darwin", "linux"] as const) {
+      const run = harness({ platform, entries: REPO, loginPath: ".::/opt/bin", executables: [] });
+      expect(await run.open({ path: "/repo/a.ts" })).toEqual({
+        status: "error",
+        code: "editor_failed",
+        message: "Couldn't open the editor. Check the editor command in Settings.",
+      });
+      expect(run.spawned).toEqual([]);
+    }
+  });
+
+  it("Should refuse a target whose real path changes while the editor is prepared", async () => {
+    const run = harness({
+      entries: { ...REPO, "/Users/d/.ssh/config": "file" },
+      swaps: { "/repo/a.ts": "/Users/d/.ssh/config" },
+    });
+    expect(await run.open({ path: "/repo/a.ts" })).toEqual({
+      status: "error",
+      code: "not_found",
+      message: "The file changed while opening: /repo/a.ts",
+    });
+    expect(run.fetches).toHaveLength(1);
+    expect(run.dialogs).toEqual([]);
+    expect(run.spawned).toEqual([]);
+  });
+
+  it("Should report a gtk-launch fallback that exits non-zero, but not a configured editor", async () => {
+    const unset = { body: settingsBody("") };
+    const broken = harness({
+      platform: "linux",
+      entries: REPO,
+      settings: unset,
+      xdgMime: "gone.desktop",
+      exitCode: 1,
+    });
+    expect(await broken.open({ path: "/repo/a.ts" })).toEqual({
+      status: "error",
+      code: "editor_failed",
+      message: "Couldn't open the editor. Check the editor command in Settings.",
+    });
+    expect(broken.spawned).toHaveLength(1);
+
+    const configured = harness({ platform: "linux", entries: REPO, exitCode: 1 });
+    expect(await configured.open({ path: "/repo/a.ts" })).toEqual({ status: "opened" });
+
+    vi.useFakeTimers();
+    try {
+      const slow = harness({
+        platform: "linux",
+        entries: REPO,
+        settings: unset,
+        xdgMime: "code.desktop",
+        exitCode: "never",
+      });
+      const result = slow.open({ path: "/repo/a.ts" });
+      await vi.advanceTimersByTimeAsync(LAUNCHER_EXIT_TIMEOUT_MS + 1);
+      expect(await result).toEqual({ status: "opened" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Should confirm credential folders whatever their case on macOS", async () => {
+    for (const [root, path] of [
+      ["/Users/d/.AWS", "/Users/d/.AWS/credentials"],
+      ["/Users/d/.SSH", "/Users/d/.SSH/config"],
+    ] as const) {
+      const run = harness({ entries: { [root]: "dir", [path]: "file" }, answers: [0] });
+      expect(await run.open({ path, roots: [root] })).toEqual({ status: "opened" });
+      expect(run.dialogs).toHaveLength(1);
+      expect(at(run.dialogs, 0).detail).toBe(
+        `${path}\n\nAn agent mentioned this file. It may contain credentials.`
+      );
+    }
   });
 });

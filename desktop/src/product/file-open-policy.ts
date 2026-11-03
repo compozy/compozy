@@ -19,6 +19,7 @@ const SENSITIVE_HOME_ENTRIES = [
 export class FileOpenPolicy {
   readonly #path: typeof posix;
   readonly #foldCase: boolean;
+  readonly #foldSensitiveCase: boolean;
 
   constructor(platform: NodeJS.Platform) {
     this.#path = platform === "win32" ? win32 : posix;
@@ -26,6 +27,9 @@ export class FileOpenPolicy {
     // stays outside (and confirms); on a case-insensitive volume `realpath` returns the
     // on-disk case for both the target and the roots, so the real-path check still matches.
     this.#foldCase = platform === "win32";
+    // The credential set is never resolved, so `~/.AWS` on a case-insensitive macOS volume
+    // must still match `.aws`; folding here only ever adds a confirmation.
+    this.#foldSensitiveCase = platform === "win32" || platform === "darwin";
   }
 
   /** Expands a leading `~/` with `home` and normalizes `.`/`..` segments lexically. */
@@ -40,11 +44,7 @@ export class FileOpenPolicy {
 
   /** True when `target` equals `root` or is a separator-aware descendant of it. */
   contains(root: string, target: string): boolean {
-    const relative = this.#path.relative(this.#key(root), this.#key(target));
-    if (relative === "") return true;
-    // win32 returns an absolute path when the drives differ.
-    if (this.#path.isAbsolute(relative)) return false;
-    return relative !== ".." && !relative.startsWith(`..${this.#path.sep}`);
+    return this.#containsKeys(this.#key(root), this.#key(target));
   }
 
   same(left: string, right: string): boolean {
@@ -60,12 +60,25 @@ export class FileOpenPolicy {
   /** True when `target` is under a fixed credential location of any of `homes`. */
   isSensitive(target: string, homes: readonly string[]): boolean {
     return homes.some(home =>
-      SENSITIVE_HOME_ENTRIES.some(entry => this.contains(this.#path.join(home, entry), target))
+      SENSITIVE_HOME_ENTRIES.some(entry =>
+        this.#containsKeys(
+          this.#key(this.#path.join(home, entry), this.#foldSensitiveCase),
+          this.#key(target, this.#foldSensitiveCase)
+        )
+      )
     );
   }
 
-  #key(path: string): string {
+  #containsKeys(root: string, target: string): boolean {
+    const relative = this.#path.relative(root, target);
+    if (relative === "") return true;
+    // win32 returns an absolute path when the drives differ.
+    if (this.#path.isAbsolute(relative)) return false;
+    return relative !== ".." && !relative.startsWith(`..${this.#path.sep}`);
+  }
+
+  #key(path: string, foldCase = this.#foldCase): string {
     const normalized = this.#path.resolve(path);
-    return this.#foldCase ? normalized.toLowerCase() : normalized;
+    return foldCase ? normalized.toLowerCase() : normalized;
   }
 }

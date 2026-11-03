@@ -2053,6 +2053,42 @@ func TestUpdateSettingsGeneralDesktopEditorCommand(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reject a desktop block without editor_command [IT-001]", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/general",
+			generalBody(map[string]any{}),
+		)
+		if resp.Code != http.StatusBadRequest || service.UpdateSectionCalls != 0 {
+			t.Fatalf("status = %d calls = %d, want 400 and no update", resp.Code, service.UpdateSectionCalls)
+		}
+		var payload contract.ErrorPayload
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if !strings.Contains(payload.Error, "desktop.editor_command is required") {
+			t.Fatalf("payload.Error = %q, want desktop.editor_command required error", payload.Error)
+		}
+	})
+
+	t.Run("Should forward an explicit empty command as a clear [IT-001]", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		body := generalBody(map[string]any{"editor_command": ""})
+		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/general", body)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+		}
+		got := service.LastUpdateSectionRequest.General
+		if got == nil || got.Desktop == nil || got.Desktop.EditorCommand != "" {
+			t.Fatalf("General = %#v, want an empty desktop editor command", got)
+		}
+	})
+
 	t.Run("Should reject an invalid template with its config path [IT-001]", func(t *testing.T) {
 		t.Parallel()
 		service := &stubSettingsService{}

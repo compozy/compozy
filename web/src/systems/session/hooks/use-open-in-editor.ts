@@ -27,18 +27,21 @@ interface SessionScope {
   workspaceId: string;
 }
 
+// An invalidated entry (e.g. after a worktree change) may name a stale `working_dir`, so only
+// valid entries count; with none, the click rereads the detail.
 function cachedSessionDetail(
   queryClient: QueryClient,
   { sessionId, workspaceId }: SessionScope
 ): SessionPayload | undefined {
-  const scoped = queryClient
-    .getQueriesData<SessionPayload>({ queryKey: sessionKeys.byIdRoot(sessionId) })
-    .map(([, data]) => data)
-    .filter(data => data !== undefined);
-  const detail = queryClient.getQueryData<SessionPayload>(
-    sessionKeys.detail(workspaceId, sessionId)
-  );
-  const candidates = detail ? [...scoped, detail] : scoped;
+  const cache = queryClient.getQueryCache();
+  const detail = cache.find({ queryKey: sessionKeys.detail(workspaceId, sessionId), exact: true });
+  const queries = cache.findAll({ queryKey: sessionKeys.byIdRoot(sessionId) });
+  if (detail) queries.push(detail);
+  const candidates: SessionPayload[] = [];
+  for (const query of queries) {
+    const data = query.state.data as SessionPayload | undefined;
+    if (!query.state.isInvalidated && data !== undefined) candidates.push(data);
+  }
   return candidates.find(data => data.working_dir) ?? candidates[0];
 }
 

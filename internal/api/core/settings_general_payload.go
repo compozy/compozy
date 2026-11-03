@@ -18,6 +18,13 @@ type settingsGeneralUpdateConfigPayload struct {
 	// IdleReleaseAfter shadows the embedded string so a supplied blank value is
 	// rejected instead of being mistaken for an omitted field.
 	IdleReleaseAfter *string `json:"idle_release_after"`
+	// Desktop shadows the embedded block so `"desktop": {}` is rejected instead of clearing the
+	// command; omit desktop to keep the current value, or send "" to clear it.
+	Desktop *settingsGeneralUpdateDesktopPayload `json:"desktop"`
+}
+
+type settingsGeneralUpdateDesktopPayload struct {
+	EditorCommand *string `json:"editor_command"`
 }
 
 type settingsGeneralUpdateRedactPayload struct {
@@ -46,6 +53,20 @@ func (p settingsGeneralUpdateConfigPayload) validatedPayload() (contract.Setting
 	}
 	if p.Terminal != nil {
 		p.SettingsGeneralConfigPayload.Terminal = *p.Terminal
+	}
+	p.SettingsGeneralConfigPayload.Desktop = nil
+	if p.Desktop != nil {
+		if p.Desktop.EditorCommand == nil {
+			return contract.SettingsGeneralConfigPayload{}, false, NewSettingsValidationError(
+				compozyconfig.ValidationError{
+					Path:    "desktop.editor_command",
+					Message: `is required; omit desktop to keep the current value or send "" to clear it`,
+				},
+			)
+		}
+		p.SettingsGeneralConfigPayload.Desktop = &contract.SettingsDesktopPayload{
+			EditorCommand: *p.Desktop.EditorCommand,
+		}
 	}
 	return p.SettingsGeneralConfigPayload, p.Terminal != nil, nil
 }

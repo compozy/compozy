@@ -396,6 +396,32 @@ describe("MessageMarkdown file paths", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("Should reread the detail when every cached entry with working_dir is invalidated (UT-048)", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ session: { id: SID, workspace_id: WS, working_dir: "/repo/wt" } })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const openInEditor = stubShell();
+    const client = seededClient({ working_dir: "/repo/old" });
+    client.setQueryData(sessionKeys.byId(SID, "default"), {
+      id: SID,
+      workspace_id: WS,
+      working_dir: "/repo/old",
+    });
+    await client.invalidateQueries({ queryKey: sessionKeys.byIdRoot(SID), refetchType: "none" });
+    await client.invalidateQueries({
+      queryKey: sessionKeys.detail(WS, SID),
+      exact: true,
+      refetchType: "none",
+    });
+    renderTranscript(<MessageMarkdown openPaths content="See `src/app.tsx`." />, client);
+    fireEvent.click(screen.getByText("src/app.tsx"), { metaKey: true });
+    await waitFor(() =>
+      expect(openInEditor).toHaveBeenCalledWith({ path: "/repo/wt/src/app.tsx", roots: ["/repo"] })
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("Should leave inline code inside a link undecorated and the link's own clicks intact", async () => {
     const openInEditor = stubShell();
     const { container } = renderTranscript(

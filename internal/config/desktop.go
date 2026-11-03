@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -32,7 +33,12 @@ func (o *desktopOverlay) Apply(dst *DesktopConfig) {
 }
 
 // Validate rejects editor command templates the desktop opener cannot split and expand safely.
+// The daemon runs on the desktop's machine, so its OS decides the Windows-only rules.
 func (c DesktopConfig) Validate() error {
+	return c.validateForOS(runtime.GOOS)
+}
+
+func (c DesktopConfig) validateForOS(goos string) error {
 	if !utf8.ValidString(c.EditorCommand) {
 		return desktopEditorCommandError("must be valid UTF-8")
 	}
@@ -53,8 +59,18 @@ func (c DesktopConfig) Validate() error {
 	if err := validateDesktopEditorPlaceholders(value); err != nil {
 		return err
 	}
+	if executable == "" {
+		return desktopEditorCommandError("the executable is empty")
+	}
 	if strings.ContainsRune(executable, '{') {
 		return desktopEditorCommandError("the executable cannot contain a placeholder")
+	}
+	// Node refuses to spawn a batch file without a shell, and the opener never uses one.
+	if goos == "windows" {
+		lower := strings.ToLower(executable)
+		if strings.HasSuffix(lower, ".cmd") || strings.HasSuffix(lower, ".bat") {
+			return desktopEditorCommandError("use the editor's .exe path, not a .cmd or .bat shim")
+		}
 	}
 	return nil
 }

@@ -23,6 +23,8 @@ import {
 export const SETTINGS_TIMEOUT_MS = 2_000;
 const XDG_MIME_TIMEOUT_MS = 2_000;
 const XDG_MIME_MAX_BYTES = 4 * 1024;
+/** How long the Linux `gtk-launch` fallback may take to report a broken desktop entry. */
+export const LAUNCHER_EXIT_TIMEOUT_MS = 5_000;
 
 export interface FileOpener {
   open(params: OpenInEditorParams, window: BrowserWindow | null): Promise<OpenInEditorResult>;
@@ -56,6 +58,14 @@ export interface FileOpenerDeps {
 }
 
 type ConfirmReason = "outside" | "sensitive";
+
+interface PreparedLaunch {
+  /** argv with argv[0] resolved; `{path}`, `{line}`, `{col}` in the arguments stay unexpanded. */
+  template: string[];
+  env: NodeJS.ProcessEnv;
+  /** Wait for the launcher's exit status (bounded) instead of returning at `spawn`. */
+  awaitExit: boolean;
+}
 
 const ERROR_MESSAGES: Record<Exclude<OpenInEditorErrorCode, "not_found" | "not_a_file">, string> = {
   editor_invalid: "The editor command is invalid.",
@@ -166,26 +176,19 @@ export class ElectronFileOpener implements FileOpener {
       if (!(await this.#confirm(window, real, reason))) return { status: "cancelled" };
     }
 
-    const command = await this.#editorCommand();
-    const target = { path: real, line: params.line, column: params.column };
-    let argv: string[];
-    if (command.trim() === "") {
-      outcome.fallback = true;
-      argv = await this.#fallbackArgv(real);
-    } else {
-      const template = parseEditorCommand(command);
-      if (template instanceof EditorTemplateError) {
-        throw failure("editor_invalid", `It ${template.message}.`);
-      }
-      argv = expandEditorArgv(template, target);
-      if (isWindowsBatchExecutable(this.#deps.platform, argv[0] ?? "")) {
-        throw new OpenFailure(
-          "editor_invalid",
-          "The editor command is invalid: use the editor's .exe path."
-        );
-      }
+    // Everything fallible (settings, xdg-mime, login-shell PATH) runs before the last check,
+    // so nothing awaits between re-validating the target and handing it to the editor.
+    const launch = await this.#prepareLaunch(outcome);
+    if ((await this.#realpathOrNull(lexical)) !== real) {
+      throw new OpenFailure("not_found", `The file changed while opening: ${lexical}`);
     }
-    await this.#launch(argv);
+    const [executable = "", ...template] = launch.template;
+    const args = expandEditorArgv(template, {
+      path: real,
+      line: params.line,
+      column: params.column,
+    });
+    await this.#spawn(launch.env, launch.awaitExit, executable, args);
     return { status: "opened" };
   }
 
@@ -265,7 +268,45 @@ export class ElectronFileOpener implements FileOpener {
     return command;
   }
 
-  async #fallbackArgv(path: string): Promise<string[]> {
+  /** Resolves the argv template and executable; `{path}` stays a placeholder until launch. */
+  async #prepareLaunch(outcome: { fallback: boolean }): Promise<PreparedLaunch> {
+    const command = await this.#editorCommand();
+    let template: string[];
+    let awaitExit = false;
+    if (command.trim() === "") {
+      outcome.fallback = true;
+      template = await this.#fallbackTemplate();
+      // gtk-launch reports an unknown or broken desktop entry only through its exit status.
+      awaitExit = this.#deps.platform === "linux";
+    } else {
+      const parsed = parseEditorCommand(command);
+      if (parsed instanceof EditorTemplateError) {
+        throw failure("editor_invalid", `It ${parsed.message}.`);
+      }
+      template = parsed;
+      if (isWindowsBatchExecutable(this.#deps.platform, template[0] ?? "")) {
+        throw new OpenFailure(
+          "editor_invalid",
+          "The editor command is invalid: use the editor's .exe path."
+        );
+      }
+    }
+    const [executable = "", ...args] = template;
+    if (this.#deps.platform === "win32") {
+      return { template, env: this.#deps.env, awaitExit };
+    }
+    this.#loginPath ??= this.#deps.loginShellPath().catch(() => null);
+    const path = (await this.#loginPath) ?? this.#deps.env.PATH ?? "";
+    const env = { ...this.#deps.env, PATH: path };
+    if (executable.includes("/")) return { template, env, awaitExit };
+    // A bare name spawn would search relative PATH entries against main's cwd; only an
+    // absolute PATH directory may supply the editor.
+    const resolved = await lookPath(executable, path, this.#deps.isExecutable);
+    if (!resolved) throw failure("editor_failed");
+    return { template: [resolved, ...args], env, awaitExit };
+  }
+
+  async #fallbackTemplate(): Promise<string[]> {
     let handler: string | null = null;
     if (this.#deps.platform === "linux") {
       try {
@@ -279,29 +320,25 @@ export class ElectronFileOpener implements FileOpener {
         handler = null;
       }
     }
-    const argv = fallbackEditorArgv(this.#deps.platform, path, {
+    const template = fallbackEditorArgv(this.#deps.platform, "{path}", {
       linuxTextHandler: handler,
       systemRoot: this.#deps.env.SystemRoot,
     });
-    if (!argv) throw failure("editor_not_configured");
-    return argv;
+    if (!template) throw failure("editor_not_configured");
+    return template;
   }
 
-  async #launch(argv: string[]): Promise<void> {
-    let [executable = ""] = argv;
-    let env = this.#deps.env;
-    if (this.#deps.platform !== "win32") {
-      this.#loginPath ??= this.#deps.loginShellPath().catch(() => null);
-      const path = (await this.#loginPath) ?? this.#deps.env.PATH ?? "";
-      env = { ...env, PATH: path };
-      if (!executable.includes("/")) {
-        executable = (await lookPath(executable, path, this.#deps.isExecutable)) ?? executable;
-      }
-    }
+  /** Must be entered synchronously after the final target check. */
+  async #spawn(
+    env: NodeJS.ProcessEnv,
+    awaitExit: boolean,
+    executable: string,
+    args: string[]
+  ): Promise<void> {
     await new Promise<void>((resolve, reject) => {
       let child: ChildProcess;
       try {
-        child = this.#deps.spawn(executable, argv.slice(1), {
+        child = this.#deps.spawn(executable, args, {
           shell: false,
           detached: true,
           stdio: "ignore",
@@ -316,7 +353,17 @@ export class ElectronFileOpener implements FileOpener {
       child.on("error", () => reject(failure("editor_failed")));
       child.once("spawn", () => {
         child.unref();
-        resolve();
+        if (!awaitExit) {
+          resolve();
+          return;
+        }
+        // A launcher still running after the bound is treated as opened.
+        const timer = setTimeout(resolve, LAUNCHER_EXIT_TIMEOUT_MS);
+        child.once("exit", code => {
+          clearTimeout(timer);
+          if (code === 0) resolve();
+          else reject(failure("editor_failed"));
+        });
       });
     });
   }

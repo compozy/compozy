@@ -82,11 +82,12 @@ function classify(path: string, hasLine: boolean, windows: boolean): { relative:
   if (path.startsWith("/")) return /[^/]/.test(path) ? { relative: false } : null;
   if (path.startsWith("~/")) return path.length > 2 ? { relative: false } : null;
   if (WINDOWS_DRIVE.test(path)) return windows && path.length > 3 ? { relative: false } : null;
-  if (path.startsWith("./") || path.startsWith("../")) {
-    return path.replace(/^(\.\.?\/)+/, "") === "" ? null : { relative: true };
+  const dotPrefix = windows ? /^(\.\.?[\\/])+/ : /^(\.\.?\/)+/;
+  if (dotPrefix.test(path)) {
+    return path.replace(dotPrefix, "") === "" ? null : { relative: true };
   }
   const hasExtension = EXTENSION.test(lastSegment(path, windows));
-  if (path.includes("/")) return hasExtension ? { relative: true } : null;
+  if (separators(windows).test(path)) return hasExtension ? { relative: true } : null;
   return hasExtension && hasLine ? { relative: true } : null;
 }
 

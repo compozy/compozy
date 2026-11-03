@@ -107,4 +107,21 @@ describe("resolveFilePath", () => {
     ).toBe("C:\\repo\\x.ts");
     expect(filePathBasename("C:\\repo\\x.ts", { windows: true })).toBe("x.ts");
   });
+
+  // FR-004. Invariant: a Windows `\\` marks a relative path exactly like `/` does.
+  it("Should detect Windows backslash-relative paths like their slash forms", () => {
+    for (const text of ["src\\main.ts", ".\\main.ts", "..\\lib\\x.ts", ".\\a/b.ts"]) {
+      expect(detectFilePath(text, "inline_code", { windows: true })).toMatchObject({
+        path: text,
+        relative: true,
+      });
+    }
+    expect(detectFilePath("..\\", "inline_code", { windows: true })).toBeNull();
+    expect(detectFilePath(".\\..\\", "inline_code", { windows: true })).toBeNull();
+    expect(detectFilePath("src\\main.ts", "inline_code", { windows: false })).toBeNull();
+    expect(detectFilePath(".\\main.ts", "inline_code", { windows: false })).toBeNull();
+    expect(
+      resolveFilePath(token("src\\main.ts", true), { workingDir: "C:\\repo" }, { windows: true })
+    ).toBe("C:\\repo\\src\\main.ts");
+  });
 });
