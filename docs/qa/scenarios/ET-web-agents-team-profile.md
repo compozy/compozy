@@ -99,6 +99,8 @@ Issue 1204 regression: break a stays-on agent's `appearance` in its AGENT.md by 
 `version` and `color`). `/agents` and the agent's home still open and its places still list, on
 the default face, with an `agent_appearance_invalid` warning on the definition read. Picking a new
 face in the header saves and replaces the broken block.
+Issue 1219 regression: duplicating that agent without an appearance override succeeds; the copy
+shows the default face for its new name and the source keeps its broken block.
 
 Appearance background regression (#1208 review): saving an icon or emoji with an omitted
 `background` or explicit `plate` succeeds. An authored `background: none` is preserved on disk,

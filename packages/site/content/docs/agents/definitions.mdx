@@ -461,6 +461,8 @@ Display names allow 80 characters after trimming; descriptions allow 280. Blank 
 the humanized slug. Appearance supports `generated` (seed and generation), `icon` (a Lucide slug),
 or `emoji` (one emoji), with a `#rrggbb` color. Omitted appearance resolves from the slug at read time.
 Unknown appearance versions and subkeys remain in the file; unsupported appearance resolves to the default with a diagnostic.
+Duplicating a definition with an unsupported appearance leaves it out of the copy, so the copy draws the
+default face for its new name. An explicit appearance override on duplicate is still validated.
 
 ```sh
 compozy agent create triage --kind stays_on --display-name "Triage Lead" --prompt "Keep issues moving."

@@ -315,6 +315,8 @@ Icon and emoji forms use `avatar:"icon", icon:<Lucide slug>` or `avatar:"emoji",
 plus optional `background:"none"` to drop the tinted plate (`"plate"` or unset keeps it). Every write needs
 `version:1` and a `#rrggbb` color. Unsupported saved appearance never fails a read: it resolves to the default
 face with an `agent_appearance_invalid` diagnostic, survives unrelated edits, and is replaced by the next valid save.
+Duplicate drops it, so the copy gets the default face seeded by its new name; an explicit appearance
+override on duplicate is still validated.
 
 Kind is fixed at creation. Use `compozy agent duplicate <source> <name> --kind on_demand` to choose another kind.
 Changing it through update returns `agent_kind_immutable`. PUT preserves omitted identity fields and ignores
