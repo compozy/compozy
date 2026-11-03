@@ -6,13 +6,13 @@ persona: Rafa
 journey: J-15-operate-session-via-cli-api
 expected: When session/prompt fails with provider_auth_required (ACP -32000 or auth wording) the turn does not fail. The session stays active, reads runtime.status "recovering" with runtime.recovery.reason "provider_auth", and the web notice reads "Waiting for the provider sign-in…". Retries back off 15s, 30s, then every minute for session.auth_recovery.window (10m). Each retry starts a fresh provider process and reloads the session. Once the sign-in returns, an untouched turn is resent and a turn that already produced output or tool calls gets a continuation, with no duplicated user message or tool call. When the window ends, the turn fails with today's provider_error guidance (handoff on user sessions), and later turns fail without waiting until one completes. Rate-limit and other failures are unchanged.
 entry_points: compozy session prompt <id> "…"; compozy session status <id> -o json; compozy session events <id> -o json; compozy config set session.auth_recovery.window <d>; web session window
-qa_status: planned
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/evidence/2026-11-03-issue-1216-auth-recovery/events-summary.json; docs/qa/evidence/2026-11-03-issue-1216-auth-recovery/signin-wait.png
+last_report: docs/qa/reports/2026-11-03-issue-1216-auth-recovery.md
 overlaps: RT-provider-error-handoff; RT-session-fallback-chain
 ---
 
@@ -45,3 +45,8 @@ Automated evidence at authoring time: `internal/session/manager_prompt_lifetime_
 (resend, continuation, exhaustion, cancellation) and
 `internal/acp/failure_test.go::TestProviderFailureDiagnosticFromErrorClassifiesProviderRecoveryActions`
 (the ACP -32000 code classifies without auth wording).
+
+Verification 2026-11-03: isolated daemon and ACP subprocess walk passed recovery, expiry, immediate
+followup failure, restored sign-in and Web wait/automatic completion. Strict audit passed with no
+blockers or warnings; teardown was clean. The provider and credential were synthetic, so this does
+not establish live OAuth account-switch behavior. See the linked run report for timestamps and limits.

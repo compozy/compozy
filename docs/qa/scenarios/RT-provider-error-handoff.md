@@ -71,3 +71,8 @@ waits out `session.auth_recovery.window` (see `RT-provider-auth-recovery`), and 
 `provider_auth_required` error with the `handoff` guidance above. Walk the not_authenticated leg with
 `session.auth_recovery.enabled = false`, or with a short window, to keep it under a minute. The rate-limit
 leg is unchanged.
+
+Auth-leg verification 2026-11-03 (#1216): after six attempts in the isolated mock-provider lab,
+one terminal error retained `provider_auth_required` and `handoff`; subsequent prompts failed
+immediately until a successful turn re-armed recovery. This delta is recorded in
+`docs/qa/reports/2026-11-03-issue-1216-auth-recovery.md`; prior rate-limit evidence above is unchanged.
