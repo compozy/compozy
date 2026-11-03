@@ -51,9 +51,12 @@ func (m *Manager) RecoverProfileMoves(ctx context.Context) error {
 }
 
 func (m *Manager) settleProfileMoveLocked(ctx context.Context, move store.SessionProfileMove) (bool, error) {
-	unlock := m.lockProfileMove(move.WorkspaceID, move.SessionID)
+	lockedCtx, unlock, err := m.lockProfileMove(ctx, move.SessionID)
+	if err != nil {
+		return false, err
+	}
 	defer unlock()
-	return m.settleProfileMove(ctx, move)
+	return m.settleProfileMove(lockedCtx, move)
 }
 
 // settleOpenProfileMove settles a move of the session that is still journaled
@@ -143,21 +146,52 @@ func (m *Manager) rollbackProfileMoveState(
 			errs = append(errs, err)
 		}
 	}
-	// The caller holds the lock the public Unarchive takes.
-	if err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, meta.ID); errors.Is(err, ErrSessionArchived) {
-		if _, err := m.setArchived(ctx, meta.WorkspaceID, meta.ID, false); err != nil {
-			return errors.Join(append(errs, fmt.Errorf("unarchive session %s: %w", meta.ID, err))...)
-		}
-	} else if err != nil {
-		return errors.Join(append(errs, fmt.Errorf("read the archive state of %s: %w", meta.ID, err))...)
-	}
-	if restoredID != "" {
-		expected := meta.WorktreeIDValue()
-		if _, err := m.ChangeWorktreeBinding(ctx, meta.ID, restoredID, &expected); err != nil {
-			errs = append(errs, fmt.Errorf("bind session %s to worktree %s: %w", meta.ID, restoredID, err))
-		}
+	if err := m.restoreProfileMoveSource(ctx, &meta, restoredID); err != nil {
+		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
+}
+
+// restoreProfileMoveSource unarchives the original and rebinds it to restoredID under
+// the session's conversation lock, so a resume cannot start it on a removed checkout
+// in between. The caller holds the profile-move lock the public Unarchive takes.
+func (m *Manager) restoreProfileMoveSource(ctx context.Context, meta *store.SessionMeta, restoredID string) error {
+	operationCtx, unlock, err := m.lockConversationOperation(ctx, meta.ID)
+	if err != nil {
+		return fmt.Errorf("lock session %s: %w", meta.ID, err)
+	}
+	info, previous, changed, err := m.unarchiveAndRebindLocked(operationCtx, meta, restoredID)
+	unlock()
+	if changed {
+		// Published after the session's reservations release, as ChangeWorktreeBinding does.
+		m.notifyWorktreeBindingChanged(ctx, info, previous)
+	}
+	return err
+}
+
+func (m *Manager) unarchiveAndRebindLocked(
+	ctx context.Context,
+	meta *store.SessionMeta,
+	restoredID string,
+) (*Info, string, bool, error) {
+	err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, meta.ID)
+	switch {
+	case errors.Is(err, ErrSessionArchived):
+		if _, err := m.setArchived(ctx, meta.WorkspaceID, meta.ID, false); err != nil {
+			return nil, "", false, fmt.Errorf("unarchive session %s: %w", meta.ID, err)
+		}
+	case err != nil:
+		return nil, "", false, fmt.Errorf("read the archive state of %s: %w", meta.ID, err)
+	}
+	if restoredID == "" {
+		return nil, "", false, nil
+	}
+	expected := meta.WorktreeIDValue()
+	info, previous, changed, err := m.changeStoppedWorktreeBinding(ctx, meta.ID, restoredID, &expected)
+	if err != nil {
+		return nil, "", false, fmt.Errorf("bind session %s to worktree %s: %w", meta.ID, restoredID, err)
+	}
+	return info, previous, changed, nil
 }
 
 // releaseProfileMoveTarget removes the copy's checkout when its creation committed;

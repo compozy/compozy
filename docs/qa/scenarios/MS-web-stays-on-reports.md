@@ -371,7 +371,9 @@ paused.", the time it reached its limit, the held count and Resume in place. Res
 says "It paused at HH:MM, then you resumed it." An expired
 request names the tool and action in its reason ("the Bash execute request") and shows
 the command or path from `resource`. A lost wake, either a `failure` with reason
-`wake_lost` or an `interrupted` report for a monitor, reads "A wake-up didn't arrive" with Check it now. A full
+`wake_lost` or an `interrupted` report for a monitor, reads "A wake-up didn't arrive" with Check it now.
+When the main cancels its own monitor, even one that already fired and is still waking it,
+no such report appears and the monitor lists as `canceled`. A full
 conversation reads "I'm out of room in this conversation"; when dependencies hold the
 move, it names the first one and lists the rest behind See what's in the way. A rotated
 conversation opens with "I started a new conversation" above the link back. Web suites:

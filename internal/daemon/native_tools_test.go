@@ -10928,6 +10928,97 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
 	})
 
+	t.Run("Should decide native tools at the session's effective level", func(t *testing.T) {
+		t.Parallel()
+		// #1200: an undeclared stays-on agent runs at approve-edits; its native tools
+		// must not fall back to the global approve-all while the provider gate defers.
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		for _, tc := range []struct {
+			name        string
+			sessionType session.Type
+			effective   string
+			agentErr    error
+			want        toolspkg.PermissionMode
+		}{
+			{
+				name: "Should use the stays-on default level", sessionType: session.SessionTypeUser,
+				effective: string(compozyconfig.PermissionModeApproveEdits), want: toolspkg.PermissionModeApproveEdits,
+			},
+			{
+				name: "Should keep the configured mode without an effective level", sessionType: session.SessionTypeUser,
+				want: toolspkg.PermissionModeApproveAll,
+			},
+			{
+				name: "Should use a narrowed delegated level", sessionType: session.SessionTypeSpawned,
+				effective: string(compozyconfig.PermissionModeApproveReads), want: toolspkg.PermissionModeApproveReads,
+			},
+			{
+				name: "Should use the effective level when the lineage agent is unavailable", sessionType: session.SessionTypeSpawned,
+				effective: string(compozyconfig.PermissionModeApproveReads), agentErr: workspacepkg.ErrAgentNotAvailable,
+				want: toolspkg.PermissionModeApproveReads,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				info := &session.Info{
+					ID: "sess-level", ProfileID: store.DefaultProfileID, AgentName: "orchestrator",
+					State: session.StateActive, Type: tc.sessionType, EffectivePermissions: tc.effective,
+				}
+				if tc.sessionType == session.SessionTypeSpawned {
+					info.Lineage = &store.SessionLineage{
+						ParentSessionID: "parent-1", RootSessionID: "root-1", SpawnDepth: 1,
+						PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"compozy__session_create"}},
+					}
+				}
+				resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+					Config:   &cfg,
+					Sessions: &nativeToolPolicySessionStub{info: info},
+					AgentResolver: &nativeToolPolicyAgentResolverStub{err: tc.agentErr, agent: compozyconfig.AgentDef{
+						Name: "orchestrator", Provider: "opencode", Prompt: "Coordinate.", Kind: "stays_on",
+					}},
+					ApprovalAvailable: true,
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: "sess-level"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if inputs.SystemPermissionMode != tc.want {
+					t.Fatalf("mode = %q, want %q", inputs.SystemPermissionMode, tc.want)
+				}
+				if tc.want != toolspkg.PermissionModeApproveReads {
+					return
+				}
+				// The lineage-allowed coordination mutation asks below approve-edits.
+				for _, descriptor := range builtintools.NativeDescriptors() {
+					if descriptor.ID != toolspkg.ToolIDSessionCreate {
+						continue
+					}
+					evaluator, err := toolspkg.NewEffectivePolicyEvaluator(
+						inputs, toolspkg.ToolsetCatalog{}, []toolspkg.ToolID{descriptor.ID},
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					decision, err := evaluator.Evaluate(
+						t.Context(),
+						toolspkg.Scope{SessionID: "sess-level"},
+						descriptor,
+					)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !decision.ApprovalRequired {
+						t.Fatalf("session_create decision = %+v, want approval at approve-reads", decision)
+					}
+				}
+			})
+		}
+	})
+
 	t.Run("Should resolve daemon policy without treating its audit label as an authored agent", func(t *testing.T) {
 		t.Parallel()
 

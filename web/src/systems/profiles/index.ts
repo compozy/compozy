@@ -128,10 +128,12 @@ export {
 } from "./stores/profile-dialog-store";
 
 // Hooks
+export { usePinnedProfile } from "./hooks/use-pinned-profile";
 export { useProfile, useProfileOperations, useProfiles } from "./hooks/use-profiles";
 export {
   useActiveProfileView,
   useCurrentProfileName,
+  useProfileSwitchEpoch,
   useRememberedProfile,
   useSwitchProfile,
   useProfilePerProfileScope,
@@ -177,6 +179,7 @@ export {
   type ProfileGlyphProps,
   type ProfileGlyphSize,
 } from "./components/profile-glyph";
+export { ProfilePin } from "./components/profile-pin";
 export { ProfileSwitcher, type ProfileSwitcherProps } from "./components/profile-switcher";
 export { ProfileSwitcherMenu } from "./components/profile-switcher-menu";
 export { ProfileIdentityFields } from "./components/profile-identity-fields";

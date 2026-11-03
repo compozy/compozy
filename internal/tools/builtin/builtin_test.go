@@ -5,12 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"go/constant"
+	"go/types"
 	"maps"
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
@@ -18,6 +22,7 @@ import (
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	jsonschemakind "github.com/santhosh-tekuri/jsonschema/v6/kind"
+	"golang.org/x/tools/go/packages"
 )
 
 func TestBuiltinNativeDescriptors(t *testing.T) {
@@ -844,6 +849,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			"worktree":{"id":"wt-1","name":"auth","branch":"feat/auth","path":"/wt/auth","base_sha":"abc","created":true},
 			"prompt":{"message_id":"spawn-prompt-sess-child","status":"accepted","reply_watch_id":"rw-1","reply_watch_state":"armed"}
 		}`)
+		output := decodeRawNativeObjectSchema(t, "session_spawn output", spawn.OutputSchema)
+		for property, payload := range map[string]reflect.Type{
+			"permissions": reflect.TypeFor[contract.SpawnPermissionPolicyPayload](),
+			"worktree":    reflect.TypeFor[contract.SpawnWorktreePayload](),
+			"prompt":      reflect.TypeFor[contract.SpawnPromptPayload](),
+		} {
+			assertSchemaDeclaresPayload(t, "session_spawn output "+property, output.Properties[property], payload)
+		}
 	})
 
 	t.Run("Should validate exact Loop lifecycle output schemas", func(t *testing.T) {
@@ -1652,8 +1665,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_reparent", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
-		{id: "compozy__session_move_to_profile", risk: toolspkg.RiskMutating,
-			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_move_to_profile", risk: toolspkg.RiskDestructive,
+			readOnly: false, destructive: true, openWorld: false},
 		{id: "compozy__session_outline", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_search", risk: toolspkg.RiskRead,
@@ -2295,28 +2308,12 @@ func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw jso
 	if prompt.Type != "object" {
 		t.Fatalf("%s prompt schema = %#v, want object", owner, prompt)
 	}
-	assertClosedObjectSchema(t, owner+" prompt", prompt, []string{
-		"canceled_queued_entries",
-		"delivery",
-		"disposition",
-		"entry_id",
-		"estimated_send_at",
-		"goal",
-		"idempotency_key",
-		"message_id",
-		"mode",
-		"new_turn_id",
-		"previous_turn_id",
-		"queue_entry_id",
-		"queue_generation",
-		"queue_position",
-		"replayed",
-		"reply_watch",
-		"status",
-		"steer_delivery",
-		"target_workspace_id",
-		"turn_id",
-	})
+	assertSchemaDeclaresPayload(
+		t,
+		owner+" prompt",
+		envelope.Properties["prompt"],
+		reflect.TypeFor[contract.SendPromptResultPayload](),
+	)
 	if !slices.Equal(prompt.Required, []string{"status", "delivery", "message_id", "idempotency_key", "replayed"}) {
 		t.Fatalf(
 			"%s prompt required = %#v, want status/delivery/message_id/idempotency_key/replayed",
@@ -2336,18 +2333,6 @@ func assertSessionPromptMutationOutputSchema(t *testing.T, owner string, raw jso
 		[]string{"armed", "fired", "delivered", "abandoned"},
 	)
 
-	assertStringEnumSchema(
-		t,
-		owner+" prompt.delivery",
-		prompt.Properties["delivery"],
-		[]string{"none", "direct", "after_turn", "interrupt_then_prompt"},
-	)
-	assertStringEnumSchema(
-		t,
-		owner+" prompt.mode",
-		prompt.Properties["mode"],
-		[]string{"queue", "interrupt", "steer"},
-	)
 	for _, field := range []string{"message_id", "idempotency_key"} {
 		var identity nativeObjectSchema
 		if err := json.Unmarshal(prompt.Properties[field], &identity); err != nil {
@@ -2399,11 +2384,7 @@ func assertSessionInputsListSchema(t *testing.T, descriptor toolspkg.Descriptor)
 	if inputs.Type != "array" {
 		t.Fatalf("%s outputs schema = %#v, want array", descriptor.ID, inputs)
 	}
-	var item nativeObjectSchema
-	if err := json.Unmarshal(inputs.Items, &item); err != nil {
-		t.Fatalf("%s output items schema unmarshal error = %v", descriptor.ID, err)
-	}
-	assertSessionInputPayloadSchema(t, descriptor.ID.String()+" output input", item)
+	assertSessionInputPayloadSchema(t, descriptor.ID.String()+" output input", inputs.Items)
 }
 
 func assertSessionInputReplaceSchema(t *testing.T, descriptor toolspkg.Descriptor) {
@@ -2492,32 +2473,18 @@ func assertSessionInputOutputSchema(t *testing.T, owner string, raw json.RawMess
 		t.Fatalf("%s schema unmarshal error = %v", owner, err)
 	}
 	assertClosedObjectSchema(t, owner, envelope, []string{"input"})
-	var input nativeObjectSchema
-	if err := json.Unmarshal(envelope.Properties["input"], &input); err != nil {
-		t.Fatalf("%s input schema unmarshal error = %v", owner, err)
-	}
-	assertSessionInputPayloadSchema(t, owner+" input", input)
+	assertSessionInputPayloadSchema(t, owner+" input", envelope.Properties["input"])
 }
 
-func assertSessionInputPayloadSchema(t *testing.T, owner string, input nativeObjectSchema) {
+func assertSessionInputPayloadSchema(t *testing.T, owner string, raw json.RawMessage) {
 	t.Helper()
-	assertClosedObjectSchema(t, owner, input, []string{
-		"attachments", "coalesced_wakes", "delivery", "enqueued_at", "held", "id", "idempotency_key", "mentions",
-		"message_id", "mode", "origin", "owner_id", "owner_kind", "queue_generation",
-		"runtime", "session_id", "skill_invocations", "status", "steer_delivery", "target_turn_id", "text",
-	})
+	input := decodeRawNativeObjectSchema(t, owner, raw)
+	assertSchemaDeclaresPayload(t, owner, raw, reflect.TypeFor[contract.SessionInputPayload]())
 	if !slices.Equal(input.Required, []string{
 		"id", "session_id", "status", "mode", "delivery", "text", "queue_generation", "enqueued_at",
 	}) {
 		t.Fatalf("%s required = %#v, want durable session input fields", owner, input.Required)
 	}
-	assertStringEnumSchema(t, owner+" mode", input.Properties["mode"], []string{"queue", "interrupt", "steer"})
-	assertStringEnumSchema(
-		t,
-		owner+" delivery",
-		input.Properties["delivery"],
-		[]string{"none", "direct", "after_turn", "interrupt_then_prompt"},
-	)
 }
 
 func assertSessionMutationEnvelopeSchema(
@@ -2951,6 +2918,177 @@ func assertStringEnumSchema(t *testing.T, owner string, raw json.RawMessage, wan
 	if schema.Type != "string" || !slices.Equal(schema.Enum, want) {
 		t.Fatalf("%s schema = %#v, want string enum %#v", owner, schema, want)
 	}
+}
+
+// assertSchemaDeclaresPayload fails when a Go payload type can emit JSON its declared output
+// schema rejects. MCP clients validate structured results against the advertised schema, so a
+// field or enum value added to the payload type must reach the schema in the same change.
+func assertSchemaDeclaresPayload(t *testing.T, owner string, raw json.RawMessage, typ reflect.Type) {
+	t.Helper()
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		t.Fatalf("%s schema unmarshal error = %v", owner, err)
+	}
+	assertSchemaNodeDeclaresType(t, owner, schema, typ)
+}
+
+func assertSchemaNodeDeclaresType(t *testing.T, owner string, schema map[string]any, typ reflect.Type) {
+	t.Helper()
+	for typ.Kind() == reflect.Pointer {
+		typ = typ.Elem()
+	}
+	if typ.Implements(reflect.TypeFor[json.Marshaler]()) ||
+		reflect.PointerTo(typ).Implements(reflect.TypeFor[json.Marshaler]()) {
+		return
+	}
+	switch typ.Kind() {
+	case reflect.Struct:
+		properties, _ := schema["properties"].(map[string]any)
+		closed := schema["additionalProperties"] == false
+		fields := payloadJSONFields(typ)
+		for name, field := range fields {
+			child, declared := properties[name].(map[string]any)
+			if !declared {
+				if closed {
+					t.Errorf("%s: %s emits %q, which the closed schema does not declare", owner, typ, name)
+				}
+				continue
+			}
+			assertSchemaNodeDeclaresType(t, owner+"."+name, child, field.Type)
+		}
+		required, _ := schema["required"].([]any)
+		for _, value := range required {
+			name, _ := value.(string)
+			field, ok := fields[name]
+			switch {
+			case !ok:
+				t.Errorf("%s: schema requires %q, which %s never emits", owner, name, typ)
+			case field.optional:
+				t.Errorf("%s: schema requires %q, which %s omits when empty", owner, name, typ)
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		if items, ok := schema["items"].(map[string]any); ok {
+			assertSchemaNodeDeclaresType(t, owner+"[]", items, typ.Elem())
+		}
+	case reflect.String:
+		if typ.PkgPath() == "" {
+			return
+		}
+		values := namedStringConstants(t, typ)
+		if len(values) == 0 {
+			return
+		}
+		// A named string type with constants is a closed vocabulary: the schema enum must list
+		// exactly those values, neither dropping one nor allowing one the daemon never emits.
+		enum, _ := schema["enum"].([]any)
+		declared := make([]string, 0, len(enum))
+		for _, value := range enum {
+			text, _ := value.(string)
+			declared = append(declared, text)
+		}
+		slices.Sort(declared)
+		if !slices.Equal(declared, values) {
+			t.Errorf("%s: schema enum %v, want exactly the %s values %v", owner, declared, typ, values)
+		}
+	default:
+	}
+}
+
+type payloadJSONField struct {
+	Type     reflect.Type
+	optional bool
+}
+
+func payloadJSONFields(typ reflect.Type) map[string]payloadJSONField {
+	fields := make(map[string]payloadJSONField, typ.NumField())
+	for field := range typ.Fields() {
+		if !field.IsExported() {
+			continue
+		}
+		tag := field.Tag.Get("json")
+		if tag == "-" {
+			continue
+		}
+		name, options, _ := strings.Cut(tag, ",")
+		if field.Anonymous && name == "" {
+			embedded := field.Type
+			if embedded.Kind() == reflect.Pointer {
+				embedded = embedded.Elem()
+			}
+			maps.Copy(fields, payloadJSONFields(embedded))
+			continue
+		}
+		if name == "" {
+			name = field.Name
+		}
+		optional := slices.ContainsFunc(strings.Split(options, ","), func(option string) bool {
+			return option == "omitempty" || option == "omitzero"
+		})
+		fields[name] = payloadJSONField{Type: field.Type, optional: optional}
+	}
+	return fields
+}
+
+// namedStringConstants returns the string constants the type checker assigns to a named type,
+// so a new constant reaches the enum check without a hand-maintained list, whatever its form.
+func namedStringConstants(t *testing.T, typ reflect.Type) []string {
+	t.Helper()
+	return packageStringConstants(t, typ.PkgPath(), typ.Name())
+}
+
+var typeCheckedPackages sync.Map // package path -> *types.Package
+
+func packageStringConstants(t *testing.T, pkgPath string, typeName string) []string {
+	t.Helper()
+	scope := typeCheckedPackage(t, pkgPath).Scope()
+	values := make([]string, 0)
+	for _, name := range scope.Names() {
+		value, ok := scope.Lookup(name).(*types.Const)
+		if !ok || value.Val().Kind() != constant.String {
+			continue
+		}
+		named, ok := types.Unalias(value.Type()).(*types.Named)
+		if !ok || named.Obj().Pkg() == nil || named.Obj().Pkg().Path() != pkgPath || named.Obj().Name() != typeName {
+			continue
+		}
+		values = append(values, constant.StringVal(value.Val()))
+	}
+	slices.Sort(values)
+	return slices.Compact(values)
+}
+
+func typeCheckedPackage(t *testing.T, pkgPath string) *types.Package {
+	t.Helper()
+	if cached, ok := typeCheckedPackages.Load(pkgPath); ok {
+		return cached.(*types.Package)
+	}
+	loaded, err := packages.Load(&packages.Config{Mode: packages.NeedName | packages.NeedTypes}, pkgPath)
+	if err != nil {
+		t.Fatalf("load %s: %v", pkgPath, err)
+	}
+	if len(loaded) != 1 || len(loaded[0].Errors) > 0 || loaded[0].Types == nil {
+		t.Fatalf("load %s: %d packages, errors %v", pkgPath, len(loaded), packages.PrintErrors(loaded))
+	}
+	cached, _ := typeCheckedPackages.LoadOrStore(pkgPath, loaded[0].Types)
+	return cached.(*types.Package)
+}
+
+func TestPackageStringConstants(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should read every constant form the type checker assigns to a named string type", func(t *testing.T) {
+		t.Parallel()
+		got := packageStringConstants(
+			t,
+			"github.com/compozy/compozy/internal/tools/builtin/testdata/driftconst",
+			"Kind",
+		)
+		want := []string{"alias-typed", "converted", "explicit", "joined"}
+		if !slices.Equal(got, want) {
+			t.Fatalf("Kind constants = %v, want %v", got, want)
+		}
+	})
 }
 
 func TestTerminalDescriptorsShouldKeepObserveOnlyAgentsReadOnly(t *testing.T) { // IT-026
@@ -3541,6 +3679,74 @@ func TestSubagentDescriptorSchemas(t *testing.T) {
 					}
 				}
 			}
+		}
+	})
+}
+
+// Invariant (#1200): at approve-edits and auto the exact set of builtin mutations
+// that run without asking is a security boundary. A new builtin tool must be
+// added here deliberately; owner: builtin catalog risk + native permission ceiling.
+func TestBuiltinEditLevelAutoApprovals(t *testing.T) {
+	t.Parallel()
+	t.Run("Should run only the pinned coordination mutations unasked at approve-edits", func(t *testing.T) {
+		t.Parallel()
+		want := []string{
+			"compozy__agent_draft_instructions", "compozy__agent_heartbeat_wake", "compozy__agent_instance_check",
+			"compozy__agent_instance_checks", "compozy__agent_instance_mark_seen", "compozy__agent_memory_add",
+			"compozy__agent_memory_remove", "compozy__agent_memory_replace", "compozy__agent_skill_propose",
+			"compozy__desktop_create", "compozy__desktop_reorder", "compozy__desktop_switch",
+			"compozy__desktop_update", "compozy__goal_control", "compozy__goal_report", "compozy__layout_arrange",
+			"compozy__layout_balance", "compozy__layout_frame_resize", "compozy__layout_redo",
+			"compozy__layout_resize", "compozy__layout_undo", "compozy__monitor_cancel", "compozy__monitor_create",
+			"compozy__notify", "compozy__session_compact", "compozy__session_continue", "compozy__session_create",
+			"compozy__session_folder_create", "compozy__session_folder_delete", "compozy__session_folder_rename",
+			"compozy__session_folder_reorder", "compozy__session_fork", "compozy__session_input_promote",
+			"compozy__session_input_replace", "compozy__session_inputs_clear", "compozy__session_link",
+			"compozy__session_move", "compozy__session_prompt", "compozy__session_prompt_cancel",
+			"compozy__session_rename", "compozy__session_reorder", "compozy__session_resume_later",
+			"compozy__session_runtime_clear", "compozy__session_runtime_set", "compozy__session_spawn",
+			"compozy__session_unarchive", "compozy__session_unlink", "compozy__session_worktree_bind",
+			"compozy__session_worktree_unbind", "compozy__subagent_cancel", "compozy__subagent_delegate",
+			"compozy__subagent_status", "compozy__task_block", "compozy__task_child_create", "compozy__task_create",
+			"compozy__task_fanout_runs", "compozy__task_recover", "compozy__task_run_claim_next",
+			"compozy__task_run_complete", "compozy__task_run_fail", "compozy__task_run_heartbeat",
+			"compozy__task_run_release", "compozy__task_run_review_request", "compozy__task_run_review_submit",
+			"compozy__task_unblock", "compozy__task_update", "compozy__task_worktree_policy_set",
+			"compozy__terminal_request_input", "compozy__window_activate", "compozy__window_float",
+			"compozy__window_focus", "compozy__window_group", "compozy__window_move", "compozy__window_navigate",
+			"compozy__window_open", "compozy__window_pin", "compozy__window_reopen", "compozy__window_reorder",
+			"compozy__window_resize", "compozy__window_swap", "compozy__window_zoom",
+			"compozy__workspace_folder_create", "compozy__workspace_folder_delete", "compozy__workspace_folder_rename",
+			"compozy__workspace_folder_reorder", "compozy__workspace_move", "compozy__workspace_reorder",
+			"compozy__workspace_unarchive", "compozy__worktree_create",
+		}
+		descriptors := NativeDescriptors()
+		ids := make([]toolspkg.ToolID, 0, len(descriptors))
+		for _, descriptor := range descriptors {
+			ids = append(ids, descriptor.ID)
+		}
+		evaluator, err := toolspkg.NewEffectivePolicyEvaluator(toolspkg.PolicyInputs{
+			SystemPermissionMode: toolspkg.PermissionModeApproveEdits, ApprovalAvailable: true,
+		}, toolspkg.ToolsetCatalog{}, ids)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, descriptor := range descriptors {
+			if descriptor.Risk == toolspkg.RiskRead {
+				continue
+			}
+			decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decision.Callable && !decision.ApprovalRequired {
+				got = append(got, descriptor.ID.String())
+			}
+		}
+		slices.Sort(got)
+		if !slices.Equal(got, want) {
+			t.Fatalf("unasked builtin mutations at approve-edits changed:\ngot  %v\nwant %v", got, want)
 		}
 	})
 }

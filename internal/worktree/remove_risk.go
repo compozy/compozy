@@ -28,7 +28,8 @@ func (s *Service) removalRiskFromStatus(ctx context.Context, item Worktree, stat
 		ChangedFiles: valueOrZero(status.DirtyFiles), Insertions: valueOrZero(status.Insertions),
 		Deletions: valueOrZero(status.Deletions),
 	}
-	args := removalCommitComparison(item, status)
+	baseResolved := s.removalBaseResolves(ctx, item)
+	args := removalCommitComparison(item, status, baseResolved)
 	if len(args) == 0 {
 		return risk, nil
 	}
@@ -54,7 +55,7 @@ func (s *Service) removalRiskFromStatus(ctx context.Context, item Worktree, stat
 	}
 	risk.ExistsOnRemote = strings.TrimSpace(string(stdout)) != ""
 	if !risk.ExistsOnRemote {
-		risk.UnpushedCommits, err = s.unpreservedRemovalCommits(ctx, item, status)
+		risk.UnpushedCommits, err = s.unpreservedRemovalCommits(ctx, item, status, baseResolved)
 		if err != nil {
 			return RemovalRisk{}, err
 		}
@@ -68,14 +69,33 @@ func (s *Service) removalRiskFromStatus(ctx context.Context, item Worktree, stat
 	return risk, nil
 }
 
-func removalCommitComparison(item Worktree, status *Status) []string {
+// removalBaseResolves reports whether the recorded base still names a commit.
+// Deleting a merged integration branch leaves BaseRef dangling.
+func (s *Service) removalBaseResolves(ctx context.Context, item Worktree) bool {
+	if item.BaseRef == "" {
+		return false
+	}
+	_, _, err := s.runner.Run(ctx, item.Path, "rev-parse", "--verify", "--quiet", item.BaseRef+"^{commit}")
+	return err == nil
+}
+
+func removalCommitComparison(item Worktree, status *Status, baseResolved bool) []string {
 	switch {
-	case item.BaseRef != "":
+	case item.BaseRef != "" && baseResolved:
 		return []string{item.BaseRef + "..HEAD"}
 	case status.Detached != nil && *status.Detached:
 		// --all would include every linked worktree's HEAD, this one too, and
 		// hide the commits that removal would orphan.
-		return []string{removalHeadRef, "--not", "--branches", "--tags", "--remotes"}
+		return removalUnreachableFromOtherRefs("")
+	case item.BaseRef != "":
+		// Without the base, count commits no other ref keeps. The checked-out
+		// branch, which may have been renamed since creation, is excluded
+		// because it would hide every commit removal orphans.
+		ownBranch := item.Branch
+		if status.Branch != nil && *status.Branch != "" {
+			ownBranch = *status.Branch
+		}
+		return removalUnreachableFromOtherRefs(ownBranch)
 	case status.HasUpstream != nil && *status.HasUpstream:
 		if status.Ahead != nil {
 			return []string{"@{upstream}..HEAD"}
@@ -86,9 +106,22 @@ func removalCommitComparison(item Worktree, status *Status) []string {
 	}
 }
 
+func removalUnreachableFromOtherRefs(ownBranch string) []string {
+	args := []string{removalHeadRef, "--not"}
+	if ownBranch != "" {
+		args = append(args, "--exclude="+ownBranch)
+	}
+	return append(args, "--branches", "--tags", "--remotes")
+}
+
 // Compare the preservation refs in one walk so shared remote history is visited once.
-func (s *Service) unpreservedRemovalCommits(ctx context.Context, item Worktree, status *Status) (int, error) {
-	args := append([]string{removalRevListCommand}, removalCommitComparison(item, status)...)
+func (s *Service) unpreservedRemovalCommits(
+	ctx context.Context,
+	item Worktree,
+	status *Status,
+	baseResolved bool,
+) (int, error) {
+	args := append([]string{removalRevListCommand}, removalCommitComparison(item, status, baseResolved)...)
 	stdout, stderr, err := s.runner.Run(ctx, item.Path, args...)
 	if err != nil {
 		return 0, fmt.Errorf("list unique commits: %s: %w", diagnostics.RedactAndBound(string(stderr), 2048), err)
@@ -100,7 +133,7 @@ func (s *Service) unpreservedRemovalCommits(ctx context.Context, item Worktree, 
 	for hash := range strings.FieldsSeq(string(stdout)) {
 		remaining[hash] = struct{}{}
 	}
-	refs, err := s.removalPreservationRefs(ctx, item, status)
+	refs, err := s.removalPreservationRefs(ctx, item, status, baseResolved)
 	if err != nil {
 		return 0, err
 	}
@@ -143,7 +176,12 @@ func (s *Service) unpreservedRemovalCommits(ctx context.Context, item Worktree, 
 	return count, nil
 }
 
-func (s *Service) removalPreservationRefs(ctx context.Context, item Worktree, status *Status) ([]string, error) {
+func (s *Service) removalPreservationRefs(
+	ctx context.Context,
+	item Worktree,
+	status *Status,
+	baseResolved bool,
+) ([]string, error) {
 	stdout, stderr, err := s.runner.Run(
 		ctx, item.Path, "for-each-ref", "--format=%(refname) %(objectname) %(symref)", "refs/remotes/", "refs/heads/",
 	)
@@ -154,7 +192,7 @@ func (s *Service) removalPreservationRefs(ctx context.Context, item Worktree, st
 		return nil, errors.New("worktree: preservation refs exceed the safety output limit")
 	}
 	refs := []string{}
-	if item.BaseRef != "" {
+	if item.BaseRef != "" && baseResolved {
 		refs = append(refs, item.BaseRef)
 	}
 	if status.HasUpstream != nil && *status.HasUpstream && status.Ahead != nil {

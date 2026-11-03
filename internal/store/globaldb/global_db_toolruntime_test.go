@@ -313,6 +313,7 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 			}{
 				{"delivered", monitor.StatusFired, "exit", instance.ProfileID},
 				{"shutdown", monitor.StatusCanceled, "shutdown", instance.ProfileID},
+				{"owner-cancel", monitor.StatusCanceled, monitor.ReasonCancelRequested, instance.ProfileID},
 				{"other-profile", status, "", "other"},
 			} {
 				record.Monitor.ID = "mon-" + scenario.name
@@ -324,6 +325,17 @@ func TestGlobalDBSessionMonitors(t *testing.T) {
 			reports, err = db.InstanceReports().ListReports(t.Context(), query)
 			if err != nil || len(reports) != 2 {
 				t.Fatalf("unrelated terminal states reported: %+v, %v", reports, err)
+			}
+			// Stopping the owner is not its choice to drop the wait: the restarted main learns of the loss.
+			record.Monitor.ID = "mon-session-stopped"
+			record.Monitor.Status, record.Monitor.Reason, record.ProfileID =
+				monitor.StatusCanceled, monitor.ReasonSessionStopped, instance.ProfileID
+			if err := db.SaveMonitor(t.Context(), record); err != nil {
+				t.Fatal(err)
+			}
+			reports, err = db.InstanceReports().ListReports(t.Context(), query)
+			if err != nil || len(reports) != 3 {
+				t.Fatalf("session-stopped wake reports: %+v, %v", reports, err)
 			}
 		})
 	}

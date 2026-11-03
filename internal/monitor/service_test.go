@@ -304,13 +304,48 @@ func TestServiceCancelAndLimits(t *testing.T) {
 				t.Fatalf("Cancel(other session) error = %v, want ErrNotFound", err)
 			}
 			canceled, err := service.Cancel("sess-a", created.ID)
-			if err != nil || canceled.Status != StatusCanceled {
-				t.Fatalf("Cancel() = %+v, %v; want canceled", canceled, err)
+			if err != nil || canceled.Status != StatusCanceled || canceled.Reason != ReasonCancelRequested {
+				t.Fatalf("Cancel() = %+v, %v; want canceled by request", canceled, err)
 			}
 			terminals.results <- Outcome{Reason: ReasonExit}
 			synctest.Wait()
 			if got := len(waker.notifications()); got != 0 {
 				t.Fatalf("notifications = %d, want 0", got)
+			}
+			listed := onlyMonitor(t, service, "sess-a")
+			if listed.Status != StatusCanceled || listed.Reason != ReasonCancelRequested {
+				t.Fatalf("listed monitor = %+v, want canceled by request", listed)
+			}
+		})
+	})
+
+	t.Run("Should drop a fired wake still being delivered when its owner cancels it", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			terminals := &channelTerminals{results: make(chan Outcome, 1)}
+			waker := &recordingWaker{errs: []error{errors.New("input queue full")}}
+			service := newTestService(t, terminals, waker)
+
+			created, err := service.Create(t.Context(), terminalSpec("sess-a"))
+			if err != nil {
+				t.Fatalf("Create() error = %v", err)
+			}
+			terminals.results <- Outcome{Reason: ReasonExit}
+			synctest.Wait()
+			if got := onlyMonitor(t, service, "sess-a"); got.Status != StatusDelivering {
+				t.Fatalf("monitor after refusal = %+v, want delivering", got)
+			}
+			canceled, err := service.Cancel("sess-a", created.ID)
+			if err != nil || canceled.Status != StatusCanceled || canceled.Reason != ReasonCancelRequested {
+				t.Fatalf("Cancel() = %+v, %v; want canceled by request", canceled, err)
+			}
+			time.Sleep(deliveryRetryInitial*3 + time.Second)
+			synctest.Wait()
+			if got := len(waker.notifications()); got != 1 {
+				t.Fatalf("wake attempts = %d, want only the refused one", got)
+			}
+			listed := onlyMonitor(t, service, "sess-a")
+			if listed.Status != StatusCanceled || listed.Reason != ReasonCancelRequested {
+				t.Fatalf("listed monitor = %+v, want canceled by request", listed)
 			}
 		})
 	})

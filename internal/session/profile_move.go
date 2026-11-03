@@ -136,7 +136,10 @@ func (m *Manager) MoveToProfile(ctx context.Context, opts MoveToProfileOpts) (Mo
 	if err := m.checkNewWorkAdmission(ctx); err != nil {
 		return MoveToProfileResult{}, err
 	}
-	unlock := m.lockProfileMove(opts.WorkspaceID, opts.SessionID)
+	ctx, unlock, err := m.lockProfileMove(ctx, opts.SessionID)
+	if err != nil {
+		return MoveToProfileResult{}, err
+	}
 	defer unlock()
 	if err := m.settleOpenProfileMove(ctx, opts.SessionID); err != nil {
 		return MoveToProfileResult{}, err
@@ -148,10 +151,15 @@ func (m *Manager) MoveToProfile(ctx context.Context, opts MoveToProfileOpts) (Mo
 	return m.applyProfileMove(ctx, &plan)
 }
 
-// lockProfileMove serializes a move of one session with other moves and unarchives of it.
-func (m *Manager) lockProfileMove(workspaceID string, sessionID string) func() {
-	return m.lockPromptAdmission(strings.TrimSpace(workspaceID), "\x00profile-move", strings.TrimSpace(sessionID))
+// lockProfileMove serializes a move of one session with other moves and unarchives of
+// it; a waiter gives up when its context ends.
+func (m *Manager) lockProfileMove(ctx context.Context, sessionID string) (context.Context, func(), error) {
+	return m.lockConversationOperation(ctx, profileMoveLockPrefix+strings.TrimSpace(sessionID))
 }
+
+// profileMoveLockPrefix keeps the profile-move lock apart from the session's own
+// conversation-operation lock, which the move's fork and rollback take.
+const profileMoveLockPrefix = "\x00profile-move\x00"
 
 func normalizeMoveToProfileOpts(opts MoveToProfileOpts) MoveToProfileOpts {
 	opts.WorkspaceID = strings.TrimSpace(opts.WorkspaceID)

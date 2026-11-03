@@ -432,6 +432,26 @@ func (q *Queries) GetWorktreeStatus(ctx context.Context, arg GetWorktreeStatusPa
 	return i, err
 }
 
+const hasUnarchivedWorktreeSession = `-- name: HasUnarchivedWorktreeSession :one
+SELECT CAST(EXISTS (
+  SELECT 1 FROM sessions
+  WHERE sessions.workspace_id = ?1 AND sessions.worktree_id = ?2
+    AND sessions.archived_at IS NULL
+) AS INTEGER) AS bound
+`
+
+type HasUnarchivedWorktreeSessionParams struct {
+	WorkspaceID string         `json:"workspace_id"`
+	WorktreeID  sql.NullString `json:"worktree_id"`
+}
+
+func (q *Queries) HasUnarchivedWorktreeSession(ctx context.Context, arg HasUnarchivedWorktreeSessionParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, hasUnarchivedWorktreeSession, arg.WorkspaceID, arg.WorktreeID)
+	var bound int64
+	err := row.Scan(&bound)
+	return bound, err
+}
+
 const insertWorktree = `-- name: InsertWorktree :exec
 INSERT INTO worktrees (
   profile_id,

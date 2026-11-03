@@ -4,20 +4,19 @@ import {
   SessionListCreateMenu,
   type SessionListCreateMenuProps,
 } from "../session-list/session-list-create-menu";
-import { StaysOnAddPicker } from "./stays-on-add-picker";
+import { StaysOnAddPicker, type SessionListStaysOnTarget } from "./stays-on-add-picker";
 
-export interface SessionListStaysOnTarget {
-  /** A workspace id, or `@user` for Global. */
-  place: string;
-  name: string;
-}
+export type { SessionListStaysOnTarget } from "./stays-on-add-picker";
 
-/** The session `+` with Add stays-on agent, for a list showing one concrete scope. */
+/**
+ * The session `+` with Add stays-on agent. `staysOn` is the list's one concrete scope; `null`
+ * when the list spans several projects, so the picker asks where the agent lives first.
+ */
 export function StaysOnCreateMenu({
   staysOn,
   ...props
 }: Omit<SessionListCreateMenuProps, "onAddStaysOn" | "overlay"> & {
-  staysOn: SessionListStaysOnTarget;
+  staysOn: SessionListStaysOnTarget | null;
 }) {
   const [adding, setAdding] = useState(false);
   return (
@@ -26,7 +25,12 @@ export function StaysOnCreateMenu({
       onAddStaysOn={() => setAdding(true)}
       overlay={
         adding ? (
-          <StaysOnAddPicker name={staysOn.name} onOpenChange={setAdding} place={staysOn.place} />
+          // A new list scope starts the picker over, so it never adds to the old place.
+          <StaysOnAddPicker
+            key={staysOn?.place ?? "several"}
+            onOpenChange={setAdding}
+            target={staysOn}
+          />
         ) : null
       }
     />

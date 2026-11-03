@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
@@ -63,16 +64,14 @@ func (g *GlobalDB) HasUnarchivedWorktreeSession(
 	if err := g.Worktrees.checkReady(ctx, "inspect bound worktree sessions"); err != nil {
 		return false, err
 	}
-	var found bool
-	err := g.Worktrees.db.QueryRowContext(ctx, `
-SELECT EXISTS (
-  SELECT 1 FROM sessions
-  WHERE workspace_id = ? AND worktree_id = ? AND archived_at IS NULL
-)`, strings.TrimSpace(workspaceID), strings.TrimSpace(worktreeID)).Scan(&found)
+	bound, err := g.Worktrees.queries.HasUnarchivedWorktreeSession(ctx, sqlcgen.HasUnarchivedWorktreeSessionParams{
+		WorkspaceID: strings.TrimSpace(workspaceID),
+		WorktreeID:  sql.NullString{String: strings.TrimSpace(worktreeID), Valid: true},
+	})
 	if err != nil {
 		return false, fmt.Errorf("store: inspect bound worktree sessions: %w", err)
 	}
-	return found, nil
+	return bound != 0, nil
 }
 
 // HasOtherActiveWorktreeSession excludes only the exact managed-delivery caller.

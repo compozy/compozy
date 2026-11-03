@@ -532,7 +532,8 @@ describe("OsSessionsModal", () => {
     const onNewSession = vi.fn();
     renderModal(createShell(), true, listView(), onNewSession);
 
-    await user.click(screen.getByTestId("os-sessions-modal-new-session"));
+    await user.click(screen.getByTestId("os-sessions-modal-new"));
+    await user.click(await screen.findByTestId("os-sessions-modal-new-session"));
 
     expect(onNewSession).toHaveBeenCalledOnce();
   });

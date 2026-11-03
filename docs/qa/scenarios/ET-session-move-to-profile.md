@@ -43,3 +43,7 @@ Covered by the owning suites, not walked: rollback after a failure past the arch
 `TestManagerMoveToProfile`), recovery after a stop at each move step (`TestManagerRecoverProfileMoves`),
 an interrupted keep-branch removal (`TestServiceRemoveAndRecover`), children and own-session
 refusals, and the native tool's target-profile write authorization (`TestNativeSessionMoveToProfile`).
+
+Native permission check: at `approve-edits` or `auto`, moving a session to another profile requires
+destructive-tool approval because it archives the original and releases its worktree. Covered by
+`TestBuiltinEditLevelAutoApprovals` and `TestBuiltinNativeDescriptors`.

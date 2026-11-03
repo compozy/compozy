@@ -9,6 +9,7 @@ const {
   mockCreateAgent,
   mockCreateInstance,
   mockCapacity,
+  mockProfileReads,
   mockDuplicateAgent,
   mockNavigate,
   mockSettingsProviders,
@@ -19,6 +20,11 @@ const {
   mockCreateAgent: vi.fn(),
   mockCreateInstance: vi.fn(),
   mockCapacity: { current: { limit: 10, active: 0, reached: false } },
+  /** The profile each name and slot read asked for, latest last. */
+  mockProfileReads: {
+    agents: [] as (string | undefined)[],
+    capacity: [] as (string | undefined)[],
+  },
   mockDuplicateAgent: vi.fn(),
   mockNavigate: vi.fn(),
   mockSettingsProviders: {
@@ -85,12 +91,18 @@ vi.mock("@/systems/model-catalog/lib/to-runtime-selector-options", () => ({
 }));
 
 vi.mock("../use-agent-instances", () => ({
-  useAgentInstanceCapacity: () => mockCapacity.current,
+  useAgentInstanceCapacity: (profile?: string) => {
+    mockProfileReads.capacity.push(profile);
+    return mockCapacity.current;
+  },
   useCreateAgentInstance: () => ({ mutateAsync: mockCreateInstance }),
 }));
 
 vi.mock("../use-agents", () => ({
-  useAgents: () => ({ data: [] }),
+  useAgents: (_workspace: unknown, options: { profile?: string } = {}) => {
+    mockProfileReads.agents.push(options.profile);
+    return { data: [] };
+  },
   useCreateAgent: () => ({
     mutateAsync: mockCreateAgent,
     isPending: false,
@@ -607,5 +619,65 @@ describe("useAgentCreateDialog", () => {
         search: { workspace: "ws_alpha" },
       });
     });
+  });
+  it("Should duplicate in the source's own profile under All profiles [#1183]", async () => {
+    setProfileView({ kind: "aggregate" });
+    const { result } = renderAgentCreateDialog();
+    const source = {
+      label: "Ops Lead",
+      kind: "on_demand",
+      resolved_appearance: {
+        version: 1,
+        avatar: "generated",
+        seed: "ops-lead",
+        generation: 1,
+        color: "#7c5cff",
+      },
+      name: "ops-lead",
+      provider: "codex",
+      prompt: "Lead ops.",
+      origin: "workspace" as const,
+      definition_digest: "e".repeat(64),
+    };
+    mockDuplicateAgent.mockResolvedValue({ ...source, name: "ops-lead-copy" });
+
+    act(() => result.current.openForDuplicate(source, { profile: "ops" }));
+    // Taken names and stays-on slots are read where the copy lands, not in the shell's profile.
+    expect(mockProfileReads.agents.at(-1)).toBe("ops");
+    expect(mockProfileReads.capacity.at(-1)).toBe("ops");
+    act(() => result.current.onDraftChange({ ...result.current.draft, name: "ops-lead-copy" }));
+    act(() => result.current.onSubmit());
+
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith({
+        to: "/agents/$name",
+        params: { name: "ops-lead-copy" },
+        search: { workspace: "ws_alpha", profile: "ops" },
+      })
+    );
+    expect(mockDuplicateAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ profile: "ops", sourceName: "ops-lead" })
+    );
+
+    // A stays-on copy starts its first instance in that same profile.
+    act(() => result.current.openForDuplicate(source, { profile: "ops" }));
+    act(() =>
+      result.current.onDraftChange({
+        ...result.current.draft,
+        name: "ops-lead-watch",
+        kind: "stays_on",
+        place: "@user",
+      })
+    );
+    mockDuplicateAgent.mockResolvedValueOnce({ ...source, name: "ops-lead-watch" });
+    act(() => result.current.onSubmit());
+
+    await waitFor(() =>
+      expect(mockCreateInstance).toHaveBeenCalledWith({
+        agent: "ops-lead-watch",
+        workspace: "@user",
+        profile: "ops",
+      })
+    );
   });
 });

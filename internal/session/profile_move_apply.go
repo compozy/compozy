@@ -79,11 +79,7 @@ func (m *Manager) applyProfileMove(ctx context.Context, plan *profileMovePlan) (
 		result.Branch = plan.checkout.Branch
 	}
 	if result.Copy == nil {
-		if result.Copy, err = m.Status(execCtx, derived.ChildSessionID); err != nil {
-			return result, fmt.Errorf(
-				"session: moved %s to copy %s, but reading the copy failed: %w", meta.ID, derived.ChildSessionID, err,
-			)
-		}
+		result.Copy = m.readProfileMoveCopy(execCtx, plan, derived.ChildSessionID, relocation.worktreeID)
 	}
 	m.logger.Info(
 		"session.profile_move.completed",
@@ -175,6 +171,22 @@ func (m *Manager) requireProfileMoveBinding(ctx context.Context, plan *profileMo
 		)
 	}
 	return nil
+}
+
+// readProfileMoveCopy reads the committed copy back. The move is complete either way,
+// so a failed read is logged and the copy is reported by what the move knows of it.
+func (m *Manager) readProfileMoveCopy(ctx context.Context, plan *profileMovePlan, copyID, worktreeID string) *Info {
+	copied, err := m.Status(ctx, copyID)
+	if err == nil {
+		return copied
+	}
+	m.logger.Warn(
+		"session.profile_move.copy_read_failed", "session_id", plan.meta.ID, "copy_session_id", copyID, "error", err,
+	)
+	return &Info{
+		ID: copyID, Name: plan.meta.Name, AgentName: plan.meta.AgentName, WorkspaceID: plan.meta.WorkspaceID,
+		ProfileID: plan.opts.TargetProfileID, WorktreeID: worktreeID, State: StateStopped,
+	}
 }
 
 // rollbackProfileMove undoes a failed move from the state it left. The cause is

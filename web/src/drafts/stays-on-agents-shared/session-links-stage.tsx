@@ -54,7 +54,7 @@ import {
   candidateIsLinked,
   linkedCandidateKeys,
   linkedSessionFacts,
-  moreLabel,
+  linkCount,
   summaryMoreLabel,
   type SessionLinkedWorkItem,
   type SessionRunsIn,
@@ -308,7 +308,6 @@ export function SessionLinksHeaderStage({ state }: { state: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clipped, setClipped] = useState(false);
   const lead = leadLink(items);
-  const more = moreLabel(items);
   const actions: SessionLinkActions = {
     controllable: true,
     isOwn: () => false,
@@ -345,7 +344,7 @@ export function SessionLinksHeaderStage({ state }: { state: string }) {
             {...list}
             chipMenuOpen={items.length === 1 && scenario.open}
             lead={lead}
-            more={more}
+            count={linkCount(items)}
             onClippedChange={setClipped}
             ownChip={{}}
             ownFacts={{ branch: "" }}

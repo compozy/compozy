@@ -1,4 +1,4 @@
-import { windowBinding } from "./agent-detail-search";
+import { profilePin, windowBinding } from "./agent-detail-search";
 import type { AgentEditorPage, AgentProfilePanel } from "./agent-profile";
 
 export const AGENT_SETTINGS_SECTIONS = [
@@ -16,6 +16,8 @@ export interface AgentSettingsSearch {
   section?: AgentSettingsSection;
   /** The window's data binding, kept across in-window navigation. */
   workspace?: string;
+  /** The agent's own profile, kept so the legacy link lands in it. */
+  profile?: string;
 }
 
 export function validateAgentSettingsSearch(search: Record<string, unknown>): AgentSettingsSearch {
@@ -25,7 +27,7 @@ export function validateAgentSettingsSearch(search: Record<string, unknown>): Ag
     typeof value === "string" && (AGENT_SETTINGS_SECTIONS as readonly string[]).includes(value)
       ? (value as AgentSettingsSection)
       : "basics";
-  return { section, ...windowBinding(search.workspace) };
+  return { section, ...windowBinding(search.workspace), ...profilePin(search.profile) };
 }
 
 export function resolveAgentSettingsSearch(search: AgentSettingsSearch): {
@@ -38,11 +40,9 @@ export type AgentLegacyDestination =
   | { kind: "home"; panel?: AgentProfilePanel }
   | { kind: "page"; page: AgentEditorPage };
 
-/** Where an old `settings?section=` link lands now that the modal is gone. */
+/** Where an old `settings?section=` link lands now that the modal is gone; the model sits on the home. */
 export function agentSettingsDestination(section: AgentSettingsSection): AgentLegacyDestination {
   switch (section) {
-    case "runtime":
-      return { kind: "home", panel: "model" };
     case "access":
     case "mcp":
       return { kind: "home", panel: "tools" };
@@ -56,6 +56,5 @@ export function agentSettingsDestination(section: AgentSettingsSection): AgentLe
 /** Where an old `?tab=` link lands now that the tabs are gone. */
 export function agentTabDestination(tab: unknown): AgentLegacyDestination {
   if (tab === "instructions") return { kind: "page", page: "what-it-does" };
-  if (tab === "configuration") return { kind: "home", panel: "model" };
   return { kind: "home" };
 }

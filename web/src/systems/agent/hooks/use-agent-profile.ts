@@ -2,7 +2,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
 import { notifyUser } from "@/lib/user-feedback";
-import { useProfileReadScope } from "@/systems/profiles";
+import { usePinnedProfile, useProfileReadScope } from "@/systems/profiles";
 import {
   getSessionDisplayTitle,
   useSessionCreateActions,
@@ -20,7 +20,6 @@ import {
   agentBehaviorSummary,
   agentCanResume,
   agentHeadline,
-  agentModelSummary,
   agentToolsSummary,
   type AgentEditorPage,
   type AgentProfilePanel,
@@ -50,6 +49,7 @@ import {
   useAgentInstanceCapacity,
   useAgentDefinitionInstances,
 } from "./use-agent-instances";
+import { useAgentRuntimeEditor } from "./use-agent-runtime-editor";
 import { useAgentSessions } from "./use-agent-sessions";
 import { useAgentWindowScope } from "./use-agent-window-scope";
 import { useUpdateAgent } from "./use-agents";
@@ -149,6 +149,8 @@ export function useAgentProfile(input: {
   const { destination } = useProfileReadScope();
   const { workspace, projectId, bindingSearch } = useAgentWindowScope();
   const { openForAgent } = useSessionCreateActions();
+  // New session is the shell's dialog, outside the window's pin: hand it the agent's profile.
+  const pinned = usePinnedProfile();
   const instances = useAgentDefinitionInstances(agent);
   const capacity = useAgentInstanceCapacity();
   const actions = useAgentInstanceActions();
@@ -187,6 +189,7 @@ export function useAgentProfile(input: {
     if (current?.main_session_id) openSessionById(current.main_session_id);
   };
   const saveIdentity = useIdentitySave(agent);
+  const model = useAgentRuntimeEditor({ agent });
   return {
     identity,
     places,
@@ -205,9 +208,9 @@ export function useAgentProfile(input: {
     capacity,
     add: useAddPlace(agent, capacity),
     newSessionDisabled: projectId === null,
+    model,
     summaries: {
       behavior: agentBehaviorSummary(agent),
-      model: agentModelSummary(agent),
       checkIns: checkInsSummary(places),
       memory: input.memorySummary,
       tools: agentToolsSummary(agent),
@@ -229,7 +232,7 @@ export function useAgentProfile(input: {
       }
     },
     onSaveIdentity: saveIdentity,
-    onNewSession: () => openForAgent(agent.name),
+    onNewSession: () => openForAgent(agent.name, pinned ? { profile: pinned } : {}),
     onOpenSession: openSessionById,
     onOpenFinding: (finding: { sessionId?: string | null }) => {
       if (finding.sessionId) openSessionById(finding.sessionId);

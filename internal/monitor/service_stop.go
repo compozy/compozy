@@ -26,6 +26,8 @@ func (s *Service) Cancel(sessionID, id string) (Monitor, error) {
 		return state, s.confirmCancel(item, record)
 	}
 	s.finishLocked(item, StatusCanceled, s.now())
+	// Replaces the fire reason of a delivering monitor: the owner chose to drop this wake.
+	item.state.Reason = ReasonCancelRequested
 	s.logLifecycle("monitor.canceled", item.state, "requested")
 	item.cancel()
 	s.pruneSessionLocked(sessionID, s.now())

@@ -17,9 +17,9 @@ func sessionMoveToProfileDescriptor() toolspkg.Descriptor {
 			"needs permission to write to the target profile. Not session_move, which only places a session "+
 			"in a folder.",
 		sessionMoveToProfileInputSchema,
-		toolspkg.RiskMutating,
+		toolspkg.RiskDestructive,
 		false,
-		false,
+		true,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDSessions},
 		[]string{sessionsSessionsKey, "profile", "move"},

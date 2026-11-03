@@ -206,10 +206,12 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     status: (
       <span className="flex min-w-0 items-center gap-2">
         {instance ? <Pill size="sm">Stays on</Pill> : null}
+        {/* Keyed by session: the head outlives a session switch, and an open list must not. */}
         <SessionLinkedWorkStatus
+          key={session.id}
           {...linkedList}
           lead={linkedWork.lead}
-          more={linkedWork.more}
+          count={linkedWork.count}
           onClippedChange={linkedWork.setClipped}
           ownChip={ownChipActions(input)}
           ownFacts={sessionPullRequestFacts(session)}

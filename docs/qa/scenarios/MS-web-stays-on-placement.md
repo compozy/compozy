@@ -4,8 +4,8 @@ area: MS
 title: Stays-on agents sit as avatars above sessions and in Kanban headers
 persona: Dora
 journey: J-31
-expected: With no instance there is no row and no empty space. Global instances sit in a row labeled Global above all projects; each project's instances sit under its name, and in its Kanban lane header. Anyone needing the operator is ordered first and shows the Needs you triangle. A click opens the main session, created again if it was lost, and the open one shows a selected background. Hover or focus opens a card with what it's doing, last and next check, Open conversation and Pause or Resume. The context menu offers Pause or Resume with the pause reason, Open agent, Check-ins and Archive; Resume is disabled when the definition is gone. More agents than fit move into `+N`, a searchable panel grouped by state. A collapsed project shows who needs you by face. Main sessions leave session rows, cards and counts. Sessions they spawn stay ordinary rows and cards with a creator badge. A project with only an agent still gets its group. A project's `+` offers New session, New folder and Add stays-on agent; Add opens a picker of stays-on agents not yet there, with Create new opening New agent on Stays on with that project chosen. At the limit the rows and Create new are blocked and the popover shows it. Flat mode shows one row: Global first, then the focused project's. The dock's Home app reads Dashboard.
-entry_points: web Sessions window (list and Kanban); project `+`; avatar row; avatar context menu
+expected: With no instance there is no row and no empty space. Global instances sit in a row labeled Global above all projects; each project's instances sit under its name, and in its Kanban lane header. Anyone needing the operator is ordered first and shows the Needs you triangle. A click opens the main session, created again if it was lost, and the open one shows a selected background. Hover or focus opens a card with what it's doing, last and next check, Open conversation and Pause or Resume. The context menu offers Pause or Resume with the pause reason, Open agent, Check-ins and Archive; Resume is disabled when the definition is gone. More agents than fit move into `+N`, a searchable panel grouped by state. A collapsed project shows who needs you by face. Main sessions leave session rows, cards and counts. Sessions they spawn stay ordinary rows and cards with a creator badge. A project with only an agent still gets its group. A project's `+` offers New session, New folder and Add stays-on agent; Add opens a picker of stays-on agents not yet there, with Create new opening New agent on Stays on with that project chosen. The list toolbar's `+` offers Add stays-on agent in every grouping: with one scope it adds there; when the list spans several projects it first asks where the agent lives (Global or a project), with the focused or last-used project preselected. At the limit the rows and Create new are blocked and the popover shows it. Flat mode shows one row: Global first, then the focused project's. The dock's Home app reads Dashboard.
+entry_points: web Sessions window (list and Kanban); project `+`; list toolbar `+`; avatar row; avatar context menu
 qa_status: pass
 bug_ids: BUG-20261103-resume-all-rate-limited
 fix_status: fixed
@@ -66,6 +66,22 @@ stays-on agent with no `permissions` waits for the operator too. A session creat
 keeps the instance's tool, skill, MCP server, and path ceilings. Hidden triage stays read-only.
 `TestInstancePermissionMode` and `TestTriageSessionPermissions` own the level rules; the same walk ran
 through a real daemon with a scripted ACP provider.
+
+Stays-on CompozyOS tool prompts (#1200): create the built-in Orchestrator instance (it ships
+`permissions: auto`) and a stays-on agent pinned to `approve-edits`, both on Claude, with
+`[permissions].mode = "approve-all"`. Ask each to call `monitor_create`, `worktree_create` and
+`session_create`, then `worktree_remove` on the worktree it made. Count `permission` events in
+`compozy session events <main>`: the three coordination calls produce none, and `worktree_remove`
+produces exactly one pending prompt, which runs once approved. Repeat on Codex (`workspace-write`).
+`TestHostedToolPermissionGates`, `TestCoordinationPermissionLevels` and
+`TestDaemonNativeRuntimePolicyResolver` own the gate rules.
+
+QA verification 2026-11-03 (#1200, isolated lab, live Claude and Codex): Pass. On main the built-in
+Orchestrator asked 7 times for `skill_view` x4, `monitor_create`, `worktree_create` and
+`session_create`. On the fix it asked 0 times for those and once for `worktree_remove`; the
+`approve-edits` agent matched. Codex at `workspace-write` runs non-destructive MCP calls without
+asking and asks for destructive ones by tool call id only; the fix leaves one prompt for
+`worktree_remove`. Not walked here: the Web placement journey above.
 
 B1 resume authority: race an own-instance agent resume against an operator pause,
 then against a fatigue pause. Resume must read and authorize the current pause
@@ -224,3 +240,26 @@ and `agent-profile-home.test.tsx`.
 QA verification 2026-11-03 (stays-on hardening B1/F1, soh/qa 583415ef5, isolated acpmock lab): Fail on S4. Passing legs: with `unattended_turn_limit = 3`, a 5-second monitor-timer chain paused `ops-lead` with reason `unattended` after 3 steps, and the next wake was held (`held_wakes: 1`). A human prompt on a paused main ran, kept the pause and reset the counter to 0. `-1` was rejected ("must be nonnegative") with the file unchanged. An explicit `0`, after a restart, let 5 autonomous turns run with the agent active. A reported event check raised `unattended_turns` by 1. CLI and HTTP instance reads match on all 26 fields (`it008-*.json`). The hover card read "Paused after 3 steps without you. · 2 things are waiting for you to resume" (`01b-s1-hover-paused.png`) and "Wakes up next · Re-check the staging deploy, in 15m" (`07-s7-hover-next-wake.png`). What it cost read "154K tokens · No price available" (`11-s11-usage.png`; paper cut: project name clipped with no ellipsis). Fail: the +N panel showed Resume all with two `unattended` agents, but pressing it sent parallel resumes, all but one got 429, no error appeared and the rest stayed paused (`04-s4-resume-all.png`, BUG-20261103-resume-all-rate-limited). Paper cut: a paused Release Watch was ordered under Paused in the overflow rather than Needs you.
 
 Re-walk 2026-11-03 on feat/stays-on-hardening 4056dbcc2 (S4): Pass. BUG-20261103-resume-all-rate-limited is verified fixed. With `max_active_instances = 7`, 6 active and 3 agents paused for `unattended`, Resume all resumed Alpha Watch first. The other two requests, each sent after the previous one finished, returned 429. The panel read "Beta Watch and Ops Lead didn't resume. You have 7 active stays-on agents. Pause one or raise `agents.stays_on.max_active_instances`." (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/stays-on-hardening/4056dbcc2/04-s4-resume-all.png`). With `max_active_instances = 20`, all three resumed in sequence (200, 180–214 ms; `https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/stays-on-hardening/4056dbcc2/04b-s4-resume-all-room-for-all.png`, `rewalk-s4-resume-requests.txt`). Paper cuts: the open panel keeps a resumed agent under Needs you and its count until it refetches, and the config key renders with literal backticks.
+
+Issue #1181 (toolbar `+`): in a grouped All projects list, the toolbar `+` shows New session,
+New folder and Add stays-on agent. Add opens a place list (Global, then Projects) with the
+preselected place checked; picking a project opens that project's agent picker, and adding
+creates the instance there. A list bound to one project still adds there without asking.
+Web suites: `session-list.test.tsx` and `stays-on-add-menu.test.tsx`.
+
+## Open agent from All profiles (#1183)
+
+With All profiles selected, open an agent from the avatar menu (Open agent and Check-ins) for
+instances owned by a nondefault profile: one Global, one in a project, with definitions that exist
+only in that profile's layer. The agent window must show the agent every time, never "Agent not
+found", and every agent read in it must carry the instance's profile. Reload the page with the
+window open and confirm it still resolves there. Web suites: `stays-on-row.test.tsx`,
+`agent-window-location.test.ts`, `use-profile-selection.test.tsx`.
+
+Verified 2026-11-03 on fix/issue-1183-open-agent-all-profiles 1dd4c5745 (isolated targeted lab,
+profiles default/open-design/ops, remembered profile default): Pass. Before the fix, the release
+bundle read `ops_lead` and `ops_global` with `profile=default` and showed "Agent not found" on 6 of 6
+opens (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1183/1dd4c5745/01-before-Ops-Lead.png`).
+With the fix, 60 of 60 opens across three agents and two runs resolved with `profile=ops`
+(`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1183/1dd4c5745/02-final-Ops-Lead.png`), and
+Check-ins survived 5 reloads (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1183/1dd4c5745/04-after-reload.png`).

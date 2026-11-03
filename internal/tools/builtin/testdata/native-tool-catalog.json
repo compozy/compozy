@@ -2316,7 +2316,7 @@
     "destructive": true,
     "open_world": false,
     "input_schema_digest": "7a8fb691dd32b65d58d2ff9474037c6762d7d65b7ae1a46605f560ab5f5cdfa0",
-    "output_schema_digest": "f32831c58d1307982585eae18ade98a33244cf6d960c672f06d55edf14da7f9c"
+    "output_schema_digest": "bb944defe0d84f27d49a67a4db4e26fa109c9b4d16e5842842dab7e610a73cbc"
   },
   {
     "tool_id": "compozy__session_input_promote",
@@ -2329,7 +2329,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "acfd42b7914c4d6e4cf8a6558403f7134335cae77a780d2ff2def791afd52d8a",
-    "output_schema_digest": "f32831c58d1307982585eae18ade98a33244cf6d960c672f06d55edf14da7f9c"
+    "output_schema_digest": "bb944defe0d84f27d49a67a4db4e26fa109c9b4d16e5842842dab7e610a73cbc"
   },
   {
     "tool_id": "compozy__session_input_replace",
@@ -2342,7 +2342,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "d915db5b67b786a39999e299a69e46edec9d8ebc3b1222e1ff2c33d56550b42d",
-    "output_schema_digest": "3a5811ef9ebd37a6b4cfe79eb8142d4cfbb5ce3751876e4cae584c6ec9551398"
+    "output_schema_digest": "f29353f9b72b45492809101740ad5fba8e3977e46ca7c71fc788fd01ccecef60"
   },
   {
     "tool_id": "compozy__session_inputs_clear",
@@ -2355,7 +2355,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "298dca287c9f9d1b7a41dc638490029b2b260e50f051dac8ffb16668e47a7e31",
-    "output_schema_digest": "92d53b503cb1c0e9b2c153a7c423567014610a029960fed2c5ce287f5e0a1a2e"
+    "output_schema_digest": "f203c998170a9b973db38cf2bd1403f44395af29d4d63da1da102de30e7b30b8"
   },
   {
     "tool_id": "compozy__session_inputs_list",
@@ -2368,7 +2368,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "8d3442e06589a14f92423308d8691a87b12d700a75f598b118600ec224f6cc3e",
-    "output_schema_digest": "2baf3dac42bc18fcdb9d6fe34ad463131500965813c5627b3567e43884815e5a"
+    "output_schema_digest": "6f9892b141897ab6dbc0fbf1dc4028ec7326fa385eb3ac324618292585a1e807"
   },
   {
     "tool_id": "compozy__session_later",
@@ -2428,9 +2428,9 @@
     "toolsets": [
       "compozy__sessions"
     ],
-    "risk": "mutating",
+    "risk": "destructive",
     "read_only": false,
-    "destructive": false,
+    "destructive": true,
     "open_world": false,
     "input_schema_digest": "d7c3e7becf0746440b16be7185336e5328d47c8716a4e7a31519518e77d3f256",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
@@ -2498,7 +2498,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "3f3b34217a585d0a82fc5c83551c3866374561573f89e567077d5febf59043cf",
-    "output_schema_digest": "f32831c58d1307982585eae18ade98a33244cf6d960c672f06d55edf14da7f9c"
+    "output_schema_digest": "bb944defe0d84f27d49a67a4db4e26fa109c9b4d16e5842842dab7e610a73cbc"
   },
   {
     "tool_id": "compozy__session_prompt_cancel",
