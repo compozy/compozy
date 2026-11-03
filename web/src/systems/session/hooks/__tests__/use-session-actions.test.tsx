@@ -135,6 +135,7 @@ const WORKSPACE_ID = "ws_alpha";
 
 const queuedInput: SessionInputPayload = {
   delivery: "after_turn",
+  held: false,
   enqueued_at: "2026-08-03T18:00:00Z",
   id: "input-original",
   mode: "queue",

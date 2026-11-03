@@ -56,15 +56,6 @@ export interface QueuedPrompt {
   held?: boolean;
 }
 
-/**
- * The daemon's held marker on a queued input. Read defensively until the generated
- * `SessionInputPayload` carries it; delete the cast once it does.
- */
-function queuedInputHeld(input: SessionInputPayload): boolean {
-  const raw = input as SessionInputPayload & { held?: unknown };
-  return raw.held === true;
-}
-
 export function queuedPromptAttachmentSummary(
   attachments: SessionInputPayload["attachments"],
   workspaceId: string,
@@ -134,7 +125,7 @@ export function queuedPromptsFromInputs(
       ...(input.coalesced_wakes ? { coalescedWakes: input.coalesced_wakes } : {}),
       ...(attachments ? { attachments } : {}),
       ...(sender ? { sender } : {}),
-      ...(queuedInputHeld(input) ? { held: true } : {}),
+      ...(input.held ? { held: true } : {}),
     };
   });
 }

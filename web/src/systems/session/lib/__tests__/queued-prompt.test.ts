@@ -53,6 +53,7 @@ describe("queued prompt read model", () => {
   it("Should number rows by the daemon's list order without counting on its own", () => {
     const input = (id: string, status: SessionInputPayload["status"]): SessionInputPayload => ({
       delivery: "after_turn",
+      held: false,
       enqueued_at: "2026-09-06T10:00:00Z",
       id,
       mode: "queue",
@@ -79,6 +80,7 @@ describe("queued prompt read model", () => {
   it("Should map a session message's origin to its sender and leave other rows without one (UT-064)", () => {
     const base: SessionInputPayload = {
       delivery: "after_turn",
+      held: false,
       enqueued_at: "2026-10-09T22:30:12Z",
       id: "inp-41aa",
       mode: "queue",
@@ -159,9 +161,13 @@ describe("queued prompt read model", () => {
       session_id: "sess-main",
       status: "queued",
       text: "Deploy 412 failed.",
+      held: false,
     };
     const [held, plain] = queuedPromptsFromInputs(
-      [{ ...base, held: true } as SessionInputPayload, { ...base, id: "inp-plain" }],
+      [
+        { ...base, held: true },
+        { ...base, id: "inp-plain" },
+      ],
       "ws",
       "sess-main"
     );
