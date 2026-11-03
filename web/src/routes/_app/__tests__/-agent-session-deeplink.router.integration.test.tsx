@@ -56,6 +56,7 @@ import { Route as ProductionSessionPermalinkRoute } from "../session.$id";
 import { Route as ProductionAgentsRoute } from "../agents";
 import { Route as ProductionAgentRoute } from "../agents.$name";
 import { Route as ProductionSessionRoute } from "../agents.$name.sessions.$id";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 const BENCH_SESSION_ID = "sess-40e90687024bfb24";
 const BENCH_WORKSPACE_ID = "ws_74a58ac2bf973937";
@@ -91,6 +92,7 @@ function makeSession(id: string, workspaceId: string, name: string): OwnedSessio
     pull_request_lookup: null,
     supervision: null,
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     profile_id: "00000000000000000000000000",
     profile_name: "default",

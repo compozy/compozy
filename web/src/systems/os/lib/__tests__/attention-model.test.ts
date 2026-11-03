@@ -22,6 +22,7 @@ import {
   type OsLoopNodeAttentionRow,
 } from "../attention-model";
 import { attentionBand, compareAttentionFirst, sortAttentionFirst } from "../attention-order";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 const LOOP_NODE_ROWS: OsLoopNodeAttentionRow[] = [
   {
@@ -45,6 +46,7 @@ function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
     pull_request_lookup: null,
     supervision: null,
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     profile_name: "default",
     profile_id: "00000000000000000000000000",

@@ -16,6 +16,7 @@ import { SessionList } from "@/systems/session/components/session-list/session-l
 import { sessionListCatalogFixture, sessionListViewFixture } from "@/systems/session/mocks";
 import { ownerFromRow } from "@/systems/profiles";
 import { USER_SCOPE_SELECTOR, ownerDataScope, workspaceBadgeIdentity } from "@/systems/workspace";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 type SessionOwner = Pick<
   SessionPayload,
@@ -43,6 +44,7 @@ function session(
     supervision: null,
     ...owner,
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     id,
     name: title,

@@ -32,7 +32,12 @@ type SessionFixtureInput = Omit<
   | "board_column"
   | "pull_request"
   | "pull_request_lookup"
+  | "effective_permissions"
+  | "permission_mode_degraded"
 > & {
+  /** Defaults to the daemon's `approve-all` with no reviewer fallback. */
+  effective_permissions?: SessionPayload["effective_permissions"];
+  permission_mode_degraded?: SessionPayload["permission_mode_degraded"];
   /** Defaults from `workspace_id`: empty is a User session. */
   scope?: SessionPayload["scope"];
   /** Defaults to `""`: fixture agents carry no grant. */
@@ -45,6 +50,12 @@ type SessionFixtureInput = Omit<
   pull_request?: SessionPayload["pull_request"];
   pull_request_lookup?: SessionPayload["pull_request_lookup"];
 };
+
+/** What a session reports when it runs at the daemon's default permission mode. */
+export const sessionPermissionDefaults = {
+  effective_permissions: "approve-all",
+  permission_mode_degraded: false,
+} satisfies Pick<SessionPayload, "effective_permissions" | "permission_mode_degraded">;
 
 const DEFAULT_PROFILE_LABEL = {
   profile_id: "00000000000000000000000000",
@@ -291,6 +302,10 @@ export const sessionFixtures: SessionPayload[] = sessionFixtureRows.map(session 
   ...session,
   scope: session.scope ?? (session.workspace_id ? "workspace" : "user"),
   effective_workspace_access: session.effective_workspace_access ?? "",
+  effective_permissions:
+    session.effective_permissions ?? sessionPermissionDefaults.effective_permissions,
+  permission_mode_degraded:
+    session.permission_mode_degraded ?? sessionPermissionDefaults.permission_mode_degraded,
   pending_interactions: session.pending_interactions ?? [],
   supervision: session.supervision ?? null,
   board_column: session.board_column ?? "done",

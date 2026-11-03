@@ -23,6 +23,7 @@ import { OsShellContext, type OsShellHandle } from "../../contexts/os-shell-cont
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
 import { RoutingCoordinator, type OsRouterPort } from "../../lib/routing-coordinator";
 import { OsSessionsModal } from "../sessions-modal";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 const jumpToSession = vi.hoisted(() => vi.fn());
 vi.mock("../../hooks/use-attention-jump", () => ({
@@ -36,6 +37,7 @@ function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
     pull_request_lookup: null,
     supervision: null,
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     profile_name: "default",
     profile_id: "00000000000000000000000000",

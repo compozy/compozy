@@ -1,5 +1,6 @@
 import { sessionRuntime } from "@/systems/session/mocks/fixtures";
 import type { SessionPayload } from "@/systems/session/types";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 export function sidebarSession(
   id: string,
@@ -13,6 +14,7 @@ export function sidebarSession(
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     id,
     name,

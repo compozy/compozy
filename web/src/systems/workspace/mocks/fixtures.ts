@@ -10,6 +10,7 @@ import {
   storyWorkspacePaths,
   storyWorkspaceSkillDir,
 } from "@/storybook/fintech-scenario";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 function sessionRuntime(provider: string) {
   return {
@@ -342,6 +343,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       scope: "workspace",
+      ...sessionPermissionDefaults,
       effective_workspace_access: "",
       id: storySessionIds.product,
       name: "Launch room command brief",
@@ -365,6 +367,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       scope: "workspace",
+      ...sessionPermissionDefaults,
       effective_workspace_access: "",
       id: storySessionIds.frontend,
       name: "Landing page launch QA",
@@ -388,6 +391,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       scope: "workspace",
+      ...sessionPermissionDefaults,
       effective_workspace_access: "",
       id: storySessionIds.cto,
       name: "Executive launch review",
@@ -411,6 +415,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       scope: "workspace",
+      ...sessionPermissionDefaults,
       effective_workspace_access: "",
       id: storySessionIds.cfo,
       name: "Launch revenue watch",
@@ -434,6 +439,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       scope: "workspace",
+      ...sessionPermissionDefaults,
       effective_workspace_access: "",
       id: storySessionIds.marketing,
       name: "CRM launch timing",
@@ -457,6 +463,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       scope: "workspace",
+      ...sessionPermissionDefaults,
       effective_workspace_access: "",
       id: storySessionIds.copywriter,
       name: "Headline claim polish",
@@ -480,6 +487,7 @@ export const workspaceDetailFixture: WorkspaceDetailPayload = {
       supervision: null,
       ...DEFAULT_SESSION_PROFILE,
       scope: "workspace",
+      ...sessionPermissionDefaults,
       effective_workspace_access: "",
       id: storySessionIds.release,
       name: "Release control canary",
