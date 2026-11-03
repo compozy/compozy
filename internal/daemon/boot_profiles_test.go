@@ -108,8 +108,8 @@ func TestDaemonProfileEventRecorder(t *testing.T) {
 				}
 				if _, err := manager.Rename(t.Context(), inactive.Name, profile.RenameOptions{
 					NewName: "conflicting-name", PlanRevision: plan.Revision, Repos: profile.RepoChoice{None: true},
-				}); err == nil {
-					t.Fatal("Rename() succeeded despite the conflicting destination")
+				}); err == nil || !strings.Contains(err.Error(), "rename target") || !strings.Contains(err.Error(), "already exists") {
+					t.Fatalf("Rename() error = %v, want the destination conflict", err)
 				}
 				if _, err := manager.ProfileName(t.Context(), inactive.ID); !errors.Is(err, profile.ErrUnavailable) {
 					t.Fatalf("ProfileName() error = %v, want ErrUnavailable", err)
@@ -150,6 +150,24 @@ func TestDaemonProfileEventRecorder(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should propagate canceled profile lookups from usage target resolution", func(t *testing.T) {
+		t.Parallel()
+		database := openDaemonTestGlobalDB(t)
+		home := testHomePaths(t)
+		manager, err := profile.NewManager(profile.WithStore(database), profile.WithHomePaths(home))
+		if err != nil {
+			t.Fatalf("profile.NewManager() error = %v", err)
+		}
+		resolver := &providerUsageResolver{cfg: testConfig(t, home), profiles: manager}
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		cancel()
+		targets, err := resolver.Targets(ctx, store.DefaultProfileID)
+		if len(targets) != 0 || !errors.Is(err, context.Canceled) {
+			t.Fatalf("Targets(canceled) = %d targets, %v; want none and context.Canceled", len(targets), err)
+		}
+	})
 
 	t.Run("Should close ProviderUsage subscriptions after profile deletion", func(t *testing.T) {
 		t.Parallel()
