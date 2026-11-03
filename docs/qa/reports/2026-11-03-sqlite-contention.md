@@ -4,7 +4,7 @@ Status: implementation delivered to the branch; focused verification and PR deli
 The operator authorized shipping the safe implementation for this release with remaining measurements
 listed explicitly. This report does not claim that the 30-session performance acceptance has passed.
 
-The implementation baseline is `d35c63c9a`. Main through `29e811910` was merged before delivery.
+The implementation baseline is `d35c63c9a`. Main through `c96f54f3e` was merged before the release push (merge `c8c420c31`).
 All work is isolated in `fix/issue-1227-sqlite-contention`. Operator runtime databases, credentials
 and running sessions were not changed. The incident log was read only for sanitized aggregates.
 
@@ -130,7 +130,7 @@ After the operator restricted local execution, checks run one function at a time
 | Owning function | Result |
 | --- | --- |
 | `store.TestProductionMigrationStreamsFreshReopenAndAhead` | Passed (11.185 s): all four streams; fresh/reopen, integrity, schema equivalence and ahead refusal. The initial attempt found the new stream's baseline filename mismatch; production migration naming was corrected and the unchanged assertion passed. |
-| `globaldb.TestGlobalDBTelemetryRelocation` | Passed (0.983 s): all-column preservation, failed acknowledgement/restart, retired cursor, missing-file refusal and conflicting destination. |
+| `globaldb.TestGlobalDBTelemetryRelocation` | Passed (0.912 s) after final cleanup checks: all-column preservation, failed acknowledgement/restart, retired cursor, missing-file refusal and conflicting destination. |
 | `globaldb.TestGlobalDBTelemetryDelivery` | Passed (0.735 s): full core writer occupation, second read connection, read-only enforcement, workspace tombstone/cleanup, durable outbox failure/replay. |
 | `store.TestBackgroundWrites` | Passed (0.102 s) after queue deadline classification and per-producer attribution. |
 | `daemon.TestDaemonToolEventSink` | Passed (0.712 s): a completed tool event survives a real telemetry writer lock and a canceled persistence attempt. The first run exposed a test seed copying only the core file; the shared seed now copies the full database family. |
