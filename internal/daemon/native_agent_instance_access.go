@@ -105,8 +105,10 @@ func (n *daemonNativeTools) nativeInstanceQuery(
 		decision, err := n.deps.WorkspaceAccess.Authorize(
 			ctx,
 			workspaceaccess.Request{
-				Actor:    actor,
-				Target:   workspaceaccess.TargetRef{Kind: workspaceaccess.TargetAggregate, ProfileID: scope.ProfileID},
+				Actor: actor,
+				Target: workspaceaccess.TargetRef{
+					Kind: workspaceaccess.TargetAggregate, Surface: "agent instances", ProfileID: scope.ProfileID,
+				},
 				ReadOnly: true,
 				Seam:     workspaceaccess.SeamCatalog,
 			},

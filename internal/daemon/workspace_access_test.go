@@ -87,6 +87,11 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 				}, nil
 			case "sess-user":
 				return &session.Info{ID: id, AgentName: "coder", ProfileID: "p-y", State: session.StateStopped}, nil
+			case "sess-user-actor":
+				return &session.Info{
+					ID: id, AgentName: "coder", ProfileID: "p-x",
+					State: session.StateActive, EffectivePermissions: string(mode),
+				}, nil
 			default:
 				return nil, session.ErrSessionNotFound
 			}
@@ -213,6 +218,28 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		}
 	})
 
+	t.Run("Should deny @user probes from User scope like missing sessions", func(t *testing.T) {
+		t.Parallel()
+		sessions := sessionsFor(workspaceaccess.ModeDenyAll)
+		binder := newNativeWorkspaceInputBinder(nativeTestWorkspaceService(t), sessions, newPolicy(t, sessions), nil)
+		userScope := toolspkg.Scope{SessionID: "sess-user-actor", AgentName: "coder"}
+		call := func(input string) error {
+			bound, err := binder.BindCallInput(t.Context(), userScope, statusDescriptor, json.RawMessage(input))
+			if err != nil {
+				return err
+			}
+			return binder.AuthorizeCallInput(t.Context(), userScope, statusDescriptor, toolspkg.CallRequest{
+				ToolID: statusDescriptor.ID, SessionID: userScope.SessionID, Input: bound,
+			})
+		}
+		foreignErr := call(`{"workspace":"@user","session_id":"sess-foreign"}`)
+		missingErr := call(`{"workspace":"@user","session_id":"sess-missing"}`)
+		requireToolReason(t, foreignErr, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if missingErr == nil || foreignErr.Error() != missingErr.Error() {
+			t.Fatalf("denials differ:\nforeign: %v\nmissing: %v", foreignErr, missingErr)
+		}
+	})
+
 	t.Run("Should deny a foreign session whose project folder is gone like a missing one", func(t *testing.T) {
 		t.Parallel()
 		sessions := sessionsFor(workspaceaccess.ModeDenyAll)
@@ -271,6 +298,26 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 			if !strings.HasPrefix(title, "Read session sess-foreign") || strings.Contains(title, foreignWorkspace) {
 				t.Fatalf("prompt title = %q, want a session label without its owner", title)
 			}
+		}
+
+		renameDescriptor := statusDescriptor
+		renameDescriptor.ID = toolspkg.ToolIDSessionRename
+		renameDescriptor.ReadOnly = false
+		bound, err := binder.BindCallInput(
+			t.Context(), actorScope, renameDescriptor, json.RawMessage(`{"session_id":"sess-sibling"}`),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		renameErr := binder.AuthorizeCallInput(t.Context(), actorScope, renameDescriptor, toolspkg.CallRequest{
+			ToolID: renameDescriptor.ID, SessionID: actorScope.SessionID, Input: bound,
+		})
+		requireToolReason(t, renameErr, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		if len(requester.requests) != 3 {
+			t.Fatalf("permission requests = %d, want the write prompted too", len(requester.requests))
+		}
+		if title := *requester.requests[2].ToolCall.Title; !strings.HasPrefix(title, "Change session sess-sibling") {
+			t.Fatalf("write prompt title = %q, want the change named, not a read", title)
 		}
 	})
 

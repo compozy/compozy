@@ -165,6 +165,9 @@ func redactSensitiveJSONValue(value any) any {
 			return typed
 		}
 		return Marker
+	case json.Number:
+		// A numeric PIN or password under a sensitive key is as secret as a string one.
+		return Marker
 	case []any:
 		redacted := make([]any, len(typed))
 		for i, item := range typed {

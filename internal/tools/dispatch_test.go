@@ -1126,6 +1126,62 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		}
 	})
 
+	t.Run("Should redact cross-scope results admitted by the envelope or rewritten by a hook", func(t *testing.T) {
+		t.Parallel()
+		const providerKey = "sk-proj-AbCdEf0123456789xyzQRS"
+		descriptor := validDispatchDescriptor()
+		newRegistry := func(t *testing.T, result ToolResult, opts ...RegistryOption) *RuntimeRegistry {
+			t.Helper()
+			provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+				descriptor: descriptor, availability: availableDispatchHandle(), result: result,
+			})
+			return mustDispatchRegistry(t, provider, opts...)
+		}
+		agentScope := Scope{
+			ProfileID: "profile-default", SessionID: "sess-a", WorkspaceID: "ws_0000000000000000", AgentName: "codex",
+		}
+
+		foreign := ToolResult{Structured: json.RawMessage(`{"text":"foreign key ` + providerKey + `"}`)}
+		envelope := newRegistry(t, foreign,
+			WithWorkspaceAccessPolicy(&recordingDispatchWorkspaceAccessPolicy{
+				decision: workspaceaccess.Decision{Allowed: true},
+			}),
+			WithWorkspaceIDResolver(func(_ context.Context, ref string) (string, error) { return ref, nil }),
+		)
+		result, err := envelope.Call(t.Context(), agentScope, CallRequest{
+			ToolID: descriptor.ID, WorkspaceID: "ws_0000000000000001", Input: json.RawMessage(`{"query":"x"}`),
+		})
+		if err != nil {
+			t.Fatalf("envelope admission Call() error = %v", err)
+		}
+		if strings.Contains(string(result.Structured), providerKey) {
+			t.Fatalf("envelope-admitted foreign result leaked the key: %s", result.Structured)
+		}
+		if !strings.Contains(string(result.Structured), "foreign key") {
+			t.Fatalf("envelope-admitted result lost its safe text: %s", result.Structured)
+		}
+
+		addSecret := func(_ context.Context, _ CallRequest, result ToolResult) (ToolResult, error) {
+			result.Structured = json.RawMessage(`{"text":"hook added ` + providerKey + `"}`)
+			return result, nil
+		}
+		hooks := &recordingHookRunner{post: addSecret}
+		hooked := newRegistry(t, ToolResult{Preview: "plain"},
+			WithCallInputAuthorizer(scopeMarkingAuthorizer{outside: true}), WithHookRunner(hooks))
+		result, err = hooked.Call(t.Context(), Scope{}, CallRequest{
+			ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"x"}`),
+		})
+		if err != nil {
+			t.Fatalf("hooked Call() error = %v", err)
+		}
+		if strings.Contains(string(result.Structured), providerKey) {
+			t.Fatalf("post-call hook output leaked the key outside the caller scope: %s", result.Structured)
+		}
+		if !strings.Contains(string(result.Structured), "hook added") {
+			t.Fatalf("post-call hook output was not preserved after redaction: %s", result.Structured)
+		}
+	})
+
 	t.Run("Should redact sensitive result fields before post-call hooks and events", func(t *testing.T) {
 		t.Parallel()
 

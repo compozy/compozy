@@ -45,7 +45,7 @@ func (b *nativeWorkspaceInputBinder) AuthorizeCallInput(
 	}
 	otherCrossing := false
 	for target := range targets {
-		if target == workspaceaccess.UserSelector || target != actor.WorkspaceID {
+		if nativeTargetCrossesActor(target, actor) {
 			otherCrossing = true
 		}
 	}
@@ -76,6 +76,16 @@ func (b *nativeWorkspaceInputBinder) AuthorizeCallInput(
 		}
 	}
 	return nil
+}
+
+// nativeTargetCrossesActor reports whether an explicit target names a scope other than the
+// actor's own. The @user selector is the actor's own scope when the actor lives in the User
+// scope, so naming it must not skip the unresolved-target check and reveal session existence.
+func nativeTargetCrossesActor(target string, actor workspaceaccess.ActorRef) bool {
+	if target == workspaceaccess.UserSelector {
+		return actor.WorkspaceID != ""
+	}
+	return target != actor.WorkspaceID
 }
 
 func (b *nativeWorkspaceInputBinder) authorizeWorkspaceTarget(
