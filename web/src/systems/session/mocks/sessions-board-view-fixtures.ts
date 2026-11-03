@@ -106,8 +106,8 @@ export function sessionsBoardViewFixture(
 }
 
 const RUNTIMES: Record<string, SessionRuntimeLabel> = {
-  claude: { provider: "claude", label: "Claude · Opus 4.1" },
-  codex: { provider: "codex", label: "Codex · GPT-5" },
+  claude: { provider: "claude", label: "Claude · Opus 4.1", model: "Opus 4.1 high" },
+  codex: { provider: "codex", label: "Codex · GPT-5", model: "GPT-5 medium" },
 };
 
 /** The runtime label a live card would read for a fixture session. */

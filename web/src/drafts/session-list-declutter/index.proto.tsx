@@ -76,7 +76,8 @@ export const meta = definePrototype({
   states: [
     { id: "before", label: "Today" },
     { id: "trimmed", label: "A · Trimmed two lines" },
-    { id: "trimmed-icons", label: "A2 · Two lines, name on hover" },
+    { id: "trimmed-icons", label: "A2 · Two lines, model instead of name" },
+    { id: "trimmed-icons-subagents", label: "A2 · Two lines, subagents open" },
     { id: "single-line", label: "B · One line" },
     { id: "single-line-subagents", label: "B · One line, subagents open" },
     { id: "face", label: "C · Face first" },
@@ -98,6 +99,7 @@ const LAYOUTS: Record<string, SessionRowLayout> = {
   before: "classic",
   trimmed: "trimmed",
   "trimmed-icons": "trimmed-icons",
+  "trimmed-icons-subagents": "trimmed-icons",
   "single-line": "single-line",
   "single-line-subagents": "single-line",
   face: "face",
@@ -190,7 +192,12 @@ function Thread({
             <div className={BRANCH_RAIL}>
               {shown === "subagents"
                 ? SUBAGENTS.map(subagent => (
-                    <SessionListSubagentRow current={false} key={subagent.id} subagent={subagent} />
+                    <SessionListSubagentRow
+                      current={false}
+                      key={subagent.id}
+                      quiet={layout === "trimmed-icons"}
+                      subagent={subagent}
+                    />
                   ))
                 : THREAD_CHILDREN.map(child => (
                     <div className={BRANCH_NODE} key={child.id}>
@@ -372,7 +379,7 @@ export default function SessionListDeclutterDraft({ state }: PrototypeProps) {
       ) : (
         <SessionLists
           layout={layout}
-          threadSegment={state === "single-line-subagents" ? "subagents" : "children"}
+          threadSegment={state.endsWith("-subagents") ? "subagents" : "children"}
         />
       )}
     </main>

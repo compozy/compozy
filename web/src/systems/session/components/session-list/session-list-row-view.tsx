@@ -87,8 +87,8 @@ export interface SessionListRowProps {
 
 /**
  * How much a row says (issue #1191, under review in the gallery): `classic` is today's row;
- * `trimmed` keeps two lines and drops every word but needs-you; `trimmed-icons` also drops the
- * agent's name, which its face says on a resting hover; `single-line` folds the who into
+ * `trimmed` keeps two lines and drops every word but needs-you; `trimmed-icons` writes the model
+ * where the agent's name was, which its face says on a resting hover; `single-line` folds the who into
  * line 1's end; `face` leads with the agent's face across both lines.
  */
 export type SessionRowLayout = "classic" | "trimmed" | "trimmed-icons" | "single-line" | "face";
@@ -254,7 +254,7 @@ function SessionListRowBody({
       {metaLine ? (
         <SessionRowMetaLine
           session={session}
-          agentLabel={single || iconsOnly ? "" : agentLabel}
+          agentLabel={single ? "" : iconsOnly ? (runtime?.model ?? "") : agentLabel}
           badge={badge}
           owner={owner}
           meta={meta}
