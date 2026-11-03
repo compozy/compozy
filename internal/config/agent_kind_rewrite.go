@@ -187,13 +187,18 @@ func classifyAgentKindRewriteError(err error) (published bool, reason AgentKindR
 }
 
 // rewriteAgentKindValue returns the original bytes with the top-level kind value span replaced.
-// It returns (nil, true) when the file needs no rewrite and (nil, false) for a stays_on file whose
-// kind line has a shape the span edit does not support.
+// It returns (nil, true) when the file needs no rewrite and (nil, false) for a stays_on file it
+// leaves untouched: its kind line has a shape the span edit does not support, or its top-level
+// kind line reads stays_on but the frontmatter fails strict decode.
 func rewriteAgentKindValue(original []byte) ([]byte, bool) {
-	if kind, deprecated, err := decodeAgentFileKind(original); err != nil || !deprecated || kind != AgentKindAlwaysOn {
+	start, end, ok := agentKindValueSpan(original)
+	kind, deprecated, err := decodeAgentFileKind(original)
+	if err != nil {
+		return nil, !ok
+	}
+	if !deprecated || kind != AgentKindAlwaysOn {
 		return nil, true
 	}
-	start, end, ok := agentKindValueSpan(original)
 	if !ok {
 		return nil, false
 	}
@@ -204,8 +209,10 @@ func rewriteAgentKindValue(original []byte) ([]byte, bool) {
 	return updated, true
 }
 
-// decodeAgentFileKind decodes only the frontmatter shape, so a file the loader would reject for
-// another reason is still judged by its kind line alone.
+// decodeAgentFileKind strictly decodes the frontmatter and reports its kind. It does not run the
+// loader's validation, so a well-formed file the loader rejects for another reason still reports
+// its kind; a frontmatter that fails strict decode (an unknown key or invalid YAML/TOML) returns
+// the decode error.
 func decodeAgentFileKind(content []byte) (kind string, deprecated bool, err error) {
 	var parsed parsedAgentDef
 	_, err = frontmatter.Decode(content, func(data []byte) error {

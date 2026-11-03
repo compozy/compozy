@@ -430,6 +430,19 @@ func TestRewriteAgentKindAliases(t *testing.T) {
 		}
 	})
 
+	t.Run("Should skip a stays_on file that fails strict decode", func(t *testing.T) {
+		t.Parallel()
+
+		root := t.TempDir()
+		body := "---\nname: strict\nkind: stays_on\nunknown_field: true\n---\nBody.\n"
+		path := writeRewriteAgent(t, root, "strict", body, 0o644)
+		if _, _, err := decodeAgentFileKind([]byte(body)); err == nil {
+			t.Fatal("decodeAgentFileKind() error = nil, want a strict decode failure")
+		}
+		assertRewriteSkip(t, root, path, AgentKindRewriteSkipUnsupported)
+		assertRewriteFile(t, path, body, 0o644)
+	})
+
 	t.Run("Should not publish when the file changes before the final compare", func(t *testing.T) {
 		t.Parallel()
 
