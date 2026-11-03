@@ -97,13 +97,14 @@ func (r daemonSessionWorktreeResolver) InspectProfileMoveWorktree(
 	return checkout, nil
 }
 
-// profileMoveCheckoutGone reports a row whose checkout no longer exists. A failed
-// creation counts only once its rollback completed, and so does a dismissed one:
-// dismissal leaves an unfinished rollback's files and Git state in place, so Git
+// profileMoveCheckoutGone reports a row whose checkout no longer exists. A missing row
+// lost its path, so a rollback checks the branch out again rather than waiting on it.
+// A failed creation counts only once its rollback completed, and so does a dismissed
+// one: dismissal leaves an unfinished rollback's files and Git state in place, so Git
 // may still hold the branch.
 func profileMoveCheckoutGone(item *worktree.Worktree) bool {
 	switch item.State {
-	case worktree.StateRemoved:
+	case worktree.StateRemoved, worktree.StateMissing:
 		return true
 	case worktree.StateFailed, worktree.StateDismissed:
 		return item.CreateRollbackError == ""

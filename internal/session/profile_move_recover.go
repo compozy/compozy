@@ -36,6 +36,10 @@ func (m *Manager) RecoverProfileMoves(ctx context.Context) error {
 	}
 	var errs []error
 	for i := range moves {
+		if err := ctx.Err(); err != nil {
+			// The rest stay journaled and settle at the next boot.
+			return errors.Join(append(errs, err)...)
+		}
 		move := moves[i]
 		completed, err := m.settleProfileMoveLocked(ctx, move)
 		if err != nil {
@@ -88,7 +92,9 @@ func (m *Manager) settleOpenProfileMove(ctx context.Context, sessionID string) e
 }
 
 // settleProfileMove finishes an open move from durable state alone. A copy whose
-// derive receipt committed completes the move. Otherwise it rolls back in reverse
+// derive receipt committed completes the move, while that copy still exists: a copy
+// deleted before the journal closed leaves nothing to keep, so the move rolls back
+// and the original is available again. Otherwise it rolls back in reverse
 // order: the target checkout is released, the branch is checked out again for the
 // source profile when its checkout is gone, and the original is unarchived and
 // rebound to it. A binding the original's owner changed before the archive is left
@@ -107,10 +113,13 @@ func (m *Manager) settleProfileMove(ctx context.Context, move store.SessionProfi
 	if err != nil {
 		return false, err
 	}
-	_, copied, err := derivations.SessionDerivationReceipt(ctx, move.WorkspaceID, move.CopyKey, move.TargetProfileID)
+	receipt, found, err := derivations.SessionDerivationReceipt(
+		ctx, move.WorkspaceID, move.CopyKey, move.TargetProfileID,
+	)
 	if err != nil {
 		return false, fmt.Errorf("read the copy's derive receipt: %w", err)
 	}
+	copied := found && receipt.ChildDeletedAt == nil
 	if !copied {
 		if err := m.rollbackProfileMoveState(ctx, journal, &move); err != nil {
 			return false, err

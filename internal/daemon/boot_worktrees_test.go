@@ -434,6 +434,7 @@ func TestDaemonProfileMoveWorktrees(t *testing.T) {
 			gone bool
 		}{
 			{name: "removed", item: worktree.Worktree{State: worktree.StateRemoved}, gone: true},
+			{name: "missing its path", item: worktree.Worktree{State: worktree.StateMissing}, gone: true},
 			{name: "failed and rolled back", item: worktree.Worktree{State: worktree.StateFailed}, gone: true},
 			{
 				name: "failed with its rollback incomplete",

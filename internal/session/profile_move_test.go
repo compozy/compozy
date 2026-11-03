@@ -1088,6 +1088,44 @@ func TestManagerRecoverProfileMoves(t *testing.T) {
 		}
 	})
 
+	t.Run("Should restore the original when its copy was deleted before the move closed", func(t *testing.T) {
+		t.Parallel()
+
+		h := newStoppingProfileMoveHarness(t)
+		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+		h.stopAt(t, "close", func() { _, _ = h.move(testutil.Context(t), source.ID) })
+		move, _ := h.openMove(t, source.ID)
+		copies := h.targetSessions(t)
+		if len(copies) != 1 {
+			t.Fatalf("copies after the stop = %#v, want the committed copy", copies)
+		}
+		if err := h.manager.Delete(testutil.Context(t), copies[0].ID); err != nil {
+			t.Fatalf("Delete(copy) error = %v", err)
+		}
+
+		if err := h.manager.RecoverProfileMoves(testutil.Context(t)); err != nil {
+			t.Fatalf("RecoverProfileMoves() error = %v", err)
+		}
+		h.requireRolledBack(t, source.ID, move)
+	})
+
+	t.Run("Should leave the remaining moves journaled when boot is canceled", func(t *testing.T) {
+		t.Parallel()
+
+		h := newStoppingProfileMoveHarness(t)
+		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+		h.stopAt(t, "release", func() { _, _ = h.move(testutil.Context(t), source.ID) })
+		ctx, cancel := context.WithCancel(testutil.Context(t))
+		cancel()
+
+		if err := h.manager.RecoverProfileMoves(ctx); !errors.Is(err, context.Canceled) {
+			t.Fatalf("RecoverProfileMoves(canceled) error = %v, want context.Canceled", err)
+		}
+		if _, open := h.openMove(t, source.ID); !open || !h.archivedAt(t, source.ID) {
+			t.Fatal("a canceled boot settled the move; want it left journaled for the next boot")
+		}
+	})
+
 	t.Run("Should settle an interrupted move before a retry moves the session", func(t *testing.T) {
 		t.Parallel()
 
