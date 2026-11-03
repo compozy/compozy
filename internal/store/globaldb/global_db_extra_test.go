@@ -644,6 +644,14 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// Production creates the destination before committing the source freeze.
+		target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := target.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
 		if _, err := source.ExecContext(ctx, `CREATE TRIGGER fail_export_ack BEFORE DELETE ON event_summary_export
 		BEGIN SELECT RAISE(ABORT, 'injected export acknowledgement failure'); END`); err != nil {
 			t.Fatal(err)
@@ -703,6 +711,95 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 		)
 		if err != nil || len(rows) != 1 || rows[0].ID != "after-relocation" || rows[0].Sequence != 901 {
 			t.Fatalf("resumed cursor = %#v, %v", rows, err)
+		}
+	})
+	t.Run("Should refuse a lost destination after acknowledging an export batch", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00186_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := source.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := source.ExecContext(ctx, `WITH RECURSIVE rows(n) AS (
+			SELECT 1 UNION ALL SELECT n+1 FROM rows WHERE n<129
+		) INSERT INTO event_summaries(seq,id,profile_id,type,timestamp)
+		SELECT n,'export-'||n,?,'settings.changed','2026-11-03T19:00:00Z' FROM rows`, store.DefaultProfileID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := source.ExecContext(ctx, `CREATE TRIGGER fail_export_tail BEFORE DELETE ON event_summaries
+			WHEN OLD.seq>128 BEGIN SELECT RAISE(ABORT, 'export tail interrupted'); END`); err != nil {
+			t.Fatal(err)
+		}
+		if err := applyTelemetryRelocation(ctx, source, path, 185); err == nil ||
+			!strings.Contains(err.Error(), "export tail interrupted") {
+			t.Fatalf("export interruption = %v", err)
+		}
+		var remaining int
+		if err := source.QueryRowContext(ctx, "SELECT count(*) FROM event_summary_export").
+			Scan(&remaining); err != nil ||
+			remaining != 1 {
+			t.Fatalf("unacknowledged rows = %d, %v; want 1", remaining, err)
+		}
+		if _, err := source.ExecContext(ctx, "DROP TRIGGER fail_export_tail"); err != nil {
+			t.Fatal(err)
+		}
+		if err := source.Close(); err != nil {
+			t.Fatal(err)
+		}
+		target := telemetrydb.Path(path)
+		if err := os.Rename(target, target+".preserved"); err != nil {
+			t.Fatal(err)
+		}
+		opened, err := openGlobalMigrationUpgrade(t, path)
+		if err == nil {
+			if closeErr := opened.Close(ctx); closeErr != nil {
+				t.Error(closeErr)
+			}
+			t.Fatal("interrupted export recreated a missing destination")
+		}
+		if !strings.Contains(err.Error(), "telemetry database is required") {
+			t.Fatalf("missing destination diagnostic = %v", err)
+		}
+		if _, err := os.Stat(target); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("missing destination was changed: %v", err)
+		}
+		if err := os.WriteFile(target, nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		opened, err = openGlobalMigrationUpgrade(t, path)
+		if err == nil {
+			if closeErr := opened.Close(ctx); closeErr != nil {
+				t.Error(closeErr)
+			}
+			t.Fatal("interrupted export accepted an empty replacement")
+		}
+		if !strings.Contains(err.Error(), "telemetry database is uninitialized") {
+			t.Fatalf("empty destination diagnostic = %v", err)
+		}
+		if err := os.Remove(target); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(target+".preserved", target); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		var count, highWater int
+		if err := upgraded.readDB.QueryRowContext(ctx, "SELECT count(*),max(seq) FROM event_summaries").
+			Scan(&count, &highWater); err != nil || count != 129 ||
+			highWater != 129 {
+			t.Fatalf("restored export = %d rows through %d, %v", count, highWater, err)
 		}
 	})
 	t.Run("Should preserve a retired cursor when every source row was deleted", func(t *testing.T) {

@@ -49,6 +49,7 @@ var userScopeMigrationInventory = []string{
 	"model_catalog_execution_contexts",
 	"notification_cursors",
 	"event_summaries",
+	"event_summary_outbox",
 	"dead_entities",
 	"tool_approval_grants",
 	"tool_approval_pending",

@@ -6945,6 +6945,53 @@ func TestGlobalDBAppTokenMigration(t *testing.T) {
 }
 
 func TestUserScopeMigration(t *testing.T) {
+	t.Run("Should reopen a home workspace upgrade after telemetry relocation", func(t *testing.T) {
+		t.Parallel()
+		home := t.TempDir()
+		path := filepath.Join(home, GlobalDatabaseName)
+		db, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00151_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := db.ExecContext(
+			t.Context(),
+			`INSERT INTO workspaces(id,root_dir,name,created_at,updated_at) VALUES ('legacy',?,'home','2026-01-01','2026-01-01')`,
+			home,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(
+			t.Context(),
+			`INSERT INTO event_summaries(seq,id,profile_id,workspace_id,type,timestamp) VALUES(123,'legacy-event',?,'legacy','settings.changed','2026-01-01T00:00:00Z')`,
+			store.DefaultProfileID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatalf("open legacy home upgrade: %v", err)
+			}
+			rows, err := upgraded.ListEventSummaries(t.Context(), store.EventSummaryQuery{
+				ReadScope: store.ReadScope{AllProfiles: true}, AfterSequence: 122,
+			})
+			closeErr := upgraded.Close(context.Background())
+			if err != nil || closeErr != nil {
+				t.Fatalf("read upgraded summaries: %v; close: %v", err, closeErr)
+			}
+			if len(rows) != 1 || rows[0].ID != "legacy-event" || rows[0].Sequence != 123 || rows[0].WorkspaceID != "" {
+				t.Fatalf("legacy home summaries changed: %#v", rows)
+			}
+		}
+	})
 	t.Run("Should preserve profiles collisions aliases and registration until verification", func(t *testing.T) {
 		t.Parallel()
 		home := t.TempDir()

@@ -167,7 +167,7 @@ func openGlobalSQLite(ctx context.Context, path string, operatorHomeDir string) 
 			return err
 		}
 		if before.Version < userScopeMigrationVersion {
-			return logUserScopeMigration(ctx, db)
+			return logUserScopeMigration(ctx, path)
 		}
 		return nil
 	})

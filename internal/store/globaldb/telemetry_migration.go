@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -23,14 +22,13 @@ const (
 // value verification. An interruption at either commit resumes idempotently.
 func applyTelemetryRelocation(ctx context.Context, db *sql.DB, path string, version int64) (retErr error) {
 	targetPath := telemetrydb.Path(path)
-	if version >= telemetryMovedVersion {
-		if err := store.Apply(ctx, db, MigrationStream()); err != nil {
+	if version >= telemetryExportVersion {
+		if err := requireTelemetryDestination(ctx, targetPath); err != nil {
 			return err
 		}
-		if _, err := os.Stat(targetPath); err != nil {
-			return fmt.Errorf("store: relocated telemetry database is required: %w", err)
-		}
-		return nil
+	}
+	if version >= telemetryMovedVersion {
+		return store.Apply(ctx, db, MigrationStream())
 	}
 	target, err := telemetrydb.Open(ctx, targetPath)
 	if err != nil {
@@ -60,6 +58,24 @@ func applyTelemetryRelocation(ctx context.Context, db *sql.DB, path string, vers
 	// The SQL boundary refuses to drop a nonempty source, including when a
 	// caller tries to apply the stream without this cross-file coordinator.
 	return store.Apply(ctx, db, MigrationStream())
+}
+
+// The destination exists before the source freeze commits. Once export can have
+// acknowledged a batch, neither a missing file nor an empty replacement is safe.
+func requireTelemetryDestination(ctx context.Context, path string) (err error) {
+	db, err := store.OpenSQLiteReadPool(ctx, path)
+	if err != nil {
+		return fmt.Errorf("store: relocated telemetry database is required: %w", err)
+	}
+	defer func() { err = errors.Join(err, db.Close()) }()
+	status, err := store.Status(ctx, db, telemetrydb.MigrationStream())
+	if err != nil {
+		return fmt.Errorf("store: inspect relocated telemetry database: %w", err)
+	}
+	if status.Version == 0 {
+		return errors.New("store: relocated telemetry database is uninitialized")
+	}
+	return nil
 }
 
 func exportTelemetry(ctx context.Context, source, target *sql.DB) error {
@@ -103,19 +119,28 @@ func preserveTelemetrySequence(ctx context.Context, source, target *sql.DB) erro
 	).Scan(&sequence); err != nil {
 		return err
 	}
-	return store.ExecuteWriteOperation(ctx, target, "preserve telemetry cursor", func(ctx context.Context, tx *store.WriteTx) error {
-		result, err := tx.ExecContext(ctx,
-			"UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = 'event_summaries'", sequence)
-		if err != nil {
+	return store.ExecuteWriteOperation(
+		ctx,
+		target,
+		"preserve telemetry cursor",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			result, err := tx.ExecContext(ctx,
+				"UPDATE sqlite_sequence SET seq = MAX(seq, ?) WHERE name = 'event_summaries'", sequence)
+			if err != nil {
+				return err
+			}
+			changed, err := result.RowsAffected()
+			if err != nil || changed != 0 {
+				return err
+			}
+			_, err = tx.ExecContext(
+				ctx,
+				"INSERT INTO sqlite_sequence(name, seq) VALUES ('event_summaries', ?)",
+				sequence,
+			)
 			return err
-		}
-		changed, err := result.RowsAffected()
-		if err != nil || changed != 0 {
-			return err
-		}
-		_, err = tx.ExecContext(ctx, "INSERT INTO sqlite_sequence(name, seq) VALUES ('event_summaries', ?)", sequence)
-		return err
-	})
+		},
+	)
 }
 
 func readTelemetryExportBatch(ctx context.Context, db *sql.DB) (columns []string, values [][]any, err error) {

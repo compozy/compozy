@@ -1,8 +1,8 @@
 # SQLite contention isolation — issue #1227
 
-Status: implementation delivered to the branch; focused verification and PR delivery are in progress.
-The operator authorized shipping the safe implementation for this release with remaining measurements
-listed explicitly. This report does not claim that the 30-session performance acceptance has passed.
+Status: implementation and verification are in progress. The operator reaffirmed the full issue scope:
+the remaining ownership work, representative upgrade and 30-session measurements are required before
+completion. Focused correctness checks do not establish the performance acceptance criteria.
 
 The implementation baseline is `d35c63c9a`. Main through `c96f54f3e` was merged before the release push (merge `c8c420c31`).
 All work is isolated in `fix/issue-1227-sqlite-contention`. Operator runtime databases, credentials
@@ -68,7 +68,9 @@ commits the destination with `synchronous=FULL` before deleting each source batc
 acknowledgement resumes without duplicate events. A conflicting destination preserves the source
 and fails explicitly. The high-water cursor survives even when retention deleted every source row.
 
-Startup refuses a missing relocated file. Backups and restores must preserve both databases and
+Startup refuses a missing or uninitialized destination as soon as export can acknowledge source rows,
+including an interrupted version-187 upgrade. Older home-workspace upgrades read their migration
+inventory through the relocated read owner. Backups and restores must preserve both databases and
 all sidecars. The old core file can retain reusable free pages; this change does not run a large
 blocking VACUUM during startup. Operator database/file-location docs and the official runtime
 reference describe the sibling file and recovery boundary. Status reports both migration streams.
@@ -131,6 +133,8 @@ After the operator restricted local execution, checks run one function at a time
 | --- | --- |
 | `store.TestProductionMigrationStreamsFreshReopenAndAhead` | Passed (11.185 s): all four streams; fresh/reopen, integrity, schema equivalence and ahead refusal. The initial attempt found the new stream's baseline filename mismatch; production migration naming was corrected and the unchanged assertion passed. |
 | `globaldb.TestGlobalDBTelemetryRelocation` | Passed (0.912 s) after final cleanup checks: all-column preservation, failed acknowledgement/restart, retired cursor, missing-file refusal and conflicting destination. |
+| `globaldb.TestGlobalDBTelemetryRelocation` after review | Passed (0.550 s): after the first 128 source rows are acknowledged, a missing or empty destination is rejected; restoring it resumes without losing any of 129 events. |
+| `globaldb.TestUserScopeMigration` after review | Passed (0.787 s): an actual version-150 home-workspace fixture upgrades and reopens with its relocated event and cursor intact; the complete workspace-column inventory includes the new outbox. |
 | `globaldb.TestGlobalDBTelemetryDelivery` | Passed (0.735 s): full core writer occupation, second read connection, read-only enforcement, workspace tombstone/cleanup, durable outbox failure/replay. |
 | `store.TestBackgroundWrites` | Passed (0.102 s) after queue deadline classification and per-producer attribution. |
 | `daemon.TestDaemonToolEventSink` | Passed (0.712 s): a completed tool event survives a real telemetry writer lock and a canceled persistence attempt. The first run exposed a test seed copying only the core file; the shared seed now copies the full database family. |
@@ -148,10 +152,9 @@ false positives; the new recovery and telemetry cases use the canonical subtest 
 errors. Formatting was restricted to the changed Go files. No local full/race/E2E suite or repository-wide lint/gate was run. Final formatting, lint, codegen,
 build, unit and E2E delivery evidence belongs to CI on the PR head.
 
-## Explicit release follow-up
+## Required work still in progress
 
-The operator authorized deferring work that cannot safely fit the release window. The following
-remain unverified and are not implied by the focused tests:
+The following acceptance items remain unverified and are not implied by the focused tests:
 
 1. Same-machine before/after load with approximately 30 streaming sessions: p99 transcript/catalog
    latency, transactions/sec, core bytes/minute, zero interactive failures and no holds over one second.
