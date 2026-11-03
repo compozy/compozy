@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/api/udsapi"
 	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/gin-gonic/gin"
@@ -48,8 +49,8 @@ func TestProfileDetailReadHTTPUDSTransportParityIT070(t *testing.T) {
 		{
 			ID: aggregateReadProfileID, Name: "marketing", Color: "#E8572A", State: profilepkg.StateActive},
 	}}
-	httpRouter := newProfileReadParityHTTPRouter(t, taskService, profiles)
-	udsRouter := newProfileReadParityUDSRouter(t, taskService, profiles)
+	httpRouter := newProfileReadParityHTTPRouter(t, taskService, profiles, &testutil.StubSessionManager{})
+	udsRouter := newProfileReadParityUDSRouter(t, taskService, profiles, &testutil.StubSessionManager{})
 
 	for _, test := range []struct {
 		name       string
@@ -85,6 +86,41 @@ func TestProfileDetailReadHTTPUDSTransportParityIT070(t *testing.T) {
 	}
 }
 
+// Canonical suite: the routed session's profile fences workspace session routes alike over HTTP
+// and UDS (#1193), including the transport-owned prompt handlers.
+func TestWorkspaceSessionProfileFenceHTTPUDSTransportParity(t *testing.T) {
+	t.Parallel()
+
+	sessions := &testutil.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+		info := testutil.NewSessionInfo(id)
+		info.WorkspaceID, info.ProfileID = "ws-registry", aggregateReadProfileID
+		return info, nil
+	}}
+	profiles := parityProfileService{profiles: []profilepkg.WithCounts{
+		{ID: store.DefaultProfileID, Name: "default", Color: "#8E8EB5", State: profilepkg.StateActive},
+		{ID: aggregateReadProfileID, Name: "marketing", Color: "#E8572A", State: profilepkg.StateActive},
+	}}
+	httpRouter := newProfileReadParityHTTPRouter(t, &testutil.StubTaskManager{}, profiles, sessions)
+	udsRouter := newProfileReadParityUDSRouter(t, &testutil.StubTaskManager{}, profiles, sessions)
+	const route = "/api/workspaces/ws-public/sessions/sess-foreign"
+	const prompt = `{"message":"hello","message_id":"msg-parity","idempotency_key":"idem-parity"}`
+	for _, test := range []struct {
+		name, method, path, body string
+		wantStatus               int
+	}{
+		{"scoped foreign read", http.MethodGet, route + "/events?profile=default", "", http.StatusNotFound},
+		{"scoped foreign write", http.MethodPost, route + "/prompt?profile=default", prompt, http.StatusNotFound},
+		{"aggregate write", http.MethodPost, route + "/prompt?all_profiles=true", prompt, http.StatusBadRequest},
+	} {
+		t.Run("Should match "+test.name, func(t *testing.T) {
+			t.Parallel()
+			httpResponse := performWorktreeParityRequest(t, httpRouter, test.method, test.path, test.body)
+			udsResponse := performWorktreeParityRequest(t, udsRouter, test.method, test.path, test.body)
+			assertWorktreeParityResponse(t, httpResponse, udsResponse, test.wantStatus)
+		})
+	}
+}
+
 type parityProfileService struct {
 	core.ProfileService
 	profiles []profilepkg.WithCounts
@@ -110,6 +146,7 @@ func newProfileReadParityHTTPRouter(
 	t *testing.T,
 	tasks core.TaskService,
 	profiles core.ProfileService,
+	sessions core.SessionManager,
 ) http.Handler {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -122,7 +159,7 @@ func newProfileReadParityHTTPRouter(
 		httpapi.WithHost(cfg.HTTP.Host), httpapi.WithPort(cfg.HTTP.Port),
 		httpapi.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		httpapi.WithStartedAt(parityWorktreeTime()), httpapi.WithNow(parityWorktreeTime),
-		httpapi.WithSessionManager(&testutil.StubSessionManager{}),
+		httpapi.WithSessionManager(sessions),
 		httpapi.WithTaskService(tasks), httpapi.WithProfileService(profiles),
 		httpapi.WithObserver(testutil.StubObserver{}),
 		httpapi.WithWorkspaceResolver(parityWorkspaceService()),
@@ -136,6 +173,7 @@ func newProfileReadParityUDSRouter(
 	t *testing.T,
 	tasks core.TaskService,
 	profiles core.ProfileService,
+	sessions core.SessionManager,
 ) http.Handler {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -146,7 +184,7 @@ func newProfileReadParityUDSRouter(
 		udsapi.WithEngine(engine), udsapi.WithHomePaths(homePaths), udsapi.WithConfig(&cfg),
 		udsapi.WithLogger(slog.New(slog.NewTextHandler(io.Discard, nil))),
 		udsapi.WithStartedAt(parityWorktreeTime()), udsapi.WithNow(parityWorktreeTime),
-		udsapi.WithSessionManager(&testutil.StubSessionManager{}),
+		udsapi.WithSessionManager(sessions),
 		udsapi.WithTaskService(tasks), udsapi.WithProfileService(profiles),
 		udsapi.WithObserver(testutil.StubObserver{}),
 		udsapi.WithWorkspaceResolver(parityWorkspaceService()),

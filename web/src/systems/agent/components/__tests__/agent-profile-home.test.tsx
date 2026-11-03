@@ -1,13 +1,16 @@
 // Suite: the agent's home
-// Invariant: an on-demand agent shows no Stays on sections (UT-074), and no route behind activity
-//   reads as unknown, never as no activity.
+// Invariant: an on-demand agent shows no Stays on sections (UT-074), no route behind activity
+//   reads as unknown, never as no activity, and the Model row is the runtime selector itself.
 // Boundary IN: `AgentProfileHome` from its view model. Boundary OUT: the side panels and the plan
 //   card, which read their own daemon routes.
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { TooltipProvider, UIProvider } from "@compozy/ui";
+
 import type { UseAgentProfile } from "../../hooks/use-agent-profile";
+import type { UseAgentRuntimeEditorResult } from "../../hooks/use-agent-runtime-editor";
 import { agentPlaceFromInstance } from "../../lib/agent-team";
 import { agentInstanceFixture } from "../../mocks/instance-fixtures";
 import { activityFixture } from "../../mocks/team-fixtures";
@@ -27,6 +30,62 @@ vi.mock("@/systems/profiles", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/profiles")>()),
   useProfileReadScope: () => ({ destination: "default" }),
 }));
+
+function modelFixture(
+  overrides: Partial<UseAgentRuntimeEditorResult> = {}
+): UseAgentRuntimeEditorResult {
+  return {
+    value: { provider: "claude", model: "opus", reasoning_effort: "" },
+    speed: "normal",
+    overridden: false,
+    onChange: vi.fn(),
+    onSpeedChange: vi.fn(),
+    onUseDefault: vi.fn(),
+    providerOptions: [{ id: "claude", name: "Claude", runtime_provider: "claude" }],
+    providersLoading: false,
+    providerSourceError: null,
+    onRetryProviderSource: vi.fn(),
+    runtimeModels: [
+      {
+        id: "opus",
+        provider: "claude",
+        name: "Opus",
+        efforts: [],
+        availability: "live",
+        curated: true,
+      },
+      {
+        id: "sonnet",
+        provider: "claude",
+        name: "Sonnet",
+        efforts: [],
+        availability: "live",
+        curated: true,
+      },
+    ],
+    modelCatalogLoading: false,
+    modelCatalogRefreshing: false,
+    modelCatalogError: null,
+    onRefreshCatalog: vi.fn(),
+    onOpenProviderSettings: vi.fn(),
+    isPending: false,
+    error: null,
+    conflictMessage: null,
+    onReload: null,
+    onDismissError: vi.fn(),
+    ...overrides,
+  };
+}
+
+function renderHome(page: UseAgentProfile) {
+  return render(
+    <UIProvider reducedMotion="never" skipAnimations>
+      <TooltipProvider delay={0}>
+        <AgentProfileHome page={page} />
+      </TooltipProvider>
+    </UIProvider>
+  );
+}
 
 function pageFixture(overrides: Partial<UseAgentProfile> = {}): UseAgentProfile {
   return {
@@ -58,9 +117,9 @@ function pageFixture(overrides: Partial<UseAgentProfile> = {}): UseAgentProfile 
       signedOut: new Map(),
     },
     newSessionDisabled: false,
+    model: modelFixture(),
     summaries: {
       behavior: "",
-      model: "",
       checkIns: "Off",
       memory: "",
       tools: "",
@@ -173,5 +232,81 @@ describe("AgentProfileHome", () => {
     render(<AgentProfileHome page={pageFixture({ places: [stopped], state: "paused" })} />);
     expect(screen.getByTestId("agent-profile-stopped")).toHaveTextContent("It can't resume");
     expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
+  });
+
+  it("Should pick the model in the Model row and apply it with no panel or Save", async () => {
+    const onChange = vi.fn();
+    renderHome(pageFixture({ model: modelFixture({ onChange }) }));
+    const row = screen.getByTestId("agent-setup-model");
+    expect(row).toHaveTextContent("Uses your default");
+    expect(within(row).queryByRole("button", { name: "Use default" })).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    await user.click(within(row).getByTestId("agent-setup-model-select"));
+    const popup = await screen.findByTestId("runtime-selector-popup");
+    await waitFor(() => expect(popup).toBeVisible());
+    const sonnet = popup.querySelector<HTMLElement>('[data-model="sonnet"]');
+    if (!sonnet) throw new Error("Missing Sonnet row");
+    await user.click(sonnet);
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: "claude", model: "sonnet" }),
+      undefined
+    );
+    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Command")).not.toBeInTheDocument();
+  });
+
+  it("Should go back to the default from an overridden model and show its error inline", async () => {
+    const onUseDefault = vi.fn();
+    renderHome(
+      pageFixture({
+        model: modelFixture({
+          overridden: true,
+          onUseDefault,
+          error: "Couldn't update the model",
+        }),
+      })
+    );
+    const row = screen.getByTestId("agent-setup-model");
+    expect(row).not.toHaveTextContent("Uses your default");
+    expect(within(row).getByRole("alert")).toHaveTextContent("Couldn't update the model");
+    await userEvent.setup().click(within(row).getByRole("button", { name: "Use default" }));
+    expect(onUseDefault).toHaveBeenCalledOnce();
+  });
+
+  it("Should offer Retry for a failed provider load even beside a save message", async () => {
+    const onRetryProviderSource = vi.fn();
+    renderHome(
+      pageFixture({
+        model: modelFixture({
+          providerOptions: [],
+          providerSourceError: "Couldn't load providers",
+          conflictMessage: "This agent changed somewhere else. Pick the model again.",
+          onRetryProviderSource,
+        }),
+      })
+    );
+    const row = screen.getByTestId("agent-setup-model");
+    expect(within(row).getByTestId("agent-setup-model-error")).toHaveTextContent(
+      "This agent changed somewhere else."
+    );
+    expect(within(row).getByTestId("agent-setup-model-provider-error")).toHaveTextContent(
+      "Couldn't load providers"
+    );
+    await userEvent.setup().click(within(row).getByRole("button", { name: "Retry" }));
+    expect(onRetryProviderSource).toHaveBeenCalledOnce();
+  });
+
+  it("Should keep a package-owned agent's model visible but unchangeable", () => {
+    renderHome(
+      pageFixture({
+        identity: { ...pageFixture().identity, readOnly: true, owner: "Acme kit" },
+        model: modelFixture({ overridden: true }),
+      })
+    );
+    const row = screen.getByTestId("agent-setup-model");
+    expect(within(row).getByTestId("agent-setup-model-select")).toHaveTextContent("Opus");
+    expect(within(row).queryByRole("button", { name: "Use default" })).not.toBeInTheDocument();
   });
 });

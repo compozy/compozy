@@ -7,6 +7,43 @@ import (
 	"time"
 )
 
+// ToolCallEventPayload is a daemon API value.
+type ToolCallEventPayload struct {
+	Kind                 ToolCallEventKind `json:"kind"`
+	ToolID               ToolID            `json:"tool_id"`
+	DisplayTitle         string            `json:"display_title,omitempty"`
+	SourceKind           SourceKind        `json:"source_kind,omitempty"`
+	SourceOwner          string            `json:"source_owner,omitempty"`
+	WorkspaceID          string            `json:"workspace_id,omitempty"`
+	SessionID            string            `json:"session_id,omitempty"`
+	AgentName            string            `json:"agent_name,omitempty"`
+	Risk                 RiskClass         `json:"risk,omitempty"`
+	ReadOnly             bool              `json:"read_only"`
+	Destructive          bool              `json:"destructive"`
+	OpenWorld            bool              `json:"open_world"`
+	ApprovalMode         string            `json:"approval_mode,omitempty"`
+	Decision             string            `json:"decision,omitempty"`
+	ReasonCodes          []ReasonCode      `json:"reason_codes,omitempty"`
+	DurationMS           int64             `json:"duration_ms,omitzero"`
+	ResultBytes          int64             `json:"result_bytes,omitzero"`
+	Truncated            bool              `json:"truncated"`
+	CorrelationID        string            `json:"correlation_id,omitempty"`
+	ErrorCode            ErrorCode         `json:"error_code,omitempty"`
+	InputDigest          string            `json:"input_digest,omitempty"`
+	RedactedInputFields  []string          `json:"redacted_input_fields,omitempty"`
+	ResultDigest         string            `json:"result_digest,omitempty"`
+	ResultRedactionPaths []string          `json:"result_redaction_paths,omitempty"`
+}
+
+// ToolContent is a daemon API value.
+type ToolContent struct {
+	Type     string                     `json:"type"`
+	Text     string                     `json:"text,omitempty"`
+	Data     json.RawMessage            `json:"data,omitempty"`
+	MIMEType string                     `json:"mime_type,omitempty"`
+	Metadata map[string]json.RawMessage `json:"metadata,omitempty"`
+}
+
 // ToolDescriptorPayload is a daemon API value.
 type ToolDescriptorPayload struct {
 	ToolID              ToolID                `json:"tool_id"`
@@ -407,36 +444,4 @@ type UpdateSettingsPersonaRequest struct {
 // UpdateSettingsRolesRequest is a daemon API value.
 type UpdateSettingsRolesRequest struct {
 	Config SettingsRolesConfigPayload `json:"config"`
-}
-
-// UpdateSettingsShellRequest is a daemon API value.
-type UpdateSettingsShellRequest struct {
-	Config SettingsShellPayload `json:"config"`
-}
-
-// UpdateSettingsSkillsRequest is a daemon API value.
-// UpdateSettingsSkillsRequest preserves its custom JSON wire representation.
-type UpdateSettingsSkillsRequest = json.RawMessage
-
-// UpdateSettingsWindowManagerRequest is a daemon API value.
-type UpdateSettingsWindowManagerRequest struct {
-	PreserveShortcuts bool                                `json:"preserve_shortcuts,omitzero"`
-	Config            *SettingsWindowManagerConfigPayload `json:"config,omitzero"`
-	Shortcuts         *map[string][]string                `json:"shortcuts,omitzero"`
-	Aliases           *map[string]string                  `json:"aliases,omitzero"`
-	GlobalShortcuts   *map[string]string                  `json:"global_shortcuts,omitzero"`
-	Overwrite         bool                                `json:"overwrite,omitzero"`
-}
-
-// UpdateTaskRequest is a daemon API value.
-type UpdateTaskRequest struct {
-	Title              *string          `json:"title,omitempty"`
-	Description        *string          `json:"description,omitempty"`
-	Priority           *Priority        `json:"priority,omitempty"`
-	MaxAttempts        *int             `json:"max_attempts,omitempty"`
-	AutoEnqueueOnReady *bool            `json:"auto_enqueue_on_ready,omitempty"`
-	ApprovalPolicy     *ApprovalPolicy  `json:"approval_policy,omitempty"`
-	Metadata           *json.RawMessage `json:"metadata,omitempty"`
-	Owner              *Ownership       `json:"owner,omitempty"`
-	ClearOwner         bool             `json:"clear_owner,omitempty"`
 }

@@ -8,7 +8,7 @@ flowchart TD
   D -->|yes| E[Save and re-read]
   D -->|409| F[Reload, reapply, retry]
   E --> G[Try a dry run, then run a real check]
-  G --> H[Open Model or What it can use and save]
+  G --> H[Pick a model inline, then open What it can use and save]
   H --> I[Fresh reload confirms daemon truth]
   C -.-> X[Abandon with dirty editor]
   X --> Y[Guard keeps editing or discards explicitly]

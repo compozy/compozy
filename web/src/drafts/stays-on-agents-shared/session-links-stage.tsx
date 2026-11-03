@@ -32,7 +32,6 @@ import { SessionBoardCardView } from "@/systems/session/components/session-board
 import type { SessionBoardCardProps } from "@/systems/session/components/session-board/session-board-card";
 import { SessionBoardLinkedWorkCount } from "@/systems/session/components/session-board/session-board-linked-work-count";
 import { SessionEnvironmentChip } from "@/systems/session/components/session-environment-chip";
-import { SessionLinkCountMark } from "@/systems/session/components/session-linked-work/session-link-count-mark";
 import { SessionLinkDialog } from "@/systems/session/components/session-linked-work/session-link-dialog";
 import type { SessionLinkActions } from "@/systems/session/components/session-linked-work/session-link-row";
 import {
@@ -54,7 +53,7 @@ import {
   candidateIsLinked,
   linkedCandidateKeys,
   linkedSessionFacts,
-  moreLabel,
+  linkCount,
   summaryMoreLabel,
   type SessionLinkedWorkItem,
   type SessionRunsIn,
@@ -249,14 +248,6 @@ function Stage({
       </>
     ),
   };
-  const rowExtra = (id: string) => {
-    if (id === scenario.sessionId) {
-      return <SessionLinkCountMark summary={sessionLinkSummaryFixture(items)} />;
-    }
-    return id === "s1" ? (
-      <SessionLinkCountMark summary={sessionLinkSummaryFixture(SESSION_LINKS_DOZEN)} />
-    ) : null;
-  };
   const screen = (
     <SessionsWindow
       overlay={
@@ -274,7 +265,6 @@ function Stage({
       }
       rail={{ groups: [{ ...COMPOZY_GROUP, currentRow: scenario.sessionId }], top: GLOBAL_ROW }}
       railClosed={scenario.narrow}
-      rowExtra={rowExtra}
       title={getSessionDisplayTitle(session)}
       topbar={topbar}
     >
@@ -308,7 +298,6 @@ export function SessionLinksHeaderStage({ state }: { state: string }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [clipped, setClipped] = useState(false);
   const lead = leadLink(items);
-  const more = moreLabel(items);
   const actions: SessionLinkActions = {
     controllable: true,
     isOwn: () => false,
@@ -345,7 +334,7 @@ export function SessionLinksHeaderStage({ state }: { state: string }) {
             {...list}
             chipMenuOpen={items.length === 1 && scenario.open}
             lead={lead}
-            more={more}
+            count={linkCount(items)}
             onClippedChange={setClipped}
             ownChip={{}}
             ownFacts={{ branch: "" }}

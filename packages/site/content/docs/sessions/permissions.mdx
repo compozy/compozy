@@ -32,13 +32,13 @@ still auto-rejects at the execution boundary.
 
 CompozyOS supports five ordered permission levels:
 
-| Level           | Backend behavior                                                                                                              | Cross-workspace requests                                 |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `deny-all`      | No automatic tool approvals; rejects ACP permission requests.                                                                 | Denied without a prompt.                                 |
-| `approve-reads` | Reads are allowed; edits and commands require approval.                                                                       | Asks at the native-tool boundary; other boundaries deny. |
-| `approve-edits` | Reads, workspace file edits and named coordination tools are allowed; terminal commands and other mutations require approval. | Same boundary as `approve-reads`.                        |
-| `auto`          | Requests the provider's declared reviewer mode; CompozyOS keeps the `approve-edits` boundary.                                 | Same boundary as `approve-reads`.                        |
-| `approve-all`   | Automatically approves operations within the session's existing authority.                                                    | Allowed without asking.                                  |
+| Level           | Backend behavior                                                                                                                                                                  | Cross-workspace requests                                 |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `deny-all`      | No automatic tool approvals; rejects ACP permission requests.                                                                                                                     | Denied without a prompt.                                 |
+| `approve-reads` | Reads are allowed; edits and commands require approval.                                                                                                                           | Asks at the native-tool boundary; other boundaries deny. |
+| `approve-edits` | Reads, workspace file edits and CompozyOS coordination tools are allowed; shell commands, destructive or open-world tools and changes to CompozyOS's own config require approval. | Same boundary as `approve-reads`.                        |
+| `auto`          | Requests the provider's declared reviewer mode; CompozyOS keeps the `approve-edits` boundary.                                                                                     | Same boundary as `approve-reads`.                        |
+| `approve-all`   | Automatically approves operations within the session's existing authority.                                                                                                        | Allowed without asking.                                  |
 
 `auto` falls back to effective `approve-edits` with `permission_mode_degraded` when the reviewer is
 undeclared, unavailable, or not selected by the adapter. It never falls back to full access.
@@ -51,13 +51,13 @@ The Web app names the five levels the same way in every place it shows them: **S
 Permissions** for the global mode, the **Permissions** page of an agent (open the agent, then
 **Permissions** under "How it's set up"), and the Advanced section of **New agent**.
 
-| Value           | Label                   | What it means                                                             |
-| --------------- | ----------------------- | ------------------------------------------------------------------------- |
-| `deny-all`      | Ask before every action | Every action waits for your approval.                                     |
-| `approve-reads` | Ask before changes      | Reading is automatic. Changes and commands still ask.                     |
-| `approve-edits` | Edit on its own         | Edits files and organizes its own work. Riskier actions still ask.        |
-| `auto`          | Let a reviewer decide   | The provider's AI reviewer approves routine work and stops risky actions. |
-| `approve-all`   | Never ask               | Acts without asking. For agents you trust.                                |
+| Value           | Label                   | What it means                                                                                  |
+| --------------- | ----------------------- | ---------------------------------------------------------------------------------------------- |
+| `deny-all`      | Ask before every action | Every action waits for your approval.                                                          |
+| `approve-reads` | Ask before changes      | Reading is automatic. Changes and commands still ask.                                          |
+| `approve-edits` | Edit on its own         | Edits files and runs its own coordination. Commands, deletions and settings changes still ask. |
+| `auto`          | Let a reviewer decide   | The provider's AI reviewer approves routine work and stops risky actions.                      |
+| `approve-all`   | Never ask               | Acts without asking. For agents you trust.                                                     |
 
 An on-demand agent with no `permissions` shows **Follow Settings** and names the current Settings
 level. A stays-on agent with no `permissions` shows **Edit on its own** marked Default. When the
@@ -83,7 +83,8 @@ mode = "approve-all"
 That global mode can be overridden by an agent definition.
 
 A stays-on definition with no explicit level uses `approve-edits`; its read-only check uses
-`approve-reads`. An on-demand session keeps the global default. Each child resolves its own
+`approve-reads`. The built-in stays-on Orchestrator declares `permissions: auto`, which runs at
+`approve-edits` on a provider without a reviewer. An on-demand session keeps the global default. Each child resolves its own
 definition and global default. A `permission_mode` request can narrow that level, never raise it.
 
 ## Permission rules
@@ -108,14 +109,35 @@ unless muted. Repeating the same expired request is denied immediately until hum
 
 ## What the static policy actually covers
 
-| Operation           | `deny-all` | `approve-reads` | `approve-edits` | `auto`  | `approve-all` |
-| ------------------- | ---------- | --------------- | --------------- | ------- | ------------- |
-| Workspace read      | blocked    | allowed         | allowed         | allowed | allowed       |
-| Workspace file edit | blocked    | asks            | allowed         | allowed | allowed       |
-| Terminal command    | blocked    | asks            | asks            | asks    | allowed       |
+| Operation                                                 | `deny-all` | `approve-reads` | `approve-edits` | `auto`  | `approve-all` |
+| --------------------------------------------------------- | ---------- | --------------- | --------------- | ------- | ------------- |
+| Workspace read                                            | blocked    | allowed         | allowed         | allowed | allowed       |
+| Workspace file edit                                       | blocked    | asks            | allowed         | allowed | allowed       |
+| Terminal command                                          | blocked    | asks            | asks            | asks    | allowed       |
+| CompozyOS coordination tool                               | asks       | asks            | allowed         | allowed | allowed       |
+| Destructive, open-world or config-changing CompozyOS tool | asks       | asks            | asks            | asks    | allowed       |
 
 At `approve-edits` and `auto`, an edit is allowed only when the request names at least one file inside
 the workspace; an edit without file locations, and a request of kind `other` or with no kind, asks.
+
+CompozyOS's own tools are decided once, by the risk each built-in tool declares. At `approve-edits`
+and `auto`, a built-in tool that changes CompozyOS coordination state runs without asking: monitors,
+child sessions, worktrees and their bindings, session names and links, tasks and layouts. A child
+session runs at its own agent's level, not the caller's. These still ask:
+
+- destructive tools, such as removing a worktree, stopping or archiving a session, or deleting
+  anything;
+- open-world tools, terminal commands or input, and Loop tools, whose command criteria run shell
+  commands;
+- Automations, which persist schedules that run other agents, and changing the agent a task runs;
+- tools that change what an agent may do: config, tool approvals, hooks, extensions, agent
+  definitions and persistent agents, reparenting sessions, and answering another session's prompts
+  (a stays-on lineage still answers its own descendants).
+
+Extension and MCP tools ask unless they are read-only. The provider's own permission request for a
+CompozyOS tool does not prompt a second time: the daemon recognizes its hosted tool server from the
+provider's server identity, not from the tool title, and an approval at one step covers the same call
+at the other.
 
 Workspace and tool restrictions remain in force after a level or rule permits a request.
 

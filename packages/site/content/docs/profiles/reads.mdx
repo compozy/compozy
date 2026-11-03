@@ -32,6 +32,13 @@ A scoped lookup of an item owned by another profile returns not found. An aggreg
 that item and includes its profile owner. This applies to direct links and detail routes as well as list
 routes.
 
+A route for one session follows that session's profile. If you select a profile, it must be the one
+that owns the session, or the route returns not found. You can read one session under `all_profiles=true`,
+but you can't change it that way: prompts, stops, renames and other writes name the owner profile. A
+local request that names no profile can still prompt, stream, and read the transcript of the session it
+names; detail and lifecycle routes such as get, rename, stop, and archive keep reading your resolved
+profile.
+
 Session catalog streams keep the same rule for initial state, replay, and live updates. Scoped streams
 only emit sessions for their profile. Aggregate streams include `profile_name` on every session row.
 

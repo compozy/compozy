@@ -113,7 +113,7 @@ describe("terminal creation scope", () => {
           snapshot
         );
         client.setQueryData(
-          windowManagerKeys.config(scope.key.workspaceId, "client:web"),
+          windowManagerKeys.config(scope.key.workspaceId, "client:web", scope.key.profileKey),
           parseSettingsWindowManagerSection(settingsWindowManagerSectionFixture)
         );
         runtime.bind({
@@ -218,7 +218,8 @@ describe("terminal creation scope", () => {
                 instance_key: DEV_SERVER_TERMINAL.id,
                 route: { pathname: `/terminal/${DEV_SERVER_TERMINAL.id}`, search: {} },
               },
-            }
+            },
+            expect.any(AbortSignal)
           );
           expect(push).toHaveBeenCalledOnce();
         } else {

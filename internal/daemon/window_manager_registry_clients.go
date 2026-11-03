@@ -56,13 +56,53 @@ func (r *windowManagerRegistry) ClaimClient(
 	return manager.RegisterClient(ctx, registration)
 }
 
-// ClientsInWorkspace unions registered client views across every live profile.
+// clientProfileScope names whose attached clients a lookup may reach. Clients
+// are registered per profile, so a lookup reaches one profile's manager unless
+// the caller explicitly asked for the All profiles aggregate.
+type clientProfileScope struct {
+	profileID   string
+	allProfiles bool
+}
+
+func clientsOfProfile(profileID string) clientProfileScope {
+	return clientProfileScope{profileID: strings.TrimSpace(profileID)}
+}
+
+func clientsOfAllProfiles() clientProfileScope {
+	return clientProfileScope{allProfiles: true}
+}
+
+// clientRuntimes returns the live runtimes inside scope. A profile without a
+// live window manager has no attached clients, so it yields no runtimes rather
+// than starting one.
+func (r *windowManagerRegistry) clientRuntimes(scope clientProfileScope) ([]*windowManagerProfileRuntime, error) {
+	if scope.allProfiles {
+		return r.liveRuntimes(), nil
+	}
+	if scope.profileID == "" {
+		return nil, errors.New("daemon: window-manager client profile is required")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	runtime := r.runtimes[scope.profileID]
+	if runtime == nil {
+		return nil, nil
+	}
+	return []*windowManagerProfileRuntime{runtime}, nil
+}
+
+// ClientsInWorkspace lists the clients attached to the managers inside scope.
 func (r *windowManagerRegistry) ClientsInWorkspace(
 	ctx context.Context,
+	scope clientProfileScope,
 	workspaceID windowmanager.WorkspaceID,
 ) ([]windowmanager.ClientView, error) {
+	runtimes, err := r.clientRuntimes(scope)
+	if err != nil {
+		return nil, err
+	}
 	views := make([]windowmanager.ClientView, 0)
-	for _, runtime := range r.liveRuntimes() {
+	for _, runtime := range runtimes {
 		attached, err := runtime.manager.Clients(ctx, workspaceID)
 		if err != nil {
 			return nil, err
@@ -72,12 +112,18 @@ func (r *windowManagerRegistry) ClientsInWorkspace(
 	return views, nil
 }
 
+// CommandClientsInWorkspace lists the command-capable clients inside scope.
 func (r *windowManagerRegistry) CommandClientsInWorkspace(
 	ctx context.Context,
+	scope clientProfileScope,
 	workspaceID windowmanager.WorkspaceID,
 ) ([]windowmanager.ClientView, error) {
+	runtimes, err := r.clientRuntimes(scope)
+	if err != nil {
+		return nil, err
+	}
 	views := make([]windowmanager.ClientView, 0)
-	for _, runtime := range r.liveRuntimes() {
+	for _, runtime := range runtimes {
 		connected, err := runtime.manager.CommandClients(ctx, workspaceID)
 		if err != nil {
 			return nil, err
@@ -87,13 +133,19 @@ func (r *windowManagerRegistry) CommandClientsInWorkspace(
 	return views, nil
 }
 
-// ManagerForClient resolves the sole live manager that owns one client.
+// ManagerForClient resolves the manager inside scope that owns one client. A
+// client registered under a profile outside scope is not found.
 func (r *windowManagerRegistry) ManagerForClient(
 	ctx context.Context,
+	scope clientProfileScope,
 	workspaceID windowmanager.WorkspaceID,
 	clientID windowmanager.ClientID,
 ) (*windowmanager.Manager, error) {
-	for _, runtime := range r.liveRuntimes() {
+	runtimes, err := r.clientRuntimes(scope)
+	if err != nil {
+		return nil, err
+	}
+	for _, runtime := range runtimes {
 		attached, err := runtime.manager.Clients(ctx, workspaceID)
 		if err != nil {
 			return nil, err

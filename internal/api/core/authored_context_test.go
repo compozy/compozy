@@ -1424,7 +1424,7 @@ func TestAuthoredContextResolvesProfileAgentSources(t *testing.T) {
 	}{
 		{"Should inspect the default profile agent", "/agents/coder/heartbeat?workspace_id=ws-profile", "default", "digest"},
 		{"Should inspect the selected profile agent", "/agents/coder/heartbeat?workspace_id=ws-profile&profile=marketing", "marketing", "digest"},
-		{"Should enrich a session using its owning profile", "/workspaces/ws-profile/sessions/sess-profile/inspect?profile=default", "marketing", "policy_digest"},
+		{"Should enrich a session using its owning profile", "/workspaces/ws-profile/sessions/sess-profile/inspect?profile=marketing", "marketing", "policy_digest"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

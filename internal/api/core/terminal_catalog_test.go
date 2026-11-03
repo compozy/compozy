@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) {
@@ -375,6 +376,50 @@ func TestTerminalStreamsEndOnStreamDone(t *testing.T) {
 			}
 			if response.Code != http.StatusOK {
 				t.Fatalf("stream status/body = %d/%q, want an opened stream", response.Code, response.Body.String())
+			}
+		})
+		t.Run("Should serve the "+testCase.name+" over WebSocket", func(t *testing.T) {
+			t.Parallel()
+			provider := terminalAggregateProviderStub{&terminalProviderStub{Manager: terminalManagerStub{}}}
+			handlers := NewBaseHandlers(&BaseHandlerConfig{
+				TransportName: "udsapi",
+				Terminal:      provider,
+				Workspaces:    workspaceServiceStub{},
+			})
+			router := gin.New()
+			router.GET(testCase.route, testCase.mount(handlers))
+			server := httptest.NewServer(router)
+			t.Cleanup(server.Close)
+			dialer := websocket.Dialer{HandshakeTimeout: time.Second}
+			connection, response, err := dialer.DialContext(t.Context(),
+				"ws"+strings.TrimPrefix(server.URL, "http")+testCase.path, nil)
+			if response != nil && response.Body != nil {
+				if closeErr := response.Body.Close(); closeErr != nil {
+					t.Errorf("close upgrade response: %v", closeErr)
+				}
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := connection.Close(); err != nil {
+					t.Errorf("close terminal stream connection: %v", err)
+				}
+			})
+			if response.StatusCode != http.StatusSwitchingProtocols {
+				t.Fatalf("upgrade status = %d, want %d", response.StatusCode, http.StatusSwitchingProtocols)
+			}
+			if err := connection.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			kind, payload, err := connection.ReadMessage()
+			if err != nil || kind != websocket.TextMessage || !strings.Contains(string(payload), "event: ") {
+				t.Fatalf("first frame = %d %q, error = %v, want an SSE-framed event", kind, payload, err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			if err := handlers.ShutdownEventStreams(ctx); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}

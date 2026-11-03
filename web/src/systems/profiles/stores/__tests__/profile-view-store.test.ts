@@ -1,7 +1,8 @@
 // Suite: profile active-view store transitions
 // Invariant: the active view is one global answer shared by every workspace, rollback-exact —
 // a failed persist restores the previous answer including "there wasn't one" — a profile that
-// stops existing is dropped, and only the All profiles view is persisted for a reload.
+// stops existing is dropped, only the All profiles view is persisted for a reload, and only an
+// explicit change of view counts as a switch.
 // Boundary IN: the module-scoped @xstate/store, its imperative API, and its localStorage envelope.
 // Boundary OUT: the remembered choice (server state, exercised through the selection hooks).
 
@@ -12,6 +13,7 @@ import {
   enterProfileView,
   localProfileView,
   profileViewStore,
+  rehydrateProfileViewStore,
   resetProfileViews,
   restoreProfileView,
   setProfileView,
@@ -74,6 +76,43 @@ describe("profile view store", () => {
     const snapshot = profileViewStore.getSnapshot().context;
     setProfileView({ kind: "profile", profile: "marketing" });
     expect(profileViewStore.getSnapshot().context).toBe(snapshot);
+  });
+
+  it("Should count a switch only for an explicit change of view", () => {
+    const epoch = () => profileViewStore.getSnapshot().context.switchEpoch;
+    const start = epoch();
+    // Entering the remembered choice and sweeping a removed profile are not operator switches.
+    enterProfileView({ kind: "profile", profile: "default" });
+    sweepProfileView("default");
+    expect(epoch()).toBe(start);
+    setProfileView({ kind: "aggregate" });
+    setProfileView({ kind: "aggregate" });
+    setProfileView({ kind: "profile", profile: "marketing" });
+    expect(epoch()).toBe(start + 2);
+    // A failed switch rolls back to where the operator was; neither half of that moved them.
+    const beforeFailedSwitch = epoch();
+    const previous = localProfileView();
+    setProfileView({ kind: "profile", profile: "consulting" });
+    restoreProfileView(previous);
+    expect(epoch()).toBe(beforeFailedSwitch + 1);
+    restoreProfileView(null);
+    expect(epoch()).toBe(beforeFailedSwitch + 1);
+  });
+
+  it("Should keep counting explicit switches after a reload restores the view", async () => {
+    const epoch = () => profileViewStore.getSnapshot().context.switchEpoch;
+    setProfileView({ kind: "aggregate" });
+    flushStorage(profileViewStore);
+    const persisted = window.localStorage.getItem(PERSIST_KEY);
+    expect(persisted).not.toBeNull();
+    resetProfileViews();
+    window.localStorage.setItem(PERSIST_KEY, persisted ?? "");
+    await rehydrateProfileViewStore();
+    expect(localProfileView()).toEqual({ kind: "aggregate" });
+    const restored = epoch();
+    expect(Number.isInteger(restored)).toBe(true);
+    setProfileView({ kind: "profile", profile: "marketing" });
+    expect(epoch()).toBe(restored + 1);
   });
 
   it("Should persist only the All profiles view for a reload", () => {

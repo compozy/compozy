@@ -34,6 +34,7 @@ func (s *nativeCmdPaletteRegistryStub) Catalog(
 
 func (s *nativeCmdPaletteRegistryStub) Clients(
 	context.Context,
+	cmdpalette.ProfileLens,
 	cmdpalette.WorkspaceID,
 ) ([]cmdpalette.Client, error) {
 	return nil, nil

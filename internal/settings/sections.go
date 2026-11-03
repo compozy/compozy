@@ -60,6 +60,7 @@ func (s *service) GetSection(ctx context.Context, req SectionRequest) (SectionEn
 	envelope := newSectionEnvelope(req.Section, scope, workspaceID, agentName)
 	envelope.ProfileName = req.ProfileName
 	envelope.ClientID = req.ClientID
+	envelope.ClientProfile = req.ClientProfile
 	if err := s.populateSectionEnvelope(ctx, &envelope, &cfg, resolved); err != nil {
 		return SectionEnvelope{}, err
 	}
@@ -186,7 +187,13 @@ func (s *service) populateSectionEnvelope(
 		envelope.Automation = &section
 	case SectionWindowManager:
 		envelope.AvailableScopes = []ScopeKind{ScopeUser, ScopeWorkspace}
-		section, err := s.buildWindowManagerSection(ctx, cfg, envelope.WorkspaceID, envelope.ClientID)
+		section, err := s.buildWindowManagerSection(
+			ctx,
+			cfg,
+			envelope.WorkspaceID,
+			envelope.ClientID,
+			envelope.ClientProfile,
+		)
 		if err != nil {
 			return err
 		}

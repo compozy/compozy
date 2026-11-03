@@ -128,6 +128,7 @@ func registerSessionFileRoutes(workspaceSessions gin.IRouter, handlers *Handlers
 func registerSessionParentRoutes(workspaceSessions gin.IRouter, handlers *Handlers) {
 	workspaceSessions.PUT("/:session_id/parent", handlers.SetSessionParent)
 	workspaceSessions.DELETE("/:session_id/parent", handlers.ClearSessionParent)
+	workspaceSessions.POST("/:session_id/move-to-profile", handlers.MoveSessionToProfile)
 }
 
 func registerSessionPromptRoutes(workspaceSessions gin.IRouter, handlers *Handlers) {
@@ -147,5 +148,6 @@ func registerSessionLifecycleRoutes(sessions gin.IRouter, handlers *Handlers) {
 	registerSessionTreeRoutes(sessions, handlers)
 	sessions.POST("/:session_id/later", handlers.MoveSessionToLater)
 	sessions.POST("/:session_id/resume-later", handlers.ResumeSessionFromLater)
+	sessions.POST("/:session_id/mark-seen", handlers.MarkSessionSeen)
 	sessions.POST("/:session_id/unarchive", handlers.UnarchiveSession)
 }

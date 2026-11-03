@@ -91,7 +91,7 @@ func (s *Service) Catalog(
 		if s.clients == nil {
 			return Catalog{}, ErrNoAttachedShell
 		}
-		resolved, contextErr := s.clients.Context(ctx, request.WorkspaceID, request.ClientID)
+		resolved, contextErr := s.clients.Context(ctx, request.ProfileLens, request.WorkspaceID, request.ClientID)
 		if contextErr != nil {
 			return Catalog{}, contextErr
 		}

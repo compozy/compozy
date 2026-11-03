@@ -1,0 +1,54 @@
+---
+title: "compozy session move-to-profile"
+description: "Copy a stopped session into another profile and archive the original"
+---
+
+## compozy session move-to-profile
+
+Copy a stopped session into another profile and archive the original
+
+### Synopsis
+
+Copy a stopped user session into another profile and archive the original. The copy is a fork owned by the target profile and carries the conversation; the original keeps its profile and history, and past usage stays with it. A worktree is released and its branch checked out again in a new worktree owned by the target profile. Refused for a running, archived, or child session, a session with children, or a worktree with uncommitted changes. To place a session in a folder, use session move.
+
+```
+compozy session move-to-profile <id> <profile> [flags]
+```
+
+### Examples
+
+```
+  # Move a stopped session to the "work" profile
+  compozy session move-to-profile sess_abc work
+```
+
+### Options
+
+```
+  -h, --help   help for move-to-profile
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy session move-to-profile <id> <profile> -o json
+```

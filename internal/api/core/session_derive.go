@@ -54,6 +54,7 @@ func (h *BaseHandlers) ContinueSession(c *gin.Context) {
 		SourceSessionID: sessionID,
 		WorkspaceID:     scope.SessionWorkspaceID(),
 		ProfileID:       scope.Resolved.ProfileID,
+		SourceProfileID: scope.Profile.ProfileID,
 		AgentName:       strings.TrimSpace(req.AgentName),
 		Runtime:         deriveRuntimeFromPayload(req.Runtime),
 		Route:           req.Route,
@@ -89,6 +90,7 @@ func (h *BaseHandlers) ForkSession(c *gin.Context) {
 		SourceSessionID: sessionID,
 		WorkspaceID:     scope.SessionWorkspaceID(),
 		ProfileID:       scope.Resolved.ProfileID,
+		SourceProfileID: scope.Profile.ProfileID,
 		MessageID:       strings.TrimSpace(req.MessageID),
 		Name:            req.Name,
 		IdempotencyKey:  strings.TrimSpace(req.IdempotencyKey),
@@ -127,7 +129,8 @@ func (h *BaseHandlers) respondDerive(c *gin.Context, result session.DeriveResult
 // preview never writes the source (ADR-007). The manager validates source ownership
 // with its non-repairing snapshot read, after replaying a matching receipt, so a retry
 // still returns its recorded outcome once the source was deleted. The child inherits
-// the source's profile inside the manager.
+// the source's profile inside the manager. SourceProfileID authorizes both snapshots
+// and persisted receipts without changing their idempotency fingerprint.
 func (h *BaseHandlers) deriveRoute(c *gin.Context) (workspaceScope, string, SessionDeriveManager, bool) {
 	scope, ok := h.resolveWorkspaceScope(c)
 	if !ok {
@@ -145,6 +148,12 @@ func (h *BaseHandlers) deriveRoute(c *gin.Context) (workspaceScope, string, Sess
 		h.respondError(c, http.StatusServiceUnavailable, errDeriveUnavailable)
 		return workspaceScope{}, "", nil, false
 	}
+	profile, err := h.sessionProfileScope(c, scope.Resolved.ProfileID, true)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return workspaceScope{}, "", nil, false
+	}
+	scope.Profile = profile
 	return scope, sessionID, deriver, true
 }
 
@@ -154,9 +163,18 @@ func (h *BaseHandlers) PreviewSessionDerive(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if scope.Resolved.Scope == userScopeValue {
-		info, err := h.requireSessionInWorkspace(c.Request.Context(), "", sessionID)
-		if err != nil || info.ProfileID != scope.Resolved.ProfileID {
+	if scope.Profile.ProfileID != "" {
+		reader, ok := h.Sessions.(SessionOwnerReader)
+		if !ok {
+			h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session owner reader is required"))
+			return
+		}
+		owner, err := reader.SessionOwner(c.Request.Context(), sessionID)
+		if err != nil {
+			h.respondError(c, StatusForSessionError(err), err)
+			return
+		}
+		if owner.WorkspaceID != scope.SessionWorkspaceID() || !scope.Profile.Matches(owner.ProfileID) {
 			h.respondError(c, http.StatusNotFound, errWorkspaceScopedResourceNotFound)
 			return
 		}

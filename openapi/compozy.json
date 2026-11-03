@@ -17716,6 +17716,38 @@
         },
         "type": "object"
       },
+      "MoveSessionToProfileRequest": {
+        "properties": {
+          "target_profile": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_profile"
+        ],
+        "type": "object"
+      },
+      "MoveSessionToProfileResponse": {
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "original": {
+            "$ref": "#/components/schemas/SessionPayload"
+          },
+          "session": {
+            "$ref": "#/components/schemas/SessionPayload"
+          },
+          "worktree_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "original",
+          "session"
+        ],
+        "type": "object"
+      },
       "MoveWorkspaceRequest": {
         "properties": {
           "folder_id": {
@@ -26368,6 +26400,9 @@
             "format": "date-time",
             "nullable": true,
             "type": "string"
+          },
+          "attention_dismissible": {
+            "type": "boolean"
           },
           "available_commands": {
             "items": {
@@ -40522,6 +40557,7 @@
               "agent_instance_not_found",
               "agent_instance_starting",
               "approval_rejected",
+              "attention_requires_action",
               "compaction_unsupported",
               "generation_fenced",
               "input_request_already_answered",
@@ -40889,6 +40925,7 @@
               "agent_instance_not_found",
               "agent_instance_starting",
               "approval_rejected",
+              "attention_requires_action",
               "compaction_unsupported",
               "generation_fenced",
               "input_request_already_answered",
@@ -57436,6 +57473,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -67663,6 +67716,9 @@
           }
         ],
         "responses": {
+          "101": {
+            "description": "WebSocket upgrade; each text message contains one complete SSE frame"
+          },
           "200": {
             "content": {
               "text/event-stream": {
@@ -71105,6 +71161,22 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -75633,6 +75705,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Select the shell attachment for shortcut statuses",
+            "in": "query",
+            "name": "client_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Select the shell profile without changing settings scope",
+            "in": "query",
+            "name": "client_profile",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -75706,6 +75794,22 @@
             "description": "Select the workspace id for workspace scope",
             "in": "query",
             "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Select the shell attachment for shortcut statuses",
+            "in": "query",
+            "name": "client_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Select the shell profile without changing settings scope",
+            "in": "query",
+            "name": "client_profile",
             "schema": {
               "type": "string"
             }
@@ -81911,6 +82015,14 @@
             }
           },
           {
+            "description": "Resume cursor when Last-Event-ID cannot be set; the header takes precedence",
+            "in": "query",
+            "name": "last_event_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
@@ -81920,6 +82032,9 @@
           }
         ],
         "responses": {
+          "101": {
+            "description": "WebSocket upgrade; each text message contains one complete SSE frame"
+          },
           "200": {
             "content": {
               "text/event-stream": {
@@ -92069,6 +92184,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -92288,6 +92411,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -92391,6 +92522,14 @@
             "in": "path",
             "name": "session_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -92530,6 +92669,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -92618,6 +92765,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -92705,6 +92868,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -92777,6 +92956,14 @@
             "in": "path",
             "name": "request_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -92877,6 +93064,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -92963,6 +93158,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -93036,6 +93247,14 @@
             "in": "path",
             "name": "session_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -93134,6 +93353,14 @@
             "in": "path",
             "name": "session_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -93271,6 +93498,22 @@
             "name": "message_id",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -93514,6 +93757,22 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -93712,6 +93971,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -93839,6 +94106,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -93920,6 +94203,14 @@
             "in": "path",
             "name": "session_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -94059,6 +94350,22 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -94200,6 +94507,22 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -94281,6 +94604,22 @@
             "description": "Include recent wake audit rows",
             "in": "query",
             "name": "include_recent_wake_events",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
             "schema": {
               "type": "boolean"
             }
@@ -94382,6 +94721,22 @@
                 "canceled"
               ],
               "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -95133,6 +95488,110 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen": {
+      "post": {
+        "operationId": "markSessionSeen",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Conflicting profile selectors (profile_selection_conflict)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "The session still waits on an answer, a sign-in, or a stop, or a newer occurrence replaced the one checked"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Service unavailable - dependent service missing"
+          }
+        },
+        "summary": "Mark a session's Needs you as seen until its next occurrence; a session waiting on an answer, a sign-in, or a stop is refused",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors": {
       "get": {
         "operationId": "listSessionMonitors",
@@ -95453,6 +95912,131 @@
         ]
       }
     },
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile": {
+      "post": {
+        "operationId": "moveSessionToProfile",
+        "parameters": [
+          {
+            "description": "Workspace id",
+            "in": "path",
+            "name": "workspace_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Session id",
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveSessionToProfileRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveSessionToProfileResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid move request or target profile"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "The caller cannot write to the target profile"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Move refused by a rule; code names the rule"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Session profile move unavailable"
+          }
+        },
+        "summary": "Copy a stopped user session into another profile and archive the original",
+        "tags": [
+          "sessions"
+        ],
+        "x-compozy-app-access": "allowed",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/workspaces/{workspace_id}/sessions/{session_id}/parent": {
       "delete": {
         "operationId": "clearSessionParent",
@@ -95714,6 +96298,22 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -95807,6 +96407,14 @@
             "in": "path",
             "name": "session_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -96157,6 +96765,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -96332,6 +96948,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -96395,6 +97019,14 @@
             "in": "path",
             "name": "session_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -96472,6 +97104,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -96547,6 +97195,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -96617,6 +97273,14 @@
             "in": "path",
             "name": "queue_entry_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -96713,6 +97377,14 @@
             "in": "path",
             "name": "queue_entry_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -96822,6 +97494,22 @@
               "format": "int32",
               "type": "integer"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -96913,6 +97601,14 @@
             "name": "force",
             "schema": {
               "type": "boolean"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -97229,6 +97925,14 @@
               "format": "int64",
               "type": "integer"
             }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -97310,6 +98014,14 @@
             "in": "path",
             "name": "session_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -97407,6 +98119,14 @@
             "in": "path",
             "name": "session_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -97517,6 +98237,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -97590,6 +98326,14 @@
             "in": "path",
             "name": "session_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -97873,6 +98617,22 @@
               "format": "int32",
               "type": "integer"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -98039,6 +98799,22 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -98143,6 +98919,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -98207,6 +98999,14 @@
             "in": "path",
             "name": "session_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -98316,6 +99116,22 @@
               "format": "int64",
               "type": "integer"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -98401,6 +99217,22 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -98505,6 +99337,22 @@
             "schema": {
               "format": "int32",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
             }
           }
         ],
@@ -98676,6 +99524,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -98742,6 +99606,22 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Read one profile's rows by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Read the owner-labeled all-profiles aggregate",
+            "in": "query",
+            "name": "all_profiles",
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -98805,6 +99685,14 @@
             "in": "path",
             "name": "session_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -99157,6 +100045,14 @@
             "in": "path",
             "name": "session_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -100455,6 +101351,14 @@
             }
           },
           {
+            "description": "Resume cursor when Last-Event-ID cannot be set; the header takes precedence",
+            "in": "query",
+            "name": "last_event_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
@@ -100464,6 +101368,9 @@
           }
         ],
         "responses": {
+          "101": {
+            "description": "WebSocket upgrade; each text message contains one complete SSE frame"
+          },
           "200": {
             "content": {
               "text/event-stream": {

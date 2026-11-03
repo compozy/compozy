@@ -1,6 +1,5 @@
 /** How the agent is set up: one quiet list, every row one click from the thing it describes. */
 import {
-  Bot,
   Brain,
   ChevronRight,
   Clock,
@@ -17,7 +16,10 @@ import {
   HOME_RUN_ROW_CLASS,
   HOME_RUN_SUBTITLE_CLASS,
   HOME_RUN_TITLE_CLASS,
-} from "@/systems/dashboard";
+} from "@/systems/dashboard/components/home-zone-shape";
+
+import type { UseAgentRuntimeEditorResult } from "../../hooks/use-agent-runtime-editor";
+import { AgentSetupModelRow } from "./agent-profile-model-row";
 
 export function SetupRow({
   icon: Icon,
@@ -61,7 +63,6 @@ export function SetupRow({
 
 export interface AgentSetupSummaries {
   behavior: string;
-  model: string;
   checkIns: string;
   memory: string;
   tools: string;
@@ -73,8 +74,8 @@ export function AgentProfileSetup({
   owner,
   readOnly,
   summaries,
+  model,
   onOpenBehavior,
-  onOpenModel,
   onOpenCheckIns,
   onOpenMemory,
   onOpenTools,
@@ -84,8 +85,8 @@ export function AgentProfileSetup({
   owner?: string;
   readOnly: boolean;
   summaries: AgentSetupSummaries;
+  model: UseAgentRuntimeEditorResult;
   onOpenBehavior: () => void;
-  onOpenModel: () => void;
   onOpenCheckIns: () => void;
   onOpenMemory: () => void;
   onOpenTools: () => void;
@@ -110,14 +111,7 @@ export function AgentProfileSetup({
             testId="agent-setup-behavior"
             title="How it behaves"
           />
-          <SetupRow
-            icon={Bot}
-            locked={readOnly}
-            onOpen={onOpenModel}
-            summary={summaries.model}
-            testId="agent-setup-model"
-            title="Model"
-          />
+          <AgentSetupModelRow model={model} readOnly={readOnly} />
           {staysOn ? (
             <SetupRow
               icon={Clock}

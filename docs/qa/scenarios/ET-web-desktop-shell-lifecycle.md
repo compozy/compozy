@@ -16,6 +16,11 @@ last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-window-manager-public-parity; ET-window-manager-multi-client; ET-web-window-routing-lifecycle; ET-web-menubar-menu-set
 ---
 
+qa-impact: 2026-11-03 (#1180) each queued window-manager command now carries an 8 s deadline from
+the click: a command still queued past it resolves unapplied and its in-flight request aborts,
+instead of replaying a stalled backlog at once. Re-walk rapid activations while sessions stream.
+Flag only; the next QA cycle owns live retesting.
+
 story: As a builder, I can see the authoritative desktop state, understand when it is disconnected, and recover without mixing workspace topology or revisions.
 
 QA impact 2026-10-05 (dependency upgrades): window bodies mount at deferred priority so

@@ -8,17 +8,20 @@ import (
 )
 
 // Clients returns the attached shells for a workspace in deterministic id order.
-func (s *Service) Clients(ctx context.Context, workspaceID WorkspaceID) ([]Client, error) {
+func (s *Service) Clients(ctx context.Context, profileLens ProfileLens, workspaceID WorkspaceID) ([]Client, error) {
 	if ctx == nil {
 		return nil, errors.New("cmd palette: clients context is required")
 	}
 	if workspaceID == "" {
 		return nil, errors.New("cmd palette: workspace ID is required")
 	}
+	if err := profileLens.Validate(); err != nil {
+		return nil, err
+	}
 	if s.clients == nil {
 		return []Client{}, nil
 	}
-	clients, err := s.clients.Clients(ctx, workspaceID)
+	clients, err := s.clients.Clients(ctx, profileLens, workspaceID)
 	if err != nil {
 		return nil, err
 	}

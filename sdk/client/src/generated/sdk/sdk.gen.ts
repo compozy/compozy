@@ -1047,6 +1047,9 @@ import type {
   MarkAgentInstanceSeenData,
   MarkAgentInstanceSeenErrors,
   MarkAgentInstanceSeenResponses,
+  MarkSessionSeenData,
+  MarkSessionSeenErrors,
+  MarkSessionSeenResponses,
   MarkTaskReadData,
   MarkTaskReadErrors,
   MarkTaskReadResponses,
@@ -1065,6 +1068,9 @@ import type {
   MoveSessionToLaterData,
   MoveSessionToLaterErrors,
   MoveSessionToLaterResponses,
+  MoveSessionToProfileData,
+  MoveSessionToProfileErrors,
+  MoveSessionToProfileResponses,
   MoveWorkspaceData,
   MoveWorkspaceErrors,
   MoveWorkspaceResponses,
@@ -8743,6 +8749,24 @@ export class sessions extends HeyApiClient {
   }
 
   /**
+   * Mark a session's Needs you as seen until its next occurrence; a session waiting on an answer, a sign-in, or a stop is refused
+   */
+  public markSessionSeen<ThrowOnError extends boolean = true>(
+    options: Options<MarkSessionSeenData, ThrowOnError>
+  ): RequestResult<MarkSessionSeenResponses, MarkSessionSeenErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      MarkSessionSeenResponses,
+      MarkSessionSeenErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen",
+      ...options,
+    });
+  }
+
+  /**
    * List a session's monitors
    */
   public listSessionMonitors<ThrowOnError extends boolean = true>(
@@ -8797,6 +8821,33 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/move",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Copy a stopped user session into another profile and archive the original
+   */
+  public moveSessionToProfile<ThrowOnError extends boolean = true>(
+    options: Options<MoveSessionToProfileData, ThrowOnError>
+  ): RequestResult<
+    MoveSessionToProfileResponses,
+    MoveSessionToProfileErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      MoveSessionToProfileResponses,
+      MoveSessionToProfileErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile",
       ...options,
       headers: {
         "Content-Type": "application/json",

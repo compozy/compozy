@@ -31,6 +31,7 @@ export { AgentAvatar, type AgentAvatarProps } from "../components/custom/agent-a
 export {
   AGENT_AVATAR_STATE_LABEL,
   type AgentAvatarAppearance,
+  type AgentAvatarBackground,
   type AgentAvatarState,
 } from "../lib/agent-avatar";
 export {

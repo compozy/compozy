@@ -29,6 +29,7 @@ export interface WindowManagerSettingsScopeInput {
   workspaceId: string | null;
   /** Shell attachment whose registration truth should be projected. */
   clientId?: string;
+  clientProfile?: string;
 }
 
 export interface WindowManagerBindingUpdate extends WindowManagerSettingsScopeInput {
@@ -69,19 +70,21 @@ export class WindowManagerSettingsError extends Error {
   }
 }
 
-function scopeQuery({ workspaceId, clientId }: WindowManagerSettingsScopeInput) {
+function scopeQuery({ workspaceId, clientId, clientProfile }: WindowManagerSettingsScopeInput) {
   const normalized = workspaceId?.trim() ?? "";
   const normalizedClientId = clientId?.trim();
   if (normalized === "") {
     return {
       scope: "user",
       ...(normalizedClientId ? { client_id: normalizedClientId } : {}),
+      ...(clientProfile?.trim() ? { client_profile: clientProfile.trim() } : {}),
     } as const;
   }
   return {
     scope: "workspace",
     workspace_id: normalized,
     ...(normalizedClientId ? { client_id: normalizedClientId } : {}),
+    ...(clientProfile?.trim() ? { client_profile: clientProfile.trim() } : {}),
   } as const;
 }
 

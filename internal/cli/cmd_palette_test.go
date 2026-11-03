@@ -17,28 +17,29 @@ import (
 
 type cmdPaletteTestClient struct {
 	DaemonClient
-	commands          contract.CmdPaletteCommandsResponse
-	invokeResult      contract.CmdPaletteInvokeResult
-	invokeErr         error
-	invokeCommand     string
-	invokeRequest     contract.CmdPaletteInvokeRequest
-	listWorkspace     string
-	listClient        string
-	approvalStatus    contract.ToolApprovalStatusResponse
-	approvalProfile   string
-	canceledID        string
-	resolvedID        string
-	approvalDecision  contract.ResolveToolApprovalRequest
-	personalization   contract.CmdPalettePersonalizationResponse
-	resetResponse     contract.CmdPalettePersonalizationResetResponse
-	resetWorkspace    string
-	bindings          contract.SettingsWindowManagerResponse
-	bindingsResult    contract.SettingsWindowManagerResponse
-	bindingsUpdate    contract.UpdateSettingsWindowManagerRequest
-	bindingsErr       error
-	mutationWorkspace string
-	pinCommand        string
-	pinValue          bool
+	commands           contract.CmdPaletteCommandsResponse
+	invokeResult       contract.CmdPaletteInvokeResult
+	invokeErr          error
+	invokeCommand      string
+	invokeRequest      contract.CmdPaletteInvokeRequest
+	listWorkspace      string
+	listClient         string
+	clientsAllProfiles bool
+	approvalStatus     contract.ToolApprovalStatusResponse
+	approvalProfile    string
+	canceledID         string
+	resolvedID         string
+	approvalDecision   contract.ResolveToolApprovalRequest
+	personalization    contract.CmdPalettePersonalizationResponse
+	resetResponse      contract.CmdPalettePersonalizationResetResponse
+	resetWorkspace     string
+	bindings           contract.SettingsWindowManagerResponse
+	bindingsResult     contract.SettingsWindowManagerResponse
+	bindingsUpdate     contract.UpdateSettingsWindowManagerRequest
+	bindingsErr        error
+	mutationWorkspace  string
+	pinCommand         string
+	pinValue           bool
 }
 
 func (c *cmdPaletteTestClient) GetCmdPaletteBindings(
@@ -98,9 +99,10 @@ func (c *cmdPaletteTestClient) ListCmdPaletteCommands(
 }
 
 func (c *cmdPaletteTestClient) ListCmdPaletteClients(
-	context.Context,
-	string,
+	ctx context.Context,
+	_ string,
 ) ([]contract.CmdPaletteClient, error) {
+	c.clientsAllProfiles = profileQueryValues(ctx, nil).Get("all_profiles") == "true"
 	return nil, nil
 }
 
@@ -155,6 +157,27 @@ func TestCmdPaletteCommands(t *testing.T) {
 			}},
 		}
 	}
+
+	t.Run("Should opt into the aggregate client directory", func(t *testing.T) {
+		t.Parallel()
+		client := newClient()
+		if _, _, err := executeRootCommand(
+			t,
+			newTestDeps(t, client),
+			"cmd-palette",
+			"clients",
+			"--workspace",
+			"workspace-1",
+			"--all-profiles",
+			"-o",
+			"json",
+		); err != nil {
+			t.Fatalf("cmd-palette clients error = %v", err)
+		}
+		if !client.clientsAllProfiles {
+			t.Fatal("client query omitted all_profiles=true")
+		}
+	})
 
 	t.Run("Should resolve workspace and apply catalog filters", func(t *testing.T) {
 		t.Parallel()

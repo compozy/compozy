@@ -21,6 +21,7 @@ import {
 import { MIXED_RUNTIME_CATALOG } from "./session-sidebar-runtime-fixtures";
 
 import { CenteredSurface } from "@/storybook/story-layout";
+import { AgentCreateHostProvider } from "@/systems/agent";
 
 import { SessionSidebar } from "../session-sidebar";
 import { projectGroupTreeGroups } from "../../lib/workspace-folders";
@@ -44,14 +45,16 @@ const meta: Meta<typeof SessionSidebar> = {
   },
   decorators: [
     Story => (
-      <CenteredSurface>
-        <div className="flex h-[560px] w-full max-w-3xl overflow-hidden rounded-lg border border-line-strong bg-canvas">
-          <div className="w-66 shrink-0 border-r border-line">
-            <Story />
+      <AgentCreateHostProvider openDialog={fn()} openForDuplicate={fn()}>
+        <CenteredSurface>
+          <div className="flex h-[560px] w-full max-w-3xl overflow-hidden rounded-lg border border-line-strong bg-canvas">
+            <div className="w-66 shrink-0 border-r border-line">
+              <Story />
+            </div>
+            <div className="flex-1" />
           </div>
-          <div className="flex-1" />
-        </div>
-      </CenteredSurface>
+        </CenteredSurface>
+      </AgentCreateHostProvider>
     ),
   ],
 };

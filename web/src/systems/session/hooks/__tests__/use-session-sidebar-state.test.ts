@@ -665,12 +665,12 @@ describe("useSessionSidebarState", () => {
     const first = await loadFreshSidebarState();
     const result = renderInScope(first, WINDOW_ONE);
     const other = renderInScope(first, WINDOW_TWO);
-    expect(result.current.width).toBe(264);
+    expect(result.current.width).toBe(360);
     act(() => {
       result.current.setWidth(361.6);
     });
     expect(result.current.width).toBe(362);
-    expect(other.current.width).toBe(264);
+    expect(other.current.width).toBe(360);
 
     const reloaded = await loadFreshSidebarState();
     const afterReload = renderInScope(reloaded, WINDOW_ONE);
@@ -678,7 +678,7 @@ describe("useSessionSidebarState", () => {
     act(() => {
       afterReload.current.resetWidth();
     });
-    expect(afterReload.current.width).toBe(264);
+    expect(afterReload.current.width).toBe(360);
     expect(persistedContext()).toMatchObject({ byScope: { [WINDOW_ONE]: { width: null } } });
   });
 
@@ -695,14 +695,14 @@ describe("useSessionSidebarState", () => {
       window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY }));
       await Promise.resolve();
     });
-    await waitFor(() => expect(result.current.width).toBe(264));
+    await waitFor(() => expect(result.current.width).toBe(360));
   });
 
   it.each([
     { name: "below the floor", stored: 40, expected: 200 },
     { name: "past the ceiling", stored: 4000, expected: 480 },
-    { name: "not a number", stored: "wide", expected: 264 },
-    { name: "reset to the default", stored: null, expected: 264 },
+    { name: "not a number", stored: "wide", expected: 360 },
+    { name: "reset to the default", stored: null, expected: 360 },
   ])("Should keep a stored width $name within bounds", async ({ stored, expected }) => {
     window.localStorage.setItem(
       STORAGE_KEY,
@@ -741,7 +741,7 @@ describe("useSessionSidebarState", () => {
     const result = renderInScope(upgraded, WINDOW_ONE);
     expect(result.current.open).toBe(false);
     expect(result.current.collapsedFolderIds).toEqual(["sfold-a"]);
-    expect(result.current.width).toBe(264);
+    expect(result.current.width).toBe(360);
   });
 
   it("Should start folders expanded and remember a collapsed folder across a reload", async () => {

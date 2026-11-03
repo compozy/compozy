@@ -32,6 +32,8 @@ import {
 import {
   queryCacheEventChangesData,
   randomWindowManagerId,
+  sameRuntimeBinding,
+  WINDOW_MANAGER_COMMAND_DEADLINE_MS,
   WINDOW_MANAGER_DIAGNOSTIC_TTL_MS,
 } from "./window-manager-runtime-helpers";
 import { WindowManagerSnapshotRefresher } from "./window-manager-snapshot-refresher";
@@ -361,7 +363,7 @@ export abstract class WindowManagerRuntimeCore {
     const binding = this.binding;
     return binding === null
       ? windowManagerKeys.config()
-      : windowManagerKeys.config(binding.workspaceId, binding.clientId);
+      : windowManagerKeys.config(binding.workspaceId, binding.clientId, binding.profileId);
   }
 
   protected config(): WindowManagerConfig | null {
@@ -405,8 +407,11 @@ export abstract class WindowManagerRuntimeCore {
     if (windowManagerStore.getSnapshot().context.commandState.status === "conflict") return null;
     // Rapid interactions (zoom toggle, dock activations, seam arrows) queue
     // behind the in-flight command instead of being silently dropped; each
-    // queued command reads a fresh snapshot revision when it runs.
-    const run = () => this.runCommand(command, { ...binding });
+    // queued command reads a fresh snapshot revision when it runs. The deadline
+    // starts at the click, so a backlog stalled behind a busy connection pool
+    // expires instead of replaying every stale click at once.
+    const deadline = AbortSignal.timeout(WINDOW_MANAGER_COMMAND_DEADLINE_MS);
+    const run = () => this.runCommand(command, { ...binding }, deadline);
     const chained = this.commandChain.then(run, run);
     this.commandChain = chained;
     return chained;
@@ -414,20 +419,15 @@ export abstract class WindowManagerRuntimeCore {
 
   private runCommand(
     command: WindowManagerCommandInput,
-    enqueuedBinding: WindowManagerRuntimeBinding
+    enqueuedBinding: WindowManagerRuntimeBinding,
+    deadline: AbortSignal
   ): Promise<boolean> {
     const binding = this.binding;
     if (binding === null) {
       this.reportClientUnavailable();
       return Promise.resolve(false);
     }
-    if (
-      binding.workspaceId !== enqueuedBinding.workspaceId ||
-      binding.profileId !== enqueuedBinding.profileId ||
-      binding.clientId !== enqueuedBinding.clientId
-    ) {
-      return Promise.resolve(false);
-    }
+    if (!sameRuntimeBinding(binding, enqueuedBinding)) return Promise.resolve(false);
     const snapshot = this.snapshot();
     if (snapshot === null || this.client === null) {
       this.reportClientUnavailable();
@@ -436,14 +436,15 @@ export abstract class WindowManagerRuntimeCore {
 
     const requestId = randomWindowManagerId("wm-command");
     if (
+      deadline.aborted ||
       !beginWindowManagerCommand(windowManagerStore, {
         id: requestId,
         kind: command.commandId,
         expectedRevision: snapshot.revision,
       })
     ) {
-      // A recorded revision conflict keeps the surface read-only until the
-      // user resolves it; queued commands resolve unapplied instead of racing.
+      // An expired click, or a recorded revision conflict that keeps the surface
+      // read-only until the user resolves it, resolves unapplied instead of racing.
       clearSwitchTransition(command, binding);
       return Promise.resolve(false);
     }
@@ -453,7 +454,8 @@ export abstract class WindowManagerRuntimeCore {
       binding.profileId,
       binding.clientId,
       command.expectedRevision ?? snapshot.revision,
-      command
+      command,
+      deadline
     )
       .then(result => {
         this.projectionDeferred = true;

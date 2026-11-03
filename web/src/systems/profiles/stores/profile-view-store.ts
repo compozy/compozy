@@ -7,6 +7,12 @@ const PROFILE_VIEW_PERSIST_KEY = "compozy:profile-view";
 
 interface ProfileViewContext {
   view: ProfileView | null;
+  /**
+   * Counts the explicit switches this client has made. Entering the remembered choice at boot
+   * and sweeping a removed profile are not switches, so surfaces that must react to an operator
+   * moving between profiles (the desk dropping another profile's windows) key off this alone.
+   */
+  switchEpoch: number;
 }
 
 /**
@@ -22,13 +28,18 @@ interface ProfileViewContext {
  * remembered choice underneath it stays the creation destination.
  */
 export const profileViewStore = createStore({
-  context: { view: null } as ProfileViewContext,
+  context: { view: null, switchEpoch: 0 } as ProfileViewContext,
   on: {
     viewEntered: (context, event: { view: ProfileView }) => {
       if (context.view !== null) return undefined;
       return { ...context, view: event.view };
     },
     viewChanged: (context, event: { view: ProfileView }) => {
+      if (context.view && sameView(context.view, event.view)) return undefined;
+      return { ...context, view: event.view, switchEpoch: context.switchEpoch + 1 };
+    },
+    /** A failed switch's rollback: the view returns, and it was never a switch. */
+    viewRestored: (context, event: { view: ProfileView }) => {
       if (context.view && sameView(context.view, event.view)) return undefined;
       return { ...context, view: event.view };
     },
@@ -73,7 +84,7 @@ export function restoreProfileView(previous: ProfileView | null): void {
     profileViewStore.trigger.viewCleared();
     return;
   }
-  profileViewStore.trigger.viewChanged({ view: previous });
+  profileViewStore.trigger.viewRestored({ view: previous });
 }
 
 export function sweepProfileView(profile: string): void {

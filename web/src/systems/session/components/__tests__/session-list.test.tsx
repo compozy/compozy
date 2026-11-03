@@ -7,6 +7,7 @@ import {
 import {
   act,
   fireEvent,
+  isInaccessible,
   render,
   renderHook,
   screen,
@@ -180,6 +181,7 @@ function renderList(
     onMoveToLaterMany: vi.fn(),
     onBackFromLater: vi.fn(),
     onBackFromLaterMany: vi.fn(),
+    onMarkSeen: vi.fn(),
     onDeleteMany: vi.fn(),
     ...overrides.actions,
   };
@@ -245,8 +247,9 @@ function renderList(
   };
 }
 
-// Invariant: a row speaks of its agent by label with its face; a deleted agent falls back to the
-// humanized slug. Owner: SessionList row; canonical suite: this file.
+// Invariant: a row names its agent by label in its accessible name and wears its face, while the
+// visible line leaves the name to the face's tooltip; a deleted agent falls back to the humanized
+// slug. Owner: SessionList row; canonical suite: this file.
 describe("SessionList agent identity", () => {
   const session = { ...sessions[0]!, agent_name: "code_implementer" };
 
@@ -258,18 +261,43 @@ describe("SessionList agent identity", () => {
       ]);
     });
 
-    expect(await screen.findByText("Builder")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: /Builder/ })).toBeInTheDocument();
+    expect(screen.queryByText("Builder")).not.toBeInTheDocument();
     expect(screen.getByTestId(`session-agent-mark-${session.id}`)).toHaveAttribute(
       "data-slot",
       "agent-avatar"
     );
   });
 
+  // Invariant: line 2 writes the model, and only a session that needs you replaces it with why.
+  it("Should write the model on line 2 and the needs-you words in its place", () => {
+    const runtime = {
+      ...session.runtime,
+      effective: { provider: "claude", model: "claude-opus-4-1", reasoning_effort: "high" },
+    };
+    renderList({
+      sessions: [
+        { ...session, id: "model-row", badge: "running", runtime },
+        { ...session, id: "asking-row", badge: "waiting-for-input", runtime },
+      ],
+    });
+
+    const working = screen.getByTestId("session-sidebar-session-model-row").parentElement!;
+    expect(within(working).getByText("claude-opus-4-1 high")).toBeInTheDocument();
+    expect(screen.getByTestId("session-sidebar-session-model-row")).toHaveAccessibleName(
+      /claude-opus-4-1 high/
+    );
+    expect(within(working).queryByText("Working")).not.toBeInTheDocument();
+    const asking = screen.getByTestId("session-sidebar-session-asking-row").parentElement!;
+    expect(within(asking).getByText("Needs your answer")).toBeInTheDocument();
+    expect(within(asking).queryByText("claude-opus-4-1 high")).not.toBeInTheDocument();
+  });
+
   it("Should render a deleted agent's humanized slug", () => {
     renderList({ sessions: [session] });
 
-    expect(screen.getByText("Code Implementer")).toBeInTheDocument();
-    expect(screen.queryByText("code_implementer")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Code Implementer/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /code_implementer/ })).not.toBeInTheDocument();
   });
 });
 
@@ -1085,11 +1113,15 @@ describe("SessionList subagents", () => {
     expect(
       rows.map(node => node.querySelector('[data-slot="state-glyph"]')?.getAttribute("data-state"))
     ).toEqual(["attention", "failed", "running", "done"]);
-    const open = (title: string) => within(branch).getByRole("button", { name: `Open ${title}` });
+    const open = (title: string) =>
+      within(branch).getByRole("button", { name: `Open ${title} · claude · Coder` });
     expect(open("Subagent 3")).toHaveAttribute("aria-description", "Working");
     expect(open("Subagent 4")).toHaveAttribute("aria-description", "Done");
-    expect(within(open("Subagent 3")).getByText("Working")).toBeInTheDocument();
-    expect(within(open("Subagent 4")).getByText("Done")).toBeInTheDocument();
+    // Only a subagent that needs you says its state in words; the glyph says the rest.
+    expect(within(open("Subagent 1")).getByText("Waiting for you")).toBeInTheDocument();
+    expect(within(open("Subagent 2")).getByText("Failed")).toBeInTheDocument();
+    expect(within(open("Subagent 3")).queryByText("Working")).not.toBeInTheDocument();
+    expect(within(open("Subagent 4")).queryByText("Done")).not.toBeInTheDocument();
   });
 
   // Invariant: a sidebar without a drawer must not advertise an action with no target.
@@ -1098,7 +1130,7 @@ describe("SessionList subagents", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
-          subagents: [{ ...wireSubagent(1, "queued"), child_session_id: null }],
+          subagents: [{ ...wireSubagent(1, "failed"), child_session_id: null }],
         }),
         { headers: { "Content-Type": "application/json" } }
       )
@@ -1107,8 +1139,51 @@ describe("SessionList subagents", () => {
     const branch = await screen.findByTestId("session-sidebar-subagents-parent");
     expect(await within(branch).findByText("Subagent 1")).toBeVisible();
     expect(
-      within(branch).queryByRole("button", { name: "Open Subagent 1" })
+      within(branch)
+        .getAllByText("Failed")
+        .some(node => !isInaccessible(node))
+    ).toBe(true);
+    expect(
+      within(branch).queryByRole("button", { name: "Open Subagent 1 · claude · Coder" })
     ).not.toBeInTheDocument();
+  });
+
+  it("Should name a subagent with its recorded owner catalog and runtime", async () => {
+    const parent = row("foreign-parent", {
+      ...summary(1, 1),
+      workspace_id: "foreign-workspace",
+      profile_name: "marketing",
+    });
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          subagents: [
+            {
+              ...wireSubagent(1, "running"),
+              runtime: {
+                agent: "coder",
+                provider: "claude",
+                model: "opus",
+                reasoning_effort: "high",
+                speed: "",
+              },
+            },
+          ],
+        }),
+        { headers: { "Content-Type": "application/json" } }
+      )
+    );
+    const { queryClient } = renderList({ sessions: [parent], subagentThreadIds: [parent.id] });
+    act(() =>
+      queryClient.setQueryData(agentsListOptions("foreign-workspace", "marketing").queryKey, [
+        { ...primaryAgentFixture, name: "coder", label: "Foreign Coder" },
+      ])
+    );
+    expect(
+      await screen.findByRole("button", {
+        name: "Open Subagent 1 · claude · Opus high · Foreign Coder",
+      })
+    ).toHaveAccessibleDescription("Working");
   });
 
   // Issue #919: the subagent list reads nothing while folded, then short pages on demand.
@@ -1272,7 +1347,9 @@ describe("SessionList subagents", () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(subagentPage(0, 1));
     const { onSelect } = renderList({ sessions: [parent], subagentThreadIds: ["branch-parent"] });
 
-    await user.click(await screen.findByRole("button", { name: "Open Subagent 0" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Open Subagent 0 · claude · Coder" })
+    );
 
     expect(onSelect).toHaveBeenCalledExactlyOnceWith({
       id: "child-0",
@@ -1303,7 +1380,9 @@ describe("SessionList subagents", () => {
     expect(onBranch).toHaveBeenLastCalledWith("parent", "subagents");
     expect(subagents).toHaveAttribute("aria-expanded", "true");
     expect(children).toHaveAttribute("aria-expanded", "false");
-    expect(await screen.findByRole("button", { name: "Open Subagent 1" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Open Subagent 1 · claude · Coder" })
+    ).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.queryByTestId("session-sidebar-session-plain")).not.toBeInTheDocument()
     );
@@ -1485,6 +1564,41 @@ describe("SessionList Later", () => {
     expect(screen.queryByTestId("session-row-later-parked")).not.toBeInTheDocument();
     await user.click(await screen.findByTestId("session-row-back-from-later-parked"));
     expect(actions.onBackFromLater).toHaveBeenCalledExactlyOnceWith(parked);
+  });
+});
+
+// Invariant (#1202): a row whose Needs you the daemon can clear offers Mark as seen; a row
+// that still waits on an answer keeps its badge and gets no such verb.
+// Owner: SessionList row menu (shared with the Kanban card and the context menu).
+describe("SessionList Mark as seen", () => {
+  it("Should offer Mark as seen only while the daemon says the Needs you can be cleared", async () => {
+    const user = userEvent.setup();
+    const endedEarly: SessionPayload = {
+      ...primarySessionFixture,
+      id: "ended-early",
+      name: "Ended early",
+      badge: "needs-attention",
+      attention: "ended_early",
+      attention_dismissible: true,
+    };
+    const asking: SessionPayload = {
+      ...primarySessionFixture,
+      id: "asking",
+      name: "Asking",
+      badge: "waiting-for-input",
+      attention_dismissible: false,
+    };
+    const { actions } = renderList({ sessions: [endedEarly, asking] });
+
+    await user.click(screen.getByTestId("session-row-actions-ended-early"));
+    const markSeen = await screen.findByTestId("session-row-mark-seen-ended-early");
+    expect(markSeen).toHaveTextContent("Mark as seen");
+    await user.click(markSeen);
+    expect(actions.onMarkSeen).toHaveBeenCalledExactlyOnceWith(endedEarly);
+
+    await user.click(screen.getByTestId("session-row-actions-asking"));
+    expect(await screen.findByTestId("session-row-rename-asking")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-mark-seen-asking")).not.toBeInTheDocument();
   });
 });
 
@@ -1902,7 +2016,11 @@ describe("SessionList folders and manual order", () => {
     const { layout, onNewSession } = renderLayout();
     await user.click(screen.getByTestId("session-sidebar-new"));
     const items = await screen.findAllByRole("menuitem");
-    expect(items.map(item => item.textContent)).toEqual(["New session", "New folder"]);
+    expect(items.map(item => item.textContent)).toEqual([
+      "New session",
+      "New folder",
+      "Add stays-on agentStays here and checks in on its own",
+    ]);
     await user.click(screen.getByRole("menuitem", { name: "New session" }));
     expect(onNewSession).toHaveBeenCalledWith();
 
@@ -2961,6 +3079,20 @@ describe("SessionList breadth and Group by", () => {
     expect(toggleGroup).not.toHaveBeenCalled();
   });
 
+  // Invariant: the toolbar + offers Add stays-on agent in any grouping, and a list spanning
+  // several projects asks where the agent lives first (#1181).
+  it("Should offer Add stays-on agent from the toolbar + of a grouped All projects list", async () => {
+    const user = userEvent.setup();
+    renderList({ sessions: [], view: grouped() });
+
+    await user.click(screen.getByTestId("session-sidebar-new"));
+    await user.click(await screen.findByTestId("session-sidebar-add-stays-on"));
+
+    for (const place of ["Global", "Alpha", "Beta"]) {
+      expect(await screen.findByRole("option", { name: new RegExp(place) })).toBeInTheDocument();
+    }
+  });
+
   it("Should ask which profile a group + New folder belongs to under All profiles", async () => {
     const user = userEvent.setup();
     const groups = projectSessionGroups(
@@ -3267,7 +3399,7 @@ describe("SessionList loading", () => {
     expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
     // The rail's own controls are real and already usable while its rows load.
     expect(screen.getByRole("searchbox", { name: "Filter sessions" })).toBeEnabled();
-    expect(screen.getByTestId("session-sidebar-new-session")).toBeEnabled();
+    expect(screen.getByTestId("session-sidebar-new")).toBeEnabled();
 
     update(sessions, { ...view, catalog: sessionListCatalogFixture({ sessions }) });
 

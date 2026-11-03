@@ -26,6 +26,11 @@ import {
 import { useThemePreference } from "@/systems/theme";
 
 import { nextAgentAvatarSeed } from "../lib/agent-avatar-seed";
+import {
+  agentSymbolAppearance,
+  agentSymbolBackgroundOf,
+  agentSymbolOf,
+} from "../lib/agent-symbol-appearance";
 import { AgentMark } from "./agent-mark";
 
 const HERO = 112;
@@ -129,22 +134,18 @@ function SymbolPane({
   const { resolvedTheme } = useThemePreference();
   const catalog = useProfileIconCatalog();
   const color = appearance.color ?? SYMBOL_COLOR;
-  const symbol: SymbolValue =
-    appearance.avatar === "emoji"
-      ? { kind: "emoji", value: appearance.emoji }
-      : { kind: "icon", value: appearance.avatar === "icon" ? appearance.icon : "compass" };
-  const commit = (next: SymbolValue, nextColor: string) =>
-    onChange(
-      next.kind === "emoji"
-        ? { avatar: "emoji", emoji: next.value, color: nextColor }
-        : { avatar: "icon", icon: next.value, color: nextColor }
-    );
+  const symbol = agentSymbolOf(appearance);
+  const background = agentSymbolBackgroundOf(appearance);
+  const commit = (next: SymbolValue, nextColor: string, nextBackground = background) =>
+    onChange(agentSymbolAppearance(next, nextColor, nextBackground));
   return (
     <SymbolPicker
       color={color}
       emojibaseUrl={PROFILE_EMOJIBASE_URL}
       icons={catalog.icons}
       iconsLoading={catalog.loading}
+      background={background}
+      onBackgroundChange={next => commit(symbol, color, next)}
       onColorChange={next => commit(symbol, next)}
       onSymbolChange={next => commit(next, color)}
       spriteUrl={PROFILE_SPRITE_URL}

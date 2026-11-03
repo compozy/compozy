@@ -3542,6 +3542,33 @@ func TestSettingsCollectionMutationHandlersRejectInvalidPayloads(t *testing.T) {
 func TestSettingsRemainingReadAndDeleteHandlers(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should resolve the client profile without changing settings ownership", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{
+			GetSectionFn: func(_ context.Context, req settingspkg.SectionRequest) (settingspkg.SectionEnvelope, error) {
+				if string(req.ClientProfile.ID) != "profile-marketing" || req.ClientProfile.Name != "marketing" ||
+					req.Scope != settingspkg.ScopeUser ||
+					req.ProfileName != "" {
+					t.Fatalf("section request = %#v, want user settings with marketing client profile", req)
+				}
+				return settingspkg.SectionEnvelope{
+					Section: settingspkg.SectionWindowManager,
+					Scope:   settingspkg.ScopeUser,
+					WindowManager: &settingspkg.WindowManagerSection{
+						Config: compozyconfig.DefaultWindowManagerConfig(),
+					},
+				}, nil
+			},
+		}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		response := performRequest(t, fixture.Engine, http.MethodGet,
+			"/api/settings/window-manager?scope=user&client_id=client:marketing&client_profile=marketing", nil)
+		if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "config") {
+			t.Fatalf("response = %d %s", response.Code, response.Body.String())
+		}
+	})
+
 	t.Run("Should serve daemon keymaps with empty window-manager overrides [IT-015 GET]", func(t *testing.T) {
 		t.Parallel()
 

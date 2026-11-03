@@ -7,6 +7,52 @@ import (
 	"time"
 )
 
+// TaskReferencePayload is a daemon API value.
+type TaskReferencePayload struct {
+	ID              string     `json:"id"`
+	Identifier      string     `json:"identifier,omitempty"`
+	Title           string     `json:"title"`
+	Status          TaskStatus `json:"status"`
+	Priority        Priority   `json:"priority,omitempty"`
+	Owner           *Ownership `json:"owner,omitempty"`
+	Scope           TaskScope  `json:"scope"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	LatestEventSeq  int64      `json:"latest_event_seq"`
+	Paused          bool       `json:"paused,omitempty"`
+	EffectivePaused bool       `json:"effective_paused,omitempty"`
+	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
+}
+
+// TaskResponse is a daemon API value.
+type TaskResponse struct {
+	Task TaskPayload `json:"task"`
+}
+
+// TaskRunDetailPayload is a daemon API value.
+type TaskRunDetailPayload struct {
+	Run     TaskRunPayload                   `json:"run"`
+	Task    *TaskReferencePayload            `json:"task,omitempty"`
+	Session *TaskRunSessionPayload           `json:"session,omitempty"`
+	Summary TaskRunOperationalSummaryPayload `json:"summary"`
+}
+
+// TaskRunDetailResponse is a daemon API value.
+type TaskRunDetailResponse struct {
+	Run TaskRunDetailPayload `json:"run"`
+}
+
+// TaskRunLeaseSummaryPayload is a daemon API value.
+type TaskRunLeaseSummaryPayload struct {
+	TaskID         string         `json:"task_id"`
+	RunID          string         `json:"run_id"`
+	Status         TaskRunStatus  `json:"status"`
+	SessionID      string         `json:"session_id,omitempty"`
+	ClaimedBy      *ActorIdentity `json:"claimed_by,omitempty"`
+	ClaimTokenHash string         `json:"claim_token_hash,omitempty"`
+	LeaseUntil     *time.Time     `json:"lease_until,omitempty"`
+	HeartbeatAt    *time.Time     `json:"heartbeat_at,omitempty"`
+}
+
 // TaskRunOperationalSummaryPayload is a daemon API value.
 type TaskRunOperationalSummaryPayload struct {
 	LastActivityAt time.Time  `json:"last_activity_at"`
@@ -392,56 +438,4 @@ type TerminalCommandRowPayload struct {
 	OutputBytes int64                       `json:"output_bytes"`
 	Truncated   bool                        `json:"truncated"`
 	RecordingID *string                     `json:"recording,omitzero"`
-}
-
-// TerminalCreateRequest is a daemon API value.
-type TerminalCreateRequest struct {
-	Worktree string `json:"worktree,omitempty"`
-	Cwd      string `json:"cwd,omitempty"`
-	Shell    string `json:"shell,omitempty"`
-	Cols     uint16 `json:"cols,omitzero"`
-	Rows     uint16 `json:"rows,omitzero"`
-	Title    string `json:"title,omitempty"`
-	ClientID string `json:"client_id,omitempty"`
-}
-
-// TerminalDeliveredResponse is a daemon API value.
-type TerminalDeliveredResponse struct {
-	Delivered bool `json:"delivered"`
-}
-
-// TerminalExecRequest is a daemon API value.
-type TerminalExecRequest struct {
-	Command string              `json:"command"`
-	Args    []string            `json:"args,omitempty"`
-	Cwd     string              `json:"cwd,omitempty"`
-	Env     map[string]string   `json:"env,omitempty"`
-	YieldMs int                 `json:"yield_ms,omitzero"`
-	Visible bool                `json:"visible,omitzero"`
-	Output  TerminalOutputShape `json:"output,omitzero"`
-}
-
-// TerminalExecResponse is a daemon API value.
-type TerminalExecResponse struct {
-	ExitCode     *int                  `json:"exit_code"`
-	Signal       *TerminalSignal       `json:"signal"`
-	Output       string                `json:"output"`
-	Truncated    bool                  `json:"truncated"`
-	Untrusted    bool                  `json:"untrusted"`
-	Spill        *TerminalSpillPayload `json:"spill,omitzero"`
-	DurationMs   int64                 `json:"duration_ms"`
-	CommandID    string                `json:"command_id"`
-	StillRunning bool                  `json:"still_running,omitzero"`
-	TerminalID   *TerminalID           `json:"terminal_id"`
-}
-
-// TerminalExitCause is a daemon API value.
-type TerminalExitCause string
-
-// TerminalExitPayload is a daemon API value.
-type TerminalExitPayload struct {
-	Cause  TerminalExitCause `json:"cause"`
-	Code   *int              `json:"code,omitzero"`
-	Signal *TerminalSignal   `json:"signal,omitzero"`
-	At     time.Time         `json:"at"`
 }

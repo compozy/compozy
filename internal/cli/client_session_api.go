@@ -28,10 +28,12 @@ type sessionClientAPI interface {
 	ArchiveSession(context.Context, string, bool, bool, contract.SessionProcessPolicy) (SessionRecord, error)
 	MoveSessionToLater(context.Context, string, contract.MoveSessionToLaterRequest) (SessionRecord, error)
 	ResumeSessionFromLater(context.Context, string, bool) (SessionRecord, error)
+	MarkSessionSeen(context.Context, string) (SessionRecord, error)
 	UnarchiveSession(context.Context, string) (SessionRecord, error)
 	RenameSession(context.Context, string, RenameSessionRequest) (SessionRecord, error)
 	SetSessionParent(context.Context, string, SetSessionParentRequest) (SessionRecord, error)
 	ClearSessionParent(context.Context, string) (SessionRecord, error)
+	MoveSessionToProfile(context.Context, string, MoveSessionToProfileRequest) (MoveSessionToProfileResponse, error)
 	DeleteSession(context.Context, string, bool, contract.SessionProcessPolicy) error
 	ResumeSession(context.Context, string) (SessionRecord, error)
 	UploadSessionAttachment(context.Context, string, string) (SessionAttachmentRecord, error)

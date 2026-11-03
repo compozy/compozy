@@ -4,6 +4,29 @@ package client
 
 import "time"
 
+// SessionSkillInvocationPayload is a daemon API value.
+type SessionSkillInvocationPayload struct {
+	CommandID string               `json:"command_id"`
+	Token     string               `json:"token"`
+	Name      string               `json:"name"`
+	Source    SessionCommandSource `json:"source"`
+	Start     int                  `json:"start"`
+	End       int                  `json:"end"`
+}
+
+// SessionSoulRefreshRequest is a daemon API value.
+type SessionSoulRefreshRequest struct {
+	ExpectedDigest string `json:"expected_digest"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// SessionSpec is a daemon API value.
+type SessionSpec struct {
+	Handle   string `json:"handle,omitempty"`
+	Isolated bool   `json:"isolated,omitzero"`
+	Mode     string `json:"mode,omitempty"`
+}
+
 // SessionStatusResponse is a daemon API value.
 type SessionStatusResponse struct {
 	Diagnostics         []DiagnosticItem                 `json:"diagnostics,omitempty"`
@@ -411,39 +434,4 @@ type SettingsExtensionsConfigPayload struct {
 // SettingsGeneralActionsPayload is a daemon API value.
 type SettingsGeneralActionsPayload struct {
 	Restart SettingsActionMetadataPayload `json:"restart"`
-}
-
-// SettingsGeneralConfigPayload is a daemon API value.
-type SettingsGeneralConfigPayload struct {
-	BusyInput        *SettingsBusyInputPayload  `json:"busy_input,omitzero"`
-	Limits           SettingsLimitsPayload      `json:"limits"`
-	Permissions      SettingsPermissionsPayload `json:"permissions"`
-	SessionTimeout   string                     `json:"session_timeout"`
-	IdleReleaseAfter string                     `json:"idle_release_after,omitempty"`
-	HTTP             SettingsHTTPPayload        `json:"http"`
-	Daemon           SettingsDaemonPayload      `json:"daemon"`
-	Redact           SettingsRedactPayload      `json:"redact"`
-	Terminal         SettingsTerminalPayload    `json:"terminal"`
-	Desktop          *SettingsDesktopPayload    `json:"desktop,omitzero"`
-}
-
-// SettingsGeneralResponse is a daemon API value.
-type SettingsGeneralResponse struct {
-	Section         SettingsSectionName           `json:"section"`
-	Scope           SettingsUserScopeKind         `json:"scope"`
-	AvailableScopes []SettingsUserScopeKind       `json:"available_scopes"`
-	ConfigPaths     SettingsConfigPathsPayload    `json:"config_paths"`
-	Config          SettingsGeneralConfigPayload  `json:"config"`
-	Runtime         SettingsDaemonRuntimePayload  `json:"runtime"`
-	Actions         SettingsGeneralActionsPayload `json:"actions"`
-}
-
-// SettingsGlobalShortcutPayload is a daemon API value.
-type SettingsGlobalShortcutPayload struct {
-	CommandID     string                       `json:"command_id"`
-	IntendedChord string                       `json:"intended_chord"`
-	ActiveChord   string                       `json:"active_chord,omitempty"`
-	Status        SettingsGlobalShortcutStatus `json:"status,omitempty"`
-	Reason        string                       `json:"reason,omitempty"`
-	SettingsURL   string                       `json:"settings_url,omitempty"`
 }

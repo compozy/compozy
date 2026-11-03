@@ -96,8 +96,8 @@ func (s *Session) infoLocked() *Info {
 		LastSeenAt:               cloneSessionTimePtr(s.LastSeenAt),
 		AttentionChangedAt:       cloneSessionTimePtr(s.AttentionChangedAt),
 		EndedEarlyTurnID:         s.EndedEarlyTurnID,
+		FailureSeenAt:            cloneSessionTimePtr(s.FailureSeenAt),
 		PendingInteractions:      clonePendingInteractions(s.PendingInteractions),
-		ArchivedAt:               nil,
 		CreatedAt:                s.CreatedAt,
 		UpdatedAt:                s.UpdatedAt,
 	}

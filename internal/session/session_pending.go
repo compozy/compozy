@@ -28,12 +28,12 @@ func (m *Manager) createPendingInteraction(
 	if req.CreatedAt.IsZero() {
 		req.CreatedAt = m.now().UTC()
 	}
-	commit, err := m.attentionStore.CreatePendingInteraction(ctx, req)
+	commit, err := m.commitAttention(req.SessionID, func() (store.SessionAttentionCommit, error) {
+		return m.attentionStore.CreatePendingInteraction(ctx, req)
+	})
 	if err != nil {
 		return store.SessionAttentionCommit{}, fmt.Errorf("session: create pending interaction: %w", err)
 	}
-	m.applyAttentionProjection(req.SessionID, commit.After)
-	m.applyPendingInteractionCommit(req.SessionID, commit.Interaction)
 	m.publishAttentionCommit(ctx, req.SessionID, commit)
 	return commit, nil
 }
@@ -48,7 +48,9 @@ func (m *Manager) transitionPendingInteraction(
 	if req.At.IsZero() {
 		req.At = m.now().UTC()
 	}
-	commit, err := m.attentionStore.TransitionPendingInteraction(ctx, req)
+	commit, err := m.commitAttention("", func() (store.SessionAttentionCommit, error) {
+		return m.attentionStore.TransitionPendingInteraction(ctx, req)
+	})
 	if err != nil {
 		return store.SessionAttentionCommit{}, fmt.Errorf("session: transition pending interaction: %w", err)
 	}
@@ -56,8 +58,6 @@ func (m *Manager) transitionPendingInteraction(
 		return commit, nil
 	}
 	sessionID := commit.Interaction.SessionID
-	m.applyAttentionProjection(sessionID, commit.After)
-	m.applyPendingInteractionCommit(sessionID, commit.Interaction)
 	m.publishAttentionCommit(ctx, sessionID, commit)
 	return commit, nil
 }
@@ -203,6 +203,25 @@ func (m *Manager) refreshPendingInteractions(ctx context.Context, sessionID stri
 	return nil
 }
 
+// commitAttention orders durable attention writes with their resident projection updates.
+func (m *Manager) commitAttention(
+	sessionID string,
+	write func() (store.SessionAttentionCommit, error),
+) (store.SessionAttentionCommit, error) {
+	m.attentionCommitMu.Lock()
+	defer m.attentionCommitMu.Unlock()
+	commit, err := write()
+	if err != nil {
+		return commit, err
+	}
+	if commit.Interaction != nil {
+		sessionID = commit.Interaction.SessionID
+	}
+	m.applyAttentionProjection(sessionID, commit.After)
+	m.applyPendingInteractionCommit(sessionID, commit.Interaction)
+	return commit, nil
+}
+
 func (m *Manager) applyAttentionProjection(sessionID string, projection store.SessionAttention) {
 	active, ok := m.Get(sessionID)
 	if !ok {
@@ -268,6 +287,7 @@ func applyAttentionProjectionLocked(target *Session, projection store.SessionAtt
 	target.LastSeenAt = cloneTimePointer(projection.LastSeenAt)
 	target.AttentionChangedAt = cloneTimePointer(projection.AttentionChangedAt)
 	target.EndedEarlyTurnID = projection.EndedEarlyTurnID
+	target.FailureSeenAt = cloneTimePointer(projection.FailureSeenAt)
 }
 
 func clonePendingInteractions(values []store.PendingInteraction) []store.PendingInteraction {

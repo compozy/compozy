@@ -16,6 +16,7 @@ import {
   type SessionLinkedWorkStatusProps,
 } from "../components/session-linked-work/session-linked-work-header";
 import type { SessionProcessPolicy } from "../adapters/session-processes-api";
+import { SessionMarkSeenAction } from "../components/session-mark-seen-action";
 import { SessionPrimaryAction } from "../components/session-primary-action";
 import { sessionProcessPorts, sessionRunningProcesses } from "../lib/session-processes";
 import { SessionPanelToggle } from "../components/session-panel-toggle";
@@ -206,10 +207,12 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
     status: (
       <span className="flex min-w-0 items-center gap-2">
         {instance ? <Pill size="sm">Stays on</Pill> : null}
+        {/* Keyed by session: the head outlives a session switch, and an open list must not. */}
         <SessionLinkedWorkStatus
+          key={session.id}
           {...linkedList}
           lead={linkedWork.lead}
-          more={linkedWork.more}
+          count={linkedWork.count}
           onClippedChange={linkedWork.setClipped}
           ownChip={ownChipActions(input)}
           ownFacts={sessionPullRequestFacts(session)}
@@ -246,6 +249,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
       <>
         {linkedWork.clipped ? <SessionLinkedWorkNarrowEntry {...linkedList} /> : null}
         {instance ? <StaysOnAgentMenu instance={instance} /> : null}
+        <SessionMarkSeenAction session={session} />
         <SessionPrimaryAction
           key={session.id}
           {...input}

@@ -1,10 +1,14 @@
 // Suite: session detail polling policy
 // Invariant: durable starting sessions converge quickly while terminal sessions stop polling, and a
-// session carrying a PR lookup is re-read at least every 60 s, only while the document is visible.
+// session carrying a PR lookup is re-read at least every 60 s, only while the document is visible;
+// a profile lens that already answered "not here" for a session found in another profile is not
+// re-asked on every event about it (#1184).
 // Boundary IN: TanStack session detail query options.
 // Boundary OUT: HTTP transport and lifecycle persistence, owned by their adapter/runtime suites.
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
+
+import { PROFILE_AGGREGATE } from "@/systems/profiles";
 
 import { SessionApiError } from "../../adapters/session-api-errors";
 import type { SessionInteractionRecord, SessionPayload } from "../../types";
@@ -183,6 +187,57 @@ describe("sessionScopedDetailOptions", () => {
 
   it("Should not retry, so a 404 stays a boundary decision rather than a delay", () => {
     expect(sessionScopedDetailOptions("sess_1", { profile: "marketing" }).retry).toBe(false);
+  });
+
+  it("Should stop re-asking a lens that settled a session as another profile's", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const calls = new Map<string, number>();
+    // An on-screen read: an active observer, so an invalidation refetches it right away.
+    const watch = async (key: readonly unknown[], fail: boolean, owner = "default") => {
+      const label = key.join("/");
+      const observer = new QueryObserver(client, {
+        queryKey: key,
+        queryFn: () => {
+          calls.set(label, (calls.get(label) ?? 0) + 1);
+          return fail
+            ? Promise.reject(new SessionApiError("not found", 404))
+            : Promise.resolve({ profile_name: owner });
+        },
+      });
+      const unsubscribe = observer.subscribe(() => {});
+      await vi.waitFor(() => expect(calls.get(label)).toBe(1));
+      await vi.waitFor(() => expect(observer.getCurrentResult().isFetching).toBe(false));
+      return { count: () => calls.get(label), unsubscribe };
+    };
+    const foreign = await watch(sessionKeys.byId("sess_1", "open-design"), true);
+    const aggregate = await watch(sessionKeys.byId("sess_1", PROFILE_AGGREGATE), false);
+    const missing = await watch(sessionKeys.byId("sess_gone", "open-design"), true);
+    // The aggregate says the session is this lens's own: a 404 here is not "another profile's".
+    const own = await watch(sessionKeys.byId("sess_own", "open-design"), true);
+    await watch(sessionKeys.byId("sess_own", PROFILE_AGGREGATE), false, "open-design");
+
+    await invalidateSessionLiveQueries(client, "ws_alpha", "sess_1");
+    await invalidateSessionLiveQueries(client, "ws_alpha", "sess_gone");
+    await invalidateSessionLiveQueries(client, "ws_alpha", "sess_own");
+
+    expect(foreign.count()).toBe(1);
+    expect(aggregate.count()).toBe(2);
+    // Missing from every profile is the deletion reconciliation's signal; it still rereads.
+    expect(missing.count()).toBe(2);
+    expect(own.count()).toBe(2);
+    // A later aggregate miss (the session was deleted) keeps its stale data but ends the
+    // settlement: the foreign lens rereads again for the deletion path.
+    await client
+      .fetchQuery({
+        queryKey: sessionKeys.byId("sess_1", PROFILE_AGGREGATE),
+        queryFn: () => Promise.reject(new SessionApiError("not found", 404)),
+        staleTime: 0,
+      })
+      .catch(() => undefined);
+    await invalidateSessionLiveQueries(client, "ws_alpha", "sess_1");
+    await vi.waitFor(() => expect(foreign.count()).toBe(2));
+    for (const read of [foreign, aggregate, missing, own]) read.unsubscribe();
+    client.clear();
   });
 
   it("Should stop polling entirely when the window does not own the live tail", () => {

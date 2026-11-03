@@ -55,6 +55,8 @@ describe("validateAgentDetailSearch", () => {
   it("Should accept a known panel and drop anything else", () => {
     expect(validateAgentDetailSearch({ panel: "tools" })).toEqual({ panel: "tools" });
     expect(validateAgentDetailSearch({ panel: "nope", tab: "overview" })).toEqual({});
+    // The model is picked on the home itself; the old panel name lands there.
+    expect(validateAgentDetailSearch({ panel: "model" })).toEqual({});
   });
 });
 

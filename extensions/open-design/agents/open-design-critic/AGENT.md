@@ -1,6 +1,12 @@
 ---
 name: open-design-critic
 category_path: [Open design]
+appearance:
+  version: 1
+  avatar: icon
+  icon: message-square-text
+  color: "#8a8f98"
+  background: none
 ---
 
 # Open design critic

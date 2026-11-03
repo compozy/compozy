@@ -222,17 +222,8 @@ func (h *BaseHandlers) resolveCreateSessionParent(
 
 // GetSession returns one session snapshot.
 func (h *BaseHandlers) GetSession(c *gin.Context) {
-	_, _, info, ok := h.routeSessionInWorkspace(c)
+	_, _, info, ok := h.routeScopedSessionInWorkspace(c)
 	if !ok {
-		return
-	}
-	readScope, err := h.resolveProfileReadScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !readScope.Matches(info.ProfileID) {
-		h.respondError(c, http.StatusNotFound, errors.New("session not found"))
 		return
 	}
 	includeHealth, err := parseBoolQuery(c, "include_health")
@@ -253,16 +244,8 @@ func (h *BaseHandlers) GetSession(c *gin.Context) {
 
 // DeleteSession removes one session from the runtime catalog and persisted history.
 func (h *BaseHandlers) DeleteSession(c *gin.Context) {
-	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	_, sessionID, info, ok := h.routeScopedSessionInWorkspace(c)
 	if !ok {
-		return
-	}
-	scope, err := h.resolveProfileMutationScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !h.requireSessionInProfile(c, info, scope) {
 		return
 	}
 	policy := contract.SessionProcessPolicy(c.Query("processes"))
@@ -294,16 +277,8 @@ func (h *BaseHandlers) DeleteSession(c *gin.Context) {
 
 // StopSession stops a running session without deleting persisted history.
 func (h *BaseHandlers) StopSession(c *gin.Context) {
-	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	_, sessionID, info, ok := h.routeScopedSessionInWorkspace(c)
 	if !ok {
-		return
-	}
-	scope, err := h.resolveProfileMutationScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !h.requireSessionInProfile(c, info, scope) {
 		return
 	}
 	var req contract.StopSessionRequest

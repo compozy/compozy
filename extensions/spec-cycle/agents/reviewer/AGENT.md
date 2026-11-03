@@ -4,6 +4,12 @@ display_name: Reviewer
 description: Reviews assigned work and records evidenced findings.
 kind: on_demand
 category_path: [CompozyOS]
+appearance:
+  version: 1
+  avatar: icon
+  icon: scan-eye
+  color: "#8a8f98"
+  background: none
 ---
 
 Review the assigned frozen scope against project instructions and its acceptance contracts. No skill is required. Read the supplied spec paths by absolute path and inspect the assigned worktree, diff, relevant consumers and verification evidence as they apply to the scope. When a head is supplied, confirm it and report drift instead of reviewing an unidentified revision.

@@ -3,7 +3,12 @@ import spriteUrl from "lucide-static/sprite.svg?url";
 import { useEffect, useState } from "react";
 import { fireEvent, within } from "storybook/test";
 
-import type { SymbolIconOption, SymbolSwatch, SymbolValue } from "../../../lib/symbol-palette";
+import type {
+  SymbolBackground,
+  SymbolIconOption,
+  SymbolSwatch,
+  SymbolValue,
+} from "../../../lib/symbol-palette";
 import { SymbolPicker } from "../symbol-picker";
 
 const SWATCHES: SymbolSwatch[] = [
@@ -66,12 +71,22 @@ const meta: Meta<typeof SymbolPicker> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-function Harness({ initial, initialColor }: { initial: SymbolValue; initialColor: string }) {
+function Harness({
+  initial,
+  initialColor,
+  withBackground = false,
+}: {
+  initial: SymbolValue;
+  initialColor: string;
+  withBackground?: boolean;
+}) {
   const [symbol, setSymbol] = useState<SymbolValue>(initial);
   const [color, setColor] = useState(initialColor);
+  const [background, setBackground] = useState<SymbolBackground>("none");
   const catalog = useLucideCatalog();
   return (
     <SymbolPicker
+      {...(withBackground ? { background, onBackgroundChange: setBackground } : {})}
       color={color}
       onColorChange={setColor}
       symbol={symbol}
@@ -89,6 +104,14 @@ function Harness({ initial, initialColor }: { initial: SymbolValue; initialColor
 export const IconsTab: Story = {
   args: {} as never,
   render: () => <Harness initial={{ kind: "icon", value: "megaphone" }} initialColor="#c26ad6" />,
+};
+
+/** A consumer that supports it offers the plate choice; with None the color inks the symbol. */
+export const BackgroundChoice: Story = {
+  args: {} as never,
+  render: () => (
+    <Harness initial={{ kind: "icon", value: "code-xml" }} initialColor="#8a8f98" withBackground />
+  ),
 };
 
 /** Emoji keep their own ink; the identity color owns the selection plate. */

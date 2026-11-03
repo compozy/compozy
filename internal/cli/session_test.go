@@ -1118,6 +1118,44 @@ func TestSessionArchiveCommandsReturnUpdatedSession(t *testing.T) {
 	})
 }
 
+func TestSessionMarkSeenCommandForwardsTheSession(t *testing.T) {
+	t.Run("Should mark the session as seen and surface a refusal", func(t *testing.T) {
+		t.Parallel()
+
+		var marked []string
+		refuse := false
+		deps := newWorkspaceTestDeps(t, &stubClient{
+			markSessionSeenFn: func(_ context.Context, id string) (SessionRecord, error) {
+				if refuse {
+					return SessionRecord{}, errors.New("session sess-1 needs you to answer its question")
+				}
+				marked = append(marked, id)
+				return SessionRecord{
+					ID: id, AgentName: "coder", WorkspaceID: "ws-1", State: session.StateActive,
+					Badge: session.BadgeIdle, CreatedAt: fixedTestNow, UpdatedAt: fixedTestNow,
+				}, nil
+			},
+		})
+
+		output, _, err := executeRootCommand(t, deps, "session", "mark-seen", "sess-1", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session mark-seen) error = %v", err)
+		}
+		var record SessionRecord
+		if err := json.Unmarshal([]byte(output), &record); err != nil {
+			t.Fatalf("json.Unmarshal(session mark-seen) error = %v", err)
+		}
+		if !slices.Equal(marked, []string{"sess-1"}) || record.Badge != session.BadgeIdle {
+			t.Fatalf("session mark-seen = %#v marked=%v, want sess-1 out of Needs you", record, marked)
+		}
+		refuse = true
+		_, _, err = executeRootCommand(t, deps, "session", "mark-seen", "sess-1")
+		if err == nil || !strings.Contains(err.Error(), "answer its question") {
+			t.Fatalf("executeRootCommand(session mark-seen refused) error = %v, want the blocker", err)
+		}
+	})
+}
+
 func TestSessionLaterCommandsForwardTheParkRequest(t *testing.T) {
 	t.Run("Should forward reason and return time and bring the session back", func(t *testing.T) {
 		t.Parallel()
@@ -1318,6 +1356,62 @@ func TestSessionReparentCommand(t *testing.T) {
 			if _, _, err := executeRootCommand(t, newDeps(t), args...); err == nil {
 				t.Fatalf("executeRootCommand(%v) error = nil, want flag refusal", args)
 			}
+		}
+	})
+}
+
+func TestSessionMoveToProfileCommand(t *testing.T) {
+	t.Parallel()
+
+	deps := newWorkspaceTestDeps(t, &stubClient{
+		moveSessionToProfileFn: func(
+			_ context.Context, id string, request MoveSessionToProfileRequest,
+		) (MoveSessionToProfileResponse, error) {
+			if id != "sess-src" || request.TargetProfile != "work" {
+				t.Fatalf("MoveSessionToProfile() = id %q request %#v", id, request)
+			}
+			return MoveSessionToProfileResponse{
+				Session: SessionRecord{
+					ID: "sess-copy", AgentName: "coder", WorkspaceID: "ws-1", State: session.StateStopped,
+					CreatedAt: fixedTestNow, UpdatedAt: fixedTestNow,
+				},
+				Original: SessionRecord{
+					ID: id, AgentName: "coder", WorkspaceID: "ws-1", State: session.StateStopped,
+					CreatedAt: fixedTestNow, UpdatedAt: fixedTestNow,
+				},
+				WorktreeID: "wt-new", Branch: "feat/move",
+			}, nil
+		},
+	})
+
+	t.Run("Should print the copy, the archived original, and the new worktree", func(t *testing.T) {
+		t.Parallel()
+		stdout, _, err := executeRootCommand(t, deps, "session", "move-to-profile", "sess-src", "work", "-o", "json")
+		if err != nil {
+			t.Fatalf("executeRootCommand(session move-to-profile) error = %v", err)
+		}
+		var moved MoveSessionToProfileResponse
+		if err := json.Unmarshal([]byte(stdout), &moved); err != nil {
+			t.Fatalf("json.Unmarshal(session move-to-profile) error = %v", err)
+		}
+		if moved.Session.ID != "sess-copy" || moved.Original.ID != "sess-src" || moved.WorktreeID != "wt-new" {
+			t.Fatalf("session move-to-profile output = %#v", moved)
+		}
+		toon, _, err := executeRootCommand(t, deps, "session", "move-to-profile", "sess-src", "work", "-o", "toon")
+		if err != nil || !strings.Contains(toon, "sess-src") || !strings.Contains(toon, "wt-new") ||
+			!strings.Contains(toon, "feat/move") {
+			t.Fatalf("session move-to-profile toon output = %q, %v", toon, err)
+		}
+		human, _, err := executeRootCommand(t, deps, "session", "move-to-profile", "sess-src", "work")
+		if err != nil || !strings.Contains(human, "sess-src (archived)") || !strings.Contains(human, "feat/move") {
+			t.Fatalf("session move-to-profile human output = %q, %v", human, err)
+		}
+	})
+
+	t.Run("Should require the session and the target profile", func(t *testing.T) {
+		t.Parallel()
+		if _, _, err := executeRootCommand(t, deps, "session", "move-to-profile", "sess-src"); err == nil {
+			t.Fatal("executeRootCommand(session move-to-profile without profile) error = nil")
 		}
 	})
 }
