@@ -137,11 +137,16 @@ function pageFixture(overrides: Partial<UseAgentProfile> = {}): UseAgentProfile 
   };
 }
 
-/** The setup rows in order, each by its visible title. */
-function setupTitles() {
+/** The top-level setup rows; controls inside a row (the Model selector) carry their own IDs. */
+function setupRows() {
   return screen
     .getAllByTestId(/^agent-setup-/)
-    .map(row => row.querySelector(".truncate")?.textContent);
+    .filter(row => !row.parentElement?.closest('[data-testid^="agent-setup-"]'));
+}
+
+/** The setup rows in order, each by its visible title. */
+function setupTitles() {
+  return setupRows().map(row => row.querySelector(".truncate")?.textContent);
 }
 
 describe("AgentProfileHome", () => {
@@ -173,18 +178,18 @@ describe("AgentProfileHome", () => {
       "Tools",
       "Permissions",
     ]);
-    const locked = screen
-      .getAllByTestId(/^agent-setup-/)
+    const locked = setupRows()
       .filter(row => row.querySelector(".lucide-lock"))
       .map(row => row.dataset.testid);
-    // Memory stays open: its notes are the agent's own, not the definition's.
+    // Memory stays open: its notes are the agent's own, not the definition's. The Model row is
+    // the runtime selector itself, so it locks by disabling the selector instead of a lock icon.
     expect(locked).toEqual([
       "agent-setup-behavior",
-      "agent-setup-model",
       "agent-setup-check-ins",
       "agent-setup-tools",
       "agent-setup-permissions",
     ]);
+    expect(screen.getByTestId("agent-setup-model-select")).toHaveAttribute("aria-disabled", "true");
     expect(within(screen.getByTestId("agent-setup-memory")).getByText("Memory")).toBeVisible();
   });
 
