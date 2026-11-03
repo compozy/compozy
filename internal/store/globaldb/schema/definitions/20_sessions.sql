@@ -293,6 +293,10 @@ CREATE INDEX idx_session_input_queue_goal_owner
 	CREATE INDEX idx_session_prompt_admissions_state
 			ON session_prompt_admissions(workspace_id, session_id, state, updated_at);
 
+	CREATE INDEX idx_session_prompt_admissions_human_turn
+			ON session_prompt_admissions(session_id, turn_id)
+			WHERE human_ingress = 1 AND dispatch_committed_at IS NOT NULL;
+
 CREATE INDEX idx_sessions_attach_lock
 			ON sessions(attached_to, attach_expires_at);
 
