@@ -31,6 +31,7 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 	}
 	cfg, hb := state.cfg.Agents.StaysOn, state.cfg.Agents.Heartbeat
 	environment := &instanceCheckEnvironment{
+		sourceConfig: hb.Sources, sourceNow: d.now, sourceMaxInterval: hb.MaxInterval,
 		instanceDigestCollector: instanceDigestCollector{
 			instances: provider.Instances(), sessions: manager, monitors: state.sessionMonitors,
 			workspaces: state.workspaceResolver, logger: state.logger,
@@ -52,6 +53,7 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 		StopTimeout:  state.cfg.Session.Supervision.StopGrace,
 	}
 	service, err := heartbeat.NewCheckService(ctx, provider.Instances(), environment, dispatcher, heartbeat.CheckConfig{
+		Sources:             hb.Sources,
 		UnattendedTurnLimit: cfg.UnattendedTurnLimit,
 		QuietBackoffCap:     hb.QuietBackoffCap,
 		FatigueLimit:        hb.FatigueLimit,

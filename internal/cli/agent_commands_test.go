@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/spf13/cobra"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +15,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -1557,7 +1558,8 @@ func TestResolveInstanceIDShouldRefuseAnAgentNameOwnedBySeveralProfiles(t *testi
 	cmd := &cobra.Command{}
 	cmd.SetContext(t.Context())
 	_, err := resolveInstanceID(cmd, client, "triage", "")
-	if err == nil || !strings.Contains(err.Error(), "ainst-a (work)") || !strings.Contains(err.Error(), "ainst-b (home)") {
+	if err == nil || !strings.Contains(err.Error(), "ainst-a (work)") ||
+		!strings.Contains(err.Error(), "ainst-b (home)") {
 		t.Fatalf("ambiguous resolve error = %v, want both owners named", err)
 	}
 	id, err := resolveInstanceID(cmd, agentInstanceNameClient{instances: client.instances[:1]}, "triage", "")

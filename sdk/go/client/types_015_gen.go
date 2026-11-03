@@ -7,6 +7,111 @@ import (
 	"time"
 )
 
+// ReplaceSessionInputRequest is a daemon API value.
+type ReplaceSessionInputRequest struct {
+	Text           string `json:"text"`
+	MessageID      string `json:"message_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
+// ReplyWatchPayload is a daemon API value.
+type ReplyWatchPayload struct {
+	ID              string    `json:"id"`
+	TargetSessionID string    `json:"target_session_id"`
+	MessageID       string    `json:"message_id"`
+	State           string    `json:"state"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+// ReplyWatchRefPayload is a daemon API value.
+type ReplyWatchRefPayload struct {
+	ID    string `json:"id"`
+	State string `json:"state"`
+}
+
+// RerunLoopRequest is a daemon API value.
+type RerunLoopRequest struct {
+	FromNode  string `json:"from_node"`
+	ItemIndex *int   `json:"item_index,omitzero"`
+	Reason    string `json:"reason,omitempty"`
+	RequestID string `json:"request_id,omitempty"`
+}
+
+// RerunLoopResponse is a daemon API value.
+type RerunLoopResponse struct {
+	RunID            string   `json:"run_id"`
+	Generation       int64    `json:"generation"`
+	ParentGeneration int64    `json:"parent_generation"`
+	RerunNodes       []string `json:"rerun_nodes"`
+	Carried          int      `json:"carried"`
+	Replayed         bool     `json:"replayed,omitzero"`
+}
+
+// Resolution is a daemon API value.
+type Resolution struct {
+	Requested Speed            `json:"requested"`
+	Status    ResolutionStatus `json:"status"`
+	Reason    ResolutionReason `json:"reason,omitempty"`
+}
+
+// ResolutionReason is a daemon API value.
+type ResolutionReason string
+
+// ResolutionStatus is a daemon API value.
+type ResolutionStatus string
+
+// ResolveToolApprovalRequest is a daemon API value.
+type ResolveToolApprovalRequest struct {
+	Decision ApprovalOutcome `json:"decision"`
+}
+
+// ResolveWorkspaceRequest is a daemon API value.
+type ResolveWorkspaceRequest struct {
+	Path string `json:"path"`
+}
+
+// ResolvedWorktreeMode is a daemon API value.
+type ResolvedWorktreeMode string
+
+// ResourceKind is a daemon API value.
+type ResourceKind string
+
+// ResourceOwner is a daemon API value.
+type ResourceOwner struct {
+	Kind ResourceOwnerKind `json:"kind"`
+	ID   string            `json:"id"`
+}
+
+// ResourceOwnerKind is a daemon API value.
+type ResourceOwnerKind string
+
+// ResourceRecordPayload is a daemon API value.
+type ResourceRecordPayload struct {
+	Kind      ResourceKind    `json:"kind"`
+	ID        string          `json:"id"`
+	Version   int64           `json:"version"`
+	Scope     ResourceScope   `json:"scope"`
+	Owner     ResourceOwner   `json:"owner"`
+	Source    ResourceSource  `json:"source"`
+	Spec      json.RawMessage `json:"spec"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
+// ResourceResponse is a daemon API value.
+type ResourceResponse struct {
+	Record ResourceRecordPayload `json:"record"`
+}
+
+// ResourceScope is a daemon API value.
+type ResourceScope struct {
+	Kind ResourceScopeKind `json:"kind"`
+	ID   string            `json:"id,omitempty"`
+}
+
+// ResourceScopeKind is a daemon API value.
+type ResourceScopeKind string
+
 // ResourceSource is a daemon API value.
 type ResourceSource struct {
 	Kind ResourceSourceKind `json:"kind"`
@@ -328,119 +433,4 @@ type RunOutcome struct {
 	ActorKind string    `json:"actor_kind,omitempty"`
 	ActorRef  string    `json:"actor_ref,omitempty"`
 	At        time.Time `json:"at"`
-}
-
-// RunPayload is a daemon API value.
-type RunPayload struct {
-	WorkspaceID     *string        `json:"workspace_id,omitempty"`
-	Attribution     string         `json:"attribution"`
-	ID              string         `json:"id"`
-	ProfileID       string         `json:"profile_id"`
-	ProfileName     string         `json:"profile_name"`
-	ProfileColor    string         `json:"profile_color,omitempty"`
-	ProfileIcon     string         `json:"profile_icon,omitempty"`
-	JobID           string         `json:"job_id,omitempty"`
-	TriggerID       string         `json:"trigger_id,omitempty"`
-	SessionID       string         `json:"session_id,omitempty"`
-	TaskID          string         `json:"task_id,omitempty"`
-	TaskRunID       string         `json:"task_run_id,omitempty"`
-	LoopRunID       string         `json:"loop_run_id,omitempty"`
-	FireID          string         `json:"fire_id,omitempty"`
-	Status          RunStatus      `json:"status"`
-	Attempt         int            `json:"attempt"`
-	ScheduledAt     *time.Time     `json:"scheduled_at,omitempty"`
-	StartedAt       *time.Time     `json:"started_at,omitempty"`
-	EndedAt         *time.Time     `json:"ended_at,omitempty"`
-	Error           string         `json:"error,omitempty"`
-	DeliveryError   string         `json:"delivery_error,omitempty"`
-	DeliveryErrorAt *time.Time     `json:"delivery_error_at,omitempty"`
-	Metadata        map[string]any `json:"metadata,omitempty"`
-}
-
-// RunResponse is a daemon API value.
-type RunResponse struct {
-	Run RunPayload `json:"run"`
-}
-
-// RunReviewOutcome is a daemon API value.
-type RunReviewOutcome string
-
-// RunReviewRequest is a daemon API value.
-type RunReviewRequest struct {
-	TaskID         string       `json:"task_id"`
-	RunID          string       `json:"run_id"`
-	ReviewRound    int          `json:"review_round,omitzero"`
-	Attempt        int          `json:"attempt,omitzero"`
-	Policy         ReviewPolicy `json:"policy,omitempty"`
-	ParentReviewID string       `json:"parent_review_id,omitempty"`
-	Reason         string       `json:"reason,omitempty"`
-	DeadlineAt     time.Time    `json:"deadline_at"`
-}
-
-// RunReviewStatus is a daemon API value.
-type RunReviewStatus string
-
-// RunReviewSummary is a daemon API value.
-type RunReviewSummary struct {
-	ReviewID      string `json:"review_id"`
-	RunID         string `json:"run_id"`
-	ReviewRound   int    `json:"review_round"`
-	Attempt       int    `json:"attempt"`
-	Status        string `json:"status"`
-	Outcome       string `json:"outcome,omitempty"`
-	Reason        string `json:"reason,omitempty"`
-	ReviewedAt    string `json:"reviewed_at,omitempty"`
-	ReviewerLabel string `json:"reviewer_label,omitempty"`
-}
-
-// RunReviewVerdict is a daemon API value.
-type RunReviewVerdict struct {
-	Outcome           RunReviewOutcome `json:"outcome"`
-	Confidence        *float64         `json:"confidence"`
-	Reason            string           `json:"reason"`
-	DeliveryID        string           `json:"delivery_id"`
-	MissingWork       json.RawMessage  `json:"missing_work,omitempty"`
-	NextRoundGuidance string           `json:"next_round_guidance,omitempty"`
-	ReviewText        string           `json:"review_text,omitempty"`
-}
-
-// RunStatus is a daemon API value.
-type RunStatus string
-
-// RunSummary is a daemon API value.
-type RunSummary struct {
-	ID                   string                 `json:"id"`
-	TaskID               string                 `json:"task_id"`
-	RunKind              RunKind                `json:"run_kind,omitzero"`
-	LoopRunID            string                 `json:"loop_run_id,omitempty"`
-	Status               TaskRunStatus          `json:"status"`
-	Attempt              int                    `json:"attempt"`
-	RecoveryCount        int                    `json:"recovery_count"`
-	PreviousRunID        string                 `json:"previous_run_id,omitempty"`
-	FailureKind          string                 `json:"failure_kind,omitempty"`
-	MaxAttempts          int                    `json:"max_attempts"`
-	SessionID            string                 `json:"session_id,omitempty"`
-	WorktreeID           string                 `json:"worktree_id,omitempty"`
-	ResolvedWorktreeMode WorktreeMode           `json:"resolved_worktree_mode,omitempty"`
-	ResolvedWorktreeRef  string                 `json:"resolved_worktree_ref,omitempty"`
-	ClaimedBy            *ActorIdentity         `json:"claimed_by,omitempty"`
-	ClaimTokenHash       string                 `json:"claim_token_hash,omitempty"`
-	LeaseUntil           time.Time              `json:"lease_until"`
-	HeartbeatAt          time.Time              `json:"heartbeat_at"`
-	DesignationGroupID   string                 `json:"designation_group_id,omitempty"`
-	Designation          *RunDesignationSummary `json:"designation,omitzero"`
-	QueuedAt             time.Time              `json:"queued_at"`
-	ClaimedAt            time.Time              `json:"claimed_at"`
-	StartedAt            time.Time              `json:"started_at"`
-	EndedAt              time.Time              `json:"ended_at"`
-	TokensUsed           int64                  `json:"tokens_used,omitzero"`
-	Error                string                 `json:"error,omitempty"`
-}
-
-// RunUsage is a daemon API value.
-type RunUsage struct {
-	Tokens        int64   `json:"tokens"`
-	CostUSD       float64 `json:"cost_usd,omitzero"`
-	BudgetUsedPct float64 `json:"budget_used_pct,omitzero"`
-	Duration      string  `json:"duration,omitempty"`
 }

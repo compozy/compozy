@@ -10,6 +10,16 @@ import (
 	"strings"
 )
 
+// SearchSessionFilesParams carries the path, query, and header parameters.
+type SearchSessionFilesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Q           *string `url:"q"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
 // SearchSessionFiles Search files and folders under a session's working directory
 func (c *Client) SearchSessionFiles(ctx context.Context, params SearchSessionFilesParams) (*SessionFilesResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/files"
@@ -418,30 +428,6 @@ func (c *Client) StartAgentTaskRun(ctx context.Context, params StartAgentTaskRun
 
 // StartTaskParams carries the path, query, and header parameters.
 type StartTaskParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// StartTask Start one task by enqueueing executable work
-func (c *Client) StartTask(ctx context.Context, params StartTaskParams, body TaskExecutionRequest) (*TaskExecutionResponse, error) {
-	path := "/api/tasks/{id}/start"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskExecutionResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// StartTaskRunParams carries the path, query, and header parameters.
-type StartTaskRunParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
 }

@@ -19,7 +19,7 @@ WHERE agent_instance_wake_state.instance_id=?5 AND occurrence_id=''
 AND (SELECT count(*) FROM agent_instance_wake_state AS inflight WHERE inflight.occurrence_id<>'') < CAST(?6 AS INTEGER)
 AND EXISTS (SELECT 1 FROM agent_instances i WHERE i.id=agent_instance_wake_state.instance_id AND i.state='active'
 AND i.archived_at IS NULL AND i.checks_enabled=1)
-AND (?3=1 OR next_wake_at<=?2)
+AND (?3=1 OR next_wake_at<=?2 OR (?7<>'' AND next_wake_at=?7))
 `
 
 type AdmitInstanceWakeParams struct {
@@ -29,6 +29,7 @@ type AdmitInstanceWakeParams struct {
 	NextWakeAt    string `json:"next_wake_at"`
 	InstanceID    string `json:"instance_id"`
 	MaxConcurrent int64  `json:"max_concurrent"`
+	ExpectedDue   any    `json:"expected_due"`
 }
 
 func (q *Queries) AdmitInstanceWake(ctx context.Context, arg AdmitInstanceWakeParams) (int64, error) {
@@ -39,6 +40,7 @@ func (q *Queries) AdmitInstanceWake(ctx context.Context, arg AdmitInstanceWakePa
 		arg.NextWakeAt,
 		arg.InstanceID,
 		arg.MaxConcurrent,
+		arg.ExpectedDue,
 	)
 	if err != nil {
 		return 0, err
@@ -494,7 +496,7 @@ WHEN next_wake_at<>'' AND next_wake_at<?1
 AND EXISTS (SELECT 1 FROM agent_instance_events e WHERE e.instance_id=agent_instance_wake_state.instance_id AND e.consumed_at IS NULL)
 THEN next_wake_at ELSE ?1 END
 WHERE agent_instance_wake_state.instance_id=?2 AND agent_instance_wake_state.occurrence_id='' AND next_wake_at=?3
-AND next_wake_at<=?4
+AND (next_wake_at<=?4 OR ?5=1)
 `
 
 type SkipInstanceWakeParams struct {
@@ -502,6 +504,7 @@ type SkipInstanceWakeParams struct {
 	InstanceID  string `json:"instance_id"`
 	ExpectedDue string `json:"expected_due"`
 	Now         string `json:"now"`
+	Deferred    any    `json:"deferred"`
 }
 
 func (q *Queries) SkipInstanceWake(ctx context.Context, arg SkipInstanceWakeParams) (int64, error) {
@@ -510,6 +513,7 @@ func (q *Queries) SkipInstanceWake(ctx context.Context, arg SkipInstanceWakePara
 		arg.InstanceID,
 		arg.ExpectedDue,
 		arg.Now,
+		arg.Deferred,
 	)
 	if err != nil {
 		return 0, err

@@ -4,6 +4,11 @@ package client
 
 import "time"
 
+// AgentInstanceUpdateRequest is a daemon API value.
+type AgentInstanceUpdateRequest struct {
+	ChecksEnabled *bool `json:"checks_enabled"`
+}
+
 // AgentLimitsPayload is a daemon API value.
 type AgentLimitsPayload struct {
 	MaxChildren           int    `json:"max_children"`
@@ -438,9 +443,4 @@ type AgentSpawnRequest struct {
 	NewWorktree        *SpawnNewWorktreeRequest      `json:"new_worktree,omitzero"`
 	Prompt             string                        `json:"prompt,omitempty"`
 	IdempotencyKey     string                        `json:"idempotency_key,omitempty"`
-}
-
-// AgentSpawnResponse is a daemon API value.
-type AgentSpawnResponse struct {
-	Spawn AgentSpawnPayload `json:"spawn"`
 }

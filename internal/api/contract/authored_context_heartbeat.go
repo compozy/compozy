@@ -3,6 +3,8 @@ package contract
 import (
 	"time"
 
+	"github.com/compozy/compozy/internal/heartbeat/source"
+
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -14,8 +16,11 @@ type HeartbeatTimeWindowPayload struct {
 }
 
 // HeartbeatContextProjectionPayload captures authored context projection hints.
+type HeartbeatSourceDeclPayload = source.Ref
+
 type HeartbeatContextProjectionPayload struct {
-	Include []string `json:"include,omitzero"`
+	Sources []HeartbeatSourceDeclPayload `json:"sources,omitempty"`
+	Include []string                     `json:"include,omitzero"`
 }
 
 // HeartbeatFrontmatterPreferencesPayload captures authored preference hints before config bounds.

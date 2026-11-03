@@ -15,6 +15,7 @@ func newAgentHeartbeatCommand(deps commandDeps) *cobra.Command {
 		Use:   authoredContextHeartbeatKey,
 		Short: "Inspect and manage agent HEARTBEAT.md files",
 	}
+	cmd.AddCommand(newAgentHeartbeatSourcesCommand(deps))
 	cmd.AddCommand(newAgentHeartbeatInspectCommand(deps))
 	cmd.AddCommand(newAgentHeartbeatValidateCommand(deps))
 	cmd.AddCommand(newAgentHeartbeatWriteCommand(deps))

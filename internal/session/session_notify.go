@@ -30,6 +30,8 @@ const (
 	NotifyOutcomeRateLimited    NotifyOutcome = "rate-limited"
 )
 
+const NotifyKindHeartbeatSourceUnapproved = "heartbeat_source_unapproved"
+
 type NotifyRequest struct {
 	Kind        string
 	Action      string
@@ -80,7 +82,8 @@ func (m *Manager) PublishOperatorNotification(
 	ctx context.Context,
 	req NotifyRequest,
 ) (NotifyResult, error) {
-	return m.publishOperatorNotification(ctx, req, true)
+	// Source notices are already limited to persisted status transitions.
+	return m.publishOperatorNotification(ctx, req, req.Kind != NotifyKindHeartbeatSourceUnapproved)
 }
 
 func (m *Manager) publishOperatorNotification(
@@ -158,7 +161,7 @@ func (m *Manager) sanitizedOperatorNotification(req NotifyRequest) (OperatorNoti
 	if profileID == "" {
 		return OperatorNotification{}, invalidNotification("profile_id", "is required")
 	}
-	if workspaceID == "" {
+	if workspaceID == "" && req.Kind != NotifyKindHeartbeatSourceUnapproved {
 		return OperatorNotification{}, invalidNotification("workspace_id", "is required")
 	}
 	title := sanitizeNotificationText(req.Title)

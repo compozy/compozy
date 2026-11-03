@@ -11,6 +11,30 @@ import (
 	"strings"
 )
 
+// StartTask Start one task by enqueueing executable work
+func (c *Client) StartTask(ctx context.Context, params StartTaskParams, body TaskExecutionRequest) (*TaskExecutionResponse, error) {
+	path := "/api/tasks/{id}/start"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskExecutionResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// StartTaskRunParams carries the path, query, and header parameters.
+type StartTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // StartTaskRun Start one claimed task run
 func (c *Client) StartTaskRun(ctx context.Context, params StartTaskRunParams, body StartTaskRunRequest) (*TaskRunResponse, error) {
 	path := "/api/task-runs/{id}/start"
@@ -423,27 +447,4 @@ type StreamLoopRunEventsParams struct {
 // StreamLoopRunEventsFrame preserves each response payload; select its variant using the event name or HTTP status.
 type StreamLoopRunEventsFrame struct {
 	Raw json.RawMessage
-}
-
-var _ json.Unmarshaler = (*StreamLoopRunEventsFrame)(nil)
-
-var _ json.Marshaler = StreamLoopRunEventsFrame{}
-
-// UnmarshalJSON retains the complete event payload.
-func (f *StreamLoopRunEventsFrame) UnmarshalJSON(data []byte) error {
-	return json.Unmarshal(data, &f.Raw)
-}
-
-// MarshalJSON returns the original event payload.
-func (f StreamLoopRunEventsFrame) MarshalJSON() ([]byte, error) {
-	return json.Marshal(f.Raw)
-}
-
-// AsLoopGenerationStartedRunEventPayload decodes this payload as LoopGenerationStartedRunEventPayload.
-func (f StreamLoopRunEventsFrame) AsLoopGenerationStartedRunEventPayload() (*LoopGenerationStartedRunEventPayload, error) {
-	var out LoopGenerationStartedRunEventPayload
-	if err := json.Unmarshal(f.Raw, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

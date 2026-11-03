@@ -15,6 +15,13 @@ type Redaction struct {
 	Bytes  int64      `json:"bytes,omitempty"`
 }
 
+type Ref struct {
+	ID     string          `json:"id"`
+	Kind   string          `json:"kind,omitempty"`
+	Script string          `json:"script,omitempty"`
+	With   json.RawMessage `json:"with,omitempty"`
+}
+
 type ReplyWatchPayload struct {
 	ID              string    `json:"id"`
 	TargetSessionID string    `json:"target_session_id"`
@@ -116,5 +123,3 @@ type RetryConfig struct {
 }
 
 type RetryStrategy string
-
-type RiskClass string

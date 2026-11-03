@@ -10,6 +10,54 @@ import (
 	"strings"
 )
 
+// FailTaskRun Fail one task run
+func (c *Client) FailTaskRun(ctx context.Context, params FailTaskRunParams, body FailTaskRunRequest) (*TaskRunResponse, error) {
+	path := "/api/task-runs/{id}/fail"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// FanOutTaskRunsParams carries the path, query, and header parameters.
+type FanOutTaskRunsParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// FanOutTaskRuns Enqueue designated sibling runs for one task
+func (c *Client) FanOutTaskRuns(ctx context.Context, params FanOutTaskRunsParams, body FanOutTaskRunsRequest) (*FanOutTaskRunsResponse, error) {
+	path := "/api/tasks/{id}/runs/fan-out"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out FanOutTaskRunsResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ForceFailTaskRunParams carries the path, query, and header parameters.
+type ForceFailTaskRunParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
 // ForceFailTaskRun Force fail one queued or claimed task run
 func (c *Client) ForceFailTaskRun(ctx context.Context, params ForceFailTaskRunParams, body ForceFailTaskRunRequest) (*TaskRunResponse, error) {
 	path := "/api/runs/{id}/fail"
@@ -288,6 +336,34 @@ func (c *Client) GetAgentHeartbeat(ctx context.Context, params GetAgentHeartbeat
 	return &out, nil
 }
 
+// GetAgentHeartbeatSourcesParams carries the path, query, and header parameters.
+type GetAgentHeartbeatSourcesParams struct {
+	Name        string  `url:"name"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// GetAgentHeartbeatSources List check-in source kinds, scripts and effective limits
+func (c *Client) GetAgentHeartbeatSources(ctx context.Context, params GetAgentHeartbeatSourcesParams) (*HeartbeatSourceCatalogPayload, error) {
+	path := "/api/agents/{name}/heartbeat/sources"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out HeartbeatSourceCatalogPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetAgentHeartbeatStatusParams carries the path, query, and header parameters.
 type GetAgentHeartbeatStatusParams struct {
 	Name                    string  `url:"name"`
@@ -361,81 +437,4 @@ type GetAgentInstanceAwayParams struct {
 	ID          string  `url:"id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetAgentInstanceAway Read the operator's instance away digest
-func (c *Client) GetAgentInstanceAway(ctx context.Context, params GetAgentInstanceAwayParams) (*AgentInstanceAwayResponse, error) {
-	path := "/api/agent-instances/{id}/away"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceAwayResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentInstanceOccurrenceParams carries the path, query, and header parameters.
-type GetAgentInstanceOccurrenceParams struct {
-	ID          string  `url:"id"`
-	Occurrence  string  `url:"occurrence"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetAgentInstanceOccurrence Read an instance check occurrence
-func (c *Client) GetAgentInstanceOccurrence(ctx context.Context, params GetAgentInstanceOccurrenceParams) (*AgentInstanceOccurrenceResponse, error) {
-	path := "/api/agent-instances/{id}/occurrences/{occurrence}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	path = strings.ReplaceAll(path, "{occurrence}", url.PathEscape(params.Occurrence))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceOccurrenceResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentMeParams carries the path, query, and header parameters.
-type GetAgentMeParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-}
-
-// GetAgentMe Resolve the calling agent session
-func (c *Client) GetAgentMe(ctx context.Context, params GetAgentMeParams) (*AgentMeResponse, error) {
-	path := "/api/agent/me"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	var out AgentMeResponse
-	if err := c.doContent(ctx, "GET", path, headers, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentMemoryParams carries the path, query, and header parameters.
-type GetAgentMemoryParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
 }

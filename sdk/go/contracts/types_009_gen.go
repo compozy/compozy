@@ -118,6 +118,7 @@ type HeartbeatConfigSubsetPayload struct {
 }
 
 type HeartbeatContextProjectionPayload struct {
+	Sources []Ref    `json:"sources,omitempty"`
 	Include []string `json:"include,omitzero"`
 }
 

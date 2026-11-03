@@ -12,8 +12,17 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
+	apitestutil "github.com/compozy/compozy/internal/api/testutil"
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat/source"
+	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/gin-gonic/gin"
 )
 
 func TestAgentSoulCommands(t *testing.T) {
@@ -689,6 +698,163 @@ func TestAgentMemoryWriteConflictGuard(t *testing.T) {
 		)
 		if err == nil || !strings.Contains(err.Error(), "--expected-digest is required") {
 			t.Fatalf("unexpected error %v", err)
+		}
+	})
+}
+
+type heartbeatSourcesHTTPClient struct {
+	*stubClient
+	transport *daemonClient
+}
+
+func (c *heartbeatSourcesHTTPClient) HeartbeatSources(
+	ctx context.Context,
+	name string,
+	query AgentQuery,
+) (contract.HeartbeatSourceCatalogPayload, error) {
+	return c.transport.HeartbeatSources(ctx, name, query)
+}
+
+func (c *heartbeatSourcesHTTPClient) HeartbeatScriptApproval(
+	ctx context.Context,
+	name, script string,
+	query AgentQuery,
+	hash string,
+	revoke bool,
+) error {
+	return c.transport.HeartbeatScriptApproval(ctx, name, script, query, hash, revoke)
+}
+
+// Invariant (IT-013 CLI boundary): operator confirmation approves exactly the
+// cataloged bytes through the production API, enabling the real script runner.
+// Owner and canonical suite: CLI authored heartbeat commands.
+func TestHeartbeatScriptApprovalRuntime(t *testing.T) {
+	t.Run("Should approve the reviewed hash through the CLI and execute its bytes", func(t *testing.T) {
+		t.Parallel()
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		home, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(root, "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg := compozyconfig.DefaultWithHome(home)
+		dir := filepath.Join(root, "coder")
+		if err := os.MkdirAll(filepath.Join(dir, "sources"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		agentPath := filepath.Join(dir, "AGENT.md")
+		if err := os.WriteFile(agentPath, []byte("Agent"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(dir, "sources", "poll"),
+			[]byte("#!/bin/sh\ncat >/dev/null\necho '{\"items\":[{\"key\":\"1\",\"title\":\"approved item\"}]}'\n"),
+			0700,
+		); err != nil {
+			t.Fatal(err)
+		}
+		dbPath := filepath.Join(root, "compozy.db")
+		if err := cliTestStoreSeed.Clone(dbPath); err != nil {
+			t.Fatal(err)
+		}
+		db, err := globaldb.OpenGlobalDB(t.Context(), dbPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		workspaces := apitestutil.StubWorkspaceService{
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					ID:          "checkout-api",
+					WorkspaceID: "checkout-api",
+					RootDir:     root,
+					Config:      cfg,
+					Agents: []compozyconfig.AgentDef{
+						{Name: "coder", SourcePath: agentPath, SourceLayer: "workspace"},
+					},
+				}, nil
+			},
+		}
+		handlers := core.NewBaseHandlers(
+			&core.BaseHandlerConfig{
+				HomePaths:      home,
+				Config:         cfg,
+				TransportName:  "httpapi",
+				Workspaces:     workspaces,
+				AgentInstances: &core.AgentInstanceAPI{Store: db.Instances()},
+			},
+		)
+		router := gin.New()
+		router.GET("/api/agents/:name/heartbeat/sources", handlers.GetAgentHeartbeatSources)
+		router.POST("/api/agents/:name/heartbeat/scripts/:script/approve", handlers.ApproveAgentHeartbeatScript)
+		server := httptest.NewServer(router)
+		t.Cleanup(server.Close)
+		transport := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy-source.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+				target, err := url.Parse(server.URL)
+				if err != nil {
+					return nil, err
+				}
+				r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+				return server.Client().Transport.RoundTrip(r)
+			})},
+		}
+		stub := &stubClient{}
+		withWorkspaceResolution(stub)
+		deps := newTestDeps(t, &heartbeatSourcesHTTPClient{stubClient: stub, transport: transport})
+		deps.getenv = func(string) string { return "" }
+		runner := &source.ScriptRunner{
+			DefinitionDir:  dir,
+			ProfileID:      store.DefaultProfileID,
+			Agent:          "coder",
+			ScriptsEnabled: true,
+			Timeout:        5 * time.Second,
+			MaxOutputBytes: 64 * 1024,
+			Approvals:      db.Instances(),
+		}
+		req := source.Request{Version: 1, SourceID: "s", Limits: source.Limits{MaxItems: 20, MaxStateBytes: 16 * 1024}}
+		if _, err := runner.Poll(t.Context(), source.Ref{ID: "s", Script: "poll"}, req); err == nil {
+			t.Fatal("unapproved script executed")
+		}
+		stdout, _, err := executeRootCommand(
+			t,
+			deps,
+			"agent",
+			"heartbeat",
+			"sources",
+			"approve",
+			"coder",
+			"poll",
+			"--workspace",
+			"checkout-api",
+			"--yes",
+			"--json",
+		)
+		var approvedOutput map[string]any
+		if err != nil {
+			t.Fatalf("approval=%s %v", stdout, err)
+		}
+		if err := json.Unmarshal([]byte(stdout), &approvedOutput); err != nil || approvedOutput["action"] != "approve" {
+			t.Fatalf("approval=%s %v", stdout, err)
+		}
+		_, hash, err := source.ReadScript(dir, "poll")
+		if err != nil {
+			t.Fatal(err)
+		}
+		approved, err := db.Instances().ApprovedHash(t.Context(), store.DefaultProfileID, dir, "poll")
+		if err != nil || approved != hash {
+			t.Fatalf("approved=%s want=%s %v", approved, hash, err)
+		}
+		result, err := runner.Poll(t.Context(), source.Ref{ID: "s", Script: "poll"}, req)
+		if err != nil || len(result.Items) != 1 || result.Items[0].Key != "1" {
+			t.Fatalf("result=%+v %v", result, err)
 		}
 	})
 }

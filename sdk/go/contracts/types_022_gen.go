@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type TaskInboxLane string
+
 type TaskInboxLaneGroupPayload struct {
 	Lane        TaskInboxLane          `json:"lane"`
 	Count       int                    `json:"count"`
@@ -303,10 +305,4 @@ type TaskRunEnqueuedPayload struct {
 	ReleaseReason   string    `json:"release_reason,omitempty"`
 	Error           string    `json:"error,omitempty"`
 	IdempotencyKey  string    `json:"idempotency_key,omitempty"`
-}
-
-type TaskRunFailParams struct {
-	ID       string          `json:"id"`
-	Error    string          `json:"error"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
 }

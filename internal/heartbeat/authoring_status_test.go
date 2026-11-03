@@ -2016,3 +2016,29 @@ func (f heartbeatPolicyResolverFunc) ResolveHeartbeatPolicy(
 }
 
 var _ heartbeat.PolicyResolver = heartbeatPolicyResolverFunc(nil)
+
+func TestHeartbeatSourceRoundTrip(t *testing.T) {
+	t.Run("Should preserve source order and parameters through managed authoring [UT-002]", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHeartbeatFixture(t)
+		body := "---\ncontext:\n  include: []\n  sources:\n    - id: second\n      script: poll\n      with: {b: 2, a: 1}\n    - id: first\n      kind: sample/issues\n---\nWatch external facts.\n"
+		created, err := fixture.authoring.Put(fixture.ctx, heartbeat.PutRequest{Target: fixture.target, Body: body})
+		if err != nil {
+			t.Fatal(err)
+		}
+		reloaded, err := fixture.authoring.Validate(fixture.ctx, heartbeat.ValidateRequest{Target: fixture.target})
+		if err != nil {
+			t.Fatal(err)
+		}
+		refs := reloaded.Policy.Preferences.Context.Sources
+		if len(refs) != 2 || refs[0].ID != "second" || refs[1].ID != "first" ||
+			string(refs[0].With) != `{"a":1,"b":2}` ||
+			created.Policy.Digest != reloaded.Policy.Digest {
+			t.Fatalf("sources=%+v", refs)
+		}
+		persisted, err := os.ReadFile(filepath.Join(filepath.Dir(fixture.target.AgentPath), heartbeat.FileName))
+		if err != nil || string(persisted) != body {
+			t.Fatalf("persisted=%s err=%v", persisted, err)
+		}
+	})
+}

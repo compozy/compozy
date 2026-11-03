@@ -292,6 +292,7 @@ func (t authoredAgentTarget) resolvePackageOwnedHeartbeat(
 		if err != nil {
 			return policy, err
 		}
+		heartbeat.WarnUntrustedScripts(&policy)
 		return policy, nil
 	}
 	if strings.TrimSpace(t.heartbeatBody) == "" {
@@ -306,6 +307,7 @@ func (t authoredAgentTarget) resolvePackageOwnedHeartbeat(
 	if err != nil {
 		return policy, err
 	}
+	heartbeat.WarnUntrustedScripts(&policy)
 	return policy, nil
 }
 

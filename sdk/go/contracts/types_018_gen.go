@@ -4,6 +4,25 @@ package contracts
 
 import "time"
 
+type SessionPostStopPayload struct {
+	Event          HookEvent `json:"event"`
+	Timestamp      time.Time `json:"timestamp"`
+	ProfileID      string    `json:"profile_id,omitempty"`
+	SessionID      string    `json:"session_id,omitempty"`
+	SessionName    string    `json:"session_name,omitempty"`
+	SessionType    string    `json:"session_type,omitempty"`
+	AgentName      string    `json:"agent_name,omitempty"`
+	WorkspaceID    string    `json:"workspace_id,omitempty"`
+	Workspace      string    `json:"workspace,omitempty"`
+	WorktreeID     string    `json:"worktree_id,omitempty"`
+	ACPSessionID   string    `json:"acp_session_id,omitempty"`
+	State          string    `json:"state,omitempty"`
+	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
+	SoulDigest     string    `json:"soul_digest,omitempty"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+}
+
 type SessionPreCreatePayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
@@ -291,15 +310,4 @@ type SessionStatusResponse struct {
 	Lineage             *SessionLineagePayload           `json:"lineage,omitempty"`
 	Derivation          *SessionDerivationPayload        `json:"derivation,omitempty"`
 	UpdatedAt           time.Time                        `json:"updated_at"`
-}
-
-type SessionSummary struct {
-	ID         string                `json:"id"`
-	Name       string                `json:"name,omitempty"`
-	Agent      string                `json:"agent"`
-	Runtime    SessionRuntimePayload `json:"runtime"`
-	Workspace  string                `json:"workspace,omitempty"`
-	State      State                 `json:"state"`
-	ArchivedAt *time.Time            `json:"archived_at"`
-	CreatedAt  time.Time             `json:"created_at"`
 }

@@ -7,6 +7,16 @@ import (
 	"time"
 )
 
+type TaskDashboard struct {
+	Totals          TaskDashboardTotalsPayload            `json:"totals"`
+	Cards           TaskDashboardCardsPayload             `json:"cards"`
+	StatusBreakdown []TaskDashboardStatusBreakdownPayload `json:"status_breakdown,omitempty"`
+	Queue           TaskDashboardQueuePayload             `json:"queue"`
+	Health          TaskDashboardHealthPayload            `json:"health"`
+	ActiveRuns      TaskDashboardActiveRunsPayload        `json:"active_runs"`
+	Freshness       TaskDashboardFreshnessPayload         `json:"freshness"`
+}
+
 type TaskDashboardActiveRunPayload struct {
 	TaskID         string        `json:"task_id"`
 	TaskIdentifier string        `json:"task_identifier,omitempty"`
@@ -229,5 +239,3 @@ type TaskInboxItemPayload struct {
 	Run              *TaskCatalogRunPayload `json:"run,omitempty"`
 	Triage           TaskTriageStatePayload `json:"triage"`
 }
-
-type TaskInboxLane string

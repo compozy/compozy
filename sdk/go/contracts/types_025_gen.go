@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+type ToastEffect struct {
+	Tone    string `json:"tone"`
+	Message string `json:"message"`
+}
+
 type Tool struct {
 	ID                         ToolID          `json:"id"`
 	Backend                    BackendRef      `json:"backend"`
@@ -303,9 +308,4 @@ type ValidationIssue struct {
 	Field    string        `json:"field,omitempty"`
 	Message  string        `json:"message"`
 	Severity IssueSeverity `json:"severity"`
-}
-
-type ViewBadge struct {
-	Label string `json:"label"`
-	Tone  string `json:"tone"`
 }

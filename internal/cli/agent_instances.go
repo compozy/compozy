@@ -294,7 +294,25 @@ func (options agentInstanceOptions) check(cmd *cobra.Command, base any, action, 
 			}
 			return waitInstanceOccurrence(cmd, reader, id, result.OccurrenceID, defaultPollInterval)
 		}
-		return writeInstanceOutput(cmd, result, fmt.Sprintf("%s%s\n", result.Gate, result.OccurrenceID))
+		var summary strings.Builder
+		fmt.Fprintf(&summary, "%s%s\n", result.Gate, result.OccurrenceID)
+		for _, source := range result.Sources {
+			fmt.Fprintf(
+				&summary,
+				"  %s  %s  %d items (%d ms)\n",
+				source.ID,
+				source.Result,
+				source.Items,
+				source.DurationMS,
+			)
+			if source.Error != nil {
+				fmt.Fprintf(&summary, "    %s: %s\n", source.Error.Code, source.Error.Detail)
+			}
+		}
+		for _, item := range result.Digest {
+			fmt.Fprintf(&summary, "  %s  %s\n", item.Key, item.Summary)
+		}
+		return writeInstanceOutput(cmd, result, summary.String())
 	}
 	result, err := checks.SetAgentInstanceChecks(cmd.Context(), id, action == "on")
 	if err != nil {

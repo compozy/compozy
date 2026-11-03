@@ -132,3 +132,33 @@ CREATE TABLE agent_instance_events (
 );
 
 CREATE INDEX idx_agent_instance_events_unread ON agent_instance_events(instance_id, consumed_at, received_at, id);
+
+CREATE TABLE agent_instance_source_states (
+    instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,
+    source_id TEXT NOT NULL,
+    ref_digest TEXT NOT NULL,
+    state_generation INTEGER NOT NULL DEFAULT 0,
+    committed_state TEXT CHECK (committed_state IS NULL OR json_valid(committed_state)),
+    committed_at TEXT,
+    pending_state TEXT CHECK (pending_state IS NULL OR json_valid(pending_state)),
+    pending_occurrence_id TEXT,
+    last_polled_at TEXT,
+    last_success_at TEXT,
+    last_item_count INTEGER NOT NULL DEFAULT 0,
+    last_error_code TEXT,
+    last_error_detail TEXT,
+    failure_streak INTEGER NOT NULL DEFAULT 0,
+    next_poll_at TEXT,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (instance_id, source_id)
+);
+
+CREATE TABLE heartbeat_source_script_approvals (
+    profile_id TEXT NOT NULL REFERENCES profiles(id),
+    definition_dir TEXT NOT NULL,
+    script_name TEXT NOT NULL,
+    sha256 TEXT NOT NULL,
+    approved_at TEXT NOT NULL,
+    approved_via TEXT NOT NULL CHECK (approved_via IN ('cli', 'web', 'http', 'uds')),
+    PRIMARY KEY (profile_id, definition_dir, script_name)
+);

@@ -9,6 +9,57 @@ import (
 	"strings"
 )
 
+// GetProfileSelections Read profile selections
+func (c *Client) GetProfileSelections(ctx context.Context, params GetProfileSelectionsParams) (*GetProfileSelectionsFrame, error) {
+	path := "/api/profiles/selection"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out GetProfileSelectionsFrame
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetProviderParams carries the path, query, and header parameters.
+type GetProviderParams struct {
+	ProviderID string `url:"provider_id"`
+}
+
+// GetProvider Get one provider and declared auth status
+func (c *Client) GetProvider(ctx context.Context, params GetProviderParams) (*ProviderSummaryPayload, error) {
+	path := "/api/providers/{provider_id}"
+	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
+	var out ProviderSummaryPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetProviderModelStatus List provider model catalog source status across providers
+func (c *Client) GetProviderModelStatus(ctx context.Context) (*ProviderModelStatusResponse, error) {
+	path := "/api/model-catalog/sources/status"
+	var out ProviderModelStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetProviderModelStatusByProviderParams carries the path, query, and header parameters.
+type GetProviderModelStatusByProviderParams struct {
+	ProviderID string `url:"provider_id"`
+}
+
 // GetProviderModelStatusByProvider List provider model catalog source status for one provider
 func (c *Client) GetProviderModelStatusByProvider(ctx context.Context, params GetProviderModelStatusByProviderParams) (*ProviderModelStatusResponse, error) {
 	path := "/api/model-catalog/providers/{provider_id}/models/status"
@@ -390,46 +441,4 @@ func (c *Client) GetSessionOwner(ctx context.Context, params GetSessionOwnerPara
 		return nil, err
 	}
 	return &out, nil
-}
-
-// GetSessionRecapParams carries the path, query, and header parameters.
-type GetSessionRecapParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Limit       *int    `url:"limit"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionRecap Get a deterministic session recap
-func (c *Client) GetSessionRecap(ctx context.Context, params GetSessionRecapParams) (*SessionRecapResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/recap"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionRecapResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionStatusParams carries the path, query, and header parameters.
-type GetSessionStatusParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
 }

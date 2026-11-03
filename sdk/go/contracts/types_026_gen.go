@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type ViewBadge struct {
+	Label string `json:"label"`
+	Tone  string `json:"tone"`
+}
+
 type ViewChrome struct {
 	IsLoading   bool        `json:"is_loading,omitempty"`
 	SearchText  *string     `json:"search_text,omitempty"`
@@ -212,5 +217,3 @@ type WorktreeControlPatch struct {
 	Deny       bool   `json:"deny,omitempty"`
 	DenyReason string `json:"deny_reason,omitempty"`
 }
-
-type WorktreeObservationPatch struct{}

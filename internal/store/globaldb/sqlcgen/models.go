@@ -137,6 +137,25 @@ type AgentInstanceSeen struct {
 	LastSeenAt string `json:"last_seen_at"`
 }
 
+type AgentInstanceSourceState struct {
+	InstanceID          string         `json:"instance_id"`
+	SourceID            string         `json:"source_id"`
+	RefDigest           string         `json:"ref_digest"`
+	StateGeneration     int64          `json:"state_generation"`
+	CommittedState      sql.NullString `json:"committed_state"`
+	CommittedAt         sql.NullString `json:"committed_at"`
+	PendingState        sql.NullString `json:"pending_state"`
+	PendingOccurrenceID sql.NullString `json:"pending_occurrence_id"`
+	LastPolledAt        sql.NullString `json:"last_polled_at"`
+	LastSuccessAt       sql.NullString `json:"last_success_at"`
+	LastItemCount       int64          `json:"last_item_count"`
+	LastErrorCode       sql.NullString `json:"last_error_code"`
+	LastErrorDetail     sql.NullString `json:"last_error_detail"`
+	FailureStreak       int64          `json:"failure_streak"`
+	NextPollAt          sql.NullString `json:"next_poll_at"`
+	UpdatedAt           string         `json:"updated_at"`
+}
+
 type AgentInstanceWakeState struct {
 	InstanceID          string `json:"instance_id"`
 	NextWakeAt          string `json:"next_wake_at"`
@@ -673,6 +692,15 @@ type GatewaySurfaceExposure struct {
 	ObservedState string         `json:"observed_state"`
 	Generation    int64          `json:"generation"`
 	ConsentedAt   sql.NullString `json:"consented_at"`
+}
+
+type HeartbeatSourceScriptApproval struct {
+	ProfileID     string `json:"profile_id"`
+	DefinitionDir string `json:"definition_dir"`
+	ScriptName    string `json:"script_name"`
+	Sha256        string `json:"sha256"`
+	ApprovedAt    string `json:"approved_at"`
+	ApprovedVia   string `json:"approved_via"`
 }
 
 type LoopAdmissionClaim struct {

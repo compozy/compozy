@@ -33,6 +33,10 @@ func ApplyConfigOverlayFile(path string, dst *Config) error {
 }
 
 func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) error {
+	if roleSource != RoleFieldSourceGlobal && overlay.Agents.Heartbeat.Sources.present() {
+		slog.Warn("config: [agents.heartbeat.sources] is daemon-wide; overlay ignored")
+		overlay.Agents.Heartbeat.Sources = heartbeatSourcesOverlay{}
+	}
 	if roleSource != RoleFieldSourceGlobal && overlay.Permissions.ProviderFullAccess != nil &&
 		*overlay.Permissions.ProviderFullAccess {
 		return fmt.Errorf("permissions.provider_full_access can only be enabled in the global config")
@@ -242,6 +246,7 @@ func (o soulOverlay) Apply(dst *SoulConfig) {
 }
 
 func (o heartbeatOverlay) Apply(dst *HeartbeatConfig) {
+	o.Sources.Apply(&dst.Sources)
 	if o.TriageModels != nil {
 		dst.TriageModels = maps.Clone(o.TriageModels)
 	}

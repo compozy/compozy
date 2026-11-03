@@ -4,6 +4,8 @@ package contracts
 
 import "time"
 
+type RiskClass string
+
 type Row struct {
 	ID          string            `json:"id"`
 	Title       string            `json:"title"`
@@ -213,16 +215,4 @@ type SessionEventsParams struct {
 	Limit       int       `json:"limit,omitempty"`
 	Offset      int64     `json:"offset,omitempty"`
 	Since       time.Time `json:"since,omitzero"`
-}
-
-type SessionFailureHealth struct {
-	SessionID       string      `json:"session_id"`
-	AgentName       string      `json:"agent_name,omitempty"`
-	Provider        string      `json:"provider,omitempty"`
-	WorkspaceID     string      `json:"workspace_id,omitempty"`
-	State           string      `json:"state,omitempty"`
-	FailureKind     FailureKind `json:"failure_kind"`
-	Summary         string      `json:"summary,omitempty"`
-	CrashBundlePath string      `json:"crash_bundle_path,omitempty"`
-	UpdatedAt       time.Time   `json:"updated_at"`
 }

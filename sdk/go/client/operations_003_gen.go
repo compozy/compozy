@@ -10,6 +10,30 @@ import (
 	"strings"
 )
 
+// CancelPendingToolApprovalParams carries the path, query, and header parameters.
+type CancelPendingToolApprovalParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// CancelPendingToolApproval Cancel one pending tool approval
+func (c *Client) CancelPendingToolApproval(ctx context.Context, params CancelPendingToolApprovalParams) (*ToolApprovalStatusResponse, error) {
+	path := "/api/tools/approvals/{id}/cancel"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolApprovalStatusResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // CancelQueuedSessionPromptParams carries the path, query, and header parameters.
 type CancelQueuedSessionPromptParams struct {
 	WorkspaceID  string  `url:"workspace_id"`
@@ -413,30 +437,4 @@ type CompactSessionParams struct {
 	WorkspaceID string  `url:"workspace_id"`
 	SessionID   string  `url:"session_id"`
 	Profile     *string `url:"profile"`
-}
-
-// CompactSession Request advertised native agent compaction (experimental) Experimental: pin the exact SDK version.
-func (c *Client) CompactSession(ctx context.Context, params CompactSessionParams, body SessionCompactRequest) (*SessionCompactResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/compact"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionCompactResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CompleteAgentTaskRunParams carries the path, query, and header parameters.
-type CompleteAgentTaskRunParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-	RunID             string `url:"run_id"`
 }

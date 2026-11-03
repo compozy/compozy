@@ -232,6 +232,7 @@ export type AgentInstanceAwayResponse = {
 
 export type AgentInstanceCheckDigest = {
   key: string;
+  source?: AgentInstanceProposalSource | null;
   summary: string;
 };
 
@@ -256,6 +257,7 @@ export type AgentInstanceCheckResponse = {
   digest: Array<AgentInstanceCheckDigest>;
   gate?: string;
   occurrence_id?: string;
+  sources?: Array<SourceOutcome>;
 };
 
 export type AgentInstanceCreateRequest = {
@@ -310,6 +312,7 @@ export type AgentInstancePayload = {
     [key: string]: unknown;
   };
   scope: string;
+  sources: Array<HeartbeatSourceStatus>;
   state: string;
   unattended_turn_limit: number;
   unattended_turns: number;
@@ -333,10 +336,14 @@ export type AgentInstanceProposal = {
 
 export type AgentInstanceProposalSource = {
   event_id: string;
+  item_key?: string;
   kind: string;
   received_at: string;
   run_id: string;
+  source_id?: string;
+  source_ref?: string;
   trigger_id: string;
+  url?: string;
 };
 
 export type AgentInstanceReportPayload = {
@@ -360,9 +367,13 @@ export type AgentInstanceReportPayload = {
 
 export type AgentInstanceReportSource = {
   event: string;
+  item_key?: string;
   kind: string;
+  source_id?: string;
+  source_ref?: string;
   summary?: string;
   trigger_name: string;
+  url?: string;
 };
 
 export type AgentInstanceReportsResponse = {
@@ -1217,7 +1228,7 @@ export type CmdPaletteCommandsResponse = {
   commands: Array<CmdPaletteCommand>;
   context_revision?: string;
   profile_lens: ProfileLens;
-  sources: Array<SourceStatus>;
+  sources: Array<CmdpaletteSourceStatus>;
 };
 
 export type CmdPaletteError = {
@@ -1317,6 +1328,12 @@ export type CmdPaletteViewSessionOpenResponse = {
   profile_lens: ProfileLens;
   stream_token: string;
   view_session: string;
+};
+
+export type CmdpaletteSourceStatus = {
+  reason?: string;
+  source: string;
+  status: string;
 };
 
 export type CommandFlag = {
@@ -2048,6 +2065,11 @@ export type Entry = {
   message: UIMessage;
   sequence: number;
   start_sequence: number;
+};
+
+export type Error = {
+  code: string;
+  detail: string;
 };
 
 export type ErrorPayload = {
@@ -3303,6 +3325,7 @@ export type HeartbeatConfigSubsetPayload = {
 
 export type HeartbeatContextProjectionPayload = {
   include?: Array<string>;
+  sources?: Array<Ref>;
 };
 
 export type HeartbeatDeleteByPathRequest = {
@@ -3406,6 +3429,50 @@ export type HeartbeatRollbackByPathRequest = {
   workspace_id?: string;
 };
 
+export type HeartbeatScriptApprovalPayload = {
+  approved_at: string;
+  script: string;
+  sha256: string;
+};
+
+export type HeartbeatScriptApprovalRequest = {
+  sha256: string;
+};
+
+export type HeartbeatSourceCatalogPayload = {
+  agent: string;
+  kinds: Array<KindDescriptor>;
+  limits: HeartbeatSourceLimitsPayload;
+  scripts: Array<HeartbeatSourceScriptPayload>;
+  scripts_enabled: boolean;
+};
+
+export type HeartbeatSourceLimitsPayload = {
+  max_items: number;
+  max_per_agent: number;
+};
+
+export type HeartbeatSourceScriptPayload = {
+  approved: boolean;
+  approved_sha256: string | null;
+  executable: boolean;
+  name: string;
+  sha256: string;
+};
+
+export type HeartbeatSourceStatus = {
+  error?: Error | null;
+  failure_streak: number;
+  id: string;
+  kind?: string;
+  last_item_count: number;
+  last_polled_at?: string;
+  last_success_at?: string;
+  next_poll_at?: string;
+  script?: string;
+  status: string;
+};
+
 export type HeartbeatStatusResponse = {
   active: boolean;
   agent_name: string;
@@ -3451,6 +3518,7 @@ export type HeartbeatWakeDecisionPayload = {
   policy_digest?: string;
   policy_snapshot_id?: string;
   reason:
+    | "source_poll_in_flight"
     | "wake_sent"
     | "heartbeat_disabled"
     | "heartbeat_invalid"
@@ -3479,6 +3547,7 @@ export type HeartbeatWakeEventPayload = {
   id: string;
   policy_snapshot_id?: string;
   reason:
+    | "source_poll_in_flight"
     | "wake_sent"
     | "heartbeat_disabled"
     | "heartbeat_invalid"
@@ -3509,6 +3578,7 @@ export type HeartbeatWakeStatePayload = {
   agent_name?: string;
   coalesced_count: number;
   last_reason?:
+    | "source_poll_in_flight"
     | "wake_sent"
     | "heartbeat_disabled"
     | "heartbeat_invalid"
@@ -3690,6 +3760,14 @@ export type JobTaskConfig = {
 export type JobsResponse = {
   jobs: Array<JobPayload>;
   page: CountedCursorPagePayload;
+};
+
+export type KindDescriptor = {
+  description?: string;
+  extension: string;
+  kind: string;
+  params_schema?: unknown;
+  title: string;
 };
 
 export type LogEventPayload = {
@@ -5867,6 +5945,13 @@ export type Redaction = {
     | "worktree_missing"
     | "worktree_not_found"
     | "worktree_not_ready";
+};
+
+export type Ref = {
+  id: string;
+  kind?: string;
+  script?: string;
+  with?: unknown;
 };
 
 export type Reference = {
@@ -9508,10 +9593,13 @@ export type SnapConfig = {
   repeat_ratios: Array<number>;
 };
 
-export type SourceStatus = {
-  reason?: string;
-  source: string;
-  status: string;
+export type SourceOutcome = {
+  duration_ms: number;
+  error?: Error | null;
+  id: string;
+  items: number;
+  more: boolean;
+  result: string;
 };
 
 export type SpawnBudgetPayload = {
@@ -15849,6 +15937,144 @@ export type RollbackAgentHeartbeatResponses = {
 
 export type RollbackAgentHeartbeatResponse =
   RollbackAgentHeartbeatResponses[keyof RollbackAgentHeartbeatResponses];
+
+export type RevokeAgentHeartbeatScriptData = {
+  body?: never;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+    /**
+     * Script name
+     */
+    script: string;
+  };
+  query?: {
+    /**
+     * Workspace id
+     */
+    workspace_id?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/heartbeat/scripts/{script}/approve";
+};
+
+export type RevokeAgentHeartbeatScriptErrors = {
+  /**
+   * Operator required
+   */
+  403: ErrorPayload;
+};
+
+export type RevokeAgentHeartbeatScriptError =
+  RevokeAgentHeartbeatScriptErrors[keyof RevokeAgentHeartbeatScriptErrors];
+
+export type RevokeAgentHeartbeatScriptResponses = {
+  /**
+   * Script approval revoked
+   */
+  204: void;
+};
+
+export type RevokeAgentHeartbeatScriptResponse =
+  RevokeAgentHeartbeatScriptResponses[keyof RevokeAgentHeartbeatScriptResponses];
+
+export type ApproveAgentHeartbeatScriptData = {
+  /**
+   * JSON request body
+   */
+  body: HeartbeatScriptApprovalRequest;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+    /**
+     * Script name
+     */
+    script: string;
+  };
+  query?: {
+    /**
+     * Workspace id
+     */
+    workspace_id?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/heartbeat/scripts/{script}/approve";
+};
+
+export type ApproveAgentHeartbeatScriptErrors = {
+  /**
+   * Operator required
+   */
+  403: ErrorPayload;
+  /**
+   * Script changed
+   */
+  409: ErrorPayload;
+};
+
+export type ApproveAgentHeartbeatScriptError =
+  ApproveAgentHeartbeatScriptErrors[keyof ApproveAgentHeartbeatScriptErrors];
+
+export type ApproveAgentHeartbeatScriptResponses = {
+  /**
+   * Approved
+   */
+  200: HeartbeatScriptApprovalPayload;
+};
+
+export type ApproveAgentHeartbeatScriptResponse =
+  ApproveAgentHeartbeatScriptResponses[keyof ApproveAgentHeartbeatScriptResponses];
+
+export type GetAgentHeartbeatSourcesData = {
+  body?: never;
+  path: {
+    /**
+     * Agent name
+     */
+    name: string;
+  };
+  query?: {
+    /**
+     * Workspace id
+     */
+    workspace_id?: string;
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/{name}/heartbeat/sources";
+};
+
+export type GetAgentHeartbeatSourcesErrors = {
+  /**
+   * Agent not found
+   */
+  404: ErrorPayload;
+};
+
+export type GetAgentHeartbeatSourcesError =
+  GetAgentHeartbeatSourcesErrors[keyof GetAgentHeartbeatSourcesErrors];
+
+export type GetAgentHeartbeatSourcesResponses = {
+  /**
+   * OK
+   */
+  200: HeartbeatSourceCatalogPayload;
+};
+
+export type GetAgentHeartbeatSourcesResponse =
+  GetAgentHeartbeatSourcesResponses[keyof GetAgentHeartbeatSourcesResponses];
 
 export type GetAgentHeartbeatStatusData = {
   body?: never;

@@ -10,6 +10,45 @@ import (
 	"strings"
 )
 
+// StreamTerminalsAggregate Stream the workspace terminal catalog
+func (c *Client) StreamTerminalsAggregate(ctx context.Context, params StreamTerminalsAggregateParams) (*Stream[TerminalCatalogSnapshot], error) {
+	path := "/api/terminals/catalog-stream"
+	query := url.Values{}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	headers := http.Header{}
+	if params.LastEventID != nil {
+		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
+	if params.LastEventIDQuery != nil {
+		query.Set("last_event_id", *params.LastEventIDQuery)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return newStream[TerminalCatalogSnapshot](ctx, c, "GET", path, headers, nil, "streamTerminalsAggregate")
+}
+
+// StreamWorktreeParams carries the path, query, and header parameters.
+type StreamWorktreeParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	WorktreeID    string  `url:"worktree_id"`
+	AfterSequence *int64  `url:"after_sequence"`
+	LastEventID   *string `url:"Last-Event-ID"`
+}
+
 // StreamWorktree Stream durable worktree lifecycle events
 func (c *Client) StreamWorktree(ctx context.Context, params StreamWorktreeParams) (*Stream[map[string]any], error) {
 	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/stream"
@@ -401,46 +440,4 @@ func (c *Client) UpdateAppToken(ctx context.Context, params UpdateAppTokenParams
 type UpdateAutomationJobParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// UpdateAutomationJob Update one automation job
-func (c *Client) UpdateAutomationJob(ctx context.Context, params UpdateAutomationJobParams, body UpdateJobRequest) (*JobResponse, error) {
-	path := "/api/automation/jobs/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out JobResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// UpdateAutomationTriggerParams carries the path, query, and header parameters.
-type UpdateAutomationTriggerParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// UpdateAutomationTrigger Update one automation trigger
-func (c *Client) UpdateAutomationTrigger(ctx context.Context, params UpdateAutomationTriggerParams, body UpdateTriggerRequest) (*TriggerResponse, error) {
-	path := "/api/automation/triggers/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TriggerResponse
-	if err := c.doContent(ctx, "PATCH", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

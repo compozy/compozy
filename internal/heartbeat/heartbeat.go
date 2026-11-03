@@ -13,6 +13,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 )
 
 const (
@@ -105,8 +106,11 @@ type Preferences struct {
 }
 
 // ContextProjection captures authored context projection hints.
+type SourceDecl = source.Ref
+
 type ContextProjection struct {
-	Include []string `json:"include,omitzero"`
+	Sources []SourceDecl `json:"sources,omitempty"`
+	Include []string     `json:"include,omitzero"`
 }
 
 // TimeWindow is one local wall-clock active or quiet window.

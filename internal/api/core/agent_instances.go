@@ -263,6 +263,15 @@ func (api *AgentInstanceAPI) payloadWithOwners(
 		}
 	}
 	payload.ProfileName = owners[i.ProfileID].Name
+	if reader, ok := api.Checks.(interface {
+		SourceStatuses(context.Context, string) ([]heartbeat.SourceStatus, error)
+	}); ok {
+		var err error
+		payload.Sources, err = reader.SourceStatuses(ctx, i.ID)
+		if err != nil {
+			return payload, err
+		}
+	}
 	payload.FatigueLimit = api.FatigueLimit
 	payload.UnattendedTurnLimit = api.UnattendedTurnLimit
 	if api.HeldWakes != nil {

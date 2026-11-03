@@ -16,6 +16,8 @@ type InstanceWakeState struct {
 	Canceled                                                                       bool
 }
 type AdmitRequest struct {
+	ExpectedDue              string
+	Sources                  []PolledSource
 	EventIDs                 []string
 	InstanceID, OccurrenceID string
 	Now, NextWakeAt          time.Time
@@ -28,6 +30,7 @@ type FinishResult struct {
 }
 
 type FinishRequest struct {
+	HasSources                                               bool
 	UnattendedTurnLimit                                      int64
 	QuietBackoffCap                                          time.Duration
 	FatigueLimit                                             int64
@@ -39,6 +42,7 @@ type FinishRequest struct {
 	Report                                                   *agentinstance.ReportInput
 }
 type SkipRequest struct {
+	Sources                                 []PolledSource
 	ManualCheck                             bool
 	InstanceID, ExpectedDue, Reason, Detail string
 	Now, NextWakeAt, ExpiresAt              time.Time

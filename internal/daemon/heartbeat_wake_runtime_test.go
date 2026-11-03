@@ -2,24 +2,39 @@ package daemon
 
 import (
 	"context"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
+	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/core"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat/source"
+	"github.com/compozy/compozy/internal/providers"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/store/sessiondb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	"github.com/compozy/compozy/internal/testutil/acpmock"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/gin-gonic/gin"
+	"github.com/jonboulle/clockwork"
+	"github.com/kballard/go-shellquote"
 )
 
 func TestHeartbeatWakeHealthReader(t *testing.T) {
@@ -840,5 +855,1117 @@ func TestTimerPolicy(t *testing.T) {
 		if policy.Enabled || !policy.Present {
 			t.Fatalf("policy=%+v", policy)
 		}
+	})
+}
+
+func TestHeartbeatScriptCollection(t *testing.T) {
+	t.Run("Should poll approved scripts without writes during dry runs [IT-008 IT-006 UT-041]", func(t *testing.T) {
+		t.Parallel()
+		db := openDaemonTestGlobalDB(t)
+		repo := db.Instances()
+		now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+		_, err := db.DB().
+			ExecContext(t.Context(), `INSERT INTO agent_instances (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at) VALUES ('poll-test',?,'coder','paused','human','operator',?,?)`, store.DefaultProfileID, store.FormatTimestamp(now), store.FormatTimestamp(now))
+		if err != nil {
+			t.Fatal(err)
+		}
+		dir, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Mkdir(filepath.Join(dir, "sources"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(dir, "sources", "poll"),
+			[]byte(
+				"#!/bin/sh\ncat >/dev/null\nprintf '{\"items\":[{\"key\":\"1\",\"title\":\"new\"}],\"state\":{\"cursor\":1}}'\n",
+			),
+			0700,
+		); err != nil {
+			t.Fatal(err)
+		}
+		_, hash, err := source.ReadScript(dir, "poll")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.ApproveScript(t.Context(), store.DefaultProfileID, dir, "poll", hash, "cli", now); err != nil {
+			t.Fatal(err)
+		}
+		target := heartbeat.CheckTarget{
+			DefinitionDir: dir,
+			RootDir:       dir,
+			Instance: agentinstance.Instance{
+				ID:        "poll-test",
+				ProfileID: store.DefaultProfileID,
+				AgentName: "coder",
+			},
+			Policy: heartbeat.ResolvedPolicy{
+				Preferences: heartbeat.Preferences{
+					MinInterval: time.Hour,
+					Context:     heartbeat.ContextProjection{Sources: []source.Ref{{ID: "s", Script: "poll"}}},
+				},
+			},
+		}
+		cfg := compozyconfig.DefaultHeartbeatSourcesConfig()
+		cfg.Timeout = 10 * time.Second
+		environment := instanceCheckEnvironment{
+			instances:         repo,
+			sourceConfig:      cfg,
+			sourceNow:         func() time.Time { return now },
+			sourceMaxInterval: 24 * time.Hour,
+		}
+		for range 2 {
+			batch, err := environment.PollSources(t.Context(), &target, true)
+			if err != nil || len(batch.Sources) != 1 || batch.Sources[0].Err != nil ||
+				len(batch.Sources[0].Result.Items) != 1 {
+				t.Fatalf("batch=%+v err=%v", batch, err)
+			}
+		}
+		var rows int
+		if err := db.DB().
+			QueryRowContext(t.Context(), "SELECT count(*) FROM agent_instance_source_states WHERE instance_id='poll-test'").
+			Scan(&rows); err != nil {
+			t.Fatal(err)
+		}
+		if rows != 0 {
+			t.Fatalf("dry run wrote %d rows", rows)
+		}
+		batch, err := environment.PollSources(t.Context(), &target, false)
+		if err != nil || len(batch.Sources) != 1 || batch.Sources[0].Err != nil {
+			t.Fatalf("batch=%+v err=%v", batch, err)
+		}
+		states, err := repo.SourceStates(t.Context(), "poll-test", target.Policy.Preferences.Context.Sources, true, now)
+		if err != nil || states[0].LastItemCount != 1 || len(states[0].State) != 0 {
+			t.Fatalf("states=%+v err=%v", states, err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "sources", "poll"), []byte("#!/bin/sh\nexit 3\n"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		_, hash, err = source.ReadScript(dir, "poll")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.ApproveScript(t.Context(), store.DefaultProfileID, dir, "poll", hash, "cli", now); err != nil {
+			t.Fatal(err)
+		}
+		now = now.Add(time.Hour)
+		for attempt := range 4 {
+			batch, err = environment.PollSources(t.Context(), &target, false)
+			if err != nil || batch.Sources[0].FailureStreak != int64(attempt+1) || batch.Sources[0].Err == nil ||
+				batch.Sources[0].Err.Code != "source_exit_nonzero" {
+				t.Fatalf("failure=%+v err=%v", batch, err)
+			}
+			states, err = repo.SourceStates(
+				t.Context(),
+				"poll-test",
+				target.Policy.Preferences.Context.Sources,
+				true,
+				now,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			expected := now.Add(time.Hour * time.Duration(1<<attempt))
+			if !states[0].NextPollAt.Equal(expected) {
+				t.Fatalf("next=%v expected=%v", states[0].NextPollAt, expected)
+			}
+			facts := batch.DigestItems(3)
+			if (len(facts) == 1) != (attempt >= 2) {
+				t.Fatalf("failure facts=%+v", facts)
+			}
+			now = expected
+		}
+		if err := os.WriteFile(
+			filepath.Join(dir, "sources", "poll"),
+			[]byte("#!/bin/sh\necho '{\"items\":[]}'\n"),
+			0700,
+		); err != nil {
+			t.Fatal(err)
+		}
+		_, hash, err = source.ReadScript(dir, "poll")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := repo.ApproveScript(t.Context(), store.DefaultProfileID, dir, "poll", hash, "cli", now); err != nil {
+			t.Fatal(err)
+		}
+		batch, err = environment.PollSources(t.Context(), &target, false)
+		if err != nil || batch.Sources[0].Err != nil || batch.Sources[0].FailureStreak != 0 {
+			t.Fatalf("recovery=%+v err=%v", batch, err)
+		}
+	})
+}
+
+// heartbeatSourceRuntime exercises the real script runner, SQLite transactions,
+// policy loader, check service and triage dispatcher. Only the provider is the
+// existing deterministic ACP process fixture.
+type heartbeatSourceRuntime struct {
+	db                                *globaldb.GlobalDB
+	manager                           *session.Manager
+	env                               *instanceCheckEnvironment
+	checks                            *heartbeat.CheckService
+	instance                          agentinstance.Instance
+	dir, requests, reply, diagnostics string
+	clock                             atomic.Int64
+	config                            heartbeat.CheckConfig
+}
+
+func newHeartbeatSourceRuntime(t *testing.T, approved, blocked bool) *heartbeatSourceRuntime {
+	t.Helper()
+	h := &heartbeatSourceRuntime{db: openDaemonTestGlobalDB(t)}
+	h.clock.Store(time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC).UnixNano())
+	home := testHomePaths(t)
+	fixture := acpmock.Fixture{Version: 2, Agents: []acpmock.AgentFixture{
+		{
+			Name:        "source-agent",
+			Provider:    acpmock.ProviderName,
+			Permissions: "approve-all",
+			Prompt:      "Review incoming items.",
+			ConfigOptions: []acpmock.SessionConfigOptionFixture{
+				{
+					ID:       "mode",
+					Name:     "Mode",
+					Category: "mode",
+					Current:  "read-only",
+					Values:   []acpmock.SessionConfigOptionValueFixture{{Value: "read-only"}},
+				},
+			},
+			Turns: []acpmock.TurnFixture{
+				{
+					Name:  "source-check",
+					Match: acpmock.TurnMatch{RawUserTextContains: "Perform a read-only proactive check."},
+					Steps: []acpmock.Step{
+						{
+							Kind: acpmock.StepKindAssistant,
+							Text: `{"proposals":[{"title":"Review source","body":"Inspect the new items.","item_keys":["source:s:1"]}]}`,
+						},
+					},
+				},
+			},
+		},
+	}}
+	if blocked {
+		fixture.Agents[0].Turns[0].Steps = []acpmock.Step{
+			{
+				Kind:          acpmock.StepKindDriverControl,
+				DriverControl: &acpmock.DriverControlStep{Action: acpmock.DriverControlBlockUntilCancel},
+			},
+		}
+	}
+	fixturePath := filepath.Join(home.HomeDir, "source-fixture.json")
+	data, err := json.Marshal(fixture)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(fixturePath, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	registered, err := acpmock.Register(
+		home,
+		acpmock.RegisterOptions{FixturePath: fixturePath, FixtureAgent: "source-agent"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.diagnostics = registered.DiagnosticsPath
+	h.dir, err = filepath.EvalSymlinks(filepath.Dir(registered.AgentDefPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	def, err := compozyconfig.LoadAgentDefFile(registered.AgentDefPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	def.Kind = compozyconfig.AgentKindStaysOn
+	cfg := compozyconfig.DefaultWithHome(home)
+	cfg.Providers[acpmock.ProviderName] = acpmock.ProviderConfig(registered.Command)
+	cfg.Agents.Heartbeat.Sources.Timeout = 10 * time.Second
+	agents := stubSessionCommandAgentResolver(
+		func(string, *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) { return def, nil },
+	)
+	root := t.TempDir()
+	if err := h.db.InsertWorkspace(
+		t.Context(),
+		workspacepkg.Workspace{
+			ID:        "source-workspace",
+			Name:      "source-workspace",
+			RootDir:   root,
+			CreatedAt: h.now(),
+			UpdatedAt: h.now(),
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	resolver, err := workspacepkg.NewResolver(
+		h.db,
+		workspacepkg.WithHomePaths(home),
+		workspacepkg.WithProfileConfigLoader(func(string, string) (compozyconfig.Config, error) { return cfg, nil }),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.manager, err = session.NewManager(
+		session.WithLifecycleContext(t.Context()),
+		session.WithHomePaths(home),
+		session.WithDriver(session.NewACPDriverAdapter(acp.New(acp.WithProviderPreStarter(providers.NewPreStarter())))),
+		session.WithWorkspaceResolver(resolver),
+		session.WithAgentResolver(agents),
+		session.WithProfileNameResolver(nativeProfileReaderStub{}),
+		session.WithSessionCatalog(h.db),
+		session.WithSessionPromptAdmissionStore(h.db),
+		session.WithEventLedger(h.db),
+		session.WithAttentionWorkspaceMuteReader(h.db),
+		session.WithPromptAssembler(NewComposedAssembler()),
+		session.WithLogger(discardLogger()),
+		session.WithStore(
+			func(ctx context.Context, owner store.SessionDBOwner, path string) (session.EventRecorder, error) {
+				return sessiondb.OpenSessionDB(ctx, owner, path)
+			},
+		),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		infos, err := h.manager.ListAll(ctx)
+		if err != nil {
+			t.Error(err)
+		}
+		for _, info := range infos {
+			if info.State != session.StateStopped {
+				if err := h.manager.Stop(ctx, info.ID); err != nil {
+					t.Error(err)
+				}
+			}
+		}
+		if err := h.manager.Shutdown(ctx); err != nil {
+			t.Error(err)
+		}
+	})
+	main, err := h.manager.Create(t.Context(), &session.CreateOpts{AgentName: def.Name, Workspace: "source-workspace"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.instance, err = h.db.Instances().
+		Adopt(t.Context(), agentinstance.Instance{ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: "source-workspace", PermissionCeiling: "{}", CreatedByKind: "human"}, main.ID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.db.DB().
+		ExecContext(t.Context(), "UPDATE agent_instances SET created_at=? WHERE id=?", store.FormatTimestamp(h.now().Add(-24*time.Hour)), h.instance.ID); err != nil {
+		t.Fatal(err)
+	}
+	h.requests, h.reply = filepath.Join(h.dir, "requests.jsonl"), filepath.Join(h.dir, "reply.json")
+	if err := os.Mkdir(filepath.Join(h.dir, "sources"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	script := "#!/bin/sh\nrequest=$(cat)\nprintf '%s\\n' \"$request\" >> " + shellquote.Join(
+		h.requests,
+	) + "\nif [ -p " + shellquote.Join(
+		filepath.Join(h.dir, "gate"),
+	) + " ]; then cat " + shellquote.Join(
+		filepath.Join(h.dir, "gate"),
+	) + " >/dev/null; fi\ncat " + shellquote.Join(
+		h.reply,
+	) + "\n"
+	if err := os.WriteFile(filepath.Join(h.dir, "sources", "poll"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	h.writePolicy(t, "{}")
+	h.writeReply(t, source.Result{Items: []source.Item{}})
+	if approved {
+		h.approve(t)
+	}
+	h.env = &instanceCheckEnvironment{
+		sourceConfig:      cfg.Agents.Heartbeat.Sources,
+		sourceNow:         h.now,
+		sourceMaxInterval: cfg.Agents.Heartbeat.MaxInterval,
+		instances:         h.db.Instances(),
+		sessions:          h.manager,
+		definitions: instanceDefinitions{
+			workspaces: resolver,
+			profiles:   nativeProfileReaderStub{},
+			sessions:   h.manager,
+			agents:     agents,
+		},
+	}
+	h.config = heartbeat.CheckConfig{
+		Enabled:       true,
+		Interval:      time.Hour,
+		MaxInterval:   24 * time.Hour,
+		Retention:     24 * time.Hour,
+		Timeout:       30 * time.Second,
+		MaxConcurrent: 1,
+		BatchSize:     2,
+		Sources:       cfg.Agents.Heartbeat.Sources,
+	}
+	h.startChecks(t)
+	return h
+}
+func (h *heartbeatSourceRuntime) now() time.Time { return time.Unix(0, h.clock.Load()).UTC() }
+func (h *heartbeatSourceRuntime) startChecks(t *testing.T) {
+	t.Helper()
+	var err error
+	h.checks, err = heartbeat.NewCheckService(
+		t.Context(),
+		h.db.Instances(),
+		h.env,
+		&session.TriageDispatcher{
+			Manager:      h.manager,
+			Reports:      h.db.InstanceReports(),
+			MaxProposals: 2,
+			StopTimeout:  time.Second,
+		},
+		h.config,
+		h.now,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	checks := h.checks
+	t.Cleanup(func() {
+		if err := checks.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	if err := checks.Recover(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+}
+func (h *heartbeatSourceRuntime) approve(t *testing.T) {
+	t.Helper()
+	_, hash, err := source.ReadScript(h.dir, "poll")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.db.Instances().
+		ApproveScript(t.Context(), h.instance.ProfileID, h.dir, "poll", hash, "cli", h.now()); err != nil {
+		t.Fatal(err)
+	}
+}
+func (h *heartbeatSourceRuntime) writePolicy(t *testing.T, params string) {
+	t.Helper()
+	body := "---\nversion: 1\nenabled: true\npreferences:\n  min_interval: 1h\ncontext:\n  include: []\n  sources:\n    - id: s\n      script: poll\n      with: " + params + "\n---\nInspect new source items.\n"
+	if err := os.WriteFile(filepath.Join(h.dir, "HEARTBEAT.md"), []byte(body), 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+func (h *heartbeatSourceRuntime) writeReply(t *testing.T, result source.Result) {
+	t.Helper()
+	data, err := json.Marshal(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.reply, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+}
+func (h *heartbeatSourceRuntime) states(t *testing.T) []heartbeat.SourceState {
+	t.Helper()
+	target, err := h.env.ResolveCheck(t.Context(), h.instance.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	states, err := h.db.Instances().
+		SourceStates(t.Context(), h.instance.ID, target.Policy.Preferences.Context.Sources, true, h.now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return states
+}
+func (h *heartbeatSourceRuntime) inputs(t *testing.T) []source.Request {
+	t.Helper()
+	data, err := os.ReadFile(h.requests)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out []source.Request
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
+		var req source.Request
+		if err := json.Unmarshal([]byte(line), &req); err != nil {
+			t.Fatal(err)
+		}
+		out = append(out, req)
+	}
+	return out
+}
+func (h *heartbeatSourceRuntime) waitIdle(t *testing.T, events int) {
+	t.Helper()
+	waitForConditionWithin(t, "source check settled", 15*time.Second, func() bool {
+		var count int
+		if err := h.db.DB().
+			QueryRowContext(t.Context(), "SELECT count(*) FROM agent_heartbeat_wake_events WHERE instance_id=?", h.instance.ID).
+			Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		inflight, err := h.db.Instances().Inflight(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		return count == events && len(inflight) == 0 &&
+			h.checks.SourceMetrics()["heartbeat_source_collections_inflight"] == 0
+	})
+}
+func (h *heartbeatSourceRuntime) tick(t *testing.T, events int) {
+	t.Helper()
+	if err := h.checks.Tick(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	h.waitIdle(t, events)
+}
+func (h *heartbeatSourceRuntime) advance(t *testing.T) {
+	t.Helper()
+	wake, err := h.db.Instances().WakeState(t.Context(), h.instance.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	next, err := store.ParseTimestamp(wake.NextWakeAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	states := h.states(t)
+	if states[0].NextPollAt.After(next) {
+		next = states[0].NextPollAt
+	}
+	h.clock.Store(next.UnixNano())
+}
+
+// Invariant (IT-001/002/012): source pages are admitted once, cursor advancement
+// follows successful checks, and source fences/provenance reach real triage sessions.
+// Owning layer and canonical suite: daemon heartbeat wake runtime integration.
+func TestHeartbeatSourceRuntime(t *testing.T) {
+	t.Run("Should commit empty results on three timer ticks without triage [IT-001]", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		for i := 1; i <= 3; i++ {
+			h.writeReply(t, source.Result{Items: []source.Item{}, State: []byte(fmt.Sprintf(`{"cursor":%d}`, i))})
+			h.tick(t, i)
+			if got := string(h.states(t)[0].State); got != fmt.Sprintf(`{"cursor":%d}`, i) {
+				t.Fatalf("committed state=%s", got)
+			}
+			h.advance(t)
+		}
+		var empty, triage int
+		if err := h.db.DB().
+			QueryRowContext(t.Context(), "SELECT count(*) FROM agent_heartbeat_wake_events WHERE instance_id=? AND reason='digest_empty'", h.instance.ID).
+			Scan(&empty); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.db.DB().
+			QueryRowContext(t.Context(), "SELECT count(*) FROM sessions WHERE session_type='triage'").
+			Scan(&triage); err != nil {
+			t.Fatal(err)
+		}
+		if empty != 3 || triage != 0 || len(h.inputs(t)) != 3 {
+			t.Fatalf("empty=%d triage=%d inputs=%d", empty, triage, len(h.inputs(t)))
+		}
+	})
+	t.Run("Should fence both items and persist proposal provenance [IT-002]", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		h.writeReply(
+			t,
+			source.Result{
+				Items: []source.Item{
+					{Key: "1", Title: "first", Summary: "first payload"},
+					{Key: "2", Title: "second", Summary: "second payload"},
+				},
+				State: []byte(`{"cursor":2}`),
+			},
+		)
+		h.tick(t, 1)
+		reports, err := h.db.InstanceReports().RecentReports(t.Context(), h.instance.ID, 10)
+		if err != nil || len(reports) != 1 || !strings.Contains(string(reports[0].Payload), `"kind":"source"`) ||
+			!strings.Contains(string(reports[0].Payload), `"source_id":"s"`) {
+			t.Fatalf("reports=%+v err=%v", reports, err)
+		}
+		records, err := acpmock.ReadDiagnostics(h.diagnostics)
+		if err != nil {
+			t.Fatal(err)
+		}
+		prompts := acpmock.PromptDiagnostics(records)
+		if len(prompts) != 1 {
+			t.Fatalf("prompts=%+v", prompts)
+		}
+		data, err := json.Marshal(prompts[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Count(prompts[0].Prompt, "<untrusted_source_item ") != 2 {
+			t.Fatalf("expected two source fences: %s", prompts[0].Prompt)
+		}
+		for _, want := range []string{"source:s:1", "source:s:2", "untrusted_source", "first payload", "second payload"} {
+			if !strings.Contains(string(data), want) {
+				t.Fatalf("prompt missing %s: %s", want, data)
+			}
+		}
+		if got := string(h.states(t)[0].State); got != `{"cursor":2}` {
+			t.Fatalf("committed=%s", got)
+		}
+	})
+	t.Run("Should page all thirty five keys at the minimum cadence [IT-012]", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		for page := range 2 {
+			first, last := 1, 20
+			if page == 1 {
+				first, last = 21, 35
+			}
+			items := []source.Item{}
+			for i := first; i <= last; i++ {
+				items = append(items, source.Item{Key: fmt.Sprint(i), Title: fmt.Sprintf("item %d", i)})
+			}
+			h.writeReply(
+				t,
+				source.Result{Items: items, State: []byte(fmt.Sprintf(`{"cursor":%d}`, last)), More: page == 0},
+			)
+			h.tick(t, page+1)
+			wake, err := h.db.Instances().WakeState(t.Context(), h.instance.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			next, err := store.ParseTimestamp(wake.NextWakeAt)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !next.Equal(heartbeat.NextCheckTime(h.now(), time.Hour, h.instance.ID)) {
+				t.Fatalf("page cadence=%v", next.Sub(h.now()))
+			}
+			h.advance(t)
+		}
+		records, err := acpmock.ReadDiagnostics(h.diagnostics)
+		if err != nil {
+			t.Fatal(err)
+		}
+		prompts := acpmock.PromptDiagnostics(records)
+		if len(prompts) != 2 {
+			t.Fatalf("prompts=%d", len(prompts))
+		}
+		for i, prompt := range prompts {
+			data, err := json.Marshal(prompt)
+			if err != nil {
+				t.Fatal(err)
+			}
+			first, last := 1, 20
+			if i == 1 {
+				first, last = 21, 35
+			}
+			for key := first; key <= last; key++ {
+				if !strings.Contains(string(data), fmt.Sprintf("source:s:%d\\\"", key)) {
+					t.Fatalf("page %d missing key %d: %s", i, key, data)
+				}
+			}
+			if i == 0 && !strings.Contains(string(data), "source:s:more") {
+				t.Fatalf("missing more: %s", data)
+			}
+		}
+		inputs := h.inputs(t)
+		if len(inputs) != 2 || string(inputs[1].State) != `{"cursor":20}` {
+			t.Fatalf("inputs=%+v", inputs)
+		}
+	})
+}
+
+func (h *heartbeatSourceRuntime) blockPoll(t *testing.T) func() {
+	t.Helper()
+	gate := filepath.Join(h.dir, "gate")
+	if out, err := exec.CommandContext(t.Context(), "mkfifo", gate).CombinedOutput(); err != nil {
+		t.Fatalf("mkfifo: %s %v", out, err)
+	}
+	return func() {
+		writer, err := os.OpenFile(gate, os.O_WRONLY, 0600)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Remove(gate); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// Invariant (IT-003/009/011): a collected batch cannot advance the cursor after
+// timeout, capacity loss or an authored ref edit. Owning suite: daemon heartbeat.
+func TestHeartbeatSourceRetention(t *testing.T) {
+	t.Run("Should retain the old cursor after triage timeout [IT-003]", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, true)
+		h.writeReply(t, source.Result{Items: []source.Item{}, State: []byte(`{"cursor":7}`)})
+		h.tick(t, 1)
+		h.advance(t)
+		if err := h.checks.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		h.config.Timeout = time.Second
+		h.startChecks(t)
+		h.writeReply(
+			t,
+			source.Result{Items: []source.Item{{Key: "1", Title: "retry me"}}, State: []byte(`{"cursor":1}`)},
+		)
+		h.tick(t, 2)
+		var reason string
+		if err := h.db.DB().
+			QueryRowContext(t.Context(), "SELECT reason FROM agent_heartbeat_wake_events WHERE instance_id=? ORDER BY created_at DESC LIMIT 1", h.instance.ID).
+			Scan(&reason); err != nil {
+			t.Fatal(err)
+		}
+		if reason != "triage_timeout" || string(h.states(t)[0].State) != `{"cursor":7}` {
+			t.Fatalf("reason=%s states=%+v", reason, h.states(t))
+		}
+		result, err := h.checks.Check(t.Context(), h.instance.ID, true)
+		if err != nil || result.Gate != "would_run" {
+			t.Fatalf("retry=%+v %v", result, err)
+		}
+		inputs := h.inputs(t)
+		if len(inputs) != 3 || string(inputs[len(inputs)-1].State) != `{"cursor":7}` {
+			t.Fatalf("retry stdin=%+v", inputs)
+		}
+	})
+	t.Run("Should discard a batch when another check takes the last slot [IT-003]", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		h.writeReply(t, source.Result{Items: []source.Item{}, State: []byte(`{"cursor":7}`)})
+		h.tick(t, 1)
+		h.advance(t)
+		h.writeReply(
+			t,
+			source.Result{Items: []source.Item{{Key: "1", Title: "retry me"}}, State: []byte(`{"cursor":1}`)},
+		)
+		release := h.blockPoll(t)
+		finished := make(chan heartbeat.CheckResult, 1)
+		errors := make(chan error, 1)
+		go func() {
+			result, err := h.checks.Check(t.Context(), h.instance.ID, false)
+			finished <- result
+			errors <- err
+		}()
+		waitForCondition(t, "script waiting on gate", func() bool { return len(h.inputs(t)) == 2 })
+		if _, err := h.db.DB().
+			ExecContext(t.Context(), `INSERT INTO agent_instances (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at) VALUES ('other-check',?,'other','active','human','operator',?,?)`, store.DefaultProfileID, store.FormatTimestamp(h.now()), store.FormatTimestamp(h.now())); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.db.DB().
+			ExecContext(t.Context(), "INSERT INTO agent_instance_wake_state(instance_id,occurrence_id) VALUES ('other-check','other-occurrence')"); err != nil {
+			t.Fatal(err)
+		}
+		release()
+		select {
+		case result := <-finished:
+			if err := <-errors; err != nil || result.Gate != "no_slot" {
+				t.Fatalf("result=%+v %v", result, err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("poll did not return")
+		}
+		var pending *string
+		if err := h.db.DB().
+			QueryRowContext(t.Context(), "SELECT pending_occurrence_id FROM agent_instance_source_states WHERE instance_id=?", h.instance.ID).
+			Scan(&pending); err != nil {
+			t.Fatal(err)
+		}
+		if pending != nil || string(h.states(t)[0].State) != `{"cursor":7}` {
+			t.Fatalf("pending=%v states=%+v", pending, h.states(t))
+		}
+	})
+	t.Run("Should admit one timer batch while manual polling is gated [IT-009]", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		h.writeReply(t, source.Result{Items: []source.Item{{Key: "1", Title: "one"}}, State: []byte(`{"cursor":1}`)})
+		release := h.blockPoll(t)
+		if err := h.checks.Tick(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		waitForCondition(t, "timer poll started", func() bool { return len(h.inputs(t)) == 1 })
+		before := h.states(t)[0]
+		result, err := h.checks.Check(t.Context(), h.instance.ID, false)
+		if err != nil || result.Gate != "source_poll_in_flight" {
+			t.Fatalf("manual=%+v %v", result, err)
+		}
+		release()
+		h.waitIdle(t, 1)
+		after := h.states(t)[0]
+		if string(after.State) != `{"cursor":1}` || after.Generation != before.Generation+2 || len(h.inputs(t)) != 1 {
+			t.Fatalf("before=%+v after=%+v", before, after)
+		}
+	})
+	t.Run("Should reject a late batch after with changes and repoll null state [IT-011]", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		h.writeReply(t, source.Result{Items: []source.Item{}, State: []byte(`{"cursor":9}`)})
+		h.tick(t, 1)
+		h.advance(t)
+		h.writeReply(
+			t,
+			source.Result{Items: []source.Item{{Key: "1", Title: "old params"}}, State: []byte(`{"cursor":10}`)},
+		)
+		release := h.blockPoll(t)
+		if err := h.checks.Tick(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		waitForCondition(t, "old params poll started", func() bool { return len(h.inputs(t)) == 2 })
+		before := h.states(t)[0]
+		h.writePolicy(t, `{"project":"new"}`)
+		target, err := h.env.ResolveCheck(t.Context(), h.instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reset, err := h.db.Instances().
+			SourceStates(t.Context(), h.instance.ID, target.Policy.Preferences.Context.Sources, false, h.now())
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reset[0].Generation <= before.Generation || len(reset[0].State) != 0 {
+			t.Fatalf("reset=%+v before=%+v", reset, before)
+		}
+		release()
+		waitForCondition(
+			t,
+			"late batch discarded",
+			func() bool { return h.checks.SourceMetrics()["heartbeat_source_collections_inflight"] == 0 },
+		)
+		h.waitIdle(t, 1)
+		after := h.states(t)[0]
+		if after.Generation != reset[0].Generation || len(after.State) != 0 {
+			t.Fatalf("late batch committed: %+v", after)
+		}
+		result, err := h.checks.Check(t.Context(), h.instance.ID, true)
+		if err != nil || result.Gate != "would_run" {
+			t.Fatalf("next=%+v %v", result, err)
+		}
+		inputs := h.inputs(t)
+		if len(inputs) != 3 || string(inputs[2].State) != "null" || !strings.Contains(string(inputs[2].Params), "new") {
+			t.Fatalf("next stdin=%+v", inputs)
+		}
+	})
+}
+
+// Invariant (IT-008/013): preview never mutates the source rows, and an
+// unapproved script publishes one transition notice before operator approval.
+// Owning suite: daemon heartbeat runtime; CLI transport is covered in cli.
+func TestHeartbeatSourceOperatorRuntime(t *testing.T) {
+	t.Run("Should return identical HTTP previews without writes when active or paused [IT-008]", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		h.writeReply(t, source.Result{Items: []source.Item{{Key: "1", Title: "one"}}, State: []byte(`{"cursor":1}`)})
+		handlers := &core.BaseHandlers{
+			AgentInstances: &core.AgentInstanceAPI{Store: h.db.Instances(), Checks: h.checks},
+		}
+		router := gin.New()
+		router.POST("/api/agent-instances/:id/check", handlers.CheckAgentInstance)
+		for _, paused := range []bool{false, true} {
+			if paused {
+				if _, err := h.db.Instances().Pause(t.Context(), h.instance.ID, "manual"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for range 2 {
+				recorder := httptest.NewRecorder()
+				request := httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodPost,
+					"/api/agent-instances/"+h.instance.ID+"/check",
+					strings.NewReader(`{"dry_run":true}`),
+				)
+				request.Header.Set("Content-Type", "application/json")
+				router.ServeHTTP(recorder, request)
+				var result contract.AgentInstanceCheckResponse
+				if err := json.Unmarshal(
+					recorder.Body.Bytes(),
+					&result,
+				); err != nil || recorder.Code != http.StatusOK || len(result.Sources) != 1 ||
+					result.Sources[0].Items != 1 {
+					t.Fatalf("preview=%d %s %v", recorder.Code, recorder.Body, err)
+				}
+			}
+		}
+		var rows int
+		if err := h.db.DB().
+			QueryRowContext(t.Context(), "SELECT count(*) FROM agent_instance_source_states WHERE instance_id=?", h.instance.ID).
+			Scan(&rows); err != nil {
+			t.Fatal(err)
+		}
+		if rows != 0 {
+			t.Fatalf("preview wrote %d rows", rows)
+		}
+		inputs := h.inputs(t)
+		if len(inputs) != 4 {
+			t.Fatalf("inputs=%+v", inputs)
+		}
+		for _, input := range inputs {
+			if !input.DryRun || string(input.State) != "null" {
+				t.Fatalf("preview input=%+v", input)
+			}
+		}
+	})
+	t.Run("Should notify once then execute the approved source [IT-013]", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, false, false)
+		events, unsubscribe, err := h.manager.SubscribeSessionCatalogEvents(
+			t.Context(),
+			session.CatalogScope{
+				ReadScope:   store.ReadScope{ProfileID: h.instance.ProfileID},
+				WorkspaceID: h.instance.WorkspaceID,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer unsubscribe()
+		for i := 1; i <= 2; i++ {
+			h.tick(t, i)
+			h.advance(t)
+		}
+		notices := 0
+		draining := true
+		for draining {
+			select {
+			case event := <-events:
+				if event.OperatorNotification != nil &&
+					event.OperatorNotification.Kind == session.NotifyKindHeartbeatSourceUnapproved {
+					notices++
+				}
+			default:
+				draining = false
+			}
+		}
+		if notices != 1 || len(h.inputs(t)) != 0 {
+			t.Fatalf("notices=%d inputs=%+v", notices, h.inputs(t))
+		}
+		h.approve(t)
+		h.writeReply(t, source.Result{Items: []source.Item{}, State: []byte(`{"cursor":1}`)})
+		h.tick(t, 3)
+		if got := string(h.states(t)[0].State); got != `{"cursor":1}` || len(h.inputs(t)) != 1 {
+			t.Fatalf("approved state=%s inputs=%+v", got, h.inputs(t))
+		}
+	})
+}
+
+// Invariant (IT-004/006): interrupted triage discards pending cursors, while a
+// persistent source failure reports once and disappears from the digest on recovery.
+// Owning layer: daemon heartbeat runtime and its real SQLite recovery transactions.
+func TestHeartbeatSourceRecovery(t *testing.T) {
+	t.Run("Should recover an interrupted bound triage and repeat its input [IT-004]", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, true)
+		h.writeReply(t, source.Result{Items: []source.Item{}, State: []byte(`{"cursor":7}`)})
+		h.tick(t, 1)
+		h.advance(t)
+		if err := h.checks.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		h.writeReply(
+			t,
+			source.Result{
+				Items: []source.Item{{Key: "1", Title: "retry after restart"}},
+				State: []byte(`{"cursor":1}`),
+			},
+		)
+		target, err := h.env.ResolveCheck(t.Context(), h.instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch, err := h.env.PollSources(t.Context(), &target, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		admitted, err := h.db.Instances().
+			Admit(t.Context(), heartbeat.AdmitRequest{InstanceID: h.instance.ID, OccurrenceID: "instance_check-before-restart", ManualCheck: true, Now: h.now(), NextWakeAt: h.now().Add(time.Hour), MaxConcurrent: 1, Sources: batch.Sources})
+		if err != nil || !admitted {
+			t.Fatalf("admit=%v %v", admitted, err)
+		}
+		triage, err := h.manager.Create(
+			t.Context(),
+			&session.CreateOpts{
+				AgentName:                 h.instance.AgentName,
+				Workspace:                 h.instance.WorkspaceID,
+				ProfileID:                 h.instance.ProfileID,
+				InstanceID:                h.instance.ID,
+				Type:                      session.SessionTypeTriage,
+				ProvenanceParentSessionID: h.instance.MainSessionID,
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bound, err := h.db.Instances().
+			BindTriage(t.Context(), h.instance.ID, "instance_check-before-restart", triage.ID)
+		if err != nil || !bound {
+			t.Fatalf("bind=%v %v", bound, err)
+		}
+		promptCtx, cancelPrompt := context.WithCancel(t.Context())
+		defer cancelPrompt()
+		events, err := h.manager.Prompt(promptCtx, triage.ID, "Perform a read-only proactive check.")
+		if err != nil {
+			t.Fatal(err)
+		}
+		drained := make(chan struct{})
+		go func() {
+			defer close(drained)
+			for range events {
+			}
+		}()
+		waitForCondition(t, "triage provider received pending check", func() bool {
+			records, err := acpmock.ReadDiagnostics(h.diagnostics)
+			if err != nil {
+				return false
+			}
+			for _, record := range acpmock.ProtocolDiagnostics(records) {
+				if record.ProtocolMethod == "session/prompt" {
+					return true
+				}
+			}
+			return false
+		})
+		// A fresh service owns no in-memory run; it must recover the persisted occurrence.
+		h.startChecks(t)
+		select {
+		case <-drained:
+		case <-time.After(5 * time.Second):
+			t.Fatal("recovered triage did not drain")
+		}
+		var reason string
+		var pending *string
+		if err := h.db.DB().
+			QueryRowContext(t.Context(), "SELECT reason FROM agent_heartbeat_wake_events WHERE instance_id=? ORDER BY created_at DESC LIMIT 1", h.instance.ID).
+			Scan(&reason); err != nil {
+			t.Fatal(err)
+		}
+		if err := h.db.DB().
+			QueryRowContext(t.Context(), "SELECT pending_occurrence_id FROM agent_instance_source_states WHERE instance_id=?", h.instance.ID).
+			Scan(&pending); err != nil {
+			t.Fatal(err)
+		}
+		if reason != "triage_interrupted" || pending != nil || string(h.states(t)[0].State) != `{"cursor":7}` {
+			t.Fatalf("reason=%s pending=%v states=%+v", reason, pending, h.states(t))
+		}
+		result, err := h.checks.Check(t.Context(), h.instance.ID, true)
+		if err != nil || result.Digest == nil || len(result.Digest.Items) != 1 ||
+			result.Digest.Items[0].Key != "source:s:1" {
+			t.Fatalf("retry=%+v %v", result, err)
+		}
+		inputs := h.inputs(t)
+		if len(inputs) != 3 || string(inputs[len(inputs)-1].State) != `{"cursor":7}` {
+			t.Fatalf("recovered stdin=%+v", inputs)
+		}
+	})
+	t.Run("Should report the failure threshold once and clear it on success [IT-006]", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		if err := os.Remove(h.reply); err != nil {
+			t.Fatal(err)
+		}
+		for i := 1; i <= 4; i++ {
+			h.tick(t, i)
+			h.advance(t)
+		}
+		states := h.states(t)
+		if states[0].FailureStreak != 4 || states[0].Error == nil || states[0].Error.Code != "source_exit_nonzero" {
+			t.Fatalf("failing=%+v", states)
+		}
+		var unchanged int
+		if err := h.db.DB().
+			QueryRowContext(t.Context(), "SELECT count(*) FROM agent_heartbeat_wake_events WHERE instance_id=? AND reason='digest_unchanged'", h.instance.ID).
+			Scan(&unchanged); err != nil {
+			t.Fatal(err)
+		}
+		records, err := acpmock.ReadDiagnostics(h.diagnostics)
+		if err != nil {
+			t.Fatal(err)
+		}
+		prompts := acpmock.PromptDiagnostics(records)
+		data, err := json.Marshal(prompts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if unchanged != 1 || len(prompts) != 1 ||
+			!strings.Contains(string(data), "source:s:failing:source_exit_nonzero") {
+			t.Fatalf("unchanged=%d prompts=%s", unchanged, data)
+		}
+		h.writeReply(t, source.Result{Items: []source.Item{}})
+		h.tick(t, 5)
+		statuses, err := h.checks.SourceStatuses(t.Context(), h.instance.ID)
+		if err != nil || len(statuses) != 1 || statuses[0].Status != "ok" || statuses[0].FailureStreak != 0 {
+			t.Fatalf("statuses=%+v %v", statuses, err)
+		}
+		result, err := h.checks.Check(t.Context(), h.instance.ID, true)
+		if err != nil || result.Gate != "digest_empty" {
+			t.Fatalf("recovered digest=%+v %v", result, err)
+		}
+	})
+}
+
+// Invariant (IT-010): a blocked source cannot delay task-run wakes in the same
+// mechanical scheduler cycle. Fast-source admission is owned by the globaldb
+// TestSourceCollectionScheduling suite; this test owns daemon scheduler wiring.
+func TestHeartbeatSourceSchedulerCycle(t *testing.T) {
+	t.Run("Should dispatch queued task work while a source poll remains blocked [IT-010]", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		release := h.blockPoll(t)
+		work := daemonTaskRecordForTest("source-cycle-task", h.now())
+		work.Scope = taskpkg.ScopeWorkspace
+		work.WorkspaceID = h.instance.WorkspaceID
+		if err := h.db.CreateTask(t.Context(), work); err != nil {
+			t.Fatal(err)
+		}
+		enqueueSchedulerRunForTest(
+			t,
+			h.db,
+			h.now(),
+			work.ID,
+			"source-cycle-run",
+			taskpkg.RunKindWorker,
+			"",
+			"source.cycle",
+		)
+		sessions := &fakeSessionManager{
+			infos: []*session.Info{
+				{
+					ID:          "task-worker",
+					ProfileID:   h.instance.ProfileID,
+					AgentName:   "task-worker",
+					WorkspaceID: h.instance.WorkspaceID,
+					State:       session.StateActive,
+					CreatedAt:   h.now().Add(-time.Hour),
+				},
+			},
+		}
+		waker, err := newSchedulerSessionWaker(t.Context(), sessions, discardLogger())
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := waker.shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		tasks, err := taskpkg.NewManager(taskpkg.WithStore(h.db), taskpkg.WithManagerNow(h.now))
+		if err != nil {
+			t.Fatal(err)
+		}
+		scheduler, err := schedulerpkg.New(
+			schedulerTaskSource{manager: tasks, store: h.db},
+			schedulerSessionSource{
+				sessions:  sessions,
+				situation: &schedulerSituationContextStub{},
+				logger:    discardLogger(),
+			},
+			waker,
+			schedulerpkg.WithClock(clockwork.NewFakeClockAt(h.now())),
+			schedulerpkg.WithWakeCooldown(0),
+			schedulerpkg.WithProactiveChecks(h.checks.Tick),
+			schedulerpkg.WithLogger(discardLogger()),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		started := time.Now()
+		cycle, err := scheduler.RunOnce(t.Context())
+		if err != nil || time.Since(started) >= time.Second || cycle.WakeSucceeded != 1 ||
+			sessions.syntheticPromptCount() != 1 {
+			t.Fatalf("cycle=%+v duration=%v err=%v", cycle, time.Since(started), err)
+		}
+		waitForCondition(t, "source still blocked after task dispatch", func() bool { return len(h.inputs(t)) == 1 })
+		if h.checks.SourceMetrics()["heartbeat_source_collections_inflight"] != 1 {
+			t.Fatal("source poll finished before task wake assertion")
+		}
+		release()
+		h.waitIdle(t, 1)
 	})
 }

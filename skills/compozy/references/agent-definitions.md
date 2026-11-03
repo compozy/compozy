@@ -363,3 +363,25 @@ Automations, task execution profiles, destructive or open-world tools, and chang
 approvals, hooks, extensions, agent definitions or persistent agents still ask, once per call.
 Answering another session's prompts asks unless the caller is a stays-on lineage answering its
 descendants. Extension and MCP tools ask unless read-only. The built-in stays-on Orchestrator ships `permissions: auto`.
+
+## Check-in sources
+
+Declare external facts under `context.sources`. Each entry has a unique local `id`, exactly one of `script` or `kind`, and optional `with` data (up to 4 KiB). Scripts live in the agent definition's `sources/` folder. Kind names use `<extension>/<kind>`; kinds unavailable in the current workspace remain visible as unavailable.
+
+```yaml
+context:
+  include: []
+  sources:
+    - id: deploys
+      script: failed-deploys
+      with:
+        environment: production
+```
+
+Run `compozy agent heartbeat sources <agent>` to inspect scripts and effective limits. Review the script, then approve its exact hash with `compozy agent heartbeat sources approve <agent> <script>`. Use `--sha256` and `--yes` for a noninteractive approval. Only the operator may approve or revoke; agent credentials are rejected. Editing the script requires a new approval. Approve self-contained scripts: commands and files they load remain trusted operator input outside the approved hash. Extension-owned scripts never execute.
+
+A script receives version 1 JSON on stdin with `source_id`, `params`, committed `state`, `limits`, `workspace`, `now`, and `dry_run`. Return one JSON object with `items` (unique `key`, `title`, optional `summary`, `url`, `attributes`), optional next `state`, and `more`. Page within `limits.max_items`; never advance state past returned items. Exit zero with `{"items":[]}` when nothing changed. Omitting `state` preserves the previous cursor.
+
+Polls run before model work. Empty or unchanged source digests skip the model even when standing guidance is present, and source-backed checks keep their configured cadence. Item text is untrusted data. State commits only after a successful check, or on an empty skipped batch; failures retry from the previous state. `compozy agent instance check <agent> --dry-run` polls without changing state or status, including on a paused instance.
+
+Scripts run a private copy of approved bytes with the workspace as cwd. They receive `PATH`, `HOME`, `LANG`, `TMPDIR`, `USER`, `COMPOZY_SOURCE_ID`, `COMPOZY_AGENT`, and explicitly allowed daemon environment variables; they never receive `session_env`. Stdout, state, runtime and stderr are bounded. Upgrade every daemon reading a file before adding `context.sources`; older daemons reject the new key on downgrade.

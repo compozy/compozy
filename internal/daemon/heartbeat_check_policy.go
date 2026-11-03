@@ -8,6 +8,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/managedsidecar"
+	"github.com/compozy/compozy/internal/session"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -60,6 +61,17 @@ func resolveInstanceCheckPolicy(
 	}
 	if err != nil {
 		return err
+	}
+	target.DefinitionDir = filepath.Dir(agent.SourcePath)
+	target.RootDir = workspace.RootDir
+	if resolver, ok := definitions.agents.(interface {
+		ResolveAgentArtifacts(string, *workspacepkg.ResolvedWorkspace) (session.AgentArtifacts, error)
+	}); ok {
+		artifacts, err := resolver.ResolveAgentArtifacts(instance.AgentName, &workspace)
+		if err != nil {
+			return err
+		}
+		target.UntrustedScripts = artifacts.PackageOwned
 	}
 	target.Policy = policy
 	target.MainPrompting = definitions.sessions.IsPrompting(instance.MainSessionID)

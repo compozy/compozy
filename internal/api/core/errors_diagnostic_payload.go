@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/heartbeat/source"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
@@ -20,6 +22,9 @@ import (
 func errorPayloadForMessage(message string, err error) contract.ErrorPayload {
 	message = diagnosticspkg.Redact(taskpkg.RedactClaimTokens(message))
 	payload := contract.ErrorPayload{Error: message}
+	if cause, ok := errors.AsType[*source.Error](err); ok {
+		payload.Code = string(cause.Code)
+	}
 	for code, target := range map[string]error{
 		"session_superseded":         store.ErrSessionSuperseded,
 		"agent_kind_immutable":       compozyconfig.ErrAgentKindImmutable,

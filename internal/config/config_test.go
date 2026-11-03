@@ -3474,3 +3474,42 @@ func TestPermissionLevelOrdering(t *testing.T) {
 		}
 	})
 }
+
+func TestHeartbeatSourceConfig(t *testing.T) {
+	for _, scope := range []string{RoleFieldSourceWorkspace, RoleFieldSourceProfile} {
+		t.Run("Should ignore source overlays in "+scope+" [UT-062]", func(t *testing.T) {
+			t.Parallel()
+			cfg := Config{Agents: AgentsConfig{Heartbeat: DefaultHeartbeatConfig()}}
+			overlay, err := loadConfigOverlayBytes(
+				[]byte("[agents.heartbeat.sources]\nmax_items=99\nscripts_enabled=false\n"),
+				"overlay",
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := applyConfigOverlay(&cfg, &overlay, scope); err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Agents.Heartbeat.Sources.MaxItems != 20 || !cfg.Agents.Heartbeat.Sources.ScriptsEnabled {
+				t.Fatalf("config=%+v", cfg.Agents.Heartbeat.Sources)
+			}
+		})
+	}
+	t.Run("Should reject out of bounds source limits", func(t *testing.T) {
+		t.Parallel()
+		if err := (HeartbeatSourcesConfig{}).Validate(); err == nil {
+			t.Fatal("accepted all zero source limits")
+		}
+		cfg := DefaultHeartbeatSourcesConfig()
+		cfg.MaxItems = 101
+		if err := cfg.Validate(); err == nil {
+			t.Fatal("accepted 101 items")
+		}
+		cfg = DefaultHeartbeatSourcesConfig()
+		cfg.Timeout = 0
+		cfg.MaxPerAgent = 0
+		if err := cfg.Validate(); err == nil {
+			t.Fatal("accepted invalid zero limits")
+		}
+	})
+}

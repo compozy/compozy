@@ -50,6 +50,7 @@ func (s *CheckService) dispatch(
 	}
 	now := s.now()
 	req := FinishRequest{
+		HasSources:          len(target.Policy.Preferences.Context.Sources) > 0,
 		UnattendedTurnLimit: s.config.UnattendedTurnLimit,
 		QuietBackoffCap:     s.config.QuietBackoffCap,
 		FatigueLimit:        int64(s.config.FatigueLimit),
@@ -121,9 +122,9 @@ func (s *CheckService) Recover(ctx context.Context) error {
 			}
 		}
 		now := s.now()
-		source := "timer"
+		source := checkTimerSource
 		if strings.HasPrefix(state.OccurrenceID, "instance_check-") {
-			source = "instance_check"
+			source = checkManualSource
 		}
 		// Keep the cadence already committed at admission, including per-agent policy.
 		var nextWake time.Time
@@ -180,7 +181,7 @@ func (s *CheckService) admitCheck(
 		return CheckResult{}, err
 	}
 	if !admitted {
-		return CheckResult{Gate: "no_slot"}, nil
+		return CheckResult{Gate: checkNoSlot}, nil
 	}
 	dispatchCtx, cancel := context.WithTimeout(s.ctx, s.config.Timeout)
 	s.running[target.Instance.ID] = checkRun{occurrence: occurrence, cancel: cancel}
@@ -190,6 +191,11 @@ func (s *CheckService) admitCheck(
 
 // CancelInstance stops the check owned by the instance after its pause commits.
 func (s *CheckService) CancelInstance(ctx context.Context, id string) error {
+	s.mu.Lock()
+	if cancel := s.collecting[id]; cancel != nil {
+		cancel()
+	}
+	s.mu.Unlock()
 	state, err := s.store.WakeState(ctx, id)
 	if err != nil {
 		return err

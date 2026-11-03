@@ -58,8 +58,13 @@ func (r *InstanceRepo) Admit(ctx context.Context, req heartbeat.AdmitRequest) (b
 		manual = 1
 	}
 	params := sqlcgen.AdmitInstanceWakeParams{
-		InstanceID: req.InstanceID, OccurrenceID: req.OccurrenceID, Now: store.FormatTimestamp(req.Now),
-		NextWakeAt: store.FormatTimestamp(req.NextWakeAt), ManualCheck: manual, MaxConcurrent: int64(req.MaxConcurrent),
+		ExpectedDue:   req.ExpectedDue,
+		InstanceID:    req.InstanceID,
+		OccurrenceID:  req.OccurrenceID,
+		Now:           store.FormatTimestamp(req.Now),
+		NextWakeAt:    store.FormatTimestamp(req.NextWakeAt),
+		ManualCheck:   manual,
+		MaxConcurrent: int64(req.MaxConcurrent),
 	}
 	ids, err := json.Marshal(req.EventIDs)
 	if err != nil {
@@ -74,6 +79,17 @@ func (r *InstanceRepo) Admit(ctx context.Context, req heartbeat.AdmitRequest) (b
 			q := sqlcgen.New(tx)
 			count, err := q.AdmitInstanceWake(ctx, params)
 			if err != nil || count == 0 {
+				return err
+			}
+			if err := bindHeartbeatSources(
+				ctx,
+				q,
+				req.InstanceID,
+				req.OccurrenceID,
+				req.Sources,
+				req.Now,
+				false,
+			); err != nil {
 				return err
 			}
 			if err := q.RecordInstanceEventBatch(ctx, sqlcgen.RecordInstanceEventBatchParams{
@@ -116,7 +132,7 @@ func (r *InstanceRepo) Skip(ctx context.Context, req heartbeat.SkipRequest) (boo
 				count, err := q.SkipInstanceWake(
 					ctx,
 					sqlcgen.SkipInstanceWakeParams{
-						InstanceID:  req.InstanceID,
+						Deferred: len(req.Sources) > 0, InstanceID: req.InstanceID,
 						ExpectedDue: req.ExpectedDue,
 						Now:         store.FormatTimestamp(req.Now),
 						NextWakeAt:  store.FormatTimestamp(req.NextWakeAt),
@@ -127,6 +143,9 @@ func (r *InstanceRepo) Skip(ctx context.Context, req heartbeat.SkipRequest) (boo
 				}
 			}
 
+			if err := bindHeartbeatSources(ctx, q, req.InstanceID, "", req.Sources, req.Now, true); err != nil {
+				return err
+			}
 			id, err := store.NewID("hwe")
 			if err != nil {
 				return err

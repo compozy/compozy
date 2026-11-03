@@ -3,7 +3,7 @@ package spec
 import "github.com/compozy/compozy/internal/api/contract"
 
 func authoredContextHeartbeatOperations() []OperationSpec {
-	return []OperationSpec{
+	return append(heartbeatSourceOperations(), []OperationSpec{
 		getAgentHeartbeatOperationSpec(),
 		validateAgentHeartbeatOperationSpec(),
 		putAgentHeartbeatOperationSpec(),
@@ -12,7 +12,7 @@ func authoredContextHeartbeatOperations() []OperationSpec {
 		rollbackAgentHeartbeatOperationSpec(),
 		getAgentHeartbeatStatusOperationSpec(),
 		wakeAgentHeartbeatOperationSpec(),
-	}
+	}...)
 }
 func getAgentHeartbeatOperationSpec() OperationSpec {
 	return OperationSpec{

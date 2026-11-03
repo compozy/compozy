@@ -1947,7 +1947,15 @@ export interface HeartbeatFrontmatterPreferencesPayload {
   quiet_windows?: HeartbeatTimeWindowPayload[];
 }
 
+export interface Ref {
+  id: string;
+  kind?: string;
+  script?: string;
+  with?: JSONValue;
+}
+
 export interface HeartbeatContextProjectionPayload {
+  sources?: Ref[];
   include?: string[];
 }
 
@@ -2057,6 +2065,7 @@ export interface HeartbeatStatusRequest {
 export type HeartbeatWakeResult = "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
 
 export type HeartbeatWakeReason =
+  | "source_poll_in_flight"
   | "wake_sent"
   | "heartbeat_disabled"
   | "heartbeat_invalid"

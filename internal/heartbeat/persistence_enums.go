@@ -92,7 +92,7 @@ func ValidWakeResult(result WakeResult) bool {
 // ValidWakeReason reports whether reason is a supported wake reason enum member.
 func ValidWakeReason(reason WakeReason) bool {
 	switch reason {
-	case WakeReasonSent,
+	case WakeReasonSourcePollInFlight, WakeReasonSent,
 		WakeReasonHeartbeatDisabled,
 		WakeReasonHeartbeatInvalid,
 		WakeReasonHeartbeatNoPolicy,

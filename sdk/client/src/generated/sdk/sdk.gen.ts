@@ -49,6 +49,9 @@ import type {
   ApplySettingsUpdateData,
   ApplySettingsUpdateErrors,
   ApplySettingsUpdateResponses,
+  ApproveAgentHeartbeatScriptData,
+  ApproveAgentHeartbeatScriptErrors,
+  ApproveAgentHeartbeatScriptResponses,
   ApproveAgentSkillReviewData,
   ApproveAgentSkillReviewErrors,
   ApproveAgentSkillReviewResponses,
@@ -426,6 +429,9 @@ import type {
   GetAgentHeartbeatData,
   GetAgentHeartbeatErrors,
   GetAgentHeartbeatResponses,
+  GetAgentHeartbeatSourcesData,
+  GetAgentHeartbeatSourcesErrors,
+  GetAgentHeartbeatSourcesResponses,
   GetAgentHeartbeatStatusData,
   GetAgentHeartbeatStatusErrors,
   GetAgentHeartbeatStatusResponses,
@@ -1359,6 +1365,9 @@ import type {
   RetryTaskRunData,
   RetryTaskRunErrors,
   RetryTaskRunResponses,
+  RevokeAgentHeartbeatScriptData,
+  RevokeAgentHeartbeatScriptErrors,
+  RevokeAgentHeartbeatScriptResponses,
   RevokeAppTokenData,
   RevokeAppTokenErrors,
   RevokeAppTokenResponses,
@@ -2377,6 +2386,79 @@ export class agents extends HeyApiClient {
         "Content-Type": "application/json",
         ...options.headers,
       },
+    });
+  }
+
+  /**
+   * Revoke a source script approval (operator only)
+   */
+  public revokeAgentHeartbeatScript<ThrowOnError extends boolean = true>(
+    options: Options<RevokeAgentHeartbeatScriptData, ThrowOnError>
+  ): RequestResult<
+    RevokeAgentHeartbeatScriptResponses,
+    RevokeAgentHeartbeatScriptErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).delete<
+      RevokeAgentHeartbeatScriptResponses,
+      RevokeAgentHeartbeatScriptErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/scripts/{script}/approve",
+      ...options,
+    });
+  }
+
+  /**
+   * Approve exact source script bytes (operator only)
+   */
+  public approveAgentHeartbeatScript<ThrowOnError extends boolean = true>(
+    options: Options<ApproveAgentHeartbeatScriptData, ThrowOnError>
+  ): RequestResult<
+    ApproveAgentHeartbeatScriptResponses,
+    ApproveAgentHeartbeatScriptErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      ApproveAgentHeartbeatScriptResponses,
+      ApproveAgentHeartbeatScriptErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/scripts/{script}/approve",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * List check-in source kinds, scripts and effective limits
+   */
+  public getAgentHeartbeatSources<ThrowOnError extends boolean = true>(
+    options: Options<GetAgentHeartbeatSourcesData, ThrowOnError>
+  ): RequestResult<
+    GetAgentHeartbeatSourcesResponses,
+    GetAgentHeartbeatSourcesErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).get<
+      GetAgentHeartbeatSourcesResponses,
+      GetAgentHeartbeatSourcesErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/{name}/heartbeat/sources",
+      ...options,
     });
   }
 

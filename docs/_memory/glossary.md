@@ -516,3 +516,7 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 - Identifiers in code: Go conventions (`PascalCase` exported, `camelCase` unexported).
 - Capability/skill IDs: kebab-case.
 - Commit prefixes: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `build:` only.
+
+### Check-in source
+
+Something outside the built-in facts that a stays-on check-in asks what is new before any model turn. It is an extension kind (`<extension>/<kind>`) or an operator-approved script in the agent's `sources/` folder. It returns keyed items and opaque state committed only with the check that saw them. It is distinct from a wake source (`timer`, `instance_check`) and from automation events.
