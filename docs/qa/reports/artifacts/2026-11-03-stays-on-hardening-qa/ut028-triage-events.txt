@@ -1,0 +1,8 @@
+5    tool_result                triage-desk  turn-f7946c0bad6f3c9a         2026-11-03T05:47:47Z  {"schema":"compozy.session.event.v1","type"
+16   synthetic_reentry          triage-desk  turn-32adc4d7e0833867         2026-11-03T06:02:47Z  {"schema":"compozy.session.event.v1","type"
+17   transcript_marker.created  triage-desk  turn-32adc4d7e0833867         2026-11-03T06:02:47Z  {"schema":"compozy.session.event.v1","type"
+18   agent_message              triage-desk  turn-32adc4d7e0833867         2026-11-03T06:02:47Z  {"generation":1,"prompt_runtime":{"provider
+19   prompt_delivery            triage-desk  turn-32adc4d7e0833867         2026-11-03T06:02:47Z  {"schema":"compozy.session.event.v1","type"
+20   done                       triage-desk  turn-32adc4d7e0833867         2026-11-03T06:02:47Z  {"schema":"compozy.session.event.v1","type"
+COMPOZY MONITOR - NOT USER INPUT] A monitor you registered fired. This is an automated daemon wake, not a message from the user.  \u003cmonitor-notification\u003e \u003cmonitor-id\u003emon-354a3ed2da3d\u003c/monitor-id\u003e \u003ckind\u003etimer\u003c/ki
+COMPOZY MONITOR - NOT USER INPUT] A monitor you registered fired. This is an automated daemon wake, not a message from the user.  \u003cmonitor-notification\u003e \u003cmonitor-id\u003emon-354a3ed2da3d\u003c/monitor-id\u003e \u003ckind\u003etimer\u003c/ki

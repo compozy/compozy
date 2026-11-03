@@ -1,4 +1,6 @@
 /** S2's containers: the pause report resumes in place and settles into a record once it runs. */
+import { useAuiState } from "@assistant-ui/react";
+
 import {
   agentInstancePausedUnattended,
   agentUnattendedSteps,
@@ -6,6 +8,7 @@ import {
   type AgentInstancePayload,
 } from "@/systems/agent";
 
+import { newestUnattendedReportId } from "../../../lib/session-report";
 import type { ReportAgent } from "../../../lib/session-report-identity";
 import { PauseNotice, PauseRecord, ResumeButton, ResumedReceipt } from "./pause-reports";
 
@@ -30,15 +33,21 @@ export function ResumeAction({ instances }: { instances: readonly AgentInstanceP
 export function UnattendedPauseReport({
   agent,
   instance,
-  newest,
+  instanceId,
+  reportId,
   when,
 }: {
   agent: ReportAgent;
   instance: AgentInstancePayload | undefined;
-  /** This is the newest brake pause of the instance in the thread. */
-  newest: boolean;
+  instanceId: string;
+  reportId: string;
   when: string;
 }) {
+  // A string from the thread's shared pause index: a streamed token re-renders nothing here.
+  const newestId = useAuiState(state =>
+    newestUnattendedReportId(state.thread.messages, instanceId)
+  );
+  const newest = newestId === undefined || newestId === reportId;
   const steps = instance ? agentUnattendedSteps(instance) : 0;
   if (instance?.state === "active") return <ResumedReceipt agent={agent} />;
   if (instance && (!agentInstancePausedUnattended(instance) || !newest)) {

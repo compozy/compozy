@@ -1,0 +1,62 @@
+[
+  {
+    "name": "agy",
+    "reviewer_mode": "<absent>"
+  },
+  {
+    "name": "claude",
+    "reviewer_mode": "auto"
+  },
+  {
+    "name": "codex",
+    "reviewer_mode": "agent"
+  },
+  {
+    "name": "copilot",
+    "reviewer_mode": "<absent>"
+  },
+  {
+    "name": "cursor",
+    "reviewer_mode": "<absent>"
+  },
+  {
+    "name": "gemini",
+    "reviewer_mode": "<absent>"
+  },
+  {
+    "name": "kimi-cli",
+    "reviewer_mode": "<absent>"
+  },
+  {
+    "name": "moonshot",
+    "reviewer_mode": "<absent>"
+  },
+  {
+    "name": "opencode",
+    "reviewer_mode": "<absent>"
+  },
+  {
+    "name": "openrouter",
+    "reviewer_mode": "<absent>"
+  },
+  {
+    "name": "pi",
+    "reviewer_mode": "<absent>"
+  },
+  {
+    "name": "qwen-code",
+    "reviewer_mode": "<absent>"
+  },
+  {
+    "name": "vercel-ai-gateway",
+    "reviewer_mode": "<absent>"
+  },
+  {
+    "name": "xai",
+    "reviewer_mode": "<absent>"
+  },
+  {
+    "name": "zai",
+    "reviewer_mode": "<absent>"
+  }
+]

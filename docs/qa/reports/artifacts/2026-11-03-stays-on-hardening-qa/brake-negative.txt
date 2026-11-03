@@ -1,0 +1,1 @@
+error: validate config write for "global-config": agents.stays_on.unattended_turn_limit must be nonnegative

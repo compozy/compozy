@@ -1,0 +1,3 @@
+inbox main user_message events: 0
+{"id":"hwe-1e65efb967701556","result":"reported","reason":"reported"}
+{"id":"hwe-3cffbcfcd6d168df","result":"skipped","reason":"cooldown_active"}

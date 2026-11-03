@@ -10,6 +10,7 @@ import { UIProvider } from "@compozy/ui";
 import type { AgentInstanceAway, AgentInstancePayload, AgentInstanceReport } from "@/systems/agent";
 import { agentInstanceFixture } from "@/systems/agent/mocks";
 
+import { newestUnattendedPauses } from "../../../../lib/session-report";
 import { SessionReportSendContext } from "../../../../lib/session-report-send";
 import type { SessionReportData } from "../../../../types";
 import { SessionReportPart } from "../session-report-part";
@@ -288,6 +289,49 @@ describe("SessionReportPart", () => {
       expect(await screen.findAllByRole("button", { name: "Resume" })).toHaveLength(1);
       expect(screen.getAllByRole("article", { name: "Paused until you're back" })).toHaveLength(1);
       expect(screen.getByText(/paused at .* after 300 steps without you\./)).toBeInTheDocument();
+    });
+
+    it("Should keep one Resume, on the newest pause, as the thread streams [DFE-2]", async () => {
+      reads.instances.mockResolvedValue([PAUSED]);
+      const later = { ...PAUSE, report_id: "arpt-2", created_at: "2026-11-01T02:00:00Z" };
+      const reports = [PAUSE, later].map(data => ({
+        role: "assistant",
+        content: [{ type: "data", name: "compozy-report", data }],
+      }));
+      reads.messages = reports;
+      const view = (
+        <>
+          <SessionReportPart data={PAUSE} />
+          <SessionReportPart data={later} />
+        </>
+      );
+      const { rerender } = render(view, { wrapper: harness(vi.fn()) });
+      expect(await screen.findAllByRole("button", { name: "Resume" })).toHaveLength(1);
+
+      // A streamed token: a new messages array and a growing message, the reports untouched.
+      reads.messages = [
+        ...reports,
+        { role: "assistant", content: [{ type: "text", text: "Wor" }] },
+      ];
+      rerender(view);
+
+      expect(screen.getAllByRole("button", { name: "Resume" })).toHaveLength(1);
+      expect(screen.getByText(/paused at .* after 300 steps without you\./)).toBeInTheDocument();
+    });
+
+    it("Should build the newest-pause index once per thread and share it [DFE-2]", () => {
+      const later = { ...PAUSE, report_id: "arpt-2", created_at: "2026-11-01T02:00:00Z" };
+      const other = { ...PAUSE, report_id: "arpt-3", instance_id: "ainst-2" };
+      const messages = [PAUSE, later, other, PROPOSAL].map(data => ({
+        role: "assistant",
+        content: [{ type: "data", name: "compozy-report", data }],
+      }));
+
+      const index = newestUnattendedPauses(messages);
+      expect(newestUnattendedPauses(messages)).toBe(index);
+      expect(index.get("ainst-1")?.report_id).toBe("arpt-2");
+      expect(index.get("ainst-2")?.report_id).toBe("arpt-3");
+      expect(newestUnattendedPauses([...messages]).get("ainst-1")?.report_id).toBe("arpt-2");
     });
 
     it("Should keep the report and say so when resume fails", async () => {

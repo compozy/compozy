@@ -140,6 +140,48 @@ export function isUnattendedPause(data: SessionReportData) {
   return data.kind === "failure" && reportPayload(data).reason === "unattended";
 }
 
+type PauseIndex = ReadonlyMap<string, SessionReportData>;
+
+const EMPTY_INDEX: PauseIndex = new Map();
+// Per message: its brake pauses. Streaming replaces only the growing message, so the rest hit.
+const pausesByMessage = new WeakMap<object, readonly SessionReportData[]>();
+// Per messages array: every pause report on the thread shares one index.
+const indexByThread = new WeakMap<readonly unknown[], PauseIndex>();
+
+function messagePauses(message: ThreadMessageLike): readonly SessionReportData[] {
+  const cached = pausesByMessage.get(message);
+  if (cached) return cached;
+  const pauses = Array.isArray(message.content)
+    ? message.content.flatMap(part => {
+        const data = reportPartData(part);
+        return data && isUnattendedPause(data) ? [data] : [];
+      })
+    : [];
+  pausesByMessage.set(message, pauses);
+  return pauses;
+}
+
+/**
+ * The newest brake pause of each instance in the loaded thread, built once per messages array
+ * and shared by every pause report on it.
+ */
+export function newestUnattendedPauses(
+  messages: readonly ThreadMessageLike[] | undefined
+): PauseIndex {
+  if (!messages) return EMPTY_INDEX;
+  const cached = indexByThread.get(messages);
+  if (cached) return cached;
+  const index = new Map<string, SessionReportData>();
+  for (const message of messages) {
+    for (const data of messagePauses(message)) {
+      const current = index.get(data.instance_id);
+      if (!current || data.created_at > current.created_at) index.set(data.instance_id, data);
+    }
+  }
+  indexByThread.set(messages, index);
+  return index;
+}
+
 /**
  * The newest brake-pause report of an instance in the loaded thread; only it offers a live
  * Resume. Undefined when the thread holds none, so a lone report stays the newest.
@@ -148,14 +190,5 @@ export function newestUnattendedReportId(
   messages: readonly ThreadMessageLike[] | undefined,
   instanceId: string
 ): string | undefined {
-  let newest: SessionReportData | undefined;
-  for (const message of messages ?? []) {
-    if (!Array.isArray(message.content)) continue;
-    for (const part of message.content) {
-      const data = reportPartData(part);
-      if (!data || data.instance_id !== instanceId || !isUnattendedPause(data)) continue;
-      if (!newest || data.created_at > newest.created_at) newest = data;
-    }
-  }
-  return newest?.report_id;
+  return newestUnattendedPauses(messages).get(instanceId)?.report_id;
 }

@@ -14,6 +14,7 @@ import {
 } from "@compozy/ui";
 
 import { useAgentSettingsPage } from "../../hooks/use-agent-settings-page";
+import { permissionsBlockedMessage } from "../../lib/agent-permissions";
 import type { AgentProfilePanel } from "../../lib/agent-profile";
 import { AgentSettingsAccessSection } from "../agent-settings-access-section";
 import { AgentSettingsMcpSection } from "../agent-settings-mcp-section";
@@ -160,8 +161,7 @@ export function AgentProfilePanels({
                 variant="warning"
               >
                 <AlertDescription>
-                  Its permission level ({page.draft?.legacyPermissions || "none"}) isn't one
-                  CompozyOS knows. Pick a level on the Permissions page, then save here.
+                  {permissionsBlockedMessage(page.draft?.legacyPermissions)}
                 </AlertDescription>
                 <AlertActions>
                   <Button
