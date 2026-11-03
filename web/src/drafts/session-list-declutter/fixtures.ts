@@ -121,6 +121,7 @@ export const SESSIONS = {
     badge: "waiting",
     minutes: 3,
     linked_work: links(3, 1),
+    subagent_summary: { total: 4, live: 1, failed: 1, attention: 1, most_urgent: "attention" },
   }),
   childRunning: session("d-child-1", {
     name: "Fix #1191 declutter session list",

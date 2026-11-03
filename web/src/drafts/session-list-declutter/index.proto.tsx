@@ -37,13 +37,16 @@ import {
 import { SessionListBranchToggle } from "@/systems/session/components/session-list/session-list-branch-toggle";
 import { SessionListFolder } from "@/systems/session/components/session-list/session-list-folder";
 import { SessionListGroupToggle } from "@/systems/session/components/session-list/session-list-group-toggle";
+import { SessionListSubagentRow } from "@/systems/session/components/session-list/session-list-subagent-row";
+import { roster } from "@/systems/session/components/subagents/stories/subagent-story-fixtures";
 import {
   SessionListRowView,
   type SessionRowLayout,
 } from "@/systems/session/components/session-list/session-list-row-view";
 import { SessionRowActions } from "@/systems/session/components/session-row-actions";
 import { childSessionSignalState } from "@/systems/session/lib/session-hierarchy";
-import { SESSION_SIDEBAR_DEFAULT_WIDTH } from "@/systems/session/lib/session-sidebar-width";
+import { sessionSubagentCounts } from "@/systems/session/lib/session-subagent-summary";
+import type { SessionThreadSegment } from "@/systems/session/lib/session-thread-branch";
 import { boardRuntimeFixture } from "@/systems/session/mocks/sessions-board-view-fixtures";
 import {
   SESSION_ENTRY_PRELOAD_FIXTURE,
@@ -74,6 +77,7 @@ export const meta = definePrototype({
     { id: "before", label: "Today" },
     { id: "trimmed", label: "A · Trimmed two lines" },
     { id: "single-line", label: "B · One line" },
+    { id: "single-line-subagents", label: "B · One line, subagents open" },
     { id: "face", label: "C · Face first" },
     { id: "editor", label: "Appearance editor: no background" },
   ],
@@ -81,12 +85,19 @@ export const meta = definePrototype({
 
 const actions = sessionLifecycleActionsFixture();
 
+/** Wider than today's 264 px default, as the operator asked to review it. */
+const SIDEBAR_WIDTH = 360;
+
+/** The orchestrator's direct subagents: one waiting on you, one failed, one working, one done. */
+const SUBAGENTS = [roster[2]!, roster[0]!, roster[3]!, roster[5]!];
+
 const CAPTAIN_FACE: AgentAvatarAppearance = { avatar: "generated", seed: "release-captain.2" };
 
 const LAYOUTS: Record<string, SessionRowLayout> = {
   before: "classic",
   trimmed: "trimmed",
   "single-line": "single-line",
+  "single-line-subagents": "single-line",
   face: "face",
 };
 
@@ -143,8 +154,14 @@ function Row({
   );
 }
 
-function Thread({ layout }: { layout: SessionRowLayout }) {
-  const [open, setOpen] = useState(true);
+function Thread({
+  layout,
+  initialSegment,
+}: {
+  layout: SessionRowLayout;
+  initialSegment: SessionThreadSegment;
+}) {
+  const [segment, setSegment] = useState<SessionThreadSegment | null>(initialSegment);
   const root = SESSIONS.orchestrator;
   const branchId = `declutter-branch-${layout}`;
   return (
@@ -154,11 +171,11 @@ function Thread({ layout }: { layout: SessionRowLayout }) {
           <SessionListBranchToggle
             branchId={branchId}
             childCount={THREAD_CHILDREN.length}
-            childSignal={open ? null : childSessionSignalState(THREAD_CHILDREN)}
-            onChange={next => setOpen(next !== null)}
-            segment={open ? "children" : null}
+            childSignal={segment === "children" ? null : childSessionSignalState(THREAD_CHILDREN)}
+            onChange={setSegment}
+            segment={segment}
             session={root}
-            subagentCounts={null}
+            subagentCounts={sessionSubagentCounts(root)}
             testIdPrefix="declutter"
           />
         }
@@ -167,16 +184,20 @@ function Thread({ layout }: { layout: SessionRowLayout }) {
       />
       <div id={branchId}>
         <SessionListBranch
-          render={() => (
+          render={shown => (
             <div className={BRANCH_RAIL}>
-              {THREAD_CHILDREN.map(child => (
-                <div className={BRANCH_NODE} key={child.id}>
-                  <Row layout={layout} session={child} />
-                </div>
-              ))}
+              {shown === "subagents"
+                ? SUBAGENTS.map(subagent => (
+                    <SessionListSubagentRow current={false} key={subagent.id} subagent={subagent} />
+                  ))
+                : THREAD_CHILDREN.map(child => (
+                    <div className={BRANCH_NODE} key={child.id}>
+                      <Row layout={layout} session={child} />
+                    </div>
+                  ))}
             </div>
           )}
-          segment={open ? "children" : null}
+          segment={segment}
         />
       </div>
     </div>
@@ -206,10 +227,12 @@ function SessionColumn({
   layout,
   background,
   title,
+  threadSegment,
 }: {
   layout: SessionRowLayout;
   background: IconBackground | "today";
   title: string;
+  threadSegment: SessionThreadSegment;
 }) {
   const catalog = agentCatalog(background);
   return (
@@ -219,7 +242,7 @@ function SessionColumn({
         <aside
           aria-label={`Sessions, ${title}`}
           className="flex flex-col gap-1 rounded-lg bg-sunken px-2.5 py-2"
-          style={{ width: SESSION_SIDEBAR_DEFAULT_WIDTH }}
+          style={{ width: SIDEBAR_WIDTH }}
         >
           <SessionListGroupToggle
             collapsed={false}
@@ -233,7 +256,7 @@ function SessionColumn({
             <Row layout={layout} session={SESSIONS.captain} />
             <Row layout={layout} session={SESSIONS.question} />
             <Row layout={layout} session={SESSIONS.chip} />
-            <Thread layout={layout} />
+            <Thread initialSegment={threadSegment} layout={layout} />
             <Folder layout={layout} />
             <Row layout={layout} session={SESSIONS.board} />
             <Row layout={layout} session={SESSIONS.review} />
@@ -245,14 +268,37 @@ function SessionColumn({
   );
 }
 
-function SessionLists({ layout }: { layout: SessionRowLayout }) {
+function SessionLists({
+  layout,
+  threadSegment,
+}: {
+  layout: SessionRowLayout;
+  threadSegment: SessionThreadSegment;
+}) {
   if (layout === "classic") {
-    return <SessionColumn background="today" layout={layout} title="Today (generated faces)" />;
+    return (
+      <SessionColumn
+        background="today"
+        layout={layout}
+        threadSegment={threadSegment}
+        title="Today (generated faces)"
+      />
+    );
   }
   return (
     <div className="flex flex-wrap items-start gap-8">
-      <SessionColumn background="plate" layout={layout} title="Built-ins on a gray plate" />
-      <SessionColumn background="none" layout={layout} title="Built-ins without background" />
+      <SessionColumn
+        background="plate"
+        layout={layout}
+        threadSegment={threadSegment}
+        title="Built-ins on a gray plate"
+      />
+      <SessionColumn
+        background="none"
+        layout={layout}
+        threadSegment={threadSegment}
+        title="Built-ins without background"
+      />
     </div>
   );
 }
@@ -319,7 +365,14 @@ export default function SessionListDeclutterDraft({ state }: PrototypeProps) {
   const layout = LAYOUTS[state];
   return (
     <main className="min-h-dvh bg-canvas p-8">
-      {layout === undefined ? <AppearanceEditor /> : <SessionLists layout={layout} />}
+      {layout === undefined ? (
+        <AppearanceEditor />
+      ) : (
+        <SessionLists
+          layout={layout}
+          threadSegment={state === "single-line-subagents" ? "subagents" : "children"}
+        />
+      )}
     </main>
   );
 }
