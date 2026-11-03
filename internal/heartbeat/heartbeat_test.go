@@ -881,6 +881,77 @@ func TestCollectDigest(t *testing.T) {
 			t.Fatal("foreign instance event included")
 		}
 	})
+	t.Run("Should admit an escaping heavy head event within budget then advance [UT-053 UT-072]", func(t *testing.T) {
+		t.Parallel()
+		contents := []string{
+			strings.Repeat("\\", 2048),
+			strings.Repeat("\"", 2048),
+			strings.Repeat("\x00", 2048),
+			strings.Repeat("<&>", 700),
+		}
+		for _, content := range contents {
+			head := AutomationEventFact{
+				ID:          "first",
+				InstanceID:  "instance",
+				Summary:     content,
+				Instruction: content,
+				TriggerID:   "trigger",
+				RunID:       "run",
+				TriggerName: "name",
+				Event:       "webhook",
+				ReceivedAt:  "2026-11-03T00:00:00Z",
+			}
+			ordinary := AutomationEventFact{
+				ID:         "second",
+				InstanceID: "instance",
+				Summary:    "Ordinary event",
+				ReceivedAt: "2026-11-03T00:00:01Z",
+			}
+			facts := CollectorFacts{EventsOmitted: 5, AutomationEvents: []AutomationEventFact{head, ordinary}}
+			digest, err := CollectDigest(CollectorScope{InstanceID: "instance"}, facts, nil, "", "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(digest.EventIDs) == 0 || digest.EventIDs[0] != "first" {
+				t.Fatalf("head event not admitted: %v", digest.EventIDs)
+			}
+			total := 0
+			for _, item := range digest.Items {
+				encoded, err := json.Marshal(item)
+				if err != nil {
+					t.Fatal(err)
+				}
+				total += len(encoded) + 1
+			}
+			if total > AutomationEventBatchBytes {
+				t.Fatalf("bytes=%d", total)
+			}
+			item := digest.Items[1]
+			want := AutomationEventSource{
+				Kind:        "event",
+				TriggerName: "name",
+				Event:       "webhook",
+				EventID:     "first",
+				TriggerID:   "trigger",
+				RunID:       "run",
+				ReceivedAt:  "2026-11-03T00:00:00Z",
+			}
+			if item.Source == nil || *item.Source != want {
+				t.Fatalf("attribution=%+v", item.Source)
+			}
+			if !strings.HasPrefix(item.Summary, "<untrusted_automation_event>\n\"") ||
+				!strings.HasSuffix(item.Summary, "\"\n</untrusted_automation_event>") ||
+				len(item.Summary) <= len("<untrusted_automation_event>\n\"\"\n</untrusted_automation_event>") {
+				t.Fatalf("truncated summary lost its fenced content: %q", item.Summary)
+			}
+			facts.AutomationEvents = []AutomationEventFact{ordinary}
+			digest, err = CollectDigest(CollectorScope{InstanceID: "instance"}, facts, nil, "", "")
+			if err != nil || !slices.Equal(digest.EventIDs, []string{"second"}) {
+				t.Fatalf("after consuming head: events=%v err=%v", digest.EventIDs, err)
+			}
+		}
+	})
+
 	t.Run("Should bound event bytes and retain omitted count", func(t *testing.T) {
 		t.Parallel()
 		facts := CollectorFacts{EventsOmitted: 5}
