@@ -36,7 +36,7 @@ func (s *selectionStore) Get(
 		return Selection{}, false, err
 	}
 	var selection Selection
-	err = s.manager.store.DB().QueryRowContext(
+	err = s.manager.store.ReadDB().QueryRowContext(
 		ctx,
 		`SELECT lens, workspace_id, profile_id FROM profile_selections WHERE lens = ? AND workspace_id = ?`,
 		validated.Lens,
@@ -55,7 +55,7 @@ func (s *selectionStore) List(ctx context.Context) (selections []Selection, err 
 	if ctx == nil {
 		return nil, errors.New("profile: list selections context is required")
 	}
-	rows, err := s.manager.store.DB().QueryContext(
+	rows, err := s.manager.store.ReadDB().QueryContext(
 		ctx,
 		`SELECT lens, workspace_id, profile_id FROM profile_selections ORDER BY lens, workspace_id`,
 	)

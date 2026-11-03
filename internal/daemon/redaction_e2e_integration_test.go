@@ -235,7 +235,7 @@ func testDaemonRedactionBoundary(t *testing.T) {
 	sessionDBPath := filepath.Join(harness.HomePaths.SessionsDir, session.ID, store.SessionDatabaseName)
 	waitForRuntimeCondition(t, "redacted runtime ledger append", 5*time.Second, func() bool {
 		payload, readErr := querySQLiteText(
-			harness.HomePaths.DatabaseFile,
+			harness.HomePaths.DatabaseFile+".telemetry.db",
 			"SELECT COALESCE(summary, '') || char(10) || content_json FROM event_summaries WHERE session_id = ?",
 			session.ID,
 		)
@@ -243,7 +243,7 @@ func testDaemonRedactionBoundary(t *testing.T) {
 	})
 
 	runtimeRows, err := querySQLiteText(
-		harness.HomePaths.DatabaseFile,
+		harness.HomePaths.DatabaseFile+".telemetry.db",
 		"SELECT COALESCE(summary, '') || char(10) || content_json FROM event_summaries WHERE session_id = ?",
 		session.ID,
 	)

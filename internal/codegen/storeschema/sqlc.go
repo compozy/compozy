@@ -19,6 +19,7 @@ import (
 var sqlcPackagePaths = []string{
 	"internal/store/globaldb",
 	"internal/store/sessiondb",
+	"internal/store/telemetrydb",
 	"internal/store/workspacedb",
 }
 

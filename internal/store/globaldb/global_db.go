@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/worktree"
 )
@@ -33,21 +34,32 @@ func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*Glo
 		closeErr := db.Close()
 		return nil, errors.Join(err, closeErr)
 	}
-	readDB, err := store.OpenSQLiteReadPool(ctx, path)
+	telemetry, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
 	if err != nil {
 		return nil, errors.Join(err, db.Close())
+	}
+	readDB, err := openGlobalReadPool(ctx, path)
+	if err != nil {
+		return nil, errors.Join(err, telemetry.Close(ctx), db.Close())
 	}
 
 	globalDB := &GlobalDB{
 		db:         db,
 		readDB:     readDB,
 		background: store.NewBackgroundWriter(db),
+		telemetry:  telemetry,
 		path:       strings.TrimSpace(path),
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
 	}
 	globalDB.initializeRepositories(config)
+	if err := globalDB.ObserveRepo.flushEventSummaryOutbox(ctx); err != nil {
+		return nil, errors.Join(err, globalDB.Close(context.WithoutCancel(ctx)))
+	}
+	if err := globalDB.PurgeDeletedTelemetry(ctx); err != nil {
+		return nil, errors.Join(err, globalDB.Close(context.WithoutCancel(ctx)))
+	}
 	return globalDB, nil
 }
 
@@ -97,6 +109,14 @@ func (g *GlobalDB) DB() *sql.DB {
 	return g.db
 }
 
+// ReadDB exposes the independent, query-only pool for composition-root reads.
+func (g *GlobalDB) ReadDB() *sql.DB {
+	if g == nil {
+		return nil
+	}
+	return g.readDB
+}
+
 // Close checkpoints the WAL and closes the database.
 func (g *GlobalDB) Close(ctx context.Context) error {
 	if g == nil {
@@ -119,9 +139,10 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 		backgroundErr = g.background.Close(ctx)
 	}
 	readCloseErr := g.readDB.Close()
+	telemetryErr := g.telemetry.Close(ctx)
 	checkpointErr := store.CheckpointPassive(ctx, g.db)
 	closeErr := g.db.Close()
-	return errors.Join(healthErr, backgroundErr, readCloseErr, checkpointErr, closeErr)
+	return errors.Join(healthErr, backgroundErr, readCloseErr, telemetryErr, checkpointErr, closeErr)
 }
 
 func openGlobalSQLite(ctx context.Context, path string, operatorHomeDir string) (*sql.DB, error) {
@@ -142,7 +163,7 @@ func openGlobalSQLite(ctx context.Context, path string, operatorHomeDir string) 
 		if err != nil {
 			return err
 		}
-		if err := applyGlobalMigrations(ctx, db); err != nil {
+		if err := applyGlobalMigrations(ctx, db, path); err != nil {
 			return err
 		}
 		if before.Version < userScopeMigrationVersion {

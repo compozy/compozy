@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 )
 
 // GlobalDB owns the global session index and observability database.
@@ -45,6 +46,7 @@ type GlobalDB struct {
 	db           *sql.DB
 	readDB       *sql.DB
 	background   *store.BackgroundWriter
+	telemetry    *telemetrydb.Store
 	healthBuffer *sessionHealthBuffer
 	path         string
 	now          func() time.Time

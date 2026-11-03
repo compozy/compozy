@@ -17,6 +17,8 @@ const (
 )
 
 type backgroundWrite struct {
+	db        *sql.DB
+	queuedAt  time.Time
 	ctx       context.Context
 	operation string
 	fn        func(context.Context, *WriteTx) error
@@ -92,7 +94,7 @@ func (w *BackgroundWriter) submit(
 			return nil, errWriteReentry
 		}
 	}
-	item := &backgroundWrite{ctx: ctx, operation: operation, fn: fn, result: make(chan error, 1)}
+	item := &backgroundWrite{db: w.db, queuedAt: time.Now(), ctx: ctx, operation: operation, fn: fn, result: make(chan error, 1)}
 	if err := w.enqueue(item); err != nil {
 		return nil, err
 	}
@@ -108,7 +110,7 @@ func (item *backgroundWrite) wait() error {
 		started := item.started
 		item.mu.Unlock()
 		if !started {
-			return item.ctx.Err()
+			return writeContentionError(item.db, item.operation, 0, item.queuedAt, item.ctx.Err())
 		}
 		// A running callback may already have committed; return its actual outcome.
 		return <-item.result

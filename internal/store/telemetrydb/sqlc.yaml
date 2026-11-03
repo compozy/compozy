@@ -1,0 +1,10 @@
+version: "2"
+sql:
+  - engine: "sqlite"
+    schema: "schema/schema.sql"
+    queries: "queries"
+    gen:
+      go:
+        package: "sqlcgen"
+        out: "sqlcgen"
+        emit_empty_slices: true

@@ -1,4 +1,4 @@
-h1:L2Qt0e9wcSBbkpzg+YBS5Xdi/U9QLt50SCQQ0Ktu56A=
+h1:r68SMm6CB+YhoOqwHShyUauxsHjK8+hwnl72VcIZcbM=
 00001_baseline.sql h1:S/Hl9w8PyqMpsW5NP7g/7u/VnQI84pVFJZUUBi0MMy0=
 00002_schema.sql h1:PBK6FCjEVDmfxcoY4whqvHExe4llHojr9bZjNymgtHw=
 00003_schema.sql h1:x8VmofWOLCS5ARICKEemtVqBU1zUxT7fJSwOeC8yV18=
@@ -183,3 +183,7 @@ h1:L2Qt0e9wcSBbkpzg+YBS5Xdi/U9QLt50SCQQ0Ktu56A=
 00182_schema.sql h1:RNbwI/oPApabJ3ftTYu+LD4iBVS7lAiz5cGw/tbCZL4=
 00183_schema.sql h1:w532XkbWrW/wXyVPTcTOlOgOQ5gVN8/Q8j233T17mTk=
 00184_schema.sql h1:w84HWgBrrzEbv/zZ7y9qwjGXDwSrH1stAWU3dhNpCbk=
+00185_schema.sql h1:yCG4igu18DGnotlVcUx9MVjoLa4nC3ad0L9SuR5bJFs=
+00186_freeze_telemetry_export.sql h1:Sucmbm028A1vgqpwDopbYiqpYlRAc0uVGo+CAX0DZz8=
+00187_telemetry_export_complete.sql h1:oOwKCHSRtMIYrVVrU1Y0ybTtW0g+17Cg3GYmNveAAyo=
+00188_schema.sql h1:DJUWEYsVA20zcTx5JIcxErpPs7/QaAqKbL+mxDsjj5Q=

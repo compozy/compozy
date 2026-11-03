@@ -19,7 +19,7 @@ func (m *Manager) Resolve(ctx context.Context, in ResolveInput) (Resolution, err
 	env := strings.TrimSpace(in.Env)
 	sessionProfileID := strings.TrimSpace(in.SessionProfileID)
 	if sessionProfileID != "" {
-		profile, err := getProfileByID(ctx, m.store.DB(), sessionProfileID)
+		profile, err := getProfileByID(ctx, m.store.ReadDB(), sessionProfileID)
 		if err != nil {
 			return Resolution{}, err
 		}
@@ -31,7 +31,7 @@ func (m *Manager) Resolve(ctx context.Context, in ResolveInput) (Resolution, err
 				ErrSessionConflict,
 			)
 		}
-		if err := ensureAvailable(ctx, m.store.DB(), profile, true); err != nil {
+		if err := ensureAvailable(ctx, m.store.ReadDB(), profile, true); err != nil {
 			return Resolution{}, err
 		}
 		return Resolution{Profile: profile, Source: ResolutionSourceSession}, nil
@@ -49,7 +49,7 @@ func (m *Manager) Resolve(ctx context.Context, in ResolveInput) (Resolution, err
 	if !found {
 		return m.resolveDefault(ctx, ResolutionNoteNoRememberedChoice)
 	}
-	remembered, err := getProfileByID(ctx, m.store.DB(), selection.ProfileID)
+	remembered, err := getProfileByID(ctx, m.store.ReadDB(), selection.ProfileID)
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return m.resolveDefault(ctx, ResolutionNoteNoRememberedChoice)
@@ -59,7 +59,7 @@ func (m *Manager) Resolve(ctx context.Context, in ResolveInput) (Resolution, err
 	if remembered.State == StateArchived {
 		return m.resolveDefault(ctx, ResolutionNoteArchivedRememberedFallback)
 	}
-	if err := ensureAvailable(ctx, m.store.DB(), remembered, false); err != nil {
+	if err := ensureAvailable(ctx, m.store.ReadDB(), remembered, false); err != nil {
 		return Resolution{}, err
 	}
 	return Resolution{Profile: remembered, Source: ResolutionSourceRemembered}, nil
@@ -70,22 +70,22 @@ func (m *Manager) resolveExplicit(
 	name string,
 	source ResolutionSource,
 ) (Resolution, error) {
-	profile, err := getProfileByName(ctx, m.store.DB(), name)
+	profile, err := getProfileByName(ctx, m.store.ReadDB(), name)
 	if err != nil {
 		return Resolution{}, err
 	}
-	if err := ensureAvailable(ctx, m.store.DB(), profile, true); err != nil {
+	if err := ensureAvailable(ctx, m.store.ReadDB(), profile, true); err != nil {
 		return Resolution{}, err
 	}
 	return Resolution{Profile: profile, Source: source}, nil
 }
 
 func (m *Manager) resolveDefault(ctx context.Context, note ResolutionNote) (Resolution, error) {
-	profile, err := getProfileByID(ctx, m.store.DB(), defaultProfileID)
+	profile, err := getProfileByID(ctx, m.store.ReadDB(), defaultProfileID)
 	if err != nil {
 		return Resolution{}, err
 	}
-	if err := ensureAvailable(ctx, m.store.DB(), profile, true); err != nil {
+	if err := ensureAvailable(ctx, m.store.ReadDB(), profile, true); err != nil {
 		return Resolution{}, err
 	}
 	return Resolution{Profile: profile, Source: ResolutionSourceDefault, Note: note}, nil

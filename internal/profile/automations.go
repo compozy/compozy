@@ -103,7 +103,7 @@ func (m *Manager) reconcileProfileAutomations(ctx context.Context, opID string) 
 		return nil
 	}
 	var profileID string
-	if err := m.store.DB().QueryRowContext(ctx,
+	if err := m.store.ReadDB().QueryRowContext(ctx,
 		`SELECT profile_id FROM profile_lifecycle_ops WHERE id = ?`, opID,
 	).Scan(&profileID); err != nil {
 		return fmt.Errorf("profile: read automation owner for operation %s: %w", opID, err)

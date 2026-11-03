@@ -29,44 +29,65 @@ func (g *ObserveRepo) SweepObservability(
 	result = store.ObservabilityRetentionSweepResult{CutoffAt: cutoff.UTC()}
 	cutoffValue := store.FormatTimestamp(result.CutoffAt)
 
+	if err := g.flushEventSummaryOutbox(ctx); err != nil {
+		return result, err
+	}
+	if err := g.sweepDeletedTelemetry(ctx); err != nil {
+		return result, err
+	}
+	result.DeletedEventSummaries, err = g.telemetry.Sweep(ctx, result.CutoffAt)
+	if err != nil {
+		return result, err
+	}
 	expired, err := g.readQueries.HasExpiredObservability(ctx, sqlcgen.HasExpiredObservabilityParams{
 		Cutoff: cutoffValue, CutoffDay: store.LocalDay(result.CutoffAt),
 	})
 	if err != nil {
-		return store.ObservabilityRetentionSweepResult{}, fmt.Errorf("store: check expired observability rows: %w", err)
+		return result, fmt.Errorf("store: check expired observability rows: %w", err)
 	}
 	if expired == 0 {
 		return result, nil
 	}
-	err = g.withImmediateTransaction(ctx, "sweep observability", func(tx globalSQLExecutor) error {
-		queries := sqlcgen.New(tx)
-		if result.DeletedEventSummaries, err = queries.DeleteEventSummariesBefore(ctx, cutoffValue); err != nil {
-			err = fmt.Errorf("store: delete old event_summaries rows: %w", err)
+	const batchSize = 256
+	for {
+		var batch store.ObservabilityRetentionSweepResult
+		err := g.writeBackground(ctx, "sweep core observability", func(ctx context.Context, tx *store.WriteTx) error {
+			queries := sqlcgen.New(tx)
+			var err error
+			batch.DeletedTokenStats, err = queries.DeleteTokenStatsBefore(ctx, sqlcgen.DeleteTokenStatsBeforeParams{
+				Cutoff: cutoffValue, BatchSize: batchSize,
+			})
+			if err != nil {
+				return err
+			}
+			batch.DeletedTokenUsageDaily, err = queries.DeleteTokenUsageDailyBefore(
+				ctx,
+				sqlcgen.DeleteTokenUsageDailyBeforeParams{
+					CutoffDay: store.LocalDay(result.CutoffAt), BatchSize: batchSize,
+				},
+			)
+			if err != nil {
+				return err
+			}
+			batch.DeletedPermissionLogs, err = queries.DeletePermissionLogsBefore(
+				ctx,
+				sqlcgen.DeletePermissionLogsBeforeParams{
+					Cutoff: cutoffValue, BatchSize: batchSize,
+				},
+			)
 			return err
+		})
+		if err != nil {
+			return result, fmt.Errorf("store: sweep core observability: %w", err)
 		}
-		if result.DeletedTokenStats, err = queries.DeleteTokenStatsBefore(ctx, cutoffValue); err != nil {
-			err = fmt.Errorf("store: delete old token_stats rows: %w", err)
-			return err
+		result.DeletedTokenStats += batch.DeletedTokenStats
+		result.DeletedTokenUsageDaily += batch.DeletedTokenUsageDaily
+		result.DeletedPermissionLogs += batch.DeletedPermissionLogs
+		if batch.DeletedTokenStats < batchSize && batch.DeletedTokenUsageDaily < batchSize &&
+			batch.DeletedPermissionLogs < batchSize {
+			return result, nil
 		}
-		// token_usage_daily is keyed by daemon-local day buckets, so the cutoff is
-		// compared in LocalDay form (not the RFC3339 timestamp the other tables use).
-		if result.DeletedTokenUsageDaily, err = queries.DeleteTokenUsageDailyBefore(
-			ctx,
-			store.LocalDay(result.CutoffAt),
-		); err != nil {
-			err = fmt.Errorf("store: delete old token_usage_daily rows: %w", err)
-			return err
-		}
-		if result.DeletedPermissionLogs, err = queries.DeletePermissionLogsBefore(ctx, cutoffValue); err != nil {
-			err = fmt.Errorf("store: delete old permission_log rows: %w", err)
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		return store.ObservabilityRetentionSweepResult{}, err
 	}
-	return result, nil
 }
 
 // UpdateTokenStats merges one or more turns of token usage into the session aggregate.
@@ -81,7 +102,9 @@ func (g *ObserveRepo) UpdateTokenStats(ctx context.Context, update store.TokenSt
 	if err != nil {
 		return err
 	}
-	if err := g.queries.UpsertTokenStats(ctx, params); err != nil {
+	if err := g.writeBackground(ctx, "update token stats", func(ctx context.Context, tx *store.WriteTx) error {
+		return sqlcgen.New(tx).UpsertTokenStats(ctx, params)
+	}); err != nil {
 		return fmt.Errorf("store: upsert token stats for session %q: %w", update.SessionID, err)
 	}
 	return nil

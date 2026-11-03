@@ -4731,7 +4731,7 @@ func TestInstanceActivity(t *testing.T) {
 			); err != nil {
 				t.Fatal(err)
 			}
-			if _, err := db.DB().
+			if _, err := db.telemetry.DB().
 				ExecContext(ctx, `INSERT INTO event_summaries(id,profile_id,workspace_id,agent_name,type,timestamp) VALUES (?,?,?,?,?,?)`, fmt.Sprintf("activity-%d", index), row.profile, row.workspace, row.agent, "session.done", row.day+"T12:00:00Z"); err != nil {
 				t.Fatal(err)
 			}

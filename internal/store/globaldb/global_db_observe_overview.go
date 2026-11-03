@@ -18,7 +18,10 @@ func (g *ObserveRepo) UpsertTokenUsageDaily(ctx context.Context, update store.To
 	if err := update.Validate(); err != nil {
 		return err
 	}
-	if err := g.queries.UpsertTokenUsageDaily(ctx, g.tokenUsageDailyParams(update)); err != nil {
+	params := g.tokenUsageDailyParams(update)
+	if err := g.writeBackground(ctx, "upsert token usage daily", func(ctx context.Context, tx *store.WriteTx) error {
+		return sqlcgen.New(tx).UpsertTokenUsageDaily(ctx, params)
+	}); err != nil {
 		return fmt.Errorf("store: upsert token usage daily for day %q: %w", update.Day, err)
 	}
 	return nil

@@ -308,16 +308,21 @@ func (g *AutomationRepo) RecordSuggestionTransition(
 		eventType = events.AutomationSuggestionAccepted
 		summary = "automation suggestion accepted"
 	}
-	if err := g.queries.InsertAutomationSuggestionEventSummary(
-		ctx,
-		sqlcgen.InsertAutomationSuggestionEventSummaryParams{
-			ProfileID:   suggestion.ProfileID,
-			ID:          "automation-suggestion:" + suggestion.ID + ":" + string(suggestion.Status),
-			WorkspaceID: suggestion.WorkspaceID, Type: eventType, ContentJson: string(content),
-			ActorID: suggestion.ID, Outcome: string(events.OutcomeFor(eventType)),
-			Summary: nullableObserveString(summary), Timestamp: store.FormatTimestamp(*suggestion.ResolvedAt),
-		},
-	); err != nil {
+	observation := store.EventSummary{
+		ProfileID:   suggestion.ProfileID,
+		ID:          "automation-suggestion:" + suggestion.ID + ":" + string(suggestion.Status),
+		WorkspaceID: suggestion.WorkspaceID, Type: eventType,
+		EventCorrelation: store.EventCorrelation{ActorKind: "automation_suggestion", ActorID: suggestion.ID},
+		Outcome:          string(events.OutcomeFor(eventType)), Summary: summary, Timestamp: *suggestion.ResolvedAt,
+	}
+	observation.SetContent(content)
+	observe := &ObserveRepo{repoBase: g.repoBase}
+	if err := observe.prepareEventSummary(ctx, &observation); err != nil {
+		return err
+	}
+	if err := g.telemetry.WriteSuggestion(ctx, observation, func(ctx context.Context) error {
+		return observe.validateEventSummaryOwner(ctx, observation)
+	}); err != nil {
 		return fmt.Errorf("store: record automation suggestion transition %q: %w", suggestion.ID, err)
 	}
 	return nil

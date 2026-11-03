@@ -1,7 +1,7 @@
-CREATE TABLE event_summaries (
+CREATE TABLE event_summary_outbox (
             seq INTEGER PRIMARY KEY AUTOINCREMENT,
 			id                     TEXT NOT NULL UNIQUE,
-			profile_id             TEXT NOT NULL REFERENCES profiles(id),
+			profile_id             TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
 			session_id             TEXT NOT NULL DEFAULT '',
 			workspace_id           TEXT NOT NULL DEFAULT '',
 			worktree_id            TEXT NOT NULL DEFAULT '',
@@ -27,30 +27,8 @@ CREATE TABLE event_summaries (
 			timestamp              TEXT NOT NULL
 		, provider TEXT NOT NULL DEFAULT '', outcome TEXT NOT NULL DEFAULT 'info');
 
-CREATE INDEX idx_summaries_actor ON event_summaries(actor_kind, actor_id);
 
-CREATE INDEX idx_summaries_hook_event ON event_summaries(hook_event);
-
-CREATE INDEX idx_summaries_outcome_timestamp ON event_summaries(outcome, timestamp DESC);
-
-CREATE INDEX idx_summaries_parent ON event_summaries(parent_session_id);
-
-CREATE INDEX idx_summaries_provider_timestamp ON event_summaries(provider, timestamp DESC);
-
-CREATE INDEX idx_summaries_root ON event_summaries(root_session_id);
-
-CREATE INDEX idx_summaries_run ON event_summaries(run_id);
-
-CREATE INDEX idx_summaries_session ON event_summaries(session_id);
-
-CREATE INDEX idx_summaries_task ON event_summaries(task_id);
-
-CREATE INDEX idx_summaries_timestamp ON event_summaries(timestamp);
-
-CREATE INDEX idx_summaries_type ON event_summaries(type);
-
-CREATE INDEX idx_summaries_workflow ON event_summaries(workflow_id);
-
-CREATE INDEX idx_summaries_workspace ON event_summaries(workspace_id);
-
-CREATE INDEX idx_summaries_worktree ON event_summaries(worktree_id);
+CREATE TRIGGER event_summary_outbox_profile_owner_active BEFORE INSERT ON event_summary_outbox BEGIN
+ SELECT CASE WHEN NOT EXISTS (SELECT 1 FROM profiles WHERE id = NEW.profile_id AND state = 'active') THEN RAISE(ABORT, 'profile_archived') END;
+ SELECT CASE WHEN EXISTS (SELECT 1 FROM profile_lifecycle_ops WHERE profile_id = NEW.profile_id AND status <> 'done') THEN RAISE(ABORT, 'profile_unavailable') END;
+END;

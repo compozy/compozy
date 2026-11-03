@@ -461,7 +461,7 @@ type DeadEntity struct {
 	MarkedAt    string `json:"marked_at"`
 }
 
-type EventSummary struct {
+type EventSummaryOutbox struct {
 	Seq                  int64          `json:"seq"`
 	ID                   string         `json:"id"`
 	ProfileID            string         `json:"profile_id"`
@@ -2198,6 +2198,11 @@ type TaskTriageState struct {
 	Dismissed          bool           `json:"dismissed"`
 	LastSeenActivityAt sql.NullString `json:"last_seen_activity_at"`
 	UpdatedAt          string         `json:"updated_at"`
+}
+
+type TelemetryDeletedScope struct {
+	Kind    string `json:"kind"`
+	ScopeID string `json:"scope_id"`
 }
 
 type TokenStat struct {

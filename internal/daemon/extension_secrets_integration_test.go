@@ -551,7 +551,7 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := harness.db.DB().
-		ExecContext(t.Context(), `CREATE TRIGGER fail_dev_unlink_event BEFORE INSERT ON event_summaries WHEN NEW.type = 'extension.dev.unlinked' BEGIN SELECT RAISE(ABORT, 'injected dev unlink event failure'); END`); err != nil {
+		ExecContext(t.Context(), `CREATE TRIGGER fail_dev_unlink_event BEFORE INSERT ON event_summary_outbox WHEN NEW.type = 'extension.dev.unlinked' BEGIN SELECT RAISE(ABORT, 'injected dev unlink event failure'); END`); err != nil {
 		t.Fatal(err)
 	}
 	_, unlinkErr := harness.service.RemoveScoped(t.Context(), extensionName, devActor)
@@ -572,7 +572,7 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 		t.Fatal(err)
 	}
 	var unlinkEvents int
-	if err := harness.db.DB().
+	if err := harness.db.ReadDB().
 		QueryRowContext(t.Context(), `SELECT COUNT(*) FROM event_summaries WHERE type = 'extension.dev.unlinked'`).
 		Scan(&unlinkEvents); err != nil ||
 		unlinkEvents != 0 {
@@ -597,7 +597,7 @@ func testExtensionSecretBindingRetirement(t *testing.T) {
 	if _, err := harness.service.RemoveScoped(t.Context(), extensionName, devActor); err != nil {
 		t.Fatalf("RemoveScoped(dev) error = %v", err)
 	}
-	if err := harness.db.DB().
+	if err := harness.db.ReadDB().
 		QueryRowContext(t.Context(), `SELECT COUNT(*) FROM event_summaries WHERE type = 'extension.dev.unlinked'`).
 		Scan(&unlinkEvents); err != nil ||
 		unlinkEvents != 1 {

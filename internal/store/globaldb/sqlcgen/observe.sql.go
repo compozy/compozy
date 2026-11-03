@@ -10,24 +10,19 @@ import (
 	"database/sql"
 )
 
-const deleteEventSummariesBefore = `-- name: DeleteEventSummariesBefore :execrows
-DELETE FROM event_summaries WHERE timestamp < ?1
+const deletePermissionLogsBefore = `-- name: DeletePermissionLogsBefore :execrows
+DELETE FROM permission_log WHERE id IN (
+ SELECT p.id FROM permission_log AS p WHERE p.timestamp < ?1 LIMIT ?2
+)
 `
 
-func (q *Queries) DeleteEventSummariesBefore(ctx context.Context, cutoff string) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteEventSummariesBefore, cutoff)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+type DeletePermissionLogsBeforeParams struct {
+	Cutoff    string `json:"cutoff"`
+	BatchSize int64  `json:"batch_size"`
 }
 
-const deletePermissionLogsBefore = `-- name: DeletePermissionLogsBefore :execrows
-DELETE FROM permission_log WHERE timestamp < ?1
-`
-
-func (q *Queries) DeletePermissionLogsBefore(ctx context.Context, cutoff string) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deletePermissionLogsBefore, cutoff)
+func (q *Queries) DeletePermissionLogsBefore(ctx context.Context, arg DeletePermissionLogsBeforeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deletePermissionLogsBefore, arg.Cutoff, arg.BatchSize)
 	if err != nil {
 		return 0, err
 	}
@@ -35,11 +30,18 @@ func (q *Queries) DeletePermissionLogsBefore(ctx context.Context, cutoff string)
 }
 
 const deleteTokenStatsBefore = `-- name: DeleteTokenStatsBefore :execrows
-DELETE FROM token_stats WHERE updated_at < ?1
+DELETE FROM token_stats WHERE id IN (
+ SELECT t.id FROM token_stats AS t WHERE t.updated_at < ?1 LIMIT ?2
+)
 `
 
-func (q *Queries) DeleteTokenStatsBefore(ctx context.Context, cutoff string) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteTokenStatsBefore, cutoff)
+type DeleteTokenStatsBeforeParams struct {
+	Cutoff    string `json:"cutoff"`
+	BatchSize int64  `json:"batch_size"`
+}
+
+func (q *Queries) DeleteTokenStatsBefore(ctx context.Context, arg DeleteTokenStatsBeforeParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteTokenStatsBefore, arg.Cutoff, arg.BatchSize)
 	if err != nil {
 		return 0, err
 	}
@@ -63,10 +65,34 @@ func (q *Queries) GetEventSummarySessionProjection(ctx context.Context, sessionI
 	return i, err
 }
 
+const getTelemetryWriteOwner = `-- name: GetTelemetryWriteOwner :one
+SELECT state,
+ CAST(EXISTS(SELECT 1 FROM profile_lifecycle_ops WHERE profile_id = profiles.id AND status <> 'done') AS INTEGER) AS unavailable,
+ CAST(EXISTS(SELECT 1 FROM telemetry_deleted_scopes WHERE kind = 'workspace' AND scope_id = ?1) AS INTEGER) AS workspace_deleted
+FROM profiles WHERE profiles.id = ?2
+`
+
+type GetTelemetryWriteOwnerParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	ProfileID   string `json:"profile_id"`
+}
+
+type GetTelemetryWriteOwnerRow struct {
+	State            string `json:"state"`
+	Unavailable      int64  `json:"unavailable"`
+	WorkspaceDeleted int64  `json:"workspace_deleted"`
+}
+
+func (q *Queries) GetTelemetryWriteOwner(ctx context.Context, arg GetTelemetryWriteOwnerParams) (GetTelemetryWriteOwnerRow, error) {
+	row := q.db.QueryRowContext(ctx, getTelemetryWriteOwner, arg.WorkspaceID, arg.ProfileID)
+	var i GetTelemetryWriteOwnerRow
+	err := row.Scan(&i.State, &i.Unavailable, &i.WorkspaceDeleted)
+	return i, err
+}
+
 const hasExpiredObservability = `-- name: HasExpiredObservability :one
 SELECT CAST(
-  EXISTS(SELECT 1 FROM event_summaries WHERE event_summaries.timestamp < ?1)
-  OR EXISTS(SELECT 1 FROM token_stats WHERE token_stats.updated_at < ?1)
+  EXISTS(SELECT 1 FROM token_stats WHERE token_stats.updated_at < ?1)
   OR EXISTS(SELECT 1 FROM token_usage_daily WHERE token_usage_daily.day < ?2)
   OR EXISTS(SELECT 1 FROM permission_log WHERE permission_log.timestamp < ?1)
 AS INTEGER)
@@ -84,86 +110,31 @@ func (q *Queries) HasExpiredObservability(ctx context.Context, arg HasExpiredObs
 	return column_1, err
 }
 
-const insertEventSummary = `-- name: InsertEventSummary :exec
-INSERT INTO event_summaries (
-  profile_id,
-  id, session_id, workspace_id, worktree_id, type, agent_name, content_json, task_id, run_id,
-  workflow_id, claim_token_hash, lease_until, coordinator_session_id, scheduler_reason,
-  hook_event, hook_name, actor_kind, actor_id, release_reason, parent_session_id,
-  root_session_id, spawn_depth, provider, outcome, summary, timestamp
-) VALUES (
-  ?1,
-  ?2, ?3, ?4, ?5, ?6,
-  ?7, ?8, ?9, ?10,
-  ?11, ?12, ?13,
-  ?14, ?15, ?16,
-  ?17, ?18, ?19, ?20,
-  ?21, ?22, ?23,
-  ?24, ?25, ?26, ?27
-)
+const listTelemetryDeletedScopes = `-- name: ListTelemetryDeletedScopes :many
+SELECT kind, scope_id FROM telemetry_deleted_scopes ORDER BY kind, scope_id
 `
 
-type InsertEventSummaryParams struct {
-	ProfileID            string         `json:"profile_id"`
-	ID                   string         `json:"id"`
-	SessionID            string         `json:"session_id"`
-	WorkspaceID          string         `json:"workspace_id"`
-	WorktreeID           string         `json:"worktree_id"`
-	Type                 string         `json:"type"`
-	AgentName            string         `json:"agent_name"`
-	ContentJson          string         `json:"content_json"`
-	TaskID               string         `json:"task_id"`
-	RunID                string         `json:"run_id"`
-	WorkflowID           string         `json:"workflow_id"`
-	ClaimTokenHash       string         `json:"claim_token_hash"`
-	LeaseUntil           string         `json:"lease_until"`
-	CoordinatorSessionID string         `json:"coordinator_session_id"`
-	SchedulerReason      string         `json:"scheduler_reason"`
-	HookEvent            string         `json:"hook_event"`
-	HookName             string         `json:"hook_name"`
-	ActorKind            string         `json:"actor_kind"`
-	ActorID              string         `json:"actor_id"`
-	ReleaseReason        string         `json:"release_reason"`
-	ParentSessionID      string         `json:"parent_session_id"`
-	RootSessionID        string         `json:"root_session_id"`
-	SpawnDepth           int64          `json:"spawn_depth"`
-	Provider             string         `json:"provider"`
-	Outcome              string         `json:"outcome"`
-	Summary              sql.NullString `json:"summary"`
-	Timestamp            string         `json:"timestamp"`
-}
-
-func (q *Queries) InsertEventSummary(ctx context.Context, arg InsertEventSummaryParams) error {
-	_, err := q.db.ExecContext(ctx, insertEventSummary,
-		arg.ProfileID,
-		arg.ID,
-		arg.SessionID,
-		arg.WorkspaceID,
-		arg.WorktreeID,
-		arg.Type,
-		arg.AgentName,
-		arg.ContentJson,
-		arg.TaskID,
-		arg.RunID,
-		arg.WorkflowID,
-		arg.ClaimTokenHash,
-		arg.LeaseUntil,
-		arg.CoordinatorSessionID,
-		arg.SchedulerReason,
-		arg.HookEvent,
-		arg.HookName,
-		arg.ActorKind,
-		arg.ActorID,
-		arg.ReleaseReason,
-		arg.ParentSessionID,
-		arg.RootSessionID,
-		arg.SpawnDepth,
-		arg.Provider,
-		arg.Outcome,
-		arg.Summary,
-		arg.Timestamp,
-	)
-	return err
+func (q *Queries) ListTelemetryDeletedScopes(ctx context.Context) ([]TelemetryDeletedScope, error) {
+	rows, err := q.db.QueryContext(ctx, listTelemetryDeletedScopes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TelemetryDeletedScope{}
+	for rows.Next() {
+		var i TelemetryDeletedScope
+		if err := rows.Scan(&i.Kind, &i.ScopeID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const upsertTokenStats = `-- name: UpsertTokenStats :exec

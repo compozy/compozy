@@ -99,9 +99,12 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 		return errors.New("store: workspace id is required")
 	}
 
-	return store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
+	if err := store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
 		return deleteWorkspaceTx(ctx, sqlcgen.New(tx), trimmedID, store.FormatTimestamp(g.now()))
-	})
+	}); err != nil {
+		return err
+	}
+	return g.sweepDeletedTelemetry(ctx)
 }
 
 func ensureWorkspaceDeletionAllowed(

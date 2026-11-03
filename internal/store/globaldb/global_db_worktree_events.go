@@ -67,6 +67,9 @@ func (g *GlobalDB) FinishExitOperationWithEvent(
 	if err != nil {
 		return false, err
 	}
+	if finished {
+		g.ObserveRepo.drainCommittedEventSummaries(ctx)
+	}
 	return finished, nil
 }
 

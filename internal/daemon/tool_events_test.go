@@ -10,6 +10,7 @@ import (
 
 	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -20,11 +21,21 @@ func TestDaemonToolEventSink(t *testing.T) {
 	t.Run("Should retain a completed tool event until the SQLite writer is available", func(t *testing.T) {
 		t.Parallel()
 		db := openDaemonTestGlobalDB(t)
+		// The durable event sink owns the telemetry file independently of core state.
+		telemetry, err := store.OpenSQLiteDatabase(t.Context(), telemetrydb.Path(db.Path()), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := telemetry.Close(); err != nil {
+				t.Error(err)
+			}
+		})
 		locked, release, writerDone := make(chan struct{}), make(chan struct{}), make(chan error, 1)
 		unlock := sync.OnceFunc(func() { close(release) })
 		defer unlock()
 		go func() {
-			writerDone <- store.ExecuteWriteOperation(t.Context(), db.DB(), "hold tool event writer", func(ctx context.Context, _ *store.WriteTx) error {
+			writerDone <- store.ExecuteWriteOperation(t.Context(), telemetry, "hold tool event writer", func(ctx context.Context, _ *store.WriteTx) error {
 				close(locked)
 				select {
 				case <-release:
@@ -73,7 +84,7 @@ func TestDaemonToolEventSink(t *testing.T) {
 			t.Fatal("event did not persist after unlock")
 		}
 		var count int
-		if err := db.DB().
+		if err := db.ReadDB().
 			QueryRowContext(t.Context(), "SELECT count(*) FROM event_summaries WHERE type = ?", eventspkg.ToolCallCompleted).
 			Scan(&count); err != nil {
 			t.Fatal(err)

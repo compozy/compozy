@@ -83,6 +83,9 @@ func (g *WorkspaceRepo) CompleteWorkspaceDeletion(ctx context.Context, id string
 	if workspaceID == "" {
 		return errors.New("store: workspace id is required")
 	}
+	if err := g.sweepDeletedTelemetry(ctx); err != nil {
+		return err
+	}
 	affected, err := g.queries.DeleteWorkspaceDeletionIntent(ctx, workspaceID)
 	if err != nil {
 		return fmt.Errorf("store: complete workspace deletion intent %q: %w", workspaceID, err)

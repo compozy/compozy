@@ -20,7 +20,7 @@ func (m *Manager) Recover(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("profile: recover context is required")
 	}
-	rows, err := m.store.DB().QueryContext(
+	rows, err := m.store.ReadDB().QueryContext(
 		ctx,
 		`SELECT id FROM profile_lifecycle_ops WHERE status IN ('applied', 'finalizing') ORDER BY created_at, id`,
 	)
@@ -114,7 +114,7 @@ func (m *Manager) finalizeOperation(ctx context.Context, opID string, recovered 
 }
 
 func (m *Manager) pendingSteps(ctx context.Context, opID string) (steps []lifecycleStep, err error) {
-	rows, err := m.store.DB().QueryContext(
+	rows, err := m.store.ReadDB().QueryContext(
 		ctx,
 		`SELECT seq, action, COALESCE(path_old, ''), COALESCE(path_new, ''), status
 		 FROM profile_lifecycle_op_steps WHERE op_id = ? AND status <> 'done' ORDER BY seq`,
@@ -205,7 +205,7 @@ func (m *Manager) removeDesktopPartitions(ctx context.Context, opID string) erro
 		return nil
 	}
 	var profileID string
-	if err := m.store.DB().QueryRowContext(
+	if err := m.store.ReadDB().QueryRowContext(
 		ctx,
 		`SELECT profile_id FROM profile_lifecycle_ops WHERE id = ?`,
 		opID,
@@ -238,7 +238,7 @@ func (m *Manager) writeDeclaredSeed(ctx context.Context, opID, profilePath strin
 		return err
 	}
 	var agent, provider sql.NullString
-	if err := m.store.DB().QueryRowContext(
+	if err := m.store.ReadDB().QueryRowContext(
 		ctx,
 		`SELECT default_agent, default_provider
 		 FROM profile_lifecycle_op_seed WHERE op_id = ?`,

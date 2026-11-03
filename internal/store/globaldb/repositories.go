@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
@@ -21,6 +22,7 @@ type repoBase struct {
 	queries      *sqlcgen.Queries
 	readQueries  *sqlcgen.Queries
 	background   *store.BackgroundWriter
+	telemetry    *telemetrydb.Store
 	healthBuffer *sessionHealthBuffer
 	path         string
 	now          func() time.Time
@@ -138,6 +140,7 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	base := newRepoBase(g.db, g.readDB, func() time.Time { return g.now() }, &g.closed)
 	base.path = g.path
 	base.background = g.background
+	base.telemetry = g.telemetry
 	if g.background != nil {
 		base.healthBuffer = newSessionHealthBuffer(base, config.healthFlushInterval)
 		g.healthBuffer = base.healthBuffer

@@ -25,6 +25,8 @@ import (
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	sessionschema "github.com/compozy/compozy/internal/store/sessiondb/schema"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
+	telemetryschema "github.com/compozy/compozy/internal/store/telemetrydb/schema"
 	"github.com/compozy/compozy/internal/store/workspacedb"
 	workspaceschema "github.com/compozy/compozy/internal/store/workspacedb/schema"
 	"github.com/compozy/compozy/internal/testutil"
@@ -60,7 +62,13 @@ func productionMigrationStreams() []productionMigrationStream {
 }
 
 func migrationStreamsUnderTest() []productionMigrationStream {
+	// Invariant: each persisted SQLite stream has an independent, lossless migration
+	// history. The canonical migration suites also own the new telemetry file.
 	return append(productionMigrationStreams(), []productionMigrationStream{
+		{
+			name: "telemetry", stream: telemetrydb.MigrationStream(),
+			schemaFS: telemetryschema.Files, declarativeSource: "schema.sql",
+		},
 		{
 			name:              "session",
 			stream:            sessiondb.MigrationStream(),

@@ -33,6 +33,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
 	"github.com/compozy/compozy/internal/store/sessiondb"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	"github.com/compozy/compozy/internal/store/workspacedb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -107,6 +108,17 @@ func runGlobalDBTests(m *testing.M) (code int) {
 	path, migrationTemplates, err := buildGlobalMigrationTestSeeds(ctx, dir)
 	if err != nil {
 		reportTestMainError("build global migration seeds error = %v", err)
+		return 1
+	}
+	// The SQL-only seed builder starts with empty data; its sibling stream must
+	// also exist before opening a core schema that records completed relocation.
+	telemetrySeed, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+	if err != nil {
+		reportTestMainError("open telemetry seed: %v", err)
+		return 1
+	}
+	if err := telemetrySeed.Close(ctx); err != nil {
+		reportTestMainError("close telemetry seed: %v", err)
 		return 1
 	}
 	globalDB, err := OpenGlobalDB(ctx, path)
@@ -302,7 +314,8 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"workspaces",
 			"sessions",
 			"session_pending_interactions",
-			"event_summaries",
+			"event_summary_outbox",
+			"telemetry_deleted_scopes",
 			"token_stats",
 			"permission_log",
 			"extensions",
@@ -343,7 +356,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 			"idx_session_pending_interactions_session_status",
 			"uq_session_pending_interactions_active_provider_request",
 		)
-		assertTableHasColumns(t, globalDB.db, "event_summaries", []string{"worktree_id"})
+		assertTableHasColumns(t, globalDB.telemetry.DB(), "event_summaries", []string{"worktree_id"})
 		assertTableHasColumns(t, globalDB.db, "extensions", []string{"format", "ingest_diagnostics_json"})
 		assertTableHasColumns(
 			t,
@@ -362,7 +375,7 @@ func TestOpenGlobalDBAppliesGlobalMigrationsAndEnablesWAL(t *testing.T) {
 		}
 		assertTableExcludesColumns(t, globalDB.db, "sessions", []string{"channel"})
 		assertTableExcludesColumns(t, globalDB.db, "task_runs", []string{"coordination_channel_id"})
-		assertTableHasColumns(t, globalDB.db, "event_summaries", []string{
+		assertTableHasColumns(t, globalDB.telemetry.DB(), "event_summaries", []string{
 			"provider",
 			"outcome",
 		})
@@ -6332,7 +6345,7 @@ func copyCurrentSchemaGlobalDBSeed(t *testing.T, targetPath string) {
 	if testGlobalDBCurrentSchemaSeedPath == "" {
 		t.Fatal("globaldb current schema seed path is empty")
 	}
-	for _, suffix := range []string{"", "-wal", "-shm"} {
+	for _, suffix := range []string{"", "-wal", "-shm", ".telemetry.db", ".telemetry.db-wal", ".telemetry.db-shm"} {
 		sourcePath := testGlobalDBCurrentSchemaSeedPath + suffix
 		data, err := os.ReadFile(sourcePath)
 		if err != nil {

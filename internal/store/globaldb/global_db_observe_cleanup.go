@@ -18,21 +18,11 @@ func (g *ObserveRepo) DeleteWorkspaceObservability(ctx context.Context, workspac
 	if trimmed == "" {
 		return errors.New("store: workspace id is required")
 	}
-	return g.withImmediateTransaction(
-		ctx,
-		"delete workspace observability",
-		func(exec globalSQLExecutor) error {
-			if _, err := exec.ExecContext(
-				ctx, `DELETE FROM event_summaries WHERE workspace_id = ?`, trimmed,
-			); err != nil {
-				return fmt.Errorf("store: delete event summaries for workspace %q: %w", trimmed, err)
-			}
-			if _, err := exec.ExecContext(
-				ctx, `DELETE FROM token_usage_daily WHERE workspace_id = ?`, trimmed,
-			); err != nil {
-				return fmt.Errorf("store: delete token usage rollups for workspace %q: %w", trimmed, err)
-			}
-			return nil
-		},
-	)
+	if _, err := g.telemetry.DeleteScope(ctx, "workspace", trimmed); err != nil {
+		return fmt.Errorf("store: delete workspace event summaries: %w", err)
+	}
+	return g.withImmediateTransaction(ctx, "delete workspace usage rollups", func(exec globalSQLExecutor) error {
+		_, err := exec.ExecContext(ctx, `DELETE FROM token_usage_daily WHERE workspace_id = ?`, trimmed)
+		return err
+	})
 }

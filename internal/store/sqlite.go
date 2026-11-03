@@ -30,10 +30,13 @@ func OpenSQLiteDatabaseWithPragmas(
 }
 
 // OpenSQLiteReadPool reserves read-only connections independently of writer admission and capacity.
-func OpenSQLiteReadPool(ctx context.Context, path string) (*sql.DB, error) {
+func OpenSQLiteReadPool(ctx context.Context, path string, initializers ...SQLiteReadInitializer) (*sql.DB, error) {
 	cleanPath := strings.TrimSpace(path)
 	if cleanPath == "" {
 		return nil, errors.New("store: database path is required")
+	}
+	if len(initializers) > 0 {
+		return openInitializedSQLiteReadPool(ctx, cleanPath, initializers)
 	}
 	return openSQLiteHandle(ctx, cleanPath, sqliteQueryOnlyDSN(cleanPath))
 }

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +13,8 @@ import (
 
 	automation "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
+	"github.com/compozy/compozy/internal/store/telemetrydb"
 	"github.com/compozy/compozy/internal/testutil"
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
@@ -515,10 +519,10 @@ func TestGlobalDBEventSummarySequenceMigration(t *testing.T) {
 	if err != nil || len(rows) != 1 || rows[0].Sequence != 101 || rows[0].Summary != "retained last" {
 		t.Fatalf("resumed migration rows = %+v, %v", rows, err)
 	}
-	if _, err := db.db.ExecContext(ctx, `DELETE FROM event_summaries`); err != nil {
+	if _, err := db.telemetry.DB().ExecContext(ctx, `DELETE FROM event_summaries`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := db.db.ExecContext(ctx, `VACUUM`); err != nil {
+	if _, err := db.telemetry.DB().ExecContext(ctx, `VACUUM`); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(ctx); err != nil {
@@ -596,6 +600,223 @@ func TestUserEventSummarySelection(t *testing.T) {
 		)
 		if err != nil || len(rows) != 2 {
 			t.Fatalf("unfiltered events = %#v, %v", rows, err)
+		}
+	})
+}
+
+// Invariant: relocation preserves every persisted value and the cursor high-water
+// mark across a failed acknowledgement. Owner: global migration/open suite.
+func TestGlobalDBTelemetryRelocation(t *testing.T) {
+	ctx := t.Context()
+	t.Run("Should resume committed copies without loss or duplicate cursors", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00187_telemetry_export_complete.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = source.Close() })
+		_, err = source.ExecContext(ctx, `INSERT INTO event_summary_export
+		(seq,id,profile_id,session_id,workspace_id,worktree_id,type,agent_name,content_json,task_id,run_id,
+		workflow_id,claim_token_hash,lease_until,coordinator_session_id,scheduler_reason,hook_event,hook_name,
+		actor_kind,actor_id,release_reason,parent_session_id,root_session_id,spawn_depth,provider,outcome,summary,timestamp)
+		VALUES(7,'relocated',?,'session','workspace','worktree','settings.changed','coder','{"value":42}',
+		'task','run','workflow','hash','2026-11-03T20:00:00Z','coordinator','scheduled','before','hook',
+		'agent','actor','released','parent','root',2,'codex','success','preserved','2026-11-03T19:00:00Z')`, store.DefaultProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := source.ExecContext(ctx, `UPDATE sqlite_sequence SET seq = 900 WHERE name = 'event_summary_export'`); err != nil {
+			t.Fatal(err)
+		}
+		columns, expected, err := readTelemetryExportBatch(ctx, source)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := source.ExecContext(ctx, `CREATE TRIGGER fail_export_ack BEFORE DELETE ON event_summary_export
+		BEGIN SELECT RAISE(ABORT, 'injected export acknowledgement failure'); END`); err != nil {
+			t.Fatal(err)
+		}
+		if err := applyTelemetryRelocation(ctx, source, path, telemetryExportVersion); err == nil || !strings.Contains(err.Error(), "injected export acknowledgement failure") {
+			t.Fatalf("interrupted export = %v, want retained source after committed target", err)
+		}
+		var remaining int
+		if err := source.QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summary_export").Scan(&remaining); err != nil || remaining != 1 {
+			t.Fatalf("source after interrupted acknowledgement = %d, %v", remaining, err)
+		}
+		if _, err := source.ExecContext(ctx, "DROP TRIGGER fail_export_ack"); err != nil {
+			t.Fatal(err)
+		}
+		if err := source.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		actual := make([]any, len(columns))
+		dest := make([]any, len(columns))
+		for i := range actual {
+			dest[i] = &actual[i]
+		}
+		if err := upgraded.telemetry.DB().QueryRowContext(ctx, "SELECT * FROM event_summaries WHERE id = 'relocated'").Scan(dest...); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(actual, expected[0]) {
+			t.Fatalf("relocated payload changed: got %#v, want %#v", actual, expected[0])
+		}
+		if err := upgraded.WriteEventSummary(ctx, store.EventSummary{ID: "after-relocation", ProfileID: store.DefaultProfileID, Type: "settings.changed"}); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := upgraded.ListEventSummaries(ctx, store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, AfterSequence: 900})
+		if err != nil || len(rows) != 1 || rows[0].ID != "after-relocation" || rows[0].Sequence != 901 {
+			t.Fatalf("resumed cursor = %#v, %v", rows, err)
+		}
+	})
+	t.Run("Should preserve a retired cursor when every source row was deleted", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00185_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := source.ExecContext(ctx, `INSERT INTO event_summaries(seq,id,profile_id,type,timestamp) VALUES(420,'retired',?,'settings.changed','2026-11-03T19:00:00Z')`, store.DefaultProfileID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := source.ExecContext(ctx, "DELETE FROM event_summaries"); err != nil {
+			t.Fatal(err)
+		}
+		if err := source.Close(); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := upgraded.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := upgraded.WriteEventSummary(ctx, store.EventSummary{ID: "new", ProfileID: store.DefaultProfileID, Type: "settings.changed"}); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := upgraded.ListEventSummaries(ctx, store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}, AfterSequence: 420})
+		if err != nil || len(rows) != 1 || rows[0].Sequence != 421 {
+			t.Fatalf("retired cursor = %#v, %v", rows, err)
+		}
+	})
+	t.Run("Should refuse a conflicting destination without deleting the source", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00187_telemetry_export_complete.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = source.Close() })
+		if _, err := source.ExecContext(ctx, `INSERT INTO event_summary_export(seq,id,profile_id,type,summary,timestamp) VALUES(1,'collision',?,'settings.changed','source','2026-11-03T19:00:00Z')`, store.DefaultProfileID); err != nil {
+			t.Fatal(err)
+		}
+		target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := target.DB().ExecContext(ctx, `INSERT INTO event_summaries(seq,id,profile_id,type,summary,timestamp) VALUES(1,'collision',?,'settings.changed','other','2026-11-03T19:00:00Z')`, store.DefaultProfileID); err != nil {
+			t.Fatal(err)
+		}
+		if err := target.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if err := applyTelemetryRelocation(ctx, source, path, telemetryExportVersion); err == nil {
+			t.Fatal("conflicting payload accepted")
+		}
+		var summary string
+		if err := source.QueryRowContext(ctx, "SELECT summary FROM event_summary_export WHERE id = 'collision'").Scan(&summary); err != nil || summary != "source" {
+			t.Fatalf("preserved source = %q, %v", summary, err)
+		}
+	})
+}
+
+// Invariant: core contention cannot stall telemetry; committed lifecycle events
+// survive failed delivery and replay once. Owner: global observation store.
+func TestGlobalDBTelemetryDelivery(t *testing.T) {
+	t.Run("Should read and append events while the entire core writer pool is reserved", func(t *testing.T) {
+		db := openTestGlobalDB(t)
+		db.db.SetMaxOpenConns(1)
+		conn, err := db.db.Conn(t.Context())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer conn.Close()
+		if _, err := conn.ExecContext(t.Context(), "BEGIN IMMEDIATE"); err != nil {
+			t.Fatal(err)
+		}
+		defer conn.ExecContext(context.Background(), "ROLLBACK")
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		if err := db.WriteEventSummary(ctx, store.EventSummary{ID: "independent", ProfileID: store.DefaultProfileID, Type: "settings.changed"}); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := db.ListEventSummaries(ctx, store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
+		if err != nil || len(rows) != 1 || rows[0].ID != "independent" {
+			t.Fatalf("independent Observe read = %#v, %v", rows, err)
+		}
+		// Force another physical read connection to initialize its attachment and guards.
+		reader, err := db.readDB.Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer reader.Close()
+		var count int
+		if err := db.readDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summaries").Scan(&count); err != nil || count != 1 {
+			t.Fatalf("recycled view = %d, %v", count, err)
+		}
+		if _, err := db.readDB.ExecContext(ctx, "DELETE FROM telemetry.event_summaries"); err == nil {
+			t.Fatal("read pool permitted telemetry mutation")
+		}
+	})
+	t.Run("Should retain and replay a committed outbox after delivery fails", func(t *testing.T) {
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		summary := store.EventSummary{ID: "outbox-delivery", ProfileID: store.DefaultProfileID, Type: "settings.changed"}
+		if err := db.prepareEventSummary(ctx, &summary); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.telemetry.DB().ExecContext(ctx, `CREATE TRIGGER fail_delivery BEFORE INSERT ON event_summaries BEGIN SELECT RAISE(ABORT,'injected telemetry delivery failure'); END`); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.ExecuteWriteOperation(ctx, db.db, "commit lifecycle outbox", func(ctx context.Context, tx *store.WriteTx) error {
+			return insertEventSummary(ctx, sqlcgen.New(tx), summary)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.ObserveRepo.flushEventSummaryOutbox(ctx); err == nil {
+			t.Fatal("delivery failure ignored")
+		}
+		var pending int
+		if err := db.readDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summary_outbox").Scan(&pending); err != nil || pending != 1 {
+			t.Fatalf("durable outbox = %d, %v", pending, err)
+		}
+		if _, err := db.telemetry.DB().ExecContext(ctx, "DROP TRIGGER fail_delivery"); err != nil {
+			t.Fatal(err)
+		}
+		// Simulate target commit followed by interruption before source acknowledgement.
+		if err := db.telemetry.WriteOutbox(ctx, []store.EventSummary{summary}); err != nil {
+			t.Fatal(err)
+		}
+		path := db.Path()
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reopened := openGlobalDBForTest(t, path)
+		rows, err := reopened.ListEventSummaries(ctx, store.EventSummaryQuery{ReadScope: store.ReadScope{AllProfiles: true}})
+		if err != nil || len(rows) != 1 || rows[0].ID != summary.ID {
+			t.Fatalf("replayed events = %#v, %v", rows, err)
+		}
+		if err := reopened.readDB.QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summary_outbox").Scan(&pending); err != nil || pending != 0 {
+			t.Fatalf("acknowledged outbox = %d, %v", pending, err)
 		}
 	})
 }

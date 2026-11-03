@@ -35,7 +35,7 @@ func (m *Manager) recordOperationEvent(ctx context.Context, name, opID string, c
 	if cause != nil {
 		event.Error = cause.Error()
 	}
-	err := m.store.DB().QueryRowContext(ctx, `
+	err := m.store.ReadDB().QueryRowContext(ctx, `
 		SELECT o.profile_id, COALESCE(p.name, o.new_name, o.old_name, '')
 		FROM profile_lifecycle_ops o
 		LEFT JOIN profiles p ON p.id = o.profile_id

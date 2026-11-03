@@ -28,7 +28,9 @@ func (g *HeartbeatRepo) UpsertHeartbeatWakeState(
 		return heartbeat.WakeState{}, err
 	}
 
-	if err := execHeartbeatWakeStateUpsert(ctx, g.db, normalized); err != nil {
+	if err := g.writeBackground(ctx, "upsert heartbeat wake state", func(ctx context.Context, tx *store.WriteTx) error {
+		return execHeartbeatWakeStateUpsert(ctx, tx, normalized)
+	}); err != nil {
 		return heartbeat.WakeState{}, fmt.Errorf("store: upsert heartbeat wake state %q: %w", normalized.SessionID, err)
 	}
 	return normalized, nil
@@ -158,41 +160,18 @@ func (g *HeartbeatRepo) RecordHeartbeatWakeDecision(
 		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, err
 	}
 
-	tx, err := g.db.BeginTx(ctx, nil)
-	if err != nil {
-		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, fmt.Errorf(
-			"store: begin heartbeat wake decision transaction: %w",
-			err,
-		)
-	}
-	finished := false
-	defer func() {
-		if !finished {
-			joinCleanupError(&err, rollbackTx(tx, "heartbeat wake decision"))
+	err = g.writeBackground(ctx, "commit heartbeat wake decision", func(ctx context.Context, tx *store.WriteTx) error {
+		if err := execHeartbeatWakeEventInsert(ctx, tx, normalizedEvent); err != nil {
+			return fmt.Errorf("store: append heartbeat wake event: %w", err)
 		}
-	}()
-
-	if err := execHeartbeatWakeEventInsert(ctx, tx, normalizedEvent); err != nil {
-		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, fmt.Errorf(
-			"store: append heartbeat wake event %q: %w",
-			normalizedEvent.ID,
-			err,
-		)
+		if err := execHeartbeatWakeStateUpsert(ctx, tx, normalizedState); err != nil {
+			return fmt.Errorf("store: upsert heartbeat wake state: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, err
 	}
-	if err := execHeartbeatWakeStateUpsert(ctx, tx, normalizedState); err != nil {
-		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, fmt.Errorf(
-			"store: upsert heartbeat wake state %q: %w",
-			normalizedState.SessionID,
-			err,
-		)
-	}
-	if err := tx.Commit(); err != nil {
-		return heartbeat.WakeEvent{}, heartbeat.WakeState{}, fmt.Errorf(
-			"store: commit heartbeat wake decision transaction: %w",
-			err,
-		)
-	}
-	finished = true
 	return normalizedEvent, normalizedState, nil
 }
 
@@ -219,7 +198,9 @@ func (g *HeartbeatRepo) AppendHeartbeatWakeEvent(
 		return heartbeat.WakeEvent{}, err
 	}
 
-	if err := execHeartbeatWakeEventInsert(ctx, g.db, normalized); err != nil {
+	if err := g.writeBackground(ctx, "append heartbeat wake event", func(ctx context.Context, tx *store.WriteTx) error {
+		return execHeartbeatWakeEventInsert(ctx, tx, normalized)
+	}); err != nil {
 		return heartbeat.WakeEvent{}, fmt.Errorf("store: append heartbeat wake event %q: %w", normalized.ID, err)
 	}
 	return normalized, nil

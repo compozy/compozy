@@ -217,9 +217,15 @@ func (g *SessionRepo) ClearLaterReturn(ctx context.Context, sessionID string) (b
 	if sessionID == "" {
 		return false, errors.New("store: clear later return session id is required")
 	}
-	affected, err := g.queries.ClearLaterReturn(ctx, sqlcgen.ClearLaterReturnParams{
+	params := sqlcgen.ClearLaterReturnParams{
 		Now: sql.NullString{String: store.FormatTimestamp(g.now()), Valid: true},
 		ID:  sessionID,
+	}
+	var affected int64
+	err := store.ExecuteWriteOperation(ctx, g.db, "clear later return", func(ctx context.Context, tx *store.WriteTx) error {
+		var err error
+		affected, err = sqlcgen.New(tx).ClearLaterReturn(ctx, params)
+		return err
 	})
 	if err != nil {
 		return false, fmt.Errorf("store: clear later return %q: %w", sessionID, err)

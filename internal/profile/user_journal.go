@@ -21,7 +21,7 @@ func (m *Manager) removeUserJournal(ctx context.Context, opID string) error {
 		return nil
 	}
 	var profileID string
-	if err := m.store.DB().QueryRowContext(ctx,
+	if err := m.store.ReadDB().QueryRowContext(ctx,
 		`SELECT profile_id FROM profile_lifecycle_ops WHERE id = ?`, opID).Scan(&profileID); err != nil {
 		return fmt.Errorf("profile: read User journal owner: %w", err)
 	}
@@ -30,7 +30,7 @@ func (m *Manager) removeUserJournal(ctx context.Context, opID string) error {
 
 func (m *Manager) removeAgentMemory(ctx context.Context, opID string) error {
 	var profileID string
-	if err := m.store.DB().QueryRowContext(ctx,
+	if err := m.store.ReadDB().QueryRowContext(ctx,
 		`SELECT profile_id FROM profile_lifecycle_ops WHERE id = ?`, opID).Scan(&profileID); err != nil {
 		return fmt.Errorf("profile: read agent memory owner: %w", err)
 	}

@@ -2089,7 +2089,7 @@ default_scope = "global"
 		t.Fatal("restart changed workspace state")
 	}
 	// Invariant: a failed retirement event restores the attachment and leaves every allocation and input unchanged.
-	if _, err := db.ExecContext(ctx, `CREATE TRIGGER fail_attachment_retirement BEFORE INSERT ON event_summaries
+	if _, err := db.ExecContext(ctx, `CREATE TRIGGER fail_attachment_retirement BEFORE INSERT ON event_summary_outbox
  WHEN NEW.type = 'extension.removed' BEGIN SELECT RAISE(ABORT, 'retirement event failure'); END`); err != nil {
 		t.Fatal(err)
 	}

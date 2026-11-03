@@ -291,13 +291,17 @@ func (r *ExtensionMCPRepo) RetireTargets(
 	if err := observe.prepareEventSummary(ctx, &summary); err != nil {
 		return err
 	}
-	return store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
+	err := store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
 		if err := deleteExtensionMCPTargets(ctx, queries, targets); err != nil {
 			return err
 		}
 		return insertEventSummary(ctx, queries, summary)
 	})
+	if err == nil {
+		r.drainCommittedEventSummaries(ctx)
+	}
+	return err
 }
 
 func deleteExtensionMCPTargets(ctx context.Context, queries *sqlcgen.Queries, targets []extensionmcp.Target) error {
@@ -334,7 +338,7 @@ func (r *ExtensionMCPRepo) RetireWorkspace(
 	if err := observe.prepareEventSummary(ctx, &summary); err != nil {
 		return err
 	}
-	return store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
+	err := store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
 		if err := queries.DeleteExtensionMCPWorkspace(ctx, sqlcgen.DeleteExtensionMCPWorkspaceParams{
 			Extension: strings.TrimSpace(extension), WorkspaceID: strings.TrimSpace(workspaceID),
@@ -343,4 +347,8 @@ func (r *ExtensionMCPRepo) RetireWorkspace(
 		}
 		return insertEventSummary(ctx, queries, summary)
 	})
+	if err == nil {
+		r.drainCommittedEventSummaries(ctx)
+	}
+	return err
 }

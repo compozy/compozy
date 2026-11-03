@@ -1279,11 +1279,10 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 		); err != nil {
 			t.Fatalf("seed profile credential requirement error = %v", err)
 		}
-		if _, err := database.DB().ExecContext(ctx, `
-			INSERT INTO event_summaries (id, profile_id, type, timestamp)
-			VALUES ('evt-profile-growth', ?, 'profile.updated', '2026-08-22T00:00:00Z')`,
-			created.ID,
-		); err != nil {
+		if err := database.WriteEventSummary(ctx, store.EventSummary{
+			ID: "evt-profile-growth", ProfileID: created.ID, Type: "profile.updated",
+			Timestamp: time.Date(2026, 8, 22, 0, 0, 0, 0, time.UTC),
+		}); err != nil {
 			t.Fatalf("seed profile event summary error = %v", err)
 		}
 
@@ -1388,7 +1387,7 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 		}
 
 		var eventSummaries int
-		if err := database.DB().QueryRowContext(
+		if err := database.ReadDB().QueryRowContext(
 			ctx,
 			`SELECT COUNT(*) FROM event_summaries WHERE profile_id = ?`,
 			created.ID,

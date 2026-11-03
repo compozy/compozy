@@ -59,18 +59,6 @@ WHERE profile_id = sqlc.arg(profile_id)
   AND workspace_id IS sqlc.narg(workspace_id) AND id = sqlc.arg(id)
   AND status = 'accepted' AND resolved_at = sqlc.arg(resolved_at);
 
--- name: InsertAutomationSuggestionEventSummary :exec
-INSERT INTO event_summaries (
-  profile_id,
-  id, workspace_id, type, content_json, actor_kind, actor_id, outcome, summary, timestamp
-) VALUES (
-  sqlc.arg(profile_id),
-  sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(type), sqlc.arg(content_json),
-  'automation_suggestion', sqlc.arg(actor_id), sqlc.arg(outcome), sqlc.arg(summary),
-  sqlc.arg(timestamp)
-)
-ON CONFLICT(id) DO NOTHING;
-
 -- name: ListAutomationSuggestionsAggregate :many
 SELECT id, profile_id, workspace_id, source, dedup_key, status, payload, created_at, resolved_at
 FROM automation_suggestions
