@@ -465,6 +465,63 @@ describe("useSessionCatalogStreams", () => {
     queryClient.clear();
   });
 
+  it("Should keep workspace and profile paired across a coalesced catalog wake", async () => {
+    vi.useFakeTimers();
+    const queryClient = createQueryClient();
+    const keys = [
+      sessionBoardPageOptions({ workspace_id: "ws_alpha", profile: "default" }).queryKey,
+      sessionBoardPageOptions({ workspace_id: "ws_alpha", profile: "marketing" }).queryKey,
+      sessionFacetsOptions({ workspace_id: "ws_beta", profile: "default" }).queryKey,
+      sessionFacetsOptions({ workspace_id: "ws_beta", profile: "marketing" }).queryKey,
+      sessionKeys.folders("ws_alpha", "default"),
+      sessionKeys.folders("ws_alpha", "marketing"),
+      sessionKeys.folders("ws_beta", "default"),
+      sessionKeys.folders("ws_beta", "marketing"),
+    ];
+    const reads = keys.map(() => vi.fn(async () => []));
+    const observers = keys.map(
+      (queryKey, index) =>
+        new QueryObserver(queryClient, {
+          queryKey,
+          queryFn: reads[index]!,
+          initialData: [],
+          staleTime: Infinity,
+          retry: false,
+        })
+    );
+    const unsubscribe = observers.map(observer => observer.subscribe(() => {}));
+    let source: FakeCatalogEventSource;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { unmount } = renderHook(
+      () => useSessionCatalogStreams({ eventSourceFactory: factory }),
+      {
+        wrapper: wrapper(queryClient),
+      }
+    );
+    await act(async () => source.emit("open"));
+    for (const read of reads) read.mockClear();
+    await act(async () => {
+      source.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: "ws_alpha",
+        profile_name: "default",
+        session_id: "sess_alpha",
+      });
+      source.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: "ws_beta",
+        profile_name: "marketing",
+        session_id: "sess_beta",
+      });
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    for (const index of [0, 3, 4, 7]) expect(reads[index]).toHaveBeenCalledTimes(1);
+    for (const index of [1, 2, 5, 6]) expect(reads[index]).not.toHaveBeenCalled();
+    unmount();
+    for (const stop of unsubscribe) stop();
+    queryClient.clear();
+  });
+
   // #1044: a project-folder change names no workspace or session; only the layout rereads.
   it("Should reread project folders on a workspace layout change without waking the lists", () => {
     const queryClient = createQueryClient();

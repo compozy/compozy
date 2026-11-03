@@ -131,8 +131,12 @@ interface CatalogChange {
 
 function catalogReadAffected(key: QueryKey, change: CatalogChange | undefined): boolean {
   if (!change || !queryKeyHasScope(key, sessionKeys.lists())) return true;
+  const workspace = change.workspace_id || "@user";
+  const keyedWorkspace = typeof key[2] === "string" ? key[2] : "";
+  if (keyedWorkspace && keyedWorkspace !== workspace) return false;
   const family = key[3];
-  if (family === "folders") return true;
+  if (family === "folders")
+    return !change.profile_name || !key[4] || key[4] === change.profile_name;
   const scope = (typeof family === "object" ? family : key[4]) as
     | { profile?: string; all_profiles?: boolean; workspace_ids?: string[] }
     | undefined;
@@ -144,7 +148,6 @@ function catalogReadAffected(key: QueryKey, change: CatalogChange | undefined): 
     scope.profile !== change.profile_name
   )
     return false;
-  const workspace = change.workspace_id || "@user";
   return !scope.workspace_ids?.length || scope.workspace_ids.includes(workspace);
 }
 
