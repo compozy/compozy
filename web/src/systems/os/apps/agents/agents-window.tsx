@@ -1,3 +1,5 @@
+import { ProfilePin } from "@/systems/profiles";
+
 import { useDesktop } from "../../hooks/use-desktop";
 import { AgentDetailLocation } from "./agent-detail-location";
 import { AgentPageLocation } from "./agent-page-location";
@@ -11,11 +13,20 @@ export function AgentsWindow({ windowId }: { windowId: string }) {
   const location = useDesktop(state => state.windows[windowId]?.route ?? DEFAULT_AGENTS_ROUTE);
   const parsed = parseAgentWindowLocation(location);
 
+  // An agent window reads in the agent's own profile when it carries one (#1183).
   if (parsed.kind === "page") {
-    return <AgentPageLocation name={parsed.name} page={parsed.page} />;
+    return (
+      <ProfilePin profile={parsed.search.profile}>
+        <AgentPageLocation name={parsed.name} page={parsed.page} />
+      </ProfilePin>
+    );
   }
   if (parsed.kind === "detail") {
-    return <AgentDetailLocation name={parsed.name} search={parsed.search} />;
+    return (
+      <ProfilePin profile={parsed.search.profile}>
+        <AgentDetailLocation name={parsed.name} search={parsed.search} />
+      </ProfilePin>
+    );
   }
   return <AgentsCatalogLocation search={parsed.search} />;
 }

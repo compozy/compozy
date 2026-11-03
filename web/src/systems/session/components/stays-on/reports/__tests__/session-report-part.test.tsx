@@ -176,7 +176,7 @@ describe("SessionReportPart", () => {
     expect(reads.navigate).toHaveBeenCalledWith({
       to: "/agents/$name/$page",
       params: { name: INSTANCE.agent_name, page: "check-ins" },
-      search: { workspace: INSTANCE.workspace_id },
+      search: { workspace: INSTANCE.workspace_id, profile: INSTANCE.profile_name },
     });
   });
 

@@ -12,6 +12,8 @@ export interface AgentDetailSearch {
   panel?: AgentProfilePanel;
   /** The window's data binding (a project id or `@user`), kept across in-window navigation. */
   workspace?: string;
+  /** The agent's own profile, so an agent opened from All profiles resolves there (#1183). */
+  profile?: string;
 }
 
 function parsePanel(value: unknown): AgentProfilePanel | undefined {
@@ -20,7 +22,16 @@ function parsePanel(value: unknown): AgentProfilePanel | undefined {
 
 export function validateAgentDetailSearch(search: Record<string, unknown>): AgentDetailSearch {
   const panel = parsePanel(search.panel);
-  return { ...(panel ? { panel } : {}), ...windowBinding(search.workspace) };
+  return {
+    ...(panel ? { panel } : {}),
+    ...windowBinding(search.workspace),
+    ...profilePin(search.profile),
+  };
+}
+
+/** A non-empty `profile` pin survives validation; anything else drops. */
+export function profilePin(value: unknown): { profile?: string } {
+  return typeof value === "string" && value.trim() !== "" ? { profile: value.trim() } : {};
 }
 
 /** A non-empty `workspace` binding survives validation; anything else drops. */

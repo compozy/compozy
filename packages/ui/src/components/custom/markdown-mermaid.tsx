@@ -42,7 +42,9 @@ export function MarkdownMermaid({ code, streaming }: { code: string; streaming: 
   );
   return (
     <div data-slot="markdown-mermaid" className="my-5">
-      <div className="flex h-64 max-h-[40vh] items-center overflow-auto overscroll-contain">
+      {/* Wheel input chains to the transcript: Chromium keeps overscroll-behavior on a scroll
+          container even when it has nothing to scroll, so this frame must not contain it. */}
+      <div className="flex h-64 max-h-[40vh] items-center overflow-auto">
         {src ? (
           <img
             src={src}

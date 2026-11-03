@@ -2,7 +2,11 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
 import { notifyUser } from "@/lib/user-feedback";
-import { PROFILE_IDENTITY_SWATCHES, useProfileReadScope } from "@/systems/profiles";
+import {
+  PROFILE_IDENTITY_SWATCHES,
+  usePinnedProfile,
+  useProfileReadScope,
+} from "@/systems/profiles";
 import {
   getSessionDisplayTitle,
   useSessionCreateActions,
@@ -159,6 +163,8 @@ export function useAgentProfile(input: {
   const { destination } = useProfileReadScope();
   const { workspace, projectId, bindingSearch } = useAgentWindowScope();
   const { openForAgent } = useSessionCreateActions();
+  // New session is the shell's dialog, outside the window's pin: hand it the agent's profile.
+  const pinned = usePinnedProfile();
   const instances = useAgentDefinitionInstances(agent);
   const capacity = useAgentInstanceCapacity();
   const actions = useAgentInstanceActions();
@@ -239,7 +245,7 @@ export function useAgentProfile(input: {
       }
     },
     onSaveIdentity: saveIdentity,
-    onNewSession: () => openForAgent(agent.name),
+    onNewSession: () => openForAgent(agent.name, pinned ? { profile: pinned } : {}),
     onOpenSession: openSessionById,
     onOpenFinding: (finding: { sessionId?: string | null }) => {
       if (finding.sessionId) openSessionById(finding.sessionId);

@@ -70,6 +70,8 @@ const (
 	ReasonConditionMet = "condition_met"
 	// ReasonSessionStopped marks a monitor canceled because its owner was stopped on purpose.
 	ReasonSessionStopped = "session_stopped"
+	// ReasonCancelRequested marks a monitor its owner canceled explicitly; no wake was lost.
+	ReasonCancelRequested = "cancel_requested"
 	// ReasonOwnerPrefix prefixes the restart-eligibility reason that kept an owner from resuming.
 	ReasonOwnerPrefix = "owner_"
 	// Pull request wake reasons. A timed-out pull_request monitor reports ReasonTimeout.

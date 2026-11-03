@@ -2,7 +2,8 @@
 // Invariant: the selected profile (a concrete one or All profiles) is one global answer — switching
 // workspaces or breadth never moves it, a switch persists only the Global slot, All profiles survives
 // a reload while a concrete view defers to the remembered Global choice, and the aggregate creates
-// into that remembered choice (issue #792).
+// into that remembered choice (issue #792). A window pinned to one profile reads only that profile,
+// whatever the shell shows (issue #1183).
 // Owning layer: useActiveProfileView / useSwitchProfile / useProfileReadScope.
 // Boundary IN: the real profile view and active workspace stores.
 // Boundary OUT: profile HTTP adapters (mocked I/O).
@@ -31,8 +32,14 @@ import {
   resetProfileViews,
   setProfileView,
 } from "../../stores/profile-view-store";
+import { ProfilePin } from "../../components/profile-pin";
 import { useProfileReadScope } from "../use-profile-read-scope";
-import { useActiveProfileView, useSwitchProfile } from "../use-profile-selection";
+import {
+  useActiveProfileView,
+  useCurrentProfileName,
+  useProfilePerProfileScope,
+  useSwitchProfile,
+} from "../use-profile-selection";
 
 vi.mock("../../adapters/profiles-api", async importOriginal => ({
   ...(await importOriginal<typeof import("../../adapters/profiles-api")>()),
@@ -98,6 +105,37 @@ describe("global profile selection", () => {
     expect(result.current.aggregate).toBe(true);
     expect(result.current.scopeLabel).toBeNull();
     await waitFor(() => expect(result.current.destinationOwner?.name).toBe("marketing"));
+  });
+
+  it("Should read a pinned window in its own profile under All profiles [#1183]", async () => {
+    const { queryClient } = createWrapper();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>
+        <ProfilePin profile="open-design">{children}</ProfilePin>
+      </QueryClientProvider>
+    );
+    act(() => setProfileView({ kind: "aggregate" }));
+    const { result } = renderHook(
+      () => ({
+        read: useProfileReadScope(),
+        perProfile: useProfilePerProfileScope(),
+        current: useCurrentProfileName(),
+      }),
+      { wrapper }
+    );
+
+    // The remembered choice settling to "marketing" must never move a pinned window's reads.
+    await waitFor(() => expect(fetchProfileSelection).toHaveBeenCalled());
+    await waitFor(() => expect(result.current.read.destinationOwner?.name).toBe("open-design"));
+    expect(result.current.read.params).toEqual({ profile: "open-design" });
+    expect(result.current.read.destination).toBe("open-design");
+    expect(result.current.perProfile).toMatchObject({
+      key: "open-design",
+      names: ["open-design"],
+      destination: "open-design",
+    });
+    expect(result.current.current).toBe("open-design");
+    expect(localProfileView()).toEqual({ kind: "aggregate" });
   });
 
   it("Should persist a concrete switch in the Global slot only and never the aggregate", async () => {

@@ -56,7 +56,8 @@ export function useAgentCreateSubmit({
   /** Starts the first instance, unless Decide later or a shown block says it can't start. */
   const startFirstInstance = async (
     agent: AgentPayload,
-    definitionWorkspace?: string
+    definitionWorkspace?: string,
+    profile?: string
   ): Promise<AgentCreateOutcome> => {
     const provider = providerOptions.find(option => option.id === draft.provider);
     const skipped =
@@ -66,7 +67,7 @@ export function useAgentCreateSubmit({
       provider?.needs_auth === true;
     if (skipped) return { agent, landing: "agent", workspace: definitionWorkspace || "@user" };
     try {
-      await createInstance({ agent: agent.name, workspace: draft.place });
+      await createInstance({ agent: agent.name, workspace: draft.place, profile });
       return { agent, landing: "sessions", workspace: draft.place };
     } catch (cause) {
       return {
@@ -85,14 +86,16 @@ export function useAgentCreateSubmit({
     });
   };
 
-  const submitDuplicate = (source: AgentPayload) => {
+  const submitDuplicate = (source: AgentPayload, sourceProfile?: string) => {
+    const profile = sourceProfile ?? destination;
     const params = buildDuplicateAgentParams(source, draft, activeWorkspaceId, validationContext);
     if (!params) return reject("Fix the highlighted fields before duplicating an agent.");
     dialogStore.trigger.submissionRequested({
       execute: async () =>
         startFirstInstance(
-          await duplicateAgent({ sourceName: source.name, params, profile: destination }),
-          params.workspace
+          await duplicateAgent({ sourceName: source.name, params, profile }),
+          params.workspace,
+          profile
         ),
       failureMessage: "Failed to duplicate agent.",
     });
@@ -115,7 +118,7 @@ export function useAgentCreateSubmit({
 
   return () => {
     if (flow.status !== "editing" && flow.status !== "failed") return;
-    if (flow.kind === "duplicate") submitDuplicate(flow.source);
+    if (flow.kind === "duplicate") submitDuplicate(flow.source, flow.profile);
     else submitCreate();
   };
 }
