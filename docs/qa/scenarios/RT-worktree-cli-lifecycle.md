@@ -73,3 +73,11 @@ no `.git/worktrees` entry and no `big-one` branch; the daemon log held a WARN
 event with phase and cause; `session new --worktree big-one` refused with `worktree_not_ready` and the
 cause; `dismiss` released the name, and after raising the timeout to `15m` the same name reached
 `ready`. Evidence is in the PR description.
+
+2026-11-03 #1165 impact: a worktree whose recorded base ref was deleted (a merged integration branch)
+must follow the normal removal policy instead of failing with `worktree_safety_check_failed`.
+Isolated-lab walk on 2026-11-03 with two worktrees based on `feat/integration`, one merged into
+`main`, then `feat/integration` deleted: the base build refused both, even with `--force`, with
+`worktree_safety_check_failed` (exit 65). The fixed build refused the unmerged one with
+`worktree_unpushed_requires_force` (exit 65, `risk.unpushed_commits` 1, file kept), `--force`
+removed it, and the merged one removed without `--force`. Evidence is in the PR description.
