@@ -1650,8 +1650,13 @@ func TestWorkspaceSessionRoutesFollowTheSessionProfile(t *testing.T) {
 
 	const route = "/workspaces/ws-workspace/sessions/sess-marketing"
 	const fenced = "workspace-scoped resource not found"
-	newFixture := func(t *testing.T) handlerFixture {
+	type runtimeWrite struct {
+		id       string
+		revision int64
+	}
+	newFixture := func(t *testing.T) (handlerFixture, *[]runtimeWrite) {
 		t.Helper()
+		writes := &[]runtimeWrite{}
 		infoFor := func(id string) *session.Info {
 			info := testutil.NewSessionInfo(id)
 			if id == "sess-marketing" {
@@ -1669,10 +1674,16 @@ func TestWorkspaceSessionRoutesFollowTheSessionProfile(t *testing.T) {
 			AttachSessionFn: func(_ context.Context, req store.SessionAttachRequest) (store.SessionAttach, error) {
 				return store.SessionAttach{SessionID: req.SessionID}, nil
 			},
-			SetRuntimeSelectionFn: func(_ context.Context, id string, _ session.RuntimeSelection, _ int64) (*session.Info, error) {
+			SetRuntimeSelectionFn: func(
+				_ context.Context, id string, _ session.RuntimeSelection, revision int64,
+			) (*session.Info, error) {
+				*writes = append(*writes, runtimeWrite{id: id, revision: revision})
 				return infoFor(id), nil
 			},
-			ClearRuntimeSelectionFn: func(_ context.Context, id string, _ int64) (*session.Info, error) { return infoFor(id), nil },
+			ClearRuntimeSelectionFn: func(_ context.Context, id string, revision int64) (*session.Info, error) {
+				*writes = append(*writes, runtimeWrite{id: id, revision: revision})
+				return infoFor(id), nil
+			},
 			RenameFn:                func(_ context.Context, _, id, _ string) (*session.Info, error) { return infoFor(id), nil },
 			Attention: testutil.StubSessionAttention{
 				WaitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
@@ -1696,7 +1707,7 @@ func TestWorkspaceSessionRoutesFollowTheSessionProfile(t *testing.T) {
 		)
 		fixture.Handlers.Sessions = manager
 		fixture.Handlers.Profiles = sessionProfileServiceStub{}
-		return fixture
+		return fixture, writes
 	}
 	serve := func(t *testing.T, fixture handlerFixture, method, path string, agent bool) *httptest.ResponseRecorder {
 		t.Helper()
@@ -1775,13 +1786,17 @@ func TestWorkspaceSessionRoutesFollowTheSessionProfile(t *testing.T) {
 		name := family.method + " " + strings.TrimPrefix(family.path, route)
 		t.Run("Should fence "+name+" by the session's profile", func(t *testing.T) {
 			t.Parallel()
-			fixture := newFixture(t)
+			fixture, writes := newFixture(t)
 			passedFence(
 				t,
 				"owner profile",
 				serve(t, fixture, family.method, family.path+"?profile=marketing", false),
 				http.StatusOK,
 			)
+			if strings.HasSuffix(family.path, "/runtime") &&
+				(len(*writes) != 1 || (*writes)[0] != (runtimeWrite{id: "sess-marketing", revision: 0})) {
+				t.Fatalf("owner profile runtime writes = %+v, want one write to sess-marketing at revision 0", *writes)
+			}
 			passedFence(
 				t,
 				"operator without a selection",
@@ -1813,7 +1828,7 @@ func TestWorkspaceSessionRoutesFollowTheSessionProfile(t *testing.T) {
 		"Should keep scoped detail and lifecycle routes in the default profile without a selection",
 		func(t *testing.T) {
 			t.Parallel()
-			fixture := newFixture(t)
+			fixture, _ := newFixture(t)
 			for _, scoped := range []struct{ method, path string }{
 				{http.MethodPost, route + "/stop"},
 				{http.MethodPatch, route},
@@ -1840,7 +1855,7 @@ func TestWorkspaceSessionRoutesFollowTheSessionProfile(t *testing.T) {
 
 	t.Run("Should hide another profile's session owner from a scoped lookup", func(t *testing.T) {
 		t.Parallel()
-		fixture := newFixture(t)
+		fixture, _ := newFixture(t)
 		const owner = "/sessions/sess-marketing/owner"
 		for _, admitted := range []string{owner, owner + "?profile=marketing", owner + "?all_profiles=true"} {
 			if response := serve(t, fixture, http.MethodGet, admitted, false); response.Code != http.StatusOK {
