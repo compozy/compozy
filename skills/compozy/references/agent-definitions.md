@@ -311,14 +311,19 @@ Create supports `display_name` (80 characters), `description` (280), `kind` (`on
 and an open `appearance` object. `compozy__agent_create` accepts these fields; agent reads include `label`,
 `kind`, authored `appearance`, and `resolved_appearance`. The label falls back to the humanized slug.
 A generated appearance uses `{version:1, avatar:"generated", seed:<slug>, generation:1, color:"#7c5cff"}`.
-Icon and emoji forms use `avatar:"icon", icon:<Lucide slug>` or `avatar:"emoji", emoji:<one emoji>` with a color.
-Unsupported saved appearance falls back with a diagnostic and survives unrelated edits.
+Icon and emoji forms use `avatar:"icon", icon:<Lucide slug>` or `avatar:"emoji", emoji:<one emoji>` with a color,
+plus optional `background:"none"` to drop the tinted plate (`"plate"` or unset keeps it). Every write needs
+`version:1` and a `#rrggbb` color. Unsupported saved appearance never fails a read: it resolves to the default
+face with an `agent_appearance_invalid` diagnostic, survives unrelated edits, and is replaced by the next valid save.
 
 Kind is fixed at creation. Use `compozy agent duplicate <source> <name> --kind on_demand` to choose another kind.
 Changing it through update returns `agent_kind_immutable`. PUT preserves omitted identity fields and ignores
 `label` and `resolved_appearance`. `GET /api/agents/catalog?group=agent` groups identical slug and digest
 across authorized scopes, with `items`, `scopes`, `active`, and `next_cursor`; label search uses `q`.
 Extension AGENT.md files use the same keys; installing an extension never creates an instance.
+Bundled built-in agents ship a bare gray Lucide icon (`background:"none"`, color `#8a8f98`), and the bootstrap
+`general` agent resolves the same kind of icon (`sparkles`) while its AGENT.md has no `appearance`, so an existing
+install changes face without its file being rewritten. The CLI sets the plate with `--appearance-background none|plate`.
 
 ## Stays-on approval authority
 

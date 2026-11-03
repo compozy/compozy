@@ -12,7 +12,12 @@ import {
   type AgentAvatarState,
 } from "../../lib/agent-avatar";
 import { agentAvatarHue, agentAvatarTones } from "../../lib/agent-avatar-tones";
-import { identityColorsFor, identitySurfaceFor } from "../../lib/identity-palette";
+import {
+  identityColorsFor,
+  identityInkOn,
+  identitySurfaceFor,
+  identitySurfaceRgb,
+} from "../../lib/identity-palette";
 import { cn } from "../../lib/utils";
 import { useDocumentTheme } from "./hooks/use-document-theme";
 import { KindIcon } from "./kind-icon";
@@ -40,6 +45,10 @@ const DOT: Partial<Record<AgentAvatarState, StatusDotTone>> = {
 };
 
 const FALLBACK_SYMBOL_COLOR = "#7c5cff";
+/** Share of the box a symbol fills on its plate; standing alone, it grows by `BARE_SYMBOL_GROWTH`. */
+const ICON_SCALE = 0.56;
+const EMOJI_SCALE = 0.6;
+const BARE_SYMBOL_GROWTH = 1.4;
 
 /** The body sits inside the library's 100-unit frame, so the mark is drawn past the box to fill it. */
 const BODY_FILL = 1.34;
@@ -104,23 +113,30 @@ function SymbolMark({
   spriteUrl?: string;
 }) {
   const theme = useDocumentTheme();
-  const identity = identityColorsFor(
-    appearance.color ?? FALLBACK_SYMBOL_COLOR,
-    identitySurfaceFor(theme)
-  );
+  const color = appearance.color ?? FALLBACK_SYMBOL_COLOR;
+  const surface = identitySurfaceFor(theme);
+  const bare = appearance.background === "none";
+  // Without its plate the symbol fills more of the box, and its ink is measured against the page.
+  const scale =
+    (appearance.avatar === "icon" ? ICON_SCALE : EMOJI_SCALE) * (bare ? BARE_SYMBOL_GROWTH : 1);
+  const plate = bare ? null : identityColorsFor(color, surface);
+  const style = plate
+    ? { backgroundColor: plate.bg, color: plate.fg }
+    : { color: identityInkOn(color, identitySurfaceRgb(surface)).fg };
   return (
     <span
       className="grid size-full place-items-center rounded-[28%]"
-      style={{ backgroundColor: identity.bg, color: identity.fg }}
+      data-background={bare ? "none" : "plate"}
+      style={style}
     >
       {appearance.avatar === "icon" ? (
         <SpriteIcon
           name={appearance.icon}
           spriteUrl={spriteUrl ?? ""}
-          style={{ height: size * 0.56, width: size * 0.56 }}
+          style={{ height: size * scale, width: size * scale }}
         />
       ) : (
-        <span aria-hidden="true" className="leading-none" style={{ fontSize: size * 0.6 }}>
+        <span aria-hidden="true" className="leading-none" style={{ fontSize: size * scale }}>
           {appearance.emoji}
         </span>
       )}

@@ -138,6 +138,7 @@ describe("window-manager settings API adapter", () => {
     const section = await fetchWindowManagerSettings({
       workspaceId: "  workspace:alpha  ",
       clientId: "  shell-1  ",
+      clientProfile: "  marketing  ",
     });
 
     expect(apiClient.GET).toHaveBeenCalledWith(
@@ -148,6 +149,7 @@ describe("window-manager settings API adapter", () => {
             scope: "workspace",
             workspace_id: "workspace:alpha",
             client_id: "shell-1",
+            client_profile: "marketing",
           },
         },
       })

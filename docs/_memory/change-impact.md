@@ -1,5 +1,46 @@
 # Compozy Change Impact
 
+## Main CI contract co-ship repairs — 2026-11-03
+
+Regenerate the Go client from the current API registry to restore its canonical operation file
+boundaries. Add the already-shipped `compozy__session_mark_seen` mutation to the explicit
+approve-edits catalog inventory, matching `compozy__agent_instance_mark_seen`; its refusal and
+profile checks remain unchanged. Extract workspace-busy payload enrichment without changing HTTP
+or UDS responses. No runtime behavior, hooks, config, migrations, Web, or official skill changes;
+existing `RT-session-mark-seen` and error-payload suites own verification.
+
+## Session profile move approval classification — 2026-11-03
+
+The native `compozy__session_move_to_profile` descriptor now declares destructive risk and its
+destructive flag, matching the archive and worktree release it performs. `approve-edits` and
+`auto` therefore require approval through the existing policy. CLI, HTTP/UDS, Web, schemas, hooks,
+config, and persisted data are unchanged. Profile write authorization remains enforced. The native
+catalog is regenerated; the official skill needs no change because destructive approval is already
+documented. QA coverage is recorded in `ET-session-move-to-profile`.
+
+## Stream transports and queued window commands — 2026-11-03
+
+Owner: issue #1180, branch `fix/stream-pool-websocket`. Chromium allows six HTTP/1.1 sockets per
+origin, and three document-wide SSE streams held half of them for the page lifetime. Window-manager
+commands then waited inside the browser and replayed in a burst.
+
+- **Native tools / CLI / HTTP / UDS:** additive only. `GET /api/terminals/catalog-stream` and
+  `GET /api/workspaces/{workspace_id}/terminals/stream` now accept a WebSocket upgrade (one SSE frame
+  per text message) and an optional `last_event_id` query cursor; `Last-Event-ID` keeps precedence.
+  `GET /api/provider-usage/stream` already accepted the upgrade; its spec now declares `101`. The SSE
+  responses, event names, payloads and cursors are unchanged, so existing SSE clients need no shim.
+  OpenAPI, the TypeScript client, and the Go SDK (`LastEventIDQuery`) are regenerated. No native
+  tool ID or CLI verb changes.
+- **Extensibility / hooks / config:** no manifest, hook, SDK-extension, or `config.toml` change.
+- **User state / workspace isolation:** no schema, migration, or persisted layout change. The
+  upgraded streams reuse the same handlers, so profile and workspace scoping are unchanged; the
+  upgrade shares `prepareEventStream` origin checks and shutdown with the other WebSocket streams.
+- **Official skill / Web / Docs:** Web opens provider-usage and terminal catalog sources over
+  WebSocket. Window-manager commands carry a deadline from the click (8 s); a command still queued
+  past it resolves unapplied and its in-flight request aborts. Docs: `sessions/index` (WebSocket
+  stream list), `agents/provider-usage`, `skills/compozy/references/runtime-operations.md`. QA scenarios
+  `ET-terminal-stream-resilience` and `ET-web-desktop-shell-lifecycle` are flagged for re-walk.
+
 ## Approve-all reads across workspaces and profiles — 2026-11-03
 
 Owner: issue #1169, branch `approve-all-cross-workspace-reads`. Owner decision 2026-11-03 reverses

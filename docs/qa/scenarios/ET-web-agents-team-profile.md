@@ -28,7 +28,9 @@ Steps:
 2. Filter by Where it works, Model and Made by, and use the Needs you, Working and Paused tabs.
    Switch between Cards and Rows; the groups stay the same.
 3. Open a stays-on agent. Edit the name, the description and the picture in the header. The slug,
-   route and sessions don't change.
+   route and sessions don't change. Save each picture kind: a generated face on Auto, the same face
+   with a picked color, an icon with a color, and an emoji. Each save succeeds with no error toast
+   and survives a reload.
 4. Pause and resume a place, add it to another project, and remove it. Removing keeps its sessions.
 5. Under How it's set up, pick a model in the Model row. It saves at once, with no panel, Save or
    Command field, and survives a reload. Choose Use default; the row reads "Uses your default"
@@ -92,3 +94,14 @@ write `.compozy/work-log.md` with a `[ ]` entry older than 30 minutes. Check-ins
 failed triage. User/global instances collect nothing. A symlink outside the workspace is never
 read; overflow produces `work:log-truncated`. Backend execution evidence and remaining release
 walks are tracked in `docs/qa/reports/2026-11-02-spec-cycle/B1.md`; the editor change belongs to F1.
+
+Issue 1204 regression: break a stays-on agent's `appearance` in its AGENT.md by hand (drop
+`version` and `color`). `/agents` and the agent's home still open and its places still list, on
+the default face, with an `agent_appearance_invalid` warning on the definition read. Picking a new
+face in the header saves and replaces the broken block.
+
+Appearance background regression (#1208 review): saving an icon or emoji with an omitted
+`background` or explicit `plate` succeeds. An authored `background: none` is preserved on disk,
+but reads fall back to the default face with an `agent_appearance_invalid` warning; writes of a new or changed
+unsupported appearance are rejected with a message naming the optional `plate` rule.
+Repeat for both icon and emoji. Picking a supported face repairs the saved block.

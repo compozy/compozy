@@ -25,6 +25,8 @@ type workspaceScope struct {
 	// AllUserProfiles marks a User session route read under the all-profiles lens; the routed
 	// session's own profile becomes the concrete scope profile.
 	AllUserProfiles bool
+	// Profile is the profile scope a session route was authorized in; zero for routes without a session.
+	Profile profilepkg.ReadScope
 }
 
 func (s *workspaceScope) SessionWorkspaceID() string {
@@ -199,8 +201,27 @@ func statusForWorkspaceScopedResourceError(err error) int {
 	return StatusForSessionError(err)
 }
 
+// routeSessionInWorkspace authorizes a session runtime route (prompt, stream, transcript, queue,
+// and the rest of the per-session surface). An operator request that selects no profile acts in
+// the owner profile it identified by session id.
 func (h *BaseHandlers) routeSessionInWorkspace(
 	c *gin.Context,
+) (workspaceScope, string, *session.Info, bool) {
+	return h.routeSessionInProfile(c, false)
+}
+
+// routeScopedSessionInWorkspace authorizes a catalog detail or lifecycle route (get, rename,
+// delete, stop, archive, later, parent, rewind, monitors, descendants, links, processes). These
+// stay scoped reads: an operator request that selects no profile resolves the default profile.
+func (h *BaseHandlers) routeScopedSessionInWorkspace(
+	c *gin.Context,
+) (workspaceScope, string, *session.Info, bool) {
+	return h.routeSessionInProfile(c, true)
+}
+
+func (h *BaseHandlers) routeSessionInProfile(
+	c *gin.Context,
+	scopedWithoutSelection bool,
 ) (workspaceScope, string, *session.Info, bool) {
 	scope, ok := h.resolveWorkspaceScope(c)
 	if !ok {
@@ -226,7 +247,45 @@ func (h *BaseHandlers) routeSessionInWorkspace(
 		h.respondError(c, http.StatusNotFound, errWorkspaceScopedResourceNotFound)
 		return workspaceScope{}, "", nil, false
 	}
+	profile, err := h.sessionProfileScope(c, info.ProfileID, !scopedWithoutSelection)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return workspaceScope{}, "", nil, false
+	}
+	if !h.requireSessionInProfile(c, info, profile) {
+		return workspaceScope{}, "", nil, false
+	}
+	scope.Profile = profile
 	return scope, sessionID, info, true
+}
+
+// sessionProfileScope resolves the profile a request for one identified session acts in; the
+// session's own profile is authoritative (#1193). A selected profile (profile=, or the binding of
+// an authenticated agent session) must own the session and all_profiles admits reads only. An
+// operator request that selects nothing acts in the owner profile when actInOwner is set, and
+// otherwise resolves the default profile like every scoped read.
+func (h *BaseHandlers) sessionProfileScope(
+	c *gin.Context,
+	ownerProfileID string,
+	actInOwner bool,
+) (profilepkg.ReadScope, error) {
+	allProfiles, err := parseBoolQuery(c, "all_profiles")
+	if err != nil {
+		return profilepkg.ReadScope{}, fmt.Errorf("%w: %v", profilepkg.ErrInvalidInput, err)
+	}
+	if actInOwner && strings.TrimSpace(c.Query("profile")) == "" && !allProfiles &&
+		!hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
+		if _, err := h.resolveProfileReadCaller(c, ""); err != nil {
+			return profilepkg.ReadScope{}, err
+		}
+		return profilepkg.ReadScope{ProfileID: strings.TrimSpace(ownerProfileID)}, nil
+	}
+	switch c.Request.Method {
+	case http.MethodGet, http.MethodHead:
+		return h.resolveProfileReadScope(c)
+	default:
+		return h.resolveProfileMutationScope(c)
+	}
 }
 
 // RequireRouteSessionInWorkspace validates that the route session id belongs to

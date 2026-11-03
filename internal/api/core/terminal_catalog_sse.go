@@ -31,7 +31,7 @@ func (h *BaseHandlers) StreamTerminalCatalog(c *gin.Context) {
 	if !ok {
 		return
 	}
-	after, err := terminalCatalogCursor(c.GetHeader("Last-Event-ID"))
+	after, err := terminalCatalogCursor(eventStreamCursor(c))
 	if err != nil {
 		h.respondTerminalError(c, err)
 		return
@@ -44,10 +44,11 @@ func (h *BaseHandlers) StreamTerminalCatalog(c *gin.Context) {
 		return
 	}
 	defer done()
-	writer, err := PrepareSSE(c)
-	if err != nil {
+	writer, closeStream, ok := h.prepareEventStream(c)
+	if !ok {
 		return
 	}
+	defer closeStream()
 	if reset {
 		if err := h.writeTerminalCatalogSnapshot(c, writer, service, workspaceID, scope, fence); err != nil {
 			return

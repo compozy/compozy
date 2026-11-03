@@ -150,6 +150,7 @@ type stubClient struct {
 	unarchiveSessionFn               func(context.Context, string) (SessionRecord, error)
 	moveSessionToLaterFn             func(context.Context, string, contract.MoveSessionToLaterRequest) (SessionRecord, error)
 	resumeSessionFromLaterFn         func(context.Context, string, bool) (SessionRecord, error)
+	markSessionSeenFn                func(context.Context, string) (SessionRecord, error)
 	renameSessionFn                  func(context.Context, string, RenameSessionRequest) (SessionRecord, error)
 	setSessionParentFn               func(context.Context, string, SetSessionParentRequest) (SessionRecord, error)
 	clearSessionParentFn             func(context.Context, string) (SessionRecord, error)
@@ -1360,6 +1361,13 @@ func (s *stubClient) ResumeSessionFromLater(ctx context.Context, id string, with
 		return s.resumeSessionFromLaterFn(ctx, id, withChildren)
 	}
 	return SessionRecord{}, errors.New("unexpected ResumeSessionFromLater call")
+}
+
+func (s *stubClient) MarkSessionSeen(ctx context.Context, id string) (SessionRecord, error) {
+	if s.markSessionSeenFn != nil {
+		return s.markSessionSeenFn(ctx, id)
+	}
+	return SessionRecord{}, errors.New("unexpected MarkSessionSeen call")
 }
 
 func (s *stubClient) RenameSession(

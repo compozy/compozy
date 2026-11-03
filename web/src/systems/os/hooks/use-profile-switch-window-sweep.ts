@@ -38,8 +38,15 @@ async function closeWhileForeign(close: () => Promise<boolean>, stillForeign: ()
 
 interface SweepRequest {
   epoch: number;
-  workspaceId: string;
+  /** The profile switched into, by name (the view) and id (session owners). */
+  profile: string;
   profileId: string;
+}
+
+/** The partitions (projects, All projects, User) already swept for one switch. */
+interface SweptPartitions {
+  epoch: number;
+  partitions: Set<string>;
 }
 
 /** The desk is live for its binding: hydrated, attached, and fenced by its stream. */
@@ -49,15 +56,24 @@ function selectDeskLive(state: OsDesktopRuntimeStore): boolean {
   );
 }
 
+/** The switch is still the operator's current answer: no later switch, same profile in view. */
+function switchStillCurrent(request: SweepRequest): boolean {
+  const { switchEpoch, view } = profileViewStore.getSnapshot().context;
+  return (
+    switchEpoch === request.epoch && view?.kind === "profile" && view.profile === request.profile
+  );
+}
+
 /**
  * Closes another profile's session windows when the operator switches into one profile.
  *
  * Desks belong to one profile, and under All profiles the client works on the destination's desk,
  * so sessions of every profile opened there are stored in it. A switch to that profile would leave
- * them on screen under an owner banner. The switch is the moment they stop belonging: once the
- * target desk is live, each window whose session another profile owns closes through the normal
- * close command, so it stays reopenable and the other profile's own desk is untouched. Only an
- * explicit switch triggers this; a deep link opened while a profile is selected keeps its banner.
+ * them on screen under an owner banner. The switch is the moment they stop belonging: each desk
+ * of the profile (every project, All projects, User) is swept the first time it is live after the
+ * switch, and each window whose session another profile owns closes through the normal close
+ * command, so it stays reopenable and the other profile's own desk is untouched. Only an explicit
+ * switch triggers this; a deep link opened while a profile is selected keeps its banner.
  */
 export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: string | null) {
   const queryClient = useQueryClient();
@@ -69,9 +85,9 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
   if (epoch !== seenEpoch) {
     setSeenEpoch(epoch);
     setRequest(
-      scope.aggregate || workspaceId === null
+      scope.view.kind === "aggregate"
         ? null
-        : { epoch, workspaceId, profileId: targetProfileId ?? "" }
+        : { epoch, profile: scope.view.profile, profileId: targetProfileId ?? "" }
     );
   }
   // The profile list can resolve the target's id after the switch commits.
@@ -79,24 +95,19 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
     setRequest({ ...request, profileId: targetProfileId });
   }
   const live = useAtom(shell.projection, selectDeskLive);
-  const started = useRef<SweepRequest | null>(null);
-  const mounted = useRef(false);
+  const swept = useRef<SweptPartitions | null>(null);
 
   useEffect(() => {
-    mounted.current = true;
-    return () => {
-      mounted.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (request === null || request.profileId === "" || !live) return;
-    if (started.current === request || request.workspaceId !== workspaceId) return;
+    if (request === null || request.profileId === "" || !live || workspaceId === null) return;
     if (request.profileId !== targetProfileId) return;
+    const done = swept.current;
+    if (done?.epoch === request.epoch && done.partitions.has(workspaceId)) return;
     const { coordinator, manager } = shell;
     // The render saw the previous binding; the rebind in this commit is what has to be live.
     if (!selectDeskLive(manager.getState())) return;
-    started.current = request;
+    // A desk counts as swept only once its sweep finishes. Leaving the desk (another project, a
+    // rebind, the shell unmounting) interrupts it, and the desk is swept again when it returns.
+    let interrupted = false;
     void (async () => {
       const foreign = await foreignProfileSessionWindows(
         manager.getState().windows,
@@ -108,15 +119,22 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
         // react-doctor-disable-next-line react-doctor/async-await-in-loop -- one close at a time is the point: the runtime's close guard admits a single close and refuses the rest while it is pending.
         await closeWhileForeign(
           () => coordinator.userClose(windowId),
-          // Any later view change, All profiles included, owns the desk now; the operator may have
-          // moved the window to another session, so only the inspected one licenses a close; and
-          // nothing retries after the shell unmounts.
+          // A later switch or a rolled-back one owns the desk now; the operator may have moved
+          // the window to another session (or to another desk, where its id is gone), so only the
+          // inspected one licenses a close; and nothing retries once the desk is left.
           () =>
-            mounted.current &&
-            profileViewStore.getSnapshot().context.switchEpoch === request.epoch &&
+            !interrupted &&
+            switchStillCurrent(request) &&
             shownSessionId(manager.getState().windows[windowId]) === sessionId
         );
       }
+      if (interrupted || !switchStillCurrent(request)) return;
+      const current = swept.current;
+      if (current?.epoch === request.epoch) current.partitions.add(workspaceId);
+      else swept.current = { epoch: request.epoch, partitions: new Set([workspaceId]) };
     })();
+    return () => {
+      interrupted = true;
+    };
   }, [live, queryClient, request, shell, targetProfileId, workspaceId]);
 }

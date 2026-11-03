@@ -26,18 +26,11 @@ func (h *BaseHandlers) setSessionArchived(c *gin.Context, archived bool) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session archive manager is required"))
 		return
 	}
-	scope, sessionID, existing, ok := h.routeSessionInWorkspace(c)
+	scope, sessionID, existing, ok := h.routeScopedSessionInWorkspace(c)
 	if !ok {
 		return
 	}
-	profileScope, err := h.resolveProfileMutationScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !h.requireSessionInProfile(c, existing, profileScope) {
-		return
-	}
+	var err error
 	if existing.Lineage != nil && existing.Lineage.SpawnRole == "subagent" {
 		subagentError(
 			c,

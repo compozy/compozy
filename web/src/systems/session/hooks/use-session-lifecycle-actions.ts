@@ -48,6 +48,7 @@ import {
 } from "./session-lifecycle-helpers";
 import { useSessionReparent } from "./use-session-reparent";
 import { useSessionLaterActions } from "./use-session-later-actions";
+import { useMarkSessionSeenAction } from "./use-mark-session-seen";
 import type {
   SessionLifecycleAction,
   SessionProcessChoice,
@@ -130,6 +131,7 @@ export function useSessionLifecycleActions(
     busy: ownPending !== null,
     onMovedToLater: onLaterSuccess,
   });
+  const markSeen = useMarkSessionSeenAction();
   const pendingAction = ownPending ?? later.pendingAction;
   const pendingSessionId = lifecyclePendingSessionId({
     batching: batchAction !== null,
@@ -409,6 +411,7 @@ export function useSessionLifecycleActions(
       onArchiveMany: sessions => actOnMany("archive", sessions),
       onUnarchiveMany: sessions => actOnMany("unarchive", sessions),
       ...later.handlers,
+      onMarkSeen: markSeen.onMarkSeen,
       onAdopt: reparent.adopt,
       onMakeTopLevel: reparent.detach,
       onDeleteMany: (sessions, onSelectionChange) => {

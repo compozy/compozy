@@ -14,22 +14,40 @@ type cmdPaletteClientDirectory struct {
 }
 
 type cmdPaletteClientDirectorySource interface {
-	ClientsInWorkspace(context.Context, windowmanager.WorkspaceID) ([]windowmanager.ClientView, error)
-	CommandClientsInWorkspace(context.Context, windowmanager.WorkspaceID) ([]windowmanager.ClientView, error)
-	ManagerForClient(context.Context, windowmanager.WorkspaceID, windowmanager.ClientID) (*windowmanager.Manager, error)
+	ClientsInWorkspace(
+		context.Context, clientProfileScope, windowmanager.WorkspaceID,
+	) ([]windowmanager.ClientView, error)
+	CommandClientsInWorkspace(
+		context.Context, clientProfileScope, windowmanager.WorkspaceID,
+	) ([]windowmanager.ClientView, error)
+	ManagerForClient(
+		context.Context, clientProfileScope, windowmanager.WorkspaceID, windowmanager.ClientID,
+	) (*windowmanager.Manager, error)
 }
 
 var _ cmdpalette.ClientDirectory = (*cmdPaletteClientDirectory)(nil)
 var _ cmdpalette.GlobalShortcutStatusDirectory = (*cmdPaletteClientDirectory)(nil)
 
+// paletteClientScope maps a palette profile lens onto the window-manager
+// profile whose clients it may reach; only the aggregate lens widens the read.
+func paletteClientScope(profileLens cmdpalette.ProfileLens) clientProfileScope {
+	if profileLens.IsAggregate() {
+		return clientsOfAllProfiles()
+	}
+	return clientsOfProfile(string(profileLens.ID))
+}
+
 func (d *cmdPaletteClientDirectory) Clients(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 ) ([]cmdpalette.Client, error) {
 	if d == nil || d.windowManagers == nil {
 		return []cmdpalette.Client{}, nil
 	}
-	views, err := d.windowManagers.CommandClientsInWorkspace(ctx, windowmanager.WorkspaceID(workspaceID))
+	views, err := d.windowManagers.CommandClientsInWorkspace(
+		ctx, paletteClientScope(profileLens), windowmanager.WorkspaceID(workspaceID),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("cmd palette: list window-manager clients: %w", err)
 	}
@@ -38,12 +56,15 @@ func (d *cmdPaletteClientDirectory) Clients(
 
 func (d *cmdPaletteClientDirectory) AttachedClients(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 ) ([]cmdpalette.Client, error) {
 	if d == nil || d.windowManagers == nil {
 		return []cmdpalette.Client{}, nil
 	}
-	views, err := d.windowManagers.ClientsInWorkspace(ctx, windowmanager.WorkspaceID(workspaceID))
+	views, err := d.windowManagers.ClientsInWorkspace(
+		ctx, paletteClientScope(profileLens), windowmanager.WorkspaceID(workspaceID),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("cmd palette: list attached clients: %w", err)
 	}
@@ -63,10 +84,11 @@ func paletteClients(views []windowmanager.ClientView, workspaceID cmdpalette.Wor
 
 func (d *cmdPaletteClientDirectory) Context(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	clientID cmdpalette.ClientID,
 ) (cmdpalette.ContextSnapshot, error) {
-	client, err := d.findClient(ctx, workspaceID, clientID, "resolve client context")
+	client, err := d.findClient(ctx, profileLens, workspaceID, clientID, "resolve client context")
 	if err != nil {
 		return cmdpalette.ContextSnapshot{}, err
 	}
@@ -75,6 +97,7 @@ func (d *cmdPaletteClientDirectory) Context(
 
 func (d *cmdPaletteClientDirectory) Authorize(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	clientID cmdpalette.ClientID,
 	token string,
@@ -83,7 +106,7 @@ func (d *cmdPaletteClientDirectory) Authorize(
 		return cmdpalette.ErrClientUnauthorized
 	}
 	manager, err := d.windowManagers.ManagerForClient(
-		ctx, windowmanager.WorkspaceID(workspaceID), windowmanager.ClientID(clientID),
+		ctx, paletteClientScope(profileLens), windowmanager.WorkspaceID(workspaceID), windowmanager.ClientID(clientID),
 	)
 	if err != nil {
 		return cmdpalette.ErrClientUnauthorized
@@ -95,14 +118,14 @@ func (d *cmdPaletteClientDirectory) Authorize(
 
 func (d *cmdPaletteClientDirectory) GlobalShortcutStatuses(
 	ctx context.Context,
-	_ cmdpalette.ProfileLens,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	clientID cmdpalette.ClientID,
 ) (map[cmdpalette.CommandID]cmdpalette.GlobalShortcut, error) {
 	if d == nil || d.windowManagers == nil {
 		return map[cmdpalette.CommandID]cmdpalette.GlobalShortcut{}, nil
 	}
-	client, err := d.findClient(ctx, workspaceID, clientID, "resolve global shortcut status")
+	client, err := d.findClient(ctx, profileLens, workspaceID, clientID, "resolve global shortcut status")
 	if err != nil {
 		return nil, err
 	}
@@ -121,6 +144,7 @@ func (d *cmdPaletteClientDirectory) GlobalShortcutStatuses(
 
 func (d *cmdPaletteClientDirectory) findClient(
 	ctx context.Context,
+	profileLens cmdpalette.ProfileLens,
 	workspaceID cmdpalette.WorkspaceID,
 	clientID cmdpalette.ClientID,
 	op string,
@@ -128,7 +152,9 @@ func (d *cmdPaletteClientDirectory) findClient(
 	if d == nil || d.windowManagers == nil {
 		return windowmanager.ClientView{}, cmdpalette.ErrNoAttachedShell
 	}
-	clients, err := d.windowManagers.ClientsInWorkspace(ctx, windowmanager.WorkspaceID(workspaceID))
+	clients, err := d.windowManagers.ClientsInWorkspace(
+		ctx, paletteClientScope(profileLens), windowmanager.WorkspaceID(workspaceID),
+	)
 	if err != nil {
 		return windowmanager.ClientView{}, fmt.Errorf("cmd palette: %s: %w", op, err)
 	}

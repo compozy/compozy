@@ -41,7 +41,9 @@ type BadgeInputs struct {
 	// EndedEarly marks a settled turn that stopped without delivering or open work.
 	EndedEarly bool
 	// ReturnedFromLater marks a stopped session the daemon brought back from Later.
-	ReturnedFromLater   bool
+	ReturnedFromLater bool
+	// FailureSeen marks a stopped session's failure the operator marked as seen.
+	FailureSeen         bool
 	Unseen              bool
 	IneligibilityReason string
 }
@@ -56,7 +58,7 @@ func CanonicalBadge(input BadgeInputs) Badge {
 	terminal := input.State == StateStopped ||
 		(input.State == "" && input.HealthState == heartbeat.SessionHealthStateStopped)
 	if terminal && terminalFailureKind(failure) {
-		return BadgeFailed
+		return seenFailureBadge(input)
 	}
 	if input.PendingAuth || failureKindIsAuth(failure) {
 		return BadgeWaitingForAuth
@@ -80,6 +82,19 @@ func CanonicalBadge(input BadgeInputs) Badge {
 		return BadgeRunning
 	}
 	return settledBadge(input)
+}
+
+// seenFailureBadge keeps an unseen failure in Needs you; a failure the operator
+// marked as seen reads as a plain stop unless the session came back from Later.
+func seenFailureBadge(input BadgeInputs) Badge {
+	switch {
+	case !input.FailureSeen:
+		return BadgeFailed
+	case input.ReturnedFromLater:
+		return BadgeNeedsAttention
+	default:
+		return BadgeStopped
+	}
 }
 
 // settledBadge orders the badges of a session with no turn in flight: open work
@@ -138,6 +153,7 @@ func BadgeForInfo(info *Info) Badge {
 		Waiting:           waitingFromInfo(info),
 		EndedEarly:        strings.TrimSpace(info.EndedEarlyTurnID) != "",
 		ReturnedFromLater: info.LaterReturnedAt != nil,
+		FailureSeen:       info.FailureSeenAt != nil,
 		Unseen:            info.LastSettledRevision > info.LastSeenRevision,
 		ActivePrompt: info.Liveness != nil &&
 			info.Liveness.Activity != nil &&
@@ -204,6 +220,7 @@ func BadgeForHealth(info *Info, health heartbeat.SessionHealth) Badge {
 		Waiting:                waitingFromInfo(info),
 		EndedEarly:             info != nil && strings.TrimSpace(info.EndedEarlyTurnID) != "",
 		ReturnedFromLater:      info != nil && info.LaterReturnedAt != nil,
+		FailureSeen:            info != nil && info.FailureSeenAt != nil,
 		IneligibilityReason:    health.IneligibilityReason,
 	})
 }

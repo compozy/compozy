@@ -64,7 +64,7 @@ func TestTerminalOpenAPIContract(t *testing.T) {
 
 		common := []int{400, 401, 403, 409, 500, 503}
 		expected := map[string][]int{
-			"streamTerminalCatalog":      append([]int{200, 422}, common...),
+			"streamTerminalCatalog":      append([]int{101, 200, 422}, common...),
 			"listTerminals":              append([]int{200, 422}, common...),
 			"createTerminal":             append([]int{201, 404, 422}, common...),
 			"getTerminal":                append([]int{200, 404, 410}, common...),

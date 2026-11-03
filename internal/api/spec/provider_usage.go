@@ -39,6 +39,7 @@ func providerUsageOperations() []OperationSpec {
 		ContentType: specContentTypeEventStream,
 		Body:        contract.ProviderUsageStreamEvent{},
 	}
+	stream.Responses = append([]ResponseSpec{{Status: 101, Description: specEventStreamUpgrade}}, stream.Responses...)
 	return []OperationSpec{list, provider, refresh, stream}
 }
 

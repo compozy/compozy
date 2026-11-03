@@ -14,8 +14,8 @@ import (
 )
 
 type agentDefinitionFlags struct {
-	displayName, description, kind, avatar, seed, color, icon, emoji string
-	generation                                                       int
+	displayName, description, kind, avatar, seed, color, icon, emoji, background string
+	generation                                                                   int
 
 	provider        string
 	command         string
@@ -129,7 +129,9 @@ func createAgentRequestFromFlags(
 			Prompt:          prompt,
 		},
 	}
-	applyAgentIdentityFlags(cmd, &request.Agent, flags)
+	if err := applyAgentIdentityFlags(cmd, &request.Agent, flags); err != nil {
+		return contract.CreateAgentRequest{}, err
+	}
 	if err := applyAgentFallbackChainFlags(cmd, &request.Agent, flags); err != nil {
 		return contract.CreateAgentRequest{}, err
 	}
@@ -272,7 +274,9 @@ func applyAgentDefinitionOverrides(
 	payload *contract.CreateAgentPayload,
 	flags agentDefinitionFlags,
 ) error {
-	applyAgentIdentityFlags(cmd, payload, flags)
+	if err := applyAgentIdentityFlags(cmd, payload, flags); err != nil {
+		return err
+	}
 	if cmd.Flags().Changed(cliProviderKey) {
 		oldProvider := compozyconfig.CanonicalProviderName(payload.Provider)
 		payload.Provider = strings.TrimSpace(flags.provider)
@@ -306,6 +310,19 @@ func applyAgentDefinitionOverrides(
 		}
 		payload.ACPOptions = options
 	}
+	applyAgentAccessOverrides(cmd, payload, flags)
+	prompt, changed, err := agentPromptFromFlags(cmd, flags, false)
+	if err != nil {
+		return err
+	}
+	if changed {
+		payload.Prompt = prompt
+	}
+	return nil
+}
+
+// applyAgentAccessOverrides copies the changed tool, permission, category and skill flags.
+func applyAgentAccessOverrides(cmd *cobra.Command, payload *contract.CreateAgentPayload, flags agentDefinitionFlags) {
 	if cmd.Flags().Changed("tool") {
 		payload.Tools = normalizeAgentFlagValues(flags.tools)
 	}
@@ -326,14 +343,6 @@ func applyAgentDefinitionOverrides(
 			Disabled: normalizeAgentFlagValues(flags.disabledSkills),
 		}
 	}
-	prompt, changed, err := agentPromptFromFlags(cmd, flags, false)
-	if err != nil {
-		return err
-	}
-	if changed {
-		payload.Prompt = prompt
-	}
-	return nil
 }
 
 func duplicateAgentOverridesFromFlags(

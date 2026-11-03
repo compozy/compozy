@@ -18,6 +18,12 @@ function faceSrc(container: HTMLElement) {
   return container.querySelector("img")?.getAttribute("src") ?? "";
 }
 
+/** jsdom reports inline colors as `rgb(r, g, b)`. */
+function rgbToHex(value: string) {
+  const [r = 0, g = 0, b = 0] = value.match(/\d+/g)?.map(Number) ?? [];
+  return `#${[r, g, b].map(part => part.toString(16).padStart(2, "0")).join("")}`;
+}
+
 function slot(container: HTMLElement, name: string) {
   return container.querySelector(`[data-slot="${name}"]`);
 }
@@ -41,6 +47,30 @@ describe("AgentAvatar", () => {
       <AgentAvatar appearance={{ avatar: "emoji", emoji: "🦊", color: "#e8b04a" }} label="Scout" />
     );
     expect(screen.getByText("🦊")).toBeTruthy();
+  });
+
+  // Invariant: a symbol drops its tinted plate only when asked, and its ink stays readable alone.
+  it("Should draw an icon on its plate by default and alone in readable ink without one", () => {
+    const icon = { avatar: "icon", icon: "code-xml", color: "#8a8f98" } as const;
+    const { container, rerender } = render(
+      <AgentAvatar appearance={icon} label="Builder" spriteUrl="/sprite.svg" />
+    );
+    const plate = container.querySelector<HTMLElement>("[data-background]");
+    expect(plate?.dataset.background).toBe("plate");
+    expect(plate?.style.backgroundColor).not.toBe("");
+
+    rerender(
+      <AgentAvatar
+        appearance={{ ...icon, background: "none" }}
+        label="Builder"
+        spriteUrl="/sprite.svg"
+      />
+    );
+    const bare = container.querySelector<HTMLElement>("[data-background]");
+    expect(bare?.dataset.background).toBe("none");
+    expect(bare?.style.backgroundColor).toBe("");
+    const ink = parseHexColor(rgbToHex(bare!.style.color));
+    expect(contrastRatio(ink!, parseHexColor("#1a1a1a")!)).toBeGreaterThanOrEqual(4.5);
   });
 
   it("Should speak the name, scope and state, and claim nothing when the state is unknown", () => {

@@ -96,6 +96,9 @@ const (
 	// ErrorCodeSessionLaterStopFailed reports a Move to Later whose stop failed,
 	// leaving the session out of Later.
 	ErrorCodeSessionLaterStopFailed ErrorCode = "session_later_stop_failed"
+	// ErrorCodeAttentionRequiresAction reports a Needs you that waits on an answer,
+	// a sign-in, or a stop and cannot be marked as seen.
+	ErrorCodeAttentionRequiresAction ErrorCode = "attention_requires_action"
 	// ErrorCodeAgentInstanceNotFound reports a message target agent with no instance in scope.
 	ErrorCodeAgentInstanceNotFound ErrorCode = "agent_instance_not_found"
 	// ErrorCodeAgentInstanceStarting reports a target instance without a main session yet.

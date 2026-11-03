@@ -108,7 +108,8 @@ func nativeAllowsMissingWorkspace(id toolspkg.ToolID) bool {
 		toolspkg.ToolIDSessionArchive,
 		toolspkg.ToolIDSessionUnarchive,
 		toolspkg.ToolIDSessionLater,
-		toolspkg.ToolIDSessionResumeLater:
+		toolspkg.ToolIDSessionResumeLater,
+		toolspkg.ToolIDSessionMarkSeen:
 		return true
 	default:
 		return false

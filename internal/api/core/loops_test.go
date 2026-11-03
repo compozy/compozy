@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -843,6 +844,78 @@ func TestLoopHandlersExposeUDSStartKind(t *testing.T) {
 func TestGoalReadHandlersExposeSnapshotAndTurnContracts(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: session Goal reads honor the same workspace/profile fence as session data.
+	// Owner: shared API; canonical suite: Goal read handler contracts.
+	newReadFixture := func(t *testing.T, transport string, service *stubLoopService) (*core.BaseHandlers, http.Handler) {
+		t.Helper()
+		handlers, engine := newLoopHandlerFixture(t, transport, service)
+		handlers.Workspaces = testutil.StubWorkspaceService{
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{ID: "ws-1", WorkspaceID: "ws-1"}, nil
+			},
+		}
+		handlers.Sessions = &testutil.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				info := testutil.NewSessionInfo(id)
+				info.WorkspaceID = "ws-1"
+				return info, nil
+			},
+		}
+		handlers.Profiles = sessionProfileServiceStub{}
+		return handlers, engine
+	}
+	t.Run("Should fence Goal reads by selected and agent-bound profile", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			query  string
+			agent  bool
+			status int
+		}{
+			{"", false, http.StatusOK}, {"?profile=marketing", false, http.StatusOK},
+			{"?profile=default", false, http.StatusNotFound}, {"?all_profiles=true", false, http.StatusOK},
+			{"?all_profiles=false", false, http.StatusOK}, {"?all_profiles=invalid", false, http.StatusBadRequest},
+			{"", true, http.StatusNotFound},
+		} {
+			service := happyLoopService(t)
+			called := false
+			service.getSessionGoalFn = func(context.Context, string, string) (*session.GoalSnapshot, error) { called = true; return nil, nil }
+			handlers, engine := newReadFixture(t, "httpapi", service)
+			handlers.Sessions = &testutil.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					info := testutil.NewSessionInfo(id)
+					info.WorkspaceID = "ws-1"
+					if id == "sess-1" {
+						info.ProfileID = "profile-marketing"
+					}
+					return info, nil
+				},
+			}
+			req := httptest.NewRequestWithContext(
+				t.Context(),
+				http.MethodGet,
+				"/workspaces/ws-1/sessions/sess-1/goal"+tc.query,
+				nil,
+			)
+			if tc.agent {
+				req.Header.Set(agentidentity.HeaderSessionID, "sess-caller")
+				req.Header.Set(agentidentity.HeaderAgent, "coder")
+			}
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, req)
+			if response.Code != tc.status || called != (tc.status == http.StatusOK) {
+				t.Fatalf(
+					"Goal %q agent=%t = %d %s called=%t, want %d",
+					tc.query,
+					tc.agent,
+					response.Code,
+					response.Body,
+					called,
+					tc.status,
+				)
+			}
+		}
+	})
+
 	t.Run("Should preserve snapshot and open-turn nullability", func(t *testing.T) {
 		t.Parallel()
 
@@ -885,7 +958,7 @@ func TestGoalReadHandlersExposeSnapshotAndTurnContracts(t *testing.T) {
 				NextAfterSeq: &next,
 			}, nil
 		}
-		_, engine := newLoopHandlerFixture(t, "httpapi", service)
+		_, engine := newReadFixture(t, "httpapi", service)
 
 		snapshotResponse := performRequest(
 			t,
@@ -927,7 +1000,7 @@ func TestGoalReadHandlersExposeSnapshotAndTurnContracts(t *testing.T) {
 		t.Parallel()
 
 		service := happyLoopService(t)
-		_, engine := newLoopHandlerFixture(t, "udsapi", service)
+		_, engine := newReadFixture(t, "udsapi", service)
 		nullResponse := performRequest(
 			t,
 			engine,

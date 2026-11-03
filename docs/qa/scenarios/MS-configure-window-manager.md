@@ -57,3 +57,18 @@ A binding receipt that reports saved settings without confirmed application (`ap
 diagnostic is supplied.
 
 QA impact 2026-09-28 (normie pass): gaps, snap zones, repeat widths and layout history now sit in the Layouts Advanced fold; "Import/Export JSON" read "Import/Export layout file"; the frame states which parts apply from Apply layout, Save, or immediately. Flag only.
+
+Profile isolation regression: in a non-default profile, keep a desktop client attached and
+report a failed global shortcut registration. Settings must show its failure reason and
+confirmed active chord. Switch profiles and verify these statuses follow that profile's
+client; settings ownership remains user/workspace scoped. HTTP reads and PATCH echoes
+name the attachment with `client_id` and its profile with `client_profile`.
+
+Enable an extension command only in a non-default profile. While that profile is selected,
+change its shortcut and alias and reload: both changes must persist. A command enabled only
+in the default profile must be refused when saved through the non-default client profile,
+without changing the existing configuration.
+
+Impact: saves validate the catalog selected by the existing `client_profile` selector.
+HTTP/UDS and Web schemas, user/workspace config ownership, native tools, hooks, migrations,
+workspace isolation, and official skill contracts are unchanged.

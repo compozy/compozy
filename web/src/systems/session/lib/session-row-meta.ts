@@ -14,6 +14,11 @@ export interface RowMeta {
   visible: boolean;
   /** Attention words that never truncate. */
   attention: string[];
+  /**
+   * The attention words drawn on the line: only a session that needs you says its state in words,
+   * since the glyph already says every other state. They replace the model on line 2.
+   */
+  shown: string[];
   /** Why the daemon raised attention; its detail is the row's hover title. */
   reason: SessionAttentionReason | null;
   /** Secondary notes, the first to give way when the line is full. */
@@ -57,6 +62,7 @@ export function rowMeta({
   return {
     visible: true,
     attention,
+    shown: signal.attention === "needs-you" ? attention : [],
     reason,
     notes,
     spoken,

@@ -12,6 +12,12 @@ vi.mock("../../adapters/window-manager-api", () => ({
 }));
 
 describe("windowManagerKeys.config", () => {
+  it("Should partition shell registration statuses by profile", () => {
+    expect(windowManagerKeys.config("ws-a", "client:web", "marketing")).not.toEqual(
+      windowManagerKeys.config("ws-a", "client:web", "engineering")
+    );
+  });
+
   it("Should encode a missing client as null instead of a sentinel string", () => {
     expect(windowManagerKeys.config()).toEqual([
       "settings",
@@ -19,6 +25,7 @@ describe("windowManagerKeys.config", () => {
       "window-manager",
       "global",
       null,
+      "default",
     ]);
     expect(windowManagerKeys.config("ws-a", "  ")).toEqual([
       "settings",
@@ -26,6 +33,7 @@ describe("windowManagerKeys.config", () => {
       "window-manager",
       "ws-a",
       null,
+      "default",
     ]);
     expect(windowManagerKeys.config("ws-a", "client:web")).toEqual([
       "settings",
@@ -33,6 +41,7 @@ describe("windowManagerKeys.config", () => {
       "window-manager",
       "ws-a",
       "client:web",
+      "default",
     ]);
   });
 });

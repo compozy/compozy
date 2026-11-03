@@ -71,3 +71,10 @@ would otherwise converge on the same intermediate quote state.
 QA result 2026-08-10 (review round 3): CLI validation rejected a matching conditional quote span
 with `unsafe_command_interpolation` before execution. The targeted CLI/runtime audit passed with
 0 blockers and 0 warnings, and teardown reported `clean: true` with no survivors.
+
+QA impact 2026-11-03 (numeric template comparisons): include exact whole-number float
+comparisons at 2^60, distinct JSON integers at 2^256 and 2^256+1, and matching decimal
+values such as 0.1. All six comparisons must reject numbers against quoted strings
+in either operand position. Decimal exponents outside [-4096, 4096] must fail rendering.
+The focused refs renderer suite verifies these cases with the real template engine;
+the full CLI/HTTP/UDS journey remains assigned to CI/integration QA.

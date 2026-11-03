@@ -148,5 +148,6 @@ func registerSessionLifecycleRoutes(sessions gin.IRouter, handlers *Handlers) {
 	registerSessionTreeRoutes(sessions, handlers)
 	sessions.POST("/:session_id/later", handlers.MoveSessionToLater)
 	sessions.POST("/:session_id/resume-later", handlers.ResumeSessionFromLater)
+	sessions.POST("/:session_id/mark-seen", handlers.MarkSessionSeen)
 	sessions.POST("/:session_id/unarchive", handlers.UnarchiveSession)
 }

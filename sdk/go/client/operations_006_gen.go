@@ -10,6 +10,64 @@ import (
 	"strings"
 )
 
+// DeleteSettingsProvider Delete one settings-backed provider overlay
+func (c *Client) DeleteSettingsProvider(ctx context.Context, params DeleteSettingsProviderParams) (*SettingsApplyResponse, error) {
+	path := "/api/settings/providers/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteTaskParams carries the path, query, and header parameters.
+type DeleteTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// DeleteTask Delete one task
+func (c *Client) DeleteTask(ctx context.Context, params DeleteTaskParams) error {
+	path := "/api/tasks/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteTaskExecutionProfileParams carries the path, query, and header parameters.
+type DeleteTaskExecutionProfileParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// DeleteTaskExecutionProfile Delete one task execution profile
+func (c *Client) DeleteTaskExecutionProfile(ctx context.Context, params DeleteTaskExecutionProfileParams) error {
+	path := "/api/tasks/{id}/execution-profile"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
+// DeleteTerminalParams carries the path, query, and header parameters.
+type DeleteTerminalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+}
+
 // DeleteTerminal Terminate one terminal
 func (c *Client) DeleteTerminal(ctx context.Context, params DeleteTerminalParams, body TerminalCloseRequest) (*TerminalExitResponse, error) {
 	path := "/api/workspaces/{workspace_id}/terminals/{id}"
@@ -387,61 +445,4 @@ type DownloadTerminalArtifactParams struct {
 	ID          string  `url:"id"`
 	Profile     *string `url:"profile"`
 	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// DownloadTerminalArtifact Download one terminal spill artifact
-func (c *Client) DownloadTerminalArtifact(ctx context.Context, params DownloadTerminalArtifactParams) (*[]byte, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/artifacts/{id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out []byte
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "*/*"); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DownloadTerminalRecordingParams carries the path, query, and header parameters.
-type DownloadTerminalRecordingParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// DownloadTerminalRecording Download one terminal recording
-func (c *Client) DownloadTerminalRecording(ctx context.Context, params DownloadTerminalRecordingParams) (*[]byte, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/recordings/{id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out []byte
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "application/x-asciicast"); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DraftAgentInstructionsParams carries the path, query, and header parameters.
-type DraftAgentInstructionsParams struct {
-	Profile *string `url:"profile"`
 }

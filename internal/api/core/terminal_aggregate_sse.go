@@ -38,7 +38,7 @@ func (h *BaseHandlers) StreamTerminalAggregate(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
-	after, err := terminalAggregateCursor(c.GetHeader("Last-Event-ID"), fingerprint)
+	after, err := terminalAggregateCursor(eventStreamCursor(c), fingerprint)
 	if err != nil {
 		h.respondTerminalError(c, err)
 		return
@@ -53,10 +53,11 @@ func (h *BaseHandlers) StreamTerminalAggregate(c *gin.Context) {
 		return
 	}
 	defer done()
-	writer, err := PrepareSSE(c)
-	if err != nil {
+	writer, closeStream, ok := h.prepareEventStream(c)
+	if !ok {
 		return
 	}
+	defer closeStream()
 	stream := &terminalAggregateStream{
 		h: h, c: c, writer: writer, breadth: breadth, scope: scope, fingerprint: fingerprint, after: after,
 	}

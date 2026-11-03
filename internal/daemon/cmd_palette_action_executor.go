@@ -220,7 +220,8 @@ func (e *cmdPaletteActionExecutor) dispatch(
 		return nil, fmt.Errorf("cmd palette: encode client command: %w", err)
 	}
 	manager, err := e.windowManagers.ManagerForClient(
-		ctx, windowmanager.WorkspaceID(request.WorkspaceID), windowmanager.ClientID(request.ClientID),
+		ctx, paletteClientScope(request.ProfileLens),
+		windowmanager.WorkspaceID(request.WorkspaceID), windowmanager.ClientID(request.ClientID),
 	)
 	if err != nil {
 		return nil, cmdpalette.ErrNoAttachedShell

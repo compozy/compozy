@@ -91,7 +91,7 @@ func (s *service) normalizeWindowManagerRequest(
 		loaded.config.CmdPalette.Aliases,
 		req,
 	)
-	bindableIDs, err := s.windowManagerBindableIDs(ctx, loaded.workspaceID)
+	bindableIDs, err := s.windowManagerBindableIDs(ctx, loaded.workspaceID, req.ClientProfile)
 	if err != nil {
 		return compozyconfig.WindowManagerConfig{}, nil, err
 	}

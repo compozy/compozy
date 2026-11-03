@@ -369,7 +369,7 @@ func TestWindowManagerRegistry(t *testing.T) {
 		}
 
 		// Whoever entered last owns the attachment, and there is only ever one.
-		attached, err := registry.ClientsInWorkspace(ctx, workspaceID)
+		attached, err := registry.ClientsInWorkspace(ctx, clientsOfAllProfiles(), workspaceID)
 		if err != nil {
 			t.Fatalf("ClientsInWorkspace() error = %v", err)
 		}
@@ -380,7 +380,7 @@ func TestWindowManagerRegistry(t *testing.T) {
 		if err != nil {
 			t.Fatalf("For(B) error = %v", err)
 		}
-		owner, err := registry.ManagerForClient(ctx, workspaceID, clientID)
+		owner, err := registry.ManagerForClient(ctx, clientsOfAllProfiles(), workspaceID, clientID)
 		if err != nil {
 			t.Fatalf("ManagerForClient() error = %v", err)
 		}
@@ -413,14 +413,14 @@ func TestWindowManagerRegistry(t *testing.T) {
 			t.Fatalf("For(to) error = %v", err)
 		}
 
-		attached, err := fixture.registry.ClientsInWorkspace(ctx, workspaceID)
+		attached, err := fixture.registry.ClientsInWorkspace(ctx, clientsOfAllProfiles(), workspaceID)
 		if err != nil {
 			t.Fatalf("ClientsInWorkspace() error = %v", err)
 		}
 		if len(attached) != 1 || attached[0].ClientID != clientID {
 			t.Fatalf("ClientsInWorkspace() = %#v, want exactly one %q", attached, clientID)
 		}
-		owner, err := fixture.registry.ManagerForClient(ctx, workspaceID, clientID)
+		owner, err := fixture.registry.ManagerForClient(ctx, clientsOfAllProfiles(), workspaceID, clientID)
 		if err != nil {
 			t.Fatalf("ManagerForClient() error = %v", err)
 		}

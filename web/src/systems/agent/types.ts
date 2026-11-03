@@ -73,6 +73,8 @@ export interface AgentAppearancePayload {
   icon?: string;
   emoji?: string;
   color?: string;
+  /** An icon or emoji on its tinted plate (`plate`, the default) or standing alone (`none`). */
+  background?: "plate" | "none";
 }
 
 export type AgentInstanceState = "starting" | "active" | "paused";

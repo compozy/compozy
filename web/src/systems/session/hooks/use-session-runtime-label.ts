@@ -10,6 +10,8 @@ export interface SessionRuntimeLabel {
   provider: string;
   /** `Provider · Model` in the names the runtime selector shows. */
   label: string;
+  /** The model's name and reasoning effort, `Opus 4.1 high`; empty when the runtime names none. */
+  model?: string;
 }
 
 /**
@@ -23,6 +25,7 @@ export function useSessionRuntimeLabel(
 ): SessionRuntimeLabel | null {
   const provider = effective?.provider.trim() ?? "";
   const model = effective?.model?.trim() ?? "";
+  const effort = effective?.reasoning_effort?.trim() ?? "";
   const providerName = useQuery({
     ...providerListOptions(),
     enabled: provider !== "",
@@ -43,5 +46,11 @@ export function useSessionRuntimeLabel(
   if (provider === "") return null;
   const providerLabel = providerName || provider;
   const modelLabel = modelName || model;
-  return { provider, label: modelLabel ? `${providerLabel} · ${modelLabel}` : providerLabel };
+  return {
+    provider,
+    label: modelLabel
+      ? `${providerLabel} · ${[modelLabel, effort].filter(Boolean).join(" ")}`
+      : providerLabel,
+    model: modelLabel ? [modelLabel, effort].filter(Boolean).join(" ") : "",
+  };
 }

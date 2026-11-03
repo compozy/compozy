@@ -369,6 +369,29 @@ export const handlers: HttpHandler[] = [
     }
   ),
   compozyApiMock.post(
+    "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen",
+    ({ params }) => {
+      const id = String(params.session_id);
+      const session = sessionById.get(id);
+      if (!session) {
+        return HttpResponse.json({ error: `Session not found: ${id}` }, { status: 404 });
+      }
+      if (!session.attention_dismissible) return HttpResponse.json({ session });
+      // Mirror the daemon: the dismissed source leaves Needs you and the session settles.
+      const stopped = session.state === "stopped";
+      const seenSession = {
+        ...session,
+        badge: stopped ? "stopped" : "idle",
+        board_column: stopped ? "done" : "waiting",
+        attention: undefined,
+        attention_dismissible: false,
+        returned_from_later_at: null,
+      } satisfies typeof session;
+      sessionById.set(id, seenSession);
+      return HttpResponse.json({ session: seenSession });
+    }
+  ),
+  compozyApiMock.post(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments",
     async ({ params, request }) => {
       const id = String(params.session_id);

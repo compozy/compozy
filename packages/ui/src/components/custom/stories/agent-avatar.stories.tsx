@@ -47,6 +47,29 @@ export const Emoji: Story = {
 
 export const NeedsYou: Story = { args: { provider: "codex", state: "needs-you" } };
 
+/** An icon on its tinted plate beside the same icon standing alone in its color. */
+export const IconBackgrounds: Story = {
+  render: args => (
+    <div className="flex items-center gap-6">
+      <AgentAvatar
+        {...args}
+        appearance={{ avatar: "icon", icon: "code-xml", color: "#8a8f98" }}
+        label="Code implementer"
+      />
+      <AgentAvatar
+        {...args}
+        appearance={{ avatar: "icon", icon: "code-xml", color: "#8a8f98", background: "none" }}
+        label="Code implementer"
+      />
+      <AgentAvatar
+        {...args}
+        appearance={{ avatar: "emoji", emoji: "🦊", color: "#e8b04a", background: "none" }}
+        label="Scout"
+      />
+    </div>
+  ),
+};
+
 export const Sizes: Story = {
   render: args => (
     <div className="flex items-center gap-4">

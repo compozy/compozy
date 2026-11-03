@@ -189,6 +189,7 @@ CREATE TABLE sessions (
 		park_reason TEXT NOT NULL DEFAULT '',
 		park_until TEXT,
 		later_returned_at TEXT,
+		failure_seen_at TEXT,
 		FOREIGN KEY (workspace_id, worktree_id)
 			REFERENCES worktrees(workspace_id, id),
 		CHECK ((scope = 'workspace') = (workspace_id <> '')),
@@ -311,8 +312,9 @@ CREATE INDEX idx_sessions_global_catalog_attention
  ON sessions(archived_at, (CASE
  WHEN (stop_verification_failed = 1 AND state <> 'stopped')
  OR pending_permission_count > 0 OR pending_clarify_count > 0
- OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure')
- OR (state = 'stopped' AND trim(COALESCE(failure_kind, '')) <> '' AND trim(COALESCE(failure_kind, '')) <> 'cancellation')
+ OR (trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') AND state <> 'stopped')
+ OR (state = 'stopped' AND trim(COALESCE(failure_kind, '')) <> '' AND trim(COALESCE(failure_kind, '')) <> 'cancellation'
+ AND failure_seen_at IS NULL)
  OR (state = 'stopped' AND later_returned_at IS NOT NULL)
  OR (state = 'active' AND ended_early_turn_id <> '' AND trim(COALESCE(stall_state, '')) <> 'stalled'
  AND trim(COALESCE(json_extract(CASE WHEN json_valid(activity_json) THEN activity_json ELSE '{}' END, '$.turn_id'), '')) = '') THEN 0
@@ -342,7 +344,8 @@ CREATE INDEX idx_sessions_profile_catalog_recent
 CREATE INDEX idx_sessions_global_catalog_navigator
  ON sessions(archived_at, (CASE
  WHEN stop_verification_failed = 1 AND state <> 'stopped' THEN 0
- WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
+ WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation')
+ THEN (CASE WHEN failure_seen_at IS NULL OR later_returned_at IS NOT NULL THEN 0 ELSE 3 END)
  WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
  WHEN pending_clarify_count > 0 THEN 0
  WHEN state = 'stopped' AND later_returned_at IS NOT NULL THEN 0
@@ -356,7 +359,8 @@ CREATE INDEX idx_sessions_global_catalog_navigator
 CREATE INDEX idx_sessions_profile_global_catalog_navigator
  ON sessions(profile_id, archived_at, (CASE
  WHEN stop_verification_failed = 1 AND state <> 'stopped' THEN 0
- WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
+ WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation')
+ THEN (CASE WHEN failure_seen_at IS NULL OR later_returned_at IS NOT NULL THEN 0 ELSE 3 END)
  WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
  WHEN pending_clarify_count > 0 THEN 0
  WHEN state = 'stopped' AND later_returned_at IS NOT NULL THEN 0
@@ -370,7 +374,8 @@ CREATE INDEX idx_sessions_profile_global_catalog_navigator
 CREATE INDEX idx_sessions_workspace_catalog_navigator
  ON sessions(workspace_id, archived_at, (CASE
  WHEN stop_verification_failed = 1 AND state <> 'stopped' THEN 0
- WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
+ WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation')
+ THEN (CASE WHEN failure_seen_at IS NULL OR later_returned_at IS NOT NULL THEN 0 ELSE 3 END)
  WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
  WHEN pending_clarify_count > 0 THEN 0
  WHEN state = 'stopped' AND later_returned_at IS NOT NULL THEN 0
@@ -384,7 +389,8 @@ CREATE INDEX idx_sessions_workspace_catalog_navigator
 CREATE INDEX idx_sessions_profile_workspace_catalog_navigator
  ON sessions(profile_id, workspace_id, archived_at, (CASE
  WHEN stop_verification_failed = 1 AND state <> 'stopped' THEN 0
- WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation') THEN 0
+ WHEN state = 'stopped' AND trim(COALESCE(failure_kind, '')) NOT IN ('', 'cancellation')
+ THEN (CASE WHEN failure_seen_at IS NULL OR later_returned_at IS NOT NULL THEN 0 ELSE 3 END)
  WHEN pending_permission_count > 0 OR trim(COALESCE(failure_kind, '')) IN ('permission_failure', 'provider_auth_failure') THEN 0
  WHEN pending_clarify_count > 0 THEN 0
  WHEN state = 'stopped' AND later_returned_at IS NOT NULL THEN 0
@@ -446,6 +452,16 @@ CREATE TRIGGER trg_sessions_archive_update_guard
 			WHEN NEW.archived_at IS NOT NULL AND NEW.state != 'stopped'
 			BEGIN
 				SELECT RAISE(ABORT, 'session is archived');
+			END;
+
+-- A failure the operator marked as seen leaves Needs you until the session
+-- changes state or fails differently; either edge raises the next failure again.
+CREATE TRIGGER trg_sessions_failure_seen_reset
+			AFTER UPDATE OF state, failure_kind, failure_summary ON sessions
+			WHEN OLD.failure_seen_at IS NOT NULL AND (NEW.state IS NOT OLD.state
+				OR NEW.failure_kind IS NOT OLD.failure_kind OR NEW.failure_summary IS NOT OLD.failure_summary)
+			BEGIN
+				UPDATE sessions SET failure_seen_at = NULL WHERE id = NEW.id;
 			END;
 
 CREATE TRIGGER trg_sessions_later_insert_guard

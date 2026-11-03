@@ -202,7 +202,7 @@ func (s *Service) resolveInvocationClient(
 		if s.clients == nil {
 			return "", ErrNoAttachedShell
 		}
-		clients, err := s.clients.Clients(ctx, request.WorkspaceID)
+		clients, err := s.clients.Clients(ctx, request.ProfileLens, request.WorkspaceID)
 		if err != nil {
 			return "", err
 		}
@@ -219,7 +219,7 @@ func (s *Service) resolveInvocationClient(
 	if s.clients == nil {
 		return "", ErrNoAttachedShell
 	}
-	listed, err := s.clients.Clients(ctx, request.WorkspaceID)
+	listed, err := s.clients.Clients(ctx, request.ProfileLens, request.WorkspaceID)
 	if err != nil {
 		return "", err
 	}
@@ -248,7 +248,9 @@ func (s *Service) authorizeInvocationClient(ctx context.Context, request InvokeR
 	if s.clients == nil || strings.TrimSpace(request.ClientToken) == "" {
 		return ErrClientUnauthorized
 	}
-	if err := s.clients.Authorize(ctx, request.WorkspaceID, request.ClientID, request.ClientToken); err != nil {
+	if err := s.clients.Authorize(
+		ctx, request.ProfileLens, request.WorkspaceID, request.ClientID, request.ClientToken,
+	); err != nil {
 		return fmt.Errorf("%w: %v", ErrClientUnauthorized, err)
 	}
 	return nil

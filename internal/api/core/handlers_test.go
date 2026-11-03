@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"bytes"
+	"cmp"
 	"compress/gzip"
 	"context"
 	"encoding/json"
@@ -23,6 +24,7 @@ import (
 	loggerpkg "github.com/compozy/compozy/internal/logger"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/agentmemory"
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
@@ -48,8 +50,9 @@ import (
 
 type sessionCommandCatalogManagerStub struct {
 	testutil.StubSessionManager
-	catalog commandpkg.Catalog
-	calls   *atomic.Int32
+	catalog   commandpkg.Catalog
+	sessionID string
+	calls     *atomic.Int32
 }
 
 type sessionStopManagerStub struct {
@@ -125,7 +128,7 @@ func (s *sessionCommandCatalogManagerStub) CommandCatalog(
 	if err := ctx.Err(); err != nil {
 		return commandpkg.Catalog{}, err
 	}
-	if id != "sess-command" {
+	if id != cmp.Or(s.sessionID, "sess-command") {
 		return commandpkg.Catalog{}, fmt.Errorf("command catalog session = %q", id)
 	}
 	if s.calls != nil {
@@ -909,7 +912,7 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 			"/workspaces/ws-workspace/sessions/sess-marketing",
 			nil,
 		)
-		assertAPIErrorResponse(t, foreignResp, http.StatusNotFound, "session not found")
+		assertAPIErrorResponse(t, foreignResp, http.StatusNotFound, "workspace-scoped resource not found")
 
 		aggregateResp := performRequest(
 			t,
@@ -1229,6 +1232,43 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 		if got := later.withChildren; len(got) != 2 || got[0] || !got[1] {
 			t.Fatalf("resume-later with_children = %v, want [false true]", got)
+		}
+	})
+
+	t.Run("Should mark Needs you as seen and refuse a session waiting on an answer", func(t *testing.T) {
+		previous := fixture.Handlers.Sessions
+		later := &laterHandlerSessionManager{StubSessionManager: *manager, now: now}
+		fixture.Handlers.Sessions = later
+		defer func() { fixture.Handlers.Sessions = previous }()
+		seen := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/mark-seen", nil,
+		)
+		if seen.Code != http.StatusOK {
+			t.Fatalf("mark-seen status = %d body=%s, want %d", seen.Code, seen.Body.String(), http.StatusOK)
+		}
+		var marked contract.SessionResponse
+		if err := json.Unmarshal(seen.Body.Bytes(), &marked); err != nil {
+			t.Fatalf("json.Unmarshal(mark-seen response) error = %v", err)
+		}
+		if marked.Session.Badge != session.BadgeStopped || marked.Session.AttentionDismissible {
+			t.Fatalf("mark-seen session = %#v, want a stopped session with nothing left to dismiss", marked.Session)
+		}
+		later.seenRefusal = session.AttentionBlockerPendingClarify
+		refused := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/mark-seen", nil,
+		)
+		if refused.Code != http.StatusConflict ||
+			!strings.Contains(refused.Body.String(), "attention_requires_action") ||
+			!strings.Contains(refused.Body.String(), "answer its question") {
+			t.Fatalf("mark-seen(refused) = %d %s, want 409 attention_requires_action", refused.Code, refused.Body)
+		}
+		later.seenRefusal = session.AttentionBlockerNone
+		later.seenErr = fmt.Errorf("%w: sess-a", session.ErrAttentionChanged)
+		changed := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/mark-seen", nil,
+		)
+		if changed.Code != http.StatusConflict || !strings.Contains(changed.Body.String(), "attention_changed") {
+			t.Fatalf("mark-seen(changed) = %d %s, want 409 attention_changed", changed.Code, changed.Body)
 		}
 	})
 
@@ -1597,6 +1637,224 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		if transcriptResp.Code != http.StatusNotFound {
 			t.Fatalf("foreign transcript status = %d, want %d", transcriptResp.Code, http.StatusNotFound)
 		}
+	})
+}
+
+// The routed session's profile is authoritative on every workspace session route (#1193).
+func TestWorkspaceSessionRoutesFollowTheSessionProfile(t *testing.T) {
+	t.Parallel()
+
+	const route = "/workspaces/ws-workspace/sessions/sess-marketing"
+	const fenced = "workspace-scoped resource not found"
+	newFixture := func(t *testing.T) handlerFixture {
+		t.Helper()
+		infoFor := func(id string) *session.Info {
+			info := testutil.NewSessionInfo(id)
+			if id == "sess-marketing" {
+				info.ProfileID = "profile-marketing"
+			}
+			return info
+		}
+		manager := &sessionCommandCatalogManagerStub{
+			sessionID: "sess-marketing",
+
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) { return infoFor(id), nil },
+			DerivePreviewFn: func(context.Context, string, string, string) (session.DerivePreview, error) {
+				return session.DerivePreview{}, nil
+			},
+			AttachSessionFn: func(_ context.Context, req store.SessionAttachRequest) (store.SessionAttach, error) {
+				return store.SessionAttach{SessionID: req.SessionID}, nil
+			},
+			SetRuntimeSelectionFn: func(_ context.Context, id string, _ session.RuntimeSelection, _ int64) (*session.Info, error) {
+				return infoFor(id), nil
+			},
+			ClearRuntimeSelectionFn: func(_ context.Context, id string, _ int64) (*session.Info, error) { return infoFor(id), nil },
+			RenameFn:                func(_ context.Context, _, id, _ string) (*session.Info, error) { return infoFor(id), nil },
+			Attention: testutil.StubSessionAttention{
+				WaitFn: func(context.Context, session.WaitRequest) (session.WaitOutcome, error) {
+					return session.WaitOutcome{}, nil
+				},
+			},
+		}
+		fixture := newHandlerFixture(
+			t,
+			&manager.StubSessionManager,
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{
+				GetFn: func(context.Context, string) (workspacepkg.Workspace, error) {
+					return workspacepkg.Workspace{ID: "ws-workspace", Name: "Primary workspace"}, nil
+				},
+			},
+		)
+		fixture.Engine.GET(
+			"/workspaces/:workspace_id/sessions/:session_id/derive/preview",
+			fixture.Handlers.PreviewSessionDerive,
+		)
+		fixture.Handlers.Sessions = manager
+		fixture.Handlers.Profiles = sessionProfileServiceStub{}
+		return fixture
+	}
+	serve := func(t *testing.T, fixture handlerFixture, method, path string, agent bool) *httptest.ResponseRecorder {
+		t.Helper()
+		body := "{}"
+		if strings.Contains(path, "/runtime") {
+			body = `{"runtime":{"provider":"codex"},"expected_revision":0}`
+			if method == http.MethodDelete {
+				separator := "?"
+				if strings.Contains(path, "?") {
+					separator = "&"
+				}
+				path += separator + "expected_revision=0"
+			}
+		}
+		if method == http.MethodPatch {
+			body = `{"name":"renamed"}`
+		}
+		if strings.Contains(path, "/wait") {
+			body = `{"timeout_ms":1,"until":["idle"]}`
+		}
+		req := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		if agent {
+			// An agent session bound to the default profile.
+			req.Header.Set(agentidentity.HeaderSessionID, "sess-caller")
+			req.Header.Set(agentidentity.HeaderAgent, "coder")
+		}
+		response := httptest.NewRecorder()
+		fixture.Engine.ServeHTTP(response, req)
+		return response
+	}
+	// A write under the read-only aggregate lens answers the typed profile selection conflict.
+	refusedAggregateWrite := func(t *testing.T, response *httptest.ResponseRecorder) {
+		t.Helper()
+		var payload struct {
+			Error struct {
+				Code    string `json:"code"`
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		if err := json.Unmarshal(
+			response.Body.Bytes(),
+			&payload,
+		); err != nil ||
+			response.Code != http.StatusBadRequest ||
+			payload.Error.Code != "profile_selection_conflict" ||
+			payload.Error.Message != "all_profiles is only available for reads" {
+			t.Fatalf("aggregate write = %d %s (%v), want the read-only lens refusal", response.Code, response.Body, err)
+		}
+	}
+	passedFence := func(t *testing.T, label string, response *httptest.ResponseRecorder, want int) {
+		t.Helper()
+		if response.Code != want {
+			t.Fatalf("%s = %d %s, want %d", label, response.Code, response.Body, want)
+		}
+	}
+
+	for _, family := range []struct {
+		method, path string
+		write        bool
+	}{
+		{http.MethodGet, route + "/derive/preview", false},
+		{http.MethodGet, route + "/events", false},
+		{http.MethodGet, route + "/history", false},
+		{http.MethodGet, route + "/recap", false},
+		{http.MethodGet, route + "/usage", false},
+		{http.MethodGet, route + "/commands", false},
+		{http.MethodGet, route + "/interactions", false},
+		{http.MethodPost, route + "/prompt/cancel", true},
+		{http.MethodPost, route + "/wait", true},
+		{http.MethodPost, route + "/attach", true},
+		{http.MethodPost, route + "/repair", true},
+		{http.MethodPut, route + "/runtime", true},
+		{http.MethodDelete, route + "/runtime", true},
+	} {
+		name := family.method + " " + strings.TrimPrefix(family.path, route)
+		t.Run("Should fence "+name+" by the session's profile", func(t *testing.T) {
+			t.Parallel()
+			fixture := newFixture(t)
+			passedFence(
+				t,
+				"owner profile",
+				serve(t, fixture, family.method, family.path+"?profile=marketing", false),
+				http.StatusOK,
+			)
+			passedFence(
+				t,
+				"operator without a selection",
+				serve(t, fixture, family.method, family.path, false),
+				http.StatusOK,
+			)
+			passedFence(
+				t,
+				"explicitly disabled aggregate",
+				serve(t, fixture, family.method, family.path+"?all_profiles=false", false),
+				http.StatusOK,
+			)
+			assertAPIErrorResponse(
+				t, serve(t, fixture, family.method, family.path+"?profile=default", false), http.StatusNotFound, fenced,
+			)
+			assertAPIErrorResponse(
+				t, serve(t, fixture, family.method, family.path, true), http.StatusNotFound, fenced,
+			)
+			aggregate := serve(t, fixture, family.method, family.path+"?all_profiles=true", false)
+			if family.write {
+				refusedAggregateWrite(t, aggregate)
+				return
+			}
+			passedFence(t, "all profiles read", aggregate, http.StatusOK)
+		})
+	}
+
+	t.Run(
+		"Should keep scoped detail and lifecycle routes in the default profile without a selection",
+		func(t *testing.T) {
+			t.Parallel()
+			fixture := newFixture(t)
+			for _, scoped := range []struct{ method, path string }{
+				{http.MethodPost, route + "/stop"},
+				{http.MethodPatch, route},
+			} {
+				assertAPIErrorResponse(
+					t,
+					serve(t, fixture, scoped.method, scoped.path, false),
+					http.StatusNotFound,
+					fenced,
+				)
+				want := http.StatusOK
+				if scoped.method == http.MethodPost {
+					want = http.StatusNoContent
+				}
+				passedFence(
+					t,
+					scoped.method+" owner",
+					serve(t, fixture, scoped.method, scoped.path+"?profile=marketing", false), want,
+				)
+				refusedAggregateWrite(t, serve(t, fixture, scoped.method, scoped.path+"?all_profiles=true", false))
+			}
+		},
+	)
+
+	t.Run("Should hide another profile's session owner from a scoped lookup", func(t *testing.T) {
+		t.Parallel()
+		fixture := newFixture(t)
+		const owner = "/sessions/sess-marketing/owner"
+		for _, admitted := range []string{owner, owner + "?profile=marketing", owner + "?all_profiles=true"} {
+			if response := serve(t, fixture, http.MethodGet, admitted, false); response.Code != http.StatusOK {
+				t.Fatalf("owner %s = %d %s, want 200", admitted, response.Code, response.Body)
+			}
+		}
+		assertAPIErrorResponse(
+			t,
+			serve(t, fixture, http.MethodGet, owner+"?profile=default", false),
+			http.StatusNotFound,
+			"session not found",
+		)
+		assertAPIErrorResponse(
+			t,
+			serve(t, fixture, http.MethodGet, owner, true),
+			http.StatusNotFound,
+			"session not found",
+		)
 	})
 }
 
@@ -6563,6 +6821,23 @@ type laterHandlerSessionManager struct {
 	testutil.StubSessionManager
 	now          time.Time
 	withChildren []bool
+	seenRefusal  session.AttentionBlocker
+	seenErr      error
+}
+
+func (s *laterHandlerSessionManager) MarkAttentionSeen(_ context.Context, id string) (*session.Info, error) {
+	if s.seenRefusal != session.AttentionBlockerNone {
+		return nil, &session.AttentionRequiresActionError{SessionID: id, Blocker: s.seenRefusal}
+	}
+	if s.seenErr != nil {
+		return nil, s.seenErr
+	}
+	info := testutil.NewSessionInfo(id)
+	info.ProfileID = store.DefaultProfileID
+	info.State = session.StateStopped
+	info.Failure = &store.SessionFailure{Kind: store.FailureProcess}
+	info.FailureSeenAt = new(s.now)
+	return info, nil
 }
 
 func (s *laterHandlerSessionManager) MoveToLater(

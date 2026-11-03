@@ -11,6 +11,116 @@ import (
 	"strings"
 )
 
+// GetLoopRun Get one Loop run
+func (c *Client) GetLoopRun(ctx context.Context, params GetLoopRunParams) (*LoopRunResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopRunResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetLoopRunBriefingParams carries the path, query, and header parameters.
+type GetLoopRunBriefingParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetLoopRunBriefing Explain the current Loop run state
+func (c *Client) GetLoopRunBriefing(ctx context.Context, params GetLoopRunBriefingParams) (*Briefing, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/briefing"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out Briefing
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetLoopRunNodesParams carries the path, query, and header parameters.
+type GetLoopRunNodesParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	RunID       string  `url:"run_id"`
+	State       *string `url:"state"`
+	Generation  *int    `url:"generation"`
+	Cursor      *string `url:"cursor"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetLoopRunNodes Get the computed Loop run node roster
+func (c *Client) GetLoopRunNodes(ctx context.Context, params GetLoopRunNodesParams) (*RosterPage, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.State != nil {
+		query.Set("state", *params.State)
+	}
+	if params.Generation != nil {
+		query.Set("generation", strconv.Itoa(*params.Generation))
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RosterPage
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetLoopRunTimelineParams carries the path, query, and header parameters.
+type GetLoopRunTimelineParams struct {
+	WorkspaceID   string  `url:"workspace_id"`
+	RunID         string  `url:"run_id"`
+	View          *string `url:"view"`
+	Cursor        *string `url:"cursor"`
+	Limit         *int    `url:"limit"`
+	AfterSequence *int64  `url:"after_sequence"`
+	Profile       *string `url:"profile"`
+	AllProfiles   *bool   `url:"all_profiles"`
+}
+
 // GetLoopRunTimeline Read the durable Loop run timeline
 func (c *Client) GetLoopRunTimeline(ctx context.Context, params GetLoopRunTimelineParams) (*TimelinePage, error) {
 	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/timeline"
@@ -335,109 +445,4 @@ func (c *Client) GetProviderModelStatus(ctx context.Context) (*ProviderModelStat
 // GetProviderModelStatusByProviderParams carries the path, query, and header parameters.
 type GetProviderModelStatusByProviderParams struct {
 	ProviderID string `url:"provider_id"`
-}
-
-// GetProviderModelStatusByProvider List provider model catalog source status for one provider
-func (c *Client) GetProviderModelStatusByProvider(ctx context.Context, params GetProviderModelStatusByProviderParams) (*ProviderModelStatusResponse, error) {
-	path := "/api/model-catalog/providers/{provider_id}/models/status"
-	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
-	var out ProviderModelStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetProviderUsageParams carries the path, query, and header parameters.
-type GetProviderUsageParams struct {
-	ProviderID string  `url:"provider_id"`
-	Profile    *string `url:"profile"`
-}
-
-// GetProviderUsage Read cached provider usage (experimental) Experimental: pin the exact SDK version.
-func (c *Client) GetProviderUsage(ctx context.Context, params GetProviderUsageParams) (*ProviderUsageEnvelope, error) {
-	path := "/api/provider-usage/providers/{provider_id}"
-	path = strings.ReplaceAll(path, "{provider_id}", url.PathEscape(params.ProviderID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ProviderUsageEnvelope
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetResourceParams carries the path, query, and header parameters.
-type GetResourceParams struct {
-	Kind string `url:"kind"`
-	ID   string `url:"id"`
-}
-
-// GetResource Read one desired-state resource on the local operator control plane
-func (c *Client) GetResource(ctx context.Context, params GetResourceParams) (*ResourceResponse, error) {
-	path := "/api/resources/{kind}/{id}"
-	path = strings.ReplaceAll(path, "{kind}", url.PathEscape(params.Kind))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	var out ResourceResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetRoleParams carries the path, query, and header parameters.
-type GetRoleParams struct {
-	Role      string  `url:"role"`
-	Workspace *string `url:"workspace"`
-}
-
-// GetRole Get effective background role configuration
-func (c *Client) GetRole(ctx context.Context, params GetRoleParams) (*RoleStatusResponse, error) {
-	path := "/api/roles/{role}"
-	path = strings.ReplaceAll(path, "{role}", url.PathEscape(params.Role))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RoleStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetRuntimeIdentity Get the bounded runtime identity
-func (c *Client) GetRuntimeIdentity(ctx context.Context) (*RuntimeIdentityPayload, error) {
-	path := "/api/status/identity"
-	var out RuntimeIdentityPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetScheduler Get scheduler pause state and queue pressure
-func (c *Client) GetScheduler(ctx context.Context) (*SchedulerStatusResponse, error) {
-	path := "/api/scheduler"
-	var out SchedulerStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSchedulerBacklogParams carries the path, query, and header parameters.
-type GetSchedulerBacklogParams struct {
-	Limit         *int    `url:"limit"`
-	Scope         *string `url:"scope"`
-	Workspace     *string `url:"workspace"`
-	IncludePaused *bool   `url:"include_paused"`
 }

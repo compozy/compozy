@@ -142,6 +142,22 @@ func TestBaseHandlersCmdPalette(t *testing.T) {
 		if conflict.Code != http.StatusBadRequest {
 			t.Fatalf("conflicting lens status = %d, want 400; body=%s", conflict.Code, conflict.Body.String())
 		}
+		// Attached clients belong to one profile, so the client directory takes the same lens.
+		engine.GET("/api/cmd-palette/clients", handlers.ListCmdPaletteClients)
+		clients := httptest.NewRecorder()
+		request = httptest.NewRequestWithContext(
+			t.Context(), http.MethodGet,
+			"/api/cmd-palette/clients?workspace=alpha&all_profiles=true", http.NoBody,
+		)
+		engine.ServeHTTP(clients, request)
+		if clients.Code != http.StatusOK || registry.clientsProfileLens != cmdpalette.AggregateProfileLens() {
+			t.Fatalf(
+				"aggregate clients = status %d lens %#v body=%s",
+				clients.Code,
+				registry.clientsProfileLens,
+				clients.Body.String(),
+			)
+		}
 	})
 
 	t.Run("Should resolve list scope and flatten the canonical catalog wire", func(t *testing.T) {
@@ -926,6 +942,7 @@ type cmdPaletteRegistryStub struct {
 	catalogProfileLens   cmdpalette.ProfileLens
 	catalogWorkspace     cmdpalette.WorkspaceID
 	catalogClient        cmdpalette.ClientID
+	clientsProfileLens   cmdpalette.ProfileLens
 	invokeRequest        cmdpalette.InvokeRequest
 	invokeResult         cmdpalette.InvokeResult
 	invokeErr            error
@@ -967,8 +984,10 @@ func (s *cmdPaletteRegistryStub) Catalog(
 
 func (s *cmdPaletteRegistryStub) Clients(
 	_ context.Context,
+	profileLens cmdpalette.ProfileLens,
 	_ cmdpalette.WorkspaceID,
 ) ([]cmdpalette.Client, error) {
+	s.clientsProfileLens = profileLens
 	return []cmdpalette.Client{}, nil
 }
 

@@ -198,6 +198,7 @@ func (s *Service) authorizeViewSession(
 	}
 	if err := s.clients.Authorize(
 		ctx,
+		session.profileLens,
 		session.workspace,
 		session.client,
 		token.AttachmentToken,

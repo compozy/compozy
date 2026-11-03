@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/cmdpalette"
+	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 func TestCmdPaletteActionExecutor(t *testing.T) {
@@ -126,7 +129,7 @@ func TestCmdPaletteClientDirectory(t *testing.T) {
 	t.Run("Should return no-attached-shell when the window manager is missing", func(t *testing.T) {
 		t.Parallel()
 		directory := &cmdPaletteClientDirectory{}
-		_, err := directory.Context(t.Context(), "workspace-a", "client-a")
+		_, err := directory.Context(t.Context(), testCmdPaletteProfileLens, "workspace-a", "client-a")
 		if !errors.Is(err, cmdpalette.ErrNoAttachedShell) {
 			t.Fatalf("Context() error = %v, want ErrNoAttachedShell", err)
 		}
@@ -146,6 +149,140 @@ func TestCmdPaletteClientDirectory(t *testing.T) {
 		}
 		if len(statuses) != 0 {
 			t.Fatalf("GlobalShortcutStatuses() = %#v, want empty map", statuses)
+		}
+	})
+}
+
+// Invariant: palette clients are registered per profile, so a profile lens reaches only its
+// own profile's clients in a shared workspace partition (#1196); only the aggregate widens reads.
+func TestCmdPaletteClientDirectoryProfileIsolation(t *testing.T) {
+	t.Parallel()
+
+	const (
+		profileX = "01JQ00000000000000000000X1"
+		profileY = "01JQ00000000000000000000Y1"
+		clientX  = windowmanager.ClientID("client:x")
+		clientY  = windowmanager.ClientID("client:y")
+	)
+	lensX := cmdpalette.ScopedProfileLens(profileX, "x")
+	lensY := cmdpalette.ScopedProfileLens(profileY, "y")
+
+	setup := func(t *testing.T) (*cmdPaletteClientDirectory, *windowManagerRegistry, cmdpalette.WorkspaceID, string) {
+		t.Helper()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := testutil.Context(t)
+		workspaceID := windowmanager.WorkspaceID(fixture.workspace.ID)
+		var tokenX string
+		for _, attach := range []struct {
+			profile string
+			client  windowmanager.ClientID
+		}{{profileX, clientX}, {profileY, clientY}} {
+			view, err := fixture.registry.ClaimClient(ctx, attach.profile, windowmanager.ClientRegistration{
+				WorkspaceID: workspaceID, ClientID: attach.client,
+			})
+			if err != nil {
+				t.Fatalf("ClaimClient(%s) error = %v", attach.profile, err)
+			}
+			if attach.client == clientX {
+				tokenX = view.AttachmentToken
+			}
+			manager, err := fixture.registry.For(attach.profile)
+			if err != nil {
+				t.Fatalf("For(%s) error = %v", attach.profile, err)
+			}
+			connection, err := manager.AttachClientCommands(ctx, workspaceID, attach.client)
+			if err != nil {
+				t.Fatalf("AttachClientCommands(%s) error = %v", attach.client, err)
+			}
+			t.Cleanup(func() {
+				if err := connection.Close(); err != nil {
+					t.Errorf("ClientCommandConnection.Close() error = %v", err)
+				}
+			})
+		}
+		if tokenX == "" {
+			t.Fatal("ClaimClient(X) returned no attachment token")
+		}
+		return &cmdPaletteClientDirectory{windowManagers: fixture.registry},
+			fixture.registry, cmdpalette.WorkspaceID(workspaceID), tokenX
+	}
+
+	t.Run("Should list only the invoking profile's clients unless the aggregate is requested", func(t *testing.T) {
+		t.Parallel()
+		directory, _, workspaceID, _ := setup(t)
+		ctx := testutil.Context(t)
+		for _, tc := range []struct {
+			lens cmdpalette.ProfileLens
+			want []cmdpalette.ClientID
+		}{
+			{lens: lensY, want: []cmdpalette.ClientID{cmdpalette.ClientID(clientY)}},
+			{lens: lensX, want: []cmdpalette.ClientID{cmdpalette.ClientID(clientX)}},
+			{
+				lens: cmdpalette.AggregateProfileLens(),
+				want: []cmdpalette.ClientID{cmdpalette.ClientID(clientX), cmdpalette.ClientID(clientY)},
+			},
+		} {
+			for _, list := range []struct {
+				name string
+				call func(context.Context, cmdpalette.ProfileLens, cmdpalette.WorkspaceID) ([]cmdpalette.Client, error)
+			}{
+				{name: "AttachedClients", call: directory.AttachedClients},
+				{name: "Clients", call: directory.Clients},
+			} {
+				clients, err := list.call(ctx, tc.lens, workspaceID)
+				if err != nil {
+					t.Fatalf("%s(%s) error = %v", list.name, tc.lens.ID, err)
+				}
+				got := make([]cmdpalette.ClientID, 0, len(clients))
+				for _, client := range clients {
+					got = append(got, client.ID)
+				}
+				slices.Sort(got)
+				if !slices.Equal(got, tc.want) {
+					t.Fatalf("%s(%s) = %v, want %v", list.name, tc.lens.ID, got, tc.want)
+				}
+			}
+		}
+	})
+
+	t.Run("Should refuse another profile's client for context, shortcuts, and authorization", func(t *testing.T) {
+		t.Parallel()
+		directory, _, workspaceID, tokenX := setup(t)
+		ctx := testutil.Context(t)
+		if _, err := directory.Context(ctx, lensY, workspaceID, cmdpalette.ClientID(clientX)); !errors.Is(
+			err, cmdpalette.ErrNoAttachedShell,
+		) {
+			t.Fatalf("Context(Y, X client) error = %v, want ErrNoAttachedShell", err)
+		}
+		if _, err := directory.GlobalShortcutStatuses(
+			ctx, lensY, workspaceID, cmdpalette.ClientID(clientX),
+		); !errors.Is(err, cmdpalette.ErrNoAttachedShell) {
+			t.Fatalf("GlobalShortcutStatuses(Y, X client) error = %v, want ErrNoAttachedShell", err)
+		}
+		if err := directory.Authorize(
+			ctx, lensY, workspaceID, cmdpalette.ClientID(clientX), tokenX,
+		); !errors.Is(err, cmdpalette.ErrClientUnauthorized) {
+			t.Fatalf("Authorize(Y, X client) error = %v, want ErrClientUnauthorized", err)
+		}
+		if err := directory.Authorize(ctx, lensX, workspaceID, cmdpalette.ClientID(clientX), tokenX); err != nil {
+			t.Fatalf("Authorize(X, X client) error = %v", err)
+		}
+	})
+
+	t.Run("Should not dispatch a Y invocation to the X client", func(t *testing.T) {
+		t.Parallel()
+		_, registry, workspaceID, _ := setup(t)
+		executor := &cmdPaletteActionExecutor{windowManagers: registry, now: time.Now, approvalTTL: time.Minute}
+		_, err := executor.ExecuteAction(testutil.Context(t), cmdpalette.ExecutionRequest{
+			ProfileLens: lensY, WorkspaceID: workspaceID, InvocationID: "invocation-y",
+			ClientID: cmdpalette.ClientID(clientX),
+			Descriptor: cmdpalette.Descriptor{
+				ID:     "window.close",
+				Action: cmdpalette.Action{Kind: cmdpalette.ActionKindClientOp, Op: "window.close"},
+			},
+		})
+		if !errors.Is(err, cmdpalette.ErrNoAttachedShell) {
+			t.Fatalf("ExecuteAction(Y, X client) error = %v, want ErrNoAttachedShell", err)
 		}
 	})
 }

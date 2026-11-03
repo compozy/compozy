@@ -373,6 +373,40 @@ func TestGetSectionBuildsSupportedSections(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve the client profile independently of the settings scope", func(t *testing.T) {
+		t.Parallel()
+		palette := &recordingCmdPaletteCatalog{attachedClient: "client:marketing", attachedProfile: "profile-marketing",
+			catalog: cmdpalette.Catalog{Commands: []cmdpalette.ResolvedCommand{{
+				ID: "palette.open", Title: "Open palette", Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore},
+				GlobalShortcut: &cmdpalette.GlobalShortcut{Status: "failed_permission", Reason: "permission denied"},
+			}}}}
+		svc := testService(t, homePaths, Dependencies{
+			WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-1": {ID: "ws-1", RootDir: t.TempDir(), WorkspaceID: "ws-1"},
+			}}, CmdPalette: palette,
+		})
+		section, err := svc.GetSection(ctx, SectionRequest{
+			Section:       SectionWindowManager,
+			Scope:         ScopeWorkspace,
+			WorkspaceID:   "ws-1",
+			ClientID:      "client:marketing",
+			ClientProfile: cmdpalette.ScopedProfileLens("profile-marketing", "marketing"),
+		})
+		if err != nil {
+			t.Fatalf("GetSection() error = %v", err)
+		}
+		if section.Scope != ScopeWorkspace || len(section.WindowManager.GlobalShortcuts) != 1 ||
+			section.WindowManager.GlobalShortcuts[0].Status != "failed_permission" {
+			t.Fatalf("section = %#v, want workspace scope and failed_permission status", section)
+		}
+		requests := palette.recordedRequests()
+		if len(requests) != 1 ||
+			requests[0].ProfileLens != cmdpalette.ScopedProfileLens("profile-marketing", "marketing") ||
+			requests[0].ClientID != "client:marketing" {
+			t.Fatalf("catalog requests = %#v, want the attached marketing client without fallback", requests)
+		}
+	})
+
 	t.Run("Should read the section without a client that is not attached yet", func(t *testing.T) {
 		t.Parallel()
 
@@ -1124,6 +1158,107 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 		})
 		if _, ok := errors.AsType[*InvalidAliasError](err); !ok {
 			t.Fatalf("UpdateSection(invalid alias) error = %T %v, want InvalidAliasError", err, err)
+		}
+	})
+
+	t.Run("Should validate bindings against the client profile catalog", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name, command, mutation string
+			allowed                 bool
+		}{
+			{name: "Should save shortcut enabled in the client profile", command: "ext.marketing.capture", mutation: "shortcut", allowed: true},
+			{name: "Should reject shortcut enabled only in the default profile", command: "ext.default.capture", mutation: "shortcut"},
+			{name: "Should save alias enabled in the client profile", command: "ext.marketing.capture", mutation: "alias", allowed: true},
+			{name: "Should reject alias enabled only in the default profile", command: "ext.default.capture", mutation: "alias"},
+			{name: "Should save global enabled in the client profile", command: "ext.marketing.capture", mutation: "global", allowed: true},
+			{name: "Should reject global enabled only in the default profile", command: "ext.default.capture", mutation: "global"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := t.Context()
+				homePaths := testHomePaths(t)
+				writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+				workspaceRoot := t.TempDir()
+				catalog := func(command cmdpalette.CommandID) cmdpalette.Catalog {
+					return cmdpalette.Catalog{Commands: []cmdpalette.ResolvedCommand{
+						{ID: "session.new", Source: cmdpalette.Source{Kind: cmdpalette.SourceKindCore}},
+						{
+							ID:     command,
+							Source: cmdpalette.Source{Kind: cmdpalette.SourceKindExtension, Extension: "notes"},
+						},
+					}}
+				}
+				lens := cmdpalette.ScopedProfileLens("profile-marketing", "marketing")
+				palette := &recordingCmdPaletteCatalog{
+					catalogByProfile: map[cmdpalette.ProfileLensID]cmdpalette.Catalog{
+						cmdpalette.DefaultProfileLensID: catalog(
+							"ext.default.capture",
+						),
+						lens.ID: catalog("ext.marketing.capture"),
+					},
+				}
+				service := testService(t, homePaths, Dependencies{
+					WorkspaceResolver: fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+						"ws-1": {ID: "ws-1", RootDir: workspaceRoot},
+					}}, CmdPalette: palette,
+				})
+				shortcuts := map[string]windowmanager.ShortcutBinding{tc.command: {"alt+shift+KeyN"}}
+				aliases := map[string]string{tc.command: "cap"}
+				req := SectionUpdateRequest{
+					Section: SectionWindowManager, Scope: ScopeWorkspace, WorkspaceID: "ws-1", ClientProfile: lens,
+				}
+				global := map[string]string{tc.command: "alt+shift+KeyN"}
+				switch tc.mutation {
+				case "shortcut":
+					req.WindowManagerShortcuts = &shortcuts
+				case "alias":
+					req.WindowManagerAliases = &aliases
+				case "global":
+					req.WindowManagerGlobalShortcuts = &global
+				}
+				_, err := service.UpdateSection(ctx, req)
+				if tc.allowed {
+					if err != nil {
+						t.Fatalf("UpdateSection(profile command) error = %v", err)
+					}
+				} else {
+					unknown, ok := errors.AsType[*windowmanager.UnknownShortcutIDError](err)
+					if !errors.Is(err, ErrUnprocessable) || !ok || unknown.CommandID != tc.command {
+						t.Fatalf(
+							"UpdateSection(default-only command) error = %v, want unknown command %s",
+							err,
+							tc.command,
+						)
+					}
+				}
+				config, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
+				if err != nil {
+					t.Fatalf("LoadForHome() error = %v", err)
+				}
+				if tc.allowed {
+					switch tc.mutation {
+					case "shortcut":
+						if !slices.Equal(config.WindowManager.Shortcuts[tc.command], shortcuts[tc.command]) {
+							t.Fatalf("persisted shortcuts = %#v", config.WindowManager.Shortcuts)
+						}
+					case "alias":
+						if config.CmdPalette.Aliases[tc.command] != "cap" {
+							t.Fatalf("persisted aliases = %#v", config.CmdPalette.Aliases)
+						}
+					case "global":
+						if config.WindowManager.GlobalShortcuts[tc.command] != global[tc.command] {
+							t.Fatalf("persisted global shortcuts = %#v", config.WindowManager.GlobalShortcuts)
+						}
+					}
+				} else if len(config.WindowManager.Shortcuts[tc.command]) != 0 || config.WindowManager.GlobalShortcuts[tc.command] != "" || config.CmdPalette.Aliases[tc.command] != "" {
+					t.Fatal("refused binding or alias was persisted")
+				}
+				requests := palette.recordedRequests()
+				if len(requests) != 1 || requests[0].ProfileLens != lens {
+					t.Fatalf("validation requests = %#v, want the client profile catalog", requests)
+				}
+			})
 		}
 	})
 
@@ -4165,13 +4300,15 @@ type fakeCmdPaletteCatalog struct {
 }
 
 type recordingCmdPaletteCatalog struct {
-	mu       sync.Mutex
-	catalog  cmdpalette.Catalog
-	requests []cmdpalette.CatalogRequest
-	events   []cmdpalette.Event
+	catalogByProfile map[cmdpalette.ProfileLensID]cmdpalette.Catalog
+	mu               sync.Mutex
+	catalog          cmdpalette.Catalog
+	requests         []cmdpalette.CatalogRequest
+	events           []cmdpalette.Event
 	// attachedClient, when set, is the only client the catalog can resolve;
 	// any other client ID fails like the daemon's client directory does.
-	attachedClient cmdpalette.ClientID
+	attachedClient  cmdpalette.ClientID
+	attachedProfile string
 }
 
 func (r *recordingCmdPaletteCatalog) Catalog(
@@ -4181,8 +4318,14 @@ func (r *recordingCmdPaletteCatalog) Catalog(
 	r.mu.Lock()
 	r.requests = append(r.requests, request)
 	r.mu.Unlock()
+	if r.attachedProfile != "" && request.ClientID != "" && string(request.ProfileLens.ID) != r.attachedProfile {
+		return cmdpalette.Catalog{}, cmdpalette.ErrNoAttachedShell
+	}
 	if r.attachedClient != "" && request.ClientID != "" && request.ClientID != r.attachedClient {
 		return cmdpalette.Catalog{}, cmdpalette.ErrNoAttachedShell
+	}
+	if r.catalogByProfile != nil {
+		return r.catalogByProfile[request.ProfileLens.ID], nil
 	}
 	return r.catalog, nil
 }

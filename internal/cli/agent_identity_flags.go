@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"errors"
+
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/spf13/cobra"
@@ -16,6 +18,9 @@ func addAgentIdentityFlags(cmd *cobra.Command, f *agentDefinitionFlags) {
 	cmd.Flags().StringVar(&f.color, "appearance-color", "#7c5cff", "Avatar color (#rrggbb)")
 	cmd.Flags().StringVar(&f.icon, "appearance-icon", "", "Lucide icon name")
 	cmd.Flags().StringVar(&f.emoji, "appearance-emoji", "", "One emoji")
+	cmd.Flags().StringVar(
+		&f.background, "appearance-background", "", "Icon or emoji background: plate (default) or none",
+	)
 }
 
 func agentIdentityFlagsChanged(cmd *cobra.Command) bool {
@@ -29,6 +34,7 @@ func agentIdentityFlagsChanged(cmd *cobra.Command) bool {
 		"appearance-color",
 		"appearance-icon",
 		"appearance-emoji",
+		"appearance-background",
 	} {
 		if cmd.Flags().Changed(name) {
 			return true
@@ -37,7 +43,13 @@ func agentIdentityFlagsChanged(cmd *cobra.Command) bool {
 	return false
 }
 
-func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload, f agentDefinitionFlags) {
+// errAppearanceBackgroundNeedsSymbol keeps a plate choice from silently turning an icon or emoji
+// into a generated face: the flag only applies where a symbol is drawn.
+var errAppearanceBackgroundNeedsSymbol = errors.New(
+	"--appearance-background applies to an icon or emoji; pass --appearance-icon or --appearance-emoji with it",
+)
+
+func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload, f agentDefinitionFlags) error {
 	if cmd.Flags().Changed("display-name") {
 		p.DisplayName = new(f.displayName)
 	}
@@ -55,11 +67,12 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 		cliColorKey,
 		agentAppearanceIconKey,
 		agentAppearanceEmojiKey,
+		agentAppearanceBackgroundKey,
 	} {
 		changed = changed || cmd.Flags().Changed("appearance-"+name)
 	}
 	if !changed {
-		return
+		return nil
 	}
 	a := config.CloneAgentAppearance(p.Appearance)
 	if a == nil {
@@ -74,6 +87,7 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 	for key, value := range map[string]any{
 		agentAppearanceAvatarKey: f.avatar, cliSeedKey: f.seed, loopGenerationKey: f.generation,
 		cliColorKey: f.color, agentAppearanceIconKey: f.icon, agentAppearanceEmojiKey: f.emoji,
+		agentAppearanceBackgroundKey: f.background,
 	} {
 		if cmd.Flags().Changed("appearance-" + key) {
 			a[key] = value
@@ -93,8 +107,14 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 	}
 	switch a[agentAppearanceAvatarKey] {
 	case "generated":
+		// A duplicate starts from no appearance, so a lone plate choice would replace its face.
+		if cmd.Flags().Changed("appearance-" + agentAppearanceBackgroundKey) {
+			return errAppearanceBackgroundNeedsSymbol
+		}
+		// A generated face has no plate to drop.
 		delete(a, agentAppearanceIconKey)
 		delete(a, agentAppearanceEmojiKey)
+		delete(a, agentAppearanceBackgroundKey)
 		if a[cliSeedKey] == nil || a[cliSeedKey] == "" {
 			a[cliSeedKey] = p.Name
 		}
@@ -111,9 +131,12 @@ func applyAgentIdentityFlags(cmd *cobra.Command, p *contract.CreateAgentPayload,
 		delete(a, loopGenerationKey)
 	}
 	p.Appearance = a
+	return nil
 }
 
 const agentAppearanceAvatarKey = "avatar"
+
+const agentAppearanceBackgroundKey = "background"
 
 const agentAppearanceEmojiKey = "emoji"
 

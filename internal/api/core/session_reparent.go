@@ -46,18 +46,12 @@ func (h *BaseHandlers) reparentSession(c *gin.Context, adopt bool) {
 		h.respondError(c, http.StatusServiceUnavailable, errors.New("api: session reparent manager is required"))
 		return
 	}
-	scope, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	scope, sessionID, _, ok := h.routeScopedSessionInWorkspace(c)
 	if !ok {
 		return
 	}
-	profileScope, err := h.resolveProfileMutationScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !h.requireSessionInProfile(c, info, profileScope) {
-		return
-	}
+	var info *session.Info
+	var err error
 	if !h.bindReparentActor(c) {
 		return
 	}

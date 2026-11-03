@@ -41,16 +41,8 @@ func (h *BaseHandlers) ClearSessionConversation(c *gin.Context) {
 // RewindSessionConversation cuts the active transcript before one durable user
 // message and restarts the same session with a fresh ACP context.
 func (h *BaseHandlers) RewindSessionConversation(c *gin.Context) {
-	_, sessionID, info, ok := h.routeSessionInWorkspace(c)
+	_, sessionID, _, ok := h.routeScopedSessionInWorkspace(c)
 	if !ok {
-		return
-	}
-	scope, err := h.resolveProfileMutationScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !h.requireSessionInProfile(c, info, scope) {
 		return
 	}
 	var req contract.SessionConversationRewindRequest
