@@ -63,3 +63,12 @@ report a failed global shortcut registration. Settings must show its failure rea
 confirmed active chord. Switch profiles and verify these statuses follow that profile's
 client; settings ownership remains user/workspace scoped. HTTP reads and PATCH echoes
 name the attachment with `client_id` and its profile with `client_profile`.
+
+Enable an extension command only in a non-default profile. While that profile is selected,
+change its shortcut and alias and reload: both changes must persist. A command enabled only
+in the default profile must be refused when saved through the non-default client profile,
+without changing the existing configuration.
+
+Impact: saves validate the catalog selected by the existing `client_profile` selector.
+HTTP/UDS and Web schemas, user/workspace config ownership, native tools, hooks, migrations,
+workspace isolation, and official skill contracts are unchanged.
