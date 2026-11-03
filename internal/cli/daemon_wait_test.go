@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"syscall"
@@ -863,8 +864,27 @@ func TestDaemonProfileCommand(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !bytes.Equal(data, []byte{0x1f, 0x8b, 0x00}) || !strings.Contains(output, "cpu.pprof") {
-			t.Fatalf("file=%v output=%s", data, output)
+		if !bytes.Equal(data, []byte{0x1f, 0x8b, 0x00}) {
+			t.Fatalf("file=%v", data)
+		}
+		var report struct {
+			Kind string `json:"kind"`
+			Path string `json:"path"`
+		}
+		if err := json.Unmarshal([]byte(output), &report); err != nil {
+			t.Fatalf("invalid JSON: %v; output=%s", err, output)
+		}
+		if report.Kind != "cpu" || report.Path != path {
+			t.Fatalf("report=%+v", report)
+		}
+		if runtime.GOOS != "windows" {
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Mode().Perm() != 0o600 {
+				t.Fatalf("mode = %#o, want 0600", info.Mode().Perm())
+			}
 		}
 	})
 	t.Run("Should preserve an existing destination and remove partial files on capture failure", func(t *testing.T) {

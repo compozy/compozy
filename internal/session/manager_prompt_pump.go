@@ -142,18 +142,23 @@ func (m *Manager) flushPromptPumpRun(
 	loop *promptPumpLoopState,
 	coalescer *promptChunkCoalescer,
 ) bool {
-	failure, errorText, stop := m.flushPromptChunkCoalescer(
-		run.lifecycleCtx,
-		run.deliveryCtx,
-		run.session,
-		run.turnState,
-		run.out,
-		loop,
-		coalescer,
-		run.fatal,
-	)
-	run.fatal.capture(failure, errorText)
-	return stop
+	if !coalescer.hasPending() {
+		return false
+	}
+	return m.profilePromptPumpRun(run, func(run *promptPumpRun) bool {
+		failure, errorText, stop := m.flushPromptChunkCoalescer(
+			run.lifecycleCtx,
+			run.deliveryCtx,
+			run.session,
+			run.turnState,
+			run.out,
+			loop,
+			coalescer,
+			run.fatal,
+		)
+		run.fatal.capture(failure, errorText)
+		return stop
+	})
 }
 
 func (m *Manager) handlePromptPumpRun(
@@ -162,8 +167,14 @@ func (m *Manager) handlePromptPumpRun(
 	event acp.AgentEvent,
 	runtimeEvent bool,
 ) bool {
-	if !profiling.Enabled() {
+	return m.profilePromptPumpRun(run, func(run *promptPumpRun) bool {
 		return m.handleLabeledPromptPumpRun(run, loop, event, runtimeEvent)
+	})
+}
+
+func (m *Manager) profilePromptPumpRun(run *promptPumpRun, consume func(*promptPumpRun) bool) bool {
+	if !profiling.Enabled() {
+		return consume(run)
 	}
 	run.session.mu.RLock()
 	sessionID, provider := run.session.ID, run.session.Provider
@@ -172,7 +183,7 @@ func (m *Manager) handlePromptPumpRun(
 	profiling.Do(run.lifecycleCtx, func(ctx context.Context) {
 		labeled := *run
 		labeled.lifecycleCtx = ctx
-		stop = m.handleLabeledPromptPumpRun(&labeled, loop, event, runtimeEvent)
+		stop = consume(&labeled)
 	}, "session_id", sessionID, "provider", provider)
 	return stop
 }

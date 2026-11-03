@@ -54,3 +54,27 @@ this work remained running when that instruction arrived. Subsequent validation 
 single test functions, one process at a time; current-head CI owns the remaining broad checks.
 The QA evidence auditor is deferred under that restriction; raw observation and clean teardown
 receipts above remain available independently.
+
+## Review corrections
+
+The initial CI failures in preflight, desktop verification and the E2E lanes shared the
+OpenDesign generated-linter check. The artifact is regenerated with the pinned Bun 1.4.0
+executable; its bytes now match the base's canonical bundle. No check or golden was weakened.
+
+The Go SDK transport now gives profile requests without a caller deadline 130 seconds,
+covering the maximum 120-second window plus completion. Explicit caller deadlines remain
+unchanged. A focused generated-operation test checks default/maximum captures, binary bytes
+and caller deadlines without waiting for a full profiling window.
+
+Batch flushes share session/provider labels with individual events, including captures started
+after the turn began. The owning streaming test starts sampling mid-turn and observes labels
+at the recorder boundary. The UDS cancellation check cancels after observing active sampling,
+asserts the restored rate and successfully starts another capture. CLI coverage now checks
+mode 0600 outside Windows and decodes the exact JSON kind/path result.
+
+Review checks run sequentially as individual test functions under the host-load restriction;
+CI owns the full delivery gates.
+
+Focused review regressions: Go SDK profile deadline/binary payload subtest passed (0.433s),
+UDS active-cancellation function passed (7.675s), CLI JSON/file-mode subtest passed (3.136s).
+The batch-label subtest passed again after the empty-batch fast-path change (1.190s). No local gate, suite, or E2E was run during this correction.

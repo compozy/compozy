@@ -267,6 +267,54 @@ func TestClientRequests(t *testing.T) {
 
 func TestClientGeneratedOperations(t *testing.T) {
 	t.Parallel()
+	t.Run("Should allow bounded profile captures while preserving caller deadlines", func(t *testing.T) {
+		t.Parallel()
+		payload := []byte{0x1f, 0x8b, 0x01}
+		c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/api/daemon/profile/cpu" {
+				t.Errorf("path = %s", r.URL.Path)
+			}
+			w.Header().Set("Content-Type", "application/octet-stream")
+			if _, err := w.Write(payload); err != nil {
+				t.Error(err)
+			}
+		})
+		transport := c.httpClient.Transport
+		for _, capture := range []struct {
+			seconds  *int
+			explicit bool
+		}{{nil, false}, {new(120), false}, {new(120), true}} {
+			ctx, cancel := context.WithCancel(context.WithoutCancel(t.Context()))
+			var want time.Time
+			if capture.explicit {
+				cancel()
+				ctx, cancel = context.WithTimeout(t.Context(), time.Minute)
+				want, _ = ctx.Deadline()
+			}
+			c.httpClient.Transport = profileDeadlineTransport(func(r *http.Request) (*http.Response, error) {
+				deadline, ok := r.Context().Deadline()
+				if !ok {
+					t.Error("profile request has no deadline")
+				}
+				if capture.explicit && !deadline.Equal(want) {
+					t.Errorf("deadline = %s, want %s", deadline, want)
+				}
+				if !capture.explicit && time.Until(deadline) < 120*time.Second {
+					t.Errorf("profile deadline is too short: %s", deadline)
+				}
+				return transport.RoundTrip(r)
+			})
+			got, err := c.CaptureDaemonProfile(ctx, CaptureDaemonProfileParams{Kind: "cpu", Seconds: capture.seconds})
+			cancel()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got == nil || !bytes.Equal(*got, payload) {
+				t.Fatalf("profile = %v", got)
+			}
+		}
+	})
+
 	// Invariant: the original no-options workspace list call remains source-compatible.
 	t.Run("Should list workspaces with or without the archived filter", func(t *testing.T) {
 		t.Parallel()
@@ -818,3 +866,9 @@ func writeResponse(t *testing.T, w http.ResponseWriter, body string) {
 		t.Errorf("write response: %v", err)
 	}
 }
+
+type profileDeadlineTransport func(*http.Request) (*http.Response, error)
+
+var _ http.RoundTripper = profileDeadlineTransport(nil)
+
+func (f profileDeadlineTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }

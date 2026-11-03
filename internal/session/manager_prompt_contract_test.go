@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"runtime/pprof"
 	"slices"
 	"strings"
 	"sync"
@@ -20,6 +22,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/profiling"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
@@ -202,6 +205,71 @@ func TestNextPromptPumpEventPrioritizesReadyRuntimeEvents(t *testing.T) {
 
 func TestPromptStreamsToRecorderAndNotifier(t *testing.T) {
 	t.Parallel()
+	t.Run("Should label batch persistence when capture starts during an active turn", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		source := make(chan acp.AgentEvent, 2)
+		h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		var observed atomic.Bool
+		provider := session.Info().Provider
+		session.mu.Lock()
+		session.recorder = &profileLabelRecorder{
+			EventRecorder: session.recorder,
+			observe: func(ctx context.Context, event store.SessionEvent) {
+				if event.Type != acp.EventTypeAgentMessage {
+					return
+				}
+				id, ok := pprof.Label(ctx, "session_id")
+				if !ok || id != session.ID {
+					t.Errorf("session label = %q, present=%v", id, ok)
+				}
+				value, ok := pprof.Label(ctx, "provider")
+				if !ok || value != provider {
+					t.Errorf("provider label = %q, present=%v", value, ok)
+				}
+				observed.Store(true)
+			},
+		}
+		session.mu.Unlock()
+		stream, err := h.manager.Prompt(t.Context(), session.ID, "stream")
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		started, finished := make(chan struct{}), make(chan struct{})
+		var captureErr error
+		go func() {
+			defer close(finished)
+			captureErr = profiling.Capture(
+				&profileStartedContext{Context: ctx, started: started},
+				io.Discard,
+				"mutex",
+				120,
+			)
+		}()
+		t.Cleanup(func() {
+			cancel()
+			<-finished
+			if !errors.Is(captureErr, context.Canceled) {
+				t.Errorf("capture = %v", captureErr)
+			}
+		})
+		select {
+		case <-started:
+		case <-finished:
+			t.Fatalf("capture failed before sampling: %v", captureErr)
+		}
+		source <- acp.AgentEvent{Type: acp.EventTypeAgentMessage, Text: "chunk"}
+		source <- acp.AgentEvent{Type: acp.EventTypeDone}
+		close(source)
+		collectEvents(t, stream)
+		if !observed.Load() {
+			t.Fatal("batch persistence was not observed")
+		}
+	})
+
 	t.Run(
 		"Should persist cache counters and sanitized metadata while projecting only usage values",
 		func(t *testing.T) {
@@ -4258,4 +4326,32 @@ func TestAgentCommandsFollowCurrentRuntime(t *testing.T) {
 			}
 		})
 	}
+}
+
+type profileLabelRecorder struct {
+	EventRecorder
+	observe func(context.Context, store.SessionEvent)
+}
+
+var _ EventRecorder = (*profileLabelRecorder)(nil)
+
+func (r *profileLabelRecorder) RecordPersisted(
+	ctx context.Context,
+	event store.SessionEvent,
+) (store.SessionEvent, error) {
+	r.observe(ctx, event)
+	return recordPersistedSessionEvent(ctx, r.EventRecorder, event)
+}
+
+type profileStartedContext struct {
+	context.Context
+	started chan struct{}
+	once    sync.Once
+}
+
+var _ context.Context = (*profileStartedContext)(nil)
+
+func (c *profileStartedContext) Done() <-chan struct{} {
+	c.once.Do(func() { close(c.started) })
+	return c.Context.Done()
 }

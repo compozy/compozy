@@ -3318,13 +3318,24 @@ func TestDaemonProfiles(t *testing.T) {
 			t.Fatalf("concurrent cpu: %d %s", response.Code, response.Body)
 		}
 		ctx, cancel := context.WithCancel(t.Context())
-		cancel()
-		response = request(ctx, "/api/daemon/profile/mutex?seconds=120")
+		defer cancel()
+		active := &cancelSamplingContext{Context: ctx, cancel: cancel}
+		response = request(active, "/api/daemon/profile/mutex?seconds=120")
+		if active.observedRate != 1 {
+			t.Fatalf("capture never enabled mutex sampling: %d", active.observedRate)
+		}
 		if response.Code != http.StatusInternalServerError || !strings.Contains(response.Body.String(), "canceled") {
 			t.Fatalf("cancel: %d %s", response.Code, response.Body)
 		}
 		if rate := runtime.SetMutexProfileFraction(-1); rate != 0 {
 			t.Fatalf("cancellation left sampling enabled: %d", rate)
+		}
+		response = request(t.Context(), "/api/daemon/profile/mutex?seconds=1")
+		if response.Code != http.StatusOK {
+			t.Fatalf("capture after cancellation: %d %s", response.Code, response.Body)
+		}
+		if rate := runtime.SetMutexProfileFraction(-1); rate != 0 {
+			t.Fatalf("repeated capture left sampling enabled: %d", rate)
 		}
 		for _, surface := range []httpapi.SurfaceSet{httpapi.SurfaceSetLocal, httpapi.SurfaceSetPrivate, httpapi.SurfaceSetPublicIngress, httpapi.SurfaceSetPublicOperator, httpapi.SurfaceSetPublicCombined} {
 			httpEngine := gin.New()
@@ -3348,4 +3359,20 @@ func TestDaemonProfiles(t *testing.T) {
 			}
 		}
 	})
+}
+
+type cancelSamplingContext struct {
+	context.Context
+	cancel       context.CancelFunc
+	observedRate int
+}
+
+var _ context.Context = (*cancelSamplingContext)(nil)
+
+func (c *cancelSamplingContext) Done() <-chan struct{} {
+	if c.Context.Err() == nil {
+		c.observedRate = runtime.SetMutexProfileFraction(-1)
+		c.cancel()
+	}
+	return c.Context.Done()
 }
