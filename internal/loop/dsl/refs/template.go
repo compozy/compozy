@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"reflect"
 	"strings"
 	"text/template"
@@ -73,29 +74,27 @@ func compileParsedTemplate(raw string, tmpl *template.Template, namespace Namesp
 }
 
 func funcMap() template.FuncMap {
-	return template.FuncMap{
+	funcs := template.FuncMap{
 		"json":       templateJSON,
 		"toJson":     templateJSON,
 		"join":       templateJoin,
 		"default":    templateDefault,
 		"shellQuote": templateShellQuote,
 	}
+	maps.Copy(funcs, comparisonFuncs())
+	return funcs
 }
 
 // allowedBuiltinFunctions lists text/template builtins the walker accepts.
 // Builtins are always available at render time, so validation is the only
-// gate: it admits pure, side-effect-free builtins (length, comparison, and
-// boolean logic) and rejects ones that invoke values (call) or format and
-// escape output (print, printf, println, html, js, urlquery, index, slice).
+// gate: it admits pure, side-effect-free builtins (length and boolean logic)
+// and rejects ones that invoke values (call) or format and escape output
+// (print, printf, println, html, js, urlquery, index, slice). The comparison
+// names eq, ne, lt, le, gt, and ge are curated in funcMap so numbers compare
+// by value; see template_compare.go.
 func allowedBuiltinFunctions() map[string]struct{} {
 	return map[string]struct{}{
 		"len": {},
-		"eq":  {},
-		"ne":  {},
-		"lt":  {},
-		"le":  {},
-		"gt":  {},
-		"ge":  {},
 		"not": {},
 		"and": {},
 		"or":  {},

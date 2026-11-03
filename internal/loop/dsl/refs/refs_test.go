@@ -2,6 +2,7 @@ package refs_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"reflect"
 	"strings"
@@ -323,6 +324,80 @@ func TestTemplateShouldRouteOnComparisonAndLogicBuiltins(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTemplateShouldCompareNumbersByValueAcrossDecodedKinds(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		template string
+		value    any
+		want     string
+	}{
+		{
+			name:     "Should order json.Number against an integer literal",
+			template: `{{ lt .n 3 }}`,
+			value:    json.Number("2"),
+			want:     "true",
+		},
+		{
+			name:     "Should order json.Number numerically, not lexically",
+			template: `{{ lt .n 9 }}`,
+			value:    json.Number("10"),
+			want:     "false",
+		},
+		{
+			name:     "Should order json.Number against a float literal",
+			template: `{{ ge .n 2.5 }}`,
+			value:    json.Number("2.5"),
+			want:     "true",
+		},
+		{
+			name:     "Should equate float64 with an integer literal",
+			template: `{{ eq .n 3 }}`,
+			value:    float64(3),
+			want:     "true",
+		},
+		{
+			name:     "Should equate a schema zero value with zero",
+			template: `{{ eq .n 0 }}`,
+			value:    json.Number("0"),
+			want:     "true",
+		},
+		{name: "Should match any of several eq operands", template: `{{ eq .n 1 2 3 }}`, value: int64(2), want: "true"},
+		{name: "Should compare unequal mixed numeric kinds", template: `{{ ne .n 3 }}`, value: uint8(4), want: "true"},
+		{
+			name:     "Should keep string equality for json.Number and a string",
+			template: `{{ eq .n "3" }}`,
+			value:    json.Number("3"),
+			want:     "true",
+		},
+		{name: "Should order strings lexically", template: `{{ gt .n "a" }}`, value: "b", want: "true"},
+		{name: "Should compare booleans for equality", template: `{{ eq .n true }}`, value: true, want: "true"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			rendered, err := refs.RenderTemplateString("numeric", tt.template, map[string]any{"n": tt.value})
+			if err != nil {
+				t.Fatalf("RenderTemplateString() error = %v", err)
+			}
+			if rendered != tt.want {
+				t.Fatalf("RenderTemplateString() = %q, want %q", rendered, tt.want)
+			}
+		})
+	}
+
+	t.Run("Should reject comparing a number with a string", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := refs.RenderTemplateString("numeric", `{{ lt .n "3" }}`, map[string]any{"n": float64(2)})
+		if err == nil || !strings.Contains(err.Error(), "incompatible types for comparison") {
+			t.Fatalf("RenderTemplateString() error = %v, want incompatible types for comparison", err)
+		}
+	})
 }
 
 func TestConditionShouldCompileCacheAndValidateBoolContract(t *testing.T) {
