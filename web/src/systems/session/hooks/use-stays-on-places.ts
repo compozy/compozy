@@ -15,8 +15,10 @@ import {
 export function useStaysOnPlaces(): {
   places: AgentPlaceOption[];
   preselected: string;
-  /** The project catalog hasn't answered: the places and the preselection aren't final yet. */
+  /** The first project read is in flight: the places and the preselection aren't final yet. */
   pending: boolean;
+  /** Present when the project read failed: only Global is listed until a retry loads them. */
+  retry?: () => void;
 } {
   const active = useActiveWorkspace();
   const options = sessionProjectOptions(active.projectWorkspaces);
@@ -30,6 +32,7 @@ export function useStaysOnPlaces(): {
       focusedBinding,
       lastUsed: readLastSessionProject(),
     }),
-    pending: active.pending,
+    pending: active.pending && !active.isError,
+    retry: active.isError ? () => void active.refetch() : undefined,
   };
 }

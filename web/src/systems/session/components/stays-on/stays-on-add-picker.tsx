@@ -53,17 +53,20 @@ function StaysOnPlaceStep({
   onPick: (target: SessionListStaysOnTarget) => void;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { places, preselected, pending } = useStaysOnPlaces();
+  const { places, preselected, pending, retry } = useStaysOnPlaces();
   const capacity = useAgentInstanceCapacity();
   // The list opens on the preselected row once, so it waits for the projects that settle it.
   if (pending) return null;
   return (
     <AgentScopePicker
+      // A retry that loads the projects moves the preselection: open the list on it again.
+      key={retry ? "unloaded" : "loaded"}
       capacity={capacity}
       onOpenChange={onOpenChange}
       onPick={place =>
         onPick({ place, name: places.find(option => option.id === place)?.name ?? place })
       }
+      onRetryScopes={retry}
       open
       scopes={places}
       trigger={ANCHOR}

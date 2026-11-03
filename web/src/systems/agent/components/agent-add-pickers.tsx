@@ -239,15 +239,22 @@ function LimitNotice({ capacity }: { capacity: AgentInstanceCapacity }) {
   );
 }
 
-function SignedOutNotice({ provider, onSignIn }: { provider: string; onSignIn?: () => void }) {
+/** Something stops the picker from working as usual: what, and the one way forward. */
+function PickerNotice({
+  children,
+  action,
+  onAction,
+}: {
+  children: ReactNode;
+  action: string;
+  onAction?: () => void;
+}) {
   return (
     <div className="flex items-start gap-2 px-2.5 py-2">
       <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-warning" />
-      <p className="min-w-0 flex-1 text-small-body text-muted-foreground">
-        <span className="text-fg">{provider} isn't signed in,</span> so this agent can't start yet.
-      </p>
-      <Button onClick={onSignIn} size="xs" type="button" variant="secondary">
-        Sign in
+      <p className="min-w-0 flex-1 text-small-body text-muted-foreground">{children}</p>
+      <Button onClick={onAction} size="xs" type="button" variant="secondary">
+        {action}
       </Button>
     </div>
   );
@@ -387,6 +394,8 @@ export interface AgentScopePickerProps extends PickerOpenState {
   /** Provider name when it isn't signed in. */
   signedOut?: string | null;
   onSignIn?: () => void;
+  /** Present when the projects failed to load: says so and retries; the scopes listed still work. */
+  onRetryScopes?: () => void;
   onPick: (place: string) => void;
   trigger: ReactElement;
 }
@@ -398,6 +407,7 @@ export function AgentScopePicker({
   capacity,
   signedOut = null,
   onSignIn,
+  onRetryScopes,
   onPick,
   trigger,
   open,
@@ -415,7 +425,17 @@ export function AgentScopePicker({
       trigger={trigger}
     >
       {capacity?.reached ? <LimitNotice capacity={capacity} /> : null}
-      {signedOut ? <SignedOutNotice onSignIn={onSignIn} provider={signedOut} /> : null}
+      {signedOut ? (
+        <PickerNotice action="Sign in" onAction={onSignIn}>
+          <span className="text-fg">{signedOut} isn't signed in,</span> so this agent can't start
+          yet.
+        </PickerNotice>
+      ) : null}
+      {onRetryScopes ? (
+        <PickerNotice action="Try again" onAction={onRetryScopes}>
+          <span className="text-fg">Couldn't load projects.</span>
+        </PickerNotice>
+      ) : null}
       {none ? (
         <NothingLeft title="Nowhere left to add it">
           This agent already works in all your projects.

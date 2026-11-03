@@ -17,15 +17,18 @@ const { mockApi } = vi.hoisted(() => ({
     instances: vi.fn(),
     create: vi.fn(),
     catalog: vi.fn(),
+    workspaces: vi.fn(),
   },
 }));
 
+const WORKSPACES = [
+  { ...workspaceFixtures[0]!, id: "ws-compozy", name: "compozy", archived_at: null },
+  { ...workspaceFixtures[0]!, id: "ws-site", name: "site", archived_at: null },
+];
+
 vi.mock("@/systems/workspace/adapters/workspace-api", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/workspace/adapters/workspace-api")>()),
-  fetchWorkspaces: async () => [
-    { ...workspaceFixtures[0]!, id: "ws-compozy", name: "compozy", archived_at: null },
-    { ...workspaceFixtures[0]!, id: "ws-site", name: "site", archived_at: null },
-  ],
+  fetchWorkspaces: () => mockApi.workspaces(),
 }));
 
 vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
@@ -89,6 +92,7 @@ describe("Project + Add stays-on agent", () => {
     openDialog.mockReset();
     for (const call of Object.values(mockApi)) call.mockReset();
     mockApi.instances.mockResolvedValue([agentInstanceFixture()]);
+    mockApi.workspaces.mockResolvedValue(WORKSPACES);
     mockApi.create.mockResolvedValue(agentInstanceFixture({ agent_name: "scout" }));
     mockApi.catalog.mockResolvedValue({
       items: [
@@ -167,5 +171,24 @@ describe("Project + Add stays-on agent", () => {
       expect(mockApi.create.mock.calls[0]?.[0]).toEqual({ agent: "scout", workspace: "@user" })
     );
     expect(mockApi.catalog.mock.calls.at(-1)?.[0]).not.toHaveProperty("workspace");
+  });
+
+  it("Should say the projects didn't load, keep Global, and retry", async () => {
+    mockApi.workspaces.mockRejectedValueOnce(new Error("offline"));
+    const user = userEvent.setup();
+    renderMenu(null);
+
+    await openPicker(user);
+    expect(await screen.findByText("Couldn't load projects.")).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Global/ })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /compozy/ })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByRole("option", { name: /compozy/ })).toHaveAttribute(
+      "data-selected",
+      "true"
+    );
+    expect(screen.queryByText("Couldn't load projects.")).toBeNull();
   });
 });
