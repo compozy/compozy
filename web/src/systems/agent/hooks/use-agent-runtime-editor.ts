@@ -36,10 +36,12 @@ export interface UseAgentRuntimeEditorResult {
   modelCatalogError: string | null;
   onRefreshCatalog: () => void;
   onOpenProviderSettings: () => void;
-  /** A return to the default or a conflict reread is running; the selector waits for it. */
+  /** A return to the default or a conflict reread is running or failed; picks wait for it. */
   isPending: boolean;
   error: string | null;
   conflictMessage: string | null;
+  /** Retries a failed conflict reread; null when nothing needs it. */
+  onReload: (() => void) | null;
   onDismissError: () => void;
 }
 

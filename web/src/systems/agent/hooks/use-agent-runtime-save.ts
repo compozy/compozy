@@ -18,11 +18,22 @@ import type { RuntimeSelectorValue } from "@/systems/runtime";
 import { useProfileReadScope } from "@/systems/profiles";
 
 interface Feedback {
-  key: string;
   error?: string;
   conflict?: string;
-  /** The conflict's server reread is still running; picks wait for the fresh digest. */
-  refreshing?: boolean;
+  /**
+   * After a conflict, picks wait for the server reread to bring the fresh digest;
+   * a failed reread keeps them waiting until a retry succeeds.
+   */
+  reread?: "running" | "failed";
+}
+
+const CONFLICT = "This agent changed somewhere else. Pick the model again.";
+const REREAD_FAILED = "Couldn't load this agent's latest version.";
+
+function without<T>(current: Readonly<Record<string, T>>, owner: string) {
+  if (!(owner in current)) return current;
+  const { [owner]: _removed, ...rest } = current;
+  return rest;
 }
 
 interface Intended {
@@ -56,7 +67,7 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
   // Every save, queued choice and message belongs to one agent in one scope, so switching
   // agents while a save runs never lands a choice, or its error, on the other agent.
   const key = JSON.stringify([destination, cacheWorkspace, agent?.name ?? ""]);
-  const [feedback, setFeedback] = useState<Feedback | null>(null);
+  const [feedback, setFeedback] = useState<Readonly<Record<string, Feedback>>>({});
   // The latest choice, shown while its save runs so the next control builds on it.
   // `value: null` is a pending return to the default. One entry per agent with a save running.
   const [intended, setIntended] = useState<Readonly<Record<string, Intended>>>({});
@@ -74,14 +85,24 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
     : agent
       ? hasAgentRuntimeOverride(buildSettingsDraftFromAgent(agent))
       : false;
-  const shown = feedback?.key === key ? feedback : null;
+  const shown = feedback[key] ?? null;
 
-  const settle = (owner: string) =>
-    setIntended(current => {
-      if (!(owner in current)) return current;
-      const { [owner]: _settled, ...rest } = current;
-      return rest;
-    });
+  const settle = (owner: string) => setIntended(current => without(current, owner));
+  const report = (owner: string, next: Feedback | null) =>
+    setFeedback(current => (next ? { ...current, [owner]: next } : without(current, owner)));
+
+  // Refetch the exact view key only. Do not write the rejected choice into cache:
+  // invalidate+refetch restores server truth under the same key useAgent reads.
+  const reread = (owner: string, detailKey: ReturnType<typeof agentKeys.detail>) => {
+    report(owner, { conflict: CONFLICT, reread: "running" });
+    void queryClient
+      .invalidateQueries({ queryKey: detailKey })
+      .then(() => queryClient.refetchQueries({ queryKey: detailKey }, { throwOnError: true }))
+      .then(
+        () => report(owner, { conflict: CONFLICT }),
+        () => report(owner, { error: REREAD_FAILED, reread: "failed" })
+      );
+  };
 
   const save = (owner: string, patch: Partial<AgentSettingsDraft>, base: AgentPayload) => {
     if (saving.current.has(owner)) {
@@ -94,11 +115,11 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
     );
     if (!params) {
       settle(owner);
-      setFeedback({ key: owner, error: "This agent's setup needs fixing before it can change." });
+      report(owner, { error: "This agent's setup needs fixing before it can change." });
       return;
     }
 
-    setFeedback(current => (current?.key === owner ? null : current));
+    report(owner, null);
     const detailKey = agentKeys.detail(base.name, cacheWorkspace, destination);
     saving.current.set(owner, null);
     updateAgent.mutateAsync({ name: base.name, params, cacheWorkspace, profile: destination }).then(
@@ -118,25 +139,10 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
         saving.current.delete(owner);
         settle(owner);
         if (isAgentDigestConflict(mutationError)) {
-          // Refetch the exact view key only. Do not write the rejected choice
-          // into cache — mutation onSuccess never ran, and invalidate+refetch
-          // restores server truth under the same key useAgent reads.
-          const conflict = "This agent changed somewhere else. Pick the model again.";
-          setFeedback({ key: owner, conflict, refreshing: true });
-          void queryClient
-            .invalidateQueries({ queryKey: detailKey })
-            .then(() => queryClient.refetchQueries({ queryKey: detailKey }))
-            .finally(() => {
-              setFeedback(current =>
-                current?.key === owner && current.refreshing ? { key: owner, conflict } : current
-              );
-            });
+          reread(owner, detailKey);
           return;
         }
-        setFeedback({
-          key: owner,
-          error: describeError("Couldn't update the model", mutationError),
-        });
+        report(owner, { error: describeError("Couldn't update the model", mutationError) });
       }
     );
   };
@@ -176,10 +182,15 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
       choose(value, next, { speed: next }, next === "fast" ? "Fast turned on" : "Fast turned off"),
     // The server resolves the default's speed, so the current one stays until the reread.
     onUseDefault: () => choose(null, speed, DEFAULT_RUNTIME, "Back to your default"),
-    /** A return to the default or a conflict reread is running; the selector waits for it. */
-    isPending: (pending !== null && pending.value === null) || Boolean(shown?.refreshing),
+    /** A return to the default or a conflict reread is running or failed; picks wait for it. */
+    isPending: (pending !== null && pending.value === null) || shown?.reread !== undefined,
     error: shown?.error ?? null,
     conflictMessage: shown?.conflict ?? null,
-    onDismissError: () => setFeedback(null),
+    /** Retries a failed conflict reread; null when nothing needs it. */
+    onReload:
+      shown?.reread === "failed" && agent
+        ? () => reread(key, agentKeys.detail(agent.name, cacheWorkspace, destination))
+        : null,
+    onDismissError: () => report(key, null),
   };
 }

@@ -393,7 +393,8 @@ describe("useAgentRuntimeEditor", () => {
     const reread = vi
       .spyOn(QueryClient.prototype, "refetchQueries")
       .mockReturnValue(new Promise<void>(resolve => (finishReread = resolve)));
-    const { result } = renderEditor(workspaceAgent());
+    const agent = workspaceAgent();
+    const { result, rerender } = renderEditor(agent);
 
     act(() =>
       result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
@@ -406,6 +407,34 @@ describe("useAgentRuntimeEditor", () => {
     );
     await act(async () => finishReread());
     await waitFor(() => expect(result.current.isPending).toBe(false));
+
+    rerender({ current: { ...agent, definition_digest: "fresh-digest" } });
+    act(() => result.current.onChange({ provider: "claude", model: "opus", reasoning_effort: "" }));
+    expect(savedParams(1).params).toMatchObject({ expected_digest: "fresh-digest" });
+    reread.mockRestore();
+  });
+
+  it("Should keep picks held when the conflict reread fails, until a retry succeeds", async () => {
+    const reread = vi
+      .spyOn(QueryClient.prototype, "refetchQueries")
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(undefined);
+    const { result } = renderEditor(workspaceAgent());
+
+    act(() =>
+      result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
+    );
+    await act(async () => saves[0]!.reject(new AgentDigestConflictError("stale")));
+
+    await waitFor(() =>
+      expect(result.current.error).toBe("Couldn't load this agent's latest version.")
+    );
+    expect(result.current.isPending).toBe(true);
+    expect(result.current.onReload).not.toBeNull();
+
+    await act(async () => result.current.onReload!());
+    await waitFor(() => expect(result.current.isPending).toBe(false));
+    expect(result.current.onReload).toBeNull();
     reread.mockRestore();
   });
 

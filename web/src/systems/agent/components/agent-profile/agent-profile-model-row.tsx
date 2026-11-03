@@ -22,8 +22,12 @@ export function AgentSetupModelRow({
   const labelId = useId();
   const triggerId = useId();
   const problem = model.conflictMessage ?? model.error ?? model.providerSourceError;
-  // Only a failed provider load leaves the selector with nothing to offer; that one can retry.
-  const retry = problem !== null && problem === model.providerSourceError;
+  // A failed conflict reread or provider load leaves nothing to pick from; both can retry.
+  const retry =
+    model.onReload ??
+    (problem !== null && problem === model.providerSourceError
+      ? model.onRetryProviderSource
+      : null);
   return (
     <div className="px-4 py-3" data-testid="agent-setup-model">
       <div className={cn(HOME_RUN_ROW_CLASS, "p-0")}>
@@ -80,13 +84,7 @@ export function AgentSetupModelRow({
             {problem}
           </p>
           {retry ? (
-            <Button
-              className="shrink-0"
-              onClick={model.onRetryProviderSource}
-              size="xs"
-              type="button"
-              variant="ghost"
-            >
+            <Button className="shrink-0" onClick={retry} size="xs" type="button" variant="ghost">
               Retry
             </Button>
           ) : null}

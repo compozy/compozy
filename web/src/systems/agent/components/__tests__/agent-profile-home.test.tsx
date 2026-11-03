@@ -71,6 +71,7 @@ function modelFixture(
     isPending: false,
     error: null,
     conflictMessage: null,
+    onReload: null,
     onDismissError: vi.fn(),
     ...overrides,
   };

@@ -42,6 +42,7 @@ function modelView(overrides: Partial<UseAgentRuntimeEditorResult> = {}) {
     isPending: false,
     error: null,
     conflictMessage: null,
+    onReload: null,
     onDismissError: fn(),
     ...overrides,
   } satisfies UseAgentRuntimeEditorResult;
