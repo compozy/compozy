@@ -3913,6 +3913,19 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			},
 		),
 	)
+	// #1196: attached palette clients belong to one profile, so the client list takes the
+	// optional profile selector and aggregate; the workspace parameter keeps its meaning.
+	paletteClients := paths["/api/cmd-palette/clients"].(map[string]any)["get"].(map[string]any)
+	paletteClients["parameters"] = append(paletteClients["parameters"].([]any),
+		map[string]any{
+			"description": "Read one profile's rows by name", "in": "query", "name": "profile",
+			"schema": map[string]any{"type": "string"},
+		},
+		map[string]any{
+			"description": "Read the owner-labeled all-profiles aggregate", "in": "query", "name": "all_profiles",
+			"schema": map[string]any{"type": "boolean"},
+		},
+	)
 	addStaysOnAdditiveSchemas(baseline)
 }
 

@@ -69,7 +69,9 @@ func (c *Client) ListAutomationTriggers(ctx context.Context, params ListAutomati
 
 // ListCmdPaletteClientsParams carries the path, query, and header parameters.
 type ListCmdPaletteClientsParams struct {
-	Workspace string `url:"workspace"`
+	Workspace   string  `url:"workspace"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
 }
 
 // ListCmdPaletteClients List attached command palette clients
@@ -77,6 +79,12 @@ func (c *Client) ListCmdPaletteClients(ctx context.Context, params ListCmdPalett
 	path := "/api/cmd-palette/clients"
 	query := url.Values{}
 	query.Set("workspace", params.Workspace)
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}

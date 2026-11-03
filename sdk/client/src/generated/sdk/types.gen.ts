@@ -18040,6 +18040,14 @@ export type ListCmdPaletteClientsData = {
      * Workspace id, name, or path
      */
     workspace: string;
+    /**
+     * Read one profile's rows by name
+     */
+    profile?: string;
+    /**
+     * Read the owner-labeled all-profiles aggregate
+     */
+    all_profiles?: boolean;
   };
   url: "/api/cmd-palette/clients";
 };

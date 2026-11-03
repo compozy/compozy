@@ -28306,6 +28306,10 @@ export interface operations {
       query: {
         /** @description Workspace id, name, or path */
         workspace: string;
+        /** @description Read one profile's rows by name */
+        profile?: string;
+        /** @description Read the owner-labeled all-profiles aggregate */
+        all_profiles?: boolean;
       };
       header?: never;
       path?: never;

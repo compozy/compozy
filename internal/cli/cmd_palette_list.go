@@ -85,7 +85,7 @@ func newCmdPaletteClientsCommand(deps commandDeps) *cobra.Command {
 	var scope cmdPaletteScopeFlags
 	cmd := &cobra.Command{
 		Use:   cliClientsUse,
-		Short: "List clients attached to the workspace",
+		Short: "List the active profile's clients attached to the workspace",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, workspace, err := cmdPaletteClientAndWorkspace(cmd, deps, scope.workspace)
