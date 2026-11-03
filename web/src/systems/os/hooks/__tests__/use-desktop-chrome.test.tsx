@@ -9,7 +9,7 @@
 // Boundary IN: chrome hook projection reads and provider ownership.
 // Boundary OUT: window-manager stream, client registration, and rendered DesktopShell.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { createAtom } from "@xstate/store";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,7 +21,6 @@ const pruneWorktreeScopes = vi.hoisted(() => vi.fn());
 const profileScope = vi.hoisted(() => ({
   aggregate: false,
   ownerId: "p_yankee",
-  switchEpoch: 0,
 }));
 const sessionOwners = vi.hoisted(() => new Map<string, string>());
 
@@ -74,7 +73,6 @@ vi.mock("@/systems/profiles", async importOriginal => {
       destination: "yankee",
       destinationOwner: profileScope.aggregate ? null : { id: profileScope.ownerId },
     }),
-    useProfileSwitchEpoch: () => profileScope.switchEpoch,
   };
 });
 
@@ -96,6 +94,8 @@ vi.mock("../use-window-manager-stream", () => ({
 vi.mock("../use-global-shortcut-reconciliation", () => ({
   useGlobalShortcutReconciliation: () => ({ registrations: [] }),
 }));
+
+import { resetProfileViews, setProfileView } from "@/systems/profiles/stores/profile-view-store";
 
 import type { OsShellHandle } from "../../contexts/os-shell-context";
 import type { OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
@@ -191,8 +191,8 @@ describe("useProfileSwitchWindowSweep", () => {
   beforeEach(() => {
     profileScope.aggregate = false;
     profileScope.ownerId = "p_yankee";
-    profileScope.switchEpoch = 0;
     sessionOwners.clear();
+    resetProfileViews();
   });
 
   function deskWindow(id: string, pathname: string): OsWindow {
@@ -202,7 +202,8 @@ describe("useProfileSwitchWindowSweep", () => {
   function fakeShell(live: boolean) {
     const windows = {
       w_own: deskWindow("w_own", "/agents/builder/sessions/s_own"),
-      w_foreign: deskWindow("w_foreign", "/agents/builder/sessions/s_xray"),
+      w_xray: deskWindow("w_xray", "/agents/builder/sessions/s_xray"),
+      w_zulu: deskWindow("w_zulu", "/agents/builder/sessions/s_zulu"),
       w_gone: deskWindow("w_gone", "/agents/builder/sessions/s_gone"),
       w_tasks: deskWindow("w_tasks", "/tasks"),
     };
@@ -214,30 +215,41 @@ describe("useProfileSwitchWindowSweep", () => {
         windows,
       }) as unknown as OsDesktopRuntimeStore;
     const projection = createAtom(state(live));
-    const userClose = vi.fn(async () => true);
+    // Like the runtime's close guard: one close at a time, the rest refused while it is pending.
+    let pending = false;
+    const closed: string[] = [];
+    const userClose = vi.fn(async (windowId: string) => {
+      if (pending) return false;
+      pending = true;
+      await Promise.resolve();
+      pending = false;
+      closed.push(windowId);
+      return true;
+    });
     const shell = {
       projection,
       manager: { getState: () => projection.get() },
       coordinator: { userClose },
     } as unknown as OsShellHandle;
-    return { shell, userClose, goLive: () => projection.set(state(true)) };
+    return { shell, userClose, closed, goLive: () => projection.set(state(true)) };
   }
 
-  it("Should close only another profile's session windows once the switched-to desk is live", async () => {
+  function switchTo(view: Parameters<typeof setProfileView>[0]) {
+    act(() => setProfileView(view));
+  }
+
+  it("Should close every session window another profile owns once the switched-to desk is live", async () => {
     sessionOwners.set("s_own", "p_yankee");
     sessionOwners.set("s_xray", "p_xray");
-    const { shell, userClose, goLive } = fakeShell(false);
-    const { rerender } = renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
-      wrapper: wrapper(),
-    });
+    sessionOwners.set("s_zulu", "p_zulu");
+    const { shell, closed, goLive } = fakeShell(false);
+    renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), { wrapper: wrapper() });
 
-    profileScope.switchEpoch = 1;
-    rerender();
-    expect(userClose).not.toHaveBeenCalled();
+    switchTo({ kind: "profile", profile: "yankee" });
+    expect(closed).toEqual([]);
 
-    goLive();
-    rerender();
-    await waitFor(() => expect(userClose).toHaveBeenCalledExactlyOnceWith("w_foreign"));
+    act(() => goLive());
+    await waitFor(() => expect(closed).toEqual(["w_xray", "w_zulu"]));
   });
 
   it("Should leave the desk alone without a switch or when the switch is to All profiles", async () => {
@@ -249,9 +261,37 @@ describe("useProfileSwitchWindowSweep", () => {
     rerender();
 
     profileScope.aggregate = true;
-    profileScope.switchEpoch = 1;
-    rerender();
+    switchTo({ kind: "aggregate" });
     // Let any owner read the hook might have started settle before asserting nothing closed.
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(userClose).not.toHaveBeenCalled();
+  });
+
+  it("Should abandon a sweep when the view changes while the owners are still being read", async () => {
+    let releaseOwners = () => {};
+    const ownersRead = new Promise<void>(resolve => {
+      releaseOwners = resolve;
+    });
+    sessionOwners.set("s_xray", "p_xray");
+    const { shell, userClose } = fakeShell(true);
+    const queryClient = new QueryClient();
+    const fetchQuery = queryClient.fetchQuery.bind(queryClient);
+    vi.spyOn(queryClient, "fetchQuery").mockImplementation(async options => {
+      await ownersRead;
+      return fetchQuery(options);
+    });
+    renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+
+    switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() => expect(queryClient.fetchQuery).toHaveBeenCalled());
+    // Back to All profiles on the same desk: the windows belong on screen again.
+    profileScope.aggregate = true;
+    switchTo({ kind: "aggregate" });
+    releaseOwners();
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(userClose).not.toHaveBeenCalled();
   });

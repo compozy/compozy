@@ -2,7 +2,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAtom } from "@xstate/store-react";
 import { useEffect, useRef, useState } from "react";
 
-import { ownerFromRow, useProfileReadScope, useProfileSwitchEpoch } from "@/systems/profiles";
+import {
+  ownerFromRow,
+  profileViewStore,
+  useProfileReadScope,
+  useProfileSwitchEpoch,
+} from "@/systems/profiles";
 import { sessionAcrossProfilesOptions } from "@/systems/session";
 
 import type { OsShellHandle } from "../contexts/os-shell-context";
@@ -69,11 +74,12 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
         async sessionId =>
           ownerFromRow(await queryClient.fetchQuery(sessionAcrossProfilesOptions(sessionId))).id
       );
-      // A newer switch owns the desk now; its own sweep reads it again.
-      if (started.current !== request) return;
-      // The runtime queues commands and each reads the revision current when it runs, and a
-      // rebind resolves the queued ones unapplied, so the closes can be issued together.
-      await Promise.all(foreign.map(windowId => coordinator.userClose(windowId)));
+      for (const windowId of foreign) {
+        // Any later view change, All profiles included, owns the desk now: stop closing.
+        if (profileViewStore.getSnapshot().context.switchEpoch !== request.epoch) return;
+        // react-doctor-disable-next-line react-doctor/async-await-in-loop -- one close at a time is the point: the runtime's close guard admits a single close and refuses the rest while it is pending.
+        await coordinator.userClose(windowId);
+      }
     })();
   }, [live, queryClient, request, shell, targetProfileId, workspaceId]);
 }
