@@ -19,12 +19,7 @@ import {
 import { useReportSource } from "../../../hooks/use-report-source";
 import { countWord, deriveAwayDigest, reportClock } from "../../../lib/session-away";
 import { SessionReportSendContext } from "../../../lib/session-report-send";
-import {
-  isLostWake,
-  newestUnattendedReportId,
-  pickedProposal,
-  reportPayload,
-} from "../../../lib/session-report";
+import { isLostWake, pickedProposal, reportPayload } from "../../../lib/session-report";
 import type { SessionReportData } from "../../../types";
 import { CheckTicks } from "../stays-on-hover-card";
 import { AwayDigest } from "./away-digest";
@@ -168,9 +163,6 @@ function FailureBody({
 }) {
   const { reason, detail } = reportPayload(data);
   const when = reportClock(data.created_at);
-  const newestPause = useAuiState(state =>
-    newestUnattendedReportId(state.thread.messages, data.instance_id)
-  );
   if (isLostWake(data.kind, undefined, reason)) {
     return (
       <WakeLostReport agent={agent} detail={detail === reason ? undefined : detail} when={when} />
@@ -182,7 +174,8 @@ function FailureBody({
         <UnattendedPauseReport
           agent={agent}
           instance={instance}
-          newest={newestPause === undefined || newestPause === data.report_id}
+          instanceId={data.instance_id}
+          reportId={data.report_id}
           when={when}
         />
       );
