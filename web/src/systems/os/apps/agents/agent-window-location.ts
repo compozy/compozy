@@ -36,9 +36,12 @@ function decodePathSegment(value: string): string {
 function fromLegacy(
   name: string,
   destination: AgentLegacyDestination,
-  search: { workspace?: string }
+  search: { workspace?: string; profile?: string }
 ): AgentWindowLocation {
-  const binding = search.workspace ? { workspace: search.workspace } : {};
+  const binding = {
+    ...(search.workspace ? { workspace: search.workspace } : {}),
+    ...(search.profile ? { profile: search.profile } : {}),
+  };
   if (destination.kind === "page") {
     return { kind: "page", name, page: destination.page, search: binding };
   }

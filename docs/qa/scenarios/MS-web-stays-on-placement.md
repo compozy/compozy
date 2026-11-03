@@ -230,3 +230,20 @@ New folder and Add stays-on agent. Add opens a place list (Global, then Projects
 preselected place checked; picking a project opens that project's agent picker, and adding
 creates the instance there. A list bound to one project still adds there without asking.
 Web suites: `session-list.test.tsx` and `stays-on-add-menu.test.tsx`.
+
+## Open agent from All profiles (#1183)
+
+With All profiles selected, open an agent from the avatar menu (Open agent and Check-ins) for
+instances owned by a nondefault profile: one Global, one in a project, with definitions that exist
+only in that profile's layer. The agent window must show the agent every time, never "Agent not
+found", and every agent read in it must carry the instance's profile. Reload the page with the
+window open and confirm it still resolves there. Web suites: `stays-on-row.test.tsx`,
+`agent-window-location.test.ts`, `use-profile-selection.test.tsx`.
+
+Verified 2026-11-03 on fix/issue-1183-open-agent-all-profiles 1dd4c5745 (isolated targeted lab,
+profiles default/open-design/ops, remembered profile default): Pass. Before the fix, the release
+bundle read `ops_lead` and `ops_global` with `profile=default` and showed "Agent not found" on 6 of 6
+opens (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1183/1dd4c5745/01-before-Ops-Lead.png`).
+With the fix, 60 of 60 opens across three agents and two runs resolved with `profile=ops`
+(`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1183/1dd4c5745/02-final-Ops-Lead.png`), and
+Check-ins survived 5 reloads (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/issue-1183/1dd4c5745/04-after-reload.png`).

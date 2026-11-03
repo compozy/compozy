@@ -76,7 +76,8 @@ func (g *SessionMonitorRepo) reportLostInstanceMonitor(
 	default:
 		return nil
 	}
-	if mon.Reason == "shutdown" {
+	// An owner's explicit cancel drops a wake it no longer wants; nothing was lost.
+	if mon.Reason == "shutdown" || mon.Reason == monitor.ReasonCancelRequested {
 		return nil
 	}
 	detail := mon.Description

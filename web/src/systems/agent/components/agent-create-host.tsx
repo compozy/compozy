@@ -4,13 +4,12 @@ import {
   AgentCreateHostContext,
   type AgentCreateHostValue,
 } from "@/systems/agent/lib/agent-create-host-context";
-import type { AgentPayload } from "@/systems/agent/types";
 
 export type { AgentCreateHostValue };
 
 export interface AgentCreateHostProviderProps {
   openDialog: AgentCreateHostValue["openDialog"];
-  openForDuplicate: (agent: AgentPayload) => void;
+  openForDuplicate: AgentCreateHostValue["openForDuplicate"];
   children: ReactNode;
 }
 

@@ -1203,6 +1203,8 @@ func newRemovalTestFixture(t *testing.T) *removalTestFixture {
 			return gitResponse{}
 		case command == "diff --cached --numstat -z":
 			return gitResponse{}
+		case command == "rev-parse --verify --quiet main^{commit}":
+			return gitResponse{stdout: []byte("base\n")}
 		case command == "rev-list --count main..HEAD":
 			return gitResponse{stdout: []byte(strconv.Itoa(fixture.uniqueCommits.Load()) + "\n")}
 		case command == "rev-list main..HEAD" || command == "rev-list --cherry-pick --right-only --stdin":

@@ -72,8 +72,13 @@ export function agentNextWakeLine(
 }
 
 /** Keeps a link in the instance's own scope, whatever window it opens from. */
-export function agentInstanceBinding(instance: Pick<AgentInstancePayload, "workspace_id">) {
-  return { workspace: instance.workspace_id || GLOBAL_SCOPE };
+export function agentInstanceBinding(
+  instance: Pick<AgentInstancePayload, "workspace_id" | "profile_name">
+) {
+  return {
+    workspace: instance.workspace_id || GLOBAL_SCOPE,
+    ...(instance.profile_name ? { profile: instance.profile_name } : {}),
+  };
 }
 
 /** Paused by the brake, so Resume is the operator's to give. */

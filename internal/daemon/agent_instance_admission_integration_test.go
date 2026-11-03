@@ -33,6 +33,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -112,6 +113,15 @@ func TestInstancePausedRuntimeIntegration(t *testing.T) {
 		if err != nil || held.Status != store.SessionPromptResultStatusQueued || held.Delivery != "held" {
 			t.Fatalf("held=%+v %v", held, err)
 		}
+		heldPayload, err := core.PromptResultPayloadFromSession(held)
+		if err != nil {
+			t.Fatal(err)
+		}
+		heldResult, err := json.Marshal(map[string]any{"prompt": heldPayload})
+		if err != nil {
+			t.Fatal(err)
+		}
+		requireSessionPromptOutputSchemaAccepts(t, heldResult)
 		inputs, err := manager.ListPendingInputs(t.Context(), main.ID)
 		if err != nil || len(inputs) != 1 || !core.SessionInputPayloadFromSession(inputs[0]).Held {
 			t.Fatalf("held queue projection: %+v %v", inputs, err)
@@ -1762,4 +1772,17 @@ func instanceIntegrationHTTP(
 		t.Fatal(err)
 	}
 	return response.StatusCode, raw
+}
+
+// requireSessionPromptOutputSchemaAccepts validates a structured session_prompt result against
+// the declared output schema MCP clients enforce on it (#1186).
+func requireSessionPromptOutputSchemaAccepts(t *testing.T, structured []byte) {
+	t.Helper()
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		if descriptor.ID == toolspkg.ToolIDSessionPrompt {
+			requireNativeOutputSchemaAccepts(t, descriptor, structured)
+			return
+		}
+	}
+	t.Fatal("session_prompt descriptor is missing")
 }
