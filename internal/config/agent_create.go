@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"slices"
@@ -109,7 +110,7 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 		),
 		Description:     draft.Description,
 		Kind:            draft.Kind,
-		Appearance:      CloneAgentAppearance(draft.Appearance),
+		Appearance:      canonicalAgentAppearance(draft.Appearance),
 		Provider:        strings.TrimSpace(draft.Provider),
 		Command:         strings.TrimSpace(draft.Command),
 		SessionEnv:      MergeSessionEnv(nil, draft.SessionEnv),
@@ -226,6 +227,39 @@ func canonicalAgentDefinition(agent AgentDef) AgentDef {
 	})
 	return agent
 }
+
+// canonicalAgentAppearance renders whole numbers as integers. Catalog records reach the renderer
+// through a JSON round trip that turns `version: 1` into a float, which would render `1.0` and
+// change the definition digest of an unchanged file.
+func canonicalAgentAppearance(appearance map[string]any) map[string]any {
+	result := CloneAgentAppearance(appearance)
+	for key, value := range result {
+		result[key] = canonicalAppearanceNumber(value)
+	}
+	return result
+}
+
+func canonicalAppearanceNumber(value any) any {
+	switch v := value.(type) {
+	case float64:
+		if v == math.Trunc(v) && math.Abs(v) <= maxExactFloatInteger {
+			return int64(v)
+		}
+		return v
+	case map[string]any:
+		return canonicalAgentAppearance(v)
+	case []any:
+		for index := range v {
+			v[index] = canonicalAppearanceNumber(v[index])
+		}
+		return v
+	default:
+		return value
+	}
+}
+
+// maxExactFloatInteger is the largest integer a float64 holds exactly (2^53).
+const maxExactFloatInteger = 1 << 53
 
 func sortedAgentDefinitionAtoms(values []string) []string {
 	atoms := trimAgentDefinitionAtoms(values)

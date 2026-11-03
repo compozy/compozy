@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"maps"
 	"os"
@@ -1932,6 +1933,30 @@ func TestAgentIdentityContract(t *testing.T) {
 		second, err := a.ResolveAppearance()
 		if err != nil || !EqualAgentAppearance(first, second) {
 			t.Fatalf("unstable appearance: %v", err)
+		}
+	})
+	t.Run("Should keep a definition digest stable across a catalog JSON round trip", func(t *testing.T) {
+		t.Parallel()
+		agent, err := ParseAgentDef([]byte("---\nname: builder\nappearance:\n  version: 1\n  avatar: icon\n" +
+			"  icon: code-xml\n  color: \"#8a8f98\"\n  background: none\n---\nBuild.\n"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, err := json.Marshal(agent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var round AgentDef
+		if err := json.Unmarshal(raw, &round); err != nil {
+			t.Fatal(err)
+		}
+		direct, err := AgentDefinitionDigest(agent)
+		if err != nil {
+			t.Fatal(err)
+		}
+		catalog, err := AgentDefinitionDigest(round)
+		if err != nil || catalog != direct {
+			t.Fatalf("digest after JSON round trip = %s, want %s (%v)", catalog, direct, err)
 		}
 	})
 	t.Run("Should draw the bootstrap General agent as a bare icon until it saves a face", func(t *testing.T) {
