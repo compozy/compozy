@@ -50,17 +50,13 @@ export function useSessionLabel({
   const workspace = useWorkspace(resolvedWorkspaceId, {
     enabled: crossWorkspace && !userDestination,
   });
-  // A stays-on agent's current main speaks as the agent, not as its session (S12).
-  const staysOn = useAgentInstances().find(
-    instance => sessionId !== "" && instance.main_session_id === sessionId
-  );
+  const staysOnLabel = useStaysOnLabel(sessionId);
   const labelRead = workspaceId === "" && !owner.data ? owner : detail;
   const { title, pending } = sessionLabelTitle(
     { data: detail.data, error: labelRead.error, isError: labelRead.isError },
     sessionId,
     titleAtSend || null
   );
-  const staysOnLabel = staysOn ? staysOn.label || staysOn.agent_name : null;
   return {
     sessionId,
     workspaceId: userDestination ? "" : resolvedWorkspaceId,
@@ -74,6 +70,14 @@ export function useSessionLabel({
       workspace.data?.workspace.name ?? owner.data?.workspace_name
     ),
   };
+}
+
+/** A stays-on agent's current main speaks as the agent, not as its session (S12). */
+function useStaysOnLabel(sessionId: string): string | null {
+  const staysOn = useAgentInstances().find(
+    instance => sessionId !== "" && instance.main_session_id === sessionId
+  );
+  return staysOn ? staysOn.label || staysOn.agent_name : null;
 }
 
 interface SessionRuntimeRoutes {

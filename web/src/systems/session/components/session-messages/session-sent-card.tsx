@@ -91,6 +91,27 @@ function SessionSentReply({
   );
 }
 
+/** How the send landed: Steered or Interrupted from the daemon's delivery, and Held for a paused agent. */
+function SessionSentChips({ mode, held }: { mode: SessionMessageMode; held: boolean }) {
+  return (
+    <>
+      {mode === "steer" ? (
+        <SessionMessageChip icon={<CornerDownRight aria-hidden="true" />}>
+          Steered
+        </SessionMessageChip>
+      ) : null}
+      {mode === "interrupt" ? (
+        <SessionMessageChip icon={<Scissors aria-hidden="true" />}>Interrupted</SessionMessageChip>
+      ) : null}
+      {held ? (
+        <SessionMessageChip icon={<Pause aria-hidden="true" />}>
+          Held until it resumes
+        </SessionMessageChip>
+      ) : null}
+    </>
+  );
+}
+
 export interface SessionSentCardProps {
   target: SessionMessageParty;
   callState: SessionSentCallState;
@@ -133,7 +154,8 @@ export function SessionSentCard({
       : reply === "waiting"
         ? "waiting for reply"
         : REPLY_WORD[reply].toLowerCase();
-  const name = `${sessionPartyPhrase(verb, target)}${held && !failed ? ", held until it resumes" : ""}`;
+  const showHeld = held && !failed;
+  const name = `${sessionPartyPhrase(verb, target)}${showHeld ? ", held until it resumes" : ""}`;
   return (
     <article
       aria-label={replyWord ? `${name}, ${replyWord}` : name}
@@ -161,20 +183,7 @@ export function SessionSentCard({
       <span className="flex min-w-0 flex-col gap-px">
         <span className="flex min-w-0 items-center gap-1.5">
           <SessionMessagePartyLabel verb={verb} party={target} onOpen={onOpenTarget} />
-          {mode === "steer" ? (
-            <SessionMessageChip icon={<CornerDownRight aria-hidden="true" />}>
-              Steered
-            </SessionMessageChip>
-          ) : mode === "interrupt" ? (
-            <SessionMessageChip icon={<Scissors aria-hidden="true" />}>
-              Interrupted
-            </SessionMessageChip>
-          ) : null}
-          {held && !failed ? (
-            <SessionMessageChip icon={<Pause aria-hidden="true" />}>
-              Held until it resumes
-            </SessionMessageChip>
-          ) : null}
+          <SessionSentChips mode={mode} held={showHeld} />
           {replyTo}
         </span>
         {lineTwo ? (

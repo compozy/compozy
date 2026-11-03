@@ -287,6 +287,7 @@ function SessionQueuedSessionMessageActions({
 function SessionQueuedSessionMessageRow({
   prompt,
   sender,
+  held,
   disabled,
   actionsHidden,
   onSteer,
@@ -294,6 +295,7 @@ function SessionQueuedSessionMessageRow({
 }: {
   prompt: QueuedPrompt;
   sender: SessionMessageOrigin;
+  held: boolean;
   disabled: boolean;
   actionsHidden: boolean;
   onSteer: (prompt: QueuedPrompt) => void;
@@ -308,7 +310,6 @@ function SessionQueuedSessionMessageRow({
     agentName: sender.agentName,
     titleAtSend: sender.titleAtSend,
   });
-  const held = useQueuedHeld(prompt);
   const dispatching = prompt.status === "dispatching";
   const title = party.title ?? DELETED_SESSION_LABEL;
   const actionable = isQueuedPromptMutable(prompt) && !dispatching && !actionsHidden;
@@ -369,11 +370,13 @@ export function SessionQueueEntryRow({
   onEdit,
   onRemove,
 }: SessionQueueEntryRowProps) {
+  const held = useQueuedHeld(prompt);
   if (prompt.sender) {
     return (
       <SessionQueuedSessionMessageRow
         prompt={prompt}
         sender={prompt.sender}
+        held={held}
         disabled={disabled}
         actionsHidden={actionsHidden}
         onSteer={onSteer}
@@ -381,7 +384,6 @@ export function SessionQueueEntryRow({
       />
     );
   }
-  const held = useQueuedHeld(prompt);
   const dispatching = prompt.status === "dispatching";
   const mutable =
     isQueuedPromptMutable(prompt) && prompt.owner === null && !dispatching && !actionsHidden;

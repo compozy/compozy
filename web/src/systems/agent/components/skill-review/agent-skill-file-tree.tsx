@@ -39,6 +39,24 @@ function indent(depth: number) {
   return { paddingLeft: `${depth * 14 + 8}px` };
 }
 
+function TreeRowButton({
+  depth,
+  className,
+  onClick,
+  children,
+}: {
+  depth: number;
+  className: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button className={cn(ROW, className)} onClick={onClick} style={indent(depth)} type="button">
+      {children}
+    </button>
+  );
+}
+
 function FolderRow({
   folder,
   depth,
@@ -52,11 +70,10 @@ function FolderRow({
   const Glyph = open ? FolderOpen : Folder;
   return (
     <li aria-expanded={open} role="treeitem">
-      <button
-        className={cn(ROW, "text-muted-foreground")}
+      <TreeRowButton
+        className="text-muted-foreground"
+        depth={depth}
         onClick={() => setOpen(value => !value)}
-        style={indent(depth)}
-        type="button"
       >
         <ChevronRight
           aria-hidden="true"
@@ -67,7 +84,7 @@ function FolderRow({
         />
         <Glyph aria-hidden="true" className="size-4 shrink-0 text-subtle" />
         <span className="truncate">{folder.name}</span>
-      </button>
+      </TreeRowButton>
       {open ? <ul role="group">{children}</ul> : null}
     </li>
   );
@@ -88,11 +105,10 @@ function FileRow({
   const name = file.path.split("/").at(-1);
   return (
     <li aria-selected={selected} role="treeitem">
-      <button
-        className={cn(ROW, selected ? "bg-selected text-fg" : "text-fg-2")}
+      <TreeRowButton
+        className={selected ? "bg-selected text-fg" : "text-fg-2"}
+        depth={depth + 1}
         onClick={onSelect}
-        style={indent(depth + 1)}
-        type="button"
       >
         <Glyph aria-hidden="true" className="size-4 shrink-0 text-subtle" />
         <span className="truncate">{name}</span>
@@ -103,7 +119,7 @@ function FileRow({
             role="img"
           />
         ) : null}
-      </button>
+      </TreeRowButton>
     </li>
   );
 }
