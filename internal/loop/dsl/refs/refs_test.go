@@ -490,6 +490,15 @@ func TestTemplateShouldCompareNumbersByValueAcrossDecodedKinds(t *testing.T) {
 				t.Fatalf("RenderTemplateString() = %q, %v, want %v", rendered, err, want)
 			}
 		})
+		t.Run("Should order two JSON numbers numerically with "+builtin, func(t *testing.T) {
+			t.Parallel()
+			data := map[string]any{"n": json.Number("10"), "m": json.Number("9")}
+			want := builtin == "ne" || builtin == "gt" || builtin == "ge"
+			rendered, err := refs.RenderTemplateString("numeric", "{{ "+builtin+" .n .m }}", data)
+			if err != nil || rendered != fmt.Sprint(want) {
+				t.Fatalf("RenderTemplateString() = %q, %v, want %v", rendered, err, want)
+			}
+		})
 		for _, value := range []string{"invalid", "1e4097", "1e-4097", "1e99999999999999999999"} {
 			t.Run("Should reject invalid numeric comparison "+builtin+" "+value, func(t *testing.T) {
 				t.Parallel()
