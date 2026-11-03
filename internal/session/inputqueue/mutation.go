@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -232,4 +233,30 @@ func sameMutation(
 		entry.Delivery == delivery &&
 		(strings.TrimSpace(targetTurnID) == "" || entry.TargetTurnID == strings.TrimSpace(targetTurnID)) &&
 		slices.Equal(entry.SkillInvocations, skillInvocations)
+}
+
+func (s *Service) prepareAdmittedEntry(
+	admission store.SessionPromptAdmissionRequest,
+	spec insertSpec,
+) (store.SessionPromptAdmissionStore, store.SessionInputQueueInsert, error) {
+	admissionStore, ok := s.store.(store.SessionPromptAdmissionStore)
+	if !ok {
+		return nil, store.SessionInputQueueInsert{}, errors.New(
+			"inputqueue: prompt admission store is required",
+		)
+	}
+	spec.sessionID = admission.SessionID
+	spec.origin = append(json.RawMessage(nil), admission.Origin...)
+	spec.text = admission.AuthoredText
+	spec.runtime = admission.Runtime
+	spec.skillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
+	spec.mentionsJSON = admission.MentionsJSON
+	spec.humanIngress = admission.HumanIngress
+	spec.attachments = append([]store.SessionInputAttachment(nil), admission.Attachments...)
+	insert, err := s.newInsert(spec)
+	if err != nil {
+		return nil, store.SessionInputQueueInsert{}, err
+	}
+	insert.HumanSpawnOrigin = admission.HumanSpawnOrigin
+	return admissionStore, insert, nil
 }

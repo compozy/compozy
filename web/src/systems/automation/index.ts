@@ -141,6 +141,7 @@ export {
   compareAutomationViews,
   toAutomationView,
   type AutomationDoes,
+  type AutomationListTarget,
   type AutomationEntityKind,
   type AutomationLastRun,
   type AutomationStart,

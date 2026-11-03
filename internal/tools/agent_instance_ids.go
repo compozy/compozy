@@ -1,6 +1,8 @@
 package tools
 
 const (
+	ToolIDAgentSkillPropose       ToolID = "compozy__agent_skill_propose"
+	ToolIDAgentSkillReviews       ToolID = "compozy__agent_skill_reviews"
 	ToolIDAgentInstanceCheck      ToolID = "compozy__agent_instance_check"
 	ToolIDAgentInstanceChecks     ToolID = "compozy__agent_instance_checks"
 	ToolIDAgentInstanceOccurrence ToolID = "compozy__agent_instance_occurrence"

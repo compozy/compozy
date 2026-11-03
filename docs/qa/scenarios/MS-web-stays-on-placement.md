@@ -6,13 +6,13 @@ persona: Dora
 journey: J-31
 expected: With no instance there is no row and no empty space. Global instances sit in a row labeled Global above all projects; each project's instances sit under its name, and in its Kanban lane header. Anyone needing the operator is ordered first and shows the Needs you triangle. A click opens the main session, created again if it was lost, and the open one shows a selected background. Hover or focus opens a card with what it's doing, last and next check, Open conversation and Pause or Resume. The context menu offers Pause or Resume with the pause reason, Open agent, Check-ins and Archive; Resume is disabled when the definition is gone. More agents than fit move into `+N`, a searchable panel grouped by state. A collapsed project shows who needs you by face. Main sessions leave session rows, cards and counts. Sessions they spawn stay ordinary rows and cards with a creator badge. A project with only an agent still gets its group. A project's `+` offers New session, New folder and Add stays-on agent; Add opens a picker of stays-on agents not yet there, with Create new opening New agent on Stays on with that project chosen. At the limit the rows and Create new are blocked and the popover shows it. Flat mode shows one row: Global first, then the focused project's. The dock's Home app reads Dashboard.
 entry_points: web Sessions window (list and Kanban); project `+`; avatar row; avatar context menu
-qa_status: blocked-verify
-bug_ids:
+qa_status: pass
+bug_ids: BUG-20261103-resume-all-rate-limited
 fix_status: fixed
-retest_status: pending
-fix_commits: f7a8bbf3d, 4a6fef558, 2e2487068, 11e90692f, 2f917de93, 9d9147a9f, 10183640d, 301b10320, f5d9906aa, 1300ed91f, 1a9b61852, 7fc9e2389, 6b13d0dec, e53e4593a, 11042786b, b280406e0, a64b1c981
-evidence: docs/qa/reports/2026-11-01-stays-on-agents.md; .compozy/tasks/always-on-agent/qa/pr-evidence.md
-last_report: docs/qa/reports/2026-11-01-stays-on-agents.md
+retest_status: verified
+fix_commits: f7a8bbf3d, 4a6fef558, 2e2487068, 11e90692f, 2f917de93, 9d9147a9f, 10183640d, 301b10320, f5d9906aa, 1300ed91f, 1a9b61852, 7fc9e2389, 6b13d0dec, e53e4593a, 11042786b, b280406e0, a64b1c981, 4056dbcc2
+evidence: docs/qa/reports/2026-11-01-stays-on-agents.md; .compozy/tasks/always-on-agent/qa/pr-evidence.md; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: MS-web-agent-create-simple-advanced
 ---
 
@@ -179,3 +179,48 @@ Backend startup regression: `TestBootAgentInstances` uses real SQLite and a
 registered project whose folder is absent. Starting instance services must keep
 the API available, retain the manually paused instance, and log its reconciliation
 error. A missing project must not prevent access to other projects.
+
+Spend-brake configuration coverage (stays-on-hardening B1): set
+`agents.stays_on.unattended_turn_limit` to `2` and restart the daemon.
+Two autonomous turns pause the instance with reason `unattended`; the next input
+remains queued. Repeat with an explicit `0`: autonomous turns continue. A
+negative value must fail configuration validation. The default is `300`.
+Configuration and explicit-zero merge coverage lives in
+`TestStaysOnTriageConfiguration`; real SQLite trip and disabled-brake coverage
+lives in `TestGlobalDBInstanceUnattendedBrake`. The combined product walk remains
+pending until pause side effects and public read fields are integrated.
+
+Pause cancellation coverage: while a read-only check is running, pause the
+instance. The check must stop and its occurrence must finish as `cancelled`,
+without increasing failure streak or adding a failure report. A working turn
+already running must finish. Backend coverage: `TestInstancePauseCancelsCheck`
+uses real SQLite for manual, fatigue, unattended and definition pause reasons;
+`TestInstanceUnattendedPauseDispatch` checks the queue-to-post-commit handoff and
+the selected turn reaching the provider boundary. Goal/Loop coordination and
+the combined public-surface walk remain pending.
+
+Check counter coverage: reported and failed occurrences increment
+`unattended_turns` once at finalization. Quiet and cancelled occurrences do not.
+Replay the same finalized occurrence and verify that it adds neither a count
+nor another pause effect. At the limit, the pause returned to the runtime must
+be the snapshot committed by that finalization. Canonical SQLite coverage:
+`TestInstanceCheckUnattendedCounter` and
+`TestInstanceCheckUnattendedPauseEffects`.
+
+Stays-on hardening F1 web (S1, S4, S7): a brake pause reads "Paused after N steps
+without you." in the hover card and context menu, and "Took N steps without you" on the
+agent's places. The hover card shows "Wakes up next" with the wake's description or kind
+and its time, and for a paused agent how many things wait for resume. With two or more
+agents paused for `unattended` in one scope, the `+N` crew panel offers Resume all,
+which resumes only those, one at a time; one such pause offers none. When the
+`agents.stays_on.max_active_instances` cap refuses some, the panel names them with the
+daemon's reason ("Ops Lead and Release Watch didn't resume. You have 10 active stays-on
+agents. …"); a refused resume leaves the agent paused with its counter unchanged. The agent's What it cost reads
+the token count with "No price available" when usage has no price, never "≈ $0.00" and
+never a plan claim, since the data carries no billing basis.
+Web suites: `stays-on-row.test.tsx`, `agent-instance.test.ts`, `agent-team.test.ts`
+and `agent-profile-home.test.tsx`.
+
+QA verification 2026-11-03 (stays-on hardening B1/F1, soh/qa 583415ef5, isolated acpmock lab): Fail on S4. Passing legs: with `unattended_turn_limit = 3`, a 5-second monitor-timer chain paused `ops-lead` with reason `unattended` after 3 steps, and the next wake was held (`held_wakes: 1`). A human prompt on a paused main ran, kept the pause and reset the counter to 0. `-1` was rejected ("must be nonnegative") with the file unchanged. An explicit `0`, after a restart, let 5 autonomous turns run with the agent active. A reported event check raised `unattended_turns` by 1. CLI and HTTP instance reads match on all 26 fields (`it008-*.json`). The hover card read "Paused after 3 steps without you. · 2 things are waiting for you to resume" (`01b-s1-hover-paused.png`) and "Wakes up next · Re-check the staging deploy, in 15m" (`07-s7-hover-next-wake.png`). What it cost read "154K tokens · No price available" (`11-s11-usage.png`; paper cut: project name clipped with no ellipsis). Fail: the +N panel showed Resume all with two `unattended` agents, but pressing it sent parallel resumes, all but one got 429, no error appeared and the rest stayed paused (`04-s4-resume-all.png`, BUG-20261103-resume-all-rate-limited). Paper cut: a paused Release Watch was ordered under Paused in the overflow rather than Needs you.
+
+Re-walk 2026-11-03 on feat/stays-on-hardening 4056dbcc2 (S4): Pass. BUG-20261103-resume-all-rate-limited is verified fixed. With `max_active_instances = 7`, 6 active and 3 agents paused for `unattended`, Resume all resumed Alpha Watch first. The other two requests, each sent after the previous one finished, returned 429. The panel read "Beta Watch and Ops Lead didn't resume. You have 7 active stays-on agents. Pause one or raise `agents.stays_on.max_active_instances`." (`https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/stays-on-hardening/4056dbcc2/04-s4-resume-all.png`). With `max_active_instances = 20`, all three resumed in sequence (200, 180–214 ms; `https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/stays-on-hardening/4056dbcc2/04b-s4-resume-all-room-for-all.png`, `rewalk-s4-resume-requests.txt`). Paper cuts: the open panel keeps a resumed agent under Needs you and its count until it refetches, and the config key renders with literal backticks.

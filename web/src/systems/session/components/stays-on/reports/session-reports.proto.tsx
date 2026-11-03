@@ -1,4 +1,5 @@
 import { definePrototype, type PrototypeProps } from "@compozy/proto";
+import type { ReactNode } from "react";
 
 import { Button } from "@compozy/ui";
 
@@ -12,7 +13,19 @@ import {
   REPORT_ENGINEER,
   REPORT_TRIAGE,
 } from "../../../mocks/report-fixtures";
+import { SessionReportSendContext } from "../../../lib/session-report-send";
 import { AwayDigest } from "./away-digest";
+import {
+  ContextBlockedReport,
+  ContextFullReport,
+  ContextRotatedNotice,
+  PauseNotice,
+  PauseRecord,
+  ResumeButton,
+  ResumedReceipt,
+  WakeLostReport,
+} from "./pause-reports";
+import { RotatedMarker } from "./rotated-marker";
 import { Notice, SettledAsk, ShoulderTap } from "./report-entry";
 import { SupersededNotice } from "./superseded-notice";
 
@@ -32,6 +45,17 @@ export const meta = definePrototype({
     { id: "interrupted", label: "Interrupted run" },
     { id: "rotation-failed", label: "Rotation failed" },
     { id: "superseded", label: "Superseded, read-only" },
+    { id: "pause", label: "S2 · Paused at the limit" },
+    { id: "pause-resuming", label: "S2 · Resume pending" },
+    { id: "pause-resume-failed", label: "S2 · Resume failed" },
+    { id: "pause-resumed", label: "S2 · After you resume" },
+    { id: "pause-record", label: "S2 · Paused since for another reason" },
+    { id: "away-paused", label: "S3 · Paused while you were away" },
+    { id: "expired-action", label: "S8 · Expired, tool and action" },
+    { id: "wake-lost", label: "A wake-up was lost" },
+    { id: "context-full", label: "Context full" },
+    { id: "context-blocked", label: "Context full, can't move yet" },
+    { id: "context-rotated", label: "Context full, new conversation" },
   ],
 });
 
@@ -50,6 +74,32 @@ function Tap({ chosen, footnote }: { chosen?: string; footnote?: string }) {
     />
   );
 }
+
+function Pause({ pending, failed }: { pending?: boolean; failed?: boolean }) {
+  return (
+    <PauseNotice
+      action={<ResumeButton failed={failed} onResume={() => undefined} pending={pending} />}
+      agent={REPORT_TRIAGE}
+      held={2}
+      steps={300}
+      when="04:12"
+    />
+  );
+}
+
+const PAUSED_AWAY = {
+  ...AWAY_FIXTURE,
+  reports: [
+    ...AWAY_FIXTURE.reports,
+    {
+      id: "arpt-pause",
+      kind: "failure" as const,
+      reason: "unattended",
+      state: "pending" as const,
+      created_at: "2026-11-01T04:12:00Z",
+    },
+  ],
+};
 
 function Settled({ provider = false }: { provider?: boolean }) {
   return (
@@ -74,7 +124,68 @@ function Settled({ provider = false }: { provider?: boolean }) {
   );
 }
 
+function AwayPaused() {
+  const paused = deriveAwayDigest(PAUSED_AWAY, REPORT_TRIAGE.label, AWAY_NOW, [], {
+    held: 2,
+    pausedNow: true,
+  });
+  return paused ? (
+    <AwayDigest
+      action={<ResumeButton onResume={() => undefined} />}
+      agent={REPORT_TRIAGE}
+      digest={paused}
+    />
+  ) : null;
+}
+
+function ExpiredAction() {
+  return (
+    <SettledAsk
+      actions={
+        <Button size="sm" type="button" variant="secondary">
+          Ask it to try again
+        </Button>
+      }
+      agent={REPORT_ENGINEER}
+      outcome="Didn't run"
+      session="Migrate tokens"
+      subject="make migrate"
+      title="Code Engineer's request went unanswered"
+      when="11:30"
+      why="Nobody answered in time, so it wasn't allowed."
+    />
+  );
+}
+
+/** Stays-on hardening: the pause, wake and context states, one small render each. */
+const HARDENING_STATES: Readonly<Record<string, () => ReactNode>> = {
+  pause: () => <Pause />,
+  "pause-resuming": () => <Pause pending />,
+  "pause-resume-failed": () => <Pause failed />,
+  "pause-record": () => <PauseRecord agent={REPORT_TRIAGE} steps={300} when="04:12" />,
+  "pause-resumed": () => <ResumedReceipt agent={REPORT_TRIAGE} />,
+  "away-paused": () => <AwayPaused />,
+  "expired-action": () => <ExpiredAction />,
+  "wake-lost": () => <WakeLostReport agent={REPORT_TRIAGE} detail="CI on #1166" when="03:02" />,
+  "context-full": () => <ContextFullReport agent={REPORT_TRIAGE} when="05:48" />,
+  "context-blocked": () => (
+    <ContextBlockedReport
+      agent={REPORT_TRIAGE}
+      blockers={["live_descendant", "queued_input"]}
+      when="05:48"
+    />
+  ),
+  "context-rotated": () => (
+    <>
+      <ContextRotatedNotice agent={REPORT_TRIAGE} when="05:48" />
+      <RotatedMarker predecessorId="sess-before" />
+    </>
+  ),
+};
+
 function View({ state }: { state?: string }) {
+  const hardening = state ? HARDENING_STATES[state] : undefined;
+  if (hardening) return hardening();
   const digest = deriveAwayDigest(AWAY_FIXTURE, REPORT_TRIAGE.label, AWAY_NOW);
   switch (state) {
     case "proposal-one":
@@ -141,8 +252,10 @@ function View({ state }: { state?: string }) {
 
 export default function SessionReportsProto({ state }: PrototypeProps) {
   return (
-    <ThreadContentRail inset="px-8">
-      <View state={state} />
-    </ThreadContentRail>
+    <SessionReportSendContext value={() => undefined}>
+      <ThreadContentRail inset="px-8">
+        <View state={state} />
+      </ThreadContentRail>
+    </SessionReportSendContext>
   );
 }

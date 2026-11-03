@@ -72,6 +72,10 @@ func (g *GoalRepo) reactivateGoalRunWithExecutor(
 	req looppkg.GoalReactivationRequest,
 	decisions []looppkg.GateDecisionRecord,
 ) (looppkg.GoalReactivationResult, error) {
+	q := sqlcgen.New(exec)
+	if err := releaseInstanceRunPause(ctx, q, string(req.State.LoopRunID)); err != nil {
+		return looppkg.GoalReactivationResult{}, err
+	}
 	current, err := loadGoalReentryRowWithExecutor(ctx, exec, req.State)
 	if err != nil {
 		return looppkg.GoalReactivationResult{}, err

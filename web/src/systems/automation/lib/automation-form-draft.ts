@@ -22,6 +22,7 @@ import {
   createAutomationJobDraft,
   emptyJobTask,
   emptyLoopTarget,
+  AGENT_INSTANCE_TARGET_KIND,
   LOOP_TARGET_KIND,
   retryDraftForStrategy,
 } from "./automation-drafts";
@@ -48,7 +49,7 @@ const WEBHOOK_EVENT = "webhook";
 
 type TriggerOnlyFields = Pick<
   CreateAutomationTriggerRequest,
-  "endpoint_slug" | "webhook_id" | "webhook_secret_value"
+  "endpoint_slug" | "webhook_id" | "webhook_secret_value" | "target_instance_scope"
 >;
 
 /**
@@ -149,6 +150,7 @@ export function automationTriggerToFormDraft(trigger: AutomationTrigger): Automa
   const isWebhook = event.trim() === WEBHOOK_EVENT;
   return {
     ...shared,
+    prompt: shared.prompt ?? "",
     schedule: createAutomationJobDraft().schedule,
     start: isWebhook ? "webhook" : "event",
     event: isWebhook ? DEFAULT_EVENT : event,
@@ -168,6 +170,7 @@ export function automationFormDoes(
   draft: Pick<AutomationFormDraft, "start" | "target_kind" | "task">
 ): AutomationDoes {
   if (draft.start === "schedule" && draft.task) return "task";
+  if (draft.target_kind === AGENT_INSTANCE_TARGET_KIND) return "stays-on";
   return automationTargetMode(draft) === "loop" ? "loop" : "agent";
 }
 
@@ -188,6 +191,11 @@ export function setAutomationFormStart(
   const next: AutomationFormDraft = { ...draft, start };
   if (start !== "schedule" && next.task) {
     next.task = undefined;
+  }
+  // Scheduled jobs cannot reach a stays-on agent; they ask the agent instead.
+  if (start === "schedule" && next.target_kind === AGENT_INSTANCE_TARGET_KIND) {
+    next.target_kind = "agent";
+    next.target_instance_scope = undefined;
   }
   if (start !== "schedule") {
     const def = getEventDef(parseEventSelection(automationFormEvent(next)).catalogId);
@@ -219,9 +227,19 @@ export function setAutomationFormDoes(
       loop_target: draft.loop_target ?? emptyLoopTarget(loopWorkspaceId),
     };
   }
+  if (does === "stays-on") {
+    return {
+      ...draft,
+      task: undefined,
+      target_kind: AGENT_INSTANCE_TARGET_KIND,
+      target_instance_scope: draft.target_instance_scope ?? "",
+      loop_target: undefined,
+    };
+  }
   const agentDraft: AutomationFormDraft = {
     ...draft,
     target_kind: "agent",
+    target_instance_scope: undefined,
     loop_target: undefined,
   };
   if (does === "task" && draft.start === "schedule") {
@@ -252,24 +270,46 @@ export function automationFormJobDraft(draft: AutomationFormDraft): CreateAutoma
   };
 }
 
-/** The trigger create draft; a link start is always in User and carries its identity. */
+/**
+ * Whether a link start keeps the automation's project. Links live in User, except when they tell a
+ * stays-on agent: the daemon resolves that instance in the trigger's own scope, and accepts
+ * project links at `/api/webhooks/workspaces/{workspace_id}/…`.
+ */
+export function automationLinkKeepsScope(
+  draft: Pick<AutomationFormDraft, "start" | "target_kind">
+): boolean {
+  return draft.start === "webhook" && draft.target_kind === AGENT_INSTANCE_TARGET_KIND;
+}
+
+/** Where the automation saves: a plain link start is always in User. */
+export function automationFormScope(
+  draft: Pick<AutomationFormDraft, "start" | "target_kind" | "scope">
+): AutomationFormDraft["scope"] {
+  return draft.start === "webhook" && !automationLinkKeepsScope(draft) ? "global" : draft.scope;
+}
+
+/** The trigger create draft; a link start carries its identity and lives in User unless it keeps its project. */
 export function automationFormTriggerDraft(
   draft: AutomationFormDraft
 ): CreateAutomationTriggerRequest {
   const isWebhook = draft.start === "webhook";
+  const scope = automationFormScope(draft);
   return {
     name: draft.name,
     agent_name: draft.agent_name,
     prompt: draft.prompt,
     event: automationFormEvent(draft),
     filter: automationConditionsFilter(draft.conditions),
-    scope: isWebhook ? "global" : draft.scope,
+    scope,
     target_kind: draft.target_kind,
     loop_target: draft.loop_target,
-    workspace_id: isWebhook ? undefined : draft.workspace_id,
+    workspace_id: scope === "global" ? undefined : draft.workspace_id,
     enabled: draft.enabled,
     retry: draft.retry,
     fire_limit: draft.fire_limit,
+    ...(draft.target_kind === AGENT_INSTANCE_TARGET_KIND
+      ? { target_instance_scope: draft.target_instance_scope ?? "" }
+      : {}),
     ...(isWebhook
       ? {
           endpoint_slug: draft.endpoint_slug,

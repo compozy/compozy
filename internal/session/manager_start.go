@@ -167,6 +167,7 @@ func (s *sessionStartSpec) startupSessionContext(updatedAt time.Time) hookspkg.S
 func (s *sessionStartSpec) startupPromptContext(updatedAt time.Time) StartupPromptContext {
 	ref := workref.NewRoot(s.workspace.ID, s.workspace.RootDir)
 	return StartupPromptContext{
+		InstanceID:   s.instanceID,
 		SessionID:    strings.TrimSpace(s.sessionID),
 		ProfileID:    strings.TrimSpace(s.profileID),
 		SessionName:  strings.TrimSpace(s.sessionName),

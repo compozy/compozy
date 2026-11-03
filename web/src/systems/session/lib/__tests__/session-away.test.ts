@@ -54,6 +54,61 @@ describe("deriveAwayDigest", () => {
     expect(digest?.foldedIds.has("p1")).toBe(false);
   });
 
+  it("Should say it paused, when, and what's waiting [UT-080]", () => {
+    const pause = {
+      ...report("u1", "failure", "2026-11-01T04:12:00Z"),
+      reason: "unattended",
+    };
+    const digest = deriveAwayDigest(
+      { ...AWAY, reports: [...AWAY.reports, pause] },
+      "Triage Lead",
+      NOW,
+      [],
+      { held: 2, pausedNow: true }
+    );
+    expect(digest?.paused).toBe(true);
+    expect(digest?.headline).toBe("Nine hours of work, then it paused.");
+    expect(digest?.summary).toMatch(
+      /^Triage Lead reached its limit at \d\d:\d\d\. 2 things are waiting\.$/
+    );
+    expect(digest?.events.find(event => event.id === "u1")?.title).toBe(
+      "It paused until you're back"
+    );
+  });
+
+  it("Should tell a resumed pause in the past tense, with no Resume [FE-5]", () => {
+    const pause = {
+      ...report("u1", "failure", "2026-11-01T04:12:00Z"),
+      reason: "unattended",
+    };
+    const digest = deriveAwayDigest(
+      { ...AWAY, reports: [...AWAY.reports, pause] },
+      "Triage Lead",
+      NOW,
+      [],
+      { held: 0, pausedNow: false }
+    );
+    expect(digest?.paused).toBe(false);
+    expect(digest?.headline).not.toMatch(/then it paused/);
+    expect(digest?.summary).toMatch(/It paused at \d\d:\d\d, then you resumed it\.$/);
+  });
+
+  it("Should tell a lost wake apart from an interrupted approval", () => {
+    const lost = { ...report("w1", "interrupted", "2026-11-01T03:02:00Z"), cause: "undelivered" };
+    const restart = {
+      ...report("r1", "interrupted", "2026-11-01T03:10:00Z"),
+      cause: "daemon_restart",
+    };
+    const digest = deriveAwayDigest(
+      { ...AWAY, reports: [...AWAY.reports, lost, restart] },
+      "Triage Lead",
+      NOW
+    );
+    const title = (id: string) => digest?.events.find(event => event.id === id)?.title;
+    expect(title("w1")).toBe("A wake-up didn't arrive");
+    expect(title("r1")).toBe("Some work stopped");
+  });
+
   it("Should stay away after a short absence", () => {
     expect(
       deriveAwayDigest(

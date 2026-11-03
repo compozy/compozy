@@ -1405,3 +1405,80 @@ func TestAgentDraftCommand(t *testing.T) {
 		}
 	})
 }
+
+// Invariant: CLI decisions bind the shown digest, and explicit digests remain authoritative.
+// Owning layer: CLI transport; canonical suite: TestAgentSkillReviewCommands.
+func TestAgentSkillReviewCommands(t *testing.T) {
+	for _, action := range []string{"list", "show", "approve", "reject"} {
+		t.Run("Should forward skill review "+action, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if action == "list" {
+					if r.Method != "GET" || r.URL.Path != "/api/agent-skill-reviews" ||
+						r.URL.Query().Get("state") != "pending" ||
+						r.URL.Query().Get("limit") != "2" {
+						t.Errorf("list request: %s %s", r.Method, r.URL)
+					}
+					if _, err := io.WriteString(w, `{"reviews":[],"next_cursor":"next"}`); err != nil {
+						t.Error(err)
+					}
+					return
+				}
+				if r.Method == "POST" {
+					if r.URL.Path != "/api/agent-skill-reviews/skr-test/"+action {
+						t.Errorf("decision path: %s", r.URL)
+					}
+					var input contract.AgentSkillReviewDecisionRequest
+					if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+						t.Error(err)
+					}
+					want := "sha256:shown"
+					if action == "reject" {
+						want = "sha256:expected"
+					}
+					if input.Digest != want {
+						t.Errorf("digest: %s", input.Digest)
+					}
+				} else if r.URL.Path != "/api/agent-skill-reviews/skr-test" {
+					t.Errorf("read path: %s", r.URL)
+				}
+				if _, err := io.WriteString(
+					w,
+					`{"review":{"id":"skr-test","name":"review","state":"pending","digest":"sha256:shown","runs_automatically":{"hooks":0,"mcp_servers":0,"scripts":1},"files":[{"path":"SKILL.md","content":"Review changes."}]}}`,
+				); err != nil {
+					t.Error(err)
+				}
+			}))
+			t.Cleanup(server.Close)
+			target, err := url.Parse(server.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
+				httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+					r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+					return server.Client().Transport.RoundTrip(r)
+				})},
+			}
+			args := []string{"agent", "skill", "review", action}
+			if action == "list" {
+				args = append(args, "--workspace", "@user", "--state", "pending", "--limit", "2")
+			} else {
+				args = append(args, "skr-test")
+			}
+			if action == "reject" {
+				args = append(args, "--expected-digest", "sha256:expected")
+			}
+			output, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if action == "show" &&
+				(!strings.Contains(output, "Runs automatically") || !strings.Contains(output, "Review changes.")) {
+				t.Fatalf("review: %s", output)
+			}
+		})
+	}
+}

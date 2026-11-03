@@ -23,10 +23,12 @@ var (
 
 // AgentDefinitionDraft captures the simple AGENT.md fields supported by authoring surfaces.
 type AgentDefinitionDraft struct {
-	DisplayName string         `json:"display_name,omitempty" yaml:"display_name,omitempty" toml:"display_name,omitempty"`
-	Description string         `json:"description,omitempty"  yaml:"description,omitempty"  toml:"description,omitempty"`
-	Kind        string         `json:"kind,omitempty"         yaml:"kind,omitempty"         toml:"kind,omitempty"`
-	Appearance  map[string]any `json:"appearance,omitempty"   yaml:"appearance,omitempty"   toml:"appearance,omitempty"`
+	SessionApproval string
+	PermissionRules []PermissionRule
+	DisplayName     string         `json:"display_name,omitempty" yaml:"display_name,omitempty" toml:"display_name,omitempty"`
+	Description     string         `json:"description,omitempty"  yaml:"description,omitempty"  toml:"description,omitempty"`
+	Kind            string         `json:"kind,omitempty"         yaml:"kind,omitempty"         toml:"kind,omitempty"`
+	Appearance      map[string]any `json:"appearance,omitempty"   yaml:"appearance,omitempty"   toml:"appearance,omitempty"`
 
 	WorkspaceAccess string
 	Name            string
@@ -118,6 +120,8 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 		DenyTools:       trimAgentDefinitionAtoms(draft.DenyTools),
 		Permissions:     strings.TrimSpace(draft.Permissions),
 		WorkspaceAccess: draft.WorkspaceAccess,
+		SessionApproval: draft.SessionApproval,
+		PermissionRules: append([]PermissionRule(nil), draft.PermissionRules...),
 		Skills:          AgentSkillsConfig{Disabled: trimAgentDefinitionAtoms(draft.Skills.Disabled)},
 		CategoryPath:    trimAgentDefinitionAtoms(draft.CategoryPath),
 		MCPServers:      cloneMCPServers(draft.MCPServers),
@@ -182,6 +186,8 @@ func AgentDefinitionDraftFromDef(agent AgentDef) AgentDefinitionDraft {
 		DenyTools:       cloneStrings(canonical.DenyTools),
 		Permissions:     canonical.Permissions,
 		WorkspaceAccess: canonical.WorkspaceAccess,
+		SessionApproval: canonical.SessionApproval,
+		PermissionRules: append([]PermissionRule(nil), canonical.PermissionRules...),
 		Skills:          normalizeAgentSkillsConfig(canonical.Skills),
 		CategoryPath:    cloneStrings(canonical.CategoryPath),
 		MCPServers:      cloneMCPServers(canonical.MCPServers),

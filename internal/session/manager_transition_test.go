@@ -424,7 +424,7 @@ func TestPermissionInteractionPayloadShouldPreserveCanonicalToolID(t *testing.T)
 		Raw: []byte(`{
 			"tool_id":"compozy__terminal_exec",
 			"options":[{"decision":"allow-once"}],
-			"tool_call":{"title":"Terminal Exec"}
+			"tool_call":{"title":"Terminal Exec","kind":"execute"}
 		}`),
 	})
 	if got, want := title, "Terminal Exec"; got != want {
@@ -435,6 +435,9 @@ func TestPermissionInteractionPayloadShouldPreserveCanonicalToolID(t *testing.T)
 	}
 	if got, want := payload.Decisions, []string{"allow-once"}; !slices.Equal(got, want) {
 		t.Fatalf("decisions = %#v, want %#v", got, want)
+	}
+	if got, want := payload.ToolKind, "execute"; got != want {
+		t.Fatalf("tool kind = %q, want %q", got, want)
 	}
 }
 
@@ -739,12 +742,14 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 	t.Run("Should atomically resolve an orphaned permission and preserve the first winner", func(t *testing.T) {
 		t.Parallel()
 
-		_, restarted, catalog, sessionID := newOrphanResolutionHarness(
+		h, restarted, catalog, sessionID := newOrphanResolutionHarness(
 			t,
 			store.PendingInteractionKindPermission,
 			store.PendingInteractionPayload{Decisions: []string{"allow-once", "reject-once"}},
 		)
-		ctx := WithActingSession(testutil.Context(t), "sess-creator")
+		creator := createSession(t, h)
+		registerManagerInputQueueSession(t, catalog, h, creator)
+		ctx := WithActingSession(testutil.Context(t), creator.ID)
 		result, err := restarted.ApprovePermission(ctx, sessionID, acp.ApproveRequest{
 			RequestID: "request-orphan",
 			Decision:  "allow-once",
@@ -757,6 +762,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			t.Fatalf("ApprovePermission(orphan) = %#v", result)
 		}
 		assertOrphanResolutionQueue(t, catalog, sessionID, "Response: allow-once")
+		assertOrphanContinuationOrigin(t, catalog, sessionID, creator.ID)
 		resolved, err := catalog.ListPendingInteractions(
 			ctx,
 			sessionID,
@@ -765,7 +771,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListPendingInteractions() error = %v", err)
 		}
-		if len(resolved) != 1 || resolved[0].ResolvedBy != "agent_session:sess-creator" {
+		if len(resolved) != 1 || resolved[0].ResolvedBy != "agent_session:"+creator.ID {
 			t.Fatalf("resolved interaction = %#v, want acting session", resolved)
 		}
 
@@ -845,7 +851,9 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			store.PendingInteractionKindClarify,
 			store.PendingInteractionPayload{Choices: []string{"Fast", "Safe"}},
 		)
-		ctx := WithActingSession(testutil.Context(t), "sess-creator")
+		creator := createSession(t, h)
+		registerManagerInputQueueSession(t, catalog, h, creator)
+		ctx := WithActingSession(testutil.Context(t), creator.ID)
 		choice := 1
 		result, err := restarted.ResolveOrphanedClarification(
 			ctx,
@@ -874,7 +882,8 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListPendingInteractions() error = %v", err)
 		}
-		if len(resolved) != 1 || resolved[0].ResolvedBy != "agent_session:sess-creator" {
+		assertOrphanContinuationOrigin(t, catalog, sessionID, creator.ID)
+		if len(resolved) != 1 || resolved[0].ResolvedBy != "agent_session:"+creator.ID {
 			t.Fatalf("resolved interaction = %#v, want acting session", resolved)
 		}
 
@@ -2535,6 +2544,20 @@ func newOrphanResolutionHarness(
 		t.Fatalf("RecoverPendingInteractions() = %d, want 1", orphaned)
 	}
 	return h, restarted, catalog, target.ID
+}
+
+// assertOrphanContinuationOrigin proves an agent's orphan answer is queued as that agent's input, so a paused
+// lineage holds it, it never resets the unattended counter, and a child it spawns is not human provenance.
+func assertOrphanContinuationOrigin(t *testing.T, queueStore store.SessionInputQueueStore, sessionID, actorID string) {
+	t.Helper()
+	entries, err := queueStore.ListPendingSessionInputs(testutil.Context(t), sessionID)
+	if err != nil {
+		t.Fatalf("ListPendingSessionInputs() error = %v", err)
+	}
+	if len(entries) != 1 || entries[0].OriginClass != store.SessionInputOriginClassAgent ||
+		entries[0].OriginSessionID != actorID || entries[0].HumanIngress {
+		t.Fatalf("orphan continuation = %+v, want agent input from %s", entries, actorID)
+	}
 }
 
 func assertOrphanResolutionQueue(

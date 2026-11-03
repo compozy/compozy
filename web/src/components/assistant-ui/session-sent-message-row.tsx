@@ -4,7 +4,7 @@ import { use } from "react";
 import { SessionSentCard } from "@/systems/session/components/session-messages/session-sent-card";
 import type { SessionSentReplyState } from "@/systems/session/components/session-messages/session-sent-card";
 import { SessionMessageReplyTo } from "@/systems/session/components/session-messages/session-message-reply-to";
-import { useSessionLabel } from "@/systems/session/components/session-messages/use-session-label";
+import { useSessionSentTarget } from "@/systems/session/hooks/use-session-sent-target";
 import { useSessionMessageOpen } from "@/systems/session/components/session-messages/use-session-message-open";
 import { useSessionRuntimeRenderContext } from "@/systems/session/hooks/use-session-runtime-render-context";
 import {
@@ -26,6 +26,18 @@ import { isRecord, stringField } from "@/systems/session/lib/timeline-message-pa
 import type { SessionSentMessageRow } from "./session-timeline-rows";
 
 const NO_MESSAGES: readonly never[] = [];
+
+/**
+ * `delivery: held` is the send result, so the chip stays only while it is still true: the target
+ * agent is paused and has not answered yet.
+ */
+function sentStillHeld(
+  part: SessionSentMessagePart,
+  targetPaused: boolean,
+  reply: SessionSentReplyState
+) {
+  return part.held && targetPaused && (reply === "none" || reply === "waiting");
+}
 
 function firstLine(text: string): string {
   return (
@@ -88,11 +100,10 @@ export function SessionSentMessageRowView({ row }: { row: SessionSentMessageRow 
   const messages = use(SessionTranscriptMessagesContext) ?? NO_MESSAGES;
   const onOpen = useSessionMessageOpen();
   const part = sessionSentMessagePart(row.part.name, row.part.data);
-  const target = useSessionLabel({
+  const { target, paused } = useSessionSentTarget({
     sessionId: part?.targetSessionId ?? "",
     workspaceId: part?.targetWorkspaceId ?? "",
     currentWorkspaceId: context?.workspaceId ?? "",
-    agentName: null,
   });
   if (!part) return null;
   // One card per call: a later message that also holds its part draws it (#742).
@@ -121,6 +132,7 @@ export function SessionSentMessageRowView({ row }: { row: SessionSentMessageRow 
         }
         timestampMs={Number.isNaN(timestamp) ? null : timestamp}
         onOpenTarget={onOpen}
+        held={sentStillHeld(part, paused, reply)}
       />
     </div>
   );

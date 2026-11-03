@@ -277,6 +277,7 @@ func (h *BaseHandlers) providerSummaryPayload(
 		return contract.ProviderSummaryPayload{}, err
 	}
 	return contract.ProviderSummaryPayload{
+		ReviewerMode:     provider.ReviewerMode,
 		SessionEnvStatus: sessionEnvStatusPayloads(sessionEnv),
 		Name:             providerName,
 		DisplayName:      strings.TrimSpace(provider.DisplayName),

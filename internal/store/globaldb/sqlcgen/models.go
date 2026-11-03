@@ -91,6 +91,24 @@ type AgentInstance struct {
 	ArchivedAt        sql.NullString `json:"archived_at"`
 }
 
+type AgentInstanceEvent struct {
+	ID           string         `json:"id"`
+	InstanceID   string         `json:"instance_id"`
+	TriggerID    string         `json:"trigger_id"`
+	RunID        string         `json:"run_id"`
+	Summary      string         `json:"summary"`
+	ReceivedAt   string         `json:"received_at"`
+	ConsumedAt   sql.NullString `json:"consumed_at"`
+	OccurrenceID sql.NullString `json:"occurrence_id"`
+}
+
+type AgentInstancePausedRun struct {
+	InstanceID string `json:"instance_id"`
+	RunKind    string `json:"run_kind"`
+	RunID      string `json:"run_id"`
+	PausedAt   string `json:"paused_at"`
+}
+
 type AgentInstanceReport struct {
 	ID                string         `json:"id"`
 	InstanceID        string         `json:"instance_id"`
@@ -126,12 +144,32 @@ type AgentInstanceWakeState struct {
 	LastDigest          string `json:"last_digest"`
 	LastDigestAt        string `json:"last_digest_at"`
 	AutomationCursor    string `json:"automation_cursor"`
+	UnattendedTurns     int64  `json:"unattended_turns"`
+	EngagedAt           string `json:"engaged_at"`
+	EventsOmitted       int64  `json:"events_omitted"`
 	QuietStreak         int64  `json:"quiet_streak"`
 	FailureStreak       int64  `json:"failure_streak"`
 	OccurrenceID        string `json:"occurrence_id"`
 	TriageSessionID     string `json:"triage_session_id"`
 	OccurrenceStartedAt string `json:"occurrence_started_at"`
+	RotationDueSession  string `json:"rotation_due_session"`
 	OccurrenceCancelled int64  `json:"occurrence_cancelled"`
+}
+
+type AgentSkillReview struct {
+	ID              string         `json:"id"`
+	InstanceID      string         `json:"instance_id"`
+	ProfileID       string         `json:"profile_id"`
+	WorkspaceID     string         `json:"workspace_id"`
+	AgentName       string         `json:"agent_name"`
+	SkillName       string         `json:"skill_name"`
+	Digest          string         `json:"digest"`
+	State           string         `json:"state"`
+	DraftPath       string         `json:"draft_path"`
+	SourceSessionID sql.NullString `json:"source_session_id"`
+	DecidedBy       string         `json:"decided_by"`
+	CreatedAt       string         `json:"created_at"`
+	DecidedAt       sql.NullString `json:"decided_at"`
 }
 
 type AgentSoulRevision struct {
@@ -297,30 +335,31 @@ type AutomationSuggestion struct {
 }
 
 type AutomationTrigger struct {
-	GrantCeiling     string         `json:"grant_ceiling"`
-	ID               string         `json:"id"`
-	ProfileID        string         `json:"profile_id"`
-	Scope            string         `json:"scope"`
-	Name             string         `json:"name"`
-	AgentName        string         `json:"agent_name"`
-	WorkspaceID      sql.NullString `json:"workspace_id"`
-	Prompt           string         `json:"prompt"`
-	Event            string         `json:"event"`
-	Filter           sql.NullString `json:"filter"`
-	Enabled          bool           `json:"enabled"`
-	Retry            string         `json:"retry"`
-	FireLimit        string         `json:"fire_limit"`
-	Source           string         `json:"source"`
-	WebhookID        sql.NullString `json:"webhook_id"`
-	EndpointSlug     sql.NullString `json:"endpoint_slug"`
-	WebhookSecretRef sql.NullString `json:"webhook_secret_ref"`
-	TargetKind       string         `json:"target_kind"`
-	LoopWorkspaceID  sql.NullString `json:"loop_workspace_id"`
-	LoopName         sql.NullString `json:"loop_name"`
-	LoopInputs       sql.NullString `json:"loop_inputs"`
-	LoopInputMapping sql.NullString `json:"loop_input_mapping"`
-	CreatedAt        string         `json:"created_at"`
-	UpdatedAt        string         `json:"updated_at"`
+	GrantCeiling        string         `json:"grant_ceiling"`
+	ID                  string         `json:"id"`
+	ProfileID           string         `json:"profile_id"`
+	Scope               string         `json:"scope"`
+	Name                string         `json:"name"`
+	AgentName           string         `json:"agent_name"`
+	WorkspaceID         sql.NullString `json:"workspace_id"`
+	Prompt              string         `json:"prompt"`
+	Event               string         `json:"event"`
+	Filter              sql.NullString `json:"filter"`
+	Enabled             bool           `json:"enabled"`
+	Retry               string         `json:"retry"`
+	FireLimit           string         `json:"fire_limit"`
+	Source              string         `json:"source"`
+	WebhookID           sql.NullString `json:"webhook_id"`
+	EndpointSlug        sql.NullString `json:"endpoint_slug"`
+	WebhookSecretRef    sql.NullString `json:"webhook_secret_ref"`
+	TargetKind          string         `json:"target_kind"`
+	TargetInstanceScope string         `json:"target_instance_scope"`
+	LoopWorkspaceID     sql.NullString `json:"loop_workspace_id"`
+	LoopName            sql.NullString `json:"loop_name"`
+	LoopInputs          sql.NullString `json:"loop_inputs"`
+	LoopInputMapping    sql.NullString `json:"loop_input_mapping"`
+	CreatedAt           string         `json:"created_at"`
+	UpdatedAt           string         `json:"updated_at"`
 }
 
 type AutomationTriggerCatalogEntry struct {
@@ -1662,6 +1701,7 @@ type SessionInputQueue struct {
 	OriginSessionID          string         `json:"origin_session_id"`
 	MentionsJson             string         `json:"mentions_json"`
 	HumanIngress             int64          `json:"human_ingress"`
+	UnattendedCounted        int64          `json:"unattended_counted"`
 }
 
 type SessionMonitor struct {

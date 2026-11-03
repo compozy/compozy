@@ -31,6 +31,9 @@ const (
 )
 
 type NotifyRequest struct {
+	Kind        string
+	Action      string
+	Resource    string
 	SessionID   string
 	ProfileID   string
 	WorkspaceID string
@@ -44,6 +47,9 @@ type NotifyResult struct {
 }
 
 type OperatorNotification struct {
+	Kind           string
+	Action         string
+	Resource       string
 	NotificationID string
 	SessionID      string
 	ProfileID      string
@@ -74,6 +80,12 @@ func (m *Manager) PublishOperatorNotification(
 	ctx context.Context,
 	req NotifyRequest,
 ) (NotifyResult, error) {
+	return m.publishOperatorNotification(ctx, req, true)
+}
+
+func (m *Manager) publishOperatorNotification(
+	ctx context.Context, req NotifyRequest, rateLimit bool,
+) (NotifyResult, error) {
 	if m == nil {
 		return NotifyResult{}, errors.New("session: manager is required")
 	}
@@ -99,7 +111,11 @@ func (m *Manager) PublishOperatorNotification(
 		return NotifyResult{}, fmt.Errorf("session: read attention workspace mute: %w", err)
 	}
 	m.notifyMu.Lock()
-	if retryAfter := m.notificationRetryAfterLocked(notification.SessionID, notification.At); retryAfter > 0 {
+	if retryAfter := m.notificationRetryAfterLocked(
+		notification.SessionID,
+		notification.At,
+	); rateLimit &&
+		retryAfter > 0 {
 		m.notifyMu.Unlock()
 		result := NotifyResult{
 			Outcome: NotifyOutcomeRateLimited, RetryAfterMS: retryAfter.Milliseconds(),
@@ -169,6 +185,8 @@ func (m *Manager) sanitizedOperatorNotification(req NotifyRequest) (OperatorNoti
 		return OperatorNotification{}, errors.New("session: generated operator notification id is empty")
 	}
 	return OperatorNotification{
+		Kind:   req.Kind,
+		Action: notificationDetail(req.Action), Resource: notificationDetail(req.Resource),
 		NotificationID: notificationID,
 		SessionID:      sessionID, ProfileID: profileID, WorkspaceID: workspaceID,
 		Title: title, Body: body, At: m.now().UTC(),
@@ -213,4 +231,13 @@ func (m *Manager) logNotificationOutcome(
 
 func invalidNotification(field string, detail string) error {
 	return fmt.Errorf("%w: %s %s", ErrInvalidNotification, field, detail)
+}
+
+func notificationDetail(value string) string {
+	value = sanitizeNotificationText(value)
+	runes := []rune(value)
+	if len(runes) > NotificationBodyMaxChars {
+		return string(runes[:NotificationBodyMaxChars])
+	}
+	return value
 }

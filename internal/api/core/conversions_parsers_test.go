@@ -32,6 +32,27 @@ func testEventSummaryWithContent(summary store.EventSummary, content json.RawMes
 func TestSessionPayloadFromInfo(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should expose effective permission degradation", func(t *testing.T) {
+		t.Parallel()
+		payload := core.SessionPayloadFromInfo(&session.Info{
+			ID: "degraded", EffectivePermissions: "approve-edits", PermissionModeDegraded: true,
+		})
+		if payload.EffectivePermissions != "approve-edits" || !payload.PermissionModeDegraded {
+			t.Fatalf("permission payload=%+v", payload)
+		}
+		data, err := json.Marshal(payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wire map[string]any
+		if err := json.Unmarshal(data, &wire); err != nil {
+			t.Fatal(err)
+		}
+		if wire["effective_permissions"] != "approve-edits" || wire["permission_mode_degraded"] != true {
+			t.Fatalf("permission wire payload=%s", data)
+		}
+	})
+
 	t.Run("Should expose waiting reasons only for the final waiting badge", func(t *testing.T) {
 		t.Parallel()
 		info := &session.Info{

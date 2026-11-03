@@ -4,11 +4,118 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// QueryTerminalJournal Query terminal command history
+func (c *Client) QueryTerminalJournal(ctx context.Context, params QueryTerminalJournalParams) (*TerminalJournalResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/journal"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	query := url.Values{}
+	if params.Actor != nil {
+		query.Set("actor", *params.Actor)
+	}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Failed != nil {
+		query.Set("failed", strconv.FormatBool(*params.Failed))
+	}
+	if params.TerminalID != nil {
+		query.Set("terminal_id", *params.TerminalID)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalJournalResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReadSessionAttachmentBytesParams carries the path, query, and header parameters.
+type ReadSessionAttachmentBytesParams struct {
+	WorkspaceID  string `url:"workspace_id"`
+	SessionID    string `url:"session_id"`
+	AttachmentID string `url:"attachment_id"`
+}
+
+// ReadSessionAttachmentBytes Read session attachment bytes
+func (c *Client) ReadSessionAttachmentBytes(ctx context.Context, params ReadSessionAttachmentBytesParams) (*[]byte, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/attachments/{attachment_id}/bytes"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	path = strings.ReplaceAll(path, "{attachment_id}", url.PathEscape(params.AttachmentID))
+	var out []byte
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", "*/*"); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReadTaskRunResultParams carries the path, query, and header parameters.
+type ReadTaskRunResultParams struct {
+	ID          string  `url:"id"`
+	Offset      *int    `url:"offset"`
+	Limit       *int    `url:"limit"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// ReadTaskRunResult Read one exact byte page from a task-run result
+func (c *Client) ReadTaskRunResult(ctx context.Context, params ReadTaskRunResultParams) (*TaskRunResultPageResponse, error) {
+	path := "/api/task-runs/{id}/result"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Offset != nil {
+		query.Set("offset", strconv.Itoa(*params.Offset))
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskRunResultPageResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReadTerminalParams carries the path, query, and header parameters.
+type ReadTerminalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	View        *string `url:"view"`
+	MaxBytes    *int    `url:"max_bytes"`
+	Grep        *string `url:"grep"`
+	SinceSeq    *string `url:"since_seq"`
+	From        *int    `url:"from"`
+	To          *int    `url:"to"`
+	Profile     *string `url:"profile"`
+}
 
 // ReadTerminal Read bounded untrusted terminal output
 func (c *Client) ReadTerminal(ctx context.Context, params ReadTerminalParams) (*TerminalReadResponse, error) {
@@ -311,15 +418,15 @@ func (c *Client) RegisterWindowManagerClient(ctx context.Context, params Registe
 	return &out, nil
 }
 
-// RejectTaskParams carries the path, query, and header parameters.
-type RejectTaskParams struct {
+// RejectAgentSkillReviewParams carries the path, query, and header parameters.
+type RejectAgentSkillReviewParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
 }
 
-// RejectTask Reject one approval-gated task
-func (c *Client) RejectTask(ctx context.Context, params RejectTaskParams) (*TaskResponse, error) {
-	path := "/api/tasks/{id}/reject"
+// RejectAgentSkillReview Decide a skill review as the operator (experimental)
+func (c *Client) RejectAgentSkillReview(ctx context.Context, params RejectAgentSkillReviewParams, body AgentSkillReviewDecisionRequest) (*AgentSkillReviewResponse, error) {
+	path := "/api/agent-skill-reviews/{id}/reject"
 	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
 	query := url.Values{}
 	if params.Profile != nil {
@@ -328,103 +435,15 @@ func (c *Client) RejectTask(ctx context.Context, params RejectTaskParams) (*Task
 	if len(query) > 0 {
 		path += "?" + query.Encode()
 	}
-	var out TaskResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RejectTerminalInputRequestParams carries the path, query, and header parameters.
-type RejectTerminalInputRequestParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ID          string  `url:"id"`
-	RequestID   string  `url:"request_id"`
-	Profile     *string `url:"profile"`
-}
-
-// RejectTerminalInputRequest Reject one terminal input request
-func (c *Client) RejectTerminalInputRequest(ctx context.Context, params RejectTerminalInputRequestParams, body TerminalRejectInputRequest) (*TerminalInputRejectResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals/{id}/input-requests/{request_id}/reject"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	path = strings.ReplaceAll(path, "{request_id}", url.PathEscape(params.RequestID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalInputRejectResponse
+	var out AgentSkillReviewResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// ReleaseAgentTaskRunParams carries the path, query, and header parameters.
-type ReleaseAgentTaskRunParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-	RunID             string `url:"run_id"`
-}
-
-// ReleaseAgentTaskRun Release a claimed task run for the calling agent
-func (c *Client) ReleaseAgentTaskRun(ctx context.Context, params ReleaseAgentTaskRunParams, body AgentTaskReleaseRequest) (*AgentTaskLeaseResponse, error) {
-	path := "/api/agent/tasks/{run_id}/release"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	var out AgentTaskLeaseResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReloadDevExtensionParams carries the path, query, and header parameters.
-type ReloadDevExtensionParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// ReloadDevExtension Reload a workspace extension from an immutable generation
-func (c *Client) ReloadDevExtension(ctx context.Context, params ReloadDevExtensionParams, body ReloadExtensionRequest) (*ExtensionResponse, error) {
-	path := "/api/extensions/{name}/reload"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ReloadSettings Reconcile config.toml with the daemon active generation
-func (c *Client) ReloadSettings(ctx context.Context) (*SettingsApplyResponse, error) {
-	path := "/api/settings/reload"
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// RemoveAgentMemoryParams carries the path, query, and header parameters.
-type RemoveAgentMemoryParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
+// RejectTaskParams carries the path, query, and header parameters.
+type RejectTaskParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
 }

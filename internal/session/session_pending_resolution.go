@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -40,7 +41,11 @@ func (m *Manager) ApprovePermission(
 	if ctx == nil {
 		return ApprovalResult{}, errors.New("session: approval context is required")
 	}
-	if err := req.Validate(); err != nil {
+	if err := AuthorizeSessionApproval(ctx, actingSessionID(ctx), id, m.Status, m.workspaceAccessPolicy()); err != nil {
+		return ApprovalResult{}, err
+	}
+	req, err := m.bindApprovalActor(ctx, req)
+	if err != nil {
 		return ApprovalResult{}, err
 	}
 	target := strings.TrimSpace(id)
@@ -98,6 +103,22 @@ func (m *Manager) ApprovePermission(
 		RequestID: identity,
 		Decision:  strings.TrimSpace(req.Decision),
 	}, nil
+}
+
+// bindApprovalActor validates the request and makes a trusted acting session the decision's actor on every
+// transport; an empty actor would otherwise be recorded as operator engagement and reset the lineage's
+// unattended counter. A stays-on actor's "always" answer is narrowed to once so it leaves no durable grant.
+func (m *Manager) bindApprovalActor(ctx context.Context, req acp.ApproveRequest) (acp.ApproveRequest, error) {
+	if err := req.Validate(); err != nil {
+		return acp.ApproveRequest{}, err
+	}
+	req.ResolvedBy = resolvedByFromContext(ctx, req.ResolvedBy)
+	decision, err := StaysOnApprovalDecision(ctx, actingSessionID(ctx), req.Decision, m.Status)
+	if err != nil {
+		return acp.ApproveRequest{}, err
+	}
+	req.Decision = decision
+	return req, nil
 }
 
 func approvalError(sessionID string, err error) error {
@@ -254,6 +275,9 @@ func (m *Manager) resolveOrphanedInteraction(
 		if err != nil {
 			return PendingInteractionResolution{}, err
 		}
+		if insert.Origin, err = m.orphanAnswerOrigin(ctx); err != nil {
+			return PendingInteractionResolution{}, err
+		}
 		transition.OrphanInput = &insert
 	}
 	commit, err := m.transitionPendingInteraction(ctx, transition)
@@ -277,6 +301,24 @@ func (m *Manager) resolveOrphanedInteraction(
 		RequestID:     resolved.ProviderRequestID,
 		Resolution:    resolved.Resolution,
 	}, nil
+}
+
+// orphanAnswerOrigin attributes an agent's orphan answer to that agent, so its continuation is queued as
+// agent input: held while the lineage is paused, counted rather than resetting the brake, and never human
+// provenance for a child it spawns. Only an operator answer, with no acting session, stays human input.
+func (m *Manager) orphanAnswerOrigin(ctx context.Context) (json.RawMessage, error) {
+	actorID := actingSessionID(ctx)
+	if actorID == "" {
+		return nil, nil
+	}
+	actor, err := m.Status(ctx, actorID)
+	if err != nil {
+		return nil, err
+	}
+	return encodePromptOrigin(&acp.PromptOriginMeta{
+		Kind: acp.PromptOriginKindSession, SessionID: actor.ID, WorkspaceID: actor.WorkspaceID,
+		AgentName: actor.AgentName, Hop: 1,
+	})
 }
 
 func (m *Manager) interactionForResolution(

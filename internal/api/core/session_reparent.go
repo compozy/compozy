@@ -58,6 +58,9 @@ func (h *BaseHandlers) reparentSession(c *gin.Context, adopt bool) {
 	if !h.requireSessionInProfile(c, info, profileScope) {
 		return
 	}
+	if !h.bindReparentActor(c) {
+		return
+	}
 	if adopt {
 		var req contract.SetSessionParentRequest
 		if err := decodeStrictJSONBody(c, &req); err != nil {
@@ -87,4 +90,17 @@ func (h *BaseHandlers) reparentSession(c *gin.Context, adopt bool) {
 		return
 	}
 	c.JSON(http.StatusOK, contract.SessionResponse{Session: payload})
+}
+
+// bindReparentActor resolves an agent caller's trusted session so the manager can refuse stays-on lineages.
+func (h *BaseHandlers) bindReparentActor(c *gin.Context) bool {
+	if !hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
+		return true
+	}
+	caller, ok := h.requireAgentCaller(c, "session.reparent")
+	if !ok {
+		return false
+	}
+	c.Request = c.Request.WithContext(session.WithActingSession(c.Request.Context(), caller.Session.ID))
+	return true
 }

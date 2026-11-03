@@ -105,3 +105,23 @@ func (h *BaseHandlers) allowWorkspaceAccessWrite(c *gin.Context, value string) b
 	)
 	return false
 }
+
+func (h *BaseHandlers) allowAgentPermissionPolicyWrite(c *gin.Context, approval string, hasRules bool) bool {
+	if !hasAgentCallerIdentityCredentials(agentCallerCredentialsFromRequest(c)) {
+		return true
+	}
+	field := ""
+	if approval != "" {
+		field = "session_approval"
+	} else if hasRules {
+		field = "permission_rules"
+	}
+	if field == "" {
+		return true
+	}
+	c.JSON(http.StatusForbidden, contract.ErrorPayload{
+		Error: "only the operator may set " + field,
+		Code:  field + "_operator_only",
+	})
+	return false
+}

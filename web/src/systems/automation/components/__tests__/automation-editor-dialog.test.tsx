@@ -31,6 +31,14 @@ vi.mock("@/systems/loops/hooks/use-loops", async () => {
   };
 });
 
+const staysOnInstances = vi.hoisted(() => ({
+  read: (async () => []) as () => Promise<unknown[]>,
+}));
+vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
+  ...(await importOriginal<typeof import("@/systems/agent/adapters/agent-instance-api")>()),
+  fetchAgentInstances: async () => ({ instances: await staysOnInstances.read(), capacity: {} }),
+}));
+
 const aggregateDestination = vi.hoisted(() => ({ value: null as string | null }));
 const automationTimeZone = vi.hoisted(() => ({ value: undefined as string | undefined }));
 vi.mock("@/systems/settings/hooks/use-settings-sections", async importOriginal => ({
@@ -52,6 +60,7 @@ import {
   type AutomationFormDraft,
 } from "../../lib/automation-form-draft";
 import { humanizeAgentSlug } from "@/systems/agent";
+import { agentInstanceFixture } from "@/systems/agent/mocks";
 
 const WORKSPACES = [
   { id: "ws_test", name: "checkout-api" },
@@ -712,5 +721,84 @@ describe("AutomationEditorDialog", () => {
     render(<AutomationEditorDialog editor={null} />);
 
     expect(screen.queryByTestId("automation-editor-dialog")).not.toBeInTheDocument();
+  });
+
+  describe("Tell a stays-on agent (UT-061)", () => {
+    const GLOBAL_TRIAGE = agentInstanceFixture({
+      id: "ainst-global",
+      agent_name: "triage",
+      workspace_id: "",
+      scope: "@user",
+    });
+
+    beforeEach(() => {
+      staysOnInstances.read = async () => [];
+    });
+
+    function eventDraft() {
+      return readyDraft({ start: "event", agent_name: "" });
+    }
+
+    it("Should lock the stays-on target on a schedule", () => {
+      render(<EditorHarness draft={readyDraft()} />);
+
+      const target = screen.getByTestId("automation-does-stays-on");
+      expect(target).toBeDisabled();
+      expect(target).toHaveTextContent("Only events and links can reach a stays-on agent");
+    });
+
+    it("Should show no status while instances load", async () => {
+      staysOnInstances.read = () => new Promise(() => undefined);
+      render(<EditorHarness draft={eventDraft()} />);
+
+      fireEvent.click(screen.getByTestId("automation-does-stays-on"));
+
+      expect(await screen.findByText("Loading agents…")).toBeInTheDocument();
+      expect(screen.queryByTestId("automation-stays-on-missing")).not.toBeInTheDocument();
+    });
+
+    it("Should let a link reach a stays-on agent in its project (BUG-20261103-link-trigger-stays-on-scope)", async () => {
+      staysOnInstances.read = async () => [
+        agentInstanceFixture({
+          id: "ainst-project",
+          agent_name: "inbox",
+          label: "Inbox",
+          workspace_id: "ws_test",
+          scope: "checkout-api",
+        }),
+      ];
+      render(<EditorHarness draft={readyDraft({ start: "webhook", agent_name: "" })} />);
+
+      fireEvent.click(screen.getByTestId("automation-does-stays-on"));
+      const agent = await screen.findByTestId("automation-stays-on-agent");
+      await screen.findByRole("option", { name: "Inbox" });
+      fireEvent.change(agent, { target: { value: "inbox" } });
+
+      expect(screen.getByTestId("automation-stays-on-scope")).toHaveValue("ws_test");
+      expect(screen.getByRole("option", { name: "checkout-api" })).toBeEnabled();
+      expect(screen.queryByTestId("automation-stays-on-missing")).not.toBeInTheDocument();
+      expect(screen.getByTestId("automation-webhook-global-note")).toHaveTextContent(
+        "lives where that agent runs"
+      );
+    });
+
+    it("Should say the agent isn't running here, then move the trigger to where it runs", async () => {
+      staysOnInstances.read = async () => [GLOBAL_TRIAGE];
+      render(<EditorHarness draft={eventDraft()} />);
+
+      fireEvent.click(screen.getByTestId("automation-does-stays-on"));
+      const agent = await screen.findByTestId("automation-stays-on-agent");
+      await screen.findByRole("option", { name: "Triage Lead" });
+      fireEvent.change(agent, { target: { value: "triage" } });
+
+      expect(await screen.findByTestId("automation-stays-on-missing")).toHaveTextContent(
+        "triage isn't running in this project"
+      );
+
+      fireEvent.change(screen.getByTestId("automation-stays-on-scope"), { target: { value: "" } });
+
+      expect(screen.queryByTestId("automation-stays-on-missing")).not.toBeInTheDocument();
+      expect(screen.getByTestId("automation-stays-on-scope")).toHaveValue("");
+    });
   });
 });

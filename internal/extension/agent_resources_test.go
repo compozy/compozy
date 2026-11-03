@@ -1,7 +1,9 @@
 package extensionpkg
 
 import (
+	"bytes"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,28 +32,6 @@ func TestLoadAgentResources(t *testing.T) {
 		if agents[0].Heartbeat == nil || agents[0].Heartbeat.SourcePath != "agents/writer/HEARTBEAT.md" ||
 			agents[0].Heartbeat.Body != "Check the queue.\n" {
 			t.Fatalf("Heartbeat = %#v, want parsed source and body", agents[0].Heartbeat)
-		}
-	})
-
-	t.Run("Should drop unrestricted grants from extension agents", func(t *testing.T) {
-		t.Parallel()
-		rootDir := t.TempDir()
-		writeStaticAgentFixture(t, rootDir, "writer", false)
-		path := filepath.Join(rootDir, "agents", "writer", "AGENT.md")
-		data, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		data = []byte(strings.Replace(string(data), "---\n", "---\nworkspace_access: unrestricted\n", 1))
-		if err := os.WriteFile(path, data, 0o600); err != nil {
-			t.Fatal(err)
-		}
-		agents, err := LoadAgentResources(rootDir, []string{"agents"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(agents) != 1 || agents[0].Agent.WorkspaceAccess != "" {
-			t.Fatalf("untrusted grants = %#v", agents)
 		}
 	})
 
@@ -96,6 +76,45 @@ requirements = ["workspace-read"]
 			t.Fatalf("Capabilities = %#v, want one capability", agents[0].Agent.Capabilities)
 		}
 	})
+}
+
+// Invariant (UT-016, UT-093): extension and marketplace definitions never carry operator-only
+// grants; the loader drops them and emits a diagnostic naming the untrusted source.
+// Owning layer: extension agent resource loading, which marketplace installs also use.
+// This test swaps slog.Default(), so it must stay non-parallel.
+func TestLoadAgentResourcesDropsUntrustedGrants(t *testing.T) {
+	rootDir := t.TempDir()
+	writeStaticAgentFixture(t, rootDir, "writer", false)
+	path := filepath.Join(rootDir, "agents", "writer", "AGENT.md")
+	frontmatter := "---\nworkspace_access: unrestricted\nsession_approval: workspace\n" +
+		"permission_rules:\n  - kind: edit\n    path: docs/**\n    decision: allow\n"
+	writeFile(t, path, strings.Replace("---\nname: writer\n---\n\nDo the work.\n", "---\n", frontmatter, 1))
+	var logs bytes.Buffer
+	original := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelWarn})))
+	t.Cleanup(func() { slog.SetDefault(original) })
+
+	agents, err := LoadAgentResources(rootDir, []string{"agents"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(agents) != 1 {
+		t.Fatalf("agents = %#v, want writer", agents)
+	}
+	agent := agents[0].Agent
+	if agent.WorkspaceAccess != "" || agent.SessionApproval != "" || len(agent.PermissionRules) != 0 {
+		t.Fatalf("untrusted grants kept: workspace=%q approval=%q rules=%#v",
+			agent.WorkspaceAccess, agent.SessionApproval, agent.PermissionRules)
+	}
+	for _, code := range []string{
+		"workspace_access_untrusted_source",
+		"session_approval_untrusted_source",
+		"permission_rules_untrusted_source",
+	} {
+		if !strings.Contains(logs.String(), "code="+code) || !strings.Contains(logs.String(), "agent_name=writer") {
+			t.Fatalf("diagnostic %s missing from logs: %s", code, logs.String())
+		}
+	}
 }
 
 func TestLoadAgentResourcesRejectsInvalidLayoutsAndSidecars(t *testing.T) {

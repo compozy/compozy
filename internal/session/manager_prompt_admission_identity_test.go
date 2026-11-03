@@ -871,3 +871,101 @@ type recoveryReportAckFailure struct {
 func (r recoveryReportAckFailure) MarkIndeterminateReportNoted(context.Context, string) error {
 	return errors.New("acknowledgement unavailable")
 }
+
+// IT-002: an idle paused instance admits peer input durably without direct dispatch.
+func TestPausedInstancePromptAdmission(t *testing.T) {
+	for _, mode := range []BusyInputMode{BusyInputModeQueue, BusyInputModeSteer, BusyInputModeInterrupt} {
+		t.Run("Should queue paused instance input requested as "+string(mode), func(t *testing.T) {
+			t.Parallel()
+			database := openManagerInputQueueStore(t)
+			h := newHarness(t, WithSessionInputQueueStore(database), WithEventLedger(database))
+			registerManagerInputQueueWorkspace(t, database, h)
+			sess := createSession(t, h)
+			registerManagerInputQueueSession(t, database, h, sess)
+			t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+			instance, err := database.Instances().Adopt(t.Context(), agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: sess.AgentName,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, sess.ID, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := database.Instances().Pause(t.Context(), instance.ID, "manual"); err != nil {
+				t.Fatal(err)
+			}
+			result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{
+				Message: "peer work", MessageID: "peer-message", IdempotencyKey: "peer-key", Mode: mode,
+				Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: "peer", WorkspaceID: h.workspaceID, Hop: 1},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Status != store.SessionPromptResultStatusQueued || result.Events != nil {
+				t.Fatalf("result = %+v; want durable queued input", result)
+			}
+			entry, err := database.GetSessionInputQueueEntry(t.Context(), sess.ID, result.QueueEntryID)
+			if err != nil || entry.Status != store.SessionInputQueueStatusQueued ||
+				entry.Mode != store.SessionInputQueueModeQueue {
+				t.Fatalf("entry = %+v, %v", entry, err)
+			}
+			now := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+			if _, found, err := database.ClaimNextSessionInput(t.Context(), sess.ID, now); err != nil || found {
+				t.Fatalf("paused claim = %v, %v", found, err)
+			}
+		})
+	}
+}
+
+// IT-004: a queued trip invokes post-commit pause effects and still dispatches the selected turn.
+func TestInstanceUnattendedPauseDispatch(t *testing.T) {
+	t.Run("Should publish committed pause effects before dispatching the tripping turn", func(t *testing.T) {
+		t.Parallel()
+		database := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(database), WithEventLedger(database))
+		registerManagerInputQueueWorkspace(t, database, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, database, h, sess)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		instance, err := database.Instances().Adopt(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, WorkspaceID: h.workspaceID, AgentName: sess.AgentName,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, sess.ID, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := database.SetUnattendedTurnLimit(1); err != nil {
+			t.Fatal(err)
+		}
+		paused := make(chan agentinstance.Instance, 1)
+		h.manager.SetInstancePauseHandler(func(ctx context.Context, trip store.InstancePauseTrip) error {
+			persisted, err := database.Instances().Get(ctx, trip.InstanceID)
+			if err != nil {
+				return err
+			}
+			paused <- persisted
+			return nil
+		})
+		result, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{
+			Message: "peer work", MessageID: "trip-message", IdempotencyKey: "trip-key", Mode: BusyInputModeQueue,
+			Origin: &acp.PromptOriginMeta{Kind: "session", SessionID: "peer", WorkspaceID: h.workspaceID, Hop: 1},
+		})
+		if err != nil || result.Status != store.SessionPromptResultStatusQueued {
+			t.Fatalf("send=%+v err=%v", result, err)
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+		defer cancel()
+		select {
+		case current := <-paused:
+			if current.ID != instance.ID || current.State != "paused" || current.PauseReason != "unattended" {
+				t.Fatalf("pause=%+v", current)
+			}
+		case <-ctx.Done():
+			t.Fatal("queued trip did not invoke pause effects")
+		}
+		waitForCondition(t, "the selected unattended turn to reach the provider", func() bool {
+			h.driver.mu.Lock()
+			defer h.driver.mu.Unlock()
+			return len(h.driver.promptCalls) == 1
+		})
+	})
+}

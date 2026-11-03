@@ -6,13 +6,13 @@ persona: Ada
 journey: J-15-operate-session-via-cli-api
 expected: Native agent messages retain daemon-stamped origin through direct, queue, steer, interrupt and restart; provider text has the sender header while stored text does not; replay is actor-scoped, self-targeting and hop nine are rejected, and agent-authored queue entries can be canceled or promoted but not replaced.
 entry_points: compozy__session_prompt; session input list/replace/promote/cancel; session events; HTTP and UDS prompt/queue and events
-qa_status: pass
+qa_status: partial
 bug_ids: none
 fix_status: not-applicable
 retest_status: pass
 fix_commits: pending
-evidence: internal/daemon/subagent_integration_test.go TestSessionMessageOriginDaemonIntegration; internal/session/manager_busy_input_test.go TestManagerPromptOriginDelivery and TestManagerPromptOriginHopFence
-last_report: docs/qa/reports/2026-10-17-issue-760-session-messaging.md
+evidence: internal/daemon/subagent_integration_test.go TestSessionMessageOriginDaemonIntegration; internal/session/manager_busy_input_test.go TestManagerPromptOriginDelivery and TestManagerPromptOriginHopFence; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: RT-session-message-reply; ET-web-session-message-card
 ---
 
@@ -101,3 +101,20 @@ Busy-target policy regression (#760)
 16. Web: the queue strip shows "From {title}" with Steer and Remove; consecutive inbound cards from one
     sender collapse into "{title} · N messages"; a reply shows the "In reply" chip; a session in
     Needs attention shows its reason.
+
+## Stays-on peer addressing and pause
+
+1. List reachable peers with `agent instance list --peers`; a denied workspace contributes neither a
+   row nor a private count. Keep the cursor bound to the same caller and filters.
+2. Rotate a peer and send from an active work turn using its agent name and workspace. The receipt's
+   `target_session_id` names the successor; the original session receives no new input.
+3. Pause that peer, send again with `wait:true`, and inspect `delivery: held` and queue `held: true`.
+   Restart the daemon, confirm the row remains held, then resume as operator. It is delivered once.
+4. A human prompt on the paused main runs without resuming autonomy; a check cannot call the message
+   tool, and a missing name produces `agent_instance_not_found`.
+
+Automated backend owners: `TestAgentInstancePeers`, `TestGlobalDBSessionPromptAdmission`,
+`TestInstanceContextExhaustionIntegration` and `TestInstancePausedRuntimeIntegration`.
+The real ACP journeys cover successor delivery and restart retention.
+
+QA verification 2026-11-03 (stays-on peer addressing, soh/qa 583415ef5, isolated acpmock lab): Partial. `agent instance list --peers` returned name/description/scope/state rows. A native `compozy__session_prompt` with `agent: release-watch`, sent while it was paused, returned `delivery: held`. The queue row was `held: true` and stayed held with `unattended_turns` unchanged across a daemon restart. An operator resume delivered it in one turn (`turn-2b4a49e90d7d9360`), and a second resume added no prompt (`restart-retention.txt`). A human prompt on a paused main ran without resuming autonomy. A missing name returned code `agent_instance_not_found`, but the message is "Internal Server Error" (paper cut). Not walked: delivery to a rotated peer's successor, the denied-workspace peer filter, and a check calling the message tool.

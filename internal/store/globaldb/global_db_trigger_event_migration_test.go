@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,6 +11,79 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
+
+func TestGlobalDBInstanceTriggerRebuild(t *testing.T) {
+	t.Run("Should preserve triggers and cascading catalog rows across rebuild and reopen", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefix, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00180_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		ctx := t.Context()
+		_, seedErr := prefix.ExecContext(ctx, `INSERT INTO automation_triggers
+ (id,profile_id,scope,name,agent_name,prompt,event,enabled,retry,fire_limit,source,target_kind,webhook_id,created_at,updated_at)
+ VALUES ('preserve-trigger',?,'global','Preserved trigger','coder','Review event','webhook',1,'{}','{}','dynamic','agent','preserved-webhook','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`, store.DefaultProfileID)
+		if seedErr == nil {
+			_, seedErr = prefix.ExecContext(ctx, `INSERT INTO automation_trigger_catalog_entries
+ (trigger_id,scope,event,source,source_rank,name,enabled,search_name,search_agent_name,search_prompt,search_scope,search_source,search_event,search_endpoint_slug,search_webhook_id)
+ VALUES ('preserve-trigger','global','webhook','dynamic',2,'Preserved trigger',1,'preserved trigger','coder','review event','global','dynamic','webhook','','preserved-webhook')`)
+		}
+		if seedErr == nil {
+			_, seedErr = prefix.ExecContext(
+				ctx,
+				"INSERT INTO automation_trigger_catalog_filter_terms (trigger_id,value) VALUES ('preserve-trigger','preserved-term')",
+			)
+		}
+		if err := errors.Join(seedErr, prefix.Close()); err != nil {
+			t.Fatal(err)
+		}
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		var name, scope, term string
+		if err := reopened.DB().
+			QueryRowContext(ctx, `SELECT t.name,t.target_instance_scope,f.value FROM automation_triggers t JOIN automation_trigger_catalog_entries c ON c.trigger_id=t.id JOIN automation_trigger_catalog_filter_terms f ON f.trigger_id=t.id WHERE t.id='preserve-trigger'`).
+			Scan(&name, &scope, &term); err != nil {
+			t.Fatal(err)
+		}
+		if name != "Preserved trigger" || scope != "" || term != "preserved-term" {
+			t.Fatalf("preserved row: name=%q scope=%q term=%q", name, scope, term)
+		}
+		if _, err := reopened.DB().
+			ExecContext(ctx, "UPDATE automation_triggers SET target_kind='agent_instance',target_instance_scope='global' WHERE id='preserve-trigger'"); err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := reopened.GetTrigger(ctx, "preserve-trigger")
+		if err != nil || loaded.TargetInstanceScope != "global" {
+			t.Fatalf("target scope read: %+v %v", loaded, err)
+		}
+		_, duplicateErr := reopened.DB().ExecContext(ctx, `INSERT INTO automation_triggers
+ (id,profile_id,scope,name,agent_name,prompt,event,enabled,retry,fire_limit,source,target_kind,created_at,updated_at)
+ VALUES ('duplicate-trigger',?,'global','Preserved trigger','coder','Review event','webhook',1,'{}','{}','dynamic','agent','2026-11-03T00:00:00Z','2026-11-03T00:00:00Z')`, store.DefaultProfileID)
+		if duplicateErr == nil {
+			t.Fatal("partial unique index did not reject a duplicate global name")
+		}
+		status, err := store.Status(ctx, reopened.DB(), MigrationStream())
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertCompleteMigrationStream(t, status, MigrationStream())
+	})
+}
 
 // Suite: global automation trigger event hard cut
 // Invariant: upgrading removes only trigger definitions no runtime producer can activate.

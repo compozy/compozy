@@ -1363,7 +1363,8 @@ Session supervision uses fresh work evidence across live sessions. `quiet_after`
 are a hung-turn watchdog: silence accrues only while a turn is in flight and waiting on the agent,
 so a session waiting for you is never warned or stopped for inactivity. `idle_release_after`
 silently releases the agent process of an idle session whose agent supports ACP `session/load`; the
-session stays active and the next prompt binds a runtime again. See
+session stays active and the next prompt binds a runtime again. Daemon-owned monitors of any kind
+may remain active during release; other work signals and unknown sources still prevent it. See
 [session lifecycle](/docs/sessions/lifecycle#runtime-activity-supervision) for signal validity,
 quiet warnings, unknown-source attention, the stop ladder, and
 [idle runtime release](/docs/sessions/lifecycle#idle-runtime-release).
@@ -2759,17 +2760,23 @@ See [User scope](/docs/user-scope) for the walkthrough.
 
 The `[agents.stays_on]` section bounds instance lifecycle and triage execution. These settings apply after a daemon restart.
 
-| Key                    | Default | Constraint                |
-| ---------------------- | ------- | ------------------------- |
-| `rotation_threshold`   | `0.8`   | Greater than 0, at most 1 |
-| `max_active_instances` | `10`    | Positive                  |
-| `max_proposals`        | `2`     | 1–20                      |
-| `triage_timeout`       | `"10m"` | Positive duration         |
+| Key                     | Default | Constraint                |
+| ----------------------- | ------- | ------------------------- |
+| `rotation_threshold`    | `0.8`   | Greater than 0, at most 1 |
+| `max_active_instances`  | `10`    | Positive                  |
+| `unattended_turn_limit` | `300`   | Nonnegative; `0` disables |
+| `max_proposals`         | `2`     | 1–20                      |
+| `triage_timeout`        | `"10m"` | Positive duration         |
 
 Checks use `[agents.heartbeat]` for `max_concurrent_triage` (default 2, positive) and
 `max_interval` (default `"24h"`, at least `quiet_backoff_cap`), alongside enablement,
 default interval, batch size, and wake event retention.
 Interrupted occurrences are finalized before the scheduler begins checking due instances.
+Pausing an instance cancels its running read-only check. That occurrence finishes as
+`cancelled`, without adding fatigue or a failure report. A working turn already
+in progress finishes. Each reported or failed check counts once toward
+`unattended_turn_limit`; quiet and cancelled checks do not count. Replaying a
+completed occurrence does not add another count or repeat its pause effects.
 
 Consecutive quiet timer checks double the delay up to `quiet_backoff_cap`; failed timer checks
 use `max_interval` as their ceiling. A reported

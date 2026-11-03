@@ -101,7 +101,7 @@ func (n *daemonNativeTools) nativeInstanceQuery(
 		}
 		workspaceID = resolved.ID
 	}
-	if input.AllWorkspaces && !scope.Operator {
+	if input.AllWorkspaces && !input.Peers && !scope.Operator {
 		decision, err := n.deps.WorkspaceAccess.Authorize(
 			ctx,
 			workspaceaccess.Request{

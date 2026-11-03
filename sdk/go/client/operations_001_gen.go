@@ -360,6 +360,30 @@ func (c *Client) ApplySettingsUpdate(ctx context.Context, body SettingsUpdateApp
 	return &out, nil
 }
 
+// ApproveAgentSkillReviewParams carries the path, query, and header parameters.
+type ApproveAgentSkillReviewParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// ApproveAgentSkillReview Decide a skill review as the operator (experimental)
+func (c *Client) ApproveAgentSkillReview(ctx context.Context, params ApproveAgentSkillReviewParams, body AgentSkillReviewDecisionRequest) (*AgentSkillReviewResponse, error) {
+	path := "/api/agent-skill-reviews/{id}/approve"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentSkillReviewResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ApproveLoopRunParams carries the path, query, and header parameters.
 type ApproveLoopRunParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -408,42 +432,4 @@ func (c *Client) ApproveSession(ctx context.Context, params ApproveSessionParams
 type ApproveTaskParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// ApproveTask Approve one approval-gated task and enqueue executable work
-func (c *Client) ApproveTask(ctx context.Context, params ApproveTaskParams, body TaskExecutionRequest) (*TaskExecutionResponse, error) {
-	path := "/api/tasks/{id}/approve"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskExecutionResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ArchiveAgentInstanceParams carries the path, query, and header parameters.
-type ArchiveAgentInstanceParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// ArchiveAgentInstance Archive an agent instance
-func (c *Client) ArchiveAgentInstance(ctx context.Context, params ArchiveAgentInstanceParams) error {
-	path := "/api/agent-instances/{id}"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
 }

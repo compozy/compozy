@@ -288,10 +288,13 @@ const sessionListInputSchema = `{
 
 const sessionPromptInputSchema = `{
 	"type":"object",
-	"required":["session_id","message_id","idempotency_key"],
+	"required":["message_id","idempotency_key"],
 	"properties":{
 		"workspace":{"type":"string"},
 		"session_id":{"type":"string","minLength":1},
+ "agent":{"type":"string","minLength":1,
+ "description":"Stays-on agent name in the selected workspace, resolved to its current main when admitted. ` +
+	`Use instead of session_id."},
 		"message":{"type":"string"},
 		"attachments":{"type":"array","items":{"type":"string","minLength":1}},
 		"message_id":{"type":"string","minLength":1},
@@ -313,7 +316,9 @@ const sessionPromptInputSchema = `{
  "description":"Cancel your own older messages still queued for the same target, in the same step ` +
 	`that queues this one, so the target receives only the latest. Never touches operator input or other ` +
 	`senders' messages. The result's canceled_queued_entries counts the replaced messages. Requires an agent session."},
- "wait":{"type":"boolean","default":false,"description":"Wait for completion instead of immediate acceptance."},
+ "wait":{"type":"boolean","default":false,
+ "description":"Wait for completion when a turn starts directly. ` +
+	`Queued or held lineage messages return immediately."},
 		"runtime":{
 			"type":"object",
 			"required":["provider"],

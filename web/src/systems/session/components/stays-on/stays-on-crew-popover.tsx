@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import {
+  Button,
   Eyebrow,
   Item,
   Popover,
@@ -15,8 +16,11 @@ import {
   agentAvatarAppearance,
   agentInstanceAvatarState,
   agentInstancesByUrgency,
+  InlineCodeText,
   type AgentInstancePayload,
 } from "@/systems/agent";
+
+import { useResumeAll } from "../../hooks/use-resume-all";
 
 const BANDS: readonly { label: string; states: readonly AgentAvatarState[] }[] = [
   { label: "Needs you", states: ["needs-you", "failed"] },
@@ -83,6 +87,7 @@ export function StaysOnCrewPopover({
   onOpen: (instance: AgentInstancePayload) => void;
 }) {
   const [query, setQuery] = useState("");
+  const resumeAll = useResumeAll(instances);
   const needle = query.trim().toLowerCase();
   const shown = agentInstancesByUrgency(instances).filter(instance =>
     instance.label.toLowerCase().includes(needle)
@@ -97,12 +102,30 @@ export function StaysOnCrewPopover({
         +{hidden}
       </PopoverTrigger>
       <PopoverContent align="start" className="flex w-96 flex-col gap-3 p-3">
-        <div className="flex flex-col gap-0.5 px-1 pt-1">
-          <span className="text-heading font-medium text-fg-strong">
-            {instances.length} agents in {scopeName}
-          </span>
-          <span className="text-small-body text-muted-foreground">{summary(instances)}</span>
+        <div className="flex items-start gap-3 px-1 pt-1">
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-heading font-medium text-fg-strong">
+              {instances.length} agents in {scopeName}
+            </span>
+            <span className="text-small-body text-muted-foreground">{summary(instances)}</span>
+          </div>
+          {resumeAll.offered ? (
+            <Button
+              disabled={resumeAll.pending}
+              onClick={resumeAll.run}
+              size="sm"
+              type="button"
+              variant="secondary"
+            >
+              {resumeAll.pending ? "Resuming…" : "Resume all"}
+            </Button>
+          ) : null}
         </div>
+        {resumeAll.error ? (
+          <p className="px-1 text-small-body text-destructive" role="alert">
+            <InlineCodeText text={resumeAll.error} />
+          </p>
+        ) : null}
         {instances.length >= SEARCH_FROM ? (
           <SearchInput
             aria-label="Find an agent"

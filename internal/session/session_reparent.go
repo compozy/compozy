@@ -89,6 +89,9 @@ func (m *Manager) AdoptSession(
 	if parent == source {
 		return nil, reparentRefusal(ReparentRefusalCycle, source, "a session cannot be its own parent")
 	}
+	if err := m.requireReparentActor(ctx, source, parent); err != nil {
+		return nil, err
+	}
 
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
@@ -143,6 +146,9 @@ func (m *Manager) DetachSession(ctx context.Context, workspaceID string, session
 	if err != nil {
 		return nil, err
 	}
+	if err := m.requireReparentActor(ctx, source, ""); err != nil {
+		return nil, err
+	}
 
 	m.lifecycleMu.Lock()
 	defer m.lifecycleMu.Unlock()
@@ -184,6 +190,33 @@ func (m *Manager) requireReparentInputs(ctx context.Context) error {
 	}
 	if _, err := m.sessionLineageStore(); err != nil {
 		return err
+	}
+	return nil
+}
+
+// requireReparentActor keeps moving sessions into or out of a stays-on lineage an operator act. An adopted
+// session becomes a descendant whose permissions and clarifications the lineage may answer, so any agent
+// caller is refused when it is itself in a stays-on lineage, when the session's own lineage (its current
+// parent chain, for detach) is stays-on, or when the new parent's lineage (adopt) is stays-on.
+func (m *Manager) requireReparentActor(ctx context.Context, sessionID, parentID string) error {
+	actorID := actingSessionID(ctx)
+	if actorID == "" {
+		return nil
+	}
+	for _, id := range []string{actorID, sessionID, parentID} {
+		if id == "" {
+			continue
+		}
+		staysOn, err := IsStaysOnLineage(ctx, id, m.Status)
+		if err != nil {
+			return err
+		}
+		if staysOn {
+			return reparentRefusal(
+				ReparentRefusalOperatorRequired, sessionID,
+				"only the operator can move sessions into or out of a stays-on lineage",
+			)
+		}
 	}
 	return nil
 }

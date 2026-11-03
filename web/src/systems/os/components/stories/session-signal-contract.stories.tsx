@@ -5,6 +5,7 @@ import { CenteredSurface } from "@/storybook/story-layout";
 import type { SessionLifecycleActionHandlers, SessionPayload } from "@/systems/session";
 import { SessionListRow } from "@/systems/session/components/session-list/session-list-row";
 import { SessionStatusLine } from "@/systems/session/components/session-status-line";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 const ACTIONS: SessionLifecycleActionHandlers = {
   pendingAction: null,
@@ -29,6 +30,7 @@ function session(
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     id,
     name: "Checkout launch review",

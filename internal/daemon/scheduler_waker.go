@@ -177,7 +177,7 @@ func (w *schedulerSessionWaker) wakePendingTaskRun(
 		return errors.New("daemon: scheduler waker is stopping")
 	}
 	// Scheduler wakes are daemon-initiated and yield to host CPU pressure at admission.
-	ctx = admission.WithBackgroundWork(ctx)
+	ctx = session.WithManagedRun(admission.WithBackgroundWork(ctx), target.Work.Run.LoopRunID)
 	message := schedulerWakeMessage(target)
 	if synthetic, ok := w.sessions.(schedulerSyntheticPrompter); ok {
 		metadata := acp.PromptSyntheticMeta{

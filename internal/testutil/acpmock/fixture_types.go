@@ -115,8 +115,10 @@ type TurnUsage struct {
 
 // TurnMatch routes a prompt to a turn fixture using stable prompt fields.
 type TurnMatch struct {
-	TurnSource string `json:"turn_source,omitempty"`
-	UserText   string `json:"user_text,omitempty"`
+	CompactionNotice *bool  `json:"compaction_notice,omitempty"`
+	SituationFull    *bool  `json:"situation_full,omitempty"`
+	TurnSource       string `json:"turn_source,omitempty"`
+	UserText         string `json:"user_text,omitempty"`
 	// UserTextContains matches a substring after the same canonical whitespace normalization as UserText.
 	UserTextContains string `json:"user_text_contains,omitempty"`
 	// RawUserTextContains matches a substring before prompt augmentation is stripped.

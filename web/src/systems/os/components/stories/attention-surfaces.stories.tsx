@@ -19,6 +19,7 @@ import { DesktopMenubar } from "../desktop-menubar";
 import { OsSessionsModal } from "../sessions-modal";
 import { createStoryShell } from "./_shell-fixture";
 import { buildDeskItems, DesktopShell } from "./_desktop";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 function session(
   id: string,
@@ -34,6 +35,7 @@ function session(
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     id,
     name,

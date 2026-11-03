@@ -16,10 +16,12 @@ import (
 )
 
 type agentCreateInput struct {
-	DisplayName *string        `json:"display_name,omitempty"`
-	Description *string        `json:"description,omitempty"`
-	Kind        string         `json:"kind,omitempty"`
-	Appearance  map[string]any `json:"appearance,omitempty"`
+	SessionApproval string                                `json:"session_approval,omitempty"`
+	PermissionRules []contract.AgentPermissionRulePayload `json:"permission_rules,omitempty"`
+	DisplayName     *string                               `json:"display_name,omitempty"`
+	Description     *string                               `json:"description,omitempty"`
+	Kind            string                                `json:"kind,omitempty"`
+	Appearance      map[string]any                        `json:"appearance,omitempty"`
 
 	SessionEnv      map[string]contract.SessionEnvBindingPayload `json:"session_env,omitempty"`
 	Scope           string                                       `json:"scope"`
@@ -50,6 +52,14 @@ func (n *daemonNativeTools) agentCreate(
 	var input agentCreateInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
+	}
+	if scope.SessionID != "" && (input.SessionApproval != "" || input.PermissionRules != nil) {
+		field := "session_approval"
+		if input.SessionApproval == "" {
+			field = "permission_rules"
+		}
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(toolspkg.ErrorCodeDenied, req.ToolID,
+			"only the operator may set "+field, toolspkg.ErrToolDenied, toolspkg.ReasonCode(field+"_operator_only"))
 	}
 	if input.WorkspaceAccess != "" && scope.SessionID != "" {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(
@@ -171,6 +181,8 @@ func (n *daemonNativeTools) agentCreateRequest(
 			ACPOptions:      cloneNativeAgentACPOptions(input.ACPOptions),
 			Prompt:          input.Prompt,
 			WorkspaceAccess: input.WorkspaceAccess,
+			SessionApproval: input.SessionApproval,
+			PermissionRules: append([]contract.AgentPermissionRulePayload(nil), input.PermissionRules...),
 			Permissions:     contract.SettingsPermissionMode(strings.TrimSpace(input.Permissions)),
 			Tools:           trimNativeStrings(input.Tools),
 			Toolsets:        trimNativeStrings(input.Toolsets),

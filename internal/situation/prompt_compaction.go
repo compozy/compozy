@@ -23,6 +23,10 @@ type promptSectionCacheState struct {
 	workspaceKey string
 	signatures   map[string][sha256.Size]byte
 	lastUsed     uint64
+	boundary     int64
+	used         int64
+	usageKnown   bool
+	reminded     bool
 }
 
 type promptSectionUnchangedPayload struct {
@@ -37,14 +41,18 @@ func newPromptSectionCache() *promptSectionCache {
 	}
 }
 
-func (c *promptSectionCache) compact(info *session.Info, sections []renderedSection) []renderedSection {
+func (c *promptSectionCache) compact(
+	info *session.Info,
+	sections []renderedSection,
+	boundary int64, observation ContextObservation,
+) ([]renderedSection, bool, bool) {
 	if c == nil || info == nil || len(sections) == 0 {
-		return sections
+		return sections, false, false
 	}
 	sessionID := strings.TrimSpace(info.ID)
 	acpSessionID := strings.TrimSpace(info.ACPSessionID)
 	if sessionID == "" || acpSessionID == "" {
-		return sections
+		return sections, false, false
 	}
 	workspaceKey := firstTrimmed(info.WorkspaceID, info.Workspace)
 	signatures := promptSectionSignatures(sections)
@@ -54,21 +62,21 @@ func (c *promptSectionCache) compact(info *session.Info, sections []renderedSect
 	defer c.mu.Unlock()
 
 	previous, ok := c.states[sessionID]
-	canReuse := ok &&
-		previous.acpSessionID == acpSessionID &&
-		previous.workspaceKey == workspaceKey
+
+	sameContext := ok && previous.acpSessionID == acpSessionID && previous.workspaceKey == workspaceKey
+	next := previous
+	compactedSinceLastPrompt, usageDropped, reminder := next.observeMaintenance(boundary, observation, sameContext)
+	canReuse := sameContext && !compactedSinceLastPrompt && !usageDropped
 	compacted := sections
 	if canReuse {
 		compacted = compactUnchangedPromptSections(sections, previous.signatures, signatures)
 	}
-	c.states[sessionID] = promptSectionCacheState{
-		acpSessionID: acpSessionID,
-		workspaceKey: workspaceKey,
-		signatures:   signatures,
-		lastUsed:     sequence,
-	}
+
+	next.acpSessionID, next.workspaceKey = acpSessionID, workspaceKey
+	next.signatures, next.lastUsed = signatures, sequence
+	c.states[sessionID] = next
 	c.evictOldestLocked()
-	return compacted
+	return compacted, compactedSinceLastPrompt, reminder
 }
 
 func promptSectionSignatures(sections []renderedSection) map[string][sha256.Size]byte {
@@ -121,4 +129,24 @@ func (c *promptSectionCache) evictOldestLocked() {
 	if oldestKey != "" {
 		delete(c.states, oldestKey)
 	}
+}
+
+func (state *promptSectionCacheState) observeMaintenance(
+	boundary int64,
+	observation ContextObservation,
+	sameContext bool,
+) (bool, bool, bool) {
+	compacted := boundary > state.boundary
+	dropped := observation.Known && state.usageKnown && observation.Used < state.used
+	if compacted || dropped || !sameContext {
+		state.reminded = false
+	}
+	reminder := observation.Main && observation.Known && observation.Size > 0 && observation.Threshold > 0 &&
+		float64(observation.Used)/float64(observation.Size) >= observation.Threshold && !state.reminded
+	if observation.Known {
+		state.used, state.usageKnown = observation.Used, true
+	}
+	state.reminded = state.reminded || reminder
+	state.boundary = boundary
+	return compacted, dropped, reminder
 }

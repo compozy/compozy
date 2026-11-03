@@ -25,6 +25,7 @@ import {
   type AgentEditorPage,
   type AgentProfilePanel,
 } from "../lib/agent-profile";
+import { agentPermissionSummary } from "../lib/agent-permissions";
 import { agentFindings } from "../lib/agent-reports";
 import { buildSettingsDraftFromAgent, buildUpdateAgentParams } from "../lib/agent-settings-draft";
 import {
@@ -210,6 +211,7 @@ export function useAgentProfile(input: {
       checkIns: checkInsSummary(places),
       memory: input.memorySummary,
       tools: agentToolsSummary(agent),
+      permissions: agentPermissionSummary(agent),
     },
     placeActions: {
       onOpen: (place: AgentTeamPlace) => void openSession(place),

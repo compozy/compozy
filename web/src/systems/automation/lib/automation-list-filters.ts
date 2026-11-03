@@ -7,12 +7,12 @@ import {
 } from "@/systems/workspace";
 
 import { automationSourceLabel } from "./automation-formatters";
-import type { AutomationDoes } from "./automation-sentence";
+import type { AutomationListTarget } from "./automation-sentence";
 import type { AutomationSource } from "../types";
 
 /** One value per facet, operator "is" (Business Rule 4); Project is multi-select. */
 export interface AutomationFilterState {
-  target: AutomationDoes | null;
+  target: AutomationListTarget | null;
   enabled: boolean | null;
   source: AutomationSource | null;
   loop: string | null;
@@ -21,7 +21,7 @@ export interface AutomationFilterState {
 }
 
 export interface AutomationFilterHandlers {
-  onTargetChange: (next: AutomationDoes | null) => void;
+  onTargetChange: (next: AutomationListTarget | null) => void;
   onEnabledChange: (next: boolean | null) => void;
   onSourceChange: (next: AutomationSource | null) => void;
   onLoopChange: (next: string | null) => void;
@@ -32,7 +32,7 @@ export const AUTOMATION_DOES_LABELS = {
   agent: "Ask an agent",
   loop: "Start a Loop",
   task: "Create a task",
-} as const satisfies Record<AutomationDoes, string>;
+} as const satisfies Record<AutomationListTarget, string>;
 
 const SOURCE_OPTIONS: AutomationSource[] = ["dynamic", "config", "package"];
 
@@ -49,7 +49,7 @@ export function buildAutomationFilterFields(
       key: "target",
       label: "Does",
       type: "select",
-      options: (Object.keys(AUTOMATION_DOES_LABELS) as AutomationDoes[]).map(value => ({
+      options: (Object.keys(AUTOMATION_DOES_LABELS) as AutomationListTarget[]).map(value => ({
         value,
         label: AUTOMATION_DOES_LABELS[value],
       })),
@@ -104,7 +104,7 @@ export function applyAutomationFilterChips(
   handlers.onProjectsChange(projectFilterValuesFromChips(chips));
 }
 
-function asTarget(value: string | undefined): AutomationDoes | null {
+function asTarget(value: string | undefined): AutomationListTarget | null {
   return value === "agent" || value === "loop" || value === "task" ? value : null;
 }
 

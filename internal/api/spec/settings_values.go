@@ -156,6 +156,8 @@ func settingsPermissionModeValues() []string {
 	return []string{
 		string(contract.SettingsPermissionModeDenyAll),
 		string(contract.SettingsPermissionModeApproveReads),
+		string(contract.SettingsPermissionModeApproveEdits),
+		string(contract.SettingsPermissionModeAuto),
 		string(contract.SettingsPermissionModeApproveAll),
 	}
 }

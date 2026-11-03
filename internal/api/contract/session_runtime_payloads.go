@@ -77,6 +77,8 @@ type ReplyWatchPayload struct {
 }
 
 type SessionPayload struct {
+	EffectivePermissions     string                               `json:"effective_permissions"`
+	PermissionModeDegraded   bool                                 `json:"permission_mode_degraded"`
 	LinkedWork               *SessionLinkedWorkSummary            `json:"linked_work,omitempty"`
 	InstanceID               string                               `json:"instance_id,omitempty"`
 	Diagnostics              []DiagnosticItem                     `json:"diagnostics,omitempty"`

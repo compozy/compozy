@@ -308,3 +308,24 @@ func (m *Manager) LatestSettledTurn(ctx context.Context, id string) (SettledTurn
 	}
 	return SettledTurn{TurnID: row.TurnID, Sequence: row.Sequence}, nil
 }
+
+// CompletedCompactionBoundary identifies the latest successful provider compaction.
+func (m *Manager) CompletedCompactionBoundary(ctx context.Context, id string) (*int64, error) {
+	rows, err := m.Events(ctx, id, store.EventQuery{Type: acp.EventTypeCompaction})
+	if err != nil {
+		return nil, err
+	}
+	var boundary *int64
+	for _, row := range rows {
+		event, err := transcript.UnmarshalAgentEvent(row.Content)
+		if err != nil {
+			return nil, fmt.Errorf("session: decode compaction event %d: %w", row.Sequence, err)
+		}
+		if event.Compaction != nil && event.Compaction.Terminal &&
+			event.Compaction.Status == managedInputOutcomeCompleted &&
+			(boundary == nil || row.Sequence > *boundary) {
+			boundary = new(row.Sequence)
+		}
+	}
+	return boundary, nil
+}

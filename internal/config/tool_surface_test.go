@@ -20,6 +20,7 @@ func TestToolConfigPathPolicy(t *testing.T) {
 		redacted bool
 	}{
 		{name: "Should allow rotation threshold", path: "agents.stays_on.rotation_threshold", kind: ConfigValueFloat},
+		{name: "Should allow unattended limit", path: "agents.stays_on.unattended_turn_limit", kind: ConfigValueInt},
 		{name: "Should allow instance limit", path: "agents.stays_on.max_active_instances", kind: ConfigValueInt},
 		{name: "Should allow proposal limit", path: "agents.stays_on.max_proposals", kind: ConfigValueInt},
 		{name: "Should allow triage timeout", path: "agents.stays_on.triage_timeout", kind: ConfigValueDuration},

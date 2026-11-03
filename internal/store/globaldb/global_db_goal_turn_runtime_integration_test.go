@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/loop/goal"
@@ -133,6 +134,56 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		if entry.Runtime.Provider != "cursor" || entry.Runtime.Model != "grok-4.5" ||
 			entry.Runtime.ReasoningEffort != "high" || entry.Runtime.Speed != "fast" {
 			t.Fatalf("prepared runtime = %#v, want exact worker selection", entry.Runtime)
+		}
+	})
+
+	// Invariant (IT-032, rule 10): a pause that commits after selection peeked a Goal row still wins; the
+	// claim refuses in its own transaction, the row stays queued and untokened, and resume re-admits it.
+	t.Run("Should refuse a Goal claim that races an instance pause", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB, key, taskRunID, now := seedGoalTurnRuntime(t, "run-goal-pause-race")
+		ctx := testutil.Context(t)
+		instance, err := globalDB.Instances().Adopt(ctx, agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "codex", WorkspaceID: "ws-goal-runtime",
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, "session-goal-runtime", 10)
+		if err != nil {
+			t.Fatalf("Adopt() error = %v", err)
+		}
+		promptID := "goal-prompt-pause-race"
+		ticket, err := globalDB.PrepareGoalPrompt(ctx, goal.PreparePromptRequest{
+			Key: key, ExpectedControlEpoch: 1, TaskRunID: taskRunID,
+			QueueEntryID: "queue:" + promptID, PromptID: promptID, PromptKind: "work",
+			SessionID: "session-goal-runtime", BindingHandle: "goal:runtime", BindingEpoch: 1,
+			Message: "Advance the durable Goal", PreparedAt: now,
+		})
+		if err != nil {
+			t.Fatalf("PrepareGoalPrompt() error = %v", err)
+		}
+		decision := flushGoalRuntimeBudget(t, globalDB, key, taskRunID, goal.BudgetBeforeWork, promptID, 0)
+		claim := goal.ClaimPreparedWorkPromptRequest{
+			Key: key, ExpectedControlEpoch: 1, TaskRunID: taskRunID,
+			QueueEntryID: ticket.QueueEntryID, PromptID: promptID,
+			SessionID: "session-goal-runtime", BindingHandle: "goal:runtime", BindingEpoch: 1,
+			BudgetDecision: decision, ActorKind: "daemon", ActorID: "loop-action",
+		}
+		if _, err := globalDB.Instances().Pause(ctx, instance.ID, "manual"); err != nil {
+			t.Fatalf("Pause() error = %v", err)
+		}
+		_, err = globalDB.ClaimPreparedWorkPrompt(ctx, claim)
+		if reason, ok := errors.AsType[*looppkg.ReasonError](err); !ok || reason.Code != "agent_instance_paused" {
+			t.Fatalf("ClaimPreparedWorkPrompt(paused) error = %v, want agent_instance_paused", err)
+		}
+		entry, err := globalDB.GetSessionInputQueueEntryByID(ctx, ticket.QueueEntryID)
+		if err != nil || entry.Status != store.SessionInputQueueStatusQueued || entry.DispatchTokenHash != "" {
+			t.Fatalf("refused Goal row = %+v, %v; want queued without a dispatch token", entry, err)
+		}
+		if _, err := globalDB.Instances().Resume(ctx, instance.ID, 10, true); err != nil {
+			t.Fatalf("Resume() error = %v", err)
+		}
+		if _, err := globalDB.ClaimPreparedWorkPrompt(ctx, claim); err != nil {
+			t.Fatalf("ClaimPreparedWorkPrompt(resumed) error = %v", err)
 		}
 	})
 

@@ -44,6 +44,7 @@ const (
 )
 
 const (
+	GoalReasonOnInstanceMain      GoalReasonCode = "goal_on_instance_main"
 	GoalReasonNotActive           GoalReasonCode = "goal_not_active"
 	GoalReasonReplaceRequired     GoalReasonCode = "goal_replace_required"
 	GoalReasonReplaceStale        GoalReasonCode = "goal_replace_stale"

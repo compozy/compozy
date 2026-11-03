@@ -3,7 +3,10 @@ import { Info } from "@compozy/ui/icons";
 import { Alert, AlertDescription, Field, FieldDescription, FieldLabel, Input } from "@compozy/ui";
 
 import type { AutomationFormModel } from "../../../hooks/use-automation-form";
-import type { AutomationFormDraft } from "../../../lib/automation-form-draft";
+import {
+  automationLinkKeepsScope,
+  type AutomationFormDraft,
+} from "../../../lib/automation-form-draft";
 
 const MONO = "font-mono text-form-label";
 
@@ -12,15 +15,24 @@ interface WebhookStartProps {
   form: AutomationFormModel;
 }
 
-/** Link settings: always in User; the signing secret is write-only and never shown again. */
+/**
+ * Link settings: in User, unless the link tells a stays-on agent and so lives where that agent
+ * runs. The signing secret is write-only and never shown again.
+ */
 export function WebhookStart({ draft, form }: WebhookStartProps) {
   return (
     <div className="flex flex-col gap-3">
       <Alert data-testid="automation-webhook-global-note" role="note" variant="info">
         <Info aria-hidden="true" />
         <AlertDescription>
-          Link automations always live in <b className="font-medium text-fg">User</b>. They
-          aren&apos;t tied to one project.
+          {automationLinkKeepsScope(draft) ? (
+            <>This link tells a stays-on agent, so it lives where that agent runs.</>
+          ) : (
+            <>
+              Link automations always live in <b className="font-medium text-fg">User</b>. They
+              aren&apos;t tied to one project.
+            </>
+          )}
         </AlertDescription>
       </Alert>
       <div className="grid grid-cols-2 gap-3">

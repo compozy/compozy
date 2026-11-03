@@ -1,6 +1,9 @@
 package config
 
 func (o providerOverlay) Apply(dst *ProviderConfig) {
+	if o.ReviewerMode != nil {
+		dst.ReviewerMode = *o.ReviewerMode
+	}
 	dst.SessionEnv = MergeSessionEnv(dst.SessionEnv, o.SessionEnv)
 	if o.SteerCapability != nil {
 		dst.SteerCapability = *o.SteerCapability
@@ -48,17 +51,21 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	if o.AuthACPMethod != nil {
 		dst.AuthACPMethod = *o.AuthACPMethod
 	}
-	if o.SessionMCP != nil {
-		dst.SessionMCP = new(*o.SessionMCP)
-	}
-	if o.SessionMCPTransport != nil {
-		dst.SessionMCPTransport = *o.SessionMCPTransport
-	}
+	o.applySessionMCP(dst)
 	if len(o.CredentialSlots) > 0 {
 		dst.CredentialSlots = applyProviderCredentialOverlays(o.CredentialSlots)
 	}
 	if len(o.MCPServers) > 0 {
 		dst.MCPServers = applyMCPServerOverlays(dst.MCPServers, o.MCPServers)
+	}
+}
+
+func (o providerOverlay) applySessionMCP(dst *ProviderConfig) {
+	if o.SessionMCP != nil {
+		dst.SessionMCP = new(*o.SessionMCP)
+	}
+	if o.SessionMCPTransport != nil {
+		dst.SessionMCPTransport = *o.SessionMCPTransport
 	}
 }
 

@@ -6,13 +6,13 @@ persona: Théo
 journey: J-answer-agent-requests
 expected: A pending permission docks above the composer (fused corners) with buttons only for the decisions the runtime offers; keys 1–4 map to allow-once / allow-always / reject-once / reject-always, key 4 firing even while the reject split menu is closed; digit shortcuts ignore focused inputs; resolving leaves a one-line receipt in the transcript for BOTH outcomes (allowed and rejected). A pending clarification docks with 30px choice rows on keys 1–9, or the free-text form when no choices ship (Enter submits, Shift+Enter breaks); the deadline hint is static, sans with tabular figures, and never ticks; submitting/retryable errors render as quiet dock status lines; multiple pending decisions queue with a sans tabular "1/N" counter, permissions first. No text in the dock family renders below 11px or in mono except the choice keycaps.
 entry_points: web session window composer zone; POST session approve; session clarifications REST
-qa_status: skipped
+qa_status: partial
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa; docs/qa/reports/2026-08-20-ui-normies-retry.md
-last_report: docs/qa/reports/2026-10-02-untested.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa; docs/qa/reports/2026-08-20-ui-normies-retry.md; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: RT-session-clarification-roundtrip
 ---
 
@@ -85,3 +85,19 @@ now renders with that tool, behind its work group, and no longer splits the run;
 shows it once it stops. Rejected, expired, pending and unmatched permissions stay standalone. Native
 `compozy__terminal_exec` approvals carry a synthetic id, so they stay standalone. Rendered in Chromium
 through the `AllowedReceiptInGroup` story; the dock walk above remains outstanding.
+
+B2 hosted-tool denial follow-up (verification pending): let a hosted tool approval
+expire without answering. The calling agent receives the existing
+`approval_timed_out` reason and text explaining that nobody answered, elapsed
+time is not approval, and it should finish unaffected work without repeating the
+unchanged request. Explicit rejection retains its existing error identity and
+directs the agent to finish unaffected work and report the approval need.
+
+B2 repeat expiry extension (verification pending): expire an approval without an
+answer, then request the same action again in the same session. The repeat must
+be refused immediately with resolved_by=repeat_denied and no new pending dock.
+Release and restore the provider process between those requests; the refusal
+must survive. A later human-authored prompt clears the suppression. An agent or
+monitor prompt does not clear it. Different action input follows normal policy.
+
+QA verification 2026-11-03 (stays-on hardening B2, soh/qa 583415ef5, `agents.stays_on.approval_timeout = "2m"`): Partial. One acpmock turn asked twice for the same `git push --force`. The first request expired after 2 minutes with `resolved_by: timeout`. The identical second request was refused in the same second with `resolved_by: repeat_denied`, with no new pending dock (`repeat-expiry-resolutions.json`). A later human prompt for the same action on another stays-on main produced a fresh pending request, so a human prompt clears the suppression. Findings: the Web labels the repeat refusal "Not allowed by you", crediting it to the operator. The expiry report reads "Nobody answered in time, so the Run git push session/request_permission request wasn't allowed." (`08-s8-expired-approval.png`), leaking the ACP method name. Not walked: the hosted-tool `approval_timed_out` text, and releasing and restoring the provider process between requests.

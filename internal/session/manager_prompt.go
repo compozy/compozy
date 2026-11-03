@@ -104,6 +104,14 @@ func (m *Manager) PromptWithOpts(ctx context.Context, id string, opts PromptOpts
 	if err := m.checkNewWorkAdmission(ctx); err != nil {
 		return nil, err
 	}
+	if err := m.admitManagedInstancePrompt(ctx, req.target); err != nil {
+		return nil, err
+	}
+	if runID, ok := ctx.Value(instanceManagedRunKey{}).(string); ok && runID != "" {
+		req.commitDispatch = func(commitCtx context.Context) error {
+			return m.admitManagedInstancePrompt(WithManagedRun(commitCtx, runID), req.target)
+		}
+	}
 	// Daemon-local callers (automations, wakes, judges, extensions) are never human ingress, but their
 	// mentions still resolve against the target session like every other admission path.
 	if req.delivery != PromptDeliveryMaintenance {

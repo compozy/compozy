@@ -104,6 +104,7 @@ vi.mock("@/systems/session", async () => ({
 
 import { useSessionBoardWindow } from "../hooks/use-session-board-window";
 import { useSessionWindowSidebar } from "../use-session-window-sidebar";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 function session(workspaceId: string): SessionPayload {
   return {
@@ -114,6 +115,7 @@ function session(workspaceId: string): SessionPayload {
     profile_id: "00000000000000000000000000",
     profile_name: "default",
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     id: `session-${workspaceId}`,
     agent_name: "claude",

@@ -50,6 +50,13 @@ func (s *service) Resume(
 	if err := actor.Validate(); err != nil {
 		return fmt.Errorf("%w: actor context: %w", ErrValidation, err)
 	}
+	if guard, ok := s.store.(interface {
+		RequireInstanceRunResumable(context.Context, RunID) error
+	}); ok {
+		if err := guard.RequireInstanceRunResumable(ctx, runID); err != nil {
+			return err
+		}
+	}
 	run, err := s.store.GetLoopRun(ctx, ws, runID)
 	if err != nil {
 		return err

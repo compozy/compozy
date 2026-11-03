@@ -60,10 +60,13 @@ export function ShoulderTap({
   onChoose,
   chosen,
   footnote,
+  source,
 }: {
   agent: ReportAgent;
   when: string;
   ask: string;
+  /** What prompted the ask, such as an event, read before any choice (S13). */
+  source?: ReactNode;
   choices: readonly ProposalChoice[];
   /** Absent where nothing can be sent, such as a conversation that moved on. */
   onChoose?: (choice: ProposalChoice) => void;
@@ -89,6 +92,7 @@ export function ShoulderTap({
           </p>
           <h3 className="text-detail-h1 font-medium text-fg-strong">{ask}</h3>
         </div>
+        {source}
         <ChoiceList className="mt-0 gap-1.5">
           {choices.map((choice, index) => (
             <ChoiceRow

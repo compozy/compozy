@@ -113,6 +113,9 @@ func (s *Service) reconcileInstance(ctx context.Context, recovery Reconciliation
 			return fmt.Errorf("agentinstance: unknown start outcome %q", outcome.State)
 		}
 	}
+	if err := s.reconcileEffects(ctx, instance.ID); err != nil {
+		return err
+	}
 	err := s.admission.ValidateResume(ctx, instance)
 	reason := ""
 	switch {

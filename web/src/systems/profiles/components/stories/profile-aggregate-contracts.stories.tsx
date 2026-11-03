@@ -23,6 +23,7 @@ import {
 } from "../../mocks/fixtures";
 import { ProfileOwnerBanner } from "../profile-owner-banner";
 import { ProfileSwitcher } from "../profile-switcher";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 const ACTIONS: SessionLifecycleActionHandlers = {
   pendingAction: null,
@@ -65,6 +66,7 @@ function session(
     workspace_id: "workspace-compozy",
     workspace_path: "/workspace/compozy",
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     state: "active",
     badge: "running",

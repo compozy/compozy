@@ -68,6 +68,9 @@ func (h *BaseHandlers) CreateAgent(c *gin.Context) {
 		return
 	}
 
+	if !h.allowAgentPermissionPolicyWrite(c, req.Agent.SessionApproval, req.Agent.PermissionRules != nil) {
+		return
+	}
 	if !h.allowWorkspaceAccessWrite(c, req.Agent.WorkspaceAccess) {
 		return
 	}

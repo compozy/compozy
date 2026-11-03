@@ -50,6 +50,15 @@ describe("agentPausePlain", () => {
     );
     expect(agentPauseShort(instance)).toBe("Stopped after 3 failed check-ins");
   });
+
+  it("Should say it took the configured steps without you [UT-057]", () => {
+    const instance = agentInstanceFixture({
+      pause_reason: "unattended",
+      unattended_turn_limit: 40,
+    });
+    expect(agentPausePlain(instance)).toBe("It took 40 steps without you.");
+    expect(agentPauseShort(instance)).toBe("Took 40 steps without you");
+  });
 });
 
 describe("buildAgentTeam", () => {

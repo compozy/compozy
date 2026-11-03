@@ -22,6 +22,7 @@ import {
   sessionContextTurnsFixture,
 } from "../../mocks/context-fixtures";
 import type { SessionUsagePayload } from "../../types";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 vi.mock("../../adapters/session-api", () => ({
   fetchSessionRecap: vi.fn(),
@@ -75,6 +76,7 @@ function makeSession(overrides: Partial<SessionPayload> = {}): SessionPayload {
     pull_request_lookup: null,
     supervision: null,
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     profile_name: "default",
     profile_id: "00000000000000000000000000",
@@ -378,6 +380,7 @@ describe("useSession", () => {
       profile_id: "00000000000000000000000000",
       profile_name: "default",
       scope: "workspace",
+      ...sessionPermissionDefaults,
       effective_workspace_access: "",
       id: "sess-001",
       agent_name: "claude-agent",

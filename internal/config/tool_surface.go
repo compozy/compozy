@@ -68,6 +68,7 @@ var (
 		configDefaultsModelPath:                                    ConfigValueString,
 		configDefaultsReasoningEffortPath:                          ConfigValueString,
 		"agents.stays_on.rotation_threshold":                       ConfigValueFloat,
+		"agents.stays_on.unattended_turn_limit":                    ConfigValueInt,
 		"agents.stays_on.max_active_instances":                     ConfigValueInt,
 		"agents.stays_on.max_proposals":                            ConfigValueInt,
 		"agents.stays_on.triage_timeout":                           ConfigValueDuration,

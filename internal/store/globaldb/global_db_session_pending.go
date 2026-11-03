@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 // CreatePendingInteraction persists the canonical record and count projection together.
@@ -128,6 +129,17 @@ func transitionPendingInteraction(
 	}
 	if err := updatePendingInteraction(ctx, exec, normalized); err != nil {
 		return store.SessionAttentionCommit{}, err
+	}
+	if normalized.Status == store.PendingInteractionStatusResolved &&
+		(normalized.ResolvedBy == "operator" || strings.HasPrefix(normalized.ResolvedBy, "operator:")) {
+		if err := resetLineageUnattended(
+			ctx,
+			sqlcgen.New(exec),
+			interaction.SessionID,
+			store.FormatTimestamp(normalized.At),
+		); err != nil {
+			return store.SessionAttentionCommit{}, err
+		}
 	}
 	delta := 0
 	if normalized.Status != store.PendingInteractionStatusOrphaned {

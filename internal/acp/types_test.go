@@ -16,6 +16,24 @@ import (
 
 func TestStartOptsUnrestrictedModesRequireApproveAll(t *testing.T) {
 	t.Parallel()
+	t.Run("Should allow only the verified Claude auto reviewer below approve-all", func(t *testing.T) {
+		t.Parallel()
+		for _, provider := range []string{"claude", "codex", "custom", ""} {
+			base := StartOpts{
+				AgentName: "reviewer", Command: "adapter", Cwd: t.TempDir(),
+				ProviderName: provider, Permissions: compozyconfig.PermissionModeAuto,
+				ACPOptions: []SessionConfigOptionSelection{{ID: "mode", ValueID: "auto"}},
+			}
+			wantAllowed := provider == "claude"
+			if err := base.Validate(); (err == nil) != wantAllowed {
+				t.Fatalf("Validate(provider=%q) = %v, want allowed=%v", provider, err, wantAllowed)
+			}
+			if _, err := normalizeStartOpts(base); (err == nil) != wantAllowed {
+				t.Fatalf("normalizeStartOpts(provider=%q) = %v, want allowed=%v", provider, err, wantAllowed)
+			}
+		}
+	})
+
 	for _, tc := range []struct {
 		name     string
 		optionID string
@@ -30,6 +48,8 @@ func TestStartOptsUnrestrictedModesRequireApproveAll(t *testing.T) {
 			mode: "https://agentclientprotocol.com/protocol/session-modes#autopilot",
 		},
 		{name: "Should require approval for Copilot allow-all", optionID: "allow_all", mode: "on"},
+		{name: "Should require approval for mixed case bypass permissions", mode: "BypassPermissions"},
+		{name: "Should require approval for mixed case Copilot allow-all", optionID: "Allow_All", mode: "ON"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -50,9 +70,16 @@ func TestStartOptsUnrestrictedModesRequireApproveAll(t *testing.T) {
 				!strings.Contains(err.Error(), "requires approve-all") {
 				t.Fatalf("normalizeStartOpts() with default permissions = %v, want full-access refusal", err)
 			}
-			base.Permissions = compozyconfig.PermissionModeApproveReads
-			if err := base.Validate(); err == nil || !strings.Contains(err.Error(), "requires approve-all") {
-				t.Fatalf("Validate() with approve-reads = %v, want full-access refusal", err)
+			// The ACP start boundary must reject provider bypass options at every
+			// level below approve-all, including the two added permission levels.
+			for _, level := range []compozyconfig.PermissionMode{
+				compozyconfig.PermissionModeDenyAll, compozyconfig.PermissionModeApproveReads,
+				compozyconfig.PermissionModeApproveEdits, compozyconfig.PermissionModeAuto,
+			} {
+				base.Permissions = level
+				if err := base.Validate(); err == nil || !strings.Contains(err.Error(), "requires approve-all") {
+					t.Fatalf("Validate() with %s = %v, want full-access refusal", level, err)
+				}
 			}
 			base.Permissions = compozyconfig.PermissionModeApproveAll
 			if err := base.Validate(); err != nil {
@@ -764,4 +791,34 @@ func TestPromptStopReasonShouldRequireExactWireValue(t *testing.T) {
 			t.Fatal("PromptStopReason(whitespace).Valid() = true, want false")
 		}
 	})
+}
+
+func TestAutoPermissionDegradation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		provider string
+		reviewer string
+		current  string
+		degraded bool
+	}{
+		{"Should preserve Claude reviewer after negotiation", "claude", "auto", "auto", false},
+		{"Should detect adapter fallback to edit mode", "claude", "auto", "acceptEdits", true},
+		{"Should preserve Codex reviewer after negotiation", "codex", "agent", "agent", false},
+		{"Should reject an undeclared reviewer", "custom", "", "auto", true},
+		{"Should reject unrestricted reviewer pairs", "custom", "auto", "auto", true},
+		{"Should degrade without current mode evidence", "custom", "smart", "", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			proc := &AgentProcess{
+				providerName: tc.provider, reviewerMode: tc.reviewer,
+				permissions: permissionPolicy{mode: compozyconfig.PermissionModeAuto},
+				caps:        Caps{ConfigOptions: []SessionConfigOption{{ID: "mode", CurrentValueID: tc.current}}},
+			}
+			if got := proc.CapsSnapshot().PermissionModeDegraded; got != tc.degraded {
+				t.Fatalf("degraded=%v, want %v", got, tc.degraded)
+			}
+		})
+	}
 }

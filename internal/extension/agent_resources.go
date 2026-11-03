@@ -135,6 +135,16 @@ func loadStaticAgent(rootDir, agentDir string) (StaticAgent, error) {
 			fmt.Errorf("%w: load agent: %w", ErrManifestInvalid, err),
 		)
 	}
+	if agent.SessionApproval != "" {
+		slog.Warn("extension agent session_approval dropped", "code", "session_approval_untrusted_source",
+			"agent_name", agent.Name, "source", agentPath)
+		agent.SessionApproval = ""
+	}
+	if len(agent.PermissionRules) > 0 {
+		slog.Warn("extension agent permission_rules dropped", "code", "permission_rules_untrusted_source",
+			"agent_name", agent.Name, "source", agentPath)
+		agent.PermissionRules = nil
+	}
 	if agent.WorkspaceAccess != "" {
 		slog.Warn(
 			"extension agent workspace_access dropped",

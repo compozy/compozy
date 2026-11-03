@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 )
 
@@ -53,6 +54,19 @@ func loadWorkspaceConfigOverlayBytes(contents []byte, source string) (configOver
 func validateWorkspaceConfigOverlay(path string, overlay *configOverlay) error {
 	if overlay == nil {
 		return nil
+	}
+	for name, provider := range overlay.Providers {
+		if provider.ReviewerMode != nil {
+			slog.Warn(
+				"workspace reviewer_mode ignored; configure it globally or in a profile",
+				"provider",
+				name,
+				"path",
+				path,
+			)
+			provider.ReviewerMode = nil
+			overlay.Providers[name] = provider
+		}
 	}
 	if overlay.ProviderUsage != nil {
 		return fmt.Errorf("workspace config %q: provider_usage settings are global-only", path)

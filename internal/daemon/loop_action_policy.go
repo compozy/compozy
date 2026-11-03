@@ -108,6 +108,7 @@ func (g *loopSessionPolicyGate) applyResolved(
 		opts.Speed = resolvedAgent.SpeedValue()
 	}
 	agentOptions := allowedLoopAgentACPOptions(
+		opts.Provider,
 		opts.Permissions,
 		session.ACPOptionSelectionsFromConfig(resolvedAgent.ACPOptionsValue()),
 	)
@@ -135,6 +136,7 @@ func (g *loopSessionPolicyGate) applyResolved(
 }
 
 func allowedLoopAgentACPOptions(
+	provider string,
 	permissions compozyconfig.PermissionMode,
 	options []acp.SessionConfigOptionSelection,
 ) []acp.SessionConfigOptionSelection {
@@ -142,7 +144,7 @@ func allowedLoopAgentACPOptions(
 		return options
 	}
 	return slices.DeleteFunc(options, func(option acp.SessionConfigOptionSelection) bool {
-		return compozyconfig.IsUnrestrictedACPOption(option.ID, option.ValueID)
+		return compozyconfig.IsUnrestrictedACPOption(provider, option.ID, option.ValueID)
 	})
 }
 

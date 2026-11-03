@@ -1,17 +1,55 @@
 package daemon
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"slices"
 	"testing"
 
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should refuse both grant mutations for a stays-on descendant", func(t *testing.T) {
+		t.Parallel()
+		sessions := nativeTestSessionManager("ws-a")
+		sessions.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			info := &session.Info{
+				ID:                   id,
+				WorkspaceID:          "ws-a",
+				ProfileID:            store.DefaultProfileID,
+				AgentName:            "codex",
+				State:                session.StateActive,
+				EffectivePermissions: "approve-all",
+			}
+			if id == "main" {
+				info.InstanceID = "instance"
+			} else {
+				info.Lineage = &store.SessionLineage{ParentSessionID: "main"}
+			}
+			return info, nil
+		}
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			ApprovalGrants: &recordingApprovalGrantStore{}, Sessions: sessions,
+		}, nativeApproveAllPolicyInputs())
+		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDToolApprovalsSet, toolspkg.ToolIDToolApprovalsRevoke} {
+			input := json.RawMessage(`{"tool_id":"compozy__approval_probe","decision":"allow","scope":"tool"}`)
+			if id == toolspkg.ToolIDToolApprovalsRevoke {
+				input = json.RawMessage(`{"id":"grant-a"}`)
+			}
+			_, err := registry.Call(t.Context(), toolspkg.Scope{
+				ProfileID: store.DefaultProfileID, SessionID: "child", WorkspaceID: "ws-a", AgentName: "codex",
+			}, toolspkg.CallRequest{ToolID: id, Input: input})
+			if !errors.Is(err, session.ErrToolApprovalGrantDenied) {
+				t.Fatalf("tool=%s error=%v, want grant refusal", id, err)
+			}
+		}
+	})
 
 	t.Run("Should set explicit agent-wide and tool-wide grants", func(t *testing.T) {
 		t.Parallel()

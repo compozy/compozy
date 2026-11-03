@@ -52,6 +52,9 @@ func (g *SessionRepo) EnqueueAdmittedSessionInput(
 		return admission, entry, 0, false, err
 	}
 	result, err := g.enqueueAdmittedSessionInput(ctx, admissionReq, queueReq)
+	if err == nil && result.created {
+		g.observeHeldInstanceInput(ctx, &result.entry)
+	}
 	return result.admission, result.entry, result.position, result.created, err
 }
 
@@ -74,6 +77,9 @@ func enqueueAdmittedSessionInputInTransaction(
 	queueReq store.SessionInputQueueInsert,
 	result *admittedSessionInputResult,
 ) error {
+	if err := checkInstancePromptTarget(ctx, exec, admissionReq); err != nil {
+		return err
+	}
 	claimed, replayed, err := claimOrReplayAdmittedSessionInput(ctx, exec, admissionReq, result)
 	if err != nil || replayed {
 		return err
@@ -105,13 +111,21 @@ func enqueueAdmittedSessionInputInTransaction(
 	if err != nil {
 		return err
 	}
+	receipt := queuedPromptAdmissionResult(&inserted, result.position, result.canceled)
+	delivery, err := instancePromptDelivery(ctx, exec, admissionReq)
+	if err != nil {
+		return err
+	}
+	if delivery != "" {
+		receipt.Delivery = delivery
+	}
 	completed, err := completeSessionPromptAdmission(
 		ctx,
 		exec,
 		claimed.WorkspaceID,
 		claimed.SessionID,
 		claimed.IdempotencyKey,
-		queuedPromptAdmissionResult(&inserted, result.position, result.canceled),
+		receipt,
 		admissionReq.Now,
 		store.SessionPromptAdmissionReserved,
 	)
@@ -409,6 +423,9 @@ func bindQueueAdmission(
 	req.Origin = append(req.Origin[:0:0], admission.Origin...)
 	// The bound admission origin decides the dispatch class and sender.
 	req.OriginClass, req.OriginSessionID = "", ""
+	if req.HumanSpawnOrigin {
+		req.OriginClass = store.SessionInputOriginClassHuman
+	}
 	req.Attachments = append([]store.SessionInputAttachment(nil), admission.Attachments...)
 	return req
 }

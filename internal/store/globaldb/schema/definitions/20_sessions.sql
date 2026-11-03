@@ -116,7 +116,8 @@ CREATE TABLE session_health (
 			origin_class TEXT NOT NULL DEFAULT 'human' CHECK (origin_class IN ('human', 'agent', 'synthetic')),
 			origin_session_id TEXT NOT NULL DEFAULT '',
 			mentions_json TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(mentions_json)),
-			human_ingress INTEGER NOT NULL DEFAULT 0);
+			human_ingress INTEGER NOT NULL DEFAULT 0,
+			unattended_counted INTEGER NOT NULL DEFAULT 0);
 
 CREATE TABLE sessions (
  initiator_kind TEXT NOT NULL DEFAULT '',
@@ -292,6 +293,10 @@ CREATE INDEX idx_session_input_queue_goal_owner
 
 	CREATE INDEX idx_session_prompt_admissions_state
 			ON session_prompt_admissions(workspace_id, session_id, state, updated_at);
+
+	CREATE INDEX idx_session_prompt_admissions_human_turn
+			ON session_prompt_admissions(session_id, turn_id)
+			WHERE human_ingress = 1 AND dispatch_committed_at IS NOT NULL;
 
 CREATE INDEX idx_sessions_attach_lock
 			ON sessions(attached_to, attach_expires_at);

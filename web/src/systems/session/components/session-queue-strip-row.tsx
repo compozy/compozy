@@ -1,8 +1,8 @@
-import { CornerDownRight, Folder, ListPlus, Pencil, RotateCcw, Trash2, X } from "@compozy/ui/icons";
+import { CornerDownRight, ListPlus, Pencil, RotateCcw, Trash2, X } from "@compozy/ui/icons";
 import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import { Button, OwnerAvatar, Skeleton, Spinner } from "@compozy/ui";
+import { Button, OwnerAvatar, Spinner } from "@compozy/ui";
 
 import {
   coalescedWakesLabel,
@@ -15,10 +15,11 @@ import { queuedPromptPreview } from "../lib/queued-prompt-preview";
 import type { UnconfirmedSend } from "../lib/session-unconfirmed-send";
 import { useSessionRuntimeRenderContext } from "../hooks/use-session-runtime-render-context";
 import type { SessionMessageOrigin } from "../lib/session-message-payload";
-import { SubagentAvatar } from "./subagents/subagent-avatar";
-import { DELETED_SESSION_LABEL, sessionPartyMark } from "./session-messages/session-message-party";
+import { DELETED_SESSION_LABEL } from "./session-messages/session-message-party";
 import { useSessionLabel } from "./session-messages/use-session-label";
+import { SessionQueuedSender } from "./session-queued-sender";
 import { AgentIdentityChip } from "@/systems/agent/components/agent-identity-mark";
+import { SessionQueuedHeld } from "./session-queued-held";
 
 function queuedAttachmentSuffix(summary: QueuedPromptAttachmentSummary): string {
   const parts: string[] = [];
@@ -204,42 +205,6 @@ function SessionQueuedSteer({
 
 type SessionLabel = ReturnType<typeof useSessionLabel>;
 
-/** "From {title}" with the sender's provider mark and, across workspaces, its workspace (Gap 5). */
-function SessionQueuedSender({ party, title }: { party: SessionLabel; title: string }) {
-  return (
-    <span
-      data-testid="composer-queued-sender"
-      aria-busy={party.pending || undefined}
-      title={party.pending ? undefined : `From ${title}`}
-      className="inline-flex max-w-[70%] min-w-0 items-center gap-1.5 text-micro text-muted-foreground"
-    >
-      <SubagentAvatar provider={sessionPartyMark(party)} size="sm" className="size-4.5" />
-      <span className="shrink-0">From</span>
-      {party.pending ? (
-        <Skeleton aria-hidden="true" className="inline-block h-3 w-16 rounded-xs" />
-      ) : (
-        <span
-          className={cn(
-            "min-w-0 truncate",
-            party.title === null ? "font-medium text-muted-foreground" : "font-medium text-fg-2"
-          )}
-        >
-          {title}
-        </span>
-      )}
-      {party.workspaceName ? (
-        <span
-          className="inline-flex min-w-0 items-center gap-0.5 text-subtle"
-          data-testid="composer-queued-sender-workspace"
-        >
-          <Folder aria-hidden="true" className="size-2.75 shrink-0 text-faint" />
-          <span className="truncate">{party.workspaceName}</span>
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
 /** Steer and Remove for a message from another session, named after its sender once known. */
 function SessionQueuedSessionMessageActions({
   prompt,
@@ -285,6 +250,7 @@ function SessionQueuedSessionMessageActions({
 function SessionQueuedSessionMessageRow({
   prompt,
   sender,
+  held,
   disabled,
   actionsHidden,
   onSteer,
@@ -292,6 +258,7 @@ function SessionQueuedSessionMessageRow({
 }: {
   prompt: QueuedPrompt;
   sender: SessionMessageOrigin;
+  held: boolean;
   disabled: boolean;
   actionsHidden: boolean;
   onSteer: (prompt: QueuedPrompt) => void;
@@ -310,12 +277,17 @@ function SessionQueuedSessionMessageRow({
   const title = party.title ?? DELETED_SESSION_LABEL;
   const actionable = isQueuedPromptMutable(prompt) && !dispatching && !actionsHidden;
   return (
-    <SessionQueueRowFrame data-status={prompt.status} data-origin="session">
+    <SessionQueueRowFrame
+      data-status={prompt.status}
+      data-origin="session"
+      data-held={held ? "true" : undefined}
+    >
       <SessionQueuePosition>#{prompt.position}</SessionQueuePosition>
       <ListPlus aria-hidden="true" className="size-3 shrink-0 text-faint" />
       <SessionQueuedSender party={party} title={title} />
       {prompt.attachments ? <SessionQueuedAttachmentWell summary={prompt.attachments} /> : null}
       <SessionQueuedPreview text={prompt.text} className="min-w-16 basis-0" />
+      {held ? <SessionQueuedHeld /> : null}
       {dispatching ? (
         <SessionQueuedState spinning testId="composer-queued-state">
           Sending…
@@ -361,11 +333,13 @@ export function SessionQueueEntryRow({
   onEdit,
   onRemove,
 }: SessionQueueEntryRowProps) {
+  const held = prompt.held === true;
   if (prompt.sender) {
     return (
       <SessionQueuedSessionMessageRow
         prompt={prompt}
         sender={prompt.sender}
+        held={held}
         disabled={disabled}
         actionsHidden={actionsHidden}
         onSteer={onSteer}
@@ -377,14 +351,22 @@ export function SessionQueueEntryRow({
   const mutable =
     isQueuedPromptMutable(prompt) && prompt.owner === null && !dispatching && !actionsHidden;
   return (
-    <SessionQueueRowFrame data-status={prompt.status} data-owner-kind={prompt.owner?.kind}>
+    <SessionQueueRowFrame
+      data-status={prompt.status}
+      data-owner-kind={prompt.owner?.kind}
+      data-held={held ? "true" : undefined}
+    >
       <SessionQueuePosition>#{prompt.position}</SessionQueuePosition>
       <ListPlus aria-hidden="true" className="size-3 shrink-0 text-faint" />
-      {prompt.owner ? <SessionQueuedOwner owner={prompt.owner} /> : null}
+      {/* A daemon wake (`synthetic`) says what it is in its text; it has no owner to name. */}
+      {prompt.owner && prompt.owner.kind !== "synthetic" ? (
+        <SessionQueuedOwner owner={prompt.owner} />
+      ) : null}
       {prompt.attachments ? <SessionQueuedAttachmentWell summary={prompt.attachments} /> : null}
       <SessionQueuedPreview
         text={prompt.coalescedWakes ? coalescedWakesLabel(prompt.coalescedWakes) : prompt.text}
       />
+      {held ? <SessionQueuedHeld /> : null}
       {dispatching ? (
         <SessionQueuedState spinning testId="composer-queued-state">
           Sending…

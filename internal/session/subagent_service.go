@@ -12,6 +12,7 @@ import (
 )
 
 type subagentSnapshot struct {
+	Held       bool
 	Info       *Info
 	TurnID     string
 	Active     bool
@@ -229,7 +230,20 @@ func (s *subagentService) Get(ctx context.Context, workspace, id string) (Subage
 	if errors.Is(err, store.ErrSubagentNotFound) {
 		return Subagent{}, ErrSubagentNotFound
 	}
-	return presentSubagent(row), err
+	if err != nil {
+		return Subagent{}, err
+	}
+	result := presentSubagent(row)
+	if row.ChildSessionID != nil && !store.IsSubagentStatusTerminal(row.Status) {
+		snapshot, readErr := s.runtime.Snapshot(ctx, *row.ChildSessionID)
+		if readErr != nil && !errors.Is(readErr, ErrSessionNotFound) {
+			return Subagent{}, readErr
+		}
+		if snapshot.Held {
+			result.Delivery = "held"
+		}
+	}
+	return result, nil
 }
 func (s *subagentService) List(ctx context.Context, q store.SubagentListQuery) (store.SubagentPage, error) {
 	return s.store.ListSubagents(ctx, q)

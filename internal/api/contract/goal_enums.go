@@ -105,6 +105,7 @@ func GoalReasonCodeValues() []string {
 		string(GoalReasonContinuousBindingMismatch),
 		string(GoalReasonRuntimeInvalid),
 		string(GoalReasonCallerUnauthorized),
+		string(GoalReasonOnInstanceMain),
 		string(GoalReasonWaitDeferred),
 		string(GoalReasonWaitTimeout),
 		string(GoalReasonWaitUnavailable),

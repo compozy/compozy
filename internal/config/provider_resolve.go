@@ -296,6 +296,7 @@ func resolvedAgentFromProvider(
 	mcpServers []MCPServer,
 ) ResolvedAgent {
 	resolved := ResolvedAgent{
+		ReviewerMode:          provider.ReviewerMode,
 		Name:                  agent.Name,
 		Provider:              providerName,
 		Command:               command,

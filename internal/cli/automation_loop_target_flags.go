@@ -18,6 +18,7 @@ const (
 )
 
 type automationCreateTargetInput struct {
+	TargetInstance        string
 	AgentName             string
 	Prompt                string
 	LoopName              string
@@ -27,10 +28,11 @@ type automationCreateTargetInput struct {
 }
 
 type automationCreateTarget struct {
-	Kind       automationpkg.TargetKind
-	AgentName  string
-	Prompt     string
-	LoopTarget *automationpkg.LoopTarget
+	InstanceScope string
+	Kind          automationpkg.TargetKind
+	AgentName     string
+	Prompt        string
+	LoopTarget    *automationpkg.LoopTarget
 }
 
 func bindAutomationCreateTargetFlags(
@@ -69,6 +71,12 @@ func bindAutomationCreateTargetFlags(
 		"Static Loop input as key=value; repeat for multiple inputs",
 	)
 	if allowInputMapping {
+		cmd.Flags().StringVar(
+			&input.TargetInstance,
+			"target-instance",
+			"",
+			"Stays-on agent name, not an instance ID, whose check receives the event",
+		)
 		cmd.Flags().StringArrayVar(
 			&input.LoopInputMappingFlags,
 			automationLoopInputMappingFlag,
@@ -87,6 +95,18 @@ func buildAutomationCreateTarget(
 	input automationCreateTargetInput,
 	allowInputMapping bool,
 ) (automationCreateTarget, error) {
+	if input.TargetInstance != "" {
+		if !allowInputMapping {
+			return automationCreateTarget{}, errors.New("cli: scheduled jobs cannot target an instance")
+		}
+		if input.AgentName != "" {
+			return automationCreateTarget{}, errors.New("cli: --target-instance cannot be combined with --agent")
+		}
+		if input.LoopName != "" {
+			return automationCreateTarget{}, errors.New("cli: --target-instance cannot be combined with --loop")
+		}
+		return buildAutomationInstanceTarget(scope, scopeWorkspaceID, input)
+	}
 	agentName := strings.TrimSpace(input.AgentName)
 	loopName := strings.TrimSpace(input.LoopName)
 	switch {
@@ -110,6 +130,28 @@ func buildAutomationCreateTarget(
 	default:
 		return automationCreateTarget{}, errors.New("cli: either --agent or --loop is required")
 	}
+}
+
+// buildAutomationInstanceTarget targets a stays-on agent by name. The prompt is an optional
+// instruction for its check; the daemon rejects an instance ID in place of the agent name.
+func buildAutomationInstanceTarget(
+	scope automationpkg.Scope,
+	scopeWorkspaceID string,
+	input automationCreateTargetInput,
+) (automationCreateTarget, error) {
+	if automationLoopTargetOptionsPresent(input) {
+		return automationCreateTarget{}, errors.New("cli: Loop target flags cannot be used with --target-instance")
+	}
+	target := automationCreateTarget{
+		Kind:          automationpkg.TargetKindAgentInstance,
+		AgentName:     strings.TrimSpace(input.TargetInstance),
+		Prompt:        strings.TrimSpace(input.Prompt),
+		InstanceScope: scopeWorkspaceID,
+	}
+	if scope == automationpkg.AutomationScopeGlobal {
+		target.InstanceScope = layoutProfileScopeGlobal
+	}
+	return target, nil
 }
 
 func buildAutomationAgentTarget(

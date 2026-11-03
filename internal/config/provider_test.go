@@ -3300,7 +3300,8 @@ func TestProviderSessionMCPTransportConfig(t *testing.T) {
 	t.Run("Should bridge session MCP over HTTP when an overlay selects it", func(t *testing.T) {
 		t.Parallel()
 		var overlay providerOverlay
-		if _, err := toml.Decode(`session_mcp_transport = "http"`, &overlay); err != nil {
+		if _, err := toml.Decode(`session_mcp_transport = "http"
+reviewer_mode = "review"`, &overlay); err != nil {
 			t.Fatal(err)
 		}
 		provider := ProviderConfig{Command: "custom-agent --acp"}
@@ -3319,6 +3320,11 @@ func TestProviderSessionMCPTransportConfig(t *testing.T) {
 		}
 		if !agent.SessionMCPOverHTTP {
 			t.Fatal("ResolvedAgent.SessionMCPOverHTTP = false, want true")
+		}
+		// Provider resolution owns preserving both independently configured
+		// launch capabilities when cloning and applying the same overlay.
+		if resolved.ReviewerMode != "review" || agent.ReviewerMode != "review" {
+			t.Fatalf("reviewer mode lost across provider resolution: %q, %q", resolved.ReviewerMode, agent.ReviewerMode)
 		}
 	})
 	t.Run("Should let an operator return Copilot to stdio session MCP", func(t *testing.T) {
@@ -3937,6 +3943,48 @@ Test agent.
 				!strings.Contains(err.Error(), reason) {
 				t.Fatalf("accepted invalid name %q", name)
 			}
+		}
+	})
+}
+
+func TestReviewerModeTrustBoundary(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject unrestricted reviewers except the verified Claude pair", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			provider string
+			mode     string
+			reject   bool
+		}{
+			{"claude", "auto", false}, {"codex", "agent", false},
+			{"custom", "smart", false}, {"custom", "auto", true},
+			{"claude", "bypassPermissions", true},
+			{"claude", "BYPASSPERMISSIONS", true},
+			{"custom", "Full-Access", true},
+			{"custom", "AuTo", true},
+			{"Claude", "Auto", false},
+			{"copilot", copilotAutopilotMode, true},
+			{"Copilot", strings.ToUpper(copilotAutopilotMode), true},
+		} {
+			p := builtinProviders[providerClaudeKey]
+			p.ReviewerMode = tc.mode
+			err := validateResolvedProvider(tc.provider, p)
+			if (err != nil) != tc.reject {
+				t.Fatalf("provider=%s reviewer=%s error=%v", tc.provider, tc.mode, err)
+			}
+		}
+	})
+	t.Run("Should drop workspace reviewer declarations while preserving global review", func(t *testing.T) {
+		t.Parallel()
+		overlay, err := loadWorkspaceConfigOverlayBytes(
+			[]byte("[providers.claude]\nreviewer_mode = 'bypassPermissions'\n"), "workspace.toml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		p := builtinProviders[providerClaudeKey]
+		overlay.Providers["claude"].Apply(&p)
+		if p.ReviewerMode != "auto" {
+			t.Fatalf("reviewer=%q, want auto", p.ReviewerMode)
 		}
 	})
 }

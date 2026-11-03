@@ -79,7 +79,10 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"updated_at",
 		"grant_ceiling",
 	})
+	// Migration 00181 rebuilds the table with grant_ceiling first and
+	// target_instance_scope after target_kind, on fresh and upgraded databases alike.
 	assertTableColumns(t, globalDB.db, "automation_triggers", []string{
+		"grant_ceiling",
 		"id",
 		"profile_id",
 		"scope",
@@ -97,13 +100,13 @@ func TestOpenGlobalDBCreatesAutomationSchemaAndIndexes(t *testing.T) {
 		"endpoint_slug",
 		"webhook_secret_ref",
 		"target_kind",
+		"target_instance_scope",
 		"loop_workspace_id",
 		"loop_name",
 		"loop_inputs",
 		"loop_input_mapping",
 		"created_at",
 		"updated_at",
-		"grant_ceiling",
 	})
 	assertTableColumns(t, globalDB.db, "automation_runs", []string{
 		"workspace_id",

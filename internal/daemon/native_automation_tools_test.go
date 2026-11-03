@@ -489,6 +489,23 @@ func TestDaemonNativeAutomationTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, triggerCreateResult, []byte(`"on-session"`))
 
+		t.Run("Should create an instance-target trigger without a prompt", func(t *testing.T) {
+			result, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDAutomationTriggersCreate,
+					Input: json.RawMessage(
+						`{"scope":"global","name":"on-session-check","agent_name":"triage","target_kind":"agent_instance","event":"session.created"}`,
+					),
+				},
+			)
+			if err != nil {
+				t.Fatalf("Registry.Call(automation_triggers_create instance target, no prompt) error = %v", err)
+			}
+			requireNativeStructuredContains(t, result, []byte(`"on-session-check"`))
+		})
+
 		t.Run("Should reject a padded event on trigger creation", func(t *testing.T) {
 			_, err := registry.Call(
 				t.Context(),

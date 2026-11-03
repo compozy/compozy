@@ -65,11 +65,15 @@ CREATE TABLE agent_instance_wake_state (
     last_digest TEXT NOT NULL DEFAULT '',
     last_digest_at TEXT NOT NULL DEFAULT '',
     automation_cursor TEXT NOT NULL DEFAULT '',
+    unattended_turns INTEGER NOT NULL DEFAULT 0 CHECK (unattended_turns >= 0),
+    engaged_at TEXT NOT NULL DEFAULT '',
+    events_omitted INTEGER NOT NULL DEFAULT 0 CHECK (events_omitted >= 0),
     quiet_streak INTEGER NOT NULL DEFAULT 0 CHECK (quiet_streak >= 0),
     failure_streak INTEGER NOT NULL DEFAULT 0 CHECK (failure_streak >= 0),
     occurrence_id TEXT NOT NULL DEFAULT '',
     triage_session_id TEXT NOT NULL DEFAULT '',
     occurrence_started_at TEXT NOT NULL DEFAULT '',
+    rotation_due_session TEXT NOT NULL DEFAULT '',
     occurrence_cancelled INTEGER NOT NULL DEFAULT 0 CHECK (occurrence_cancelled IN (0, 1))
 );
 
@@ -87,3 +91,44 @@ CREATE TABLE agent_instance_rotation_wait (
     main_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     started_at TEXT NOT NULL
 );
+
+
+CREATE TABLE agent_instance_paused_runs (
+    instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,
+    run_kind TEXT NOT NULL CHECK (run_kind IN ('goal', 'loop')),
+    run_id TEXT NOT NULL,
+    paused_at TEXT NOT NULL,
+    PRIMARY KEY (instance_id, run_kind, run_id)
+);
+
+CREATE TABLE agent_skill_reviews (
+    id TEXT PRIMARY KEY,
+    instance_id TEXT NOT NULL,
+    profile_id TEXT NOT NULL,
+    workspace_id TEXT NOT NULL DEFAULT '',
+    agent_name TEXT NOT NULL DEFAULT '',
+    skill_name TEXT NOT NULL,
+    digest TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'rejected')),
+    draft_path TEXT NOT NULL,
+    source_session_id TEXT,
+    decided_by TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    decided_at TEXT
+);
+
+CREATE INDEX idx_agent_skill_reviews_instance ON agent_skill_reviews(instance_id, state, created_at, id);
+CREATE INDEX idx_agent_skill_reviews_scope ON agent_skill_reviews(profile_id, workspace_id, created_at, id);
+
+CREATE TABLE agent_instance_events (
+    id TEXT PRIMARY KEY,
+    instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,
+    trigger_id TEXT NOT NULL,
+    run_id TEXT NOT NULL UNIQUE,
+    summary TEXT NOT NULL,
+    received_at TEXT NOT NULL,
+    consumed_at TEXT,
+    occurrence_id TEXT
+);
+
+CREATE INDEX idx_agent_instance_events_unread ON agent_instance_events(instance_id, consumed_at, received_at, id);

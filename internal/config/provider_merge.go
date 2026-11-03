@@ -8,6 +8,9 @@ import (
 
 func mergeProvider(base ProviderConfig, override ProviderConfig) ProviderConfig {
 	merged := cloneProvider(base)
+	if override.ReviewerMode != "" {
+		merged.ReviewerMode = override.ReviewerMode
+	}
 	merged.SessionEnv = MergeSessionEnv(base.SessionEnv, override.SessionEnv)
 	if override.SteerCapability != "" {
 		merged.SteerCapability = override.SteerCapability

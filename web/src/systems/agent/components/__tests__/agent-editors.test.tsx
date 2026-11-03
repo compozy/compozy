@@ -1,6 +1,8 @@
-// Invariant: the three editors save real files through the digest guard, and tell the truth when a
-// file can't be shown or a route doesn't answer yet.
-// Owner: the agent-editors components, over HTTP; canonical suite for UT-077, UT-078 and UT-083.
+// Invariant: the editors save real files through the digest guard, and tell the truth when a
+// file can't be shown or a route doesn't answer yet; Permissions offers the five levels, marks Auto
+// unavailable from provider data, and saves exceptions and approval reach with the definition.
+// Owner: the agent-editors components, over HTTP; canonical suite for UT-077, UT-078, UT-083,
+// UT-058 (agent editor half) and UT-096.
 // HTTP is the mocked boundary; the router blocker has no router here, so it is stubbed.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -12,6 +14,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 
 import { handlers as profileHandlers } from "@/systems/profiles/mocks";
 
+import { primarySessionFixture } from "@/systems/session/mocks/fixtures";
+
 import { primaryAgentFixture } from "../../mocks/fixtures";
 import { handlers, resetAgentMockState } from "../../mocks/handlers";
 import { agentInstanceFixture } from "../../mocks/instance-fixtures";
@@ -20,6 +24,7 @@ import { seedAgentMemoryMock } from "../../mocks/memory-handlers";
 import type { AgentHeartbeatPayload, AgentPayload, AgentSoulPayload } from "../../types";
 import { AgentCheckInsEditor } from "../agent-editors/agent-check-ins-editor";
 import { AgentMemoryEditor } from "../agent-editors/agent-memory-editor";
+import { AgentPermissionsEditor } from "../agent-editors/agent-permissions-editor";
 import {
   AgentWhatItDoesEditor,
   type AgentEditorProps,
@@ -28,6 +33,7 @@ import {
 vi.mock("@tanstack/react-router", async importOriginal => ({
   ...(await importOriginal<typeof import("@tanstack/react-router")>()),
   useBlocker: () => ({ status: "idle", proceed: undefined, reset: undefined }),
+  useNavigate: () => vi.fn(),
 }));
 
 const server = setupServer(...profileHandlers, ...handlers);
@@ -476,5 +482,266 @@ describe("Memory", () => {
     seedAgentMemoryMock(MEMORY);
     renderEditor(<AgentMemoryEditor {...props({ readOnly: true })} />);
     expect(await screen.findByRole("button", { name: "Add a note" })).toBeTruthy();
+  });
+});
+
+describe("Permissions", () => {
+  const staysOn: AgentPayload = { ...agent, kind: "stays_on", provider: "claude" };
+
+  function serveAgent(served: AgentPayload, onPut?: (body: unknown) => void) {
+    server.use(
+      http.get("*/api/agents/:name", () => HttpResponse.json({ agent: served })),
+      http.put("*/api/agents/:name", async ({ request }) => {
+        const body = (await request.json()) as { agent: Partial<AgentPayload> };
+        onPut?.(body);
+        return HttpResponse.json({ agent: { ...served, ...body.agent } });
+      })
+    );
+  }
+
+  function serveProvider(provider: string, reviewerMode?: string) {
+    server.use(
+      http.get("*/api/providers", () =>
+        HttpResponse.json({
+          providers: [
+            {
+              name: provider,
+              display_name: provider === "codex" ? "Codex" : "Claude Code",
+              default: true,
+              auth_status: { state: "ok" },
+              ...(reviewerMode === undefined ? {} : { reviewer_mode: reviewerMode }),
+            },
+          ],
+        })
+      )
+    );
+  }
+
+  it("Should show five levels with unset as the stays-on default, and no Follow Settings", async () => {
+    serveAgent(staysOn);
+    renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
+    const levels = await screen.findByRole("radiogroup", { name: "Permission level" });
+    const cards = levels.querySelectorAll('[role="radio"]');
+    expect(Array.from(cards, card => card.textContent)).toEqual([
+      expect.stringContaining("Ask before every action"),
+      expect.stringContaining("Ask before changes"),
+      expect.stringContaining("Edit on its own"),
+      expect.stringContaining("Let a reviewer decide"),
+      expect.stringContaining("Never ask"),
+    ]);
+    const edits = screen.getByTestId("agent-permissions-level-approve-edits");
+    expect(edits).toHaveAttribute("aria-checked", "true");
+    expect(edits).toHaveTextContent("Default");
+    expect(screen.queryByText("Follow Settings")).toBeNull();
+    expect(screen.getByRole("radiogroup", { name: "Approval reach" })).toBeTruthy();
+  });
+
+  it("Should let an on-demand agent follow Settings and name the current level", async () => {
+    const onDemand: AgentPayload = { ...agent, kind: "on_demand", permissions: undefined };
+    serveAgent(onDemand);
+    server.use(
+      http.get("*/api/settings/general", () =>
+        HttpResponse.json({ config: { permissions: { mode: "approve-all" } } })
+      )
+    );
+    renderEditor(<AgentPermissionsEditor {...props({ agent: onDemand })} />);
+    const follow = await screen.findByTestId("agent-permissions-level-settings");
+    expect(follow).toHaveAttribute("aria-checked", "true");
+    await waitFor(() => expect(follow).toHaveTextContent("Right now: Never ask."));
+    expect(screen.queryByRole("radiogroup", { name: "Approval reach" })).toBeNull();
+  });
+
+  it("Should mark Auto unavailable from the provider's empty reviewer_mode", async () => {
+    const user = userEvent.setup();
+    serveAgent(staysOn);
+    serveProvider("claude", "");
+    renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
+    const auto = await screen.findByTestId("agent-permissions-level-auto");
+    await waitFor(() => expect(auto).toHaveTextContent("Not available"));
+    // As in the draft, the named alert explains the choice only once it is the selected level.
+    expect(screen.queryByTestId("agent-permissions-no-reviewer")).toBeNull();
+    await user.click(auto);
+    expect(await screen.findByText("Claude Code has no AI reviewer")).toBeTruthy();
+  });
+
+  it("Should name the provider with no reviewer for an agent saved at Let a reviewer decide", async () => {
+    const reviewer: AgentPayload = { ...staysOn, permissions: "auto" };
+    serveAgent(reviewer);
+    serveProvider("claude", "");
+    renderEditor(<AgentPermissionsEditor {...props({ agent: reviewer })} />);
+    expect(await screen.findByText("Claude Code has no AI reviewer")).toBeTruthy();
+    expect(screen.getByTestId("agent-permissions-no-reviewer")).toHaveTextContent(
+      "This agent will use Edit on its own instead."
+    );
+  });
+
+  it("Should not warn about the reviewer when an older daemon sends no reviewer_mode", async () => {
+    const user = userEvent.setup();
+    serveAgent({ ...staysOn, permissions: "approve-reads" });
+    serveProvider("claude");
+    renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
+    await user.click(await screen.findByTestId("agent-permissions-level-auto"));
+    expect(screen.queryByTestId("agent-permissions-no-reviewer")).toBeNull();
+  });
+
+  it("Should explain that Never ask on Codex keeps Codex's own reviewer", async () => {
+    const codex: AgentPayload = { ...staysOn, provider: "codex", permissions: "approve-all" };
+    serveAgent(codex);
+    serveProvider("codex", "agent");
+    renderEditor(<AgentPermissionsEditor {...props({ agent: codex })} />);
+    expect(await screen.findByText("Codex keeps its own reviewer here")).toBeTruthy();
+  });
+
+  it("Should list exceptions with the coverage note and block a path outside the project", async () => {
+    const user = userEvent.setup();
+    const put = vi.fn();
+    const withRules: AgentPayload = {
+      ...staysOn,
+      permission_rules: [
+        { kind: "edit", path: "docs/**", decision: "allow" },
+        { kind: "delete", decision: "deny" },
+      ],
+    };
+    serveAgent(withRules, put);
+    renderEditor(<AgentPermissionsEditor {...props({ agent: withRules })} />);
+    expect(await screen.findAllByTestId("agent-permission-rule")).toHaveLength(2);
+    expect(screen.getByTestId("agent-permission-rules-coverage")).toHaveTextContent(
+      "They can't see inside commands"
+    );
+    await user.click(screen.getByRole("button", { name: "Add an exception" }));
+    const paths = screen.getAllByRole("textbox", { name: "Folder or file" });
+    fireEvent.change(paths[2]!, { target: { value: "../secrets" } });
+    expect(await screen.findByText("Fix the exception first")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(put).not.toHaveBeenCalled();
+  });
+
+  it("Should save the level, exceptions and approval reach with the definition", async () => {
+    const user = userEvent.setup();
+    const put = vi.fn();
+    serveAgent(staysOn, put);
+    renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
+    expect(screen.queryByTestId("agent-permission-rules-coverage")).toBeNull();
+    await user.click(await screen.findByTestId("agent-permissions-level-approve-reads"));
+    await user.click(screen.getByTestId("agent-permissions-reach-workspace"));
+    await user.click(screen.getByRole("button", { name: "Add an exception" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Folder or file" }), {
+      target: { value: "infra/**" },
+    });
+    expect(screen.getByText("3 unsaved changes")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    expect(put.mock.calls[0]![0]).toMatchObject({
+      agent: {
+        permissions: "approve-reads",
+        session_approval: "workspace",
+        permission_rules: [{ kind: "edit", path: "infra/**", decision: "allow" }],
+      },
+    });
+  });
+
+  it("Should say the reviewer fell back only for a running session", async () => {
+    const reviewer: AgentPayload = { ...staysOn, permissions: "auto" };
+    serveAgent(reviewer);
+    serveProvider("claude", "auto");
+    const serveSessions = (state: string) =>
+      server.use(
+        http.get("*/api/sessions", () =>
+          HttpResponse.json({
+            sessions: [
+              {
+                ...primarySessionFixture,
+                agent_name: agent.name,
+                state,
+                permission_mode_degraded: true,
+              },
+            ],
+            page: { has_more: false, limit: 50, total: 1 },
+          })
+        )
+      );
+    serveSessions("stopped");
+    const view = renderEditor(<AgentPermissionsEditor {...props({ agent: reviewer })} />);
+    await screen.findByTestId("agent-permissions-level-auto");
+    await waitFor(() => expect(screen.queryByTestId("agent-permissions-degraded")).toBeNull());
+    view.unmount();
+
+    serveSessions("active");
+    renderEditor(<AgentPermissionsEditor {...props({ agent: reviewer })} />);
+    expect(await screen.findByText("The reviewer isn't available right now")).toBeTruthy();
+  });
+
+  it("Should explain the Codex reviewer for an agent that inherits Codex", async () => {
+    const inherits: AgentPayload = {
+      ...staysOn,
+      provider: "",
+      permissions: "approve-all",
+      effective_runtime: {
+        ...agent.effective_runtime,
+        provider: "codex",
+      } as AgentPayload["effective_runtime"],
+    };
+    serveAgent(inherits);
+    serveProvider("codex", "agent");
+    renderEditor(<AgentPermissionsEditor {...props({ agent: inherits })} />);
+    expect(await screen.findByText("Codex keeps its own reviewer here")).toBeTruthy();
+  });
+
+  it("Should treat picking the default reach as no change, and round-trip a wider one", async () => {
+    const user = userEvent.setup();
+    const put = vi.fn();
+    serveAgent(staysOn, put);
+    renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
+    const children = await screen.findByTestId("agent-permissions-reach-children");
+    expect(children).toHaveAttribute("aria-checked", "true");
+    await user.click(children);
+    expect(screen.queryByText(/unsaved change/u)).toBeNull();
+
+    await user.click(screen.getByTestId("agent-permissions-reach-workspace"));
+    await user.click(screen.getByTestId("agent-permissions-reach-children"));
+    expect(screen.queryByText(/unsaved change/u)).toBeNull();
+
+    await user.click(screen.getByTestId("agent-permissions-reach-workspace"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(put).toHaveBeenCalledTimes(1));
+    expect(put.mock.calls[0]![0]).toMatchObject({ agent: { session_approval: "workspace" } });
+  });
+
+  it("Should move between levels with the arrow keys from one tab stop", async () => {
+    const user = userEvent.setup();
+    serveAgent(staysOn);
+    renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
+    const edits = await screen.findByTestId("agent-permissions-level-approve-edits");
+    const levels = screen.getByRole("radiogroup", { name: "Permission level" });
+    expect(levels.querySelectorAll('[role="radio"][tabindex="0"]')).toHaveLength(1);
+    edits.focus();
+    await user.keyboard("{ArrowDown}");
+    const auto = screen.getByTestId("agent-permissions-level-auto");
+    expect(auto).toHaveAttribute("aria-checked", "true");
+    expect(auto).toHaveFocus();
+  });
+
+  it("Should follow the daemon's path rule, check glob syntax and tie the message to its row", async () => {
+    const user = userEvent.setup();
+    serveAgent(staysOn);
+    renderEditor(<AgentPermissionsEditor {...props({ agent: staysOn })} />);
+    await user.click(await screen.findByRole("button", { name: "Add an exception" }));
+    const path = screen.getByRole("textbox", { name: "Folder or file" });
+    fireEvent.change(path, { target: { value: "docs/../src/**" } });
+    expect(path).not.toHaveAttribute("aria-invalid");
+    fireEvent.change(path, { target: { value: "docs/[" } });
+    const message = await screen.findByText(/Close every \[ and \{/u);
+    expect(path).toHaveAttribute("aria-describedby", message.id);
+    fireEvent.change(path, { target: { value: "docs/../../secrets" } });
+    expect(await screen.findByText(/Use a path inside the project/u)).toBeTruthy();
+  });
+
+  it("Should be read-only for an extension-owned agent", async () => {
+    const owned: AgentPayload = { ...staysOn, package_owned: true };
+    serveAgent(owned);
+    renderEditor(<AgentPermissionsEditor {...props({ agent: owned, readOnly: true })} />);
+    expect(await screen.findByTestId("agent-permissions-read-only")).toBeTruthy();
+    expect(screen.getByTestId("agent-permissions-level-deny-all")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Add an exception" })).toBeNull();
   });
 });

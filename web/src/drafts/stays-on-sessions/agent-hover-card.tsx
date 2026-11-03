@@ -90,6 +90,17 @@ export function AgentHoverCardContent({ instance }: { instance: DraftInstance })
         <CheckTicks marks={checksOf(instance)} />
         {line ? <span className="text-eyebrow text-subtle">{line}</span> : null}
       </div>
+      {instance.nextWake ? (
+        <div className="flex flex-col gap-0.5">
+          <Eyebrow className="text-subtle">Wakes up next</Eyebrow>
+          <span className="text-small-body text-fg">{instance.nextWake}</span>
+        </div>
+      ) : null}
+      {instance.held ? (
+        <p className="text-small-body text-muted-foreground">
+          {instance.held} {instance.held === 1 ? "thing" : "things"} waiting for you to resume
+        </p>
+      ) : null}
       <div className="flex gap-2">
         <Button
           className="flex-1"

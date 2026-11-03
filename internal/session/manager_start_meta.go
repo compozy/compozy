@@ -38,6 +38,8 @@ func sessionStartSpecFromMeta(
 		selectedRuntime:          runtimeSelectionFromSessionStore(selectedRuntime),
 		runtimeSelectionRevision: selectionRevision,
 		effectiveWorkspaceAccess: meta.EffectiveWorkspaceAccess,
+		effectiveSessionApproval: meta.EffectiveSessionApproval,
+		permissionRules:          append([]store.SessionPermissionRule(nil), meta.PermissionRules...),
 		permissions:              compozyconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissionsValue())),
 		workspace:                *workspace,
 		worktreeID:               strings.TrimSpace(meta.WorktreeIDValue()),

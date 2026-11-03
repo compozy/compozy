@@ -52,6 +52,8 @@ export interface QueuedPrompt {
   position: number;
   status?: string;
   text: string;
+  /** The daemon holds this non-human row while a stays-on agent is paused (S12). */
+  held?: boolean;
 }
 
 export function queuedPromptAttachmentSummary(
@@ -123,6 +125,7 @@ export function queuedPromptsFromInputs(
       ...(input.coalesced_wakes ? { coalescedWakes: input.coalesced_wakes } : {}),
       ...(attachments ? { attachments } : {}),
       ...(sender ? { sender } : {}),
+      ...(input.held ? { held: true } : {}),
     };
   });
 }

@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
 import type { ReactNode } from "react";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -19,6 +19,7 @@ import {
   useAgentInstanceCapacity,
   useAgentInstances,
   useAgentDefinitionInstances,
+  useResumeAgentInstances,
 } from "../use-agent-instances";
 
 const server = setupServer(...profileHandlers);
@@ -247,6 +248,55 @@ describe("instance routes and the selected profile", () => {
     act(() => result.current.actions.pause(row!));
 
     await waitFor(() => expect(seen).toContain("POST theirs/pause?profile=marketing"));
+  });
+});
+
+describe("resume and the cached lists", () => {
+  afterEach(() => server.resetHandlers());
+
+  function wrapper({ children }: { children: ReactNode }) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  }
+
+  it("Should move a resumed agent in every open view before the lists reread", async () => {
+    resetProfileViews();
+    const paused = agentInstanceFixture({
+      id: "ops",
+      state: "paused",
+      pause_reason: "unattended",
+      needs_attention: true,
+    });
+    let reads = 0;
+    server.use(
+      http.get("*/api/agent-instances", async () => {
+        reads += 1;
+        // Only the first read answers: anything shown after resume came from the resume reply.
+        if (reads > 1) await delay("infinite");
+        return HttpResponse.json({
+          instances: [paused],
+          next_cursor: "",
+          max_active_instances: 10,
+          active_count: 0,
+        });
+      }),
+      http.post("*/api/agent-instances/:id/resume", () => {
+        const { profile_name: _, ...wire } = paused;
+        return HttpResponse.json({
+          instance: { ...wire, state: "active", pause_reason: "", needs_attention: false },
+        });
+      })
+    );
+    const { result } = renderHook(
+      () => ({ instances: useAgentInstances(), resume: useResumeAgentInstances() }),
+      { wrapper }
+    );
+    await waitFor(() => expect(result.current.instances[0]?.state).toBe("paused"));
+
+    act(() => result.current.resume.mutate([result.current.instances[0]!]));
+
+    await waitFor(() => expect(result.current.instances[0]?.state).toBe("active"));
+    expect(result.current.instances[0]?.needs_attention).toBe(false);
   });
 });
 

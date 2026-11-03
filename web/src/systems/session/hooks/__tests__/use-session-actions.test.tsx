@@ -124,6 +124,7 @@ import { toast } from "@compozy/ui";
 import { notifyUser } from "@/lib/user-feedback";
 import { withSessionProcessSummary } from "../../mocks/process-fixtures";
 import { useSessionLifecycleActions } from "../use-session-lifecycle-actions";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 beforeEach(() => {
   vi.mocked(listSessionDescendants).mockResolvedValue([]);
@@ -135,6 +136,7 @@ const WORKSPACE_ID = "ws_alpha";
 
 const queuedInput: SessionInputPayload = {
   delivery: "after_turn",
+  held: false,
   enqueued_at: "2026-08-03T18:00:00Z",
   id: "input-original",
   mode: "queue",
@@ -157,6 +159,7 @@ const createdSession: SessionPayload = {
   profile_id: "00000000000000000000000000",
   profile_name: "default",
   scope: "workspace",
+  ...sessionPermissionDefaults,
   effective_workspace_access: "",
   id: "sess-created",
   name: "Created session",

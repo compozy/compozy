@@ -242,10 +242,11 @@ type DispatcherOption func(*Dispatcher)
 
 // Dispatcher routes every automation activation through one execution path.
 type Dispatcher struct {
-	sessions    SessionCreator
-	runs        RunStore
-	tasks       TaskService
-	loopStarter LoopStarter
+	sessions       SessionCreator
+	runs           RunStore
+	tasks          TaskService
+	loopStarter    LoopStarter
+	instanceEvents InstanceEventSink
 
 	logger *slog.Logger
 	now    func() time.Time

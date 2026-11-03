@@ -56,6 +56,7 @@ func (d *Daemon) automationManagerDependencies(
 		tasks = state.tasks.manager
 	}
 	return automationManagerDeps{
+		InstanceEvents:    automationInstanceEventSink(state),
 		Store:             store,
 		Sessions:          state.sessions,
 		Tasks:             tasks,

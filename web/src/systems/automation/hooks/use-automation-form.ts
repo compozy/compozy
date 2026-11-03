@@ -5,6 +5,7 @@ import { loopTargetWorkspaceId, retryDraftForStrategy } from "../lib/automation-
 import { useAutomationTimeZone } from "./use-automation-time-zone";
 import {
   automationFormDoes,
+  automationFormScope,
   automationFormEvent,
   automationFormSentenceDraft,
   setAutomationFormDoes,
@@ -124,7 +125,7 @@ function useFormLoopTarget(
   activeWorkspaceId: string | null | undefined,
   does: AutomationDoes
 ) {
-  const effectiveScope = draft.start === "webhook" ? "global" : draft.scope;
+  const effectiveScope = automationFormScope(draft);
   const loopWorkspaceId = loopTargetWorkspaceId(
     { ...draft, scope: effectiveScope },
     activeWorkspaceId
@@ -255,6 +256,8 @@ export function useAutomationForm({
     does,
     isWebhook,
     effectiveScope,
+    /** The profile that owns (or will own) the automation; `undefined` is the acting profile. */
+    profile,
     /** Project the automation lives in, or `null` for User. */
     destination: automationFormDestination(effectiveScope, draft.workspace_id, workspaceName),
     sentence,
@@ -300,6 +303,13 @@ export function useAutomationForm({
       patch({ agent_name });
     },
     onPromptChange: (prompt: string) => patch({ prompt }),
+    /** Moves the trigger to the scope of the stays-on instance it names; `""` is Global. */
+    onInstanceScope: (workspaceId: string) =>
+      patch(
+        workspaceId
+          ? { scope: "workspace", workspace_id: workspaceId, target_instance_scope: "" }
+          : { scope: "global", target_instance_scope: "" }
+      ),
     onLoopTargetChange: (next: LoopTargetDraft) =>
       patch({ loop_target: { ...next, workspace_id: loopWorkspaceId } }),
     onTaskTitle: (title: string) => patchTask({ title }),

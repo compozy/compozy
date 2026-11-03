@@ -414,7 +414,12 @@ func TestNativeInstanceWorkspaceAuthority(t *testing.T) {
 	for _, id := range []toolspkg.ToolID{toolspkg.ToolIDAgentInstancePause, toolspkg.ToolIDAgentInstanceResume, toolspkg.ToolIDAgentInstanceArchive, toolspkg.ToolIDAgentInstanceEnsureMain, toolspkg.ToolIDAgentInstanceReports, toolspkg.ToolIDAgentInstanceGet, toolspkg.ToolIDAgentInstanceCheckIns} {
 		t.Run("Should deny an unreachable owned instance through "+id.String(), func(t *testing.T) {
 			t.Parallel()
-			target := agentinstance.Instance{ID: "own", AgentName: "coder", ProfileID: "profile", WorkspaceID: "target"}
+			// This suite owns the workspace boundary. Use an agent-resumable
+			// definition pause so the earlier instance authority admits resume.
+			target := agentinstance.Instance{
+				ID: "own", AgentName: "coder", ProfileID: "profile", WorkspaceID: "target",
+				State: "paused", PauseReason: "definition_missing",
+			}
 			api := &core.AgentInstanceAPI{
 				Store: nativeInstanceTargetStore{target: target},
 				Authority: agentinstance.Authority{
@@ -517,6 +522,23 @@ func TestInstanceMainReadModel(t *testing.T) {
 			t.Fatalf("unexpected projection: %+v", payload)
 		}
 	})
+	t.Run("Should clear stale activity when the main is idle", func(t *testing.T) {
+		t.Parallel()
+		payload := contract.AgentInstancePayload{Now: "stale"}
+		projectInstanceMain(
+			&payload,
+			&session.Info{
+				State: session.StateActive,
+				Liveness: &store.SessionLivenessMeta{
+					Activity: &store.SessionActivityMeta{LastActivityDetail: "old work"},
+				},
+			},
+		)
+		if payload.Now != "" {
+			t.Fatalf("idle now = %q", payload.Now)
+		}
+	})
+
 	t.Run("Should expose a pending interaction as waiting", func(t *testing.T) {
 		t.Parallel()
 		payload := contract.AgentInstancePayload{}
@@ -529,9 +551,10 @@ func TestInstanceMainReadModel(t *testing.T) {
 
 type rotationEligibilityFixture struct {
 	staticLoopSessionEventReader
-	info     *session.Info
-	monitors []monitor.Monitor
-	ready    bool
+	info      *session.Info
+	monitors  []monitor.Monitor
+	ready     bool
+	exhausted bool
 }
 
 func (f rotationEligibilityFixture) Status(context.Context, string) (*session.Info, error) {
@@ -547,27 +570,32 @@ func (f rotationEligibilityFixture) RotationPersistenceReady(context.Context, st
 
 func TestInstanceRotationEligibility(t *testing.T) {
 	for _, tc := range []struct {
-		name    string
-		used    int64
-		unknown bool
-		compact bool
-		monitor monitor.Status
-		blocked bool
-		want    bool
+		name      string
+		exhausted bool
+		used      int64
+		unknown   bool
+		compact   bool
+		monitor   monitor.Status
+		blocked   bool
+		want      bool
 	}{
-		{name: "Should rotate at the configured threshold", used: 80, want: true},
-		{name: "Should wait below the threshold", used: 79},
-		{name: "Should wait for known context usage", unknown: true},
-		{name: "Should leave compaction to the provider", used: 90, compact: true},
-		{name: "Should wait for active monitors", used: 90, monitor: monitor.StatusActive},
-		{name: "Should wait for monitors retrying delivery", used: 90, monitor: monitor.StatusDelivering},
-		{name: "Should ignore completed monitor history", used: 90, monitor: monitor.StatusFired, want: true},
-		{name: "Should wait for persisted dependencies", used: 90, blocked: true},
+		{name: "Should rotate only after real exhaustion", exhausted: true, used: 80, want: true},
+		{name: "Should never rotate at high usage alone", used: 99},
+		{name: "Should rotate exhausted sessions without usage telemetry", exhausted: true, unknown: true, want: true},
+		{name: "Should rotate on exhaustion even if compaction is advertised", exhausted: true, used: 90, compact: true, want: true},
+		{name: "Should wait for active monitors", exhausted: true, used: 90, monitor: monitor.StatusActive},
+		{name: "Should wait for monitors retrying delivery", exhausted: true, used: 90, monitor: monitor.StatusDelivering},
+		{name: "Should ignore completed monitor history", exhausted: true, used: 90, monitor: monitor.StatusFired, want: true},
+		{name: "Should wait for persisted dependencies", exhausted: true, used: 90, blocked: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			size := int64(100)
-			f := rotationEligibilityFixture{info: &session.Info{State: session.StateActive}, ready: !tc.blocked}
+			f := rotationEligibilityFixture{
+				info:      &session.Info{State: session.StateActive},
+				ready:     !tc.blocked,
+				exhausted: tc.exhausted,
+			}
 			if !tc.unknown {
 				f.events = []store.SessionEvent{
 					managedGoalContextEvent(
@@ -586,7 +614,7 @@ func TestInstanceRotationEligibility(t *testing.T) {
 			if tc.monitor != "" {
 				f.monitors = []monitor.Monitor{{Status: tc.monitor}}
 			}
-			r := instanceMainRotator{sessions: f, store: f, monitors: f, threshold: 0.8, now: time.Now}
+			r := instanceMainRotator{sessions: f, store: f, monitors: f, now: time.Now, reports: &rotationFlowFixture{}}
 			got, err := r.Eligible(
 				t.Context(),
 				agentinstance.Instance{ID: "instance", MainSessionID: "main", State: "active"},
@@ -737,7 +765,7 @@ func (f rotationEligibilityFixture) ClearRotationWait(context.Context, string, s
 }
 
 func TestInstanceRotationDeferral(t *testing.T) {
-	t.Run("Should preserve waiting across reopen and report only once after one hour", func(t *testing.T) {
+	t.Run("Should report blocking dependencies immediately and dedupe across reopen", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), "rotation.db")
 		db, err := globaldb.OpenGlobalDB(t.Context(), path)
@@ -780,7 +808,7 @@ func TestInstanceRotationDeferral(t *testing.T) {
 			reports: db.InstanceReports(),
 			now:     func() time.Time { return now },
 		}
-		if err := r.recordRotationDeferral(t.Context(), instance, false); err != nil {
+		if err := r.recordRotationDeferral(t.Context(), instance, false, []string{"queued_input"}); err != nil {
 			t.Fatal(err)
 		}
 		if err := db.Close(t.Context()); err != nil {
@@ -792,17 +820,17 @@ func TestInstanceRotationDeferral(t *testing.T) {
 		}
 		r.store, r.reports = db.Instances(), db.InstanceReports()
 		now = now.Add(time.Hour - time.Second)
-		if err := r.recordRotationDeferral(t.Context(), instance, false); err != nil {
+		if err := r.recordRotationDeferral(t.Context(), instance, false, []string{"queued_input"}); err != nil {
 			t.Fatal(err)
 		}
 		reports, err := db.InstanceReports().
 			ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 100})
-		if err != nil || len(reports) != 0 {
+		if err != nil || len(reports) != 1 || !strings.Contains(string(reports[0].Payload), "queued_input") {
 			t.Fatalf("early reports = %v, %v", reports, err)
 		}
 		now = now.Add(time.Second)
 		for range 2 {
-			if err := r.recordRotationDeferral(t.Context(), instance, false); err != nil {
+			if err := r.recordRotationDeferral(t.Context(), instance, false, []string{"queued_input"}); err != nil {
 				t.Fatal(err)
 			}
 		}
@@ -811,7 +839,7 @@ func TestInstanceRotationDeferral(t *testing.T) {
 		if err != nil || len(reports) != 1 || reports[0].Kind != "rotation_deferred" {
 			t.Fatalf("reports = %v, %v", reports, err)
 		}
-		if err := r.recordRotationDeferral(t.Context(), instance, true); err != nil {
+		if err := r.recordRotationDeferral(t.Context(), instance, true, nil); err != nil {
 			t.Fatal(err)
 		}
 		since, err := db.Instances().RotationWaitingSince(t.Context(), instance.ID, "main", now)
@@ -1082,6 +1110,7 @@ func TestInstanceRotationRetry(t *testing.T) {
 		f := &rotationFlowFixture{startErr: errors.New("start failed")}
 		f.info = &session.Info{State: session.StateActive}
 		f.ready = true
+		f.exhausted = true
 		f.events = []store.SessionEvent{
 			managedGoalContextEvent(
 				t,
@@ -1099,7 +1128,6 @@ func TestInstanceRotationRetry(t *testing.T) {
 			starter:    f,
 			reports:    f,
 			now:        func() time.Time { return now },
-			threshold:  0.8,
 			retryDelay: time.Minute,
 		}
 		instance := agentinstance.Instance{ID: "instance", MainSessionID: "main", State: "active"}
@@ -1182,4 +1210,39 @@ func TestBootAgentInstances(t *testing.T) {
 			t.Fatalf("instance = %+v, %v", got, err)
 		}
 	})
+}
+
+func TestInstanceMonitorReadModel(t *testing.T) {
+	t.Run("Should expose untimed monitors and select the earliest timer", func(t *testing.T) {
+		t.Parallel()
+		payload := contract.AgentInstancePayload{}
+		projectInstanceMonitors(
+			&payload,
+			[]monitor.Monitor{
+				{Kind: monitor.KindTerminal, Status: monitor.StatusActive, Description: "inspect output"},
+			},
+		)
+		if payload.NextWake == nil || payload.NextWake.Kind != "terminal" || payload.NextWake.At != "" {
+			t.Fatalf("untimed = %+v", payload.NextWake)
+		}
+		early := time.Date(2026, 11, 3, 10, 0, 0, 0, time.UTC)
+		projectInstanceMonitors(&payload, []monitor.Monitor{
+			{Kind: monitor.KindTimer, Status: monitor.StatusActive, DeadlineAt: early.Add(time.Hour)},
+			{Kind: monitor.KindTimer, Status: monitor.StatusActive, DeadlineAt: early, Description: "follow up"},
+			{Kind: monitor.KindTimer, Status: monitor.StatusFired, DeadlineAt: early.Add(-time.Hour)},
+		})
+		if payload.NextWake.At != early.Format(time.RFC3339Nano) || payload.NextWake.Description != "follow up" {
+			t.Fatalf("timed = %+v", payload.NextWake)
+		}
+	})
+}
+
+func (f rotationEligibilityFixture) RotationDueSession(context.Context, string) (string, error) {
+	if f.exhausted {
+		return "main", nil
+	}
+	return "", nil
+}
+func (f rotationEligibilityFixture) RotationBlockers(context.Context, string) ([]string, error) {
+	return []string{"queued_input"}, nil
 }

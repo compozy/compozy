@@ -75,15 +75,19 @@ func (n *daemonNativeTools) sessionApprove(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	target, _, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, input.SessionID, true)
+	target, _, err := n.nativeApprovalTarget(ctx, scope, req.ToolID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeApprovalSelfError(req.ToolID, err)
 	}
-	result, err := n.deps.Sessions.ApprovePermission(ctx, target, acp.ApproveRequest{
-		RequestID:  strings.TrimSpace(input.RequestID),
-		Decision:   strings.TrimSpace(input.Decision),
-		ResolvedBy: "agent_session:" + strings.TrimSpace(scope.SessionID),
-	})
+	result, err := n.deps.Sessions.ApprovePermission(
+		session.WithActingSession(ctx, scope.SessionID),
+		target,
+		acp.ApproveRequest{
+			RequestID:  strings.TrimSpace(input.RequestID),
+			Decision:   strings.TrimSpace(input.Decision),
+			ResolvedBy: "agent_session:" + strings.TrimSpace(scope.SessionID),
+		},
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
@@ -107,9 +111,18 @@ func (n *daemonNativeTools) sessionClarifyAnswer(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	target, info, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, input.SessionID, true)
+	target, info, err := n.nativeApprovalTarget(ctx, scope, req.ToolID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeApprovalSelfError(req.ToolID, err)
+	}
+	if err := session.AuthorizeSessionApproval(
+		ctx,
+		scope.SessionID,
+		target,
+		n.deps.Sessions.Status,
+		n.deps.WorkspaceAccess,
+	); err != nil {
+		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
 	broker := n.clarifyBroker()
 	if broker == nil {
@@ -221,6 +234,14 @@ func nativeSessionOrchestrationError(id toolspkg.ToolID, err error) error {
 	}
 	status := core.StatusForSessionError(err)
 	switch {
+	case errors.Is(err, session.ErrApprovalOutsideLineage):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			id,
+			err.Error(),
+			err,
+			toolspkg.ReasonCode("session_approve_outside_lineage"),
+		)
 	case errors.Is(err, toolspkg.ErrClarifyInvalid):
 		status = 422
 	case errors.Is(err, toolspkg.ErrClarifyNotFound):
@@ -238,4 +259,46 @@ func nativeSessionOrchestrationError(id toolspkg.ToolID, err error) error {
 		status = 422
 	}
 	return nativeHTTPStatusToolError(id, err, status)
+}
+
+// The explicit approval grant crosses only boundaries already allowed by workspace policy.
+func (n *daemonNativeTools) nativeApprovalTarget(ctx context.Context, scope toolspkg.Scope,
+	id toolspkg.ToolID, target string) (string, *session.Info, error) {
+	resolved, err := requiredNativeString(id, "session_id", target)
+	if err != nil {
+		return "", nil, err
+	}
+	target = resolved
+	if scope.SessionID != "" && !scope.Operator {
+		caller, err := n.deps.Sessions.Status(ctx, scope.SessionID)
+		if err != nil {
+			return "", nil, err
+		}
+		if caller != nil && caller.EffectiveSessionApproval == resourceScopeWorkspaceKind {
+			lineage, err := session.IsStaysOnLineage(ctx, scope.SessionID, n.deps.Sessions.Status)
+			if err != nil {
+				return "", nil, err
+			}
+			if lineage {
+				if err := session.AuthorizeSessionApproval(
+					ctx,
+					scope.SessionID,
+					target,
+					n.deps.Sessions.Status,
+					n.deps.WorkspaceAccess,
+				); err != nil {
+					return "", nil, nativeSessionOrchestrationError(id, err)
+				}
+				info, err := n.deps.Sessions.Status(ctx, target)
+				if err != nil {
+					return "", nil, err
+				}
+				if info.Type == session.SessionTypeTriage {
+					return "", nil, session.ErrSessionNotFound
+				}
+				return target, info, nil
+			}
+		}
+	}
+	return n.nativeOrchestrationTarget(ctx, scope, id, target, true)
 }

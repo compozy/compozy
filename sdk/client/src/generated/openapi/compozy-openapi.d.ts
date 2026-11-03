@@ -195,6 +195,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agent-skill-reviews": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List agent skill reviews (experimental) */
+    get: operations["listAgentSkillReviews"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-skill-reviews/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read exact proposed skill contents (experimental) */
+    get: operations["getAgentSkillReview"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-skill-reviews/{id}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Decide a skill review as the operator (experimental) */
+    post: operations["approveAgentSkillReview"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agent-skill-reviews/{id}/reject": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Decide a skill review as the operator (experimental) */
+    post: operations["rejectAgentSkillReview"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agent/context": {
     parameters: {
       query?: never;
@@ -7840,6 +7908,12 @@ export interface components {
       instances: components["schemas"]["AgentInstancePayload"][];
       max_active_instances: number;
       next_cursor: string;
+      peers?: components["schemas"]["AgentInstancePeer"][];
+    };
+    AgentInstanceNextWake: {
+      at?: string;
+      description: string;
+      kind: string;
     };
     AgentInstanceOccurrenceResponse: {
       reason?: string;
@@ -7857,11 +7931,14 @@ export interface components {
       /** Format: int64 */
       failure_streak: number;
       fatigue_limit: number;
+      /** Format: int64 */
+      held_wakes: number;
       id: string;
       label: string;
       last_wake_at: string;
       main_session_id: string;
       needs_attention: boolean;
+      next_wake?: components["schemas"]["AgentInstanceNextWake"] | null;
       next_wake_at: string;
       now: string;
       pause_reason: string;
@@ -7874,16 +7951,35 @@ export interface components {
       };
       scope: string;
       state: string;
+      /** Format: int64 */
+      unattended_turn_limit: number;
+      /** Format: int64 */
+      unattended_turns: number;
       /** Format: date-time */
       updated_at: string;
       workspace_id: string;
     };
+    AgentInstancePeer: {
+      description: string;
+      name: string;
+      scope: string;
+      state: string;
+    };
     AgentInstanceProposal: {
       body: string;
       item_keys: string[];
+      sources?: components["schemas"]["AgentInstanceProposalSource"][];
       title: string;
     };
+    AgentInstanceProposalSource: {
+      event_id: string;
+      kind: string;
+      received_at: string;
+      run_id: string;
+      trigger_id: string;
+    };
     AgentInstanceReportPayload: {
+      action?: string;
       cause?: string;
       /** Format: date-time */
       created_at: string;
@@ -7893,10 +7989,19 @@ export interface components {
       kind: string;
       proposals?: components["schemas"]["AgentInstanceProposal"][];
       reason?: string;
+      resource?: string;
       session_id?: string;
       since?: string;
+      skill_review_id?: string;
+      source?: components["schemas"]["AgentInstanceReportSource"] | null;
       state: string;
       tool?: string;
+    };
+    AgentInstanceReportSource: {
+      event: string;
+      kind: string;
+      summary?: string;
+      trigger_name: string;
     };
     AgentInstanceReportsResponse: {
       next_cursor: string;
@@ -8043,6 +8148,7 @@ export interface components {
       /** @enum {string} */
       origin: "global" | "workspace";
       package_owned?: boolean;
+      permission_rules?: components["schemas"]["AgentPermissionRulePayload"][];
       permissions?: string;
       prompt: string;
       provider: string;
@@ -8050,6 +8156,7 @@ export interface components {
       resolved_appearance: {
         [key: string]: unknown;
       };
+      session_approval?: string;
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
       };
@@ -8061,6 +8168,11 @@ export interface components {
       toolsets?: string[];
       workspace_access?: string;
       workspace_id?: string;
+    };
+    AgentPermissionRulePayload: {
+      decision: string;
+      kind?: string;
+      path?: string;
     };
     AgentProbeHealthPayload: {
       agent_name?: string;
@@ -8098,6 +8210,43 @@ export interface components {
       type?: "user" | "system" | "coordinator" | "spawned";
       /** Format: date-time */
       updated_at: string;
+    };
+    AgentSkillAutomaticContents: {
+      hooks: number;
+      mcp_servers: number;
+      scripts: number;
+    };
+    AgentSkillDraftFile: {
+      content: string;
+      path: string;
+    };
+    AgentSkillReviewDecisionRequest: {
+      digest: string;
+    };
+    AgentSkillReviewPayload: {
+      agent: string;
+      /** Format: date-time */
+      created_at: string;
+      /** Format: date-time */
+      decided_at?: string | null;
+      decided_by?: string;
+      digest: string;
+      files?: components["schemas"]["AgentSkillDraftFile"][];
+      id: string;
+      instance_id: string;
+      name: string;
+      problem?: string;
+      profile_id: string;
+      runs_automatically: components["schemas"]["AgentSkillAutomaticContents"];
+      state: string;
+      workspace_id: string;
+    };
+    AgentSkillReviewResponse: {
+      review: components["schemas"]["AgentSkillReviewPayload"];
+    };
+    AgentSkillReviewsResponse: {
+      next_cursor?: string;
+      reviews: components["schemas"]["AgentSkillReviewPayload"][];
     };
     AgentSoulConfigProvenancePayload: {
       /** Format: int64 */
@@ -9138,14 +9287,16 @@ export interface components {
       label?: string;
       model?: string;
       name: string;
+      permission_rules?: components["schemas"]["AgentPermissionRulePayload"][];
       /** @enum {string} */
-      permissions?: "deny-all" | "approve-reads" | "approve-all";
+      permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
       prompt: string;
       provider?: string;
       reasoning_effort?: string;
       resolved_appearance?: {
         [key: string]: unknown;
       };
+      session_approval?: string;
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
       };
@@ -9272,10 +9423,11 @@ export interface components {
       fire_limit?: components["schemas"]["FireLimitConfig"] | null;
       loop_target?: components["schemas"]["LoopTarget"] | null;
       name: string;
-      prompt: string;
+      prompt?: string;
       retry?: components["schemas"]["RetryConfig"] | null;
       /** @enum {string} */
       scope: "global" | "workspace" | "user" | "@user";
+      target_instance_scope?: string;
       target_kind?: string;
       webhook_id?: string;
       webhook_secret_value?: string;
@@ -9441,11 +9593,13 @@ export interface components {
       display_name?: string | null;
       kind?: string;
       model?: string;
+      permission_rules?: components["schemas"]["AgentPermissionRulePayload"][];
       /** @enum {string} */
-      permissions?: "deny-all" | "approve-reads" | "approve-all";
+      permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
       prompt?: string;
       provider?: string;
       reasoning_effort?: string;
+      session_approval?: string;
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
       };
@@ -10159,6 +10313,7 @@ export interface components {
         | "continuous_binding_mismatch"
         | "goal_runtime_invalid"
         | "goal_caller_unauthorized"
+        | "goal_on_instance_main"
         | "goal_wait_deferred"
         | "goal_wait_timeout"
         | "goal_wait_unavailable"
@@ -10259,6 +10414,7 @@ export interface components {
         | "continuous_binding_mismatch"
         | "goal_runtime_invalid"
         | "goal_caller_unauthorized"
+        | "goal_on_instance_main"
         | "goal_wait_deferred"
         | "goal_wait_timeout"
         | "goal_wait_unavailable"
@@ -10361,6 +10517,7 @@ export interface components {
         | "continuous_binding_mismatch"
         | "goal_runtime_invalid"
         | "goal_caller_unauthorized"
+        | "goal_on_instance_main"
         | "goal_wait_deferred"
         | "goal_wait_timeout"
         | "goal_wait_unavailable"
@@ -12643,12 +12800,15 @@ export interface components {
       url: string;
     };
     OperatorNotificationEventPayload: {
+      action?: string;
       /** Format: date-time */
       at: string;
       body: string;
+      kind?: string;
       notification_id: string;
       profile_id: string;
       profile_name: string;
+      resource?: string;
       session_id: string;
       title: string;
       workspace_id: string;
@@ -13156,6 +13316,7 @@ export interface components {
       default: boolean;
       display_name?: string;
       name: string;
+      reviewer_mode: string;
       /** @enum {string} */
       runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
       session_env_status?: components["schemas"]["SettingsProviderCredentialStatusPayload"][];
@@ -14161,6 +14322,7 @@ export interface components {
       status: string;
       /** @enum {string} */
       steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+      target_session_id?: string;
       target_workspace_id?: string;
       turn_id?: string;
     };
@@ -14752,6 +14914,7 @@ export interface components {
       delivery: string;
       /** Format: date-time */
       enqueued_at: string;
+      held: boolean;
       id: string;
       idempotency_key?: string;
       mentions?: components["schemas"]["SessionInputMentionPayload"][];
@@ -14915,6 +15078,7 @@ export interface components {
       created_at: string;
       derivation?: components["schemas"]["SessionDerivationPayload"] | null;
       diagnostics?: components["schemas"]["DiagnosticItem"][];
+      effective_permissions: string;
       effective_workspace_access: string;
       escalated?: boolean | null;
       failure?: components["schemas"]["SessionFailurePayload"] | null;
@@ -14929,6 +15093,7 @@ export interface components {
       name?: string;
       parent_title?: string;
       pending_interactions: components["schemas"]["PendingInteractionPayload"][];
+      permission_mode_degraded: boolean;
       process_summary?: components["schemas"]["SessionProcessSummaryPayload"] | null;
       profile_archived?: boolean;
       profile_color?: string;
@@ -16126,7 +16291,7 @@ export interface components {
     };
     SettingsPermissionsPayload: {
       /** @enum {string} */
-      mode: "deny-all" | "approve-reads" | "approve-all";
+      mode: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
     };
     SettingsPersonaResponse: {
       available_scopes: ("user" | "profile" | "workspace")[];
@@ -19045,6 +19210,8 @@ export interface components {
       duration_ms?: number;
       /** @enum {string} */
       error_code?:
+        | "agent_instance_not_found"
+        | "agent_instance_starting"
         | "approval_rejected"
         | "compaction_unsupported"
         | "generation_fenced"
@@ -19253,6 +19420,8 @@ export interface components {
     ToolErrorPayload: {
       /** @enum {string} */
       code:
+        | "agent_instance_not_found"
+        | "agent_instance_starting"
         | "approval_rejected"
         | "compaction_unsupported"
         | "generation_fenced"
@@ -19739,6 +19908,7 @@ export interface components {
       scope: "global" | "workspace";
       /** @enum {string} */
       source: "config" | "package" | "dynamic";
+      target_instance_scope?: string;
       target_kind: string;
       /** Format: date-time */
       updated_at: string;
@@ -19932,6 +20102,7 @@ export interface components {
       name?: string | null;
       prompt?: string | null;
       retry?: components["schemas"]["RetryConfig"] | null;
+      target_instance_scope?: string | null;
       webhook_id?: string | null;
       webhook_secret_value?: string | null;
     };
@@ -21098,6 +21269,8 @@ export interface operations {
         workspace?: string;
         /** @description Include all workspaces */
         all_workspaces?: string;
+        /** @description Read reachable peers without private instance details */
+        peers?: string;
         /** @description Agent name */
         agent?: string;
         /** @description Instance state */
@@ -22410,6 +22583,379 @@ export interface operations {
         };
         content: {
           "application/json": components["schemas"]["AgentInstanceResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  listAgentSkillReviews: {
+    parameters: {
+      query?: {
+        /** @description Instance ID */
+        instance_id?: string;
+        /** @description Workspace reference */
+        workspace?: string;
+        /** @description pending, approved or rejected */
+        state?: string;
+        /** @description Page cursor */
+        cursor?: string;
+        /** @description Page size, 1-100; default 50 */
+        limit?: number;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Skill reviews */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentSkillReviewsResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getAgentSkillReview: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Review ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Skill review */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentSkillReviewResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  approveAgentSkillReview: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Review ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentSkillReviewDecisionRequest"];
+      };
+    };
+    responses: {
+      /** @description Decided review */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentSkillReviewResponse"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  rejectAgentSkillReview: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Review ID */
+        id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentSkillReviewDecisionRequest"];
+      };
+    };
+    responses: {
+      /** @description Decided review */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentSkillReviewResponse"];
         };
       };
       /** @description Request failed */
@@ -27302,7 +27848,7 @@ export interface operations {
         /** @description Filter by trigger source */
         source?: "config" | "package" | "dynamic";
         /** @description Filter by target kind; task matches no trigger */
-        target?: "agent" | "loop" | "task";
+        target?: "agent" | "loop" | "task" | "agent_instance";
         /** @description Filter by enabled state */
         enabled?: boolean;
         /** @description Filter by trigger event */

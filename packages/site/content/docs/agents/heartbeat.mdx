@@ -78,8 +78,10 @@ If nothing is claimable, return a concise no-op summary.
 | `context.include`           | string array | optional | Hints about what context the agent should re-read on wake.                               |
 | Body                        | Markdown     | optional | Bounded reentry prose. Truncated at `[agents.heartbeat].max_body_bytes`.                 |
 
-Omitting `context` enables all six proactive collectors. An explicit `context: {include: []}`
-disables them and survives save, reload and rollback.
+Omitting `context` enables the configurable proactive collectors. An explicit
+`context: {include: []}` disables those collectors and survives save, reload and rollback.
+Pending `automation_events` are always collected for a stays-on instance, independently of that
+selection. See [event targets](/docs/automation/events#send-an-event-to-a-stays-on-check).
 
 The `work_log` collector reads the workspace's `.compozy/work-log.md` and reports `[ ]` entries older
 than 30 minutes, oldest first: up to 9 items, then `work:more` if there are others, and
@@ -279,3 +281,77 @@ transcripts, and use workspace-relative paths.
 - [Session Lifecycle](/docs/sessions/lifecycle) for activity supervision and stop reasons.
 - [`compozy agent heartbeat`](/docs/cli/agent/heartbeat) and
   [`compozy session`](/docs/cli/session) generated CLI references.
+
+The `monitors_fired` collector retains its configuration name, but includes only
+undelivered or interrupted monitor wakes. Successfully admitted wakes do not
+change the check digest when retained or removed from monitor history.
+
+Instance reads expose optional `next_wake` with `kind`, `description`, and an
+optional `at` timestamp. The earliest known timer or enabled check wins; when
+none has a time, an active monitor can still supply its description without
+an invented timestamp. `next_wake_at` remains the check schedule. The `now`
+field is empty unless the main session is working.
+
+Stays-on mains and their descendants receive daemon-composed doctrine about
+authorization, bounded follow-ups, daemon monitors, refusal handling, delegation,
+and durable context. Session identity and ancestry select it, not the agent name
+or Orchestrator role. Only the main receives the direction to start Goals in
+another session. This guidance does not itself enforce Goal refusal.
+
+The first prompt after a completed provider compaction includes a short notice
+and full situation sections. Subsequent prompts reuse unchanged sections again.
+This applies to all sessions and does not request compaction or replay input.
+
+When known context usage reaches `agents.stays_on.rotation_threshold`, the
+current stays-on main receives one reminder on its next prompt to preserve
+durable facts and its next step. A usage drop re-arms the reminder and restores
+full situation sections. Unknown usage sends no reminder, and this mechanism
+starts no turn.
+
+Goal `set` and `replace` on the current stays-on main return
+`goal_on_instance_main`; start the Goal in another session. Existing Goals keep
+their status and lifecycle controls. An active Goal also blocks main-session
+rotation until it settles.
+
+Instance mains rotate for context only after a real provider context-exhaustion
+refusal. Usage percentage alone sends a reminder. Exhaustion persists the main
+session ID until successful rotation. Rotation retains the existing brief and
+dependency gate; a deferred report lists blocking dependencies, and reconciliation
+retries on later ticks. Active monitors, queued input, and active Goals can keep
+an exhausted main blocked until the operator resolves them.
+
+## Pause autonomous work
+
+Pausing a stays-on instance holds autonomous input for its main session and descendants.
+A running work turn finishes. A running read-only check is cancelled without increasing
+fatigue. Human prompts still run, including a child started from a human turn, and do
+not resume the instance. Pending proposals and their approval deadlines remain in place.
+
+By default, 300 unattended turns pause an instance with reason `unattended`, one report
+and one notification. Set `[agents.stays_on].unattended_turn_limit = 0` to disable this
+brake. A batch counts once; quiet checks and managed Goal/Loop turns do not count.
+Human prompts, marking reports seen, operator approvals or clarification answers, and
+resume reset the counter. Keeping a window open does not reset it.
+
+```sh
+compozy agent instance show triage --workspace my-project -o json
+compozy agent instance resume triage --workspace my-project
+```
+
+Instance reads include `unattended_turns`, `unattended_turn_limit` and `held_wakes`.
+Only the operator can resume a manual, fatigue or unattended pause. Resume releases
+held input and restores only Goals and Loops paused by the instance; an independently
+paused run stays paused. Directly resuming a run while its instance is paused returns
+`agent_instance_paused`. Held input and counters survive daemon restart. A stopped
+main restarts for delivery; stopped descendants retain their queues. Archiving the
+instance cancels its held rows.
+
+In the app, a brake pause appears in the agent's main session as "Paused until you're
+back", with the number of steps, how many things are waiting, and **Resume**. If you
+were away, the While you were away card says when it paused and offers **Resume** in
+place. When two or more agents in a project paused this way, the `+N` crew panel offers
+**Resume all**. An agent's hover card shows what wakes it up next.
+
+Monitor wakes are held during pause, but not during a quiet window. Lost main-session
+wakes produce one interrupted report per wake, except shutdown cancellations. A
+delivered wake does not trigger another check.

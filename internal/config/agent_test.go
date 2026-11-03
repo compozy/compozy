@@ -1973,3 +1973,68 @@ func TestAgentIdentityContract(t *testing.T) {
 		}
 	})
 }
+
+func TestAgentPermissionPolicyRoundTrip(t *testing.T) {
+	t.Parallel()
+	t.Run("Should preserve operator policy through rendering parsing and cloning", func(t *testing.T) {
+		t.Parallel()
+		contents, _, err := RenderAgentDefinition(AgentDefinitionDraft{
+			Name: "policy-test", Prompt: "Assist.", SessionApproval: "workspace",
+			PermissionRules: []PermissionRule{{Kind: "edit", Path: "docs/**", Decision: "allow"}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := ParseAgentDef(contents)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cloned := CloneAgentDef(decoded)
+		if cloned.SessionApproval != "workspace" || len(cloned.PermissionRules) != 1 ||
+			cloned.PermissionRules[0].Path != "docs/**" {
+			t.Fatalf("policy not preserved: %#v", cloned)
+		}
+		cloned.PermissionRules[0].Decision = "deny"
+		if decoded.PermissionRules[0].Decision != "allow" {
+			t.Fatal("clone aliases permission rules")
+		}
+	})
+	t.Run("Should reject invalid permission rules [UT-093]", func(t *testing.T) {
+		t.Parallel()
+		limit := make([]PermissionRule, 64)
+		for i := range limit {
+			limit[i] = PermissionRule{Kind: "edit", Decision: "allow"}
+		}
+		if _, _, err := RenderAgentDefinition(AgentDefinitionDraft{
+			Name: "policy-test", Prompt: "Assist.", PermissionRules: limit,
+		}); err != nil {
+			t.Fatalf("64 rules rejected: %v", err)
+		}
+		for _, tc := range []struct {
+			name  string
+			rules []PermissionRule
+			want  string
+		}{
+			{"unknown kind", []PermissionRule{{Kind: "shell", Decision: "allow"}}, "permission_rules[0].kind is unknown"},
+			{"65 rules", append(limit, PermissionRule{Kind: "edit", Decision: "allow"}), "at most 64 rules"},
+			{"ask decision", []PermissionRule{{Kind: "edit", Decision: "ask"}}, "decision must be allow or deny"},
+			{"neither kind nor path", []PermissionRule{{Decision: "deny"}}, "requires kind or path"},
+		} {
+			_, _, err := RenderAgentDefinition(AgentDefinitionDraft{
+				Name: "policy-test", Prompt: "Assist.", PermissionRules: tc.rules,
+			})
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("%s: error = %v, want %q", tc.name, err, tc.want)
+			}
+		}
+	})
+	t.Run("Should refuse unknown approval authority", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := RenderAgentDefinition(AgentDefinitionDraft{
+			Name: "policy-test", Prompt: "Assist.", SessionApproval: "all",
+		})
+		if err == nil {
+			t.Fatal("unknown authority accepted")
+		}
+	})
+}

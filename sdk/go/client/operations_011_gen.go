@@ -11,6 +11,90 @@ import (
 	"strings"
 )
 
+// GetLoopRunTimeline Read the durable Loop run timeline
+func (c *Client) GetLoopRunTimeline(ctx context.Context, params GetLoopRunTimelineParams) (*TimelinePage, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/timeline"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.View != nil {
+		query.Set("view", *params.View)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TimelinePage
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetMarketplaceCatalogEntryParams carries the path, query, and header parameters.
+type GetMarketplaceCatalogEntryParams struct {
+	Source        *string `url:"source"`
+	EntryID       string  `url:"entry_id"`
+	InstalledName *string `url:"installed_name"`
+	Scope         *string `url:"scope"`
+	Profile       *string `url:"profile"`
+	WorkspaceID   *string `url:"workspace_id"`
+}
+
+// GetMarketplaceCatalogEntry Get a catalog entry or an explicitly selected installed extension
+func (c *Client) GetMarketplaceCatalogEntry(ctx context.Context, params GetMarketplaceCatalogEntryParams) (*MarketplaceEntryResponse, error) {
+	path := "/api/marketplace/entries/{entry_id}"
+	query := url.Values{}
+	if params.Source != nil {
+		query.Set("source", *params.Source)
+	}
+	path = strings.ReplaceAll(path, "{entry_id}", url.PathEscape(params.EntryID))
+	if params.InstalledName != nil {
+		query.Set("installed_name", *params.InstalledName)
+	}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MarketplaceEntryResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetObserveOverviewParams carries the path, query, and header parameters.
+type GetObserveOverviewParams struct {
+	AllWorkspaces  *bool   `url:"all_workspaces"`
+	ReceiptProfile *string `url:"receipt_profile"`
+	Workspace      *string `url:"workspace"`
+	UsageWindow    *string `url:"usage_window"`
+	Profile        *string `url:"profile"`
+	AllProfiles    *bool   `url:"all_profiles"`
+}
+
 // GetObserveOverview Get the observer-backed home overview
 func (c *Client) GetObserveOverview(ctx context.Context, params GetObserveOverviewParams) (*ObserveOverviewResponse, error) {
 	path := "/api/observe/overview"
@@ -356,82 +440,4 @@ type GetSchedulerBacklogParams struct {
 	Scope         *string `url:"scope"`
 	Workspace     *string `url:"workspace"`
 	IncludePaused *bool   `url:"include_paused"`
-}
-
-// GetSchedulerBacklog List queued scheduler backlog rows
-func (c *Client) GetSchedulerBacklog(ctx context.Context, params GetSchedulerBacklogParams) (*SchedulerBacklogResponse, error) {
-	path := "/api/scheduler/backlog"
-	query := url.Values{}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.IncludePaused != nil {
-		query.Set("include_paused", strconv.FormatBool(*params.IncludePaused))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SchedulerBacklogResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionParams carries the path, query, and header parameters.
-type GetSessionParams struct {
-	WorkspaceID   string  `url:"workspace_id"`
-	SessionID     string  `url:"session_id"`
-	IncludeHealth *bool   `url:"include_health"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// GetSession Get one session snapshot
-func (c *Client) GetSession(ctx context.Context, params GetSessionParams) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.IncludeHealth != nil {
-		query.Set("include_health", strconv.FormatBool(*params.IncludeHealth))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionAttentionSummary Get exact session attention counts
-func (c *Client) GetSessionAttentionSummary(ctx context.Context) (*SessionAttentionSummaryPayload, error) {
-	path := "/api/sessions/attention-summary"
-	var out SessionAttentionSummaryPayload
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionByIDParams carries the path, query, and header parameters.
-type GetSessionByIDParams struct {
-	SessionID     string  `url:"session_id"`
-	IncludeHealth *bool   `url:"include_health"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
 }

@@ -34,21 +34,22 @@ func triggerFromCreateRequest(req contract.CreateTriggerRequest) automationpkg.T
 	}
 
 	return automationpkg.Trigger{
-		Scope:        req.Scope.Normalize(),
-		Name:         strings.TrimSpace(req.Name),
-		TargetKind:   req.TargetKind,
-		AgentName:    strings.TrimSpace(req.AgentName),
-		WorkspaceID:  strings.TrimSpace(req.WorkspaceID),
-		Prompt:       strings.TrimSpace(req.Prompt),
-		Event:        req.Event,
-		Filter:       cloneAutomationFilter(req.Filter),
-		LoopTarget:   cloneAutomationLoopTarget(req.LoopTarget),
-		Enabled:      enabled,
-		Retry:        retry,
-		FireLimit:    fireLimit,
-		Source:       automationpkg.JobSourceDynamic,
-		WebhookID:    strings.TrimSpace(req.WebhookID),
-		EndpointSlug: strings.TrimSpace(req.EndpointSlug),
+		TargetInstanceScope: strings.TrimSpace(req.TargetInstanceScope),
+		Scope:               req.Scope.Normalize(),
+		Name:                strings.TrimSpace(req.Name),
+		TargetKind:          req.TargetKind,
+		AgentName:           strings.TrimSpace(req.AgentName),
+		WorkspaceID:         strings.TrimSpace(req.WorkspaceID),
+		Prompt:              strings.TrimSpace(req.Prompt),
+		Event:               req.Event,
+		Filter:              cloneAutomationFilter(req.Filter),
+		LoopTarget:          cloneAutomationLoopTarget(req.LoopTarget),
+		Enabled:             enabled,
+		Retry:               retry,
+		FireLimit:           fireLimit,
+		Source:              automationpkg.JobSourceDynamic,
+		WebhookID:           strings.TrimSpace(req.WebhookID),
+		EndpointSlug:        strings.TrimSpace(req.EndpointSlug),
 	}
 }
 
@@ -65,6 +66,9 @@ func applyTriggerPatch(
 	req contract.UpdateTriggerRequest,
 ) (automationpkg.Trigger, error) {
 	next := current
+	if req.TargetInstanceScope != nil {
+		next.TargetInstanceScope = strings.TrimSpace(*req.TargetInstanceScope)
+	}
 	if req.Name != nil {
 		next.Name = strings.TrimSpace(*req.Name)
 	}

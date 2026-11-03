@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
+
+	"github.com/compozy/compozy/internal/monitor"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
@@ -35,6 +38,9 @@ func (r instanceDefinitions) instancePayload(
 		}
 		if info != nil && info.ProfileID == instance.ProfileID {
 			projectInstanceMain(&payload, info)
+			if r.monitors != nil {
+				projectInstanceMonitors(&payload, r.monitors.List(instance.MainSessionID))
+			}
 		}
 	}
 	needsAttention, err := attention.NeedsAttention(ctx, instance.ID)
@@ -69,6 +75,31 @@ func projectInstanceMain(payload *contract.AgentInstancePayload, info *session.I
 	if info.PendingPermissionCount > 0 || info.PendingClarifyCount > 0 {
 		payload.Activity = "waiting"
 	}
+	if payload.Activity != "working" {
+		payload.Now = ""
+	}
+}
+
+func projectInstanceMonitors(payload *contract.AgentInstancePayload, monitors []monitor.Monitor) {
+	for _, item := range monitors {
+		if item.Status != monitor.StatusActive && item.Status != monitor.StatusDelivering {
+			continue
+		}
+		candidate := &contract.AgentInstanceNextWake{Kind: string(item.Kind), Description: item.Description}
+		if item.Kind == monitor.KindTimer && !item.DeadlineAt.IsZero() {
+			candidate.At = item.DeadlineAt.UTC().Format(time.RFC3339Nano)
+		}
+		current := payload.NextWake
+		if current == nil || (candidate.At != "" && (current.At == "" || earlierWake(candidate.At, current.At))) {
+			payload.NextWake = candidate
+		}
+	}
+}
+
+func earlierWake(a, b string) bool {
+	first, firstErr := time.Parse(time.RFC3339Nano, a)
+	second, secondErr := time.Parse(time.RFC3339Nano, b)
+	return firstErr == nil && (secondErr != nil || first.Before(second))
 }
 
 func (r instanceDefinitions) projectInstanceDefinition(
@@ -122,4 +153,39 @@ func (r instanceDefinitions) projectInstanceDefinition(
 		payload.Provider = runtime.Provider
 	}
 	return nil
+}
+
+func (r instanceDefinitions) instancePeer(
+	ctx context.Context,
+	instance agentinstance.Instance,
+) (contract.AgentInstancePeer, error) {
+	peer := contract.AgentInstancePeer{
+		Name:  instance.AgentName,
+		Scope: extensionInstallationScopeGlobal,
+		State: instance.State,
+	}
+	var resolved workspacepkg.ResolvedWorkspace
+	var err error
+	if instance.WorkspaceID == "" {
+		resolved, err = r.workspaces.ResolveUser(ctx, instance.ProfileID)
+	} else {
+		name, lookupErr := r.profiles.ProfileName(ctx, instance.ProfileID)
+		if lookupErr != nil {
+			return peer, lookupErr
+		}
+		resolved, err = r.workspaces.ResolveForProfile(ctx, instance.WorkspaceID, name)
+		peer.Scope = resolved.Name
+	}
+	if err != nil {
+		return peer, err
+	}
+	agent, err := r.agents.ResolveAgent(instance.AgentName, &resolved)
+	if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
+		return peer, nil
+	}
+	if err != nil {
+		return peer, err
+	}
+	peer.Description = agent.Description
+	return peer, nil
 }

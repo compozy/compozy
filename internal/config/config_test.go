@@ -3287,6 +3287,27 @@ func TestStaysOnApprovalTimeout(t *testing.T) {
 }
 
 func TestStaysOnTriageConfiguration(t *testing.T) {
+	t.Run("Should default the unattended brake and preserve an explicit disabled overlay", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultWithHome(HomePaths{})
+		if cfg.Agents.StaysOn.UnattendedTurnLimit != 300 {
+			t.Fatalf("default limit=%d", cfg.Agents.StaysOn.UnattendedTurnLimit)
+		}
+		for _, limit := range []int64{0, 12, 300} {
+			staysOnOverlay{UnattendedTurnLimit: &limit}.Apply(&cfg.Agents.StaysOn)
+			if cfg.Agents.StaysOn.UnattendedTurnLimit != limit {
+				t.Fatalf("overlay limit=%d want=%d", cfg.Agents.StaysOn.UnattendedTurnLimit, limit)
+			}
+			if err := cfg.Agents.Validate(); err != nil {
+				t.Fatal(err)
+			}
+		}
+		cfg.Agents.StaysOn.UnattendedTurnLimit = -1
+		if cfg.Agents.Validate() == nil {
+			t.Fatal("negative unattended limit accepted")
+		}
+	})
+
 	t.Run("Should default to two proposals and accept every documented proposal limit", func(t *testing.T) {
 		t.Parallel()
 		cfg := DefaultWithHome(HomePaths{})
@@ -3320,6 +3341,23 @@ func TestStaysOnTriageConfiguration(t *testing.T) {
 			mutate(&candidate.StaysOn)
 			if candidate.Validate() == nil {
 				t.Fatalf("invalid limits accepted: %+v", candidate.StaysOn)
+			}
+		}
+	})
+}
+
+func TestPermissionLevelOrdering(t *testing.T) {
+	t.Parallel()
+	t.Run("Should validate and strictly order all five levels", func(t *testing.T) {
+		t.Parallel()
+		modes := []PermissionMode{PermissionModeDenyAll, PermissionModeApproveReads,
+			PermissionModeApproveEdits, PermissionModeAuto, PermissionModeApproveAll}
+		for i, mode := range modes {
+			if err := mode.Validate("permissions.mode"); err != nil {
+				t.Fatal(err)
+			}
+			if mode.Rank() != i {
+				t.Fatalf("rank(%s)=%d, want %d", mode, mode.Rank(), i)
 			}
 		}
 	})

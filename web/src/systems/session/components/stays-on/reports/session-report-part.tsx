@@ -2,14 +2,14 @@
 import { useAuiState } from "@assistant-ui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { History } from "@compozy/ui/icons";
 import { use, useState, type ReactNode } from "react";
 
-import { Button, Marker } from "@compozy/ui";
+import { Button } from "@compozy/ui";
 
 import {
   agentInstanceAwayOptions,
   agentInstanceBinding,
+  agentInstancePausedUnattended,
   agentInstanceCheckInsOptions,
   agentInstanceIndeterminateReportsOptions,
   useAgentInstances,
@@ -19,12 +19,22 @@ import {
 import { useReportSource } from "../../../hooks/use-report-source";
 import { countWord, deriveAwayDigest, reportClock } from "../../../lib/session-away";
 import { SessionReportSendContext } from "../../../lib/session-report-send";
-import { pickedProposal, reportPayload } from "../../../lib/session-report";
+import { isLostWake, pickedProposal, reportPayload } from "../../../lib/session-report";
 import type { SessionReportData } from "../../../types";
 import { CheckTicks } from "../stays-on-hover-card";
 import { AwayDigest } from "./away-digest";
 import { reportAgent, type ReportAgent } from "../../../lib/session-report-identity";
+import {
+  ContextBlockedReport,
+  ContextFullReport,
+  ContextRotatedNotice,
+  WakeLostReport,
+} from "./pause-reports";
+import { ResumeAction, UnattendedPauseReport } from "./unattended-pause-report";
 import { Notice, SettledAsk, ShoulderTap } from "./report-entry";
+import { RotatedMarker } from "./rotated-marker";
+import { ReportEventSourceLine } from "./report-event-source";
+import { SkillReviewCard } from "./skill-review-card";
 
 const NO_INSTANCE = { id: "", profile_name: "" };
 
@@ -52,7 +62,7 @@ function Proposal({
   unsure: boolean;
 }) {
   const send = use(SessionReportSendContext);
-  const proposals = reportPayload(data).proposals;
+  const { proposals, source } = reportPayload(data);
   const picked = useAuiState(state =>
     pickedProposal(state.thread.messages, proposals, data.created_at)
   );
@@ -68,6 +78,7 @@ function Proposal({
       chosen={picked}
       footnote={unsure ? MAYBE_NOT_PICKED(agent.label) : undefined}
       onChoose={send ? choice => send(choice.title) : undefined}
+      source={source ? <ReportEventSourceLine source={source} /> : undefined}
       when={reportClock(data.created_at)}
     />
   );
@@ -140,6 +151,41 @@ function FailureReport({
   );
 }
 
+/** A failure report's reason picks its telling: the brake, a lost wake, a full context, or a check. */
+function FailureBody({
+  agent,
+  data,
+  instance,
+}: {
+  agent: ReportAgent;
+  data: SessionReportData;
+  instance: AgentInstancePayload | undefined;
+}) {
+  const { reason, detail } = reportPayload(data);
+  const when = reportClock(data.created_at);
+  if (isLostWake(data.kind, undefined, reason)) {
+    return (
+      <WakeLostReport agent={agent} detail={detail === reason ? undefined : detail} when={when} />
+    );
+  }
+  switch (reason) {
+    case "unattended":
+      return (
+        <UnattendedPauseReport
+          agent={agent}
+          instance={instance}
+          instanceId={data.instance_id}
+          reportId={data.report_id}
+          when={when}
+        />
+      );
+    case "context_exhausted":
+      return <ContextFullReport agent={agent} when={when} />;
+    default:
+      return <FailureReport agent={agent} data={data} instance={instance} />;
+  }
+}
+
 function ExpiredApproval({
   data,
   instances,
@@ -150,7 +196,11 @@ function ExpiredApproval({
   const payload = reportPayload(data);
   const { agent, session } = useReportSource(payload.sessionId, instances);
   const provider = payload.expiredBy === "provider";
-  const subject = payload.tool;
+  const tool = payload.tool === "provider" ? undefined : payload.tool;
+  // The resource is what it wanted to run or change; without one, the tool and its action
+  // name the request. Older reports carry only the tool.
+  const subject =
+    payload.resource ?? ([tool, payload.action].filter(Boolean).join(" ") || undefined);
   return (
     <SettledAsk
       actions={
@@ -216,14 +266,35 @@ function ReportBody({
   unsure: boolean;
 }) {
   switch (data.kind) {
-    case "proposal":
-      return <Proposal agent={agent} data={data} unsure={unsure} />;
+    case "proposal": {
+      const { skillReviewId } = reportPayload(data);
+      return skillReviewId ? (
+        <SkillReviewCard
+          agent={agent}
+          instanceId={data.instance_id}
+          reviewId={skillReviewId}
+          when={reportClock(data.created_at)}
+        />
+      ) : (
+        <Proposal agent={agent} data={data} unsure={unsure} />
+      );
+    }
     case "failure":
-      return <FailureReport agent={agent} data={data} instance={instance} />;
+      return <FailureBody agent={agent} data={data} instance={instance} />;
     case "approval_expired":
       return <ExpiredApproval data={data} instances={instances} />;
-    case "interrupted":
-      return <InterruptedReport agent={agent} data={data} instances={instances} />;
+    case "interrupted": {
+      const { cause, detail } = reportPayload(data);
+      return isLostWake(data.kind, cause) ? (
+        <WakeLostReport
+          agent={agent}
+          detail={detail === cause ? undefined : detail}
+          when={reportClock(data.created_at)}
+        />
+      ) : (
+        <InterruptedReport agent={agent} data={data} instances={instances} />
+      );
+    }
     case "rotation_failed":
       return (
         <Notice
@@ -234,12 +305,19 @@ function ReportBody({
         />
       );
     case "rotated":
-      return <RotatedMarker predecessorId={reportPayload(data).sessionId} />;
+      return (
+        <>
+          <ContextRotatedNotice agent={agent} when={reportClock(data.created_at)} />
+          <RotatedMarker predecessorId={reportPayload(data).sessionId} />
+        </>
+      );
     case "rotation_deferred":
       return (
-        <Marker icon={<History aria-hidden="true" className="size-3" />}>
-          A fresh conversation is waiting for other work to finish. That's taken over an hour.
-        </Marker>
+        <ContextBlockedReport
+          agent={agent}
+          blockers={reportPayload(data).blockers}
+          when={reportClock(data.created_at)}
+        />
       );
     default:
       return null;
@@ -256,7 +334,13 @@ export function SessionReportPart({ data }: { data: SessionReportData }) {
   });
   const [now] = useState(() => Date.now());
   const messages = useAuiState(state => state.thread.messages);
-  const digest = away ? deriveAwayDigest(away, agent.label, now, messages) : null;
+  const digest = away
+    ? deriveAwayDigest(away, agent.label, now, messages, {
+        held: instance?.held_wakes ?? 0,
+        pausedNow: agentInstancePausedUnattended(instance),
+      })
+    : null;
+  const resumable = agentInstancePausedUnattended(instance) ? instance : undefined;
   const leads = digest?.firstReportId === data.report_id;
   const { data: indeterminate } = useQuery({
     ...agentInstanceIndeterminateReportsOptions(instance ?? NO_INSTANCE),
@@ -265,7 +349,13 @@ export function SessionReportPart({ data }: { data: SessionReportData }) {
   const unsure = indeterminate?.some(report => report.id === data.report_id) ?? false;
   return (
     <div className="flex flex-col gap-5 py-2" data-testid={`session-report-${data.kind}`}>
-      {leads && digest ? <AwayDigest agent={agent} digest={digest} /> : null}
+      {leads && digest ? (
+        <AwayDigest
+          action={digest.paused && resumable ? <ResumeAction instances={[resumable]} /> : undefined}
+          agent={agent}
+          digest={digest}
+        />
+      ) : null}
       {digest?.foldedIds.has(data.report_id) ? null : (
         <ReportBody
           agent={agent}
@@ -279,26 +369,5 @@ export function SessionReportPart({ data }: { data: SessionReportData }) {
         <p className="text-eyebrow text-subtle">{MAYBE_NOT_RECEIVED(agent.label)}</p>
       ) : null}
     </div>
-  );
-}
-
-export function RotatedMarker({ predecessorId }: { predecessorId: string | undefined }) {
-  const navigate = useNavigate();
-  return (
-    <Marker icon={<History aria-hidden="true" className="size-3" />}>
-      This conversation continues from an earlier one.{" "}
-      {predecessorId ? (
-        <a
-          className="underline"
-          href={`/session/${encodeURIComponent(predecessorId)}`}
-          onClick={event => {
-            event.preventDefault();
-            void navigate({ to: "/session/$id", params: { id: predecessorId } });
-          }}
-        >
-          Read it
-        </a>
-      ) : null}
-    </Marker>
   );
 }

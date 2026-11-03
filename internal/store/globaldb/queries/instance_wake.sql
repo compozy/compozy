@@ -25,8 +25,11 @@ AND i.archived_at IS NULL AND i.checks_enabled=1)
 AND (sqlc.arg(manual_check)=1 OR next_wake_at<=sqlc.arg(now));
 
 -- name: SkipInstanceWake :execrows
-UPDATE agent_instance_wake_state SET next_wake_at=sqlc.arg(next_wake_at)
-WHERE agent_instance_wake_state.instance_id=sqlc.arg(instance_id) AND occurrence_id='' AND next_wake_at=sqlc.arg(expected_due)
+UPDATE agent_instance_wake_state SET next_wake_at=CASE
+WHEN next_wake_at<>'' AND next_wake_at<sqlc.arg(next_wake_at)
+AND EXISTS (SELECT 1 FROM agent_instance_events e WHERE e.instance_id=agent_instance_wake_state.instance_id AND e.consumed_at IS NULL)
+THEN next_wake_at ELSE sqlc.arg(next_wake_at) END
+WHERE agent_instance_wake_state.instance_id=sqlc.arg(instance_id) AND agent_instance_wake_state.occurrence_id='' AND next_wake_at=sqlc.arg(expected_due)
 AND next_wake_at<=sqlc.arg(now);
 
 -- name: BindInstanceTriage :execrows
@@ -44,8 +47,11 @@ last_digest=CASE WHEN sqlc.arg(completed)=1 THEN sqlc.arg(digest) ELSE last_dige
 last_digest_at=CASE WHEN sqlc.arg(completed)=1 THEN sqlc.arg(now) ELSE last_digest_at END,
 automation_cursor=CASE WHEN sqlc.arg(completed)=1 THEN sqlc.arg(automation_cursor) ELSE automation_cursor END,
 quiet_streak=sqlc.arg(quiet_streak),failure_streak=sqlc.arg(failure_streak),
-next_wake_at=CASE WHEN sqlc.arg(next_wake_at)='' THEN next_wake_at ELSE sqlc.arg(next_wake_at) END
-WHERE instance_id=sqlc.arg(instance_id) AND occurrence_id=sqlc.arg(occurrence_id);
+next_wake_at=CASE WHEN sqlc.arg(next_wake_at)='' THEN next_wake_at
+WHEN next_wake_at<>'' AND next_wake_at<sqlc.arg(next_wake_at)
+AND EXISTS (SELECT 1 FROM agent_instance_events e WHERE e.instance_id=agent_instance_wake_state.instance_id AND e.consumed_at IS NULL)
+THEN next_wake_at ELSE sqlc.arg(next_wake_at) END
+WHERE agent_instance_wake_state.instance_id=sqlc.arg(instance_id) AND agent_instance_wake_state.occurrence_id=sqlc.arg(occurrence_id);
 
 -- name: InsertInstanceWakeEvent :exec
 INSERT INTO agent_heartbeat_wake_events
@@ -90,3 +96,17 @@ AND created_at>sqlc.arg(after_time);
 -- name: ResetMainInstanceQuietStreak :exec
 UPDATE agent_instance_wake_state SET quiet_streak=0
 WHERE instance_id IN (SELECT id FROM agent_instances WHERE main_session_id=? AND archived_at IS NULL);
+
+-- name: MarkSessionInputUnattendedCounted :execrows
+-- Claims the row's single unattended count; a retried turn finds it already set.
+UPDATE session_input_queue SET unattended_counted = 1
+WHERE id = sqlc.arg(id) AND unattended_counted = 0;
+
+-- name: AdvanceInstanceUnattended :one
+UPDATE agent_instance_wake_state SET unattended_turns=unattended_turns+1
+WHERE instance_id=sqlc.arg(instance_id)
+RETURNING unattended_turns;
+
+-- name: ResetInstanceUnattended :exec
+UPDATE agent_instance_wake_state SET unattended_turns=0, engaged_at=sqlc.arg(now)
+WHERE instance_id=sqlc.arg(instance_id);

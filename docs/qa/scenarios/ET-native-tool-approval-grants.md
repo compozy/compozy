@@ -6,13 +6,13 @@ persona: Théo
 journey: J-answer-agent-requests
 expected: Allow-always and reject-always decisions survive daemon restart only for the exact workspace, agent, tool, and input digest; explicit agent-wide and tool-wide decisions set through Web, CLI, HTTP, UDS, and native tools survive restart without an input digest; every surface lists the same rows; revocation removes each decision everywhere and wider allows never exceed the configured tool-policy ceiling.
 entry_points: Native-tool permission prompt; Web Settings / General; compozy tool approvals set/list/revoke; PUT/GET/DELETE /api/tool-approval-grants; compozy__tool_approvals_set/list/revoke
-qa_status: skipped
+qa_status: partial
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-10-02-untested.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: ET-037; ET-038
 ---
 
@@ -167,3 +167,13 @@ N-23 canonical surfaces: invoke `compozy__session_pending_interactions` for pend
 requests and `compozy agent draft "<goal>" --provider <provider>` to draft without
 saving. The former unshipped names have no aliases. Native relay and CLI command
 suites cover dispatch and the unchanged HTTP drafting boundary.
+
+B2 extension — stays-on grant authority (verification pending): from a stays-on
+main and a nested child, call `compozy__tool_approvals_set` and
+`compozy__tool_approvals_revoke` with otherwise valid input. Both must be denied
+without changing the grant store. Repeat through the HTTP and UDS grant mutation
+routes with daemon-validated agent credentials; expect 403 and
+`tool_approval_grants_denied`. Operator and unrelated on-demand callers retain
+their existing grant behavior.
+
+QA verification 2026-11-03 (stays-on hardening, soh/qa 583415ef5, isolated acpmock lab): Partial. From two stays-on mains (`gatekeeper` at approve-edits, `gatekeeper2` at approve-all) native `compozy__tool_approvals_set` and `compozy__tool_approvals_revoke` with valid input both failed `tool_denied`/`policy_denied`. With the stays-on main's agent credentials, HTTP and UDS `PUT /api/tool-approval-grants` and `DELETE /api/tool-approval-grants/:id` each returned 403 `tool_approval_grants_denied`; the grant list was byte-identical before and after. The operator still set and revoked a `compozy__notify` grant. Not walked: a nested child of a stays-on main, and an unrelated on-demand caller. Evidence: `grants-agent-routes.txt`.

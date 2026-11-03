@@ -15,7 +15,9 @@ AND NOT EXISTS(SELECT 1 FROM session_subagent_wakes WHERE parent_session_id=sqlc
 AND NOT EXISTS(SELECT 1 FROM session_pending_interactions WHERE session_id=sqlc.arg(session_id) AND status IN ('pending','orphaned'))
 AND NOT EXISTS(SELECT 1 FROM session_prompt_reply_watches WHERE (sender_session_id=sqlc.arg(session_id) OR target_session_id=sqlc.arg(session_id)) AND state IN ('armed','fired'))
 AND NOT EXISTS(SELECT 1 FROM session_prompt_admissions WHERE session_id=sqlc.arg(session_id) AND state IN ('reserved','dispatch_committed'))
-AND NOT EXISTS(SELECT 1 FROM session_input_queue WHERE session_id=sqlc.arg(session_id) AND status IN ('queued','dispatching'));
+AND NOT EXISTS(SELECT 1 FROM session_input_queue WHERE session_id=sqlc.arg(session_id) AND status IN ('queued','dispatching'))
+AND NOT EXISTS(SELECT 1 FROM loop_runs WHERE origin_kind='session' AND origin_session_id=sqlc.arg(session_id)
+ AND historical=0 AND status IN ('queued','running','watching','needs-approval','paused'));
 
 -- name: PublishRotatedInstanceMain :execrows
 UPDATE agent_instances SET main_session_id=sqlc.arg(successor_id), updated_at=sqlc.arg(updated_at)
@@ -48,3 +50,26 @@ RETURNING started_at;
 
 -- name: ClearInstanceRotationWait :exec
 DELETE FROM agent_instance_rotation_wait WHERE instance_id=sqlc.arg(instance_id) AND main_session_id=sqlc.arg(main_session_id);
+
+-- name: MarkInstanceRotationDue :exec
+UPDATE agent_instance_wake_state SET rotation_due_session=sqlc.arg(session_id)
+WHERE instance_id=sqlc.arg(instance_id) AND EXISTS(SELECT 1 FROM agent_instances
+ WHERE id=sqlc.arg(instance_id) AND main_session_id=sqlc.arg(session_id) AND archived_at IS NULL);
+
+-- name: ClearInstanceRotationDue :exec
+UPDATE agent_instance_wake_state SET rotation_due_session=''
+WHERE instance_id=sqlc.arg(instance_id) AND rotation_due_session=sqlc.arg(session_id);
+
+-- name: InstanceRotationBlockers :many
+WITH RECURSIVE descendants(id,state) AS (
+ SELECT root.id,root.state FROM sessions root WHERE root.parent_session_id=sqlc.arg(session_id)
+ UNION SELECT s.id,s.state FROM sessions s JOIN descendants d ON s.parent_session_id=d.id
+)
+SELECT 'queued_input' AS reason WHERE EXISTS(SELECT 1 FROM session_input_queue WHERE session_id=sqlc.arg(session_id) AND status IN ('queued','dispatching'))
+UNION ALL SELECT 'active_goal' WHERE EXISTS(SELECT 1 FROM loop_runs WHERE origin_kind='session' AND origin_session_id=sqlc.arg(session_id) AND historical=0 AND status IN ('queued','running','watching','needs-approval','paused'))
+UNION ALL SELECT 'prompt_admission' WHERE EXISTS(SELECT 1 FROM session_prompt_admissions WHERE session_id=sqlc.arg(session_id) AND state IN ('reserved','dispatch_committed'))
+UNION ALL SELECT 'pending_interaction' WHERE EXISTS(SELECT 1 FROM session_pending_interactions WHERE session_id=sqlc.arg(session_id) AND status IN ('pending','orphaned'))
+UNION ALL SELECT 'reply_watch' WHERE EXISTS(SELECT 1 FROM session_prompt_reply_watches WHERE (sender_session_id=sqlc.arg(session_id) OR target_session_id=sqlc.arg(session_id)) AND state IN ('armed','fired'))
+UNION ALL SELECT 'child_wake' WHERE EXISTS(SELECT 1 FROM session_subagent_wakes WHERE parent_session_id=sqlc.arg(session_id) AND state IN ('open','dispatched'))
+UNION ALL SELECT 'child_delivery' WHERE EXISTS(SELECT 1 FROM session_subagents WHERE parent_session_id=sqlc.arg(session_id) AND origin='delegated' AND delivery NOT IN ('delivered','acknowledged','disposed'))
+UNION ALL SELECT 'live_descendant' WHERE EXISTS(SELECT 1 FROM descendants WHERE state NOT IN ('stopped','failed','crashed'));

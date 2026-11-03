@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
+	automationmodel "github.com/compozy/compozy/internal/automation/model"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
@@ -256,12 +257,19 @@ func TestInstanceLifecycle(t *testing.T) {
 			) {
 				t.Fatalf("archive main error: %v", err)
 			}
-			paused, err := repo.Pause(t.Context(), first.ID, "manual")
+			paused, err := repo.Pause(t.Context(), first.ID, "unattended")
 			if err != nil || paused.State != "paused" {
 				t.Fatalf("pause: %#v %v", paused, err)
 			}
+			if _, err := db.DB().ExecContext(
+				t.Context(),
+				"UPDATE agent_instance_wake_state SET unattended_turns=3 WHERE instance_id=?",
+				first.ID,
+			); err != nil {
+				t.Fatal(err)
+			}
 			again, err := repo.Pause(t.Context(), first.ID, "fatigue")
-			if err != nil || again.PauseReason != "manual" {
+			if err != nil || again.PauseReason != "unattended" {
 				t.Fatalf("repeat pause: %#v %v", again, err)
 			}
 			input.AgentName = "other"
@@ -273,8 +281,13 @@ func TestInstanceLifecycle(t *testing.T) {
 				t.Fatalf("resume error: %v", err)
 			}
 			retained, err := repo.Get(t.Context(), first.ID)
-			if err != nil || retained.State != "paused" {
+			if err != nil || retained.State != "paused" || retained.PauseReason != "unattended" {
 				t.Fatalf("retained: %#v %v", retained, err)
+			}
+			// A refused resume changes nothing: the brake's count stays for the next attempt.
+			wake, err := repo.WakeState(t.Context(), first.ID)
+			if err != nil || wake.UnattendedTurns != 3 {
+				t.Fatalf("refused resume wake state: %+v %v", wake, err)
 			}
 			if err := repo.DeleteUnstarted(t.Context(), other.ID); err != nil {
 				t.Fatal(err)
@@ -282,6 +295,9 @@ func TestInstanceLifecycle(t *testing.T) {
 			resumed, err := repo.Resume(t.Context(), first.ID, 1, true)
 			if err != nil || resumed.State != "active" || resumed.PauseReason != "" {
 				t.Fatalf("resume: %#v %v", resumed, err)
+			}
+			if wake, err := repo.WakeState(t.Context(), first.ID); err != nil || wake.UnattendedTurns != 0 {
+				t.Fatalf("resumed wake state: %+v %v", wake, err)
 			}
 			if _, err := repo.Archive(t.Context(), first.ID); err != nil {
 				t.Fatal(err)
@@ -756,7 +772,7 @@ func TestInstanceServiceRecovery(t *testing.T) {
 			t.Fatalf("resume: %v", err)
 		}
 		retained, err := db.Instances().Get(t.Context(), instance.ID)
-		if err != nil || !reflect.DeepEqual(retained, paused) {
+		if err != nil || !reflect.DeepEqual(retained, paused.Instance) {
 			t.Fatalf("failed resume changed instance: %#v, %v", retained, err)
 		}
 	})
@@ -1466,6 +1482,82 @@ func TestInstanceAdoptionHooks(t *testing.T) {
 
 // TestInstanceWakeMigration owns upgrade preservation and opt-in safety in the global store.
 func TestInstanceWakeMigration(t *testing.T) {
+	t.Run("Should preserve inflight wake state when adding the spend brake", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		old, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00179_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, statement := range []string{
+			`INSERT INTO agent_instances (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
+    VALUES ('brake-upgrade','00000000000000000000000000','coder','active','human','','2026-11-02','2026-11-02')`,
+			`INSERT INTO agent_instance_wake_state (instance_id,next_wake_at,occurrence_id,failure_streak)
+    VALUES ('brake-upgrade','2026-11-03','inflight-check',2)`,
+		} {
+			if _, err := old.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := old.Close(); err != nil {
+			t.Fatal(err)
+		}
+		db, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var turns, failures int64
+		var engaged, next, occurrence string
+		if err := db.db.QueryRowContext(ctx, `SELECT unattended_turns,engaged_at,next_wake_at,occurrence_id,failure_streak
+   FROM agent_instance_wake_state WHERE instance_id='brake-upgrade'`).
+			Scan(
+				&turns, &engaged, &next, &occurrence, &failures,
+			); err != nil {
+			t.Fatal(err)
+		}
+		if turns != 0 || engaged != "" || next != "2026-11-03" || occurrence != "inflight-check" || failures != 2 {
+			t.Fatalf("upgrade state: %d %q %q %q %d", turns, engaged, next, occurrence, failures)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE agent_instance_wake_state SET unattended_turns=17, engaged_at='2026-11-02'
+   WHERE instance_id='brake-upgrade'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO agent_instance_paused_runs VALUES ('brake-upgrade','goal','goal-1','2026-11-02')`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := reopened.db.QueryRowContext(ctx, `SELECT unattended_turns FROM agent_instance_wake_state WHERE instance_id='brake-upgrade'`).
+			Scan(&turns); err != nil {
+			t.Fatal(err)
+		}
+		var runID string
+		if err := reopened.db.QueryRowContext(ctx, `SELECT run_id FROM agent_instance_paused_runs WHERE instance_id='brake-upgrade'`).
+			Scan(&runID); err != nil {
+			t.Fatal(err)
+		}
+		if turns != 17 || runID != "goal-1" {
+			t.Fatalf("reopened turns=%d run=%q", turns, runID)
+		}
+	})
+
 	t.Run("Should preserve legacy events and require opt in only on upgrade", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
@@ -1585,7 +1677,177 @@ func TestInstanceWakeMigration(t *testing.T) {
 	})
 }
 
+func TestInstanceEventDelivery(t *testing.T) {
+	t.Run("Should retain 200 paused events and deduplicate a trimmed run [UT-054 UT-055 UT-074]", func(t *testing.T) {
+		t.Parallel()
+		db, target, instanceID := instanceEventTestTarget(t)
+		base := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+		clock := base
+		db.now = func() time.Time { return clock }
+		var sink automationmodel.InstanceEventSink = db.InstanceEvents(10 * time.Minute)
+		if _, err := db.DB().
+			ExecContext(t.Context(), "UPDATE agent_instance_wake_state SET last_wake_at=?,next_wake_at=? WHERE instance_id=?", store.FormatTimestamp(base), store.FormatTimestamp(base.Add(time.Hour)), instanceID); err != nil {
+			t.Fatal(err)
+		}
+		firstID := ""
+		for i := range 205 {
+			clock = base.Add(time.Duration(i) * time.Second)
+			runID := fmt.Sprintf("event-run-%03d", i)
+			if _, err := db.DB().
+				ExecContext(t.Context(), `INSERT INTO automation_runs (id,profile_id,workspace_id,trigger_id,status) VALUES (?,?,?,'trigger','running')`, runID, target.ProfileID, target.WorkspaceID); err != nil {
+				t.Fatal(err)
+			}
+			delivered, err := sink.Deliver(
+				t.Context(),
+				target,
+				automationmodel.InstanceEvent{RunID: runID, TriggerID: "trigger", Summary: strings.Repeat("界", 2000)},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if i == 0 {
+				firstID = delivered.EventID
+				if !delivered.CheckScheduled {
+					t.Fatalf("initial delivery: %+v", delivered)
+				}
+				if _, err := db.DB().
+					ExecContext(t.Context(), "UPDATE agent_instances SET state='paused' WHERE id=?", instanceID); err != nil {
+					t.Fatal(err)
+				}
+			}
+		}
+		var count, omitted, maxSummary int
+		if err := db.DB().
+			QueryRowContext(t.Context(), "SELECT count(*),max(length(CAST(summary AS BLOB))) FROM agent_instance_events WHERE instance_id=?", instanceID).
+			Scan(&count, &maxSummary); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.DB().
+			QueryRowContext(t.Context(), "SELECT events_omitted FROM agent_instance_wake_state WHERE instance_id=?", instanceID).
+			Scan(&omitted); err != nil {
+			t.Fatal(err)
+		}
+		if count != 200 || omitted != 5 || maxSummary > heartbeat.AutomationEventSummaryBytes {
+			t.Fatalf("retention count=%d omitted=%d bytes=%d", count, omitted, maxSummary)
+		}
+		repeated, err := sink.Deliver(
+			t.Context(),
+			target,
+			automationmodel.InstanceEvent{RunID: "event-run-000", TriggerID: "trigger", Summary: "Repeated"},
+		)
+		if err != nil || repeated.EventID != firstID || repeated.CheckScheduled ||
+			repeated.Reason != "instance_paused" {
+			t.Fatalf("repeat: %+v %v", repeated, err)
+		}
+		var duplicates int
+		if err := db.DB().
+			QueryRowContext(t.Context(), "SELECT count(*) FROM agent_instance_events WHERE run_id='event-run-000'").
+			Scan(&duplicates); err != nil ||
+			duplicates != 0 {
+			t.Fatalf("trimmed run reinserted: %d %v", duplicates, err)
+		}
+		state, err := db.Instances().WakeState(t.Context(), instanceID)
+		if err != nil || state.NextWakeAt != store.FormatTimestamp(base.Add(10*time.Minute)) {
+			t.Fatalf("minimum interval: %+v %v", state, err)
+		}
+	})
+	t.Run("Should diagnose missing and unavailable checks [UT-052 UT-073]", func(t *testing.T) {
+		t.Parallel()
+		db, target, instanceID := instanceEventTestTarget(t)
+		sink := db.InstanceEvents(time.Minute)
+		missing := target
+		missing.AgentName = "missing"
+		if _, err := sink.Deliver(
+			t.Context(),
+			missing,
+			automationmodel.InstanceEvent{RunID: "missing", TriggerID: "trigger"},
+		); !errors.Is(
+			err,
+			automationmodel.ErrTriggerTargetInstanceNotFound,
+		) {
+			t.Fatalf("missing: %v", err)
+		}
+		if _, err := db.DB().
+			ExecContext(t.Context(), "UPDATE agent_instances SET checks_enabled=0 WHERE id=?", instanceID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().
+			ExecContext(t.Context(), `INSERT INTO automation_runs (id,profile_id,trigger_id,status) VALUES ('disabled',?,'trigger','running')`, target.ProfileID); err != nil {
+			t.Fatal(err)
+		}
+		event := automationmodel.InstanceEvent{RunID: "disabled", TriggerID: "trigger", Summary: "Retained event"}
+		delivered, err := sink.Deliver(t.Context(), target, event)
+		if err != nil || delivered.CheckScheduled || delivered.Reason != "checks_disabled" {
+			t.Fatalf("disabled: %+v %v", delivered, err)
+		}
+		target.ChecksSupported = false
+		delivered, err = sink.Deliver(t.Context(), target, event)
+		if err != nil || delivered.Reason != "triage_unsupported" {
+			t.Fatalf("unsupported: %+v %v", delivered, err)
+		}
+		if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_heartbeat_wake_events
+ (id,workspace_id,agent_name,source,result,reason,detail,created_at,expires_at,instance_id)
+ VALUES ('unsupported-check',?,'coder','timer','failed','triage_unsupported','','2026-11-03T00:00:00Z','2026-11-04T00:00:00Z',?)`, target.WorkspaceID, instanceID); err != nil {
+			t.Fatal(err)
+		}
+		target.ChecksSupported = true
+		delivered, err = sink.Deliver(t.Context(), target, event)
+		if err != nil || delivered.Reason != "triage_unsupported" {
+			t.Fatalf("known unsupported check: %+v %v", delivered, err)
+		}
+	})
+}
+
+func instanceEventTestTarget(t *testing.T) (*GlobalDB, automationmodel.InstanceTarget, string) {
+	t.Helper()
+	db := openTestGlobalDB(t)
+	workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "event-delivery", "event-delivery-main")
+	instance, err := db.Instances().
+		Adopt(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace, PermissionCeiling: "{}", CreatedByKind: "human"}, main, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return db, automationmodel.InstanceTarget{
+		ProfileID:       store.DefaultProfileID,
+		WorkspaceID:     workspace,
+		AgentName:       "coder",
+		ChecksSupported: true,
+	}, instance.ID
+}
+
 func TestInstanceCollectorFacts(t *testing.T) {
+	t.Run("Should read only pending events in bounded instance order", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		instance, _, err := db.Instances().
+			AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "event-reader", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i := range 25 {
+			_, err := db.DB().
+				ExecContext(t.Context(), `INSERT INTO agent_instance_events (id,instance_id,trigger_id,run_id,summary,received_at) VALUES (?,?, 'trigger',?,?, '2026-11-03T00:00:00Z')`, fmt.Sprintf("event-%02d", i), instance.ID, fmt.Sprintf("run-%02d", i), "Event payload")
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.DB().
+			ExecContext(t.Context(), "UPDATE agent_instance_events SET consumed_at='2026-11-03T01:00:00Z' WHERE id='event-00'"); err != nil {
+			t.Fatal(err)
+		}
+		scope, facts, err := db.Instances().CollectorFacts(t.Context(), instance.ID, heartbeat.CollectorScope{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if scope.InstanceID != instance.ID || len(facts.AutomationEvents) != 20 ||
+			facts.AutomationEvents[0].ID != "event-01" {
+			t.Fatalf("event facts: scope=%+v facts=%+v", scope, facts.AutomationEvents)
+		}
+		digest, err := heartbeat.CollectDigest(scope, facts, []string{}, "", "")
+		if err != nil || len(digest.EventIDs) != 20 {
+			t.Fatalf("event digest: %+v %v", digest, err)
+		}
+	})
 	t.Run("Should include user scope automation failures for a global instance", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
@@ -1718,6 +1980,296 @@ func TestInstanceCollectorFacts(t *testing.T) {
 }
 
 func TestInstanceWakeTransactions(t *testing.T) {
+	for _, result := range []string{"quiet", "reported", "failed", instanceWakeCanceledResult} {
+		t.Run(
+			"Should consume only a successful occurrence batch and keep earlier event deadline "+result+" [UT-071 UT-072]",
+			func(t *testing.T) {
+				t.Parallel()
+				db := openTestGlobalDB(t)
+				workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "event-finish", "event-finish-main")
+				repo := db.Instances()
+				instance, err := repo.Adopt(
+					t.Context(),
+					agentinstance.Instance{
+						ProfileID:         store.DefaultProfileID,
+						AgentName:         "coder",
+						WorkspaceID:       workspace,
+						PermissionCeiling: "{}",
+						CreatedByKind:     "human",
+					},
+					main,
+					10,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				now := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+				var eventIDs []string
+				for i := range 50 {
+					id := fmt.Sprintf("event-%02d", i)
+					_, err = db.DB().
+						ExecContext(t.Context(), `INSERT INTO agent_instance_events (id,instance_id,trigger_id,run_id,summary,received_at) VALUES (?,?,'trigger',?,'Selected event',?)`, id, instance.ID, "run-"+id, store.FormatTimestamp(now))
+					if err != nil {
+						t.Fatal(err)
+					}
+				}
+				scope, facts, err := repo.CollectorFacts(t.Context(), instance.ID, heartbeat.CollectorScope{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				digest, err := heartbeat.CollectDigest(scope, facts, nil, "", "")
+				if err != nil {
+					t.Fatal(err)
+				}
+				eventIDs = digest.EventIDs
+				if len(eventIDs) != 20 || eventIDs[0] != "event-00" || eventIDs[19] != "event-19" {
+					t.Fatalf("events=%v", eventIDs)
+				}
+
+				admitted, err := repo.Admit(
+					t.Context(),
+					heartbeat.AdmitRequest{
+						InstanceID:    instance.ID,
+						OccurrenceID:  "event-occ",
+						Now:           now,
+						NextWakeAt:    now.Add(time.Hour),
+						MaxConcurrent: 1,
+						ManualCheck:   true,
+						EventIDs:      eventIDs,
+					},
+				)
+				if err != nil || !admitted {
+					t.Fatalf("admit: %v %v", admitted, err)
+				}
+				_, err = db.DB().
+					ExecContext(t.Context(), `INSERT INTO agent_instance_events (id,instance_id,trigger_id,run_id,summary,received_at) VALUES ('late',?,'trigger','run-late','Late event',?)`, instance.ID, store.FormatTimestamp(now.Add(time.Minute)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				earlier := store.FormatTimestamp(now.Add(2 * time.Minute))
+				if _, err := db.DB().
+					ExecContext(t.Context(), "UPDATE agent_instance_wake_state SET next_wake_at=? WHERE instance_id=?", earlier, instance.ID); err != nil {
+					t.Fatal(err)
+				}
+				reason := result
+				if result == "failed" {
+					reason = "triage_failed"
+				}
+				changed, err := repo.Finish(
+					t.Context(),
+					heartbeat.FinishRequest{
+						InstanceID:   instance.ID,
+						OccurrenceID: "event-occ",
+						Source:       "timer",
+						Result:       result,
+						Reason:       reason,
+						Now:          now.Add(time.Minute),
+						NextWakeAt:   now.Add(2 * time.Hour),
+						ExpiresAt:    now.Add(24 * time.Hour),
+					},
+				)
+				if err != nil || !changed.Changed {
+					t.Fatalf("finish: %v %v", changed, err)
+				}
+				var consumed int
+				if err := db.DB().
+					QueryRowContext(t.Context(), "SELECT count(*) FROM agent_instance_events WHERE consumed_at IS NOT NULL").
+					Scan(&consumed); err != nil {
+					t.Fatal(err)
+				}
+				want := 0
+				if result == "quiet" || result == "reported" {
+					want = 20
+				}
+				if consumed != want {
+					t.Fatalf("consumed=%d want=%d", consumed, want)
+				}
+				scope, facts, err = repo.CollectorFacts(t.Context(), instance.ID, heartbeat.CollectorScope{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				next, err := heartbeat.CollectDigest(scope, facts, nil, "", "")
+				if err != nil {
+					t.Fatal(err)
+				}
+				first := fmt.Sprintf("event-%02d", want)
+				if len(next.EventIDs) != 20 || next.EventIDs[0] != first {
+					t.Fatalf("next events=%v want first=%s", next.EventIDs, first)
+				}
+
+				state, err := repo.WakeState(t.Context(), instance.ID)
+				if err != nil || state.NextWakeAt != earlier {
+					t.Fatalf("deadline: %+v %v", state, err)
+				}
+			},
+		)
+	}
+	t.Run("Should keep an earlier pending event deadline when skipping", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "event-skip", "event-skip-main")
+		repo := db.Instances()
+		instance, err := repo.Adopt(
+			t.Context(),
+			agentinstance.Instance{
+				ProfileID:         store.DefaultProfileID,
+				AgentName:         "coder",
+				WorkspaceID:       workspace,
+				PermissionCeiling: "{}",
+				CreatedByKind:     "human",
+			},
+			main,
+			10,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+		due := store.FormatTimestamp(now)
+		if _, err := db.DB().
+			ExecContext(t.Context(), "UPDATE agent_instance_wake_state SET next_wake_at=? WHERE instance_id=?", due, instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().
+			ExecContext(t.Context(), `INSERT INTO agent_instance_events (id,instance_id,trigger_id,run_id,summary,received_at) VALUES ('pending',?,'trigger','run','Event',?)`, instance.ID, due); err != nil {
+			t.Fatal(err)
+		}
+		changed, err := repo.Skip(
+			t.Context(),
+			heartbeat.SkipRequest{
+				InstanceID:  instance.ID,
+				ExpectedDue: due,
+				Now:         now,
+				NextWakeAt:  now.Add(time.Hour),
+				ExpiresAt:   now.Add(24 * time.Hour),
+				Reason:      "quiet_window",
+			},
+		)
+		if err != nil || !changed {
+			t.Fatalf("skip: %v %v", changed, err)
+		}
+		state, err := repo.WakeState(t.Context(), instance.ID)
+		if err != nil || state.NextWakeAt != due {
+			t.Fatalf("deadline: %+v %v", state, err)
+		}
+	})
+	for _, tc := range []struct {
+		name, slug, summary, triggerName string
+		headAlone                        bool
+	}{
+		{name: "an escaping heavy summary", slug: "escaped", summary: strings.Repeat("<\\", 700), headAlone: true},
+		{name: "an accepted 8 KiB trigger name", slug: "long-name", summary: "Selected event", triggerName: strings.Repeat("n", 8<<10)},
+	} {
+		t.Run(
+			"Should consume a head event with "+tc.name+" and progress to ordinary events [UT-072]",
+			func(t *testing.T) {
+				t.Parallel()
+				db := openTestGlobalDB(t)
+				workspace, main := registerHeartbeatWorkspaceAndSession(
+					t,
+					db,
+					"event-"+tc.slug,
+					"event-"+tc.slug+"-main",
+				)
+				repo := db.Instances()
+				instance, err := repo.Adopt(
+					t.Context(),
+					agentinstance.Instance{
+						ProfileID:         store.DefaultProfileID,
+						AgentName:         "coder",
+						WorkspaceID:       workspace,
+						PermissionCeiling: "{}",
+						CreatedByKind:     "human",
+					},
+					main,
+					10,
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				now := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+				for i := range 25 {
+					id := fmt.Sprintf("event-%02d", i)
+					summary := "Selected event"
+					if i == 0 {
+						summary = tc.summary
+						if tc.triggerName != "" {
+							// A pre-existing receipt persisted the accepted name in run metadata.
+							if _, err := db.DB().ExecContext(
+								t.Context(),
+								`INSERT INTO automation_runs (id, trigger_id, status, metadata_json) VALUES (?, 'trigger', 'succeeded', json_object('instance_event_trigger_name', ?))`,
+								"run-"+id, tc.triggerName,
+							); err != nil {
+								t.Fatal(err)
+							}
+						}
+					}
+					if _, err := db.DB().
+						ExecContext(t.Context(), `INSERT INTO agent_instance_events (id,instance_id,trigger_id,run_id,summary,received_at) VALUES (?,?,'trigger',?,?,?)`, id, instance.ID, "run-"+id, summary, store.FormatTimestamp(now)); err != nil {
+						t.Fatal(err)
+					}
+				}
+				collect := func() heartbeat.CheckDigest {
+					t.Helper()
+					scope, facts, err := repo.CollectorFacts(t.Context(), instance.ID, heartbeat.CollectorScope{})
+					if err != nil {
+						t.Fatal(err)
+					}
+					digest, err := heartbeat.CollectDigest(scope, facts, nil, "", "")
+					if err != nil {
+						t.Fatal(err)
+					}
+					return digest
+				}
+				digest := collect()
+				if len(digest.EventIDs) == 0 || digest.EventIDs[0] != "event-00" ||
+					(tc.headAlone && len(digest.EventIDs) != 1) {
+					t.Fatalf("head events=%v", digest.EventIDs)
+				}
+				if tc.triggerName != "" {
+					var stored string
+					if err := db.DB().QueryRowContext(
+						t.Context(),
+						`SELECT json_extract(metadata_json, '$.instance_event_trigger_name') FROM automation_runs WHERE id = 'run-event-00'`,
+					).
+						Scan(&stored); err != nil || stored != tc.triggerName {
+						t.Fatalf("stored trigger name changed: len=%d err=%v", len(stored), err)
+					}
+				}
+				admitted, err := repo.Admit(t.Context(), heartbeat.AdmitRequest{
+					InstanceID:    instance.ID,
+					OccurrenceID:  "head-occ",
+					Now:           now,
+					NextWakeAt:    now.Add(time.Hour),
+					MaxConcurrent: 1,
+					ManualCheck:   true,
+					EventIDs:      digest.EventIDs,
+				})
+				if err != nil || !admitted {
+					t.Fatalf("admit: %v %v", admitted, err)
+				}
+				if changed, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
+					InstanceID:   instance.ID,
+					OccurrenceID: "head-occ",
+					Source:       "timer",
+					Result:       "quiet",
+					Reason:       "quiet",
+					Now:          now.Add(time.Minute),
+					NextWakeAt:   now.Add(2 * time.Hour),
+					ExpiresAt:    now.Add(24 * time.Hour),
+				}); err != nil || !changed.Changed {
+					t.Fatalf("finish: %v %v", changed, err)
+				}
+				next := collect()
+				first := len(digest.EventIDs)
+				last := min(first+20, 25) - 1
+				if len(next.EventIDs) != last-first+1 || next.EventIDs[0] != fmt.Sprintf("event-%02d", first) ||
+					next.EventIDs[len(next.EventIDs)-1] != fmt.Sprintf("event-%02d", last) {
+					t.Fatalf("next events=%v", next.EventIDs)
+				}
+			},
+		)
+	}
 	t.Run("Should admit once finalize once and retain cancellation across resume", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
@@ -1779,10 +2331,10 @@ func TestInstanceWakeTransactions(t *testing.T) {
 			Digest:           "digest-one",
 			AutomationCursor: "cursor-one",
 		}
-		if changed, err := repo.Finish(t.Context(), finish); err != nil || !changed {
+		if changed, err := repo.Finish(t.Context(), finish); err != nil || !changed.Changed {
 			t.Fatalf("finish=%v %v", changed, err)
 		}
-		if changed, err := repo.Finish(t.Context(), finish); err != nil || changed {
+		if changed, err := repo.Finish(t.Context(), finish); err != nil || changed.Changed {
 			t.Fatalf("retry=%v %v", changed, err)
 		}
 		state, err := repo.WakeState(t.Context(), instance.ID)
@@ -1825,7 +2377,7 @@ func TestInstanceWakeTransactions(t *testing.T) {
 			Kind:    "failure",
 			Payload: []byte(`{"reason":"test","detail":"canceled"}`),
 		}
-		if changed, err := repo.Finish(t.Context(), finish); err != nil || !changed {
+		if changed, err := repo.Finish(t.Context(), finish); err != nil || !changed.Changed {
 			t.Fatalf("cancel finish=%v %v", changed, err)
 		}
 		state, err = repo.WakeState(t.Context(), instance.ID)
@@ -1879,7 +2431,7 @@ func TestInstanceWakeTransactions(t *testing.T) {
 			t.Fatal("report escaped rolled back transaction")
 		}
 		finish.Reason = "triage_failed"
-		if changed, err := repo.Finish(t.Context(), finish); err != nil || !changed {
+		if changed, err := repo.Finish(t.Context(), finish); err != nil || !changed.Changed {
 			t.Fatalf("failure finish=%v %v", changed, err)
 		}
 		state, err = repo.WakeState(t.Context(), instance.ID)
@@ -2215,13 +2767,13 @@ func TestInstanceCheckBackoff(t *testing.T) {
 					if result == "failed" {
 						reason = "triage_failed"
 					}
-					ok, err = repo.Finish(t.Context(), heartbeat.FinishRequest{
+					finished, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
 						InstanceID: id, OccurrenceID: occurrence, Source: "timer", Result: result, Reason: reason,
 						Now: now, ExpiresAt: now.Add(48 * time.Hour), Interval: 8 * time.Hour,
 						MaxInterval: 2 * time.Hour, QuietBackoffCap: time.Hour,
 					})
-					if err != nil || !ok {
-						t.Fatalf("finish=%v error=%v", ok, err)
+					if err != nil || !finished.Changed {
+						t.Fatalf("finish=%v error=%v", finished, err)
 					}
 					state, err := repo.WakeState(t.Context(), id)
 					if err != nil {
@@ -2470,7 +3022,7 @@ func TestInstanceCheckBackoff(t *testing.T) {
 				Interval:     time.Hour,
 				MaxInterval:  4 * time.Hour,
 			}
-			if changed, err := repo.Finish(t.Context(), req); err != nil || !changed {
+			if changed, err := repo.Finish(t.Context(), req); err != nil || !changed.Changed {
 				t.Fatalf("finish=%v %v", changed, err)
 			}
 			state, err := repo.WakeState(t.Context(), instance.ID)
@@ -2488,7 +3040,7 @@ func TestInstanceCheckBackoff(t *testing.T) {
 			} else if next.Before(now.Add(tc.delay)) || next.After(now.Add(tc.delay+tc.delay/10)) {
 				t.Fatalf("step %d next=%s expected delay=%s plus at most ten percent", i, state.NextWakeAt, tc.delay)
 			}
-			if changed, err := repo.Finish(t.Context(), req); err != nil || changed {
+			if changed, err := repo.Finish(t.Context(), req); err != nil || changed.Changed {
 				t.Fatalf("retry=%v %v", changed, err)
 			}
 			repeated, err := repo.WakeState(t.Context(), instance.ID)
@@ -2564,7 +3116,7 @@ func TestInstanceProposalDedupe(t *testing.T) {
 					Report:       &agentinstance.ReportInput{Kind: "proposal", Payload: []byte(tc.payload)},
 				},
 			)
-			if err != nil || !changed {
+			if err != nil || !changed.Changed {
 				t.Fatalf("finish=%v %v", changed, err)
 			}
 			var count int
@@ -2649,7 +3201,7 @@ func TestInstanceCheckFatigue(t *testing.T) {
 					ExpiresAt:    now.Add(time.Hour),
 				},
 			); err != nil ||
-				!ok {
+				!ok.Changed {
 				t.Fatalf("quiet finish=%v %v", ok, err)
 			}
 		}
@@ -2682,10 +3234,10 @@ func TestInstanceCheckFatigue(t *testing.T) {
 					Payload: []byte(`{"reason":"triage_failed","detail":"Failed"}`),
 				},
 			}
-			if ok, err := repo.Finish(t.Context(), req); err != nil || !ok {
+			if ok, err := repo.Finish(t.Context(), req); err != nil || !ok.Changed {
 				t.Fatalf("finish=%v %v", ok, err)
 			}
-			if ok, err := repo.Finish(t.Context(), req); err != nil || ok {
+			if ok, err := repo.Finish(t.Context(), req); err != nil || ok.Changed {
 				t.Fatalf("retry=%v %v", ok, err)
 			}
 			finished, err := repo.Occurrence(t.Context(), instance.ID, occurrence)
@@ -2763,7 +3315,7 @@ func TestInstanceCheckFatigue(t *testing.T) {
 				FatigueLimit: 10,
 			},
 		); err != nil ||
-			!ok {
+			!ok.Changed {
 			t.Fatalf("resume finish=%v %v", ok, err)
 		}
 		current, err := repo.Get(t.Context(), instance.ID)
@@ -2935,7 +3487,8 @@ func TestInstanceCheckGates(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		instance, err = repo.Pause(t.Context(), instance.ID, "manual")
+		pauseResult, err := repo.Pause(t.Context(), instance.ID, "manual")
+		instance = pauseResult.Instance
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -3540,8 +4093,9 @@ func TestInstanceMissedDueTimes(t *testing.T) {
 }
 
 type blockingInstanceDispatcher struct {
-	release chan struct{}
-	calls   atomic.Int32
+	canceled chan struct{}
+	release  chan struct{}
+	calls    atomic.Int32
 }
 
 var _ heartbeat.TriageDispatcher = (*blockingInstanceDispatcher)(nil)
@@ -3557,6 +4111,9 @@ func (d *blockingInstanceDispatcher) Dispatch(
 	case <-d.release:
 		return heartbeat.TriageOutcome{Result: "quiet", Reason: "quiet"}, nil
 	case <-ctx.Done():
+		if d.canceled != nil {
+			close(d.canceled)
+		}
 		return heartbeat.TriageOutcome{}, ctx.Err()
 	}
 }
@@ -3863,7 +4420,7 @@ func TestInstanceFinishOutcomes(t *testing.T) {
 					ExpiresAt:    now.Add(24 * time.Hour),
 				},
 			); err != nil ||
-				!changed {
+				!changed.Changed {
 				t.Fatalf("finish=%v err=%v", changed, err)
 			}
 			var result, reason string
@@ -3991,7 +4548,7 @@ func TestInstanceCollectorCompletion(t *testing.T) {
 					ExpiresAt:        now.Add(24 * time.Hour),
 				},
 			); err != nil ||
-				!changed {
+				!changed.Changed {
 				t.Fatalf("finish=%v err=%v", changed, err)
 			}
 			if i == 0 && collect().Fingerprint != first.Fingerprint {
@@ -4227,6 +4784,42 @@ func TestInstanceActivity(t *testing.T) {
 }
 
 func TestInstanceSeen(t *testing.T) {
+	t.Run("Should reset unattended turns without resuming a paused instance", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "seen-brake", "sess-seen-brake")
+		instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Instances().Pause(ctx, instance.ID, "unattended"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(ctx,
+			"UPDATE agent_instance_wake_state SET unattended_turns=300 WHERE instance_id=?", instance.ID,
+		); err != nil {
+			t.Fatal(err)
+		}
+		at := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+		if _, err := db.Instances().MarkSeen(ctx, instance.ID, "operator", at); err != nil {
+			t.Fatal(err)
+		}
+		var turns int64
+		var engaged string
+		if err := db.DB().QueryRowContext(ctx,
+			"SELECT unattended_turns, engaged_at FROM agent_instance_wake_state WHERE instance_id=?", instance.ID,
+		).Scan(&turns, &engaged); err != nil || turns != 0 || engaged != store.FormatTimestamp(at) {
+			t.Fatalf("engagement = %d, %q, %v", turns, engaged, err)
+		}
+		current, err := db.Instances().Get(ctx, instance.ID)
+		if err != nil || current.State != "paused" || current.PauseReason != "unattended" {
+			t.Fatalf("instance = %+v, %v", current, err)
+		}
+	})
 	t.Run("Should preserve monotonic operator-specific seen times across reopen", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -4390,6 +4983,22 @@ func TestInstanceRotationPublication(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if scenario == "publish" {
+				for range 2 {
+					if err := db.ReportContextExhaustion(t.Context(), main, "exhausted-turn"); err != nil {
+						t.Fatal(err)
+					}
+				}
+				state, err := repo.WakeState(t.Context(), instance.ID)
+				if err != nil || state.RotationDueSession != main {
+					t.Fatalf("rotation due = %+v, %v", state, err)
+				}
+				reports, err := db.InstanceReports().
+					ListReports(t.Context(), agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 100})
+				if err != nil || len(reports) != 1 {
+					t.Fatalf("exhaustion reports = %v, %v", reports, err)
+				}
+			}
 			count, err := repo.RotationAdmissionCount(t.Context(), main)
 			if err != nil {
 				t.Fatal(err)
@@ -4467,6 +5076,12 @@ func TestInstanceRotationPublication(t *testing.T) {
 			if (scenario != "publish" && scenario != "indeterminate admission") &&
 				!errors.Is(err, agentinstance.ErrRotationChanged) {
 				t.Fatalf("publication = %v", err)
+			}
+			if scenario == "publish" {
+				state, err := repo.WakeState(t.Context(), instance.ID)
+				if err != nil || state.RotationDueSession != "" {
+					t.Fatalf("published rotation due = %+v, %v", state, err)
+				}
 			}
 			got, err := repo.Get(t.Context(), instance.ID)
 			if err != nil {
@@ -4562,7 +5177,7 @@ func TestInstanceRotationCandidate(t *testing.T) {
 }
 
 func TestInstanceResumeAuthority(t *testing.T) {
-	for _, reason := range []string{"manual", "fatigue"} {
+	for _, reason := range []string{"manual", "fatigue", "unattended", "future_reason", ""} {
 		t.Run("Should retain an intervening "+reason+" pause during agent resume", func(t *testing.T) {
 			t.Parallel()
 			db := openTestGlobalDB(t)
@@ -4625,4 +5240,252 @@ func TestInstanceResumeAuthority(t *testing.T) {
 			}
 		})
 	}
+}
+
+// IT-003, UT-003: post-commit pause cancels the active occurrence without adding fatigue or a failure report.
+func TestInstancePauseCancelsCheck(t *testing.T) {
+	for _, reason := range []string{"manual", "fatigue", "unattended", "definition_missing"} {
+		t.Run("Should cancel a check after committed "+reason+" pause", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			db := openTestGlobalDB(t)
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "cancel-check", "sess-cancel-check")
+			repo := db.Instances()
+			instance, err := repo.Adopt(ctx, agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+			dispatcher := &blockingInstanceDispatcher{release: make(chan struct{}), canceled: make(chan struct{})}
+			environment := &instanceCheckEnvironment{target: heartbeat.CheckTarget{
+				Instance: instance, Policy: heartbeat.ResolvedPolicy{Enabled: true, GuidanceMarkdown: "Check work"},
+			}}
+			checks, err := heartbeat.NewCheckService(ctx, repo, environment, dispatcher, heartbeat.CheckConfig{
+				Enabled: true, Interval: time.Hour, MaxInterval: 24 * time.Hour, Retention: 24 * time.Hour,
+				Timeout: time.Minute, MaxConcurrent: 1, BatchSize: 1,
+			}, func() time.Time { return now })
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := checks.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			if err := checks.Recover(ctx); err != nil {
+				t.Fatal(err)
+			}
+			result, err := checks.Check(ctx, instance.ID, false)
+			if err != nil || result.OccurrenceID == "" {
+				t.Fatalf("check=%+v err=%v", result, err)
+			}
+			recorder := &instanceHookRecorder{}
+			service, err := agentinstance.NewService(
+				agentinstance.WithStore(repo), agentinstance.WithAdmission(instanceServiceAdmission{}),
+				agentinstance.WithMainSessions(&instanceServiceStarter{}), agentinstance.WithActiveLimit(10),
+				agentinstance.WithLifecycleHooks(recorder),
+				agentinstance.WithStateEffects(func(ctx context.Context, current agentinstance.Instance) error {
+					persisted, err := repo.Get(ctx, current.ID)
+					if err != nil {
+						return err
+					}
+					if persisted.State != "paused" {
+						t.Errorf("effects before commit: %+v", persisted)
+					}
+					return checks.CancelInstance(ctx, current.ID)
+				}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if reason == "unattended" {
+				paused, err := repo.Pause(ctx, instance.ID, reason)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := service.ApplyPause(ctx, paused.Instance); err != nil {
+					t.Fatal(err)
+				}
+			} else if _, err := service.Pause(ctx, instance.ID, reason); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-dispatcher.canceled:
+			case <-ctx.Done():
+				t.Fatal("pause did not cancel the active check")
+			}
+			if err := checks.Shutdown(ctx); err != nil {
+				t.Fatal(err)
+			}
+			occurrence, err := repo.Occurrence(ctx, instance.ID, result.OccurrenceID)
+			if err != nil || occurrence.Result != instanceWakeCanceledResult {
+				t.Fatalf("occurrence=%+v err=%v", occurrence, err)
+			}
+			wake, err := repo.WakeState(ctx, instance.ID)
+			if err != nil || wake.FailureStreak != 0 {
+				t.Fatalf("wake=%+v err=%v", wake, err)
+			}
+			reports, err := db.InstanceReports().
+				ListReports(ctx, agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 10})
+			if err != nil || len(reports) != 0 {
+				t.Fatalf("reports=%+v err=%v", reports, err)
+			}
+			if len(recorder.payloads) != 1 || recorder.payloads[0].Reason != reason {
+				t.Fatalf("hooks=%+v", recorder.payloads)
+			}
+		})
+	}
+}
+
+// UT-004/UT-005: finalization counts reported and failed checks exactly once, excluding quiet and cancellation.
+func TestInstanceCheckUnattendedCounter(t *testing.T) {
+	for _, outcome := range []string{"quiet", "reported", "failed", instanceWakeCanceledResult} {
+		t.Run("Should count the "+outcome+" check outcome once", func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "check-counter", "sess-check-counter")
+			repo := db.Instances()
+			instance, err := repo.Adopt(ctx, agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.DB().
+				ExecContext(ctx, "UPDATE agent_instance_wake_state SET unattended_turns=1 WHERE instance_id=?", instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			now := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+			if ok, err := repo.Admit(ctx, heartbeat.AdmitRequest{
+				InstanceID:    instance.ID,
+				OccurrenceID:  "counted-check",
+				Now:           now,
+				NextWakeAt:    now.Add(time.Hour),
+				MaxConcurrent: 1,
+			}); err != nil || !ok {
+				t.Fatalf("admit=%v %v", ok, err)
+			}
+			if outcome == instanceWakeCanceledResult {
+				if _, err := repo.Pause(ctx, instance.ID, "manual"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			reason := outcome
+			if outcome == "failed" {
+				reason = "triage_failed"
+			}
+			req := heartbeat.FinishRequest{
+				InstanceID: instance.ID, OccurrenceID: "counted-check", Source: "timer", Result: outcome,
+				Reason: reason, Now: now, ExpiresAt: now.Add(time.Hour), UnattendedTurnLimit: 2,
+			}
+			result, err := repo.Finish(ctx, req)
+			if err != nil || !result.Changed {
+				t.Fatalf("finish=%+v %v", result, err)
+			}
+			counted := outcome == "reported" || outcome == "failed"
+			if (result.Paused != nil) != counted {
+				t.Fatalf("trip=%+v outcome=%s", result.Paused, outcome)
+			}
+			if counted && (result.Paused.State != "paused" || result.Paused.PauseReason != "unattended") {
+				t.Fatalf("snapshot=%+v", result.Paused)
+			}
+			replay, err := repo.Finish(ctx, req)
+			if err != nil || replay.Changed || replay.Paused != nil {
+				t.Fatalf("replay=%+v %v", replay, err)
+			}
+			var turns int64
+			if err := db.DB().
+				QueryRowContext(ctx, "SELECT unattended_turns FROM agent_instance_wake_state WHERE instance_id=?", instance.ID).
+				Scan(&turns); err != nil {
+				t.Fatal(err)
+			}
+			want := int64(1)
+			if counted {
+				want = 2
+			}
+			if turns != want {
+				t.Fatalf("turns=%d want=%d", turns, want)
+			}
+			reports, err := db.InstanceReports().
+				ListReports(ctx, agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 10})
+			expectedReports := 0
+			if counted {
+				expectedReports = 1
+			}
+			if err != nil || len(reports) != expectedReports {
+				t.Fatalf("reports=%+v %v", reports, err)
+			}
+		})
+	}
+}
+
+func TestInstanceCheckUnattendedPauseEffects(t *testing.T) {
+	t.Run("Should invoke the pause handler after the counted check commits", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "check-effects", "sess-check-effects")
+		repo := db.Instances()
+		instance, err := repo.Adopt(ctx, agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		environment := &instanceCheckEnvironment{target: heartbeat.CheckTarget{
+			Instance: instance, Policy: heartbeat.ResolvedPolicy{Enabled: true, GuidanceMarkdown: "Check work"},
+		}}
+		now := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+		checks, err := heartbeat.NewCheckService(
+			ctx,
+			repo,
+			environment,
+			&instanceRecoveryDispatcher{},
+			heartbeat.CheckConfig{
+				Enabled: true, Interval: time.Hour, MaxInterval: 24 * time.Hour, Retention: 24 * time.Hour,
+				Timeout: time.Minute, MaxConcurrent: 1, BatchSize: 1, UnattendedTurnLimit: 1,
+			},
+			func() time.Time { return now },
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := checks.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		committed := make(chan agentinstance.Instance, 1)
+		checks.SetPauseHandler(func(ctx context.Context, snapshot agentinstance.Instance) error {
+			persisted, err := repo.Get(ctx, snapshot.ID)
+			if err != nil {
+				return err
+			}
+			committed <- persisted
+			return checks.CancelInstance(ctx, snapshot.ID)
+		})
+		if err := checks.Recover(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if result, err := checks.Check(ctx, instance.ID, false); err != nil || result.OccurrenceID == "" {
+			t.Fatalf("check=%+v %v", result, err)
+		}
+		waitCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		select {
+		case persisted := <-committed:
+			if persisted.State != "paused" || persisted.PauseReason != "unattended" {
+				t.Fatalf("effects before commit: %+v", persisted)
+			}
+		case <-waitCtx.Done():
+			t.Fatal("counted check did not publish pause effects")
+		}
+	})
 }

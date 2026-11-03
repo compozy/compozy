@@ -79,10 +79,11 @@ func (r *InstanceRepo) DeleteUnstarted(ctx context.Context, id string) error {
 		},
 	)
 }
-func (r *InstanceRepo) Pause(ctx context.Context, id, reason string) (agentinstance.Instance, error) {
+func (r *InstanceRepo) Pause(ctx context.Context, id, reason string) (agentinstance.PauseResult, error) {
 	if err := r.checkReady(ctx, "pause instance"); err != nil {
-		return agentinstance.Instance{}, err
+		return agentinstance.PauseResult{}, err
 	}
+	var result agentinstance.PauseResult
 	err := store.ExecuteWriteOperation(
 		ctx,
 		r.db,
@@ -92,21 +93,22 @@ func (r *InstanceRepo) Pause(ctx context.Context, id, reason string) (agentinsta
 			if err := q.CancelInstanceWake(ctx, id); err != nil {
 				return err
 			}
-			_, err := q.PauseAgentInstance(
-				ctx,
-				sqlcgen.PauseAgentInstanceParams{
-					ID:          id,
-					PauseReason: reason,
-					UpdatedAt:   store.FormatTimestamp(r.now()),
-				},
-			)
+			changed, err := q.PauseAgentInstance(ctx, sqlcgen.PauseAgentInstanceParams{
+				ID: id, PauseReason: reason, UpdatedAt: store.FormatTimestamp(r.now()),
+			})
+			if err != nil {
+				return err
+			}
+			row, err := q.GetAgentInstance(ctx, id)
+			if err != nil {
+				return err
+			}
+			result.Instance, err = instanceFromRow(row)
+			result.Changed = changed == 1
 			return err
 		},
 	)
-	if err != nil {
-		return agentinstance.Instance{}, err
-	}
-	return r.Get(ctx, id)
+	return result, err
 }
 
 func (r *InstanceRepo) Resume(
@@ -132,7 +134,7 @@ func (r *InstanceRepo) Resume(
 			if row.ArchivedAt.Valid {
 				return agentinstance.ErrNotFound
 			}
-			if !operator && (row.PauseReason == "manual" || row.PauseReason == "fatigue") {
+			if !operator && row.State == "paused" && agentinstance.OperatorOnlyResume(row.PauseReason) {
 				return agentinstance.ErrForbidden
 			}
 			if row.State == "starting" {
@@ -150,6 +152,11 @@ func (r *InstanceRepo) Resume(
 					ctx,
 					sqlcgen.ResumeAgentInstanceParams{ID: id, UpdatedAt: store.FormatTimestamp(r.now())},
 				); err != nil {
+					return err
+				}
+				if err := q.ResetInstanceUnattended(ctx, sqlcgen.ResetInstanceUnattendedParams{
+					InstanceID: id, Now: store.FormatTimestamp(r.now()),
+				}); err != nil {
 					return err
 				}
 				if err := q.ResetInstanceWakeStreaks(ctx, id); err != nil {
@@ -180,6 +187,16 @@ func (r *InstanceRepo) Archive(ctx context.Context, id string) (agentinstance.In
 			if err := q.CancelInstanceWake(ctx, id); err != nil {
 				return err
 			}
+			if err := q.CancelInstanceLineageInputs(
+				ctx,
+				sqlcgen.CancelInstanceLineageInputsParams{
+					InstanceID: id,
+					Now:        sql.NullString{String: now, Valid: true},
+				},
+			); err != nil {
+				return err
+			}
+
 			_, err := q.ArchiveAgentInstance(
 				ctx,
 				sqlcgen.ArchiveAgentInstanceParams{
@@ -238,6 +255,13 @@ func (r *InstanceRepo) CountActive(ctx context.Context, profileID string) (int64
 		return 0, err
 	}
 	return r.queries.CountActiveAgentInstances(ctx, profileID)
+}
+
+func (r *InstanceRepo) HeldWakes(ctx context.Context, instanceID string) (int64, error) {
+	if err := r.checkReady(ctx, "count held instance wakes"); err != nil {
+		return 0, err
+	}
+	return r.queries.CountInstanceHeldWakes(ctx, instanceID)
 }
 
 func (r *InstanceRepo) NeedsAttention(ctx context.Context, instanceID string) (bool, error) {

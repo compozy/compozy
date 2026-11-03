@@ -8,7 +8,13 @@ import type { AgentActivityPayload, AgentPayload } from "../types";
 export const AGENT_PROFILE_PANELS = ["model", "tools"] as const;
 export type AgentProfilePanel = (typeof AGENT_PROFILE_PANELS)[number];
 
-export const AGENT_EDITOR_PAGES = ["what-it-does", "check-ins", "memory", "where"] as const;
+export const AGENT_EDITOR_PAGES = [
+  "what-it-does",
+  "check-ins",
+  "memory",
+  "where",
+  "permissions",
+] as const;
 export type AgentEditorPage = (typeof AGENT_EDITOR_PAGES)[number];
 
 export function agentCanResume(reason: AgentTeamPlace["pauseReason"]) {
@@ -109,25 +115,40 @@ export function agentActivityView(
   };
 }
 
-function compactTokens(tokens: number) {
-  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M tokens`;
-  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}K tokens`;
-  return `${tokens} tokens`;
+function compactCount(tokens: number) {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}K`;
+  return String(tokens);
 }
 
+function compactTokens(tokens: number) {
+  return `${compactCount(tokens)} tokens`;
+}
+
+/**
+ * Usage the daemon couldn't price reads in tokens. A zero estimate doesn't prove a plan: no
+ * billing basis is on the wire, so it says only that no price is available, never "≈ $0.00".
+ */
 export function agentCostView(activity: AgentActivityPayload) {
   const rows = activity.cost_by_project;
   const usd = rows.reduce((total, row) => total + row.usd_estimate, 0);
   const tokens = rows.reduce((total, row) => total + row.tokens, 0);
+  const unpriced = usd === 0 && tokens > 0;
+  const total = unpriced ? tokens : usd;
   return {
-    cost: `≈ $${usd.toFixed(2)}`,
+    cost: unpriced ? compactTokens(tokens) : `≈ $${usd.toFixed(2)}`,
     tokens: compactTokens(tokens),
-    projects: rows.map(row => ({
-      id: row.workspace_id || row.scope,
-      label: row.scope === "@user" ? "Global" : row.scope,
-      value: usd > 0 ? row.usd_estimate / usd : 0,
-      formattedValue: `$${row.usd_estimate.toFixed(2)}`,
-    })),
+    note: unpriced ? "No price available" : `${compactTokens(tokens)}, estimated`,
+    projects: rows.map(row => {
+      const amount = unpriced ? row.tokens : row.usd_estimate;
+      return {
+        id: row.workspace_id || row.scope,
+        label: row.scope === "@user" ? "Global" : row.scope,
+        value: total > 0 ? amount / total : 0,
+        // The headline says tokens; the narrow value column holds the count alone.
+        formattedValue: unpriced ? compactCount(row.tokens) : `$${row.usd_estimate.toFixed(2)}`,
+      };
+    }),
   };
 }
 

@@ -9,6 +9,72 @@ import (
 	"strings"
 )
 
+// DraftAgentInstructions Draft agent instructions without saving a definition
+func (c *Client) DraftAgentInstructions(ctx context.Context, params DraftAgentInstructionsParams, body DraftAgentInstructionsRequest) (*DraftAgentInstructionsResponse, error) {
+	path := "/api/agents/draft-instructions"
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out DraftAgentInstructionsResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DrainDaemon Stop admitting new work
+func (c *Client) DrainDaemon(ctx context.Context) (*DrainStatusResponse, error) {
+	path := "/api/drain"
+	var out DrainStatusResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DrainScheduler Pause the scheduler and wait for active claims to drain
+func (c *Client) DrainScheduler(ctx context.Context, body SchedulerDrainRequest) (*SchedulerDrainResponse, error) {
+	path := "/api/scheduler/drain"
+	var out SchedulerDrainResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DuplicateAgentParams carries the path, query, and header parameters.
+type DuplicateAgentParams struct {
+	Name    string  `url:"name"`
+	Profile *string `url:"profile"`
+}
+
+// DuplicateAgent Duplicate one effective authored agent definition server-side
+func (c *Client) DuplicateAgent(ctx context.Context, params DuplicateAgentParams, body DuplicateAgentRequest) (*AgentResponse, error) {
+	path := "/api/agents/{name}/duplicate"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out AgentResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// EnableGatewayProviderParams carries the path, query, and header parameters.
+type EnableGatewayProviderParams struct {
+	Name string `url:"name"`
+}
+
 // EnableGatewayProvider Enable one connectivity provider for a gateway tier
 func (c *Client) EnableGatewayProvider(ctx context.Context, params EnableGatewayProviderParams, body GatewayProviderEnableRequest) (*GatewayStatusPayload, error) {
 	path := "/api/gateway/providers/{name}/enable"
@@ -381,69 +447,4 @@ func (c *Client) ForkLoopRun(ctx context.Context, params ForkLoopRunParams, body
 type ForkSessionParams struct {
 	WorkspaceID string `url:"workspace_id"`
 	SessionID   string `url:"session_id"`
-}
-
-// ForkSession Fork a session with the same agent, whole or through one user message and its turn
-func (c *Client) ForkSession(ctx context.Context, params ForkSessionParams, body ForkSessionRequest) (*SessionDeriveResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/fork"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionDeriveResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ForkSessionToWorktreeParams carries the path, query, and header parameters.
-type ForkSessionToWorktreeParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
-}
-
-// ForkSessionToWorktree Fork a live session into a worktree
-func (c *Client) ForkSessionToWorktree(ctx context.Context, params ForkSessionToWorktreeParams, body ForkSessionWorktreeRequest) (*SessionResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/worktree-fork"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	var out SessionResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentParams carries the path, query, and header parameters.
-type GetAgentParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// GetAgent Get one agent definition by name, optionally resolved for a workspace
-func (c *Client) GetAgent(ctx context.Context, params GetAgentParams) (*AgentResponse, error) {
-	path := "/api/agents/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetAgentActivityParams carries the path, query, and header parameters.
-type GetAgentActivityParams struct {
-	Name    string  `url:"name"`
-	Days    *int    `url:"days"`
-	Profile *string `url:"profile"`
 }

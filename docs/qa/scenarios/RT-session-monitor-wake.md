@@ -6,13 +6,13 @@ persona: Ada
 journey: J-13
 expected: An agent that runs a long command through `compozy__terminal_exec` (`still_running`) and registers `compozy__monitor_create` on the returned terminal can end its turn; when the process exits (or its output matches, or a timer elapses) the daemon starts a new turn in the same session with a `monitor` synthetic wake (`[COMPOZY MONITOR - NOT USER INPUT]`, monitor id, status, untrusted output tail), the Web transcript shows a "Monitor fired · <description> · <outcome>" divider before the agent's report, a busy session runs the wake after its current turn, a full input queue retries the wake (`delivering`), stopping the session cancels its monitors, and Claude sessions never expose the provider-internal Monitor/ScheduleWakeup/Cron tools, refuse Bash and PowerShell `run_in_background` with guidance toward `compozy__monitor_create`, and keep background Agent subagents. While an idle session has an active or delivering monitor its canonical badge is `waiting`, `waiting_on` is `monitor`, and its list row shows the amber `monitoring` mark instead of `done`, and the composer shows a monitor button whose popover lists each monitor and cancels it without waking the session — for sessions in every profile, including from the All profiles lens (#956). A `kind: "pull_request"` monitor reads the forge, stays armed across coalesced wakes, and ends on merge, close, timeout, or cancel.
 entry_points: native tools compozy__monitor_create / compozy__monitor_list / compozy__monitor_cancel (toolset compozy__sessions); compozy__terminal_exec; Web session transcript, session list row, composer monitor popover; HTTP/UDS `GET|POST /api/workspaces/{ws}/sessions/{id}/monitors[/{monitor_id}/cancel]` (list takes `profile` or `all_profiles=true`, cancel takes `profile`); claude-agent-acp session/new + session/load `_meta.claudeCode.options`
-qa_status: blocked-verify
+qa_status: partial
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: 2026-10-20 isolated lab (branch feat/session-monitor, real claude-agent-acp + codex-acp) — step 1 pass (Claude: terminal_exec still_running → monitor_create → turn ended; wake 45s later with `exited with code 0` and `build-finished-7731`, agent reported unprompted), step 3 pass (Codex: wake `mon-d31de57c72c5`, reply `codex-done-5521`), step 4 timer leg pass (15s timer → `timer fired 4410`), step 7 pass (Claude reports no Monitor/ScheduleWakeup/CronCreate and no Bash run_in_background). Remaining live: step 2 Web row (covered by session-thread.test.tsx), step 4 match leg, steps 5–6 (covered by internal/monitor and daemon waker unit suites). 2026-10-21 isolated lab (branch feat/session-monitor-visibility, real claude-agent-acp sonnet) — step 8 pass: agent registered `mon-57506a4b5f2f` (900s timer); catalog row `badge=done` + `monitor_summary.active=1` rendered `data-badge="monitoring"` (amber radar), composer showed "Monitors, 1 active", popover read "QA: check CI on PR #875 · Timer · fires in 11m"; × cancel returned the monitor `canceled` over HTTP, removed the composer button, and the row left `monitoring` with no wake turn. 2026-10-24 isolated lab (branch fix/issue-956-monitor-popover-404, acpmock builder, profiles `default` + `marketing`, All projects + All profiles lens) — step 9 pass: before the fix the unscoped list returned 404 for the marketing session only (200 for default); with the fix the popover read `GET …/monitors?all_profiles=true` → 200 and listed "Check CI on the release PR · Timer · fires in 56m"; × sent `POST …/cancel?profile=marketing` → 200, the composer button disappeared, and the row left `Monitoring`; the default-profile session passed the same walk with `?profile=default`. 2026-11-02 isolated lab (branch feat/pull-request-monitor, real daemon, acpmock agent calling the native tool, wakes in `docs/qa/reports/artifacts/2026-11-02-pull-request-monitor/wakes.txt`) — step 13 pass except the Web walk, which the composer and transcript suites own: real GitHub read-only on compozy/compozy#1152 through the bundled forge-github woke on 3 failures of 49 checks, woke again naming only the one newly failing check, and stayed silent on a new head; a lab forge extension over the real extension protocol covered reuse, default-branch refusal, a failed lookup honoring its retry-after, one coalesced review wake 2 minutes after the burst was read, a late review on a superseded head ignored, a restart with changes pending woke at boot, and merge ended the monitor `fired`.
-last_report:
+evidence: 2026-10-20 isolated lab (branch feat/session-monitor, real claude-agent-acp + codex-acp) — step 1 pass (Claude: terminal_exec still_running → monitor_create → turn ended; wake 45s later with `exited with code 0` and `build-finished-7731`, agent reported unprompted), step 3 pass (Codex: wake `mon-d31de57c72c5`, reply `codex-done-5521`), step 4 timer leg pass (15s timer → `timer fired 4410`), step 7 pass (Claude reports no Monitor/ScheduleWakeup/CronCreate and no Bash run_in_background). Remaining live: step 2 Web row (covered by session-thread.test.tsx), step 4 match leg, steps 5–6 (covered by internal/monitor and daemon waker unit suites). 2026-10-21 isolated lab (branch feat/session-monitor-visibility, real claude-agent-acp sonnet) — step 8 pass: agent registered `mon-57506a4b5f2f` (900s timer); catalog row `badge=done` + `monitor_summary.active=1` rendered `data-badge="monitoring"` (amber radar), composer showed "Monitors, 1 active", popover read "QA: check CI on PR #875 · Timer · fires in 11m"; × cancel returned the monitor `canceled` over HTTP, removed the composer button, and the row left `monitoring` with no wake turn. 2026-10-24 isolated lab (branch fix/issue-956-monitor-popover-404, acpmock builder, profiles `default` + `marketing`, All projects + All profiles lens) — step 9 pass: before the fix the unscoped list returned 404 for the marketing session only (200 for default); with the fix the popover read `GET …/monitors?all_profiles=true` → 200 and listed "Check CI on the release PR · Timer · fires in 56m"; × sent `POST …/cancel?profile=marketing` → 200, the composer button disappeared, and the row left `Monitoring`; the default-profile session passed the same walk with `?profile=default`. 2026-11-02 isolated lab (branch feat/pull-request-monitor, real daemon, acpmock agent calling the native tool, wakes in `docs/qa/reports/artifacts/2026-11-02-pull-request-monitor/wakes.txt`) — step 13 pass except the Web walk, which the composer and transcript suites own: real GitHub read-only on compozy/compozy#1152 through the bundled forge-github woke on 3 failures of 49 checks, woke again naming only the one newly failing check, and stayed silent on a new head; a lab forge extension over the real extension protocol covered reuse, default-branch refusal, a failed lookup honoring its retry-after, one coalesced review wake 2 minutes after the burst was read, a late review on a superseded head ignored, a restart with changes pending woke at boot, and merge ended the monitor `fired`.; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: RT-020; ET-agent-terminal-window-materialization
 ---
 
@@ -124,3 +124,68 @@ evidence: `TestDetectPullRequest`, `TestServicePullRequestMonitor`, `TestService
 `TestProviderGraphQL`, `TestMonitorPullRequestObservation`, `TestGlobalDBSessionMonitorKindMigration`, and step 13.
 A wake that the queue refuses keeps its durable fire and id; a pull request first seen ended is history; thread
 wakes follow the head through each thread's opening commit; a failed review read differs from a forge without reviews.
+
+B3 idle-release regression (pending integrated re-walk): with a provider supporting
+`session/load`, leave only a daemon-owned monitor active and pass `idle_release_after`.
+Expect the session to remain active with runtime unbound, without cancelling the monitor.
+On its wake, verify the same ACP session is loaded. Repeat for each monitor kind.
+Without session/load, or with another work signal, expect the runtime to remain bound.
+
+B3 collector and retry regression (pending integrated re-walk): retry the same
+timer request within one second and verify the same monitor ID, `reused`, and
+one wake. For every monitor kind, a delivered wake must leave the heartbeat
+fingerprint unchanged, including when its retained history expires. Interrupted
+and undelivered wakes remain eligible facts for `monitors_fired`.
+
+B3 next-wake projection (pending integrated re-walk): list instances with a
+timer earlier than the next check and verify timer kind, timestamp, and
+description. Without a scheduled check, an untimed terminal monitor must still
+appear without `at`. Finish a working turn and confirm `now` becomes empty.
+
+B3 doctrine regression (pending integrated re-walk): inspect startup guidance
+for an instance main and its child. Both receive stays-on doctrine; only the main
+is told to start Goals elsewhere. An ordinary session and an Orchestrator
+conductor without instance ancestry must not receive this section.
+
+B3 post-compaction regression (pending integrated re-walk): after a provider
+reports completed compaction, send the next prompt and verify a context notice
+and full situation sections. A subsequent prompt returns to unchanged markers.
+Failed compactions must not produce the completion notice.
+
+B3 Goal regression (pending integrated re-walk): set and replace on a current
+instance main return `goal_on_instance_main` through each public caller. A Goal
+started before main binding keeps status/pause/stop, and blocks rotation until
+it ends. A created independent session may still start a Goal.
+
+B3 exhaustion regression (pending integrated re-walk): high occupancy alone
+must not rotate. A real context refusal records one exhaustion report and marks
+the current main for rotation. Hold a monitor or queued input and verify a
+rotation-deferred report names the blocker. Resolve it; a later reconcile uses
+the existing brief and publishes a successor, clearing the marker.
+
+B3 backend evidence (2026-11-03, branch soh/b3-waits-context):
+TestMonitorIdleReleaseIntegration passed with the actual timer waking a released
+runtime and loading the same ACP session. TestDaemonNativeCompaction passed with
+notice/full-section and subsequent-no-notice assertions.
+TestInstanceContextExhaustionIntegration passed with a real provider refusal,
+queued-input blocker report and successor publication after that input clears.
+TestInstanceNativeCreateJourney passed set/replace refusal through command, HTTP
+and native registry. The unit inventory and validation limits are recorded in
+`docs/qa/stays-on-hardening-b3-progress.md`; integrated Web walks remain pending.
+
+### Stays-on pause and restart
+
+Pause an instance, stop its main session, and send an agent message. Confirm that it
+is queued and the provider stays stopped. Restart the daemon: the unattended count
+and queue entry remain unchanged, and queue selection returns no autonomous row.
+Resume the instance and confirm one delivery in the same main. Repeat the resume
+nudge; no second prompt appears. A stopped descendant keeps its queue until it is
+started. Archive cancels held input; quiet windows alone do not hold monitor wakes.
+
+Backend evidence: `TestInstancePausedRuntimeIntegration` exercises the stopped-main
+path with a real ACP process, durable SQLite and daemon restart. The queue suite
+covers descendants through two levels and a rotated predecessor, human priority,
+prepared Goals, batch accounting, independent capacity pools and archive. UI walks
+remain owned by the frontend delivery.
+
+QA verification 2026-11-03 (stays-on hardening B3, soh/qa 583415ef5, isolated acpmock lab): Partial. Pause and restart: a timer wake fired while the instance was paused and was held, the held rows and `unattended_turns` survived a daemon restart, and an operator resume delivered once. Next wake: a 900-second timer earlier than the next check projected `next_wake {kind: timer, at, description: "Re-check the staging deploy"}`; a 3600-second timer later than the check projected `kind: check`. Doctrine: a stays-on main's startup sections include `stays_on_doctrine`, and an ordinary on-demand session's do not (`doctrine-sections.txt`). Quiet window (UT-028 receipt): with HEARTBEAT `quiet_windows` 05:00–07:30 UTC, triage-desk's timer fired at 06:02:47 as a `[COMPOZY MONITOR - NOT USER INPUT]` turn with `held_wakes: 0` (`ut028-triage-events.txt`). Not walked: idle release, collector retry, post-compaction notice, Goal refusal, context exhaustion, and descendant queues.

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/heartbeat"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -292,30 +293,44 @@ func (stub *monitorWakeManagerStub) EnqueueSyntheticWake(
 	return store.SessionInputQueueEntry{ID: "inq-1"}, stub.enqueueErr
 }
 
-// Invariant: a delivered pull_request wake buys no stays-on check; other kinds keep their fired fact.
+// Invariant: delivered wakes never change the check digest, including after retention.
 func TestMonitorDigestFact(t *testing.T) {
 	t.Parallel()
-
-	t.Run("Should leave a finished pull_request monitor out of the fired bucket", func(t *testing.T) {
-		t.Parallel()
-
-		fact := monitorDigestFact(monitorpkg.Monitor{
-			ID: "mon-1", SessionID: "sess-1", Kind: monitorpkg.KindPullRequest, Status: monitorpkg.StatusFired,
+	for _, kind := range []monitorpkg.Kind{monitorpkg.KindTerminal, monitorpkg.KindTimer, monitorpkg.KindSession, monitorpkg.KindPullRequest} {
+		t.Run("Should ignore delivered and expired retained wakes of kind "+string(kind), func(t *testing.T) {
+			t.Parallel()
+			scope := heartbeat.CollectorScope{MainSessionID: "main"}
+			baseline, err := heartbeat.CollectDigest(scope, heartbeat.CollectorFacts{}, nil, "policy", "guidance")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, status := range []monitorpkg.Status{monitorpkg.StatusActive, monitorpkg.StatusDelivering, monitorpkg.StatusFired, monitorpkg.StatusCanceled} {
+				fact := monitorDigestFact(monitorpkg.Monitor{ID: "mon", SessionID: "main", Kind: kind, Status: status})
+				digest, err := heartbeat.CollectDigest(
+					scope,
+					heartbeat.CollectorFacts{Monitors: []heartbeat.MonitorFact{fact}},
+					nil,
+					"policy",
+					"guidance",
+				)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if digest.Fingerprint != baseline.Fingerprint || len(digest.Items) != 0 {
+					t.Fatalf("status %s changed digest: %+v", status, digest)
+				}
+			}
 		})
-		if fact.Fired {
-			t.Fatalf("fact = %+v", fact)
-		}
-	})
-	t.Run("Should keep the fired fact of other kinds", func(t *testing.T) {
-		t.Parallel()
-
-		fact := monitorDigestFact(monitorpkg.Monitor{
-			ID: "mon-1", SessionID: "sess-1", Kind: monitorpkg.KindTerminal, Status: monitorpkg.StatusFired,
+	}
+	for _, status := range []monitorpkg.Status{monitorpkg.StatusUndelivered, monitorpkg.StatusInterrupted} {
+		t.Run("Should collect delivery failure "+string(status), func(t *testing.T) {
+			t.Parallel()
+			fact := monitorDigestFact(monitorpkg.Monitor{ID: "mon", SessionID: "main", Status: status})
+			if !fact.NeedsAttention {
+				t.Fatalf("fact = %+v", fact)
+			}
 		})
-		if !fact.Fired {
-			t.Fatalf("fact = %+v", fact)
-		}
-	})
+	}
 }
 
 // Invariant: only a current successful lookup reaches the monitor as facts.

@@ -3,8 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import { SessionNotFoundError } from "@/systems/session/adapters/session-api-errors";
 import { sessionDetailOptions, sessionOwnerOptions } from "@/systems/session/lib/query-options";
 import { getSessionDisplayTitle } from "@/systems/session/lib/session-display-title";
+import { useAgentInstances } from "@/systems/agent";
 import { useWorkspace } from "@/systems/workspace";
 
+import { reportAgent, type ReportAgent } from "../../lib/session-report-identity";
 import type { SessionMessageParty } from "./session-message-party";
 
 export interface SessionLabelInput {
@@ -49,6 +51,7 @@ export function useSessionLabel({
   const workspace = useWorkspace(resolvedWorkspaceId, {
     enabled: crossWorkspace && !userDestination,
   });
+  const staysOn = useStaysOnIdentity(sessionId);
   const labelRead = workspaceId === "" && !owner.data ? owner : detail;
   const { title, pending } = sessionLabelTitle(
     { data: detail.data, error: labelRead.error, isError: labelRead.isError },
@@ -58,8 +61,7 @@ export function useSessionLabel({
   return {
     sessionId,
     workspaceId: userDestination ? "" : resolvedWorkspaceId,
-    title,
-    ...(pending ? { pending } : {}),
+    ...staysOnParty(title, pending, staysOn),
     agentName: detail.data?.agent_name || agentName,
     provider: sessionRuntimeProvider(detail.data?.runtime),
     workspaceName: sessionLabelWorkspaceName(
@@ -68,6 +70,24 @@ export function useSessionLabel({
       workspace.data?.workspace.name ?? owner.data?.workspace_name
     ),
   };
+}
+
+/** A stays-on agent's current main speaks as the agent, not as its session (S12). */
+function useStaysOnIdentity(sessionId: string): ReportAgent | null {
+  const staysOn = useAgentInstances().find(
+    instance => sessionId !== "" && instance.main_session_id === sessionId
+  );
+  return staysOn ? reportAgent(staysOn, staysOn.agent_name) : null;
+}
+
+/** The title a party reads: a stays-on main names its agent and never waits on its session read. */
+function staysOnParty(
+  title: string | null,
+  pending: boolean | undefined,
+  staysOn: ReportAgent | null
+): Pick<SessionMessageParty, "title" | "pending" | "staysOn"> {
+  if (staysOn) return { title: staysOn.label, staysOn };
+  return pending ? { title, pending } : { title };
 }
 
 interface SessionRuntimeRoutes {

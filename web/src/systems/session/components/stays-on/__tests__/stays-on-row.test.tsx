@@ -96,6 +96,135 @@ describe("StaysOnRow", () => {
     expect(screen.queryByRole("button", { name: /Agent 4/ })).toBeNull();
   });
 
+  it("Should resume every agent the brake paused, once two or more did [UT-080]", async () => {
+    const user = userEvent.setup();
+    const crew = Array.from({ length: 5 }, (_, index) =>
+      agentInstanceFixture({
+        id: `i-${index}`,
+        label: `Agent ${index}`,
+        ...(index < 2 ? { state: "paused", pause_reason: "unattended" } : {}),
+        ...(index === 2 ? { state: "paused", pause_reason: "manual" } : {}),
+      })
+    );
+    mockApi.resume.mockResolvedValue(undefined);
+    renderRow(crew, { limit: 3, scopeName: "compozy" });
+
+    await user.click(screen.getByRole("button", { name: "Show all 5 agents in compozy" }));
+    await user.click(screen.getByRole("button", { name: "Resume all" }));
+
+    await waitFor(() => expect(mockApi.resume).toHaveBeenCalledTimes(2));
+    expect(mockApi.resume.mock.calls.map(call => (call[0] as AgentInstancePayload).id)).toEqual([
+      "i-0",
+      "i-1",
+    ]);
+  });
+
+  it("Should say which agents didn't resume when the cap refuses some [UT-080]", async () => {
+    const user = userEvent.setup();
+    const crew = Array.from({ length: 5 }, (_, index) =>
+      agentInstanceFixture({
+        id: `i-${index}`,
+        label: `Agent ${index}`,
+        ...(index < 3 ? { state: "paused", pause_reason: "unattended" } : {}),
+      })
+    );
+    const cap =
+      "You have 10 active stays-on agents. Pause one or raise `agents.stays_on.max_active_instances`.";
+    mockApi.resume.mockImplementation(async (instance: AgentInstancePayload) => {
+      if (instance.id !== "i-0") throw new Error(cap);
+    });
+    renderRow(crew, { limit: 3, scopeName: "compozy" });
+
+    await user.click(screen.getByRole("button", { name: "Show all 5 agents in compozy" }));
+    await user.click(screen.getByRole("button", { name: "Resume all" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      `Agent 1 and Agent 2 didn't resume. ${cap.replaceAll("`", "")}`
+    );
+    // The config key reads as code, never with literal backticks.
+    expect(within(alert).getByText("agents.stays_on.max_active_instances").tagName).toBe("CODE");
+    expect(mockApi.resume).toHaveBeenCalledTimes(3);
+  });
+
+  it("Should drop an agent from the Resume all error once it resumes elsewhere [DFE2-4]", async () => {
+    const user = userEvent.setup();
+    const crew = Array.from({ length: 5 }, (_, index) =>
+      agentInstanceFixture({
+        id: `i-${index}`,
+        label: `Agent ${index}`,
+        ...(index < 3 ? { state: "paused", pause_reason: "unattended" } : {}),
+      })
+    );
+    mockApi.resume.mockImplementation(async (instance: AgentInstancePayload) => {
+      if (instance.id !== "i-0") throw new Error("At the cap.");
+    });
+    const view = (instances: readonly AgentInstancePayload[]) =>
+      wrap(
+        <StaysOnRow instances={instances} limit={3} onOpenSession={vi.fn()} scopeName="compozy" />
+      );
+    const { rerender } = render(view(crew));
+
+    await user.click(screen.getByRole("button", { name: "Show all 5 agents in compozy" }));
+    await user.click(screen.getByRole("button", { name: "Resume all" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Agent 1 and Agent 2 didn't resume. At the cap."
+    );
+
+    const active = (id: string) => (instance: AgentInstancePayload) =>
+      instance.id === id
+        ? { ...instance, state: "active" as const, pause_reason: "" as const }
+        : instance;
+    const afterOne = crew.map(active("i-0")).map(active("i-1"));
+    rerender(view(afterOne));
+    expect(screen.getByRole("alert")).toHaveTextContent("Agent 2 didn't resume. At the cap.");
+
+    rerender(view(afterOne.map(active("i-2"))));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("Should offer no Resume all for a single brake pause", async () => {
+    const user = userEvent.setup();
+    const crew = Array.from({ length: 5 }, (_, index) =>
+      agentInstanceFixture({
+        id: `i-${index}`,
+        label: `Agent ${index}`,
+        ...(index === 0 ? { state: "paused", pause_reason: "unattended" } : {}),
+      })
+    );
+    renderRow(crew, { limit: 3, scopeName: "compozy" });
+
+    await user.click(screen.getByRole("button", { name: "Show all 5 agents in compozy" }));
+
+    expect(screen.queryByRole("button", { name: "Resume all" })).toBeNull();
+  });
+
+  it("Should say what wakes it next, and what waits while it's paused [UT-060]", async () => {
+    const user = userEvent.setup();
+    const sleeping = agentInstanceFixture({
+      id: "a",
+      next_wake: { kind: "pull_request", description: "Check CI on #1166" },
+    });
+    const paused = agentInstanceFixture({
+      id: "b",
+      label: "Paused",
+      state: "paused",
+      pause_reason: "unattended",
+      unattended_turn_limit: 300,
+      held_wakes: 2,
+    });
+    renderRow([sleeping, paused]);
+
+    await user.hover(screen.getByTestId("stays-on-seat-a"));
+    expect(await screen.findByText("Wakes up next")).toBeInTheDocument();
+    expect(screen.getByText("Check CI on #1166")).toBeInTheDocument();
+    await user.unhover(screen.getByTestId("stays-on-seat-a"));
+
+    await user.hover(screen.getByTestId("stays-on-seat-b"));
+    expect(await screen.findByText("Paused after 300 steps without you.")).toBeInTheDocument();
+    expect(screen.getByText("2 things are waiting for you to resume")).toBeInTheDocument();
+  });
+
   it("Should open the main session on click and mark the open one", async () => {
     const user = userEvent.setup();
     const instance = agentInstanceFixture();

@@ -7,6 +7,9 @@ import (
 )
 
 func validateResolvedProvider(name string, provider ProviderConfig) error {
+	if IsUnrestrictedACPMode(provider.RuntimeProviderName(name), strings.TrimSpace(provider.ReviewerMode)) {
+		return fmt.Errorf("providers.%s.reviewer_mode cannot select unrestricted mode %q", name, provider.ReviewerMode)
+	}
 	if err := provider.SteerCapability.Validate(fmt.Sprintf("providers.%s.steer_capability", name)); err != nil {
 		return err
 	}
@@ -28,17 +31,8 @@ func validateResolvedProvider(name string, provider ProviderConfig) error {
 	if err := ValidateACPMethod(provider.AuthACPMethod, fmt.Sprintf("providers.%s.auth_acp_method", name)); err != nil {
 		return err
 	}
-	if provider.EffectiveACPMethod() != "" {
-		if provider.EffectiveHarness() != ProviderHarnessACP {
-			return fmt.Errorf("providers.%s.auth_acp_method requires harness = %q", name, ProviderHarnessACP)
-		}
-		if provider.EffectiveAuthMode() != ProviderAuthModeNativeCLI {
-			return fmt.Errorf(
-				"providers.%s.auth_acp_method requires auth_mode = %q",
-				name,
-				ProviderAuthModeNativeCLI,
-			)
-		}
+	if err := validateProviderACPAuthentication(name, provider); err != nil {
+		return err
 	}
 	if provider.EffectiveHarness() == ProviderHarnessPiACP &&
 		strings.TrimSpace(provider.RuntimeProviderName(name)) == "" {
@@ -159,6 +153,22 @@ func mergeMCPAuthConfig(base MCPAuthConfig, override MCPAuthConfig) MCPAuthConfi
 		merged.Scopes = append([]string(nil), override.Scopes...)
 	}
 	return merged
+}
+
+func validateProviderACPAuthentication(name string, provider ProviderConfig) error {
+	if provider.EffectiveACPMethod() != "" {
+		if provider.EffectiveHarness() != ProviderHarnessACP {
+			return fmt.Errorf("providers.%s.auth_acp_method requires harness = %q", name, ProviderHarnessACP)
+		}
+		if provider.EffectiveAuthMode() != ProviderAuthModeNativeCLI {
+			return fmt.Errorf(
+				"providers.%s.auth_acp_method requires auth_mode = %q",
+				name,
+				ProviderAuthModeNativeCLI,
+			)
+		}
+	}
+	return nil
 }
 
 func validateSessionMCPTransport(provider ProviderConfig, path string) error {

@@ -13,6 +13,7 @@ import (
 
 // CollectorScope is resolved by the daemon from the instance's effective reach.
 type CollectorScope struct {
+	InstanceID          string
 	ProfileID           string
 	WorkspaceID         string
 	Unrestricted        bool
@@ -37,10 +38,12 @@ type AutomationFact struct {
 	ID, ProfileID, WorkspaceID, Status, Cursor string
 }
 type MonitorFact struct {
-	ID, SessionID string
-	Fired         bool
+	ID, SessionID  string
+	NeedsAttention bool
 }
 type CollectorFacts struct {
+	AutomationEvents []AutomationEventFact
+	EventsOmitted    int64
 	Tasks            []TaskFact
 	Sessions         []SessionFact
 	Automations      []AutomationFact
@@ -49,9 +52,13 @@ type CollectorFacts struct {
 	WorkLogTruncated bool
 }
 type DigestItem struct {
-	Key string `json:"key"`
+	Instruction string                 `json:"instruction,omitempty"`
+	Source      *AutomationEventSource `json:"source,omitempty"`
+	Key         string                 `json:"key"`
+	Summary     string                 `json:"summary,omitempty"`
 }
 type CheckDigest struct {
+	EventIDs         []string     `json:"event_ids,omitempty"`
 	Items            []DigestItem `json:"items"`
 	Fingerprint      string       `json:"fingerprint"`
 	AutomationCursor string       `json:"automation_cursor"`
@@ -67,6 +74,7 @@ var collectorNames = []string{
 	"automations_failed",
 	"monitors_fired",
 	"work_log",
+	"automation_events",
 }
 
 // CollectDigest accepts daemon-owned facts; callers must fetch complete eligible populations before applying caps.
@@ -116,6 +124,9 @@ func CollectDigest(
 	if selected["work_log"] {
 		result.Items = append(result.Items, collectWorkLogFacts(scope, facts)...)
 	}
+	events, ids := collectAutomationEvents(scope, facts)
+	result.Items = append(result.Items, events...)
+	result.EventIDs = ids
 	slices.Sort(result.Diagnostics)
 	result.Diagnostics = slices.Compact(result.Diagnostics)
 	fingerprintItems := slices.Clone(result.Items)
@@ -214,7 +225,7 @@ func collectAutomationFacts(scope CollectorScope, automations []AutomationFact, 
 
 func collectMonitorFacts(scope CollectorScope, monitors []MonitorFact, buckets map[string][]string) {
 	for _, monitor := range monitors {
-		if monitor.Fired && scope.MainSessionID != "" && monitor.SessionID == scope.MainSessionID {
+		if monitor.NeedsAttention && scope.MainSessionID != "" && monitor.SessionID == scope.MainSessionID {
 			buckets["monitors_fired"] = append(buckets["monitors_fired"], "monitor:"+monitor.ID)
 		}
 	}

@@ -5,7 +5,15 @@ import {
   type AgentCreatePermission,
   type AgentCreatePermissionChoice,
 } from "./agent-create-draft";
-import { AGENT_CREATE_PERMISSION_OPTIONS } from "./agent-permissions";
+import {
+  invalidPermissionRule,
+  permissionRuleDraftsFromAgent,
+  permissionRulesEqual,
+  permissionRulesPayload,
+  PERMISSION_RULE_LIMIT,
+  type PermissionRuleDraft,
+} from "./agent-permission-rules";
+import { isAgentPermissionLevel } from "./agent-permissions";
 import { joinAgentCategorySegments } from "./agent-category";
 import {
   normalizeRuntimeSpeed,
@@ -24,11 +32,8 @@ export type AgentSettingsFallbackRoute = NonNullable<
   UpdateAgentParams["agent"]["fallback_chain"]
 >[number];
 
-const KNOWN_PERMISSIONS = new Set<AgentCreatePermission>(
-  AGENT_CREATE_PERMISSION_OPTIONS.map(option => option.value).filter(
-    (value): value is AgentCreatePermission => value !== ""
-  )
-);
+/** Whose requests a stays-on agent can answer; `""` keeps the daemon default (`children`). */
+export type AgentSessionApproval = "" | "children" | "workspace";
 
 export interface AgentSettingsDraft {
   sessionEnv?: AgentPayload["session_env"];
@@ -61,6 +66,9 @@ export interface AgentSettingsDraft {
   workspaceAccess: AgentWorkspaceAccess;
   /** The definition's source layer, for the grant's trusted-source rule. */
   layer: string;
+  /** Operator-authored exceptions, carried through every save. */
+  permissionRules: PermissionRuleDraft[];
+  sessionApproval: AgentSessionApproval;
 }
 
 /** `""` follows the permission mode for other projects; `unrestricted` crosses them all. */
@@ -81,7 +89,9 @@ export function agentWorkspaceAccessEditable(draft: Pick<AgentSettingsDraft, "la
 }
 
 export interface AgentSettingsValidation {
-  fields: Partial<Record<"provider" | "prompt" | "categoryPath" | "permissions", string>>;
+  fields: Partial<
+    Record<"provider" | "prompt" | "categoryPath" | "permissions" | "permissionRules", string>
+  >;
   canSave: boolean;
   categorySegments: string[];
   requiresExplicitPermissions: boolean;
@@ -90,7 +100,7 @@ export interface AgentSettingsValidation {
 export function isKnownPermission(
   value: string | null | undefined
 ): value is AgentCreatePermission {
-  return Boolean(value && KNOWN_PERMISSIONS.has(value as AgentCreatePermission));
+  return isAgentPermissionLevel(value);
 }
 
 export function buildSettingsDraftFromAgent(agent: AgentPayload): AgentSettingsDraft {
@@ -122,7 +132,13 @@ export function buildSettingsDraftFromAgent(agent: AgentPayload): AgentSettingsD
     origin: agent.origin,
     workspaceAccess: agent.workspace_access === "unrestricted" ? "unrestricted" : "",
     layer: agent.layer?.trim() || (agent.origin === "workspace" ? "project" : "user"),
+    permissionRules: permissionRuleDraftsFromAgent(agent.permission_rules),
+    sessionApproval: sessionApprovalFrom(agent.session_approval),
   };
+}
+
+function sessionApprovalFrom(value: string | undefined): AgentSessionApproval {
+  return value === "children" || value === "workspace" ? value : "";
 }
 
 export function isAgentSettingsDraftDirty(draft: AgentSettingsDraft, agent: AgentPayload): boolean {
@@ -141,7 +157,9 @@ export function isAgentSettingsDraftDirty(draft: AgentSettingsDraft, agent: Agen
     !sameList(draft.toolsets, baseline.toolsets) ||
     !sameList(draft.denyTools, baseline.denyTools) ||
     !sameList(draft.disabledSkills, baseline.disabledSkills) ||
-    draft.workspaceAccess !== baseline.workspaceAccess
+    draft.workspaceAccess !== baseline.workspaceAccess ||
+    draft.sessionApproval !== baseline.sessionApproval ||
+    !permissionRulesEqual(draft.permissionRules, baseline.permissionRules)
   );
 }
 
@@ -165,6 +183,12 @@ export function validateAgentSettingsDraft(draft: AgentSettingsDraft): AgentSett
     fields.permissions = draft.legacyPermissions
       ? `Unrecognized permission mode: ${draft.legacyPermissions}`
       : "Choose a permission mode.";
+  }
+
+  const invalidRule = invalidPermissionRule(draft.permissionRules);
+  if (invalidRule) fields.permissionRules = invalidRule.message;
+  else if (draft.permissionRules.length > PERMISSION_RULE_LIMIT) {
+    fields.permissionRules = `Keep it to ${PERMISSION_RULE_LIMIT} exceptions or fewer.`;
   }
 
   return {
@@ -218,6 +242,9 @@ export function buildUpdateAgentParams(
         : {}),
       // The update replaces the definition: omitting the grant would revoke it.
       ...(draft.workspaceAccess ? { workspace_access: draft.workspaceAccess } : {}),
+      ...(draft.sessionApproval ? { session_approval: draft.sessionApproval } : {}),
+      // An empty list clears the exceptions; the daemon keeps them only when the field is absent.
+      permission_rules: permissionRulesPayload(draft.permissionRules),
     },
   };
 }

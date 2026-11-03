@@ -28,7 +28,7 @@ describe("settings openapi contract", () => {
       string | undefined
     >();
     expectTypeOf<UpdateSettingsGeneralBody["config"]["permissions"]["mode"]>().toEqualTypeOf<
-      "approve-all" | "approve-reads" | "deny-all"
+      "approve-all" | "approve-reads" | "approve-edits" | "auto" | "deny-all"
     >();
 
     expectTypeOf<GetSettingsGeneralResponse["section"]>().toEqualTypeOf<

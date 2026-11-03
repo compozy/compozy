@@ -155,13 +155,31 @@ func (m *Manager) admitRestartContinuation(
 	ctx context.Context, active *Session, checkpoint store.SessionRestartCheckpoint,
 ) (SendPromptResult, error) {
 	identity := "restart:" + checkpoint.TurnID
-	req, err := m.parseSyntheticPromptRequest(ctx, active.ID, SyntheticPromptOpts{
+	opts := SyntheticPromptOpts{
 		Message: restartContinueMessage, TurnID: "turn-" + restartEventID(checkpoint.TurnID, "continue"),
 		Metadata: acp.PromptSyntheticMeta{Kind: restartContinuationKind, Reason: "daemon_restarted",
 			WakeEventID: restartEventID(checkpoint.TurnID, restartInterruptedEvent)},
-	})
+	}
+	req, err := m.parseSyntheticPromptRequest(ctx, active.ID, opts)
 	if err != nil {
 		return SendPromptResult{}, err
+	}
+	instanceLineage, err := m.queueInstancePrompt(ctx, req)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
+	if instanceLineage {
+		// An instance lineage never dispatches non-human work directly: the durable selector applies its
+		// paused hold and unattended accounting. The stable message id keeps a retried recovery on one row.
+		opts.MessageID, opts.Priority = identity, 1
+		entry, err := m.EnqueueSyntheticWake(ctx, active.ID, opts)
+		if err != nil {
+			return SendPromptResult{}, err
+		}
+		return SendPromptResult{
+			Status: store.SessionPromptResultStatusQueued, Mode: BusyInputModeQueue,
+			Delivery: store.SessionInputDeliveryAfterTurn, MessageID: entry.MessageID, QueueEntryID: entry.ID,
+		}, nil
 	}
 	req.messageID, req.idempotencyKey = identity, identity
 	meta := active.Meta()

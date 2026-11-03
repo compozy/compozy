@@ -93,7 +93,8 @@ func (m *Manager) CurrentTurnEffectiveHop(ctx context.Context, sessionID string)
 
 // turnMessageContext is what the active turn knows about the session messages driving it.
 type turnMessageContext struct {
-	hop int
+	human bool
+	hop   int
 	// senders holds every session whose input started or joined the active turn, including reply wakes.
 	senders map[string]struct{}
 }
@@ -117,6 +118,16 @@ func (m *Manager) currentTurnMessageContext(ctx context.Context, sessionID strin
 		}
 		turn := turnMessageContext{hop: hop, senders: map[string]struct{}{}}
 		turn.addPromptMeta(meta)
+		if !turn.human {
+			if reader, ok := m.promptAdmissionStore.(interface {
+				HumanSessionTurn(context.Context, string, string) (bool, error)
+			}); ok {
+				turn.human, err = reader.HumanSessionTurn(ctx, sessionID, turnID)
+				if err != nil {
+					return turnMessageContext{}, err
+				}
+			}
+		}
 		if err := m.addTurnInputEvents(ctx, sessionID, turnID, &turn); err != nil {
 			return turnMessageContext{}, err
 		}
@@ -170,6 +181,10 @@ func (c *turnMessageContext) addOrigin(origin *acp.PromptOriginMeta) {
 }
 
 func (c *turnMessageContext) addPromptMeta(meta acp.PromptMeta) {
+	if meta.Origin == nil && meta.Synthetic == nil && meta.Judge == nil &&
+		meta.TurnSource != acp.PromptTurnSourceSynthetic {
+		c.human = true
+	}
 	c.addOrigin(meta.Origin)
 	c.hop = max(c.hop, promptMetaHop(meta))
 	if meta.Synthetic != nil && meta.Synthetic.Kind == acp.PromptSyntheticKindSessionReply {

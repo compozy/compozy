@@ -106,6 +106,7 @@ func (m *Manager) newPromptAdmissionRequest(
 		return store.SessionPromptAdmissionRequest{}, fmt.Errorf("session: generate prompt admission event id: %w", err)
 	}
 	return store.SessionPromptAdmissionRequest{
+		HumanSpawnOrigin:         req.humanSpawnOrigin,
 		ID:                       admissionID,
 		WorkspaceID:              workspaceID,
 		SessionID:                req.target,
@@ -247,7 +248,8 @@ func sendPromptResultFromAdmission(admission store.SessionPromptAdmission) (Send
 	}
 	stored := admission.Result
 	result := SendPromptResult{
-		Status: stored.Status, Mode: BusyInputMode(stored.Mode),
+		TargetSessionID: admission.SessionID,
+		Status:          stored.Status, Mode: BusyInputMode(stored.Mode),
 		Delivery:      stored.Delivery,
 		SteerDelivery: stored.SteerDelivery,
 		MessageID:     admission.MessageID, IdempotencyKey: admission.IdempotencyKey,

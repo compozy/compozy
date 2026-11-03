@@ -40,21 +40,22 @@ type AutomationJob struct {
 
 // AutomationTrigger holds a config-defined trigger before workspace resolution.
 type AutomationTrigger struct {
-	Scope            automationpkg.Scope           `toml:"scope"`
-	Name             string                        `toml:"name"`
-	AgentName        string                        `toml:"agent"`
-	Workspace        string                        `toml:"workspace,omitempty"`
-	Prompt           string                        `toml:"prompt"`
-	Event            string                        `toml:"event"`
-	Filter           map[string]string             `toml:"filter,omitempty"`
-	TargetKind       automationpkg.TargetKind      `toml:"target_kind,omitempty"`
-	LoopTarget       *automationpkg.LoopTarget     `toml:"loop_target,omitempty"`
-	Enabled          bool                          `toml:"enabled"`
-	Retry            automationpkg.RetryConfig     `toml:"retry,omitempty"`
-	FireLimit        automationpkg.FireLimitConfig `toml:"fire_limit,omitempty"`
-	Source           automationpkg.JobSource       `toml:"-"`
-	EndpointSlug     string                        `toml:"endpoint_slug,omitempty"`
-	WebhookSecretRef string                        `toml:"webhook_secret_ref,omitempty"`
+	TargetInstanceScope string                        `toml:"target_instance_scope,omitempty"`
+	Scope               automationpkg.Scope           `toml:"scope"`
+	Name                string                        `toml:"name"`
+	AgentName           string                        `toml:"agent"`
+	Workspace           string                        `toml:"workspace,omitempty"`
+	Prompt              string                        `toml:"prompt"`
+	Event               string                        `toml:"event"`
+	Filter              map[string]string             `toml:"filter,omitempty"`
+	TargetKind          automationpkg.TargetKind      `toml:"target_kind,omitempty"`
+	LoopTarget          *automationpkg.LoopTarget     `toml:"loop_target,omitempty"`
+	Enabled             bool                          `toml:"enabled"`
+	Retry               automationpkg.RetryConfig     `toml:"retry,omitempty"`
+	FireLimit           automationpkg.FireLimitConfig `toml:"fire_limit,omitempty"`
+	Source              automationpkg.JobSource       `toml:"-"`
+	EndpointSlug        string                        `toml:"endpoint_slug,omitempty"`
+	WebhookSecretRef    string                        `toml:"webhook_secret_ref,omitempty"`
 }
 
 type automationOverlay struct {
@@ -83,20 +84,21 @@ type parsedAutomationJob struct {
 }
 
 type parsedAutomationTrigger struct {
-	Scope            automationpkg.Scope            `toml:"scope"`
-	Name             string                         `toml:"name"`
-	AgentName        string                         `toml:"agent"`
-	Workspace        string                         `toml:"workspace"`
-	Prompt           string                         `toml:"prompt"`
-	Event            string                         `toml:"event"`
-	Filter           map[string]string              `toml:"filter"`
-	TargetKind       automationpkg.TargetKind       `toml:"target_kind"`
-	LoopTarget       *automationpkg.LoopTarget      `toml:"loop_target"`
-	Enabled          *bool                          `toml:"enabled"`
-	Retry            *automationpkg.RetryConfig     `toml:"retry"`
-	FireLimit        *automationpkg.FireLimitConfig `toml:"fire_limit"`
-	EndpointSlug     string                         `toml:"endpoint_slug"`
-	WebhookSecretRef string                         `toml:"webhook_secret_ref"`
+	TargetInstanceScope string                         `toml:"target_instance_scope,omitempty"`
+	Scope               automationpkg.Scope            `toml:"scope"`
+	Name                string                         `toml:"name"`
+	AgentName           string                         `toml:"agent"`
+	Workspace           string                         `toml:"workspace"`
+	Prompt              string                         `toml:"prompt"`
+	Event               string                         `toml:"event"`
+	Filter              map[string]string              `toml:"filter"`
+	TargetKind          automationpkg.TargetKind       `toml:"target_kind"`
+	LoopTarget          *automationpkg.LoopTarget      `toml:"loop_target"`
+	Enabled             *bool                          `toml:"enabled"`
+	Retry               *automationpkg.RetryConfig     `toml:"retry"`
+	FireLimit           *automationpkg.FireLimitConfig `toml:"fire_limit"`
+	EndpointSlug        string                         `toml:"endpoint_slug"`
+	WebhookSecretRef    string                         `toml:"webhook_secret_ref"`
 }
 
 // Validate ensures the automation config is internally consistent.
@@ -140,7 +142,7 @@ func (j AutomationJob) Validate(path string) error {
 	if strings.TrimSpace(j.Name) == "" {
 		return errors.New(path + ".name is required")
 	}
-	if _, err := j.validateTarget(path); err != nil {
+	if err := j.validateTarget(path); err != nil {
 		return err
 	}
 	if err := automationpkg.ValidateScopeBinding(j.Scope, j.Workspace, path, "workspace"); err != nil {
@@ -175,15 +177,18 @@ func (j AutomationJob) Validate(path string) error {
 	return nil
 }
 
-func (j AutomationJob) validateTarget(path string) (automationpkg.TargetKind, error) {
+func (j AutomationJob) validateTarget(path string) error {
 	targetKind := normalizeConfigAutomationTargetKind(j.TargetKind, j.LoopTarget)
 	if err := targetKind.Validate(path + ".target_kind"); err != nil {
-		return "", err
+		return err
+	}
+	if targetKind == automationpkg.TargetKindAgentInstance {
+		return errors.New(path + ".target_kind cannot target an agent instance from a scheduled job")
 	}
 	if targetKind == automationpkg.TargetKindAgent {
-		return targetKind, j.validateAgentTarget(path)
+		return j.validateAgentTarget(path)
 	}
-	return targetKind, j.validateLoopTarget(path)
+	return j.validateLoopTarget(path)
 }
 
 func (j AutomationJob) validateLoopTarget(path string) error {
@@ -236,7 +241,7 @@ func (t AutomationTrigger) validateWithEnv(path string, _ envLookup) error {
 	if err := automationpkg.ValidateTriggerFilter(t.Filter, path+".filter"); err != nil {
 		return err
 	}
-	if targetKind == automationpkg.TargetKindAgent {
+	if targetKind == automationpkg.TargetKindAgent || targetKind == automationpkg.TargetKindAgentInstance {
 		if err := automationpkg.ValidateTriggerPromptTemplate(t.Prompt); err != nil {
 			return fmt.Errorf("%s.prompt is invalid: %w", path, err)
 		}
@@ -250,7 +255,10 @@ func (t AutomationTrigger) validateTarget(path string) (automationpkg.TargetKind
 	if err := targetKind.Validate(path + ".target_kind"); err != nil {
 		return "", err
 	}
-	if targetKind == automationpkg.TargetKindAgent {
+	if err := t.validateInstanceScope(targetKind, path); err != nil {
+		return "", err
+	}
+	if targetKind == automationpkg.TargetKindAgent || targetKind == automationpkg.TargetKindAgentInstance {
 		return targetKind, t.validateAgentTarget(path)
 	}
 	return targetKind, t.validateLoopTarget(path)
@@ -419,21 +427,22 @@ func validateConfigLoopTarget(target *automationpkg.LoopTarget, path string, sch
 
 func (t parsedAutomationTrigger) toAutomationTrigger(defaultFireLimit automationpkg.FireLimitConfig) AutomationTrigger {
 	trigger := AutomationTrigger{
-		Scope:            t.Scope,
-		Name:             t.Name,
-		AgentName:        t.AgentName,
-		Workspace:        t.Workspace,
-		Prompt:           t.Prompt,
-		Event:            t.Event,
-		Filter:           mergeStringMaps(nil, t.Filter),
-		TargetKind:       t.TargetKind,
-		LoopTarget:       cloneAutomationLoopTarget(t.LoopTarget),
-		Enabled:          true,
-		Retry:            automationpkg.DefaultRetryConfig(),
-		FireLimit:        defaultFireLimit,
-		Source:           automationpkg.JobSourceConfig,
-		EndpointSlug:     t.EndpointSlug,
-		WebhookSecretRef: t.WebhookSecretRef,
+		TargetInstanceScope: t.TargetInstanceScope,
+		Scope:               t.Scope,
+		Name:                t.Name,
+		AgentName:           t.AgentName,
+		Workspace:           t.Workspace,
+		Prompt:              t.Prompt,
+		Event:               t.Event,
+		Filter:              mergeStringMaps(nil, t.Filter),
+		TargetKind:          t.TargetKind,
+		LoopTarget:          cloneAutomationLoopTarget(t.LoopTarget),
+		Enabled:             true,
+		Retry:               automationpkg.DefaultRetryConfig(),
+		FireLimit:           defaultFireLimit,
+		Source:              automationpkg.JobSourceConfig,
+		EndpointSlug:        t.EndpointSlug,
+		WebhookSecretRef:    t.WebhookSecretRef,
 	}
 	if t.Enabled != nil {
 		trigger.Enabled = *t.Enabled

@@ -33,6 +33,7 @@ import {
   buildWorktreeFixture,
   emptyWorktreeListingFixture,
 } from "@/systems/workspace/mocks/worktree-fixtures";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 // Invariant: creation submits only durable session identity and launch context, binds creation
 // outside a project to the home path without a worktree choice, materializes a project environment
@@ -209,6 +210,7 @@ const createdSession: SessionPayload = {
   profile_id: "00000000000000000000000000",
   profile_name: "default",
   scope: "workspace",
+  ...sessionPermissionDefaults,
   effective_workspace_access: "",
   id: "sess-new",
   agent_name: "codex-agent",

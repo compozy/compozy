@@ -797,7 +797,7 @@ scheduled automation, a trigger an automation on an event, a webhook trigger a l
 Tools, CLI verbs, routes, and config keep `job`/`trigger`; never send `automations` to them.
 Automation catalogs use CLI, HTTP/UDS, and `compozy__automation_jobs_list` / `compozy__automation_triggers_list`.
 Their counted cursor pages filter by scope/workspace, source, enabled, Loop target, `target`
-(`agent`|`loop`|`task`; `task` matches no trigger), search, and event;
+(`agent`|`loop`|`task`|`agent_instance`; `task` matches no trigger; `agent_instance` is trigger-only), search, and event;
 run history stays uncounted and must be bounded. Continue with the returned opaque cursor under
 unchanged profile scope and filters; changing either starts a new first page. Other `compozy__automation_*` tools cover detail,
 mutation, toggles, and manual trigger. Config/package definitions only toggle enabled and cannot be
@@ -1036,6 +1036,32 @@ Shutdown keeps detached session descendants. The daemon still closes native term
 shutdown; PTY survival across restart is outside this feature. Keeping never prevents a process
 from exiting or receiving its parent's or terminal lifecycle's signals.
 
+### Paused instances and unattended turns
+
+Instance reads expose `unattended_turns`, `unattended_turn_limit` and `held_wakes`.
+The default limit is 300; `[agents.stays_on].unattended_turn_limit = 0` disables the
+brake. Each autonomous lineage turn counts once, including a batched turn; reported
+or failed checks count, while quiet checks and managed Goal/Loop turns do not.
+The turn reaching the limit runs, pauses the instance with reason `unattended`,
+and publishes one report and notification. Later autonomous input stays queued.
+
+A pause holds main and descendant input, including descendants of an older main.
+Human prompts still run and reset the counter without resuming the instance. A child
+spawned during a human turn may run without acquiring operator approval authority.
+Marking reports seen, an operator approval/clarification, and resume also reset the
+counter; presence alone does not. A pause cancels a running check without fatigue.
+
+Only the operator may resume `manual`, `fatigue`, `unattended` or unknown reasons;
+agents may resume `definition_*` reasons. Resume delivers held input within the
+existing queue limits and restores only Goals/Loops paused by the instance. Direct
+Goal/Loop resume during an instance pause returns `agent_instance_paused`. A stopped
+main can restart to deliver its queue; stopped descendants retain theirs. Archive
+cancels held rows. Quiet windows do not hold monitor wakes.
+
+A main's lost monitor wake produces one `failure` report with `reason: "wake_lost"` and `detail` describing the wait per wake identity,
+including each pull-request fire sequence. A delivered wake or shutdown cancellation
+does not produce a lost-wake report.
+
 ### Instance proactive checks
 
 - `compozy__agent_instance_check` accepts `id` or `agent` plus `workspace`, and optional
@@ -1083,3 +1109,7 @@ Candidate page 1 may include one extra exact PR match; that match is omitted fro
 an additive `linked_work` summary (`total`, `pull_requests`, `needs_you`, `lead`). Use the session
 resource's `links` endpoint for the full list; child items carry `source_session_id`
 and `source_session_title` and are read-only on their parent.
+
+`compozy__observe_metrics` includes `agent_instances.pause_counts` (current paused instances keyed
+by reason) and `agent_instances.held_input_count` (queued autonomous inputs, including coalesced
+members). These counts belong to the caller's profile and workspace, including its User scope.

@@ -1,0 +1,15 @@
+## before restart
+{"id":"inq-3d9ed6a34217a900","held":true}
+{"id":"inq-0161b98aa10246f2","held":true}
+{"state":"paused","pause_reason":"unattended","unattended_turns":3,"held_wakes":2}
+## after restart
+{"id":"inq-3d9ed6a34217a900","held":true}
+{"id":"inq-0161b98aa10246f2","held":true}
+{"state":"paused","pause_reason":"unattended","unattended_turns":3,"held_wakes":2}
+## operator resume
+{"state":"active","pause_reason":"","unattended_turns":1}
+{"instance":{"unattended_turns":1,"unattended_turn_limit":3,"held_wakes":0,"next_wake":{"kind":"check","at":"2026-11-03T06:16:58.425574000Z","description":""},"created":false,"checks_enabled":true,"la
+## after resume (+12s)
+{"id":"inq-0014a27e1f533a32","held":true}
+user_message events carrying QA-RESTART-PROBE: 2
+{"state":"paused","pause_reason":"unattended","unattended_turns":3,"held_wakes":1}

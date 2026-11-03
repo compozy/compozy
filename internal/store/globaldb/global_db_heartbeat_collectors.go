@@ -22,7 +22,7 @@ func (r *InstanceRepo) CollectorFacts(
 	if err != nil {
 		return scope, facts, err
 	}
-	scope.ProfileID = instance.ProfileID
+	scope.InstanceID, scope.ProfileID = instance.ID, instance.ProfileID
 	scope.WorkspaceID = instance.WorkspaceID
 	scope.MainSessionID = instance.MainSessionID
 	scope.Unrestricted = scope.Unrestricted && instance.GrantCeiling == "unrestricted"
@@ -88,6 +88,9 @@ func (r *InstanceRepo) CollectorFacts(
 				Cursor:      store.FormatTimestamp(endedAt) + "|" + row.ID,
 			},
 		)
+	}
+	if err := r.collectAutomationEventFacts(ctx, id, &facts); err != nil {
+		return scope, facts, err
 	}
 	return scope, facts, nil
 }

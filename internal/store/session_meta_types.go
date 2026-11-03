@@ -38,17 +38,26 @@ type SessionProviderExecutionState struct {
 }
 
 // SessionMeta is the atomically-written session metadata document.
+type SessionPermissionRule struct {
+	Kind     string `json:"kind,omitempty"`
+	Path     string `json:"path,omitempty"`
+	Decision string `json:"decision"`
+}
+
 type SessionMeta struct {
-	InitiatorKind            string         `json:"initiator_kind,omitempty"`
-	InitiatorID              string         `json:"initiator_id,omitempty"`
-	EffectiveWorkspaceAccess string         `json:"effective_workspace_access"`
-	ID                       string         `json:"id"`
-	Name                     string         `json:"name,omitempty"`
-	AgentName                string         `json:"agent_name"`
-	Provider                 string         `json:"provider,omitempty"`
-	Model                    string         `json:"model,omitempty"`
-	ReasoningEffort          string         `json:"reasoning_effort,omitempty"`
-	Speed                    speedpkg.Speed `json:"speed,omitempty"`
+	PermissionModeDegraded   bool                    `json:"permission_mode_degraded,omitzero"`
+	EffectiveSessionApproval string                  `json:"effective_session_approval,omitempty"`
+	PermissionRules          []SessionPermissionRule `json:"permission_rules,omitempty"`
+	InitiatorKind            string                  `json:"initiator_kind,omitempty"`
+	InitiatorID              string                  `json:"initiator_id,omitempty"`
+	EffectiveWorkspaceAccess string                  `json:"effective_workspace_access"`
+	ID                       string                  `json:"id"`
+	Name                     string                  `json:"name,omitempty"`
+	AgentName                string                  `json:"agent_name"`
+	Provider                 string                  `json:"provider,omitempty"`
+	Model                    string                  `json:"model,omitempty"`
+	ReasoningEffort          string                  `json:"reasoning_effort,omitempty"`
+	Speed                    speedpkg.Speed          `json:"speed,omitempty"`
 	*SessionRuntimeDetails
 	SpeedResolution   *speedpkg.Resolution     `json:"speed_resolution,omitzero"`
 	RuntimeStatus     SessionRuntimeStatus     `json:"runtime_status"`

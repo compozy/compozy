@@ -144,7 +144,15 @@ func (h *BaseHandlers) ListAgentInstances(c *gin.Context) {
 		h.respondError(c, 422, err)
 		return
 	}
-	if all && !h.requireOperatorOrGrantedAgent(c, "agent instances") {
+	peers, err := parseBoolQuery(c, "peers")
+	if err != nil {
+		h.respondError(c, 422, err)
+		return
+	}
+	if peers && c.Query("workspace") == "" {
+		all = true
+	}
+	if all && !peers && !h.requireOperatorOrGrantedAgent(c, "agent instances") {
 		return
 	}
 	query, err := h.agentInstanceListQuery(c, scope.ProfileID, all)
@@ -152,7 +160,12 @@ func (h *BaseHandlers) ListAgentInstances(c *gin.Context) {
 		h.respondError(c, 422, err)
 		return
 	}
-	result, err := h.AgentInstances.ListPage(c.Request.Context(), query, actor)
+	var result contract.AgentInstanceListResponse
+	if peers {
+		result, err = h.AgentInstances.PeersPage(c.Request.Context(), query, actor, h.WorkspaceAccess)
+	} else {
+		result, err = h.AgentInstances.ListPage(c.Request.Context(), query, actor)
+	}
 	if err != nil {
 		h.instanceError(c, err)
 		return

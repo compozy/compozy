@@ -421,6 +421,8 @@ func TestTriageToolPolicy(t *testing.T) {
 		write.ID = "compozy__task_update"
 		write.ReadOnly = false
 		write.Risk = RiskMutating
+		message := write
+		message.ID = ToolIDSessionPrompt
 		terminal := read
 		terminal.ID = "compozy__terminal_read"
 		external := mcpDescriptor("mcp__github__search", "github", "search")
@@ -431,12 +433,12 @@ func TestTriageToolPolicy(t *testing.T) {
 		evaluator, err := NewEffectivePolicyEvaluator(
 			inputs,
 			ToolsetCatalog{},
-			[]ToolID{read.ID, write.ID, terminal.ID, external.ID},
+			[]ToolID{read.ID, write.ID, message.ID, terminal.ID, external.ID},
 		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, descriptor := range []Descriptor{write, terminal, external} {
+		for _, descriptor := range []Descriptor{write, message, terminal, external} {
 			decision, err := evaluator.Evaluate(t.Context(), Scope{}, descriptor)
 			if err != nil {
 				t.Fatal(err)
@@ -453,4 +455,39 @@ func TestTriageToolPolicy(t *testing.T) {
 			t.Fatalf("read denied: %+v", decision)
 		}
 	})
+}
+
+func TestCoordinationPermissionLevels(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []PermissionMode{PermissionModeApproveEdits, PermissionModeAuto} {
+		t.Run("Should restrict coordination approvals at "+string(mode), func(t *testing.T) {
+			t.Parallel()
+			for _, lineage := range []bool{false, true} {
+				for _, id := range []ToolID{ToolIDMonitorCreate, ToolIDMonitorCancel, ToolIDSubagentDelegate,
+					ToolIDSubagentCancel, ToolIDSessionSpawn, ToolIDSessionPrompt, ToolIDGoalControl,
+					ToolIDNotify, "compozy__agent_skill_propose", ToolIDSessionApprove,
+					ToolIDSessionClarifyAnswer, ToolIDTerminalExec} {
+					d := validDescriptor()
+					d.ID = id
+					d.ReadOnly = false
+					d.Risk = RiskMutating
+					e, err := NewEffectivePolicyEvaluator(PolicyInputs{
+						SystemPermissionMode: mode, StaysOnLineage: lineage, ApprovalAvailable: true,
+					}, ToolsetCatalog{}, []ToolID{id})
+					if err != nil {
+						t.Fatal(err)
+					}
+					got, err := e.Evaluate(t.Context(), Scope{}, d)
+					if err != nil {
+						t.Fatal(err)
+					}
+					wantApproval := id == ToolIDTerminalExec ||
+						(!lineage && (id == ToolIDSessionApprove || id == ToolIDSessionClarifyAnswer))
+					if !got.Callable || got.ApprovalRequired != wantApproval {
+						t.Fatalf("mode=%s lineage=%v id=%s decision=%+v", mode, lineage, id, got)
+					}
+				}
+			}
+		})
+	}
 }

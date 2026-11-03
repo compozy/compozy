@@ -2910,3 +2910,126 @@ func TestInstancePermissionBeyondDefaultTimeout(t *testing.T) {
 		})
 	})
 }
+
+func TestPermissionRuleDecisionAttribution(t *testing.T) {
+	t.Parallel()
+	t.Run("Should not widen a once rule to an always-only provider option", func(t *testing.T) {
+		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		proc.permissions.rules = []compozyconfig.PermissionRule{{Kind: "edit", Decision: "allow"}}
+		active, err := proc.beginPrompt("rule-once", 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer proc.endPrompt(active)
+		response, err := proc.handleRequestPermission(t.Context(), acpsdk.RequestPermissionRequest{
+			SessionId: "sess-direct",
+			ToolCall:  acpsdk.ToolCallUpdate{Kind: new(acpsdk.ToolKindEdit)},
+			Options: []acpsdk.PermissionOption{
+				{OptionId: "allow-always", Kind: acpsdk.PermissionOptionKindAllowAlways},
+			},
+		})
+		if err != nil || response.Outcome.Selected != nil {
+			t.Fatalf("widened rule: %+v %v", response, err)
+		}
+		event := collectEventsUntilCount(t, active.events, 1)[0]
+		if event.ResolvedByValue() != "rule" || !strings.Contains(string(event.Raw), `"permission_rule"`) {
+			t.Fatalf("rule evidence: %+v", event)
+		}
+	})
+	for _, decision := range []string{"allow", "deny"} {
+		t.Run("Should record rule as the source of "+decision, func(t *testing.T) {
+			t.Parallel()
+			proc := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+			proc.permissions.rules = []compozyconfig.PermissionRule{{Kind: "edit", Decision: decision}}
+			active, err := proc.beginPrompt("rule-turn", 8)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer proc.endPrompt(active)
+			response, err := proc.handleRequestPermission(t.Context(), acpsdk.RequestPermissionRequest{
+				SessionId: "sess-direct",
+				ToolCall:  acpsdk.ToolCallUpdate{Kind: new(acpsdk.ToolKindEdit), Title: new("Edit docs")},
+				Options: []acpsdk.PermissionOption{
+					{OptionId: "allow-once", Kind: acpsdk.PermissionOptionKindAllowOnce},
+					{OptionId: "reject-once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "allow-once"
+			if decision == "deny" {
+				want = "reject-once"
+			}
+			if response.Outcome.Selected == nil || string(response.Outcome.Selected.OptionId) != want {
+				t.Fatalf("outcome=%+v, want %s", response.Outcome, want)
+			}
+			event := collectEventsUntilCount(t, active.events, 1)[0]
+			if event.ResolvedByValue() != "rule" {
+				t.Fatalf("resolved_by=%q, want rule", event.ResolvedByValue())
+			}
+			if proc.HasPendingPermission() {
+				t.Fatal("rule decision left a pending approval")
+			}
+		})
+	}
+}
+
+func TestExpiredPermissionRepeatSuppression(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject repeats across process replacement until a human clears the state", func(t *testing.T) {
+		t.Parallel()
+		shared := &PermissionDenials{}
+		first := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		first.permissionDenials = shared
+		active, err := first.beginPrompt("first", 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer first.endPrompt(active)
+		request := acpsdk.RequestPermissionRequest{
+			SessionId: "sess-direct",
+			ToolCall: acpsdk.ToolCallUpdate{
+				Kind:     new(acpsdk.ToolKindEdit),
+				Title:    new("Edit docs"),
+				RawInput: map[string]any{"path": "docs.md"},
+			},
+			Options: []acpsdk.PermissionOption{
+				{OptionId: "allow-once", Kind: acpsdk.PermissionOptionKindAllowOnce},
+				{OptionId: "reject-once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+			},
+		}
+		ctx, cancel := context.WithCancelCause(t.Context())
+		cancel(context.DeadlineExceeded)
+		if _, err := first.resolvePermissionRequest(ctx, request, "system"); err != nil {
+			t.Fatal(err)
+		}
+		events := collectEventsUntilCount(t, active.events, 2)
+		if events[1].ResolvedByValue() != "timeout" {
+			t.Fatalf("expiry actor=%q", events[1].ResolvedByValue())
+		}
+
+		replacement := newDirectProcess(t, compozyconfig.PermissionModeApproveReads)
+		replacement.permissionDenials = shared
+		next, err := replacement.beginPrompt("next", 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer replacement.endPrompt(next)
+		response, err := replacement.handleRequestPermission(t.Context(), request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if response.Outcome.Selected == nil || response.Outcome.Selected.OptionId != "reject-once" {
+			t.Fatalf("repeat outcome=%+v", response.Outcome)
+		}
+		event := collectEventsUntilCount(t, next.events, 1)[0]
+		if event.ResolvedByValue() != "repeat_denied" || replacement.HasPendingPermission() {
+			t.Fatalf("repeat event=%+v pending=%v", event, replacement.HasPendingPermission())
+		}
+		shared.Clear()
+		if shared.Contains(permissionRequestDigest(request)) {
+			t.Fatal("human reset retained an expired request")
+		}
+	})
+}

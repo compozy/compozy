@@ -13,6 +13,11 @@ import (
 )
 
 const (
+	permissionSourcePolicy  = "policy"
+	permissionSourceRule    = "rule"
+	permissionActorProvider = "provider"
+	// permissionActorSystem marks daemon-originated Compozy tool approvals.
+	permissionActorSystem = "system"
 	// PermissionRequestIDMetaKey pins the externally addressable permission request ID in ACP metadata.
 	PermissionRequestIDMetaKey = "request_id"
 	// PermissionToolIDMetaKey preserves the canonical Compozy tool identity for attention projections.
@@ -35,6 +40,7 @@ var (
 )
 
 type permissionPolicy struct {
+	rules []compozyconfig.PermissionRule
 	mode  compozyconfig.PermissionMode
 	root  string
 	roots []string
@@ -156,6 +162,8 @@ func (p permissionPolicy) isAllowed(op permissionOperation) bool {
 	switch p.mode {
 	case compozyconfig.PermissionModeApproveAll:
 		return true
+	case compozyconfig.PermissionModeApproveEdits, compozyconfig.PermissionModeAuto:
+		return op == permissionReadTextFile || op == permissionWriteTextFile
 	case compozyconfig.PermissionModeApproveReads:
 		return op == permissionReadTextFile
 	case compozyconfig.PermissionModeDenyAll:
@@ -166,20 +174,60 @@ func (p permissionPolicy) isAllowed(op permissionOperation) bool {
 }
 
 func (p permissionPolicy) permissionDecision(request acpsdk.RequestPermissionRequest) (permissionDecision, bool) {
-	if _, err := p.resolvePathList(request.ToolCall.Locations); err != nil {
-		return decisionRejectOnce, false
-	}
+	decision, interactive, _ := p.permissionDecisionSource(request)
+	return decision, interactive
+}
 
+func (p permissionPolicy) permissionDecisionSource(
+	request acpsdk.RequestPermissionRequest,
+) (permissionDecision, bool, string) {
+	return p.decide(request, true)
+}
+
+// daemonPermissionDecisionSource decides a daemon-originated Compozy tool
+// approval. Permission rules cover only what a provider asks, so they never
+// apply here; the level alone decides.
+func (p permissionPolicy) daemonPermissionDecisionSource(
+	request acpsdk.RequestPermissionRequest,
+) (permissionDecision, bool, string) {
+	return p.decide(request, false)
+}
+
+func (p permissionPolicy) decide(
+	request acpsdk.RequestPermissionRequest,
+	applyRules bool,
+) (permissionDecision, bool, string) {
+	paths, err := p.resolvePathList(request.ToolCall.Locations)
+	if err != nil || p.mode == compozyconfig.PermissionModeDenyAll {
+		return decisionRejectOnce, false, permissionSourcePolicy
+	}
+	if applyRules {
+		if decision, matched := p.ruleDecision(request, paths); matched {
+			return decision, false, permissionSourceRule
+		}
+	}
+	decision, interactive := p.levelDecision(request.ToolCall.Kind, paths)
+	return decision, interactive, permissionSourcePolicy
+}
+
+func (p permissionPolicy) levelDecision(kind *acpsdk.ToolKind, paths []string) (permissionDecision, bool) {
 	switch p.mode {
 	case compozyconfig.PermissionModeApproveAll:
 		return decisionAllowOnce, false
-	case compozyconfig.PermissionModeApproveReads:
-		if request.ToolCall.Kind != nil && *request.ToolCall.Kind == acpsdk.ToolKindRead {
+	case compozyconfig.PermissionModeApproveEdits, compozyconfig.PermissionModeAuto:
+		if kind != nil && *kind == acpsdk.ToolKindRead {
+			return decisionAllowOnce, false
+		}
+		// An edit is approved only when every target location passed containment.
+		if kind != nil && *kind == acpsdk.ToolKindEdit && len(paths) > 0 {
 			return decisionAllowOnce, false
 		}
 		return decisionPending, true
-	case compozyconfig.PermissionModeDenyAll:
-		return decisionRejectOnce, false
+	case compozyconfig.PermissionModeApproveReads:
+		if kind != nil && *kind == acpsdk.ToolKindRead {
+			return decisionAllowOnce, false
+		}
+		return decisionPending, true
 	default:
 		return decisionRejectOnce, false
 	}

@@ -249,14 +249,15 @@ func automationTriggerParams(trigger automation.Trigger) (sqlcgen.InsertAutomati
 		EndpointSlug: nullableAutomationString(
 			trigger.EndpointSlug,
 		),
-		WebhookSecretRef: nullableAutomationString(trigger.WebhookSecretRef),
-		TargetKind:       string(trigger.TargetKind),
-		LoopWorkspaceID:  nullableAutomationString(loopTarget.workspaceID),
-		LoopName:         nullableAutomationString(loopTarget.loopName),
-		LoopInputs:       loopInputs,
-		LoopInputMapping: loopInputMapping,
-		CreatedAt:        store.FormatTimestamp(trigger.CreatedAt),
-		UpdatedAt:        store.FormatTimestamp(trigger.UpdatedAt),
+		WebhookSecretRef:    nullableAutomationString(trigger.WebhookSecretRef),
+		TargetKind:          string(trigger.TargetKind),
+		TargetInstanceScope: trigger.TargetInstanceScope,
+		LoopWorkspaceID:     nullableAutomationString(loopTarget.workspaceID),
+		LoopName:            nullableAutomationString(loopTarget.loopName),
+		LoopInputs:          loopInputs,
+		LoopInputMapping:    loopInputMapping,
+		CreatedAt:           store.FormatTimestamp(trigger.CreatedAt),
+		UpdatedAt:           store.FormatTimestamp(trigger.UpdatedAt),
 	}, nil
 }
 
@@ -271,7 +272,8 @@ func automationTriggerUpdateParams(trigger automation.Trigger) (sqlcgen.UpdateAu
 		Prompt: insert.Prompt, Event: insert.Event, Filter: insert.Filter, Enabled: insert.Enabled,
 		Retry: insert.Retry, FireLimit: insert.FireLimit, Source: insert.Source, WebhookID: insert.WebhookID,
 		EndpointSlug: insert.EndpointSlug, WebhookSecretRef: insert.WebhookSecretRef, TargetKind: insert.TargetKind,
-		LoopWorkspaceID: insert.LoopWorkspaceID, LoopName: insert.LoopName, LoopInputs: insert.LoopInputs,
+		TargetInstanceScope: insert.TargetInstanceScope,
+		LoopWorkspaceID:     insert.LoopWorkspaceID, LoopName: insert.LoopName, LoopInputs: insert.LoopInputs,
 		LoopInputMapping: insert.LoopInputMapping,
 		UpdatedAt:        insert.UpdatedAt, ID: trigger.ID,
 	}, nil
@@ -279,21 +281,22 @@ func automationTriggerUpdateParams(trigger automation.Trigger) (sqlcgen.UpdateAu
 
 func automationTriggerFromGenerated(row sqlcgen.AutomationTrigger) (automation.Trigger, error) {
 	trigger := automation.Trigger{
-		GrantCeiling:     row.GrantCeiling,
-		ID:               row.ID,
-		ProfileID:        row.ProfileID,
-		Scope:            automation.Scope(strings.TrimSpace(row.Scope)),
-		Name:             row.Name,
-		AgentName:        row.AgentName,
-		WorkspaceID:      automationNullStringValue(row.WorkspaceID),
-		Prompt:           row.Prompt,
-		Event:            row.Event,
-		Enabled:          row.Enabled,
-		Source:           automation.JobSource(strings.TrimSpace(row.Source)),
-		WebhookID:        automationNullStringValue(row.WebhookID),
-		EndpointSlug:     automationNullStringValue(row.EndpointSlug),
-		WebhookSecretRef: automationNullStringValue(row.WebhookSecretRef),
-		TargetKind:       automation.TargetKind(strings.TrimSpace(row.TargetKind)),
+		GrantCeiling:        row.GrantCeiling,
+		TargetInstanceScope: row.TargetInstanceScope,
+		ID:                  row.ID,
+		ProfileID:           row.ProfileID,
+		Scope:               automation.Scope(strings.TrimSpace(row.Scope)),
+		Name:                row.Name,
+		AgentName:           row.AgentName,
+		WorkspaceID:         automationNullStringValue(row.WorkspaceID),
+		Prompt:              row.Prompt,
+		Event:               row.Event,
+		Enabled:             row.Enabled,
+		Source:              automation.JobSource(strings.TrimSpace(row.Source)),
+		WebhookID:           automationNullStringValue(row.WebhookID),
+		EndpointSlug:        automationNullStringValue(row.EndpointSlug),
+		WebhookSecretRef:    automationNullStringValue(row.WebhookSecretRef),
+		TargetKind:          automation.TargetKind(strings.TrimSpace(row.TargetKind)),
 	}
 	if err := decodeAutomationFilter(row.Filter, &trigger.Filter); err != nil {
 		return automation.Trigger{}, err
@@ -439,7 +442,8 @@ func automationTriggerFromHydrated(row sqlcgen.HydrateAutomationTriggerCatalogRo
 		return automation.Trigger{}, err
 	}
 	return automationTriggerFromGenerated(sqlcgen.AutomationTrigger{
-		GrantCeiling: row.GrantCeiling, ProfileID: row.ProfileID,
+		TargetInstanceScope: row.TargetInstanceScope,
+		GrantCeiling:        row.GrantCeiling, ProfileID: row.ProfileID,
 		ID: row.ID, Scope: row.Scope, Name: row.Name, AgentName: row.AgentName,
 		WorkspaceID: row.WorkspaceID, Prompt: row.Prompt, Event: row.Event, Filter: row.Filter,
 		Enabled: enabled, Retry: row.Retry, FireLimit: row.FireLimit, Source: row.Source,

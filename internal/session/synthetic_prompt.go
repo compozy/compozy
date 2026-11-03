@@ -38,6 +38,9 @@ func (m *Manager) PromptSynthetic(
 	if err := m.checkNewWorkAdmission(ctx); err != nil {
 		return nil, err
 	}
+	if err := m.admitManagedInstancePrompt(ctx, req.target); err != nil {
+		return nil, err
+	}
 	session, err := m.lookupPromptSession(ctx, req.target)
 	if err != nil {
 		return nil, err

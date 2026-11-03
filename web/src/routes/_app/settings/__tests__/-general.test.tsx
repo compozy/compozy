@@ -398,8 +398,22 @@ describe("GeneralSettingsPage", () => {
     expect(screen.getByTestId("settings-page-general-subhead")).toHaveTextContent(
       "7 agents working"
     );
-    expect(screen.getByTestId("settings-page-general-permissions-group")).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /Allow everything/ })).toBeChecked();
+    const permissions = screen.getByTestId("settings-page-general-permissions-group");
+    // UT-058 (settings half): the five shared levels, in order.
+    expect(
+      Array.from(permissions.querySelectorAll('[role="radio"]'), radio =>
+        radio.getAttribute("data-testid")
+      )
+    ).toEqual(
+      ["deny-all", "approve-reads", "approve-edits", "auto", "approve-all"].map(
+        value => `settings-page-general-permissions-group-${value}`
+      )
+    );
+    expect(screen.getByRole("radio", { name: /Never ask/ })).toBeChecked();
+    // S15 shares the S5 card style: every level shows its glyph.
+    for (const radio of permissions.querySelectorAll('[role="radio"]')) {
+      expect(radio.querySelector('[data-slot="radio-card-icon-well"]')).not.toBeNull();
+    }
     fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
     expect(screen.getByText("Settings file")).toBeInTheDocument();
     expect(screen.getByText("~/.compozy/config.toml")).toBeInTheDocument();

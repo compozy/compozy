@@ -39,8 +39,11 @@ func TestProviderAuthHandlers(t *testing.T) {
 		router.GET("/providers/:provider_id", handlers.GetProvider)
 		router.POST("/providers/:provider_id/auth/probe", handlers.ProbeProviderAuth)
 		settings.config.Providers["local-overlay"] = compozyconfig.ProviderConfig{
-			Command: "sh", RuntimeProvider: "claude", AuthMode: compozyconfig.ProviderAuthModeNone,
-			NoneSecurity: compozyconfig.ProviderNoneSecurityLocalTransport,
+			Command:         "sh",
+			RuntimeProvider: "claude",
+			ReviewerMode:    "auto",
+			AuthMode:        compozyconfig.ProviderAuthModeNone,
+			NoneSecurity:    compozyconfig.ProviderNoneSecurityLocalTransport,
 		}
 		for _, endpoint := range []struct{ method, path string }{
 			{http.MethodGet, "/providers"},
@@ -53,6 +56,32 @@ func TestProviderAuthHandlers(t *testing.T) {
 					response,
 					httptest.NewRequestWithContext(t.Context(), endpoint.method, endpoint.path, http.NoBody),
 				)
+				if endpoint.path == "/providers" &&
+					!strings.Contains(response.Body.String(), `"reviewer_mode":"auto"`) {
+					t.Fatalf("reviewer metadata: %s", response.Body.String())
+				}
+				if endpoint.path == "/providers" {
+					// FE-1: a provider without a reviewer still sends reviewer_mode, empty.
+					var inventory struct {
+						Providers []map[string]any `json:"providers"`
+					}
+					if err := json.Unmarshal(response.Body.Bytes(), &inventory); err != nil {
+						t.Fatal(err)
+					}
+					found := false
+					for _, provider := range inventory.Providers {
+						if provider["name"] != "native" {
+							continue
+						}
+						found = true
+						if mode, ok := provider["reviewer_mode"]; !ok || mode != "" {
+							t.Fatalf("native reviewer_mode = %v present=%v, want explicit empty", mode, ok)
+						}
+					}
+					if !found {
+						t.Fatalf("native provider missing: %s", response.Body.String())
+					}
+				}
 				if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "local-overlay") {
 					t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 				}

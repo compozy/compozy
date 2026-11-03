@@ -4,6 +4,7 @@ import type { SessionPayload } from "@/systems/session";
 
 import { filterAgentSessionsByStatus, validateAgentDetailSearch } from "../agent-detail-search";
 import { validateAgentSettingsSearch } from "../agent-settings-search";
+import { permissionsBlockedMessage } from "../agent-permissions";
 import { resolveAgentRuntimeValue } from "../agent-effective-runtime";
 import {
   formatAbsentList,
@@ -148,6 +149,17 @@ describe("agent-settings-draft", () => {
     expect(validation.canSave).toBe(false);
     expect(validation.fields.permissions).toContain("Unrecognized permission mode: legacy-mode");
     expect(buildUpdateAgentParams(draft, "ws_alpha")).toBeNull();
+    expect(permissionsBlockedMessage(draft.legacyPermissions)).toContain(
+      "Its permission level (legacy-mode) isn't one CompozyOS knows."
+    );
+  });
+
+  it("Should explain a blocked save without a stored level instead of naming none", () => {
+    const message = permissionsBlockedMessage(null);
+    expect(message).toBe(
+      "This agent has no permission level yet. Pick one on the Permissions page, then save here."
+    );
+    expect(message).not.toContain("none");
   });
 
   it("Should build update params with expected_digest after explicit permission choice", () => {

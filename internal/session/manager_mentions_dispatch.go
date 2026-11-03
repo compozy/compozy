@@ -32,6 +32,9 @@ func (m *Manager) promptMentionInputs(
 	req *promptRequest,
 ) promptMentionInputs {
 	inputs := promptMentionInputs{}
+	if req != nil && promptHumanIngress(req) {
+		session.permissionDenialsState().Clear()
+	}
 	if req == nil || req.delivery != PromptDeliveryNormal {
 		return inputs
 	}

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/agentinstance"
 	core "github.com/compozy/compozy/internal/api/core"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -86,6 +87,77 @@ func TestSessionGoalDefinitionShouldKeepFreeFormClausesInsideAgentJudgeRubric(t 
 
 func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testing.T) {
 	t.Parallel()
+	t.Run("Should refuse set and replace on a current main while preserving existing controls", func(t *testing.T) {
+		t.Parallel()
+		fixture := newGoalCommandHandlerFixture(t)
+		caller := session.PromptCaller{Kind: "human", ID: "operator", Source: "http"}
+		started, err := fixture.service.Handle(t.Context(), fixture.workspaceID, fixture.sessionID, caller,
+			session.GoalCommand{Verb: "set", Objective: "Keep the existing Goal"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertGoalCommandOutcome(t, started, session.GoalOutcomeStarted, "")
+		provider := fixture.service.creationStore.(instanceRepositoryProvider)
+		instance, _, err := provider.Instances().AdmitCreate(t.Context(), agentinstance.Instance{
+			ProfileID:         fixture.profileID,
+			WorkspaceID:       fixture.workspaceID,
+			AgentName:         "operator-agent",
+			PermissionCeiling: "{}",
+			CreatedByKind:     "human",
+		}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := provider.Instances().BindMain(t.Context(), instance.ID, fixture.sessionID); err != nil {
+			t.Fatal(err)
+		}
+		status := fixture.service.sessionStatus.(*goalCommandSessionStatus)
+		status.info.InstanceID = instance.ID
+		ready, err := provider.Instances().RotationPersistenceReady(t.Context(), fixture.sessionID)
+		if err != nil || ready {
+			t.Fatalf("active Goal rotation readiness = %v, %v", ready, err)
+		}
+
+		for _, verb := range []string{"set", "replace"} {
+			decision, err := fixture.service.Handle(
+				t.Context(),
+				fixture.workspaceID,
+				fixture.sessionID,
+				caller,
+				session.GoalCommand{
+					Verb:          verb,
+					Objective:     "Use another session",
+					ExpectedRunID: started.Result.Snapshot.RunID,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertGoalCommandOutcome(t, decision, session.GoalOutcomeError, session.GoalReasonOnInstanceMain)
+		}
+		for _, tc := range []struct {
+			verb    string
+			outcome session.GoalCommandOutcome
+		}{
+			{"status", session.GoalOutcomeStatus}, {"pause", session.GoalOutcomePaused}, {"stop", session.GoalOutcomeStopped},
+		} {
+			decision, err := fixture.service.Handle(
+				t.Context(),
+				fixture.workspaceID,
+				fixture.sessionID,
+				caller,
+				session.GoalCommand{Verb: tc.verb},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertGoalCommandOutcome(t, decision, tc.outcome, "")
+		}
+		ready, err = provider.Instances().RotationPersistenceReady(t.Context(), fixture.sessionID)
+		if err != nil || !ready {
+			t.Fatalf("stopped Goal rotation readiness = %v, %v", ready, err)
+		}
+	})
 
 	// Invariant: controls can acknowledge only their selected Run, never a concurrent replacement.
 	// Owner: daemon Goal command composition; canonical lifecycle suite.

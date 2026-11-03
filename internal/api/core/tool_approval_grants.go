@@ -16,6 +16,9 @@ var errToolApprovalGrantServiceUnavailable = errors.New("tool approval grant ser
 
 // SetToolApprovalGrant creates or replaces one explicit wider native-tool decision.
 func (h *BaseHandlers) SetToolApprovalGrant(c *gin.Context) {
+	if !h.requireToolApprovalGrantAuthority(c) {
+		return
+	}
 	service, ok := h.toolApprovalGrantService()
 	if !ok {
 		h.respondError(c, http.StatusServiceUnavailable, errToolApprovalGrantServiceUnavailable)
@@ -84,6 +87,9 @@ func (h *BaseHandlers) ListToolApprovalGrants(c *gin.Context) {
 
 // RevokeToolApprovalGrant removes one remembered native-tool decision from the resolved workspace.
 func (h *BaseHandlers) RevokeToolApprovalGrant(c *gin.Context) {
+	if !h.requireToolApprovalGrantAuthority(c) {
+		return
+	}
 	service, ok := h.toolApprovalGrantService()
 	if !ok {
 		h.respondError(c, http.StatusServiceUnavailable, errToolApprovalGrantServiceUnavailable)

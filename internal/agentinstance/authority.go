@@ -3,6 +3,7 @@ package agentinstance
 import (
 	"context"
 	"slices"
+	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -52,15 +53,28 @@ func (a Authority) Authorize(
 	if err != nil {
 		return err
 	}
+	if verb == "peers" && caller.InstanceID != "" && caller.ProfileID == instance.ProfileID {
+		return nil // The catalog owner still applies workspace access before pagination.
+	}
 	if caller.InstanceID != instance.ID || caller.AgentName != instance.AgentName ||
 		caller.ProfileID != instance.ProfileID {
 		return ErrForbidden
 	}
 	switch verb {
-	case "list", "reports", "occurrence", "pause", "archive", "ensure_main", "check", "check_dry_run", "checks_off":
+	case "list",
+		"reports",
+		"skill_propose",
+		"skill_reviews",
+		"occurrence",
+		"pause",
+		"archive",
+		"ensure_main",
+		"check",
+		"check_dry_run",
+		"checks_off":
 		return nil
 	case "resume":
-		if instance.PauseReason != pauseReasonManual && instance.PauseReason != "fatigue" {
+		if !OperatorOnlyResume(instance.PauseReason) {
 			return nil
 		}
 	}
@@ -88,3 +102,7 @@ func intersectAtoms(a, b []string) []string {
 }
 
 const pauseReasonManual = "manual"
+
+func OperatorOnlyResume(reason string) bool {
+	return !strings.HasPrefix(reason, "definition_")
+}

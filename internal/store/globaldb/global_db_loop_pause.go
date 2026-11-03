@@ -58,6 +58,12 @@ func setLoopRunPauseState(
 	actor taskpkg.ActorContext,
 	now time.Time,
 ) (bool, error) {
+	q := sqlcgen.New(exec)
+	if !requested {
+		if err := requireInstanceRunResumable(ctx, q, runID); err != nil {
+			return false, err
+		}
+	}
 	expectedPause := 1
 	if requested {
 		expectedPause = 0
@@ -71,7 +77,10 @@ func setLoopRunPauseState(
 		return false, fmt.Errorf("store: set loop run %q pause_requested: %w", runID, err)
 	}
 	if rows == 1 {
-		return true, nil
+		if requested {
+			return true, recordInstanceRunPause(ctx, q, runID, actor, now)
+		}
+		return true, q.DeleteInstancePausedRun(ctx, runID)
 	}
 	return equivalentLoopPauseState(ctx, exec, workspaceID, runID, requested, actor)
 }

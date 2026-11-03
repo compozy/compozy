@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status:
 fix_commits: 7e5d6b8
-evidence: .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-03; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-11; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/040-agent-create-authored-files; /Users/pedronauck/dev/qa-labs/compozy-pr-368-global-runtime-binding-20260813-091321-434791-lab/qa-artifacts/qa/notes/global-agent-session-e2e.md; docs/qa/reports/2026-08-13-pr-367-agent-name-validation-rewalk.md; /Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-agent-create-advanced-runtime.png
-last_report: docs/qa/reports/2026-10-02-untested.md
+evidence: .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-03; .compozy/tasks/modals-redesign/evidence/visual/task_03/VC-11; /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-021949-664736-lab/qa-artifacts/qa/evidence/040-agent-create-authored-files; /Users/pedronauck/dev/qa-labs/compozy-pr-368-global-runtime-binding-20260813-091321-434791-lab/qa-artifacts/qa/notes/global-agent-session-e2e.md; docs/qa/reports/2026-08-13-pr-367-agent-name-validation-rewalk.md; /Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-agent-create-advanced-runtime.png; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: MS-web-entity-modal-shell
 ---
 
@@ -57,3 +57,10 @@ missing-default and recovery journey remains pending.
 B5 isolated re-walk passed: absent defaults.provider produced the actionable copy, selecting Codex
 GPT-6.1-Sol created the agent with the original name, description and instructions, and the public
 API confirmed provider/model. Evidence: `reports/2026-11-01-stays-on-b5-remediation.md`.
+
+QA impact 2026-11-03 (stays-on hardening S5): Advanced's permission cards are one column of the five
+shared levels. An On demand agent adds "Follow Settings" (omits `permissions`); a Stays on agent with
+nothing chosen shows "Edit on its own" marked Default, and the request still omits `permissions`.
+The consequence Alert under the cards is gone; each card's description carries it. Not walked.
+
+QA 2026-11-03 (stays-on hardening, soh/qa 583415ef5): Not walked in this pass. The shared five-level cards were exercised on the Permissions page instead (see `MS-web-agent-permissions`).

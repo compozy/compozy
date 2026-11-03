@@ -33,6 +33,7 @@ type automationRuntime interface {
 }
 
 type automationManagerDeps struct {
+	InstanceEvents    automationpkg.InstanceEventSink
 	Store             automationpkg.Store
 	Sessions          SessionManager
 	Tasks             taskpkg.Manager

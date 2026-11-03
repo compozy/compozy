@@ -119,6 +119,7 @@ func scanAutomationTrigger(scanner rowScanner) (automation.Trigger, error) {
 		&endpointSlug,
 		&webhookSecretRef,
 		&targetKind,
+		&trigger.TargetInstanceScope,
 		&loopTarget.workspaceID,
 		&loopTarget.loopName,
 		&loopTarget.inputsRaw,

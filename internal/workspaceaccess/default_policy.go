@@ -126,7 +126,8 @@ func (p *DefaultPolicy) authorizeFromMode(ctx context.Context, sessionID string,
 		return Decision{Allowed: true, Source: SourcePermissionMode}, mode, nil
 	case ModeDenyAll:
 		return deniedDecisionFor(DenialModeDenyAll), mode, nil
-	case ModeApproveReads:
+	case ModeApproveReads, ModeApproveEdits, ModeAuto:
+		// approve-edits and auto widen provider edits only; reaching another scope asks as in approve-reads.
 		return p.authorizeFromConsent(ctx, sessionID, mode)
 	default:
 		return deniedDecisionFor(DenialInvalid), mode,

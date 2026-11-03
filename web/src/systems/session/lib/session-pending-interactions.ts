@@ -116,12 +116,30 @@ export function resolvedInteractionsByRequest(
  * daemon's fallback actor, so it never proves whether anyone was asked), and `unknown`
  * when no row or an unrecognized actor leaves no evidence — never a guessed person.
  */
-export type PermissionDecisionActor = "you" | "agent" | "timeout" | "runtime" | "unknown";
+export type PermissionDecisionActor =
+  | "you"
+  | "agent"
+  | "timeout"
+  | "runtime"
+  | "repeat"
+  | "rule"
+  | "policy"
+  | "unknown";
 
+/**
+ * `eventResolvedBy` is the decision's own actor from its transcript part. It wins over the row:
+ * an identical repeat reuses the provider request id, so the row can belong to the earlier ask.
+ */
 export function permissionDecisionActor(
-  row: SessionInteractionRecord | undefined
+  row: SessionInteractionRecord | undefined,
+  eventResolvedBy?: string
 ): PermissionDecisionActor {
-  const resolvedBy = row?.status === "resolved" ? (row.resolved_by?.trim() ?? "") : "";
+  const fromEvent = eventResolvedBy?.trim() ?? "";
+  const resolvedBy =
+    fromEvent || (row?.status === "resolved" ? (row.resolved_by?.trim() ?? "") : "");
+  if (resolvedBy === "repeat_denied") return "repeat";
+  if (resolvedBy === "rule") return "rule";
+  if (resolvedBy === "policy") return "policy";
   if (resolvedBy === "operator" || resolvedBy.startsWith("operator:")) return "you";
   if (resolvedBy.startsWith("agent_session:")) return "agent";
   if (resolvedBy === "timeout") return "timeout";

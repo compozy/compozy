@@ -8,18 +8,27 @@ import (
 )
 
 type InstanceWakeState struct {
+	UnattendedTurns                                                                int64
+	RotationDueSession                                                             string
 	InstanceID, NextWakeAt, LastWakeAt, LastDigest, LastDigestAt, AutomationCursor string
 	OccurrenceID, TriageSessionID, OccurrenceStartedAt                             string
 	QuietStreak, FailureStreak                                                     int64
 	Canceled                                                                       bool
 }
 type AdmitRequest struct {
+	EventIDs                 []string
 	InstanceID, OccurrenceID string
 	Now, NextWakeAt          time.Time
 	ManualCheck              bool
 	MaxConcurrent            int
 }
+type FinishResult struct {
+	Changed bool
+	Paused  *agentinstance.Instance
+}
+
 type FinishRequest struct {
+	UnattendedTurnLimit                                      int64
 	QuietBackoffCap                                          time.Duration
 	FatigueLimit                                             int64
 	Interval, MaxInterval                                    time.Duration
@@ -41,5 +50,5 @@ type InstanceWakeStore interface {
 	Admit(context.Context, AdmitRequest) (bool, error)
 	Skip(context.Context, SkipRequest) (bool, error)
 	BindTriage(context.Context, string, string, string) (bool, error)
-	Finish(context.Context, FinishRequest) (bool, error)
+	Finish(context.Context, FinishRequest) (FinishResult, error)
 }

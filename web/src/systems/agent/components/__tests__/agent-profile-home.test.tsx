@@ -58,7 +58,14 @@ function pageFixture(overrides: Partial<UseAgentProfile> = {}): UseAgentProfile 
       signedOut: new Map(),
     },
     newSessionDisabled: false,
-    summaries: { behavior: "", model: "", checkIns: "Off", memory: "", tools: "" },
+    summaries: {
+      behavior: "",
+      model: "",
+      checkIns: "Off",
+      memory: "",
+      tools: "",
+      permissions: "Edit on its own",
+    },
     placeActions: { onArchive: vi.fn(), onOpen: vi.fn(), onToggle: vi.fn() },
     onResumeAll: vi.fn(),
     onSaveIdentity: vi.fn(),
@@ -99,6 +106,26 @@ describe("AgentProfileHome", () => {
     render(<AgentProfileHome page={pageFixture({ activity: null })} />);
     expect(screen.getByText("Activity isn't available yet")).toBeVisible();
     expect(screen.queryByText("What it cost")).not.toBeInTheDocument();
+  });
+
+  it("Should read unpriced usage in tokens without claiming a plan [UT-080]", () => {
+    const activity = activityFixture();
+    render(
+      <AgentProfileHome
+        page={pageFixture({
+          activity: {
+            ...activity,
+            cost_by_project: activity.cost_by_project.map(row => ({ ...row, usd_estimate: 0 })),
+          },
+        })}
+      />
+    );
+    expect(screen.getByText("3.1M tokens")).toBeVisible();
+    expect(screen.getByText("No price available")).toBeVisible();
+    // A long project name truncates in the narrow label column and keeps its full name.
+    expect(screen.getByTitle("compozy")).toHaveTextContent("compozy");
+    expect(screen.getByText("2.1M")).toBeInTheDocument();
+    expect(screen.queryByText(/\$0\.00|in your plan/)).not.toBeInTheDocument();
   });
 
   it("Should offer Resume, never Pause, for a paused place holding a failure report", async () => {

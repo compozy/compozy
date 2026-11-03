@@ -51,3 +51,20 @@ func (t AutomationTrigger) validateAgentTarget(path string) error {
 	}
 	return nil
 }
+
+func (t AutomationTrigger) validateInstanceScope(kind automationpkg.TargetKind, path string) error {
+	scope := strings.TrimSpace(t.TargetInstanceScope)
+	if scope == "" {
+		return nil
+	}
+	if kind != automationpkg.TargetKindAgentInstance {
+		return errors.New(path + ".target_instance_scope requires agent_instance")
+	}
+	if t.Scope.Normalize() == automationpkg.AutomationScopeGlobal && scope == "global" {
+		return nil
+	}
+	if t.Scope.Normalize() == automationpkg.AutomationScopeWorkspace && scope == strings.TrimSpace(t.Workspace) {
+		return nil
+	}
+	return errors.New(path + ".target_instance_scope must match the trigger scope")
+}

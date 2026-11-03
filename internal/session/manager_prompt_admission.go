@@ -120,12 +120,16 @@ func (m *Manager) submitAdmittedPromptByTarget(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	if parked {
+	queuedInstance, err := m.queueInstancePrompt(ctx, preparation.request)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
+	if parked || queuedInstance {
 		// The fingerprint keeps the requested mode so a retry matches across a
 		// park or a return; only delivery becomes a queued input.
 		admissionReq.Mode = string(BusyInputModeQueue)
 	}
-	admissionReq.DirectDispatch = !parked && (target.session == nil || !target.session.IsPrompting())
+	admissionReq.DirectDispatch = !parked && !queuedInstance && (target.session == nil || !target.session.IsPrompting())
 	unlock := m.lockPromptAdmission(target.workspaceID, preparation.request.target, admissionReq.IdempotencyKey)
 	defer unlock()
 	replayed, found, err := m.replayPromptAdmission(ctx, admissionReq)
@@ -155,8 +159,34 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		return SendPromptResult{}, err
 	}
 	if parked {
-		return m.enqueueAdmittedLaterPrompt(ctx, preparation.request.target, admissionReq)
+		return m.enqueueAdmittedOfflinePrompt(
+			ctx,
+			preparation.request.target,
+			admissionReq,
+			true,
+			preparation.request.supersede,
+		)
 	}
+	return m.dispatchAdmittedPrompt(ctx, &target, preparation, admissionReq, queuedInstance)
+}
+
+func (m *Manager) dispatchAdmittedPrompt(
+	ctx context.Context,
+	target *promptAdmissionTarget,
+	preparation sendPromptPreparation,
+	admissionReq store.SessionPromptAdmissionRequest,
+	queuedInstance bool,
+) (SendPromptResult, error) {
+	if queuedInstance && target.session == nil {
+		return m.enqueueAdmittedOfflinePrompt(
+			ctx,
+			preparation.request.target,
+			admissionReq,
+			false,
+			preparation.request.supersede,
+		)
+	}
+	var err error
 	session := target.session
 	if session == nil {
 		session, err = m.lookupPromptRequestSession(ctx, preparation.request)
@@ -173,6 +203,9 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		}
 	}
 
+	if queuedInstance {
+		return m.enqueueAdmittedBusyPrompt(ctx, session, preparation.request.supersede, admissionReq)
+	}
 	if session.IsPrompting() {
 		return m.submitAdmittedBusyPrompt(ctx, session, preparation.request, preparation.mode, admissionReq)
 	}

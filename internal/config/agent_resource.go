@@ -31,6 +31,8 @@ func validateAgentResourceSpec(
 
 	normalized := AgentDef{
 		WorkspaceAccess: spec.WorkspaceAccess,
+		SessionApproval: spec.SessionApproval,
+		PermissionRules: append([]PermissionRule(nil), spec.PermissionRules...),
 		DisplayName:     spec.DisplayName,
 		Description:     spec.Description,
 		Kind:            spec.Kind,

@@ -1529,6 +1529,70 @@ func TestSupervisionReleasesIdleRuntime(t *testing.T) {
 			t.Fatal("session stop finished while the released process still ran")
 		}
 	})
+	for _, tt := range []struct {
+		name  string
+		load  bool
+		other WorkSignalKind
+	}{
+		{"Should release a reloadable runtime waiting on a monitor", true, ""},
+		{"Should retain a monitor runtime without session load", false, ""},
+		{"Should retain a runtime with a monitor and task lease", true, WorkSignalTaskLease},
+		{"Should retain a runtime with a monitor and scheduled wait", true, WorkSignalScheduledWait},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			h, target, clock, advance := idleReleaseHarness(t, nil)
+			acpSessionID := target.Info().ACPSessionID
+			target.mu.Lock()
+			target.ACPCaps.SupportsLoadSession = tt.load
+			target.mu.Unlock()
+			h.manager.SetWorkSignalSources(WorkSignalSource{
+				Kind: WorkSignalActiveMonitor,
+				Source: SignalSourceFunc(func(context.Context, string) ([]WorkSignal, error) {
+					signals := []WorkSignal{
+						{
+							Kind:       WorkSignalActiveMonitor,
+							Ref:        "monitor-1",
+							Since:      clock(),
+							ValidUntil: clock().Add(time.Hour),
+						},
+					}
+
+					return signals, nil
+				}),
+			})
+			if tt.other != "" {
+				h.manager.SetWorkSignalSources(WorkSignalSource{
+					Kind: tt.other,
+					Source: SignalSourceFunc(func(context.Context, string) ([]WorkSignal, error) {
+						return []WorkSignal{{Kind: tt.other, Since: clock(), ValidUntil: clock().Add(time.Hour)}}, nil
+					}),
+				})
+			}
+			superviseFor(t, h, clock, advance, 3)
+			if !tt.load || tt.other != "" {
+				if info := target.Info(); info.RuntimeStatus != RuntimeStatusReady {
+					t.Fatalf("blocked runtime = %s", info.RuntimeStatus)
+				}
+				return
+			}
+			if info := target.Info(); info.State != StateActive || info.RuntimeStatus != RuntimeStatusUnbound {
+				t.Fatalf("monitor wait runtime = %s/%s", info.State, info.RuntimeStatus)
+			}
+			if stops, _ := driverCounts(h); stops != 1 {
+				t.Fatalf("stop calls = %d, want 1", stops)
+			}
+			events, err := h.manager.Prompt(t.Context(), target.ID, "monitor completed")
+			if err != nil {
+				t.Fatal(err)
+			}
+			drainPromptEvents(t, events)
+			_, starts := driverCounts(h)
+			if last := starts[len(starts)-1]; last.ResumeSessionID != acpSessionID {
+				t.Fatalf("resumed session = %q, want %q", last.ResumeSessionID, acpSessionID)
+			}
+		})
+	}
 	t.Run("Should keep the runtime when the agent cannot reload its session", func(t *testing.T) {
 		h, target, clock, advance := idleReleaseHarness(t, nil)
 		target.mu.Lock()

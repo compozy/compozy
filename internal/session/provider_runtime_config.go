@@ -4,6 +4,7 @@ import compozyconfig "github.com/compozy/compozy/internal/config"
 
 func providerConfigFromResolvedAgent(resolved compozyconfig.ResolvedAgent) compozyconfig.ProviderConfig {
 	return compozyconfig.ProviderConfig{
+		ReviewerMode:        resolved.ReviewerMode,
 		Command:             resolved.Command,
 		CommandIsBuiltin:    resolved.CommandIsBuiltin,
 		DisplayName:         resolved.DisplayName,

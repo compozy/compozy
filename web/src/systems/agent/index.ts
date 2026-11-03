@@ -50,9 +50,20 @@ export { AgentCheckInsEditor } from "./components/agent-editors/agent-check-ins-
 export { AgentMemoryEditor } from "./components/agent-editors/agent-memory-editor";
 export { AgentStartingInstructions } from "./components/agent-editors/agent-starting-instructions";
 export { AgentWhatItDoesEditor } from "./components/agent-editors/agent-what-it-does-editor";
+export { AgentPermissionsEditor } from "./components/agent-editors/agent-permissions-editor";
 
 // Adapters
+export {
+  AgentSkillReviewApiError,
+  isSkillReviewStale,
+  type AgentSkillReviewRef,
+} from "./adapters/agent-skill-review-api";
 export { AgentInstanceApiError } from "./adapters/agent-instance-api";
+export {
+  AgentResumeError,
+  agentResumeFailureCopy,
+  type AgentResumeFailure,
+} from "./lib/agent-instance-resume";
 export {
   AgentApiError,
   isAgentNotFound,
@@ -101,10 +112,23 @@ export {
   agentSoulHistoryOptions,
   agentSoulOptions,
   agentsListOptions,
+  agentSkillReviewOptions,
 } from "./lib/query-options";
+export { useAgentSkillReview, type AgentSkillReviewView } from "./hooks/use-agent-skill-review";
+export { AgentSkillViewerDialog } from "./components/skill-review/agent-skill-viewer-dialog";
+export type {
+  SkillAutomaticItem,
+  SkillAutomaticKind,
+  SkillReviewFile,
+} from "./lib/agent-skill-review";
 
 // Lib
-export { AGENT_CREATE_PERMISSION_OPTIONS, permissionLabel } from "./lib/agent-permissions";
+export {
+  AGENT_PERMISSION_LEVELS,
+  agentPermissionSummary,
+  permissionLabel,
+  type AgentPermissionLevel,
+} from "./lib/agent-permissions";
 export {
   inheritedAgentRuntimeFields,
   normalizeRuntimeSpeed,
@@ -333,14 +357,19 @@ export {
   applyAgentInstanceUpdate,
   invalidateAgentInstances,
   useAgentInstanceActions,
+  useResumeAgentInstances,
   useAgentInstanceCapacity,
   useAgentInstances,
+  useAgentInstancesState,
   useAgentInstanceInScope,
   useCreateAgentInstance,
   useStaysOnAgents,
 } from "./hooks/use-agent-instances";
 export {
   agentPauseCopy,
+  agentUnattendedSteps,
+  agentNextWakeLine,
+  agentInstancePausedUnattended,
   GLOBAL_SCOPE,
   agentAvatarAppearance,
   agentInstanceAvatarState,
@@ -364,3 +393,4 @@ export {
 export { markAgentInstanceSeen, type AgentInstanceRef } from "./adapters/agent-instance-api";
 
 export { AgentIdentityScopeContext } from "./lib/agent-identity-context";
+export { InlineCodeText } from "./components/inline-code-text";

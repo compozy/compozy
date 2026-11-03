@@ -12,7 +12,7 @@ import {
   automationListLoopFilter,
   automationRouteHasActiveFilters,
   automationsStartView,
-  type AutomationDoes,
+  type AutomationListTarget,
   type AutomationEditorSeed,
   type AutomationSource,
   type AutomationsRouteSearch,
@@ -180,7 +180,7 @@ export function useAutomationPageBase(search: AutomationsRouteSearch = {}) {
     setSourceFilter: (source: AutomationSource | null) =>
       updateSearch({ source: source ?? undefined }),
     setStart: (next: "schedule" | "event" | null) => updateSearch({ start: next ?? undefined }),
-    setTargetFilter: (target: AutomationDoes | null) =>
+    setTargetFilter: (target: AutomationListTarget | null) =>
       updateSearch({ target: target ?? undefined }),
     setView: (nextView: ListingViewMode) =>
       updateSearch({ view: nextView === "cards" ? "cards" : undefined }),

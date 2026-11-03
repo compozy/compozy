@@ -189,3 +189,26 @@ func parseOptionalSessionInputTimestamp(value sql.NullString) (*time.Time, error
 	}
 	return &parsed, nil
 }
+
+// countPendingSessionInputs counts the capacity pool of originClass: human
+// input and agent/synthetic input are capped separately so other sessions can
+// never exhaust the operator's slots.
+func countPendingSessionInputs(
+	ctx context.Context,
+	exec globalSQLExecutor,
+	sessionID string,
+	originClass string,
+) (int, error) {
+	pool := store.SessionInputOriginClassAgent
+	if store.IsHumanSessionInputOriginClass(originClass) {
+		pool = store.SessionInputOriginClassHuman
+	}
+	count, err := sqlcgen.New(exec).CountPendingSessionInputs(ctx, sqlcgen.CountPendingSessionInputsParams{
+		SessionID: sessionID, QueuedStatus: store.SessionInputQueueStatusQueued,
+		DispatchingStatus: store.SessionInputQueueStatusDispatching, PoolClass: pool,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("store: count pending session inputs: %w", err)
+	}
+	return int(count), nil
+}

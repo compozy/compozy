@@ -9,6 +9,44 @@ import (
 	"strings"
 )
 
+// ApproveTask Approve one approval-gated task and enqueue executable work
+func (c *Client) ApproveTask(ctx context.Context, params ApproveTaskParams, body TaskExecutionRequest) (*TaskExecutionResponse, error) {
+	path := "/api/tasks/{id}/approve"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskExecutionResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ArchiveAgentInstanceParams carries the path, query, and header parameters.
+type ArchiveAgentInstanceParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// ArchiveAgentInstance Archive an agent instance
+func (c *Client) ArchiveAgentInstance(ctx context.Context, params ArchiveAgentInstanceParams) error {
+	path := "/api/agent-instances/{id}"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	return c.doContent(ctx, "DELETE", path, nil, nil, nil, "", "")
+}
+
 // ArchiveProfileParams carries the path, query, and header parameters.
 type ArchiveProfileParams struct {
 	Name string `url:"name"`
@@ -409,38 +447,4 @@ func (c *Client) CancelQueuedSessionPrompt(ctx context.Context, params CancelQue
 		return nil, err
 	}
 	return &out, nil
-}
-
-// CancelSessionMonitorParams carries the path, query, and header parameters.
-type CancelSessionMonitorParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	MonitorID   string  `url:"monitor_id"`
-	Profile     *string `url:"profile"`
-}
-
-// CancelSessionMonitor Cancel a session monitor without waking the session
-func (c *Client) CancelSessionMonitor(ctx context.Context, params CancelSessionMonitorParams) (*SessionMonitorResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors/{monitor_id}/cancel"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	path = strings.ReplaceAll(path, "{monitor_id}", url.PathEscape(params.MonitorID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionMonitorResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CancelSessionPromptParams carries the path, query, and header parameters.
-type CancelSessionPromptParams struct {
-	WorkspaceID string `url:"workspace_id"`
-	SessionID   string `url:"session_id"`
 }

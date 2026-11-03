@@ -59,7 +59,8 @@ func appendExtensionAgentResources(
 		return
 	}
 	owner := extensionOwner(extensionName)
-	for _, staticAgent := range agents {
+	for index := range agents {
+		staticAgent := &agents[index]
 		name := strings.TrimSpace(staticAgent.Agent.Name)
 		if name == "" {
 			continue

@@ -1104,6 +1104,8 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 					propertySchema(t, agentSchema, "permissions"),
 					"deny-all",
 					"approve-reads",
+					"approve-edits",
+					"auto",
 					"approve-all",
 				)
 				assertPropertyAbsent(t, agentSchema, "mcp_servers")
@@ -1345,7 +1347,9 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 
 				createTrigger := operationFor(t, doc, "/api/automation/triggers", "POST")
 				createTriggerSchema := jsonRequestSchema(t, createTrigger)
-				assertRequired(t, createTriggerSchema, "scope", "name", "agent_name", "prompt", "event")
+				assertRequired(t, createTriggerSchema, "scope", "name", "agent_name", "event")
+				// The prompt is optional for an agent_instance target; agent targets still need it.
+				assertNotRequired(t, createTriggerSchema, "prompt")
 				assertNotRequired(
 					t,
 					createTriggerSchema,
@@ -3242,6 +3246,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		addAttentionTerminalApprovalSchema(t, baseline)
 		correctProviderSettingsCommandAuthorship(t, baseline)
 		addProviderUsageSettingsSection(t, baseline)
+		addStaysOnHardeningSchemas(t, baseline)
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)

@@ -17,6 +17,7 @@ import {
   paletteSessionFilter,
   paletteSessionFilterCounts,
 } from "../palette-session-filters";
+import { sessionPermissionDefaults } from "@/systems/session/mocks/fixtures";
 
 function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
   return {
@@ -25,6 +26,7 @@ function session(overrides: Partial<SessionPayload> = {}): SessionPayload {
     pull_request_lookup: null,
     supervision: null,
     scope: "workspace",
+    ...sessionPermissionDefaults,
     effective_workspace_access: "",
     profile_name: "default",
     profile_id: "00000000000000000000000000",

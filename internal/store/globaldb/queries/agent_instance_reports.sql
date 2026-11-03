@@ -2,6 +2,14 @@
 INSERT INTO agent_instance_reports (id, instance_id, source_key, kind, payload, fingerprint, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(source_key) DO NOTHING;
 
+-- name: InsertLostInstanceMonitorReport :exec
+INSERT INTO agent_instance_reports (id, instance_id, source_key, kind, payload, created_at)
+SELECT sqlc.arg(id), i.id, sqlc.arg(source_key), 'failure', sqlc.arg(payload), sqlc.arg(created_at)
+FROM agent_instances i
+WHERE i.main_session_id = sqlc.arg(session_id) AND i.profile_id = sqlc.arg(profile_id)
+AND i.workspace_id = sqlc.arg(workspace_id) AND i.archived_at IS NULL
+ON CONFLICT(source_key) DO NOTHING;
+
 -- name: GetAgentInstanceReportBySource :one
 SELECT * FROM agent_instance_reports WHERE source_key = ? AND instance_id = ?;
 

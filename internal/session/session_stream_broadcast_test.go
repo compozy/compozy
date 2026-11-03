@@ -1122,58 +1122,60 @@ func TestInstanceReportPublication(t *testing.T) {
 		}
 	})
 
-	t.Run("Should notify once for a fatigue report without prompting", func(t *testing.T) {
-		t.Parallel()
-		h := newHarness(t)
-		h.manager.attentionWorkspaceMutes = notifyMuteReader{}
-		active := createSession(t, h)
-		events, cancel, err := h.manager.SubscribeSessionCatalogEvents(
-			t.Context(),
-			CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer cancel()
-		report := InstanceReportEvent{
-			ID:         "arpt-fatigue",
-			InstanceID: "ainst-fatigue",
-			Kind:       "failure",
-			Payload:    []byte(`{"reason":"fatigue","detail":"Checks paused"}`),
-			CreatedAt:  time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
-		}
-		first, err := h.manager.PublishInstanceReport(t.Context(), active.ID, report)
-		if err != nil {
-			t.Fatal(err)
-		}
-		second, err := h.manager.PublishInstanceReport(t.Context(), active.ID, report)
-		if err != nil || first != second {
-			t.Fatalf("retry=%d first=%d err=%v", second, first, err)
-		}
-		successor := createSession(t, h)
-		report.Republished = true
-		if seq, err := h.manager.PublishInstanceReport(t.Context(), successor.ID, report); err != nil || seq <= 0 {
-			t.Fatalf("successor publication = %d, %v", seq, err)
-		}
-		count := 0
-		for {
-			select {
-			case event := <-events:
-				if event.Name == CatalogEventNameOperatorNotification {
-					count++
-					if event.OperatorNotification == nil ||
-						event.OperatorNotification.NotificationID != "report:arpt-fatigue" {
-						t.Fatalf("notification=%+v", event)
-					}
-				}
-			default:
-				if count != 1 {
-					t.Fatalf("notifications=%d", count)
-				}
-				return
+	for _, reason := range []string{"fatigue", "unattended"} {
+		t.Run("Should notify once for a "+reason+" report without prompting", func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			h.manager.attentionWorkspaceMutes = notifyMuteReader{}
+			active := createSession(t, h)
+			events, cancel, err := h.manager.SubscribeSessionCatalogEvents(
+				t.Context(),
+				CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true},
+			)
+			if err != nil {
+				t.Fatal(err)
 			}
-		}
-	})
+			defer cancel()
+			report := InstanceReportEvent{
+				ID:         "arpt-fatigue",
+				InstanceID: "ainst-fatigue",
+				Kind:       "failure",
+				Payload:    []byte(`{"reason":"` + reason + `","detail":"Checks paused"}`),
+				CreatedAt:  time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
+			}
+			first, err := h.manager.PublishInstanceReport(t.Context(), active.ID, report)
+			if err != nil {
+				t.Fatal(err)
+			}
+			second, err := h.manager.PublishInstanceReport(t.Context(), active.ID, report)
+			if err != nil || first != second {
+				t.Fatalf("retry=%d first=%d err=%v", second, first, err)
+			}
+			successor := createSession(t, h)
+			report.Republished = true
+			if seq, err := h.manager.PublishInstanceReport(t.Context(), successor.ID, report); err != nil || seq <= 0 {
+				t.Fatalf("successor publication = %d, %v", seq, err)
+			}
+			count := 0
+			for {
+				select {
+				case event := <-events:
+					if event.Name == CatalogEventNameOperatorNotification {
+						count++
+						if event.OperatorNotification == nil ||
+							event.OperatorNotification.NotificationID != "report:arpt-fatigue" {
+							t.Fatalf("notification=%+v", event)
+						}
+					}
+				default:
+					if count != 1 {
+						t.Fatalf("notifications=%d", count)
+					}
+					return
+				}
+			}
+		})
+	}
 
 	t.Run("Should notify once for proposals without prompting", func(t *testing.T) {
 		t.Parallel()

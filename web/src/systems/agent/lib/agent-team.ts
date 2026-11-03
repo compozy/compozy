@@ -16,7 +16,13 @@ import type {
 } from "../types";
 import { agentAppearanceFromPayload } from "./agent-appearance";
 import { formatAgentOwner, isAgentReadOnly } from "./agent-ownership";
-import { GLOBAL_SCOPE, agentInstanceAvatarState, agentScopeLabel } from "./agent-instance";
+import {
+  GLOBAL_SCOPE,
+  agentInstanceAvatarState,
+  agentScopeLabel,
+  agentUnattendedSteps,
+  type AgentPauseFacts,
+} from "./agent-instance";
 import { formatRelativeClock } from "./agent-time";
 
 export type AgentTeamFocus = "all" | "needs-you" | "working" | "paused";
@@ -63,31 +69,43 @@ export const AGENT_STATE_DOT: Partial<Record<AgentAvatarState, StatusDotTone>> =
 };
 
 /** Why it stopped, the way you'd say it to a colleague. */
-const PAUSE_PLAIN: Record<Exclude<AgentInstancePauseReason, "" | "fatigue">, string> = {
+type CountedReason = "" | "fatigue" | "unattended";
+
+const PAUSE_PLAIN: Record<Exclude<AgentInstancePauseReason, CountedReason>, string> = {
   manual: "You paused it.",
   definition_not_stays_on: "It was changed to on demand, so it can't stay on here anymore.",
   definition_missing: "Its setup was deleted, so it can't come back. What it remembers is kept.",
 };
 
 /** The same reason, short enough for a card. */
-const PAUSE_SHORT: Record<Exclude<AgentInstancePauseReason, "" | "fatigue">, string> = {
+const PAUSE_SHORT: Record<Exclude<AgentInstancePauseReason, CountedReason>, string> = {
   manual: "You paused it",
   definition_not_stays_on: "Now on demand, so it can't stay on",
   definition_missing: "Its setup was deleted",
 };
 
-type PausedInstance = Pick<AgentInstancePayload, "pause_reason" | "fatigue_limit">;
-
-export function agentPausePlain({ pause_reason: reason, fatigue_limit: limit }: PausedInstance) {
+export function agentPausePlain(instance: AgentPauseFacts) {
+  const reason = instance.pause_reason;
   if (!reason) return "";
-  return reason === "fatigue"
-    ? `It stopped itself after ${limit} check-ins in a row went wrong.`
-    : PAUSE_PLAIN[reason];
+  if (reason === "fatigue") {
+    return `It stopped itself after ${instance.fatigue_limit} check-ins in a row went wrong.`;
+  }
+  if (reason === "unattended") {
+    const steps = agentUnattendedSteps(instance);
+    return steps ? `It took ${steps} steps without you.` : "It took many steps without you.";
+  }
+  return PAUSE_PLAIN[reason];
 }
 
-export function agentPauseShort({ pause_reason: reason, fatigue_limit: limit }: PausedInstance) {
+export function agentPauseShort(instance: AgentPauseFacts) {
+  const reason = instance.pause_reason;
   if (!reason) return "";
-  return reason === "fatigue" ? `Stopped after ${limit} failed check-ins` : PAUSE_SHORT[reason];
+  if (reason === "fatigue") return `Stopped after ${instance.fatigue_limit} failed check-ins`;
+  if (reason === "unattended") {
+    const steps = agentUnattendedSteps(instance);
+    return steps ? `Took ${steps} steps without you` : "Took many steps without you";
+  }
+  return PAUSE_SHORT[reason];
 }
 
 const STATE_ORDER: readonly AgentAvatarState[] = [

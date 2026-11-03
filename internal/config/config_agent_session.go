@@ -1,6 +1,9 @@
 package config
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // AgentsConfig holds authored agent context settings.
 type AgentsConfig struct {
@@ -122,8 +125,12 @@ func (m PermissionMode) Rank() int {
 		return 0
 	case PermissionModeApproveReads:
 		return 1
-	case PermissionModeApproveAll:
+	case PermissionModeApproveEdits:
 		return 2
+	case PermissionModeAuto:
+		return 3
+	case PermissionModeApproveAll:
+		return 4
 	default:
 		return -1
 	}
@@ -135,6 +142,8 @@ const (
 	PermissionModeDenyAll      PermissionMode = "deny-all"
 	PermissionModeApproveReads PermissionMode = "approve-reads"
 	PermissionModeApproveAll   PermissionMode = "approve-all"
+	PermissionModeApproveEdits PermissionMode = "approve-edits"
+	PermissionModeAuto         PermissionMode = "auto"
 	// DefaultObservabilityAgentProbeTimeout bounds daemon health probes for configured agents.
 	DefaultObservabilityAgentProbeTimeout = 2 * time.Second
 )
@@ -144,6 +153,8 @@ type PermissionsConfig struct {
 	Mode               PermissionMode `toml:"mode"`
 	ProviderFullAccess bool           `toml:"provider_full_access,omitempty"`
 }
+
+const acpModeAuto = "auto"
 
 const (
 	// CopilotAllowAllOptionID is the GitHub Copilot CLI ACP option that approves every tool, path, and URL.
@@ -155,9 +166,20 @@ const (
 )
 
 // IsUnrestrictedACPMode reports provider mode IDs that bypass the provider's normal sandbox or approvals.
-func IsUnrestrictedACPMode(mode string) bool {
+func IsUnrestrictedACPMode(provider, mode string) bool {
+	provider = strings.ToLower(strings.TrimSpace(provider))
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if provider == "claude" && mode == acpModeAuto {
+		return false
+	}
 	switch mode {
-	case "agent-full-access", "full-access", "full_access", "bypassPermissions", "bypass_permissions", "yolo", "auto",
+	case "agent-full-access",
+		"full-access",
+		"full_access",
+		"bypasspermissions",
+		"bypass_permissions",
+		"yolo",
+		acpModeAuto,
 		copilotAutopilotMode:
 		return true
 	default:
@@ -168,12 +190,12 @@ func IsUnrestrictedACPMode(mode string) bool {
 // IsUnrestrictedACPOption reports ACP config selections that bypass the
 // provider's normal sandbox or approvals: an unrestricted mode, or an
 // approval option switched to approve everything.
-func IsUnrestrictedACPOption(optionID string, valueID string) bool {
-	switch optionID {
+func IsUnrestrictedACPOption(provider, optionID, valueID string) bool {
+	switch strings.ToLower(strings.TrimSpace(optionID)) {
 	case "mode":
-		return IsUnrestrictedACPMode(valueID)
+		return IsUnrestrictedACPMode(provider, valueID)
 	case CopilotAllowAllOptionID:
-		return valueID == CopilotAllowAllOn
+		return strings.EqualFold(strings.TrimSpace(valueID), CopilotAllowAllOn)
 	default:
 		return false
 	}

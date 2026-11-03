@@ -60,6 +60,8 @@ type ProviderListResponse struct {
 
 // ProviderSummaryPayload describes one canonical provider and its declared auth state.
 type ProviderSummaryPayload struct {
+	// ReviewerMode is always present; an empty value means the provider declares no reviewer.
+	ReviewerMode     string                                    `json:"reviewer_mode"`
 	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
 	Name             string                                    `json:"name"`
 	DisplayName      string                                    `json:"display_name,omitempty"`

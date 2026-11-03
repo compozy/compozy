@@ -30,10 +30,22 @@ func (d *Dispatcher) dispatchAttempt(ctx context.Context, req DispatchRequest, a
 	if req.Job != nil && req.Job.Task != nil {
 		return d.dispatchTaskBackedAttempt(ctx, req, scheduledRun, attempt)
 	}
+	if req.Trigger != nil && req.Trigger.TargetKind.Normalize() == TargetKindAgentInstance {
+		return d.dispatchInstanceEvent(ctx, req, scheduledRun, attempt)
+	}
 	if req.loopTarget() != nil {
 		return d.dispatchLoopBackedAttempt(ctx, req, scheduledRun, attempt)
 	}
 
+	return d.dispatchAgentSession(ctx, req, scheduledRun, attempt)
+}
+
+func (d *Dispatcher) dispatchAgentSession(
+	ctx context.Context,
+	req DispatchRequest,
+	scheduledRun *Run,
+	attempt int,
+) (*Run, error) {
 	prompt, promptErr := req.prompt()
 	if promptErr != nil {
 		return d.finishRun(ctx, scheduledRun, RunFailed, promptErr)

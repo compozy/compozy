@@ -1,5 +1,8 @@
 /** The focused side panels: each edits one thing with the product's own control. */
 import {
+  Alert,
+  AlertActions,
+  AlertDescription,
   Button,
   Pill,
   Sheet,
@@ -11,6 +14,7 @@ import {
 } from "@compozy/ui";
 
 import { useAgentSettingsPage } from "../../hooks/use-agent-settings-page";
+import { permissionsBlockedMessage } from "../../lib/agent-permissions";
 import type { AgentProfilePanel } from "../../lib/agent-profile";
 import { AgentSettingsAccessSection } from "../agent-settings-access-section";
 import { AgentSettingsMcpSection } from "../agent-settings-mcp-section";
@@ -150,6 +154,27 @@ export function AgentProfilePanels({
             </SheetDescription>
           </SheetHeader>
           <div className="min-h-0 flex-1 overflow-y-auto px-4">
+            {panel && page.permissionsBlocked ? (
+              <Alert
+                className="mb-4"
+                data-testid="agent-profile-panel-permissions-blocked"
+                variant="warning"
+              >
+                <AlertDescription>
+                  {permissionsBlockedMessage(page.draft?.legacyPermissions)}
+                </AlertDescription>
+                <AlertActions>
+                  <Button
+                    onClick={page.onOpenPermissions}
+                    size="sm"
+                    type="button"
+                    variant="secondary"
+                  >
+                    Open Permissions
+                  </Button>
+                </AlertActions>
+              </Alert>
+            ) : null}
             {panel ? (
               <PanelBody page={page} panel={panel} provider={provider} readOnly={readOnly} />
             ) : null}

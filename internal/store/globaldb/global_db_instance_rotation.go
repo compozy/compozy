@@ -68,7 +68,10 @@ func (r *InstanceRepo) PublishRotation(ctx context.Context, req agentinstance.Ro
 			if updated != 1 {
 				return agentinstance.ErrRotationChanged
 			}
-			return nil
+			return q.ClearInstanceRotationDue(
+				ctx,
+				sqlcgen.ClearInstanceRotationDueParams{InstanceID: req.InstanceID, SessionID: req.PredecessorID},
+			)
 		},
 	)
 }
@@ -109,4 +112,13 @@ func (r *InstanceRepo) ClearRotationWait(ctx context.Context, instanceID, sessio
 		ctx,
 		sqlcgen.ClearInstanceRotationWaitParams{InstanceID: instanceID, MainSessionID: sessionID},
 	)
+}
+
+func (r *InstanceRepo) RotationDueSession(ctx context.Context, id string) (string, error) {
+	state, err := r.WakeState(ctx, id)
+	return state.RotationDueSession, err
+}
+
+func (r *InstanceRepo) RotationBlockers(ctx context.Context, sessionID string) ([]string, error) {
+	return r.queries.InstanceRotationBlockers(ctx, sql.NullString{String: sessionID, Valid: true})
 }

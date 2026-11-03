@@ -11,6 +11,8 @@ type Mode string
 const (
 	ModeDenyAll      Mode = "deny-all"
 	ModeApproveReads Mode = "approve-reads"
+	ModeApproveEdits Mode = "approve-edits"
+	ModeAuto         Mode = "auto"
 	ModeApproveAll   Mode = "approve-all"
 )
 

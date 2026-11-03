@@ -451,7 +451,7 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 	spec.sessionEnv = compozyconfig.MergeSessionEnv(nil, sessionEnv)
 	// The bound route records whether an unrestricted preference was already present at session start.
 	boundRoute := session.providerRoutingSnapshot()
-	dropInheritedUnrestricted := hasUnrestrictedACPMode(boundRoute.ACPOptionsValue())
+	dropInheritedUnrestricted := hasUnrestrictedACPMode(spec.provider, boundRoute.ACPOptionsValue())
 	runtime, err := m.resolveSessionStartRuntime(ctx, &spec, dropInheritedUnrestricted)
 	if err != nil {
 		return nil, err
@@ -465,6 +465,7 @@ func (m *Manager) preparePromptRuntimePlanForRoute(
 		return nil, fmt.Errorf("session: materialize delegation tools for %q: %w", spec.sessionID, err)
 	}
 	if err := acp.ValidateACPModePermissions(
+		spec.provider,
 		spec.acpOptions,
 		m.startPermissions(startSpecPermissions(&spec, runtime.agent.Permissions)),
 	); err != nil {

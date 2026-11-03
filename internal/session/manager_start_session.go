@@ -24,6 +24,8 @@ func (s *sessionStartSpec) newStartingSession(
 	return &Session{
 		InitiatorKind: s.initiatorKind, InitiatorID: s.initiatorID,
 		EffectiveWorkspaceAccess: s.effectiveWorkspaceAccess,
+		EffectiveSessionApproval: s.effectiveSessionApproval,
+		PermissionRules:          append([]store.SessionPermissionRule(nil), s.permissionRules...),
 		ID:                       s.sessionID, ProfileID: s.profileID, Name: s.sessionName, AgentName: resolved.Name,
 		Provider: strings.TrimSpace(resolved.Provider), Model: strings.TrimSpace(resolved.Model),
 		ReasoningEffort: strings.TrimSpace(s.reasoningEffort), Speed: s.speed,

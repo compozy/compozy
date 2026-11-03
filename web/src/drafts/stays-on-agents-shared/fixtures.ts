@@ -2,7 +2,12 @@
 import type { AgentAppearance, AgentState } from "./agent-state";
 
 export type AgentKind = "stays_on" | "on_demand";
-export type PauseReason = "manual" | "fatigue" | "definition_not_stays_on" | "definition_missing";
+export type PauseReason =
+  | "manual"
+  | "fatigue"
+  | "unattended"
+  | "definition_not_stays_on"
+  | "definition_missing";
 
 export interface DraftAgent {
   name: string;
@@ -27,6 +32,10 @@ export interface DraftInstance {
   pauseReason?: PauseReason;
   lastCheck?: string;
   nextCheck?: string;
+  /** What wakes it next when that comes before the next check. */
+  nextWake?: string;
+  /** Wake-ups kept for resume. */
+  held?: number;
 }
 
 function generated(seed: string): AgentAppearance {
@@ -128,6 +137,7 @@ export const SCOPE_LABEL = (scope: string) => (scope === "@user" ? "Global" : sc
 export const PAUSE_COPY: Record<PauseReason, string> = {
   manual: "Paused by you.",
   fatigue: "Paused after 10 failed checks in a row.",
+  unattended: "Paused after 300 steps without you.",
   definition_not_stays_on: "Paused because this agent no longer stays on.",
   definition_missing: "Paused because this agent's definition is gone. Its memory is kept.",
 };

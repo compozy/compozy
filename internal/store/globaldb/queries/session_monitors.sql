@@ -1,7 +1,7 @@
 -- name: ListSessionMonitors :many
 SELECT * FROM session_monitors ORDER BY created_at, id;
 
--- name: UpsertSessionMonitor :exec
+-- name: UpsertSessionMonitor :execrows
 INSERT INTO session_monitors (
   id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, pattern, timeout_ms,
   status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version,

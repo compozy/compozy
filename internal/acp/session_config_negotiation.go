@@ -26,33 +26,36 @@ func (d *Driver) applySessionMode(
 		return false, nil
 	}
 
-	modeID := preferredSessionMode(process.CapsSnapshot().SupportedModes, permissions, process.toolGateway != nil)
+	caps := process.CapsSnapshot()
+	option, configurable := findSelectConfigOption(caps.ConfigOptions, sessionConfigModeKey)
+	modes := caps.SupportedModes
+	if configurable {
+		modes = configOptionChoices(option)
+	}
+	modeID := preferredSessionMode(modes, permissions, process.toolGateway != nil,
+		process.permissionModeProvider(), process.reviewerMode)
 	if process.executionPolicy == ExecutionPolicyTriage {
-		caps := process.CapsSnapshot()
-		option, configurable := findSelectConfigOption(caps.ConfigOptions, sessionConfigModeKey)
-		modes := caps.SupportedModes
-		if configurable {
-			modes = configOptionChoices(option)
-		}
 		modeID = triageReadOnlyMode(process.providerName, modes)
 		if modeID == "" {
 			return false, ErrTriageUnsupported
-		}
-		if configurable {
-			if option.CurrentValueID == modeID {
-				return false, nil
-			}
-			return true, d.applySessionConfigOption(ctx, process, SessionConfigOptionSelection{
-				ID: option.ID, ValueID: modeID,
-			})
 		}
 	}
 	if modeID == "" {
 		return false, nil
 	}
-	if option, ok := findSelectConfigOption(process.CapsSnapshot().ConfigOptions, sessionConfigModeKey); ok &&
-		strings.TrimSpace(option.CurrentValueID) == modeID {
+	if configurable && strings.TrimSpace(option.CurrentValueID) == modeID {
 		return false, nil
+	}
+	// Providers that advertise session modes receive session/set_mode; the mode
+	// config option is the transport only for triage or when the mode is not one
+	// of the advertised session modes.
+	if configurable && (process.executionPolicy == ExecutionPolicyTriage ||
+		!advertisesSessionMode(caps.SupportedModes, modeID)) {
+		return true, d.applySessionConfigOption(
+			ctx,
+			process,
+			SessionConfigOptionSelection{ID: option.ID, ValueID: modeID},
+		)
 	}
 
 	_, err := process.sendControlRequest[acpsdk.SetSessionModeResponse](ctx,
@@ -66,6 +69,15 @@ func (d *Driver) applySessionMode(
 		process.setConfigOptionCurrent(sessionConfigModeKey, modeID)
 	}
 	return true, err
+}
+
+func advertisesSessionMode(modes []string, modeID string) bool {
+	for _, mode := range modes {
+		if strings.TrimSpace(mode) == modeID {
+			return true
+		}
+	}
+	return false
 }
 
 func (d *Driver) applySessionModel(
@@ -227,6 +239,7 @@ func preferredSessionMode(
 	supported []string,
 	permissions compozyconfig.PermissionMode,
 	toolGatewayEnabled bool,
+	provider, reviewerMode string,
 ) string {
 	if len(supported) == 0 {
 		return ""
@@ -241,7 +254,17 @@ func preferredSessionMode(
 		lookup[strings.ToLower(trimmed)] = trimmed
 	}
 
-	if permissions == compozyconfig.PermissionModeApproveAll {
+	if permissions == compozyconfig.PermissionModeAuto {
+		if reviewerMode != "" {
+			if matched, ok := lookup[strings.ToLower(strings.TrimSpace(reviewerMode))]; ok &&
+				!compozyconfig.IsUnrestrictedACPOption(provider, sessionConfigModeKey, matched) {
+				return matched
+			}
+		}
+		permissions = compozyconfig.PermissionModeApproveEdits
+	}
+	if permissions == compozyconfig.PermissionModeApproveAll ||
+		permissions == compozyconfig.PermissionModeApproveEdits {
 		for _, candidate := range sessionModeCandidates(permissions) {
 			if matched, ok := lookup[strings.ToLower(candidate)]; ok {
 				return matched
@@ -284,6 +307,8 @@ func sessionModeCandidates(permissions compozyconfig.PermissionMode) []string {
 			"auto",
 			"acceptEdits",
 		}
+	case compozyconfig.PermissionModeApproveEdits, compozyconfig.PermissionModeAuto:
+		return []string{"acceptEdits", "workspace-write", "accept_edits", "auto_edit"}
 	case compozyconfig.PermissionModeApproveReads, compozyconfig.PermissionModeDenyAll:
 		return []string{
 			"read-only",
