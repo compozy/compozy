@@ -1032,7 +1032,8 @@ func TestResolveAgentAppliesProviderFullAccessPreference(t *testing.T) {
 		for _, option := range options {
 			got[option.ID] = option.ValueID
 		}
-		if len(options) != 2 || len(got) != 2 || got["allow_all"] != "on" || !strings.HasSuffix(got["mode"], "#plan") {
+		if len(options) != 2 || len(got) != 2 || got["allow_all"] != "on" ||
+			got["mode"] != "https://agentclientprotocol.com/protocol/session-modes#plan" {
 			t.Fatalf("ResolveAgent() ACPOptions = %#v, want the explicit mode plus allow_all=on", got)
 		}
 	})

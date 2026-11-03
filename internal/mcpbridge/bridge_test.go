@@ -228,8 +228,9 @@ func TestBridge(t *testing.T) {
 			Env:  append(os.Environ(), helperEnv+"=1", helperFailEnv+"=1"),
 			Dir:  t.TempDir(),
 		}, nil)
-		if err == nil || !strings.Contains(err.Error(), "fixture refused to start") {
-			t.Fatalf("Start() error = %v, want the server's stderr", err)
+		if err == nil || !strings.Contains(err.Error(), "fixture refused to start") ||
+			strings.Contains(err.Error(), "bridge-secret-token") {
+			t.Fatalf("Start() error = %v, want the server's redacted stderr", err)
 		}
 	})
 
@@ -288,6 +289,7 @@ func TestBridgeStdioHelperProcess(t *testing.T) {
 	}
 	if os.Getenv(helperFailEnv) == "1" {
 		fmt.Fprintln(os.Stderr, "fixture refused to start")
+		fmt.Fprintln(os.Stderr, "Authorization: Bearer bridge-secret-token")
 		os.Exit(3)
 	}
 	if pidFile := os.Getenv(helperPIDFileEnv); pidFile != "" {
