@@ -52,7 +52,12 @@ export function useUpdateProfileIdentity() {
   });
 }
 
-export function useRenameProfile() {
+/**
+ * `onRenamed` rereads caches outside this system that hold the old name. The
+ * mutation awaits it, so the rename stays pending until those rows carry the
+ * new name and no action can still send the old one (#1220).
+ */
+export function useRenameProfile({ onRenamed }: { onRenamed?: () => Promise<unknown> } = {}) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: {
@@ -70,7 +75,7 @@ export function useRenameProfile() {
       notifyUser({ message: `Renamed ${input.name} to ${input.newName}.`, tone: "success" });
       // The old name is gone; any client still looking through it must fall back.
       sweepProfileView(input.name);
-      return reconcile(queryClient, input.newName);
+      return Promise.all([reconcile(queryClient, input.newName), onRenamed?.()]);
     },
   });
 }

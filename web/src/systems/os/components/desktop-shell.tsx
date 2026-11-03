@@ -10,7 +10,7 @@ import { useDesktopChromeController } from "../hooks/use-desktop-chrome-controll
 import { useDesktop } from "../hooks/use-desktop";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
 import type { DesktopShellModel } from "../hooks/use-desktop-shell-model";
-import { useProfileAutomationEnablement } from "../hooks/use-profile-automation-enablement";
+import { useProfileLifecycleHostActions } from "../hooks/use-profile-lifecycle-host-actions";
 import { useDesktopWorktreeScope, WindowScopeContext } from "../hooks/use-worktree-scope";
 import type { WorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
@@ -178,7 +178,7 @@ function DesktopShellScopedBody({
   // empty projection from loading a composer the destination does not use.
   const showEmptyDesktop = useLocation({ select: location => location.pathname === "/" });
   const sessionCreate = useSessionCreateActions();
-  const setAutomationEnabled = useProfileAutomationEnablement();
+  const profileLifecycleActions = useProfileLifecycleHostActions();
   // Scope and order are the operator's, persisted by the daemon; the modal
   // renders them rather than fetching its own.
   const sessionListView = useSessionListView({
@@ -455,7 +455,7 @@ function DesktopShellScopedBody({
       />
       {/* Profile lifecycle dialogs live at the shell so a flow started from the
           command palette does not depend on Settings being open. */}
-      <ProfileLifecycleHost onSetAutomationEnabled={setAutomationEnabled} />
+      <ProfileLifecycleHost {...profileLifecycleActions} />
     </div>
   );
 }
