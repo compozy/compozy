@@ -802,6 +802,8 @@ func TestPromptGenericFailureKeepsSessionActive(t *testing.T) {
 		t.Run("Should persist "+code+" and accept the next turn without stopping", func(t *testing.T) {
 			t.Parallel()
 			h := newHarness(t)
+			// With the sign-in wait off, an auth loss keeps today's contract; TestPromptProviderAuthRecovery owns the wait.
+			h.manager.authRecoveryDelays = nil
 			session := createSession(t, h)
 			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
 			at := time.Date(2026, 9, 5, 12, 0, 0, 0, time.UTC)

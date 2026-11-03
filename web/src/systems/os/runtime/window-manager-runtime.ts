@@ -200,7 +200,8 @@ export class WindowManagerRuntime extends WindowManagerDesktopRuntime implements
     };
   }
 
-  closeWindow = (id: string): Promise<boolean> => this.closeWindowScoped(id, "tab");
+  closeWindow = (id: string, viewOnly = false): Promise<boolean> =>
+    viewOnly ? this.closeWindowViewOnly(id) : this.closeWindowScoped(id, "tab");
 
   /**
    * Focus reveals: a tiled window hidden under a zoomed unit on its desktop is

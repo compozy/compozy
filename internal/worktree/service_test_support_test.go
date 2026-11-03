@@ -352,6 +352,27 @@ func (s *memoryWorktreeStore) CompareAndSwapState(
 		}
 	}
 	item.State, item.UpdatedAt = next, updatedAt
+	item.RemovalKeepsBranch = item.RemovalKeepsBranch && next == StateRemoving
+	s.items[key] = item
+	return true, nil
+}
+
+func (s *memoryWorktreeStore) FenceRemoval(
+	ctx context.Context,
+	workspaceID string,
+	id string,
+	keepBranch bool,
+	updatedAt time.Time,
+) (bool, error) {
+	swapped, err := s.CompareAndSwapState(ctx, workspaceID, id, StateReady, StateRemoving, updatedAt)
+	if err != nil || !swapped {
+		return swapped, err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := worktreeStoreKey(workspaceID, id)
+	item := s.items[key]
+	item.RemovalKeepsBranch = keepBranch
 	s.items[key] = item
 	return true, nil
 }
@@ -420,6 +441,7 @@ func (s *memoryWorktreeStore) SetState(
 		return ErrNotFound
 	}
 	item.State, item.UpdatedAt = state, updatedAt
+	item.RemovalKeepsBranch = item.RemovalKeepsBranch && state == StateRemoving
 	s.items[key] = item
 	return nil
 }

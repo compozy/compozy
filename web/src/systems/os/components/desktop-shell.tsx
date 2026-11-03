@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "@tanstack/react-router";
 import { cn } from "@compozy/ui";
 
 import { CmdPaletteRegistryProvider } from "../contexts/cmd-palette-registry-context";
+import { DeskProfileContext } from "../contexts/desk-profile-context";
 import { OsShellContext } from "../contexts/os-shell-context";
 import { useCmdPaletteRegistry } from "../hooks/use-cmd-palette-registry";
 import { WorktreeDialogActionsContext } from "../contexts/worktree-dialog-actions-context";
@@ -10,7 +11,7 @@ import { useDesktopChromeController } from "../hooks/use-desktop-chrome-controll
 import { useDesktop } from "../hooks/use-desktop";
 import { useDesktopShellBody } from "../hooks/use-desktop-shell-body";
 import type { DesktopShellModel } from "../hooks/use-desktop-shell-model";
-import { useProfileAutomationEnablement } from "../hooks/use-profile-automation-enablement";
+import { useProfileLifecycleHostActions } from "../hooks/use-profile-lifecycle-host-actions";
 import { useDesktopWorktreeScope, WindowScopeContext } from "../hooks/use-worktree-scope";
 import type { WorktreeDialogTargets } from "../hooks/use-worktree-dialog-targets";
 import type { ClientCommandChannel } from "../lib/client-command-channel";
@@ -86,16 +87,18 @@ function DesktopChrome({ firstRun, update }: { firstRun: boolean; update: Menuba
   return (
     <WorktreeDialogActionsContext.Provider value={controller.worktreeDialogs}>
       <OsShellContext.Provider value={controller.chrome.shell}>
-        <TerminalCloseDialog controller={controller.chrome.terminalClose} />
-        <DesktopChromeContent
-          client={controller.chrome.client}
-          firstRun={firstRun}
-          model={controller.model}
-          clientCommandChannel={controller.chrome.clientCommandChannel}
-          update={update}
-          worktreeDialogs={controller.worktreeDialogs}
-          workspaceSetupDefaults={controller.workspaceSetupDefaults}
-        />
+        <DeskProfileContext value={controller.chrome.profileId}>
+          <TerminalCloseDialog controller={controller.chrome.terminalClose} />
+          <DesktopChromeContent
+            client={controller.chrome.client}
+            firstRun={firstRun}
+            model={controller.model}
+            clientCommandChannel={controller.chrome.clientCommandChannel}
+            update={update}
+            worktreeDialogs={controller.worktreeDialogs}
+            workspaceSetupDefaults={controller.workspaceSetupDefaults}
+          />
+        </DeskProfileContext>
       </OsShellContext.Provider>
     </WorktreeDialogActionsContext.Provider>
   );
@@ -178,7 +181,7 @@ function DesktopShellScopedBody({
   // empty projection from loading a composer the destination does not use.
   const showEmptyDesktop = useLocation({ select: location => location.pathname === "/" });
   const sessionCreate = useSessionCreateActions();
-  const setAutomationEnabled = useProfileAutomationEnablement();
+  const profileLifecycleActions = useProfileLifecycleHostActions();
   // Scope and order are the operator's, persisted by the daemon; the modal
   // renders them rather than fetching its own.
   const sessionListView = useSessionListView({
@@ -455,7 +458,7 @@ function DesktopShellScopedBody({
       />
       {/* Profile lifecycle dialogs live at the shell so a flow started from the
           command palette does not depend on Settings being open. */}
-      <ProfileLifecycleHost onSetAutomationEnabled={setAutomationEnabled} />
+      <ProfileLifecycleHost {...profileLifecycleActions} />
     </div>
   );
 }

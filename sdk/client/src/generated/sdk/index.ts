@@ -3234,6 +3234,7 @@ export type {
   SettingsDaemonReloadTimeoutsPayload,
   SettingsDaemonRuntimePayload,
   SettingsDefaultsPayload,
+  SettingsDesktopPayload,
   SettingsExtensionDevPayload,
   SettingsExtensionGitHubSourcePayload,
   SettingsExtensionGitSourcePayload,

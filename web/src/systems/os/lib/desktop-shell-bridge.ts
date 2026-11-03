@@ -23,6 +23,27 @@ export interface GlobalShortcutRegistrationWire {
   settings_url?: string;
 }
 
+/** Parameters of `files.openInEditor`: an absolute or `~/` path and the session's inside roots. */
+export interface OpenInEditorParams {
+  path: string;
+  line?: number;
+  column?: number;
+  roots: string[];
+}
+
+export type OpenInEditorErrorCode =
+  | "not_found"
+  | "not_a_file"
+  | "editor_invalid"
+  | "editor_unavailable"
+  | "editor_not_configured"
+  | "editor_failed";
+
+export type OpenInEditorResult =
+  | { status: "opened" }
+  | { status: "cancelled" }
+  | { status: "error"; code: OpenInEditorErrorCode; message: string };
+
 export interface DesktopShellEventMap {
   "shell:summon": { command_id: string };
 }
@@ -50,6 +71,13 @@ export interface CompozyShellBridge {
    */
   readonly dialogs?: {
     pickDirectory(options?: { default_path?: string }): Promise<string | null>;
+  };
+  /**
+   * Opens a local file in the operator's editor. The shell confirms targets outside `roots`
+   * natively and reads the editor command itself. Absent on desktop shells that predate it.
+   */
+  readonly files?: {
+    openInEditor(params: OpenInEditorParams): Promise<OpenInEditorResult>;
   };
 }
 

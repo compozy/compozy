@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, waitFor, within } from "storybook/test";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Button } from "../../button";
 
 import {
@@ -338,5 +338,90 @@ export const AuthoredInput: Story = {
     await expect(link).toHaveAttribute("target", "_blank");
     await expect(link).toHaveAttribute("rel", "noopener noreferrer");
     await expect(canvasElement).toHaveTextContent("unsafe stays text");
+  },
+};
+
+const INLINE_CODE = [
+  "Edit `internal/config/desktop.go:12` before `make codegen`.",
+  "",
+  "Slots keep their literal text in code: `cat @internal/store/`.",
+].join("\n");
+
+export const InlineCodeDecorator: Story = {
+  tags: ["play-fn"],
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`inlineCodeDecorator` wraps each inline code span after slot literals are restored; it receives the literal text and the default element. Fenced code is untouched.",
+      },
+    },
+  },
+  render: () => (
+    <StreamMarkdown
+      slots={SLOTS}
+      inlineCodeDecorator={({ text, element }) => (
+        <span data-testid="story-decorated-code" data-code={text} className="inline-flex gap-1">
+          {element}
+          <span className="text-muted-foreground">({text.length})</span>
+        </span>
+      )}
+    >
+      {withSlots([INLINE_CODE])}
+    </StreamMarkdown>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const decorated = canvas.getAllByTestId("story-decorated-code");
+    await expect(decorated.map(node => node.getAttribute("data-code"))).toEqual([
+      "internal/config/desktop.go:12",
+      "make codegen",
+      "cat @internal/store/",
+    ]);
+    await expect(canvas.queryByTestId("story-slot-chip")).toBeNull();
+  },
+};
+
+function StoryLocalLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Button variant="link" size="xs" title={href} data-testid="story-local-link">
+      {children}
+    </Button>
+  );
+}
+
+const LOCAL_LINKS = [
+  "- [desktop.go](internal/config/desktop.go:12)",
+  "- [config](~/.compozy/config.toml)",
+  "- [notes](file:///Users/me/notes.md)",
+  "- [docs](https://compozy.com/docs) opens externally",
+  "- [unsafe](javascript:alert(1)) stays blocked",
+].join("\n");
+
+export const LocalLinks: Story = {
+  tags: ["play-fn"],
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "`localLinkComponent` renders links the safe mode would block with their authored href. http(s) and mailto links keep the anchor; script-capable destinations stay blocked. Without the prop every blocked link reads `[blocked]`.",
+      },
+    },
+  },
+  render: () => <StreamMarkdown localLinkComponent={StoryLocalLink}>{LOCAL_LINKS}</StreamMarkdown>,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getAllByTestId("story-local-link").map(node => node.getAttribute("title"))
+    ).toEqual([
+      "internal/config/desktop.go:12",
+      "~/.compozy/config.toml",
+      "file:///Users/me/notes.md",
+    ]);
+    await expect(canvas.getByRole("link", { name: "docs" })).toHaveAttribute(
+      "href",
+      "https://compozy.com/docs"
+    );
+    await expect(canvasElement).toHaveTextContent("unsafe [blocked]");
   },
 };

@@ -116,7 +116,8 @@ export {
   profileViewStore,
   rehydrateProfileViewStore,
   resetProfileViews,
-  restoreProfileView,
+  failProfileSwitch,
+  settleProfileSwitch,
   setProfileView,
   sweepProfileView,
 } from "./stores/profile-view-store";

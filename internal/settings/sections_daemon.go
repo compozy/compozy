@@ -10,6 +10,8 @@ const (
 	sectionsDaemonKey         = "daemon"
 	sectionsReloadTimeoutsKey = "reload_timeouts"
 	sectionsTerminalKey       = "terminal"
+	sectionsDesktopKey        = "desktop"
+	sectionsEditorCommandKey  = "editor_command"
 )
 
 func diffGeneralSettings(cfg *compozyconfig.Config, desired GeneralSettings) []string {
@@ -51,6 +53,9 @@ func diffGeneralSettings(cfg *compozyconfig.Config, desired GeneralSettings) []s
 		changed = append(changed, "redact.enabled")
 	}
 	changed = append(changed, diffTerminalSettings(cfg.Terminal, desired.Terminal)...)
+	if desired.Desktop != nil && cfg.Desktop.EditorCommand != desired.Desktop.EditorCommand {
+		changed = append(changed, sectionsDesktopKey+"."+sectionsEditorCommandKey)
+	}
 	return changed
 }
 
@@ -99,6 +104,14 @@ func applyGeneralSettings(editor *compozyconfig.OverlayEditor, settings GeneralS
 		if err := editor.SetValue(
 			[]string{"session", "busy_input", "default_mode"},
 			*settings.FollowUpMode,
+		); err != nil {
+			return err
+		}
+	}
+	if settings.Desktop != nil {
+		if err := editor.SetValue(
+			[]string{sectionsDesktopKey, sectionsEditorCommandKey},
+			settings.Desktop.EditorCommand,
 		); err != nil {
 			return err
 		}

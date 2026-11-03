@@ -106,6 +106,7 @@ const envelope = {
     limits: { max_concurrent_agents: 20 },
     permissions: { mode: "approve-all" as const },
     redact: { enabled: true },
+    desktop: { editor_command: "" } as { editor_command: string } | undefined,
     session_timeout: "0s",
     idle_release_after: "30m0s" as string | undefined,
     terminal: {
@@ -537,6 +538,36 @@ describe("GeneralSettingsPage", () => {
     expect(pageState.setDraft).toHaveBeenCalledTimes(1);
     expect(nextDraft.busy_input).toEqual({ default_mode: "queue" });
     expect(nextDraft.idle_release_after).toBe(envelope.config.idle_release_after);
+  });
+
+  // UT-047 (#1167). Invariant: the Editor command row edits `desktop.editor_command` in the page
+  // draft (saved as `{config: draft}`), and a validation failure naming the key reads inline.
+  it("Should edit the editor command and show its validation error inline", () => {
+    let nextDraft: Envelope["config"] = envelope.config;
+    pageState.setDraft.mockImplementation((update: SetStateAction<Envelope["config"] | null>) => {
+      const updated = typeof update === "function" ? update(envelope.config) : update;
+      if (updated !== null) nextDraft = updated;
+    });
+    const { rerender } = render(<GeneralSettingsPage />);
+
+    const input = screen.getByRole("textbox", { name: "Editor command" });
+    expect(input).toHaveValue("");
+    expect(input).toHaveAttribute("placeholder", "code -g {path}:{line}:{col}");
+    fireEvent.change(input, { target: { value: "zed {path}:{line}" } });
+    expect(nextDraft.desktop).toEqual({ editor_command: "zed {path}:{line}" });
+    expect(nextDraft.permissions).toEqual(envelope.config.permissions);
+
+    pageState.saveError = "desktop.editor_command must contain {path}";
+    rerender(<GeneralSettingsPage />);
+    expect(screen.getByTestId("settings-page-general-editor-command")).toHaveTextContent(
+      "desktop.editor_command must contain {path}"
+    );
+
+    pageState.saveError = "http.port must be positive";
+    rerender(<GeneralSettingsPage />);
+    expect(screen.getByTestId("settings-page-general-editor-command")).not.toHaveTextContent(
+      "http.port must be positive"
+    );
   });
 
   it("renders the queue follow-up value and locks the control while saving", () => {

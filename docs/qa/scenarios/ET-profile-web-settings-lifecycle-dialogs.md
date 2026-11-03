@@ -29,7 +29,9 @@ Walk:
    value is reported inline while the previous color stays.
 4. Rename a profile that has committed repo folders; confirm the machine tier is informational, repo
    offers are pre-checked, declining one reports the content as dormant afterwards, and renaming
-   `default` is refused with the permanence sentence.
+   `default` is refused with the permanence sentence. Then, under All profiles, rename, archive, or
+   move one of the renamed profile's sessions from its row without reloading, and confirm it succeeds
+   (#1220). Repeat with the rename made from a terminal while the browser stays open.
 5. Archive a profile with a scheduled automation and confirm the paused list; start a session in
    another profile and confirm archiving it is blocked with the running session named as a warning.
 6. Unarchive and confirm the reactivation list is reported and that each automation stays paused.
@@ -145,3 +147,9 @@ time. The existing managed data lifecycle suite verifies created, pre-existing,
 and legacy-unknown markers using real SQLite and the race detector. See
 [PR 691 CI remediation](../reports/2026-10-05-pr-691-ci.md); this does not expand the
 deferred visual scenario scope.
+
+Issue #1220 2026-11-03: under All profiles, the session catalog keys on the reserved aggregate, so a
+rename moved no key and row actions kept sending the old `profile_name` until a refetch. A rename,
+whether submitted from the dialog or announced by the profile event stream, now rereads every session
+catalog, by-id lens, and detail read. The cache boundary is covered by the session read-invalidation
+suite and the profile event-stream hook suite. The browser walk of step 4's row-action leg is pending.

@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// TaskReferencePayload is a daemon API value.
+type TaskReferencePayload struct {
+	ID              string     `json:"id"`
+	Identifier      string     `json:"identifier,omitempty"`
+	Title           string     `json:"title"`
+	Status          TaskStatus `json:"status"`
+	Priority        Priority   `json:"priority,omitempty"`
+	Owner           *Ownership `json:"owner,omitempty"`
+	Scope           TaskScope  `json:"scope"`
+	WorkspaceID     string     `json:"workspace_id,omitempty"`
+	LatestEventSeq  int64      `json:"latest_event_seq"`
+	Paused          bool       `json:"paused,omitempty"`
+	EffectivePaused bool       `json:"effective_paused,omitempty"`
+	PausedByTaskID  string     `json:"paused_by_task_id,omitempty"`
+}
+
+// TaskResponse is a daemon API value.
+type TaskResponse struct {
+	Task TaskPayload `json:"task"`
+}
+
 // TaskRunDetailPayload is a daemon API value.
 type TaskRunDetailPayload struct {
 	Run     TaskRunPayload                   `json:"run"`
@@ -417,31 +438,4 @@ type TerminalCommandRowPayload struct {
 	OutputBytes int64                       `json:"output_bytes"`
 	Truncated   bool                        `json:"truncated"`
 	RecordingID *string                     `json:"recording,omitzero"`
-}
-
-// TerminalCreateRequest is a daemon API value.
-type TerminalCreateRequest struct {
-	Worktree string `json:"worktree,omitempty"`
-	Cwd      string `json:"cwd,omitempty"`
-	Shell    string `json:"shell,omitempty"`
-	Cols     uint16 `json:"cols,omitzero"`
-	Rows     uint16 `json:"rows,omitzero"`
-	Title    string `json:"title,omitempty"`
-	ClientID string `json:"client_id,omitempty"`
-}
-
-// TerminalDeliveredResponse is a daemon API value.
-type TerminalDeliveredResponse struct {
-	Delivered bool `json:"delivered"`
-}
-
-// TerminalExecRequest is a daemon API value.
-type TerminalExecRequest struct {
-	Command string              `json:"command"`
-	Args    []string            `json:"args,omitempty"`
-	Cwd     string              `json:"cwd,omitempty"`
-	Env     map[string]string   `json:"env,omitempty"`
-	YieldMs int                 `json:"yield_ms,omitzero"`
-	Visible bool                `json:"visible,omitzero"`
-	Output  TerminalOutputShape `json:"output,omitzero"`
 }

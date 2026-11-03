@@ -16,6 +16,35 @@ Owner: `fix/issue-1227-sqlite-contention`; evidence and remaining acceptance wor
   reduction and measured multi-session QA remain in progress; this entry does not certify them.
 - QA owners: `MS-daemon-host-load-governance` and `RT-session-catalog-server-scope`.
 
+## Open transcript file paths in the editor — 2026-11-03
+
+Owner: spec `.compozy/tasks/open-paths-in-editor/` (issue #1167). Additive across every public
+surface (SD-013); no delete targets.
+
+- **Native tools / CLI / HTTP / UDS:** no new tool IDs, verbs, or routes. `GET/PATCH
+  /api/settings/general` gains `config.desktop.editor_command`. Both single-session reads
+  (`GET /api/sessions/{id}`, `GET /api/workspaces/{ws}/sessions/{id}`) gain read-only `working_dir`.
+  OpenAPI and the TS/Go SDKs regenerate. `compozy config get/set desktop.editor_command` works
+  through the existing verbs, and `compozy__config_get` reads the key. `compozy__config_set` denies
+  it (`ConfigPathForbidden`), which closes the zero-shell path for planting an editor command.
+- **Extensibility / hooks / config:** new machine-only `[desktop] editor_command` (default `""`,
+  lifecycle `Live`), rejected in workspace and profile overlays. No hook, manifest, or extension SDK
+  change. The desktop shell now reads this one key over the loopback daemon API; it still never
+  parses `config.toml`. `@compozy/ui` `StreamMarkdown` gains two generic opt-in props
+  (`inlineCodeDecorator`, `localLinkComponent`), and default output is unchanged.
+- **User state / workspace isolation:** no schema or migration. The open action exists only in the
+  desktop app (loopback daemon, product main frame); browser, LAN, phone, and Gateway clients get no
+  affordance, and the daemon exposes no open endpoint. Files outside the session's worktree or
+  workspace root, files under a fixed credential set (`~/.ssh`, `~/.gnupg`, `~/.aws`, …), and every
+  file in sessions whose root is home or above (User scope) require a native confirmation. UNC and
+  device paths are rejected. The OS default handler is never used.
+- **Official skill / Web / Docs:** `skills/compozy/references/configuration.md` (editor command),
+  `skills/compozy/references/desktop.md` (open-in-editor note), site
+  `configuration/config-toml.mdx` (`[desktop]` table; corrects "The shell does not read
+  `config.toml`"), regenerated `lifecycle-matrix.mdx`. Web: transcript inline code and links on
+  desktop, plus a Settings › General "Editor command" row. QA: new
+  `APP-open-transcript-paths-in-editor`.
+
 ## Main CI contract co-ship repairs — 2026-11-03
 
 Regenerate the Go client from the current API registry to restore its canonical operation file

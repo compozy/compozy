@@ -275,6 +275,30 @@ func (g *WorktreeRepo) CompareAndSwapState(
 	return count == 1, nil
 }
 
+func (g *WorktreeRepo) FenceRemoval(
+	ctx context.Context,
+	workspaceID string,
+	id string,
+	keepBranch bool,
+	updatedAt time.Time,
+) (bool, error) {
+	if err := g.checkReady(ctx, "fence worktree removal"); err != nil {
+		return false, err
+	}
+	mode := ""
+	if keepBranch {
+		mode = worktreeRemovalKeepBranch
+	}
+	count, err := g.queries.FenceWorktreeRemoval(ctx, sqlcgen.FenceWorktreeRemovalParams{
+		RemovalMode: mode, UpdatedAt: store.FormatTimestamp(updatedAt),
+		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
+	})
+	if err != nil {
+		return false, fmt.Errorf("store: fence worktree removal: %w", err)
+	}
+	return count == 1, nil
+}
+
 func (g *WorktreeRepo) SetState(
 	ctx context.Context,
 	workspaceID string,

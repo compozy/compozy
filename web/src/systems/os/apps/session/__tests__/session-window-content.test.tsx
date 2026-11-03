@@ -120,11 +120,13 @@ vi.mock("@/systems/session", async importOriginal => ({
   SessionRuntimeRecoveryNotice: ({
     attempt,
     maxAttempts,
+    reason,
   }: {
     attempt?: number;
     maxAttempts?: number;
+    reason?: string;
   }) => (
-    <div role="status">
+    <div data-reason={reason} role="status">
       Reconnecting to the agent… · Attempt {attempt} of {maxAttempts}
     </div>
   ),
@@ -505,9 +507,47 @@ describe("SessionWindowContent", () => {
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Reconnecting to the agent… · Attempt 2 of 3"
     );
+    expect(screen.getByRole("status")).not.toHaveAttribute("data-reason");
     expect(
       screen.queryByRole("button", { name: "Restart in a new session" })
     ).not.toBeInTheDocument();
+  });
+
+  it("Should tell the recovery notice when the turn waits for a provider sign-in", async () => {
+    const waitingSession = {
+      ...deadSession,
+      failure: undefined,
+      health: undefined,
+      runtime: {
+        generation: 1,
+        recovery: {
+          attempt: 3,
+          generation: 2,
+          last_attempt_at: "2026-11-03T18:11:45Z",
+          max_attempts: 11,
+          reason: "provider_auth",
+          started_at: "2026-11-03T18:11:00Z",
+        },
+        selection_revision: 0,
+        status: "recovering",
+      },
+      state: "active",
+    } satisfies SessionPayload;
+
+    render(
+      <Suspense fallback={null}>
+        <SessionWindowContent
+          agentName="codex-agent"
+          liveDataEnabled={false}
+          session={waitingSession}
+          sessionId={waitingSession.id}
+          windowId={`session:${waitingSession.id}`}
+          workspaceId="ws-alpha"
+        />
+      </Suspense>
+    );
+
+    expect(await screen.findByRole("status")).toHaveAttribute("data-reason", "provider_auth");
   });
 
   it("Should treat absent ACP capabilities as unknown", async () => {

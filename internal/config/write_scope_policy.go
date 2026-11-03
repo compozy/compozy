@@ -8,6 +8,12 @@ import (
 
 const toolSurfaceShellKey = "shell"
 
+// globalOnlyConfigRoots are sections that only the home config may set.
+var globalOnlyConfigRoots = []string{
+	toolSurfaceMarketplaceKey, GatewayDirName, ProviderUsageConfigKey, toolSurfaceShellKey, desktopConfigKey,
+	vaultConfigKey,
+}
+
 const (
 	skillsConfigSection           = "skills"
 	skillsSourcesField            = "sources"
@@ -15,6 +21,18 @@ const (
 	workspaceFieldForbiddenCode   = "workspace_scope_field_forbidden"
 	workspaceFieldForbiddenReason = "only sources and custom_sources may be written at this scope"
 )
+
+// bootConsumedGlobalPath reports keys the daemon reads once at boot from the home config; a
+// workspace-layered write would validate yet never take effect.
+func bootConsumedGlobalPath(clean []string) bool {
+	hasPrefix := func(prefix []string) bool {
+		return slices.Equal(clean[:min(len(clean), len(prefix))], prefix)
+	}
+	return slices.Equal(clean, toolSurfaceToolsClarifyTimeoutSegments) ||
+		slices.Equal(clean, mcpStatusProbeTimeoutSegments) ||
+		hasPrefix(mcpStdioConfigSegments) ||
+		hasPrefix(sessionAuthRecoverySegments)
+}
 
 // ValidateConfigWriteScope rejects paths that the selected runtime scope cannot consume.
 func ValidateConfigWriteScope(scope WriteScope, path []string) error {
@@ -25,20 +43,13 @@ func ValidateConfigWriteScope(scope WriteScope, path []string) error {
 	if err != nil {
 		return err
 	}
-	if scope == WriteScopeWorkspace &&
-		(clean[0] == toolSurfaceMarketplaceKey || clean[0] == GatewayDirName ||
-			clean[0] == ProviderUsageConfigKey || clean[0] == toolSurfaceShellKey || clean[0] == vaultConfigKey) {
+	if scope == WriteScopeWorkspace && slices.Contains(globalOnlyConfigRoots, clean[0]) {
 		return fmt.Errorf(
 			"config: path %q is global-only and cannot be written at workspace scope",
 			strings.Join(clean, "."),
 		)
 	}
-	// tools.clarify.timeout, mcp.status_probe_timeout, and mcp.stdio.* are consumed once at daemon boot
-	// from the home config; a workspace-layered write would validate yet never
-	// take effect, so reject it with the same global-only gate.
-	if scope == WriteScopeWorkspace && (slices.Equal(clean, toolSurfaceToolsClarifyTimeoutSegments) ||
-		slices.Equal(clean, mcpStatusProbeTimeoutSegments) ||
-		slices.Equal(clean[:min(len(clean), len(mcpStdioConfigSegments))], mcpStdioConfigSegments)) {
+	if scope == WriteScopeWorkspace && bootConsumedGlobalPath(clean) {
 		return fmt.Errorf(
 			"config: path %q is global-only and cannot be written at workspace scope; write this key with --scope user",
 			strings.Join(clean, "."),

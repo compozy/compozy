@@ -40,7 +40,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDescriptor[] = [
     icon: SlidersHorizontal,
     group: "workspace",
     keywords:
-      "defaults session defaults new sessions profile agent provider model reasoning effort smooth streaming permissions session timeout update version runtime socket",
+      "defaults session defaults new sessions profile agent provider model reasoning effort smooth streaming permissions session timeout update version runtime socket editor open vscode",
   },
   {
     slug: "terminal",

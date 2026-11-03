@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	telemetryExportVersion = 186
-	telemetryMovedVersion  = 187
+	telemetryExportVersion = 187
+	telemetryMovedVersion  = 188
 	telemetryExportBatch   = 128
 )
 

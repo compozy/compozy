@@ -36,6 +36,9 @@ func settingsGeneralConfigPayload(value settingspkg.GeneralSettings) contract.Se
 	if value.IdleReleaseAfter != nil {
 		payload.IdleReleaseAfter = value.IdleReleaseAfter.String()
 	}
+	if value.Desktop != nil {
+		payload.Desktop = &contract.SettingsDesktopPayload{EditorCommand: value.Desktop.EditorCommand}
+	}
 	if value.FollowUpMode != nil {
 		payload.BusyInput = &contract.SettingsBusyInputPayload{DefaultMode: *value.FollowUpMode}
 	}

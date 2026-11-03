@@ -33,9 +33,16 @@ Walk (isolated lab, two profiles `default` and `work`, acpmock agent, git worksp
    dialog shows "Usage so far stays counted in default." and the worktree note; confirming shows
    "Moved to work" / "The original is archived here." and the row leaves the `default` list.
 
+6. Interrupted move (#1211): start a move of a stopped worktree session with unpushed commits and
+   kill the daemon (`SIGKILL`) while it runs, then start it again. The move settles at boot: either
+   the copy exists in `work` and the original is archived, or the original is unarchived in
+   `default`, bound to a ready worktree on its branch, with no copy and no leftover `work` worktree.
+   The branch still points at its last commit, and no worktree row is left `removing`.
+
 Covered by the owning suites, not walked: rollback after a failure past the archive (session suite
-`TestManagerMoveToProfile`), children and own-session refusals, and the native tool's
-target-profile write authorization (`TestNativeSessionMoveToProfile`).
+`TestManagerMoveToProfile`), recovery after a stop at each move step (`TestManagerRecoverProfileMoves`),
+an interrupted keep-branch removal (`TestServiceRemoveAndRecover`), children and own-session
+refusals, and the native tool's target-profile write authorization (`TestNativeSessionMoveToProfile`).
 
 Native permission check: at `approve-edits` or `auto`, moving a session to another profile requires
 destructive-tool approval because it archives the original and releases its worktree. Covered by

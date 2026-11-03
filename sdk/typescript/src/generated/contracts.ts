@@ -3949,7 +3949,10 @@ export type SessionRuntimeStatus = string;
 
 export type SessionRuntimeTransition = string;
 
+export type SessionRuntimeRecoveryReason = "runtime_exit" | "provider_auth";
+
 export interface SessionRuntimeRecoveryPayload {
+  reason?: SessionRuntimeRecoveryReason;
   attempt: number;
   max_attempts: number;
   generation: number;

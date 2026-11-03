@@ -610,7 +610,7 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 	ctx := t.Context()
 	t.Run("Should resume committed copies without loss or duplicate cursors", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00187_telemetry_export_complete.sql"))
+		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00188_telemetry_export_complete.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -679,7 +679,7 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 	})
 	t.Run("Should preserve a retired cursor when every source row was deleted", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00185_schema.sql"))
+		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00186_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -711,7 +711,7 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 	})
 	t.Run("Should refuse a conflicting destination without deleting the source", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00187_telemetry_export_complete.sql"))
+		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00188_telemetry_export_complete.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}

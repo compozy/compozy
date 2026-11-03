@@ -1,13 +1,21 @@
 import { Alert, AlertMeta, AlertTitle, Spinner } from "@compozy/ui";
 
+import type { SessionRuntimePayload } from "../types";
+
+type SessionRuntimeRecoveryReason = NonNullable<
+  NonNullable<SessionRuntimePayload["recovery"]>["reason"]
+>;
+
 export interface SessionRuntimeRecoveryNoticeProps {
   attempt?: number;
   maxAttempts?: number;
+  reason?: SessionRuntimeRecoveryReason;
 }
 
 export function SessionRuntimeRecoveryNotice({
   attempt,
   maxAttempts,
+  reason,
 }: SessionRuntimeRecoveryNoticeProps) {
   const hasAttempt =
     typeof attempt === "number" &&
@@ -16,6 +24,7 @@ export function SessionRuntimeRecoveryNotice({
     typeof maxAttempts === "number" &&
     Number.isInteger(maxAttempts) &&
     maxAttempts >= attempt;
+  const waitingForSignIn = reason === "provider_auth";
 
   return (
     <Alert
@@ -26,10 +35,12 @@ export function SessionRuntimeRecoveryNotice({
       variant="warning"
     >
       <Spinner aria-hidden="true" className="size-3.5" />
-      <AlertTitle>Reconnecting to the agent…</AlertTitle>
+      <AlertTitle>
+        {waitingForSignIn ? "Waiting for the provider sign-in…" : "Reconnecting to the agent…"}
+      </AlertTitle>
       {hasAttempt ? (
         <AlertMeta data-testid="session-runtime-recovery-attempt">
-          Attempt {attempt} of {maxAttempts}
+          {waitingForSignIn ? "Retrying automatically · " : null}Attempt {attempt} of {maxAttempts}
         </AlertMeta>
       ) : null}
     </Alert>

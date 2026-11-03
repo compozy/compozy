@@ -148,8 +148,7 @@ export { derivePendingClarifyRequestIds, isClarifyEventData } from "./lib/clarif
 export { isAgentEventPayload, isCompactionItemData, resolveToolResult } from "./lib/message-parts";
 export { isProviderErrorEvent } from "./lib/provider-error";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
-// Attention surface — badge dictionary, pending-interaction reads, list
-// preferences, presence lease. Grouped in ./attention; re-exported here.
+// Attention surface — badges, pending-interaction reads, list preferences, presence (./attention).
 export {
   acquireSessionPresence,
   DEFAULT_SESSION_LIST_PREFERENCES,
@@ -287,9 +286,11 @@ export {
   isUserControllableSession,
   runningAgentNames,
 } from "./lib/session-running";
-export { invalidateSessionMutationQueries } from "./lib/session-query-invalidation";
-// Busy-input surface — default mode, steer delivery, refusals, send outcome.
-// Grouped in ./busy-input; re-exported here.
+export {
+  invalidateSessionMutationQueries,
+  invalidateSessionOwnerLabelReads,
+} from "./lib/session-query-invalidation";
+// Busy-input surface — default mode, steer delivery, refusals, send outcome (./busy-input).
 export * from "./busy-input";
 
 export type {

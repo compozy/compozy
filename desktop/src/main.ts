@@ -41,6 +41,7 @@ import { DesktopLogger } from "./logging/desktop-logger";
 import { AppStatePublisher } from "./state/app-state";
 import { publicSafeText } from "./state/public-safe-text";
 import { electronDirectoryDialog } from "./product/directory-dialog";
+import { createElectronFileOpener } from "./product/electron-file-opener";
 import { ProductBridgeController } from "./product/product-bridge-controller";
 import { detectAccessibility } from "./shortcuts/accessibility";
 import { ElectronGlobalShortcut } from "./shortcuts/electron-global-shortcut";
@@ -221,6 +222,11 @@ async function start(): Promise<void> {
     shortcuts: shortcutPolicy,
     theme: windowTheme,
     directories: electronDirectoryDialog,
+    files: createElectronFileOpener({
+      origin: () => product?.current()?.origin ?? null,
+      log: (message, fields) => logger.info(message, fields),
+    }),
+    productTarget: () => product?.current() ?? null,
   });
   productBridge.register();
   if (__COMPOZY_DESKTOP_E2E_BUILD__) {

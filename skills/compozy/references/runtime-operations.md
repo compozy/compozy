@@ -97,6 +97,16 @@ and structured attempt timing. Events report `runtime_recovery_started`,
 when supported; otherwise it rebuilds context from the durable transcript and replays the interrupted
 turn with the original turn ID. The authored user message remains one durable row.
 
+A prompt failure with `provider_error.code="provider_auth_required"` (a provider sign-in that went
+missing mid-turn, for example during an account switch) uses the same recovery with
+`runtime.recovery.reason="provider_auth"` instead of `"runtime_exit"`. It backs off 15s, 30s, then every
+minute for `session.auth_recovery.window` (10m), restarting the provider and reloading its session each
+time. A turn with no provider output yet is resent; a turn that already produced output or tool calls
+receives a continuation that asks the agent to verify state before repeating actions. Do not prompt,
+stop, or continue a session while it reports `provider_auth` recovery; wait or cancel the prompt. When the
+window ends, the turn fails with today's `provider_error` guidance, and later turns fail without waiting
+until one completes.
+
 Automatic replay can repeat an external side effect whose completion was not persisted before the
 disconnect. Inspect the retained tool results and external system before manually repeating the work.
 Only exhausted recovery emits one terminal error and stops the runtime; then inspect status, events,
@@ -1095,8 +1105,9 @@ which the copy binds. Past usage stays with the original's profile. A failure af
 rolls back in reverse order (target checkout released, branch checked out again for the original
 profile, original unarchived and rebound); an unfinished rollback returns
 `session_move_to_profile_recovery_incomplete` naming what is left, and never deletes the session or
-the branch. A daemon stop mid-move can leave the original archived with no copy: unarchive it and
-bind it to a worktree on the same branch. Archived sessions that shared the moved worktree lose
+the branch; the rollback is retried by the next move of that session or the next daemon start. A
+daemon stop mid-move is settled at the next start: a move whose copy exists completes, any other is
+rolled back to the unarchived original on a checkout of its branch. Archived sessions that shared the moved worktree lose
 that checkout. Refusals return HTTP 409 with a `session_move_to_profile_*` code: `same_profile`, `own_session`, `not_movable`, `running`, `archived`, `has_children`, `worktree_dirty`, `worktree_detached`, `worktree_shared`, `worktree_run_owned`, `worktree_not_ready`, `worktree_changed`, `recovery_incomplete`.
 `compozy session move` is unrelated: it only places a session in a folder.
 
@@ -1580,8 +1591,9 @@ Marketplace catalog configuration is global-only because its projection and refr
 For a recoverable provider error, inspect the event's `provider_error`: `provider_auth_required`
 means follow `next_action`: native `login` then the daemon probe, `bind_secret` to update a bound
 credential, or `inspect` to check a no-auth provider configuration. `provider_rate_limited` means retry after the
-provider recovers. The failed turn ends but the session remains usable; do not stop or recreate it
-solely for these codes. A turn failure never runs the agent `fallback_chain` and never carries
+provider recovers. An auth error event appears only after the automatic sign-in wait above ran out or is
+disabled (`session.auth_recovery.enabled=false`). The failed turn ends but the session remains usable;
+do not stop or recreate it solely for these codes. A turn failure never runs the agent `fallback_chain` and never carries
 `use_fallback`, which appears only on refusals before ACP acceptance. `occurrence_count` and first/last-seen timestamps are scoped to that provider
 process, and old events can omit this additive object. No retry-after seconds are implied.
 

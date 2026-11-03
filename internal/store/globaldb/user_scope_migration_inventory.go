@@ -24,6 +24,7 @@ var userScopeMigrationInventory = []string{
 	"session_process_observations",
 	"session_monitors",
 	"session_derivations",
+	"session_profile_moves",
 	"token_usage_daily",
 	"session_subagent_wakes",
 	"session_subagents",

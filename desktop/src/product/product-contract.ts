@@ -1,4 +1,11 @@
 import {
+  validOpenInEditorParams,
+  validOpenInEditorResult,
+  type OpenInEditorErrorCode,
+  type OpenInEditorParams,
+  type OpenInEditorResult,
+} from "./open-in-editor-contract";
+import {
   GLOBAL_SHORTCUT_STATUS_VALUES,
   type GlobalShortcutBinding,
   type GlobalShortcutRegistration,
@@ -11,6 +18,7 @@ export const PRODUCT_METHOD_VALUES = [
   "global_shortcuts.status",
   "theme.set",
   "dialog.pick_directory",
+  "files.open_in_editor",
 ] as const;
 export type ProductMethod = (typeof PRODUCT_METHOD_VALUES)[number];
 export const PRODUCT_METHODS = new Set<string>(PRODUCT_METHOD_VALUES);
@@ -106,6 +114,7 @@ function validRegistration(value: unknown): value is GlobalShortcutRegistration 
 
 export function validProductParams(method: ProductMethod, value: unknown): boolean {
   if (!isRecord(value)) return false;
+  if (method === "files.open_in_editor") return validOpenInEditorParams(value);
   if (method === "global_shortcuts.status") return Object.keys(value).length === 0;
   if (method === "theme.set") {
     return Object.keys(value).length === 1 && isThemePreference(value.preference);
@@ -127,6 +136,7 @@ export interface ProductResponses {
   "global_shortcuts.status": GlobalShortcutRegistration[];
   "theme.set": { preference: ThemePreference };
   "dialog.pick_directory": PickDirectoryResult;
+  "files.open_in_editor": OpenInEditorResult;
 }
 
 export function validProductResponse<M extends ProductMethod>(
@@ -138,6 +148,7 @@ export function validProductResponse<M extends ProductMethod>(
       isRecord(value) && Object.keys(value).length === 1 && isThemePreference(value.preference)
     );
   }
+  if (method === "files.open_in_editor") return validOpenInEditorResult(value);
   if (method === "dialog.pick_directory") {
     return (
       isRecord(value) &&
@@ -158,3 +169,4 @@ export function validProductEventPayload(event: ProductEvent, value: unknown): b
 }
 
 export type { GlobalShortcutBinding, GlobalShortcutRegistration };
+export type { OpenInEditorErrorCode, OpenInEditorParams, OpenInEditorResult };

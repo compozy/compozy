@@ -15181,6 +15181,7 @@ export interface components {
       verified?: boolean | null;
       /** @enum {string} */
       waiting_on?: "sessions" | "monitor";
+      working_dir?: string;
       workspace_id?: string;
       workspace_path?: string;
       worktree_binding?: components["schemas"]["WorktreeBindingAvailability"] | null;
@@ -15397,6 +15398,8 @@ export interface components {
       max_attempts: number;
       /** Format: date-time */
       next_attempt_at?: string | null;
+      /** @enum {string} */
+      reason?: "runtime_exit" | "provider_auth";
       /** Format: date-time */
       started_at: string;
     };
@@ -15819,6 +15822,9 @@ export interface components {
       provider?: string;
       reasoning_effort?: string;
     };
+    SettingsDesktopPayload: {
+      editor_command: string;
+    };
     SettingsExtensionDevPayload: {
       watch_interval: string;
     };
@@ -15860,6 +15866,7 @@ export interface components {
     SettingsGeneralConfigPayload: {
       busy_input?: components["schemas"]["SettingsBusyInputPayload"] | null;
       daemon: components["schemas"]["SettingsDaemonPayload"];
+      desktop?: components["schemas"]["SettingsDesktopPayload"] | null;
       http: components["schemas"]["SettingsHTTPPayload"];
       /** @description Idle time before a resumable idle session's agent process is released (session.supervision.idle_release_after); 0s disables it. Omit on update to keep the current value. */
       idle_release_after?: string;

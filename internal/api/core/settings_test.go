@@ -1355,6 +1355,7 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 					IdleReleaseAfter: new(45 * time.Minute),
 					HTTP:             compozyconfig.HTTPConfig{Host: "127.0.0.1", Port: 2123},
 					Daemon:           compozyconfig.DaemonConfig{Socket: "/tmp/compozy.sock"},
+					Desktop:          &compozyconfig.DesktopConfig{EditorCommand: "zed {path}"},
 				},
 				Actions: settingspkg.GeneralActions{
 					Restart: settingspkg.ActionMetadata{
@@ -1601,6 +1602,9 @@ func TestSettingsSectionAndCollectionConversions(t *testing.T) {
 						"general config idle_release_after=%q session_timeout=%q, want 45m0s and the deprecated 30m0s",
 						payload.Config.IdleReleaseAfter, payload.Config.SessionTimeout,
 					)
+				}
+				if payload.Config.Desktop == nil || payload.Config.Desktop.EditorCommand != "zed {path}" {
+					t.Fatalf("general config desktop = %#v, want editor_command zed {path}", payload.Config.Desktop)
 				}
 				return
 			case settingspkg.SectionAutomation:
@@ -2001,6 +2005,106 @@ func TestUpdateSettingsGeneralIdleReleaseAfter(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestUpdateSettingsGeneralDesktopEditorCommand(t *testing.T) {
+	t.Parallel()
+
+	generalBody := func(desktop map[string]any) []byte {
+		config := map[string]any{
+			"limits":          map[string]any{"max_concurrent_agents": 2},
+			"permissions":     map[string]any{"mode": "approve-reads"},
+			"session_timeout": "0s",
+			"http":            map[string]any{"host": "127.0.0.1", "port": 2123},
+			"daemon":          map[string]any{"socket": "/tmp/compozy.sock"},
+			"redact":          map[string]any{"enabled": true},
+		}
+		if desktop != nil {
+			config["desktop"] = desktop
+		}
+		return mustJSON(t, map[string]any{"config": config})
+	}
+
+	t.Run("Should forward a valid editor command [IT-001]", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		body := generalBody(map[string]any{"editor_command": " zed {path}:{line} "})
+		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/general", body)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+		}
+		got := service.LastUpdateSectionRequest.General
+		if got == nil || got.Desktop == nil || got.Desktop.EditorCommand != "zed {path}:{line}" {
+			t.Fatalf("General = %#v, want trimmed desktop editor command", got)
+		}
+	})
+
+	t.Run("Should keep the current value when desktop is omitted [IT-001]", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/general", generalBody(nil))
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+		}
+		if got := service.LastUpdateSectionRequest.General; got == nil || got.Desktop != nil {
+			t.Fatalf("General = %#v, want nil Desktop for an omitted block", got)
+		}
+	})
+
+	t.Run("Should reject a desktop block without editor_command [IT-001]", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPatch,
+			"/api/settings/general",
+			generalBody(map[string]any{}),
+		)
+		if resp.Code != http.StatusBadRequest || service.UpdateSectionCalls != 0 {
+			t.Fatalf("status = %d calls = %d, want 400 and no update", resp.Code, service.UpdateSectionCalls)
+		}
+		var payload contract.ErrorPayload
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if !strings.Contains(payload.Error, "desktop.editor_command is required") {
+			t.Fatalf("payload.Error = %q, want desktop.editor_command required error", payload.Error)
+		}
+	})
+
+	t.Run("Should forward an explicit empty command as a clear [IT-001]", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		body := generalBody(map[string]any{"editor_command": ""})
+		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/general", body)
+		if resp.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", resp.Code, resp.Body.String())
+		}
+		got := service.LastUpdateSectionRequest.General
+		if got == nil || got.Desktop == nil || got.Desktop.EditorCommand != "" {
+			t.Fatalf("General = %#v, want an empty desktop editor command", got)
+		}
+	})
+
+	t.Run("Should reject an invalid template with its config path [IT-001]", func(t *testing.T) {
+		t.Parallel()
+		service := &stubSettingsService{}
+		fixture := newSettingsHandlerFixture(t, "api-core-http", service, nil)
+		body := generalBody(map[string]any{"editor_command": "code {file}"})
+		resp := performRequest(t, fixture.Engine, http.MethodPatch, "/api/settings/general", body)
+		if resp.Code != http.StatusBadRequest || service.UpdateSectionCalls != 0 {
+			t.Fatalf("status = %d calls = %d, want 400 and no update", resp.Code, service.UpdateSectionCalls)
+		}
+		var payload contract.ErrorPayload
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if !strings.Contains(payload.Error, "desktop.editor_command") ||
+			!strings.Contains(payload.Error, "unknown placeholder {file}") {
+			t.Fatalf("payload.Error = %q, want desktop.editor_command placeholder error", payload.Error)
+		}
+	})
 }
 
 func TestUpdateSettingsGeneralRequiresRedactionGatePresence(t *testing.T) {

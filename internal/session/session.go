@@ -197,9 +197,12 @@ type Session struct {
 	runtimeConfigUnverified bool
 	// liveTurnRuntime holds the runtime a running turn still uses after a live change its
 	// provider honors only from the next turn. Protected by mu.
-	liveTurnRuntime           *liveTurnRuntime
-	RuntimeGeneration         int64
-	RuntimeRecovery           *store.SessionRuntimeRecovery
+	liveTurnRuntime   *liveTurnRuntime
+	RuntimeGeneration int64
+	RuntimeRecovery   *store.SessionRuntimeRecovery
+	// authRecoveryExhausted skips the provider sign-in wait after a turn exhausted it, until a
+	// turn completes again, so queued turns fail as before instead of each waiting. Protected by mu.
+	authRecoveryExhausted     bool
 	SelectedRuntime           *RuntimeSelection
 	RuntimeSelectionRevision  int64
 	EffectiveWorkspaceAccess  string
