@@ -199,8 +199,8 @@ describe("useProfileSwitchWindowSweep", () => {
     return { id, route: { pathname, search: {} } } as unknown as OsWindow;
   }
 
-  function fakeShell(live: boolean) {
-    const windows = {
+  function fakeShell(live: boolean, duringFirstClose?: () => void) {
+    let windows: Record<string, OsWindow> = {
       w_own: deskWindow("w_own", "/agents/builder/sessions/s_own"),
       w_xray: deskWindow("w_xray", "/agents/builder/sessions/s_xray"),
       w_zulu: deskWindow("w_zulu", "/agents/builder/sessions/s_zulu"),
@@ -221,6 +221,7 @@ describe("useProfileSwitchWindowSweep", () => {
     const userClose = vi.fn(async (windowId: string) => {
       if (pending) return false;
       pending = true;
+      if (closed.length === 0) duringFirstClose?.();
       await Promise.resolve();
       pending = false;
       closed.push(windowId);
@@ -231,7 +232,16 @@ describe("useProfileSwitchWindowSweep", () => {
       manager: { getState: () => projection.get() },
       coordinator: { userClose },
     } as unknown as OsShellHandle;
-    return { shell, userClose, closed, goLive: () => projection.set(state(true)) };
+    return {
+      shell,
+      userClose,
+      closed,
+      goLive: () => projection.set(state(true)),
+      showIn: (windowId: string, pathname: string) => {
+        windows = { ...windows, [windowId]: deskWindow(windowId, pathname) };
+        projection.set(state(true));
+      },
+    };
   }
 
   function switchTo(view: Parameters<typeof setProfileView>[0]) {
@@ -250,6 +260,21 @@ describe("useProfileSwitchWindowSweep", () => {
 
     act(() => goLive());
     await waitFor(() => expect(closed).toEqual(["w_xray", "w_zulu"]));
+  });
+
+  it("Should skip a window the operator moved to another session before its close", async () => {
+    sessionOwners.set("s_own", "p_yankee");
+    sessionOwners.set("s_xray", "p_xray");
+    sessionOwners.set("s_zulu", "p_zulu");
+    let showIn: (windowId: string, pathname: string) => void = () => {};
+    const fake = fakeShell(true, () => showIn("w_zulu", "/agents/builder/sessions/s_own"));
+    showIn = fake.showIn;
+    renderHook(() => useProfileSwitchWindowSweep(fake.shell, "ws_a"), { wrapper: wrapper() });
+
+    switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() => expect(fake.closed).toEqual(["w_xray"]));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(fake.userClose).not.toHaveBeenCalledWith("w_zulu");
   });
 
   it("Should leave the desk alone without a switch or when the switch is to All profiles", async () => {

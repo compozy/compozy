@@ -13,6 +13,7 @@ import {
   enterProfileView,
   localProfileView,
   profileViewStore,
+  rehydrateProfileViewStore,
   resetProfileViews,
   restoreProfileView,
   setProfileView,
@@ -88,6 +89,22 @@ describe("profile view store", () => {
     setProfileView({ kind: "aggregate" });
     setProfileView({ kind: "profile", profile: "marketing" });
     expect(epoch()).toBe(start + 2);
+  });
+
+  it("Should keep counting explicit switches after a reload restores the view", async () => {
+    const epoch = () => profileViewStore.getSnapshot().context.switchEpoch;
+    setProfileView({ kind: "aggregate" });
+    flushStorage(profileViewStore);
+    const persisted = window.localStorage.getItem(PERSIST_KEY);
+    expect(persisted).not.toBeNull();
+    resetProfileViews();
+    window.localStorage.setItem(PERSIST_KEY, persisted ?? "");
+    await rehydrateProfileViewStore();
+    expect(localProfileView()).toEqual({ kind: "aggregate" });
+    const restored = epoch();
+    expect(Number.isInteger(restored)).toBe(true);
+    setProfileView({ kind: "profile", profile: "marketing" });
+    expect(epoch()).toBe(restored + 1);
   });
 
   it("Should persist only the All profiles view for a reload", () => {

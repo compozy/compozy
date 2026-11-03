@@ -549,8 +549,17 @@ func TestAgentInstanceAllProfilesLens(t *testing.T) {
 					t.Error(err)
 				}
 			})
+			// The fixture acts as default; the instance belongs to another profile.
+			foreign := "uuuuuuuuuuuuuuuuuuuuuuuuuu"
+			if _, err := db.DB().ExecContext(
+				t.Context(),
+				`INSERT INTO profiles(id,name,color,icon,state,created_at) VALUES (?, 'foreign', '#8E8EB5', 'circle', 'active', ?)`,
+				foreign, store.FormatTimestamp(time.Now()),
+			); err != nil {
+				t.Fatal(err)
+			}
 			instance, _, err := db.Instances().
-				AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
+				AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: foreign, AgentName: "coder", PermissionCeiling: "{}", CreatedByKind: "human"}, 10)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -567,17 +576,20 @@ func TestAgentInstanceAllProfilesLens(t *testing.T) {
 			}
 			fixture.Engine.GET("/instances/:id/away", fixture.Handlers.GetAgentInstanceAway)
 			fixture.Engine.POST("/instances/:id/away", fixture.Handlers.MarkAgentInstanceSeen)
-			serve := func(method string) *httptest.ResponseRecorder {
+			serve := func(method, query string) *httptest.ResponseRecorder {
 				response := httptest.NewRecorder()
 				fixture.Engine.ServeHTTP(response, httptest.NewRequestWithContext(
-					t.Context(), method, "/instances/"+instance.ID+"/away?all_profiles=true", nil,
+					t.Context(), method, "/instances/"+instance.ID+"/away"+query, nil,
 				))
 				return response
 			}
-			if response := serve("GET"); response.Code != 200 {
+			if response := serve("GET", ""); response.Code != 404 {
+				t.Fatalf("scoped read: %d %s, want the foreign instance hidden", response.Code, response.Body.String())
+			}
+			if response := serve("GET", "?all_profiles=true"); response.Code != 200 {
 				t.Fatalf("aggregate read: %d %s", response.Code, response.Body.String())
 			}
-			response := serve("POST")
+			response := serve("POST", "?all_profiles=true")
 			if response.Code != 400 ||
 				!strings.Contains(response.Body.String(), "all_profiles is only available for reads") {
 				t.Fatalf(

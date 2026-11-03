@@ -11,7 +11,7 @@ import {
 import { sessionAcrossProfilesOptions } from "@/systems/session";
 
 import type { OsShellHandle } from "../contexts/os-shell-context";
-import { foreignProfileSessionWindowIds } from "../lib/foreign-profile-windows";
+import { foreignProfileSessionWindows, shownSessionId } from "../lib/foreign-profile-windows";
 import type { OsDesktopRuntimeStore } from "../lib/os-types";
 
 interface SweepRequest {
@@ -68,15 +68,18 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
     if (!selectDeskLive(manager.getState())) return;
     started.current = request;
     void (async () => {
-      const foreign = await foreignProfileSessionWindowIds(
+      const foreign = await foreignProfileSessionWindows(
         manager.getState().windows,
         request.profileId,
         async sessionId =>
           ownerFromRow(await queryClient.fetchQuery(sessionAcrossProfilesOptions(sessionId))).id
       );
-      for (const windowId of foreign) {
+      for (const { windowId, sessionId } of foreign) {
         // Any later view change, All profiles included, owns the desk now: stop closing.
         if (profileViewStore.getSnapshot().context.switchEpoch !== request.epoch) return;
+        // The operator may have moved the window to another session while owners were read or
+        // an earlier close was pending; only the session that was inspected licenses the close.
+        if (shownSessionId(manager.getState().windows[windowId]) !== sessionId) continue;
         // react-doctor-disable-next-line react-doctor/async-await-in-loop -- one close at a time is the point: the runtime's close guard admits a single close and refuses the rest while it is pending.
         await coordinator.userClose(windowId);
       }

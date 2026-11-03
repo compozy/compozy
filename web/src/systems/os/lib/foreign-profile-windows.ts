@@ -1,6 +1,12 @@
 import { matchSessionInstance } from "./app-catalog";
 import type { OsWindow } from "./os-types";
 
+/** A window and the session it showed when it was inspected. */
+export interface ShownSession {
+  windowId: string;
+  sessionId: string;
+}
+
 /** The owner profile id of a session, or `null` when it cannot be told (gone, unreadable). */
 export type SessionOwnerLookup = (sessionId: string) => Promise<string | null>;
 
@@ -12,13 +18,13 @@ export type SessionOwnerLookup = (sessionId: string) => Promise<string | null>;
  * windows are not part of it. Only a confirmed foreign owner counts: a session whose owner cannot
  * be read stays, because the deletion reconciliation owns a session that is gone.
  */
-export async function foreignProfileSessionWindowIds(
+export async function foreignProfileSessionWindows(
   windows: Readonly<Record<string, OsWindow>>,
   profileId: string,
   ownerOf: SessionOwnerLookup
-): Promise<string[]> {
+): Promise<ShownSession[]> {
   const shown = Object.values(windows).flatMap(win => {
-    const sessionId = matchSessionInstance(win.route.pathname);
+    const sessionId = shownSessionId(win);
     return sessionId === null ? [] : [{ windowId: win.id, sessionId }];
   });
   const owners = await Promise.all(
@@ -30,8 +36,13 @@ export async function foreignProfileSessionWindowIds(
       }
     })
   );
-  return shown.flatMap(({ windowId }, index) => {
+  return shown.filter((_, index) => {
     const owner = owners[index];
-    return owner !== null && owner !== undefined && owner !== profileId ? [windowId] : [];
+    return owner !== null && owner !== undefined && owner !== profileId;
   });
+}
+
+/** The session a window shows, or `null` for a window that shows none. */
+export function shownSessionId(win: OsWindow | undefined): string | null {
+  return win === undefined ? null : matchSessionInstance(win.route.pathname);
 }
