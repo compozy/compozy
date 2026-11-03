@@ -105,12 +105,9 @@ rule_a_allowed=(
   internal/config/agent_kind_rewrite.go
   internal/config/agent_create.go
   internal/config/agent_resource.go
-  internal/config/agent.go
   internal/config/merge.go
   internal/config/tool_surface.go
-  internal/config/persistence_document_mutation.go
   internal/api/core/agent_create.go
-  internal/api/core/agent_identity_authoring.go
   internal/api/spec/agent_name_schema.go
   internal/cli/agent_identity_flags.go
   internal/cli/agent_mutate_requests.go
@@ -141,7 +138,7 @@ rule_b_in_scope() {
 rule_b_allowed() {
   local rel="$1"
   case "$rel" in
-    RELEASE_NOTES.md | RELEASE_BODY.md | CHANGELOG.md | .release-notes/archive/* | .release-notes/*0.5.1*) return 0 ;;
+    RELEASE_NOTES.md | RELEASE_BODY.md | CHANGELOG.md | .release-notes/archive/* | .release-notes/always-on-vocabulary-v0.5.1.md) return 0 ;;
     sdk/client/* | sdk/go/client/* | openapi/compozy.json | internal/tools/builtin/testdata/native-tool-catalog.json) return 0 ;;
     docs/_memory/glossary.md | COPY.md | MIGRATION_GUIDE.md | packages/site/content/docs/migration/index.mdx) return 0 ;;
     skills/compozy/references/agent-definitions.md | packages/site/content/docs/agents/definitions.mdx) return 0 ;;
@@ -175,20 +172,39 @@ else
   rule_b_paths=("${paths[@]}" docs/qa/scenarios)
 fi
 
+# rg exits 1 for no match; any higher status means the scan itself failed, so fail closed.
+kind_scan() {
+  local label="$1" output status
+  shift
+  set +e
+  output="$(rg --files-with-matches --pcre2 "$@" 2>&1)"
+  status=$?
+  set -e
+  if ((status > 1)); then
+    echo "$output" >&2
+    echo "Retired agent-kind scan ($label) failed before it could classify the result." >&2
+    exit "$status"
+  fi
+  ((status == 0)) && printf '%s\n' "$output"
+  return 0
+}
+
+rule_a_files="$(kind_scan "Rule A" --glob '*.go' "${retired_kind}|\bCanonicalAgentKind\b" -- "${rule_a_paths[@]}")"
 while IFS= read -r file; do
   [[ -n "$file" ]] || continue
   rel="$(relative_path "$file")"
   rule_a_in_scope "$rel" || continue
   kind_findings+=("Rule A: $file ($rel) names stays_on or calls CanonicalAgentKind outside the alias boundary")
-done < <(rg --files-with-matches --pcre2 --glob '*.go' "${retired_kind}|\bCanonicalAgentKind\b" -- "${rule_a_paths[@]}" 2>/dev/null || true)
+done <<<"$rule_a_files"
 
+rule_b_files="$(kind_scan "Rule B" "$rule_b_pattern" -- "${rule_b_paths[@]}")"
 while IFS= read -r file; do
   [[ -n "$file" ]] || continue
   rel="$(relative_path "$file")"
   rule_b_in_scope "$rel" || continue
   rule_b_allowed "$rel" && continue
   kind_findings+=("Rule B: $file ($rel) uses the retired stays-on vocabulary")
-done < <(rg --files-with-matches --pcre2 "$rule_b_pattern" -- "${rule_b_paths[@]}" 2>/dev/null || true)
+done <<<"$rule_b_files"
 
 if ((${#kind_findings[@]} > 0)); then
   printf '%s\n' "${kind_findings[@]}" >&2

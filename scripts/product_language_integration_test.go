@@ -128,6 +128,12 @@ func TestProductLanguageGuardAgentKind(t *testing.T) {
 				"bug_ids: BUG-20261103-link-trigger-stays-on-scope\n"},
 		{name: "Should reject prose next to a history identifier", as: "docs/qa/scenarios/X.md",
 			content: "See MS-web-stays-on-reports, then open the stays-on row.\n"},
+		{name: "Should allow a charter history identifier in QA scenarios", as: "docs/qa/scenarios/X.md",
+			allowed: true, content: "charter: CH-web-stays-on-fleet\n"},
+		{name: "Should reject the retired word in another v0.5.1 release fragment",
+			as: ".release-notes/other-change-v0.5.1.md", content: "Stays-on agents now pause.\n"},
+		{name: "Should reject stays_on in the central agent loader", as: "internal/config/agent.go",
+			content: "package config\n\nconst kind = \"stays_on\"\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -149,5 +155,32 @@ func TestProductLanguageGuardAgentKind(t *testing.T) {
 				t.Fatalf("retired kind in %s not reported: %v\n%s", tc.as, err, output)
 			}
 		})
+	}
+}
+
+// TestProductLanguageGuardAgentKindFailsClosed owns UT-020's fail-closed edge: a ripgrep error in
+// the retired-kind scan fails the guard instead of reading as "no match".
+func TestProductLanguageGuardAgentKindFailsClosed(t *testing.T) {
+	t.Parallel()
+	realRG, err := exec.LookPath("rg")
+	if err != nil {
+		t.Fatalf("rg is required: %v", err)
+	}
+	dir := t.TempDir()
+	wrapper := "#!/usr/bin/env bash\n" +
+		"for a in \"$@\"; do [[ \"$a\" == *CanonicalAgentKind* ]] && { echo 'rg: simulated failure' >&2; exit 2; }; done\n" +
+		"exec " + realRG + " \"$@\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "rg"), []byte(wrapper), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	fixture := filepath.Join(dir, "x.md")
+	if err := os.WriteFile(fixture, []byte("Plain copy.\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.CommandContext(t.Context(), "bash", "check-product-language.sh", fixture)
+	command.Env = append(os.Environ(), "PATH="+dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "Retired agent-kind scan (Rule A) failed") {
+		t.Fatalf("rg failure did not fail the guard: %v\n%s", err, output)
 	}
 }
