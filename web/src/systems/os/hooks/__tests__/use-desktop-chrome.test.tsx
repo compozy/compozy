@@ -236,8 +236,11 @@ describe("useProfileSwitchWindowSweep", () => {
     const userClose = vi.fn(async (windowId: string) => {
       if (pending) return false;
       if (!refused) {
-        // A close another surface already has pending: the runtime refuses this one.
+        // Another surface's close is pending for a while (a terminal confirmation, say): the
+        // runtime refuses this one and keeps refusing until that close settles.
         refused = true;
+        pending = true;
+        setTimeout(() => (pending = false), 300);
         return false;
       }
       pending = true;
@@ -289,6 +292,22 @@ describe("useProfileSwitchWindowSweep", () => {
 
     switchTo({ kind: "profile", profile: "yankee" });
     await waitFor(() => expect(closed).toEqual(["w_xray"]));
+  });
+
+  it("Should stop retrying a refused close once the shell unmounts", async () => {
+    sessionOwners.set("s_xray", "p_xray");
+    const { shell, userClose } = fakeShell(true);
+    userClose.mockImplementation(async () => false);
+    const { unmount } = renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
+      wrapper: wrapper(),
+    });
+
+    switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() => expect(userClose).toHaveBeenCalled());
+    unmount();
+    const attempts = userClose.mock.calls.length;
+    await new Promise(resolve => setTimeout(resolve, 600));
+    expect(userClose).toHaveBeenCalledTimes(attempts);
   });
 
   it("Should skip a window the operator moved to another session before its close", async () => {
