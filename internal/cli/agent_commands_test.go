@@ -1201,6 +1201,10 @@ func TestAgentInstanceCommands(t *testing.T) {
 						w.WriteHeader(204)
 						return
 					}
+					if wantAll := slices.Contains(tc.args, "--all-profiles"); r.Method == http.MethodGet &&
+						(r.URL.Query().Get("all_profiles") == "true") != wantAll {
+						t.Errorf("all_profiles query = %q, want selector %v", r.URL.RawQuery, wantAll)
+					}
 					if r.Method != http.MethodGet && r.Method != http.MethodPatch {
 						t.Errorf("unexpected method %s", r.Method)
 					}
