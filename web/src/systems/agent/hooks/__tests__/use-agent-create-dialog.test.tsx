@@ -669,11 +669,12 @@ describe("useAgentCreateDialog", () => {
         place: "@user",
       })
     );
+    mockDuplicateAgent.mockResolvedValueOnce({ ...source, name: "ops-lead-watch" });
     act(() => result.current.onSubmit());
 
     await waitFor(() =>
       expect(mockCreateInstance).toHaveBeenCalledWith({
-        agent: "ops-lead-copy",
+        agent: "ops-lead-watch",
         workspace: "@user",
         profile: "ops",
       })
