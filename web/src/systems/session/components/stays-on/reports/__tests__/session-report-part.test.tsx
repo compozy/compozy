@@ -531,11 +531,13 @@ describe("SessionReportPart skill review", () => {
     );
   });
 
-  it("Should keep the decision off and not call it the latest until the digest changes [UT-059]", async () => {
+  it("Should hold the decision during the reread and never lock it on the same digest [UT-059]", async () => {
     const { AgentSkillReviewApiError } =
       await import("@/systems/agent/adapters/agent-skill-review-api");
-    // The reread still returns the contents that were refused.
-    skillReviews.fetch.mockResolvedValue(skillReview());
+    let finishReread: (value: unknown) => void = () => undefined;
+    skillReviews.fetch
+      .mockResolvedValueOnce(skillReview())
+      .mockImplementationOnce(() => new Promise(resolve => (finishReread = resolve)));
     skillReviews.decide.mockRejectedValueOnce(
       new AgentSkillReviewApiError("changed", 409, "skill_review_stale")
     );
@@ -545,9 +547,60 @@ describe("SessionReportPart skill review", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Approve" }));
 
     await waitFor(() => expect(skillReviews.fetch).toHaveBeenCalledTimes(2));
-    expect(screen.queryByTestId("skill-review-stale")).toBeNull();
     expect(screen.getByRole("button", { name: /Approve/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reject" })).toBeDisabled();
+
+    // The reread brings the same contents back: not "the latest version", and not locked.
+    finishReread(skillReview());
+    await waitFor(() => expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled());
+    expect(screen.getByRole("button", { name: /Approve/ })).toBeEnabled();
+    expect(screen.queryByTestId("skill-review-stale")).toBeNull();
     expect(skillReviews.decide).toHaveBeenCalledTimes(1);
+  });
+
+  it("Should say a draft can't be installed and keep Reject available [UT-059]", async () => {
+    const { AgentSkillReviewApiError } =
+      await import("@/systems/agent/adapters/agent-skill-review-api");
+    skillReviews.fetch.mockResolvedValue(skillReview());
+    skillReviews.decide
+      .mockRejectedValueOnce(new AgentSkillReviewApiError("bad name", 422, "skill_review_invalid"))
+      .mockResolvedValueOnce(skillReview({ state: "rejected" }));
+    render(<SessionReportPart data={SKILL_REPORT} />, { wrapper: harness(vi.fn()) });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Review skill" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Approve" }));
+
+    expect(await screen.findByText(/can't install this version/)).toBeInTheDocument();
+    expect(screen.queryByTestId("skill-review-stale")).toBeNull();
+    await waitFor(() => expect(screen.getByRole("button", { name: /Approve/ })).toBeDisabled());
+    await userEvent.click(screen.getByRole("button", { name: "Reject" }));
+
+    expect(skillReviews.decide).toHaveBeenLastCalledWith(
+      { id: "skr-1", profile: INSTANCE.profile_name },
+      "reject",
+      "sha256:one"
+    );
+    expect(await screen.findByText(/You rejected/)).toBeInTheDocument();
+  });
+
+  it("Should warn about invisible characters in a script [UT-059]", async () => {
+    skillReviews.fetch.mockResolvedValue(
+      skillReview({
+        files: [
+          { path: "SKILL.md", content: SKILL_MD },
+          {
+            path: "scripts/sync.sh",
+            content: `#!/usr/bin/env bash\necho ${String.fromCodePoint(0x202e)}sync\n`,
+          },
+        ],
+      })
+    );
+    render(<SessionReportPart data={SKILL_REPORT} />, { wrapper: harness(vi.fn()) });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Review skill" }));
+    await userEvent.click(screen.getByRole("button", { name: /sync\.sh/ }));
+
+    expect(await screen.findByTestId("skill-review-invisible-characters")).toBeInTheDocument();
   });
 
   it("Should reject and fold to the rejected receipt [UT-059]", async () => {

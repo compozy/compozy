@@ -121,6 +121,7 @@ export function skillReviewViewFixture(
     state: skillReviewState(payload),
     stale: false,
     deciding: false,
+    invalid: false,
     decideError: null,
     decide: () => undefined,
     ...overrides,
