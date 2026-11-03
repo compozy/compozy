@@ -39,6 +39,7 @@ func TestRespondErrorCancellation(t *testing.T) {
 		{"Should preserve live double commit errors", sql.ErrTxDone, false, 500},
 		{"Should preserve request deadlines", context.DeadlineExceeded, false, 500},
 		{"Should preserve database lock failures", errors.New("database is locked"), false, 500},
+		{"Should retain server failures after the client disconnects", errors.New("database is locked"), true, 499},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -61,8 +62,15 @@ func TestRespondErrorCancellation(t *testing.T) {
 				t.Fatal(err)
 			}
 			if tc.status == 499 {
-				if payload.Error != context.Canceled.Error() || logs.Len() != 0 {
+				if payload.Error != context.Canceled.Error() || strings.Contains(logs.String(), "level=ERROR") {
 					t.Fatalf("cancellation = %s, logs = %s", response.Body.String(), logs.String())
+				}
+				if errors.Is(tc.err, context.Canceled) {
+					if logs.Len() != 0 {
+						t.Fatalf("ordinary cancellation logged a server cause: %s", logs.String())
+					}
+				} else if !strings.Contains(logs.String(), "level=WARN") || !strings.Contains(logs.String(), tc.err.Error()) {
+					t.Fatalf("disconnected server failure lost its cause: %s", logs.String())
 				}
 			} else if payload.Error != http.StatusText(http.StatusInternalServerError) || !strings.Contains(logs.String(), tc.err.Error()) {
 				t.Fatalf("failure = %s, logs = %s", response.Body.String(), logs.String())

@@ -34,16 +34,20 @@ func (h *BaseHandlers) respondError(c *gin.Context, status int, err error) {
 	RespondError(c, status, err, h.MaskInternalErrors)
 }
 
-// logServerError records the cause behind a 5xx response. The access log keeps
-// only the status, and the response may mask the message.
+// logServerError preserves server causes, including failures after a client disconnect.
 func (h *BaseHandlers) logServerError(c *gin.Context, status int, err error) {
 	if err == nil {
 		return
 	}
+	cause := err
 	status, err = requestErrorStatus(c, status, err)
 	status = normalizeErrorStatus(status, err, false).status
+	level := slog.LevelError
 	if status < http.StatusInternalServerError {
-		return
+		if status != statusClientClosedRequest || errors.Is(cause, context.Canceled) {
+			return
+		}
+		level = slog.LevelWarn
 	}
 	logger := slog.Default()
 	if h != nil && h.Logger != nil {
@@ -54,10 +58,10 @@ func (h *BaseHandlers) logServerError(c *gin.Context, status int, err error) {
 	if c != nil && c.Request != nil {
 		ctx, method, path = c.Request.Context(), c.Request.Method, c.FullPath()
 	}
-	logger.ErrorContext(
-		ctx, "api: request failed",
+	logger.Log(
+		ctx, level, "api: request failed",
 		"method", method, "path", path, "status", status,
-		handlersErrorKey, diagnostics.RedactAndBound(err.Error(), 2048),
+		handlersErrorKey, diagnostics.RedactAndBound(cause.Error(), 2048),
 	)
 }
 
