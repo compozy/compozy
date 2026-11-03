@@ -17,7 +17,7 @@ export function useStaysOnPlaces(): {
   preselected: string;
   /** The first project read is in flight: the places and the preselection aren't final yet. */
   pending: boolean;
-  /** Present when the project read failed: only Global is listed until a retry loads them. */
+  /** Present when the first project read failed: only Global is listed until a retry loads them. */
   retry?: () => void;
 } {
   const active = useActiveWorkspace();
@@ -33,6 +33,7 @@ export function useStaysOnPlaces(): {
       lastUsed: readLastSessionProject(),
     }),
     pending: active.pending && !active.isError,
-    retry: active.isError ? () => void active.refetch() : undefined,
+    // Only a failed first read: a failed refetch keeps the cached projects, like every other list.
+    retry: active.pending && active.isError ? () => void active.refetch() : undefined,
   };
 }

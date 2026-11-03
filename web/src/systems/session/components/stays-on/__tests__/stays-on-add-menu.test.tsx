@@ -77,9 +77,11 @@ function renderMenu(
       </UIProvider>
     </QueryClientProvider>
   );
-  render(<StaysOnCreateMenu onNewSession={vi.fn()} staysOn={staysOn} testId="group" />, {
-    wrapper,
-  });
+  const menu = (target: typeof staysOn) => (
+    <StaysOnCreateMenu onNewSession={vi.fn()} staysOn={target} testId="group" />
+  );
+  const { rerender } = render(menu(staysOn), { wrapper });
+  return { rescope: (target: typeof staysOn) => rerender(menu(target)) };
 }
 
 async function openPicker(user: ReturnType<typeof userEvent.setup>) {
@@ -190,5 +192,19 @@ describe("Project + Add stays-on agent", () => {
       "true"
     );
     expect(screen.queryByText("Couldn't load projects.")).toBeNull();
+  });
+
+  it("Should add to the new scope when the list changes scope while the picker is open", async () => {
+    const user = userEvent.setup();
+    const { rescope } = renderMenu();
+
+    await openPicker(user);
+    expect(await screen.findByText("Add to compozy")).toBeInTheDocument();
+    rescope({ place: "ws-site", name: "site" });
+    await user.click(await screen.findByText("Scout"));
+
+    await waitFor(() =>
+      expect(mockApi.create.mock.calls[0]?.[0]).toEqual({ agent: "scout", workspace: "ws-site" })
+    );
   });
 });

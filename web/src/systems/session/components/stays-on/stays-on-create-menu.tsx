@@ -23,7 +23,16 @@ export function StaysOnCreateMenu({
     <SessionListCreateMenu
       {...props}
       onAddStaysOn={() => setAdding(true)}
-      overlay={adding ? <StaysOnAddPicker onOpenChange={setAdding} target={staysOn} /> : null}
+      overlay={
+        adding ? (
+          // A new list scope starts the picker over, so it never adds to the old place.
+          <StaysOnAddPicker
+            key={staysOn?.place ?? "several"}
+            onOpenChange={setAdding}
+            target={staysOn}
+          />
+        ) : null
+      }
     />
   );
 }
