@@ -159,7 +159,13 @@ func IsUnrestrictedACPMode(provider, mode string) bool {
 		return false
 	}
 	switch mode {
-	case "agent-full-access", "full-access", "full_access", "bypassPermissions", "bypass_permissions", "yolo", acpModeAuto:
+	case "agent-full-access",
+		"full-access",
+		"full_access",
+		"bypassPermissions",
+		"bypass_permissions",
+		"yolo",
+		acpModeAuto:
 		return true
 	default:
 		return false

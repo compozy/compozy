@@ -7,6 +7,35 @@ import (
 	"time"
 )
 
+// CreateAgentPayload is a daemon API value.
+type CreateAgentPayload struct {
+	DisplayName        *string                             `json:"display_name,omitempty"`
+	Description        *string                             `json:"description,omitempty"`
+	Kind               string                              `json:"kind,omitempty"`
+	Appearance         map[string]any                      `json:"appearance,omitempty"`
+	Label              string                              `json:"label,omitempty"`
+	ResolvedAppearance map[string]any                      `json:"resolved_appearance,omitempty"`
+	SessionEnv         map[string]SessionEnvBindingPayload `json:"session_env,omitempty"`
+	Name               string                              `json:"name"`
+	Provider           string                              `json:"provider,omitempty"`
+	Command            string                              `json:"command,omitempty"`
+	Model              string                              `json:"model,omitempty"`
+	ReasoningEffort    Effort                              `json:"reasoning_effort,omitempty"`
+	Speed              Speed                               `json:"speed,omitempty"`
+	ACPOptions         []AgentACPOptionSelection           `json:"acp_options,omitempty"`
+	Tools              []string                            `json:"tools,omitempty"`
+	Toolsets           []string                            `json:"toolsets,omitempty"`
+	DenyTools          []string                            `json:"deny_tools,omitempty"`
+	SessionApproval    string                              `json:"session_approval,omitempty"`
+	PermissionRules    []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
+	WorkspaceAccess    string                              `json:"workspace_access,omitempty"`
+	Permissions        SettingsPermissionMode              `json:"permissions,omitempty"`
+	CategoryPath       []string                            `json:"category_path,omitempty"`
+	Skills             *CreateAgentSkillsConfig            `json:"skills,omitzero"`
+	FallbackChain      []AgentFallbackRoutePayload         `json:"fallback_chain,omitempty"`
+	Prompt             string                              `json:"prompt"`
+}
+
 // CreateAgentRequest is a daemon API value.
 type CreateAgentRequest struct {
 	Scope     AgentCreateScope   `json:"scope"`
@@ -128,21 +157,22 @@ type CreateTaskRequest struct {
 
 // CreateTriggerRequest is a daemon API value.
 type CreateTriggerRequest struct {
-	Scope              Scope             `json:"scope"`
-	Name               string            `json:"name"`
-	TargetKind         TargetKind        `json:"target_kind,omitempty"`
-	AgentName          string            `json:"agent_name"`
-	WorkspaceID        string            `json:"workspace_id,omitempty"`
-	Prompt             string            `json:"prompt"`
-	Event              string            `json:"event"`
-	Filter             map[string]string `json:"filter,omitempty"`
-	LoopTarget         *LoopTarget       `json:"loop_target,omitempty"`
-	Enabled            *bool             `json:"enabled,omitempty"`
-	Retry              *RetryConfig      `json:"retry,omitempty"`
-	FireLimit          *FireLimitConfig  `json:"fire_limit,omitempty"`
-	WebhookID          string            `json:"webhook_id,omitempty"`
-	EndpointSlug       string            `json:"endpoint_slug,omitempty"`
-	WebhookSecretValue string            `json:"webhook_secret_value,omitempty"`
+	TargetInstanceScope string            `json:"target_instance_scope,omitempty"`
+	Scope               Scope             `json:"scope"`
+	Name                string            `json:"name"`
+	TargetKind          TargetKind        `json:"target_kind,omitempty"`
+	AgentName           string            `json:"agent_name"`
+	WorkspaceID         string            `json:"workspace_id,omitempty"`
+	Prompt              string            `json:"prompt"`
+	Event               string            `json:"event"`
+	Filter              map[string]string `json:"filter,omitempty"`
+	LoopTarget          *LoopTarget       `json:"loop_target,omitempty"`
+	Enabled             *bool             `json:"enabled,omitempty"`
+	Retry               *RetryConfig      `json:"retry,omitempty"`
+	FireLimit           *FireLimitConfig  `json:"fire_limit,omitempty"`
+	WebhookID           string            `json:"webhook_id,omitempty"`
+	EndpointSlug        string            `json:"endpoint_slug,omitempty"`
+	WebhookSecretValue  string            `json:"webhook_secret_value,omitempty"`
 }
 
 // CreateWorkspaceFolderRequest is a daemon API value.
@@ -416,33 +446,4 @@ type EffectSpec struct {
 	Emit *EmitSpec      `json:"emit,omitzero"`
 	Tool string         `json:"tool,omitempty"`
 	With map[string]any `json:"with,omitempty"`
-}
-
-// Effort is a daemon API value.
-type Effort string
-
-// EmitSpec is a daemon API value.
-type EmitSpec struct {
-	Kind    string         `json:"kind"`
-	Payload map[string]any `json:"payload,omitempty"`
-}
-
-// EmptyState is a daemon API value.
-type EmptyState struct {
-	Title string `json:"title"`
-	Hint  string `json:"hint,omitempty"`
-	Icon  string `json:"icon,omitempty"`
-}
-
-// EnqueueTaskRunRequest is a daemon API value.
-type EnqueueTaskRunRequest struct {
-	IdempotencyKey string          `json:"idempotency_key,omitempty"`
-	Metadata       json.RawMessage `json:"metadata,omitempty"`
-}
-
-// Entry is a daemon API value.
-type Entry struct {
-	Message       UIMessage `json:"message"`
-	StartSequence int64     `json:"start_sequence"`
-	Sequence      int64     `json:"sequence"`
 }

@@ -1083,6 +1083,12 @@
             },
             "type": "array"
           },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/AgentInstanceProposalSource"
+            },
+            "type": "array"
+          },
           "title": {
             "type": "string"
           }
@@ -1091,6 +1097,33 @@
           "body",
           "item_keys",
           "title"
+        ],
+        "type": "object"
+      },
+      "AgentInstanceProposalSource": {
+        "properties": {
+          "event_id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "received_at": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "trigger_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "kind",
+          "received_at",
+          "run_id",
+          "trigger_id"
         ],
         "type": "object"
       },
@@ -1128,6 +1161,9 @@
             "type": "string"
           },
           "since": {
+            "type": "string"
+          },
+          "skill_review_id": {
             "type": "string"
           },
           "state": {
@@ -6597,6 +6633,9 @@
               "user",
               "@user"
             ],
+            "type": "string"
+          },
+          "target_instance_scope": {
             "type": "string"
           },
           "target_kind": {
@@ -41677,6 +41716,9 @@
             ],
             "type": "string"
           },
+          "target_instance_scope": {
+            "type": "string"
+          },
           "target_kind": {
             "type": "string"
           },
@@ -56627,7 +56669,8 @@
               "enum": [
                 "agent",
                 "loop",
-                "task"
+                "task",
+                "agent_instance"
               ],
               "type": "string"
             }

@@ -530,7 +530,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "1a668a1fa2efb53cb0171934b7306febaef909b02febf9c57a64ae025db8961e",
+    "input_schema_digest": "f2e91d790778ff9ae0af617614de1859659205549023c78ccc00335c3c446217",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

@@ -198,7 +198,7 @@ func validateTriggerTarget(trigger Trigger, targetKind TargetKind, path string) 
 		if scope := strings.TrimSpace(
 			trigger.TargetInstanceScope,
 		); scope != "" && scope != trigger.WorkspaceID &&
-			!(trigger.Scope == AutomationScopeGlobal && scope == "global") {
+			(trigger.Scope != AutomationScopeGlobal || scope != "global") {
 			return errors.New(nestedPath(path, "target_instance_scope") + " must match the trigger scope")
 		}
 	}

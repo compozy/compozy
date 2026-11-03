@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+// LoopRunEventPayload is a daemon API value.
+type LoopRunEventPayload struct {
+	ID          string          `json:"id"`
+	LoopRunID   string          `json:"loop_run_id"`
+	WorkspaceID string          `json:"workspace_id"`
+	Seq         int64           `json:"seq"`
+	Kind        RunEventKind    `json:"kind"`
+	Payload     json.RawMessage `json:"payload"`
+	At          time.Time       `json:"at"`
+}
+
 // LoopRunPayload is a daemon API value.
 type LoopRunPayload struct {
 	ID                string                `json:"id"`

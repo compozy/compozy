@@ -277,6 +277,12 @@ func (m *Manager) resolveConfigTrigger(ctx context.Context, raw compozyconfig.Au
 		EndpointSlug:     strings.TrimSpace(raw.EndpointSlug),
 		WebhookSecretRef: strings.TrimSpace(raw.WebhookSecretRef),
 	}
+	if raw.TargetInstanceScope != "" {
+		trigger.TargetInstanceScope = strings.TrimSpace(raw.TargetInstanceScope)
+		if raw.Scope == AutomationScopeWorkspace && trigger.TargetInstanceScope == strings.TrimSpace(raw.Workspace) {
+			trigger.TargetInstanceScope = workspaceID
+		}
+	}
 	if strings.EqualFold(trigger.Event, "webhook") {
 		trigger.WebhookID = configWebhookID(raw.Scope, workspaceID, raw.Name)
 	}

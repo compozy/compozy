@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// LoopGateDiagnosticWarning is a daemon API value.
+type LoopGateDiagnosticWarning struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// LoopGateVerdictEventPayload is a daemon API value.
+type LoopGateVerdictEventPayload struct {
+	NodeID         string                          `json:"node_id"`
+	Generation     int64                           `json:"generation"`
+	GateID         string                          `json:"gate_id"`
+	ItemIndex      int                             `json:"item_index"`
+	Verdict        string                          `json:"verdict"`
+	Reason         string                          `json:"reason"`
+	Route          string                          `json:"route"`
+	BlockingIssues []LoopGateBlockingIssuePayload  `json:"blocking_issues"`
+	Criteria       []LoopGateCriterionEventPayload `json:"criteria"`
+	Score          *float64                        `json:"score,omitzero"`
+	BestGeneration *int64                          `json:"best_generation,omitzero"`
+}
+
+// LoopGateVerdictOutcome is a daemon API value.
+type LoopGateVerdictOutcome string
+
 // LoopGateVerdictPayload is a daemon API value.
 type LoopGateVerdictPayload struct {
 	GateID         string                           `json:"gate_id"`
@@ -417,15 +441,4 @@ type LoopRunAttention struct {
 	Kind  string    `json:"kind"`
 	Count int       `json:"count"`
 	Since time.Time `json:"since"`
-}
-
-// LoopRunEventPayload is a daemon API value.
-type LoopRunEventPayload struct {
-	ID          string          `json:"id"`
-	LoopRunID   string          `json:"loop_run_id"`
-	WorkspaceID string          `json:"workspace_id"`
-	Seq         int64           `json:"seq"`
-	Kind        RunEventKind    `json:"kind"`
-	Payload     json.RawMessage `json:"payload"`
-	At          time.Time       `json:"at"`
 }

@@ -7,6 +7,20 @@ import (
 	"time"
 )
 
+// AgentTaskCompleteRequest is a daemon API value.
+type AgentTaskCompleteRequest struct {
+	Result         json.RawMessage `json:"result,omitempty"`
+	CreatedTaskIDs []string        `json:"created_task_ids,omitempty"`
+}
+
+// AgentTaskContextPayload is a daemon API value.
+type AgentTaskContextPayload struct {
+	Available bool                        `json:"available"`
+	Task      *TaskReferencePayload       `json:"task,omitzero"`
+	Lease     *TaskRunLeaseSummaryPayload `json:"lease,omitzero"`
+	Bundle    *ContextBundle              `json:"bundle,omitzero"`
+}
+
 // AgentTaskFailRequest is a daemon API value.
 type AgentTaskFailRequest struct {
 	Error    string          `json:"error"`
@@ -430,16 +444,4 @@ type CancelTaskRequest struct {
 type CancelTaskRunRequest struct {
 	Reason   string          `json:"reason,omitempty"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// CancelWorktreeExitActionRequest is a daemon API value.
-type CancelWorktreeExitActionRequest struct {
-	OperationID string `json:"op_id"`
-}
-
-// CatalogMeta is a daemon API value.
-type CatalogMeta struct {
-	UseWhen  string   `json:"use_when,omitempty"`
-	Keywords []string `json:"keywords,omitempty"`
-	Category string   `json:"category,omitempty"`
 }

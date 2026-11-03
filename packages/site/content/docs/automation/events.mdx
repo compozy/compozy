@@ -34,7 +34,7 @@ event, Loop target, target kind, and text query filters before it cuts the page.
 the rows under `triggers` and reports the exact `total`, applied `limit`, `has_more`, and
 `next_cursor` values under `page`.
 
-`--target agent|loop` filters by what the trigger does. `--target task` is accepted for parity with
+`--target agent|loop|agent_instance` filters by what the trigger does. `--target task` is accepted for parity with
 jobs and matches no trigger, because only scheduled automations create tasks.
 
 Use `--limit` to bound each read and pass `--cursor` to continue. A cursor is tied to the filter set
@@ -51,7 +51,7 @@ it has never run. The human table shows it as the **Last Run** column.
 | `name`                       | Yes                     | Human-readable trigger name.                                                                                                                                 |
 | `scope`                      | Yes                     | `global` or `workspace`.                                                                                                                                     |
 | `workspace` / `workspace_id` | Workspace triggers only | TOML uses `workspace`; API payloads and stored triggers use `workspace_id`.                                                                                  |
-| `target_kind`                | No                      | `agent` or `loop`. Omitted targets default to `agent` unless a `loop_target` is present.                                                                     |
+| `target_kind`                | No                      | `agent`, `loop`, or experimental `agent_instance`. Omitted targets default to `agent` unless a `loop_target` is present.                                                                     |
 | `event`                      | Yes                     | Event name to match. Built-in events are documented below, and extension events use `ext.*`.                                                                 |
 | `agent` / `agent_name`       | Agent targets           | Agent to run when the trigger matches. After trimming, it must match `^[a-z][a-z0-9_-]{0,105}$` (maximum 106 characters). It must be empty for Loop targets. |
 | `prompt`                     | Agent targets           | Go `text/template` rendered against the activation envelope. Must be empty for Loop targets.                                                                 |
@@ -62,6 +62,34 @@ it has never run. The human table shows it as the **Last Run** column.
 | `fire_limit`                 | No                      | Same rolling fire limit as jobs. Defaults to `12/1h` unless changed.                                                                                         |
 | `endpoint_slug`              | Webhook triggers        | Human-readable webhook endpoint segment.                                                                                                                     |
 | `webhook_secret_ref`         | Webhook triggers        | `env:NAME` or `vault:automation/...` ref for the webhook signing secret.                                                                                     |
+
+## Send an event to a stays-on check
+
+The experimental `agent_instance` target addresses an existing stays-on agent by `agent_name`
+and `target_instance_scope`. The scope must match the trigger: its own `workspace_id`, or `global`
+for a global trigger. Scheduled jobs cannot use this target.
+
+```bash
+compozy automation triggers create --name deploy-failed --event webhook \
+  --target-instance triage --workspace compozy \
+  --prompt "Tell me which deploy failed and why it matters."
+```
+
+The HTTP, UDS and native create surfaces accept `target_kind: "agent_instance"` with
+`agent_name`, `target_instance_scope`, `prompt`, and the ordinary trigger fields. TOML uses the same
+target kind; a workspace name in `target_instance_scope` resolves with the trigger's workspace.
+
+Delivery records the event and completes the automation run without starting a main-session turn.
+The read-only check uses the operator's prompt as its instruction and treats rendered event values
+as untrusted data. Proposals expose their event, trigger and run IDs. Picking a proposal is an
+operator action. Use the ordinary `agent` target for unattended work that should run immediately.
+
+Bursts coalesce while respecting the minimum check interval. Paused and quiet-window events remain
+pending: the newest 200 are retained, with older omissions counted. Each check reads at most 20
+events and 8 KiB, with each summary capped at 2 KiB. Successful checks consume only their admitted
+batch; failed or cancelled checks retain it. Events are collected even with `context.include: []`.
+A run identifies disabled or unsupported checks. A missing instance fails that run with
+`trigger_target_instance_not_found` and leaves the trigger enabled.
 
 ## Target a Loop from an event
 

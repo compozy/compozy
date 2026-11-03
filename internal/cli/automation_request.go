@@ -17,6 +17,13 @@ func buildAutomationTriggerCreateRequest(
 	client workspaceLookupClient,
 	input automationTriggerCommandInput,
 ) (AutomationTriggerCreateRequest, error) {
+	// An instance target uses the explicit workspace in the documented trigger shortcut.
+	if input.TargetInstance != "" && input.ScopeRaw == "" && input.WorkspaceRef != "" {
+		input.ScopeRaw = string(automationpkg.AutomationScopeWorkspace)
+		if input.WorkspaceRef == "@user" {
+			input.ScopeRaw, input.WorkspaceRef = layoutProfileScopeGlobal, ""
+		}
+	}
 	scope, workspaceID, err := resolveAutomationScopeWorkspace(
 		cmd,
 		deps,
@@ -49,18 +56,19 @@ func buildAutomationTriggerCreateRequest(
 	}
 
 	request := AutomationTriggerCreateRequest{
-		Scope:              scope,
-		Name:               strings.TrimSpace(input.Name),
-		TargetKind:         target.Kind,
-		AgentName:          target.AgentName,
-		WorkspaceID:        workspaceID,
-		Prompt:             target.Prompt,
-		Event:              input.EventRaw,
-		Filter:             filter,
-		LoopTarget:         target.LoopTarget,
-		WebhookID:          strings.TrimSpace(input.WebhookID),
-		EndpointSlug:       strings.TrimSpace(input.EndpointSlug),
-		WebhookSecretValue: input.WebhookSecretValue,
+		TargetInstanceScope: target.InstanceScope,
+		Scope:               scope,
+		Name:                strings.TrimSpace(input.Name),
+		TargetKind:          target.Kind,
+		AgentName:           target.AgentName,
+		WorkspaceID:         workspaceID,
+		Prompt:              target.Prompt,
+		Event:               input.EventRaw,
+		Filter:              filter,
+		LoopTarget:          target.LoopTarget,
+		WebhookID:           strings.TrimSpace(input.WebhookID),
+		EndpointSlug:        strings.TrimSpace(input.EndpointSlug),
+		WebhookSecretValue:  input.WebhookSecretValue,
 	}
 	if cmd.Flags().Changed(automationEnabledKey) {
 		request.Enabled = new(input.Enabled)
