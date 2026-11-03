@@ -1166,17 +1166,28 @@ func TestInstanceRunningCheckPauseIntegration(t *testing.T) {
 // Owning layer: daemon instance admission integration, using real session identity.
 func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 	d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
-		configureInstancePermissionFixture(t, d, "approve-all", "", func(*acpmock.AgentFixture) {})
+		configureInstancePermissionFixture(t, d, "approve-all", "", func(f *acpmock.AgentFixture) {
+			var steps []acpmock.Step
+			for _, id := range []string{"agent-http", "agent-uds", "operator-http"} {
+				steps = append(steps, acpmock.Step{Kind: acpmock.StepKindPermission, ToolCallID: id,
+					Title: "Edit " + id, ToolKind: "edit", Path: id + ".txt", ExpectDecision: "allow-once"})
+			}
+			steps = append(steps, acpmock.Step{Kind: acpmock.StepKindAssistant, Text: "lineage approvals complete"})
+			f.Turns = append(f.Turns, acpmock.TurnFixture{
+				Name: "lineage approvals", Match: acpmock.TurnMatch{UserText: "lineage approvals"}, Steps: steps,
+			})
+		})
 	})
 	main, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
 	if err != nil {
 		t.Fatal(err)
 	}
 	db := d.registry.(*globaldb.GlobalDB)
-	if _, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+	instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
 		ProfileID: main.ProfileID, AgentName: main.AgentName, WorkspaceID: workspace,
 		PermissionCeiling: string(mustWorkLogCeiling(t, main.Info().Workspace)), CreatedByKind: "human",
-	}, main.ID, 10); err != nil {
+	}, main.ID, 10)
+	if err != nil {
 		t.Fatal(err)
 	}
 	stranger, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
@@ -1223,6 +1234,92 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 			})
 		}
 	}
+	// Invariant (UT-005, IT-013; rules 6 and 19): an authorized agent approval over HTTP or UDS is recorded
+	// as that agent and leaves the unattended counter alone; only the operator's approval resets it.
+	t.Run("Should attribute lineage approvals and reset the counter only for the operator", func(t *testing.T) {
+		child, err := manager.Spawn(t.Context(), session.SpawnOpts{ParentSessionID: main.ID, AgentName: main.AgentName,
+			Workspace: workspace, Name: "Approval child", Permissions: "approve-reads", TTL: time.Minute})
+		if err != nil {
+			t.Fatal(err)
+		}
+		events, err := manager.Prompt(t.Context(), child.ID, "lineage approvals")
+		if err != nil {
+			t.Fatal(err)
+		}
+		approvers := []struct {
+			base   string
+			client *http.Client
+			agent  bool
+			turns  int
+		}{
+			{fmt.Sprintf("http://127.0.0.1:%d", d.info.Port), http.DefaultClient, true, 5},
+			{"http://unix", uds, true, 5},
+			{fmt.Sprintf("http://127.0.0.1:%d", d.info.Port), http.DefaultClient, false, 0},
+		}
+		counter := func() int {
+			wake, err := db.Instances().WakeState(t.Context(), instance.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			return int(wake.UnattendedTurns)
+		}
+		var sources []string
+		for event := range events {
+			if event.Type == acp.EventTypeError {
+				t.Fatalf("provider error: %+v", event)
+			}
+			if event.Type != acp.EventTypePermission {
+				continue
+			}
+			if event.Decision != "" {
+				if index := len(sources); index < len(approvers) {
+					want := approvers[index].turns
+					waitForRuntimeCondition(t, "approval counter", 5*time.Second, func() bool {
+						return counter() == want
+					})
+					// An agent decision must not reset later either; the operator's reset is the control.
+					if got := counter(); got != want {
+						t.Fatalf("approval %d unattended turns=%d want=%d", index, got, want)
+					}
+				}
+				sources = append(sources, event.ResolvedByValue())
+				continue
+			}
+			index := len(sources)
+			if index >= len(approvers) {
+				t.Fatalf("unexpected pending permission: %+v", event)
+			}
+			approver := approvers[index]
+			if _, err := db.DB().ExecContext(t.Context(),
+				"UPDATE agent_instance_wake_state SET unattended_turns=5 WHERE instance_id=?", instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			body := fmt.Sprintf(`{"request_id":%q,"decision":"allow-once"}`, event.RequestIDValue())
+			request, err := http.NewRequestWithContext(t.Context(), http.MethodPost,
+				approver.base+"/api/workspaces/"+workspace+"/sessions/"+child.ID+"/approve", strings.NewReader(body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			request.Header.Set("Content-Type", "application/json")
+			if approver.agent {
+				request.Header.Set(agentidentity.HeaderSessionID, main.ID)
+				request.Header.Set(agentidentity.HeaderAgent, main.AgentName)
+			}
+			response, err := approver.client.Do(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, readErr := io.ReadAll(response.Body)
+			response.Body.Close()
+			if readErr != nil || response.StatusCode >= 300 {
+				t.Fatalf("approval %d response=%d %s error=%v", index, response.StatusCode, raw, readErr)
+			}
+		}
+		agentActor := "agent_session:" + main.ID
+		if want := []string{agentActor, agentActor, "operator"}; !slices.Equal(sources, want) {
+			t.Fatalf("resolved_by=%v want=%v", sources, want)
+		}
+	})
 }
 
 // Invariant (UT-007, IT-022, IT-032): child Goals remain supported; maintenance

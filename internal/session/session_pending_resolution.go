@@ -46,6 +46,9 @@ func (m *Manager) ApprovePermission(
 	if err := req.Validate(); err != nil {
 		return ApprovalResult{}, err
 	}
+	// A trusted acting session is the decision's actor on every transport; an empty actor would otherwise be
+	// recorded as operator engagement and reset the lineage's unattended counter.
+	req.ResolvedBy = resolvedByFromContext(ctx, req.ResolvedBy)
 	target := strings.TrimSpace(id)
 	if target == "" {
 		return ApprovalResult{}, errors.New("session: session id is required")
