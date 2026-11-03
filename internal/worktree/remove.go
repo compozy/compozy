@@ -36,11 +36,36 @@ type HookPreRemovePayload struct {
 	Discovered bool         `json:"discovered,omitempty"`
 }
 
+// removalMode is what a removal may discard. force deletes uncommitted files and
+// unpushed commits; keepBranch removes only the checkout, so its branch keeps any
+// unpushed commits and is never reclaimed. Only force deletes uncommitted files.
+type removalMode struct {
+	force      bool
+	keepBranch bool
+}
+
 func (s *Service) Remove(
 	ctx context.Context,
 	workspaceID string,
 	id string,
 	force bool,
+) (*RemovalRefusal, error) {
+	return s.remove(ctx, workspaceID, id, removalMode{force: force})
+}
+
+// RemoveKeepingBranch removes a clean checkout and keeps its branch: unpushed
+// commits stay on the branch, so they do not block the removal, while uncommitted
+// files still refuse it, before and after removal hooks run. Moving a session to
+// another profile checks the same branch out again elsewhere.
+func (s *Service) RemoveKeepingBranch(ctx context.Context, workspaceID, id string) (*RemovalRefusal, error) {
+	return s.remove(ctx, workspaceID, id, removalMode{keepBranch: true})
+}
+
+func (s *Service) remove(
+	ctx context.Context,
+	workspaceID string,
+	id string,
+	mode removalMode,
 ) (*RemovalRefusal, error) {
 	item, err := s.store.Get(ctx, workspaceID, id)
 	if errors.Is(err, ErrNotFound) || item == nil {
@@ -89,10 +114,10 @@ func (s *Service) Remove(
 	if !swapped {
 		return nil, ErrNotReady
 	}
-	return s.removeFenced(ctx, *item, force)
+	return s.removeFenced(ctx, *item, mode)
 }
 
-func (s *Service) removeFenced(ctx context.Context, item Worktree, force bool) (_ *RemovalRefusal, err error) {
+func (s *Service) removeFenced(ctx context.Context, item Worktree, mode removalMode) (_ *RemovalRefusal, err error) {
 	restoreReady := true
 	defer func() {
 		if !restoreReady {
@@ -128,7 +153,7 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, force bool) (
 	if err != nil {
 		return nil, err
 	}
-	terminal, risk, refusalResult, err := s.evaluateFencedRemoval(ctx, workspace, item, commonDir, force)
+	terminal, risk, refusalResult, err := s.evaluateFencedRemoval(ctx, workspace, item, commonDir, mode)
 	if terminal {
 		restoreReady = false
 	}
@@ -136,7 +161,7 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, force bool) (
 		return refusalResult, err
 	}
 	if err := s.dispatchGate(ctx, EventPreRemove, HookPreRemovePayload{
-		Worktree: eventPayloadFromWorktree(item, workspace.Root), Force: force, Risk: risk,
+		Worktree: eventPayloadFromWorktree(item, workspace.Root), Force: mode.force, Risk: risk,
 	}); err != nil {
 		return nil, err
 	}
@@ -146,7 +171,7 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, force bool) (
 	if err != nil {
 		return nil, err
 	}
-	terminal, _, refusalResult, err = s.prepareFencedRemoval(ctx, workspace, item, commonDir, force)
+	terminal, _, refusalResult, err = s.prepareFencedRemoval(ctx, workspace, item, commonDir, mode)
 	if terminal {
 		restoreReady = false
 	}
@@ -158,7 +183,7 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, force bool) (
 	// in removing: the deletion and its bookkeeping finish together.
 	completionCtx := context.WithoutCancel(ctx)
 	removedDespiteError, refusalResult, err := s.runFencedRemoval(
-		completionCtx, workspace.Root, item, commonDir, force,
+		completionCtx, workspace.Root, item, commonDir, mode.force,
 	)
 	if removedDespiteError {
 		restoreReady = false
@@ -168,7 +193,7 @@ func (s *Service) removeFenced(ctx context.Context, item Worktree, force bool) (
 	}
 
 	restoreReady = false
-	return nil, s.finishRemoval(completionCtx, workspace, item)
+	return nil, s.finishRemoval(completionCtx, workspace, item, mode)
 }
 
 func (s *Service) readFencedRemovalTarget(ctx context.Context, item Worktree) (Worktree, error) {
@@ -275,7 +300,7 @@ func (s *Service) evaluateFencedRemoval(
 	workspace Workspace,
 	item Worktree,
 	commonDir string,
-	force bool,
+	mode removalMode,
 ) (bool, RemovalRisk, *RemovalRefusal, error) {
 	presence, orphan, err := s.validateRemovalIdentity(ctx, item, commonDir)
 	if err != nil {
@@ -286,18 +311,18 @@ func (s *Service) evaluateFencedRemoval(
 		if err := s.requireNoActiveSession(ctx, item); err != nil {
 			return false, RemovalRisk{}, nil, err
 		}
-		if err := s.removeAbsentCheckout(ctx, workspace.Root, commonDir, item, force); err != nil {
+		if err := s.removeAbsentCheckout(ctx, workspace.Root, commonDir, item, mode.force); err != nil {
 			return false, RemovalRisk{}, nil, err
 		}
-		return true, RemovalRisk{}, nil, s.finishRemoval(ctx, workspace, item)
+		return true, RemovalRisk{}, nil, s.finishRemoval(ctx, workspace, item, mode)
 	case checkoutOrphaned:
 		if err := s.requireNoActiveSession(ctx, item); err != nil {
 			return false, RemovalRisk{}, nil, err
 		}
-		risk, refusalResult, err := s.evaluateOrphanedRemoval(ctx, workspace.Root, orphan, force)
+		risk, refusalResult, err := s.evaluateOrphanedRemoval(ctx, workspace.Root, orphan, mode.force)
 		return false, risk, refusalResult, err
 	default:
-		risk, refusalResult, err := s.authoritativeRemovalEvaluation(ctx, item, force)
+		risk, refusalResult, err := s.authoritativeRemovalEvaluation(ctx, item, mode)
 		return false, risk, refusalResult, err
 	}
 }
@@ -305,7 +330,7 @@ func (s *Service) evaluateFencedRemoval(
 func (s *Service) authoritativeRemovalEvaluation(
 	ctx context.Context,
 	item Worktree,
-	force bool,
+	mode removalMode,
 ) (RemovalRisk, *RemovalRefusal, error) {
 	if err := s.requireNoActiveSession(ctx, item); err != nil {
 		return RemovalRisk{}, nil, err
@@ -314,7 +339,12 @@ func (s *Service) authoritativeRemovalEvaluation(
 	if err != nil {
 		return RemovalRisk{}, nil, fmt.Errorf("%w: %v", ErrSafetyCheckFailed, err)
 	}
-	refusalResult, err := classifyRemovalRisk(risk, force)
+	classified := risk
+	if mode.keepBranch {
+		// The kept branch holds them; hooks still see the real count.
+		classified.UnpushedCommits = 0
+	}
+	refusalResult, err := classifyRemovalRisk(classified, mode.force)
 	return risk, refusalResult, err
 }
 
@@ -346,7 +376,22 @@ func (s *Service) finishRemoval(
 	ctx context.Context,
 	workspace Workspace,
 	item Worktree,
+	mode removalMode,
 ) error {
+	if !mode.keepBranch {
+		s.reclaimRemovedBranch(ctx, workspace, item)
+	}
+	if err := s.store.SetState(ctx, item.WorkspaceID, item.ID, StateRemoved, s.now().UTC()); err != nil {
+		return fmt.Errorf("worktree: tombstone removal: %w", err)
+	}
+	item.State = StateRemoved
+	s.invalidateDiscovery(item.WorkspaceID)
+	s.emit(ctx, EventRemoved, item)
+	return nil
+}
+
+// reclaimRemovedBranch deletes a runtime-owned branch the removed checkout left unchanged.
+func (s *Service) reclaimRemovedBranch(ctx context.Context, workspace Workspace, item Worktree) {
 	status, statusErr := s.store.GetStatus(ctx, item.WorkspaceID, item.ID)
 	if statusErr != nil {
 		s.logger.WarnContext(
@@ -366,13 +411,6 @@ func (s *Service) finishRemoval(
 			diagnostics.RedactAndBound(err.Error(), 2048),
 		)
 	}
-	if err := s.store.SetState(ctx, item.WorkspaceID, item.ID, StateRemoved, s.now().UTC()); err != nil {
-		return fmt.Errorf("worktree: tombstone removal: %w", err)
-	}
-	item.State = StateRemoved
-	s.invalidateDiscovery(item.WorkspaceID)
-	s.emit(ctx, EventRemoved, item)
-	return nil
 }
 
 // checkoutPresence classifies what a removal finds at the record's path.

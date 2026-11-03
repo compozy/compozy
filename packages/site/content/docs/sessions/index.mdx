@@ -317,9 +317,10 @@ The move is refused, with the reason in the dialog, when the session:
 
 - is running (stop it first)
 - has child sessions (make them top-level first)
-- is archived, or is a subagent or spawned worker
+- is archived, nested under another session (make it top-level first), or is a subagent or spawned worker
 - has a worktree with uncommitted changes, a worktree another unarchived session still uses, a
   detached checkout, or a worktree that belongs to a task run
+- changed worktrees while the move was starting (try again)
 
 If a step fails after the original was archived, the daemon undoes the move: it releases the new
 checkout, checks the branch out again for the original profile, unarchives the original, and

@@ -318,7 +318,7 @@ type profileMoveWorktreeStub struct {
 	status     worktree.Status
 	refreshes  []bool
 	removeErrs []error
-	removes    []bool
+	removes    int
 	createErrs []error
 	creates    []worktree.CreateOptions
 }
@@ -334,8 +334,10 @@ func (s *profileMoveWorktreeStub) Status(_ context.Context, _, _ string, refresh
 	return &status, nil
 }
 
-func (s *profileMoveWorktreeStub) Remove(_ context.Context, _, _ string, force bool) (*worktree.RemovalRefusal, error) {
-	s.removes = append(s.removes, force)
+func (s *profileMoveWorktreeStub) RemoveKeepingBranch(
+	context.Context, string, string,
+) (*worktree.RemovalRefusal, error) {
+	s.removes++
 	if len(s.removeErrs) == 0 {
 		return nil, nil
 	}
@@ -386,24 +388,13 @@ func TestDaemonProfileMoveWorktrees(t *testing.T) {
 		}
 	})
 
-	t.Run("Should remove a clean checkout with unpushed commits because its branch keeps them", func(t *testing.T) {
-		t.Parallel()
-		stub := &profileMoveWorktreeStub{removeErrs: []error{worktree.ErrUnpushedRequiresForce}}
-		if err := resolverFor(stub).ReleaseProfileMoveWorktree(t.Context(), "ws", "wt-src"); err != nil {
-			t.Fatalf("ReleaseProfileMoveWorktree() error = %v", err)
-		}
-		if len(stub.removes) != 2 || stub.removes[0] || !stub.removes[1] {
-			t.Fatalf("removals = %v, want an unforced attempt then a forced one", stub.removes)
-		}
-	})
-
 	t.Run("Should refuse to remove a checkout with uncommitted changes", func(t *testing.T) {
 		t.Parallel()
 		stub := &profileMoveWorktreeStub{removeErrs: []error{worktree.ErrDirtyRequiresForce}}
 		err := resolverFor(stub).ReleaseProfileMoveWorktree(t.Context(), "ws", "wt-src")
 		refusal, ok := errors.AsType[*session.ProfileMoveError](err)
-		if !ok || refusal.Reason != session.ProfileMoveRefusalWorktreeDirty || len(stub.removes) != 1 {
-			t.Fatalf("release error = %v removals = %v, want one unforced worktree_dirty refusal", err, stub.removes)
+		if !ok || refusal.Reason != session.ProfileMoveRefusalWorktreeDirty || stub.removes != 1 {
+			t.Fatalf("release error = %v removals = %d, want one worktree_dirty refusal", err, stub.removes)
 		}
 	})
 

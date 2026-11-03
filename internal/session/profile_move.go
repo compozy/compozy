@@ -24,6 +24,9 @@ const (
 	ProfileMoveRefusalWorktreeShared   ProfileMoveRefusal = "worktree_shared"
 	ProfileMoveRefusalWorktreeRunOwned ProfileMoveRefusal = "worktree_run_owned"
 	ProfileMoveRefusalWorktreeNotReady ProfileMoveRefusal = "worktree_not_ready"
+	// ProfileMoveRefusalWorktreeChanged reports a worktree binding that changed
+	// between planning and the archive; nothing else changed and a retry re-plans.
+	ProfileMoveRefusalWorktreeChanged ProfileMoveRefusal = "worktree_changed"
 	// ProfileMoveRefusalRecoveryIncomplete reports a failed move whose rollback did
 	// not finish; the message names what is left and how to finish it by hand.
 	ProfileMoveRefusalRecoveryIncomplete ProfileMoveRefusal = "recovery_incomplete"
@@ -191,6 +194,12 @@ func (m *Manager) refuseProfileMoveSource(ctx context.Context, opts MoveToProfil
 		(lineage != nil && (lineage.Kind == store.LineageKindSpawn || lineage.SpawnRole != "")) {
 		return profileMoveRefused(
 			ProfileMoveRefusalNotMovable, "only user sessions can move; session %s follows its parent", meta.ID,
+		)
+	}
+	if store.HierarchyParentSessionID(lineage) != "" {
+		return profileMoveRefused(
+			ProfileMoveRefusalNotMovable, "session %s is nested under another session; make it top-level first",
+			meta.ID,
 		)
 	}
 	if _, live := m.Get(meta.ID); live || meta.State != string(StateStopped) || m.isPending(meta.ID) ||

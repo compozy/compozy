@@ -36,6 +36,8 @@ type fakeProfileMoveWorktrees struct {
 	// failCreate refuses CreateProfileMoveWorktree for these profile ids.
 	failCreate map[string]error
 	releases   []string
+	// onInspect runs while the move plans, before the archive.
+	onInspect func()
 }
 
 type fakeMoveWorktree struct {
@@ -126,6 +128,12 @@ func (f *fakeProfileMoveWorktrees) InspectProfileMoveWorktree(
 	item, ok := f.get(worktreeID)
 	if !ok {
 		return ProfileMoveCheckout{}, fmt.Errorf("worktree %s not found", worktreeID)
+	}
+	f.mu.Lock()
+	onInspect := f.onInspect
+	f.mu.Unlock()
+	if onInspect != nil {
+		onInspect()
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -324,6 +332,14 @@ func TestManagerMoveToProfile(t *testing.T) {
 				},
 			},
 			{
+				name: "nested session", reason: ProfileMoveRefusalNotMovable,
+				setup: func(t *testing.T, h *profileMoveHarness) (context.Context, string, string) {
+					parent := h.stoppedSource(t, "", "")
+					child := h.stoppedSource(t, "", parent.ID)
+					return testutil.Context(t), child.ID, profileMoveTargetID
+				},
+			},
+			{
 				name: "worktree with uncommitted changes", reason: ProfileMoveRefusalWorktreeDirty,
 				setup: func(t *testing.T, h *profileMoveHarness) (context.Context, string, string) {
 					source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
@@ -408,6 +424,38 @@ func TestManagerMoveToProfile(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should refuse and restore the session when its worktree changes while the move plans", func(t *testing.T) {
+		t.Parallel()
+
+		h := newProfileMoveHarness(t)
+		sourceWorktree := h.worktrees.add(t, store.DefaultProfileID)
+		source := h.stoppedSource(t, sourceWorktree, "")
+		otherWorktree := h.worktrees.add(t, store.DefaultProfileID)
+		h.worktrees.mu.Lock()
+		h.worktrees.onInspect = func() {
+			h.worktrees.mu.Lock()
+			h.worktrees.onInspect = nil
+			h.worktrees.mu.Unlock()
+			ctx := testutil.Context(t)
+			if _, err := h.manager.ChangeWorktreeBinding(ctx, source.ID, otherWorktree, nil); err != nil {
+				t.Errorf("ChangeWorktreeBinding() error = %v", err)
+			}
+		}
+		h.worktrees.mu.Unlock()
+
+		_, err := h.move(testutil.Context(t), source.ID)
+		refusal, ok := errors.AsType[*ProfileMoveError](err)
+		if !ok || refusal.Reason != ProfileMoveRefusalWorktreeChanged {
+			t.Fatalf("MoveToProfile() error = %v, want worktree_changed", err)
+		}
+		original, err := h.manager.Status(testutil.Context(t), source.ID)
+		if err != nil || original.WorktreeID != otherWorktree || h.archivedAt(t, source.ID) ||
+			h.worktrees.releaseCount() != 0 {
+			t.Fatalf("original after refusal = %#v, %v; archived=%t releases=%d; want it unarchived on %s",
+				original, err, h.archivedAt(t, source.ID), h.worktrees.releaseCount(), otherWorktree)
+		}
+	})
 
 	t.Run("Should keep the session and name the branch when the rollback cannot finish", func(t *testing.T) {
 		t.Parallel()

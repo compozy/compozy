@@ -14,7 +14,7 @@ import (
 type profileMoveWorktreeService interface {
 	Get(context.Context, string, string) (*worktree.Worktree, error)
 	Status(context.Context, string, string, bool) (*worktree.Status, error)
-	Remove(context.Context, string, string, bool) (*worktree.RemovalRefusal, error)
+	RemoveKeepingBranch(context.Context, string, string) (*worktree.RemovalRefusal, error)
 	Create(context.Context, string, worktree.CreateOptions) (*worktree.Worktree, error)
 }
 
@@ -70,7 +70,8 @@ func (r daemonSessionWorktreeResolver) InspectProfileMoveWorktree(
 }
 
 // ReleaseProfileMoveWorktree removes the checkout but never its branch: a clean checkout
-// whose commits are not pushed is still removed, because its branch keeps them.
+// whose commits are not pushed is still removed, because its branch keeps them, while
+// uncommitted files refuse the removal even if a removal hook writes them.
 func (r daemonSessionWorktreeResolver) ReleaseProfileMoveWorktree(
 	ctx context.Context,
 	workspaceID, worktreeID string,
@@ -79,10 +80,7 @@ func (r daemonSessionWorktreeResolver) ReleaseProfileMoveWorktree(
 	if err != nil {
 		return err
 	}
-	_, err = service.Remove(ctx, workspaceID, worktreeID, false)
-	if errors.Is(err, worktree.ErrUnpushedRequiresForce) {
-		_, err = service.Remove(ctx, workspaceID, worktreeID, true)
-	}
+	_, err = service.RemoveKeepingBranch(ctx, workspaceID, worktreeID)
 	if errors.Is(err, worktree.ErrDirtyRequiresForce) {
 		return &session.ProfileMoveError{
 			Reason:  session.ProfileMoveRefusalWorktreeDirty,

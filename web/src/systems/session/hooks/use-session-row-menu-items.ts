@@ -34,7 +34,7 @@ import {
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
 import { copySessionText } from "../lib/session-copy";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
-import { isSubagentSession } from "../lib/session-hierarchy";
+import { isSubagentSession, sessionTreeParentId } from "../lib/session-hierarchy";
 import { sessionIsInLater } from "../lib/session-later";
 import {
   sessionAdoptRefusal,
@@ -169,7 +169,7 @@ function sessionProfileMoveMenuItem(
   if (!profileMove || !isUserControllableSession(session) || session.archived_at !== null) {
     return null;
   }
-  if (isSubagentSession(session)) return null;
+  if (isSubagentSession(session) || sessionTreeParentId(session) !== "") return null;
   const targets = profileMove.targets.filter(target => target.name !== session.profile_name);
   if (targets.length === 0) return null;
   return {

@@ -550,7 +550,7 @@ worktree owned by that profile. The result carries the copy as `session`, the ar
 and `worktree_id`/`branch` when a worktree moved. An agent cannot move its own session
 (`self_target_denied`), and its write to the target profile passes the workspace-access policy like
 any other cross-profile write, so it needs the unrestricted grant. Refusals carry a
-`session_move_to_profile_*` code (`same_profile`, `own_session`, `not_movable`, `running`, `archived`, `has_children`, `worktree_dirty`, `worktree_detached`, `worktree_shared`, `worktree_run_owned`, `worktree_not_ready`, `recovery_incomplete`). The CLI fallback is
+`session_move_to_profile_*` code (`same_profile`, `own_session`, `not_movable`, `running`, `archived`, `has_children`, `worktree_dirty`, `worktree_detached`, `worktree_shared`, `worktree_run_owned`, `worktree_not_ready`, `worktree_changed`, `recovery_incomplete`). The CLI fallback is
 `compozy session move-to-profile <id> <profile>`. Not `compozy__session_move`, which only places a
 session in a folder.
 

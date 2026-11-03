@@ -31,32 +31,35 @@ func (m *Manager) applyProfileMove(ctx context.Context, plan *profileMovePlan) (
 	execCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), profileMoveTimeout)
 	defer cancel()
 	var progress profileMoveProgress
+	if err := m.requireProfileMoveBinding(execCtx, plan); err != nil {
+		return MoveToProfileResult{}, m.rollbackProfileMove(ctx, plan, progress, err)
+	}
 	relocation := &deriveRelocation{profileID: plan.opts.TargetProfileID}
 	if plan.checkout != nil {
 		err := plan.worktree.ReleaseProfileMoveWorktree(execCtx, meta.WorkspaceID, plan.checkout.ID)
 		if err != nil {
-			return MoveToProfileResult{}, m.rollbackProfileMove(execCtx, plan, progress, err)
+			return MoveToProfileResult{}, m.rollbackProfileMove(ctx, plan, progress, err)
 		}
 		progress.released = true
 		id, root, err := plan.worktree.CreateProfileMoveWorktree(
 			execCtx, meta.WorkspaceID, plan.opts.TargetProfileID, *plan.checkout,
 		)
 		if err != nil {
-			return MoveToProfileResult{}, m.rollbackProfileMove(execCtx, plan, progress, err)
+			return MoveToProfileResult{}, m.rollbackProfileMove(ctx, plan, progress, err)
 		}
 		progress.targetWorktreeID = id
 		relocation.worktreeID, relocation.cwd = id, root
 	}
 	key, err := m.createSessionID("")
 	if err != nil {
-		return MoveToProfileResult{}, m.rollbackProfileMove(execCtx, plan, progress, err)
+		return MoveToProfileResult{}, m.rollbackProfileMove(ctx, plan, progress, err)
 	}
 	derived, err := m.deriveSession(execCtx, deriveSpec{
 		kind: store.LineageKindFork, workspaceID: meta.WorkspaceID, profileID: plan.opts.ProfileID,
 		sourceID: meta.ID, key: "profile-move:" + key, relocation: relocation,
 	})
 	if err != nil && derived.ChildSessionID == "" {
-		return MoveToProfileResult{}, m.rollbackProfileMove(execCtx, plan, progress, err)
+		return MoveToProfileResult{}, m.rollbackProfileMove(ctx, plan, progress, err)
 	}
 	if err != nil {
 		// The copy committed before a later step failed; it exists, so the move stands.
@@ -83,16 +86,37 @@ func (m *Manager) applyProfileMove(ctx context.Context, plan *profileMovePlan) (
 	return result, nil
 }
 
+// requireProfileMoveBinding rereads the archived source: a worktree binding that changed
+// after planning would move the wrong checkout. Once archived, no binding change can
+// commit (it requires an unarchived session), so this read is final.
+func (m *Manager) requireProfileMoveBinding(ctx context.Context, plan *profileMovePlan) error {
+	current, err := m.readSessionMetaReadOnly(ctx, plan.meta.ID)
+	if err != nil {
+		return err
+	}
+	if current.WorktreeIDValue() != plan.meta.WorktreeIDValue() {
+		return profileMoveRefused(
+			ProfileMoveRefusalWorktreeChanged,
+			"session %s changed worktrees while it was being moved; try again", plan.meta.ID,
+		)
+	}
+	return nil
+}
+
 // rollbackProfileMove undoes a failed move in reverse order: the target checkout is
 // released, the branch is checked out again for the source profile, and the
-// original is unarchived and rebound to it. The cause is returned as is when the
-// rollback completes; otherwise a recovery_incomplete refusal names what is left.
+// original is unarchived and rebound to it. It runs on its own detached, bounded
+// lifetime, so a move that spent its deadline still recovers. The cause is returned
+// as is when the rollback completes; otherwise a recovery_incomplete refusal names
+// what is left.
 func (m *Manager) rollbackProfileMove(
 	ctx context.Context,
 	plan *profileMovePlan,
 	progress profileMoveProgress,
 	cause error,
 ) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), profileMoveTimeout)
+	defer cancel()
 	meta := &plan.meta
 	var errs []error
 	if progress.targetWorktreeID != "" {

@@ -164,13 +164,18 @@ describe("Move to profile row verb", () => {
     expect(request).toHaveBeenCalledExactlyOnceWith(source, target);
   });
 
-  it("Should not offer the verb for an archived session or without another profile", () => {
+  it("Should not offer the verb for an archived or nested session, or without another profile", () => {
     const handle = { targets: [target], request: vi.fn() };
     expect(
       menuItems({ ...source, archived_at: "2026-11-03T12:00:00Z" }, handle).some(
         item => item.id === "move-to-profile"
       )
     ).toBe(false);
+    const nested = {
+      ...source,
+      lineage: { ...source.lineage, kind: "provenance", parent_session_id: "sess-parent" },
+    } as SessionPayload;
+    expect(menuItems(nested, handle).some(item => item.id === "move-to-profile")).toBe(false);
     expect(
       menuItems(source, {
         targets: [{ id: "profile-default", name: "default" }],
