@@ -239,6 +239,7 @@ func TestSessionDBInternalWriteHelpers(t *testing.T) {
 	}
 	draining := &SessionDB{
 		db:      sessionDB.db,
+		readDB:  sessionDB.readDB,
 		owner:   sessionDB.owner,
 		writeCh: make(chan sessionWriteRequest, 1),
 		now: func() time.Time {

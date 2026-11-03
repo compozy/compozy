@@ -4,7 +4,7 @@ Status: implementation and verification are in progress. The operator reaffirmed
 the remaining ownership work, representative upgrade and 30-session measurements are required before
 completion. Focused correctness checks do not establish the performance acceptance criteria.
 
-The implementation baseline is `d35c63c9a`. Main through `c96f54f3e` was merged before the release push (merge `c8c420c31`).
+The implementation baseline is `d35c63c9a`. Main through `30da9b257` is integrated (merge `64c4a4f8e`).
 All work is isolated in `fix/issue-1227-sqlite-contention`. Operator runtime databases, credentials
 and running sessions were not changed. The incident log was read only for sanitized aggregates.
 
@@ -115,10 +115,9 @@ and `queries/observe*.sql`.
 | Remaining direct writers | Marketplace/profile-attention replacements, some generated one-statement mutations and extension-registry operations remain outside this process-local admission owner. |
 
 The admission gate is still keyed by `*sql.DB`; it does not order other handles or processes.
-Those remaining paths are not proven unable to conflict. A shared-file/process ordering change
-and complete attribution require a separate measured follow-up; this release does not claim to
-close that acceptance criterion. No speculative runtime SQL classifier or process-wide storage
-wrapper was introduced for the release.
+Those remaining paths are not proven unable to conflict. Their attribution and ordering remain
+required implementation work before this issue is complete. The inventory is a checkpoint, not an
+accepted exception to the original scope.
 
 ## Verification receipts
 
@@ -144,6 +143,10 @@ After the operator restricted local execution, checks run one function at a time
 | `daemon.TestBootInitializesRuntimeAssemblerIntegration` | Passed (1.013 s): real isolated daemon boot and shutdown; both persisted migration streams are reported. |
 | `globaldb.TestGlobalDBHeartbeatWakeAuditStore` | Passed (0.810 s): durable event/state decision behavior remains intact. |
 | `globaldb.TestGlobalDBWorktreeStore/Should_commit_an_exit_terminal_state_and_replay_event_atomically` | Passed (0.541 s) before main integration; CI reruns the integrated suite. |
+| `globaldb.TestPageSessionsStableKeyset` after CI repair | Passed (0.928 s): the initialized read pool uses the registered SQLite connector, preserving Unicode search on every physical connection. |
+| `sessiondb.TestSessionDBInternalWriteHelpers` after CI repair | Passed (0.047 s): the manually assembled drain fixture carries the production read connection; accepted-write assertions are unchanged. |
+| `core.TestAuthoredContextProfileScope` after CI repair | Passed (0.755 s): the canonical seed clones the complete database family for each profile-isolation case. Browser runtime seeding now copies the same required sibling; its actual walk remains CI-owned. |
+| `acp.TestPromptErrorPreservesRequestErrorData` after main integration | Passed (0.155 s): the rate-limit I/O fixture uses an internal-error response instead of the reserved authentication-required code. Classification/recovery assertions and production authentication semantics are unchanged. |
 
 The owning Atlas and sqlc generators completed after main integration. Full `make codegen` passed
 before integration; `make codegen-check` was externally terminated and is not a passing receipt.

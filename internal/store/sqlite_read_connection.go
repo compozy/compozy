@@ -15,18 +15,12 @@ import (
 type SQLiteReadInitializer func(context.Context, driver.ExecerContext) error
 
 type sqliteReadConnector struct {
-	driver       *sqlite.Driver
-	dsn          string
+	driver.Connector
 	initializers []SQLiteReadInitializer
 }
 
-func (c *sqliteReadConnector) Driver() driver.Driver { return c.driver }
-
 func (c *sqliteReadConnector) Connect(ctx context.Context) (driver.Conn, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	conn, err := c.driver.Open(c.dsn)
+	conn, err := c.Connector.Connect(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -56,8 +50,12 @@ func openInitializedSQLiteReadPool(
 	if err := sqliteUnicodeSearchRegistrationErr; err != nil {
 		return nil, err
 	}
+	connector, err := sqlite.NewConnector(sqliteReadOnlyDSN(path))
+	if err != nil {
+		return nil, fmt.Errorf("store: initialize read connector: %w", err)
+	}
 	db := sql.OpenDB(&sqliteReadConnector{
-		driver: &sqlite.Driver{}, dsn: sqliteReadOnlyDSN(path), initializers: initializers,
+		Connector: connector, initializers: initializers,
 	})
 	db.SetMaxOpenConns(defaultMaxOpenConns)
 	db.SetMaxIdleConns(defaultMaxIdleConns)

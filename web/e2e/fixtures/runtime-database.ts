@@ -23,7 +23,14 @@ export async function seedRuntimeDatabase(repoRoot: string, homeDir: string): Pr
     templates.set(repoRoot, template);
   }
   const sourcePath = await template;
-  for (const suffix of ["", "-wal", "-shm"]) {
+  for (const suffix of [
+    "",
+    "-wal",
+    "-shm",
+    ".telemetry.db",
+    ".telemetry.db-wal",
+    ".telemetry.db-shm",
+  ]) {
     try {
       await copyFile(
         sourcePath + suffix,
@@ -31,7 +38,9 @@ export async function seedRuntimeDatabase(repoRoot: string, homeDir: string): Pr
         constants.COPYFILE_EXCL
       );
     } catch (error) {
-      if (suffix !== "" && (error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      if (suffix.endsWith("-wal") || suffix.endsWith("-shm")) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      }
       throw error;
     }
   }

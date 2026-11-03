@@ -222,11 +222,16 @@ func (g *SessionRepo) ClearLaterReturn(ctx context.Context, sessionID string) (b
 		ID:  sessionID,
 	}
 	var affected int64
-	err := store.ExecuteWriteOperation(ctx, g.db, "clear later return", func(ctx context.Context, tx *store.WriteTx) error {
-		var err error
-		affected, err = sqlcgen.New(tx).ClearLaterReturn(ctx, params)
-		return err
-	})
+	err := store.ExecuteWriteOperation(
+		ctx,
+		g.db,
+		"clear later return",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			var err error
+			affected, err = sqlcgen.New(tx).ClearLaterReturn(ctx, params)
+			return err
+		},
+	)
 	if err != nil {
 		return false, fmt.Errorf("store: clear later return %q: %w", sessionID, err)
 	}

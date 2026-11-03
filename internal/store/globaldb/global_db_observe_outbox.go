@@ -86,12 +86,10 @@ func eventSummaryFromOutbox(row sqlcgen.EventSummaryOutbox) (store.EventSummary,
 		Type: row.Type, AgentName: row.AgentName, Provider: row.Provider, Outcome: row.Outcome,
 		ParentSessionID: row.ParentSessionID, RootSessionID: row.RootSessionID, SpawnDepth: int(row.SpawnDepth),
 		Summary: row.Summary.String, Timestamp: timestamp,
-		EventCorrelation: store.EventCorrelation{
-			WorktreeID: row.WorktreeID, TaskID: row.TaskID, RunID: row.RunID, WorkflowID: row.WorkflowID,
-			ClaimTokenHash: row.ClaimTokenHash, LeaseUntil: lease, CoordinatorSessionID: row.CoordinatorSessionID,
-			SchedulerReason: row.SchedulerReason, HookEvent: row.HookEvent, HookName: row.HookName,
-			ActorKind: row.ActorKind, ActorID: row.ActorID, ReleaseReason: row.ReleaseReason,
-		},
+		WorktreeID: row.WorktreeID, TaskID: row.TaskID, RunID: row.RunID, WorkflowID: row.WorkflowID,
+		ClaimTokenHash: row.ClaimTokenHash, LeaseUntil: lease, CoordinatorSessionID: row.CoordinatorSessionID,
+		SchedulerReason: row.SchedulerReason, HookEvent: row.HookEvent, HookName: row.HookName,
+		ActorKind: row.ActorKind, ActorID: row.ActorID, ReleaseReason: row.ReleaseReason,
 	}
 	summary.SetContent([]byte(row.ContentJson))
 	return summary, nil

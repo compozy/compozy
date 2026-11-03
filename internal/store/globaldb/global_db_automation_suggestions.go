@@ -312,8 +312,8 @@ func (g *AutomationRepo) RecordSuggestionTransition(
 		ProfileID:   suggestion.ProfileID,
 		ID:          "automation-suggestion:" + suggestion.ID + ":" + string(suggestion.Status),
 		WorkspaceID: suggestion.WorkspaceID, Type: eventType,
-		EventCorrelation: store.EventCorrelation{ActorKind: "automation_suggestion", ActorID: suggestion.ID},
-		Outcome:          string(events.OutcomeFor(eventType)), Summary: summary, Timestamp: *suggestion.ResolvedAt,
+		ActorKind: "automation_suggestion", ActorID: suggestion.ID,
+		Outcome: string(events.OutcomeFor(eventType)), Summary: summary, Timestamp: *suggestion.ResolvedAt,
 	}
 	observation.SetContent(content)
 	observe := &ObserveRepo{repoBase: g.repoBase}

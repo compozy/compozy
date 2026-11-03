@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
+	"github.com/compozy/compozy/internal/testutil/storeseed"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -1458,20 +1459,16 @@ func TestAuthoredContextResolvesProfileAgentSources(t *testing.T) {
 func TestAuthoredContextProfileScope(t *testing.T) {
 	t.Parallel()
 
-	// Migrate once, then give each parallel isolation case its own database copy.
-	// Closing checkpoints the WAL before the immutable template is read.
-	templatePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
-	templateDB, err := globaldb.OpenGlobalDB(t.Context(), templatePath)
+	// Each case owns a copy of the complete, closed database family.
+	template, err := storeseed.NewGlobal(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := templateDB.Close(t.Context()); err != nil {
-		t.Fatal(err)
-	}
-	template, err := os.ReadFile(templatePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	t.Cleanup(func() {
+		if err := template.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	for _, sidecar := range []string{"soul", "heartbeat"} {
 		for _, sourceKind := range []string{"workspace", "personal", "dot-compozy-home", "user", "user-inside-project"} {
 			t.Run(
@@ -1511,7 +1508,7 @@ func TestAuthoredContextProfileScope(t *testing.T) {
 						}
 					}
 					databasePath := filepath.Join(t.TempDir(), store.GlobalDatabaseName)
-					if err := os.WriteFile(databasePath, template, 0o600); err != nil {
+					if err := template.Clone(databasePath); err != nil {
 						t.Fatal(err)
 					}
 					db, err := globaldb.OpenGlobalDB(t.Context(), databasePath)
