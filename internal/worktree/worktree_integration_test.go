@@ -1119,6 +1119,9 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		renamed := create("Renamed Slice")
 		commitOn(renamed, "renamed.txt")
 		f.git(renamed.Path, "branch", "-m", "slice-after-rename")
+		tagged := create("Tagged Slice")
+		commitOn(tagged, "tagged.txt")
+		f.git(tagged.Path, "tag", "keep-tagged")
 		f.git(f.workspace.Root, "merge", "--no-ff", "-m", "land slice", merged.Branch)
 		f.git(f.workspace.Root, "branch", "-D", "integration")
 
@@ -1134,12 +1137,14 @@ func TestWorktreeLifecycleIntegration(t *testing.T) {
 		if err != nil || refusalResult != nil {
 			t.Fatalf("Remove(orphaned forced) = (%#v, %v), want success", refusalResult, err)
 		}
-		if refusalResult, err = f.service.Remove(
-			t.Context(), f.workspace.ID, merged.ID, false,
-		); err != nil || refusalResult != nil {
-			t.Fatalf("Remove(merged) = (%#v, %v), want success", refusalResult, err)
+		for _, item := range []*Worktree{merged, tagged} {
+			if refusalResult, err = f.service.Remove(
+				t.Context(), f.workspace.ID, item.ID, false,
+			); err != nil || refusalResult != nil {
+				t.Fatalf("Remove(%s) = (%#v, %v), want success", item.Name, refusalResult, err)
+			}
 		}
-		for _, item := range []*Worktree{merged, orphaned} {
+		for _, item := range []*Worktree{merged, orphaned, tagged} {
 			if _, err := os.Stat(item.Path); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("Stat(%s) error = %v, want not-exist", item.Name, err)
 			}
