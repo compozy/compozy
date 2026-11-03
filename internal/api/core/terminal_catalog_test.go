@@ -422,6 +422,57 @@ func TestTerminalStreamsEndOnStreamDone(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+		t.Run("Should resume the "+testCase.name+" over WebSocket from last_event_id", func(t *testing.T) {
+			t.Parallel()
+			stub := &terminalProviderStub{Manager: terminalManagerStub{}}
+			handlers := NewBaseHandlers(&BaseHandlerConfig{
+				TransportName: "udsapi",
+				Terminal:      terminalAggregateProviderStub{stub},
+				Workspaces:    workspaceServiceStub{},
+			})
+			stub.emit(terminalpkg.Event{
+				Kind: terminalpkg.EventKindOpened, WorkspaceID: "workspace-a", ProfileID: store.DefaultProfileID,
+				TerminalID: "term-a", Info: &terminalpkg.Info{ID: "term-a"},
+			})
+			stub.emit(terminalpkg.Event{
+				Kind: terminalpkg.EventKindTitleChanged, WorkspaceID: "workspace-a", ProfileID: store.DefaultProfileID,
+				TerminalID: "term-a", Detail: &terminalpkg.EventDetail{Title: "build"},
+			})
+			router := gin.New()
+			router.GET(testCase.route, testCase.mount(handlers))
+			server := httptest.NewServer(router)
+			t.Cleanup(server.Close)
+			dialer := websocket.Dialer{HandshakeTimeout: time.Second}
+			// Browser WebSocket clients cannot set Last-Event-ID, so the query is their resume cursor.
+			connection, response, err := dialer.DialContext(t.Context(),
+				"ws"+strings.TrimPrefix(server.URL, "http")+testCase.path+"&last_event_id=1", nil)
+			if response != nil && response.Body != nil {
+				if closeErr := response.Body.Close(); closeErr != nil {
+					t.Errorf("close upgrade response: %v", closeErr)
+				}
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := connection.Close(); err != nil {
+					t.Errorf("close terminal stream connection: %v", err)
+				}
+			})
+			if err := connection.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+				t.Fatal(err)
+			}
+			_, payload, err := connection.ReadMessage()
+			if err != nil || !strings.Contains(string(payload), "event: terminal.title_changed") ||
+				!strings.Contains(string(payload), "id: 2") {
+				t.Fatalf("first frame = %q, error = %v, want the missed title event replayed", payload, err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			if err := handlers.ShutdownEventStreams(ctx); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
