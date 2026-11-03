@@ -1694,9 +1694,10 @@ func assertWorkspaceAccessDeniedResult(t testing.TB, result *sdkmcp.CallToolResu
 	if !ok {
 		t.Fatalf("workspace access result content[0] = %T, want *sdkmcp.TextContent", result.Content[0])
 	}
+	// The denial names the access axis (permissions.mode) so the agent knows what to ask for.
 	if !strings.Contains(content.Text, string(toolspkg.ReasonWorkspaceAccessDenied)) ||
-		!strings.Contains(content.Text, "tool invocation denied") {
-		t.Fatalf("workspace access result text = %q, want canonical denial", content.Text)
+		!strings.Contains(content.Text, " denied: ") || !strings.Contains(content.Text, "permissions.mode") {
+		t.Fatalf("workspace access result text = %q, want the canonical axis denial", content.Text)
 	}
 	if strings.Contains(content.Text, workspaceaccess.DenialHint) {
 		t.Fatalf("workspace access result text = %q, want internal denial hint redacted", content.Text)

@@ -1820,6 +1820,107 @@ opencode/provider-managed
 		}
 	})
 
+	t.Run("Should discover Copilot models and per-model effort from its ACP options", func(t *testing.T) {
+		t.Parallel()
+
+		// Shape recorded from an authenticated paid-plan Copilot CLI 1.0.88
+		// session/new: a "model" select plus a "reasoning_effort" select in the
+		// thought_level category whose values depend on the selected model.
+		modelOption := func(current string) acp.SessionConfigOption {
+			return acp.SessionConfigOption{
+				ID: "model", Label: "Model", Category: "model",
+				Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: current,
+				Values: []acp.SessionConfigOptionValue{
+					{Value: "auto", Label: "Auto"},
+					{Value: "gpt-5.6-luna", Label: "GPT-5.6 Luna"},
+					{Value: "claude-sonnet-5", Label: "Claude Sonnet 5"},
+				},
+			}
+		}
+		effortOption := acp.SessionConfigOption{
+			ID: "reasoning_effort", Label: "Reasoning Effort", Category: "thought_level",
+			Kind: acp.SessionConfigOptionKindSelect, CurrentValueID: "medium",
+			Values: []acp.SessionConfigOptionValue{
+				{Value: "none"}, {Value: "low"}, {Value: "medium"},
+				{Value: "high"}, {Value: "xhigh"}, {Value: "max"},
+			},
+		}
+		sonnetEffort := effortOption
+		sonnetEffort.CurrentValueID = "high"
+		sonnetEffort.Values = []acp.SessionConfigOptionValue{{Value: "low"}, {Value: "medium"}, {Value: "high"}}
+		probe := &fakeACPModelProbe{
+			options: []acp.SessionConfigOption{modelOption("gpt-5.6-luna"), effortOption},
+			models: map[string][]acp.SessionConfigOption{
+				"auto":            {modelOption("auto")},
+				"gpt-5.6-luna":    {modelOption("gpt-5.6-luna"), effortOption},
+				"claude-sonnet-5": {modelOption("claude-sonnet-5"), sonnetEffort},
+			},
+		}
+		builtin := compozyconfig.BuiltinProviders()[liveSourcesCopilotKey]
+		if builtin.Models.Reasoning.Apply != compozyconfig.ReasoningApplyACPOption {
+			t.Fatalf("builtin copilot reasoning apply = %q, want acp_option", builtin.Models.Reasoning.Apply)
+		}
+		source := newLiveSourceForTest(t, liveSourcesCopilotKey, builtin, &LiveProviderSourcesConfig{
+			BaseEnv:    []string{"PATH=/bin", "HOME=/tmp/operator-home", "GH_TOKEN=ambient-secret"},
+			ACPProbe:   probe,
+			WorkingDir: t.TempDir(),
+		})
+		rows, err := source.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: liveSourcesCopilotKey,
+			Now:        testTime(0),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(Copilot ACP) error = %v", err)
+		}
+		if got, want := rowModelIDs(
+			rows,
+		), []string{
+			"auto",
+			"claude-sonnet-5",
+			"gpt-5.6-luna",
+		}; !slices.Equal(
+			got,
+			want,
+		) {
+			t.Fatalf("row ids = %#v, want %#v", got, want)
+		}
+		luna := requireModelRow(t, rows, "gpt-5.6-luna")
+		if luna.SupportsReasoning == nil || !*luna.SupportsReasoning ||
+			!slices.Equal(luna.ReasoningEfforts, []ReasoningEffort{"none", "low", "medium", "high", "xhigh", "max"}) {
+			t.Fatalf("gpt-5.6-luna reasoning = %v %#v, want advertised Copilot efforts", luna.SupportsReasoning,
+				luna.ReasoningEfforts)
+		}
+		if sonnet := requireModelRow(t, rows, "claude-sonnet-5"); sonnet.SupportsReasoning == nil ||
+			!*sonnet.SupportsReasoning ||
+			!slices.Equal(sonnet.ReasoningEfforts, []ReasoningEffort{"low", "medium", "high"}) {
+			t.Fatalf("claude-sonnet-5 reasoning = %v %#v, want its own advertised set", sonnet.SupportsReasoning,
+				sonnet.ReasoningEfforts)
+		}
+		if auto := requireModelRow(t, rows, "auto"); len(auto.ReasoningEfforts) != 0 {
+			t.Fatalf("auto efforts = %#v, want none when Copilot advertises no effort for Auto", auto.ReasoningEfforts)
+		}
+		req := probe.singleRequest(t)
+		if req.Command != strings.TrimSpace(builtin.Command) || envValue(req.Env, "GH_TOKEN") != "" {
+			t.Fatalf("Copilot discovery request = %#v, want builtin command without ambient tokens", req)
+		}
+
+		// A Copilot Free account resolves Auto to one model and advertises no
+		// model select; discovery reports that instead of inventing a catalog.
+		freeProbe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
+			ID: "allow_all", Category: "permissions", Kind: acp.SessionConfigOptionKindSelect,
+			CurrentValueID: "off", Values: []acp.SessionConfigOptionValue{{Value: "on"}, {Value: "off"}},
+		}}}
+		freeSource := newLiveSourceForTest(t, liveSourcesCopilotKey, builtin, &LiveProviderSourcesConfig{
+			BaseEnv: []string{"PATH=/bin"}, ACPProbe: freeProbe,
+		})
+		if _, err := freeSource.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: liveSourcesCopilotKey,
+			Now:        testTime(1),
+		}); err == nil || !strings.Contains(err.Error(), "did not advertise a model select option") {
+			t.Fatalf("ListModels(Copilot Free) error = %v, want missing model option", err)
+		}
+	})
+
 	t.Run("Should use configured Pi endpoint only when enabled", func(t *testing.T) {
 		t.Parallel()
 

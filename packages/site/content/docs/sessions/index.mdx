@@ -352,9 +352,10 @@ returns the canonical badge and the same bounded interaction projection.
 Visible operator clients keep a per-client lease through
 `POST /api/workspaces/{workspace_id}/sessions/{session_id}/presence`. A live lease makes a settling
 turn seen, so it remains `idle` instead of becoming `done`. Each client renews and releases only its
-own opaque `lease_id`; abandoned leases expire after 15 seconds. Presence, attention summaries, and
-cross-workspace catalog reads are operator surfaces and reject agent identity with
-`403 agent_scope_denied`. Interaction discovery accepts a validated agent identity only for that
+own opaque `lease_id`; abandoned leases expire after 15 seconds. Presence and attention summaries are
+operator surfaces and reject agent identity with `403 agent_scope_denied`. Cross-workspace catalog
+reads follow the agent's [permission mode](/docs/sessions/permissions#cross-workspace-access) or
+unrestricted grant, and are otherwise refused with `403 agent_scope_denied`. Interaction discovery accepts a validated agent identity only for that
 agent's workspace.
 
 Browser clients can subscribe once to

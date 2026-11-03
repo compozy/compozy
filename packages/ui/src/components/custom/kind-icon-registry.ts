@@ -3,6 +3,7 @@ import { createElement, type ComponentType, type ReactNode, type SVGProps } from
 import { Bot, BrainCircuit, Code, Sparkles, Terminal, type LucideIcon } from "../../icons";
 import { AntigravityLogo } from "../../logos/antigravity";
 import { ClaudeLogo } from "../../logos/claude";
+import { CopilotLogo } from "../../logos/copilot";
 import { CursorLogo } from "../../logos/cursor";
 import { GeminiLogo } from "../../logos/gemini";
 import { KimiLogo } from "../../logos/kimi";
@@ -36,6 +37,7 @@ const providerKindIconRegistry = {
   agy: { brand: AntigravityLogo, fallback: Sparkles },
   claude: { brand: ClaudeLogo, fallback: BrainCircuit },
   codex: { render: renderOpenAIKindLogo, fallback: Code },
+  copilot: { brand: CopilotLogo, fallback: Code },
   cursor: { brand: CursorLogo, fallback: Code },
   gemini: { brand: GeminiLogo, fallback: Sparkles },
   "kimi-cli": { brand: KimiLogo, fallback: Terminal },

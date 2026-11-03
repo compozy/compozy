@@ -56,6 +56,7 @@ func (n *daemonNativeTools) nativeAgentActivity(
 		if !decision.Allowed {
 			return toolspkg.ToolResult{}, agentinstance.ErrForbidden
 		}
+		markNativeCrossing(ctx, decision)
 	}
 	reader, ok := n.deps.AgentInstances().Store.(agentinstance.ActivityReader)
 	if !ok {

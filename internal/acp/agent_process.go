@@ -11,6 +11,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/mcpbridge"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/toolruntime"
@@ -49,6 +50,13 @@ type AgentProcess struct {
 	terminalScope   LocalTerminalScope
 	processRegistry *toolruntime.Registry
 	processRecord   *toolruntime.Handle
+
+	// sessionMCP is the session/new and session/load MCP payload; mcpBridges
+	// are the loopback HTTP bridges this process owns until it exits.
+	sessionMCPMu     sync.Mutex
+	sessionMCP       []acpsdk.McpServer
+	mcpBridges       []*mcpbridge.Bridge
+	mcpBridgesClosed bool
 
 	terminalProcessMu sync.Mutex
 	terminalProcesses map[string]*toolruntime.Handle

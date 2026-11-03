@@ -296,15 +296,18 @@ type CallInputAuthorizer interface {
 
 // Scope identifies the caller context used for projections and dispatch.
 type Scope struct {
-	AllProfiles bool   `json:"-"`
-	ProfileID   string `json:"profile_id,omitempty"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
-	SessionID   string `json:"session_id,omitempty"`
-	RunID       string `json:"run_id,omitempty"`
-	Generation  int64  `json:"generation,omitzero"`
-	AgentName   string `json:"agent_name,omitempty"`
-	ActorKind   string `json:"actor_kind,omitempty"`
-	Operator    bool   `json:"operator,omitzero"`
+	AllProfiles bool `json:"-"`
+	// ProfileSwitchAuthorized is set by the daemon after the workspace-access policy admitted a
+	// call's profile or all_profiles selection; it is never decoded from caller input.
+	ProfileSwitchAuthorized bool   `json:"-"`
+	ProfileID               string `json:"profile_id,omitempty"`
+	WorkspaceID             string `json:"workspace_id,omitempty"`
+	SessionID               string `json:"session_id,omitempty"`
+	RunID                   string `json:"run_id,omitempty"`
+	Generation              int64  `json:"generation,omitzero"`
+	AgentName               string `json:"agent_name,omitempty"`
+	ActorKind               string `json:"actor_kind,omitempty"`
+	Operator                bool   `json:"operator,omitzero"`
 }
 
 // SearchQuery describes a registry search request.

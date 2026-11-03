@@ -65,24 +65,24 @@ func (p *DefaultPolicy) Authorize(ctx context.Context, req Request) (Decision, e
 
 func (p *DefaultPolicy) authorize(ctx context.Context, req Request, record *AccessRecord) (Decision, Mode, error) {
 	if err := validateRequest(ctx, req); err != nil {
-		return deniedDecision(false), "", err
+		return deniedDecisionFor(DenialInvalid), "", err
 	}
 	if req.Actor.Operator {
 		return Decision{Allowed: true, Source: SourceOperator}, "", nil
 	}
 	if req.Actor.Kind != ActorAgentSession {
-		return deniedDecision(false), "", nil
+		return deniedDecisionFor(DenialNotAgentSession), "", nil
 	}
 	facts, err := p.facts.SessionFacts(ctx, req.Actor.SessionID)
 	mode := facts.Mode
 	record.ActorProfileID = facts.ProfileID
 	if err != nil {
-		return deniedDecision(false), mode, fmt.Errorf("workspace access: resolve session facts: %w", err)
+		return deniedDecisionFor(DenialInvalid), mode, fmt.Errorf("workspace access: resolve session facts: %w", err)
 	}
 	if facts.ProfileID == "" {
-		return deniedDecision(false), mode, errors.New("workspace access: session profile is required")
+		return deniedDecisionFor(DenialInvalid), mode, errors.New("workspace access: session profile is required")
 	}
-	if !req.Target.AllProfiles && req.Target.ProfileID == "" {
+	if !req.Target.AllProfiles && req.Target.ProfileID == "" && req.Target.Kind != TargetUnresolved {
 		// Callers that only know the target workspace (task claims from a project session) act in
 		// the session's own profile; the boundary is still decided below.
 		req.Target.ProfileID = facts.ProfileID
@@ -96,18 +96,41 @@ func (p *DefaultPolicy) authorize(ctx context.Context, req Request, record *Acce
 	if facts.WorkspaceAccess == Unrestricted {
 		return Decision{Allowed: true, Source: SourceAgentGrant}, mode, nil
 	}
-	if !sameProfile || req.Target.Kind == TargetAggregate {
-		return deniedDecision(false), mode, nil
+	decision, mode, err := p.authorizeFromMode(ctx, req.Actor.SessionID, mode)
+	if err != nil {
+		return decision, mode, err
 	}
+	return requireGrantForWrite(decision, req, sameProfile), mode, nil
+}
+
+// requireGrantForWrite keeps the permission mode's reach to reads for another profile and the
+// All projects aggregate; writes there need the grant. Same-profile crossings keep the full
+// mode table. The mode is applied first so an unresolved target, which never needs the grant,
+// gets the same answer as a real one whenever the caller is denied reach at all.
+func requireGrantForWrite(decision Decision, req Request, sameProfile bool) Decision {
+	crossProfile := !sameProfile && req.Target.Kind != TargetUnresolved
+	if req.ReadOnly || (!crossProfile && req.Target.Kind != TargetAggregate) {
+		return decision
+	}
+	if decision.Allowed {
+		return deniedDecisionFor(DenialNeedsGrant)
+	}
+	decision.NeedsGrantAfterConsent = decision.PromptEligible
+	return decision
+}
+
+// authorizeFromMode applies the permission-mode table to a crossing the grant did not decide.
+func (p *DefaultPolicy) authorizeFromMode(ctx context.Context, sessionID string, mode Mode) (Decision, Mode, error) {
 	switch mode {
 	case ModeApproveAll:
 		return Decision{Allowed: true, Source: SourcePermissionMode}, mode, nil
 	case ModeDenyAll:
-		return deniedDecision(false), mode, nil
+		return deniedDecisionFor(DenialModeDenyAll), mode, nil
 	case ModeApproveReads:
-		return p.authorizeFromConsent(ctx, req.Actor.SessionID, mode)
+		return p.authorizeFromConsent(ctx, sessionID, mode)
 	default:
-		return deniedDecision(false), mode, fmt.Errorf("workspace access: unrecognized permission mode %q", mode)
+		return deniedDecisionFor(DenialInvalid), mode,
+			fmt.Errorf("workspace access: unrecognized permission mode %q", mode)
 	}
 }
 
@@ -118,15 +141,20 @@ func (p *DefaultPolicy) authorizeFromConsent(
 ) (Decision, Mode, error) {
 	consent, ok := p.consent.ConsentFor(ctx, sessionID)
 	if !ok {
-		return deniedDecision(true), mode, nil
+		return Decision{Source: SourceDenied, PromptEligible: true, Denial: DenialConsentRequired}, mode, nil
 	}
 	switch consent {
 	case ConsentAllow:
 		return Decision{Allowed: true, Source: SourceSessionConsent}, mode, nil
 	case ConsentReject:
-		return deniedDecision(false), mode, nil
+		return deniedDecisionFor(DenialConsentRejected), mode, nil
 	default:
-		return deniedDecision(false), mode, fmt.Errorf("workspace access: unrecognized session consent %q", consent)
+		return deniedDecisionFor(
+				DenialInvalid,
+			), mode, fmt.Errorf(
+				"workspace access: unrecognized session consent %q",
+				consent,
+			)
 	}
 }
 
@@ -145,6 +173,6 @@ func (p *DefaultPolicy) warnAuditFailure(ctx context.Context, record AccessRecor
 	p.log.WarnContext(ctx, "workspace access audit emission failed", args...)
 }
 
-func deniedDecision(promptEligible bool) Decision {
-	return Decision{Source: SourceDenied, PromptEligible: promptEligible}
+func deniedDecisionFor(denial Denial) Decision {
+	return Decision{Source: SourceDenied, Denial: denial}
 }
