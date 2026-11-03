@@ -1,6 +1,6 @@
 ---
 title: Stays on is now Always-on in v0.5.1
-type: breaking
+type: highlight
 ---
 
 The agent kind that keeps running on its own is now called **Always-on**, and its value is `always_on`. Every CompozyOS surface uses the new name: the app, the CLI, `config.toml`, HTTP/UDS, native tools, the SDKs, the official skill, and the docs. On-demand agents are unchanged. The app now also uses the labels other agent tools use for permission levels and agent setup:
