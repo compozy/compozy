@@ -1572,6 +1572,20 @@ func TestInstanceManagedGoalPauseIntegration(t *testing.T) {
 	if err != nil || wake.UnattendedTurns != 0 {
 		t.Fatalf("managed turn counter=%+v error=%v", wake, err)
 	}
+	// Invariant (IT-032): an operator resume racing the Goal's asynchronous pause never fails the committed
+	// instance resume; the instance-owned Goal resumes once its pause settles.
+	status, raw = instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/pause", nil, nil)
+	if status != http.StatusOK {
+		t.Fatalf("instance pause=%d %s", status, raw)
+	}
+	status, raw = instanceIntegrationHTTP(t, d, "POST", "/api/agent-instances/"+instance.ID+"/resume", nil, nil)
+	if status != http.StatusOK {
+		t.Fatalf("immediate instance resume=%d %s", status, raw)
+	}
+	waitForRuntimeCondition(t, "racing resume restored the instance Goal", 20*time.Second, func() bool {
+		own, err := db.GetLoopRun(t.Context(), looppkg.WorkspaceID(workspace), looppkg.RunID(children[0].runID))
+		return err == nil && own.Status == looppkg.StatusRunning && !own.PauseRequested
+	})
 	for _, child := range children {
 		status, _, raw := goalCommand(child.sessionID, "stop")
 		if status >= 400 {
