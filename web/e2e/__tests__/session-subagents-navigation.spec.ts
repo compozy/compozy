@@ -240,9 +240,10 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
     const opened = branch
       .getByRole("button", { name: /^Open Nav subagent/, includeHidden: true })
       .first();
-    const title = ((await opened.getAttribute("aria-label")) ?? "").replace(/^Open /, "");
-    const target = subagents.find(row => row.title === title);
+    const openLabel = await opened.getAttribute("aria-label");
+    const target = subagents.find(row => openLabel?.startsWith(`Open ${row.title} · `));
     expect(target?.child_session_id).toBeTruthy();
+    const title = target!.title;
     await opened.click();
     await expect(opened).toHaveAttribute("aria-current", "true");
     const drawer = appPage.locator('[data-slot="resizable-drawer"]');
@@ -255,7 +256,10 @@ test("E2E-009: ten subagents stay one sidebar row with a bounded branch and an i
     const otherRow = branch
       .getByRole("button", { name: /^Open Nav subagent/, includeHidden: true })
       .nth(1);
-    const otherTitle = ((await otherRow.getAttribute("aria-label")) ?? "").replace(/^Open /, "");
+    const otherLabel = await otherRow.getAttribute("aria-label");
+    const otherTarget = subagents.find(row => otherLabel?.startsWith(`Open ${row.title} · `));
+    expect(otherTarget?.child_session_id).toBeTruthy();
+    const otherTitle = otherTarget!.title;
     await otherRow.click();
     await expect(otherRow).toHaveAttribute("aria-current", "true");
     await expect(opened).not.toHaveAttribute("aria-current", "true");
