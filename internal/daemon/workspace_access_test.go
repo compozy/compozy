@@ -218,7 +218,7 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		}
 	})
 
-	t.Run("Should answer a User-scope caller naming @user the same for foreign and missing sessions", func(t *testing.T) {
+	t.Run("Should deny @user probes from User scope like missing sessions", func(t *testing.T) {
 		t.Parallel()
 		sessions := sessionsFor(workspaceaccess.ModeDenyAll)
 		binder := newNativeWorkspaceInputBinder(nativeTestWorkspaceService(t), sessions, newPolicy(t, sessions), nil)
