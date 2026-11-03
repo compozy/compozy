@@ -170,7 +170,7 @@ function sessionProfileMoveMenuItem(
     return null;
   }
   if (isSubagentSession(session) || sessionTreeParentId(session) !== "") return null;
-  const targets = profileMove.targets.filter(target => target.name !== session.profile_name);
+  const targets = profileMove.targets.filter(target => target.id !== session.profile_id);
   if (targets.length === 0) return null;
   return {
     id: "move-to-profile",

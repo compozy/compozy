@@ -38,6 +38,8 @@ type fakeProfileMoveWorktrees struct {
 	releases   []string
 	// onInspect runs while the move plans, before the archive.
 	onInspect func()
+	// failAfterRelease is returned once the checkout was already removed.
+	failAfterRelease error
 }
 
 type fakeMoveWorktree struct {
@@ -151,6 +153,10 @@ func (f *fakeProfileMoveWorktrees) ReleaseProfileMoveWorktree(_ context.Context,
 	}
 	item.released = true
 	f.releases = append(f.releases, worktreeID)
+	if err := f.failAfterRelease; err != nil {
+		f.failAfterRelease = nil
+		return err
+	}
 	return nil
 }
 
@@ -311,7 +317,7 @@ func TestManagerMoveToProfile(t *testing.T) {
 			setup  func(*testing.T, *profileMoveHarness) (context.Context, string, string)
 		}{
 			{
-				name: "running session", reason: ProfileMoveRefusalRunning,
+				name: "Should refuse a running session", reason: ProfileMoveRefusalRunning,
 				setup: func(t *testing.T, h *profileMoveHarness) (context.Context, string, string) {
 					created, err := h.manager.Create(testutil.Context(t), new(CreateOpts{
 						AgentName: "coder", Name: "live", Workspace: h.workspaceID,
@@ -324,7 +330,7 @@ func TestManagerMoveToProfile(t *testing.T) {
 				},
 			},
 			{
-				name: "session with children", reason: ProfileMoveRefusalHasChildren,
+				name: "Should refuse a session with children", reason: ProfileMoveRefusalHasChildren,
 				setup: func(t *testing.T, h *profileMoveHarness) (context.Context, string, string) {
 					parent := h.stoppedSource(t, "", "")
 					h.stoppedSource(t, "", parent.ID)
@@ -332,7 +338,7 @@ func TestManagerMoveToProfile(t *testing.T) {
 				},
 			},
 			{
-				name: "nested session", reason: ProfileMoveRefusalNotMovable,
+				name: "Should refuse a nested session", reason: ProfileMoveRefusalNotMovable,
 				setup: func(t *testing.T, h *profileMoveHarness) (context.Context, string, string) {
 					parent := h.stoppedSource(t, "", "")
 					child := h.stoppedSource(t, "", parent.ID)
@@ -340,7 +346,7 @@ func TestManagerMoveToProfile(t *testing.T) {
 				},
 			},
 			{
-				name: "worktree with uncommitted changes", reason: ProfileMoveRefusalWorktreeDirty,
+				name: "Should refuse a worktree with uncommitted changes", reason: ProfileMoveRefusalWorktreeDirty,
 				setup: func(t *testing.T, h *profileMoveHarness) (context.Context, string, string) {
 					source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
 					h.worktrees.mu.Lock()
@@ -350,14 +356,14 @@ func TestManagerMoveToProfile(t *testing.T) {
 				},
 			},
 			{
-				name: "calling session", reason: ProfileMoveRefusalOwnSession,
+				name: "Should refuse the calling session", reason: ProfileMoveRefusalOwnSession,
 				setup: func(t *testing.T, h *profileMoveHarness) (context.Context, string, string) {
 					source := h.stoppedSource(t, "", "")
 					return WithActingSession(testutil.Context(t), source.ID), source.ID, profileMoveTargetID
 				},
 			},
 			{
-				name: "same profile", reason: ProfileMoveRefusalSameProfile,
+				name: "Should refuse the same profile", reason: ProfileMoveRefusalSameProfile,
 				setup: func(t *testing.T, h *profileMoveHarness) (context.Context, string, string) {
 					source := h.stoppedSource(t, "", "")
 					return testutil.Context(t), source.ID, store.DefaultProfileID
@@ -454,6 +460,32 @@ func TestManagerMoveToProfile(t *testing.T) {
 			h.worktrees.releaseCount() != 0 {
 			t.Fatalf("original after refusal = %#v, %v; archived=%t releases=%d; want it unarchived on %s",
 				original, err, h.archivedAt(t, source.ID), h.worktrees.releaseCount(), otherWorktree)
+		}
+	})
+
+	t.Run("Should check the branch out again when a failed release already removed the checkout", func(t *testing.T) {
+		t.Parallel()
+
+		h := newProfileMoveHarness(t)
+		sourceWorktree := h.worktrees.add(t, store.DefaultProfileID)
+		source := h.stoppedSource(t, sourceWorktree, "")
+		cause := errors.New("tombstone write failed")
+		h.worktrees.mu.Lock()
+		h.worktrees.failAfterRelease = cause
+		h.worktrees.mu.Unlock()
+
+		_, err := h.move(testutil.Context(t), source.ID)
+		if !errors.Is(err, cause) || errors.Is(err, ErrProfileMoveRefused) {
+			t.Fatalf("MoveToProfile() error = %v, want the cause after a complete rollback", err)
+		}
+		original, err := h.manager.Status(testutil.Context(t), source.ID)
+		if err != nil {
+			t.Fatalf("Status(original) error = %v", err)
+		}
+		restored, ok := h.worktrees.get(original.WorktreeID)
+		if !ok || original.WorktreeID == sourceWorktree || restored.released || h.archivedAt(t, source.ID) {
+			t.Fatalf("original worktree = %q (%#v), archived=%t; want a fresh checkout of the branch",
+				original.WorktreeID, restored, h.archivedAt(t, source.ID))
 		}
 	})
 

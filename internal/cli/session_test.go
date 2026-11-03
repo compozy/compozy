@@ -1359,6 +1359,11 @@ func TestSessionMoveToProfileCommand(t *testing.T) {
 		if moved.Session.ID != "sess-copy" || moved.Original.ID != "sess-src" || moved.WorktreeID != "wt-new" {
 			t.Fatalf("session move-to-profile output = %#v", moved)
 		}
+		toon, _, err := executeRootCommand(t, deps, "session", "move-to-profile", "sess-src", "work", "-o", "toon")
+		if err != nil || !strings.Contains(toon, "sess-src") || !strings.Contains(toon, "wt-new") ||
+			!strings.Contains(toon, "feat/move") {
+			t.Fatalf("session move-to-profile toon output = %q, %v", toon, err)
+		}
 		human, _, err := executeRootCommand(t, deps, "session", "move-to-profile", "sess-src", "work")
 		if err != nil || !strings.Contains(human, "sess-src (archived)") || !strings.Contains(human, "feat/move") {
 			t.Fatalf("session move-to-profile human output = %q, %v", human, err)

@@ -2044,8 +2044,10 @@ func TestSessionMoveToProfileHandler(t *testing.T) {
 			}
 			copied := *base
 			copied.ID, copied.ProfileID, copied.WorktreeID = "sess-copy", "profile-marketing", "wt-new"
+			original := *base
+			original.ArchivedAt = new(time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC))
 			return session.MoveToProfileResult{
-				Copy: &copied, Original: base, WorktreeID: "wt-new", Branch: "feat/move",
+				Copy: &copied, Original: &original, WorktreeID: "wt-new", Branch: "feat/move",
 			}, nil
 		},
 	}
@@ -2063,7 +2065,7 @@ func TestSessionMoveToProfileHandler(t *testing.T) {
 			t.Fatalf("json.Unmarshal() error = %v", err)
 		}
 		if payload.Session.ID != "sess-copy" || payload.Original.ID != base.ID ||
-			payload.WorktreeID != "wt-new" || payload.Branch != "feat/move" {
+			payload.Original.ArchivedAt == nil || payload.WorktreeID != "wt-new" || payload.Branch != "feat/move" {
 			t.Fatalf("move response = %#v", payload)
 		}
 	})

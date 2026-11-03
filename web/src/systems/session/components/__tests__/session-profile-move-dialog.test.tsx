@@ -30,6 +30,7 @@ const source: SessionPayload = {
   state: "stopped",
   archived_at: null,
   children: null,
+  profile_id: "profile-default",
   profile_name: "default",
   worktree_id: "wt-source",
 };

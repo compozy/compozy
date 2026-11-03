@@ -81,6 +81,12 @@ func (r daemonSessionWorktreeResolver) ReleaseProfileMoveWorktree(
 		return err
 	}
 	_, err = service.RemoveKeepingBranch(ctx, workspaceID, worktreeID)
+	if errors.Is(err, worktree.ErrSessionBound) {
+		return &session.ProfileMoveError{
+			Reason:  session.ProfileMoveRefusalWorktreeShared,
+			Message: "another session still uses this worktree; archive it or bind it elsewhere first",
+		}
+	}
 	if errors.Is(err, worktree.ErrDirtyRequiresForce) {
 		return &session.ProfileMoveError{
 			Reason:  session.ProfileMoveRefusalWorktreeDirty,

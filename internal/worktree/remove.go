@@ -335,6 +335,11 @@ func (s *Service) authoritativeRemovalEvaluation(
 	if err := s.requireNoActiveSession(ctx, item); err != nil {
 		return RemovalRisk{}, nil, err
 	}
+	if mode.keepBranch {
+		if err := s.requireNoBoundSession(ctx, item); err != nil {
+			return RemovalRisk{}, nil, err
+		}
+	}
 	risk, err := s.removalRisk(ctx, item)
 	if err != nil {
 		return RemovalRisk{}, nil, fmt.Errorf("%w: %v", ErrSafetyCheckFailed, err)
@@ -368,6 +373,27 @@ func (s *Service) requireNoActiveSession(ctx context.Context, item Worktree) err
 	}
 	if active {
 		return ErrSessionActive
+	}
+	return nil
+}
+
+// requireNoBoundSession refuses a keep-branch removal while an unarchived session
+// still binds the checkout. It runs inside the removal's exclusive usage, so no
+// binding change can commit between this read and the removal.
+func (s *Service) requireNoBoundSession(ctx context.Context, item Worktree) error {
+	if s.sessions == nil {
+		return nil
+	}
+	guard, ok := s.sessions.(BoundSessionGuard)
+	if !ok {
+		return errors.New("worktree: bound session guard is unavailable")
+	}
+	bound, err := guard.HasUnarchivedSession(ctx, item.WorkspaceID, item.ID)
+	if err != nil {
+		return fmt.Errorf("worktree: inspect bound sessions: %w", err)
+	}
+	if bound {
+		return ErrSessionBound
 	}
 	return nil
 }

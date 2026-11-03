@@ -79,12 +79,7 @@ func (h *BaseHandlers) MoveSessionToProfile(c *gin.Context) {
 		h.respondError(c, StatusForSessionProfileMoveError(err), err)
 		return
 	}
-	response, err := h.sessionProfileMoveResponse(c.Request.Context(), result)
-	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
-		return
-	}
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusOK, h.sessionProfileMoveResponse(c.Request.Context(), result))
 }
 
 // resolveProfileMoveTarget resolves the target by name to an active, available profile.
@@ -123,19 +118,25 @@ func (h *BaseHandlers) bindProfileMoveActor(c *gin.Context, workspaceID, targetP
 	return true
 }
 
+// sessionProfileMoveResponse reports a committed move. The move already happened, so a
+// failed payload enrichment falls back to the plain session payloads instead of an error
+// that would hide the copy's identity.
 func (h *BaseHandlers) sessionProfileMoveResponse(
 	ctx context.Context,
 	result session.MoveToProfileResult,
-) (contract.MoveSessionToProfileResponse, error) {
-	copyPayload, err := h.sessionPayloadWithOptionalHealth(ctx, result.Copy, false)
-	if err != nil {
-		return contract.MoveSessionToProfileResponse{}, err
-	}
-	originalPayload, err := h.sessionPayloadWithOptionalHealth(ctx, result.Original, false)
-	if err != nil {
-		return contract.MoveSessionToProfileResponse{}, err
-	}
+) contract.MoveSessionToProfileResponse {
 	return contract.MoveSessionToProfileResponse{
-		Session: copyPayload, Original: originalPayload, WorktreeID: result.WorktreeID, Branch: result.Branch,
-	}, nil
+		Session:    h.committedSessionPayload(ctx, result.Copy),
+		Original:   h.committedSessionPayload(ctx, result.Original),
+		WorktreeID: result.WorktreeID,
+		Branch:     result.Branch,
+	}
+}
+
+func (h *BaseHandlers) committedSessionPayload(ctx context.Context, info *session.Info) contract.SessionPayload {
+	payload, err := h.sessionPayloadWithOptionalHealth(ctx, info, false)
+	if err != nil {
+		return SessionPayloadFromInfo(info)
+	}
+	return payload
 }

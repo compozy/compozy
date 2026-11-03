@@ -27,6 +27,13 @@ type SessionGuard interface {
 	HasActiveSession(context.Context, string, string) (bool, error)
 }
 
+// BoundSessionGuard reports whether any unarchived session, live or stopped, still
+// binds a worktree. A keep-branch removal requires it: the checkout it removes must
+// not be one another listed session still uses.
+type BoundSessionGuard interface {
+	HasUnarchivedSession(context.Context, string, string) (bool, error)
+}
+
 type Service struct {
 	pullRequests        *PullRequestService
 	store               Store

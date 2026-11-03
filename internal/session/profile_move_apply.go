@@ -24,12 +24,16 @@ type profileMoveProgress struct {
 // nothing reopens the source while its worktree is released.
 func (m *Manager) applyProfileMove(ctx context.Context, plan *profileMovePlan) (MoveToProfileResult, error) {
 	meta := &plan.meta
-	original, err := m.Archive(ctx, meta.WorkspaceID, meta.ID)
-	if err != nil {
+	if err := ctx.Err(); err != nil {
 		return MoveToProfileResult{}, err
 	}
+	// From the archive on, the move finishes or rolls back on its own lifetime.
 	execCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), profileMoveTimeout)
 	defer cancel()
+	original, err := m.Archive(execCtx, meta.WorkspaceID, meta.ID)
+	if err != nil {
+		return MoveToProfileResult{}, m.rollbackFailedArchive(execCtx, plan, err)
+	}
 	var progress profileMoveProgress
 	if err := m.requireProfileMoveBinding(execCtx, plan); err != nil {
 		return MoveToProfileResult{}, m.rollbackProfileMove(ctx, plan, progress, err)
@@ -38,6 +42,7 @@ func (m *Manager) applyProfileMove(ctx context.Context, plan *profileMovePlan) (
 	if plan.checkout != nil {
 		err := plan.worktree.ReleaseProfileMoveWorktree(execCtx, meta.WorkspaceID, plan.checkout.ID)
 		if err != nil {
+			progress.released = m.profileMoveCheckoutGone(execCtx, plan)
 			return MoveToProfileResult{}, m.rollbackProfileMove(ctx, plan, progress, err)
 		}
 		progress.released = true
@@ -74,7 +79,9 @@ func (m *Manager) applyProfileMove(ctx context.Context, plan *profileMovePlan) (
 	}
 	if result.Copy == nil {
 		if result.Copy, err = m.Status(execCtx, derived.ChildSessionID); err != nil {
-			return result, err
+			return result, fmt.Errorf(
+				"session: moved %s to copy %s, but reading the copy failed: %w", meta.ID, derived.ChildSessionID, err,
+			)
 		}
 	}
 	m.logger.Info(
@@ -84,6 +91,25 @@ func (m *Manager) applyProfileMove(ctx context.Context, plan *profileMovePlan) (
 		"worktree_id", result.WorktreeID,
 	)
 	return result, nil
+}
+
+// rollbackFailedArchive keeps a failed archive harmless: when it committed before a
+// later step of the archive failed, the source is unarchived again.
+func (m *Manager) rollbackFailedArchive(ctx context.Context, plan *profileMovePlan, cause error) error {
+	err := m.requireSessionUnarchived(ctx, plan.meta.WorkspaceID, plan.meta.ID)
+	if !errors.Is(err, ErrSessionArchived) {
+		return cause
+	}
+	return m.rollbackProfileMove(ctx, plan, profileMoveProgress{}, cause)
+}
+
+// profileMoveCheckoutGone reports whether a release that failed still removed the
+// checkout, so the rollback checks the branch out again instead of rebinding a
+// session to a removed worktree. An unreadable checkout counts as gone: recreating
+// it either succeeds or reports what is left.
+func (m *Manager) profileMoveCheckoutGone(ctx context.Context, plan *profileMovePlan) bool {
+	checkout, err := plan.worktree.InspectProfileMoveWorktree(ctx, plan.meta.WorkspaceID, plan.checkout.ID)
+	return err != nil || !checkout.Ready
 }
 
 // requireProfileMoveBinding rereads the archived source: a worktree binding that changed
@@ -141,7 +167,8 @@ func (m *Manager) rollbackProfileMove(
 		}
 		restoredID = id
 	}
-	if _, err := m.Unarchive(ctx, meta.WorkspaceID, meta.ID); err != nil {
+	// The move holds the lock the public Unarchive takes.
+	if _, err := m.setArchived(ctx, meta.WorkspaceID, meta.ID, false); err != nil {
 		errs = append(errs, fmt.Errorf("unarchive session %s: %w", meta.ID, err))
 	} else if restoredID != "" {
 		expected := plan.checkout.ID

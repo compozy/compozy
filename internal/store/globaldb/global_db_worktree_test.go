@@ -1323,6 +1323,43 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		}
 	})
 
+	t.Run("Should report a worktree bound by an unarchived session until that session is archived", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		globalDB := openTestGlobalDB(t)
+		sessionID := "session-worktree-bound"
+		workspaceID := registerSessionForGlobalTests(t, globalDB, sessionID)
+		now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+		item := worktreepkg.Worktree{
+			ProfileID: store.DefaultProfileID,
+			ID:        "wt_bound", WorkspaceID: workspaceID, Name: "bound",
+			Path: filepath.Join(t.TempDir(), "bound"), State: worktreepkg.StateReady,
+			Origin: worktreepkg.OriginManual, SetupState: worktreepkg.SetupNone,
+			CreatedAt: now, UpdatedAt: now,
+		}
+		if err := globalDB.Worktrees.Insert(ctx, item); err != nil {
+			t.Fatalf("Insert() error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx, `UPDATE sessions SET worktree_id = ?, state = 'stopped' WHERE id = ?`, item.ID, sessionID,
+		); err != nil {
+			t.Fatalf("bind stopped session: %v", err)
+		}
+		bound, err := globalDB.HasUnarchivedWorktreeSession(ctx, workspaceID, item.ID)
+		if err != nil || !bound {
+			t.Fatalf("HasUnarchivedWorktreeSession(stopped) = %t, %v; want true", bound, err)
+		}
+		if _, err := globalDB.db.ExecContext(
+			ctx, `UPDATE sessions SET archived_at = ? WHERE id = ?`, store.FormatTimestamp(now), sessionID,
+		); err != nil {
+			t.Fatalf("archive session: %v", err)
+		}
+		bound, err = globalDB.HasUnarchivedWorktreeSession(ctx, workspaceID, item.ID)
+		if err != nil || bound {
+			t.Fatalf("HasUnarchivedWorktreeSession(archived) = %t, %v; want false", bound, err)
+		}
+	})
+
 	t.Run("Should dismiss a tombstone without cascading session or task-run history", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

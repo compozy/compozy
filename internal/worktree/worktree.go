@@ -246,6 +246,7 @@ var (
 	ErrDiscoveredChanged      = errors.New("worktree_discovered_changed")
 	ErrOperationInProgress    = errors.New("worktree_operation_in_progress")
 	ErrSessionActive          = errors.New("worktree_session_active")
+	ErrSessionBound           = errors.New("worktree_session_bound")
 	ErrStatusUnreadable       = errors.New("worktree_status_unreadable")
 	ErrDirtyRequiresForce     = errors.New("worktree_dirty_requires_force")
 	ErrUnpushedRequiresForce  = errors.New("worktree_unpushed_requires_force")

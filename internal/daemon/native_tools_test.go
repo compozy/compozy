@@ -16429,6 +16429,19 @@ func TestNativeSessionMoveToProfile(t *testing.T) {
 		}
 	})
 
+	t.Run("Should deny a non-operator call without a session", func(t *testing.T) {
+		t.Parallel()
+		registry, policy, calls := newRegistry(t, workspaceaccess.Decision{Allowed: true}, func(
+			session.MoveToProfileOpts,
+		) error {
+			return nil
+		})
+		_, err := registry.Call(t.Context(), toolspkg.Scope{WorkspaceID: "ws-move"}, request("sess-source"))
+		if !errors.Is(err, toolspkg.ErrToolDenied) || len(*calls) != 0 || policy.calls != 0 {
+			t.Fatalf("sessionless move error = %v calls = %d policy = %d, want denied", err, len(*calls), policy.calls)
+		}
+	})
+
 	t.Run("Should refuse an agent moving its own session", func(t *testing.T) {
 		t.Parallel()
 		registry, policy, calls := newRegistry(t, workspaceaccess.Decision{Allowed: true}, func(

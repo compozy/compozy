@@ -269,6 +269,19 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refuse to keep-branch remove a checkout another unarchived session binds", func(t *testing.T) {
+		t.Parallel()
+		f := newRemovalTestFixture(t)
+		WithSessionGuard(fixedSessionGuard{bound: true})(f.service)
+		refusalResult, err := f.service.RemoveKeepingBranch(t.Context(), f.workspace.ID, f.item.ID)
+		if !errors.Is(err, ErrSessionBound) || refusalResult != nil {
+			t.Fatalf("RemoveKeepingBranch(bound) = (%#v, %v), want ErrSessionBound", refusalResult, err)
+		}
+		if f.removeCalls.Load() != 0 || f.mustItem(t).State != StateReady {
+			t.Fatal("checkout bound by another session removed")
+		}
+	})
+
 	t.Run("Should skip teardown when the removal hook denies", func(t *testing.T) {
 		t.Parallel()
 		f := newRemovalTestFixture(t)
@@ -1325,11 +1338,16 @@ func (d removalHookDispatcher) DispatchWorktreeHook(
 
 type fixedSessionGuard struct {
 	active bool
+	bound  bool
 	err    error
 }
 
 func (g fixedSessionGuard) HasActiveSession(context.Context, string, string) (bool, error) {
 	return g.active, g.err
+}
+
+func (g fixedSessionGuard) HasUnarchivedSession(context.Context, string, string) (bool, error) {
+	return g.bound, g.err
 }
 
 type recordingEventSink struct {

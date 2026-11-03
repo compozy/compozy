@@ -325,7 +325,12 @@ The move is refused, with the reason in the dialog, when the session:
 If a step fails after the original was archived, the daemon undoes the move: it releases the new
 checkout, checks the branch out again for the original profile, unarchives the original, and
 binds it to that worktree. If that recovery cannot finish, the error says what is left; the
-session and the branch are never deleted.
+session and the branch are never deleted. If the daemon stops in the middle of a move, the original
+can stay archived with no copy: unarchive it, then bind it to a worktree on the same branch
+(`compozy worktree create --existing-branch <branch>` and `compozy session worktree bind`).
+
+Archived sessions that shared the moved worktree keep their history but lose that checkout; bind
+them to another worktree after unarchiving them.
 
 ```bash
 compozy session move-to-profile sess_1234 work -o json

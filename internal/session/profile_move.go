@@ -129,13 +129,18 @@ func (m *Manager) MoveToProfile(ctx context.Context, opts MoveToProfileOpts) (Mo
 	if err := m.checkNewWorkAdmission(ctx); err != nil {
 		return MoveToProfileResult{}, err
 	}
-	unlock := m.lockPromptAdmission(opts.WorkspaceID, "\x00profile-move", opts.SessionID)
+	unlock := m.lockProfileMove(opts.WorkspaceID, opts.SessionID)
 	defer unlock()
 	plan, err := m.planProfileMove(ctx, opts)
 	if err != nil {
 		return MoveToProfileResult{}, err
 	}
 	return m.applyProfileMove(ctx, &plan)
+}
+
+// lockProfileMove serializes a move of one session with other moves and unarchives of it.
+func (m *Manager) lockProfileMove(workspaceID string, sessionID string) func() {
+	return m.lockPromptAdmission(strings.TrimSpace(workspaceID), "\x00profile-move", strings.TrimSpace(sessionID))
 }
 
 func normalizeMoveToProfileOpts(opts MoveToProfileOpts) MoveToProfileOpts {

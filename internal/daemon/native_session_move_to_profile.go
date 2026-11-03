@@ -81,15 +81,20 @@ func (n *daemonNativeTools) sessionMoveToProfile(
 }
 
 // authorizeNativeProfileMove admits an agent's write to the target profile through the
-// workspace-access policy; an operator call needs no grant.
+// workspace-access policy; an operator call needs no grant, and any other call without
+// a session is denied.
 func (n *daemonNativeTools) authorizeNativeProfileMove(
 	ctx context.Context,
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 	targetProfile, targetID string,
 ) error {
-	if scope.Operator || scope.SessionID == "" {
+	if scope.Operator {
 		return nil
+	}
+	if scope.SessionID == "" {
+		// Only an operator call or an agent session can name who writes the target profile.
+		return nativeWorkspaceAccessDeniedError(req.ToolID)
 	}
 	for _, descriptor := range builtintools.NativeDescriptors() {
 		if descriptor.ID == req.ToolID {

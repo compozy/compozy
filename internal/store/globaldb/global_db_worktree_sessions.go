@@ -50,6 +50,31 @@ SELECT EXISTS (
 	return found, nil
 }
 
+// HasUnarchivedWorktreeSession reports whether any unarchived session, in any state,
+// still binds a workspace-scoped worktree.
+func (g *GlobalDB) HasUnarchivedWorktreeSession(
+	ctx context.Context,
+	workspaceID string,
+	worktreeID string,
+) (bool, error) {
+	if g == nil || g.Worktrees == nil {
+		return false, fmt.Errorf("store: worktree repository is required")
+	}
+	if err := g.Worktrees.checkReady(ctx, "inspect bound worktree sessions"); err != nil {
+		return false, err
+	}
+	var found bool
+	err := g.Worktrees.db.QueryRowContext(ctx, `
+SELECT EXISTS (
+  SELECT 1 FROM sessions
+  WHERE workspace_id = ? AND worktree_id = ? AND archived_at IS NULL
+)`, strings.TrimSpace(workspaceID), strings.TrimSpace(worktreeID)).Scan(&found)
+	if err != nil {
+		return false, fmt.Errorf("store: inspect bound worktree sessions: %w", err)
+	}
+	return found, nil
+}
+
 // HasOtherActiveWorktreeSession excludes only the exact managed-delivery caller.
 func (g *GlobalDB) HasOtherActiveWorktreeSession(
 	ctx context.Context,

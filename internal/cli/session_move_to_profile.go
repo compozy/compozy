@@ -52,6 +52,15 @@ func sessionProfileMoveBundle(response *MoveSessionToProfileResponse, now func()
 			}
 			return copyText + "\n" + renderHumanSection("Moved", rows), nil
 		},
-		toon: func() (string, error) { return renderSessionToon(&response.Session) },
+		toon: func() (string, error) {
+			copyText, err := renderSessionToon(&response.Session)
+			if err != nil {
+				return "", err
+			}
+			moved := renderToonObject("moved", []string{"original_id", "worktree_id", "branch"}, []string{
+				response.Original.ID, response.WorktreeID, response.Branch,
+			})
+			return copyText + "\n" + moved, nil
+		},
 	}
 }

@@ -1095,7 +1095,9 @@ which the copy binds. Past usage stays with the original's profile. A failure af
 rolls back in reverse order (target checkout released, branch checked out again for the original
 profile, original unarchived and rebound); an unfinished rollback returns
 `session_move_to_profile_recovery_incomplete` naming what is left, and never deletes the session or
-the branch. Refusals return HTTP 409 with a `session_move_to_profile_*` code: `same_profile`, `own_session`, `not_movable`, `running`, `archived`, `has_children`, `worktree_dirty`, `worktree_detached`, `worktree_shared`, `worktree_run_owned`, `worktree_not_ready`, `worktree_changed`, `recovery_incomplete`.
+the branch. A daemon stop mid-move can leave the original archived with no copy: unarchive it and
+bind it to a worktree on the same branch. Archived sessions that shared the moved worktree lose
+that checkout. Refusals return HTTP 409 with a `session_move_to_profile_*` code: `same_profile`, `own_session`, `not_movable`, `running`, `archived`, `has_children`, `worktree_dirty`, `worktree_detached`, `worktree_shared`, `worktree_run_owned`, `worktree_not_ready`, `worktree_changed`, `recovery_incomplete`.
 `compozy session move` is unrelated: it only places a session in a folder.
 
 The session catalog is counted and workspace-scoped. Internal auto-title sessions never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
