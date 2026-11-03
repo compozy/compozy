@@ -144,6 +144,12 @@ func (d *Driver) startSessionAttempt(ctx context.Context, normalized StartOpts) 
 	if err != nil {
 		return process, err
 	}
+	stageStartedAt = time.Now()
+	err = d.prepareSessionMCPServers(ctx, process, normalized)
+	d.logStartStage(normalized, process, "mcp_bridge", stageOutcome(err, len(normalized.MCPServers) == 0), stageStartedAt)
+	if err != nil {
+		return process, err
+	}
 	if err := d.negotiateSession(ctx, process, normalized); err != nil {
 		return process, err
 	}

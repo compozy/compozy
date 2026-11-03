@@ -36,7 +36,7 @@ func (s *sessionStartSpec) applyResolvedRuntimeDefaults(
 	authoredUnrestricted := hasUnrestrictedACPMode(authoredOptions)
 	if permissions != compozyconfig.PermissionModeApproveAll && (dropInheritedUnrestricted || authoredUnrestricted) {
 		agentOptions = slices.DeleteFunc(agentOptions, func(option acp.SessionConfigOptionSelection) bool {
-			return option.ID == acpModeOptionID && compozyconfig.IsUnrestrictedACPMode(option.ValueID)
+			return compozyconfig.IsUnrestrictedACPOption(option.ID, option.ValueID)
 		})
 	}
 	merged, err := MergeRuntimeACPOptions(agentOptions, s.acpOptions)
@@ -49,7 +49,7 @@ func (s *sessionStartSpec) applyResolvedRuntimeDefaults(
 
 func hasUnrestrictedACPMode(options []compozyconfig.ACPOptionSelection) bool {
 	return slices.ContainsFunc(options, func(option compozyconfig.ACPOptionSelection) bool {
-		return option.ID == acpModeOptionID && compozyconfig.IsUnrestrictedACPMode(option.ValueID)
+		return compozyconfig.IsUnrestrictedACPOption(option.ID, option.ValueID)
 	})
 }
 

@@ -1428,6 +1428,19 @@ secret-binding or shell workaround. In Settings the provider shows `Sign-in unve
 live probe succeeds, and the runtime picker plus session attribution carry the exact selected
 model ID (on the verified 1.4.0 server the bare `gemini-4-argon` / `gemini-3.8-flash` IDs; effort is the first-class `thinking_level` option, not an ID suffix).
 
+For the `copilot` built-in (GitHub Copilot CLI, ACP in public preview upstream), sign in with
+`compozy provider auth login copilot`, which runs `copilot login` (browser or device code; token in
+the system keychain). `needs_login` means run that login; `missing_cli` means install
+`@github/copilot` (`npm install -g @github/copilot` or `brew install copilot-cli`). Never ask for or
+export a GitHub token: CompozyOS filters token-shaped daemon variables. Models and effort come only
+from live `provider_live:copilot` discovery and depend on the account's plan; a plan with one model
+(Copilot Free) advertises no model option, so refresh reports it missing, Copilot picks Auto, and an
+explicit model or effort fails before the first prompt. CompozyOS native tools reach Copilot through
+the `session_mcp_transport = "http"` loopback bridge; if a Copilot session lacks `compozy__*` tools,
+check that the provider override did not set `session_mcp_transport = "stdio"`. Copilot has no
+read-only mode (triage is unsupported), no steering (a busy-mode message interrupts the turn;
+use `--queue` to wait), and no provider-usage collector.
+
 ## Automatic continuation after daemon restart
 
 Use `compozy daemon restart` for a restart that should preserve running work. An explicit

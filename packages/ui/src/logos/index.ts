@@ -6,6 +6,7 @@ export { ClaudeLogo } from "./claude";
 export { OpenAILogo } from "./openai";
 export { GeminiLogo } from "./gemini";
 export { CursorLogo } from "./cursor";
+export { CopilotLogo } from "./copilot";
 export { OpenCodeLogo } from "./opencode";
 export { PiLogo } from "./pi";
 export { KimiLogo } from "./kimi";

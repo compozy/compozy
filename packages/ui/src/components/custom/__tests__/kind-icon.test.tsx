@@ -9,6 +9,7 @@ const providerKeys = [
   "agy",
   "claude",
   "codex",
+  "copilot",
   "gemini",
   "kimi-cli",
   "ollama",

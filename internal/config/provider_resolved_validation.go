@@ -31,6 +31,9 @@ func validateResolvedProvider(name string, provider ProviderConfig) error {
 	if err := provider.EffectiveNoneSecurity().Validate(fmt.Sprintf("providers.%s.none_security", name)); err != nil {
 		return err
 	}
+	if err := validateSessionMCPTransport(provider, fmt.Sprintf("providers.%s.session_mcp_transport", name)); err != nil {
+		return err
+	}
 	if err := ValidateACPMethod(provider.AuthACPMethod, fmt.Sprintf("providers.%s.auth_acp_method", name)); err != nil {
 		return err
 	}
@@ -165,4 +168,18 @@ func mergeMCPAuthConfig(base MCPAuthConfig, override MCPAuthConfig) MCPAuthConfi
 		merged.Scopes = append([]string(nil), override.Scopes...)
 	}
 	return merged
+}
+
+func validateSessionMCPTransport(provider ProviderConfig, path string) error {
+	switch provider.SessionMCPTransport {
+	case "", MCPServerTransportStdio:
+		return nil
+	case MCPServerTransportHTTP:
+		if provider.EffectiveHarness() != ProviderHarnessACP {
+			return fmt.Errorf("%s = %q requires harness = %q", path, MCPServerTransportHTTP, ProviderHarnessACP)
+		}
+		return nil
+	default:
+		return fmt.Errorf("%s must be one of stdio or http", path)
+	}
 }

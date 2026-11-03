@@ -51,6 +51,9 @@ func (o providerOverlay) Apply(dst *ProviderConfig) {
 	if o.SessionMCP != nil {
 		dst.SessionMCP = new(*o.SessionMCP)
 	}
+	if o.SessionMCPTransport != nil {
+		dst.SessionMCPTransport = *o.SessionMCPTransport
+	}
 	if len(o.CredentialSlots) > 0 {
 		dst.CredentialSlots = applyProviderCredentialOverlays(o.CredentialSlots)
 	}

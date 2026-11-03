@@ -145,11 +145,35 @@ type PermissionsConfig struct {
 	ProviderFullAccess bool           `toml:"provider_full_access,omitempty"`
 }
 
+const (
+	// CopilotAllowAllOptionID is the GitHub Copilot CLI ACP option that approves every tool, path, and URL.
+	CopilotAllowAllOptionID = "allow_all"
+	// CopilotAllowAllOn is the CopilotAllowAllOptionID value that turns approvals off.
+	CopilotAllowAllOn = "on"
+	// copilotAutopilotMode is the GitHub Copilot CLI mode that enables allow-all for the session.
+	copilotAutopilotMode = "https://agentclientprotocol.com/protocol/session-modes#autopilot"
+)
+
 // IsUnrestrictedACPMode reports provider mode IDs that bypass the provider's normal sandbox or approvals.
 func IsUnrestrictedACPMode(mode string) bool {
 	switch mode {
-	case "agent-full-access", "full-access", "full_access", "bypassPermissions", "bypass_permissions", "yolo", "auto":
+	case "agent-full-access", "full-access", "full_access", "bypassPermissions", "bypass_permissions", "yolo", "auto",
+		copilotAutopilotMode:
 		return true
+	default:
+		return false
+	}
+}
+
+// IsUnrestrictedACPOption reports ACP config selections that bypass the
+// provider's normal sandbox or approvals: an unrestricted mode, or an
+// approval option switched to approve everything.
+func IsUnrestrictedACPOption(optionID string, valueID string) bool {
+	switch optionID {
+	case "mode":
+		return IsUnrestrictedACPMode(valueID)
+	case CopilotAllowAllOptionID:
+		return valueID == CopilotAllowAllOn
 	default:
 		return false
 	}

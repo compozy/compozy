@@ -3,6 +3,7 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { AntigravityLogo } from "../antigravity";
 import { ClaudeLogo } from "../claude";
+import { CopilotLogo } from "../copilot";
 import { GeminiLogo } from "../gemini";
 import { GithubLogo } from "../github";
 import { LinearLogo } from "../linear";
@@ -21,6 +22,20 @@ describe("AntigravityLogo", () => {
     expect(svg?.getAttribute("class")).toContain("size-6");
     expect(svg?.querySelector("title")).toHaveTextContent("Antigravity");
     expect(svg?.querySelector("path")?.getAttribute("fill")).toBe("currentColor");
+  });
+});
+
+describe("CopilotLogo", () => {
+  it("preserves the official registry geometry with theme-aware ink", () => {
+    const { container } = render(<CopilotLogo className="size-6" />);
+
+    const svg = container.querySelector("svg");
+    expect(svg?.getAttribute("viewBox")).toBe("0 0 16 16");
+    expect(svg?.getAttribute("class")).toContain("size-6");
+    expect(svg?.querySelector("title")).toHaveTextContent("GitHub Copilot");
+    const paths = Array.from(svg?.querySelectorAll("path") ?? []);
+    expect(paths).toHaveLength(3);
+    expect(paths.every(path => path.getAttribute("fill") === "currentColor")).toBe(true);
   });
 });
 

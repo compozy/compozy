@@ -319,6 +319,7 @@ func resolvedAgentFromProvider(
 		AuthLoginCmd:          strings.TrimSpace(provider.AuthLoginCmd),
 		AuthACPMethod:         provider.EffectiveACPMethod(),
 		SessionMCP:            provider.SessionMCPEnabled(),
+		SessionMCPOverHTTP:    provider.SessionMCPOverHTTP(),
 		SessionEnv:            MergeSessionEnv(provider.SessionEnv, agent.SessionEnv),
 		CredentialSlots:       provider.EffectiveCredentialSlots(),
 		MCPServers:            mergeMCPServerLayers(mcpServers, provider.MCPServers, agent.MCPServers),
@@ -339,9 +340,23 @@ func applyProviderFullAccessPreference(
 	if !permissions.ProviderFullAccess || resolved.Permissions != string(PermissionModeApproveAll) {
 		return nil
 	}
+	optionID, valueID := "mode", ""
+	switch providerName {
+	case providerCodexKey:
+		valueID = "agent-full-access"
+	case "claude":
+		valueID = "bypassPermissions"
+	case providerAgyKey:
+		valueID = "yolo"
+	case providerCopilotKey:
+		// Copilot keeps approvals in its own allow_all option; its modes are task modes.
+		optionID, valueID = CopilotAllowAllOptionID, CopilotAllowAllOn
+	default:
+		return fmt.Errorf("permissions.provider_full_access is unsupported for provider %q", providerName)
+	}
 	for _, option := range resolved.ACPOptionsValue() {
-		if option.ID == "mode" {
-			return nil // The agent explicitly chose its ACP mode.
+		if option.ID == optionID {
+			return nil // The agent explicitly chose this ACP option.
 		}
 	}
 	if provider.EffectiveHarness() != ProviderHarnessACP {
@@ -351,19 +366,8 @@ func applyProviderFullAccessPreference(
 			provider.EffectiveHarness(),
 		)
 	}
-	var mode string
-	switch providerName {
-	case providerCodexKey:
-		mode = "agent-full-access"
-	case "claude":
-		mode = "bypassPermissions"
-	case providerAgyKey:
-		mode = "yolo"
-	default:
-		return fmt.Errorf("permissions.provider_full_access is unsupported for provider %q", providerName)
-	}
 	options, _ := runtimeoption.MergeSelections(
-		[]ACPOptionSelection{{ID: "mode", ValueID: mode}}, resolved.ACPOptionsValue(),
+		[]ACPOptionSelection{{ID: optionID, ValueID: valueID}}, resolved.ACPOptionsValue(),
 	)
 	resolved.SetACPOptions(options)
 	return nil

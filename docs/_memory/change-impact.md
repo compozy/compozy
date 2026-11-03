@@ -584,6 +584,27 @@ Evidence: `docs/qa/reports/2026-10-21-all-projects-user-scope.md`.
   `config-toml` `[shell.sessions]`, generated CLI pages; glossary entries All projects and topbar;
   release note `.release-notes/all-projects-*.md`; migration guide section.
 
+## GitHub Copilot CLI first-class provider — 2026-11-03
+
+Owner: branch `copilot-acp-provider` (#1168). Additive across every public surface (SD-013); no delete
+targets and no migration. Config: new provider key `session_mcp_transport` (`stdio` default, `http`),
+accepted by `compozy config set`; the `copilot` built-in gains `auth_login_command = "copilot login"`,
+`auth_acp_method = "copilot-login"` (enables the promptless remote probe; login keeps the native
+command), `models.reasoning.apply = "acp_option"`, and `session_mcp_transport = "http"`; operator
+overrides still win. `permissions.provider_full_access` maps Copilot to the `allow_all = on` ACP option.
+Copilot's Autopilot mode and `allow_all = on` now count as unrestricted, so they require approve-all at
+start, prompt runtime, and Loop roles. Runtime: a session/new auth-required refusal is a provider-auth
+failure with `provider_not_authenticated` login guidance for every ACP provider (previously a protocol
+failure); the HTTP status moves from 500 to the existing 422 provider-auth mapping. Model catalog:
+`provider_live:copilot` uses ACP discovery. Native tools / HTTP / UDS / DTOs / hooks / extension SDKs:
+unchanged; hosted MCP reaches Copilot through the per-session loopback bridge (`internal/mcpbridge`),
+bearer token never logged, torn down with the agent process. Workspace isolation unchanged: one bridge
+per agent process, bound to that session's hosted launch. Web/UI: `@compozy/ui` gains `CopilotLogo`
+in the provider registry; the site landing uses it. Official skill (`references/runtime-operations.md`,
+`references/agent-definitions.md`) and site docs (`agents/providers.mdx`, `configuration/config-toml.mdx`,
+`sessions/permissions.mdx`) updated. QA scenario `RT-copilot-acp-provider` added; report
+`docs/qa/reports/2026-11-03-copilot-acp-provider.md`.
+
 ## Session monitor kind — 2026-11-02
 
 Owner: branch `feat/session-monitor-kind`. Additive across every public surface (SD-013); no delete

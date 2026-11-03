@@ -79,24 +79,25 @@ silently overriding a provider's own login state.
 
 Provider overrides and custom providers are configured in `config.toml`.
 
-| Field                 | Type   | Required                 | Runtime behavior                                                                                                                                                                                                                                                                  |
-| --------------------- | ------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `command`             | string | yes for custom providers | Launch command for the ACP subprocess. Overrides a built-in command when set.                                                                                                                                                                                                     |
-| `display_name`        | string | no                       | Operator-facing label shown in settings and provider pickers.                                                                                                                                                                                                                     |
-| `models`              | table  | no                       | Nested model config block (`models.default`, `models.curated`, `models.discovery`). See "Provider models".                                                                                                                                                                        |
-| `harness`             | string | no                       | `acp` for direct ACP launch or `pi_acp` for providers launched through the Pi ACP adapter. Defaults to `acp`.                                                                                                                                                                     |
-| `runtime_provider`    | string | no                       | Downstream provider id used by harnesses such as Pi. Defaults to the CompozyOS provider id.                                                                                                                                                                                       |
-| `transport`           | string | no                       | Optional Pi model-provider API family hint for custom providers.                                                                                                                                                                                                                  |
-| `base_url`            | string | no                       | Optional Pi model-provider base URL for custom gateways.                                                                                                                                                                                                                          |
-| `auth_mode`           | string | no                       | `native_cli`, `bound_secret`, or `none`. Defaults from configured credential slots.                                                                                                                                                                                               |
-| `none_security`       | string | no                       | Safety rationale for `auth_mode = "none"`: `local_transport`, `external_identity`, or `public_readonly`.                                                                                                                                                                          |
-| `env_policy`          | string | no                       | `filtered` strips secret-shaped daemon env vars; `isolated` keeps only an operational allowlist.                                                                                                                                                                                  |
-| `home_policy`         | string | no                       | `operator` uses the daemon user's home; `isolated` uses `$COMPOZY_HOME/providers/<provider>`.                                                                                                                                                                                     |
-| `auth_status_command` | string | no                       | Optional native CLI status probe used by `compozy provider auth status`.                                                                                                                                                                                                          |
-| `auth_login_command`  | string | no                       | Write-only native CLI login command used by `compozy provider auth login`; read surfaces return its safe login descriptor, never the command.                                                                                                                                     |
-| `auth_acp_method`     | string | no                       | Protocol-owned login method id (for example `oauth-personal` on `agy`). Used by `compozy provider auth login` and remote probes when no native login/status command is configured; read surfaces expose only `source: auth_acp_method` with the executable basename and presence. |
-| `credential_slots`    | array  | no                       | Bound launch-time secrets. Allowed only with `auth_mode = "bound_secret"`.                                                                                                                                                                                                        |
-| `mcp_servers`         | array  | no                       | Provider-level MCP servers merged before agent-level MCP servers.                                                                                                                                                                                                                 |
+| Field                   | Type   | Required                 | Runtime behavior                                                                                                                                                                                                                                                                                                                        |
+| ----------------------- | ------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `command`               | string | yes for custom providers | Launch command for the ACP subprocess. Overrides a built-in command when set.                                                                                                                                                                                                                                                           |
+| `display_name`          | string | no                       | Operator-facing label shown in settings and provider pickers.                                                                                                                                                                                                                                                                           |
+| `models`                | table  | no                       | Nested model config block (`models.default`, `models.curated`, `models.discovery`). See "Provider models".                                                                                                                                                                                                                              |
+| `harness`               | string | no                       | `acp` for direct ACP launch or `pi_acp` for providers launched through the Pi ACP adapter. Defaults to `acp`.                                                                                                                                                                                                                           |
+| `runtime_provider`      | string | no                       | Downstream provider id used by harnesses such as Pi. Defaults to the CompozyOS provider id.                                                                                                                                                                                                                                             |
+| `transport`             | string | no                       | Optional Pi model-provider API family hint for custom providers.                                                                                                                                                                                                                                                                        |
+| `base_url`              | string | no                       | Optional Pi model-provider base URL for custom gateways.                                                                                                                                                                                                                                                                                |
+| `auth_mode`             | string | no                       | `native_cli`, `bound_secret`, or `none`. Defaults from configured credential slots.                                                                                                                                                                                                                                                     |
+| `none_security`         | string | no                       | Safety rationale for `auth_mode = "none"`: `local_transport`, `external_identity`, or `public_readonly`.                                                                                                                                                                                                                                |
+| `env_policy`            | string | no                       | `filtered` strips secret-shaped daemon env vars; `isolated` keeps only an operational allowlist.                                                                                                                                                                                                                                        |
+| `home_policy`           | string | no                       | `operator` uses the daemon user's home; `isolated` uses `$COMPOZY_HOME/providers/<provider>`.                                                                                                                                                                                                                                           |
+| `auth_status_command`   | string | no                       | Optional native CLI status probe used by `compozy provider auth status`.                                                                                                                                                                                                                                                                |
+| `auth_login_command`    | string | no                       | Write-only native CLI login command used by `compozy provider auth login`; read surfaces return its safe login descriptor, never the command.                                                                                                                                                                                           |
+| `auth_acp_method`       | string | no                       | Protocol-owned login method id (for example `oauth-personal` on `agy`). Used by `compozy provider auth login` and remote probes when no native login/status command is configured; read surfaces expose only `source: auth_acp_method` with the executable basename and presence.                                                       |
+| `session_mcp_transport` | string | no                       | How per-session stdio MCP servers, including CompozyOS native tools, reach an ACP provider. Empty or `stdio` passes them unchanged. `http` serves each one on a loopback HTTP endpoint guarded by a per-session bearer token, for agents that accept only remote MCP servers. Requires `harness = "acp"`. `copilot` defaults to `http`. |
+| `credential_slots`      | array  | no                       | Bound launch-time secrets. Allowed only with `auth_mode = "bound_secret"`.                                                                                                                                                                                                                                                              |
+| `mcp_servers`           | array  | no                       | Provider-level MCP servers merged before agent-level MCP servers.                                                                                                                                                                                                                                                                       |
 
 `auth_mode = "none"` is an explicit `No auth required` contract, not an authenticated state. Set
 `none_security` to describe why the provider is safe without credentials: `local_transport` for
@@ -155,6 +156,68 @@ native-auth editor offers an optional `Sign-in method` field and no key, secret,
 controls: leaving the field empty uses the built-in `oauth-personal` default, and clearing a
 custom value removes the local override to reveal that default. Editing any other field preserves
 the stored method.
+
+### GitHub Copilot CLI
+
+The `copilot` built-in launches `copilot --acp --stdio` and needs no `[providers.copilot]` block.
+Copilot's ACP server is a public preview upstream, so its options and behavior can change between
+Copilot CLI releases. CompozyOS was verified against Copilot CLI 1.0.105.
+
+1. Install the official Copilot CLI with one of the commands GitHub documents, then confirm it is
+   on `PATH`:
+
+   ```bash
+   npm install -g @github/copilot   # or: brew install copilot-cli
+   copilot --version
+   ```
+
+2. Sign in. `copilot login` opens a browser (or a device code on headless machines) and stores
+   the token in the system keychain:
+
+   ```bash
+   compozy provider auth login copilot -o json
+   ```
+
+   This runs `copilot login` for you. Running `copilot login` yourself works the same way. Copilot
+   also accepts an existing GitHub CLI (`gh`) login. Your Copilot plan, or your organization's
+   policy, must allow Copilot CLI.
+
+3. Start a session with `--provider copilot`, or pick **GitHub Copilot CLI** in the session
+   provider picker.
+
+When Copilot is not signed in, session start fails with `needs_login` and the recovery is
+`compozy provider auth login copilot`. CompozyOS strips token-shaped variables such as
+`GH_TOKEN` and `COPILOT_GITHUB_TOKEN` from the daemon environment before launching providers, so
+sign in with `copilot login` rather than exporting a token to the daemon. To run Copilot under a
+separate config directory, export `COPILOT_HOME` in the daemon's environment or declare
+`COPILOT_HOME = "env:COPILOT_HOME"` under `[providers.copilot.session_env]`. The keychain login is
+shared across config directories.
+
+What Copilot supports through CompozyOS:
+
+- **Models and reasoning effort.** Copilot advertises a `model` option and, for models that
+  support it, a `reasoning_effort` option. CompozyOS discovers both, shows them in the model
+  picker, and applies them per session. The list depends on your plan. An account that offers
+  only one model, such as Copilot Free, advertises no model option: Copilot picks the model
+  itself (Auto), model refresh reports that no model option was advertised, and an explicit model
+  or effort fails before the first prompt instead of being ignored.
+- **Permissions.** Copilot asks for approval through ACP and CompozyOS answers with the session's
+  permission mode. `permissions.provider_full_access` turns on Copilot's `allow_all` option.
+  Copilot's Autopilot mode also approves everything, so CompozyOS treats it as an unrestricted
+  mode that requires `approve-all`.
+- **CompozyOS native tools.** Copilot ignores stdio MCP servers sent over ACP, so `copilot`
+  defaults to `session_mcp_transport = "http"`. CompozyOS tools reach Copilot through a
+  loopback HTTP endpoint with a per-session bearer token, and the endpoint closes when the
+  session's Copilot process exits. Tool progress notifications are not relayed.
+
+Not supported yet:
+
+- Triage sessions, because Copilot has no read-only mode. Its Plan mode can still change files.
+- Steering a running turn. Copilot can't take guidance mid-turn, so a message sent with the default
+  busy mode cancels the current turn and starts a new one. Send it with `--queue` (or queue it in
+  the composer) to wait for the turn to finish instead.
+- Provider usage (subscription limits). Copilot publishes no supported usage API. Use `/usage`
+  inside a Copilot session or your GitHub billing page.
 
 Built-in provider aliases are intentionally small and resolve before launch. Common aliases such as
 `claude-code`, `ai-gateway`, `vercel`, `kimi`, `glm`, `x.ai`, `grok`, `open-code`, and `qwen`
@@ -292,8 +355,8 @@ deltas, including the five pricing fields, without copying unchanged catalog enr
 `config.toml`. Use the request-level `model_curation` object or the atomic curation endpoint when the
 change is limited to `hidden`, `featured`, `deprecated`, a default reasoning effort, or a default speed.
 
-Discovery uses the resolved provider auth, env, and home policy. Claude, Codex, and Agy inspect a
-short-lived ACP session. Agy publishes the exact advertised model IDs and model-specific reasoning levels; unobserved pricing, context, and speed stay unknown. Its `thinking_level` option drives the session picker's reasoning slider without adding effort suffixes to model IDs; see [Provider Model Catalog](/docs/agents/model-catalog) for the verified inventory. Cursor runs `cursor-agent models`, converts the returned transport aliases into
+Discovery uses the resolved provider auth, env, and home policy. Claude, Codex, Agy, and Copilot
+inspect a short-lived ACP session. Agy publishes the exact advertised model IDs and model-specific reasoning levels; unobserved pricing, context, and speed stay unknown. Its `thinking_level` option drives the session picker's reasoning slider without adding effort suffixes to model IDs; see [Provider Model Catalog](/docs/agents/model-catalog) for the verified inventory. Cursor runs `cursor-agent models`, converts the returned transport aliases into
 logical model IDs, and keeps the alias bindings private. OpenCode probes the selected
 installation with `--version`, then lists v1 models with `models --verbose` or v2 models through
 `opencode api --standalone`, using the workspace-scoped `model.list` operation from
@@ -323,7 +386,7 @@ active ACP adapter must still advertise or accept that exact ID; otherwise start
 Catalog/config/live observations are the only sources; model-name prefixes never fabricate effort
 levels. `supports_reasoning=true` with an empty effort list is valid and means the provider decides.
 
-Claude, Codex, OpenCode, and Agy built-ins use `models.reasoning.apply = "acp_option"`; custom and `pi_acp`
+Claude, Codex, OpenCode, Agy, and Copilot built-ins use `models.reasoning.apply = "acp_option"`; custom and `pi_acp`
 providers default to `none` unless explicitly configured. Strategy `none` means CompozyOS has no effort
 application strategy. It is distinct from explicit effort `none`, which is sent through ACP when
 the active model advertises it.
