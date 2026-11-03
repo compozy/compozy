@@ -179,3 +179,30 @@ Backend startup regression: `TestBootAgentInstances` uses real SQLite and a
 registered project whose folder is absent. Starting instance services must keep
 the API available, retain the manually paused instance, and log its reconciliation
 error. A missing project must not prevent access to other projects.
+
+Spend-brake configuration coverage (stays-on-hardening B1): set
+`agents.stays_on.unattended_turn_limit` to `2` and restart the daemon.
+Two autonomous turns pause the instance with reason `unattended`; the next input
+remains queued. Repeat with an explicit `0`: autonomous turns continue. A
+negative value must fail configuration validation. The default is `300`.
+Configuration and explicit-zero merge coverage lives in
+`TestStaysOnTriageConfiguration`; real SQLite trip and disabled-brake coverage
+lives in `TestGlobalDBInstanceUnattendedBrake`. The combined product walk remains
+pending until pause side effects and public read fields are integrated.
+
+Pause cancellation coverage: while a read-only check is running, pause the
+instance. The check must stop and its occurrence must finish as `cancelled`,
+without increasing failure streak or adding a failure report. A working turn
+already running must finish. Backend coverage: `TestInstancePauseCancelsCheck`
+uses real SQLite for manual, fatigue, unattended and definition pause reasons;
+`TestInstanceUnattendedPauseDispatch` checks the queue-to-post-commit handoff and
+the selected turn reaching the provider boundary. Goal/Loop coordination and
+the combined public-surface walk remain pending.
+
+Check counter coverage: reported and failed occurrences increment
+`unattended_turns` once at finalization. Quiet and cancelled occurrences do not.
+Replay the same finalized occurrence and verify that it adds neither a count
+nor another pause effect. At the limit, the pause returned to the runtime must
+be the snapshot committed by that finalization. Canonical SQLite coverage:
+`TestInstanceCheckUnattendedCounter` and
+`TestInstanceCheckUnattendedPauseEffects`.

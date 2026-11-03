@@ -70,3 +70,18 @@ func checkSessionSuperseded(ctx context.Context, queries *sqlcgen.Queries, sessi
 	}
 	return fmt.Errorf("%w: current main session %s", store.ErrSessionSuperseded, instance.MainSessionID.String)
 }
+
+func (r *SessionRepo) SessionLineageInstanceID(ctx context.Context, sessionID string) (string, error) {
+	if err := r.checkReady(ctx, "resolve session instance lineage"); err != nil {
+		return "", err
+	}
+	row, err := r.queries.GetInstanceCaller(ctx, sessionID)
+	if err != nil {
+		return "", err
+	}
+	id, ok := row.OriginatingInstanceID.(string)
+	if !ok {
+		return "", errors.New("store: invalid originating instance")
+	}
+	return id, nil
+}

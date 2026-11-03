@@ -131,6 +131,12 @@ func (m *Manager) tryStartNextQueuedInputPrompt(sessionID string, attempt int) b
 	if !ok {
 		return false
 	}
+	if entry.PausedInstanceID != "" && m.instancePaused != nil {
+		if pauseErr := m.instancePaused(m.fallbackLifecycleContext(), entry.PausedInstanceID); pauseErr != nil {
+			m.sessionLogger(session).
+				Error("session: apply instance pause effects", "instance_id", entry.PausedInstanceID, "error", pauseErr)
+		}
+	}
 	if entry.ID != selected.ID {
 		if releaseErr := m.inputQueue.Release(m.fallbackLifecycleContext(), target, entry.ID); releaseErr != nil {
 			m.sessionLogger(session).Warn(

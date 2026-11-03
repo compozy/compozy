@@ -1813,6 +1813,19 @@ Operator HTTP/UDS clients can call `POST /api/agent-instances/{id}/check` with
 agents can dry-run their own instance; this HTTP/UDS route requires operator identity
 for real checks. The same profile and workspace boundaries as instance reads apply.
 
+### Unattended turn limit
+
+Configure `agents.stays_on.unattended_turn_limit` (default `300`, `0` disables)
+and restart the daemon to apply it. Negative values fail validation. The counter
+tracks non-human turns on an instance lineage and each reported or failed check.
+Quiet checks and cancelled checks do not count; a replayed finalization does not
+count twice. Goal and Loop turns use their
+own limits. Reaching the limit pauses the instance with reason `unattended`;
+the selected turn finishes and subsequent autonomous input remains queued.
+An operator must resume an unattended pause. Pausing an instance cancels its
+running read-only check; the cancelled occurrence adds no fatigue or failure
+report. A working turn already in progress finishes.
+
 ### Instance check state and capacity
 
 Instance responses include `checks_enabled`, `last_wake_at`, `next_wake_at`,

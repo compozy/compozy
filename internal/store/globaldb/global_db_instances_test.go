@@ -1466,6 +1466,82 @@ func TestInstanceAdoptionHooks(t *testing.T) {
 
 // TestInstanceWakeMigration owns upgrade preservation and opt-in safety in the global store.
 func TestInstanceWakeMigration(t *testing.T) {
+	t.Run("Should preserve inflight wake state when adding the spend brake", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		old, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00179_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, statement := range []string{
+			`INSERT INTO agent_instances (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at)
+    VALUES ('brake-upgrade','00000000000000000000000000','coder','active','human','','2026-11-02','2026-11-02')`,
+			`INSERT INTO agent_instance_wake_state (instance_id,next_wake_at,occurrence_id,failure_streak)
+    VALUES ('brake-upgrade','2026-11-03','inflight-check',2)`,
+		} {
+			if _, err := old.ExecContext(ctx, statement); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := old.Close(); err != nil {
+			t.Fatal(err)
+		}
+		db, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var turns, failures int64
+		var engaged, next, occurrence string
+		if err := db.db.QueryRowContext(ctx, `SELECT unattended_turns,engaged_at,next_wake_at,occurrence_id,failure_streak
+   FROM agent_instance_wake_state WHERE instance_id='brake-upgrade'`).
+			Scan(
+				&turns, &engaged, &next, &occurrence, &failures,
+			); err != nil {
+			t.Fatal(err)
+		}
+		if turns != 0 || engaged != "" || next != "2026-11-03" || occurrence != "inflight-check" || failures != 2 {
+			t.Fatalf("upgrade state: %d %q %q %q %d", turns, engaged, next, occurrence, failures)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			`UPDATE agent_instance_wake_state SET unattended_turns=17, engaged_at='2026-11-02'
+   WHERE instance_id='brake-upgrade'`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.db.ExecContext(
+			ctx,
+			`INSERT INTO agent_instance_paused_runs VALUES ('brake-upgrade','goal','goal-1','2026-11-02')`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.Close(ctx); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := reopened.db.QueryRowContext(ctx, `SELECT unattended_turns FROM agent_instance_wake_state WHERE instance_id='brake-upgrade'`).
+			Scan(&turns); err != nil {
+			t.Fatal(err)
+		}
+		var runID string
+		if err := reopened.db.QueryRowContext(ctx, `SELECT run_id FROM agent_instance_paused_runs WHERE instance_id='brake-upgrade'`).
+			Scan(&runID); err != nil {
+			t.Fatal(err)
+		}
+		if turns != 17 || runID != "goal-1" {
+			t.Fatalf("reopened turns=%d run=%q", turns, runID)
+		}
+	})
+
 	t.Run("Should preserve legacy events and require opt in only on upgrade", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
@@ -1779,10 +1855,10 @@ func TestInstanceWakeTransactions(t *testing.T) {
 			Digest:           "digest-one",
 			AutomationCursor: "cursor-one",
 		}
-		if changed, err := repo.Finish(t.Context(), finish); err != nil || !changed {
+		if changed, err := repo.Finish(t.Context(), finish); err != nil || !changed.Changed {
 			t.Fatalf("finish=%v %v", changed, err)
 		}
-		if changed, err := repo.Finish(t.Context(), finish); err != nil || changed {
+		if changed, err := repo.Finish(t.Context(), finish); err != nil || changed.Changed {
 			t.Fatalf("retry=%v %v", changed, err)
 		}
 		state, err := repo.WakeState(t.Context(), instance.ID)
@@ -1825,7 +1901,7 @@ func TestInstanceWakeTransactions(t *testing.T) {
 			Kind:    "failure",
 			Payload: []byte(`{"reason":"test","detail":"canceled"}`),
 		}
-		if changed, err := repo.Finish(t.Context(), finish); err != nil || !changed {
+		if changed, err := repo.Finish(t.Context(), finish); err != nil || !changed.Changed {
 			t.Fatalf("cancel finish=%v %v", changed, err)
 		}
 		state, err = repo.WakeState(t.Context(), instance.ID)
@@ -1879,7 +1955,7 @@ func TestInstanceWakeTransactions(t *testing.T) {
 			t.Fatal("report escaped rolled back transaction")
 		}
 		finish.Reason = "triage_failed"
-		if changed, err := repo.Finish(t.Context(), finish); err != nil || !changed {
+		if changed, err := repo.Finish(t.Context(), finish); err != nil || !changed.Changed {
 			t.Fatalf("failure finish=%v %v", changed, err)
 		}
 		state, err = repo.WakeState(t.Context(), instance.ID)
@@ -2215,13 +2291,13 @@ func TestInstanceCheckBackoff(t *testing.T) {
 					if result == "failed" {
 						reason = "triage_failed"
 					}
-					ok, err = repo.Finish(t.Context(), heartbeat.FinishRequest{
+					finished, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
 						InstanceID: id, OccurrenceID: occurrence, Source: "timer", Result: result, Reason: reason,
 						Now: now, ExpiresAt: now.Add(48 * time.Hour), Interval: 8 * time.Hour,
 						MaxInterval: 2 * time.Hour, QuietBackoffCap: time.Hour,
 					})
-					if err != nil || !ok {
-						t.Fatalf("finish=%v error=%v", ok, err)
+					if err != nil || !finished.Changed {
+						t.Fatalf("finish=%v error=%v", finished, err)
 					}
 					state, err := repo.WakeState(t.Context(), id)
 					if err != nil {
@@ -2470,7 +2546,7 @@ func TestInstanceCheckBackoff(t *testing.T) {
 				Interval:     time.Hour,
 				MaxInterval:  4 * time.Hour,
 			}
-			if changed, err := repo.Finish(t.Context(), req); err != nil || !changed {
+			if changed, err := repo.Finish(t.Context(), req); err != nil || !changed.Changed {
 				t.Fatalf("finish=%v %v", changed, err)
 			}
 			state, err := repo.WakeState(t.Context(), instance.ID)
@@ -2488,7 +2564,7 @@ func TestInstanceCheckBackoff(t *testing.T) {
 			} else if next.Before(now.Add(tc.delay)) || next.After(now.Add(tc.delay+tc.delay/10)) {
 				t.Fatalf("step %d next=%s expected delay=%s plus at most ten percent", i, state.NextWakeAt, tc.delay)
 			}
-			if changed, err := repo.Finish(t.Context(), req); err != nil || changed {
+			if changed, err := repo.Finish(t.Context(), req); err != nil || changed.Changed {
 				t.Fatalf("retry=%v %v", changed, err)
 			}
 			repeated, err := repo.WakeState(t.Context(), instance.ID)
@@ -2564,7 +2640,7 @@ func TestInstanceProposalDedupe(t *testing.T) {
 					Report:       &agentinstance.ReportInput{Kind: "proposal", Payload: []byte(tc.payload)},
 				},
 			)
-			if err != nil || !changed {
+			if err != nil || !changed.Changed {
 				t.Fatalf("finish=%v %v", changed, err)
 			}
 			var count int
@@ -2649,7 +2725,7 @@ func TestInstanceCheckFatigue(t *testing.T) {
 					ExpiresAt:    now.Add(time.Hour),
 				},
 			); err != nil ||
-				!ok {
+				!ok.Changed {
 				t.Fatalf("quiet finish=%v %v", ok, err)
 			}
 		}
@@ -2682,10 +2758,10 @@ func TestInstanceCheckFatigue(t *testing.T) {
 					Payload: []byte(`{"reason":"triage_failed","detail":"Failed"}`),
 				},
 			}
-			if ok, err := repo.Finish(t.Context(), req); err != nil || !ok {
+			if ok, err := repo.Finish(t.Context(), req); err != nil || !ok.Changed {
 				t.Fatalf("finish=%v %v", ok, err)
 			}
-			if ok, err := repo.Finish(t.Context(), req); err != nil || ok {
+			if ok, err := repo.Finish(t.Context(), req); err != nil || ok.Changed {
 				t.Fatalf("retry=%v %v", ok, err)
 			}
 			finished, err := repo.Occurrence(t.Context(), instance.ID, occurrence)
@@ -2763,7 +2839,7 @@ func TestInstanceCheckFatigue(t *testing.T) {
 				FatigueLimit: 10,
 			},
 		); err != nil ||
-			!ok {
+			!ok.Changed {
 			t.Fatalf("resume finish=%v %v", ok, err)
 		}
 		current, err := repo.Get(t.Context(), instance.ID)
@@ -3540,8 +3616,9 @@ func TestInstanceMissedDueTimes(t *testing.T) {
 }
 
 type blockingInstanceDispatcher struct {
-	release chan struct{}
-	calls   atomic.Int32
+	canceled chan struct{}
+	release  chan struct{}
+	calls    atomic.Int32
 }
 
 var _ heartbeat.TriageDispatcher = (*blockingInstanceDispatcher)(nil)
@@ -3557,6 +3634,9 @@ func (d *blockingInstanceDispatcher) Dispatch(
 	case <-d.release:
 		return heartbeat.TriageOutcome{Result: "quiet", Reason: "quiet"}, nil
 	case <-ctx.Done():
+		if d.canceled != nil {
+			close(d.canceled)
+		}
 		return heartbeat.TriageOutcome{}, ctx.Err()
 	}
 }
@@ -3863,7 +3943,7 @@ func TestInstanceFinishOutcomes(t *testing.T) {
 					ExpiresAt:    now.Add(24 * time.Hour),
 				},
 			); err != nil ||
-				!changed {
+				!changed.Changed {
 				t.Fatalf("finish=%v err=%v", changed, err)
 			}
 			var result, reason string
@@ -3991,7 +4071,7 @@ func TestInstanceCollectorCompletion(t *testing.T) {
 					ExpiresAt:        now.Add(24 * time.Hour),
 				},
 			); err != nil ||
-				!changed {
+				!changed.Changed {
 				t.Fatalf("finish=%v err=%v", changed, err)
 			}
 			if i == 0 && collect().Fingerprint != first.Fingerprint {
@@ -4584,7 +4664,7 @@ func TestInstanceRotationCandidate(t *testing.T) {
 }
 
 func TestInstanceResumeAuthority(t *testing.T) {
-	for _, reason := range []string{"manual", "fatigue"} {
+	for _, reason := range []string{"manual", "fatigue", "unattended", "future_reason", ""} {
 		t.Run("Should retain an intervening "+reason+" pause during agent resume", func(t *testing.T) {
 			t.Parallel()
 			db := openTestGlobalDB(t)
@@ -4647,4 +4727,251 @@ func TestInstanceResumeAuthority(t *testing.T) {
 			}
 		})
 	}
+}
+
+// IT-003, UT-003: post-commit pause cancels the active occurrence without adding fatigue or a failure report.
+func TestInstancePauseCancelsCheck(t *testing.T) {
+	for _, reason := range []string{"manual", "fatigue", "unattended", "definition_missing"} {
+		t.Run("Should cancel a check after committed "+reason+" pause", func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+			defer cancel()
+			db := openTestGlobalDB(t)
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "cancel-check", "sess-cancel-check")
+			repo := db.Instances()
+			instance, err := repo.Adopt(ctx, agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+			dispatcher := &blockingInstanceDispatcher{release: make(chan struct{}), canceled: make(chan struct{})}
+			environment := &instanceCheckEnvironment{target: heartbeat.CheckTarget{
+				Instance: instance, Policy: heartbeat.ResolvedPolicy{Enabled: true, GuidanceMarkdown: "Check work"},
+			}}
+			checks, err := heartbeat.NewCheckService(ctx, repo, environment, dispatcher, heartbeat.CheckConfig{
+				Enabled: true, Interval: time.Hour, MaxInterval: 24 * time.Hour, Retention: 24 * time.Hour,
+				Timeout: time.Minute, MaxConcurrent: 1, BatchSize: 1,
+			}, func() time.Time { return now })
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := checks.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			if err := checks.Recover(ctx); err != nil {
+				t.Fatal(err)
+			}
+			result, err := checks.Check(ctx, instance.ID, false)
+			if err != nil || result.OccurrenceID == "" {
+				t.Fatalf("check=%+v err=%v", result, err)
+			}
+			recorder := &instanceHookRecorder{}
+			service, err := agentinstance.NewService(
+				agentinstance.WithStore(repo), agentinstance.WithAdmission(instanceServiceAdmission{}),
+				agentinstance.WithMainSessions(&instanceServiceStarter{}), agentinstance.WithActiveLimit(10),
+				agentinstance.WithLifecycleHooks(recorder),
+				agentinstance.WithPauseEffects(func(ctx context.Context, current agentinstance.Instance) error {
+					persisted, err := repo.Get(ctx, current.ID)
+					if err != nil {
+						return err
+					}
+					if persisted.State != "paused" {
+						t.Errorf("effects before commit: %+v", persisted)
+					}
+					return checks.CancelInstance(ctx, current.ID)
+				}),
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if reason == "unattended" {
+				if _, err := repo.Pause(ctx, instance.ID, reason); err != nil {
+					t.Fatal(err)
+				}
+				if err := service.AfterPause(ctx, instance.ID); err != nil {
+					t.Fatal(err)
+				}
+			} else if _, err := service.Pause(ctx, instance.ID, reason); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-dispatcher.canceled:
+			case <-ctx.Done():
+				t.Fatal("pause did not cancel the active check")
+			}
+			if err := checks.Shutdown(ctx); err != nil {
+				t.Fatal(err)
+			}
+			occurrence, err := repo.Occurrence(ctx, instance.ID, result.OccurrenceID)
+			if err != nil || occurrence.Result != instanceWakeCanceledResult {
+				t.Fatalf("occurrence=%+v err=%v", occurrence, err)
+			}
+			wake, err := repo.WakeState(ctx, instance.ID)
+			if err != nil || wake.FailureStreak != 0 {
+				t.Fatalf("wake=%+v err=%v", wake, err)
+			}
+			reports, err := db.InstanceReports().
+				ListReports(ctx, agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 10})
+			if err != nil || len(reports) != 0 {
+				t.Fatalf("reports=%+v err=%v", reports, err)
+			}
+			if len(recorder.payloads) != 1 || recorder.payloads[0].Reason != reason {
+				t.Fatalf("hooks=%+v", recorder.payloads)
+			}
+		})
+	}
+}
+
+// UT-004/UT-005: finalization counts reported and failed checks exactly once, excluding quiet and cancellation.
+func TestInstanceCheckUnattendedCounter(t *testing.T) {
+	for _, outcome := range []string{"quiet", "reported", "failed", instanceWakeCanceledResult} {
+		t.Run("Should count the "+outcome+" check outcome once", func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "check-counter", "sess-check-counter")
+			repo := db.Instances()
+			instance, err := repo.Adopt(ctx, agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.DB().
+				ExecContext(ctx, "UPDATE agent_instance_wake_state SET unattended_turns=1 WHERE instance_id=?", instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			now := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+			if ok, err := repo.Admit(ctx, heartbeat.AdmitRequest{
+				InstanceID:    instance.ID,
+				OccurrenceID:  "counted-check",
+				Now:           now,
+				NextWakeAt:    now.Add(time.Hour),
+				MaxConcurrent: 1,
+			}); err != nil || !ok {
+				t.Fatalf("admit=%v %v", ok, err)
+			}
+			if outcome == instanceWakeCanceledResult {
+				if _, err := repo.Pause(ctx, instance.ID, "manual"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			reason := outcome
+			if outcome == "failed" {
+				reason = "triage_failed"
+			}
+			req := heartbeat.FinishRequest{
+				InstanceID: instance.ID, OccurrenceID: "counted-check", Source: "timer", Result: outcome,
+				Reason: reason, Now: now, ExpiresAt: now.Add(time.Hour), UnattendedTurnLimit: 2,
+			}
+			result, err := repo.Finish(ctx, req)
+			if err != nil || !result.Changed {
+				t.Fatalf("finish=%+v %v", result, err)
+			}
+			counted := outcome == "reported" || outcome == "failed"
+			if (result.Paused != nil) != counted {
+				t.Fatalf("trip=%+v outcome=%s", result.Paused, outcome)
+			}
+			if counted && (result.Paused.State != "paused" || result.Paused.PauseReason != "unattended") {
+				t.Fatalf("snapshot=%+v", result.Paused)
+			}
+			replay, err := repo.Finish(ctx, req)
+			if err != nil || replay.Changed || replay.Paused != nil {
+				t.Fatalf("replay=%+v %v", replay, err)
+			}
+			var turns int64
+			if err := db.DB().
+				QueryRowContext(ctx, "SELECT unattended_turns FROM agent_instance_wake_state WHERE instance_id=?", instance.ID).
+				Scan(&turns); err != nil {
+				t.Fatal(err)
+			}
+			want := int64(1)
+			if counted {
+				want = 2
+			}
+			if turns != want {
+				t.Fatalf("turns=%d want=%d", turns, want)
+			}
+			reports, err := db.InstanceReports().
+				ListReports(ctx, agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 10})
+			expectedReports := 0
+			if counted {
+				expectedReports = 1
+			}
+			if err != nil || len(reports) != expectedReports {
+				t.Fatalf("reports=%+v %v", reports, err)
+			}
+		})
+	}
+}
+
+func TestInstanceCheckUnattendedPauseEffects(t *testing.T) {
+	t.Run("Should invoke the pause handler after the counted check commits", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "check-effects", "sess-check-effects")
+		repo := db.Instances()
+		instance, err := repo.Adopt(ctx, agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		environment := &instanceCheckEnvironment{target: heartbeat.CheckTarget{
+			Instance: instance, Policy: heartbeat.ResolvedPolicy{Enabled: true, GuidanceMarkdown: "Check work"},
+		}}
+		now := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+		checks, err := heartbeat.NewCheckService(
+			ctx,
+			repo,
+			environment,
+			&instanceRecoveryDispatcher{},
+			heartbeat.CheckConfig{
+				Enabled: true, Interval: time.Hour, MaxInterval: 24 * time.Hour, Retention: 24 * time.Hour,
+				Timeout: time.Minute, MaxConcurrent: 1, BatchSize: 1, UnattendedTurnLimit: 1,
+			},
+			func() time.Time { return now },
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := checks.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		committed := make(chan agentinstance.Instance, 1)
+		checks.SetPauseHandler(func(ctx context.Context, snapshot agentinstance.Instance) error {
+			persisted, err := repo.Get(ctx, snapshot.ID)
+			if err != nil {
+				return err
+			}
+			committed <- persisted
+			return checks.CancelInstance(ctx, snapshot.ID)
+		})
+		if err := checks.Recover(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if result, err := checks.Check(ctx, instance.ID, false); err != nil || result.OccurrenceID == "" {
+			t.Fatalf("check=%+v %v", result, err)
+		}
+		waitCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		select {
+		case persisted := <-committed:
+			if persisted.State != "paused" || persisted.PauseReason != "unattended" {
+				t.Fatalf("effects before commit: %+v", persisted)
+			}
+		case <-waitCtx.Done():
+			t.Fatal("counted check did not publish pause effects")
+		}
+	})
 }

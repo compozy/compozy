@@ -147,3 +147,7 @@ func validateInstanceLaunch(spec *sessionStartSpec, before, after acp.StartOpts)
 	}
 	return nil
 }
+
+func (m *Manager) SetInstancePauseHandler(handler func(context.Context, string) error) {
+	m.instancePaused = handler
+}

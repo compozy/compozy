@@ -13,6 +13,7 @@ import (
 )
 
 type instanceRepositoryProvider interface {
+	SetUnattendedTurnLimit(int64) error
 	Instances() *globaldb.InstanceRepo
 	InstanceReports() *globaldb.InstanceReportRepo
 }
@@ -25,6 +26,9 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	provider, ok := state.registry.(instanceRepositoryProvider)
 	if !ok {
 		return errors.New("daemon: instance repositories unavailable")
+	}
+	if err := provider.SetUnattendedTurnLimit(state.cfg.Agents.StaysOn.UnattendedTurnLimit); err != nil {
+		return err
 	}
 	repo := provider.Instances()
 	manager.SetInstanceCeilingReader(instanceCeilingReader(repo))
@@ -68,10 +72,17 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 			manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
 		}),
 		agentinstance.WithLifecycleHooks(state.hookDispatcher),
+		agentinstance.WithPauseEffects(func(ctx context.Context, instance agentinstance.Instance) error {
+			if state.runtimeWorkers.proactiveChecks == nil {
+				return nil
+			}
+			return state.runtimeWorkers.proactiveChecks.CancelInstance(ctx, instance.ID)
+		}),
 	)
 	if err != nil {
 		return fmt.Errorf("daemon: create instance service: %w", err)
 	}
+	manager.SetInstancePauseHandler(service.AfterPause)
 	state.agentInstances = &core.AgentInstanceAPI{
 		Service: service, Store: repo, Reports: provider.InstanceReports(),
 		WakeState: repo.WakeState, CountActive: repo.CountActive,

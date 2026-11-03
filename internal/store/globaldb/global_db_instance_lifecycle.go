@@ -132,7 +132,7 @@ func (r *InstanceRepo) Resume(
 			if row.ArchivedAt.Valid {
 				return agentinstance.ErrNotFound
 			}
-			if !operator && (row.PauseReason == "manual" || row.PauseReason == "fatigue") {
+			if !operator && row.State == "paused" && agentinstance.OperatorOnlyResume(row.PauseReason) {
 				return agentinstance.ErrForbidden
 			}
 			if row.State == "starting" {
@@ -150,6 +150,11 @@ func (r *InstanceRepo) Resume(
 					ctx,
 					sqlcgen.ResumeAgentInstanceParams{ID: id, UpdatedAt: store.FormatTimestamp(r.now())},
 				); err != nil {
+					return err
+				}
+				if err := q.ResetInstanceUnattended(ctx, sqlcgen.ResetInstanceUnattendedParams{
+					InstanceID: id, Now: store.FormatTimestamp(r.now()),
+				}); err != nil {
 					return err
 				}
 				if err := q.ResetInstanceWakeStreaks(ctx, id); err != nil {

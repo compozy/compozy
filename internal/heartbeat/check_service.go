@@ -37,6 +37,7 @@ type TriageDispatcher interface {
 	Stop(context.Context, string) error
 }
 type CheckConfig struct {
+	UnattendedTurnLimit                       int64
 	QuietBackoffCap                           time.Duration
 	FatigueLimit                              int
 	Enabled                                   bool
@@ -48,7 +49,16 @@ type CheckResult struct {
 	Digest       *CheckDigest `json:"digest,omitempty"`
 	OccurrenceID string       `json:"occurrence_id,omitempty"`
 }
+type checkRun struct {
+	occurrence string
+	cancel     context.CancelFunc
+}
+
 type CheckService struct {
+	recoveryMu    sync.Mutex
+	paused        map[string]*agentinstance.Instance
+	afterPause    func(context.Context, agentinstance.Instance) error
+	running       map[string]checkRun
 	store         InstanceWakeStore
 	environment   CheckEnvironment
 	dispatcher    TriageDispatcher
@@ -75,7 +85,7 @@ func NewCheckService(
 		config.Retention <= 0 ||
 		config.Timeout <= 0 ||
 		config.MaxConcurrent < 1 ||
-		config.BatchSize < 1 {
+		config.BatchSize < 1 || config.UnattendedTurnLimit < 0 {
 		return nil, errors.New("heartbeat: incomplete check service configuration")
 	}
 	lifetime, cancel := context.WithCancel(ctx)
@@ -88,6 +98,8 @@ func NewCheckService(
 		ctx:         lifetime,
 		cancel:      cancel,
 		pending:     map[string]FinishRequest{},
+		running:     map[string]checkRun{},
+		paused:      map[string]*agentinstance.Instance{},
 	}, nil
 }
 func (s *CheckService) Shutdown(context.Context) error {
@@ -232,6 +244,9 @@ func NextCheckTime(now time.Time, cadence time.Duration, id string) time.Time {
 	return now.Add(cadence + time.Duration(binary.LittleEndian.Uint64(hash[:8])%1000)*(cadence/10000))
 }
 func (s *CheckService) flush(ctx context.Context) error {
+	if err := s.flushPauses(ctx); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	pending := make([]FinishRequest, 0, len(s.pending))
 	for _, req := range s.pending {
@@ -239,7 +254,7 @@ func (s *CheckService) flush(ctx context.Context) error {
 	}
 	s.mu.Unlock()
 	for _, req := range pending {
-		if _, err := s.store.Finish(ctx, req); err != nil {
+		if err := s.finish(ctx, req); err != nil {
 			return fmt.Errorf("finish proactive check: %w", err)
 		}
 		s.mu.Lock()

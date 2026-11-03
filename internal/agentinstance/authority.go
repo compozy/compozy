@@ -3,6 +3,7 @@ package agentinstance
 import (
 	"context"
 	"slices"
+	"strings"
 
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -60,7 +61,7 @@ func (a Authority) Authorize(
 	case "list", "reports", "occurrence", "pause", "archive", "ensure_main", "check", "check_dry_run", "checks_off":
 		return nil
 	case "resume":
-		if instance.PauseReason != pauseReasonManual && instance.PauseReason != "fatigue" {
+		if !OperatorOnlyResume(instance.PauseReason) {
 			return nil
 		}
 	}
@@ -88,3 +89,7 @@ func intersectAtoms(a, b []string) []string {
 }
 
 const pauseReasonManual = "manual"
+
+func OperatorOnlyResume(reason string) bool {
+	return !strings.HasPrefix(reason, "definition_")
+}

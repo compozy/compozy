@@ -77,7 +77,8 @@ func (r SessionInputRuntime) Normalize() SessionInputRuntime {
 
 // SessionInputQueueEntry is one persisted busy-input item.
 type SessionInputQueueEntry struct {
-	Priority int
+	PausedInstanceID string
+	Priority         int
 	// SupersededIDs identifies entries canceled by the transaction creating this input.
 	SupersededIDs     []string
 	ID                string

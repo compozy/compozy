@@ -49,3 +49,27 @@ func (s *Service) notifyLifecycle(ctx context.Context, event hooks.HookEvent, in
 		)
 	}
 }
+
+func WithPauseEffects(effects func(context.Context, Instance) error) Option {
+	return func(s *Service) { s.pauseEffects = effects }
+}
+
+func (s *Service) AfterPause(ctx context.Context, id string) error {
+	instance, err := s.store.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	return s.ApplyPause(ctx, instance)
+}
+
+func (s *Service) ApplyPause(ctx context.Context, instance Instance) error {
+	if instance.State != "paused" || instance.ArchivedAt != nil {
+		return nil
+	}
+	var effectsErr error
+	if s.pauseEffects != nil {
+		effectsErr = s.pauseEffects(ctx, instance)
+	}
+	s.notifyLifecycle(ctx, hooks.HookAgentInstancePaused, instance)
+	return effectsErr
+}

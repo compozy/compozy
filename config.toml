@@ -187,6 +187,8 @@ level = "info"
 [agents.stays_on]
 rotation_threshold = 0.8
 max_active_instances = 10
+# Pause after this many non-human turns; 0 disables the brake.
+unattended_turn_limit = 300
 max_proposals = 2
 triage_timeout = "10m"
 

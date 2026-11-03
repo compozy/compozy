@@ -52,15 +52,16 @@ type MainSessionStarter interface {
 }
 
 type Service struct {
-	reconcileMu sync.Mutex
-	rotator     MainSessionRotator
-	changed     func(Instance)
-	hooks       LifecycleHooks
-	store       InstanceStore
-	admission   Admission
-	starter     MainSessionStarter
-	limit       int
-	now         func() time.Time
+	pauseEffects func(context.Context, Instance) error
+	reconcileMu  sync.Mutex
+	rotator      MainSessionRotator
+	changed      func(Instance)
+	hooks        LifecycleHooks
+	store        InstanceStore
+	admission    Admission
+	starter      MainSessionStarter
+	limit        int
+	now          func() time.Time
 }
 
 type Option func(*Service)
@@ -121,7 +122,7 @@ func (s *Service) deleteUnstarted(ctx context.Context, id string) error {
 
 func (s *Service) Pause(ctx context.Context, id, reason string) (Instance, error) {
 	switch reason {
-	case pauseReasonManual, "fatigue", "definition_not_stays_on", "definition_missing":
+	case pauseReasonManual, "fatigue", "unattended", "definition_not_stays_on", "definition_missing":
 	default:
 		return Instance{}, errors.New("agentinstance: invalid pause reason")
 	}
@@ -131,7 +132,7 @@ func (s *Service) Pause(ctx context.Context, id, reason string) (Instance, error
 	}
 	instance, err := s.store.Pause(ctx, id, reason)
 	if err == nil && before.State != instance.State {
-		s.notifyLifecycle(ctx, hooks.HookAgentInstancePaused, instance)
+		err = s.ApplyPause(ctx, instance)
 	}
 	return instance, err
 }

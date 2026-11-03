@@ -91,6 +91,13 @@ type AgentInstance struct {
 	ArchivedAt        sql.NullString `json:"archived_at"`
 }
 
+type AgentInstancePausedRun struct {
+	InstanceID string `json:"instance_id"`
+	RunKind    string `json:"run_kind"`
+	RunID      string `json:"run_id"`
+	PausedAt   string `json:"paused_at"`
+}
+
 type AgentInstanceReport struct {
 	ID                string         `json:"id"`
 	InstanceID        string         `json:"instance_id"`
@@ -126,6 +133,8 @@ type AgentInstanceWakeState struct {
 	LastDigest          string `json:"last_digest"`
 	LastDigestAt        string `json:"last_digest_at"`
 	AutomationCursor    string `json:"automation_cursor"`
+	UnattendedTurns     int64  `json:"unattended_turns"`
+	EngagedAt           string `json:"engaged_at"`
 	QuietStreak         int64  `json:"quiet_streak"`
 	FailureStreak       int64  `json:"failure_streak"`
 	OccurrenceID        string `json:"occurrence_id"`

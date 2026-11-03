@@ -90,3 +90,12 @@ AND created_at>sqlc.arg(after_time);
 -- name: ResetMainInstanceQuietStreak :exec
 UPDATE agent_instance_wake_state SET quiet_streak=0
 WHERE instance_id IN (SELECT id FROM agent_instances WHERE main_session_id=? AND archived_at IS NULL);
+
+-- name: AdvanceInstanceUnattended :one
+UPDATE agent_instance_wake_state SET unattended_turns=unattended_turns+1
+WHERE instance_id=sqlc.arg(instance_id)
+RETURNING unattended_turns;
+
+-- name: ResetInstanceUnattended :exec
+UPDATE agent_instance_wake_state SET unattended_turns=0, engaged_at=sqlc.arg(now)
+WHERE instance_id=sqlc.arg(instance_id);

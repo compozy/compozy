@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -4106,4 +4107,170 @@ func TestGlobalDBSyntheticSessionInputAdmitted(t *testing.T) {
 			t.Fatalf("canceled admitted = %v, %v; want false so the wake can be admitted again", admitted, err)
 		}
 	})
+}
+
+// UT-001, UT-025: paused queue selection retains autonomous input and permits human input.
+func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
+	t.Run("Should hold agent input across peek claim batch and promotion until resume", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "paused-input", "sess-paused-input")
+		instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+		for _, input := range []store.SessionInputQueueInsert{
+			{ID: "held", SessionID: main, Text: "agent", Origin: json.RawMessage(`{"kind":"session","session_id":"peer","hop":1}`), QueueCap: 10, Now: now},
+			{ID: "human", SessionID: main, Text: "human", QueueCap: 10, Now: now.Add(time.Second)},
+		} {
+			if _, _, err := db.EnqueueSessionInput(ctx, input); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.Instances().Pause(ctx, instance.ID, "manual"); err != nil {
+			t.Fatal(err)
+		}
+		peek, found, err := db.PeekNextSessionInput(ctx, main)
+		if err != nil || !found || peek.ID != "human" {
+			t.Fatalf("peek = %+v, %v, %v", peek, found, err)
+		}
+		claimed, found, err := db.ClaimNextSessionInput(ctx, main, now)
+		if err != nil || !found || claimed.ID != "human" {
+			t.Fatalf("claim = %+v, %v, %v", claimed, found, err)
+		}
+		batch, err := db.ClaimSessionInputBatch(
+			ctx,
+			main,
+			10,
+			func(*store.SessionInputQueueEntry) bool { return true },
+			now,
+		)
+		if err != nil || len(batch) != 0 {
+			t.Fatalf("held batch = %+v, %v", batch, err)
+		}
+		if _, found, err := db.PeekNextSessionInput(ctx, main); err != nil || found {
+			t.Fatalf("held peek = %v, %v", found, err)
+		}
+		if _, found, err := db.ClaimNextSessionInput(ctx, main, now); err != nil || found {
+			t.Fatalf("held claim = %v, %v", found, err)
+		}
+		if _, promoted, err := db.PromoteQueuedAgentSessionInputToSteer(
+			ctx,
+			main,
+			"held",
+			"turn-live",
+			now,
+		); err != nil ||
+			promoted {
+			t.Fatalf("held promotion = %v, %v", promoted, err)
+		}
+		if _, err := db.Instances().Resume(ctx, instance.ID, 10, true); err != nil {
+			t.Fatal(err)
+		}
+		claimed, found, err = db.ClaimNextSessionInput(ctx, main, now)
+		if err != nil || !found || claimed.ID != "held" {
+			t.Fatalf("released claim = %+v, %v, %v", claimed, found, err)
+		}
+	})
+}
+
+// UT-004, UT-006: queue claims count once and atomically stop subsequent autonomous dispatch.
+func TestGlobalDBInstanceUnattendedBrake(t *testing.T) {
+	for _, limit := range []int64{0, 2, 300} {
+		t.Run(fmt.Sprintf("Should count and enforce unattended limit %d", limit), func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			db := openTestGlobalDB(t)
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "brake", "sess-brake")
+			instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if limit != 300 {
+				if err := db.SetUnattendedTurnLimit(limit); err != nil {
+					t.Fatal(err)
+				}
+			}
+			now := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+			if limit == 300 {
+				if _, err := db.DB().
+					ExecContext(ctx, "UPDATE agent_instance_wake_state SET unattended_turns=298 WHERE instance_id=?", instance.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for i := range 3 {
+				if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+					ID: fmt.Sprintf("agent-%d", i), SessionID: main, Text: "work",
+					Origin: json.RawMessage(`{"kind":"session","session_id":"peer","hop":1}`), QueueCap: 10,
+					Now: now.Add(time.Duration(i) * time.Second),
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for i := range 2 {
+				entry, found, err := db.ClaimNextSessionInput(ctx, main, now)
+				if err != nil || !found {
+					t.Fatalf("claim %d = %+v %v %v", i, entry, found, err)
+				}
+				if i == 0 {
+					if err := db.ReleaseSessionInput(ctx, main, entry.ID, now); err != nil {
+						t.Fatal(err)
+					}
+					retried, found, retryErr := db.ClaimNextSessionInput(ctx, main, now)
+					if retryErr != nil || !found || retried.ID != entry.ID || retried.PausedInstanceID != "" {
+						t.Fatalf("retry = %+v %v %v", retried, found, retryErr)
+					}
+				}
+				if (entry.PausedInstanceID != "") != (limit != 0 && i == 1) {
+					t.Fatalf("trip %d = %q", i, entry.PausedInstanceID)
+				}
+				if err := db.MarkSessionInputSent(ctx, main, entry.ID, now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			current, err := db.Instances().Get(ctx, instance.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if limit == 0 {
+				if current.State != "active" {
+					t.Fatalf("disabled brake paused: %+v", current)
+				}
+				return
+			}
+			if current.State != "paused" || current.PauseReason != "unattended" {
+				t.Fatalf("trip state = %+v", current)
+			}
+			if _, found, err := db.ClaimNextSessionInput(ctx, main, now); err != nil || found {
+				t.Fatalf("next claim = %v %v", found, err)
+			}
+			reports, err := db.InstanceReports().
+				ListReports(ctx, agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 10})
+			if err != nil || len(reports) != 1 {
+				t.Fatalf("reports = %+v %v", reports, err)
+			}
+			if _, err := db.Instances().Resume(ctx, instance.ID, 10, true); err != nil {
+				t.Fatal(err)
+			}
+			state, err := db.Instances().WakeState(ctx, instance.ID)
+			if err != nil || state.InstanceID != instance.ID {
+				t.Fatalf("wake state = %+v %v", state, err)
+			}
+			var turns int64
+			if err := db.DB().
+				QueryRowContext(ctx, "SELECT unattended_turns FROM agent_instance_wake_state WHERE instance_id=?", instance.ID).
+				Scan(&turns); err != nil ||
+				turns != 0 {
+				t.Fatalf("resume turns=%d err=%v", turns, err)
+			}
+		})
+	}
 }

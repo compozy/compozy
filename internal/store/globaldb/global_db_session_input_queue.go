@@ -181,6 +181,11 @@ func (g *SessionRepo) ClaimNextSessionInput(
 		if claimErr != nil {
 			return claimErr
 		}
+		pausedID, countErr := advanceLineageUnattended(ctx, exec, &refreshed, g.unattendedTurnLimit.Load(), now)
+		if countErr != nil {
+			return countErr
+		}
+		refreshed.PausedInstanceID = pausedID
 		entry = refreshed
 		ok = true
 		return nil

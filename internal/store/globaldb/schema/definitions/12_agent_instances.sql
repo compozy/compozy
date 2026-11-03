@@ -65,6 +65,8 @@ CREATE TABLE agent_instance_wake_state (
     last_digest TEXT NOT NULL DEFAULT '',
     last_digest_at TEXT NOT NULL DEFAULT '',
     automation_cursor TEXT NOT NULL DEFAULT '',
+    unattended_turns INTEGER NOT NULL DEFAULT 0 CHECK (unattended_turns >= 0),
+    engaged_at TEXT NOT NULL DEFAULT '',
     quiet_streak INTEGER NOT NULL DEFAULT 0 CHECK (quiet_streak >= 0),
     failure_streak INTEGER NOT NULL DEFAULT 0 CHECK (failure_streak >= 0),
     occurrence_id TEXT NOT NULL DEFAULT '',
@@ -87,4 +89,13 @@ CREATE TABLE agent_instance_rotation_wait (
     instance_id TEXT PRIMARY KEY REFERENCES agent_instances(id) ON DELETE CASCADE,
     main_session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     started_at TEXT NOT NULL
+);
+
+
+CREATE TABLE agent_instance_paused_runs (
+    instance_id TEXT NOT NULL REFERENCES agent_instances(id) ON DELETE CASCADE,
+    run_kind TEXT NOT NULL CHECK (run_kind IN ('goal', 'loop')),
+    run_id TEXT NOT NULL,
+    paused_at TEXT NOT NULL,
+    PRIMARY KEY (instance_id, run_kind, run_id)
 );
