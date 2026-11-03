@@ -106,6 +106,7 @@ func (m *Manager) newPromptAdmissionRequest(
 		return store.SessionPromptAdmissionRequest{}, fmt.Errorf("session: generate prompt admission event id: %w", err)
 	}
 	return store.SessionPromptAdmissionRequest{
+		HumanSpawnOrigin:         req.humanSpawnOrigin,
 		ID:                       admissionID,
 		WorkspaceID:              workspaceID,
 		SessionID:                req.target,

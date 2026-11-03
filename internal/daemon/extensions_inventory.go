@@ -307,7 +307,8 @@ func (s *daemonExtensionService) extensionAgentConflicts(
 	ext *extensionpkg.Extension,
 ) ([]string, error) {
 	shipped := make(map[string]struct{}, len(ext.StaticAgents))
-	for _, agent := range ext.StaticAgents {
+	for index := range ext.StaticAgents {
+		agent := &ext.StaticAgents[index]
 		shipped[strings.TrimSpace(agent.Agent.Name)] = struct{}{}
 	}
 	conflicts := make(map[string]struct{})

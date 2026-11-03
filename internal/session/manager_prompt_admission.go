@@ -159,7 +159,13 @@ func (m *Manager) submitAdmittedPromptByTarget(
 		return SendPromptResult{}, err
 	}
 	if parked {
-		return m.enqueueAdmittedLaterPrompt(ctx, preparation.request.target, admissionReq)
+		return m.enqueueAdmittedOfflinePrompt(
+			ctx,
+			preparation.request.target,
+			admissionReq,
+			true,
+			preparation.request.supersede,
+		)
 	}
 	return m.dispatchAdmittedPrompt(ctx, &target, preparation, admissionReq, queuedInstance)
 }
@@ -171,6 +177,15 @@ func (m *Manager) dispatchAdmittedPrompt(
 	admissionReq store.SessionPromptAdmissionRequest,
 	queuedInstance bool,
 ) (SendPromptResult, error) {
+	if queuedInstance && target.session == nil {
+		return m.enqueueAdmittedOfflinePrompt(
+			ctx,
+			preparation.request.target,
+			admissionReq,
+			false,
+			preparation.request.supersede,
+		)
+	}
 	var err error
 	session := target.session
 	if session == nil {

@@ -291,6 +291,7 @@ export type AgentInstancePayload = {
   created_at: string;
   failure_streak: number;
   fatigue_limit: number;
+  held_wakes: number;
   id: string;
   label: string;
   last_wake_at: string;
@@ -308,6 +309,8 @@ export type AgentInstancePayload = {
   };
   scope: string;
   state: string;
+  unattended_turn_limit: number;
+  unattended_turns: number;
   updated_at: string;
   workspace_id: string;
 };

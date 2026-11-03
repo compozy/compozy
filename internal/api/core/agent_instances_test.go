@@ -649,6 +649,23 @@ func TestAgentInstanceActivityReach(t *testing.T) {
 }
 
 func TestAgentInstanceReadFacets(t *testing.T) {
+	// Invariant: authorized instance reads expose durable spend and held-input counts.
+	// Owning layer/canonical suite: instance API projection, TestAgentInstanceReadFacets.
+	t.Run("Should expose unattended turns and held wakes", func(t *testing.T) {
+		t.Parallel()
+		api := core.AgentInstanceAPI{
+			UnattendedTurnLimit: 300,
+			WakeState: func(context.Context, string) (heartbeat.InstanceWakeState, error) {
+				return heartbeat.InstanceWakeState{UnattendedTurns: 300}, nil
+			},
+			HeldWakes: func(context.Context, string) (int64, error) { return 7, nil },
+		}
+		payload, err := api.Payload(t.Context(), agentinstance.Instance{ID: "paused", State: "paused"})
+		if err != nil || payload.UnattendedTurns != 300 || payload.UnattendedTurnLimit != 300 ||
+			payload.HeldWakes != 7 {
+			t.Fatalf("spend projection = %+v, %v", payload, err)
+		}
+	})
 	// Invariant: authorized rows fill pages and only a visible successor creates a cursor.
 	// Owner: instance API projection; canonical suite: TestAgentInstanceReadFacets.
 	t.Run("Should page after authorization and omit a full terminal cursor", func(t *testing.T) {

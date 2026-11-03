@@ -409,6 +409,9 @@ func bindQueueAdmission(
 	req.Origin = append(req.Origin[:0:0], admission.Origin...)
 	// The bound admission origin decides the dispatch class and sender.
 	req.OriginClass, req.OriginSessionID = "", ""
+	if req.HumanSpawnOrigin {
+		req.OriginClass = store.SessionInputOriginClassHuman
+	}
 	req.Attachments = append([]store.SessionInputAttachment(nil), admission.Attachments...)
 	return req
 }

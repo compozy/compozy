@@ -154,6 +154,7 @@ func (r *InstanceRepo) Skip(ctx context.Context, req heartbeat.SkipRequest) (boo
 }
 func instanceWakeState(row sqlcgen.AgentInstanceWakeState) heartbeat.InstanceWakeState {
 	return heartbeat.InstanceWakeState{
+		UnattendedTurns:     row.UnattendedTurns,
 		RotationDueSession:  row.RotationDueSession,
 		InstanceID:          row.InstanceID,
 		NextWakeAt:          row.NextWakeAt,

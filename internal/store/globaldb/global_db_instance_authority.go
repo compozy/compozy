@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
@@ -84,4 +85,50 @@ func (r *SessionRepo) SessionLineageInstanceID(ctx context.Context, sessionID st
 		return "", errors.New("store: invalid originating instance")
 	}
 	return id, nil
+}
+
+// RequireInstanceSessionActive is the dispatch boundary for direct Loop-owned prompts.
+func (r *SessionRepo) RequireInstanceSessionActive(ctx context.Context, sessionID string) error {
+	if err := r.checkReady(ctx, "admit instance managed prompt"); err != nil {
+		return err
+	}
+	return r.withImmediateTransaction(ctx, "admit instance managed prompt", func(exec globalSQLExecutor) error {
+		return requireInstanceSessionActive(ctx, sqlcgen.New(exec), sessionID)
+	})
+}
+
+func requireInstanceSessionActive(ctx context.Context, q *sqlcgen.Queries, sessionID string) error {
+	caller, err := q.GetInstanceCaller(ctx, sessionID)
+	if err != nil {
+		return err
+	}
+	id, ok := caller.OriginatingInstanceID.(string)
+	if !ok {
+		return errors.New("store: invalid originating instance")
+	}
+	if id == "" {
+		return nil
+	}
+	instance, err := q.GetAgentInstance(ctx, id)
+	if err != nil {
+		return err
+	}
+	if instance.State == goalStatusPaused {
+		return fmt.Errorf("%w: resume agent instance %s first", agentinstance.ErrPaused, id)
+	}
+	return nil
+}
+
+func loopOwnedTask(ctx context.Context, q *sqlcgen.Queries, taskRunID string) (bool, error) {
+	if taskRunID == "" {
+		return false, nil
+	}
+	run, err := q.GetTaskRun(ctx, taskRunID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return run.LoopRunID.Valid && run.LoopRunID.String != "", nil
 }

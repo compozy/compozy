@@ -56,7 +56,6 @@ type checkRun struct {
 
 type CheckService struct {
 	recoveryMu    sync.Mutex
-	paused        map[string]*agentinstance.Instance
 	afterPause    func(context.Context, agentinstance.Instance) error
 	running       map[string]checkRun
 	store         InstanceWakeStore
@@ -99,7 +98,6 @@ func NewCheckService(
 		cancel:      cancel,
 		pending:     map[string]FinishRequest{},
 		running:     map[string]checkRun{},
-		paused:      map[string]*agentinstance.Instance{},
 	}, nil
 }
 func (s *CheckService) Shutdown(context.Context) error {
@@ -244,9 +242,6 @@ func NextCheckTime(now time.Time, cadence time.Duration, id string) time.Time {
 	return now.Add(cadence + time.Duration(binary.LittleEndian.Uint64(hash[:8])%1000)*(cadence/10000))
 }
 func (s *CheckService) flush(ctx context.Context) error {
-	if err := s.flushPauses(ctx); err != nil {
-		return err
-	}
 	s.mu.Lock()
 	pending := make([]FinishRequest, 0, len(s.pending))
 	for _, req := range s.pending {

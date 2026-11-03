@@ -19,17 +19,19 @@ import (
 )
 
 type AgentInstanceAPI struct {
-	WakeState          func(context.Context, string) (heartbeat.InstanceWakeState, error)
-	CountActive        func(context.Context, string) (int64, error)
-	MaxActiveInstances int
-	FatigueLimit       int
-	ReadPayload        func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error)
-	CheckSettings      AgentInstanceCheckSettings
-	Checks             AgentInstanceChecker
-	Service            *agentinstance.Service
-	Store              agentinstance.InstanceStore
-	Reports            agentinstance.ReportStore
-	Authority          agentinstance.Authority
+	HeldWakes           func(context.Context, string) (int64, error)
+	UnattendedTurnLimit int64
+	WakeState           func(context.Context, string) (heartbeat.InstanceWakeState, error)
+	CountActive         func(context.Context, string) (int64, error)
+	MaxActiveInstances  int
+	FatigueLimit        int
+	ReadPayload         func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error)
+	CheckSettings       AgentInstanceCheckSettings
+	Checks              AgentInstanceChecker
+	Service             *agentinstance.Service
+	Store               agentinstance.InstanceStore
+	Reports             agentinstance.ReportStore
+	Authority           agentinstance.Authority
 }
 
 func (h *BaseHandlers) instanceActor(c *gin.Context) (workspaceaccess.ActorRef, bool) {
@@ -222,6 +224,14 @@ func (api *AgentInstanceAPI) Payload(
 		}
 	}
 	payload.FatigueLimit = api.FatigueLimit
+	payload.UnattendedTurnLimit = api.UnattendedTurnLimit
+	if api.HeldWakes != nil {
+		var err error
+		payload.HeldWakes, err = api.HeldWakes(ctx, i.ID)
+		if err != nil {
+			return payload, err
+		}
+	}
 	if api.WakeState != nil {
 		state, err := api.WakeState(ctx, i.ID)
 		if err != nil {
@@ -229,6 +239,7 @@ func (api *AgentInstanceAPI) Payload(
 		}
 		payload.LastWakeAt, payload.NextWakeAt = state.LastWakeAt, state.NextWakeAt
 		payload.QuietStreak, payload.FailureStreak = state.QuietStreak, state.FailureStreak
+		payload.UnattendedTurns = state.UnattendedTurns
 		if i.ChecksEnabled && i.State == "active" && i.ArchivedAt == nil {
 			checkAt, err := time.Parse(time.RFC3339Nano, state.NextWakeAt)
 			if err == nil {

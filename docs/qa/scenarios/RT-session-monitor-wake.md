@@ -172,3 +172,18 @@ queued-input blocker report and successor publication after that input clears.
 TestInstanceNativeCreateJourney passed set/replace refusal through command, HTTP
 and native registry. The unit inventory and validation limits are recorded in
 `docs/qa/stays-on-hardening-b3-progress.md`; integrated Web walks remain pending.
+
+### Stays-on pause and restart
+
+Pause an instance, stop its main session, and send an agent message. Confirm that it
+is queued and the provider stays stopped. Restart the daemon: the unattended count
+and queue entry remain unchanged, and queue selection returns no autonomous row.
+Resume the instance and confirm one delivery in the same main. Repeat the resume
+nudge; no second prompt appears. A stopped descendant keeps its queue until it is
+started. Archive cancels held input; quiet windows alone do not hold monitor wakes.
+
+Backend evidence: `TestInstancePausedRuntimeIntegration` exercises the stopped-main
+path with a real ACP process, durable SQLite and daemon restart. The queue suite
+covers descendants through two levels and a rotated predecessor, human priority,
+prepared Goals, batch accounting, independent capacity pools and archive. UI walks
+remain owned by the frontend delivery.

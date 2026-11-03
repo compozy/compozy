@@ -7862,6 +7862,8 @@ export interface components {
       /** Format: int64 */
       failure_streak: number;
       fatigue_limit: number;
+      /** Format: int64 */
+      held_wakes: number;
       id: string;
       label: string;
       last_wake_at: string;
@@ -7880,6 +7882,10 @@ export interface components {
       };
       scope: string;
       state: string;
+      /** Format: int64 */
+      unattended_turn_limit: number;
+      /** Format: int64 */
+      unattended_turns: number;
       /** Format: date-time */
       updated_at: string;
       workspace_id: string;

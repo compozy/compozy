@@ -20,13 +20,13 @@ func (m *Manager) agentMessageToLater(
 	return m.sessionInLater(ctx, target.workspaceID, req.target)
 }
 
-// enqueueAdmittedLaterPrompt queues an agent message for a parked session. The
-// message waits until the operator resumes the session; the parked row counts
-// it as pending so the Later card can show it.
-func (m *Manager) enqueueAdmittedLaterPrompt(
+// enqueueAdmittedOfflinePrompt persists input without starting a stopped provider.
+// The instance reconciler or the operator resumes its queue when the hold ends.
+func (m *Manager) enqueueAdmittedOfflinePrompt(
 	ctx context.Context,
 	sessionID string,
 	admissionReq store.SessionPromptAdmissionRequest,
+	later, supersede bool,
 ) (SendPromptResult, error) {
 	if m.inputQueue == nil {
 		return SendPromptResult{}, fmt.Errorf("%w: %s", ErrSessionInLater, sessionID)
@@ -35,7 +35,7 @@ func (m *Manager) enqueueAdmittedLaterPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	admission, _, _, created, err := m.inputQueue.EnqueueAdmitted(ctx, admissionReq, generation, "", false)
+	admission, _, _, created, err := m.inputQueue.EnqueueAdmitted(ctx, admissionReq, generation, "", supersede)
 	if err != nil {
 		return SendPromptResult{}, err
 	}
@@ -43,12 +43,12 @@ func (m *Manager) enqueueAdmittedLaterPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
-	result.TargetInLater = true
+	result.TargetInLater = later
 	result.Replayed = !created
 	// The operator may have resumed the target since the Later check; the
 	// selector delivers the message then, and does nothing while it is stopped.
 	m.startNextQueuedInputPrompt(sessionID)
-	if created {
+	if created && later {
 		if _, err := m.publishLaterCatalogUpsert(ctx, sessionID); err != nil {
 			m.logger.Warn("session: publish later pending message", "session_id", sessionID, "error", err)
 		}

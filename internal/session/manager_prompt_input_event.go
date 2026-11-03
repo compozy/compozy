@@ -13,6 +13,7 @@ import (
 )
 
 type promptRequest struct {
+	humanSpawnOrigin       bool
 	delivery               PromptDelivery
 	turnID                 string
 	runID                  string

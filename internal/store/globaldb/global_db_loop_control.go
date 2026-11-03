@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
 var _ looppkg.CoordinatorControlStore = (*LoopRepo)(nil)
@@ -24,6 +25,10 @@ func (g *LoopRepo) ReactivateLoopCoordinator(
 
 	var result looppkg.CoordinatorReactivationResult
 	err := g.withTaskImmediateTransaction(ctx, "reactivate Loop coordinator", func(exec taskSQLExecutor) error {
+		q := sqlcgen.New(exec)
+		if err := releaseInstanceRunPause(ctx, q, string(req.Run.ID)); err != nil {
+			return err
+		}
 		current, err := getLoopRunByIDWithExecutor(ctx, exec, req.Run.ID)
 		if err != nil {
 			return err
@@ -32,15 +37,8 @@ func (g *LoopRepo) ReactivateLoopCoordinator(
 			current.ActiveGateID != req.Run.ActiveGateID {
 			return fmt.Errorf("%w: loop run %q control state changed", looppkg.ErrTransitionConflict, req.Run.ID)
 		}
-		for _, decision := range req.Decisions {
-			if err := insertLoopGateDecision(ctx, exec, decision); err != nil {
-				return err
-			}
-		}
-		if req.Cause == looppkg.TransitionCauseApproval && len(req.Decisions) > 0 {
-			if err := claimActiveApprovalWait(ctx, exec, current, req.Decisions[0]); err != nil {
-				return err
-			}
+		if err := claimLoopReactivationDecisions(ctx, exec, req, current); err != nil {
+			return err
 		}
 		if err := compareAndSwapLoopRunStatusWithExecutor(
 			ctx,
@@ -120,6 +118,23 @@ func validateLoopCoordinatorReactivation(req *looppkg.CoordinatorReactivationReq
 		if decision.RunID != req.Run.ID || decision.WorkspaceID != req.Run.WorkspaceID {
 			return fmt.Errorf("%w: gate decision does not belong to the reactivated Run", looppkg.ErrValidation)
 		}
+	}
+	return nil
+}
+
+func claimLoopReactivationDecisions(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	req *looppkg.CoordinatorReactivationRequest,
+	current looppkg.Run,
+) error {
+	for _, decision := range req.Decisions {
+		if err := insertLoopGateDecision(ctx, exec, decision); err != nil {
+			return err
+		}
+	}
+	if req.Cause == looppkg.TransitionCauseApproval && len(req.Decisions) > 0 {
+		return claimActiveApprovalWait(ctx, exec, current, req.Decisions[0])
 	}
 	return nil
 }

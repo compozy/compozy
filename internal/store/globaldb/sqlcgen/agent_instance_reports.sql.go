@@ -98,6 +98,38 @@ func (q *Queries) InsertAgentInstanceReport(ctx context.Context, arg InsertAgent
 	return err
 }
 
+const insertLostInstanceMonitorReport = `-- name: InsertLostInstanceMonitorReport :exec
+INSERT INTO agent_instance_reports (id, instance_id, source_key, kind, payload, created_at)
+SELECT ?1, i.id, ?2, 'interrupted', ?3, ?4
+FROM agent_instances i
+WHERE i.main_session_id = ?5 AND i.profile_id = ?6
+AND i.workspace_id = ?7 AND i.archived_at IS NULL
+ON CONFLICT(source_key) DO NOTHING
+`
+
+type InsertLostInstanceMonitorReportParams struct {
+	ID          string         `json:"id"`
+	SourceKey   string         `json:"source_key"`
+	Payload     string         `json:"payload"`
+	CreatedAt   string         `json:"created_at"`
+	SessionID   sql.NullString `json:"session_id"`
+	ProfileID   string         `json:"profile_id"`
+	WorkspaceID string         `json:"workspace_id"`
+}
+
+func (q *Queries) InsertLostInstanceMonitorReport(ctx context.Context, arg InsertLostInstanceMonitorReportParams) error {
+	_, err := q.db.ExecContext(ctx, insertLostInstanceMonitorReport,
+		arg.ID,
+		arg.SourceKey,
+		arg.Payload,
+		arg.CreatedAt,
+		arg.SessionID,
+		arg.ProfileID,
+		arg.WorkspaceID,
+	)
+	return err
+}
+
 const listAgentInstanceReports = `-- name: ListAgentInstanceReports :many
 SELECT id, instance_id, source_key, kind, payload, fingerprint, state, prompt_admission_id, event_session_id, event_seq, created_at, delivered_at, recovery_noted FROM agent_instance_reports
 WHERE instance_id = ?1

@@ -103,3 +103,41 @@ SELECT EXISTS (
 ) OR EXISTS (
  SELECT 1 FROM agent_instance_reports r WHERE r.instance_id = sqlc.arg(instance_id) AND r.state = 'pending' AND r.kind = 'failure'
 );
+
+-- name: CountInstanceHeldWakes :one
+WITH RECURSIVE instance_sessions(id, profile_id) AS (
+ SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
+ WHERE i.id = sqlc.arg(instance_id) AND s.profile_id = i.profile_id
+ AND i.state = 'paused' AND i.archived_at IS NULL
+ UNION
+ SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
+ WHERE s.profile_id = parent.profile_id
+)
+SELECT CAST(COALESCE(SUM(1 + COALESCE(json_array_length(q.synthetic_prompt_json, '$.coalesced_message_ids'), 0)), 0) AS INTEGER)
+FROM session_input_queue q JOIN instance_sessions s ON s.id = q.session_id
+JOIN sessions current ON current.id = s.id
+WHERE q.status = 'queued' AND q.origin_class <> 'human'
+AND q.session_generation = current.input_generation;
+
+-- name: ListInstanceQueuedSessions :many
+WITH RECURSIVE instance_sessions(id, profile_id) AS (
+ SELECT s.id, s.profile_id FROM sessions s JOIN agent_instances i ON s.instance_id = i.id
+ WHERE i.id = sqlc.arg(instance_id) AND s.profile_id = i.profile_id AND i.state = 'active' AND i.archived_at IS NULL
+ UNION
+ SELECT s.id, s.profile_id FROM sessions s JOIN instance_sessions parent ON s.parent_session_id = parent.id
+ WHERE s.profile_id = parent.profile_id
+)
+SELECT s.id FROM sessions s JOIN instance_sessions lineage ON lineage.id = s.id
+WHERE s.id > sqlc.arg(after_id) AND s.archived_at IS NULL
+AND (s.state <> 'stopped' OR s.id = (SELECT agent_instances.main_session_id FROM agent_instances WHERE agent_instances.id = sqlc.arg(instance_id)))
+AND EXISTS (SELECT 1 FROM session_input_queue q WHERE q.session_id = s.id
+ AND q.status = 'queued' AND q.session_generation = s.input_generation)
+ORDER BY s.id LIMIT 100;
+
+-- name: CancelInstanceLineageInputs :exec
+UPDATE session_input_queue SET status = 'canceled', canceled_at = sqlc.arg(now), updated_at = sqlc.arg(now)
+WHERE status = 'queued' AND session_id IN (
+ SELECT target.id FROM sessions target JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+ JOIN agent_instances i ON i.id = root.instance_id
+ WHERE i.id = sqlc.arg(instance_id) AND target.profile_id = i.profile_id
+);

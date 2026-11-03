@@ -188,6 +188,7 @@ func (m *Manager) prepareSendPrompt(
 			return sendPromptPreparation{}, nil, err
 		}
 	}
+	req.humanSpawnOrigin = opts.humanSpawnOrigin
 	req.humanIngress = humanPromptCaller(opts.Caller)
 	m.prepareMentions(ctx, &req)
 	if err := req.validatePromptAdmissionIdentity(); err != nil {

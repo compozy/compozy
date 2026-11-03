@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/monitor"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
@@ -38,7 +39,7 @@ func (g *SessionMonitorRepo) SaveMonitor(ctx context.Context, record monitor.Rec
 	if err != nil {
 		return err
 	}
-	if err := g.queries.UpsertSessionMonitor(ctx, sqlcgen.UpsertSessionMonitorParams{
+	params := sqlcgen.UpsertSessionMonitorParams{
 		ID: mon.ID, SessionID: mon.SessionID, WorkspaceID: record.WorkspaceID, ProfileID: record.ProfileID,
 		Kind: string(mon.Kind), Description: mon.Description, TerminalID: mon.TerminalID, Until: mon.Until,
 		Pattern: mon.Pattern, TimeoutMs: record.Timeout.Milliseconds(), Status: string(mon.Status),
@@ -48,10 +49,56 @@ func (g *SessionMonitorRepo) SaveMonitor(ctx context.Context, record monitor.Rec
 		OwnerCheckFailedAt: checkFailedAt, Version: record.Version, Branch: mon.Branch, RepoKey: record.RepoKey,
 		PrCursor: record.Cursor, FireCount: int64(mon.FireCount), LastFiredAt: lastFiredAt,
 		TargetSessionIds: targetSessionIDs, States: states, Targets: targets,
-	}); err != nil {
-		return fmt.Errorf("store: save session monitor: %w", err)
 	}
-	return nil
+	return store.ExecuteWriteOperation(
+		ctx,
+		g.db,
+		"save session monitor",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			q := sqlcgen.New(tx)
+			changed, err := q.UpsertSessionMonitor(ctx, params)
+			if err != nil || changed == 0 {
+				return err
+			}
+			return g.reportLostInstanceMonitor(ctx, q, record)
+		},
+	)
+}
+
+func (g *SessionMonitorRepo) reportLostInstanceMonitor(
+	ctx context.Context,
+	q *sqlcgen.Queries,
+	record monitor.Record,
+) error {
+	mon := record.Monitor
+	switch mon.Status {
+	case monitor.StatusInterrupted, monitor.StatusUndelivered, monitor.StatusCanceled:
+	default:
+		return nil
+	}
+	if mon.Reason == "shutdown" {
+		return nil
+	}
+	cause := mon.Reason
+	if cause == "" {
+		cause = string(mon.Status)
+	}
+	payload, err := json.Marshal(struct {
+		SessionID string `json:"session_id"`
+		Cause     string `json:"cause"`
+	}{SessionID: mon.SessionID, Cause: cause})
+	if err != nil {
+		return fmt.Errorf("encode lost monitor report: %w", err)
+	}
+	id, err := store.NewID("arpt")
+	if err != nil {
+		return err
+	}
+	return q.InsertLostInstanceMonitorReport(ctx, sqlcgen.InsertLostInstanceMonitorReportParams{
+		ID: id, SourceKey: (monitor.Notification{Monitor: mon}).WakeMessageID(), Payload: string(payload),
+		CreatedAt: store.FormatTimestamp(g.now()), SessionID: sql.NullString{String: mon.SessionID, Valid: true},
+		ProfileID: record.ProfileID, WorkspaceID: record.WorkspaceID,
+	})
 }
 
 func (g *SessionMonitorRepo) LoadMonitors(ctx context.Context) ([]monitor.Record, error) {

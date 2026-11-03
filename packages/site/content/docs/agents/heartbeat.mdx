@@ -317,3 +317,33 @@ session ID until successful rotation. Rotation retains the existing brief and
 dependency gate; a deferred report lists blocking dependencies, and reconciliation
 retries on later ticks. Active monitors, queued input, and active Goals can keep
 an exhausted main blocked until the operator resolves them.
+
+## Pause autonomous work
+
+Pausing a stays-on instance holds autonomous input for its main session and descendants.
+A running work turn finishes. A running read-only check is cancelled without increasing
+fatigue. Human prompts still run, including a child started from a human turn, and do
+not resume the instance. Pending proposals and their approval deadlines remain in place.
+
+By default, 300 unattended turns pause an instance with reason `unattended`, one report
+and one notification. Set `[agents.stays_on].unattended_turn_limit = 0` to disable this
+brake. A batch counts once; quiet checks and managed Goal/Loop turns do not count.
+Human prompts, marking reports seen, operator approvals or clarification answers, and
+resume reset the counter. Keeping a window open does not reset it.
+
+```sh
+compozy agent instance show triage --workspace my-project -o json
+compozy agent instance resume triage --workspace my-project
+```
+
+Instance reads include `unattended_turns`, `unattended_turn_limit` and `held_wakes`.
+Only the operator can resume a manual, fatigue or unattended pause. Resume releases
+held input and restores only Goals and Loops paused by the instance; an independently
+paused run stays paused. Directly resuming a run while its instance is paused returns
+`agent_instance_paused`. Held input and counters survive daemon restart. A stopped
+main restarts for delivery; stopped descendants retain their queues. Archiving the
+instance cancels its held rows.
+
+Monitor wakes are held during pause, but not during a quiet window. Lost main-session
+wakes produce one interrupted report per wake, except shutdown cancellations. A
+delivered wake does not trigger another check.

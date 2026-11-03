@@ -30,7 +30,11 @@ WHERE queued.session_id = sqlc.arg(session_id)
   AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
   AND ((SELECT cutoff FROM prepared_goal) IS NULL
        OR queued.rowid <= (SELECT cutoff FROM prepared_goal)
-       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human'))
+       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human')
+       OR (queued.origin_class = 'human' AND EXISTS (
+         SELECT 1 FROM sessions target JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+         JOIN agent_instances i ON i.id = root.instance_id WHERE target.id = queued.session_id AND i.state = 'paused'
+       )))
 ORDER BY CASE
            WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
            WHEN queued.owner_kind = 'goal' THEN 2
@@ -357,7 +361,11 @@ WHERE queued.session_id = sqlc.arg(session_id)
   AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id))
   AND ((SELECT cutoff FROM prepared_goal) IS NULL
        OR queued.rowid <= (SELECT cutoff FROM prepared_goal)
-       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human'))
+       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human')
+       OR (queued.origin_class = 'human' AND EXISTS (
+         SELECT 1 FROM sessions target JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+         JOIN agent_instances i ON i.id = root.instance_id WHERE target.id = queued.session_id AND i.state = 'paused'
+       )))
 ORDER BY CASE
            WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
            WHEN (SELECT cutoff FROM prepared_goal) IS NULL
@@ -417,3 +425,7 @@ WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
     (status IN ('queued', 'dispatching') AND steer_delivery IS NULL)
     OR (status = 'queued' AND steer_delivery = 'interrupt_fallback')
   );
+
+-- name: HumanSessionTurn :one
+SELECT EXISTS (SELECT 1 FROM session_input_queue WHERE session_id = sqlc.arg(session_id)
+ AND turn_id = sqlc.arg(turn_id) AND origin_class = 'human' AND status IN ('dispatching','sent'));

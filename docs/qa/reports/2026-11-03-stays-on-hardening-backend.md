@@ -19,9 +19,31 @@ Test-shape checker passes the changed instance and publication suites. In `globa
 
 The PATH lint binary was built with Go 1.26 and cannot load this Go 1.27 module. Use `mise exec -- golangci-lint` (repository pin 2.15.0). Inherited formatting and repeated constants in the touched packages were repaired. `mise exec -- golangci-lint run --concurrency 4 --timeout 5m ./internal/store/globaldb/ ./internal/session/` passed with zero issues. The commit uses `HUSKY=0`: the hook invokes lint-staged with automatic stash and repository-wide `make fmt`, conflicting with the assigned preservation and scope rules. Focused formatting, lint, tests and diff checks ran explicitly. The Markdown formatter excludes this report directory.
 
+## Durable pause, queue and monitor repairs
+
+- Rules 1-5, 9-10: queue holds cover two descendant depths, agent-created roots and rotated predecessors. A human-spawned first prompt retains agent attribution while inheriting human dispatch classification; it does not gain human permission authority. Managed prompt seams recheck instance state; Loop-owned scheduler work is excluded from the counter.
+- Pause callbacks carry committed snapshots. State effects reconcile from persisted state at startup and periodic maintenance, so a missed post-commit callback remains recoverable. Goal/Loop pause records share their existing control transaction; resume guards and selective restoration preserve independent operator pauses.
+- Stopped-main admission retains queued work without binding a provider. Resume nudges live lineage sessions and restarts the current main when needed; stopped descendants keep their queues. Archive cancels held lineage rows. The human queue retains its independent capacity.
+- Rule 21: lost monitor wakes append one interrupted main report per wake identity, including pull-request fire sequence; stale updates, shutdown cancellation and delivered wakes do not duplicate reports.
+- CLI/HTTP/UDS/native instance payloads expose unattended count/limit and held count. OpenAPI and Go/TypeScript SDK contracts were generated. Bundled reference, site Heartbeat documentation and the monitor QA scenario now describe these semantics.
+
+| Contract | Canonical suite | Focused result |
+| --- | --- | --- |
+| UT-001, UT-002, UT-025 selection, UT-027, UT-084, UT-085 promotion | `globaldb.TestGlobalDBPausedInstanceInputSelection` | Passed |
+| UT-004, UT-006; retries and three-row batch | `globaldb.TestGlobalDBInstanceUnattendedBrake` | Passed |
+| Rule 10 control transactions and selective ownership | `globaldb.TestGlobalDBInstanceRunPause` | Passed; complete IT-032 journey still pending |
+| UT-003, UT-011; check trip post-commit effects | `globaldb.TestInstancePauseCancelsCheck`, `TestInstanceResumeAuthority`, `TestInstanceCheckUnattendedPauseEffects`, `TestInstanceLifecycleHooks` | Passed |
+| UT-083 origin classification | `session.TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions` | Passed; native wait-held result belongs to the messaging increment |
+| Paused queue/steer/interrupt; trip turn dispatch | `session.TestPausedInstancePromptAdmission`, `TestInstanceUnattendedPauseDispatch` | Passed |
+| UT-029 lost monitor idempotency | `globaldb.TestGlobalDBSessionMonitors` | Passed |
+| Read facets | `core.TestAgentInstanceReadFacets`, `cli.TestAgentInstanceCommands` | Passed; full IT-008 transport comparison remains pending |
+| IT-005, IT-016 stopped-main restart path | `daemon.TestInstancePausedRuntimeIntegration` | Passed, real ACP process and SQLite, 3.846s |
+
+Latest focused package results: globaldb 3.901s, core 1.321s, CLI 1.869s, session 5.323s, daemon 2.206s. The heartbeat package compiled but had no matching tests in this command; heartbeat behavior above ran through its real service in globaldb suites. `make codegen` passed. Focused pinned lint across agentinstance/core/CLI/daemon/heartbeat/loop/session/globaldb passed with zero issues, using `--allow-serial-runners` to honor the shared lint lock. No broad gates or E2E ran. All changed production files remain at most 500 lines.
+
 ## Remaining work
 
-- B1: durable post-pause recovery and Goal/Loop selective pause/resume; held-path audit including child origin, stopped sessions and prepared Goals; lost monitor reports; public read fields; full case matrix and journeys.
+- B1: complete the remaining canonical case mapping and daemon journeys, especially full managed-run reconciliation/dispatch racing, monitor/subagent release ordering, native spawn wait-held, observability and 300-turn notification journey.
 - B2: verify inherited implementation, complete case mapping and scoped checks, reviewer probe limitations.
 - B3: verify inherited implementation and complete child Goal journey and migration evidence.
 - B4: native/CLI/HTTP/UDS skill-review surfaces and wiring; event public target surfaces and template semantics; integration journeys; docs.

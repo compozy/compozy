@@ -4111,6 +4111,133 @@ func TestGlobalDBSyntheticSessionInputAdmitted(t *testing.T) {
 
 // UT-001, UT-025: paused queue selection retains autonomous input and permits human input.
 func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
+	// Invariant (UT-002, UT-027): holds follow durable lineage through both depths and old mains;
+	// archive cancels every held row. Owning layer: globaldb queue selection.
+	for _, creator := range []string{"human", "agent"} {
+		t.Run("Should hold and archive descendants of a "+creator+" created main after rotation", func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			ctx := t.Context()
+			workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "paused-lineage", "sess-lineage-main")
+			instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+				PermissionCeiling: "{}", CreatedByKind: creator, CreatedByID: "creator",
+			}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			now := time.Now().UTC()
+			parent := main
+			ids := []string{main}
+			for depth := 1; depth <= 2; depth++ {
+				id := fmt.Sprintf("lineage-child-%d", depth)
+				if err := db.RegisterSession(ctx, &store.SessionInfo{
+					ID:            id,
+					ProfileID:     store.DefaultProfileID,
+					WorkspaceID:   workspace,
+					AgentName:     "coder",
+					State:         "active",
+					RuntimeStatus: store.SessionRuntimeUnbound,
+					CreatedAt:     now,
+					UpdatedAt:     now,
+					Lineage: &store.SessionLineage{
+						ParentSessionID: parent, RootSessionID: main, SpawnDepth: depth, Kind: store.LineageKindSpawn,
+					},
+				}); err != nil {
+					t.Fatal(err)
+				}
+				ids = append(ids, id)
+				parent = id
+			}
+			successor := "sess-lineage-successor"
+			if err := db.RegisterSession(ctx, &store.SessionInfo{
+				ID: successor, ProfileID: store.DefaultProfileID, WorkspaceID: workspace,
+				AgentName: "coder", State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+				CreatedAt: now, UpdatedAt: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// Selection concerns old-main lineage; rotation publication itself has its canonical suite.
+			if _, err := db.DB().
+				ExecContext(ctx, "UPDATE agent_instances SET main_session_id=? WHERE id=?", successor, instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			for _, id := range ids {
+				if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+					ID:        "held-" + id,
+					SessionID: id,
+					Text:      "work",
+					Origin:    json.RawMessage(`{"kind":"session","session_id":"peer","hop":1}`),
+					QueueCap:  2,
+					Now:       now,
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := db.Instances().Pause(ctx, instance.ID, "manual"); err != nil {
+				t.Fatal(err)
+			}
+			for _, id := range ids {
+				if _, found, err := db.PeekNextSessionInput(ctx, id); err != nil || found {
+					t.Fatalf("peek %s=%v %v", id, found, err)
+				}
+				if _, found, err := db.ClaimNextSessionInput(ctx, id, now); err != nil || found {
+					t.Fatalf("claim %s=%v %v", id, found, err)
+				}
+			}
+			if held, err := db.Instances().HeldWakes(ctx, instance.ID); err != nil || held != 3 {
+				t.Fatalf("held=%d %v", held, err)
+			}
+			if _, err := db.Instances().Archive(ctx, instance.ID); err != nil {
+				t.Fatal(err)
+			}
+			for _, id := range ids {
+				row, err := db.GetSessionInputQueueEntry(ctx, id, "held-"+id)
+				if err != nil || row.Status != store.SessionInputQueueStatusCanceled {
+					t.Fatalf("archive row=%+v %v", row, err)
+				}
+			}
+		})
+	}
+	t.Run("Should select a human message behind a prepared Goal while paused", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "paused-goal", "sess-paused-goal")
+		instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+			ProfileID:         store.DefaultProfileID,
+			AgentName:         "coder",
+			WorkspaceID:       workspace,
+			PermissionCeiling: "{}",
+			CreatedByKind:     "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, id := range []string{"prepared-goal", "human-after-goal"} {
+			if _, _, err := db.EnqueueSessionInput(
+				ctx,
+				store.SessionInputQueueInsert{ID: id, SessionID: main, Text: id, QueueCap: 3, Now: time.Now()},
+			); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := db.DB().
+			ExecContext(ctx, "UPDATE session_input_queue SET owner_kind='goal',origin_class='synthetic',dispatchable=0,goal_input_batch_max_rowid=0 WHERE id='prepared-goal'"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Instances().Pause(ctx, instance.ID, "manual"); err != nil {
+			t.Fatal(err)
+		}
+		peek, found, err := db.PeekNextSessionInput(ctx, main)
+		if err != nil || !found || peek.ID != "human-after-goal" {
+			t.Fatalf("peek=%+v %v %v", peek, found, err)
+		}
+		claimed, found, err := db.ClaimNextSessionInput(ctx, main, time.Now())
+		if err != nil || !found || claimed.ID != peek.ID {
+			t.Fatalf("claim=%+v %v %v", claimed, found, err)
+		}
+	})
 	t.Run("Should hold agent input across peek claim batch and promotion until resume", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
@@ -4125,8 +4252,8 @@ func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
 		}
 		now := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
 		for _, input := range []store.SessionInputQueueInsert{
-			{ID: "held", SessionID: main, Text: "agent", Origin: json.RawMessage(`{"kind":"session","session_id":"peer","hop":1}`), QueueCap: 10, Now: now},
-			{ID: "human", SessionID: main, Text: "human", QueueCap: 10, Now: now.Add(time.Second)},
+			{ID: "held", SessionID: main, Text: "agent", Origin: json.RawMessage(`{"kind":"session","session_id":"peer","hop":1}`), QueueCap: 1, Now: now},
+			{ID: "human", SessionID: main, Text: "human", QueueCap: 1, Now: now.Add(time.Second)},
 		} {
 			if _, _, err := db.EnqueueSessionInput(ctx, input); err != nil {
 				t.Fatal(err)
@@ -4134,6 +4261,9 @@ func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
 		}
 		if _, err := db.Instances().Pause(ctx, instance.ID, "manual"); err != nil {
 			t.Fatal(err)
+		}
+		if held, err := db.Instances().HeldWakes(ctx, instance.ID); err != nil || held != 1 {
+			t.Fatalf("held wakes = %d, %v", held, err)
 		}
 		peek, found, err := db.PeekNextSessionInput(ctx, main)
 		if err != nil || !found || peek.ID != "human" {
@@ -4172,6 +4302,9 @@ func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
 		if _, err := db.Instances().Resume(ctx, instance.ID, 10, true); err != nil {
 			t.Fatal(err)
 		}
+		if held, err := db.Instances().HeldWakes(ctx, instance.ID); err != nil || held != 0 {
+			t.Fatalf("resumed held wakes = %d, %v", held, err)
+		}
 		claimed, found, err = db.ClaimNextSessionInput(ctx, main, now)
 		if err != nil || !found || claimed.ID != "held" {
 			t.Fatalf("released claim = %+v, %v, %v", claimed, found, err)
@@ -4181,6 +4314,47 @@ func TestGlobalDBPausedInstanceInputSelection(t *testing.T) {
 
 // UT-004, UT-006: queue claims count once and atomically stop subsequent autonomous dispatch.
 func TestGlobalDBInstanceUnattendedBrake(t *testing.T) {
+	// Invariant (UT-004): one turn's compatible batch advances the owning instance exactly once.
+	// The canonical queue suite owns dispatch accounting, independently of transport.
+	t.Run("Should count a three row batch as one unattended turn", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "batch-brake", "sess-batch-brake")
+		instance, err := db.Instances().Adopt(ctx, agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Now().UTC()
+		for i := range 3 {
+			if _, _, err := db.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+				ID: fmt.Sprintf("batch-%d", i), SessionID: main, Text: "work",
+				Origin: json.RawMessage(`{"kind":"session","session_id":"peer","hop":1}`), QueueCap: 3, Now: now,
+			}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, found, err := db.ClaimNextSessionInput(ctx, main, now); err != nil || !found {
+			t.Fatalf("head=%v %v", found, err)
+		}
+		batch, err := db.ClaimSessionInputBatch(
+			ctx,
+			main,
+			10,
+			func(*store.SessionInputQueueEntry) bool { return true },
+			now,
+		)
+		if err != nil || len(batch) != 2 {
+			t.Fatalf("batch=%+v %v", batch, err)
+		}
+		wake, err := db.Instances().WakeState(ctx, instance.ID)
+		if err != nil || wake.UnattendedTurns != 1 {
+			t.Fatalf("turns=%+v %v", wake, err)
+		}
+	})
 	for _, limit := range []int64{0, 2, 300} {
 		t.Run(fmt.Sprintf("Should count and enforce unattended limit %d", limit), func(t *testing.T) {
 			t.Parallel()
@@ -4200,9 +4374,13 @@ func TestGlobalDBInstanceUnattendedBrake(t *testing.T) {
 				}
 			}
 			now := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
-			if limit == 300 {
+			if limit == 300 || limit == 0 {
+				initial := 298
+				if limit == 0 {
+					initial = 1000
+				}
 				if _, err := db.DB().
-					ExecContext(ctx, "UPDATE agent_instance_wake_state SET unattended_turns=298 WHERE instance_id=?", instance.ID); err != nil {
+					ExecContext(ctx, "UPDATE agent_instance_wake_state SET unattended_turns=? WHERE instance_id=?", initial, instance.ID); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -4225,12 +4403,12 @@ func TestGlobalDBInstanceUnattendedBrake(t *testing.T) {
 						t.Fatal(err)
 					}
 					retried, found, retryErr := db.ClaimNextSessionInput(ctx, main, now)
-					if retryErr != nil || !found || retried.ID != entry.ID || retried.PausedInstanceID != "" {
+					if retryErr != nil || !found || retried.ID != entry.ID || retried.PausedInstance != nil {
 						t.Fatalf("retry = %+v %v %v", retried, found, retryErr)
 					}
 				}
-				if (entry.PausedInstanceID != "") != (limit != 0 && i == 1) {
-					t.Fatalf("trip %d = %q", i, entry.PausedInstanceID)
+				if (entry.PausedInstance != nil) != (limit != 0 && i == 1) {
+					t.Fatalf("trip %d = %+v", i, entry.PausedInstance)
 				}
 				if err := db.MarkSessionInputSent(ctx, main, entry.ID, now); err != nil {
 					t.Fatal(err)

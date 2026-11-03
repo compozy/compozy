@@ -965,6 +965,10 @@
           "fatigue_limit": {
             "type": "integer"
           },
+          "held_wakes": {
+            "format": "int64",
+            "type": "integer"
+          },
           "id": {
             "type": "string"
           },
@@ -1022,6 +1026,14 @@
           "state": {
             "type": "string"
           },
+          "unattended_turn_limit": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "unattended_turns": {
+            "format": "int64",
+            "type": "integer"
+          },
           "updated_at": {
             "format": "date-time",
             "type": "string"
@@ -1038,6 +1050,7 @@
           "created_at",
           "failure_streak",
           "fatigue_limit",
+          "held_wakes",
           "id",
           "label",
           "last_wake_at",
@@ -1052,6 +1065,8 @@
           "resolved_appearance",
           "scope",
           "state",
+          "unattended_turn_limit",
+          "unattended_turns",
           "updated_at",
           "workspace_id"
         ],

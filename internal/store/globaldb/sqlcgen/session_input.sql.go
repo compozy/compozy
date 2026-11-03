@@ -433,7 +433,11 @@ WHERE queued.session_id = ?1
   AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?1)
   AND ((SELECT cutoff FROM prepared_goal) IS NULL
        OR queued.rowid <= (SELECT cutoff FROM prepared_goal)
-       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human'))
+       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human')
+       OR (queued.origin_class = 'human' AND EXISTS (
+         SELECT 1 FROM sessions target JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+         JOIN agent_instances i ON i.id = root.instance_id WHERE target.id = queued.session_id AND i.state = 'paused'
+       )))
 ORDER BY CASE
            WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
            WHEN queued.owner_kind = 'goal' THEN 2
@@ -776,6 +780,23 @@ func (q *Queries) GetSyntheticSessionInputByMessage(ctx context.Context, arg Get
 	return i, err
 }
 
+const humanSessionTurn = `-- name: HumanSessionTurn :one
+SELECT EXISTS (SELECT 1 FROM session_input_queue WHERE session_id = ?1
+ AND turn_id = ?2 AND origin_class = 'human' AND status IN ('dispatching','sent'))
+`
+
+type HumanSessionTurnParams struct {
+	SessionID string `json:"session_id"`
+	TurnID    string `json:"turn_id"`
+}
+
+func (q *Queries) HumanSessionTurn(ctx context.Context, arg HumanSessionTurnParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, humanSessionTurn, arg.SessionID, arg.TurnID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const insertSessionInputQueueEntry = `-- name: InsertSessionInputQueueEntry :exec
 INSERT INTO session_input_queue (
   priority, id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id,
@@ -895,7 +916,11 @@ WHERE queued.session_id = ?1
   AND queued.session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?1)
   AND ((SELECT cutoff FROM prepared_goal) IS NULL
        OR queued.rowid <= (SELECT cutoff FROM prepared_goal)
-       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human'))
+       OR (queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human')
+       OR (queued.origin_class = 'human' AND EXISTS (
+         SELECT 1 FROM sessions target JOIN sessions root ON root.id = COALESCE(NULLIF(target.root_session_id, ''), target.id)
+         JOIN agent_instances i ON i.id = root.instance_id WHERE target.id = queued.session_id AND i.state = 'paused'
+       )))
 ORDER BY CASE
            WHEN queued.delivery = 'interrupt_then_prompt' AND queued.origin_class = 'human' THEN 0
            WHEN (SELECT cutoff FROM prepared_goal) IS NULL

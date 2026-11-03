@@ -72,11 +72,8 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 			manager.PublishInstanceCatalogChanged(instance.ProfileID, instance.WorkspaceID, instance.ID)
 		}),
 		agentinstance.WithLifecycleHooks(state.hookDispatcher),
-		agentinstance.WithPauseEffects(func(ctx context.Context, instance agentinstance.Instance) error {
-			if state.runtimeWorkers.proactiveChecks == nil {
-				return nil
-			}
-			return state.runtimeWorkers.proactiveChecks.CancelInstance(ctx, instance.ID)
+		agentinstance.WithStateEffects(func(ctx context.Context, instance agentinstance.Instance) error {
+			return reconcileInstanceState(ctx, state, repo, instance)
 		}),
 	)
 	if err != nil {
@@ -86,6 +83,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	state.agentInstances = &core.AgentInstanceAPI{
 		Service: service, Store: repo, Reports: provider.InstanceReports(),
 		WakeState: repo.WakeState, CountActive: repo.CountActive,
+		HeldWakes: repo.HeldWakes, UnattendedTurnLimit: state.cfg.Agents.StaysOn.UnattendedTurnLimit,
 		MaxActiveInstances: state.cfg.Agents.StaysOn.MaxActiveInstances,
 		FatigueLimit:       state.cfg.Agents.Heartbeat.FatigueLimit,
 		ReadPayload: func(ctx context.Context, instance agentinstance.Instance) (contract.AgentInstancePayload, error) {
@@ -112,4 +110,11 @@ func bindInstanceCatalogReconciliation(ctx context.Context, state *bootState, re
 			}
 		})
 	}
+}
+
+func cancelInstanceCheck(ctx context.Context, state *bootState, id string) error {
+	if state.runtimeWorkers.proactiveChecks == nil {
+		return nil
+	}
+	return state.runtimeWorkers.proactiveChecks.CancelInstance(ctx, id)
 }

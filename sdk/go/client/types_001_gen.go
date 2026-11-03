@@ -334,30 +334,33 @@ type AgentInstanceOccurrenceResponse struct {
 
 // AgentInstancePayload is a daemon API value.
 type AgentInstancePayload struct {
-	NextWake           *AgentInstanceNextWake `json:"next_wake,omitempty"`
-	Created            bool                   `json:"created"`
-	ChecksEnabled      bool                   `json:"checks_enabled"`
-	LastWakeAt         string                 `json:"last_wake_at"`
-	NextWakeAt         string                 `json:"next_wake_at"`
-	QuietStreak        int64                  `json:"quiet_streak"`
-	FailureStreak      int64                  `json:"failure_streak"`
-	FatigueLimit       int                    `json:"fatigue_limit"`
-	Label              string                 `json:"label"`
-	Provider           string                 `json:"provider"`
-	ResolvedAppearance map[string]any         `json:"resolved_appearance"`
-	Scope              string                 `json:"scope"`
-	Activity           string                 `json:"activity"`
-	Now                string                 `json:"now"`
-	NeedsAttention     bool                   `json:"needs_attention"`
-	ID                 string                 `json:"id"`
-	ProfileID          string                 `json:"profile_id"`
-	AgentName          string                 `json:"agent_name"`
-	WorkspaceID        string                 `json:"workspace_id"`
-	State              string                 `json:"state"`
-	PauseReason        string                 `json:"pause_reason"`
-	MainSessionID      string                 `json:"main_session_id"`
-	CreatedAt          time.Time              `json:"created_at"`
-	UpdatedAt          time.Time              `json:"updated_at"`
+	UnattendedTurns     int64                  `json:"unattended_turns"`
+	UnattendedTurnLimit int64                  `json:"unattended_turn_limit"`
+	HeldWakes           int64                  `json:"held_wakes"`
+	NextWake            *AgentInstanceNextWake `json:"next_wake,omitempty"`
+	Created             bool                   `json:"created"`
+	ChecksEnabled       bool                   `json:"checks_enabled"`
+	LastWakeAt          string                 `json:"last_wake_at"`
+	NextWakeAt          string                 `json:"next_wake_at"`
+	QuietStreak         int64                  `json:"quiet_streak"`
+	FailureStreak       int64                  `json:"failure_streak"`
+	FatigueLimit        int                    `json:"fatigue_limit"`
+	Label               string                 `json:"label"`
+	Provider            string                 `json:"provider"`
+	ResolvedAppearance  map[string]any         `json:"resolved_appearance"`
+	Scope               string                 `json:"scope"`
+	Activity            string                 `json:"activity"`
+	Now                 string                 `json:"now"`
+	NeedsAttention      bool                   `json:"needs_attention"`
+	ID                  string                 `json:"id"`
+	ProfileID           string                 `json:"profile_id"`
+	AgentName           string                 `json:"agent_name"`
+	WorkspaceID         string                 `json:"workspace_id"`
+	State               string                 `json:"state"`
+	PauseReason         string                 `json:"pause_reason"`
+	MainSessionID       string                 `json:"main_session_id"`
+	CreatedAt           time.Time              `json:"created_at"`
+	UpdatedAt           time.Time              `json:"updated_at"`
 }
 
 // AgentInstanceProposal is a daemon API value.

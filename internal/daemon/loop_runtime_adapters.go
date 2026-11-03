@@ -350,7 +350,11 @@ func collectLoopPromptResult(
 		return looppkg.ActionPromptResult{}, errors.New("daemon: loop prompt session id is required")
 	}
 	// Loop prompts are daemon-initiated and yield to host CPU pressure at admission.
-	events, err := sessions.Prompt(admission.WithBackgroundWork(ctx), sessionID, req.Message)
+	events, err := sessions.Prompt(
+		session.WithManagedRun(admission.WithBackgroundWork(ctx), string(req.Owner.LoopRunID)),
+		sessionID,
+		req.Message,
+	)
 	if err != nil {
 		return looppkg.ActionPromptResult{}, err
 	}

@@ -19,25 +19,29 @@ func (g *SessionRepo) SetUnattendedTurnLimit(limit int64) error {
 
 func advanceLineageUnattended(
 	ctx context.Context, exec globalSQLExecutor, entry *store.SessionInputQueueEntry, limit int64, now time.Time,
-) (string, error) {
+) (*store.InstancePauseTrip, error) {
 	q := sqlcgen.New(exec)
 	caller, err := q.GetInstanceCaller(ctx, entry.SessionID)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	id, ok := caller.OriginatingInstanceID.(string)
 	if !ok {
-		return "", errors.New("store: invalid originating instance")
+		return nil, errors.New("store: invalid originating instance")
 	}
 	if id == "" {
-		return "", nil
+		return nil, nil
 	}
 	stamp := store.FormatTimestamp(now)
 	if store.IsHumanSessionInputOriginClass(entry.OriginClass) {
-		return "", q.ResetInstanceUnattended(ctx, sqlcgen.ResetInstanceUnattendedParams{InstanceID: id, Now: stamp})
+		return nil, q.ResetInstanceUnattended(ctx, sqlcgen.ResetInstanceUnattendedParams{InstanceID: id, Now: stamp})
 	}
-	if entry.AttemptCount > 1 || entry.LoopRunID != "" || entry.OwnerKind == goalPromptOwnerKind {
-		return "", nil
+	loopOwned, err := loopOwnedTask(ctx, q, entry.TaskRunID)
+	if err != nil {
+		return nil, err
+	}
+	if loopOwned || entry.AttemptCount > 1 || entry.LoopRunID != "" || entry.OwnerKind == goalPromptOwnerKind {
+		return nil, nil
 	}
 	return advanceInstanceUnattended(ctx, q, id, entry.ID, limit, now)
 }
@@ -48,28 +52,28 @@ func advanceInstanceUnattended(
 	id, key string,
 	limit int64,
 	now time.Time,
-) (string, error) {
+) (*store.InstancePauseTrip, error) {
 	stamp := store.FormatTimestamp(now)
 	turns, err := q.AdvanceInstanceUnattended(ctx, id)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if limit == 0 || turns < limit {
-		return "", nil
+		return nil, nil
 	}
 	changed, err := q.PauseAgentInstance(
 		ctx,
 		sqlcgen.PauseAgentInstanceParams{ID: id, PauseReason: "unattended", UpdatedAt: stamp},
 	)
 	if err != nil || changed == 0 {
-		return "", err
+		return nil, err
 	}
 	if err := q.CancelInstanceWake(ctx, id); err != nil {
-		return "", err
+		return nil, err
 	}
 	reportID, err := store.NewID("arpt")
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	err = q.InsertAgentInstanceReport(ctx, sqlcgen.InsertAgentInstanceReportParams{
 		ID: reportID, InstanceID: id, SourceKey: "unattended:" + key, Kind: instanceReportKindFailure,
@@ -77,9 +81,21 @@ func advanceInstanceUnattended(
 		CreatedAt: stamp,
 	})
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return id, nil
+	row, err := q.GetAgentInstance(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	instance, err := instanceFromRow(row)
+	if err != nil {
+		return nil, err
+	}
+	return &store.InstancePauseTrip{
+		InstanceID: instance.ID, ProfileID: instance.ProfileID, WorkspaceID: instance.WorkspaceID,
+		AgentName: instance.AgentName, MainSessionID: instance.MainSessionID, Reason: instance.PauseReason,
+		CreatedAt: instance.CreatedAt, PausedAt: instance.UpdatedAt,
+	}, nil
 }
 
 func resetLineageUnattended(ctx context.Context, q *sqlcgen.Queries, sessionID, now string) error {
@@ -107,3 +123,10 @@ func (g *SessionRepo) ResetLineageUnattended(ctx context.Context, sessionID stri
 }
 
 const instanceReportKindFailure = "failure"
+
+func (g *SessionRepo) HumanSessionTurn(ctx context.Context, sessionID, turnID string) (bool, error) {
+	if err := g.checkReady(ctx, "read human session turn"); err != nil {
+		return false, err
+	}
+	return g.queries.HumanSessionTurn(ctx, sqlcgen.HumanSessionTurnParams{SessionID: sessionID, TurnID: turnID})
+}

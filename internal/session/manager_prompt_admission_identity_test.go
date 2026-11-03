@@ -937,8 +937,8 @@ func TestInstanceUnattendedPauseDispatch(t *testing.T) {
 			t.Fatal(err)
 		}
 		paused := make(chan agentinstance.Instance, 1)
-		h.manager.SetInstancePauseHandler(func(ctx context.Context, id string) error {
-			persisted, err := database.Instances().Get(ctx, id)
+		h.manager.SetInstancePauseHandler(func(ctx context.Context, trip store.InstancePauseTrip) error {
+			persisted, err := database.Instances().Get(ctx, trip.InstanceID)
 			if err != nil {
 				return err
 			}

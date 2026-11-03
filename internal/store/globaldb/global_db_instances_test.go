@@ -757,7 +757,7 @@ func TestInstanceServiceRecovery(t *testing.T) {
 			t.Fatalf("resume: %v", err)
 		}
 		retained, err := db.Instances().Get(t.Context(), instance.ID)
-		if err != nil || !reflect.DeepEqual(retained, paused) {
+		if err != nil || !reflect.DeepEqual(retained, paused.Instance) {
 			t.Fatalf("failed resume changed instance: %#v, %v", retained, err)
 		}
 	})
@@ -3332,7 +3332,8 @@ func TestInstanceCheckGates(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		instance, err = repo.Pause(t.Context(), instance.ID, "manual")
+		pauseResult, err := repo.Pause(t.Context(), instance.ID, "manual")
+		instance = pauseResult.Instance
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -5132,7 +5133,7 @@ func TestInstancePauseCancelsCheck(t *testing.T) {
 				agentinstance.WithStore(repo), agentinstance.WithAdmission(instanceServiceAdmission{}),
 				agentinstance.WithMainSessions(&instanceServiceStarter{}), agentinstance.WithActiveLimit(10),
 				agentinstance.WithLifecycleHooks(recorder),
-				agentinstance.WithPauseEffects(func(ctx context.Context, current agentinstance.Instance) error {
+				agentinstance.WithStateEffects(func(ctx context.Context, current agentinstance.Instance) error {
 					persisted, err := repo.Get(ctx, current.ID)
 					if err != nil {
 						return err
@@ -5147,10 +5148,11 @@ func TestInstancePauseCancelsCheck(t *testing.T) {
 				t.Fatal(err)
 			}
 			if reason == "unattended" {
-				if _, err := repo.Pause(ctx, instance.ID, reason); err != nil {
+				paused, err := repo.Pause(ctx, instance.ID, reason)
+				if err != nil {
 					t.Fatal(err)
 				}
-				if err := service.AfterPause(ctx, instance.ID); err != nil {
+				if err := service.ApplyPause(ctx, paused.Instance); err != nil {
 					t.Fatal(err)
 				}
 			} else if _, err := service.Pause(ctx, instance.ID, reason); err != nil {

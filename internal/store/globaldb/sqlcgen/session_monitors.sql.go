@@ -75,7 +75,7 @@ func (q *Queries) PruneFinishedSessionMonitors(ctx context.Context, firedAt stri
 	return err
 }
 
-const upsertSessionMonitor = `-- name: UpsertSessionMonitor :exec
+const upsertSessionMonitor = `-- name: UpsertSessionMonitor :execrows
 INSERT INTO session_monitors (
   id, session_id, workspace_id, profile_id, kind, description, terminal_id, until, pattern, timeout_ms,
   status, created_at, deadline_at, fired_at, reason, exit_code, owner_binding, owner_check_failed_at, version,
@@ -126,8 +126,8 @@ type UpsertSessionMonitorParams struct {
 	Targets            string        `json:"targets"`
 }
 
-func (q *Queries) UpsertSessionMonitor(ctx context.Context, arg UpsertSessionMonitorParams) error {
-	_, err := q.db.ExecContext(ctx, upsertSessionMonitor,
+func (q *Queries) UpsertSessionMonitor(ctx context.Context, arg UpsertSessionMonitorParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, upsertSessionMonitor,
 		arg.ID,
 		arg.SessionID,
 		arg.WorkspaceID,
@@ -156,5 +156,8 @@ func (q *Queries) UpsertSessionMonitor(ctx context.Context, arg UpsertSessionMon
 		arg.States,
 		arg.Targets,
 	)
-	return err
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

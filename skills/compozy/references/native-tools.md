@@ -1028,6 +1028,32 @@ Shutdown keeps detached session descendants. The daemon still closes native term
 shutdown; PTY survival across restart is outside this feature. Keeping never prevents a process
 from exiting or receiving its parent's or terminal lifecycle's signals.
 
+### Paused instances and unattended turns
+
+Instance reads expose `unattended_turns`, `unattended_turn_limit` and `held_wakes`.
+The default limit is 300; `[agents.stays_on].unattended_turn_limit = 0` disables the
+brake. Each autonomous lineage turn counts once, including a batched turn; reported
+or failed checks count, while quiet checks and managed Goal/Loop turns do not.
+The turn reaching the limit runs, pauses the instance with reason `unattended`,
+and publishes one report and notification. Later autonomous input stays queued.
+
+A pause holds main and descendant input, including descendants of an older main.
+Human prompts still run and reset the counter without resuming the instance. A child
+spawned during a human turn may run without acquiring operator approval authority.
+Marking reports seen, an operator approval/clarification, and resume also reset the
+counter; presence alone does not. A pause cancels a running check without fatigue.
+
+Only the operator may resume `manual`, `fatigue`, `unattended` or unknown reasons;
+agents may resume `definition_*` reasons. Resume delivers held input within the
+existing queue limits and restores only Goals/Loops paused by the instance. Direct
+Goal/Loop resume during an instance pause returns `agent_instance_paused`. A stopped
+main can restart to deliver its queue; stopped descendants retain theirs. Archive
+cancels held rows. Quiet windows do not hold monitor wakes.
+
+A main's lost monitor wake produces one `interrupted` report per wake identity,
+including each pull-request fire sequence. A delivered wake or shutdown cancellation
+does not produce a lost-wake report.
+
 ### Instance proactive checks
 
 - `compozy__agent_instance_check` accepts `id` or `agent` plus `workspace`, and optional

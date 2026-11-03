@@ -132,11 +132,15 @@ func instanceActionText(instance contract.AgentInstancePayload, action string) s
 }
 func instanceText(instance contract.AgentInstancePayload) string {
 	return fmt.Sprintf(
-		"%s\t%s\t%s\nMain session: %s\n",
+		"%s\t%s\t%s\nMain session: %s\nPause reason: %s\nUnattended turns: %d/%d\nHeld wakes: %d\n",
 		instance.ID,
 		instance.AgentName,
 		instance.State,
 		instance.MainSessionID,
+		instance.PauseReason,
+		instance.UnattendedTurns,
+		instance.UnattendedTurnLimit,
+		instance.HeldWakes,
 	)
 }
 func instanceListText(page contract.AgentInstanceListResponse) string {

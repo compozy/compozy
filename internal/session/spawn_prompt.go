@@ -44,6 +44,10 @@ func (m *Manager) SendSpawnPrompt(ctx context.Context, req SpawnPromptRequest) (
 	if err != nil {
 		return SendPromptResult{}, err
 	}
+	turn, err := m.currentTurnMessageContext(ctx, parentID)
+	if err != nil {
+		return SendPromptResult{}, err
+	}
 	callerID := strings.TrimSpace(req.ParentAgentName)
 	if callerID == "" {
 		callerID = parentID
@@ -53,6 +57,7 @@ func (m *Manager) SendSpawnPrompt(ctx context.Context, req SpawnPromptRequest) (
 	defer cancelDelivery()
 	messageID := SpawnPromptMessageID(childID)
 	return m.SendPrompt(context.WithoutCancel(ctx), childID, SendPromptOpts{
+		humanSpawnOrigin: turn.human,
 		Origin:           origin,
 		NotifyOnComplete: true,
 		Message:          message,

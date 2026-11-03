@@ -8,8 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/monitor"
 	"github.com/compozy/compozy/internal/sessionprocess"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/toolruntime"
 )
@@ -235,6 +237,85 @@ func TestGlobalDBSessionMonitorKindMigration(t *testing.T) {
 // overwrites a newer one, and retention prunes only finished monitors.
 // Owning layer/canonical suite: globaldb daemon-owned wait persistence.
 func TestGlobalDBSessionMonitors(t *testing.T) {
+	// Invariant (UT-029): a lost main-session wake and its one report commit together; stale writes do not report.
+	// Owning layer: durable monitor persistence; canonical suite: TestGlobalDBSessionMonitors.
+	for _, status := range []monitor.Status{monitor.StatusInterrupted, monitor.StatusUndelivered, monitor.StatusCanceled} {
+		t.Run("Should report a lost main wake once for "+string(status), func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			workspaceID, main := registerHeartbeatWorkspaceAndSession(t, db, "lost-monitor", "sess-lost-monitor")
+			instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+				ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspaceID,
+				PermissionCeiling: "{}", CreatedByKind: "human",
+			}, main, 10)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record := monitor.Record{Monitor: monitor.Monitor{
+				ID: "mon-lost", SessionID: main, Kind: monitor.KindPullRequest, Status: monitor.StatusActive,
+				CreatedAt: time.Now(), DeadlineAt: time.Now().Add(time.Hour), FireCount: 1,
+			}, ProfileID: instance.ProfileID, WorkspaceID: workspaceID, Version: 2}
+			if err := db.SaveMonitor(t.Context(), record); err != nil {
+				t.Fatal(err)
+			}
+			record.Monitor.Status, record.Version = status, 1
+			if err := db.SaveMonitor(t.Context(), record); err != nil {
+				t.Fatal(err)
+			}
+			query := agentinstance.ReportQuery{InstanceID: instance.ID, Limit: 10}
+			reports, err := db.InstanceReports().ListReports(t.Context(), query)
+			if err != nil || len(reports) != 0 {
+				t.Fatalf("stale loss reported: %+v, %v", reports, err)
+			}
+			record.Version = 3
+			for range 2 {
+				if err := db.SaveMonitor(t.Context(), record); err != nil {
+					t.Fatal(err)
+				}
+			}
+			record.Version++
+			if err := db.SaveMonitor(t.Context(), record); err != nil {
+				t.Fatal(err)
+			}
+			reports, err = db.InstanceReports().ListReports(t.Context(), query)
+			if err != nil || len(reports) != 1 || reports[0].SourceKey != "monitor:mon-lost:1" ||
+				reports[0].Kind != "interrupted" {
+				t.Fatalf("lost wake reports: %+v, %v", reports, err)
+			}
+			if err := reports[0].Validate(); err != nil {
+				t.Fatal(err)
+			}
+			record.Version++
+			record.Monitor.FireCount = 2
+			if err := db.SaveMonitor(t.Context(), record); err != nil {
+				t.Fatal(err)
+			}
+			reports, err = db.InstanceReports().ListReports(t.Context(), query)
+			if err != nil || len(reports) != 2 {
+				t.Fatalf("distinct wake reports: %+v, %v", reports, err)
+			}
+			for _, scenario := range []struct {
+				name    string
+				status  monitor.Status
+				reason  string
+				profile string
+			}{
+				{"delivered", monitor.StatusFired, "exit", instance.ProfileID},
+				{"shutdown", monitor.StatusCanceled, "shutdown", instance.ProfileID},
+				{"other-profile", status, "", "other"},
+			} {
+				record.Monitor.ID = "mon-" + scenario.name
+				record.Monitor.Status, record.Monitor.Reason, record.ProfileID = scenario.status, scenario.reason, scenario.profile
+				if err := db.SaveMonitor(t.Context(), record); err != nil {
+					t.Fatal(err)
+				}
+			}
+			reports, err = db.InstanceReports().ListReports(t.Context(), query)
+			if err != nil || len(reports) != 2 {
+				t.Fatalf("unrelated terminal states reported: %+v, %v", reports, err)
+			}
+		})
+	}
 	t.Parallel()
 	ctx := testutil.Context(t)
 	suite := t

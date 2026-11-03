@@ -72,6 +72,8 @@ const (
 
 // SendPromptOpts carries one user-facing prompt plus optional busy-input mode.
 type SendPromptOpts struct {
+	// humanSpawnOrigin is attested by SendSpawnPrompt, never by a public request.
+	humanSpawnOrigin bool
 	Origin           *acp.PromptOriginMeta
 	NotifyOnComplete bool
 	// Supersede replaces the same sender's older queued entry to the same target.

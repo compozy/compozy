@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/compozy/compozy/internal/agentidentity"
-	"github.com/gin-gonic/gin"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +14,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/listcursor"
 

@@ -87,6 +87,8 @@ type SessionPromptAdmission struct {
 
 // SessionPromptAdmissionRequest carries immutable command identity and request material.
 type SessionPromptAdmissionRequest struct {
+	// HumanSpawnOrigin inherits dispatch class only, never human permission or mention authority.
+	HumanSpawnOrigin bool
 	// DirectDispatch marks a prompt admitted against an idle session: its turn starts
 	// directly, so a steer busy-mode default never applies and it carries reports.
 	DirectDispatch           bool
