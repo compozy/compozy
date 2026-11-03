@@ -53,7 +53,7 @@ export function AgentSetupModelRow({
       <div className="mt-2 pl-6">
         <RuntimeSelector
           ariaLabelledby={LABEL_ID}
-          disabled={model.isPending || model.providersLoading || model.providerOptions.length === 0}
+          disabled={model.providersLoading || model.providerOptions.length === 0}
           loading={model.modelCatalogLoading}
           models={model.runtimeModels}
           onChange={model.onChange}

@@ -325,6 +325,26 @@ describe("useAgentRuntimeEditor", () => {
     });
   });
 
+  it("Should apply a choice made during a save on the saved definition, not drop it", () => {
+    const agent = { ...primaryAgentFixture, origin: "workspace", provider: "", model: "" };
+    const { result } = renderEditor(agent);
+
+    act(() =>
+      result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
+    );
+    act(() => result.current.onChange({ provider: "claude", model: "opus", reasoning_effort: "" }));
+    expect(mocks.updateMutate).toHaveBeenCalledOnce();
+
+    const saved = { ...agent, provider: "claude", model: "sonnet", definition_digest: "saved" };
+    act(() => mocks.updateMutate.mock.calls[0]![1].onSuccess(saved));
+
+    expect(mocks.updateMutate).toHaveBeenCalledTimes(2);
+    expect(mocks.updateMutate.mock.calls[1]![0].params).toMatchObject({
+      expected_digest: "saved",
+      agent: { provider: "claude", model: "opus" },
+    });
+  });
+
   it("Should drop the agent's own runtime when it goes back to the default", () => {
     const { result } = renderEditor({
       ...primaryAgentFixture,

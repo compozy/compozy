@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@compozy/ui";
@@ -88,6 +88,9 @@ export function useAgentRuntimeEditor({
   });
   const [error, setError] = useState<string | null>(null);
   const [conflictMessage, setConflictMessage] = useState<string | null>(null);
+  // A choice made while a save is in flight waits here and applies on the saved definition.
+  const inFlight = useRef(false);
+  const queued = useRef<Partial<AgentSettingsDraft> | null>(null);
 
   const useWorkspaceProviders = agent?.origin === "workspace";
   const globalProviders = settingsProviders.data?.providers.map(settingsProviderToOption) ?? [];
@@ -114,9 +117,13 @@ export function useAgentRuntimeEditor({
 
   const speed = agent?.effective_runtime?.speed ?? agent?.speed ?? "normal";
 
-  const save = (patch: Partial<AgentSettingsDraft>) => {
-    if (!agent || updateAgent.isPending) return;
-    const draft = { ...buildSettingsDraftFromAgent(agent), ...patch };
+  const save = (patch: Partial<AgentSettingsDraft>, base: AgentPayload | undefined = agent) => {
+    if (!base) return;
+    if (inFlight.current) {
+      queued.current = { ...queued.current, ...patch };
+      return;
+    }
+    const draft = { ...buildSettingsDraftFromAgent(base), ...patch };
     const params = buildUpdateAgentParams(draft, workspaceId);
     if (!params) {
       setError("This agent's setup needs fixing before it can change.");
@@ -125,14 +132,25 @@ export function useAgentRuntimeEditor({
 
     setError(null);
     setConflictMessage(null);
-    const detailKey = agentKeys.detail(agent.name, cacheWorkspace, destination);
+    const detailKey = agentKeys.detail(base.name, cacheWorkspace, destination);
+    inFlight.current = true;
     updateAgent.mutate(
-      { name: agent.name, params, cacheWorkspace, profile: destination },
+      { name: base.name, params, cacheWorkspace, profile: destination },
       {
-        onSuccess: () => {
+        onSuccess: saved => {
+          inFlight.current = false;
+          const next = queued.current;
+          queued.current = null;
+          if (next) {
+            save(next, saved);
+            return;
+          }
           toast.success("Model updated");
         },
         onError: mutationError => {
+          // The waiting choice was made on a definition that didn't save; drop it.
+          inFlight.current = false;
+          queued.current = null;
           if (isAgentDigestConflict(mutationError)) {
             // Refetch the exact view key only. Do not write the rejected choice
             // into cache — mutation onSuccess never ran, and invalidate+refetch
