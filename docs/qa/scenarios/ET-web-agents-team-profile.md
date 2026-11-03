@@ -28,7 +28,9 @@ Steps:
 2. Filter by Where it works, Model and Made by, and use the Needs you, Working and Paused tabs.
    Switch between Cards and Rows; the groups stay the same.
 3. Open a stays-on agent. Edit the name, the description and the picture in the header. The slug,
-   route and sessions don't change.
+   route and sessions don't change. Save each picture kind: a generated face on Auto, the same face
+   with a picked color, an icon with a color, and an emoji. Each save succeeds with no error toast
+   and survives a reload.
 4. Pause and resume a place, add it to another project, and remove it. Removing keeps its sessions.
 5. Open Model and What it can use. Save a change. Close with unsaved edits and confirm the guard.
 6. Open What it does. An agent with no SOUL.md leads with Starting instructions, which stay editable.
@@ -90,3 +92,8 @@ write `.compozy/work-log.md` with a `[ ]` entry older than 30 minutes. Check-ins
 failed triage. User/global instances collect nothing. A symlink outside the workspace is never
 read; overflow produces `work:log-truncated`. Backend execution evidence and remaining release
 walks are tracked in `docs/qa/reports/2026-11-02-spec-cycle/B1.md`; the editor change belongs to F1.
+
+Issue 1204 regression: break a stays-on agent's `appearance` in its AGENT.md by hand (drop
+`version` and `color`). `/agents` and the agent's home still open and its places still list, on
+the default face, with an `agent_appearance_invalid` warning on the definition read. Picking a new
+face in the header saves and replaces the broken block.

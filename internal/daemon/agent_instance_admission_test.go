@@ -963,57 +963,7 @@ func TestNativeInstanceCheckIns(t *testing.T) {
 func TestInstanceDefinitionPaths(t *testing.T) {
 	t.Run("Should retain every resolved workspace directory in the instance ceiling", func(t *testing.T) {
 		t.Parallel()
-		db := openDaemonTestGlobalDB(t)
-		home := testHomePaths(t)
-		root, additional := t.TempDir(), t.TempDir()
-		now := time.Now().UTC()
-		if err := db.InsertWorkspace(
-			t.Context(),
-			workspacepkg.Workspace{
-				ID:             "ws-instance-paths",
-				Name:           "instance-paths",
-				RootDir:        root,
-				AdditionalDirs: []string{additional},
-				CreatedAt:      now,
-				UpdatedAt:      now,
-			},
-		); err != nil {
-			t.Fatal(err)
-		}
-		resolver, err := workspacepkg.NewResolver(
-			db,
-			workspacepkg.WithHomePaths(home),
-			workspacepkg.WithProfileConfigLoader(
-				func(string, string) (compozyconfig.Config, error) { return compozyconfig.DefaultWithHome(home), nil },
-			),
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		manager, err := session.NewManager(session.WithHomePaths(home))
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := manager.Shutdown(context.Background()); err != nil {
-				t.Error(err)
-			}
-		})
-		definitions := instanceDefinitions{
-			workspaces: resolver,
-			profiles:   nativeProfileReaderStub{},
-			sessions:   manager,
-			agents: stubSessionCommandAgentResolver(
-				func(name string, _ *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
-					return compozyconfig.AgentDef{
-						Name:     name,
-						Kind:     "stays_on",
-						Provider: "claude",
-						Prompt:   "Review work.",
-					}, nil
-				},
-			),
-		}
+		definitions, resolver := newInstanceDefinitionsFixture(t, compozyconfig.AgentDef{})
 		definition, err := definitions.InstanceDefinition(
 			t.Context(),
 			store.DefaultProfileID,
@@ -1036,6 +986,89 @@ func TestInstanceDefinitionPaths(t *testing.T) {
 			t.Fatalf("definition paths = %v, want %v", definition.Policy.WorkspacePaths, want.WorkspacePaths)
 		}
 	})
+	t.Run("Should read an instance whose definition saved an unsupported appearance [#1204]", func(t *testing.T) {
+		t.Parallel()
+		definitions, _ := newInstanceDefinitionsFixture(t, compozyconfig.AgentDef{
+			Appearance: map[string]any{"version": 1, "avatar": "icon", "icon": "radar"},
+		})
+		payload := contract.AgentInstancePayload{}
+		err := definitions.projectInstanceDefinition(
+			t.Context(),
+			agentinstance.Instance{
+				ProfileID:   store.DefaultProfileID,
+				WorkspaceID: "ws-instance-paths",
+				AgentName:   "coder",
+			},
+			&payload,
+		)
+		if err != nil {
+			t.Fatalf("projectInstanceDefinition() error = %v, want the default face", err)
+		}
+		if payload.ResolvedAppearance["avatar"] != "generated" || payload.ResolvedAppearance["seed"] != "coder" {
+			t.Fatalf("resolved appearance = %#v, want the default generated face", payload.ResolvedAppearance)
+		}
+	})
+}
+
+// newInstanceDefinitionsFixture resolves workspace ws-instance-paths and answers every agent
+// lookup with a stays-on definition carrying the given appearance.
+func newInstanceDefinitionsFixture(
+	t *testing.T,
+	identity compozyconfig.AgentDef,
+) (instanceDefinitions, *workspacepkg.Resolver) {
+	t.Helper()
+	db := openDaemonTestGlobalDB(t)
+	home := testHomePaths(t)
+	root, additional := t.TempDir(), t.TempDir()
+	now := time.Now().UTC()
+	if err := db.InsertWorkspace(
+		t.Context(),
+		workspacepkg.Workspace{
+			ID:             "ws-instance-paths",
+			Name:           "instance-paths",
+			RootDir:        root,
+			AdditionalDirs: []string{additional},
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+	resolver, err := workspacepkg.NewResolver(
+		db,
+		workspacepkg.WithHomePaths(home),
+		workspacepkg.WithProfileConfigLoader(
+			func(string, string) (compozyconfig.Config, error) { return compozyconfig.DefaultWithHome(home), nil },
+		),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager, err := session.NewManager(session.WithHomePaths(home))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := manager.Shutdown(context.Background()); err != nil {
+			t.Error(err)
+		}
+	})
+	return instanceDefinitions{
+		workspaces: resolver,
+		profiles:   nativeProfileReaderStub{},
+		sessions:   manager,
+		agents: stubSessionCommandAgentResolver(
+			func(name string, _ *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+				return compozyconfig.AgentDef{
+					Name:       name,
+					Kind:       "stays_on",
+					Provider:   "claude",
+					Prompt:     "Review work.",
+					Appearance: identity.Appearance,
+				}, nil
+			},
+		),
+	}, resolver
 }
 
 type blockedInstanceReconciliation struct {

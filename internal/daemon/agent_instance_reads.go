@@ -128,8 +128,8 @@ func (r instanceDefinitions) projectInstanceDefinition(
 		payload.Scope = registered.Name
 		fallback := compozyconfig.AgentDef{Name: instance.AgentName}
 		payload.Label = fallback.Label()
-		payload.ResolvedAppearance, err = fallback.ResolveAppearance()
-		return err
+		payload.ResolvedAppearance = fallback.AppearanceOrDefault()
+		return nil
 	}
 	if err != nil {
 		return err
@@ -141,10 +141,9 @@ func (r instanceDefinitions) projectInstanceDefinition(
 		return err
 	}
 	payload.Label = agent.Label()
-	payload.ResolvedAppearance, err = agent.ResolveAppearance()
-	if err != nil {
-		return err
-	}
+	// An unsupported saved appearance resolves to the default face; the definition read
+	// carries the agent_appearance_invalid diagnostic, so the instance read never fails on it.
+	payload.ResolvedAppearance = agent.AppearanceOrDefault()
 	if agent.Provider != "" {
 		runtime, err := resolved.Config.ResolveAgent(agent)
 		if err != nil {
