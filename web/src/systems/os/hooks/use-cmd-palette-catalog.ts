@@ -78,8 +78,11 @@ export function useCmdPaletteCatalog({
       : undefined;
   const activeCatalog = served ?? workspaceCatalog;
   useEffect(() => {
-    if (workspace === "" || served === undefined) return;
-    void writeCatalogRecord(toCatalogRecord(workspace, profileKey, served));
+    if (workspace === "" || served === undefined) return undefined;
+    const timer = setTimeout(() => {
+      void writeCatalogRecord(toCatalogRecord(workspace, profileKey, served));
+    }, 250);
+    return () => clearTimeout(timer);
   }, [profileKey, served, workspace]);
 
   const cacheHydrated =

@@ -8,7 +8,7 @@
 import "fake-indexeddb/auto";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,6 +20,7 @@ import {
   writeCatalogRecord,
 } from "../../lib/cmd-palette-catalog-cache";
 import { toCatalogRecord } from "../../lib/cmd-palette-catalog-record";
+import { cmdPaletteKeys } from "../../lib/cmd-palette-query-keys";
 import type { CmdPaletteCatalogResponse } from "../../lib/cmd-palette-types";
 import { useCmdPaletteCatalog } from "../use-cmd-palette-catalog";
 
@@ -133,6 +134,25 @@ describe("useCmdPaletteCatalog (UT-095)", () => {
       expect(command).not.toHaveProperty("available");
       expect(command).not.toHaveProperty("reason");
     }
+  });
+
+  it("Should coalesce served catalog revisions into one durable write", async () => {
+    const put = vi.spyOn(IDBObjectStore.prototype, "put");
+    vi.spyOn(api, "listCmdPaletteCommands").mockResolvedValue(catalog("sha256:first", ["First"]));
+    const { result, queryClient } = harness();
+    await waitFor(() => expect(result.current.daemonReachable).toBe(true));
+    for (const revision of ["second", "third", "final"]) {
+      await act(async () => {
+        queryClient.setQueryData(
+          cmdPaletteKeys.catalog(WORKSPACE, "default", CLIENT),
+          catalog(`sha256:${revision}`, [revision])
+        );
+      });
+    }
+    await waitFor(async () => {
+      expect((await readCatalogRecord(WORKSPACE, "default"))?.catalogRevision).toBe("sha256:final");
+    });
+    expect(put).toHaveBeenCalledTimes(1);
   });
 
   it("Should carry a catalog only across client attachment in the same workspace", async () => {
