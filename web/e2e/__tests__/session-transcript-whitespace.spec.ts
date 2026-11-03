@@ -125,6 +125,19 @@ test("split Mermaid and Markdown chunks render as separate elements after reload
   await expect(markdown.locator("pre")).not.toContainText("After the diagram");
 
   await assertAuthoredLayout();
+  // Invariant: the mouse wheel over an inline diagram scrolls the transcript instead of being
+  // swallowed by the diagram frame (#1164). Real Chromium owns wheel chaining; jsdom has none.
+  const transcript = window.getByTestId("chat-view");
+  await expect
+    .poll(() => transcript.evaluate(element => element.scrollHeight - element.clientHeight))
+    .toBeGreaterThan(0);
+  const diagram = markdown.getByRole("img", { name: "Mermaid diagram" });
+  await diagram.hover();
+  const scrollBeforeWheel = await transcript.evaluate(element => element.scrollTop);
+  await appPage.mouse.wheel(0, scrollBeforeWheel > 0 ? -200 : 200);
+  await expect
+    .poll(() => transcript.evaluate(element => element.scrollTop))
+    .not.toBe(scrollBeforeWheel);
   await browserArtifacts.captureScreenshot("authored-message-layout", appPage);
   await appPage.reload();
   await expect(markdown.getByRole("heading", { name: "After the diagram" })).toBeVisible();
