@@ -209,7 +209,7 @@ export function useSessionTopbarSlot(input: UseSessionTopbarSlotInput): void {
         <SessionLinkedWorkStatus
           {...linkedList}
           lead={linkedWork.lead}
-          more={linkedWork.more}
+          count={linkedWork.count}
           onClippedChange={linkedWork.setClipped}
           ownChip={ownChipActions(input)}
           ownFacts={sessionPullRequestFacts(session)}

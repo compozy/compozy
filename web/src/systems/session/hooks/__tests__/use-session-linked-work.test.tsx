@@ -135,7 +135,7 @@ describe("useSessionLinkedWork", () => {
       { wrapper }
     );
     expect(result.current.lead).toBe(first);
-    expect(result.current.more).toBe("+3 PRs");
+    expect(result.current.count).toEqual({ total: 4, allPullRequests: true, needsYou: 1 });
   });
 
   it("Should unlink at once and offer Undo through the add path", async () => {

@@ -121,7 +121,7 @@ test("E2E-003: failing checks lead the chip menu and send one prompt naming the 
   await expect(frame.getByText("I will inspect the failing PR checks.")).toBeVisible();
 });
 
-// Invariant: a session shows its linked work in the head: the urgent item on the chip, the rest one
+// Invariant: a session shows its linked work in the head: several items as one count, the list one
 // step away at every width, and an unlink that touches nothing else and can be undone.
 // Owner: public session window + daemon link resources. The second item is added through the same
 // route the link dialog uses; list ordering and copy are owned by the Vitest suites.
@@ -146,10 +146,10 @@ test("E2E-006: the head lists linked work and an unlink can be undone", async ({
   });
   const frame = await openSession(appPage, runtime, sessionId);
 
-  await expect(frame.getByTestId("session-pull-request-chip")).toContainText("#940");
-  const more = frame.getByTestId("session-links-more");
-  await expect(more).toHaveText("+1 more");
-  await more.click();
+  const summary = frame.getByTestId("session-links-summary");
+  await expect(summary).toHaveText("2 linked");
+  await expect(frame.getByTestId("session-pull-request-chip")).toHaveCount(0);
+  await summary.click();
   const rows = appPage.locator('[data-slot="session-link-row"]');
   await expect(rows).toHaveCount(2);
   await expect(rows.first()).toContainText("Checks failing");

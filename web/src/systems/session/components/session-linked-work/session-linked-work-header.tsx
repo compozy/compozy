@@ -1,6 +1,6 @@
 /**
- * The header keeps today's chip, naming the most urgent item, and `+3 PRs` beside it opens the
- * list. Nothing new at rest, nothing stays open.
+ * The header keeps today's chip for a single item; past one, a single `8 linked PRs` chip opens the
+ * list, so no one item is promoted over the rest. Nothing new at rest, nothing stays open.
  */
 import { ArrowUpRight, FolderGit2, GitPullRequest, Link2, Unlink } from "@compozy/ui/icons";
 import { useState, type ReactElement, type ReactNode } from "react";
@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   Icon,
+  Pill,
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -20,6 +21,9 @@ import { useSessionTopbarClipped } from "../../hooks/use-session-topbar-clipped"
 import {
   isRolledUp,
   linkFacts,
+  linkedCountLabel,
+  needsYouLabel,
+  type LinkedWorkCount,
   type SessionLinkedWorkItem,
   type SessionRunsIn,
 } from "../../lib/session-linked-work";
@@ -106,7 +110,8 @@ function SessionLinkedWorkPopover({
 
 export interface SessionLinkedWorkStatusProps extends SessionLinkedWorkListProps {
   lead: SessionLinkedWorkItem | null;
-  more: string | null;
+  /** Past one item the count replaces the lead's chip. */
+  count: LinkedWorkCount;
   /** The session's own facts, for a session with nothing linked or a lead on another branch. */
   ownFacts: SessionPullRequestFacts;
   /** Delivery actions: they act on the session's own branch, so only its chip carries them. */
@@ -163,51 +168,79 @@ function ChipLinkActions({
   );
 }
 
-/** The head's status zone: the lead's chip, then `+3 PRs` when there is more to see. */
-export function SessionLinkedWorkStatus(props: SessionLinkedWorkStatusProps) {
-  const { lead, more, ownFacts, ownChip, actions, onClippedChange } = props;
-  const anchor = useSessionTopbarClipped(onClippedChange);
+/** Several items as one chip: no one item is promoted, and the list says each one's status. */
+function SessionLinkedWorkCount({
+  list,
+  count,
+  onOpenChange,
+}: {
+  list: SessionLinkedWorkListProps;
+  count: LinkedWorkCount;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const label = linkedCountLabel(count);
+  const attention = count.needsYou > 0;
+  return (
+    <SessionLinkedWorkPopover
+      list={list}
+      onOpenChange={onOpenChange}
+      testId="session-links-summary"
+      trigger={
+        <Button
+          aria-label={attention ? `${label}, ${needsYouLabel(count.needsYou)}` : label}
+          className={cn(SESSION_CHIP_CLASS, "pr-2.5")}
+          size="sm"
+          type="button"
+          variant="secondary"
+        />
+      }
+    >
+      <Icon as={GitPullRequest} size="sm" />
+      {label}
+      {attention ? <Pill.Dot size="sm" tone="brand" /> : null}
+    </SessionLinkedWorkPopover>
+  );
+}
+
+/** A lone item, or the session's own facts: today's full chip, with the link actions in its menu. */
+function SessionLinkedWorkChip(props: SessionLinkedWorkStatusProps) {
+  const { lead, ownFacts, ownChip, actions } = props;
   const own = lead === null || actions.isOwn(lead);
-  // An unlink can drop the last overflow item: the open list stays so its Undo keeps its context.
+  return (
+    <SessionPullRequestChip
+      {...(own
+        ? ownChip
+        : { onRefresh: () => actions.onRefresh(lead), refreshing: actions.refreshing })}
+      controllable={own && actions.controllable}
+      defaultMenuOpen={props.chipMenuOpen}
+      facts={lead ? linkFacts(lead) : ownFacts}
+      menuFooter={
+        lead ? (
+          <ChipLinkActions
+            actions={actions}
+            lead={lead}
+            runsIn={props.runsIn}
+            worktreeAction={props.worktreeAction}
+          />
+        ) : undefined
+      }
+      onPrompt={own && actions.onPrompt ? (_kind, text) => actions.onPrompt?.(text) : undefined}
+    />
+  );
+}
+
+/** The head's status zone: the lone item's chip, or `8 linked PRs` when there are several. */
+export function SessionLinkedWorkStatus(props: SessionLinkedWorkStatusProps) {
+  const anchor = useSessionTopbarClipped(props.onClippedChange);
+  // An unlink can leave one item: the open list keeps its trigger so its Undo keeps its context.
   const [listOpen, setListOpen] = useState(false);
   return (
     <span className="flex min-w-0 shrink-0 items-center gap-1" ref={anchor}>
-      <SessionPullRequestChip
-        {...(own
-          ? ownChip
-          : { onRefresh: () => actions.onRefresh(lead), refreshing: actions.refreshing })}
-        controllable={own && actions.controllable}
-        defaultMenuOpen={props.chipMenuOpen}
-        facts={lead ? linkFacts(lead) : ownFacts}
-        menuFooter={
-          lead && !more ? (
-            <ChipLinkActions
-              actions={actions}
-              lead={lead}
-              runsIn={props.runsIn}
-              worktreeAction={props.worktreeAction}
-            />
-          ) : undefined
-        }
-        onPrompt={own && actions.onPrompt ? (_kind, text) => actions.onPrompt?.(text) : undefined}
-      />
-      {more || listOpen ? (
-        <SessionLinkedWorkPopover
-          list={props}
-          onOpenChange={setListOpen}
-          testId="session-links-more"
-          trigger={
-            <Button
-              className={cn(SESSION_CHIP_CLASS, "pr-2.5")}
-              size="sm"
-              type="button"
-              variant="secondary"
-            />
-          }
-        >
-          {more ?? "Linked work"}
-        </SessionLinkedWorkPopover>
-      ) : null}
+      {props.count.total > 1 || listOpen ? (
+        <SessionLinkedWorkCount count={props.count} list={props} onOpenChange={setListOpen} />
+      ) : (
+        <SessionLinkedWorkChip {...props} />
+      )}
     </span>
   );
 }
