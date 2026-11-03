@@ -39,6 +39,11 @@ func duplicateAgentDraft(
 		return compozyconfig.AgentDefinitionDraft{}, err
 	}
 	draft.Name = compozyconfig.NormalizeAgentName(req.Name)
+	// A copy is a new write, so an unsupported saved appearance cannot ride along the way it
+	// does on unchanged edits. Drop it and let the copy draw the default face for its own name.
+	if compozyconfig.ValidateAgentAppearance(draft.Appearance) != nil {
+		draft.Appearance = nil
+	}
 	label := []rune(source.Label())
 	draft.DisplayName = string(label[:min(len(label), 75)]) + " copy"
 	if req.Kind != "" {

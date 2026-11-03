@@ -474,6 +474,8 @@ appearance:
 ```
 
 Unknown appearance versions and subkeys remain in the file; unsupported appearance resolves to the default with a diagnostic.
+Duplicating a definition with an unsupported appearance leaves it out of the copy, so the copy draws the
+default face for its new name. An explicit appearance override on duplicate is still validated.
 
 ```sh
 compozy agent create triage --kind stays_on --display-name "Triage Lead" --prompt "Keep issues moving."

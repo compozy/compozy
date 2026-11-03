@@ -4322,6 +4322,62 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		}
 	})
 
+	t.Run("Should duplicate a source with an unsupported appearance using the default face", func(t *testing.T) {
+		t.Parallel()
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		dir := filepath.Join(fixture.HomePaths.AgentsDir, "coder")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		raw := "---\nname: coder\nprovider: codex\nappearance:\n  avatar: emoji\n  emoji: \"🦊\"\n---\nSource.\n"
+		sourcePath := filepath.Join(dir, compozyconfig.AgentDefinitionFileName)
+		if err := os.WriteFile(
+			sourcePath,
+			[]byte(raw),
+			0o600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/agents/coder/duplicate",
+			mustJSON(t, contract.DuplicateAgentRequest{Name: "reviewer"}),
+		)
+		if resp.Code != http.StatusCreated {
+			t.Fatalf("duplicate status = %d, body=%s; want 201", resp.Code, resp.Body.String())
+		}
+		var payload contract.AgentResponse
+		decodeJSON(t, resp.Body.Bytes(), &payload)
+		if payload.Agent.Appearance != nil || payload.Agent.ResolvedAppearance["avatar"] != "generated" ||
+			payload.Agent.ResolvedAppearance["seed"] != "reviewer" {
+			t.Fatalf("duplicate appearance = %#v, resolved = %#v; want default face seeded by the copy",
+				payload.Agent.Appearance, payload.Agent.ResolvedAppearance)
+		}
+		if after, err := os.ReadFile(sourcePath); err != nil || string(after) != raw {
+			t.Fatalf("source after duplicate = %q, %v; want unchanged", after, err)
+		}
+		override := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/agents/coder/duplicate",
+			mustJSON(t, contract.DuplicateAgentRequest{
+				Name:      "auditor",
+				Overrides: &contract.DuplicateAgentOverrides{Appearance: map[string]any{"avatar": "emoji"}},
+			}),
+		)
+		if override.Code != http.StatusBadRequest {
+			t.Fatalf("invalid override status = %d, body=%s; want 400", override.Code, override.Body.String())
+		}
+	})
+
 	t.Run("Should reject a duplicate whose target runtime cannot resolve", func(t *testing.T) {
 		t.Parallel()
 		fixture := newHandlerFixture(
