@@ -973,25 +973,28 @@ func TestManagerRecoverProfileMoves(t *testing.T) {
 		h.requireRolledBack(t, source.ID, move)
 	})
 
-	t.Run("Should check the branch out again when the restored checkout is lost before the move closes", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should check the branch out again when the restored checkout is lost before the move closes",
+		func(t *testing.T) {
+			t.Parallel()
 
-		h := newStoppingProfileMoveHarness(t)
-		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
-		h.stopAt(t, "created:"+profileMoveTargetID, func() { _, _ = h.move(testutil.Context(t), source.ID) })
-		move, _ := h.openMove(t, source.ID)
-		h.stopAt(t, "close", func() { _ = h.manager.RecoverProfileMoves(testutil.Context(t)) })
-		h.setWorktree(t, move.RestoreWorktreeID, func(item *fakeMoveWorktree) { item.released = true })
+			h := newStoppingProfileMoveHarness(t)
+			source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+			h.stopAt(t, "created:"+profileMoveTargetID, func() { _, _ = h.move(testutil.Context(t), source.ID) })
+			move, _ := h.openMove(t, source.ID)
+			h.stopAt(t, "close", func() { _ = h.manager.RecoverProfileMoves(testutil.Context(t)) })
+			h.setWorktree(t, move.RestoreWorktreeID, func(item *fakeMoveWorktree) { item.released = true })
 
-		if err := h.manager.RecoverProfileMoves(testutil.Context(t)); err != nil {
-			t.Fatalf("RecoverProfileMoves() error = %v", err)
-		}
-		h.requireRolledBack(t, source.ID, move)
-		original, _ := h.manager.Status(testutil.Context(t), source.ID)
-		if original.WorktreeID == move.RestoreWorktreeID {
-			t.Fatalf("original still bound to the lost restore checkout %s", move.RestoreWorktreeID)
-		}
-	})
+			if err := h.manager.RecoverProfileMoves(testutil.Context(t)); err != nil {
+				t.Fatalf("RecoverProfileMoves() error = %v", err)
+			}
+			h.requireRolledBack(t, source.ID, move)
+			original, _ := h.manager.Status(testutil.Context(t), source.ID)
+			if original.WorktreeID == move.RestoreWorktreeID {
+				t.Fatalf("original still bound to the lost restore checkout %s", move.RestoreWorktreeID)
+			}
+		},
+	)
 
 	t.Run("Should refuse a restore checkout that another branch took over", func(t *testing.T) {
 		t.Parallel()
@@ -1013,29 +1016,36 @@ func TestManagerRecoverProfileMoves(t *testing.T) {
 		}
 	})
 
-	t.Run("Should restore the original once a target checkout that could not be released is cleaned up", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should restore the original once a target checkout that could not be released is cleaned up",
+		func(t *testing.T) {
+			t.Parallel()
 
-		h := newStoppingProfileMoveHarness(t)
-		source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
-		h.stopAt(t, "created:"+profileMoveTargetID, func() { _, _ = h.move(testutil.Context(t), source.ID) })
-		move, _ := h.openMove(t, source.ID)
-		// A dismissed creation whose cleanup did not finish still holds the branch.
-		h.setWorktree(t, move.TargetWorktreeID, func(item *fakeMoveWorktree) { item.stuck = true })
+			h := newStoppingProfileMoveHarness(t)
+			source := h.stoppedSource(t, h.worktrees.add(t, store.DefaultProfileID), "")
+			h.stopAt(t, "created:"+profileMoveTargetID, func() { _, _ = h.move(testutil.Context(t), source.ID) })
+			move, _ := h.openMove(t, source.ID)
+			// A dismissed creation whose cleanup did not finish still holds the branch.
+			h.setWorktree(t, move.TargetWorktreeID, func(item *fakeMoveWorktree) { item.stuck = true })
 
-		if err := h.manager.RecoverProfileMoves(testutil.Context(t)); err == nil {
-			t.Fatal("RecoverProfileMoves() error = nil, want the held branch reported")
-		}
-		if _, open := h.openMove(t, source.ID); !open || h.archivedAt(t, source.ID) {
-			t.Fatalf("journaled %t archived %t, want the move kept and the original unarchived",
-				open, h.archivedAt(t, source.ID))
-		}
-		h.setWorktree(t, move.TargetWorktreeID, func(item *fakeMoveWorktree) { item.stuck, item.released = false, true })
-		if err := h.manager.RecoverProfileMoves(testutil.Context(t)); err != nil {
-			t.Fatalf("RecoverProfileMoves() after the cleanup error = %v", err)
-		}
-		h.requireRolledBack(t, source.ID, move)
-	})
+			if err := h.manager.RecoverProfileMoves(testutil.Context(t)); err == nil {
+				t.Fatal("RecoverProfileMoves() error = nil, want the held branch reported")
+			}
+			if _, open := h.openMove(t, source.ID); !open || h.archivedAt(t, source.ID) {
+				t.Fatalf("journaled %t archived %t, want the move kept and the original unarchived",
+					open, h.archivedAt(t, source.ID))
+			}
+			h.setWorktree(
+				t,
+				move.TargetWorktreeID,
+				func(item *fakeMoveWorktree) { item.stuck, item.released = false, true },
+			)
+			if err := h.manager.RecoverProfileMoves(testutil.Context(t)); err != nil {
+				t.Fatalf("RecoverProfileMoves() after the cleanup error = %v", err)
+			}
+			h.requireRolledBack(t, source.ID, move)
+		},
+	)
 
 	t.Run("Should report a journal that could not close instead of starting another move", func(t *testing.T) {
 		t.Parallel()
