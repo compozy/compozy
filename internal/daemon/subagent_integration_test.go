@@ -5782,6 +5782,18 @@ func TestInstanceContextExhaustionIntegration(t *testing.T) {
 		}()
 		waitForRuntimeCondition(t, "sender work turn", 10*time.Second, func() bool { return sender.IsPrompting() })
 		messageID := "message-after-rotation"
+		// UT-063: a missing name has its own stable error, before session dispatch.
+		missing, err := json.Marshal(map[string]string{
+			"agent": "missing-peer", "workspace": workspace, "message": "hello",
+			"message_id": "missing-peer-message", "idempotency_key": "missing-peer-message",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, err = d.toolRegistry.Call(t.Context(), toolspkg.Scope{
+			ProfileID: target.ProfileID, WorkspaceID: workspace, SessionID: sender.ID, AgentName: sender.AgentName,
+		}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDSessionPrompt, Input: missing, ToolCallID: "missing-peer"})
+		requireToolCode(t, err, "agent_instance_not_found")
 		input, err := json.Marshal(
 			map[string]any{
 				"agent":           "subagent-test",
