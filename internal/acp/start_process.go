@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/compozy/compozy/internal/procutil"
 
@@ -25,6 +26,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		return nil, err
 	}
 
+	policy.rules = append([]compozyconfig.PermissionRule(nil), normalized.PermissionRulesValue()...)
 	launcher := d.launcherForStart(normalized)
 	identity := startOptsPreparedLaunchIdentity(normalized)
 
@@ -144,9 +146,15 @@ func (d *Driver) newAgentProcess(
 	policy permissionPolicy,
 	terminalScope LocalTerminalScope,
 ) *AgentProcess {
+	denials := &PermissionDenials{}
+	if normalized.PermissionPolicy != nil && normalized.PermissionPolicy.Denials != nil {
+		denials = normalized.PermissionPolicy.Denials
+	}
+	reviewerMode := ""
 	providerAuthMode := compozyconfig.ProviderAuthModeNativeCLI
 	if normalized.ProviderConfig != nil {
 		providerAuthMode = normalized.ProviderConfig.EffectiveAuthMode()
+		reviewerMode = strings.TrimSpace(normalized.ProviderConfig.ReviewerMode)
 	}
 	return &AgentProcess{
 		logger:                 d.logger,
@@ -154,6 +162,8 @@ func (d *Driver) newAgentProcess(
 		PID:                    handle.PID(),
 		AgentName:              normalized.AgentName,
 		providerName:           normalized.ProviderName,
+		reviewerMode:           reviewerMode,
+		permissionDenials:      denials,
 		providerAuthMode:       providerAuthMode,
 		Command:                command,
 		Args:                   append([]string(nil), args...),
@@ -178,7 +188,7 @@ func (d *Driver) newAgentProcess(
 		startupManifest:        CloneStartupManifest(normalized.StartupManifest),
 		systemPromptDelivery:   normalized.SystemPromptDelivery,
 		promptCacheControl:     promptCacheControlForStartOpts(normalized),
-		executionPolicy:        normalized.ExecutionPolicy,
+		executionPolicy:        normalized.ExecutionPolicyValue(),
 	}
 }
 

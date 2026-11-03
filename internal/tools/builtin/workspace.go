@@ -169,7 +169,14 @@ var agentCreateInputSchema = `{
 		"session_env":` + sessionEnvInputSchema + `,
 		"prompt":{"type":"string"},
 		"workspace_access":{"type":"string","enum":["","unrestricted"]},
- "permissions":{"type":"string","enum":["deny-all","approve-reads","approve-all"]},
+		"session_approval":{"type":"string","enum":["children","workspace"]},
+		"permission_rules":{"type":"array","maxItems":64,"items":{
+			"type":"object","required":["decision"],"additionalProperties":false,
+			"anyOf":[{"required":["kind"]},{"required":["path"]}],
+			"properties":{"kind":{"type":"string","enum":["read","edit","delete","move","search","execute","think","fetch","switch_mode","other"]},
+				"path":{"type":"string"},"decision":{"type":"string","enum":["allow","deny"]}}
+		}},
+ "permissions":{"type":"string","enum":["deny-all","approve-reads","approve-edits","auto","approve-all"]},
 		"tools":{"type":"array","items":{"type":"string"}},
 		"toolsets":{"type":"array","items":{"type":"string"}},
 		"deny_tools":{"type":"array","items":{"type":"string"}},

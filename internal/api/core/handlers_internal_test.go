@@ -3,9 +3,14 @@ package core
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/gin-gonic/gin"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -223,4 +228,45 @@ func TestAgentIdentityGroupedPaging(t *testing.T) {
 			t.Fatalf("visited %d agents", len(seen))
 		}
 	})
+}
+
+func TestAgentPermissionPolicyAuthoringBoundary(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct{ name, field, code string }{
+		{"Should refuse an agent approval authority grant", `"session_approval":"workspace"`, "session_approval_operator_only"},
+		{"Should refuse an agent permission rule", `"permission_rules":[{"kind":"edit","decision":"allow"}]`, "permission_rules_operator_only"},
+		{"Should refuse clearing rules through an agent write", `"permission_rules":[]`, "permission_rules_operator_only"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := &BaseHandlers{}
+			engine := gin.New()
+			engine.POST("/agents", h.CreateAgent)
+			engine.PUT("/agents/:name", h.UpdateAgent)
+			for _, method := range []string{http.MethodPost, http.MethodPut} {
+				target := "/agents"
+				if method == http.MethodPut {
+					target += "/policy-agent"
+				}
+				body := `{"scope":"global","expected_digest":"test","agent":{"name":"policy-agent","prompt":"Assist.",` + tc.field + `}}`
+				if method == http.MethodPost {
+					body = strings.ReplaceAll(body, `"expected_digest":"test",`, "")
+				} else {
+					body = strings.ReplaceAll(body, `"scope":"global",`, "")
+				}
+				request := httptest.NewRequestWithContext(t.Context(), method, target, strings.NewReader(body))
+				request.Header.Set("Content-Type", "application/json")
+				request.Header.Set(agentidentity.HeaderSessionID, "caller")
+				response := httptest.NewRecorder()
+				engine.ServeHTTP(response, request)
+				var payload contract.ErrorPayload
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatal(err)
+				}
+				if response.Code != http.StatusForbidden || payload.Code != tc.code {
+					t.Fatalf("method=%s status=%d body=%s", method, response.Code, response.Body.String())
+				}
+			}
+		})
+	}
 }

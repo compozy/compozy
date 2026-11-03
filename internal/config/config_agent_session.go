@@ -122,8 +122,12 @@ func (m PermissionMode) Rank() int {
 		return 0
 	case PermissionModeApproveReads:
 		return 1
-	case PermissionModeApproveAll:
+	case PermissionModeApproveEdits:
 		return 2
+	case PermissionModeAuto:
+		return 3
+	case PermissionModeApproveAll:
+		return 4
 	default:
 		return -1
 	}
@@ -135,6 +139,8 @@ const (
 	PermissionModeDenyAll      PermissionMode = "deny-all"
 	PermissionModeApproveReads PermissionMode = "approve-reads"
 	PermissionModeApproveAll   PermissionMode = "approve-all"
+	PermissionModeApproveEdits PermissionMode = "approve-edits"
+	PermissionModeAuto         PermissionMode = "auto"
 	// DefaultObservabilityAgentProbeTimeout bounds daemon health probes for configured agents.
 	DefaultObservabilityAgentProbeTimeout = 2 * time.Second
 )
@@ -145,10 +151,15 @@ type PermissionsConfig struct {
 	ProviderFullAccess bool           `toml:"provider_full_access,omitempty"`
 }
 
+const acpModeAuto = "auto"
+
 // IsUnrestrictedACPMode reports provider mode IDs that bypass the provider's normal sandbox or approvals.
-func IsUnrestrictedACPMode(mode string) bool {
+func IsUnrestrictedACPMode(provider, mode string) bool {
+	if provider == "claude" && mode == acpModeAuto {
+		return false
+	}
 	switch mode {
-	case "agent-full-access", "full-access", "full_access", "bypassPermissions", "bypass_permissions", "yolo", "auto":
+	case "agent-full-access", "full-access", "full_access", "bypassPermissions", "bypass_permissions", "yolo", acpModeAuto:
 		return true
 	default:
 		return false

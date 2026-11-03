@@ -394,11 +394,14 @@ export type OpenURLEffect = {
 };
 
 export type OperatorNotificationEventPayload = {
+  action?: string;
   at: string;
   body: string;
+  kind?: string;
   notification_id: string;
   profile_id: string;
   profile_name: string;
+  resource?: string;
   session_id: string;
   title: string;
   workspace_id: string;

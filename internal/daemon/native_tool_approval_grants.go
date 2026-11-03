@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -60,6 +61,13 @@ func (n *daemonNativeTools) toolApprovalsSet(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
+	if scope.SessionID != "" {
+		if err := session.AuthorizeToolApprovalGrantMutation(ctx, scope.SessionID, n.deps.Sessions.Status); err != nil {
+			return toolspkg.ToolResult{}, toolspkg.NewToolError(
+				toolspkg.ErrorCodeDenied, req.ToolID, err.Error(), err, toolspkg.ReasonPolicyDenied)
+		}
+	}
+
 	var input toolApprovalsSetInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
@@ -125,6 +133,13 @@ func (n *daemonNativeTools) toolApprovalsRevoke(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
+	if scope.SessionID != "" {
+		if err := session.AuthorizeToolApprovalGrantMutation(ctx, scope.SessionID, n.deps.Sessions.Status); err != nil {
+			return toolspkg.ToolResult{}, toolspkg.NewToolError(
+				toolspkg.ErrorCodeDenied, req.ToolID, err.Error(), err, toolspkg.ReasonPolicyDenied)
+		}
+	}
+
 	var input toolApprovalsRevokeInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err

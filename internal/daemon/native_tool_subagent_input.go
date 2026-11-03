@@ -117,8 +117,11 @@ func (in nativeSubagentDelegateInput) validate() error {
 	if !slices.Contains([]string{"", "async", "wait"}, in.Mode) {
 		return invalid("mode must be async or wait.")
 	}
-	if !slices.Contains([]string{"", "inherit", "deny-all", "approve-reads", "approve-all"}, in.PermissionMode) {
-		return invalid("permission_mode must be inherit, deny-all, approve-reads, or approve-all.")
+	if !slices.Contains(
+		[]string{"", "inherit", "deny-all", "approve-reads", "approve-edits", "auto", "approve-all"},
+		in.PermissionMode,
+	) {
+		return invalid("permission_mode must be inherit, deny-all, approve-reads, approve-edits, auto, or approve-all.")
 	}
 	if !slices.Contains([]string{"", "normal", "fast"}, in.Target.Speed) {
 		return invalid("target.speed must be normal or fast.")

@@ -7,6 +7,44 @@ import (
 	"time"
 )
 
+// LogEventPayload is a daemon API value.
+type LogEventPayload struct {
+	ID                   string          `json:"id"`
+	ProfileID            string          `json:"profile_id"`
+	ProfileName          string          `json:"profile_name"`
+	ProfileColor         string          `json:"profile_color"`
+	ProfileIcon          string          `json:"profile_icon,omitempty"`
+	ProfileEmoji         string          `json:"profile_emoji,omitempty"`
+	ProfileArchived      bool            `json:"profile_archived"`
+	SessionID            string          `json:"session_id"`
+	WorkspaceID          string          `json:"workspace_id,omitempty"`
+	Type                 string          `json:"type"`
+	AgentName            string          `json:"agent_name"`
+	Provider             string          `json:"provider,omitempty"`
+	Component            string          `json:"component,omitempty"`
+	Outcome              string          `json:"outcome,omitempty"`
+	Content              json.RawMessage `json:"content,omitempty"`
+	WorktreeID           string          `json:"worktree_id,omitempty"`
+	TaskID               string          `json:"task_id,omitempty"`
+	RunID                string          `json:"run_id,omitempty"`
+	Generation           int64           `json:"generation,omitzero"`
+	WorkflowID           string          `json:"workflow_id,omitempty"`
+	ClaimTokenHash       string          `json:"claim_token_hash,omitempty"`
+	LeaseUntil           *time.Time      `json:"lease_until,omitempty"`
+	CoordinatorSessionID string          `json:"coordinator_session_id,omitempty"`
+	SchedulerReason      string          `json:"scheduler_reason,omitempty"`
+	HookEvent            string          `json:"hook_event,omitempty"`
+	HookName             string          `json:"hook_name,omitempty"`
+	ActorKind            string          `json:"actor_kind,omitempty"`
+	ActorID              string          `json:"actor_id,omitempty"`
+	ReleaseReason        string          `json:"release_reason,omitempty"`
+	ParentSessionID      string          `json:"parent_session_id,omitempty"`
+	RootSessionID        string          `json:"root_session_id,omitempty"`
+	SpawnDepth           int             `json:"spawn_depth"`
+	Summary              string          `json:"summary,omitempty"`
+	Timestamp            time.Time       `json:"timestamp"`
+}
+
 // LogTailStatusPayload is a daemon API value.
 type LogTailStatusPayload struct {
 	Available bool   `json:"available"`
@@ -403,39 +441,3 @@ type LoopGateVerdictRunEventPayload struct {
 
 // LoopGenerationOrigin is a daemon API value.
 type LoopGenerationOrigin string
-
-// LoopGenerationOutput is a daemon API value.
-type LoopGenerationOutput struct {
-	Generation      int64                `json:"generation,omitzero"`
-	NodeID          string               `json:"node_id"`
-	ItemIndex       int                  `json:"item_index,omitzero"`
-	Status          string               `json:"status"`
-	OutputRef       string               `json:"output_ref,omitempty"`
-	TaskRunID       string               `json:"task_run_id,omitempty"`
-	SessionID       string               `json:"session_id,omitempty"`
-	ChildLoopRunID  string               `json:"child_loop_run_id,omitempty"`
-	ResolvedRuntime *LoopResolvedRuntime `json:"resolved_runtime,omitzero"`
-	Attempt         int                  `json:"attempt,omitzero"`
-	NextAttemptAt   *time.Time           `json:"next_attempt_at,omitempty"`
-	FailureClass    string               `json:"failure_class,omitempty"`
-	Disposition     string               `json:"disposition,omitempty"`
-}
-
-// LoopGenerationPayload is a daemon API value.
-type LoopGenerationPayload struct {
-	Generation       int64                    `json:"generation"`
-	ParentGeneration int64                    `json:"parent_generation"`
-	Origin           LoopGenerationOrigin     `json:"origin"`
-	RouteCauses      []LoopRouteCausePayload  `json:"route_causes"`
-	Verdicts         []LoopGateVerdictPayload `json:"verdicts"`
-	Outputs          []LoopGenerationOutput   `json:"outputs"`
-}
-
-// LoopGenerationStartedEventPayload is a daemon API value.
-type LoopGenerationStartedEventPayload struct {
-	Generation        int64                 `json:"generation"`
-	ParentGeneration  int64                 `json:"parent_generation"`
-	Origin            LoopGenerationOrigin  `json:"origin"`
-	ReattemptStrategy LoopReattemptStrategy `json:"reattempt_strategy"`
-	LoopName          string                `json:"loop_name"`
-}

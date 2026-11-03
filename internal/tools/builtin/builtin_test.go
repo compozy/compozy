@@ -3528,7 +3528,7 @@ func TestSubagentDescriptorSchemas(t *testing.T) {
 		}
 		for _, mode := range []string{"async", "wait"} {
 			for _, role := range []string{"general", "implementation", "research", "review", "design", "test"} {
-				for _, permission := range []string{"inherit", "deny-all", "approve-reads", "approve-all"} {
+				for _, permission := range []string{"inherit", "deny-all", "approve-reads", "approve-edits", "auto", "approve-all"} {
 					if err := schema.Validate(
 						map[string]any{"task": "work", "mode": mode, "role": role, "permission_mode": permission},
 					); err != nil {

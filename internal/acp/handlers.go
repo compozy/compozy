@@ -248,17 +248,26 @@ func (p *AgentProcess) resolvePermissionRequest(
 	if err != nil {
 		return acpsdk.RequestPermissionResponse{}, err
 	}
-	decision, interactive := host.PermissionDecision(request)
+	decision, interactive, resolvedBy := resolveHostPermissionDecision(host, request)
 
 	if !interactive {
 		outcome, appliedDecision := selectPermissionOutcome(request.Options, decision)
 		raw := buildPermissionEventRaw(requestID, appliedDecision, request)
 		p.emitPermissionEvent(
-			sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, "provider", raw,
+			sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, resolvedBy, raw,
 		)
 		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
 	}
 
+	digest := permissionRequestDigest(request)
+	denialEpoch := p.permissionDenials.Epoch()
+	if p.permissionDenials.Contains(digest) {
+		outcome, appliedDecision := selectPermissionOutcome(request.Options, decisionRejectOnce)
+		raw := buildPermissionEventRaw(requestID, appliedDecision, request)
+		p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource,
+			appliedDecision, "repeat_denied", raw)
+		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+	}
 	requestID, pending, err := p.registerPendingPermission(turnID, request)
 	if err != nil {
 		return acpsdk.RequestPermissionResponse{}, err
@@ -289,6 +298,9 @@ func (p *AgentProcess) resolvePermissionRequest(
 	outcome, appliedDecision := selectPermissionOutcome(request.Options, decision)
 	if appliedDecision == "" {
 		appliedDecision = decisionCanceled
+	}
+	if actor == "timeout" || (actor == "provider" && decision == decisionCanceled) {
+		p.permissionDenials.Record(digest, denialEpoch)
 	}
 	raw = buildPermissionEventRaw(requestID, appliedDecision, request)
 	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, actor, raw)

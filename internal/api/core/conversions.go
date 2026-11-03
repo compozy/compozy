@@ -36,6 +36,8 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 	ref := workref.NewPath(info.WorkspaceID, info.Workspace)
 	payload = contract.SessionPayload{
 		EffectiveWorkspaceAccess: info.EffectiveWorkspaceAccess,
+		EffectivePermissions:     info.EffectivePermissions,
+		PermissionModeDegraded:   info.PermissionModeDegraded,
 		Scope:                    scope,
 		InstanceID:               info.InstanceID,
 		Supervision:              session.CloneSupervisionState(info.Supervision),

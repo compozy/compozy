@@ -80,7 +80,7 @@ const (
 
 // StartOpts defines how to launch and initialize an ACP agent process.
 type StartOpts struct {
-	ExecutionPolicy      string
+	PermissionPolicy     *StartPermissionPolicy
 	AgentName            string
 	CompozySessionID     string
 	WorkspaceID          string
@@ -139,23 +139,27 @@ const (
 
 // Validate ensures the start options are minimally usable.
 func (o StartOpts) Validate() error {
+	if err := compozyconfig.ValidatePermissionRules(o.PermissionRulesValue()); err != nil {
+		return err
+	}
 	if err := o.validateBase(); err != nil {
 		return err
 	}
 	if err := validateSessionConfigOptionSelections(o.ACPOptions); err != nil {
 		return fmt.Errorf("acp: validate start ACP options: %w", err)
 	}
-	return ValidateACPModePermissions(o.ACPOptions, o.Permissions)
+	return ValidateACPModePermissions(o.ProviderName, o.ACPOptions, o.Permissions)
 }
 
 // ValidateACPModePermissions keeps unrestricted provider modes behind the effective
 // session permission policy at both start and live runtime changes.
 func ValidateACPModePermissions(
+	provider string,
 	options []SessionConfigOptionSelection,
 	permissions compozyconfig.PermissionMode,
 ) error {
 	for _, option := range options {
-		if option.ID == sessionConfigModeKey && compozyconfig.IsUnrestrictedACPMode(option.ValueID) &&
+		if option.ID == sessionConfigModeKey && compozyconfig.IsUnrestrictedACPMode(provider, option.ValueID) &&
 			permissions != compozyconfig.PermissionModeApproveAll {
 			return fmt.Errorf("acp: unrestricted ACP mode %q requires approve-all permissions", option.ValueID)
 		}
@@ -285,33 +289,35 @@ type PromptActivityReport struct {
 
 // Caps captures the usable capabilities exposed by an ACP agent.
 type Caps struct {
-	SteerCapability       compozyconfig.SteerCapability
-	SupportsLoadSession   bool
-	SupportsCloseSession  bool
-	SupportsForkSession   bool
-	SupportsResumeSession bool
-	PromptImage           bool
-	PromptAudio           bool
-	PromptEmbeddedContext bool
-	SupportedModes        []string
-	ConfigOptions         []SessionConfigOption
-	SpeedResolution       *speedpkg.Resolution
+	PermissionModeDegraded bool
+	SteerCapability        compozyconfig.SteerCapability
+	SupportsLoadSession    bool
+	SupportsCloseSession   bool
+	SupportsForkSession    bool
+	SupportsResumeSession  bool
+	PromptImage            bool
+	PromptAudio            bool
+	PromptEmbeddedContext  bool
+	SupportedModes         []string
+	ConfigOptions          []SessionConfigOption
+	SpeedResolution        *speedpkg.Resolution
 }
 
 // CloneCaps returns a deep copy of ACP caps.
 func CloneCaps(caps Caps) Caps {
 	return Caps{
-		SteerCapability:       caps.SteerCapability,
-		SupportsLoadSession:   caps.SupportsLoadSession,
-		SupportsCloseSession:  caps.SupportsCloseSession,
-		SupportsForkSession:   caps.SupportsForkSession,
-		SupportsResumeSession: caps.SupportsResumeSession,
-		PromptImage:           caps.PromptImage,
-		PromptAudio:           caps.PromptAudio,
-		PromptEmbeddedContext: caps.PromptEmbeddedContext,
-		SupportedModes:        append([]string(nil), caps.SupportedModes...),
-		ConfigOptions:         CloneSessionConfigOptions(caps.ConfigOptions),
-		SpeedResolution:       speedpkg.CloneResolution(caps.SpeedResolution),
+		PermissionModeDegraded: caps.PermissionModeDegraded,
+		SteerCapability:        caps.SteerCapability,
+		SupportsLoadSession:    caps.SupportsLoadSession,
+		SupportsCloseSession:   caps.SupportsCloseSession,
+		SupportsForkSession:    caps.SupportsForkSession,
+		SupportsResumeSession:  caps.SupportsResumeSession,
+		PromptImage:            caps.PromptImage,
+		PromptAudio:            caps.PromptAudio,
+		PromptEmbeddedContext:  caps.PromptEmbeddedContext,
+		SupportedModes:         append([]string(nil), caps.SupportedModes...),
+		ConfigOptions:          CloneSessionConfigOptions(caps.ConfigOptions),
+		SpeedResolution:        speedpkg.CloneResolution(caps.SpeedResolution),
 	}
 }
 

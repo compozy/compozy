@@ -97,6 +97,10 @@ func nativeToolPermissionMode(mode compozyconfig.PermissionMode) toolspkg.Permis
 		return toolspkg.PermissionModeDenyAll
 	case compozyconfig.PermissionModeApproveReads:
 		return toolspkg.PermissionModeApproveReads
+	case compozyconfig.PermissionModeApproveEdits:
+		return toolspkg.PermissionModeApproveEdits
+	case compozyconfig.PermissionModeAuto:
+		return toolspkg.PermissionModeAuto
 	case compozyconfig.PermissionModeApproveAll:
 		return toolspkg.PermissionModeApproveAll
 	default:

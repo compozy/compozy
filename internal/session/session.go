@@ -86,6 +86,9 @@ type Info struct {
 	RuntimeSelectionRevision int64
 	EffectiveWorkspaceAccess string
 	EffectivePermissions     string
+	PermissionModeDegraded   bool
+	EffectiveSessionApproval string
+	PermissionRules          []store.SessionPermissionRule
 	WorkspaceID              string
 	Workspace                string
 	WorktreeID               string
@@ -133,6 +136,7 @@ type Info struct {
 
 // Session is the in-memory runtime representation of one active or stopping session.
 type Session struct {
+	permissionDenials            *acp.PermissionDenials
 	rotationSuperseded           bool
 	InstanceID                   string
 	InitiatorKind                string
@@ -198,6 +202,8 @@ type Session struct {
 	RuntimeSelectionRevision  int64
 	EffectiveWorkspaceAccess  string
 	EffectivePermissions      string
+	EffectiveSessionApproval  string
+	PermissionRules           []store.SessionPermissionRule
 	effectiveProviderAuthMode compozyconfig.ProviderAuthMode
 	providerHomePolicy        compozyconfig.ProviderHomePolicy
 	WorkspaceID               string

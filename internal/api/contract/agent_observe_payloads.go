@@ -46,6 +46,8 @@ type CreateAgentPayload struct {
 	Tools           []string                            `json:"tools,omitempty"`
 	Toolsets        []string                            `json:"toolsets,omitempty"`
 	DenyTools       []string                            `json:"deny_tools,omitempty"`
+	SessionApproval string                              `json:"session_approval,omitempty"`
+	PermissionRules []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
 	WorkspaceAccess string                              `json:"workspace_access,omitempty"`
 	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
 	CategoryPath    []string                            `json:"category_path,omitempty"`

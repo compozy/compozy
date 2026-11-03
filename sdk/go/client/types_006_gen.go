@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// ExtensionCommandGroupPayload is a daemon API value.
+type ExtensionCommandGroupPayload struct {
+	Extension string `json:"extension"`
+	Path      string `json:"path"`
+	Summary   string `json:"summary"`
+}
+
 // ExtensionCommandPayload is a daemon API value.
 type ExtensionCommandPayload struct {
 	Extension        string        `json:"extension"`
@@ -437,11 +444,4 @@ type GatewayAddressPayload struct {
 	Tier    string `json:"tier"`
 	Address string `json:"address"`
 	Live    bool   `json:"live"`
-}
-
-// GatewayAuditAuthPayload is a daemon API value.
-type GatewayAuditAuthPayload struct {
-	Mode              string `json:"mode"`
-	RequiredRemotely  bool   `json:"required_remotely"`
-	ActiveDeviceCount int    `json:"active_device_count"`
 }

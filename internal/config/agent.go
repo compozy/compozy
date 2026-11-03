@@ -19,10 +19,12 @@ var resourceProfileNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 
 // AgentDef is the parsed representation of an AGENT.md file.
 type AgentDef struct {
-	DisplayName string         `json:"display_name,omitempty" yaml:"display_name,omitempty" toml:"display_name,omitempty"`
-	Description string         `json:"description,omitempty"  yaml:"description,omitempty"  toml:"description,omitempty"`
-	Kind        string         `json:"kind,omitempty"         yaml:"kind,omitempty"         toml:"kind,omitempty"`
-	Appearance  map[string]any `json:"appearance,omitempty"   yaml:"appearance,omitempty"   toml:"appearance,omitempty"`
+	SessionApproval string           `json:"session_approval,omitempty" yaml:"session_approval,omitempty" toml:"session_approval,omitempty"`
+	PermissionRules []PermissionRule `json:"permission_rules,omitempty" yaml:"permission_rules,omitempty" toml:"permission_rules,omitempty"`
+	DisplayName     string           `json:"display_name,omitempty"     yaml:"display_name,omitempty"     toml:"display_name,omitempty"`
+	Description     string           `json:"description,omitempty"      yaml:"description,omitempty"      toml:"description,omitempty"`
+	Kind            string           `json:"kind,omitempty"             yaml:"kind,omitempty"             toml:"kind,omitempty"`
+	Appearance      map[string]any   `json:"appearance,omitempty"       yaml:"appearance,omitempty"       toml:"appearance,omitempty"`
 
 	WorkspaceAccess       string     `json:"workspace_access,omitempty" yaml:"workspace_access,omitempty" toml:"workspace_access,omitempty"`
 	SessionEnv            SessionEnv `json:"session_env,omitempty"      yaml:"session_env,omitempty"      toml:"session_env,omitempty"`
@@ -48,17 +50,13 @@ type AgentDef struct {
 	ShadowedDefinitions   []AgentDefinitionRef `json:"-"                          yaml:"-"                          toml:"-"`
 }
 
-// AgentDefinitionRef identifies one lower-precedence definition hidden by a winner.
-type AgentDefinitionRef struct {
-	Layer string
-	Path  string
-}
-
 type parsedAgentDef struct {
-	DisplayName string         `json:"display_name,omitempty" yaml:"display_name,omitempty" toml:"display_name,omitempty"`
-	Description string         `json:"description,omitempty"  yaml:"description,omitempty"  toml:"description,omitempty"`
-	Kind        string         `json:"kind,omitempty"         yaml:"kind,omitempty"         toml:"kind,omitempty"`
-	Appearance  map[string]any `json:"appearance,omitempty"   yaml:"appearance,omitempty"   toml:"appearance,omitempty"`
+	SessionApproval string           `yaml:"session_approval,omitempty" toml:"session_approval,omitempty"`
+	PermissionRules []PermissionRule `yaml:"permission_rules,omitempty" toml:"permission_rules,omitempty"`
+	DisplayName     string           `yaml:"display_name,omitempty"     toml:"display_name,omitempty"     json:"display_name,omitempty"`
+	Description     string           `yaml:"description,omitempty"      toml:"description,omitempty"      json:"description,omitempty"`
+	Kind            string           `yaml:"kind,omitempty"             toml:"kind,omitempty"             json:"kind,omitempty"`
+	Appearance      map[string]any   `yaml:"appearance,omitempty"       toml:"appearance,omitempty"       json:"appearance,omitempty"`
 
 	WorkspaceAccess string                  `yaml:"workspace_access,omitempty" toml:"workspace_access,omitempty"`
 	SessionEnv      SessionEnv              `yaml:"session_env,omitempty"      toml:"session_env,omitempty"`
@@ -332,6 +330,8 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 		DenyTools:       normalizeAgentToolPatterns(parsed.DenyTools),
 		Permissions:     strings.TrimSpace(parsed.Permissions),
 		WorkspaceAccess: parsed.WorkspaceAccess,
+		SessionApproval: parsed.SessionApproval,
+		PermissionRules: append([]PermissionRule(nil), parsed.PermissionRules...),
 		Skills:          normalizeAgentSkillsConfig(parsed.Skills),
 		CategoryPath:    normalizeAgentCategoryPath(parsed.CategoryPath),
 		MCPServers:      cloneMCPServers(parsed.MCPServers),

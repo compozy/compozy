@@ -40,6 +40,9 @@ func (m *Manager) ApprovePermission(
 	if ctx == nil {
 		return ApprovalResult{}, errors.New("session: approval context is required")
 	}
+	if err := AuthorizeSessionApproval(ctx, actingSessionID(ctx), id, m.Status); err != nil {
+		return ApprovalResult{}, err
+	}
 	if err := req.Validate(); err != nil {
 		return ApprovalResult{}, err
 	}

@@ -202,6 +202,10 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 	remember bool,
 ) (acp.RequestPermissionResponse, error) {
 	toolID := toolApprovalID(call, view)
+	inputDigest, err := toolspkg.ApprovalInputDigest(call.Input, "")
+	if err != nil {
+		return acp.RequestPermissionResponse{}, err
+	}
 	timeout := b.sessionRequestTimeout(sessionID, toolID)
 	clock := b.clock
 	if clock == nil {
@@ -220,6 +224,7 @@ func (b *toolApprovalBridge) requestSessionToolApproval(
 			Meta: map[string]any{
 				acp.PermissionRequestIDMetaKey: requestID,
 				acp.PermissionToolIDMetaKey:    toolID.String(),
+				"compozy_input_digest":         inputDigest,
 			},
 			SessionId: acpsdk.SessionId(sessionID),
 			ToolCall: acpsdk.ToolCallUpdate{
@@ -370,6 +375,10 @@ func toolApprovalRawInput(input json.RawMessage) any {
 }
 
 func toolApprovalError(id toolspkg.ToolID, message string, reason toolspkg.ReasonCode) error {
+	if reason == toolspkg.ReasonApprovalTimedOut {
+		message = "Tool approval expired because nobody answered. Elapsed time is not approval. " +
+			"Do not repeat the unchanged request; finish unaffected work and tell the operator what needs approval."
+	}
 	return toolspkg.NewToolError(
 		toolspkg.ErrorCodeApprovalRequired,
 		id,
@@ -384,7 +393,8 @@ func toolApprovalRejectedError(id toolspkg.ToolID) error {
 	return toolspkg.NewToolError(
 		toolspkg.ErrorCodeApprovalRequired,
 		id,
-		"tool approval was rejected",
+		"Tool approval was rejected. Do not repeat the unchanged request; "+
+			"finish unaffected work and tell the operator what needs approval.",
 		errors.Join(toolspkg.ErrToolApprovalRequired, errToolApprovalRejected),
 		toolspkg.ReasonApprovalRequired,
 	)

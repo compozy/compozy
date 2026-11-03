@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -188,4 +189,47 @@ func (r notifyMuteReader) IsAttentionWorkspaceMuted(
 	workspaceID string,
 ) (bool, error) {
 	return r.muted && profileID == r.profileID && workspaceID == r.workspaceID, nil
+}
+
+func TestApprovalExpiryNotification(t *testing.T) {
+	t.Parallel()
+	for _, muted := range []bool{false, true} {
+		name := "Should publish every expiry with action and resource"
+		if muted {
+			name = "Should respect workspace mutes on expiry"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			manager, _ := newNotifyTestManager()
+			manager.attentionWorkspaceMutes = notifyMuteReader{profileID: store.DefaultProfileID, workspaceID: "ws-expiry", muted: muted}
+			events, cancel, err := manager.SubscribeSessionCatalogEvents(t.Context(),
+				CatalogScope{ReadScope: store.ReadScope{AllProfiles: true}, AllWorkspaces: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer cancel()
+			current := &Session{ID: "expiry", ProfileID: store.DefaultProfileID, WorkspaceID: "ws-expiry"}
+			event := (acp.AgentEvent{Type: acp.EventTypePermission, Action: "edit", Resource: "docs/guide.md",
+				Decision: "reject_once"}).WithResolvedBy("timeout")
+			for range 2 {
+				manager.notifyManagedPromptEvent(t.Context(), current, nil, event)
+				select {
+				case received := <-events:
+					if muted {
+						t.Fatalf("muted expiry published: %+v", received)
+					}
+					notification := received.OperatorNotification
+					if notification == nil || notification.Kind != "approval_expired" ||
+						notification.Title != "Approval expired" || notification.Action != "edit" ||
+						notification.Resource != "docs/guide.md" {
+						t.Fatalf("expiry notification=%+v", notification)
+					}
+				default:
+					if !muted {
+						t.Fatal("expiry notification missing")
+					}
+				}
+			}
+		})
+	}
 }

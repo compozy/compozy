@@ -172,6 +172,12 @@ func (h *localToolHost) Authorize(op PermissionOperation) error {
 	return h.permissions.authorize(op)
 }
 
+func (h *localToolHost) PermissionDecisionSource(
+	req acpsdk.RequestPermissionRequest,
+) (PermissionDecision, bool, string) {
+	return h.permissions.permissionDecisionSource(req)
+}
+
 func (h *localToolHost) PermissionDecision(
 	req acpsdk.RequestPermissionRequest,
 ) (PermissionDecision, bool) {

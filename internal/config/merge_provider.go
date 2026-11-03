@@ -1,6 +1,9 @@
 package config
 
 func (o providerOverlay) Apply(dst *ProviderConfig) {
+	if o.ReviewerMode != nil {
+		dst.ReviewerMode = *o.ReviewerMode
+	}
 	dst.SessionEnv = MergeSessionEnv(dst.SessionEnv, o.SessionEnv)
 	if o.SteerCapability != nil {
 		dst.SteerCapability = *o.SteerCapability

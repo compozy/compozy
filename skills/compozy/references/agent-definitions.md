@@ -309,3 +309,31 @@ Changing it through update returns `agent_kind_immutable`. PUT preserves omitted
 `label` and `resolved_appearance`. `GET /api/agents/catalog?group=agent` groups identical slug and digest
 across authorized scopes, with `items`, `scopes`, `active`, and `next_cursor`; label search uses `q`.
 Extension AGENT.md files use the same keys; installing an extension never creates an instance.
+
+## Stays-on approval authority
+
+Stays-on lineages cannot create or revoke durable tool approval grants through
+native tools, HTTP or UDS. An operator manages these grants. This restriction
+also applies to descendants without an instance ID and is independent of the
+permission level and `session_approval` setting.
+
+## Permission levels and reviewer status
+
+The `permissions` agent field and `[permissions].mode` accept `deny-all`,
+`approve-reads`, `approve-edits`, `auto` and `approve-all`, in increasing order.
+An unset stays-on definition uses `approve-edits`; triage remains read-only.
+On-demand children resolve their own definition or settings level.
+
+| Level | Claude | Codex |
+| --- | --- | --- |
+| `deny-all`, `approve-reads` | Existing read-only candidates | `read-only` |
+| `approve-edits` | `acceptEdits` | `workspace-write` |
+| `auto` | Declared and advertised `auto` reviewer | Declared and advertised `agent` reviewer |
+| `approve-all` | Existing permissive candidates | `agent`, or explicit `provider_full_access` |
+
+Reviewer declarations use `[providers.<id>].reviewer_mode` in global or profile
+configuration. Workspace declarations are ignored with a diagnostic. Unrestricted
+modes cannot be reviewers, except verified builtin provider/mode pairs.
+If the current provider mode does not confirm the declared reviewer, session status
+reports `effective_permissions: approve-edits` and `permission_mode_degraded: true`.
+This fallback preserves the configured `auto` intent for a later resume.

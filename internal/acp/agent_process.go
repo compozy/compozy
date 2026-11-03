@@ -60,6 +60,8 @@ type AgentProcess struct {
 	stopRequested bool
 	stopMu        sync.RWMutex
 
+	permissionDenials *PermissionDenials
+	reviewerMode      string
 	providerName      string
 	providerAuthMode  compozyconfig.ProviderAuthMode
 	providerFailureMu sync.Mutex
@@ -177,7 +179,9 @@ func (p *AgentProcess) CapsSnapshot() Caps {
 	}
 	p.capsMu.RLock()
 	defer p.capsMu.RUnlock()
-	return CloneCaps(p.caps)
+	caps := CloneCaps(p.caps)
+	caps.PermissionModeDegraded = p.permissionModeDegraded(caps)
+	return caps
 }
 
 func (p *AgentProcess) setCaps(caps Caps) {

@@ -317,6 +317,8 @@ type DuplicateAgentOverrides struct {
 	Tools           []string                            `json:"tools,omitempty"`
 	Toolsets        []string                            `json:"toolsets,omitempty"`
 	DenyTools       []string                            `json:"deny_tools,omitempty"`
+	SessionApproval string                              `json:"session_approval,omitempty"`
+	PermissionRules []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
 	WorkspaceAccess string                              `json:"workspace_access,omitempty"`
 	Permissions     SettingsPermissionMode              `json:"permissions,omitempty"`
 	CategoryPath    []string                            `json:"category_path,omitempty"`
@@ -439,11 +441,4 @@ type ExecutionProfile struct {
 	Runtime      RuntimePolicy      `json:"runtime"`
 	CreatedAt    time.Time          `json:"created_at"`
 	UpdatedAt    time.Time          `json:"updated_at"`
-}
-
-// ExtensionCommandGroupPayload is a daemon API value.
-type ExtensionCommandGroupPayload struct {
-	Extension string `json:"extension"`
-	Path      string `json:"path"`
-	Summary   string `json:"summary"`
 }

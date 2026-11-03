@@ -8049,6 +8049,7 @@ export interface components {
       /** @enum {string} */
       origin: "global" | "workspace";
       package_owned?: boolean;
+      permission_rules?: components["schemas"]["AgentPermissionRulePayload"][];
       permissions?: string;
       prompt: string;
       provider: string;
@@ -8056,6 +8057,7 @@ export interface components {
       resolved_appearance: {
         [key: string]: unknown;
       };
+      session_approval?: string;
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
       };
@@ -8067,6 +8069,11 @@ export interface components {
       toolsets?: string[];
       workspace_access?: string;
       workspace_id?: string;
+    };
+    AgentPermissionRulePayload: {
+      decision: string;
+      kind?: string;
+      path?: string;
     };
     AgentProbeHealthPayload: {
       agent_name?: string;
@@ -9144,14 +9151,16 @@ export interface components {
       label?: string;
       model?: string;
       name: string;
+      permission_rules?: components["schemas"]["AgentPermissionRulePayload"][];
       /** @enum {string} */
-      permissions?: "deny-all" | "approve-reads" | "approve-all";
+      permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
       prompt: string;
       provider?: string;
       reasoning_effort?: string;
       resolved_appearance?: {
         [key: string]: unknown;
       };
+      session_approval?: string;
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
       };
@@ -9447,11 +9456,13 @@ export interface components {
       display_name?: string | null;
       kind?: string;
       model?: string;
+      permission_rules?: components["schemas"]["AgentPermissionRulePayload"][];
       /** @enum {string} */
-      permissions?: "deny-all" | "approve-reads" | "approve-all";
+      permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
       prompt?: string;
       provider?: string;
       reasoning_effort?: string;
+      session_approval?: string;
       session_env?: {
         [key: string]: components["schemas"]["SessionEnvBindingPayload"];
       };
@@ -12652,12 +12663,15 @@ export interface components {
       url: string;
     };
     OperatorNotificationEventPayload: {
+      action?: string;
       /** Format: date-time */
       at: string;
       body: string;
+      kind?: string;
       notification_id: string;
       profile_id: string;
       profile_name: string;
+      resource?: string;
       session_id: string;
       title: string;
       workspace_id: string;
@@ -14924,6 +14938,7 @@ export interface components {
       created_at: string;
       derivation?: components["schemas"]["SessionDerivationPayload"] | null;
       diagnostics?: components["schemas"]["DiagnosticItem"][];
+      effective_permissions: string;
       effective_workspace_access: string;
       escalated?: boolean | null;
       failure?: components["schemas"]["SessionFailurePayload"] | null;
@@ -14938,6 +14953,7 @@ export interface components {
       name?: string;
       parent_title?: string;
       pending_interactions: components["schemas"]["PendingInteractionPayload"][];
+      permission_mode_degraded: boolean;
       process_summary?: components["schemas"]["SessionProcessSummaryPayload"] | null;
       profile_archived?: boolean;
       profile_color?: string;
@@ -16135,7 +16151,7 @@ export interface components {
     };
     SettingsPermissionsPayload: {
       /** @enum {string} */
-      mode: "deny-all" | "approve-reads" | "approve-all";
+      mode: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
     };
     SettingsPersonaResponse: {
       available_scopes: ("user" | "profile" | "workspace")[];

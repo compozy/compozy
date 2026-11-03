@@ -7,6 +7,9 @@ import (
 )
 
 func validateResolvedProvider(name string, provider ProviderConfig) error {
+	if IsUnrestrictedACPMode(name, strings.TrimSpace(provider.ReviewerMode)) {
+		return fmt.Errorf("providers.%s.reviewer_mode cannot select unrestricted mode %q", name, provider.ReviewerMode)
+	}
 	if err := provider.SteerCapability.Validate(fmt.Sprintf("providers.%s.steer_capability", name)); err != nil {
 		return err
 	}

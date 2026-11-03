@@ -3345,3 +3345,20 @@ func TestStaysOnTriageConfiguration(t *testing.T) {
 		}
 	})
 }
+
+func TestPermissionLevelOrdering(t *testing.T) {
+	t.Parallel()
+	t.Run("Should validate and strictly order all five levels", func(t *testing.T) {
+		t.Parallel()
+		modes := []PermissionMode{PermissionModeDenyAll, PermissionModeApproveReads,
+			PermissionModeApproveEdits, PermissionModeAuto, PermissionModeApproveAll}
+		for i, mode := range modes {
+			if err := mode.Validate("permissions.mode"); err != nil {
+				t.Fatal(err)
+			}
+			if mode.Rank() != i {
+				t.Fatalf("rank(%s)=%d, want %d", mode, mode.Rank(), i)
+			}
+		}
+	})
+}

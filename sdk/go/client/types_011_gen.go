@@ -7,6 +7,40 @@ import (
 	"time"
 )
 
+// LoopRunProgress is a daemon API value.
+type LoopRunProgress struct {
+	Round      int `json:"round"`
+	StepsDone  int `json:"steps_done"`
+	StepsTotal int `json:"steps_total"`
+}
+
+// LoopRunResponse is a daemon API value.
+type LoopRunResponse struct {
+	Run                  LoopRunPayload             `json:"run"`
+	ExecutedDefinition   *LoopDefinitionDocument    `json:"executed_definition,omitzero"`
+	MaterializedContract LoopContract               `json:"materialized_contract"`
+	EffectiveConfig      LoopEffectiveConfig        `json:"effective_config"`
+	Generations          []LoopGenerationPayload    `json:"generations,omitempty"`
+	NodeControls         []LoopNodeControlPayload   `json:"node_controls"`
+	Waits                []LoopNodeWaitPayload      `json:"waits"`
+	Requests             []LoopRequestPayload       `json:"requests"`
+	Amendments           []LoopNodeAmendmentPayload `json:"amendments"`
+	WatchEvents          *LoopWatchEventsState      `json:"watch_events,omitzero"`
+}
+
+// LoopRunStatus is a daemon API value.
+type LoopRunStatus string
+
+// LoopRunsAggregatePayload is a daemon API value.
+type LoopRunsAggregatePayload struct {
+	Total      int `json:"total"`
+	Live       int `json:"live"`
+	Terminal   int `json:"terminal"`
+	Succeeded  int `json:"succeeded"`
+	Failed     int `json:"failed"`
+	Historical int `json:"historical"`
+}
+
 // LoopRunsResponse is a daemon API value.
 type LoopRunsResponse struct {
 	Runs       []LoopRunPayload         `json:"runs"`

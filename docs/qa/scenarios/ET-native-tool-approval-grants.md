@@ -167,3 +167,11 @@ N-23 canonical surfaces: invoke `compozy__session_pending_interactions` for pend
 requests and `compozy agent draft "<goal>" --provider <provider>` to draft without
 saving. The former unshipped names have no aliases. Native relay and CLI command
 suites cover dispatch and the unchanged HTTP drafting boundary.
+
+B2 extension — stays-on grant authority (verification pending): from a stays-on
+main and a nested child, call `compozy__tool_approvals_set` and
+`compozy__tool_approvals_revoke` with otherwise valid input. Both must be denied
+without changing the grant store. Repeat through the HTTP and UDS grant mutation
+routes with daemon-validated agent credentials; expect 403 and
+`tool_approval_grants_denied`. Operator and unrelated on-demand callers retain
+their existing grant behavior.

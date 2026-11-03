@@ -26,7 +26,9 @@ const (
 	// PermissionModeApproveReads auto-approves read-only tools.
 	PermissionModeApproveReads PermissionMode = "approve-reads"
 	// PermissionModeApproveAll auto-approves otherwise allowed tools.
-	PermissionModeApproveAll PermissionMode = "approve-all"
+	PermissionModeApproveAll   PermissionMode = "approve-all"
+	PermissionModeApproveEdits PermissionMode = "approve-edits"
+	PermissionModeAuto         PermissionMode = "auto"
 )
 
 // ExternalDefault controls default policy for external executable sources.
@@ -104,6 +106,7 @@ type SessionToolPolicy struct {
 
 // PolicyInputs contains the config-neutral inputs for effective policy.
 type PolicyInputs struct {
+	StaysOnLineage       bool
 	TriageReadOnly       bool
 	ToolsDisabled        bool
 	SystemPermissionMode PermissionMode
@@ -180,7 +183,7 @@ func NewEffectivePolicyEvaluator(
 
 func validatePolicyInputs(inputs PolicyInputs) error {
 	switch inputs.SystemPermissionMode {
-	case "", PermissionModeDenyAll, PermissionModeApproveReads, PermissionModeApproveAll:
+	case "", PermissionModeDenyAll, PermissionModeApproveReads, PermissionModeApproveEdits, PermissionModeAuto, PermissionModeApproveAll:
 	default:
 		return NewValidationError("system_permission_mode", ReasonPolicyDenied, "unsupported permission mode")
 	}
@@ -344,6 +347,11 @@ func (e *EffectivePolicyEvaluator) applyPermissionCeiling(d Descriptor, decision
 	switch e.permissionMode() {
 	case PermissionModeApproveAll:
 		return
+	case PermissionModeApproveEdits, PermissionModeAuto:
+		if isCoordinationTool(d, e.inputs.StaysOnLineage) || isOwnAgentMemoryWrite(d) || isReadOnlyAutoApprovable(d) {
+			return
+		}
+		requireApproval(decision, e.inputs.ApprovalAvailable)
 	case PermissionModeApproveReads:
 		// Session lineage and terminal scope authorize terminal input without a
 		// second permission handoff; deny-all still asks for every tool call.
@@ -355,6 +363,21 @@ func (e *EffectivePolicyEvaluator) applyPermissionCeiling(d Descriptor, decision
 		requireApproval(decision, e.inputs.ApprovalAvailable)
 	default:
 		denyDecision(decision, ReasonPolicyDenied)
+	}
+}
+
+func isCoordinationTool(d Descriptor, staysOnLineage bool) bool {
+	if d.Source.Kind != SourceBuiltin {
+		return false
+	}
+	switch d.ID {
+	case ToolIDMonitorCreate, ToolIDMonitorCancel, ToolIDSubagentDelegate, ToolIDSubagentCancel,
+		ToolIDSessionSpawn, ToolIDSessionPrompt, ToolIDGoalControl, ToolIDNotify, "compozy__agent_skill_propose":
+		return true
+	case ToolIDSessionApprove, ToolIDSessionClarifyAnswer:
+		return staysOnLineage
+	default:
+		return false
 	}
 }
 

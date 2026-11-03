@@ -34,6 +34,8 @@ func TestPermissionPolicyModes(t *testing.T) {
 			writeOK:    false,
 			terminalOK: false,
 		},
+		"approve-edits": {mode: compozyconfig.PermissionModeApproveEdits, readOK: true, writeOK: true},
+		"auto":          {mode: compozyconfig.PermissionModeAuto, readOK: true, writeOK: true},
 		"approve-all": {
 			mode:       compozyconfig.PermissionModeApproveAll,
 			readOK:     true,
@@ -43,7 +45,7 @@ func TestPermissionPolicyModes(t *testing.T) {
 	}
 
 	for name, tc := range policies {
-		t.Run(name, func(t *testing.T) {
+		t.Run("Should enforce "+name, func(t *testing.T) {
 			t.Parallel()
 
 			policy, err := newPermissionPolicy(tc.mode, root)
@@ -330,14 +332,14 @@ func TestTriagePolicy(t *testing.T) {
 			t.Fatal("read only mode missing")
 		}
 		if _, err := constrainTriageStart(
-			StartOpts{ExecutionPolicy: ExecutionPolicyTriage},
+			StartOpts{PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage}},
 		); !errors.Is(
 			err,
 			ErrTriageUnsupported,
 		) {
 			t.Fatalf("unknown provider err=%v", err)
 		}
-		got, err := constrainTriageStart(StartOpts{ExecutionPolicy: ExecutionPolicyTriage, ProviderName: "test",
+		got, err := constrainTriageStart(StartOpts{PermissionPolicy: &StartPermissionPolicy{ExecutionPolicy: ExecutionPolicyTriage}, ProviderName: "test",
 			Permissions: compozyconfig.PermissionModeApproveAll, MCPServers: []compozyconfig.MCPServer{{}},
 			ActivateMCPServers: func(context.Context) error { t.Fatal("sidecars activated"); return nil },
 		})
@@ -349,4 +351,83 @@ func TestTriagePolicy(t *testing.T) {
 			t.Fatalf("opts=%+v", got)
 		}
 	})
+}
+
+func TestEditLevelPermissionRequests(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		kind     acpsdk.ToolKind
+		decision permissionDecision
+		pending  bool
+	}{
+		{"Should allow read once", acpsdk.ToolKindRead, decisionAllowOnce, false},
+		{"Should allow edit once", acpsdk.ToolKindEdit, decisionAllowOnce, false},
+		{"Should ask for command execution", acpsdk.ToolKindExecute, decisionPending, true},
+		{"Should reject unknown operations", acpsdk.ToolKind("unknown"), decisionRejectOnce, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			policy, err := newPermissionPolicy(compozyconfig.PermissionModeApproveEdits, t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			decision, pending := policy.permissionDecision(acpsdk.RequestPermissionRequest{
+				ToolCall: acpsdk.ToolCallUpdate{Kind: new(tc.kind)},
+			})
+			if decision != tc.decision || pending != tc.pending {
+				t.Fatalf("decision=%s pending=%v, want %s %v", decision, pending, tc.decision, tc.pending)
+			}
+		})
+	}
+}
+
+func TestPermissionRuleDecisions(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		mode     compozyconfig.PermissionMode
+		rules    []compozyconfig.PermissionRule
+		location string
+		want     permissionDecision
+		pending  bool
+	}{
+		{"Should allow an edit under docs once", compozyconfig.PermissionModeApproveReads,
+			[]compozyconfig.PermissionRule{{Kind: "edit", Path: "docs/**", Decision: "allow"}},
+			"docs/guide.md", decisionAllowOnce, false},
+		{"Should let deny beat allow", compozyconfig.PermissionModeApproveAll,
+			[]compozyconfig.PermissionRule{{Kind: "edit", Decision: "allow"}, {Path: "docs/**", Decision: "deny"}},
+			"docs/guide.md", decisionRejectOnce, false},
+		{"Should ignore path rules without locations", compozyconfig.PermissionModeApproveReads,
+			[]compozyconfig.PermissionRule{{Path: "**", Decision: "allow"}},
+			"", decisionPending, true},
+		{"Should preserve deny-all before allow rules", compozyconfig.PermissionModeDenyAll,
+			[]compozyconfig.PermissionRule{{Kind: "edit", Decision: "allow"}},
+			"docs/guide.md", decisionRejectOnce, false},
+		{"Should preserve allowed-root checks before allow rules", compozyconfig.PermissionModeApproveAll,
+			[]compozyconfig.PermissionRule{{Kind: "edit", Decision: "allow"}},
+			"../outside.txt", decisionRejectOnce, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			policy, err := newPermissionPolicy(tc.mode, t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := compozyconfig.ValidatePermissionRules(tc.rules); err != nil {
+				t.Fatal(err)
+			}
+			policy.rules = tc.rules
+			request := acpsdk.RequestPermissionRequest{
+				ToolCall: acpsdk.ToolCallUpdate{Kind: new(acpsdk.ToolKindEdit)},
+			}
+			if tc.location != "" {
+				request.ToolCall.Locations = []acpsdk.ToolCallLocation{{Path: tc.location}}
+			}
+			decision, pending := policy.permissionDecision(request)
+			if decision != tc.want || pending != tc.pending {
+				t.Fatalf("decision=%s pending=%v, want %s %v", decision, pending, tc.want, tc.pending)
+			}
+		})
+	}
 }

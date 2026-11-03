@@ -79,11 +79,15 @@ func (n *daemonNativeTools) sessionApprove(
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeApprovalSelfError(req.ToolID, err)
 	}
-	result, err := n.deps.Sessions.ApprovePermission(ctx, target, acp.ApproveRequest{
-		RequestID:  strings.TrimSpace(input.RequestID),
-		Decision:   strings.TrimSpace(input.Decision),
-		ResolvedBy: "agent_session:" + strings.TrimSpace(scope.SessionID),
-	})
+	result, err := n.deps.Sessions.ApprovePermission(
+		session.WithActingSession(ctx, scope.SessionID),
+		target,
+		acp.ApproveRequest{
+			RequestID:  strings.TrimSpace(input.RequestID),
+			Decision:   strings.TrimSpace(input.Decision),
+			ResolvedBy: "agent_session:" + strings.TrimSpace(scope.SessionID),
+		},
+	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
@@ -110,6 +114,9 @@ func (n *daemonNativeTools) sessionClarifyAnswer(
 	target, info, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, input.SessionID, true)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeApprovalSelfError(req.ToolID, err)
+	}
+	if err := session.AuthorizeSessionApproval(ctx, scope.SessionID, target, n.deps.Sessions.Status); err != nil {
+		return toolspkg.ToolResult{}, nativeSessionOrchestrationError(req.ToolID, err)
 	}
 	broker := n.clarifyBroker()
 	if broker == nil {
@@ -221,6 +228,14 @@ func nativeSessionOrchestrationError(id toolspkg.ToolID, err error) error {
 	}
 	status := core.StatusForSessionError(err)
 	switch {
+	case errors.Is(err, session.ErrApprovalOutsideLineage):
+		return toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
+			id,
+			err.Error(),
+			err,
+			toolspkg.ReasonCode("session_approve_outside_lineage"),
+		)
 	case errors.Is(err, toolspkg.ErrClarifyInvalid):
 		status = 422
 	case errors.Is(err, toolspkg.ErrClarifyNotFound):

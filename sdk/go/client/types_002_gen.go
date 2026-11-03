@@ -133,6 +133,8 @@ type AgentPayload struct {
 	Tools              []string                            `json:"tools,omitempty"`
 	Toolsets           []string                            `json:"toolsets,omitempty"`
 	DenyTools          []string                            `json:"deny_tools,omitempty"`
+	SessionApproval    string                              `json:"session_approval,omitempty"`
+	PermissionRules    []AgentPermissionRulePayload        `json:"permission_rules,omitempty"`
 	WorkspaceAccess    string                              `json:"workspace_access,omitempty"`
 	Permissions        string                              `json:"permissions,omitempty"`
 	CategoryPath       []string                            `json:"category_path,omitempty"`
@@ -148,6 +150,13 @@ type AgentPayload struct {
 	Prompt             string                              `json:"prompt"`
 	Diagnostics        []AgentDiagnosticPayload            `json:"diagnostics,omitempty"`
 	EffectiveRuntime   *AgentEffectiveRuntimePayload       `json:"effective_runtime,omitzero"`
+}
+
+// AgentPermissionRulePayload is a daemon API value.
+type AgentPermissionRulePayload struct {
+	Kind     string `json:"kind,omitempty"`
+	Path     string `json:"path,omitempty"`
+	Decision string `json:"decision"`
 }
 
 // AgentProbeHealthPayload is a daemon API value.
@@ -436,9 +445,4 @@ type AppTokenPayload struct {
 	CreatedAt  time.Time  `json:"created_at"`
 	LastUsedAt *time.Time `json:"last_used_at"`
 	RevokedAt  *time.Time `json:"revoked_at"`
-}
-
-// AppTokenResponse is a daemon API value.
-type AppTokenResponse struct {
-	AppToken AppTokenPayload `json:"app_token"`
 }

@@ -129,6 +129,7 @@ type ModelsDevSourceConfig struct {
 
 // ProviderConfig describes how to launch a provider in ACP mode.
 type ProviderConfig struct {
+	ReviewerMode     string                   `toml:"reviewer_mode,omitempty"`
 	SessionEnv       SessionEnv               `toml:"session_env,omitempty"`
 	Command          string                   `toml:"command"`
 	CommandIsBuiltin bool                     `toml:"-"                             json:"-" yaml:"-"`

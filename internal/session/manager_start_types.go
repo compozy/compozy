@@ -22,6 +22,8 @@ type sessionStartSpec struct {
 	instanceID                string
 	origin                    workspaceaccess.Origin
 	effectiveWorkspaceAccess  string
+	effectiveSessionApproval  string
+	permissionRules           []store.SessionPermissionRule
 	sessionID                 string
 	profileID                 string
 	sessionName               string

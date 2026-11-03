@@ -44,9 +44,11 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 					Prompt:   "You are a coding assistant.",
 				},
 				{
-					Name:     "coder",
-					Provider: "claude",
-					Prompt:   "You are a coding assistant.",
+					Name:            "coder",
+					SessionApproval: "workspace",
+					PermissionRules: []compozyconfig.PermissionRule{{Kind: "edit", Decision: "deny"}},
+					Provider:        "claude",
+					Prompt:          "You are a coding assistant.",
 				},
 			},
 		})
@@ -68,6 +70,9 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 			t.Fatalf("created info effective permissions = %q, want %q", got, want)
 		}
 		createdMeta := readMeta(t, created.MetaPath())
+		if createdMeta.EffectiveSessionApproval != "workspace" || len(createdMeta.PermissionRules) != 1 {
+			t.Fatalf("create-time policy not persisted: %+v", createdMeta)
+		}
 		got := createdMeta.EffectivePermissionsValue()
 		want := string(compozyconfig.PermissionModeApproveAll)
 		if got != want {
@@ -106,6 +111,13 @@ func TestResumeUsesPersistedEffectivePermissions(t *testing.T) {
 			t.Fatalf("resumed info effective permissions = %q, want %q", got, want)
 		}
 		resumedMeta := readMeta(t, resumed.MetaPath())
+		if resumedMeta.EffectiveSessionApproval != "workspace" ||
+			len(resumedMeta.PermissionRules) != 1 || resumedMeta.PermissionRules[0].Decision != "deny" {
+			t.Fatalf("resume changed persisted policy: %+v", resumedMeta)
+		}
+		if rules := h.driver.startCalls[1].PermissionRulesValue(); len(rules) != 1 || rules[0].Decision != "deny" {
+			t.Fatalf("resume did not deliver frozen rules to ACP: %+v", rules)
+		}
 		got = resumedMeta.EffectivePermissionsValue()
 		if got != want {
 			t.Fatalf("resumed metadata effective permissions = %q, want %q", got, want)
@@ -471,8 +483,8 @@ func TestTriageSessionPermissions(t *testing.T) {
 		h.driver.mu.Lock()
 		defer h.driver.mu.Unlock()
 		opts := h.driver.startCalls[len(h.driver.startCalls)-1]
-		if opts.Permissions != compozyconfig.PermissionModeApproveReads || opts.ExecutionPolicy != "triage" {
-			t.Fatalf("triage launch permissions=%s policy=%s", opts.Permissions, opts.ExecutionPolicy)
+		if opts.Permissions != compozyconfig.PermissionModeApproveReads || opts.ExecutionPolicyValue() != "triage" {
+			t.Fatalf("triage launch permissions=%s policy=%s", opts.Permissions, opts.ExecutionPolicyValue())
 		}
 	})
 
@@ -489,12 +501,12 @@ func TestTriageSessionPermissions(t *testing.T) {
 		assertTriage := func() {
 			t.Helper()
 			opts := h.driver.startCalls[len(h.driver.startCalls)-1]
-			if opts.ExecutionPolicy != "triage" || opts.Permissions != compozyconfig.PermissionModeApproveReads ||
+			if opts.ExecutionPolicyValue() != "triage" || opts.Permissions != compozyconfig.PermissionModeApproveReads ||
 				len(opts.MCPServers) != 0 ||
 				opts.ActivateMCPServers != nil {
 				t.Fatalf(
 					"unsafe start opts: policy=%s permissions=%s mcp=%v",
-					opts.ExecutionPolicy,
+					opts.ExecutionPolicyValue(),
 					opts.Permissions,
 					opts.MCPServers,
 				)
@@ -1047,10 +1059,10 @@ func TestDueInstanceTriagePolicy(t *testing.T) {
 		}
 		select {
 		case opts := <-starts:
-			if opts.ExecutionPolicy != "triage" || opts.Permissions != compozyconfig.PermissionModeApproveReads ||
+			if opts.ExecutionPolicyValue() != "triage" || opts.Permissions != compozyconfig.PermissionModeApproveReads ||
 				len(opts.MCPServers) != 0 ||
 				opts.ActivateMCPServers != nil {
-				t.Fatalf("unsafe options: policy=%s permissions=%s", opts.ExecutionPolicy, opts.Permissions)
+				t.Fatalf("unsafe options: policy=%s permissions=%s", opts.ExecutionPolicyValue(), opts.Permissions)
 			}
 		case <-time.After(5 * time.Second):
 			t.Fatal("due check did not start")
@@ -1126,8 +1138,8 @@ func TestDraftInstructionsPolicy(t *testing.T) {
 				t.Fatalf("persisted temporary sessions: %d", count)
 			}
 			for _, opts := range h.startCallsSnapshot() {
-				if opts.ExecutionPolicy != acp.ExecutionPolicyTriage || len(opts.MCPServers) != 0 {
-					t.Fatalf("unsafe launch: policy %s, MCP servers %d", opts.ExecutionPolicy, len(opts.MCPServers))
+				if opts.ExecutionPolicyValue() != acp.ExecutionPolicyTriage || len(opts.MCPServers) != 0 {
+					t.Fatalf("unsafe launch: policy %s, MCP servers %d", opts.ExecutionPolicyValue(), len(opts.MCPServers))
 				}
 			}
 		})
@@ -1149,8 +1161,8 @@ func TestDraftInstructionsPolicy(t *testing.T) {
 		}
 		select {
 		case opts := <-starts:
-			if opts.ExecutionPolicy != acp.ExecutionPolicyTriage || len(opts.MCPServers) != 0 {
-				t.Fatalf("launch policy = %s, MCP servers = %d", opts.ExecutionPolicy, len(opts.MCPServers))
+			if opts.ExecutionPolicyValue() != acp.ExecutionPolicyTriage || len(opts.MCPServers) != 0 {
+				t.Fatalf("launch policy = %s, MCP servers = %d", opts.ExecutionPolicyValue(), len(opts.MCPServers))
 			}
 		default:
 			t.Fatal("provider was not started")
@@ -1175,4 +1187,124 @@ func (f *triageArchiveFault) SetSessionArchived(
 		return store.SessionInfo{}, f.failure
 	}
 	return f.GlobalDB.SetSessionArchived(ctx, workspaceID, sessionID, archived)
+}
+
+func TestSessionApprovalAuthority(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		actor     string
+		target    string
+		authority string
+		denied    bool
+	}{
+		{"Should allow a direct child", "main", "child", "", false},
+		{"Should allow a grandchild", "main", "grandchild", "", false},
+		{"Should refuse a sibling from a descendant", "child", "peer", "", true},
+		{"Should refuse a foreign session", "main", "foreign", "", true},
+		{"Should allow a workspace grant", "main", "foreign", "workspace", false},
+		{"Should preserve on-demand authority", "foreign", "main", "", false},
+		{"Should refuse self approval in a lineage", "main", "main", "workspace", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			infos := map[string]*Info{
+				"main": {
+					ID:                       "main",
+					InstanceID:               "instance",
+					WorkspaceID:              "ws",
+					EffectiveSessionApproval: tc.authority,
+				},
+				"child": {ID: "child", WorkspaceID: "ws", Lineage: &store.SessionLineage{ParentSessionID: "main"}},
+				"peer":  {ID: "peer", WorkspaceID: "ws", Lineage: &store.SessionLineage{ParentSessionID: "main"}},
+				"grandchild": {
+					ID:          "grandchild",
+					WorkspaceID: "ws",
+					Lineage:     &store.SessionLineage{ParentSessionID: "child"},
+				},
+				"foreign": {ID: "foreign", WorkspaceID: "ws"},
+			}
+			err := AuthorizeSessionApproval(t.Context(), tc.actor, tc.target,
+				func(_ context.Context, id string) (*Info, error) { return infos[id], nil })
+			if errors.Is(err, ErrApprovalOutsideLineage) != tc.denied {
+				t.Fatalf("authority error=%v, want denied=%v", err, tc.denied)
+			}
+		})
+	}
+}
+
+func TestToolApprovalGrantAuthority(t *testing.T) {
+	t.Parallel()
+	t.Run("Should refuse grant mutation throughout a stays-on lineage", func(t *testing.T) {
+		t.Parallel()
+		infos := map[string]*Info{
+			"main":       {ID: "main", InstanceID: "instance"},
+			"child":      {ID: "child", Lineage: &store.SessionLineage{ParentSessionID: "main"}},
+			"grandchild": {ID: "grandchild", Lineage: &store.SessionLineage{ParentSessionID: "child"}},
+			"on-demand":  {ID: "on-demand"},
+		}
+		lookup := func(_ context.Context, id string) (*Info, error) { return infos[id], nil }
+		for _, id := range []string{"main", "child", "grandchild"} {
+			if err := AuthorizeToolApprovalGrantMutation(
+				t.Context(),
+				id,
+				lookup,
+			); !errors.Is(
+				err,
+				ErrToolApprovalGrantDenied,
+			) {
+				t.Fatalf("grant mutation actor=%s error=%v", id, err)
+			}
+		}
+		for _, id := range []string{"", "on-demand"} {
+			if err := AuthorizeToolApprovalGrantMutation(t.Context(), id, lookup); err != nil {
+				t.Fatalf("grant mutation actor=%s error=%v", id, err)
+			}
+		}
+	})
+}
+
+func TestEffectiveAutoPermissionReporting(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report adapter degradation without rewriting resume intent", func(t *testing.T) {
+		t.Parallel()
+		current := &Session{
+			ID: "auto-session", EffectivePermissions: "auto",
+			ACPCaps: acp.Caps{PermissionModeDegraded: true}, ACPCapsKnown: true,
+		}
+		info := current.Info()
+		if info.EffectivePermissions != "approve-edits" || !info.PermissionModeDegraded {
+			t.Fatalf("effective permission report=%+v", info)
+		}
+		meta := current.Meta()
+		if meta.EffectivePermissionsValue() != "auto" || !meta.PermissionModeDegraded {
+			t.Fatalf("resume permission intent changed: %+v", meta)
+		}
+		stopped := sessionInfoFromMeta(&meta)
+		if stopped.EffectivePermissions != "approve-edits" || !stopped.PermissionModeDegraded {
+			t.Fatalf("persisted permission report=%+v", stopped)
+		}
+	})
+}
+
+func TestHumanPromptClearsExpiredPermissionState(t *testing.T) {
+	t.Parallel()
+	t.Run("Should clear repeats only for verified human ingress", func(t *testing.T) {
+		t.Parallel()
+		current := &Session{ID: "repeat-session"}
+		state := current.permissionDenialsState()
+		state.Record("expired-request", state.Epoch())
+		manager := &Manager{}
+		manager.promptMentionInputs(t.Context(), current, &promptRequest{humanIngress: false})
+		if !state.Contains("expired-request") {
+			t.Fatal("non-human dispatch cleared expired permissions")
+		}
+		manager.promptMentionInputs(t.Context(), current, &promptRequest{humanIngress: true})
+		if state.Contains("expired-request") {
+			t.Fatal("human dispatch retained expired permissions")
+		}
+		if current.permissionDenialsState() != state {
+			t.Fatal("session replaced denial state during dispatch")
+		}
+	})
 }

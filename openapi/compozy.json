@@ -1685,6 +1685,12 @@
           "package_owned": {
             "type": "boolean"
           },
+          "permission_rules": {
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionRulePayload"
+            },
+            "type": "array"
+          },
           "permissions": {
             "type": "string"
           },
@@ -1700,6 +1706,9 @@
           "resolved_appearance": {
             "additionalProperties": {},
             "type": "object"
+          },
+          "session_approval": {
+            "type": "string"
           },
           "session_env": {
             "additionalProperties": {
@@ -1760,6 +1769,23 @@
           "prompt",
           "provider",
           "resolved_appearance"
+        ],
+        "type": "object"
+      },
+      "AgentPermissionRulePayload": {
+        "properties": {
+          "decision": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision"
         ],
         "type": "object"
       },
@@ -5809,10 +5835,18 @@
             "pattern": "^[a-z][a-z0-9_-]{0,105}$",
             "type": "string"
           },
+          "permission_rules": {
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionRulePayload"
+            },
+            "type": "array"
+          },
           "permissions": {
             "enum": [
               "deny-all",
               "approve-reads",
+              "approve-edits",
+              "auto",
               "approve-all"
             ],
             "type": "string"
@@ -5829,6 +5863,9 @@
           "resolved_appearance": {
             "additionalProperties": {},
             "type": "object"
+          },
+          "session_approval": {
+            "type": "string"
           },
           "session_env": {
             "additionalProperties": {
@@ -7021,10 +7058,18 @@
           "model": {
             "type": "string"
           },
+          "permission_rules": {
+            "items": {
+              "$ref": "#/components/schemas/AgentPermissionRulePayload"
+            },
+            "type": "array"
+          },
           "permissions": {
             "enum": [
               "deny-all",
               "approve-reads",
+              "approve-edits",
+              "auto",
               "approve-all"
             ],
             "type": "string"
@@ -7036,6 +7081,9 @@
             "type": "string"
           },
           "reasoning_effort": {
+            "type": "string"
+          },
+          "session_approval": {
             "type": "string"
           },
           "session_env": {
@@ -17974,11 +18022,17 @@
       },
       "OperatorNotificationEventPayload": {
         "properties": {
+          "action": {
+            "type": "string"
+          },
           "at": {
             "format": "date-time",
             "type": "string"
           },
           "body": {
+            "type": "string"
+          },
+          "kind": {
             "type": "string"
           },
           "notification_id": {
@@ -17988,6 +18042,9 @@
             "type": "string"
           },
           "profile_name": {
+            "type": "string"
+          },
+          "resource": {
             "type": "string"
           },
           "session_id": {
@@ -26125,6 +26182,9 @@
             },
             "type": "array"
           },
+          "effective_permissions": {
+            "type": "string"
+          },
           "effective_workspace_access": {
             "type": "string"
           },
@@ -26230,6 +26290,9 @@
               "$ref": "#/components/schemas/PendingInteractionPayload"
             },
             "type": "array"
+          },
+          "permission_mode_degraded": {
+            "type": "boolean"
           },
           "process_summary": {
             "oneOf": [
@@ -26434,9 +26497,11 @@
           "badge",
           "board_column",
           "created_at",
+          "effective_permissions",
           "effective_workspace_access",
           "id",
           "pending_interactions",
+          "permission_mode_degraded",
           "profile_id",
           "profile_name",
           "pull_request",
@@ -30237,6 +30302,8 @@
             "enum": [
               "deny-all",
               "approve-reads",
+              "approve-edits",
+              "auto",
               "approve-all"
             ],
             "type": "string"

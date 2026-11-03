@@ -7,6 +7,22 @@ import (
 	"time"
 )
 
+// HeartbeatConfigSubsetPayload is a daemon API value.
+type HeartbeatConfigSubsetPayload struct {
+	Enabled                      bool   `json:"enabled"`
+	MaxBodyBytes                 int64  `json:"max_body_bytes"`
+	ContextProjectionBytes       int64  `json:"context_projection_bytes"`
+	MinInterval                  string `json:"min_interval"`
+	DefaultInterval              string `json:"default_interval"`
+	WakeCooldown                 string `json:"wake_cooldown"`
+	MaxWakesPerCycle             int    `json:"max_wakes_per_cycle"`
+	ActiveSessionOnly            bool   `json:"active_session_only"`
+	AllowActiveHoursPreferences  bool   `json:"allow_active_hours_preferences"`
+	WakeEventRetention           string `json:"wake_event_retention"`
+	SessionHealthStaleAfter      string `json:"session_health_stale_after"`
+	SessionHealthHookMinInterval string `json:"session_health_hook_min_interval"`
+}
+
 // HeartbeatContextProjectionPayload is a daemon API value.
 type HeartbeatContextProjectionPayload struct {
 	Include []string `json:"include,omitzero"`
@@ -410,41 +426,3 @@ type JobsResponse struct {
 
 // LineageKind is a daemon API value.
 type LineageKind string
-
-// LogEventPayload is a daemon API value.
-type LogEventPayload struct {
-	ID                   string          `json:"id"`
-	ProfileID            string          `json:"profile_id"`
-	ProfileName          string          `json:"profile_name"`
-	ProfileColor         string          `json:"profile_color"`
-	ProfileIcon          string          `json:"profile_icon,omitempty"`
-	ProfileEmoji         string          `json:"profile_emoji,omitempty"`
-	ProfileArchived      bool            `json:"profile_archived"`
-	SessionID            string          `json:"session_id"`
-	WorkspaceID          string          `json:"workspace_id,omitempty"`
-	Type                 string          `json:"type"`
-	AgentName            string          `json:"agent_name"`
-	Provider             string          `json:"provider,omitempty"`
-	Component            string          `json:"component,omitempty"`
-	Outcome              string          `json:"outcome,omitempty"`
-	Content              json.RawMessage `json:"content,omitempty"`
-	WorktreeID           string          `json:"worktree_id,omitempty"`
-	TaskID               string          `json:"task_id,omitempty"`
-	RunID                string          `json:"run_id,omitempty"`
-	Generation           int64           `json:"generation,omitzero"`
-	WorkflowID           string          `json:"workflow_id,omitempty"`
-	ClaimTokenHash       string          `json:"claim_token_hash,omitempty"`
-	LeaseUntil           *time.Time      `json:"lease_until,omitempty"`
-	CoordinatorSessionID string          `json:"coordinator_session_id,omitempty"`
-	SchedulerReason      string          `json:"scheduler_reason,omitempty"`
-	HookEvent            string          `json:"hook_event,omitempty"`
-	HookName             string          `json:"hook_name,omitempty"`
-	ActorKind            string          `json:"actor_kind,omitempty"`
-	ActorID              string          `json:"actor_id,omitempty"`
-	ReleaseReason        string          `json:"release_reason,omitempty"`
-	ParentSessionID      string          `json:"parent_session_id,omitempty"`
-	RootSessionID        string          `json:"root_session_id,omitempty"`
-	SpawnDepth           int             `json:"spawn_depth"`
-	Summary              string          `json:"summary,omitempty"`
-	Timestamp            time.Time       `json:"timestamp"`
-}

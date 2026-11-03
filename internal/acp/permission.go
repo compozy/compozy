@@ -35,6 +35,7 @@ var (
 )
 
 type permissionPolicy struct {
+	rules []compozyconfig.PermissionRule
 	mode  compozyconfig.PermissionMode
 	root  string
 	roots []string
@@ -156,6 +157,8 @@ func (p permissionPolicy) isAllowed(op permissionOperation) bool {
 	switch p.mode {
 	case compozyconfig.PermissionModeApproveAll:
 		return true
+	case compozyconfig.PermissionModeApproveEdits, compozyconfig.PermissionModeAuto:
+		return op == permissionReadTextFile || op == permissionWriteTextFile
 	case compozyconfig.PermissionModeApproveReads:
 		return op == permissionReadTextFile
 	case compozyconfig.PermissionModeDenyAll:
@@ -166,22 +169,46 @@ func (p permissionPolicy) isAllowed(op permissionOperation) bool {
 }
 
 func (p permissionPolicy) permissionDecision(request acpsdk.RequestPermissionRequest) (permissionDecision, bool) {
-	if _, err := p.resolvePathList(request.ToolCall.Locations); err != nil {
-		return decisionRejectOnce, false
+	decision, interactive, _ := p.permissionDecisionSource(request)
+	return decision, interactive
+}
+
+func (p permissionPolicy) permissionDecisionSource(
+	request acpsdk.RequestPermissionRequest,
+) (permissionDecision, bool, string) {
+	paths, err := p.resolvePathList(request.ToolCall.Locations)
+	if err != nil || p.mode == compozyconfig.PermissionModeDenyAll {
+		return decisionRejectOnce, false, "policy"
 	}
 
+	if decision, matched := p.ruleDecision(request, paths); matched {
+		return decision, false, "rule"
+	}
 	switch p.mode {
 	case compozyconfig.PermissionModeApproveAll:
-		return decisionAllowOnce, false
+		return decisionAllowOnce, false, "policy"
+	case compozyconfig.PermissionModeApproveEdits, compozyconfig.PermissionModeAuto:
+		if request.ToolCall.Kind == nil {
+			return decisionRejectOnce, false, "policy"
+		}
+		switch *request.ToolCall.Kind {
+		case acpsdk.ToolKindRead, acpsdk.ToolKindEdit:
+			return decisionAllowOnce, false, "policy"
+		case acpsdk.ToolKindExecute, acpsdk.ToolKindDelete, acpsdk.ToolKindMove,
+			acpsdk.ToolKindSearch, acpsdk.ToolKindFetch, acpsdk.ToolKindThink, acpsdk.ToolKindSwitchMode:
+			return decisionPending, true, "policy"
+		default:
+			return decisionRejectOnce, false, "policy"
+		}
 	case compozyconfig.PermissionModeApproveReads:
 		if request.ToolCall.Kind != nil && *request.ToolCall.Kind == acpsdk.ToolKindRead {
-			return decisionAllowOnce, false
+			return decisionAllowOnce, false, "policy"
 		}
-		return decisionPending, true
+		return decisionPending, true, "policy"
 	case compozyconfig.PermissionModeDenyAll:
-		return decisionRejectOnce, false
+		return decisionRejectOnce, false, "policy"
 	default:
-		return decisionRejectOnce, false
+		return decisionRejectOnce, false, "policy"
 	}
 }
 

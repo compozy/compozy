@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// AppTokenResponse is a daemon API value.
+type AppTokenResponse struct {
+	AppToken AppTokenPayload `json:"app_token"`
+}
+
 // AppTokenRevokeResponse is a daemon API value.
 type AppTokenRevokeResponse struct {
 	AppToken AppTokenPayload `json:"app_token"`
@@ -440,9 +445,4 @@ type ClarifyAnswer struct {
 	Choice   *int   `json:"choice"`
 	Text     string `json:"text"`
 	Fallback bool   `json:"fallback"`
-}
-
-// ClearTaskBlockRequest is a daemon API value.
-type ClearTaskBlockRequest struct {
-	Note string `json:"note,omitempty"`
 }

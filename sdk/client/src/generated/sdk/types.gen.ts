@@ -499,6 +499,7 @@ export type AgentPayload = {
   name: string;
   origin: "global" | "workspace";
   package_owned?: boolean;
+  permission_rules?: Array<AgentPermissionRulePayload>;
   permissions?: string;
   prompt: string;
   provider: string;
@@ -506,6 +507,7 @@ export type AgentPayload = {
   resolved_appearance: {
     [key: string]: unknown;
   };
+  session_approval?: string;
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
   };
@@ -516,6 +518,12 @@ export type AgentPayload = {
   toolsets?: Array<string>;
   workspace_access?: string;
   workspace_id?: string;
+};
+
+export type AgentPermissionRulePayload = {
+  decision: string;
+  kind?: string;
+  path?: string;
 };
 
 export type AgentProbeHealthPayload = {
@@ -1578,13 +1586,15 @@ export type CreateAgentPayload = {
   label?: string;
   model?: string;
   name: string;
-  permissions?: "deny-all" | "approve-reads" | "approve-all";
+  permission_rules?: Array<AgentPermissionRulePayload>;
+  permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
   prompt: string;
   provider?: string;
   reasoning_effort?: string;
   resolved_appearance?: {
     [key: string]: unknown;
   };
+  session_approval?: string;
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
   };
@@ -1895,10 +1905,12 @@ export type DuplicateAgentOverrides = {
   display_name?: string | null;
   kind?: string;
   model?: string;
-  permissions?: "deny-all" | "approve-reads" | "approve-all";
+  permission_rules?: Array<AgentPermissionRulePayload>;
+  permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
   prompt?: string;
   provider?: string;
   reasoning_effort?: string;
+  session_approval?: string;
   session_env?: {
     [key: string]: SessionEnvBindingPayload;
   };
@@ -7182,6 +7194,7 @@ export type SessionPayload = {
   created_at: string;
   derivation?: SessionDerivationPayload | null;
   diagnostics?: Array<DiagnosticItem>;
+  effective_permissions: string;
   effective_workspace_access: string;
   escalated?: boolean | null;
   failure?: SessionFailurePayload | null;
@@ -7196,6 +7209,7 @@ export type SessionPayload = {
   name?: string;
   parent_title?: string;
   pending_interactions: Array<PendingInteractionPayload>;
+  permission_mode_degraded: boolean;
   process_summary?: SessionProcessSummaryPayload | null;
   profile_archived?: boolean;
   profile_color?: string;
@@ -8378,7 +8392,7 @@ export type SettingsOperationalLinkPayload = {
 };
 
 export type SettingsPermissionsPayload = {
-  mode: "deny-all" | "approve-reads" | "approve-all";
+  mode: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
 };
 
 export type SettingsPersonaResponse = {

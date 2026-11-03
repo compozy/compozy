@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// GatewayAuditAuthPayload is a daemon API value.
+type GatewayAuditAuthPayload struct {
+	Mode              string `json:"mode"`
+	RequiredRemotely  bool   `json:"required_remotely"`
+	ActiveDeviceCount int    `json:"active_device_count"`
+}
+
 // GatewayAuditFindingPayload is a daemon API value.
 type GatewayAuditFindingPayload struct {
 	ID          string `json:"id"`
@@ -427,20 +434,4 @@ type HeartbeatActorPayload struct {
 type HeartbeatConfigProvenancePayload struct {
 	Digest string                       `json:"digest"`
 	Subset HeartbeatConfigSubsetPayload `json:"subset"`
-}
-
-// HeartbeatConfigSubsetPayload is a daemon API value.
-type HeartbeatConfigSubsetPayload struct {
-	Enabled                      bool   `json:"enabled"`
-	MaxBodyBytes                 int64  `json:"max_body_bytes"`
-	ContextProjectionBytes       int64  `json:"context_projection_bytes"`
-	MinInterval                  string `json:"min_interval"`
-	DefaultInterval              string `json:"default_interval"`
-	WakeCooldown                 string `json:"wake_cooldown"`
-	MaxWakesPerCycle             int    `json:"max_wakes_per_cycle"`
-	ActiveSessionOnly            bool   `json:"active_session_only"`
-	AllowActiveHoursPreferences  bool   `json:"allow_active_hours_preferences"`
-	WakeEventRetention           string `json:"wake_event_retention"`
-	SessionHealthStaleAfter      string `json:"session_health_stale_after"`
-	SessionHealthHookMinInterval string `json:"session_health_hook_min_interval"`
 }

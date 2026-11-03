@@ -3810,3 +3810,39 @@ Test agent.
 		}
 	})
 }
+
+func TestReviewerModeTrustBoundary(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject unrestricted reviewers except the verified Claude pair", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			provider string
+			mode     string
+			reject   bool
+		}{
+			{"claude", "auto", false}, {"codex", "agent", false},
+			{"custom", "smart", false}, {"custom", "auto", true},
+			{"claude", "bypassPermissions", true},
+		} {
+			p := builtinProviders[providerClaudeKey]
+			p.ReviewerMode = tc.mode
+			err := validateResolvedProvider(tc.provider, p)
+			if (err != nil) != tc.reject {
+				t.Fatalf("provider=%s reviewer=%s error=%v", tc.provider, tc.mode, err)
+			}
+		}
+	})
+	t.Run("Should drop workspace reviewer declarations while preserving global review", func(t *testing.T) {
+		t.Parallel()
+		overlay, err := loadWorkspaceConfigOverlayBytes(
+			[]byte("[providers.claude]\nreviewer_mode = 'bypassPermissions'\n"), "workspace.toml")
+		if err != nil {
+			t.Fatal(err)
+		}
+		p := builtinProviders[providerClaudeKey]
+		overlay.Providers["claude"].Apply(&p)
+		if p.ReviewerMode != "auto" {
+			t.Fatalf("reviewer=%q, want auto", p.ReviewerMode)
+		}
+	})
+}

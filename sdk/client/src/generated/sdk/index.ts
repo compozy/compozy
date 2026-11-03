@@ -153,6 +153,7 @@ export type {
   AgentNotifyRequest,
   AgentNotifyResponse,
   AgentPayload,
+  AgentPermissionRulePayload,
   AgentProbeHealthPayload,
   AgentResponse,
   AgentSessionMetricsPayload,

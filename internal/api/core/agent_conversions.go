@@ -97,6 +97,8 @@ func AgentPayloadFromEntry(entry *AgentCatalogEntry) contract.AgentPayload {
 		Toolsets:           append([]string(nil), agent.Toolsets...),
 		DenyTools:          append([]string(nil), agent.DenyTools...),
 		WorkspaceAccess:    agent.WorkspaceAccess,
+		SessionApproval:    agent.SessionApproval,
+		PermissionRules:    permissionRulesPayload(agent.PermissionRules),
 		Permissions:        agent.Permissions,
 		CategoryPath:       append([]string(nil), agent.CategoryPath...),
 		MCPServers:         mcpServers,
@@ -262,4 +264,26 @@ func agentFallbackChainFromContract(chain []contract.AgentFallbackRoutePayload) 
 		})
 	}
 	return converted
+}
+
+func permissionRulesFromPayload(rules []contract.AgentPermissionRulePayload) []compozyconfig.PermissionRule {
+	if rules == nil {
+		return nil
+	}
+	result := make([]compozyconfig.PermissionRule, len(rules))
+	for i, rule := range rules {
+		result[i] = compozyconfig.PermissionRule(rule)
+	}
+	return result
+}
+
+func permissionRulesPayload(rules []compozyconfig.PermissionRule) []contract.AgentPermissionRulePayload {
+	if rules == nil {
+		return nil
+	}
+	result := make([]contract.AgentPermissionRulePayload, len(rules))
+	for i, rule := range rules {
+		result[i] = contract.AgentPermissionRulePayload(rule)
+	}
+	return result
 }

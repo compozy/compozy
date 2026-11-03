@@ -2,6 +2,12 @@ package config
 
 import "strings"
 
+// AgentDefinitionRef identifies one lower-precedence definition hidden by a winner.
+type AgentDefinitionRef struct {
+	Layer string
+	Path  string
+}
+
 // CloneAgentDef returns a normalized deep copy of an agent definition.
 func CloneAgentDef(agent AgentDef) AgentDef {
 	cloned := AgentDef{
@@ -22,6 +28,8 @@ func CloneAgentDef(agent AgentDef) AgentDef {
 		DenyTools:       cloneStrings(agent.DenyTools),
 		Permissions:     strings.TrimSpace(agent.Permissions),
 		WorkspaceAccess: agent.WorkspaceAccess,
+		SessionApproval: agent.SessionApproval,
+		PermissionRules: append([]PermissionRule(nil), agent.PermissionRules...),
 		Skills:          normalizeAgentSkillsConfig(agent.Skills),
 		CategoryPath:    normalizeAgentCategoryPath(agent.CategoryPath),
 		MCPServers:      cloneMCPServers(agent.MCPServers),

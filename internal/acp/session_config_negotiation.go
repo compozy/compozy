@@ -26,7 +26,7 @@ func (d *Driver) applySessionMode(
 		return false, nil
 	}
 
-	modeID := preferredSessionMode(process.CapsSnapshot().SupportedModes, permissions, process.toolGateway != nil)
+	modeID := preferredSessionMode(process.CapsSnapshot().SupportedModes, permissions, process.toolGateway != nil, process.providerName, process.reviewerMode)
 	if process.executionPolicy == ExecutionPolicyTriage {
 		caps := process.CapsSnapshot()
 		option, configurable := findSelectConfigOption(caps.ConfigOptions, sessionConfigModeKey)
@@ -227,6 +227,7 @@ func preferredSessionMode(
 	supported []string,
 	permissions compozyconfig.PermissionMode,
 	toolGatewayEnabled bool,
+	provider, reviewerMode string,
 ) string {
 	if len(supported) == 0 {
 		return ""
@@ -241,7 +242,15 @@ func preferredSessionMode(
 		lookup[strings.ToLower(trimmed)] = trimmed
 	}
 
-	if permissions == compozyconfig.PermissionModeApproveAll {
+	if permissions == compozyconfig.PermissionModeAuto {
+		if reviewerMode != "" && !compozyconfig.IsUnrestrictedACPMode(provider, reviewerMode) {
+			if matched, ok := lookup[strings.ToLower(reviewerMode)]; ok {
+				return matched
+			}
+		}
+		permissions = compozyconfig.PermissionModeApproveEdits
+	}
+	if permissions == compozyconfig.PermissionModeApproveAll || permissions == compozyconfig.PermissionModeApproveEdits {
 		for _, candidate := range sessionModeCandidates(permissions) {
 			if matched, ok := lookup[strings.ToLower(candidate)]; ok {
 				return matched
@@ -284,6 +293,8 @@ func sessionModeCandidates(permissions compozyconfig.PermissionMode) []string {
 			"auto",
 			"acceptEdits",
 		}
+	case compozyconfig.PermissionModeApproveEdits, compozyconfig.PermissionModeAuto:
+		return []string{"acceptEdits", "workspace-write", "accept_edits", "auto_edit"}
 	case compozyconfig.PermissionModeApproveReads, compozyconfig.PermissionModeDenyAll:
 		return []string{
 			"read-only",
