@@ -1,6 +1,6 @@
 // Invariant: a report starts nothing; only choosing sends, and it sends an ordinary prompt.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -19,6 +19,7 @@ const reads = vi.hoisted(() => ({
   instances: vi.fn(async () => [] as AgentInstancePayload[]),
   reports: vi.fn(async () => [] as AgentInstanceReport[]),
   away: vi.fn(async () => null as AgentInstanceAway | null),
+  resume: vi.fn(async () => undefined as unknown),
 }));
 
 vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => ({
@@ -26,6 +27,7 @@ vi.mock("@/systems/agent/adapters/agent-instance-api", async importOriginal => (
   fetchAgentInstances: async () => ({ instances: await reads.instances(), capacity: {} }),
   fetchAgentInstanceReports: reads.reports,
   fetchAgentInstanceAway: reads.away,
+  resumeAgentInstance: reads.resume,
 }));
 
 vi.mock("@assistant-ui/react", async importOriginal => ({
@@ -89,6 +91,7 @@ describe("SessionReportPart", () => {
   });
 
   beforeEach(() => {
+    reads.resume.mockReset();
     reads.instances.mockResolvedValue([INSTANCE]);
     reads.reports.mockResolvedValue([]);
     reads.away.mockResolvedValue(null);
@@ -196,5 +199,149 @@ describe("SessionReportPart", () => {
       expect(screen.queryByRole("article", { name: "I couldn't finish this check" })).toBeNull()
     );
     expect(await screen.findByRole("article", { name: /asks/ })).toBeInTheDocument();
+  });
+
+  describe("pause and context reports [UT-080]", () => {
+    const PAUSED = agentInstanceFixture({
+      id: "ainst-1",
+      state: "paused",
+      pause_reason: "unattended",
+      unattended_turn_limit: 300,
+      held_wakes: 2,
+    });
+    const PAUSE: SessionReportData = {
+      ...PROPOSAL,
+      kind: "failure",
+      payload: {
+        reason: "unattended",
+        detail: "Agent paused after reaching its unattended turn limit.",
+      },
+    };
+
+    it("Should say why it paused and what waits, and resume in place", async () => {
+      reads.instances.mockResolvedValue([PAUSED]);
+      render(<SessionReportPart data={PAUSE} />, { wrapper: harness(vi.fn()) });
+
+      const report = await screen.findByRole("article", { name: "Paused until you're back" });
+      await waitFor(() =>
+        expect(report).toHaveTextContent("I took 300 steps without hearing from you")
+      );
+      expect(report).toHaveTextContent("2 things are waiting for you to resume.");
+
+      reads.instances.mockResolvedValue([
+        { ...PAUSED, state: "active", pause_reason: "", held_wakes: 0 },
+      ]);
+      await userEvent.click(screen.getByRole("button", { name: "Resume" }));
+
+      await waitFor(() => expect(reads.resume).toHaveBeenCalledTimes(1));
+      expect(
+        await screen.findByText(/Delivering 2 things that were waiting\./)
+      ).toBeInTheDocument();
+    });
+
+    it("Should keep the report and say so when resume fails", async () => {
+      reads.instances.mockResolvedValue([PAUSED]);
+      reads.resume.mockRejectedValue(new Error("nope"));
+      render(<SessionReportPart data={PAUSE} />, { wrapper: harness(vi.fn()) });
+
+      await userEvent.click(await screen.findByRole("button", { name: "Resume" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't resume. Try again.");
+      expect(screen.getByRole("article", { name: "Paused until you're back" })).toBeInTheDocument();
+    });
+
+    it("Should tell a lost wake and offer a check that sends a prompt", async () => {
+      const send = vi.fn();
+      render(
+        <SessionReportPart
+          data={{
+            ...PROPOSAL,
+            kind: "failure",
+            payload: { reason: "wake_lost", detail: "CI on #1166" },
+          }}
+        />,
+        { wrapper: harness(send) }
+      );
+
+      expect(
+        await screen.findByRole("article", { name: "A wake-up didn't arrive" })
+      ).toHaveTextContent("I was waiting for CI on #1166, but that update never reached me.");
+      await userEvent.click(screen.getByRole("button", { name: "Check it now" }));
+      expect(send).toHaveBeenCalledOnce();
+    });
+
+    it("Should say a full conversation can't move yet, and what's in the way", async () => {
+      render(
+        <SessionReportPart
+          data={{
+            ...PROPOSAL,
+            kind: "rotation_deferred",
+            payload: { blockers: ["live_descendant", "queued_input"] },
+          }}
+        />,
+        { wrapper: harness(vi.fn()) }
+      );
+
+      const report = await screen.findByRole("article", {
+        name: "I'm out of room in this conversation",
+      });
+      expect(report).toHaveTextContent("work I handed off is still running");
+      await userEvent.click(screen.getByRole("button", { name: "See what's in the way" }));
+      expect(screen.getByRole("list", { name: "What's in the way" })).toHaveTextContent(
+        "Messages are still waiting for me"
+      );
+    });
+
+    it("Should say a new conversation started before linking back", async () => {
+      render(
+        <SessionReportPart
+          data={{ ...PROPOSAL, kind: "rotated", payload: { session_id: "sess-before" } }}
+        />,
+        { wrapper: harness(null) }
+      );
+
+      expect(
+        await screen.findByRole("article", { name: "I started a new conversation" })
+      ).toBeInTheDocument();
+    });
+
+    it("Should name the tool and the action of an expired request", async () => {
+      const { container } = render(
+        <SessionReportPart
+          data={{
+            ...PROPOSAL,
+            kind: "approval_expired",
+            payload: { tool: "Bash", action: "make migrate", expired_by: "timeout" },
+          }}
+        />,
+        { wrapper: harness(vi.fn()) }
+      );
+
+      expect(await screen.findByText(/so the Bash request wasn't allowed/)).toBeInTheDocument();
+      await waitFor(() => expect(container).toHaveTextContent("make migrate"));
+    });
+
+    it("Should say in the away digest that it paused, with Resume in place", async () => {
+      reads.instances.mockResolvedValue([PAUSED]);
+      reads.away.mockResolvedValue({
+        last_seen_at: "2026-10-31T20:00:00Z",
+        quiet_check_ins: 20,
+        reports: [
+          {
+            id: "arpt-1",
+            kind: "failure",
+            reason: "unattended",
+            state: "pending",
+            created_at: PROPOSAL.created_at,
+          },
+        ],
+      });
+      render(<SessionReportPart data={PAUSE} />, { wrapper: harness(vi.fn()) });
+
+      const digest = await screen.findByRole("region", { name: "While you were away" });
+      await waitFor(() => expect(digest).toHaveTextContent(/of work, then it paused\./));
+      expect(digest).toHaveTextContent("2 things are waiting.");
+      expect(within(digest).getByRole("button", { name: "Resume" })).toBeInTheDocument();
+    });
   });
 });

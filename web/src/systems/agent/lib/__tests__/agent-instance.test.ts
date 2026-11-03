@@ -7,6 +7,7 @@ import {
   agentAvatarAppearance,
   agentInstanceAvatarState,
   agentInstanceCapacity,
+  agentNextWakeLine,
   agentPauseCopy,
   agentInstancesByUrgency,
 } from "../agent-instance";
@@ -59,6 +60,27 @@ describe("agentPauseCopy", () => {
       unattended_turns: 300,
     });
     expect(agentPauseCopy(instance)).toBe("Paused after 300 steps without you.");
+  });
+});
+
+describe("agentNextWakeLine", () => {
+  const now = Date.parse("2026-11-03T10:00:00Z");
+
+  it("Should say what wakes it and when [UT-060]", () => {
+    const instance = agentInstanceFixture({
+      next_wake: { kind: "timer", description: "Check CI on #1166", at: "2026-11-03T10:12:00Z" },
+    });
+    expect(agentNextWakeLine(instance, now)).toBe("Check CI on #1166, in 12m");
+  });
+
+  it("Should name the kind when the wake has no description, and nothing when none is set", () => {
+    expect(
+      agentNextWakeLine(
+        agentInstanceFixture({ next_wake: { kind: "check", description: "" } }),
+        now
+      )
+    ).toBe("Its next check-in");
+    expect(agentNextWakeLine(agentInstanceFixture({ next_wake: null }), now)).toBeNull();
   });
 });
 

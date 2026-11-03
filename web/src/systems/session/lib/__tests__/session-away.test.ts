@@ -54,6 +54,28 @@ describe("deriveAwayDigest", () => {
     expect(digest?.foldedIds.has("p1")).toBe(false);
   });
 
+  it("Should say it paused, when, and what's waiting [UT-080]", () => {
+    const pause = {
+      ...report("u1", "failure", "2026-11-01T04:12:00Z"),
+      reason: "unattended",
+    };
+    const digest = deriveAwayDigest(
+      { ...AWAY, reports: [...AWAY.reports, pause] },
+      "Triage Lead",
+      NOW,
+      [],
+      2
+    );
+    expect(digest?.paused).toBe(true);
+    expect(digest?.headline).toBe("Nine hours of work, then it paused.");
+    expect(digest?.summary).toMatch(
+      /^Triage Lead reached its limit at \d\d:\d\d\. 2 things are waiting\.$/
+    );
+    expect(digest?.events.find(event => event.id === "u1")?.title).toBe(
+      "It paused until you're back"
+    );
+  });
+
   it("Should stay away after a short absence", () => {
     expect(
       deriveAwayDigest(
