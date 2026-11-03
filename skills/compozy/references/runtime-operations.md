@@ -1086,6 +1086,20 @@ process exit is refused with `session_reparent_source_running`. A worker that an
 `session: startup canceled for ...` (a stop that interrupted its launch, such as the spawn reaper
 cancelling a resume) is reclassified as a canceled stop on take-over, so it resumes again.
 
+`compozy session move-to-profile <id> <profile>` copies a stopped top-level user session (not nested under another session) into
+another active profile and archives the original; a session's own profile never changes. The copy
+is a fork owned by the target profile (same agent, title, and conversation) and resolves that
+profile's agents, credentials, and config when it starts. A bound worktree is released (branch and
+commits kept) and its branch is checked out again in a new worktree owned by the target profile,
+which the copy binds. Past usage stays with the original's profile. A failure after the archive
+rolls back in reverse order (target checkout released, branch checked out again for the original
+profile, original unarchived and rebound); an unfinished rollback returns
+`session_move_to_profile_recovery_incomplete` naming what is left, and never deletes the session or
+the branch. A daemon stop mid-move can leave the original archived with no copy: unarchive it and
+bind it to a worktree on the same branch. Archived sessions that shared the moved worktree lose
+that checkout. Refusals return HTTP 409 with a `session_move_to_profile_*` code: `same_profile`, `own_session`, `not_movable`, `running`, `archived`, `has_children`, `worktree_dirty`, `worktree_detached`, `worktree_shared`, `worktree_run_owned`, `worktree_not_ready`, `worktree_changed`, `recovery_incomplete`.
+`compozy session move` is unrelated: it only places a session in a folder.
+
 The session catalog is counted and workspace-scoped. Internal auto-title sessions never appear in catalog results. HTTP and UDS clients can filter exact public session type with `type=user|system|coordinator|spawned`; the CLI exposes the same filter as `--type`. Browser integrations should subscribe once to `/api/sessions/catalog-stream`, route each wake signal by its authoritative `workspace_id`, and refetch that workspace's catalog page instead of incrementing local counters.
 
 For document-wide subscriptions, the session catalog, worktree catalog, and `/api/logs/stream`

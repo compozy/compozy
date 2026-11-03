@@ -13,6 +13,7 @@ import {
   Square,
   Trash2,
   Undo2,
+  UserRound,
 } from "@compozy/ui/icons";
 import type { LucideIcon } from "@compozy/ui/icons";
 import { use } from "react";
@@ -26,10 +27,14 @@ import {
   SessionForkContext,
   type SessionForkRequest,
 } from "../contexts/session-fork-context-value";
+import {
+  SessionProfileMoveContext,
+  type SessionProfileMoveHandle,
+} from "../contexts/session-profile-move-context-value";
 import type { SessionLifecycleActionHandlers } from "./use-session-lifecycle-actions";
 import { copySessionText } from "../lib/session-copy";
 import { getSessionDisplayTitle } from "../lib/session-display-title";
-import { isSubagentSession } from "../lib/session-hierarchy";
+import { isSubagentSession, sessionTreeParentId } from "../lib/session-hierarchy";
 import { sessionIsInLater } from "../lib/session-later";
 import {
   sessionAdoptRefusal,
@@ -48,6 +53,7 @@ export interface SessionRowMenuItem {
     | "copy-title"
     | "continue"
     | "fork"
+    | "move-to-profile"
     | "make-top-level"
     | "take-over"
     | "nest"
@@ -152,6 +158,32 @@ function sessionDeriveMenuItems(
   return items;
 }
 
+/**
+ * Move to profile, offered on top-level user sessions with another active profile
+ * to go to. The dialog states why a running session or one with children cannot move.
+ */
+function sessionProfileMoveMenuItem(
+  session: SessionPayload,
+  profileMove: SessionProfileMoveHandle | null
+): SessionRowMenuItem | null {
+  if (!profileMove || !isUserControllableSession(session) || session.archived_at !== null) {
+    return null;
+  }
+  if (isSubagentSession(session) || sessionTreeParentId(session) !== "") return null;
+  const targets = profileMove.targets.filter(target => target.id !== session.profile_id);
+  if (targets.length === 0) return null;
+  return {
+    id: "move-to-profile",
+    label: "Move to profile",
+    icon: UserRound,
+    choices: targets.map(target => ({
+      id: target.id,
+      label: target.name,
+      onSelect: () => profileMove.request(session, target),
+    })),
+  };
+}
+
 /** Stop, Later, and Archive verbs gated on the session's lifecycle state. */
 function sessionStateMenuItems(
   session: SessionPayload,
@@ -181,6 +213,7 @@ export function useSessionRowMenuItems(
   const requestContinue = use(SessionDeriveContext);
   const requestFork = use(SessionForkContext);
   const clear = use(SessionClearContext);
+  const profileMove = use(SessionProfileMoveContext);
   const userSession = isUserControllableSession(session);
   const items: SessionRowMenuItem[] = [];
   if (userSession) {
@@ -206,6 +239,8 @@ export function useSessionRowMenuItems(
     }
   );
   items.push(...sessionDeriveMenuItems(session, requestContinue, requestFork));
+  const profileMoveItem = sessionProfileMoveMenuItem(session, profileMove);
+  if (profileMoveItem) items.push(profileMoveItem);
   items.push(...sessionNestMenuItems(session, actions));
   const { onMakeTopLevel } = actions;
   if (onMakeTopLevel && sessionCanMakeTopLevel(session)) {

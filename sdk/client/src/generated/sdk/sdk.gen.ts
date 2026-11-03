@@ -1065,6 +1065,9 @@ import type {
   MoveSessionToLaterData,
   MoveSessionToLaterErrors,
   MoveSessionToLaterResponses,
+  MoveSessionToProfileData,
+  MoveSessionToProfileErrors,
+  MoveSessionToProfileResponses,
   MoveWorkspaceData,
   MoveWorkspaceErrors,
   MoveWorkspaceResponses,
@@ -8797,6 +8800,33 @@ export class sessions extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/workspaces/{workspace_id}/sessions/{session_id}/move",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Copy a stopped user session into another profile and archive the original
+   */
+  public moveSessionToProfile<ThrowOnError extends boolean = true>(
+    options: Options<MoveSessionToProfileData, ThrowOnError>
+  ): RequestResult<
+    MoveSessionToProfileResponses,
+    MoveSessionToProfileErrors,
+    ThrowOnError,
+    "data"
+  > {
+    return (options.client ?? this.client).post<
+      MoveSessionToProfileResponses,
+      MoveSessionToProfileErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile",
       ...options,
       headers: {
         "Content-Type": "application/json",

@@ -2019,6 +2019,80 @@ func TestSessionParentHandlers(t *testing.T) {
 	})
 }
 
+func TestSessionMoveToProfileHandler(t *testing.T) {
+	t.Parallel()
+
+	base := testutil.NewSessionInfo("sess-move")
+	base.ProfileID = store.DefaultProfileID
+	base.WorkspaceID = "ws-move"
+	base.Type = session.SessionTypeUser
+	moveCalls := 0
+	manager := &testutil.StubSessionManager{
+		ListAllFn: func(context.Context) ([]*session.Info, error) {
+			return []*session.Info{base}, nil
+		},
+		MoveToProfileFn: func(_ context.Context, opts session.MoveToProfileOpts) (session.MoveToProfileResult, error) {
+			moveCalls++
+			if opts.WorkspaceID != base.WorkspaceID || opts.SessionID != base.ID ||
+				opts.ProfileID != store.DefaultProfileID || opts.TargetProfileID != "profile-marketing" {
+				t.Fatalf("MoveToProfile() opts = %#v", opts)
+			}
+			if moveCalls == 2 {
+				return session.MoveToProfileResult{}, &session.ProfileMoveError{
+					Reason: session.ProfileMoveRefusalHasChildren, Message: "session has 1 child session(s)",
+				}
+			}
+			copied := *base
+			copied.ID, copied.ProfileID, copied.WorktreeID = "sess-copy", "profile-marketing", "wt-new"
+			original := *base
+			original.ArchivedAt = new(time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC))
+			return session.MoveToProfileResult{
+				Copy: &copied, Original: &original, WorktreeID: "wt-new", Branch: "feat/move",
+			}, nil
+		},
+	}
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+	fixture.Handlers.Profiles = sessionProfileServiceStub{}
+	const path = "/workspaces/ws-move/sessions/sess-move/move-to-profile"
+
+	t.Run("Should return the copy in the target profile and the archived original", func(t *testing.T) {
+		response := performRequest(t, fixture.Engine, http.MethodPost, path, []byte(`{"target_profile":"marketing"}`))
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.MoveSessionToProfileResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if payload.Session.ID != "sess-copy" || payload.Original.ID != base.ID ||
+			payload.Original.ArchivedAt == nil || payload.WorktreeID != "wt-new" || payload.Branch != "feat/move" {
+			t.Fatalf("move response = %#v", payload)
+		}
+	})
+
+	t.Run("Should map a move refusal to a coded conflict", func(t *testing.T) {
+		response := performRequest(t, fixture.Engine, http.MethodPost, path, []byte(`{"target_profile":"marketing"}`))
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if response.Code != http.StatusConflict || payload.Code != "session_move_to_profile_has_children" {
+			t.Fatalf("refusal = %d %#v, want 409 session_move_to_profile_has_children", response.Code, payload)
+		}
+	})
+
+	t.Run("Should reject unknown request fields before moving", func(t *testing.T) {
+		before := moveCalls
+		response := performRequest(
+			t, fixture.Engine, http.MethodPost, path, []byte(`{"target_profile":"marketing","profile":"x"}`),
+		)
+		assertAPIErrorResponse(t, response, http.StatusBadRequest, "profile")
+		if moveCalls != before {
+			t.Fatalf("MoveToProfile() calls = %d, want %d", moveCalls, before)
+		}
+	})
+}
+
 func TestSessionRecapUsesSingleBoundedTranscriptRead(t *testing.T) {
 	t.Parallel()
 

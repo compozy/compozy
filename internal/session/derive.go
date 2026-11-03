@@ -32,6 +32,24 @@ type deriveSpec struct {
 	key         string
 	fingerprint string
 	fences      DeriveFences
+	// relocation places the child in another profile and checkout; only the
+	// move-to-profile owner sets it, after archiving the source itself.
+	relocation *deriveRelocation
+}
+
+// deriveRelocation is where a move-to-profile copy lands instead of the source's place.
+type deriveRelocation struct {
+	profileID  string
+	worktreeID string
+	cwd        string
+}
+
+// childProfileID is the profile the child and its derive receipt belong to.
+func (spec deriveSpec) childProfileID() string {
+	if spec.relocation != nil {
+		return spec.relocation.profileID
+	}
+	return spec.profileID
 }
 
 // ContinueSession continues a user session with another agent, runtime, or declared route.
@@ -163,7 +181,9 @@ func (m *Manager) committedDeriveFailure(
 	// The request may already be canceled; the receipt lookup still answers it.
 	lookupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultLifecycleTimeout)
 	defer cancel()
-	receipt, found, err := derivations.SessionDerivationReceipt(lookupCtx, spec.workspaceID, spec.key, spec.profileID)
+	receipt, found, err := derivations.SessionDerivationReceipt(
+		lookupCtx, spec.workspaceID, spec.key, spec.childProfileID(),
+	)
 	if err != nil || !found || receipt.RequestFingerprint != spec.fingerprint {
 		return DeriveResult{}
 	}
@@ -218,21 +238,25 @@ func normalizeDeriveRuntime(runtime *DeriveRuntime) *DeriveRuntime {
 // after the source moved still matches its recorded outcome.
 func deriveRequestFingerprint(spec deriveSpec) (string, error) {
 	canonical := struct {
-		Version   string         `json:"version"`
-		Operation string         `json:"operation"`
-		Source    string         `json:"source_session_id"`
-		Workspace string         `json:"workspace_id"`
-		Profile   string         `json:"profile_id"`
-		Agent     string         `json:"agent_name,omitempty"`
-		Runtime   *DeriveRuntime `json:"runtime,omitzero"`
-		Route     int            `json:"route,omitzero"`
-		Name      string         `json:"name,omitempty"`
-		Message   string         `json:"message,omitempty"`
-		MessageID string         `json:"message_id,omitempty"`
+		Version       string         `json:"version"`
+		Operation     string         `json:"operation"`
+		Source        string         `json:"source_session_id"`
+		Workspace     string         `json:"workspace_id"`
+		Profile       string         `json:"profile_id"`
+		TargetProfile string         `json:"target_profile_id,omitempty"`
+		Agent         string         `json:"agent_name,omitempty"`
+		Runtime       *DeriveRuntime `json:"runtime,omitzero"`
+		Route         int            `json:"route,omitzero"`
+		Name          string         `json:"name,omitempty"`
+		Message       string         `json:"message,omitempty"`
+		MessageID     string         `json:"message_id,omitempty"`
 	}{
 		Version: deriveFingerprintVersion, Operation: string(spec.kind), Source: spec.sourceID,
 		Workspace: spec.workspaceID, Profile: spec.profileID, Agent: spec.agentName, Runtime: spec.runtime,
 		Route: spec.route, Name: spec.name, Message: spec.message, MessageID: spec.messageID,
+	}
+	if spec.relocation != nil {
+		canonical.TargetProfile = spec.relocation.profileID
 	}
 	encoded, err := json.Marshal(canonical)
 	if err != nil {
@@ -261,6 +285,9 @@ func (m *Manager) validateDeriveSource(ctx context.Context, spec deriveSpec, sna
 		return fmt.Errorf("%w: %s", ErrSessionNotFound, spec.sourceID)
 	}
 	meta := &snapshot.meta
+	if spec.relocation != nil && meta.ProfileID != spec.profileID {
+		return fmt.Errorf("%w: %s", ErrSessionNotFound, spec.sourceID)
+	}
 	if strings.TrimSpace(meta.WorkspaceID) != spec.workspaceID ||
 		(spec.workspaceID == "" && meta.ProfileID != spec.profileID) {
 		return fmt.Errorf("%w: %s", ErrSessionNotFound, spec.sourceID)
@@ -270,11 +297,14 @@ func (m *Manager) validateDeriveSource(ctx context.Context, spec deriveSpec, sna
 		(lineage != nil && lineage.Kind == store.LineageKindSpawn) {
 		return fmt.Errorf("%w: %s", ErrSessionNotDerivable, spec.sourceID)
 	}
+	// A move-to-profile archives its source before copying it.
 	if err := m.requireSessionUnarchived(ctx, meta.WorkspaceID, meta.ID); err != nil {
-		if errors.Is(err, ErrSessionArchived) {
+		if !errors.Is(err, ErrSessionArchived) {
+			return err
+		}
+		if spec.relocation == nil {
 			return deriveErr(ErrDeriveSourceArchived, "session %s is archived; unarchive it first", spec.sourceID)
 		}
-		return err
 	}
 	fences := spec.fences
 	if fences.ExpectedEpoch != nil && (*fences.ExpectedEpoch != snapshot.epoch ||

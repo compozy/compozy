@@ -35,6 +35,7 @@ var sessionTools = []toolspkg.Descriptor{
 	sessionWorkLinkDescriptor(false),
 	sessionWorkLinkDescriptor(true),
 	sessionReparentDescriptor(),
+	sessionMoveToProfileDescriptor(),
 	sessionFolderListDescriptor(),
 	sessionFolderCreateDescriptor(),
 	sessionFolderRenameDescriptor(),

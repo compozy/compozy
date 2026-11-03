@@ -66,7 +66,7 @@ func (s *Service) RecoverCreations(ctx context.Context) error {
 // left orphaned or an unreadable leftover, returns the record to the user and
 // is logged; one worktree must not fail daemon startup.
 func (s *Service) recoverRemoval(ctx context.Context, item Worktree) error {
-	refusalResult, err := s.removeFenced(ctx, item, false)
+	refusalResult, err := s.removeFenced(ctx, item, removalMode{})
 	if err == nil && refusalResult == nil {
 		return nil
 	}

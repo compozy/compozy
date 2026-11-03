@@ -18,6 +18,7 @@ type worktreeRegistry interface {
 	worktree.EventSink
 	WorktreeStore() worktree.Store
 	HasActiveWorktreeSession(context.Context, string, string) (bool, error)
+	HasUnarchivedWorktreeSession(context.Context, string, string) (bool, error)
 }
 
 type daemonWorktreeSessionGuard struct {
@@ -30,6 +31,14 @@ func (g daemonWorktreeSessionGuard) HasActiveSession(
 	worktreeID string,
 ) (bool, error) {
 	return g.registry.HasActiveWorktreeSession(ctx, workspaceID, worktreeID)
+}
+
+func (g daemonWorktreeSessionGuard) HasUnarchivedSession(
+	ctx context.Context,
+	workspaceID string,
+	worktreeID string,
+) (bool, error) {
+	return g.registry.HasUnarchivedWorktreeSession(ctx, workspaceID, worktreeID)
 }
 
 type daemonWorktreeWorkspaceResolver struct {

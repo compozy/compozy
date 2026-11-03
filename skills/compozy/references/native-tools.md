@@ -124,7 +124,7 @@ Session tools: `compozy__session_list`, `compozy__session_create`, `compozy__ses
 `compozy__session_compact`, `compozy__session_status`, `compozy__session_history`,
 `compozy__session_events`, `compozy__session_describe`, `compozy__session_health`, `compozy__session_runtime_set`,
 `compozy__session_runtime_clear`, `compozy__session_archive`,
-`compozy__session_unarchive`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_wait`,
+`compozy__session_unarchive`, `compozy__session_later`, `compozy__session_resume_later`, `compozy__session_rename`, `compozy__session_reparent`, `compozy__session_move_to_profile`, `compozy__session_wait`,
 `compozy__session_spawn`, `compozy__session_stop`, `compozy__session_approve`,
 `compozy__session_clarify_answer`, `compozy__session_prompt_cancel`.
 
@@ -543,6 +543,16 @@ verified process exit is refused with `source_running`, and daemon roles such as
 `source_not_user`, `parent_ineligible`, `cycle`, `archived`, `not_detachable`, `source_running`,
 `operator_required`). The CLI fallback is
 `compozy session reparent <id> --parent <parent-id>` or `--top-level`.
+`compozy__session_move_to_profile` copies a stopped top-level user session of the caller's workspace
+and profile into `target_profile` (an active profile name) and archives the original; the copy is a
+fork owned by the target profile, and a bound worktree's branch is checked out again in a new
+worktree owned by that profile. The result carries the copy as `session`, the archived `original`,
+and `worktree_id`/`branch` when a worktree moved. An agent cannot move its own session
+(`self_target_denied`), and its write to the target profile passes the workspace-access policy like
+any other cross-profile write, so it needs the unrestricted grant. Refusals carry a
+`session_move_to_profile_*` code (`same_profile`, `own_session`, `not_movable`, `running`, `archived`, `has_children`, `worktree_dirty`, `worktree_detached`, `worktree_shared`, `worktree_run_owned`, `worktree_not_ready`, `worktree_changed`, `recovery_incomplete`). The CLI fallback is
+`compozy session move-to-profile <id> <profile>`. Not `compozy__session_move`, which only places a
+session in a folder.
 
 Authored context tools: `compozy__agent_heartbeat_status`, `compozy__agent_heartbeat_wake`.
 

@@ -7,6 +7,29 @@ import (
 	"time"
 )
 
+// SessionCommandsChangedPayload is a daemon API value.
+type SessionCommandsChangedPayload struct {
+	SessionID string `json:"session_id"`
+	Revision  string `json:"revision"`
+}
+
+// SessionCommandsResponse is a daemon API value.
+type SessionCommandsResponse struct {
+	Commands []SessionCommandPayload `json:"commands"`
+	Revision string                  `json:"revision"`
+}
+
+// SessionCompactRequest is a daemon API value.
+type SessionCompactRequest struct{}
+
+// SessionCompactResponse is a daemon API value.
+type SessionCompactResponse struct {
+	SessionID string `json:"session_id"`
+	PromptID  string `json:"prompt_id"`
+	Command   string `json:"command"`
+	Status    string `json:"status"`
+}
+
 // SessionCompactionContextAfterPayload is a daemon API value.
 type SessionCompactionContextAfterPayload struct {
 	Used     int64  `json:"used"`
@@ -424,27 +447,3 @@ type SessionInputResponse struct {
 
 // SessionInputStatus is a daemon API value.
 type SessionInputStatus string
-
-// SessionInspectResponse is a daemon API value.
-type SessionInspectResponse struct {
-	SessionID    string                             `json:"session_id"`
-	Health       SessionHealthPayload               `json:"health"`
-	WakeState    *HeartbeatWakeStatePayload         `json:"wake_state,omitempty"`
-	WakeEvents   []HeartbeatWakeEventPayload        `json:"wake_events,omitempty"`
-	PolicyDigest string                             `json:"policy_digest,omitempty"`
-	ConfigDigest string                             `json:"config_digest,omitempty"`
-	Diagnostics  []AuthoredContextDiagnosticPayload `json:"diagnostics,omitempty"`
-}
-
-// SessionInteractionsResponse is a daemon API value.
-type SessionInteractionsResponse struct {
-	Interactions []PendingInteractionPayload `json:"interactions"`
-}
-
-// SessionLaterPayload is a daemon API value.
-type SessionLaterPayload struct {
-	ParkedAt        time.Time  `json:"parked_at"`
-	Reason          string     `json:"reason,omitempty"`
-	ReturnAt        *time.Time `json:"return_at,omitempty"`
-	PendingMessages int        `json:"pending_messages"`
-}
