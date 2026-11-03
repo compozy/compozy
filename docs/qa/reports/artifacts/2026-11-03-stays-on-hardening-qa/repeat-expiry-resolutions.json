@@ -1,0 +1,14 @@
+[
+  {
+    "request_id": "turn-85f973f0d39c6d60:rep-1",
+    "resource": "Run git push --force",
+    "decision": "reject-once",
+    "resolved_by": "timeout"
+  },
+  {
+    "request_id": "turn-85f973f0d39c6d60:rep-2",
+    "resource": "Run git push --force",
+    "decision": "reject-once",
+    "resolved_by": "repeat_denied"
+  }
+]

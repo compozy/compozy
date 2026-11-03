@@ -1,0 +1,25 @@
+{
+  "resolution_source": "flag",
+  "agent_name": "triage-desk",
+  "source_path": "agents/triage-desk/HEARTBEAT.md",
+  "enabled": true,
+  "present": true,
+  "active": true,
+  "valid": true,
+  "validation_status": "valid",
+  "digest": "sha256:170451b77ab0a3955e4617762a8fdb60a11118f5deadd6ecf47bd088af4c5f9e",
+  "config_digest": "sha256:0abf6478b8ffef1353f2544811669fe629bc1d792e7a3c81b7657c6748093590",
+  "snapshot_id": "hb-6f230941a5b3afe2",
+  "summary": "Watch staging deploys.",
+  "preferences": {
+    "min_interval": "30m0s",
+    "quiet_windows": [
+      {
+        "timezone": "UTC",
+        "start": "05:00",
+        "end": "07:30"
+      }
+    ],
+    "context": {}
+  }
+}

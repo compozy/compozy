@@ -1,0 +1,18 @@
+## HTTP PUT
+{"error":"tool_approval_grants_denied: stays-on lineages cannot set or revoke tool approval grants","code":"tool_approval_grants_denied"} HTTP 403
+## HTTP DELETE
+{"error":"tool_approval_grants_denied: stays-on lineages cannot set or revoke tool approval grants","code":"tool_approval_grants_denied"} HTTP 403
+## UDS PUT
+{"error":"tool_approval_grants_denied: stays-on lineages cannot set or revoke tool approval grants","code":"tool_approval_grants_denied"} HTTP 403
+## UDS DELETE
+{"error":"tool_approval_grants_denied: stays-on lineages cannot set or revoke tool approval grants","code":"tool_approval_grants_denied"} HTTP 403
+GRANTS_UNCHANGED
+## operator set
+{"id":"24b96721-18d0-4d80-8a93-d198cce2b722","tool_id":"compozy__notify"}
+## operator revoke 24b96721-18d0-4d80-8a93-d198cce2b722
+{
+  "resolution_source": "flag",
+  "revoked_id": "24b96721-18d0-4d80-8a93-d198cce2b722",
+  "workspace_id": "01M6FYZ09J37T7X3TJVPX6CDGW"
+}
+

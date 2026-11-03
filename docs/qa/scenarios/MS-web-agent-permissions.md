@@ -6,13 +6,13 @@ persona: Dora
 journey: J-31
 expected: An agent's home lists Permissions under "How it's set up" with the current level as its summary. The Permissions page shows the five levels in one column with one-line descriptions — Ask before every action, Ask before changes, Edit on its own, Let a reviewer decide, Never ask. A stays-on agent with nothing set selects Edit on its own with a Default pill; an on-demand agent adds Follow Settings naming the current Settings level. Choosing Let a reviewer decide on a provider that declares no reviewer shows the Not available pill and the "has no AI reviewer" warning; a running session that fell back shows the degraded warning. Never ask on Codex explains Codex keeps its own reviewer. Stays-on agents show "Whose requests can it answer?" with Only its own sessions and Any session it can reach. Exceptions start closed; Add an exception adds an action, path and Allow/Never row, a path outside the project blocks Save with the reason, and listed exceptions show the coverage note. Save writes `permissions`, `session_approval` and `permission_rules` in one digest-guarded update and the values survive a reread and `agent show -o json`. An extension-owned agent shows the page read-only. Settings → General → Permissions shows the same five labels in one column, and New agent's Advanced section uses the same labels.
 entry_points: web desktop shell → Agents → agent home → Permissions; Settings → General → Permissions; New agent → Advanced
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence: web/src/systems/agent/components/__tests__/agent-editors.test.tsx (Permissions); web/src/routes/_app/settings/__tests__/-general.test.tsx; Storybook systems/agent/components/AgentEditors Permissions* stories
-last_report:
+qa_status: partial
+bug_ids: BUG-20261103-reviewer-mode-omitted
+fix_status: fixed
+retest_status: pending
+fix_commits: 2f5647d5b
+evidence: web/src/systems/agent/components/__tests__/agent-editors.test.tsx (Permissions); web/src/routes/_app/settings/__tests__/-general.test.tsx; Storybook systems/agent/components/AgentEditors Permissions* stories; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: MS-web-agent-create-simple-advanced, ET-web-agent-detail-tab-parity
 ---
 
@@ -28,3 +28,5 @@ installed by an extension and confirm every control is disabled.
 Provider reviewer availability reads `reviewer_mode` from `GET /api/providers`; when the daemon omits
 the field the page shows no reviewer warning. Verify against a provider configured with an empty
 `reviewer_mode` once the field ships.
+
+QA verification 2026-11-03 (stays-on hardening S5/S6/S15, soh/qa 583415ef5, isolated acpmock lab): Partial. A stays-on agent with no `permissions` showed Edit on its own with Default, and the five levels sat in one column with descriptions. Saving Ask before changes, Any session it can reach, `docs/**` Allow and a Delete files exception set to Never on `qa-courier` read back as `approve-reads`, `session_approval: workspace` and both `permission_rules`. Settings → General shows the same labels (`05-s5-permissions-levels.png`, `06-s6-approval-reach.png`, `15-s15-settings-levels.png`). Fail: Auto unavailable can never show, because `GET /api/providers` omits `reviewer_mode` for every provider without a reviewer and the Web only warns on an empty string (BUG-20261103-reviewer-mode-omitted). Not walked: removing exceptions, the `../secrets` block, Follow Settings on an on-demand agent, and an extension-installed agent.

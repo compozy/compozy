@@ -1,0 +1,10 @@
+## agent approve (curator main)
+{"error":"skill_review_operator_only","code":"skill_review_operator_only"} HTTP 403
+## agent reject (curator main)
+{"error":"skill_review_operator_only","code":"skill_review_operator_only"} HTTP 403
+## operator approve stale
+{"error":"skill_review_stale","code":"skill_review_stale"} HTTP 409
+## operator approve
+{"review":{"id":"skr-db7b705100c701f6","instance_id":"ainst-33f3b64b3bc12ebe","profile_id":"00000000000000000000000000","workspace_id":"01M6FYZ09J37T7X3TJVPX6CDGW","agent":"curator","name":"deploy-notes","state":"approved","digest":"sha256:be93f7f6165ac7c8769bb581063b5db5da4d4db7f2ac8200845fbd03ab4d
+## operator reject scratch-notes
+{"review":{"id":"skr-fce0132c5c1c4c12","instance_id":"ainst-33f3b64b3bc12ebe","profile_id":"00000000000000000000000000","workspace_id":"01M6FYZ09J37T7X3TJVPX6CDGW","agent":"curator","name":"scratch-notes","state":"rejected","digest":"sha256:32e88fc7366706624616de38d2a26bd06ea6002546d26e5a07e0359590d

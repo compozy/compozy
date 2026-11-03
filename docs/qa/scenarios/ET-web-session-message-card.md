@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-13-follow-a-live-run
 expected: A message one agent session sends another with compozy__session_prompt renders in the receiver's transcript as a left-aligned framed card (the sender's provider mark with no status dot, "From {current title}" as a link, a Steered / Interrupted / Superseded chip only when it arrived that way, "Reply requested" when notify_on_complete was set, the time, and the body with the operator bubble's 176px clamp and Show more), never as a right-aligned operator bubble; a deleted sender reads "From a deleted session" with no link, a renamed one shows its current title, and one in another workspace adds its folder and workspace name; while queued it shows in the queue strip as "From {title}" with the provider mark and Remove only (no Steer or edit); in the sender's transcript the call renders as a "Sent to {title}" card outside the work group (Sending… → Waiting for reply with a pulsing success dot → Replied / Failed / Canceled / Dropped / Unknown, or no reply state when none was requested, or "Could not send to {title}" with the error) and the reply lands as a left-aligned "Reply from {title}" card with the target's mark, an outcome dot and word, and the answer, a fixed sentence for dropped / unknown, "No reply text." when the turn left none, and "Reply truncated · Read the full turn" when cut at 12,000 characters; every surface matches its VC in docs/design/opendesign/agent-collaboration/.
 entry_points: web session window transcript (SessionMessageCard, SessionReplyCard, SessionSentCard); composer queue strip (SessionQueueEntryRow); docs/design/opendesign/agent-collaboration/agent-collaboration-transcript.html (VC-01…VC-04) and agent-collaboration-composer.html (VC-05)
-qa_status: pass
+qa_status: partial
 bug_ids: compozy/compozy#742; compozy/compozy#1097
 fix_status: fixed
 retest_status: pass
 fix_commits: branch fix/issue-742-session-message-cards
-evidence:
-last_report: docs/qa/reports/2026-10-31-issue-1102-cross-workspace-reply.md
+evidence:; docs/qa/reports/artifacts/2026-11-03-stays-on-hardening-qa/ (2026-11-03 stays-on QA walk)
+last_report: docs/qa/reports/2026-11-03-stays-on-hardening-qa.md
 overlaps: RT-session-message-origin; RT-session-message-reply; ET-web-session-transcript-calm-grammar; ET-web-subagent-card
 ---
 
@@ -89,3 +89,5 @@ and the `LongTitles` story (360px and the 560px card maximum).
 QA verification 2026-10-31 (#1102): the targeted isolated project ping/pong, five authorization denials, and live From/Sent/error labels after reload passed. See [scoped report](../reports/2026-10-31-issue-1102-cross-workspace-reply.md) for evidence and coverage limits.
 
 QA impact 2026-11-03 (stays-on hardening S12): a message from or to a stays-on agent's current main names the agent (its label) instead of the session title. A send whose result is `delivery: held` reads Held until it resumes on the Sent card while the target is still paused. In a paused agent's main session, queued rows the daemon marks `held` show Held until it resumes while the operator's own rows stay editable. Both read backend B5 (`delivery: held`, `SessionInputPayload.held`). Owners: `session-messages.test.tsx` and `queued-prompt.test.ts` (UT-080). Not walked.
+
+QA verification 2026-11-03 (stays-on hardening S12, soh/qa 583415ef5): Partial. In paused Ops Lead's main the queued rows read "From Scribe · Can you confirm… · Held until it resumes" and "1 monitor fired · Held until it resumes" (`12-s12-held-message.png`). Paper cuts: the sender avatar is the Claude provider mark rather than Scribe's, and the held monitor row shows a raw "SY synthetic" label. The Sent card leg was not verified: the acpmock sender's transcript renders a generic tool row with raw JSON `"delivery":"held"` (`12b-s12-sent-card.png`), which may only reflect how the fixture's tool call renders.

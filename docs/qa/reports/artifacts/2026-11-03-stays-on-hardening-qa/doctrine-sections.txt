@@ -1,0 +1,2 @@
+sess-705b9fe07b2ac151 stays_on_doctrine=1
+sess-f1264e5d3aeb031e stays_on_doctrine=0
