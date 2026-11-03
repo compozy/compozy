@@ -4,7 +4,7 @@ area: ET
 title: Keep desktops and window layouts per profile
 persona: Ada
 journey: J-restore-per-profile-state
-expected: Each profile keeps its own desktops and window arrangement per workspace; switching profiles restores the target profile's desks exactly as they were left and shows none of the previous profile's windows; a session of another profile opened under All profiles closes from the desk when the operator switches into the desk's profile, while a deep link opened under a selected profile keeps its owner banner; a brand-new profile enters on a single seeded default desktop; an archived profile's arrangement is retained and returns untouched on unarchive; deleting a profile counts its saved arrangements in the delete preview and removes every one of them, with other profiles' desks intact.
+expected: Each profile keeps its own desktops and window arrangement per workspace; switching profiles restores the target profile's desks exactly as they were left and shows none of the previous profile's windows; a session, terminal, pinned agent, or automation detail window of another profile opened under All profiles closes from the desk when the operator switches into the desk's profile, while a deep link opened under a selected profile keeps its owner banner; a brand-new profile enters on a single seeded default desktop; an archived profile's arrangement is retained and returns untouched on unarchive; deleting a profile counts its saved arrangements in the delete preview and removes every one of them, with other profiles' desks intact.
 entry_points: dock-foot profile switcher; web topbar pager; GET /api/workspaces/{workspace_id}/window-manager?profile=; POST /api/workspaces/{workspace_id}/window-manager/preview?profile=; POST /api/workspaces/{workspace_id}/window-manager/commands?profile=; compozy desktop list; compozy profile delete
 qa_status: skipped
 bug_ids:
@@ -26,8 +26,9 @@ Walk:
 3. Arrange a different desktop and window layout under the second profile.
 4. Switch back and forth between the two profiles and confirm each arrangement returns exactly as it
    was left, in both directions, including which desktop is active.
-5. Turn on All profiles, open a session owned by the second profile, then select the remembered
-   profile whose desk you are on. Confirm that session's window closes, the remembered profile's own
+5. Turn on All profiles, open a session, a terminal, a pinned agent (Open agent on a stays-on
+   avatar) and an automation job or trigger owned by the second profile, then select the remembered
+   profile whose desk you are on. Confirm each of those windows closes, the remembered profile's own
    windows stay, the second profile's desk still shows its own windows when you switch to it, and a
    link to the second profile's session opened while the remembered profile is selected shows the
    owner banner instead of closing.
@@ -64,3 +65,10 @@ QA 2026-11-03 (#1184, step 5 only): in an isolated lab with profiles `xray` and 
 (the daemon snapshot for `yankee` no longer lists it), `yankee`'s own session window stays,
 switching to `xray` restores both of its windows, and a deep link to a `xray` session while
 `yankee` is selected still shows the owner banner. The remaining steps stay unwalked.
+
+QA 2026-11-03 (#1194, step 5 only): in an isolated lab with profiles `xray` and `yankee` (remembered
+`yankee`), switching `xray` → `yankee` → All profiles and opening `xray`'s terminal, automation job,
+and pinned agent stored them on `yankee`'s desk. Before the fix they stayed after selecting `yankee`
+(the terminal read "This terminal isn't here"). After the fix the switch closes all three (the daemon
+snapshot for `yankee` keeps only `yankee`'s own terminal window), and `xray`'s terminal is still
+`running`: the sweep's close is view-only and never asks the terminal close guard to terminate it.

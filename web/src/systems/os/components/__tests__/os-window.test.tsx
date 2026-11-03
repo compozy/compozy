@@ -5,12 +5,16 @@
 // All projects desktop a bound item window names its project (or User) in the chrome; catalog
 // windows and project desktops show no badge. While an app's surface loads, the window body shows
 // the app's registered loading frame for the window's route, in that window's own scope, or the
-// generic rows for an app without one.
-import { fireEvent, render, screen, within } from "@testing-library/react";
+// generic rows for an app without one. A body waits while the runtime still presents another
+// profile's desk than the shell does, so the previous desk never renders under the new profile
+// (#1194).
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { StrictMode, useContext, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DeskProfileContext } from "../../contexts/desk-profile-context";
 import { useDesktop } from "../../hooks/use-desktop";
+import { windowManagerStore } from "../../stores/window-manager-store";
 import { useOsWindow, type OsWindowModel } from "../../hooks/use-os-window";
 import type { OsWindowFrameModel } from "../../lib/group-projection";
 import type {
@@ -401,6 +405,29 @@ describe("OsWindow", () => {
     frameHost = screen.getByTestId("os-window-frame-window:tasks");
     expect(frameHost.parentElement).toHaveStyle({ display: "none" });
     expect(screen.getByTestId("os-window-window:tasks")).toHaveAttribute("data-minimized");
+  });
+
+  it("Should hold the body back until the runtime presents the shell's profile desk [#1194]", () => {
+    act(() =>
+      windowManagerStore.trigger.bindingBound({
+        binding: { workspaceId: "ws_alpha", profileId: "xray", clientId: "client:test" },
+      })
+    );
+    render(
+      <DeskProfileContext value="yankee">
+        <OsWindow frame={frameModel()} />
+      </DeskProfileContext>
+    );
+    expect(screen.queryByRole("textbox", { name: "Task draft" })).toBeNull();
+    expect(controllerRenders).toEqual([]);
+
+    act(() =>
+      windowManagerStore.trigger.bindingBound({
+        binding: { workspaceId: "ws_alpha", profileId: "yankee", clientId: "client:test" },
+      })
+    );
+    expect(screen.getByRole("textbox", { name: "Task draft" })).toBeInTheDocument();
+    act(() => windowManagerStore.trigger.bindingUnbound());
   });
 
   it("Should preserve controller state across floating and compact presentations", () => {

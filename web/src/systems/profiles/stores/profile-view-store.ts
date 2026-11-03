@@ -13,6 +13,20 @@ interface ProfileViewContext {
    * moving between profiles (the desk dropping another profile's windows) key off this alone.
    */
   switchEpoch: number;
+  /** The switch (its epoch) that produced the current view; 0 when no switch did. */
+  viewSwitch: number;
+  /**
+   * Switches whose persist has not settled, by epoch, with the view each one replaced. Switches
+   * can overlap, so a failure rolls back along this chain rather than to a captured snapshot: a
+   * failed switch's successors inherit what it replaced, and the view only returns when the
+   * failed switch is the one still showing.
+   */
+  pending: Readonly<Record<number, PendingSwitch>>;
+}
+
+interface PendingSwitch {
+  previous: ProfileView | null;
+  previousSwitch: number;
 }
 
 /**
@@ -28,7 +42,7 @@ interface ProfileViewContext {
  * remembered choice underneath it stays the creation destination.
  */
 export const profileViewStore = createStore({
-  context: { view: null, switchEpoch: 0 } as ProfileViewContext,
+  context: { view: null, switchEpoch: 0, viewSwitch: 0, pending: {} } as ProfileViewContext,
   on: {
     viewEntered: (context, event: { view: ProfileView }) => {
       if (context.view !== null) return undefined;
@@ -36,19 +50,46 @@ export const profileViewStore = createStore({
     },
     viewChanged: (context, event: { view: ProfileView }) => {
       if (context.view && sameView(context.view, event.view)) return undefined;
-      return { ...context, view: event.view, switchEpoch: context.switchEpoch + 1 };
+      const epoch = context.switchEpoch + 1;
+      return {
+        ...context,
+        view: event.view,
+        switchEpoch: epoch,
+        viewSwitch: epoch,
+        pending: {
+          ...context.pending,
+          [epoch]: { previous: context.view, previousSwitch: context.viewSwitch },
+        },
+      };
     },
-    /** A failed switch's rollback: the view returns, and it was never a switch. */
-    viewRestored: (context, event: { view: ProfileView }) => {
-      if (context.view && sameView(context.view, event.view)) return undefined;
-      return { ...context, view: event.view };
+    /** The switch's persist landed: nothing will roll it back any more. */
+    switchSettled: (context, event: { switch: number }) => {
+      if (!(event.switch in context.pending)) return undefined;
+      const { [event.switch]: _settled, ...pending } = context.pending;
+      return { ...context, pending };
     },
-    viewCleared: context => (context.view === null ? undefined : { ...context, view: null }),
+    /**
+     * The switch's persist failed: it never happened. Its successors now replace what it replaced,
+     * and if it is still the view on screen, that view returns. A rollback is not a switch.
+     */
+    switchFailed: (context, event: { switch: number }) => {
+      const failed = context.pending[event.switch];
+      if (failed === undefined) return undefined;
+      const pending: Record<number, PendingSwitch> = {};
+      for (const [id, entry] of Object.entries(context.pending)) {
+        if (Number(id) === event.switch) continue;
+        pending[Number(id)] = entry.previousSwitch === event.switch ? { ...failed } : entry;
+      }
+      if (context.viewSwitch !== event.switch) return { ...context, pending };
+      return { ...context, view: failed.previous, viewSwitch: failed.previousSwitch, pending };
+    },
+    viewCleared: context =>
+      context.view === null ? undefined : { ...context, view: null, viewSwitch: 0 },
     /** Drops a deleted or archived profile so the next read resolves a live one. */
     profileSwept: (context, event: { profile: string }) => {
       const view = context.view;
       if (view?.kind !== "profile" || view.profile !== event.profile) return undefined;
-      return { ...context, view: null };
+      return { ...context, view: null, viewSwitch: 0 };
     },
   },
 }).with(
@@ -69,22 +110,27 @@ export function localProfileView(): ProfileView | null {
   return profileViewStore.getSnapshot().context.view;
 }
 
-export function setProfileView(view: ProfileView): void {
+/** Switches the view; returns the switch's id, or null when the view was already this one. */
+export function setProfileView(view: ProfileView): number | null {
+  const before = profileViewStore.getSnapshot().context.switchEpoch;
   profileViewStore.trigger.viewChanged({ view });
+  const after = profileViewStore.getSnapshot().context.switchEpoch;
+  return after === before ? null : after;
+}
+
+/** The switch's persist landed. */
+export function settleProfileSwitch(switchId: number): void {
+  profileViewStore.trigger.switchSettled({ switch: switchId });
+}
+
+/** The switch's persist failed: roll it back along the pending chain. */
+export function failProfileSwitch(switchId: number): void {
+  profileViewStore.trigger.switchFailed({ switch: switchId });
 }
 
 /** Captures the remembered choice the first time this client resolves one. */
 export function enterProfileView(view: ProfileView): void {
   profileViewStore.trigger.viewEntered({ view });
-}
-
-/** Rolls back after a failed persist, restoring the previous local answer. */
-export function restoreProfileView(previous: ProfileView | null): void {
-  if (previous === null) {
-    profileViewStore.trigger.viewCleared();
-    return;
-  }
-  profileViewStore.trigger.viewRestored({ view: previous });
 }
 
 export function sweepProfileView(profile: string): void {

@@ -16,7 +16,8 @@ export interface OsRouterPort {
 export type RoutingManager = {
   getState(): Pick<OsDesktopRuntimeStore, "client" | "windows" | "focusedId" | "hydration">;
   openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome;
-  closeWindow(windowId: string): Promise<boolean>;
+  /** `viewOnly` takes the window off the desk without the operator guard; its item keeps running. */
+  closeWindow(windowId: string, viewOnly?: boolean): Promise<boolean>;
   focusWindow(windowId: string): WindowManagerCommandOutcome;
   restoreWindow(windowId: string): WindowManagerCommandOutcome;
   minimizeWindow(windowId: string): Promise<boolean>;

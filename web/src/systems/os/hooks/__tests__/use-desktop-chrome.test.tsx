@@ -5,8 +5,8 @@
 // sessions-rail state and worktree picks are pruned only against a snapshot fresh
 // since mount, never the cached window list a returning destination starts from;
 // an explicit switch into one profile closes, once each of its desks is live, exactly the
-// session windows another profile owns, finishing a desk's interrupted sweep and stopping on a
-// rolled-back switch (#1184).
+// session, terminal, pinned agent and automation windows another profile owns, finishing a
+// desk's interrupted sweep and stopping on a rolled-back switch (#1184, #1194).
 // Boundary IN: chrome hook projection reads and provider ownership.
 // Boundary OUT: window-manager stream, client registration, and rendered DesktopShell.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -24,6 +24,13 @@ const profileScope = vi.hoisted(() => ({
   ownerId: "p_yankee",
 }));
 const sessionOwners = vi.hoisted(() => new Map<string, string>());
+// Terminals by the catalog selector they are listed in ("@all" for the aggregate read).
+const terminalOwners = vi.hoisted(
+  () => new Map<string, Array<{ id: string; profile_id: string }>>()
+);
+// Agent definitions by `<profile>/<name>`: a pinned window's owner read finds it there.
+const agentDefinitions = vi.hoisted(() => new Set<string>());
+const automationOwners = vi.hoisted(() => new Map<string, string>());
 
 vi.mock("@tanstack/react-router", () => ({
   useRouter: () => ({
@@ -65,6 +72,55 @@ vi.mock("@/systems/session", () => ({
   }),
 }));
 
+vi.mock("@/systems/terminal", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/terminal")>();
+  return {
+    ...actual,
+    terminalAggregateQuery: () => ({
+      queryKey: ["terminals", "@all"],
+      queryFn: () => terminalOwners.get("@all") ?? [],
+    }),
+    terminalCatalogQuery: (scope: { key: { workspaceId: string } }) => ({
+      queryKey: ["terminals", scope.key.workspaceId],
+      queryFn: () => terminalOwners.get(scope.key.workspaceId) ?? [],
+    }),
+  };
+});
+
+vi.mock("@/systems/agent", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/agent")>();
+  return {
+    ...actual,
+    agentDetailOptions: (name: string, _workspace: string | null, profile: string) => ({
+      queryKey: ["agent", profile, name],
+      queryFn: () => {
+        if (!agentDefinitions.has(`${profile}/${name}`)) throw new Error("agent not found");
+        return { name };
+      },
+    }),
+  };
+});
+
+vi.mock("@/systems/automation", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/automation")>();
+  const read = (id: string) => {
+    const owner = automationOwners.get(id);
+    if (owner === undefined) throw new Error("automation not found");
+    return { id, profile_id: owner };
+  };
+  return {
+    ...actual,
+    automationJobDetailOptions: (id: string, scope: unknown) => ({
+      queryKey: ["job", id, scope],
+      queryFn: () => read(id),
+    }),
+    automationTriggerDetailOptions: (id: string, scope: unknown) => ({
+      queryKey: ["trigger", id, scope],
+      queryFn: () => read(id),
+    }),
+  };
+});
+
 vi.mock("@/systems/profiles", async importOriginal => {
   const actual = await importOriginal<typeof import("@/systems/profiles")>();
   return {
@@ -104,9 +160,10 @@ vi.mock("../use-global-shortcut-reconciliation", () => ({
 }));
 
 import {
+  failProfileSwitch,
   resetProfileViews,
-  restoreProfileView,
   setProfileView,
+  settleProfileSwitch,
 } from "@/systems/profiles/stores/profile-view-store";
 
 import type { OsShellHandle } from "../../contexts/os-shell-context";
@@ -210,15 +267,28 @@ describe("useProfileSwitchWindowSweep", () => {
     profileScope.aggregate = false;
     profileScope.ownerId = "p_yankee";
     sessionOwners.clear();
+    terminalOwners.clear();
+    agentDefinitions.clear();
+    automationOwners.clear();
     resetProfileViews();
   });
 
-  function deskWindow(id: string, pathname: string): OsWindow {
-    return { id, route: { pathname, search: {} } } as unknown as OsWindow;
+  function deskWindow(
+    id: string,
+    pathname: string,
+    app = "session",
+    search: Record<string, unknown> = {}
+  ): OsWindow {
+    return { id, app, route: { pathname, search } } as unknown as OsWindow;
   }
 
-  function fakeShell(live: boolean, duringFirstClose?: () => void, refuseFirst = false) {
-    let windows: Record<string, OsWindow> = {
+  function fakeShell(
+    live: boolean,
+    duringFirstClose?: () => void,
+    refuseFirst = false,
+    desk?: Record<string, OsWindow>
+  ) {
+    let windows: Record<string, OsWindow> = desk ?? {
       w_own: deskWindow("w_own", "/agents/builder/sessions/s_own"),
       w_xray: deskWindow("w_xray", "/agents/builder/sessions/s_xray"),
       w_zulu: deskWindow("w_zulu", "/agents/builder/sessions/s_zulu"),
@@ -239,7 +309,7 @@ describe("useProfileSwitchWindowSweep", () => {
     let pending = false;
     const closed: string[] = [];
     let refused = !refuseFirst;
-    const userClose = vi.fn(async (windowId: string) => {
+    const userClose = vi.fn(async (windowId: string, _viewOnly?: boolean) => {
       if (pending) return false;
       if (!refused) {
         // Another surface's close is pending for a while (a terminal confirmation, say): the
@@ -275,8 +345,17 @@ describe("useProfileSwitchWindowSweep", () => {
     };
   }
 
-  function switchTo(view: Parameters<typeof setProfileView>[0]) {
-    act(() => setProfileView(view));
+  function switchTo(view: Parameters<typeof setProfileView>[0]): number {
+    let switchId: number | null = null;
+    act(() => {
+      switchId = setProfileView(view);
+    });
+    return switchId ?? 0;
+  }
+
+  /** Where the operator already is before the test's switch: a switch that persisted. */
+  function startOn(profile: string) {
+    settleProfileSwitch(setProfileView({ kind: "profile", profile }) ?? 0);
   }
 
   /** A query client whose owner reads wait until `release` is called. */
@@ -309,6 +388,66 @@ describe("useProfileSwitchWindowSweep", () => {
 
     act(() => goLive());
     await waitFor(() => expect(closed).toEqual(["w_xray", "w_zulu"]));
+  });
+
+  it("Should sweep each desk of the profile the first time it is live after the switch", async () => {
+    sessionOwners.set("s_xray", "p_xray");
+    const { shell, userClose } = fakeShell(true);
+    const { rerender } = renderHook(
+      ({ partition }) => useProfileSwitchWindowSweep(shell, partition),
+      { wrapper: wrapper(), initialProps: { partition: "ws_a" } }
+    );
+
+    switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() => expect(userClose).toHaveBeenCalledTimes(1));
+    // Moving to All projects later presents another desk of the same profile: it is swept too.
+    rerender({ partition: "global" });
+    await waitFor(() => expect(userClose).toHaveBeenCalledTimes(2));
+    // Coming back to a desk already swept for this switch does not sweep it again.
+    rerender({ partition: "ws_a" });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(userClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("Should close terminal, pinned agent and automation windows another profile owns [#1194]", async () => {
+    terminalOwners.set("ws_a", [
+      { id: "t_own", profile_id: "p_yankee" },
+      { id: "t_xray", profile_id: "p_xray" },
+    ]);
+    terminalOwners.set("@user", [{ id: "t_user", profile_id: "p_xray" }]);
+    agentDefinitions.add("xray/builder");
+    agentDefinitions.add("yankee/builder");
+    automationOwners.set("j_xray", "p_xray");
+    automationOwners.set("j_own", "p_yankee");
+    automationOwners.set("tr_xray", "p_xray");
+    const desk = {
+      t_own: deskWindow("t_own", "/terminal/t_own", "terminal"),
+      t_xray: deskWindow("t_xray", "/terminal/t_xray", "terminal"),
+      // A bound window reads its own scope's catalog, not the desk's.
+      t_user: deskWindow("t_user", "/terminal/t_user", "terminal", { workspace: "@user" }),
+      // Gone from every catalog: the terminal surface owns that, so the window stays.
+      t_gone: deskWindow("t_gone", "/terminal/t_gone", "terminal"),
+      a_xray: deskWindow("a_xray", "/agents/builder", "agents", { profile: "xray" }),
+      a_own: deskWindow("a_own", "/agents/builder", "agents", { profile: "yankee" }),
+      // Unpinned: it reads whatever profile the client acts as, so it never leaves.
+      a_free: deskWindow("a_free", "/agents/builder", "agents"),
+      // Pinned to a definition that is gone: no owner read, so the window stays.
+      a_gone: deskWindow("a_gone", "/agents/ghost", "agents", { profile: "xray" }),
+      a_catalog: deskWindow("a_catalog", "/agents", "agents"),
+      j_xray: deskWindow("j_xray", "/automations/jobs/j_xray", "automations"),
+      j_own: deskWindow("j_own", "/automations/jobs/j_own", "automations"),
+      tr_xray: deskWindow("tr_xray", "/automations/triggers/tr_xray", "automations"),
+      j_list: deskWindow("j_list", "/automations", "automations"),
+    };
+    const { shell, closed, userClose } = fakeShell(true, undefined, false, desk);
+    renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), { wrapper: wrapper() });
+
+    switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() =>
+      expect([...closed].sort()).toEqual(["a_xray", "j_xray", "t_user", "t_xray", "tr_xray"])
+    );
+    // View-only: another profile's terminal leaves this desk but keeps running.
+    expect(userClose.mock.calls.every(([, viewOnly]) => viewOnly === true)).toBe(true);
   });
 
   it("Should sweep each desk of the profile the first time it is live after the switch", async () => {
@@ -383,7 +522,7 @@ describe("useProfileSwitchWindowSweep", () => {
     switchTo({ kind: "profile", profile: "yankee" });
     await waitFor(() => expect(fake.closed).toEqual(["w_xray"]));
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(fake.userClose).not.toHaveBeenCalledWith("w_zulu");
+    expect(fake.userClose.mock.calls.map(([id]) => id)).not.toContain("w_zulu");
   });
 
   it("Should leave the desk alone without a switch or when the switch is to All profiles", async () => {
@@ -419,6 +558,7 @@ describe("useProfileSwitchWindowSweep", () => {
 
   it("Should cancel pending owner reads without sweeping the restored profile after rollback", async () => {
     sessionOwners.set("s_xray", "p_xray");
+    startOn("zulu");
     const { shell, userClose } = fakeShell(true);
     const held = heldOwnerReads();
     const { rerender } = renderHook(
@@ -426,9 +566,9 @@ describe("useProfileSwitchWindowSweep", () => {
       { wrapper: held.wrapper, initialProps: { partition: "ws_a" } }
     );
 
-    switchTo({ kind: "profile", profile: "yankee" });
+    const yankee = switchTo({ kind: "profile", profile: "yankee" });
     await waitFor(() => expect(held.queryClient.fetchQuery).toHaveBeenCalled());
-    act(() => restoreProfileView({ kind: "profile", profile: "zulu" }));
+    act(() => failProfileSwitch(yankee));
     held.release();
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(userClose).not.toHaveBeenCalled();
@@ -441,20 +581,21 @@ describe("useProfileSwitchWindowSweep", () => {
   it("Should stop closing when a failed switch rolls the view back", async () => {
     sessionOwners.set("s_xray", "p_xray");
     sessionOwners.set("s_zulu", "p_zulu");
+    startOn("xray");
     const { shell, userClose } = fakeShell(true);
     userClose.mockImplementation(async () => false);
     const { unmount } = renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), {
       wrapper: wrapper(),
     });
 
-    switchTo({ kind: "profile", profile: "yankee" });
-    await waitFor(() => expect(userClose).toHaveBeenCalledWith("w_xray"));
+    const yankee = switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() => expect(userClose).toHaveBeenCalledWith("w_xray", true));
     // The persist failed: the previous answer comes back under the same switch epoch.
-    act(() => restoreProfileView({ kind: "profile", profile: "xray" }));
+    act(() => failProfileSwitch(yankee));
     const attempts = userClose.mock.calls.length;
     await new Promise(resolve => setTimeout(resolve, 600));
     expect(userClose).toHaveBeenCalledTimes(attempts);
-    expect(userClose).not.toHaveBeenCalledWith("w_zulu");
+    expect(userClose.mock.calls.map(([id]) => id)).not.toContain("w_zulu");
     unmount();
   });
 

@@ -2,17 +2,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAtom } from "@xstate/store-react";
 import { useEffect, useRef, useState } from "react";
 
-import {
-  ownerFromRow,
-  profileViewStore,
-  useProfileReadScope,
-  useProfileSwitchEpoch,
-} from "@/systems/profiles";
-import { sessionAcrossProfilesOptions } from "@/systems/session";
+import { profileViewStore, useProfileReadScope, useProfileSwitchEpoch } from "@/systems/profiles";
 
 import type { OsShellHandle } from "../contexts/os-shell-context";
-import { foreignProfileSessionWindows, shownSessionId } from "../lib/foreign-profile-windows";
+import {
+  foreignProfileWindows,
+  sameShownItem,
+  shownProfileItem,
+} from "../lib/foreign-profile-windows";
 import type { OsDesktopRuntimeStore } from "../lib/os-types";
+import { profileItemOwnerLookup } from "../lib/profile-item-owner";
 
 const CLOSE_RETRY_FIRST_DELAY_MS = 250;
 const CLOSE_RETRY_MAX_DELAY_MS = 5_000;
@@ -38,7 +37,7 @@ async function closeWhileForeign(close: () => Promise<boolean>, stillForeign: ()
 
 interface SweepRequest {
   epoch: number;
-  /** The profile switched into, by name (the view) and id (session owners). */
+  /** The profile switched into, by name (the view, pinned agents) and id (labeled owners). */
   profile: string;
   profileId: string;
 }
@@ -65,15 +64,17 @@ function switchStillCurrent(request: SweepRequest): boolean {
 }
 
 /**
- * Closes another profile's session windows when the operator switches into one profile.
+ * Closes another profile's windows when the operator switches into one profile.
  *
  * Desks belong to one profile, and under All profiles the client works on the destination's desk,
- * so sessions of every profile opened there are stored in it. A switch to that profile would leave
- * them on screen under an owner banner. The switch is the moment they stop belonging: each desk
- * of the profile (every project, All projects, User) is swept the first time it is live after the
- * switch, and each window whose session another profile owns closes through the normal close
- * command, so it stays reopenable and the other profile's own desk is untouched. Only an explicit
- * switch triggers this; a deep link opened while a profile is selected keeps its banner.
+ * so sessions, terminals, pinned agents and automations of every profile opened there are stored
+ * in it. A switch to that profile would leave them on screen, resolving under the wrong profile.
+ * The switch is the moment they stop belonging: each desk of the profile (every project, All
+ * projects, User) is swept the first time it is live after the switch, and each window whose item
+ * another profile owns closes through the normal close command, so it stays reopenable and the
+ * other profile's own desk is untouched. The close is view-only: the operator's close guard never
+ * runs, so another profile's running terminal leaves this desk without being terminated. Only an
+ * explicit switch triggers this; a deep link opened while a profile is selected keeps its banner.
  */
 export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: string | null) {
   const queryClient = useQueryClient();
@@ -108,24 +109,25 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
     // A desk counts as swept only once its sweep finishes. Leaving the desk (another project, a
     // rebind, the shell unmounting) interrupts it, and the desk is swept again when it returns.
     let interrupted = false;
+    const partition = workspaceId;
     void (async () => {
-      const foreign = await foreignProfileSessionWindows(
+      const foreign = await foreignProfileWindows(
         manager.getState().windows,
-        request.profileId,
-        async sessionId =>
-          ownerFromRow(await queryClient.fetchQuery(sessionAcrossProfilesOptions(sessionId))).id
+        partition,
+        { id: request.profileId, name: request.profile },
+        profileItemOwnerLookup(queryClient)
       );
-      for (const { windowId, sessionId } of foreign) {
+      for (const { windowId, item } of foreign) {
         // react-doctor-disable-next-line react-doctor/async-await-in-loop -- one close at a time is the point: the runtime's close guard admits a single close and refuses the rest while it is pending.
         await closeWhileForeign(
-          () => coordinator.userClose(windowId),
+          () => coordinator.userClose(windowId, true),
           // A later switch or a rolled-back one owns the desk now; the operator may have moved
-          // the window to another session (or to another desk, where its id is gone), so only the
+          // the window to another item (or to another desk, where its id is gone), so only the
           // inspected one licenses a close; and nothing retries once the desk is left.
           () =>
             !interrupted &&
             switchStillCurrent(request) &&
-            shownSessionId(manager.getState().windows[windowId]) === sessionId
+            sameShownItem(shownProfileItem(manager.getState().windows[windowId], partition), item)
         );
       }
       if (interrupted || !switchStillCurrent(request)) return;

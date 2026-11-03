@@ -21,7 +21,10 @@ import {
   useOsWindow,
 } from "../hooks/use-os-window";
 import { useDesktop } from "../hooks/use-desktop";
-import { useWindowManagerGestureDragging } from "../hooks/use-window-manager-store";
+import {
+  useDeskBoundToActingProfile,
+  useWindowManagerGestureDragging,
+} from "../hooks/use-window-manager-store";
 import { useOsWindowMember } from "../hooks/use-os-window-member";
 import { useWindowMergeTarget } from "../hooks/use-window-merge-target";
 import { osAppId } from "../lib/app-catalog";
@@ -241,6 +244,7 @@ function OsWindowMember({
   // Mount layout-heavy bodies, including app skeletons, after the restored
   // frames commit. react-rnd measures every frame during that first commit.
   const contentHost = useDeferredValue(overlayHost);
+  const deskBound = useDeskBoundToActingProfile();
   if (!win) return null;
   const appId = osAppId(win.app);
   if (appId === null) return null;
@@ -311,7 +315,7 @@ function OsWindowMember({
       data-stack-active={active ? "" : undefined}
     >
       <OverlayContainerContext.Provider value={contentHost}>
-        {contentHost ? (
+        {contentHost && deskBound ? (
           <OsWindowErrorBoundary title={app.title}>
             <Suspense
               fallback={

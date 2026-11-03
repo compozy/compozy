@@ -31,5 +31,39 @@ export function readActingProfile(queryClient: QueryClient): string {
 }
 
 function readRememberedProfile(queryClient: QueryClient): string | undefined {
-  return queryClient.getQueryData<ProfileSelectionPayload>(profileKeys.selection())?.profile;
+  const switches = queryClient
+    .getMutationCache()
+    .findAll({ mutationKey: profileKeys.selectionWrite() })
+    .map((mutation): SelectionSwitch => ({
+      status: mutation.state.status,
+      view: mutation.state.variables as ProfileView | undefined,
+    }));
+  return rememberedAfterSwitches(
+    switches,
+    queryClient.getQueryData<ProfileSelectionPayload>(profileKeys.selection())?.profile
+  );
+}
+
+/** One switch's write, as the mutation cache records it. */
+export interface SelectionSwitch {
+  status: "idle" | "pending" | "success" | "error";
+  view: ProfileView | undefined;
+}
+
+/**
+ * The remembered choice given this client's switch writes, oldest first. The newest concrete
+ * switch that has not failed decides: while it is being written it is the remembered choice (a
+ * reread landing before the write would answer with the previous one), and once written the
+ * daemon's answer is. An older write still pending never overrides a newer one (#1194).
+ */
+export function rememberedAfterSwitches(
+  switches: readonly SelectionSwitch[],
+  cached: string | undefined
+): string | undefined {
+  for (let index = switches.length - 1; index >= 0; index -= 1) {
+    const { status, view } = switches[index];
+    if (view?.kind !== "profile" || status === "error" || status === "idle") continue;
+    return status === "pending" ? view.profile : cached;
+  }
+  return cached;
 }
