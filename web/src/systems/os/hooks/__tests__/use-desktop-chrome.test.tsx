@@ -91,6 +91,12 @@ vi.mock("../use-window-manager-stream", () => ({
   useWindowManagerStream: vi.fn(),
 }));
 
+// A pass-through spy: the chrome cases see the call, the sweep cases still run the real hook.
+vi.mock("../use-profile-switch-window-sweep", async importOriginal => {
+  const actual = await importOriginal<typeof import("../use-profile-switch-window-sweep")>();
+  return { useProfileSwitchWindowSweep: vi.fn(actual.useProfileSwitchWindowSweep) };
+});
+
 vi.mock("../use-global-shortcut-reconciliation", () => ({
   useGlobalShortcutReconciliation: () => ({ registrations: [] }),
 }));
@@ -146,6 +152,12 @@ describe("useDesktopChrome", () => {
     expect(settingsReads().at(-1)?.enabled).toBe(true);
   });
 
+  it("Should sweep the desk it presents with its own shell", () => {
+    const { result } = renderHook(() => useDesktopChrome("ws_a"), { wrapper: wrapper() });
+
+    expect(useProfileSwitchWindowSweep).toHaveBeenLastCalledWith(result.current.shell, "ws_a");
+  });
+
   it("Should read no workspace overlay on the User partition", () => {
     renderHook(() => useDesktopChrome("user"), { wrapper: wrapper() });
 
@@ -199,12 +211,14 @@ describe("useProfileSwitchWindowSweep", () => {
     return { id, route: { pathname, search: {} } } as unknown as OsWindow;
   }
 
-  function fakeShell(live: boolean, duringFirstClose?: () => void) {
+  function fakeShell(live: boolean, duringFirstClose?: () => void, refuseFirst = false) {
     let windows: Record<string, OsWindow> = {
       w_own: deskWindow("w_own", "/agents/builder/sessions/s_own"),
       w_xray: deskWindow("w_xray", "/agents/builder/sessions/s_xray"),
       w_zulu: deskWindow("w_zulu", "/agents/builder/sessions/s_zulu"),
       w_gone: deskWindow("w_gone", "/agents/builder/sessions/s_gone"),
+      // A malformed escape the route parser throws on; it must not abort the sweep.
+      w_bad: deskWindow("w_bad", "/agents/builder/sessions/%E0%A4%A"),
       w_tasks: deskWindow("w_tasks", "/tasks"),
     };
     const state = (isLive: boolean) =>
@@ -218,8 +232,14 @@ describe("useProfileSwitchWindowSweep", () => {
     // Like the runtime's close guard: one close at a time, the rest refused while it is pending.
     let pending = false;
     const closed: string[] = [];
+    let refused = !refuseFirst;
     const userClose = vi.fn(async (windowId: string) => {
       if (pending) return false;
+      if (!refused) {
+        // A close another surface already has pending: the runtime refuses this one.
+        refused = true;
+        return false;
+      }
       pending = true;
       if (closed.length === 0) duringFirstClose?.();
       await Promise.resolve();
@@ -260,6 +280,15 @@ describe("useProfileSwitchWindowSweep", () => {
 
     act(() => goLive());
     await waitFor(() => expect(closed).toEqual(["w_xray", "w_zulu"]));
+  });
+
+  it("Should retry a close the runtime refused while another close was pending", async () => {
+    sessionOwners.set("s_xray", "p_xray");
+    const { shell, closed } = fakeShell(true, undefined, true);
+    renderHook(() => useProfileSwitchWindowSweep(shell, "ws_a"), { wrapper: wrapper() });
+
+    switchTo({ kind: "profile", profile: "yankee" });
+    await waitFor(() => expect(closed).toEqual(["w_xray"]));
   });
 
   it("Should skip a window the operator moved to another session before its close", async () => {

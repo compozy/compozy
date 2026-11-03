@@ -44,5 +44,11 @@ export async function foreignProfileSessionWindows(
 
 /** The session a window shows, or `null` for a window that shows none. */
 export function shownSessionId(win: OsWindow | undefined): string | null {
-  return win === undefined ? null : matchSessionInstance(win.route.pathname);
+  if (win === undefined) return null;
+  try {
+    return matchSessionInstance(win.route.pathname);
+  } catch {
+    // A malformed escape in one route must not abort the sweep of every other window.
+    return null;
+  }
 }

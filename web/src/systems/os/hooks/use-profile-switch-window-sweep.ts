@@ -14,6 +14,26 @@ import type { OsShellHandle } from "../contexts/os-shell-context";
 import { foreignProfileSessionWindows, shownSessionId } from "../lib/foreign-profile-windows";
 import type { OsDesktopRuntimeStore } from "../lib/os-types";
 
+const CLOSE_ATTEMPTS = 3;
+const CLOSE_RETRY_DELAY_MS = 250;
+
+/**
+ * Closes one window while it is still the foreign one the sweep inspected. A close the runtime
+ * refuses (another close pending, the connection briefly down) is retried a few times, so a busy
+ * moment does not leave the window on the desk until the next switch.
+ */
+async function closeWhileForeign(close: () => Promise<boolean>, stillForeign: () => boolean) {
+  for (let attempt = 0; attempt < CLOSE_ATTEMPTS; attempt += 1) {
+    if (attempt > 0) {
+      // react-doctor-disable-next-line react-doctor/async-await-in-loop -- the retry waits for the refusing close to settle before asking again.
+      await new Promise(resolve => setTimeout(resolve, CLOSE_RETRY_DELAY_MS));
+    }
+    if (!stillForeign()) return;
+    // react-doctor-disable-next-line react-doctor/async-await-in-loop -- each attempt depends on the previous one being refused.
+    if (await close()) return;
+  }
+}
+
 interface SweepRequest {
   epoch: number;
   workspaceId: string;
@@ -75,13 +95,15 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
           ownerFromRow(await queryClient.fetchQuery(sessionAcrossProfilesOptions(sessionId))).id
       );
       for (const { windowId, sessionId } of foreign) {
-        // Any later view change, All profiles included, owns the desk now: stop closing.
-        if (profileViewStore.getSnapshot().context.switchEpoch !== request.epoch) return;
-        // The operator may have moved the window to another session while owners were read or
-        // an earlier close was pending; only the session that was inspected licenses the close.
-        if (shownSessionId(manager.getState().windows[windowId]) !== sessionId) continue;
         // react-doctor-disable-next-line react-doctor/async-await-in-loop -- one close at a time is the point: the runtime's close guard admits a single close and refuses the rest while it is pending.
-        await coordinator.userClose(windowId);
+        await closeWhileForeign(
+          () => coordinator.userClose(windowId),
+          // Any later view change, All profiles included, owns the desk now; and the operator may
+          // have moved the window to another session, so only the inspected one licenses a close.
+          () =>
+            profileViewStore.getSnapshot().context.switchEpoch === request.epoch &&
+            shownSessionId(manager.getState().windows[windowId]) === sessionId
+        );
       }
     })();
   }, [live, queryClient, request, shell, targetProfileId, workspaceId]);
