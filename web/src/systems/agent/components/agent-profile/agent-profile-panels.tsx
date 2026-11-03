@@ -18,61 +18,30 @@ import { permissionsBlockedMessage } from "../../lib/agent-permissions";
 import type { AgentProfilePanel } from "../../lib/agent-profile";
 import { AgentSettingsAccessSection } from "../agent-settings-access-section";
 import { AgentSettingsMcpSection } from "../agent-settings-mcp-section";
-import { AgentSettingsRuntimeSection } from "../agent-settings-runtime-section";
-import { AgentPlanCard } from "./agent-profile-activity";
 
 const TITLES: Record<AgentProfilePanel, string> = {
-  model: "Model",
   tools: "What it can use",
 };
 
 function PanelBody({
-  panel,
   page,
-  provider,
   readOnly,
 }: {
-  panel: AgentProfilePanel;
   page: ReturnType<typeof useAgentSettingsPage>;
-  provider: string | null;
   readOnly: boolean;
 }) {
   const { agent, draft } = page;
   if (!agent || !draft) return null;
-  const disabled = page.phase === "saving";
-  const locked = readOnly || page.phase === "denied";
-  if (panel === "tools") {
-    return (
-      <div className="flex flex-col gap-5">
-        <AgentSettingsAccessSection
-          disabled={disabled}
-          draft={draft}
-          onPatch={page.patchDraft}
-          readOnly={locked}
-        />
-        <AgentSettingsMcpSection agent={agent} />
-      </div>
-    );
-  }
   return (
-    <AgentSettingsRuntimeSection
-      agent={agent}
-      disabled={disabled}
-      draft={draft}
-      errors={page.validation?.fields ?? {}}
-      modelCatalogError={page.modelCatalogError}
-      modelCatalogLoading={page.modelCatalogLoading}
-      modelCatalogRefreshing={page.modelCatalogRefreshing}
-      onOpenProviderSettings={page.onOpenProviderSettings}
-      onPatch={page.patchDraft}
-      onRefreshCatalog={page.onRefreshCatalog}
-      providerOptions={page.providerOptions}
-      providersLoading={page.providersLoading}
-      readOnly={locked}
-      runtimeModels={page.runtimeModels}
-    >
-      <AgentPlanCard provider={provider} />
-    </AgentSettingsRuntimeSection>
+    <div className="flex flex-col gap-5">
+      <AgentSettingsAccessSection
+        disabled={page.phase === "saving"}
+        draft={draft}
+        onPatch={page.patchDraft}
+        readOnly={readOnly || page.phase === "denied"}
+      />
+      <AgentSettingsMcpSection agent={agent} />
+    </div>
   );
 }
 
@@ -122,7 +91,6 @@ export function AgentProfilePanels({
   name,
   label,
   owner,
-  provider,
   panel,
   readOnly,
   onClose,
@@ -130,12 +98,11 @@ export function AgentProfilePanels({
   name: string;
   label: string;
   owner?: string;
-  provider: string | null;
   panel: AgentProfilePanel | null;
   readOnly: boolean;
   onClose: () => void;
 }) {
-  const page = useAgentSettingsPage({ name, section: panel === "tools" ? "access" : "runtime" });
+  const page = useAgentSettingsPage({ name, section: "access" });
   return (
     <>
       <Sheet
@@ -175,9 +142,7 @@ export function AgentProfilePanels({
                 </AlertActions>
               </Alert>
             ) : null}
-            {panel ? (
-              <PanelBody page={page} panel={panel} provider={provider} readOnly={readOnly} />
-            ) : null}
+            {panel ? <PanelBody page={page} readOnly={readOnly} /> : null}
           </div>
           {readOnly ? null : <PanelFoot onClose={onClose} page={page} />}
         </SheetContent>
