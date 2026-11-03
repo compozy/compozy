@@ -19,7 +19,7 @@ import {
 import { useReportSource } from "../../../hooks/use-report-source";
 import { countWord, deriveAwayDigest, reportClock } from "../../../lib/session-away";
 import { SessionReportSendContext } from "../../../lib/session-report-send";
-import { pickedProposal, reportPayload } from "../../../lib/session-report";
+import { isLostWake, pickedProposal, reportPayload } from "../../../lib/session-report";
 import type { SessionReportData } from "../../../types";
 import { CheckTicks } from "../stays-on-hover-card";
 import { AwayDigest } from "./away-digest";
@@ -160,13 +160,14 @@ function FailureBody({
 }) {
   const { reason, detail } = reportPayload(data);
   const when = reportClock(data.created_at);
+  if (isLostWake(data.kind, undefined, reason)) {
+    return (
+      <WakeLostReport agent={agent} detail={detail === reason ? undefined : detail} when={when} />
+    );
+  }
   switch (reason) {
     case "unattended":
       return <UnattendedPauseReport agent={agent} instance={instance} when={when} />;
-    case "wake_lost":
-      return (
-        <WakeLostReport agent={agent} detail={detail === reason ? undefined : detail} when={when} />
-      );
     case "context_exhausted":
       return <ContextFullReport agent={agent} when={when} />;
     default:
@@ -185,9 +186,10 @@ function ExpiredApproval({
   const { agent, session } = useReportSource(payload.sessionId, instances);
   const provider = payload.expiredBy === "provider";
   const tool = payload.tool === "provider" ? undefined : payload.tool;
-  // The action is what it wanted to run or change; older reports carry only the tool.
-  const subject = payload.action ?? tool;
-  const named = payload.action && tool ? `${tool} request` : "request";
+  // The resource is what it wanted to run or change; older reports carry only the tool.
+  const subject = payload.resource ?? (payload.action ? undefined : tool);
+  const named = [tool, payload.action].filter(Boolean).join(" ");
+  const request = named ? `${named} request` : "request";
   return (
     <SettledAsk
       actions={
@@ -209,8 +211,8 @@ function ExpiredApproval({
       when={reportClock(data.created_at)}
       why={
         provider
-          ? `The agent stopped waiting for an answer to its ${named} before you got to it.`
-          : `Nobody answered in time, so the ${named} wasn't allowed.`
+          ? `The agent stopped waiting for an answer to its ${request} before you got to it.`
+          : `Nobody answered in time, so the ${request} wasn't allowed.`
       }
     />
   );
@@ -259,8 +261,18 @@ function ReportBody({
       return <FailureBody agent={agent} data={data} instance={instance} />;
     case "approval_expired":
       return <ExpiredApproval data={data} instances={instances} />;
-    case "interrupted":
-      return <InterruptedReport agent={agent} data={data} instances={instances} />;
+    case "interrupted": {
+      const { cause, detail } = reportPayload(data);
+      return isLostWake(data.kind, cause) ? (
+        <WakeLostReport
+          agent={agent}
+          detail={detail === cause ? undefined : detail}
+          when={reportClock(data.created_at)}
+        />
+      ) : (
+        <InterruptedReport agent={agent} data={data} instances={instances} />
+      );
+    }
     case "rotation_failed":
       return (
         <Notice

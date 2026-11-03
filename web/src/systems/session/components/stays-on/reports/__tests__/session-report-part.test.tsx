@@ -270,6 +270,23 @@ describe("SessionReportPart", () => {
       expect(send).toHaveBeenCalledOnce();
     });
 
+    it("Should read a wake_lost failure as a lost wake too", async () => {
+      render(
+        <SessionReportPart
+          data={{
+            ...PROPOSAL,
+            kind: "failure",
+            payload: { reason: "wake_lost", detail: "CI on #1166" },
+          }}
+        />,
+        { wrapper: harness(vi.fn()) }
+      );
+
+      expect(
+        await screen.findByRole("article", { name: "A wake-up didn't arrive" })
+      ).toBeInTheDocument();
+    });
+
     it("Should say a full conversation can't move yet, and what's in the way", async () => {
       render(
         <SessionReportPart
@@ -311,13 +328,20 @@ describe("SessionReportPart", () => {
           data={{
             ...PROPOSAL,
             kind: "approval_expired",
-            payload: { tool: "Bash", action: "make migrate", expired_by: "timeout" },
+            payload: {
+              tool: "Bash",
+              action: "execute",
+              resource: "make migrate",
+              expired_by: "timeout",
+            },
           }}
         />,
         { wrapper: harness(vi.fn()) }
       );
 
-      expect(await screen.findByText(/so the Bash request wasn't allowed/)).toBeInTheDocument();
+      expect(
+        await screen.findByText(/so the Bash execute request wasn't allowed/)
+      ).toBeInTheDocument();
       await waitFor(() => expect(container).toHaveTextContent("make migrate"));
     });
 

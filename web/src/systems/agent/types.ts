@@ -189,6 +189,8 @@ export interface AgentInstanceReport {
   tool?: string;
   /** What the expired request wanted to do; absent on older reports. */
   action?: string;
+  /** The command or path the expired request was for. */
+  resource?: string;
   expired_by?: string;
   cause?: string;
   since?: string;

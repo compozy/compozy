@@ -76,6 +76,22 @@ describe("deriveAwayDigest", () => {
     );
   });
 
+  it("Should tell a lost wake apart from an interrupted approval", () => {
+    const lost = { ...report("w1", "interrupted", "2026-11-01T03:02:00Z"), cause: "undelivered" };
+    const restart = {
+      ...report("r1", "interrupted", "2026-11-01T03:10:00Z"),
+      cause: "daemon_restart",
+    };
+    const digest = deriveAwayDigest(
+      { ...AWAY, reports: [...AWAY.reports, lost, restart] },
+      "Triage Lead",
+      NOW
+    );
+    const title = (id: string) => digest?.events.find(event => event.id === id)?.title;
+    expect(title("w1")).toBe("A wake-up didn't arrive");
+    expect(title("r1")).toBe("Some work stopped");
+  });
+
   it("Should stay away after a short absence", () => {
     expect(
       deriveAwayDigest(

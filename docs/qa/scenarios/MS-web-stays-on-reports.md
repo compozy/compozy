@@ -356,3 +356,21 @@ and 20 and return more proposals than each limit. Persist exactly the configured
 count. The default and example configuration use 2. `TestParseTriageReply` checks
 all limits from 1 through 20; `TestStaysOnTriageConfiguration` validates their
 acceptance and the default. Daemon wiring passes the configured value directly.
+
+Stays-on hardening F1 web (S2, S3, S8 and the wake and context reports): set
+`agents.stays_on.unattended_turn_limit` low and let the agent run past it. The main
+session shows "Paused until you're back" with the steps it took, how many things are
+waiting, and Resume. Resume shows Resuming…, then settles into "You resumed …" naming
+what it delivers; a failed resume keeps the report and says "Couldn't resume. Try again."
+Message the agent while paused: it answers and the report still offers Resume. After an
+absence with enough check-ins, the While you were away card leads with "… of work, then it
+paused.", the time it reached its limit, the held count and Resume in place. An expired
+request names the tool and action in its reason ("the Bash execute request") and shows
+the command or path from `resource`. A lost wake, either a `failure` with reason
+`wake_lost` or an `interrupted` report for a monitor, reads "A wake-up didn't arrive" with Check it now. A full
+conversation reads "I'm out of room in this conversation"; when dependencies hold the
+move, it names the first one and lists the rest behind See what's in the way. A rotated
+conversation opens with "I started a new conversation" above the link back. Web suites:
+`session-report-part.test.tsx` and `session-away.test.ts`; prototype states in
+`session-reports.proto.tsx`. The lost-wake report and the expiry `action` and `resource`
+fields render gracefully when absent; walk them once the backend emits them.

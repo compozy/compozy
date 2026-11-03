@@ -1,5 +1,5 @@
 import { heldPhrase } from "./session-pause";
-import { pickedProposal } from "./session-report";
+import { isLostWake, pickedProposal } from "./session-report";
 
 import type { AgentInstanceAway, AgentInstanceReport } from "@/systems/agent";
 
@@ -77,6 +77,15 @@ function eventOf(report: AgentInstanceReport): AwayEvent {
       time,
     };
   }
+  if (isLostWake(report.kind, report.cause, report.reason)) {
+    return {
+      id: report.id,
+      tone: "failed",
+      title: "A wake-up didn't arrive",
+      description: "An update it was waiting for never reached it.",
+      time,
+    };
+  }
   if (report.kind === "interrupted") {
     return {
       id: report.id,
@@ -92,15 +101,6 @@ function eventOf(report: AgentInstanceReport): AwayEvent {
       tone: "failed",
       title: "It paused until you're back",
       description: "It reached its limit of steps without you.",
-      time,
-    };
-  }
-  if (report.kind === "failure" && report.reason === "wake_lost") {
-    return {
-      id: report.id,
-      tone: "failed",
-      title: "A wake-up didn't arrive",
-      description: "An update it was waiting for never reached it.",
       time,
     };
   }
@@ -132,10 +132,10 @@ function eventOf(report: AgentInstanceReport): AwayEvent {
   };
 }
 
-function expiredLine({ tool, action }: AgentInstanceReport) {
-  const named = tool && tool !== "provider" ? tool : "";
-  if (named && action) return `${named} for ${action} wasn't allowed.`;
-  if (named || action) return `${named || action} wasn't allowed.`;
+function expiredLine({ tool, action, resource }: AgentInstanceReport) {
+  const named = [tool && tool !== "provider" ? tool : "", action].filter(Boolean).join(" ");
+  if (named && resource) return `${named} for ${resource} wasn't allowed.`;
+  if (named || resource) return `${named || resource} wasn't allowed.`;
   return "It wasn't allowed.";
 }
 

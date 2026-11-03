@@ -11,9 +11,23 @@ export interface ReportPayload {
   sessionId?: string;
   tool?: string;
   action?: string;
+  resource?: string;
   expiredBy?: string;
   reason?: string;
+  cause?: string;
   blockers: string[];
+}
+
+/** Causes of an `interrupted` report about an approval; any other cause is a lost wake. */
+const INTERACTION_CAUSES = new Set(["daemon_restart", "provider_interrupted"]);
+
+/**
+ * A main session's lost monitor wake (rule 21): an `interrupted` report keyed by the monitor,
+ * whose cause is the wake's terminal state rather than an interrupted approval.
+ */
+export function isLostWake(kind: string, cause: string | undefined, reason?: string) {
+  if (kind === "failure") return reason === "wake_lost";
+  return kind === "interrupted" && Boolean(cause) && !INTERACTION_CAUSES.has(cause ?? "");
 }
 
 function text(value: unknown) {
@@ -33,7 +47,9 @@ export function reportPayload(data: SessionReportData): ReportPayload {
     }),
     detail: text(raw.detail) ?? text(raw.reason),
     reason: text(raw.reason),
+    cause: text(raw.cause),
     action: text(raw.action),
+    resource: text(raw.resource),
     blockers: Array.isArray(raw.blockers)
       ? raw.blockers.flatMap(item => (text(item) ? [item as string] : []))
       : [],
