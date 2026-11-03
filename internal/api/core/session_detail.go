@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -42,6 +43,21 @@ func (h *BaseHandlers) GetSessionByID(c *gin.Context) {
 		h.respondError(c, StatusForHeartbeatError(err), err)
 		return
 	}
+	h.withSessionWorkingDir(c.Request.Context(), &payload)
 
 	c.JSON(http.StatusOK, contract.SessionResponse{Session: payload})
+}
+
+// withSessionWorkingDir decorates a single-session detail read with the daemon-resolved
+// working directory. A resolution failure omits the field and never fails the read.
+func (h *BaseHandlers) withSessionWorkingDir(ctx context.Context, payload *contract.SessionPayload) {
+	if h.Sessions == nil || payload == nil || payload.ID == "" {
+		return
+	}
+	dir, err := h.Sessions.WorkingDir(ctx, payload.ID)
+	if err != nil {
+		h.Logger.Debug("api: session working directory unavailable", "session_id", payload.ID, "error", err)
+		return
+	}
+	payload.WorkingDir = dir
 }

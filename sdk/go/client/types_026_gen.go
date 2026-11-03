@@ -7,6 +7,33 @@ import (
 	"time"
 )
 
+// TerminalCreateRequest is a daemon API value.
+type TerminalCreateRequest struct {
+	Worktree string `json:"worktree,omitempty"`
+	Cwd      string `json:"cwd,omitempty"`
+	Shell    string `json:"shell,omitempty"`
+	Cols     uint16 `json:"cols,omitzero"`
+	Rows     uint16 `json:"rows,omitzero"`
+	Title    string `json:"title,omitempty"`
+	ClientID string `json:"client_id,omitempty"`
+}
+
+// TerminalDeliveredResponse is a daemon API value.
+type TerminalDeliveredResponse struct {
+	Delivered bool `json:"delivered"`
+}
+
+// TerminalExecRequest is a daemon API value.
+type TerminalExecRequest struct {
+	Command string              `json:"command"`
+	Args    []string            `json:"args,omitempty"`
+	Cwd     string              `json:"cwd,omitempty"`
+	Env     map[string]string   `json:"env,omitempty"`
+	YieldMs int                 `json:"yield_ms,omitzero"`
+	Visible bool                `json:"visible,omitzero"`
+	Output  TerminalOutputShape `json:"output,omitzero"`
+}
+
 // TerminalExecResponse is a daemon API value.
 type TerminalExecResponse struct {
 	ExitCode     *int                  `json:"exit_code"`
@@ -412,31 +439,3 @@ type ToolBackendRefPayload struct {
 
 // ToolCallEventKind is a daemon API value.
 type ToolCallEventKind string
-
-// ToolCallEventPayload is a daemon API value.
-type ToolCallEventPayload struct {
-	Kind                 ToolCallEventKind `json:"kind"`
-	ToolID               ToolID            `json:"tool_id"`
-	DisplayTitle         string            `json:"display_title,omitempty"`
-	SourceKind           SourceKind        `json:"source_kind,omitempty"`
-	SourceOwner          string            `json:"source_owner,omitempty"`
-	WorkspaceID          string            `json:"workspace_id,omitempty"`
-	SessionID            string            `json:"session_id,omitempty"`
-	AgentName            string            `json:"agent_name,omitempty"`
-	Risk                 RiskClass         `json:"risk,omitempty"`
-	ReadOnly             bool              `json:"read_only"`
-	Destructive          bool              `json:"destructive"`
-	OpenWorld            bool              `json:"open_world"`
-	ApprovalMode         string            `json:"approval_mode,omitempty"`
-	Decision             string            `json:"decision,omitempty"`
-	ReasonCodes          []ReasonCode      `json:"reason_codes,omitempty"`
-	DurationMS           int64             `json:"duration_ms,omitzero"`
-	ResultBytes          int64             `json:"result_bytes,omitzero"`
-	Truncated            bool              `json:"truncated"`
-	CorrelationID        string            `json:"correlation_id,omitempty"`
-	ErrorCode            ErrorCode         `json:"error_code,omitempty"`
-	InputDigest          string            `json:"input_digest,omitempty"`
-	RedactedInputFields  []string          `json:"redacted_input_fields,omitempty"`
-	ResultDigest         string            `json:"result_digest,omitempty"`
-	ResultRedactionPaths []string          `json:"result_redaction_paths,omitempty"`
-}

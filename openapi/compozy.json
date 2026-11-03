@@ -26773,6 +26773,9 @@
             ],
             "type": "string"
           },
+          "working_dir": {
+            "type": "string"
+          },
           "workspace_id": {
             "type": "string"
           },
@@ -29083,6 +29086,17 @@
         ],
         "type": "object"
       },
+      "SettingsDesktopPayload": {
+        "properties": {
+          "editor_command": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "editor_command"
+        ],
+        "type": "object"
+      },
       "SettingsExtensionDevPayload": {
         "properties": {
           "watch_interval": {
@@ -29244,6 +29258,19 @@
           },
           "daemon": {
             "$ref": "#/components/schemas/SettingsDaemonPayload"
+          },
+          "desktop": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SettingsDesktopPayload"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
           },
           "http": {
             "$ref": "#/components/schemas/SettingsHTTPPayload"

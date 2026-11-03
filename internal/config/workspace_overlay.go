@@ -80,6 +80,9 @@ func validateWorkspaceConfigOverlay(path string, overlay *configOverlay) error {
 	if overlay.Shell != nil {
 		return fmt.Errorf("workspace config %q: shell settings are global-only", path)
 	}
+	if overlay.Desktop != nil {
+		return fmt.Errorf("workspace config %q: desktop settings are global-only", path)
+	}
 	if overlay.Vault != nil {
 		return fmt.Errorf("workspace config %q: vault key settings are global-only", path)
 	}

@@ -38,6 +38,12 @@ func TestClassifyPath(t *testing.T) {
 			wantDiffClass: DiffClassRestartRequired,
 		},
 		{
+			name:          "Should classify the desktop editor command as live",
+			path:          "desktop.editor_command",
+			wantLifecycle: Live,
+			wantDiffClass: DiffClassLive,
+		},
+		{
 			name:          "Should classify provider model changes as live",
 			path:          "providers.codex.models",
 			wantLifecycle: Live,

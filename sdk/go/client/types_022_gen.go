@@ -4,6 +4,26 @@ package client
 
 import "time"
 
+// SettingsUpdateCancelResponse is a daemon API value.
+type SettingsUpdateCancelResponse struct {
+	Status      SettingsUpdateStatusKind     `json:"status"`
+	OperationID string                       `json:"operation_id,omitempty"`
+	Message     string                       `json:"message"`
+	Holder      *SettingsUpdateHolderPayload `json:"holder,omitzero"`
+}
+
+// SettingsUpdateHolderPayload is a daemon API value.
+type SettingsUpdateHolderPayload struct {
+	PID                int                 `json:"pid"`
+	PIDStartTime       time.Time           `json:"pid_start_time"`
+	Surface            SettingsUpdateActor `json:"surface"`
+	ExecutorGeneration string              `json:"executor_generation"`
+	LeaseExpiresAt     time.Time           `json:"lease_expires_at"`
+}
+
+// SettingsUpdateInstallMethod is a daemon API value.
+type SettingsUpdateInstallMethod string
+
 // SettingsUpdateOperationPayload is a daemon API value.
 type SettingsUpdateOperationPayload struct {
 	ID           string                       `json:"id"`
@@ -426,24 +446,3 @@ type SpawnWorktreePayload struct {
 	BaseSHA string `json:"base_sha,omitempty"`
 	Created bool   `json:"created"`
 }
-
-// Speed is a daemon API value.
-type Speed string
-
-// StartBinding is a daemon API value.
-type StartBinding struct {
-	Kind         StartKind         `json:"kind"`
-	Inputs       map[string]any    `json:"inputs,omitempty"`
-	InputMapping map[string]string `json:"input_mapping,omitempty"`
-}
-
-// StartKind is a daemon API value.
-type StartKind string
-
-// StartTaskRunRequest is a daemon API value.
-type StartTaskRunRequest struct {
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-// State is a daemon API value.
-type State string

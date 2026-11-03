@@ -25,6 +25,13 @@ type SettingsGeneralConfigPayload struct {
 	Daemon           SettingsDaemonPayload   `json:"daemon"`
 	Redact           SettingsRedactPayload   `json:"redact"`
 	Terminal         SettingsTerminalPayload `json:"terminal"`
+	// Desktop mirrors the machine-only [desktop] block. Omitted on update to keep the current value.
+	Desktop *SettingsDesktopPayload `json:"desktop,omitzero"`
+}
+
+// SettingsDesktopPayload projects the [desktop] block read by the desktop app.
+type SettingsDesktopPayload struct {
+	EditorCommand string `json:"editor_command"`
 }
 
 type SettingsDefaultsPayload struct {

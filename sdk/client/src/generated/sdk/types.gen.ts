@@ -7334,6 +7334,7 @@ export type SessionPayload = {
   updated_at: string;
   verified?: boolean | null;
   waiting_on?: "sessions" | "monitor";
+  working_dir?: string;
   workspace_id?: string;
   workspace_path?: string;
   worktree_binding?: WorktreeBindingAvailability | null;
@@ -7948,6 +7949,10 @@ export type SettingsDefaultsPayload = {
   reasoning_effort?: string;
 };
 
+export type SettingsDesktopPayload = {
+  editor_command: string;
+};
+
 export type SettingsExtensionDevPayload = {
   watch_interval: string;
 };
@@ -7997,6 +8002,7 @@ export type SettingsGeneralActionsPayload = {
 export type SettingsGeneralConfigPayload = {
   busy_input?: SettingsBusyInputPayload | null;
   daemon: SettingsDaemonPayload;
+  desktop?: SettingsDesktopPayload | null;
   http: SettingsHTTPPayload;
   /**
    * Idle time before a resumable idle session's agent process is released (session.supervision.idle_release_after); 0s disables it. Omit on update to keep the current value.

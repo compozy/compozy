@@ -735,6 +735,31 @@ describe("SessionReplyCard", () => {
     expect(within(card).getByRole("button", { name: "Read the full turn" })).toBeInTheDocument();
   });
 
+  // UT-044 (#1167). Invariant: a reply card carries another session's text, so its paths
+  // never open in the editor, even on the desktop app.
+  it("Should not offer Open in editor for paths in a reply, even on desktop", () => {
+    window.compozyShell = {
+      platform: "darwin",
+      files: { openInEditor: vi.fn() },
+    } as unknown as NonNullable<typeof window.compozyShell>;
+    try {
+      render(
+        <SessionReplyCard
+          target={target}
+          outcome="completed"
+          text="Changed `internal/a.go:42`."
+          truncated={false}
+          timestampMs={AT}
+        />,
+        { wrapper }
+      );
+      expect(screen.getByText("internal/a.go:42")).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /in editor/ })).toBeNull();
+    } finally {
+      delete window.compozyShell;
+    }
+  });
+
   it("Should read an expired watch as No reply with its fixed body (#760)", () => {
     render(
       <SessionReplyCard

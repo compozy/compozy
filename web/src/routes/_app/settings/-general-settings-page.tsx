@@ -35,7 +35,11 @@ import {
   type PillGroupItem,
 } from "@compozy/ui";
 
-import { MemoryReportRow, RedactionSection } from "./-general-daemon-sections";
+import {
+  EditorCommandSection,
+  MemoryReportRow,
+  RedactionSection,
+} from "./-general-daemon-sections";
 import { SessionDefaultsGroup } from "./-general-session-defaults";
 import { generalUpdateNeedsAttention } from "./-general-update-attention";
 import { GeneralUpdateSection } from "./-general-update-section";
@@ -436,6 +440,8 @@ export function GeneralSettingsPage() {
       </SettingsGroup>
 
       <RedactionSection draft={draft} setDraft={setDraft} />
+
+      <EditorCommandSection draft={draft} setDraft={setDraft} saveError={page.saveError} />
 
       {updatesFirst ? null : updateSection}
 

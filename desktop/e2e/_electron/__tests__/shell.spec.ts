@@ -1,7 +1,18 @@
 import { createHash } from "node:crypto";
 import { createServer, request as forwardRequest } from "node:http";
 import type { AddressInfo } from "node:net";
-import { cp, chmod, mkdir, mkdtemp, readFile, rm, stat, utimes, writeFile } from "node:fs/promises";
+import {
+  cp,
+  chmod,
+  mkdir,
+  mkdtemp,
+  readFile,
+  realpath,
+  rm,
+  stat,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -261,10 +272,18 @@ async function bootstrapEvents(home: string): Promise<readonly Record<string, un
     .map(line => JSON.parse(line) as Record<string, unknown>);
 }
 
-async function prepareLoginPathProvider(context: {
-  readonly environment: Record<string, string>;
-  readonly home: string;
-}): Promise<void> {
+interface ProviderFixture {
+  readonly path: string;
+  readonly agent: string;
+}
+
+async function prepareLoginPathProvider(
+  context: {
+    readonly environment: Record<string, string>;
+    readonly home: string;
+  },
+  providerFixture?: ProviderFixture
+): Promise<void> {
   const operatorHome = join(context.home, "operator");
   const loginBin = join(operatorHome, ".local", "bin");
   const fixtureDir = join(context.home, "fixtures");
@@ -273,14 +292,17 @@ async function prepareLoginPathProvider(context: {
     process.platform === "win32" ? "acpmock-driver.exe" : "acpmock-driver"
   );
   const provider = join(loginBin, process.platform === "win32" ? "desktop-acp.cmd" : "desktop-acp");
-  const fixture = join(
-    repositoryRoot,
-    "internal",
-    "testutil",
-    "acpmock",
-    "testdata",
-    "browser_session_lifecycle_fixture.json"
-  );
+  const fixture =
+    providerFixture?.path ??
+    join(
+      repositoryRoot,
+      "internal",
+      "testutil",
+      "acpmock",
+      "testdata",
+      "browser_session_lifecycle_fixture.json"
+    );
+  const fixtureAgent = providerFixture?.agent ?? loginPathFixtureAgent;
   const diagnostics = join(context.home, "logs", "desktop-login-path-provider.jsonl");
   const agentDir = join(context.home, "agents", loginPathAgent);
   await Promise.all([
@@ -311,7 +333,7 @@ async function prepareLoginPathProvider(context: {
       provider,
       [
         "@echo off",
-        '"%COMPOZY_DESKTOP_TEST_DRIVER%" --fixture "%COMPOZY_DESKTOP_TEST_FIXTURE%" --agent "browser-lifecycle-agent" --diagnostics "%COMPOZY_DESKTOP_TEST_DIAGNOSTICS%"',
+        `"%COMPOZY_DESKTOP_TEST_DRIVER%" --fixture "%COMPOZY_DESKTOP_TEST_FIXTURE%" --agent "${fixtureAgent}" --diagnostics "%COMPOZY_DESKTOP_TEST_DIAGNOSTICS%"`,
         "",
       ].join("\r\n"),
       { mode: 0o700 }
@@ -322,7 +344,7 @@ async function prepareLoginPathProvider(context: {
     await Promise.all([
       writeFile(
         provider,
-        `#!/bin/sh\nexec "$COMPOZY_DESKTOP_TEST_DRIVER" --fixture "$COMPOZY_DESKTOP_TEST_FIXTURE" --agent "${loginPathFixtureAgent}" --diagnostics "$COMPOZY_DESKTOP_TEST_DIAGNOSTICS"\n`,
+        `#!/bin/sh\nexec "$COMPOZY_DESKTOP_TEST_DRIVER" --fixture "$COMPOZY_DESKTOP_TEST_FIXTURE" --agent "${fixtureAgent}" --diagnostics "$COMPOZY_DESKTOP_TEST_DIAGNOSTICS"\n`,
         { mode: 0o700 }
       ),
       writeFile(
@@ -924,6 +946,113 @@ test("desktop-owned runtime resolves a provider available only on the login PATH
       }
     })
     .toContain(loginPathPrompt);
+});
+
+const openPathsAgent = "open-paths-agent";
+const openPathsPrompt = "e2e mention a file";
+
+/** Spec #1167 E2E-001: a fixture agent that names `fixture.txt:7`, and a recording editor. */
+async function prepareOpenPathsDesktop(context: {
+  readonly environment: Record<string, string>;
+  readonly home: string;
+}): Promise<void> {
+  const fixtureDir = join(context.home, "fixtures");
+  const project = join(context.home, "project");
+  await Promise.all([
+    mkdir(fixtureDir, { recursive: true, mode: 0o700 }),
+    mkdir(project, { recursive: true, mode: 0o700 }),
+  ]);
+  const fixture = join(fixtureDir, "open-paths-fixture.json");
+  const recorder = join(fixtureDir, "record-argv.mjs");
+  const recorded = join(fixtureDir, "editor-argv.json");
+  await Promise.all([
+    writeFile(
+      fixture,
+      JSON.stringify({
+        version: 2,
+        agents: [
+          {
+            name: openPathsAgent,
+            provider: "claude",
+            permissions: "approve-reads",
+            prompt: "Name the changed file.",
+            turns: [
+              {
+                name: "mention-file",
+                match: { turn_source: "user" },
+                steps: [{ kind: "assistant", text: "I changed `fixture.txt:7` for you." }],
+              },
+            ],
+          },
+        ],
+      })
+    ),
+    writeFile(
+      recorder,
+      `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(recorded)}, JSON.stringify(process.argv.slice(2)));\n`
+    ),
+    writeFile(join(project, "fixture.txt"), "one\ntwo\nthree\nfour\nfive\nsix\nseven\n"),
+  ]);
+  await prepareLoginPathProvider(context, { path: fixture, agent: openPathsAgent });
+  const configPath = join(context.home, "config.toml");
+  const config = await readFile(configPath, "utf8");
+  const editorCommand = `"${process.execPath}" "${recorder}" {path} {line}`;
+  await writeFile(configPath, `${config}\n[desktop]\neditor_command = '${editorCommand}'\n`);
+}
+
+test("E2E-001 (#1167): Cmd/Ctrl+click on a transcript path opens it in the configured editor", async ({
+  launchDesktop,
+}) => {
+  const desktop = await launchDesktop({ prepare: prepareOpenPathsDesktop });
+  const product = await desktop.product();
+  await completeOnboarding(product);
+  const project = await realpath(join(desktop.home, "project"));
+  const created = await jsonCommand(desktop, [
+    "session",
+    "new",
+    "--cwd",
+    project,
+    "--agent",
+    loginPathAgent,
+    "-o",
+    "json",
+  ]);
+  const sessionID = typeof created.id === "string" ? created.id : "";
+  expect(sessionID).not.toBe("");
+  await desktop.cli(["session", "prompt", sessionID, openPathsPrompt, "-o", "json"]);
+
+  // Any confirmation would mean the inside-workspace rule failed; record instead of showing it.
+  await desktop.app.evaluate(({ dialog }) => {
+    Reflect.set(globalThis, "__openPathDialogs", 0);
+    dialog.showMessageBox = (async () => {
+      Reflect.set(globalThis, "__openPathDialogs", 1);
+      return { response: 1, checkboxChecked: false };
+    }) as typeof dialog.showMessageBox;
+  });
+
+  await product.goto(new URL(`/session/${sessionID}`, product.url()).toString(), {
+    waitUntil: "domcontentloaded",
+  });
+  const path = product.locator("code", { hasText: "fixture.txt:7" }).first();
+  await expect(path).toBeVisible({ timeout: 30_000 });
+  await expect(product.getByRole("button", { name: "Open fixture.txt in editor" })).toHaveCount(1);
+  await path.click({ modifiers: [process.platform === "darwin" ? "Meta" : "Control"] });
+
+  const recorded = join(desktop.home, "fixtures", "editor-argv.json");
+  await expect
+    .poll(
+      async () => {
+        try {
+          return JSON.parse(await readFile(recorded, "utf8")) as unknown;
+        } catch (error) {
+          if (error instanceof Error && "code" in error && error.code === "ENOENT") return null;
+          throw error;
+        }
+      },
+      { timeout: 15_000 }
+    )
+    .toEqual([join(project, "fixture.txt"), "7"]);
+  expect(await desktop.app.evaluate(() => Reflect.get(globalThis, "__openPathDialogs"))).toBe(0);
 });
 
 test("E2E-010: external navigation opens only safe web URLs and never leaves the product", async ({

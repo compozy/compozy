@@ -13,6 +13,11 @@ import { INLINE_CODE_CLASS } from "./markdown-components";
 import { MarkdownAuthoredAnchor } from "./markdown-authored-anchor";
 import { remarkAuthoredLineBreaks } from "./markdown-line-breaks";
 import {
+  MARKDOWN_LOCAL_LINK_TAG,
+  rehypeMarkdownLocalLinks,
+  remarkMarkdownLocalLinks,
+} from "./markdown-local-links";
+import {
   MARKDOWN_SLOT_TAG,
   rehypeMarkdownSlots,
   remarkMarkdownSlotLiterals,
@@ -27,7 +32,24 @@ type StreamMarkdownCodeProps = React.ComponentProps<"code"> & {
   "data-block"?: unknown;
 };
 
+/** Decorates rendered inline code; receives its literal text and the default element. */
+export type StreamMarkdownInlineCodeDecorator = (code: {
+  text: string;
+  element: React.ReactElement;
+}) => React.ReactNode;
+
+/** Renders a link the safe mode would block; receives the authored destination. */
+export type StreamMarkdownLocalLinkComponent = React.ComponentType<{
+  href: string;
+  children: React.ReactNode;
+}>;
+
 const StreamMarkdownStreamingContext = React.createContext(false);
+const StreamMarkdownInlineCodeContext = React.createContext<
+  StreamMarkdownInlineCodeDecorator | undefined
+>(undefined);
+type RenderLocalLink = (href: string, children: React.ReactNode) => React.ReactNode;
+const StreamMarkdownLocalLinkContext = React.createContext<RenderLocalLink | undefined>(undefined);
 
 function extractCodeLanguage(className?: string): string {
   const match = /language-([-\w]+)/.exec(className ?? "");
@@ -48,6 +70,7 @@ function StreamMarkdownCode({
   ...props
 }: StreamMarkdownCodeProps) {
   const streaming = React.use(StreamMarkdownStreamingContext);
+  const decorateInlineCode = React.use(StreamMarkdownInlineCodeContext);
   const code = toCodeString(children);
   const rawLanguage = extractCodeLanguage(className);
   const isBlock = dataBlock !== undefined || rawLanguage !== "" || code.includes("\n");
@@ -68,11 +91,12 @@ function StreamMarkdownCode({
   }
 
   // Inline code uses the shared Markdown recipe (one grammar, both entry points).
-  return (
+  const element = (
     <code className={cn(INLINE_CODE_CLASS, className)} {...props}>
       {children}
     </code>
   );
+  return decorateInlineCode ? decorateInlineCode({ text: code, element }) : element;
 }
 
 const STREAM_MARKDOWN_COMPONENTS: Partial<Components> = {
@@ -113,19 +137,44 @@ const SLOT_COMPONENTS = {
   [MARKDOWN_SLOT_TAG]: StreamMarkdownSlotNode,
 } as Partial<Components>;
 
-const SLOT_PLUGINS = extendSafeMarkdownPlugins({
-  remark: [remarkMarkdownSlotLiterals],
-  rehype: [rehypeMarkdownSlots],
-});
-const AUTHORED_PLUGINS = extendSafeMarkdownPlugins({ remark: [remarkAuthoredLineBreaks] });
-const AUTHORED_SLOT_PLUGINS = extendSafeMarkdownPlugins({
-  remark: [remarkMarkdownSlotLiterals, remarkAuthoredLineBreaks],
-  rehype: [rehypeMarkdownSlots],
-});
+function StreamMarkdownLocalLink({
+  "data-href": href,
+  children,
+}: {
+  "data-href"?: string;
+  children?: React.ReactNode;
+}) {
+  const renderLocalLink = React.use(StreamMarkdownLocalLinkContext);
+  if (!renderLocalLink || href === undefined) return <>{children}</>;
+  return renderLocalLink(href, children);
+}
 
-function streamMarkdownPlugins(slotted: boolean, authored: boolean) {
-  if (authored) return slotted ? AUTHORED_SLOT_PLUGINS : AUTHORED_PLUGINS;
-  return slotted ? SLOT_PLUGINS : undefined;
+const LOCAL_LINK_COMPONENTS = {
+  [MARKDOWN_LOCAL_LINK_TAG]: StreamMarkdownLocalLink,
+} as Partial<Components>;
+
+// Streamdown caches parsers by plugin identity, so each combination is built once.
+const PLUGIN_CACHE = new Map<string, ReturnType<typeof extendSafeMarkdownPlugins>>();
+
+function streamMarkdownPlugins(slotted: boolean, authored: boolean, localLinks: boolean) {
+  if (!slotted && !authored && !localLinks) return undefined;
+  const key = `${slotted}:${authored}:${localLinks}`;
+  let plugins = PLUGIN_CACHE.get(key);
+  if (!plugins) {
+    plugins = extendSafeMarkdownPlugins({
+      remark: [
+        ...(slotted ? [remarkMarkdownSlotLiterals] : []),
+        ...(authored ? [remarkAuthoredLineBreaks] : []),
+        ...(localLinks ? [remarkMarkdownLocalLinks] : []),
+      ],
+      rehype: [
+        ...(slotted ? [rehypeMarkdownSlots] : []),
+        ...(localLinks ? [rehypeMarkdownLocalLinks] : []),
+      ],
+    });
+    PLUGIN_CACHE.set(key, plugins);
+  }
+  return plugins;
 }
 
 const AUTHORED_COMPONENTS: Partial<Components> = { a: MarkdownAuthoredAnchor };
@@ -144,6 +193,18 @@ export interface StreamMarkdownProps extends Omit<React.ComponentProps<"div">, "
    */
   authored?: boolean;
   components?: MarkdownProps["components"];
+  /**
+   * Decorates each inline code span after slot literals are restored: it
+   * receives the code's literal text and the default rendered element, and
+   * returns what renders in its place.
+   */
+  inlineCodeDecorator?: StreamMarkdownInlineCodeDecorator;
+  /**
+   * Renders each link the safe mode would block as `[blocked]`, other than
+   * http(s), mailto, and script-capable destinations, with its authored href.
+   * Without it those links keep the blocked rendering.
+   */
+  localLinkComponent?: StreamMarkdownLocalLinkComponent;
 }
 
 /**
@@ -160,9 +221,14 @@ function StreamMarkdown({
   slots,
   authored = false,
   components,
+  inlineCodeDecorator,
+  localLinkComponent: LocalLink,
   className,
   ...props
 }: StreamMarkdownProps) {
+  const renderLocalLink: RenderLocalLink | undefined = LocalLink
+    ? (href, linkChildren) => <LocalLink href={href}>{linkChildren}</LocalLink>
+    : undefined;
   const markdown = (
     <Markdown
       data-slot="stream-markdown"
@@ -171,9 +237,10 @@ function StreamMarkdown({
       components={{
         ...(slots ? SLOT_COMPONENTS : STREAM_MARKDOWN_COMPONENTS),
         ...(authored ? AUTHORED_COMPONENTS : undefined),
+        ...(LocalLink ? LOCAL_LINK_COMPONENTS : undefined),
         ...components,
       }}
-      plugins={streamMarkdownPlugins(slots !== undefined, authored)}
+      plugins={streamMarkdownPlugins(slots !== undefined, authored, LocalLink !== undefined)}
       className={cn(authored && "[&_:not(pre)>code]:whitespace-pre-wrap", className)}
       {...props}
     >
@@ -182,7 +249,13 @@ function StreamMarkdown({
   );
   return (
     <StreamMarkdownStreamingContext value={streaming}>
-      <StreamMarkdownSlotsContext value={slots ?? NO_SLOTS}>{markdown}</StreamMarkdownSlotsContext>
+      <StreamMarkdownSlotsContext value={slots ?? NO_SLOTS}>
+        <StreamMarkdownInlineCodeContext value={inlineCodeDecorator}>
+          <StreamMarkdownLocalLinkContext value={renderLocalLink}>
+            {markdown}
+          </StreamMarkdownLocalLinkContext>
+        </StreamMarkdownInlineCodeContext>
+      </StreamMarkdownSlotsContext>
     </StreamMarkdownStreamingContext>
   );
 }

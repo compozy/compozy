@@ -7,6 +7,25 @@ import (
 	"time"
 )
 
+// UpdateSettingsShellRequest is a daemon API value.
+type UpdateSettingsShellRequest struct {
+	Config SettingsShellPayload `json:"config"`
+}
+
+// UpdateSettingsSkillsRequest is a daemon API value.
+// UpdateSettingsSkillsRequest preserves its custom JSON wire representation.
+type UpdateSettingsSkillsRequest = json.RawMessage
+
+// UpdateSettingsWindowManagerRequest is a daemon API value.
+type UpdateSettingsWindowManagerRequest struct {
+	PreserveShortcuts bool                                `json:"preserve_shortcuts,omitzero"`
+	Config            *SettingsWindowManagerConfigPayload `json:"config,omitzero"`
+	Shortcuts         *map[string][]string                `json:"shortcuts,omitzero"`
+	Aliases           *map[string]string                  `json:"aliases,omitzero"`
+	GlobalShortcuts   *map[string]string                  `json:"global_shortcuts,omitzero"`
+	Overwrite         bool                                `json:"overwrite,omitzero"`
+}
+
 // UpdateTaskRequest is a daemon API value.
 type UpdateTaskRequest struct {
 	Title              *string          `json:"title,omitempty"`
@@ -427,23 +446,3 @@ type WindowManagerWindow struct {
 
 // WindowPlacement is a daemon API value.
 type WindowPlacement string
-
-// WindowmanagerClientID is a daemon API value.
-type WindowmanagerClientID string
-
-// WindowmanagerNodeID is a daemon API value.
-type WindowmanagerNodeID string
-
-// WindowmanagerWorkspaceID is a daemon API value.
-type WindowmanagerWorkspaceID string
-
-// WorkCandidate is a daemon API value.
-type WorkCandidate struct {
-	Repository     string `json:"repository"`
-	HeadRepository string `json:"head_repository,omitempty"`
-	Branch         string `json:"branch"`
-	PRNumber       int    `json:"pr_number,omitempty"`
-	Title          string `json:"title,omitempty"`
-	URL            string `json:"url,omitempty"`
-	State          string `json:"state,omitempty"`
-}

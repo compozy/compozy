@@ -107,7 +107,7 @@ export function SessionCompactionItem({ item }: SessionCompactionItemProps) {
             tabIndex={0}
             className="mb-1 ml-transcript-detail-indent max-h-60 overflow-y-auto border-l border-line pl-transcript-detail-gutter text-transcript-body leading-relaxed text-muted-foreground select-text focus-visible:shadow-focus-ring focus-visible:outline-none"
           >
-            <MessageMarkdown content={summary} compact="relaxed" />
+            <MessageMarkdown content={summary} compact="relaxed" openPaths />
           </div>
         </Disclosure>
       ) : null}

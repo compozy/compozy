@@ -1763,6 +1763,15 @@ sort = "attention"
 		t.Fatalf("Load(workspace shell config) error = %v, want global-only rejection", err)
 	}
 
+	writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
+[desktop]
+editor_command = "x {path}"
+`)
+	_, err = Load(WithWorkspaceRoot(workspaceRoot))
+	if err == nil || !strings.Contains(err.Error(), "desktop settings are global-only") {
+		t.Fatalf("Load(workspace desktop config) error = %v, want global-only rejection", err)
+	}
+
 	for _, tc := range []struct{ name, contents string }{
 		{name: "Should reject a workspace mcp.stdio idle timeout", contents: "[mcp.stdio]\nidle_timeout = \"1m\"\n"},
 		{name: "Should reject a workspace mcp status probe timeout", contents: "[mcp]\nstatus_probe_timeout = \"1m\"\n"},
@@ -1775,6 +1784,35 @@ sort = "attention"
 			}
 		})
 	}
+}
+
+func TestDesktopSettingsAreMachineOnly(t *testing.T) {
+	t.Parallel()
+	const path = "desktop.editor_command"
+	t.Run("Should deny the desktop editor command in profile overlays", func(t *testing.T) {
+		t.Parallel()
+		_, err := loadProfileConfigOverlayBytes([]byte("[desktop]\neditor_command = \"x {path}\"\n"), "profile.toml")
+		validationErr, ok := errors.AsType[ValidationError](err)
+		if !ok || validationErr.Code != profileConfigKeyDeniedCode || validationErr.Path != "desktop" {
+			t.Fatalf("profile overlay error = %#v, want machine-only denial for the desktop table", err)
+		}
+	})
+	t.Run("Should restrict desktop editor command writes to user scope", func(t *testing.T) {
+		t.Parallel()
+		parts := strings.Split(path, ".")
+		if err := ValidateConfigWriteScope(WriteScopeUser, parts); err != nil {
+			t.Fatalf("user write error = %v", err)
+		}
+		if err := ValidateConfigWriteScope(WriteScopeWorkspace, parts); err == nil ||
+			!strings.Contains(err.Error(), "global-only") {
+			t.Fatalf("workspace write error = %v, want global-only denial", err)
+		}
+		err := ValidateConfigWriteScope(WriteScopeProfile, parts)
+		validationErr, ok := errors.AsType[ValidationError](err)
+		if !ok || validationErr.Code != profileConfigKeyDeniedCode || validationErr.Path != path {
+			t.Fatalf("profile write error = %#v, want machine-only denial", err)
+		}
+	})
 }
 
 func TestLoadForHomeSkipsDuplicateWorkspaceOverlay(t *testing.T) {

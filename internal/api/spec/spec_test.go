@@ -3602,6 +3602,14 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addSessionProviderLiveApplySchemas(baseline) == 0 {
 		t.Fatal("approved runtime_live_apply addition: no historical session provider option schemas found")
 	}
+	// #1167: optional machine-only desktop block on general settings; omitted keeps the current value.
+	if addSettingsGeneralDesktop(baseline) == 0 {
+		t.Fatal("approved desktop settings addition: no historical general settings config schemas found")
+	}
+	// #1167: optional read-only session working_dir; existing fields and required sets stay unchanged.
+	if addSessionWorkingDir(baseline) == 0 {
+		t.Fatal("approved session working_dir addition: no historical session schemas found")
+	}
 	// #1154: optional wake count on queued input; existing fields and required sets stay unchanged.
 	if addSessionInputCoalescedWakes(baseline) == 0 {
 		t.Fatal("approved coalesced_wakes addition: no historical session input schemas found")
@@ -4764,6 +4772,42 @@ func schemaIncludesType(schema *openapi3.Schema, want string) bool {
 }
 
 // Provider usage adds one section and apply target without removing existing values.
+// addSettingsGeneralDesktop adds the optional nullable `desktop` object to every historical
+// general settings config schema and registers its component.
+func addSettingsGeneralDesktop(baseline map[string]any) int {
+	components := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	components["SettingsDesktopPayload"] = map[string]any{
+		"type":       "object",
+		"required":   []any{"editor_command"},
+		"properties": map[string]any{"editor_command": map[string]any{"type": "string"}},
+	}
+	var walk func(any) int
+	walk = func(value any) int {
+		count := 0
+		switch node := value.(type) {
+		case map[string]any:
+			if properties, ok := node["properties"].(map[string]any); ok &&
+				properties["terminal"] != nil && properties["redact"] != nil && properties["session_timeout"] != nil &&
+				properties["desktop"] == nil {
+				properties["desktop"] = map[string]any{"oneOf": []any{
+					map[string]any{"$ref": "#/components/schemas/SettingsDesktopPayload"},
+					map[string]any{"enum": []any{nil}, "nullable": true},
+				}}
+				count++
+			}
+			for _, child := range node {
+				count += walk(child)
+			}
+		case []any:
+			for _, child := range node {
+				count += walk(child)
+			}
+		}
+		return count
+	}
+	return walk(baseline)
+}
+
 func addProviderUsageSettingsSection(t *testing.T, baseline map[string]any) {
 	t.Helper()
 	changes := 0
@@ -4968,6 +5012,28 @@ func addSessionWorktreeBindingSchemas(value any) int {
 			map[string]any{"enum": []any{nil}, "nullable": true},
 		}}
 		count++
+	}
+	return count
+}
+
+// addSessionWorkingDir adds the optional `working_dir` string to every historical session payload schema.
+func addSessionWorkingDir(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionWorkingDir(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionWorkingDir(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["badge"] != nil && properties["attachable"] != nil && properties["workspace_id"] != nil &&
+			properties["worktree_id"] != nil && properties["id"] != nil && properties["working_dir"] == nil {
+			properties["working_dir"] = map[string]any{"type": "string"}
+			count++
+		}
 	}
 	return count
 }

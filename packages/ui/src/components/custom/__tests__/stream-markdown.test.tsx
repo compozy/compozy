@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import * as React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { INLINE_CODE_CLASS } from "../markdown-prose-constants";
 import { composeMarkdownSlots, type StreamMarkdownSlots } from "../markdown-slots";
 import { StreamMarkdown } from "../stream-markdown";
 import { MarkdownMermaid } from "../markdown-mermaid";
@@ -315,5 +316,88 @@ describe("StreamMarkdown", () => {
     rerender(<StreamMarkdown slots={slots()}>{source}</StreamMarkdown>);
     expect(screen.getByTestId("slot-m0")).toBeInTheDocument();
     expect(mounts).toBe(1);
+  });
+
+  // UT-050. Invariant: the inline-code decorator sees slot-restored literal text and the
+  // default element; without it inline code renders the shared recipe unchanged.
+  it("Should decorate inline code with slot-restored text and the default element", () => {
+    const seen: { text: string; element: React.ReactElement }[] = [];
+    render(
+      <StreamMarkdown
+        slots={chipSlots()}
+        inlineCodeDecorator={code => {
+          seen.push(code);
+          return <mark data-testid="decorated">{code.element}</mark>;
+        }}
+      >
+        {slotted([`Open \`${TOKEN}:12\` and \`plain\`.`, "", "```", `fenced ${TOKEN}`, "```"])}
+      </StreamMarkdown>
+    );
+    expect(seen.map(code => code.text)).toEqual([`${TOKEN}:12`, "plain"]);
+    for (const { text } of seen) expect(text).not.toMatch(/[\uE000-\uE002]/);
+    const decorated = screen.getAllByTestId("decorated");
+    expect(decorated.map(node => node.querySelector("code")?.textContent)).toEqual([
+      `${TOKEN}:12`,
+      "plain",
+    ]);
+    expect(decorated[0]!.querySelector("code")).toHaveClass(...INLINE_CODE_CLASS.split(" "));
+
+    const plain = render(<StreamMarkdown>{"Open `a.ts:12` now."}</StreamMarkdown>);
+    expect(plain.container.querySelector("p code")?.outerHTML).toBe(
+      `<code class="${INLINE_CODE_CLASS}">a.ts:12</code>`
+    );
+  });
+
+  // UT-051. Invariant: links the safe mode blocks route to the caller's local-link component
+  // with their authored href; external and script-capable destinations never do, and without
+  // the component the blocked rendering is unchanged.
+  it("Should route only safe-mode-blocked local links to the local-link component", () => {
+    const source = [
+      "[a](internal/x.go:42) [b](~/c.toml) [c](file:///Users/d/a.md) [d](C:/x/y.ts)",
+      "[e](https://x.dev/) [f](javascript:alert(1)) [g](<java\tscript:alert(1)>)",
+      "[h](vbscript:msgbox(1)) [i](data:text/html,x) [j](blob:https://x.dev/1)",
+    ].join(" ");
+    function LocalLink({ href, children }: { href: string; children: React.ReactNode }) {
+      return (
+        <button type="button" data-href={href}>
+          {children}
+        </button>
+      );
+    }
+    const { container } = render(
+      <StreamMarkdown localLinkComponent={LocalLink}>{source}</StreamMarkdown>
+    );
+    expect(
+      screen.getAllByRole("button").map(node => [node.textContent, node.getAttribute("data-href")])
+    ).toEqual([
+      ["a", "internal/x.go:42"],
+      ["b", "~/c.toml"],
+      ["c", "file:///Users/d/a.md"],
+      ["d", "C:/x/y.ts"],
+    ]);
+    expect(screen.getByRole("link", { name: "e" })).toHaveAttribute("href", "https://x.dev/");
+    expect(container).toHaveTextContent("f [blocked]");
+    expect(container).toHaveTextContent("g [blocked]");
+    for (const name of ["h", "i", "j"]) {
+      expect(container).toHaveTextContent(`${name} [blocked]`);
+    }
+
+    const fallback = render(<StreamMarkdown>{source}</StreamMarkdown>);
+    expect(
+      Array.from(fallback.container.querySelectorAll("span[title^='Blocked URL']"), node => [
+        node.getAttribute("title"),
+        node.textContent,
+      ])
+    ).toEqual([
+      ["Blocked URL: internal/x.go:42", "a [blocked]"],
+      ["Blocked URL: ~/c.toml", "b [blocked]"],
+      ["Blocked URL: undefined", "c [blocked]"],
+      ["Blocked URL: undefined", "d [blocked]"],
+      ["Blocked URL: undefined", "f [blocked]"],
+      ["Blocked URL: undefined", "g [blocked]"],
+      ["Blocked URL: undefined", "h [blocked]"],
+      ["Blocked URL: undefined", "i [blocked]"],
+      ["Blocked URL: undefined", "j [blocked]"],
+    ]);
   });
 });

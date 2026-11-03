@@ -11,6 +11,7 @@ type configOverlay struct {
 	HTTP          httpOverlay                `toml:"http"`
 	App           appOverlay                 `toml:"app"`
 	Shell         *shellOverlay              `toml:"shell"`
+	Desktop       *desktopOverlay            `toml:"desktop"`
 	Attention     attentionOverlay           `toml:"attention"`
 	WindowManager windowManagerOverlay       `toml:"window_manager"`
 	Terminal      terminalOverlay            `toml:"terminal"`
@@ -60,6 +61,9 @@ func (o *configOverlay) Apply(dst *Config) error {
 	o.App.Apply(&dst.App)
 	if o.Shell != nil {
 		o.Shell.Apply(&dst.Shell)
+	}
+	if o.Desktop != nil {
+		o.Desktop.Apply(&dst.Desktop)
 	}
 	o.Attention.Apply(&dst.Attention)
 	o.WindowManager.Apply(&dst.WindowManager)

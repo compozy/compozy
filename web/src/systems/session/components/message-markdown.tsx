@@ -1,8 +1,17 @@
-import { memo, type ImgHTMLAttributes } from "react";
+import { memo, type ImgHTMLAttributes, type ReactNode } from "react";
 
-import { StreamMarkdown, type StreamMarkdownProps, type StreamMarkdownSlots } from "@compozy/ui";
+import {
+  StreamMarkdown,
+  type StreamMarkdownInlineCodeDecorator,
+  type StreamMarkdownProps,
+  type StreamMarkdownSlots,
+} from "@compozy/ui";
 
 import { usePrefersReducedMotion } from "@/components/assistant-ui/hooks/use-prefers-reduced-motion";
+import { desktopShellBridge } from "@/systems/os";
+import { useOpenInEditor } from "../hooks/use-open-in-editor";
+import { FilePathOpenerContext } from "../lib/file-path-opener-context";
+import { FilePathAnchor, FilePathInlineCode, FilePathLocalLink } from "./file-path-open-in-editor";
 import { useSmoothStreamedText } from "../hooks/use-smooth-streamed-text";
 import { useSmoothStreamingPreference } from "../hooks/use-smooth-streaming-preference";
 import { useThrottledStreamingValue } from "../hooks/use-throttled-streaming-value";
@@ -30,6 +39,28 @@ function MessageImageReference({
 
 const MESSAGE_MARKDOWN_COMPONENTS = { img: MessageImageReference };
 
+const decorateFilePathInlineCode: StreamMarkdownInlineCodeDecorator = code => (
+  <FilePathInlineCode text={code.text} element={code.element} />
+);
+
+type FilePathMarkdownProps = Pick<
+  StreamMarkdownProps,
+  "components" | "inlineCodeDecorator" | "localLinkComponent"
+>;
+
+const PLAIN_MARKDOWN_PROPS: FilePathMarkdownProps = { components: MESSAGE_MARKDOWN_COMPONENTS };
+// Desktop only (spec #1167 BR-1): inline-code paths and path links open in the editor.
+const FILE_PATH_MARKDOWN_PROPS: FilePathMarkdownProps = {
+  components: { ...MESSAGE_MARKDOWN_COMPONENTS, a: FilePathAnchor },
+  inlineCodeDecorator: decorateFilePathInlineCode,
+  localLinkComponent: FilePathLocalLink,
+};
+
+function FilePathOpenerScope({ children }: { children: ReactNode }) {
+  const opener = useOpenInEditor();
+  return <FilePathOpenerContext value={opener}>{children}</FilePathOpenerContext>;
+}
+
 export interface MessageMarkdownProps {
   content: string;
   streaming?: boolean;
@@ -46,6 +77,11 @@ export interface MessageMarkdownProps {
   slots?: StreamMarkdownSlots;
   /** Operator-typed prose: authored line breaks and safe external links (`StreamMarkdown`). */
   authored?: boolean;
+  /**
+   * This session's assistant-authored prose: on the desktop app, file paths in inline code and
+   * links open in the editor. User turns and other sessions' reply cards leave it off.
+   */
+  openPaths?: boolean;
 }
 
 // The reveal is presentation only: reduced motion and the client-local
@@ -54,7 +90,10 @@ function RevealedMarkdown({
   content,
   streaming,
   compact,
-}: Required<Pick<MessageMarkdownProps, "content" | "streaming" | "compact">>) {
+  markdownProps,
+}: Required<Pick<MessageMarkdownProps, "content" | "streaming" | "compact">> & {
+  markdownProps: FilePathMarkdownProps;
+}) {
   const reducedMotion = usePrefersReducedMotion();
   const preference = useSmoothStreamingPreference();
   const animate = streaming && preference.enabled && !reducedMotion;
@@ -64,7 +103,7 @@ function RevealedMarkdown({
   return (
     <StreamMarkdown
       streaming={streaming}
-      components={MESSAGE_MARKDOWN_COMPONENTS}
+      {...markdownProps}
       compact={compact}
       data-reveal={animate ? "smooth" : "direct"}
       data-testid="message-markdown"
@@ -82,21 +121,29 @@ export const MessageMarkdown = memo(
     compact = false,
     slots,
     authored = false,
+    openPaths = false,
   }: MessageMarkdownProps) {
-    if (reveal) {
-      return <RevealedMarkdown content={content} streaming={streaming} compact={compact} />;
-    }
-    return (
+    const filePaths = openPaths && desktopShellBridge()?.files !== undefined;
+    const markdownProps = filePaths ? FILE_PATH_MARKDOWN_PROPS : PLAIN_MARKDOWN_PROPS;
+    const markdown = reveal ? (
+      <RevealedMarkdown
+        content={content}
+        streaming={streaming}
+        compact={compact}
+        markdownProps={markdownProps}
+      />
+    ) : (
       <StreamMarkdown
         streaming={streaming}
         compact={compact}
         slots={slots}
         authored={authored}
-        components={MESSAGE_MARKDOWN_COMPONENTS}
+        {...markdownProps}
       >
         {content}
       </StreamMarkdown>
     );
+    return filePaths ? <FilePathOpenerScope>{markdown}</FilePathOpenerScope> : markdown;
   },
   (prev, next) =>
     prev.content === next.content &&
@@ -104,5 +151,6 @@ export const MessageMarkdown = memo(
     prev.reveal === next.reveal &&
     prev.compact === next.compact &&
     prev.slots === next.slots &&
-    prev.authored === next.authored
+    prev.authored === next.authored &&
+    prev.openPaths === next.openPaths
 );
