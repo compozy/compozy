@@ -54,7 +54,7 @@ The QA philosophy Compozy is adopting is the synthesis of the openclaw QA framew
 
 ### 1.2 What this pass deliberately is NOT
 
-- It is **not** a benchmarking pass. Benchmarks live in `extreme-software-optimization` and frontier-harness work; performance regressions are flagged but not tuned here.
+- It is **not** a benchmarking pass. Benchmarks belong to separate frontier-harness work; performance regressions are flagged but not tuned here.
 - It is **not** a security audit replacement. `security-review` skill remains the canonical security workflow; this pass exercises the *runtime invariants* that security review proves are *correctly invariants in code*. The two complement.
 - It is **not** an SDK conformance test for third-party agent runtimes (a separate Compozy Network conformance suite per RFC 003/004 covers that).
 
