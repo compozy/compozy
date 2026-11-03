@@ -261,6 +261,63 @@ client_secret_ref = "vault:mcp/profile/foreign/repair-cloud/oauth/client-secret"
 		}
 	})
 
+	t.Run("Should persist and apply the desktop editor command live [IT-001]", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		db, err := openSettingsTestGlobalDB(ctx, t, homePaths.DatabaseFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		service := testService(t, homePaths, Dependencies{ApplyRecords: NewConfigApplyRecordRepository(db.DB(), nil)})
+		cfg, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		general := generalSettingsFromConfig(&cfg)
+		general.Desktop = &compozyconfig.DesktopConfig{EditorCommand: "zed {path}"}
+		if changed := diffGeneralSettings(&cfg, general); !slices.Equal(changed, []string{"desktop.editor_command"}) {
+			t.Fatalf("diffGeneralSettings() = %v, want [desktop.editor_command]", changed)
+		}
+		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
+			Section: SectionGeneral, General: &general,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !result.Applied || result.RestartRequired || result.Record.Lifecycle != lifecycle.Live {
+			t.Fatalf("desktop apply = %#v, want live apply without restart", result)
+		}
+		updated, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if updated.Desktop.EditorCommand != "zed {path}" {
+			t.Fatalf("persisted desktop.editor_command = %q", updated.Desktop.EditorCommand)
+		}
+		// A client omitting the desktop block keeps the persisted command.
+		general.Desktop = nil
+		if _, err := service.UpdateSection(
+			ctx,
+			SectionUpdateRequest{Section: SectionGeneral, General: &general},
+		); err != nil {
+			t.Fatal(err)
+		}
+		replayed, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if replayed.Desktop.EditorCommand != "zed {path}" {
+			t.Fatalf("omitted desktop block erased editor command: %q", replayed.Desktop.EditorCommand)
+		}
+	})
+
 	t.Run("Should keep user and profile writes in one provenance timeline [IT-046]", func(t *testing.T) {
 		t.Parallel()
 

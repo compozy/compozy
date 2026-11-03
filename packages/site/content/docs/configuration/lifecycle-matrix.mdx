@@ -32,6 +32,7 @@ description: Generated CompozyOS config lifecycle matrix for live apply, session
 | `daemon.socket`                                    | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `daemon.subprocess_health_escalation_threshold`    | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `defaults.*`                                       | `restart-required` | `restart-required` | `restart-daemon`                        |
+| `desktop.*`                                        | `live`             | `live`             | `none`                                  |
 | `extensions.*`                                     | `restart-required` | `restart-required` | `restart-daemon`                        |
 | `extensions.trust.allow_unverified`                | `live`             | `live`             | `none`                                  |
 | `gateway.*`                                        | `live`             | `live`             | `none`                                  |

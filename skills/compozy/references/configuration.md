@@ -5,6 +5,7 @@
 - Desired state and apply lifecycle
 - Profile layers and credentials
 - Host update cadence
+- Editor command
 - Gateway
 - Marketplace catalog
 - Skill sources
@@ -140,6 +141,23 @@ Read or change the cadence with `compozy config get|set|unset app.update_check -
 `update_check` to `false` stops background checks on both tracks; manual `--check` remains
 available. Both keys apply live without a daemon restart, and an interval change governs the next
 background check. Read each key back from the same structured surface after mutation.
+
+## Editor command
+
+`[desktop] editor_command` is the command the desktop app runs when the operator Cmd/Ctrl+clicks a
+file path in an assistant message. It defaults to `""`, which opens the system text editor without
+line support. The value is an argument template, never run through a shell: `{path}` is required,
+`{line}` and `{col}` are optional (missing values become `1`), and no other `{name}` placeholder is
+allowed. Validation also requires valid UTF-8, at most 1024 bytes after trimming, no control
+characters, and balanced quotes; failures name `desktop.editor_command`.
+
+The key is machine-only (global `config.toml` only; workspace and profile overlays reject it) and
+applies live. Read it with `compozy config get desktop.editor_command -o json`, the
+`compozy__config_get` native tool, or `GET /api/settings/general` (`config.desktop.editor_command`).
+Only the operator writes it: `compozy config set desktop.editor_command 'code -g {path}:{line}:{col}'`,
+Settings → General, or `PATCH /api/settings/general`. `compozy__config_set` refuses this path. Do
+not change it through shell access either unless the operator asks; it decides which program the
+desktop app launches. There is no CLI verb or native tool that opens a file in the editor.
 
 ## Session Attachments
 

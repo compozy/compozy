@@ -353,6 +353,11 @@ type SettingsDefaultsPayload struct {
 	ReasoningEffort string `json:"reasoning_effort,omitempty"`
 }
 
+// SettingsDesktopPayload is a daemon API value.
+type SettingsDesktopPayload struct {
+	EditorCommand string `json:"editor_command"`
+}
+
 // SettingsExtensionDevPayload is a daemon API value.
 type SettingsExtensionDevPayload struct {
 	WatchInterval string `json:"watch_interval"`
@@ -419,6 +424,7 @@ type SettingsGeneralConfigPayload struct {
 	Daemon           SettingsDaemonPayload      `json:"daemon"`
 	Redact           SettingsRedactPayload      `json:"redact"`
 	Terminal         SettingsTerminalPayload    `json:"terminal"`
+	Desktop          *SettingsDesktopPayload    `json:"desktop,omitzero"`
 }
 
 // SettingsGeneralResponse is a daemon API value.
@@ -441,6 +447,3 @@ type SettingsGlobalShortcutPayload struct {
 	Reason        string                       `json:"reason,omitempty"`
 	SettingsURL   string                       `json:"settings_url,omitempty"`
 }
-
-// SettingsGlobalShortcutStatus is a daemon API value.
-type SettingsGlobalShortcutStatus string

@@ -83,6 +83,7 @@ var Matrix = []Rule{
 	{Pattern: "provider_usage.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "provider_usage.providers.*.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "shell.*.*", Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "desktop.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "skills.disabled_skills", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "skills.sources", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "skills.custom_sources", Lifecycle: Live, DiffClass: DiffClassLive},

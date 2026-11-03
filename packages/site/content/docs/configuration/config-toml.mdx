@@ -34,6 +34,7 @@ CompozyOS archives them on load instead of failing; see
 | `[daemon.load]`                      | Agent CPU priority and load-aware admission for background work.                       | niceness `10`, threshold `1.5`, max wait `2m`                                                         |
 | `[http]`                             | HTTP and SSE bind address.                                                             | `host = "localhost"`, `port = 2123`                                                                   |
 | `[app]`                              | Desktop app update-check policy.                                                       | checks enabled every 6 hours                                                                          |
+| `[desktop]`                          | Editor command the desktop app runs to open file paths from transcripts.               | `editor_command = ""` (the system text editor)                                                        |
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                     | toasts and sound on, system notifications off, no muted workspaces                                    |
 | `[terminal]`                         | Live terminal process, retention, recording, and capacity policy.                      | user shell, 1 MiB scrollback, 24h idle TTL, recording off, caps 8/32/16                               |
 | `[shell.sessions]`                   | Default session order and grouping for windows that have not chosen their own.         | creation order, no grouping                                                                           |
@@ -196,6 +197,13 @@ port = 2123
 update_check = true
 # Check cadence. Valid range: 15m to 168h.
 update_check_interval = "15m"
+
+[desktop]
+# Command the desktop app runs to open a file mentioned in a transcript.
+# Placeholders: {path} (required), {line}, {col}; missing line/col become 1.
+# Split into arguments with single/double quotes grouping; never run through a shell.
+# Empty (default): the system text editor, without line support.
+editor_command = ""
 
 [attention]
 toasts = true
@@ -906,8 +914,10 @@ field is restart-required.
 ## `[app]`
 
 The daemon is the sole consumer of both keys. It schedules read-only checks for the runtime and,
-when installed, the desktop app. The shell does not read `config.toml`; it observes the durable
-update operation when an app apply is staged.
+when installed, the desktop app. The shell never parses `config.toml`; it observes the durable
+update operation when an app apply is staged. The one setting the desktop app reads is
+[`desktop.editor_command`](#desktop), and it reads it through the local daemon's
+`GET /api/settings/general`, not from the file.
 
 | Field                   | Type     | Default | Valid values    | Description                                  |
 | ----------------------- | -------- | ------- | --------------- | -------------------------------------------- |
@@ -925,6 +935,42 @@ installing anything. All Settings clients share a one-minute minimum between ups
 including failed attempts. GitHub `Retry-After` and rate-limit reset deadlines extend that wait.
 `GET /api/settings/update` remains the cached status read; `runtime.checked_at` is optional until a
 check succeeds. Manual checks remain available when automatic checks are disabled.
+
+## `[desktop]`
+
+Settings for the desktop app. The section is machine-only: it is accepted only in
+`$COMPOZY_HOME/config.toml`. A workspace overlay that sets it fails to load with
+`desktop settings are global-only`, and a profile overlay rejects it with
+`profile_config_key_denied`.
+
+| Field            | Type   | Default | Validation                                                                                                                                                                                       | Description                                                                                                                   |
+| ---------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `editor_command` | string | `""`    | Empty, or valid UTF-8 of at most 1024 bytes after trimming, with no control characters, balanced quotes, a `{path}` placeholder, and no placeholders other than `{path}`, `{line}`, and `{col}`. | Command the desktop app runs when you Cmd/Ctrl+click a file path in an assistant message. Empty opens the system text editor. |
+
+The desktop app splits the template into arguments on whitespace. Single and double quotes group
+an argument, and there are no other escapes. It then replaces `{path}`, `{line}`, and `{col}`
+inside each argument; a missing line or column becomes `1`. The command never runs through a
+shell, so a path cannot inject arguments or commands. When the value is empty, macOS uses
+`open -t`, Windows uses `notepad.exe`, and Linux uses the `text/plain` handler from `xdg-mime`,
+all without line support.
+
+| Editor                           | Value                                                                  |
+| -------------------------------- | ---------------------------------------------------------------------- |
+| VS Code (macOS/Linux)            | `code -g {path}:{line}:{col}`                                          |
+| VS Code (Windows)                | `"C:\Program Files\Microsoft VS Code\Code.exe" -g {path}:{line}:{col}` |
+| Cursor                           | `cursor -g {path}:{line}:{col}`                                        |
+| Zed                              | `zed {path}:{line}:{col}`                                              |
+| Sublime Text                     | `subl {path}:{line}:{col}`                                             |
+| JetBrains (IDEA)                 | `idea --line {line} --column {col} {path}`                             |
+| Neovim in a new terminal (macOS) | `open -a Terminal.app --args nvim +{line} {path}`                      |
+
+On Windows, point at the editor's `.exe`; `.cmd` and `.bat` shims cannot start without a shell.
+
+The value applies live: the desktop app reads it on every open. Operators set it with
+`compozy config set desktop.editor_command '<template>'`, Settings → General, or
+`PATCH /api/settings/general` (`config.desktop.editor_command`). Agents can read it with
+`compozy__config_get`, but `compozy__config_set` refuses the path, so an agent limited to native
+tools cannot change which program the desktop app runs.
 
 ## `[attention]`
 

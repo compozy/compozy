@@ -3556,6 +3556,10 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	if addSessionProviderLiveApplySchemas(baseline) == 0 {
 		t.Fatal("approved runtime_live_apply addition: no historical session provider option schemas found")
 	}
+	// #1167: optional machine-only desktop block on general settings; omitted keeps the current value.
+	if addSettingsGeneralDesktop(baseline) == 0 {
+		t.Fatal("approved desktop settings addition: no historical general settings config schemas found")
+	}
 	// #1154: optional wake count on queued input; existing fields and required sets stay unchanged.
 	if addSessionInputCoalescedWakes(baseline) == 0 {
 		t.Fatal("approved coalesced_wakes addition: no historical session input schemas found")
@@ -4686,6 +4690,42 @@ func schemaIncludesType(schema *openapi3.Schema, want string) bool {
 }
 
 // Provider usage adds one section and apply target without removing existing values.
+// addSettingsGeneralDesktop adds the optional nullable `desktop` object to every historical
+// general settings config schema and registers its component.
+func addSettingsGeneralDesktop(baseline map[string]any) int {
+	components := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	components["SettingsDesktopPayload"] = map[string]any{
+		"type":       "object",
+		"required":   []any{"editor_command"},
+		"properties": map[string]any{"editor_command": map[string]any{"type": "string"}},
+	}
+	var walk func(any) int
+	walk = func(value any) int {
+		count := 0
+		switch node := value.(type) {
+		case map[string]any:
+			if properties, ok := node["properties"].(map[string]any); ok &&
+				properties["terminal"] != nil && properties["redact"] != nil && properties["session_timeout"] != nil &&
+				properties["desktop"] == nil {
+				properties["desktop"] = map[string]any{"oneOf": []any{
+					map[string]any{"$ref": "#/components/schemas/SettingsDesktopPayload"},
+					map[string]any{"enum": []any{nil}, "nullable": true},
+				}}
+				count++
+			}
+			for _, child := range node {
+				count += walk(child)
+			}
+		case []any:
+			for _, child := range node {
+				count += walk(child)
+			}
+		}
+		return count
+	}
+	return walk(baseline)
+}
+
 func addProviderUsageSettingsSection(t *testing.T, baseline map[string]any) {
 	t.Helper()
 	changes := 0

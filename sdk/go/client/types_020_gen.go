@@ -4,6 +4,9 @@ package client
 
 import "time"
 
+// SettingsGlobalShortcutStatus is a daemon API value.
+type SettingsGlobalShortcutStatus string
+
 // SettingsHTTPPayload is a daemon API value.
 type SettingsHTTPPayload struct {
 	Host string `json:"host"`
@@ -438,12 +441,4 @@ type SettingsProviderReasoningPayload struct {
 // SettingsProviderResponse is a daemon API value.
 type SettingsProviderResponse struct {
 	Provider SettingsProviderItemPayload `json:"provider"`
-}
-
-// SettingsProviderSecretWritePayload is a daemon API value.
-type SettingsProviderSecretWritePayload struct {
-	Name      string `json:"name,omitempty"`
-	SecretRef string `json:"secret_ref"`
-	Kind      string `json:"kind,omitempty"`
-	Value     string `json:"value"`
 }

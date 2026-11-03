@@ -49,6 +49,7 @@ type Config struct {
 	HTTP          HTTPConfig                `toml:"http"`
 	App           AppConfig                 `toml:"app"`
 	Shell         ShellConfig               `toml:"shell"`
+	Desktop       DesktopConfig             `toml:"desktop"`
 	Attention     AttentionConfig           `toml:"attention"`
 	WindowManager WindowManagerConfig       `toml:"window_manager"`
 	Terminal      TerminalConfig            `toml:"terminal"`

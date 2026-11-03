@@ -15776,6 +15776,9 @@ export interface components {
       provider?: string;
       reasoning_effort?: string;
     };
+    SettingsDesktopPayload: {
+      editor_command: string;
+    };
     SettingsExtensionDevPayload: {
       watch_interval: string;
     };
@@ -15817,6 +15820,7 @@ export interface components {
     SettingsGeneralConfigPayload: {
       busy_input?: components["schemas"]["SettingsBusyInputPayload"] | null;
       daemon: components["schemas"]["SettingsDaemonPayload"];
+      desktop?: components["schemas"]["SettingsDesktopPayload"] | null;
       http: components["schemas"]["SettingsHTTPPayload"];
       /** @description Idle time before a resumable idle session's agent process is released (session.supervision.idle_release_after); 0s disables it. Omit on update to keep the current value. */
       idle_release_after?: string;

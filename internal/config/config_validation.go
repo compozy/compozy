@@ -47,6 +47,9 @@ func (c *Config) validateCore() error {
 	if err := c.Shell.Validate(); err != nil {
 		return err
 	}
+	if err := c.Desktop.Validate(); err != nil {
+		return err
+	}
 	if err := c.WindowManager.Validate(); err != nil {
 		return err
 	}

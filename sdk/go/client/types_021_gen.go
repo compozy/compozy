@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// SettingsProviderSecretWritePayload is a daemon API value.
+type SettingsProviderSecretWritePayload struct {
+	Name      string `json:"name,omitempty"`
+	SecretRef string `json:"secret_ref"`
+	Kind      string `json:"kind,omitempty"`
+	Value     string `json:"value"`
+}
+
 // SettingsProviderSettingsPayload is a daemon API value.
 type SettingsProviderSettingsPayload struct {
 	SessionEnv       map[string]SessionEnvBindingPayload     `json:"session_env,omitempty"`
