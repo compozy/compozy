@@ -24,7 +24,8 @@ func promptRecoveryReasonFor(event acp.AgentEvent) (store.SessionRuntimeRecovery
 	case store.FailureProcess, store.FailureTransport:
 		return store.SessionRuntimeRecoveryRuntimeExit, true
 	case store.FailurePrompt:
-		if event.ProviderError != nil && event.ProviderError.Code == acp.ProviderErrorAuthRequired {
+		if event.ProviderError != nil && event.ProviderError.Code == acp.ProviderErrorAuthRequired &&
+			event.ProviderError.NextAction == acp.ProviderFailureActionLogin {
 			return store.SessionRuntimeRecoveryProviderAuth, true
 		}
 	}
@@ -33,9 +34,9 @@ func promptRecoveryReasonFor(event acp.AgentEvent) (store.SessionRuntimeRecovery
 
 // notePromptEventDelivered tracks provider work for the recovery payload choice and re-arms the
 // sign-in wait once a turn completes.
-func notePromptEventDelivered(session *Session, turnState *promptTurnDispatchState, eventType string) {
-	turnState.recovery.observeDelivered(eventType)
-	if eventType == acp.EventTypeDone {
+func notePromptEventDelivered(session *Session, turnState *promptTurnDispatchState, event acp.AgentEvent) {
+	turnState.recovery.observeDelivered(event.Type)
+	if event.Type == acp.EventTypeDone && event.StopReason != string(acp.PromptStopReasonCancelled) {
 		session.setAuthRecoveryExhausted(false)
 	}
 }
@@ -107,10 +108,11 @@ func (m *Manager) settleStoppedPromptRecovery(
 
 func (m *Manager) maxPromptRecoveryWait() time.Duration {
 	var total time.Duration
-	for _, delays := range [][]time.Duration{m.promptRecoveryDelays, m.authRecoveryDelays} {
-		for _, delay := range delays {
-			total += delay + defaultLifecycleTimeout
-		}
+	for _, delay := range m.promptRecoveryDelays {
+		total += delay + defaultLifecycleTimeout
+	}
+	if len(m.authRecoveryDelays) > 0 {
+		total += m.authRecoveryWindow
 	}
 	return total
 }

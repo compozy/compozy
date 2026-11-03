@@ -193,6 +193,14 @@ func TestProviderFailureDiagnosticFromErrorClassifiesProviderRecoveryActions(t *
 			wantAction: ProviderFailureActionLogin,
 		},
 		{
+			name: "Should prioritize the auth-required code over model wording",
+			err: fmt.Errorf("wrapped: %w", &acpsdk.RequestError{
+				Code: -32000, Message: "model not available",
+			}),
+			wantKind:   ProviderFailureUnauthenticated,
+			wantAction: ProviderFailureActionLogin,
+		},
+		{
 			name: "Should classify invalid API keys as login",
 			err: &acpsdk.RequestError{
 				Code:    -32603,

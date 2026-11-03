@@ -141,6 +141,9 @@ func (s *Session) completeRuntimeTransitionLocked(
 	if proc != nil {
 		s.runtimeRelease = nil
 	}
+	if s.Provider != strings.TrimSpace(selection.Provider) {
+		s.authRecoveryExhausted = false
+	}
 	s.Provider = strings.TrimSpace(selection.Provider)
 	s.Model = strings.TrimSpace(selection.Model)
 	s.ReasoningEffort = strings.TrimSpace(selection.ReasoningEffort)

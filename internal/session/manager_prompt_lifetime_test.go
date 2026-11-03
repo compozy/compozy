@@ -702,6 +702,89 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		}
 	}
 
+	for _, action := range []acp.ProviderFailureAction{acp.ProviderFailureActionBindSecret, acp.ProviderFailureActionInspect} {
+		t.Run("Should show actionable provider guidance for "+string(action), func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			session := createSession(t, h)
+			t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+			h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				event := authLostEvent(proc, req.TurnID)
+				event.ProviderError.NextAction = action
+				events := make(chan acp.AgentEvent, 1)
+				events <- event
+				close(events)
+				return events, nil
+			}
+			events, err := h.manager.Prompt(t.Context(), session.ID, "check provider access")
+			if err != nil {
+				t.Fatal(err)
+			}
+			delivered := collectEvents(t, events)
+			if countAgentEvents(delivered, acp.EventTypeRuntimeRecoveryStarted) != 0 || len(delivered) != 1 ||
+				delivered[0].ProviderError == nil {
+				t.Fatalf("events = %#v, want an immediate actionable provider notice", delivered)
+			}
+			_, starts := promptRequests(h)
+			if starts != 1 {
+				t.Fatalf("starts = %d, want no automatic configuration retry", starts)
+			}
+		})
+	}
+	for _, canceled := range []bool{false, true} {
+		name := "Should rearm auth recovery after a completed turn"
+		if canceled {
+			name = "Should preserve auth recovery exhaustion after cancellation"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			session := &Session{}
+			session.setAuthRecoveryExhausted(true)
+			event := acp.AgentEvent{Type: acp.EventTypeDone}
+			if canceled {
+				event.StopReason = string(acp.PromptStopReasonCancelled)
+			}
+			notePromptEventDelivered(session, &promptTurnDispatchState{recovery: &promptRecoveryState{}}, event)
+			if session.authRecoveryAvailable() == canceled {
+				t.Fatalf(
+					"auth recovery available = %v after cancellation=%v",
+					session.authRecoveryAvailable(),
+					canceled,
+				)
+			}
+		})
+	}
+	t.Run("Should give a changed provider its own auth recovery window", func(t *testing.T) {
+		t.Parallel()
+		session := &Session{Provider: "claude"}
+		session.setAuthRecoveryExhausted(true)
+		at := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+		session.completeRuntimeTransition(
+			nil,
+			RuntimeSelection{Provider: "claude", Model: "another"},
+			RuntimeTransitionInitialBind,
+			at,
+		)
+		if session.authRecoveryAvailable() {
+			t.Fatal("model change rearmed exhausted auth recovery")
+		}
+		session.completeRuntimeTransition(nil, RuntimeSelection{Provider: "codex"}, RuntimeTransitionInitialBind, at)
+		if !session.authRecoveryAvailable() {
+			t.Fatal("new provider inherited exhausted auth recovery")
+		}
+	})
+	t.Run("Should retain the configured auth window in the process exit wait budget", func(t *testing.T) {
+		t.Parallel()
+		manager := &Manager{
+			authRecoveryWindow:   10 * time.Minute,
+			authRecoveryDelays:   []time.Duration{15 * time.Second},
+			promptRecoveryDelays: []time.Duration{time.Second},
+		}
+		if got, want := manager.maxPromptRecoveryWait(), 10*time.Minute+time.Second+defaultLifecycleTimeout; got != want {
+			t.Fatalf("process exit recovery budget = %s, want %s", got, want)
+		}
+	})
+
 	t.Run("Should resend an untouched turn once the provider sign-in returns", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
@@ -914,7 +997,12 @@ func TestPromptProviderAuthRecovery(t *testing.T) {
 		delivered := collectEvents(t, result.Events)
 		requests, starts := promptRequests(h)
 		if countAgentEvents(delivered, acp.EventTypeDone) != 1 || len(requests) != 2 || starts != 3 {
-			t.Fatalf("done/requests/starts = %d/%d/%d, want 1/2/3", countAgentEvents(delivered, acp.EventTypeDone), len(requests), starts)
+			t.Fatalf(
+				"done/requests/starts = %d/%d/%d, want 1/2/3",
+				countAgentEvents(delivered, acp.EventTypeDone),
+				len(requests),
+				starts,
+			)
 		}
 		continued := requests[1]
 		if !strings.HasSuffix(continued.Message, authRecoveryContinueMessage) || len(continued.Attachments) != 2 {

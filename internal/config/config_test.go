@@ -3015,6 +3015,18 @@ func TestSessionStopConfig(t *testing.T) {
 }
 
 func TestSessionAuthRecoveryConfig(t *testing.T) {
+	t.Run("Should reject auth recovery settings in workspace files", func(t *testing.T) {
+		t.Parallel()
+		for _, setting := range []string{`enabled = false`, `window = "2m"`, `initial_delay = "1s"`, `max_delay = "1m"`} {
+			_, err := loadWorkspaceConfigOverlayBytes(
+				[]byte("[session.auth_recovery]\n"+setting+"\n"),
+				"workspace.toml",
+			)
+			if err == nil || !strings.Contains(err.Error(), "session.auth_recovery settings are global-only") {
+				t.Fatalf("workspace setting %s: %v, want global-only rejection", setting, err)
+			}
+		}
+	})
 	t.Parallel()
 	t.Run("Should back off from fifteen seconds to a one minute cap inside a ten minute window", func(t *testing.T) {
 		t.Parallel()
