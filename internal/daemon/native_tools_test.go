@@ -15416,19 +15416,6 @@ func requireNativeOutputSchemaAccepts(t *testing.T, descriptor toolspkg.Descript
 	}
 }
 
-// requireSessionPromptOutputSchemaAccepts validates a structured session_prompt result against
-// the declared output schema MCP clients enforce on it (#1186).
-func requireSessionPromptOutputSchemaAccepts(t *testing.T, structured []byte) {
-	t.Helper()
-	for _, descriptor := range builtintools.NativeDescriptors() {
-		if descriptor.ID == toolspkg.ToolIDSessionPrompt {
-			requireNativeOutputSchemaAccepts(t, descriptor, structured)
-			return
-		}
-	}
-	t.Fatal("session_prompt descriptor is missing")
-}
-
 func TestNativeUserWorkspaceReference(t *testing.T) {
 	t.Parallel()
 	t.Run("Should parse User before registry lookup and authorize a typed User target", func(t *testing.T) {

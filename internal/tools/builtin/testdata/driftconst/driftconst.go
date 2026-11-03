@@ -11,6 +11,11 @@ const (
 	Aliased        = Explicit
 )
 
+// KindAlias is a type alias; constants declared with it are Kind values.
+type KindAlias = Kind
+
+const AliasTyped KindAlias = "alias-typed"
+
 // Untyped and Other must not count as Kind values.
 const Untyped = "untyped"
 

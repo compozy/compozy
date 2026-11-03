@@ -2970,14 +2970,24 @@ func assertSchemaNodeDeclaresType(t *testing.T, owner string, schema map[string]
 			assertSchemaNodeDeclaresType(t, owner+"[]", items, typ.Elem())
 		}
 	case reflect.String:
-		enum, ok := schema["enum"].([]any)
-		if !ok || typ.PkgPath() == "" {
+		if typ.PkgPath() == "" {
 			return
 		}
-		for _, value := range namedStringConstants(t, typ) {
-			if !slices.Contains(enum, any(value)) {
-				t.Errorf("%s: %s value %q is missing from the schema enum %v", owner, typ, value, enum)
-			}
+		values := namedStringConstants(t, typ)
+		if len(values) == 0 {
+			return
+		}
+		// A named string type with constants is a closed vocabulary: the schema enum must list
+		// exactly those values, neither dropping one nor allowing one the daemon never emits.
+		enum, _ := schema["enum"].([]any)
+		declared := make([]string, 0, len(enum))
+		for _, value := range enum {
+			text, _ := value.(string)
+			declared = append(declared, text)
+		}
+		slices.Sort(declared)
+		if !slices.Equal(declared, values) {
+			t.Errorf("%s: schema enum %v, want exactly the %s values %v", owner, declared, typ, values)
 		}
 	default:
 	}
@@ -3036,7 +3046,7 @@ func packageStringConstants(t *testing.T, pkgPath string, typeName string) []str
 		if !ok || value.Val().Kind() != constant.String {
 			continue
 		}
-		named, ok := value.Type().(*types.Named)
+		named, ok := types.Unalias(value.Type()).(*types.Named)
 		if !ok || named.Obj().Pkg() == nil || named.Obj().Pkg().Path() != pkgPath || named.Obj().Name() != typeName {
 			continue
 		}
@@ -3072,7 +3082,7 @@ func TestPackageStringConstants(t *testing.T) {
 			"github.com/compozy/compozy/internal/tools/builtin/testdata/driftconst",
 			"Kind",
 		)
-		want := []string{"converted", "explicit", "joined"}
+		want := []string{"alias-typed", "converted", "explicit", "joined"}
 		if !slices.Equal(got, want) {
 			t.Fatalf("Kind constants = %v, want %v", got, want)
 		}
