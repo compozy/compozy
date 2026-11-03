@@ -5,7 +5,11 @@ import { useSettingsGeneral } from "@/systems/settings";
 
 import { useAgentSessions } from "../../hooks/use-agent-sessions";
 import { useAgentSettingsPage } from "../../hooks/use-agent-settings-page";
-import { invalidPermissionRule, permissionRulesEqual } from "../../lib/agent-permission-rules";
+import {
+  invalidPermissionRule,
+  permissionRuleErrorFromDaemon,
+  permissionRulesEqual,
+} from "../../lib/agent-permission-rules";
 import {
   buildSettingsDraftFromAgent,
   type AgentSettingsDraft,
@@ -35,7 +39,8 @@ export function AgentPermissionsEditor({ agent, workspace, readOnly }: AgentEdit
 
   const providerId = agent.provider || agent.effective_runtime?.provider || "";
   const summary = providers.data?.providers.find(provider => provider.name === providerId);
-  const changes = countChanges(draft, buildSettingsDraftFromAgent(page.agent ?? agent));
+  const baseline = buildSettingsDraftFromAgent(page.agent ?? agent);
+  const changes = countChanges(draft, baseline);
   const invalidRule = invalidPermissionRule(draft.permissionRules);
   const blocked =
     page.saveBlocked && !invalidRule && draft.permissions === null
@@ -56,16 +61,30 @@ export function AgentPermissionsEditor({ agent, workspace, readOnly }: AgentEdit
         agent={agent}
         blocked={blocked}
         changes={changes}
-        degraded={sessions.some(session => session.permission_mode_degraded)}
-        invalidRule={invalidRule}
+        degraded={sessions.some(
+          session =>
+            (session.state === "active" || session.state === "starting") &&
+            session.permission_mode_degraded
+        )}
+        // A local problem blocks Save; a daemon refusal of a row is shown on that row.
+        invalidRule={
+          invalidRule ?? permissionRuleErrorFromDaemon(page.error, draft.permissionRules)
+        }
         legacyLevel={draft.legacyPermissions}
         level={draft.permissions}
         onDiscard={page.onDiscard}
         onLevelChange={level => page.patchDraft({ permissions: level, legacyPermissions: null })}
         onRulesChange={rules => page.patchDraft({ permissionRules: rules })}
         onSave={page.onSave}
-        onSessionApprovalChange={approval => page.patchDraft({ sessionApproval: approval })}
+        onSessionApprovalChange={approval =>
+          // `children` is what an unset reach already means; picking it is no change.
+          page.patchDraft({
+            sessionApproval:
+              approval === "children" && baseline.sessionApproval === "" ? "" : approval,
+          })
+        }
         owner={readOnly ? formatAgentOwner(agent) : undefined}
+        providerId={providerId}
         providerName={summary?.display_name || providerId || "This provider"}
         readOnly={readOnly}
         reviewer={providerReviewer(summary)}

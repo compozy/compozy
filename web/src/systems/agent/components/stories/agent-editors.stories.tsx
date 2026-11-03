@@ -124,6 +124,7 @@ function permissionsProps(
 ): AgentPermissionsViewProps {
   return {
     agent: staysOnAgent,
+    providerId: "claude",
     providerName: "Claude Code",
     level: "",
     sessionApproval: "",
@@ -171,6 +172,7 @@ export const PermissionsNeverAskCodex: Story = {
       {...permissionsProps({
         agent: { ...staysOnAgent, provider: "codex" },
         level: "approve-all",
+        providerId: "codex",
         providerName: "Codex",
       })}
     />

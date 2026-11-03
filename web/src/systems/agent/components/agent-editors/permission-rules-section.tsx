@@ -1,5 +1,6 @@
 /** S14: a short list of exceptions, closed until someone needs one. */
 import { Plus, X } from "@compozy/ui/icons";
+import { useId } from "react";
 
 import {
   Alert,
@@ -31,12 +32,15 @@ function kindOptions(current: string) {
 function RuleRow({
   rule,
   invalid,
+  describedBy,
   disabled,
   onChange,
   onRemove,
 }: {
   rule: PermissionRuleDraft;
   invalid: boolean;
+  /** Id of the message that explains why this row can't be saved. */
+  describedBy?: string;
   disabled: boolean;
   onChange: (rule: PermissionRuleDraft) => void;
   onRemove: () => void;
@@ -63,6 +67,7 @@ function RuleRow({
         </SelectContent>
       </Select>
       <Input
+        aria-describedby={invalid ? describedBy : undefined}
         aria-invalid={invalid || undefined}
         aria-label="Folder or file"
         className="font-mono"
@@ -115,6 +120,7 @@ export function PermissionRulesSection({
   readOnly: boolean;
   onChange: (rules: PermissionRuleDraft[]) => void;
 }) {
+  const messageId = useId();
   const atLimit = rules.length >= PERMISSION_RULE_LIMIT;
   const add = () =>
     onChange([...rules, { id: crypto.randomUUID(), kind: "edit", path: "", decision: "allow" }]);
@@ -129,6 +135,7 @@ export function PermissionRulesSection({
           {rules.map(rule => (
             <RuleRow
               disabled={readOnly}
+              describedBy={messageId}
               invalid={rule.id === invalid?.id}
               key={rule.id}
               onChange={next => onChange(rules.map(item => (item.id === rule.id ? next : item)))}
@@ -139,7 +146,7 @@ export function PermissionRulesSection({
         </ul>
       ) : null}
       {invalid ? (
-        <p className="text-small-body text-destructive" role="alert">
+        <p className="text-small-body text-destructive" id={messageId} role="alert">
           {invalid.message}
         </p>
       ) : null}

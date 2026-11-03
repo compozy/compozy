@@ -1,13 +1,17 @@
 import { Settings2, ShieldCheck } from "@compozy/ui/icons";
 
-import { Field, FormSection, Pill, RadioCard } from "@compozy/ui";
+import { Field, FormSection, Pill, RadioCardGroup, type RadioCardGroupOption } from "@compozy/ui";
 
 import type { AgentCreateDialogDraft } from "../lib/agent-create-draft";
 import {
   AGENT_PERMISSION_LEVELS,
   FOLLOW_SETTINGS_LABEL,
+  isAgentPermissionLevel,
   STAYS_ON_DEFAULT_PERMISSION,
 } from "../lib/agent-permissions";
+
+/** The radio value for "Follow Settings", which stores no `permissions`. */
+const INHERIT = "inherit";
 
 export interface AgentCreatePermissionsSectionProps {
   draft: AgentCreateDialogDraft;
@@ -24,7 +28,33 @@ export function AgentCreatePermissionsSection({
 }: AgentCreatePermissionsSectionProps) {
   const staysOn = draft.kind === "stays_on";
   const unset = draft.permissions === "";
-  const shown = staysOn && unset ? STAYS_ON_DEFAULT_PERMISSION : draft.permissions;
+  const shown = unset ? (staysOn ? STAYS_ON_DEFAULT_PERMISSION : INHERIT) : draft.permissions;
+  const options: RadioCardGroupOption<string>[] = [
+    ...(staysOn
+      ? []
+      : [
+          {
+            value: INHERIT,
+            title: FOLLOW_SETTINGS_LABEL,
+            description: "Uses the level in your Settings.",
+            icon: Settings2,
+            "data-testid": "agent-create-permissions-inherit",
+          },
+        ]),
+    ...AGENT_PERMISSION_LEVELS.map(option => ({
+      value: option.value,
+      title: option.label,
+      description: option.description,
+      icon: option.icon,
+      "data-testid": `agent-create-permissions-${option.value}`,
+      badge:
+        staysOn && unset && option.value === STAYS_ON_DEFAULT_PERMISSION ? (
+          <Pill size="sm" tone="neutral">
+            Default
+          </Pill>
+        ) : undefined,
+    })),
+  ];
   return (
     <FormSection
       data-testid="agent-create-permissions-section"
@@ -33,41 +63,16 @@ export function AgentCreatePermissionsSection({
       title="What can it do on its own?"
     >
       <Field>
-        <div
+        <RadioCardGroup
           aria-label="Permission level"
-          className="flex flex-col gap-2"
+          className="flex flex-col"
           data-testid="agent-create-permissions"
-          role="radiogroup"
-        >
-          {staysOn ? null : (
-            <RadioCard
-              data-testid="agent-create-permissions-inherit"
-              description="Uses the level in your Settings."
-              icon={Settings2}
-              onSelect={() => onDraftChange({ ...draft, permissions: "" })}
-              selected={unset}
-              title={FOLLOW_SETTINGS_LABEL}
-            />
-          )}
-          {AGENT_PERMISSION_LEVELS.map(option => (
-            <RadioCard
-              badge={
-                staysOn && unset && option.value === STAYS_ON_DEFAULT_PERMISSION ? (
-                  <Pill size="sm" tone="neutral">
-                    Default
-                  </Pill>
-                ) : undefined
-              }
-              data-testid={`agent-create-permissions-${option.value}`}
-              description={option.description}
-              icon={option.icon}
-              key={option.value}
-              onSelect={() => onDraftChange({ ...draft, permissions: option.value })}
-              selected={shown === option.value}
-              title={option.label}
-            />
-          ))}
-        </div>
+          onValueChange={next =>
+            onDraftChange({ ...draft, permissions: isAgentPermissionLevel(next) ? next : "" })
+          }
+          options={options}
+          value={shown}
+        />
       </Field>
     </FormSection>
   );

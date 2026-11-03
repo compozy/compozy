@@ -62,8 +62,16 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
   );
   const editor = useSelector(store, snapshot => snapshot.context);
 
-  const { draft, dirty, validation, canSave, saveBlocked, saveBlockedCaption, error } =
-    describeEditor(editor);
+  const {
+    draft,
+    dirty,
+    validation,
+    canSave,
+    saveBlocked,
+    saveBlockedCaption,
+    permissionsBlocked,
+    error,
+  } = describeEditor(editor);
 
   const guard = useUnsavedGuard({ dirty, entityName: name });
   const deleteFlow = useAgentDeleteFlow({
@@ -94,6 +102,13 @@ export function useAgentSettingsPage({ name, section }: UseAgentSettingsPageOpti
     canSave,
     saveBlocked,
     saveBlockedCaption,
+    permissionsBlocked,
+    onOpenPermissions: () =>
+      void navigate({
+        to: "/agents/$name/$page",
+        params: { name, page: "permissions" },
+        search: bindingSearch,
+      }),
     section,
     setSection: (next: AgentSettingsSection) => {
       void navigate({
@@ -161,10 +176,23 @@ function describeEditor(editor: AgentSettingsEditorState) {
   const error = "error" in editor ? editor.error : null;
   const saveBlocked = dirty && (!canSave || mutationDenied);
   const fieldErrorCount = validation ? Object.values(validation.fields).filter(Boolean).length : 0;
+  // The level picker lives only on the Permissions page, so name it instead of a bare count.
+  const permissionsBlocked = saveBlocked && Boolean(validation?.fields.permissions);
   const saveBlockedCaption = mutationDenied
     ? "Editing is not permitted for this agent."
-    : saveBlocked && fieldErrorCount > 0
-      ? `Fix ${fieldErrorCount} field${fieldErrorCount === 1 ? "" : "s"} before saving`
-      : undefined;
-  return { draft, dirty, validation, canSave, saveBlocked, saveBlockedCaption, error };
+    : permissionsBlocked
+      ? "Pick a permission level on the Permissions page first."
+      : saveBlocked && fieldErrorCount > 0
+        ? `Fix ${fieldErrorCount} field${fieldErrorCount === 1 ? "" : "s"} before saving`
+        : undefined;
+  return {
+    draft,
+    dirty,
+    validation,
+    canSave,
+    saveBlocked,
+    saveBlockedCaption,
+    permissionsBlocked,
+    error,
+  };
 }

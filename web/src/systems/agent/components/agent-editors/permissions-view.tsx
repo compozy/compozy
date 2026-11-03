@@ -1,7 +1,15 @@
 /** S5, S6 and S14 on one page: what it may do, whose requests it answers, and the exceptions. */
 import { Settings2, Users, UsersRound } from "@compozy/ui/icons";
 
-import { Alert, AlertDescription, AlertTitle, FormSection, Pill, RadioCard } from "@compozy/ui";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  FormSection,
+  Pill,
+  RadioCardGroup,
+  type RadioCardGroupOption,
+} from "@compozy/ui";
 
 import type { ProviderReviewer } from "@/systems/providers";
 
@@ -9,6 +17,7 @@ import type { PermissionRuleDraft } from "../../lib/agent-permission-rules";
 import {
   AGENT_PERMISSION_LEVELS,
   FOLLOW_SETTINGS_LABEL,
+  isAgentPermissionLevel,
   permissionLabel,
   STAYS_ON_DEFAULT_PERMISSION,
   type AgentPermissionLevel,
@@ -26,6 +35,8 @@ const EDITS_FILES = new Set<AgentPermissionLevel>(["approve-edits", "auto", "app
 
 export interface AgentPermissionsViewProps {
   agent: AgentPayload;
+  /** The provider the agent resolves to: its own, else the inherited runtime provider. */
+  providerId: string;
   providerName: string;
   /** `""` is nothing set; `null` is a stored value this version doesn't know. */
   level: AgentPermissionLevel | "" | null;
@@ -51,12 +62,12 @@ export interface AgentPermissionsViewProps {
 }
 
 function LevelNote({
-  agent,
+  providerId,
   providerName,
   level,
   reviewer,
   degraded,
-}: Pick<AgentPermissionsViewProps, "agent" | "providerName" | "reviewer" | "degraded"> & {
+}: Pick<AgentPermissionsViewProps, "providerId" | "providerName" | "reviewer" | "degraded"> & {
   level: AgentPermissionLevel;
 }) {
   if (level === "auto" && reviewer === "unavailable") {
@@ -79,13 +90,13 @@ function LevelNote({
       </Alert>
     );
   }
-  if (level === "approve-all" && PROVIDER_KEEPS_REVIEWER_ON_APPROVE_ALL.has(agent.provider)) {
+  if (level === "approve-all" && PROVIDER_KEEPS_REVIEWER_ON_APPROVE_ALL.has(providerId)) {
     return (
       <Alert data-testid="agent-permissions-keeps-reviewer">
         <AlertTitle>{providerName} keeps its own reviewer here</AlertTitle>
         <AlertDescription>
-          Compozy won't ask you, but {providerName} still reviews risky actions, inside the project
-          and with no network. Turning that off is a separate setting.
+          CompozyOS won't ask you, but {providerName} still reviews risky actions, inside the
+          project and with no network. Turning that off is a separate setting.
         </AlertDescription>
       </Alert>
     );
@@ -93,58 +104,72 @@ function LevelNote({
   return null;
 }
 
+/** The radio value for "Follow Settings", which stores no `permissions`. */
+const FOLLOW_SETTINGS = "follow-settings";
+
 function LevelGroup(props: AgentPermissionsViewProps & { staysOn: boolean }) {
   const { level, staysOn, readOnly, onLevelChange, settingsLevel } = props;
   const unset = level === "";
   const shown = staysOn && unset ? STAYS_ON_DEFAULT_PERMISSION : level;
+  const follow: RadioCardGroupOption<string>[] = staysOn
+    ? []
+    : [
+        {
+          value: FOLLOW_SETTINGS,
+          title: FOLLOW_SETTINGS_LABEL,
+          description: settingsLevel
+            ? `Uses your Settings. Right now: ${permissionLabel(settingsLevel)}.`
+            : "Uses your Settings.",
+          icon: Settings2,
+          "data-testid": "agent-permissions-level-settings",
+        },
+      ];
+  const levels: RadioCardGroupOption<string>[] = AGENT_PERMISSION_LEVELS.map(option => ({
+    value: option.value,
+    title: option.label,
+    description: option.description,
+    icon: option.icon,
+    "data-testid": `agent-permissions-level-${option.value}`,
+    badge:
+      staysOn && unset && option.value === STAYS_ON_DEFAULT_PERMISSION ? (
+        <Pill size="sm" tone="neutral">
+          Default
+        </Pill>
+      ) : option.value === "auto" && props.reviewer === "unavailable" ? (
+        <Pill size="sm" tone="warning">
+          Not available
+        </Pill>
+      ) : undefined,
+  }));
   return (
-    <div
+    <RadioCardGroup
       aria-label="Permission level"
-      className="flex flex-col gap-2"
+      className="flex flex-col"
       data-testid="agent-permissions-levels"
-      role="radiogroup"
-    >
-      {staysOn ? null : (
-        <RadioCard
-          data-testid="agent-permissions-level-settings"
-          description={
-            settingsLevel
-              ? `Uses your Settings. Right now: ${permissionLabel(settingsLevel)}.`
-              : "Uses your Settings."
-          }
-          disabled={readOnly}
-          icon={Settings2}
-          onSelect={() => onLevelChange("")}
-          selected={unset}
-          title={FOLLOW_SETTINGS_LABEL}
-        />
-      )}
-      {AGENT_PERMISSION_LEVELS.map(option => (
-        <RadioCard
-          badge={
-            staysOn && unset && option.value === STAYS_ON_DEFAULT_PERMISSION ? (
-              <Pill size="sm" tone="neutral">
-                Default
-              </Pill>
-            ) : option.value === "auto" && props.reviewer === "unavailable" ? (
-              <Pill size="sm" tone="warning">
-                Not available
-              </Pill>
-            ) : undefined
-          }
-          data-testid={`agent-permissions-level-${option.value}`}
-          description={option.description}
-          disabled={readOnly}
-          icon={option.icon}
-          key={option.value}
-          onSelect={() => onLevelChange(option.value)}
-          selected={shown === option.value}
-          title={option.label}
-        />
-      ))}
-    </div>
+      disabled={readOnly}
+      onValueChange={next => onLevelChange(isAgentPermissionLevel(next) ? next : "")}
+      options={[...follow, ...levels]}
+      value={unset && !staysOn ? FOLLOW_SETTINGS : shown}
+    />
   );
 }
+
+const REACH_OPTIONS: RadioCardGroupOption<"children" | "workspace">[] = [
+  {
+    value: "children",
+    title: "Only its own sessions",
+    description: "It can approve what its own child sessions ask.",
+    icon: Users,
+    "data-testid": "agent-permissions-reach-children",
+  },
+  {
+    value: "workspace",
+    title: "Any session it can reach",
+    description: "For a coordinator you trust. It can approve work in any session it can reach.",
+    icon: UsersRound,
+    "data-testid": "agent-permissions-reach-workspace",
+  },
+];
 
 export function AgentPermissionsView(props: AgentPermissionsViewProps) {
   const { agent, level, legacyLevel, sessionApproval, readOnly, owner } = props;
@@ -177,7 +202,7 @@ export function AgentPermissionsView(props: AgentPermissionsViewProps) {
         <LevelGroup {...props} staysOn={staysOn} />
         {effective ? (
           <LevelNote
-            agent={agent}
+            providerId={props.providerId}
             degraded={props.degraded}
             level={effective}
             providerName={props.providerName}
@@ -195,31 +220,15 @@ export function AgentPermissionsView(props: AgentPermissionsViewProps) {
           help="Only you can change this. An agent can't widen it for itself."
           title="Whose requests can it answer?"
         >
-          <div
+          <RadioCardGroup
             aria-label="Approval reach"
-            className="flex flex-col gap-2"
+            className="flex flex-col"
             data-testid="agent-permissions-reach"
-            role="radiogroup"
-          >
-            <RadioCard
-              data-testid="agent-permissions-reach-children"
-              description="It can approve what its own child sessions ask."
-              disabled={readOnly}
-              icon={Users}
-              onSelect={() => props.onSessionApprovalChange("children")}
-              selected={reach === "children"}
-              title="Only its own sessions"
-            />
-            <RadioCard
-              data-testid="agent-permissions-reach-workspace"
-              description="For a coordinator you trust. It can approve work in any session it can reach."
-              disabled={readOnly}
-              icon={UsersRound}
-              onSelect={() => props.onSessionApprovalChange("workspace")}
-              selected={reach === "workspace"}
-              title="Any session it can reach"
-            />
-          </div>
+            disabled={readOnly}
+            onValueChange={props.onSessionApprovalChange}
+            options={REACH_OPTIONS}
+            value={reach}
+          />
         </FormSection>
       ) : null}
       <PermissionRulesSection
