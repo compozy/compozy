@@ -1,5 +1,32 @@
 # Compozy Change Impact
 
+## Approve-all reads across workspaces and profiles — 2026-11-03
+
+Owner: issue #1169, branch `approve-all-cross-workspace-reads`. Owner decision 2026-11-03 reverses
+the part of User Scope Work ADR-003 that kept the profile axis and All projects aggregates out of
+the permission mode. Security posture change: the built-in default mode is `approve-all`, so by
+default agent sessions now read every profile and the aggregates.
+
+- **Native tools / CLI / HTTP / UDS:** no tool ID, schema, route, DTO, error code, or reason code
+  changes, so the generated catalog, OpenAPI, and SDKs are unchanged. Behavior: reads of another
+  profile and aggregate reads follow the permission mode (writes still need the grant); a session
+  tool with only a `session_id` is authorized against that session's own workspace and profile;
+  `workspace_access_denied` and `agent_scope_denied` messages now name the denying axis. Results an
+  agent reads outside its own workspace or profile are redacted at the native dispatch boundary.
+  Operator, app-token and hosted-MCP operator paths are unchanged.
+- **Extensibility / hooks / config:** no manifest, hook, SDK, or `config.toml` change. Post-call
+  hooks and `tool.call.*` events see the redacted result for crossed calls. Audit events gain the
+  `target_kind` value `unresolved` (additive).
+- **User state / workspace isolation:** no schema or migration. Workspace isolation for
+  `deny-all` is unchanged; `approve-reads` prompts for the new axes at the native-tool seam.
+  Desktop `global`, other profiles' partitions, presence, and notification receipts stay
+  operator-only.
+- **Official skill / Web / Docs:** `skills/compozy/references/{native-tools,agent-definitions,
+  runtime-operations}.md`, glossary, site docs (`sessions/permissions`, `sessions/index`,
+  `profiles/index`, `user-scope/unrestricted-agents`, `all-projects/scripts`), QA scenarios
+  `ET-workspace-access-mode-matrix` and `ET-workspace-access-prompt-outcomes`, release note. Web
+  UI unchanged.
+
 ## Concurrent-session responsiveness audit — 2026-11-01
 
 Owner: `perf/responsiveness-audit-20261101`, original baseline `de5ab2f4d`, integrated main `8c025ff8f`.
@@ -583,6 +610,28 @@ Evidence: `docs/qa/reports/2026-10-21-all-projects-user-scope.md`.
   open-in-place (AW1–AW4). Site: `all-projects/` (overview, Web quickstart, CLI/HTTP scripts),
   `config-toml` `[shell.sessions]`, generated CLI pages; glossary entries All projects and topbar;
   release note `.release-notes/all-projects-*.md`; migration guide section.
+
+## GitHub Copilot CLI first-class provider — 2026-11-03
+
+Owner: branch `copilot-acp-provider` (#1168). Additive across every public surface (SD-013); no delete
+targets and no migration. Config: new provider key `session_mcp_transport` (`stdio` default, `http`),
+accepted by `compozy config set`; the `copilot` built-in gains `auth_login_command = "copilot login"`,
+`auth_acp_method = "copilot-login"` (enables the promptless remote probe; login keeps the native
+command), `models.reasoning.apply = "acp_option"`, and `session_mcp_transport = "http"`; operator
+overrides still win. `permissions.provider_full_access` maps Copilot to the `allow_all = on` ACP option.
+Copilot's Autopilot mode and `allow_all = on` now count as unrestricted, so they require approve-all at
+start, prompt runtime, and Loop roles. Runtime: a session/new auth-required refusal is a provider-auth
+failure with `provider_not_authenticated` login guidance for every ACP provider (previously a protocol
+failure); prompt and start errors now carry that diagnostic (CLI exit code follows the diagnostic severity); session/load is unchanged. Model catalog:
+`provider_live:copilot` uses ACP discovery. Native tools / HTTP / UDS / DTOs / hooks / extension SDKs:
+unchanged; hosted MCP reaches Copilot through the per-session loopback bridge (`internal/mcpbridge`),
+bearer token never logged, progress relayed over SSE responses, torn down with the agent process
+(late bridges after an agent exit are closed instead of registered). Workspace isolation unchanged: one bridge
+per agent process, bound to that session's hosted launch. Web/UI: `@compozy/ui` gains `CopilotLogo`
+in the provider registry; the site landing uses it. Official skill (`references/runtime-operations.md`,
+`references/agent-definitions.md`) and site docs (`agents/providers.mdx`, `configuration/config-toml.mdx`,
+`sessions/permissions.mdx`) updated. QA scenario `RT-copilot-acp-provider` added; report
+`docs/qa/reports/2026-11-03-copilot-acp-provider.md`.
 
 ## Session monitor kind — 2026-11-02
 

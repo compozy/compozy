@@ -342,6 +342,21 @@ func TestPrepareProviderForStartExposesAuthMetadataAndIsolatedHome(t *testing.T)
 		}
 	})
 
+	t.Run("Should hand the session MCP HTTP bridge choice to the ACP start", func(t *testing.T) {
+		t.Parallel()
+		manager := &Manager{providerSecrets: fakeProviderSecretResolver{}}
+		resolved := compozyconfig.ResolvedAgent{Provider: "copilot", Harness: compozyconfig.ProviderHarnessACP,
+			AuthMode: compozyconfig.ProviderAuthModeNativeCLI, EnvPolicy: compozyconfig.ProviderEnvPolicyFiltered,
+			HomePolicy: compozyconfig.ProviderHomePolicyOperator, SessionMCP: true, SessionMCPOverHTTP: true}
+		opts, err := manager.prepareProviderForStart(t.Context(), &Session{}, resolved, acp.StartOpts{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if opts.ProviderConfig == nil || !opts.ProviderConfig.SessionMCPOverHTTP() {
+			t.Fatalf("start provider config = %#v, want the HTTP session MCP bridge", opts.ProviderConfig)
+		}
+	})
+
 	t.Run(
 		"Should expose provider auth metadata without injecting native credentials",
 		func(t *testing.T) {

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,9 +20,14 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
+	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/mcpbridge"
 	"github.com/compozy/compozy/internal/providers"
 	speedpkg "github.com/compozy/compozy/internal/speed"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestStartInitializeContract(t *testing.T) {
@@ -1664,6 +1671,242 @@ func TestStartMCPServersSkipsRemoteTransports(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStartMCPServersBridgeOverHTTP(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should deliver the bridged server on session/load too", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "session-load-mcp.jsonl")
+		bin, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		proc := startHelperProcess(t, driver, "load_session", "", StartOpts{
+			ResumeSessionID: "sess-existing",
+			Cwd:             t.TempDir(),
+			Env:             helperEnvWithCapture("load_session", "", captureFile),
+			ProviderConfig:  &compozyconfig.ProviderConfig{SessionMCPTransport: compozyconfig.MCPServerTransportHTTP},
+			MCPServers: []compozyconfig.MCPServer{{
+				Name:      "compozy-hosted-tools",
+				Transport: compozyconfig.MCPServerTransportStdio,
+				Command:   bin,
+				Args:      []string{"-test.run=^TestACPBridgedMCPHelperProcess$"},
+				Env:       map[string]string{bridgedMCPHelperEnvKey: "1"},
+			}},
+		})
+		defer stopProcess(t, driver, proc)
+		params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionLoad)
+		request := decodeCapturedNewSessionRequest(t, params)
+		if len(request.MCPServers) != 1 || request.MCPServers[0].Http == nil || request.MCPServers[0].Stdio != nil {
+			t.Fatalf("session/load mcpServers = %#v, want one bridged HTTP server", request.MCPServers)
+		}
+		server := request.MCPServers[0].Http
+		endpoint, err := url.Parse(server.Url)
+		if err != nil || endpoint.Hostname() != "127.0.0.1" || server.Name != "compozy-hosted-tools" {
+			t.Fatalf("session/load bridged server = %#v, want named loopback endpoint", server)
+		}
+		if len(server.Headers) != 1 || server.Headers[0].Name != "Authorization" ||
+			!strings.HasPrefix(server.Headers[0].Value, "Bearer ") {
+			t.Fatalf("session/load bridged headers = %#v, want one bearer Authorization header", server.Headers)
+		}
+		client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "agent", Version: "1.0.0"}, nil)
+		session, err := client.Connect(testutil.Context(t), &sdkmcp.StreamableClientTransport{
+			Endpoint:   server.Url,
+			HTTPClient: &http.Client{Transport: bearerRoundTripper{value: server.Headers[0].Value}},
+		}, nil)
+		if err != nil {
+			t.Fatalf("connect to bridged server on session/load: %v", err)
+		}
+		defer func() { _ = session.Close() }()
+		tools, err := session.ListTools(testutil.Context(t), nil)
+		if err != nil || len(tools.Tools) != 1 || tools.Tools[0].Name != "bridged_ping" {
+			t.Fatalf("session/load bridged tools = %#v, %v; want the stdio server tool", tools, err)
+		}
+	})
+
+	t.Run(
+		"Should deliver a stdio server as an authorized loopback HTTP server and close it with the process",
+		func(t *testing.T) {
+			t.Parallel()
+
+			var logs lockedBuffer
+			driver := New(
+				WithLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))),
+			)
+			captureFile := filepath.Join(t.TempDir(), "session-new-mcp.jsonl")
+			bin, err := os.Executable()
+			if err != nil {
+				t.Fatal(err)
+			}
+			proc := startHelperProcess(t, driver, "stream_updates", "", StartOpts{
+				Cwd: t.TempDir(),
+				Env: helperEnvWithCapture("stream_updates", "", captureFile),
+				ProviderConfig: &compozyconfig.ProviderConfig{
+					SessionMCPTransport: compozyconfig.MCPServerTransportHTTP,
+				},
+				MCPServers: []compozyconfig.MCPServer{{
+					Name:      "compozy-hosted-tools",
+					Transport: compozyconfig.MCPServerTransportStdio,
+					Command:   bin,
+					Args:      []string{"-test.run=^TestACPBridgedMCPHelperProcess$"},
+					Env:       map[string]string{bridgedMCPHelperEnvKey: "1"},
+				}},
+			})
+			params := captureRequestParams(t, captureFile, acpsdk.AgentMethodSessionNew)
+			request := decodeCapturedNewSessionRequest(t, params)
+			if len(request.MCPServers) != 1 || request.MCPServers[0].Http == nil {
+				t.Fatalf("session/new mcpServers = %#v, want one HTTP server", request.MCPServers)
+			}
+			server := request.MCPServers[0].Http
+			endpoint, err := url.Parse(server.Url)
+			if err != nil || endpoint.Hostname() != "127.0.0.1" || server.Name != "compozy-hosted-tools" {
+				t.Fatalf("bridged server = %#v, want named loopback endpoint", server)
+			}
+			if len(server.Headers) != 1 || server.Headers[0].Name != "Authorization" ||
+				!strings.HasPrefix(server.Headers[0].Value, "Bearer ") {
+				t.Fatalf("bridged headers = %#v, want one bearer Authorization header", server.Headers)
+			}
+			token := strings.TrimPrefix(server.Headers[0].Value, "Bearer ")
+			if strings.Contains(logs.String(), token) {
+				t.Fatal("driver logs leak the bridge bearer token")
+			}
+
+			client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "agent", Version: "1.0.0"}, nil)
+			session, err := client.Connect(testutil.Context(t), &sdkmcp.StreamableClientTransport{
+				Endpoint:   server.Url,
+				HTTPClient: &http.Client{Transport: bearerRoundTripper{value: server.Headers[0].Value}},
+			}, nil)
+			if err != nil {
+				t.Fatalf("connect to bridged server: %v", err)
+			}
+			tools, err := session.ListTools(testutil.Context(t), nil)
+			if err != nil || len(tools.Tools) != 1 || tools.Tools[0].Name != "bridged_ping" {
+				t.Fatalf("bridged tools = %#v, %v; want the stdio server tool", tools, err)
+			}
+			_ = session.Close()
+
+			stopProcess(t, driver, proc)
+			probe, err := http.NewRequestWithContext(testutil.Context(t), http.MethodPost, server.Url, http.NoBody)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if response, err := http.DefaultClient.Do(probe); err == nil {
+				_ = response.Body.Close()
+				t.Fatalf("bridge still serving after process stop: status %d", response.StatusCode)
+			}
+		},
+	)
+}
+
+func TestAgentProcessClosesBridgesRegisteredAfterExit(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should close a bridge that finishes starting after its agent exited", func(t *testing.T) {
+		t.Parallel()
+
+		bin, err := os.Executable()
+		if err != nil {
+			t.Fatal(err)
+		}
+		bridge, err := mcpbridge.Start(testutil.Context(t), mcpbridge.Spec{
+			Name:    "compozy-hosted-tools",
+			Command: bin,
+			Args:    []string{"-test.run=^TestACPBridgedMCPHelperProcess$"},
+			Env:     append(os.Environ(), bridgedMCPHelperEnvKey+"=1"),
+			Dir:     t.TempDir(),
+		}, nil)
+		if err != nil {
+			t.Fatalf("mcpbridge.Start() error = %v", err)
+		}
+		t.Cleanup(func() { _ = bridge.Close() })
+		process := &AgentProcess{}
+		if err := process.closeMCPBridges(); err != nil {
+			t.Fatalf("closeMCPBridges() error = %v", err)
+		}
+		err = process.setSessionMCPServers(nil, []*mcpbridge.Bridge{bridge})
+		if !errors.Is(err, errAgentExitedBeforeMCPBridge) {
+			t.Fatalf("setSessionMCPServers() error = %v, want late-bridge refusal", err)
+		}
+		probe, err := http.NewRequestWithContext(testutil.Context(t), http.MethodPost, bridge.URL(), http.NoBody)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if response, err := http.DefaultClient.Do(probe); err == nil {
+			_ = response.Body.Close()
+			t.Fatalf("late bridge still serving: status %d", response.StatusCode)
+		}
+	})
+}
+
+const bridgedMCPHelperEnvKey = "COMPOZY_ACP_BRIDGED_MCP_HELPER"
+
+// TestACPBridgedMCPHelperProcess is the stdio MCP server bridged above.
+func TestACPBridgedMCPHelperProcess(t *testing.T) {
+	if os.Getenv(bridgedMCPHelperEnvKey) != "1" {
+		t.Skip("helper process only")
+	}
+	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "bridged", Version: "1.0.0"}, nil)
+	server.AddTool(&sdkmcp.Tool{Name: "bridged_ping", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
+			return &sdkmcp.CallToolResult{}, nil
+		})
+	if err := server.Run(context.Background(), &sdkmcp.StdioTransport{}); err != nil {
+		os.Exit(1)
+	}
+	os.Exit(0)
+}
+
+type bearerRoundTripper struct{ value string }
+
+func (b bearerRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	clone := request.Clone(request.Context())
+	clone.Header.Set("Authorization", b.value)
+	return http.DefaultTransport.RoundTrip(clone)
+}
+
+func TestStartClassifiesSessionNewAuthRefusal(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should report a provider sign-in failure with login guidance", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		_, err := driver.Start(testutil.Context(t), StartOpts{
+			AgentName:   "helper",
+			Command:     helperCommand(t),
+			Cwd:         t.TempDir(),
+			Env:         helperEnv("new_session_auth_required", ""),
+			Permissions: compozyconfig.PermissionModeApproveAll,
+		})
+		failure, ok := errors.AsType[*FailureError](err)
+		if !ok || failure.Kind != store.FailureProviderAuth {
+			t.Fatalf("Start() error = %v, want provider-auth failure", err)
+		}
+		item, ok := diagnostics.ItemFromError(err)
+		if !ok || item.Code != diagcontract.CodeProviderNotAuthenticated ||
+			!strings.Contains(item.Message, "compozy provider auth login helper") {
+			t.Fatalf("Start() diagnostic = %#v, %t; want not-authenticated login guidance", item, ok)
+		}
+	})
+}
+
+func TestProviderSignInRequiredFailure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should name the provider rather than the agent in login guidance", func(t *testing.T) {
+		t.Parallel()
+
+		cause := &acpsdk.RequestError{Code: -32000, Message: "Authentication required"}
+		err := providerSignInRequiredFailure(StartOpts{ProviderName: "copilot", AgentName: "reviewer"}, cause)
+		item, ok := diagnostics.ItemFromError(err)
+		if !ok || !strings.Contains(item.Message, "compozy provider auth login copilot") {
+			t.Fatalf("diagnostic = %#v, %t; want the provider login command", item, ok)
+		}
+	})
 }
 
 func TestStartResumeReturnsSentinelErrors(t *testing.T) {

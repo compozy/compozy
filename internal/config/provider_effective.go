@@ -86,6 +86,12 @@ func (p ProviderConfig) SessionMCPEnabled() bool {
 	return *p.SessionMCP
 }
 
+// SessionMCPOverHTTP reports whether stdio session MCP servers reach the
+// provider through a loopback HTTP bridge instead of as stdio servers.
+func (p ProviderConfig) SessionMCPOverHTTP() bool {
+	return p.SessionMCPTransport == MCPServerTransportHTTP
+}
+
 // Validate reports whether the discovery source config is usable.
 func (d ProviderModelsDiscoveryConfig) Validate(path string) error {
 	command := strings.TrimSpace(d.Command)

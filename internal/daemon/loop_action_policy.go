@@ -144,7 +144,7 @@ func allowedLoopAgentACPOptions(
 		return options
 	}
 	return slices.DeleteFunc(options, func(option acp.SessionConfigOptionSelection) bool {
-		return option.ID == "mode" && compozyconfig.IsUnrestrictedACPMode(provider, option.ValueID)
+		return compozyconfig.IsUnrestrictedACPOption(provider, option.ID, option.ValueID)
 	})
 }
 

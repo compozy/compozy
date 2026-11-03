@@ -98,17 +98,25 @@ or grant-management tool.
 
 Authority matrix (HTTP, UDS, and native tools enforce the same rules):
 
-| Surface                                                                    | Operator | Ordinary agent                       | Agent with `unrestricted`            | App token         |
-| -------------------------------------------------------------------------- | -------- | ------------------------------------ | ------------------------------------ | ----------------- |
-| Own workspace or own User scope                                            | allow    | allow                                | allow                                | per route         |
-| Another workspace, or User from a project                                  | allow    | permission mode + consent            | allow, audited                       | per route         |
-| Another profile (`profile=`, `all_profiles=true`)                          | allow    | denied                               | allow, audited                       | per route         |
-| All-projects aggregates                                                    | allow    | `403 agent_scope_denied`             | allow, audited (`aggregate`)         | new routes denied |
-| Window, desktop, layout tools on project partitions and own-profile `user` | allow    | own workspace only                   | allow, audited                       | per route         |
-| Reserved `global` partition, other profiles' partitions                    | allow    | denied                               | denied                               | denied            |
-| Presence leases, notification receipts and acknowledgements                | allow    | denied                               | denied                               | per route         |
-| Set or raise `workspace_access`                                            | allow    | `403 workspace_access_operator_only` | `403 workspace_access_operator_only` | denied            |
-| Tool-risk approvals                                                        | n/a      | per `permissions`                    | per `permissions`                    | n/a               |
+| Surface                                                                    | Operator | Ordinary agent                                                     | Agent with `unrestricted`            | App token         |
+| -------------------------------------------------------------------------- | -------- | ------------------------------------------------------------------ | ------------------------------------ | ----------------- |
+| Own workspace or own User scope                                            | allow    | allow                                                              | allow                                | per route         |
+| Another workspace, or User from a project                                  | allow    | permission mode + consent                                          | allow, audited                       | per route         |
+| Another profile (`profile=`, `all_profiles=true`, a session id in it)      | allow    | reads: permission mode + consent; writes: denied                   | allow, audited                       | per route         |
+| All-projects aggregates                                                    | allow    | reads: permission mode + consent; writes: `403 agent_scope_denied` | allow, audited (`aggregate`)         | new routes denied |
+| Window, desktop, layout tools on project partitions and own-profile `user` | allow    | own workspace only                                                 | allow, audited                       | per route         |
+| Reserved `global` partition, other profiles' partitions                    | allow    | denied                                                             | denied                               | denied            |
+| Presence leases, notification receipts and acknowledgements                | allow    | denied                                                             | denied                               | per route         |
+| Set or raise `workspace_access`                                            | allow    | `403 workspace_access_operator_only`                               | `403 workspace_access_operator_only` | denied            |
+| Tool-risk approvals                                                        | n/a      | per `permissions`                                                  | per `permissions`                    | n/a               |
+
+"Permission mode + consent" means `approve-all` allows, `approve-reads` asks the operator at the
+native-tool seam (and honors an `allow_session` answer at every seam), and `deny-all` never crosses.
+Since issue #1169 (owner decision 2026-11-03, superseding the part of User Scope Work ADR-003 that
+kept profiles and aggregates out of `approve-all`), an `approve-all` session reads other profiles
+and All projects as the operator would; changing another profile, or writing through an aggregate
+route, still needs `unrestricted`. Content an agent reads outside its own workspace or profile is
+secret-redacted at the dispatch boundary; see `references/native-tools.md` (Workspace Boundary).
 
 Work a granted agent creates in profile P is owned by P. Older daemons reject AGENT.md files that
 contain `workspace_access` (strict decode), so upgrade every daemon that reads the file first.
@@ -150,6 +158,8 @@ or `compozy roles show <role>` before diagnosing provider or model behavior.
 Built-in provider names include claude, codex, gemini, opencode, copilot, cursor, kimi-cli, qwen-code, and pi. Provider config can supply launch command, default model, API key environment, and provider-level MCP servers. Any other ACP CLI runs as a custom `[providers.<id>]` entry with its own `command`. The retired built-ins hermes, openclaw, blackbox, cline, goose, junie, kiro, openhands, qoder, mistral, groq, and minimax still resolve until v0.5.0 with a `provider.retired_builtin` daemon-log warning whose `replacement` field holds the exact `[providers.<id>]` entry; declaring that entry silences it.
 
 For standard ACP providers, CompozyOS applies model, replaces the option snapshot, applies Reasoning and Fast, then applies remaining ACP options in stable ID order, refreshing and revalidating after every response. Cursor resolves logical model plus option values to a private launch alias and replaces the process when that binding changes. Empty effort sends no RPC; explicit `none` does when advertised. Unknown or unsupported values fail; CompozyOS never falls back silently.
+
+Providers that accept only remote MCP servers over ACP set `session_mcp_transport = "http"` (the `copilot` built-in does): CompozyOS serves each per-session stdio MCP server on a loopback endpoint with a per-session bearer token and closes it with the provider process. `permissions.provider_full_access` maps to Copilot's `allow_all = on` option, and Copilot's Autopilot mode counts as unrestricted, so both require `approve-all`.
 
 Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp.json replaces same-name frontmatter servers. Use provider-level MCP when every agent for that provider needs the server; use agent-level MCP when one agent needs it.
 

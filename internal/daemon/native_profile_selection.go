@@ -33,12 +33,14 @@ func (n *daemonNativeTools) nativeProfileSelection(
 	if err != nil {
 		return scope, req, err
 	}
-	if scope.SessionID != "" && (selection.all || targetProfile != scope.ProfileID) {
+	sessionProfile := scope.ProfileID
+	if scope.SessionID != "" && (selection.all || targetProfile != sessionProfile) {
 		if err := n.authorizeNativeProfileSwitch(ctx, scope, req, descriptor, selection, targetProfile); err != nil {
 			return scope, req, err
 		}
 	}
 	scope.ProfileID, scope.AllProfiles = targetProfile, selection.all
+	scope.ProfileSwitchAuthorized = scope.SessionID != "" && (selection.all || targetProfile != sessionProfile)
 	delete(selection.input, "profile")
 	delete(selection.input, "all_profiles")
 	encoded, err := json.Marshal(selection.input)
@@ -117,7 +119,8 @@ func (n *daemonNativeTools) nativeProfileTarget(
 	return "", nativeInputError(req.ToolID, errors.New("active profile not found"))
 }
 
-// authorizeNativeProfileSwitch admits an agent session's cross-profile call only by its grant.
+// authorizeNativeProfileSwitch admits an agent session's cross-profile call through the
+// workspace-access policy: the grant, approve-all for reads, or approve-reads consent.
 func (n *daemonNativeTools) authorizeNativeProfileSwitch(
 	ctx context.Context,
 	scope toolspkg.Scope,
@@ -154,8 +157,33 @@ func (n *daemonNativeTools) authorizeNativeProfileSwitch(
 	if err != nil {
 		return err
 	}
-	if !decision.Allowed || decision.Source != workspaceaccess.SourceAgentGrant {
-		return nativeWorkspaceAccessDeniedError(req.ToolID)
+	if !decision.Allowed && decision.PromptEligible && n.deps.WorkspaceAccessPrompter != nil {
+		allowed, promptErr := n.deps.WorkspaceAccessPrompter.RequestWorkspaceAccess(
+			ctx, scope, req, descriptor, nativeProfilePromptLabel(selection, targetProfile),
+		)
+		if promptErr != nil {
+			return errors.Join(nativeWorkspaceAccessDecisionError(req.ToolID, decision), promptErr)
+		}
+		decision.Allowed = allowed && !decision.NeedsGrantAfterConsent
+		switch {
+		case !allowed:
+			decision.Denial = workspaceaccess.DenialConsentRejected
+		case decision.NeedsGrantAfterConsent:
+			decision.Denial = workspaceaccess.DenialNeedsGrant
+		}
+	}
+	if !decision.Allowed {
+		return nativeWorkspaceAccessDecisionError(req.ToolID, decision)
+	}
+	if decision.Source != workspaceaccess.SourceSameWorkspace {
+		toolspkg.MarkOutsideCallerScope(ctx)
 	}
 	return nil
+}
+
+func nativeProfilePromptLabel(selection nativeProfileSelectionInput, targetProfile string) string {
+	if selection.all {
+		return nativeAccessPromptProfilePrefix + "all profiles"
+	}
+	return nativeAccessPromptProfilePrefix + targetProfile
 }

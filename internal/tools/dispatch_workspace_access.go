@@ -70,6 +70,10 @@ func (r *RuntimeRegistry) normalizeDispatchCallRequest(
 	if err != nil || !decision.Allowed {
 		return CallRequest{}, workspaceAccessDeniedError(req.ToolID)
 	}
+	if !scope.Operator {
+		// The handler now runs against another workspace's data, so its result is redacted.
+		MarkOutsideCallerScope(ctx)
+	}
 	req.WorkspaceID = requestedWorkspaceID
 	return req, nil
 }
@@ -92,11 +96,15 @@ func workspaceAccessActorFromScope(scope Scope) workspaceaccess.ActorRef {
 }
 
 func workspaceAccessDeniedError(id ToolID) error {
-	return NewToolError(
-		ErrorCodeDenied,
-		id,
-		fmt.Sprintf("tool %q denied: %s", id, workspaceaccess.DenialHint),
-		ErrToolDenied,
-		ReasonWorkspaceAccessDenied,
-	)
+	return NewWorkspaceAccessDeniedError(id, workspaceaccess.DenialHint)
+}
+
+// NewWorkspaceAccessDeniedError builds the workspace-access denial every native seam returns.
+// The guidance names only the denying axis, never the target, so it is safe to show on every
+// public transport (HTTP, UDS, hosted MCP) instead of the generic "tool invocation denied".
+func NewWorkspaceAccessDeniedError(id ToolID, guidance string) *ToolError {
+	message := fmt.Sprintf("tool %q denied: %s", id, guidance)
+	toolErr := NewToolError(ErrorCodeDenied, id, message, ErrToolDenied, ReasonWorkspaceAccessDenied)
+	toolErr.PublicMessage = message
+	return toolErr
 }

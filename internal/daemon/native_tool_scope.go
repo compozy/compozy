@@ -199,7 +199,10 @@ func (n *daemonNativeTools) nativeSessionInWorkspace(
 		return nil, errors.New("daemon: sessions are required")
 	}
 	info, err := sessionInWorkspace(ctx, n.deps.Sessions, workspaceID, sessionID)
-	if err == nil && workspaceID == "" && (info.ProfileID != scope.ProfileID || scope.ProfileID == "") {
+	// The dispatch boundary authorizes a named session against its own profile; without that
+	// authorization a User-scope session of another profile stays out of reach.
+	if err == nil && workspaceID == "" && (info.ProfileID != scope.ProfileID || scope.ProfileID == "") &&
+		!toolspkg.SessionTargetAuthorized(ctx, info.ID) {
 		return nil, nativeWorkspaceAccessDeniedError(id)
 	}
 	if errors.Is(err, errSessionOutsideWorkspace) {

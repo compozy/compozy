@@ -17,12 +17,14 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/observe/attention"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestBaseHandlersSessionAttentionSurfaces(t *testing.T) {
@@ -463,6 +465,97 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 		}
 	})
 
+	t.Run("Should admit approve-all aggregate reads while keeping aggregate writes operator-only", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			attentionRouteSessionManager(),
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Engine.GET("/test-layout", fixture.Handlers.GetWorkspaceLayout)
+		fixture.Engine.POST("/test-layout", fixture.Handlers.CreateWorkspaceFolder)
+		var targets []workspaceaccess.Request
+		fixture.Handlers.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{
+			AuthorizeFn: func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+				targets = append(targets, req)
+				if req.Target.Kind == workspaceaccess.TargetAggregate && !req.ReadOnly {
+					return workspaceaccess.Decision{
+						Source: workspaceaccess.SourceDenied, Denial: workspaceaccess.DenialNeedsGrant,
+					}, nil
+				}
+				return workspaceaccess.Decision{Allowed: true, Source: workspaceaccess.SourcePermissionMode}, nil
+			},
+		}
+		headers := map[string]string{
+			agentidentity.HeaderSessionID: "sess-agent",
+			agentidentity.HeaderAgent:     "coder",
+		}
+		read := testutil.PerformRequestWithHeaders(
+			t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true", nil, headers,
+		)
+		if read.Code != http.StatusOK {
+			t.Fatalf("approve-all aggregate read status = %d, want 200; body=%s", read.Code, read.Body.String())
+		}
+		write := testutil.PerformRequestWithHeaders(
+			t, fixture.Engine, http.MethodPost, "/test-layout", []byte(`{"name":"x"}`), headers,
+		)
+		if write.Code != http.StatusForbidden {
+			t.Fatalf("approve-all aggregate write status = %d, want 403; body=%s", write.Code, write.Body.String())
+		}
+		var payload contract.ErrorPayload
+		testutil.DecodeJSONResponse(t, write, &payload)
+		if payload.Code != "agent_scope_denied" || !strings.Contains(payload.Error, "workspace_access: unrestricted") {
+			t.Fatalf("aggregate write error = %#v, want agent_scope_denied naming the grant", payload)
+		}
+		if len(targets) < 2 || !targets[0].ReadOnly || targets[len(targets)-1].ReadOnly {
+			t.Fatalf("policy requests = %#v, want a read then a write aggregate request", targets)
+		}
+	})
+
+	t.Run("Should answer a denied agent the same for missing and foreign profile names", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			attentionRouteSessionManager(),
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.Profiles = profileExistenceStub{}
+		fixture.Handlers.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{
+			AuthorizeFn: func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+				if req.Target.Kind == workspaceaccess.TargetAggregate {
+					return workspaceaccess.Decision{Allowed: true, Source: workspaceaccess.SourcePermissionMode}, nil
+				}
+				return workspaceaccess.Decision{
+					Source: workspaceaccess.SourceDenied, Denial: workspaceaccess.DenialModeDenyAll,
+				}, nil
+			},
+		}
+		fixture.Engine.GET("/test-layout", fixture.Handlers.GetWorkspaceLayout)
+		headers := map[string]string{
+			agentidentity.HeaderSessionID: "sess-agent",
+			agentidentity.HeaderAgent:     "coder",
+		}
+		foreign := testutil.PerformRequestWithHeaders(
+			t, fixture.Engine, http.MethodGet, "/test-layout?profile=marketing", nil, headers,
+		)
+		if foreign.Code != http.StatusConflict {
+			t.Fatalf("denied foreign profile status = %d, want 409; body=%s", foreign.Code, foreign.Body.String())
+		}
+		for _, name := range []string{"ghost", "archived", "busy"} {
+			probe := testutil.PerformRequestWithHeaders(
+				t, fixture.Engine, http.MethodGet, "/test-layout?profile="+name, nil, headers,
+			)
+			if probe.Code != foreign.Code || probe.Body.String() != foreign.Body.String() {
+				t.Fatalf("denied profile answers differ:\nforeign: %d %s\n%s: %d %s",
+					foreign.Code, foreign.Body.String(), name, probe.Code, probe.Body.String())
+			}
+		}
+	})
+
 	t.Run("Should scope agent interaction discovery to the caller workspace", func(t *testing.T) {
 		t.Parallel()
 
@@ -876,4 +969,41 @@ func TestSessionInteractionDescendants(t *testing.T) {
 		)
 		assertAPIErrorResponse(t, response, http.StatusBadRequest, "api: descendants must be a boolean")
 	})
+}
+
+// profileExistenceStub knows the default and marketing profiles, an archived and a busy one, and
+// binds sessions like
+// the profile manager: a session-bound resolution rejects any other name without a lookup.
+type profileExistenceStub struct{ sessionProfileServiceStub }
+
+func (profileExistenceStub) Resolve(_ context.Context, in profilepkg.ResolveInput) (profilepkg.Resolution, error) {
+	if in.SessionProfileID != "" && in.Flag != "" && in.Flag != "default" {
+		return profilepkg.Resolution{}, &profilepkg.Error{
+			Code: "profile_session_conflict", Message: `session is bound to profile "default"`,
+			Cause: profilepkg.ErrSessionConflict,
+		}
+	}
+	switch in.Flag {
+	case "marketing":
+		return profilepkg.Resolution{Profile: profilepkg.Profile{
+			ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive,
+		}}, nil
+	case "archived":
+		return profilepkg.Resolution{}, &profilepkg.Error{
+			Code: "profile_archived", Message: "profile archived is archived", Cause: profilepkg.ErrArchived,
+		}
+	case "busy":
+		return profilepkg.Resolution{}, &profilepkg.Error{
+			Code: "profile_unavailable", Message: "profile busy has lifecycle work op-1",
+			Cause: profilepkg.ErrUnavailable,
+		}
+	case "", "default":
+		return profilepkg.Resolution{Profile: profilepkg.Profile{
+			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
+		}}, nil
+	default:
+		return profilepkg.Resolution{}, &profilepkg.Error{
+			Code: "profile_not_found", Message: "profile " + in.Flag + " not found", Cause: profilepkg.ErrNotFound,
+		}
+	}
 }

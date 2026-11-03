@@ -706,6 +706,52 @@ func TestProviderAuthLoginCommand(t *testing.T) {
 		}
 	})
 
+	t.Run("Should run the builtin Copilot CLI login", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := mustTestHomePaths(t)
+		deps := newTestDeps(t, nil)
+		deps.resolveHome = func() (compozyconfig.HomePaths, error) {
+			return homePaths, nil
+		}
+		deps.loadConfig = func() (compozyconfig.Config, error) {
+			return compozyconfig.DefaultWithHome(homePaths), nil
+		}
+		deps.lookPath = func(name string) (string, error) {
+			if name != "copilot" {
+				t.Fatalf("lookPath(%q), want copilot", name)
+			}
+			return "/usr/local/bin/copilot", nil
+		}
+		ran := false
+		deps.runProviderAuthLoginCommand = func(
+			_ context.Context,
+			spec providerAuthCommandSpec,
+		) (providerAuthCommandResult, error) {
+			if spec.Command != "copilot login" {
+				t.Fatalf("Login command = %q, want copilot login", spec.Command)
+			}
+			ran = true
+			return providerAuthCommandResult{ExitCode: 0}, nil
+		}
+
+		stdout, _, err := executeRootCommand(t, deps, "provider", "auth", "login", "copilot", "-o", "json")
+		if err != nil {
+			t.Fatalf("provider auth login copilot error = %v", err)
+		}
+		if !ran {
+			t.Fatal("provider auth login copilot did not run the native login")
+		}
+		var record providerAuthStatusRecord
+		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
+			t.Fatalf("json.Unmarshal(provider auth login) error = %v", err)
+		}
+		if !record.Login.Configured || record.Login.Executable != "copilot" ||
+			record.Login.Presence != authproviders.ProviderLoginPresencePresent {
+			t.Fatalf("Login = %#v, want present copilot descriptor", record.Login)
+		}
+	})
+
 	t.Run("Should fail safely when native login CLI is missing", func(t *testing.T) {
 		t.Parallel()
 

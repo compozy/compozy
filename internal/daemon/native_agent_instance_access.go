@@ -105,8 +105,10 @@ func (n *daemonNativeTools) nativeInstanceQuery(
 		decision, err := n.deps.WorkspaceAccess.Authorize(
 			ctx,
 			workspaceaccess.Request{
-				Actor:    actor,
-				Target:   workspaceaccess.TargetRef{Kind: workspaceaccess.TargetAggregate, ProfileID: scope.ProfileID},
+				Actor: actor,
+				Target: workspaceaccess.TargetRef{
+					Kind: workspaceaccess.TargetAggregate, Surface: "agent instances", ProfileID: scope.ProfileID,
+				},
 				ReadOnly: true,
 				Seam:     workspaceaccess.SeamCatalog,
 			},
@@ -117,6 +119,7 @@ func (n *daemonNativeTools) nativeInstanceQuery(
 		if !decision.Allowed {
 			return agentinstance.ListQuery{}, agentinstance.ErrForbidden
 		}
+		markNativeCrossing(ctx, decision)
 	}
 	query := agentinstance.ListQuery{
 		AgentName:     input.Agent,
@@ -186,6 +189,7 @@ func (n *daemonNativeTools) authorizeNativeInstanceAction(
 		if !decision.Allowed {
 			return agentinstance.ErrWorkspaceAccessDenied
 		}
+		markNativeCrossing(ctx, decision)
 	}
 	return nil
 }

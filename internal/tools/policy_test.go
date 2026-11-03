@@ -421,6 +421,8 @@ func TestTriageToolPolicy(t *testing.T) {
 		write.ID = "compozy__task_update"
 		write.ReadOnly = false
 		write.Risk = RiskMutating
+		message := write
+		message.ID = ToolIDSessionPrompt
 		terminal := read
 		terminal.ID = "compozy__terminal_read"
 		external := mcpDescriptor("mcp__github__search", "github", "search")
@@ -431,12 +433,12 @@ func TestTriageToolPolicy(t *testing.T) {
 		evaluator, err := NewEffectivePolicyEvaluator(
 			inputs,
 			ToolsetCatalog{},
-			[]ToolID{read.ID, write.ID, terminal.ID, external.ID},
+			[]ToolID{read.ID, write.ID, message.ID, terminal.ID, external.ID},
 		)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, descriptor := range []Descriptor{write, terminal, external} {
+		for _, descriptor := range []Descriptor{write, message, terminal, external} {
 			decision, err := evaluator.Evaluate(t.Context(), Scope{}, descriptor)
 			if err != nil {
 				t.Fatal(err)

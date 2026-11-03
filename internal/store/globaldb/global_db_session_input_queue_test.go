@@ -3950,6 +3950,60 @@ func TestGlobalDBSessionInputCoalescedWakes(t *testing.T) {
 		}
 		return entry
 	}
+	// UT-026: the paused queue retains a coalesced wake and re-applies the brake
+	// between released turns. Store selection owns this invariant.
+	t.Run("Should stop released wakes at the unattended limit", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "held-coalesced", "sess-held-coalesced")
+		instance, err := db.Instances().Adopt(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := db.SetUnattendedTurnLimit(1); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.Instances().Pause(t.Context(), instance.ID, "manual"); err != nil {
+			t.Fatal(err)
+		}
+		first := mustWake(t, db, wake(main, "a", "first monitor", bound))
+		merged := mustWake(t, db, wake(main, "b", "second monitor", bound))
+		if first.ID != merged.ID || merged.SyntheticPrompt.CoalescedWakes() != 2 {
+			t.Fatalf("coalesced=%+v", merged)
+		}
+		separate := wake(main, "child", "child result", bound)
+		separate.Now = now.Add(time.Second)
+		separate.SyntheticPrompt.Coalesce = nil
+		separate.SyntheticPrompt.CoalesceKey = ""
+		separate.SyntheticPrompt.Metadata = []byte(`{"kind":"session_reply","reason":"subagent"}`)
+		child := mustWake(t, db, separate)
+		if _, found, err := db.PeekNextSessionInput(t.Context(), main); err != nil || found {
+			t.Fatalf("paused peek=%v %v", found, err)
+		}
+		if _, err := db.Instances().Resume(t.Context(), instance.ID, 10, true); err != nil {
+			t.Fatal(err)
+		}
+		claimed, found, err := db.ClaimNextSessionInput(t.Context(), main, now.Add(2*time.Second))
+		if err != nil || !found || claimed.ID != first.ID || claimed.PausedInstance == nil {
+			t.Fatalf("release=%+v %v %v", claimed, found, err)
+		}
+		if err := db.MarkSessionInputSent(t.Context(), main, claimed.ID, now.Add(3*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		if _, found, err := db.ClaimNextSessionInput(t.Context(), main, now.Add(4*time.Second)); err != nil || found {
+			t.Fatalf("next wake escaped brake=%v %v", found, err)
+		}
+		if _, err := db.Instances().Resume(t.Context(), instance.ID, 10, true); err != nil {
+			t.Fatal(err)
+		}
+		claimed, found, err = db.ClaimNextSessionInput(t.Context(), main, now.Add(5*time.Second))
+		if err != nil || !found || claimed.ID != child.ID {
+			t.Fatalf("child own turn=%+v %v %v", claimed, found, err)
+		}
+	})
 
 	t.Run("Should merge more wakes than the cap and leave operator input accepted", func(t *testing.T) {
 		t.Parallel()
