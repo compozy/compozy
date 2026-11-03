@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 import { sessionKeys } from "../lib/query-keys";
+import { invalidateSessionByIdReads } from "../lib/session-query-invalidation";
 import { queryKeyHasScope } from "../lib/session-query-policy";
 import { isLiveSessionState } from "../lib/session-stream-liveness";
 import type { SessionCatalogEventPayload, SessionPayload } from "../types";
@@ -87,7 +88,7 @@ export function createSessionReadReconciler(queryClient: QueryClient) {
           ...(linkedWorkKey
             ? [queryClient.invalidateQueries({ queryKey: linkedWorkKey }, { cancelRefetch: false })]
             : []),
-          queryClient.invalidateQueries({ queryKey: byIdKey }, { cancelRefetch: false }),
+          invalidateSessionByIdReads(queryClient, sessionId, { cancelRefetch: false }),
         ]);
       }
     } finally {
