@@ -10,7 +10,7 @@ The agent kind that keeps running on its own is now called **Always-on**, and it
 
 ### Migration notes
 
-v0.5.1 upgrades in place, and v0.5.0 files, config, scripts, and stored rows keep working. Every alias below is removed in **v0.5.2**.
+v0.5.1 upgrades in place: v0.5.0 files, config, request values, and stored rows keep working through v0.5.1. Readers of emitted `kind`, reason, and error values must update now (see below). Every alias below is removed in **v0.5.2**.
 
 - **Update the daemon together with the CLI.** The CLI doesn't check the daemon's version. A v0.5.1 CLI always sends `always_on`, which a v0.5.0 daemon rejects.
 - **AGENT.md `kind: stays_on` → `kind: always_on`.** The old value loads as `always_on` through v0.5.1, and the daemon logs one warning per file. On boot, the daemon rewrites the `kind` value of every AGENT.md under `$COMPOZY_HOME/agents` and `$COMPOZY_HOME/profiles/<profile>/agents`. It changes no other byte and logs each rewrite and each skip. AGENT.md files in a repository, a workspace profile, or an extension are never rewritten, so edit those yourself before v0.5.2.

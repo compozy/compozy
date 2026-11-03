@@ -24,8 +24,9 @@ Back up your global and workspace `.compozy/` directories before changing instal
 ## Stays on is now Always-on (v0.5.1)
 
 v0.5.1 upgrades in place. The agent kind `stays_on` is now `always_on`, and the app reads
-"Always-on" and "On-demand". Every v0.5.0 file, config table, script, and stored row keeps working
-through v0.5.1. Update them before v0.5.2, which removes every alias below. Update the daemon and the
+"Always-on" and "On-demand". Every v0.5.0 file, config table, request value, and stored row keeps
+working through v0.5.1; readers of emitted `kind`, reason, and error values must update now. Update
+the inputs before v0.5.2, which removes every alias below. Update the daemon and the
 CLI together: a v0.5.1 CLI sends `always_on`, which a v0.5.0 daemon rejects.
 
 | v0.5.0                                                        | v0.5.1                                     | Through v0.5.1                                                                                                                                                                                                                                         |
