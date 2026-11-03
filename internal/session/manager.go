@@ -107,6 +107,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		acquireSessionDBFamilyLease: sessiondb.AcquireFamilyLease,
 		promptBufSize:               defaultPromptBufferSize,
 		promptRecoveryDelays:        append([]time.Duration(nil), defaultPromptRecoveryDelays...),
+		authRecoveryDelays:          compozyconfig.DefaultSessionAuthRecoveryConfig().Delays(),
 		soulRefreshTimeout:          defaultLifecycleTimeout,
 	}
 

@@ -50,6 +50,7 @@ func (m *Manager) handlePromptPumpChunkBatch(
 		if m.discardStoppedPromptEvent(ctx, session, turnState.turnID, event.Type) {
 			return nil, "", false
 		}
+		turnState.recovery.observeDelivered(event.Type)
 		loop.fileMutations.Observe(event)
 		m.emitFileMutationMarkerBeforeTerminalNotification(ctx, session, turnState, loop, event)
 		m.notifyManagedPromptEvent(ctx, session, turnState, event)

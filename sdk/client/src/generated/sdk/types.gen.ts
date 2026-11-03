@@ -7540,6 +7540,7 @@ export type SessionRuntimeRecoveryPayload = {
   last_error?: string;
   max_attempts: number;
   next_attempt_at?: string | null;
+  reason?: "runtime_exit" | "provider_auth";
   started_at: string;
 };
 

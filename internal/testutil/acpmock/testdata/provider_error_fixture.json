@@ -53,6 +53,106 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "signin-agent",
+            "provider": "claude",
+            "permissions": "approve-all",
+            "prompt": "You are the sign-in recovery agent.",
+            "turns": [
+                {
+                    "name": "signin-hello",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "hello signin"
+                    },
+                    "steps": [
+                        {
+                            "kind": "assistant",
+                            "text": "signin agent ready"
+                        }
+                    ]
+                },
+                {
+                    "name": "signin-before-work",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "sign-in lapse before work"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "fail_prompt",
+                                "error_code": -32000,
+                                "error_message": "Authentication required",
+                                "when_path_missing": ".provider-credential"
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "finished after the sign-in returned"
+                        }
+                    ]
+                },
+                {
+                    "name": "signin-during-work",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text": "work through a sign-in loss"
+                    },
+                    "steps": [
+                        {
+                            "kind": "tool_call",
+                            "tool_call_id": "signin-read-plan",
+                            "title": "Read the release plan",
+                            "tool_kind": "read",
+                            "path": "PLAN.md",
+                            "raw_input": {
+                                "path": "PLAN.md"
+                            },
+                            "status": "completed",
+                            "content_text": "plan read"
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "fail_prompt",
+                                "error_code": -32000,
+                                "error_message": "Authentication required",
+                                "when_path_missing": ".provider-credential",
+                                "delay_ms": 20000
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "work finished without losing the sign-in"
+                        }
+                    ]
+                },
+                {
+                    "name": "signin-continuation",
+                    "match": {
+                        "turn_source": "user",
+                        "user_text_contains": "provider sign-in was briefly unavailable"
+                    },
+                    "steps": [
+                        {
+                            "kind": "driver_control",
+                            "driver_control": {
+                                "action": "fail_prompt",
+                                "error_code": -32000,
+                                "error_message": "Authentication required",
+                                "when_path_missing": ".provider-credential"
+                            }
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "continued the interrupted work after the sign-in returned"
+                        }
+                    ]
+                }
+            ]
         }
     ]
 }

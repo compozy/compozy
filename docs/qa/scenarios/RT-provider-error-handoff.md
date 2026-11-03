@@ -65,3 +65,9 @@ Review round 1 2026-09-28 (W3, web): BUG-20260928-provider-error-notice-live-dup
 ## 2026-09-29 web retest (review round 1) — PASS
 
 Bruno, lab `…-r1-rewalk-…`, acpmock `handoff-agent`. With the window open, "rate limit this turn" was sent from the composer. There is exactly one notice while the stream is live (10 samples over 4 s), `data-provider-next-action="handoff"`, and one after reload. The marker's "Continue with another agent…" opens the dialog "From Quota-limited review · handoff-agent", and the session count is unchanged (20 → 20) until Continue. BUG-20260928-provider-error-notice-live-duplicate retest passes. VC-22 was recaptured on the live state. Evidence: `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/w-handoff-live.png`, `docs/qa/evidence/2026-09-29-session-continue-fork-r1-rewalk/VC-22-implementation.png`.
+
+Planning 2026-11-03 (#1216): an `auth lapse this turn` prompt no longer fails at once. The daemon first
+waits out `session.auth_recovery.window` (see `RT-provider-auth-recovery`), and only then persists the
+`provider_auth_required` error with the `handoff` guidance above. Walk the not_authenticated leg with
+`session.auth_recovery.enabled = false`, or with a short window, to keep it under a minute. The rate-limit
+leg is unchanged.

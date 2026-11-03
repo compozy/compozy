@@ -642,6 +642,236 @@ func TestPromptRuntimeRecovery(t *testing.T) {
 	})
 }
 
+func TestPromptProviderAuthRecovery(t *testing.T) {
+	t.Parallel()
+
+	authLostEvent := func(proc *fakeProcess, turnID string) acp.AgentEvent {
+		at := time.Now().UTC()
+		return acp.AgentEvent{
+			Type: acp.EventTypeError, SessionID: proc.handle.SessionID, TurnID: turnID, Timestamp: at,
+			Error:   `{"code":-32000,"message":"Authentication required"}`,
+			Failure: &store.SessionFailure{Kind: store.FailurePrompt, Summary: "Authentication required"},
+			ProviderError: &acp.ProviderErrorDiagnostic{
+				Code: acp.ProviderErrorAuthRequired, Provider: "claude", NextAction: acp.ProviderFailureActionLogin,
+				Guidance: "run provider auth login for this provider", OccurrenceCount: 1, FirstSeenAt: at, LastSeenAt: at,
+			},
+		}
+	}
+	doneEvent := func(proc *fakeProcess, turnID string) acp.AgentEvent {
+		return acp.AgentEvent{
+			Type: acp.EventTypeDone, SessionID: proc.handle.SessionID, TurnID: turnID, Timestamp: time.Now().UTC(),
+		}
+	}
+	promptRequests := func(h *harness) ([]acp.PromptRequest, int) {
+		h.driver.mu.Lock()
+		defer h.driver.mu.Unlock()
+		return append([]acp.PromptRequest(nil), h.driver.promptCalls...), len(h.driver.startCalls)
+	}
+	// recordRecoveryReasons captures the runtime-recovery projection each replacement runtime starts under.
+	recordRecoveryReasons := func(h *harness, session *Session) *[]store.SessionRuntimeRecoveryReason {
+		var (
+			mu      sync.Mutex
+			reasons []store.SessionRuntimeRecoveryReason
+		)
+		h.driver.startHook = func(opts acp.StartOpts, attempt int) (*fakeProcess, error) {
+			if recovery := session.Info().RuntimeRecovery; recovery != nil {
+				mu.Lock()
+				reasons = append(reasons, recovery.Reason)
+				mu.Unlock()
+			}
+			return newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("recovered-%d", attempt)), nil
+		}
+		return &reasons
+	}
+	requireProviderAuthReasons := func(t *testing.T, reasons *[]store.SessionRuntimeRecoveryReason, want int) {
+		t.Helper()
+		if len(*reasons) != want {
+			t.Fatalf("recovery starts = %v, want %d", *reasons, want)
+		}
+		for _, reason := range *reasons {
+			if reason != store.SessionRuntimeRecoveryProviderAuth {
+				t.Fatalf("recovery reasons = %v, want provider_auth", *reasons)
+			}
+		}
+	}
+
+	t.Run("Should resend an untouched turn once the provider sign-in returns", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.authRecoveryDelays = []time.Duration{0, 0, 0}
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		reasons := recordRecoveryReasons(h, session)
+		var calls atomic.Int64
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			if calls.Add(1) <= 2 {
+				events <- authLostEvent(proc, req.TurnID)
+			} else {
+				events <- doneEvent(proc, req.TurnID)
+			}
+			close(events)
+			return events, nil
+		}
+
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, "ship the release notes")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		delivered := collectEvents(t, events)
+		if got := countAgentEvents(delivered, acp.EventTypeError); got != 0 {
+			t.Fatalf("delivered errors = %d, want the sign-in loss absorbed: %#v", got, delivered)
+		}
+		if countAgentEvents(delivered, acp.EventTypeRuntimeRecoveryStarted) != 2 ||
+			countAgentEvents(delivered, acp.EventTypeRuntimeRecoverySucceeded) != 2 {
+			t.Fatalf("delivered = %#v, want two sign-in recoveries", delivered)
+		}
+		requireProviderAuthReasons(t, reasons, 2)
+		if countAgentEvents(delivered, acp.EventTypeDone) != 1 {
+			t.Fatalf("delivered = %#v, want the resumed turn to finish", delivered)
+		}
+		requests, starts := promptRequests(h)
+		if len(requests) != 3 || starts != 3 {
+			t.Fatalf("prompts = %d, starts = %d; want one turn reloaded on two replacement runtimes", len(requests), starts)
+		}
+		for index, request := range requests {
+			if request.TurnID != requests[0].TurnID || !strings.HasSuffix(request.Message, "ship the release notes") {
+				t.Fatalf("dispatch %d = %+v, want the original turn resent", index, request)
+			}
+		}
+		if got := countEventType(readStoredEvents(t, session), acp.EventTypeUserMessage); got != 1 {
+			t.Fatalf("stored user messages = %d, want 1", got)
+		}
+		info := session.Info()
+		if info.State != StateActive || info.RuntimeStatus != RuntimeStatusReady || info.RuntimeRecovery != nil {
+			t.Fatalf("session = %s/%s recovery %#v, want active and ready", info.State, info.RuntimeStatus, info.RuntimeRecovery)
+		}
+	})
+
+	t.Run("Should continue instead of resending when the sign-in loss interrupts tool work", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.authRecoveryDelays = []time.Duration{0}
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		var calls atomic.Int64
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 2)
+			if calls.Add(1) == 1 {
+				events <- acp.AgentEvent{
+					Type: acp.EventTypeToolCall, SessionID: proc.handle.SessionID, TurnID: req.TurnID,
+					Timestamp: time.Now().UTC(), ToolCallID: "tool-1", Title: "git push",
+				}
+				events <- authLostEvent(proc, req.TurnID)
+			} else {
+				events <- doneEvent(proc, req.TurnID)
+			}
+			close(events)
+			return events, nil
+		}
+
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, "push the branch")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		delivered := collectEvents(t, events)
+		if countAgentEvents(delivered, acp.EventTypeError) != 0 || countAgentEvents(delivered, acp.EventTypeDone) != 1 {
+			t.Fatalf("delivered = %#v, want the interrupted turn to finish", delivered)
+		}
+		requests, _ := promptRequests(h)
+		if len(requests) != 2 {
+			t.Fatalf("prompts = %d, want the original plus one continuation", len(requests))
+		}
+		resumed := requests[1]
+		if resumed.TurnID != requests[0].TurnID || !strings.HasSuffix(resumed.Message, authRecoveryContinueMessage) ||
+			strings.Contains(resumed.Message, "User request:\n\npush the branch") {
+			t.Fatalf("continuation = %q, want the continuation instead of the original request", resumed.Message)
+		}
+		if got := countEventType(readStoredEvents(t, session), acp.EventTypeToolCall); got != 1 {
+			t.Fatalf("stored tool calls = %d, want the interrupted call recorded once", got)
+		}
+	})
+
+	t.Run("Should fail with the provider guidance once the sign-in window ends", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.authRecoveryDelays = []time.Duration{0, 0}
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		reasons := recordRecoveryReasons(h, session)
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			events <- authLostEvent(proc, req.TurnID)
+			close(events)
+			return events, nil
+		}
+
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, "keep going")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		delivered := collectEvents(t, events)
+		if countAgentEvents(delivered, acp.EventTypeRuntimeRecoveryStarted) != 2 ||
+			countAgentEvents(delivered, acp.EventTypeRuntimeRecoveryExhausted) != 1 {
+			t.Fatalf("delivered = %#v, want two sign-in waits and one exhaustion", delivered)
+		}
+		requireProviderAuthReasons(t, reasons, 2)
+		last := delivered[len(delivered)-1]
+		if last.Type != acp.EventTypeError || last.ProviderError == nil ||
+			last.ProviderError.Code != acp.ProviderErrorAuthRequired ||
+			last.ProviderError.NextAction != acp.ProviderFailureActionHandoff {
+			t.Fatalf("terminal event = %#v, want the provider sign-in failure with handoff guidance", last)
+		}
+		info := session.Info()
+		if info.State != StateActive || info.RuntimeStatus != RuntimeStatusReady || info.RuntimeRecovery != nil {
+			t.Fatalf("session = %s/%s recovery %#v, want active and ready", info.State, info.RuntimeStatus, info.RuntimeRecovery)
+		}
+
+		next, err := h.manager.Prompt(testutil.Context(t), session.ID, "and the next one")
+		if err != nil {
+			t.Fatalf("Prompt(next) error = %v", err)
+		}
+		followUp := collectEvents(t, next)
+		if len(followUp) != 1 || followUp[0].Type != acp.EventTypeError {
+			t.Fatalf("follow-up = %#v, want an immediate failure after the window was spent", followUp)
+		}
+	})
+
+	t.Run("Should return the session to ready when the sign-in wait is cancelled", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.manager.authRecoveryDelays = []time.Duration{time.Hour}
+		session := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, session.ID) })
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 1)
+			events <- authLostEvent(proc, req.TurnID)
+			close(events)
+			return events, nil
+		}
+
+		events, err := h.manager.Prompt(testutil.Context(t), session.ID, "wait for me")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		waitForCondition(t, "sign-in wait", func() bool {
+			recovery := session.Info().RuntimeRecovery
+			return recovery != nil && recovery.Reason == store.SessionRuntimeRecoveryProviderAuth
+		})
+		if _, err := h.manager.CancelPrompt(testutil.Context(t), session.ID); err != nil {
+			t.Fatalf("CancelPrompt() error = %v", err)
+		}
+		collectEvents(t, events)
+		info := session.Info()
+		if info.State != StateActive || info.RuntimeStatus != RuntimeStatusReady || info.RuntimeRecovery != nil {
+			t.Fatalf("session = %s/%s recovery %#v, want active and ready", info.State, info.RuntimeStatus, info.RuntimeRecovery)
+		}
+		if _, starts := promptRequests(h); starts != 1 {
+			t.Fatalf("driver starts = %d, want no replacement runtime after cancellation", starts)
+		}
+	})
+}
+
 func TestDetachedPromptStopContext(t *testing.T) {
 	t.Parallel()
 

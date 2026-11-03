@@ -1171,6 +1171,17 @@ func TestValidationAndDriverHelpers(t *testing.T) {
 			Validate("driver_control"); err != nil {
 			t.Fatalf("DriverControlStep.Validate(fail_prompt) error = %v", err)
 		}
+		err = (DriverControlStep{Action: DriverControlDelay, DelayMS: 1, WhenPathMissing: ".credential"}).
+			Validate("driver_control")
+		if err == nil || !strings.Contains(err.Error(), "only valid for fail_prompt") {
+			t.Fatalf("DriverControlStep.Validate(delay with when_path_missing) error = %v, want fail_prompt-only diagnostic", err)
+		}
+		if err := (DriverControlStep{
+			Action: DriverControlFailPrompt, ErrorMessage: "Authentication required", ErrorCode: -32000,
+			WhenPathMissing: ".credential",
+		}).Validate("driver_control"); err != nil {
+			t.Fatalf("DriverControlStep.Validate(gated fail_prompt) error = %v", err)
+		}
 		if (TurnFixture{}).Validate("turn") == nil {
 			t.Fatal("TurnFixture.Validate(no steps) error = nil, want non-nil")
 		}

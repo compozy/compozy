@@ -16,6 +16,7 @@ import (
 )
 
 type promptRecoveryEventData struct {
+	Reason        string `json:"reason,omitempty"`
 	Attempt       int    `json:"attempt"`
 	MaxAttempts   int    `json:"max_attempts"`
 	Generation    int64  `json:"generation"`
@@ -35,24 +36,13 @@ func clonePromptRecoveryRequest(request acp.PromptRequest) acp.PromptRequest {
 	return cloned
 }
 
-func promptEventIsRecoverable(event acp.AgentEvent) bool {
-	if event.Type != acp.EventTypeError || event.Failure == nil {
-		return false
-	}
-	switch event.Failure.Kind {
-	case store.FailureProcess, store.FailureTransport:
-		return true
-	default:
-		return false
-	}
-}
-
 func (m *Manager) attemptPromptRecovery(
 	ctx context.Context,
 	session *Session,
 	turnState *promptTurnDispatchState,
 	loop *promptPumpLoopState,
 	trigger acp.AgentEvent,
+	reason store.SessionRuntimeRecoveryReason,
 ) (bool, error) {
 	if m == nil || session == nil || turnState == nil || turnState.recovery == nil {
 		return false, nil
@@ -60,39 +50,48 @@ func (m *Manager) attemptPromptRecovery(
 	recovery := turnState.recovery
 	if recovery.executionCtx == nil || recovery.executionCtx.Err() != nil ||
 		session.promptCancellationRequested(turnState.turnID) {
-		return false, nil
+		return false, m.settleStoppedPromptRecovery(ctx, session, reason)
 	}
 
-	maxAttempts := len(m.promptRecoveryDelays)
-	if maxAttempts == 0 || recovery.exhaustedRecorded {
-		return false, nil
+	delays := m.promptRecoverySchedule(reason)
+	budget := recovery.budget(reason)
+	maxAttempts := len(delays)
+	if maxAttempts == 0 || budget.exhaustedRecorded || !promptRecoveryAvailable(session, reason) {
+		return false, m.settleStoppedPromptRecovery(ctx, session, reason)
 	}
-	for recovery.attempts < maxAttempts {
-		attempt := recovery.attempts + 1
-		delay := m.promptRecoveryDelays[recovery.attempts]
-		recovery.attempts = attempt
+	if budget.startedAt.IsZero() {
+		budget.startedAt = m.now()
+	}
+	for budget.attempts < maxAttempts {
+		attempt := budget.attempts + 1
+		delay := delays[budget.attempts]
+		budget.attempts = attempt
 		now := m.now()
-		nextAttemptAt := now.Add(delay)
-		if err := session.beginAutomaticRecovery(attempt, maxAttempts, nextAttemptAt, now); err != nil {
+		if err := session.beginAutomaticRecovery(automaticRecoveryAttempt{
+			reason: reason, attempt: attempt, maxAttempts: maxAttempts,
+			startedAt: budget.startedAt, nextAttemptAt: now.Add(delay),
+		}, now); err != nil {
 			return false, err
 		}
 		if err := m.persistSessionLifecycleState(ctx, session, false); err != nil {
 			return false, err
 		}
 		if err := m.recordPromptRecoveryEvent(
-			ctx, session, turnState, loop, acp.EventTypeRuntimeRecoveryStarted, trigger, attempt, maxAttempts,
+			ctx, session, turnState, loop, acp.EventTypeRuntimeRecoveryStarted, trigger, reason, attempt, maxAttempts,
 		); err != nil {
 			return false, err
 		}
 		if err := waitForPromptRecovery(recovery.executionCtx, delay); err != nil {
-			return false, nil
+			return false, m.settleStoppedPromptRecovery(ctx, session, reason)
 		}
 
+		request, message := recoveredPromptPayload(recovery, reason)
 		source, replayBlock, err := m.startRecoveredPrompt(
 			recovery.executionCtx,
 			session,
 			turnState,
-			recovery.request,
+			request,
+			message,
 		)
 		if err != nil {
 			if persistErr := m.persistPromptRecoveryFailure(ctx, session, err); persistErr != nil {
@@ -100,14 +99,14 @@ func (m *Manager) attemptPromptRecovery(
 			}
 			continue
 		}
-		if !recovery.request.BypassesContext() {
+		if !request.BypassesContext() {
 			m.consumeResumeReplay(session.ID, replayBlock)
 		}
 		loop.source = source
 		loop.turnEnded = false
 		loop.sourceProbeRequired = false
 		if err := m.recordPromptRecoveryEvent(
-			ctx, session, turnState, loop, acp.EventTypeRuntimeRecoverySucceeded, trigger, attempt, maxAttempts,
+			ctx, session, turnState, loop, acp.EventTypeRuntimeRecoverySucceeded, trigger, reason, attempt, maxAttempts,
 		); err != nil {
 			return false, err
 		}
@@ -121,13 +120,17 @@ func (m *Manager) attemptPromptRecovery(
 		loop,
 		acp.EventTypeRuntimeRecoveryExhausted,
 		trigger,
-		recovery.attempts,
+		reason,
+		budget.attempts,
 		maxAttempts,
 	); err != nil {
 		return false, err
 	}
-	recovery.exhaustedRecorded = true
-	return false, nil
+	budget.exhaustedRecorded = true
+	if reason == store.SessionRuntimeRecoveryProviderAuth {
+		session.setAuthRecoveryExhausted(true)
+	}
+	return false, m.settleStoppedPromptRecovery(ctx, session, reason)
 }
 
 func (m *Manager) persistPromptRecoveryFailure(ctx context.Context, session *Session, recoveryErr error) error {
@@ -143,6 +146,7 @@ func (m *Manager) startRecoveredPrompt(
 	session *Session,
 	state *promptTurnDispatchState,
 	request acp.PromptRequest,
+	message string,
 ) (<-chan acp.AgentEvent, string, error) {
 	m.releaseHostedPromptRun(session, state)
 	m.clearActivePromptRunForState(session, state)
@@ -153,7 +157,7 @@ func (m *Manager) startRecoveredPrompt(
 	replayRequest := clonePromptRecoveryRequest(request)
 	replayRequest.Generation = session.Info().RuntimeGeneration
 	if !replayRequest.BypassesContext() {
-		replayRequest.Message = promptWithResumeReplay(replayBlock, state.recovery.originalMessage)
+		replayRequest.Message = promptWithResumeReplay(replayBlock, message)
 	}
 	source, err := m.startHostedPromptRun(ctx, session, process, state, replayRequest)
 	if err != nil {
@@ -183,6 +187,7 @@ func (m *Manager) recordPromptRecoveryEvent(
 	loop *promptPumpLoopState,
 	eventType string,
 	trigger acp.AgentEvent,
+	reason store.SessionRuntimeRecoveryReason,
 	attempt int,
 	maxAttempts int,
 ) error {
@@ -198,7 +203,7 @@ func (m *Manager) recordPromptRecoveryEvent(
 		generation = info.RuntimeRecovery.Generation
 	}
 	data, err := json.Marshal(promptRecoveryEventData{
-		Attempt: attempt, MaxAttempts: maxAttempts, Generation: generation,
+		Reason: string(reason), Attempt: attempt, MaxAttempts: maxAttempts, Generation: generation,
 		FailureKind: failureKind, FailureDetail: failureDetail,
 	})
 	if err != nil {

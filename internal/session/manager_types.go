@@ -281,6 +281,7 @@ type Manager struct {
 	removeAllPath                func(path string) error
 	promptBufSize                int
 	promptRecoveryDelays         []time.Duration
+	authRecoveryDelays           []time.Duration
 	soulRefreshTimeout           time.Duration
 	sessionHealthHookMinInterval time.Duration
 }

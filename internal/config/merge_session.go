@@ -11,6 +11,7 @@ var sessionLimitsTimeoutDeprecation sync.Once
 
 func (o sessionOverlay) Apply(dst *SessionConfig) {
 	o.Restart.Apply(&dst.Restart)
+	o.AuthRecovery.Apply(&dst.AuthRecovery)
 	if o.Stop.CooperativeGrace != nil {
 		dst.Stop.CooperativeGrace = *o.Stop.CooperativeGrace
 	}

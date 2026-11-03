@@ -254,6 +254,33 @@ compozy session status sess-1234 -o json
 compozy session events sess-1234 --last 20 -o json
 ```
 
+### When the provider sign-in goes missing during a prompt
+
+Switching accounts in a provider CLI (for example logging out of an account near its usage limit and
+into another) leaves the provider without credentials for a moment. A turn that hits that window fails
+with `provider_error.code: "provider_auth_required"`. Instead of ending the turn, CompozyOS waits for the
+sign-in to come back and retries on its own, for every ACP provider:
+
+- The session stays `active`. Session reads expose `runtime.status: "recovering"` with
+  `runtime.recovery.reason: "provider_auth"`, and the web session shows **Waiting for the provider
+  sign-in…** with the attempt count. Runtime-exit recoveries report `reason: "runtime_exit"`.
+- Retries back off from `session.auth_recovery.initial_delay` (15 seconds), doubling up to
+  `max_delay` (1 minute), for as long as `window` allows (10 minutes): 15 s, 30 s, then every minute,
+  eleven attempts by default. Each one starts a fresh provider process, which reads the current
+  credentials, and reloads the provider session with ACP `session/load` (or a bounded transcript replay).
+- If the provider had not produced anything for the turn yet, the original request is sent again on
+  the same turn ID. If the turn had already produced output or tool calls, CompozyOS sends a short
+  continuation instead, which tells the agent to check the current state before repeating any action,
+  so finished tool calls are not run twice. The user message is never recorded twice.
+- While the provider is still signed out, each retry is refused before any work starts. The same
+  `runtime_recovery_started`, `runtime_recovery_succeeded`, and `runtime_recovery_exhausted` events
+  and hooks report progress.
+
+When the window ends without a sign-in, the turn fails exactly as before: one terminal error with the
+usual `provider_error` guidance. Later turns in that session then fail right away instead of waiting
+again, until a turn completes. Cancelling the prompt stops the wait. Set
+`session.auth_recovery.enabled = false` to turn the wait off.
+
 Automatic replay can repeat a tool or external side effect whose completion was not persisted before
 the disconnect. CompozyOS supplies retained results to the replacement runtime, but cannot prove an
 external mutation did not complete. Inspect the external system before manually repeating the work.

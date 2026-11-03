@@ -2976,6 +2976,68 @@ func TestSessionStopConfig(t *testing.T) {
 	})
 }
 
+func TestSessionAuthRecoveryConfig(t *testing.T) {
+	t.Parallel()
+	t.Run("Should back off from fifteen seconds to a one minute cap inside a ten minute window", func(t *testing.T) {
+		t.Parallel()
+		cfg := defaultSessionConfig()
+		sessionOverlay{}.Apply(&cfg)
+		want := []time.Duration{15 * time.Second, 30 * time.Second}
+		for range 9 {
+			want = append(want, time.Minute)
+		}
+		if got := cfg.AuthRecovery.Delays(); !slices.Equal(got, want) {
+			t.Fatalf("default delays = %v, want %v", got, want)
+		}
+	})
+	t.Run("Should apply overrides and schedule nothing when disabled", func(t *testing.T) {
+		t.Parallel()
+		cfg := defaultSessionConfig()
+		window, initial, maxDelay := 40*time.Second, 5*time.Second, 10*time.Second
+		sessionOverlay{AuthRecovery: sessionAuthRecoveryOverlay{
+			Window: &window, InitialDelay: &initial, MaxDelay: &maxDelay,
+		}}.Apply(&cfg)
+		want := []time.Duration{5 * time.Second, 10 * time.Second, 10 * time.Second, 10 * time.Second}
+		if got := cfg.AuthRecovery.Delays(); !slices.Equal(got, want) {
+			t.Fatalf("override delays = %v, want %v", got, want)
+		}
+		disabled := false
+		sessionOverlay{AuthRecovery: sessionAuthRecoveryOverlay{Enabled: &disabled}}.Apply(&cfg)
+		if got := cfg.AuthRecovery.Delays(); len(got) != 0 {
+			t.Fatalf("disabled delays = %v, want none", got)
+		}
+	})
+	t.Run("Should reject schedules that cannot fit one bounded attempt", func(t *testing.T) {
+		t.Parallel()
+		for _, mutate := range []func(*SessionAuthRecoveryConfig){
+			func(c *SessionAuthRecoveryConfig) { c.InitialDelay = 0 },
+			func(c *SessionAuthRecoveryConfig) { c.MaxDelay = c.InitialDelay - time.Second },
+			func(c *SessionAuthRecoveryConfig) { c.MaxDelay = time.Hour },
+			func(c *SessionAuthRecoveryConfig) { c.Window = c.InitialDelay - time.Second },
+			func(c *SessionAuthRecoveryConfig) { c.Window = 2 * time.Hour },
+		} {
+			cfg := defaultSessionConfig()
+			mutate(&cfg.AuthRecovery)
+			if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "session.auth_recovery.") {
+				t.Fatalf("Validate(%#v) = %v, want auth recovery bound error", cfg.AuthRecovery, err)
+			}
+		}
+	})
+	t.Run("Should restrict auth recovery writes to global scope", func(t *testing.T) {
+		t.Parallel()
+		for _, path := range []string{"session.auth_recovery.enabled", "session.auth_recovery.window"} {
+			parts := strings.Split(path, ".")
+			if err := ValidateConfigWriteScope(WriteScopeUser, parts); err != nil {
+				t.Fatal(err)
+			}
+			if err := ValidateConfigWriteScope(WriteScopeWorkspace, parts); err == nil ||
+				!strings.Contains(err.Error(), "global-only") {
+				t.Fatalf("workspace write error = %v, want global-only denial for %s", err, path)
+			}
+		}
+	})
+}
+
 func TestSessionBusyInputConfigDefaultsAndValidation(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

@@ -386,6 +386,13 @@ stderr tail of the current or last process. Isolated homes live under
 `npx` and `uvx` package caches persist in `$COMPOZY_HOME/cache/mcp/npm` and
 `$COMPOZY_HOME/cache/mcp/uv`.
 
+## Provider Sign-In Recovery
+
+`session.auth_recovery` controls how long a turn waits when the provider sign-in goes missing mid-turn:
+`enabled` (default `true`), `window` (`10m`), `initial_delay` (`15s`, doubles per retry), and
+`max_delay` (`1m`). It is global-only (workspace-scope writes are rejected) and restart-required. See
+`references/runtime-operations.md` for the recovery behavior.
+
 ## Idle Session Settings
 
 `session.supervision.idle_release_after` (default `30m`, `0` disables) frees the agent process of an

@@ -53,6 +53,8 @@ var mcpStdioConfigSegments = []string{"mcp", "stdio"}
 // mcpStatusProbeTimeoutSegments names the boot-scoped MCP status probe deadline.
 var mcpStatusProbeTimeoutSegments = []string{"mcp", "status_probe_timeout"}
 
+var sessionAuthRecoverySegments = []string{"session", "auth_recovery"}
+
 var (
 	configToolDurationType = reflect.TypeFor[time.Duration]()
 
@@ -99,6 +101,10 @@ var (
 		"session.restart.auto_continue":                            ConfigValueBool,
 		"session.restart.max_attempts":                             ConfigValueInt,
 		"session.restart.window":                                   ConfigValueDuration,
+		"session.auth_recovery.enabled":                            ConfigValueBool,
+		"session.auth_recovery.window":                             ConfigValueDuration,
+		"session.auth_recovery.initial_delay":                      ConfigValueDuration,
+		"session.auth_recovery.max_delay":                          ConfigValueDuration,
 		"session.supervision.activity_heartbeat_interval":          ConfigValueDuration,
 		"session.supervision.progress_notify_interval":             ConfigValueDuration,
 		"session.supervision.prompt_deadline":                      ConfigValueDuration,

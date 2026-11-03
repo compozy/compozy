@@ -231,6 +231,7 @@ func sessionRuntimeRecoveryPayload(value *store.SessionRuntimeRecovery) *contrac
 		return nil
 	}
 	return &contract.SessionRuntimeRecoveryPayload{
+		Reason:        value.Reason,
 		Attempt:       value.Attempt,
 		MaxAttempts:   value.MaxAttempts,
 		Generation:    value.Generation,

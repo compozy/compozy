@@ -118,6 +118,7 @@ function SessionWindowNoticeContent({
       <SessionRuntimeRecoveryNotice
         attempt={session.runtime.recovery?.attempt}
         maxAttempts={session.runtime.recovery?.max_attempts}
+        reason={session.runtime.recovery?.reason}
       />
     );
   }
