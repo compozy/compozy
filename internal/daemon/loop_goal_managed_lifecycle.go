@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentinstance"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/session"
@@ -116,6 +117,14 @@ func (l *loopGoalManagedInputLifecycle) BeginSubmission(
 		}
 	}
 	claimed, err := l.claimPreparedPrompt(ctx, &operation, decision, base)
+	if managedGoalInstancePaused(err) {
+		// The instance paused after selection: the ticket was never submitted, so it is deferred like an
+		// external wait rather than recorded as a failed attempt; resume re-admits it.
+		return session.ManagedInputSubmission{}, &session.ManagedInputEffectError{
+			Owner: claim.Owner, Certainty: session.EffectKnownFalse,
+			ReasonCode: string(looppkg.ReasonCodeGoalWaitDeferred), Err: err,
+		}
+	}
 	if err != nil {
 		return l.reconcileClaimError(ctx, &operation, claimed, err)
 	}
@@ -461,6 +470,12 @@ func managedGoalEntrySettled(entry *store.SessionInputQueueEntry) bool {
 func managedGoalDispatchTokenHash(token string) string {
 	digest := sha256.Sum256([]byte(strings.TrimSpace(token)))
 	return hex.EncodeToString(digest[:])
+}
+
+// managedGoalInstancePaused reports the store's in-transaction refusal of a claim on a paused lineage.
+func managedGoalInstancePaused(err error) bool {
+	reason, ok := errors.AsType[*looppkg.ReasonError](err)
+	return ok && reason != nil && string(reason.Code) == agentinstance.ErrPaused.Error()
 }
 
 func managedGoalReasonCode(value string) looppkg.ReasonCode {

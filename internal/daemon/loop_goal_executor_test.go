@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"path/filepath"
 	"strings"
@@ -566,6 +567,23 @@ func TestLoopGoalManagedLifecycleShouldClassifyClaimCommitEvidence(t *testing.T)
 			effect.ReasonCode != string(looppkg.ReasonCodeGoalWaitDeferred) ||
 			s.claimCalls != 0 {
 			t.Fatalf("defer = %#v; claim calls=%d", err, s.claimCalls)
+		}
+	})
+	// IT-032: a pause that commits after selection makes the store refuse the claim; the never-submitted
+	// ticket is deferred like a wait, not recorded as a failed Goal attempt.
+	t.Run("Should defer a claim refused because the instance paused", func(t *testing.T) {
+		t.Parallel()
+		storeStub, owner := newManagedLifecycleClaimStore()
+		storeStub.claimErr = &looppkg.ReasonError{
+			Code: "agent_instance_paused",
+			Err:  fmt.Errorf("%w: resume agent instance ainst-1 first", looppkg.ErrTransitionConflict),
+		}
+		lifecycle := &loopGoalManagedInputLifecycle{store: storeStub, now: time.Now}
+		_, err := lifecycle.BeginSubmission(testutil.Context(t), session.ManagedInputClaim{Owner: owner})
+		effect, ok := errors.AsType[*session.ManagedInputEffectError](err)
+		if !ok || effect.Certainty != session.EffectKnownFalse || effect.Finalized ||
+			effect.ReasonCode != string(looppkg.ReasonCodeGoalWaitDeferred) {
+			t.Fatalf("paused claim = %#v, want a non-final wait deferral", err)
 		}
 	})
 	t.Run("Should recover a committed claim only from its exact durable token digest", func(t *testing.T) {
