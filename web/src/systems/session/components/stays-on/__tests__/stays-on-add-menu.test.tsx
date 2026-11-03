@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -81,7 +81,7 @@ function renderMenu(
     <StaysOnCreateMenu onNewSession={vi.fn()} staysOn={target} testId="group" />
   );
   const { rerender } = render(menu(staysOn), { wrapper });
-  return { rescope: (target: typeof staysOn) => rerender(menu(target)) };
+  return { client, rescope: (target: typeof staysOn) => rerender(menu(target)) };
 }
 
 async function openPicker(user: ReturnType<typeof userEvent.setup>) {
@@ -206,5 +206,18 @@ describe("Project + Add stays-on agent", () => {
     await waitFor(() =>
       expect(mockApi.create.mock.calls[0]?.[0]).toEqual({ agent: "scout", workspace: "ws-site" })
     );
+  });
+
+  it("Should keep the loaded projects when a later refetch fails", async () => {
+    const user = userEvent.setup();
+    const { client } = renderMenu(null);
+
+    await openPicker(user);
+    expect(await screen.findByRole("option", { name: /compozy/ })).toBeInTheDocument();
+    mockApi.workspaces.mockRejectedValueOnce(new Error("offline"));
+    await act(() => client.refetchQueries());
+
+    expect(screen.queryByText("Couldn't load projects.")).toBeNull();
+    expect(screen.getByRole("option", { name: /site/ })).toBeInTheDocument();
   });
 });
