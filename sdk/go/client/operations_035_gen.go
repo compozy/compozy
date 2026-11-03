@@ -8,6 +8,31 @@ import (
 	"strings"
 )
 
+// WaitForSessionParams carries the path, query, and header parameters.
+type WaitForSessionParams struct {
+	WorkspaceID string `url:"workspace_id"`
+	SessionID   string `url:"session_id"`
+}
+
+// WaitForSession Wait for a session state
+func (c *Client) WaitForSession(ctx context.Context, params WaitForSessionParams, body SessionWaitRequest) (*SessionWaitResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/wait"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	var out SessionWaitResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// WaitTerminalParams carries the path, query, and header parameters.
+type WaitTerminalParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+}
+
 // WaitTerminal Wait for one terminal condition
 func (c *Client) WaitTerminal(ctx context.Context, params WaitTerminalParams, body TerminalWaitRequest) (*TerminalWaitResponse, error) {
 	path := "/api/workspaces/{workspace_id}/terminals/{id}/wait"

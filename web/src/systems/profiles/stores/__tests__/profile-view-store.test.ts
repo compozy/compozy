@@ -89,6 +89,14 @@ describe("profile view store", () => {
     setProfileView({ kind: "aggregate" });
     setProfileView({ kind: "profile", profile: "marketing" });
     expect(epoch()).toBe(start + 2);
+    // A failed switch rolls back to where the operator was; neither half of that moved them.
+    const beforeFailedSwitch = epoch();
+    const previous = localProfileView();
+    setProfileView({ kind: "profile", profile: "consulting" });
+    restoreProfileView(previous);
+    expect(epoch()).toBe(beforeFailedSwitch + 1);
+    restoreProfileView(null);
+    expect(epoch()).toBe(beforeFailedSwitch + 1);
   });
 
   it("Should keep counting explicit switches after a reload restores the view", async () => {

@@ -35,6 +35,11 @@ branch's lead offers Open PR and a list reread, as does its list row. A lone rol
 chip menu offers Open session for its child. The walk lives in
 `ET-session-pull-request-link`; `E2E-006` owns the seeded journey in CI.
 
+Linked work 2026-11-03 (#1203): a session with several linked items no longer promotes
+one of them. The head shows a single chip with the PR icon, `N linked PRs` (or `N linked`
+when one is a branch), with a calm dot when an item needs you; it opens the list, where each
+item keeps its own status. A single linked item keeps the full chip described above.
+
 Release regression 2026-10-24: the Fix failing checks journey must send exactly
 one user message naming the PR and failing check, and the fixture agent must
 accept it and answer. A provider error echo is not evidence of successful prompt

@@ -4921,6 +4921,17 @@ export type MoveSessionToLaterRequest = {
   return_at?: string | null;
 };
 
+export type MoveSessionToProfileRequest = {
+  target_profile: string;
+};
+
+export type MoveSessionToProfileResponse = {
+  branch?: string;
+  original: SessionPayload;
+  session: SessionPayload;
+  worktree_id?: string;
+};
+
 export type MoveWorkspaceRequest = {
   folder_id?: string;
   workspace_id: string;
@@ -7249,6 +7260,7 @@ export type SessionPayload = {
   attached_to?: string;
   attention?: string;
   attention_changed_at?: string | null;
+  attention_dismissible?: boolean;
   available_commands: Array<ACPAvailableCommandPayload>;
   badge:
     | "running"
@@ -11295,6 +11307,7 @@ export type ToolCallEventPayload = {
     | "agent_instance_not_found"
     | "agent_instance_starting"
     | "approval_rejected"
+    | "attention_requires_action"
     | "compaction_unsupported"
     | "generation_fenced"
     | "input_request_already_answered"
@@ -11500,6 +11513,7 @@ export type ToolErrorPayload = {
     | "agent_instance_not_found"
     | "agent_instance_starting"
     | "approval_rejected"
+    | "attention_requires_action"
     | "compaction_unsupported"
     | "generation_fenced"
     | "input_request_already_answered"
@@ -37421,6 +37435,57 @@ export type RefreshSessionWorkLinkResponses = {
 export type RefreshSessionWorkLinkResponse =
   RefreshSessionWorkLinkResponses[keyof RefreshSessionWorkLinkResponses];
 
+export type MarkSessionSeenData = {
+  body?: never;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen";
+};
+
+export type MarkSessionSeenErrors = {
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * The session still waits on an answer, a sign-in, or a stop, or a newer occurrence replaced the one checked
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Service unavailable - dependent service missing
+   */
+  503: ErrorPayload;
+};
+
+export type MarkSessionSeenError = MarkSessionSeenErrors[keyof MarkSessionSeenErrors];
+
+export type MarkSessionSeenResponses = {
+  /**
+   * OK
+   */
+  200: SessionResponse;
+};
+
+export type MarkSessionSeenResponse = MarkSessionSeenResponses[keyof MarkSessionSeenResponses];
+
 export type ListSessionMonitorsData = {
   body?: never;
   path: {
@@ -37591,6 +37656,70 @@ export type MoveSessionResponses = {
 };
 
 export type MoveSessionResponse = MoveSessionResponses[keyof MoveSessionResponses];
+
+export type MoveSessionToProfileData = {
+  /**
+   * JSON request body
+   */
+  body: MoveSessionToProfileRequest;
+  path: {
+    /**
+     * Workspace id
+     */
+    workspace_id: string;
+    /**
+     * Session id
+     */
+    session_id: string;
+  };
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile";
+};
+
+export type MoveSessionToProfileErrors = {
+  /**
+   * Invalid move request or target profile
+   */
+  400: ErrorPayload;
+  /**
+   * The caller cannot write to the target profile
+   */
+  403: ErrorPayload;
+  /**
+   * Session not found
+   */
+  404: ErrorPayload;
+  /**
+   * Move refused by a rule; code names the rule
+   */
+  409: ErrorPayload;
+  /**
+   * Internal server error
+   */
+  500: ErrorPayload;
+  /**
+   * Session profile move unavailable
+   */
+  503: ErrorPayload;
+};
+
+export type MoveSessionToProfileError =
+  MoveSessionToProfileErrors[keyof MoveSessionToProfileErrors];
+
+export type MoveSessionToProfileResponses = {
+  /**
+   * OK
+   */
+  200: MoveSessionToProfileResponse;
+};
+
+export type MoveSessionToProfileResponse2 =
+  MoveSessionToProfileResponses[keyof MoveSessionToProfileResponses];
 
 export type ClearSessionParentData = {
   body?: never;

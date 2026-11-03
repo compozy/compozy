@@ -164,7 +164,7 @@ func (m *Manager) replayDeriveReceipt(
 	derivations store.SessionDerivationStore,
 	spec deriveSpec,
 ) (DeriveResult, bool, error) {
-	receipt, found, err := derivations.SessionDerivationReceipt(ctx, spec.workspaceID, spec.key, spec.profileID)
+	receipt, found, err := derivations.SessionDerivationReceipt(ctx, spec.workspaceID, spec.key, spec.childProfileID())
 	if err != nil || !found {
 		return DeriveResult{}, false, err
 	}

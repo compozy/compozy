@@ -3544,6 +3544,13 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			t.Fatal("approved Later tool errors: no historical tool error enums found")
 		}
 	}
+	// #1202: optional attention_dismissible flag on session payloads and the mark-seen refusal code.
+	if addSessionAttentionDismissibleSchema(baseline) == 0 {
+		t.Fatal("approved attention_dismissible addition: no historical session schemas found")
+	}
+	if addToolErrorCode(baseline, string(tools.ErrorCodeAttentionRequiresAction)) == 0 {
+		t.Fatal("approved mark-seen tool error: no historical tool error enums found")
+	}
 	// #1149: additive Goal wait status and attention reasons; no existing value is removed.
 	if addGoalWaitSchemas(baseline) == 0 {
 		t.Fatal("approved Goal wait additions: no historical Goal enums found")
@@ -5056,6 +5063,28 @@ func addSessionLaterSchemas(value any) int {
 			map[string]any{"enum": []any{nil}, "nullable": true},
 		}}
 		properties["returned_from_later_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+		count++
+	}
+	return count
+}
+
+func addSessionAttentionDismissibleSchema(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSessionAttentionDismissibleSchema(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSessionAttentionDismissibleSchema(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if !ok || properties["badge"] == nil || properties["attachable"] == nil || properties["workspace_id"] == nil ||
+			properties["id"] == nil {
+			return count
+		}
+		properties["attention_dismissible"] = map[string]any{"type": "boolean"}
 		count++
 	}
 	return count

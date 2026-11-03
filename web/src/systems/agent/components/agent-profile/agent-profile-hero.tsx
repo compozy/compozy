@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { Pill, StatusDot, type AgentAvatarAppearance, type AgentAvatarState } from "@compozy/ui";
 
+import type { AgentIdentityPatch } from "../../lib/agent-create-identity";
 import { AGENT_STATE_DOT } from "../../lib/agent-team";
 import { AgentAvatarEditor, AgentInlineText } from "./agent-identity-editor";
 
@@ -28,11 +29,7 @@ export function AgentProfileHero({
   state: AgentAvatarState;
   line: string;
   action: ReactNode;
-  onSave: (patch: {
-    display_name?: string;
-    description?: string;
-    appearance?: AgentAvatarAppearance;
-  }) => void;
+  onSave: (patch: AgentIdentityPatch) => void;
 }) {
   const { readOnly } = identity;
   const live = state === "working" || state === "needs-you";

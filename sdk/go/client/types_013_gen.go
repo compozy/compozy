@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+// Pagination is a daemon API value.
+type Pagination struct {
+	HasMore  bool `json:"has_more"`
+	PageSize int  `json:"page_size,omitempty"`
+}
+
+// ParentClosePolicy is a daemon API value.
+type ParentClosePolicy string
+
+// ParticipantPolicy is a daemon API value.
+type ParticipantPolicy struct {
+	AllowedAgentNames     []string `json:"allowed_agent_names,omitempty"`
+	PreferredAgentNames   []string `json:"preferred_agent_names,omitempty"`
+	RequiredCapabilities  []string `json:"required_capabilities,omitempty"`
+	PreferredCapabilities []string `json:"preferred_capabilities,omitempty"`
+}
+
 // PatchLoopRequest is a daemon API value.
 type PatchLoopRequest struct {
 	ExpectedVersion *int                   `json:"expected_version,omitzero"`
@@ -423,27 +440,4 @@ type ProviderStatusPayload struct {
 	StatusCommand string                         `json:"status_command,omitempty"`
 	Login         ProviderLoginDescriptorPayload `json:"login"`
 	LastProbeAt   *time.Time                     `json:"last_probe_at,omitempty"`
-}
-
-// ProviderSummaryPayload is a daemon API value.
-type ProviderSummaryPayload struct {
-	ReviewerMode     string                                    `json:"reviewer_mode"`
-	SessionEnvStatus []SettingsProviderCredentialStatusPayload `json:"session_env_status,omitempty"`
-	Name             string                                    `json:"name"`
-	DisplayName      string                                    `json:"display_name,omitempty"`
-	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`
-	Default          bool                                      `json:"default"`
-	AuthStatus       ProviderAuthStatusPayload                 `json:"auth_status"`
-}
-
-// ProviderUsageAccount is a daemon API value.
-type ProviderUsageAccount struct {
-	Label string `json:"label"`
-	Plan  string `json:"plan"`
-}
-
-// ProviderUsageAmount is a daemon API value.
-type ProviderUsageAmount struct {
-	Value string `json:"value"`
-	Unit  string `json:"unit"`
 }

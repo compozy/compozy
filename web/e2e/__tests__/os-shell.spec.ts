@@ -934,12 +934,12 @@ test("E2E-008: palette stays global while RuntimeSelector owns scoped ⌘J", asy
   await appPage.keyboard.press("Escape");
   await expect(palette).toHaveCount(0);
 
-  await appPage.goto(runtime.url(`/agents/${browserLifecycleAgent}?panel=model`), {
+  await appPage.goto(runtime.url(`/agents/${browserLifecycleAgent}`), {
     waitUntil: "domcontentloaded",
   });
   const runtimeTrigger = appPage
-    .getByTestId("agent-profile-panel")
-    .getByTestId("agent-settings-runtime-select");
+    .getByTestId("agent-setup-model")
+    .getByTestId("agent-setup-model-select");
   await expect(runtimeTrigger).toBeEnabled();
   await runtimeTrigger.focus();
   await appPage.keyboard.press("ControlOrMeta+J");

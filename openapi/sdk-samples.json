@@ -2423,6 +2423,13 @@
             "resource": "agents",
             "app_access": "denied"
         },
+        "markSessionSeen": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.markSessionSeen({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.MarkSessionSeen(ctx, client.MarkSessionSeenParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"})\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
         "markTaskRead": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.tasks.markTaskRead({ path: { \"id\": \"id\" } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.MarkTaskRead(ctx, client.MarkTaskReadParams{ID: \"id\"})\nif err != nil { return err }\nfmt.Println(result)",
@@ -2461,6 +2468,13 @@
         "moveSessionToLater": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.moveSessionToLater({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.MoveSessionToLater(ctx, client.MoveSessionToLaterParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.MoveSessionToLaterRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
+            "kind": "json",
+            "resource": "sessions",
+            "app_access": "allowed"
+        },
+        "moveSessionToProfile": {
+            "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.sessions.moveSessionToProfile({ path: { \"workspace_id\": \"workspace_id\", \"session_id\": \"session_id\" }, body: { /* request fields */ } });",
+            "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.MoveSessionToProfile(ctx, client.MoveSessionToProfileParams{WorkspaceID: \"workspace_id\", SessionID: \"session_id\"}, client.MoveSessionToProfileRequest{ /* request fields */ })\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "sessions",
             "app_access": "allowed"

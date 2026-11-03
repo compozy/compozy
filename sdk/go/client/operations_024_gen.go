@@ -10,6 +10,39 @@ import (
 	"strings"
 )
 
+// MintTerminalAttachTicket Mint a single-use terminal attach ticket
+func (c *Client) MintTerminalAttachTicket(ctx context.Context, params MintTerminalAttachTicketParams, body TerminalAttachTicketRequest) (*TerminalAttachTicketResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals/{id}/attach-ticket"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	headers := http.Header{}
+	if params.XCompozyClientToken != nil {
+		headers.Set("X-Compozy-Client-Token", *params.XCompozyClientToken)
+	}
+	if params.XCompozyClientWorkspace != nil {
+		headers.Set("X-Compozy-Client-Workspace", *params.XCompozyClientWorkspace)
+	}
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalAttachTicketResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MoveSessionParams carries the path, query, and header parameters.
+type MoveSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
 // MoveSession Move a session into a folder or back to the workspace root
 func (c *Client) MoveSession(ctx context.Context, params MoveSessionParams, body MoveSessionRequest) (*SessionFoldersResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/move"
@@ -49,6 +82,32 @@ func (c *Client) MoveSessionToLater(ctx context.Context, params MoveSessionToLat
 		path += "?" + query.Encode()
 	}
 	var out SessionResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// MoveSessionToProfileParams carries the path, query, and header parameters.
+type MoveSessionToProfileParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// MoveSessionToProfile Copy a stopped user session into another profile and archive the original
+func (c *Client) MoveSessionToProfile(ctx context.Context, params MoveSessionToProfileParams, body MoveSessionToProfileRequest) (*MoveSessionToProfileResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out MoveSessionToProfileResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
 		return nil, err
 	}
@@ -408,28 +467,4 @@ func (c *Client) PreviewExtensionEnable(ctx context.Context, params PreviewExten
 // PreviewExtensionInstallParams carries the path, query, and header parameters.
 type PreviewExtensionInstallParams struct {
 	Profile *string `url:"profile"`
-}
-
-// PreviewExtensionInstall Preview an extension install without changing state
-func (c *Client) PreviewExtensionInstall(ctx context.Context, params PreviewExtensionInstallParams, body InstallExtensionRequest) (*ExtensionInstallPreviewPayload, error) {
-	path := "/api/extensions/preview-install"
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ExtensionInstallPreviewPayload
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PreviewSessionDeriveParams carries the path, query, and header parameters.
-type PreviewSessionDeriveParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	MessageID   *string `url:"message_id"`
 }

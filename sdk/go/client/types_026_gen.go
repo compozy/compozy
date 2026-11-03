@@ -7,6 +7,31 @@ import (
 	"time"
 )
 
+// TerminalExecResponse is a daemon API value.
+type TerminalExecResponse struct {
+	ExitCode     *int                  `json:"exit_code"`
+	Signal       *TerminalSignal       `json:"signal"`
+	Output       string                `json:"output"`
+	Truncated    bool                  `json:"truncated"`
+	Untrusted    bool                  `json:"untrusted"`
+	Spill        *TerminalSpillPayload `json:"spill,omitzero"`
+	DurationMs   int64                 `json:"duration_ms"`
+	CommandID    string                `json:"command_id"`
+	StillRunning bool                  `json:"still_running,omitzero"`
+	TerminalID   *TerminalID           `json:"terminal_id"`
+}
+
+// TerminalExitCause is a daemon API value.
+type TerminalExitCause string
+
+// TerminalExitPayload is a daemon API value.
+type TerminalExitPayload struct {
+	Cause  TerminalExitCause `json:"cause"`
+	Code   *int              `json:"code,omitzero"`
+	Signal *TerminalSignal   `json:"signal,omitzero"`
+	At     time.Time         `json:"at"`
+}
+
 // TerminalExitResponse is a daemon API value.
 type TerminalExitResponse struct {
 	Exit *TerminalExitPayload `json:"exit"`
@@ -414,13 +439,4 @@ type ToolCallEventPayload struct {
 	RedactedInputFields  []string          `json:"redacted_input_fields,omitempty"`
 	ResultDigest         string            `json:"result_digest,omitempty"`
 	ResultRedactionPaths []string          `json:"result_redaction_paths,omitempty"`
-}
-
-// ToolContent is a daemon API value.
-type ToolContent struct {
-	Type     string                     `json:"type"`
-	Text     string                     `json:"text,omitempty"`
-	Data     json.RawMessage            `json:"data,omitempty"`
-	MIMEType string                     `json:"mime_type,omitempty"`
-	Metadata map[string]json.RawMessage `json:"metadata,omitempty"`
 }

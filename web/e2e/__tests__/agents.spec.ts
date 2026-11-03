@@ -138,12 +138,13 @@ test.describe("seeded agent detail", () => {
       await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/agent-detail-primary");
     });
 
-    await test.step("an old settings link opens its side panel", async () => {
+    await test.step("an old settings link lands on the home's own control", async () => {
       await appPage.goto(runtime.url("/agents/agent-detail-primary/settings?section=runtime"), {
         waitUntil: "domcontentloaded",
       });
       await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
-      await expect(appPage.getByTestId("agent-profile-panel")).toBeVisible();
+      await expect(appPage.getByTestId("agent-profile-panel")).toHaveCount(0);
+      await expect(appPage.getByTestId("agent-setup-model-select")).toBeVisible();
     });
 
     await test.step("operator creates an agent with a persisted model and reasoning default", async () => {

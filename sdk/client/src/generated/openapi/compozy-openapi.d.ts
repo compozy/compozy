@@ -6332,6 +6332,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/mark-seen": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mark a session's Needs you as seen until its next occurrence; a session waiting on an answer, a sign-in, or a stop is refused */
+    post: operations["markSessionSeen"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/workspaces/{workspace_id}/sessions/{session_id}/monitors": {
     parameters: {
       query?: never;
@@ -6377,6 +6394,23 @@ export interface paths {
     put?: never;
     /** Move a session into a folder or back to the workspace root */
     post: operations["moveSession"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/workspaces/{workspace_id}/sessions/{session_id}/move-to-profile": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Copy a stopped user session into another profile and archive the original */
+    post: operations["moveSessionToProfile"];
     delete?: never;
     options?: never;
     head?: never;
@@ -12636,6 +12670,15 @@ export interface components {
       /** Format: date-time */
       return_at?: string | null;
     };
+    MoveSessionToProfileRequest: {
+      target_profile: string;
+    };
+    MoveSessionToProfileResponse: {
+      branch?: string;
+      original: components["schemas"]["SessionPayload"];
+      session: components["schemas"]["SessionPayload"];
+      worktree_id?: string;
+    };
     MoveWorkspaceRequest: {
       folder_id?: string;
       workspace_id: string;
@@ -15054,6 +15097,7 @@ export interface components {
       attention?: string;
       /** Format: date-time */
       attention_changed_at?: string | null;
+      attention_dismissible?: boolean;
       available_commands: components["schemas"]["ACPAvailableCommandPayload"][];
       /** @enum {string} */
       badge:
@@ -19213,6 +19257,7 @@ export interface components {
         | "agent_instance_not_found"
         | "agent_instance_starting"
         | "approval_rejected"
+        | "attention_requires_action"
         | "compaction_unsupported"
         | "generation_fenced"
         | "input_request_already_answered"
@@ -19423,6 +19468,7 @@ export interface components {
         | "agent_instance_not_found"
         | "agent_instance_starting"
         | "approval_rejected"
+        | "attention_requires_action"
         | "compaction_unsupported"
         | "generation_fenced"
         | "input_request_already_answered"
@@ -53479,6 +53525,70 @@ export interface operations {
       };
     };
   };
+  markSessionSeen: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["SessionResponse"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description The session still waits on an answer, a sign-in, or a stop, or a newer occurrence replaced the one checked */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Service unavailable - dependent service missing */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
   listSessionMonitors: {
     parameters: {
       query?: {
@@ -53679,6 +53789,93 @@ export interface operations {
         };
       };
       /** @description Session layout unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  moveSessionToProfile: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Workspace id */
+        workspace_id: string;
+        /** @description Session id */
+        session_id: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MoveSessionToProfileRequest"];
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["MoveSessionToProfileResponse"];
+        };
+      };
+      /** @description Invalid move request or target profile */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description The caller cannot write to the target profile */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Move refused by a rule; code names the rule */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Session profile move unavailable */
       503: {
         headers: {
           [name: string]: unknown;

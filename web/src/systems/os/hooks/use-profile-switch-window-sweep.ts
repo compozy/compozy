@@ -37,9 +37,15 @@ async function closeWhileForeign(close: () => Promise<boolean>, stillForeign: ()
 
 interface SweepRequest {
   epoch: number;
-  workspaceId: string;
+  /** The profile switched into, by name (the view, pinned agents) and id (labeled owners). */
+  profile: string;
   profileId: string;
-  profileName: string;
+}
+
+/** The partitions (projects, All projects, User) already swept for one switch. */
+interface SweptPartitions {
+  epoch: number;
+  partitions: Set<string>;
 }
 
 /** The desk is live for its binding: hydrated, attached, and fenced by its stream. */
@@ -49,32 +55,40 @@ function selectDeskLive(state: OsDesktopRuntimeStore): boolean {
   );
 }
 
+/** The switch is still the operator's current answer: no later switch, same profile in view. */
+function switchStillCurrent(request: SweepRequest): boolean {
+  const { switchEpoch, view } = profileViewStore.getSnapshot().context;
+  return (
+    switchEpoch === request.epoch && view?.kind === "profile" && view.profile === request.profile
+  );
+}
+
 /**
  * Closes another profile's windows when the operator switches into one profile.
  *
  * Desks belong to one profile, and under All profiles the client works on the destination's desk,
  * so sessions, terminals, pinned agents and automations of every profile opened there are stored
  * in it. A switch to that profile would leave them on screen, resolving under the wrong profile.
- * The switch is the moment they stop belonging: once the target desk is live, each window whose
- * item another profile owns closes through the normal close command, so it stays reopenable and
- * the other profile's own desk is untouched. The close is view-only: the operator's close guard
- * never runs, so another profile's running terminal leaves this desk without being terminated. Only an explicit switch triggers this; a deep link
- * opened while a profile is selected keeps its owner banner.
+ * The switch is the moment they stop belonging: each desk of the profile (every project, All
+ * projects, User) is swept the first time it is live after the switch, and each window whose item
+ * another profile owns closes through the normal close command, so it stays reopenable and the
+ * other profile's own desk is untouched. The close is view-only: the operator's close guard never
+ * runs, so another profile's running terminal leaves this desk without being terminated. Only an
+ * explicit switch triggers this; a deep link opened while a profile is selected keeps its banner.
  */
 export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: string | null) {
   const queryClient = useQueryClient();
   const scope = useProfileReadScope();
   const epoch = useProfileSwitchEpoch();
   const targetProfileId = scope.aggregate ? null : (scope.destinationOwner?.id ?? null);
-  const targetProfileName = scope.destination;
   const [seenEpoch, setSeenEpoch] = useState(epoch);
   const [request, setRequest] = useState<SweepRequest | null>(null);
   if (epoch !== seenEpoch) {
     setSeenEpoch(epoch);
     setRequest(
-      scope.aggregate || workspaceId === null
+      scope.view.kind === "aggregate"
         ? null
-        : { epoch, workspaceId, profileId: targetProfileId ?? "", profileName: targetProfileName }
+        : { epoch, profile: scope.view.profile, profileId: targetProfileId ?? "" }
     );
   }
   // The profile list can resolve the target's id after the switch commits.
@@ -82,7 +96,7 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
     setRequest({ ...request, profileId: targetProfileId });
   }
   const live = useAtom(shell.projection, selectDeskLive);
-  const started = useRef<SweepRequest | null>(null);
+  const swept = useRef<SweptPartitions | null>(null);
   const mounted = useRef(false);
 
   useEffect(() => {
@@ -93,34 +107,34 @@ export function useProfileSwitchWindowSweep(shell: OsShellHandle, workspaceId: s
   }, []);
 
   useEffect(() => {
-    if (request === null || request.profileId === "" || !live) return;
-    if (started.current === request || request.workspaceId !== workspaceId) return;
+    if (request === null || request.profileId === "" || !live || workspaceId === null) return;
     if (request.profileId !== targetProfileId) return;
+    const done = swept.current;
+    if (done?.epoch === request.epoch && done.partitions.has(workspaceId)) return;
     const { coordinator, manager } = shell;
     // The render saw the previous binding; the rebind in this commit is what has to be live.
     if (!selectDeskLive(manager.getState())) return;
-    started.current = request;
+    if (done?.epoch === request.epoch) done.partitions.add(workspaceId);
+    else swept.current = { epoch: request.epoch, partitions: new Set([workspaceId]) };
+    const partition = workspaceId;
     void (async () => {
       const foreign = await foreignProfileWindows(
         manager.getState().windows,
-        request.workspaceId,
-        { id: request.profileId, name: request.profileName },
+        partition,
+        { id: request.profileId, name: request.profile },
         profileItemOwnerLookup(queryClient)
       );
       for (const { windowId, item } of foreign) {
         // react-doctor-disable-next-line react-doctor/async-await-in-loop -- one close at a time is the point: the runtime's close guard admits a single close and refuses the rest while it is pending.
         await closeWhileForeign(
           () => coordinator.userClose(windowId, true),
-          // Any later view change, All profiles included, owns the desk now; the operator may have
-          // moved the window to another item, so only the inspected one licenses a close; and
-          // nothing retries after the shell unmounts.
+          // A later switch or a rolled-back one owns the desk now; the operator may have moved
+          // the window to another item (or to another desk, where its id is gone), so only the
+          // inspected one licenses a close; and nothing retries after the shell unmounts.
           () =>
             mounted.current &&
-            profileViewStore.getSnapshot().context.switchEpoch === request.epoch &&
-            sameShownItem(
-              shownProfileItem(manager.getState().windows[windowId], request.workspaceId),
-              item
-            )
+            switchStillCurrent(request) &&
+            sameShownItem(shownProfileItem(manager.getState().windows[windowId], partition), item)
         );
       }
     })();

@@ -1,6 +1,6 @@
 import type { AgentAvatarAppearance } from "@compozy/ui";
 
-import type { CreateAgentParams } from "../types";
+import type { CreateAgentParams, UpdateAgentParams } from "../types";
 
 interface AgentNameFields {
   displayName: string;
@@ -40,8 +40,17 @@ export function appearancePayload(
   appearance: AgentAvatarAppearance,
   colors: readonly string[]
 ): NonNullable<CreateAgentParams["agent"]["appearance"]> {
-  const color = appearance.color ?? autoAvatarColor(appearance, colors);
-  return { version: 1, ...appearance, color };
+  return { version: 1, ...withAutoAvatarColor(appearance, colors) };
+}
+
+/** The face as it will be saved: an Auto face shows the seeded color it saves with. */
+export function withAutoAvatarColor(
+  appearance: AgentAvatarAppearance,
+  colors: readonly string[]
+): AgentAvatarAppearance {
+  return appearance.color
+    ? appearance
+    : { ...appearance, color: autoAvatarColor(appearance, colors) };
 }
 
 /** Auto keeps a seeded color rather than one shared default, so new agents stay distinct. */
@@ -49,4 +58,20 @@ export function autoAvatarColor(appearance: AgentAvatarAppearance, colors: reado
   const key = appearance.avatar === "generated" ? appearance.seed : appearance.avatar;
   const hash = Array.from(key).reduce((sum, char) => (sum * 31 + char.charCodeAt(0)) >>> 0, 7);
   return colors[hash % colors.length] ?? "#7c5cff";
+}
+
+/** What the profile header edits in place: words as typed, the face as the picker shows it. */
+export interface AgentIdentityPatch {
+  display_name?: string;
+  description?: string;
+  appearance?: AgentAvatarAppearance;
+}
+
+/** The update fields for a header edit; a picked face goes out as the full saved block. */
+export function agentIdentityPatchPayload(
+  patch: AgentIdentityPatch,
+  colors: readonly string[]
+): Partial<UpdateAgentParams["agent"]> {
+  const { appearance, ...words } = patch;
+  return appearance ? { ...words, appearance: appearancePayload(appearance, colors) } : words;
 }

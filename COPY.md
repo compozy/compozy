@@ -237,7 +237,7 @@ The full enumeration of supported drivers lives in `packages/site/components/lan
 
 Linked work is the set of pull requests, branches and worktrees that belong to a session, separate from where its agent runs. The glossary entry **Linked Work** is authoritative. Nouns are `linked work`, `pull request` (`PR` in compact slots), `branch`, and `worktree`. "Linked" never means the session moved; "Runs here" is the only words for where it runs.
 
-- Header: the existing chip names the most urgent item; beside it "+{n} PRs" ("+1 PR") when the rest are all pull requests, "+{n} more" when they are not. A narrow head keeps an entry on the actions side, aria "{n} linked to this session".
+- Header: a single item keeps the existing chip; several read as one chip with the pull request icon, "{n} linked PRs" when all are pull requests and "{n} linked" when they are not, with a dot when an item needs you (accessible name adds "{n} needs you" / "{n} need you"); it opens the list. A narrow head keeps an entry on the actions side, aria "{n} linked to this session".
 - List: title "Linked work" with the count and the button "Link…". Groups "Needs you" · "In progress" · "Done" from five items, with "Show" / "Hide" on Done from seven, and from nine the filter "Filter by title, number or branch…" (empty: "Nothing matches" with "Try a number, a word from the title, or a branch."). The closing line reads "This session runs in {name}. Linking never moves it."
 - Row: the title, else the branch or worktree name; line two is one status, then the worktree, then only the exceptions: "Added by you" · "Added by {agent}" · "Worktree removed" · "Runs here" · "From {child session title}". Work the session made itself never says who added it. Status words are the board card's, then "{n} checks pending" · "Approved" · "Review required" · "No pull request yet" · "PR status unknown" with the cause.
 - A rolled-up item reads "From {child session title}", opens the child, and has no Unlink.
@@ -314,6 +314,14 @@ A session's child sessions are the rows nested under it in the session list; con
 - Checkbox: "Also archive {N} child session(s)", checked by default. In the delete dialogs "Also delete {N} child session(s)", unchecked by default because deletion cannot be undone. Subagents always follow an archived parent, so archive does not count them.
 - Failed count read: "Couldn't read child sessions." with "Try again". Archive reports the read error and does not run.
 
+### Session Move to Profile Terms
+
+A session's profile never changes; **Move to profile** copies it into another profile and archives the original. Never "transfer", "migrate", or "reassign" in UI copy.
+
+- Verb: "Move to profile" (row menu submenu of the other active profile names). Not offered for archived, subagent, or spawned sessions, or when no other active profile exists.
+- Dialog: title "Move to profile"; description "A copy with this conversation starts in {profile}. This session is archived here and keeps its history."; usage note "Usage so far stays counted in {current profile}."; worktree note "Its worktree moves too: the branch is checked out again for {profile}."; refusals "Stop this session before moving it." · "This session has child sessions. Make them top-level first.", and the daemon's own reason (for example uncommitted worktree changes) verbatim; pending "Moving the session…"; confirm "Move to {profile}".
+- Toast: "Moved to {profile}" with "The original is archived here."
+
 ### Session Later Terms
 
 **Later** parks a session the operator will come back to: it stops, leaves the normal lists and the board columns, and comes back on its own on an optional return date. The noun is always capitalized "Later"; never "snooze", "park", "shelve", "defer", or "backlog" in UI copy ("Parked {relative}" is the only use of "park", as a timestamp).
@@ -325,6 +333,13 @@ A session's child sessions are the rows nested under it in the session list; con
 - Needs you reason when the return date brought it back: "Back from Later".
 - Toasts: "{N} session(s) moved to Later", "{N} session(s) back from Later", "Couldn't move {N} session(s) to Later", "Couldn't bring {N} session(s) back from Later", per-session fallbacks "Failed to move session to Later." · "Failed to bring session back from Later."
 - Composer, an agent message for a parked session: "Queued — this session is in Later".
+
+### Mark as Seen Terms
+
+**Mark as seen** clears one occurrence of Needs you the operator has looked at: a turn that ended early, a return from Later, or a stopped session's failure. It never mutes the session; the next occurrence raises Needs you again. Never "dismiss", "snooze", "ignore", or "acknowledge" in UI copy.
+
+- Verb: "Mark as seen" (row `…` menu, context menu, Kanban card menu; header icon button with the same aria label and tooltip). It shows only while the daemon reports `attention_dismissible`; a pending answer, sign-in, or stop keeps its own control and never gets this verb.
+- Toast fallback: "Couldn't mark the session as seen."; a newer occurrence reads "session: attention changed before it was marked as seen: {id}"; daemon refusals read "session {id} needs you to answer its permission request / answer its question / sign in to its provider / stop its agent process / resolve the work signal it cannot check before it can be marked as seen".
 
 ### Model List Issue Terms
 

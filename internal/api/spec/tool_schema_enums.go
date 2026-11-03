@@ -90,6 +90,7 @@ func toolErrorCodeValues() []string {
 		string(tools.ErrorCodeSessionInLater),
 		string(tools.ErrorCodeSubagentLaterFollowsParent),
 		string(tools.ErrorCodeSessionLaterStopFailed),
+		string(tools.ErrorCodeAttentionRequiresAction),
 		string(tools.ErrorCodeAgentInstanceNotFound),
 		string(tools.ErrorCodeAgentInstanceStarting),
 		string(tools.ErrorCodeUnavailable),

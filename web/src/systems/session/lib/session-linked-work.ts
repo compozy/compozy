@@ -126,17 +126,38 @@ function moreCountLabel(rest: number, allPullRequests: boolean): string | null {
   return `+${rest} ${rest === 1 ? "PR" : "PRs"}`;
 }
 
-/** `+3 PRs` when everything past the lead is a pull request, `+3 more` when it is not. */
-export function moreLabel(items: readonly SessionLinkedWorkItem[]): string | null {
-  const lead = leadLink(items);
-  const rest = items.filter(item => item !== lead);
-  return moreCountLabel(
-    rest.length,
-    rest.every(item => linkNumber(item) !== null)
-  );
+/** How much is linked, for the header's one label when there is more than one item. */
+export interface LinkedWorkCount {
+  total: number;
+  /** Whether every item is a pull request, so the label can say PRs. */
+  allPullRequests: boolean;
+  needsYou: number;
 }
 
-/** The same label from the catalog summary, for rows and cards that never load the list. */
+export function linkCount(items: readonly SessionLinkedWorkItem[]): LinkedWorkCount {
+  return {
+    total: items.length,
+    allPullRequests: items.every(item => linkNumber(item) !== null),
+    needsYou: needsYouCount(items),
+  };
+}
+
+/** The same count from the catalog summary, before the list answers. */
+export function summaryLinkCount(summary: SessionLinkedWorkSummary): LinkedWorkCount {
+  return {
+    total: summary.total,
+    allPullRequests: summary.pull_requests === summary.total,
+    needsYou: summary.needs_you,
+  };
+}
+
+/** `8 linked PRs` when every item is a pull request, `8 linked` when one is not. */
+export function linkedCountLabel({ total, allPullRequests }: LinkedWorkCount): string {
+  if (!allPullRequests) return `${total} linked`;
+  return `${total} linked ${total === 1 ? "PR" : "PRs"}`;
+}
+
+/** `+3 PRs` past the catalog summary's lead, `+3 more` when the rest are not all pull requests. */
 export function summaryMoreLabel(summary: SessionLinkedWorkSummary): string | null {
   const rest = summary.total - 1;
   const leadIsPullRequest = summary.lead ? linkNumber(summary.lead) !== null : false;

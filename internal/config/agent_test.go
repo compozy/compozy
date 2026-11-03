@@ -1952,6 +1952,31 @@ func TestAgentIdentityContract(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	t.Run("Should accept every appearance the web editors save [#1204]", func(t *testing.T) {
+		t.Parallel()
+		for name, a := range map[string]map[string]any{
+			"generated face with a color": {"version": 1, "avatar": "generated", "seed": "issue-watch.3", "generation": 1, "color": "#2aa8a8"},
+			"icon on its plate":           {"version": 1, "avatar": "icon", "icon": "radar", "color": "#7c5cff"},
+			"icon on an explicit plate":   {"version": 1, "avatar": "icon", "icon": "radar", "color": "#7c5cff", "background": "plate"},
+			"icon with no background":     {"version": 1, "avatar": "icon", "icon": "radar", "color": "#7c5cff", "background": "none"},
+			"emoji with no background":    {"version": 1, "avatar": "emoji", "emoji": "🦊", "color": "#e5484d", "background": "none"},
+			"version decoded as float":    {"version": 1.0, "avatar": "emoji", "emoji": "🦊", "color": "#e5484d"},
+		} {
+			if err := ValidateAgentAppearance(a); err != nil {
+				t.Errorf("%s: ValidateAgentAppearance(%#v) = %v", name, a, err)
+			}
+		}
+		for name, a := range map[string]map[string]any{
+			"missing version":           {"avatar": "icon", "icon": "radar", "color": "#7c5cff"},
+			"missing color":             {"version": 1, "avatar": "generated", "seed": "issue-watch", "generation": 1},
+			"unknown background":        {"version": 1, "avatar": "icon", "icon": "radar", "color": "#7c5cff", "background": "glass"},
+			"generated without a plate": {"version": 1, "avatar": "generated", "seed": "s", "generation": 1, "color": "#7c5cff", "background": "none"},
+		} {
+			if !errors.Is(ValidateAgentAppearance(a), ErrAgentAppearanceInvalid) {
+				t.Errorf("%s: ValidateAgentAppearance(%#v) accepted", name, a)
+			}
+		}
+	})
 	t.Run("Should refuse kind mutation without changing the file", func(t *testing.T) {
 		t.Parallel()
 		path := filepath.Join(t.TempDir(), "AGENT.md")

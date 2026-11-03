@@ -31,16 +31,23 @@ func (m *Manager) publishAttentionCommit(
 	after := *info
 	applyAttentionToInfo(&before, commit.Before)
 	applyAttentionToInfo(&after, commit.After)
-
-	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, &after))
-	from, to := BadgeForInfo(&before), BadgeForInfo(&after)
-	if from == to {
-		return
+	if to, changed := m.publishAttentionEdge(ctx, &before, &after); changed {
+		m.dispatchSpawnWake(ctx, &after, to)
 	}
-	m.publishSubagentLifecycleEdge(ctx, &before, &after)
+}
+
+// publishAttentionEdge publishes the catalog row and, when the badge changed, the
+// canonical attention edge with its hooks. Creator wakes stay with the caller.
+func (m *Manager) publishAttentionEdge(ctx context.Context, before *Info, after *Info) (Badge, bool) {
+	m.publishSessionCatalogEvent(sessionCatalogEventFromInfo(CatalogEventUpserted, after))
+	from, to := BadgeForInfo(before), BadgeForInfo(after)
+	if from == to {
+		return to, false
+	}
+	m.publishSubagentLifecycleEdge(ctx, before, after)
 	at := m.now().UTC()
-	if commit.After.AttentionChangedAt != nil {
-		at = commit.After.AttentionChangedAt.UTC()
+	if after.AttentionChangedAt != nil {
+		at = after.AttentionChangedAt.UTC()
 	}
 	event := AttentionEvent{
 		SessionID:   strings.TrimSpace(after.ID),
@@ -51,12 +58,12 @@ func (m *Manager) publishAttentionCommit(
 		Class:       ClassForBadge(to),
 		At:          at,
 	}
-	m.publishWaitBadgeEdge(&after, to)
-	if !isInternalVerificationSession(&after) {
+	m.publishWaitBadgeEdge(after, to)
+	if !isInternalVerificationSession(after) {
 		m.publishSessionCatalogEvent(sessionAttentionCatalogEvent(event))
 	}
-	m.dispatchSessionAttentionChanged(ctx, &after, event)
-	m.dispatchSpawnWake(ctx, &after, to)
+	m.dispatchSessionAttentionChanged(ctx, after, event)
+	return to, true
 }
 
 func sessionAttentionProjectionEqual(left, right store.SessionAttention) bool {
@@ -67,7 +74,8 @@ func sessionAttentionProjectionEqual(left, right store.SessionAttention) bool {
 		left.LastSeenRevision == right.LastSeenRevision &&
 		timePointersEqual(left.LastSeenAt, right.LastSeenAt) &&
 		timePointersEqual(left.AttentionChangedAt, right.AttentionChangedAt) &&
-		left.EndedEarlyTurnID == right.EndedEarlyTurnID
+		left.EndedEarlyTurnID == right.EndedEarlyTurnID &&
+		timePointersEqual(left.FailureSeenAt, right.FailureSeenAt)
 }
 
 func timePointersEqual(left, right *time.Time) bool {
@@ -119,6 +127,7 @@ func applyAttentionToInfo(info *Info, projection store.SessionAttention) {
 	info.LastSeenAt = cloneTimePointer(projection.LastSeenAt)
 	info.AttentionChangedAt = cloneTimePointer(projection.AttentionChangedAt)
 	info.EndedEarlyTurnID = projection.EndedEarlyTurnID
+	info.FailureSeenAt = cloneTimePointer(projection.FailureSeenAt)
 	info.PendingPermission = projection.PendingPermissionCount > 0
 }
 

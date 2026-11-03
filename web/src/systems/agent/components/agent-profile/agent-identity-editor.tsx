@@ -28,6 +28,7 @@ import {
 import { useThemePreference } from "@/systems/theme";
 
 import { nextAgentAvatarSeed } from "../../lib/agent-avatar-seed";
+import { withAutoAvatarColor } from "../../lib/agent-create-identity";
 import { AgentMark } from "../agent-mark";
 
 type AvatarMode = "generated" | "symbol";
@@ -38,6 +39,19 @@ const MODE_ITEMS = [
 ];
 
 const SYMBOL_COLOR = "#2aa8a8";
+
+/**
+ * A pending pick shows the color it will save with, so an Auto pick doesn't change color on save.
+ * The saved face stays as every other view draws it: a default face keeps its seed-chosen hue.
+ */
+function previewFace(appearance: AgentAvatarAppearance, pending: boolean) {
+  return pending
+    ? withAutoAvatarColor(
+        appearance,
+        PROFILE_IDENTITY_SWATCHES.map(swatch => swatch.value)
+      )
+    : appearance;
+}
 
 interface PaneProps {
   appearance: AgentAvatarAppearance;
@@ -50,14 +64,20 @@ function generated(seed: string, color: string | undefined): AgentAvatarAppearan
   return { avatar: "generated", seed, generation: 1, ...(color ? { color } : {}) };
 }
 
-function GeneratedPane({ appearance, name, label, onPick }: PaneProps) {
+function GeneratedPane({
+  appearance,
+  name,
+  label,
+  onPick,
+  pending,
+}: PaneProps & { pending: boolean }) {
   const seed = appearance.avatar === "generated" ? appearance.seed : name;
   const { color } = appearance;
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3 rounded-md bg-sunken p-3">
         <AgentMark
-          appearance={generated(seed, color)}
+          appearance={previewFace(generated(seed, color), pending)}
           label={label}
           quietIdle
           size={48}
@@ -159,7 +179,7 @@ export function AgentAvatarEditor({
   const current = picked ?? appearance;
   const avatar = (
     <AgentMark
-      appearance={current}
+      appearance={previewFace(current, picked !== null)}
       label={label}
       provider={provider}
       quietIdle
@@ -192,7 +212,13 @@ export function AgentAvatarEditor({
       <PopoverContent align="start" className="flex w-96 flex-col gap-3">
         <PillGroup items={MODE_ITEMS} onChange={setMode} size="md" value={mode} />
         {mode === "generated" ? (
-          <GeneratedPane appearance={current} label={label} name={name} onPick={setPicked} />
+          <GeneratedPane
+            appearance={current}
+            label={label}
+            name={name}
+            onPick={setPicked}
+            pending={picked !== null}
+          />
         ) : (
           <SymbolPane appearance={current} onPick={setPicked} />
         )}

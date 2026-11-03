@@ -180,6 +180,7 @@ function renderList(
     onMoveToLaterMany: vi.fn(),
     onBackFromLater: vi.fn(),
     onBackFromLaterMany: vi.fn(),
+    onMarkSeen: vi.fn(),
     onDeleteMany: vi.fn(),
     ...overrides.actions,
   };
@@ -1488,6 +1489,41 @@ describe("SessionList Later", () => {
   });
 });
 
+// Invariant (#1202): a row whose Needs you the daemon can clear offers Mark as seen; a row
+// that still waits on an answer keeps its badge and gets no such verb.
+// Owner: SessionList row menu (shared with the Kanban card and the context menu).
+describe("SessionList Mark as seen", () => {
+  it("Should offer Mark as seen only while the daemon says the Needs you can be cleared", async () => {
+    const user = userEvent.setup();
+    const endedEarly: SessionPayload = {
+      ...primarySessionFixture,
+      id: "ended-early",
+      name: "Ended early",
+      badge: "needs-attention",
+      attention: "ended_early",
+      attention_dismissible: true,
+    };
+    const asking: SessionPayload = {
+      ...primarySessionFixture,
+      id: "asking",
+      name: "Asking",
+      badge: "waiting-for-input",
+      attention_dismissible: false,
+    };
+    const { actions } = renderList({ sessions: [endedEarly, asking] });
+
+    await user.click(screen.getByTestId("session-row-actions-ended-early"));
+    const markSeen = await screen.findByTestId("session-row-mark-seen-ended-early");
+    expect(markSeen).toHaveTextContent("Mark as seen");
+    await user.click(markSeen);
+    expect(actions.onMarkSeen).toHaveBeenCalledExactlyOnceWith(endedEarly);
+
+    await user.click(screen.getByTestId("session-row-actions-asking"));
+    expect(await screen.findByTestId("session-row-rename-asking")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-row-mark-seen-asking")).not.toBeInTheDocument();
+  });
+});
+
 // Invariant: both row menus copy the session's CompozyOS ID and its shown title, and the
 // selection menu copies every selected ID, and say so.
 describe("SessionList row copy actions", () => {
@@ -1902,7 +1938,11 @@ describe("SessionList folders and manual order", () => {
     const { layout, onNewSession } = renderLayout();
     await user.click(screen.getByTestId("session-sidebar-new"));
     const items = await screen.findAllByRole("menuitem");
-    expect(items.map(item => item.textContent)).toEqual(["New session", "New folder"]);
+    expect(items.map(item => item.textContent)).toEqual([
+      "New session",
+      "New folder",
+      "Add stays-on agentStays here and checks in on its own",
+    ]);
     await user.click(screen.getByRole("menuitem", { name: "New session" }));
     expect(onNewSession).toHaveBeenCalledWith();
 
@@ -2961,6 +3001,20 @@ describe("SessionList breadth and Group by", () => {
     expect(toggleGroup).not.toHaveBeenCalled();
   });
 
+  // Invariant: the toolbar + offers Add stays-on agent in any grouping, and a list spanning
+  // several projects asks where the agent lives first (#1181).
+  it("Should offer Add stays-on agent from the toolbar + of a grouped All projects list", async () => {
+    const user = userEvent.setup();
+    renderList({ sessions: [], view: grouped() });
+
+    await user.click(screen.getByTestId("session-sidebar-new"));
+    await user.click(await screen.findByTestId("session-sidebar-add-stays-on"));
+
+    for (const place of ["Global", "Alpha", "Beta"]) {
+      expect(await screen.findByRole("option", { name: new RegExp(place) })).toBeInTheDocument();
+    }
+  });
+
   it("Should ask which profile a group + New folder belongs to under All profiles", async () => {
     const user = userEvent.setup();
     const groups = projectSessionGroups(
@@ -3267,7 +3321,7 @@ describe("SessionList loading", () => {
     expect(screen.queryByText(/^No sessions/)).not.toBeInTheDocument();
     // The rail's own controls are real and already usable while its rows load.
     expect(screen.getByRole("searchbox", { name: "Filter sessions" })).toBeEnabled();
-    expect(screen.getByTestId("session-sidebar-new-session")).toBeEnabled();
+    expect(screen.getByTestId("session-sidebar-new")).toBeEnabled();
 
     update(sessions, { ...view, catalog: sessionListCatalogFixture({ sessions }) });
 

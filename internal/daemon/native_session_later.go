@@ -30,6 +30,7 @@ func (n *daemonNativeTools) sessionLaterToolBindings(
 	return map[toolspkg.ToolID]nativeToolBinding{
 		toolspkg.ToolIDSessionLater:       {call: n.sessionLater, availability: catalogAvailability},
 		toolspkg.ToolIDSessionResumeLater: {call: n.sessionResumeLater, availability: catalogAvailability},
+		toolspkg.ToolIDSessionMarkSeen:    {call: n.sessionMarkSeen, availability: catalogAvailability},
 	}
 }
 

@@ -1232,6 +1232,43 @@ func TestBaseHandlersSessionEndpoints(t *testing.T) {
 		}
 	})
 
+	t.Run("Should mark Needs you as seen and refuse a session waiting on an answer", func(t *testing.T) {
+		previous := fixture.Handlers.Sessions
+		later := &laterHandlerSessionManager{StubSessionManager: *manager, now: now}
+		fixture.Handlers.Sessions = later
+		defer func() { fixture.Handlers.Sessions = previous }()
+		seen := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/mark-seen", nil,
+		)
+		if seen.Code != http.StatusOK {
+			t.Fatalf("mark-seen status = %d body=%s, want %d", seen.Code, seen.Body.String(), http.StatusOK)
+		}
+		var marked contract.SessionResponse
+		if err := json.Unmarshal(seen.Body.Bytes(), &marked); err != nil {
+			t.Fatalf("json.Unmarshal(mark-seen response) error = %v", err)
+		}
+		if marked.Session.Badge != session.BadgeStopped || marked.Session.AttentionDismissible {
+			t.Fatalf("mark-seen session = %#v, want a stopped session with nothing left to dismiss", marked.Session)
+		}
+		later.seenRefusal = session.AttentionBlockerPendingClarify
+		refused := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/mark-seen", nil,
+		)
+		if refused.Code != http.StatusConflict ||
+			!strings.Contains(refused.Body.String(), "attention_requires_action") ||
+			!strings.Contains(refused.Body.String(), "answer its question") {
+			t.Fatalf("mark-seen(refused) = %d %s, want 409 attention_requires_action", refused.Code, refused.Body)
+		}
+		later.seenRefusal = session.AttentionBlockerNone
+		later.seenErr = fmt.Errorf("%w: sess-a", session.ErrAttentionChanged)
+		changed := performRequest(
+			t, fixture.Engine, http.MethodPost, "/workspaces/ws-workspace/sessions/sess-a/mark-seen", nil,
+		)
+		if changed.Code != http.StatusConflict || !strings.Contains(changed.Body.String(), "attention_changed") {
+			t.Fatalf("mark-seen(changed) = %d %s, want 409 attention_changed", changed.Code, changed.Body)
+		}
+	})
+
 	t.Run("Should attach sessions", func(t *testing.T) {
 		attachResp := performRequest(
 			t,
@@ -2015,6 +2052,80 @@ func TestSessionParentHandlers(t *testing.T) {
 		assertAPIErrorResponse(t, response, http.StatusBadRequest, "parent")
 		if adoptCalls != before {
 			t.Fatalf("AdoptSession() calls = %d, want %d", adoptCalls, before)
+		}
+	})
+}
+
+func TestSessionMoveToProfileHandler(t *testing.T) {
+	t.Parallel()
+
+	base := testutil.NewSessionInfo("sess-move")
+	base.ProfileID = store.DefaultProfileID
+	base.WorkspaceID = "ws-move"
+	base.Type = session.SessionTypeUser
+	moveCalls := 0
+	manager := &testutil.StubSessionManager{
+		ListAllFn: func(context.Context) ([]*session.Info, error) {
+			return []*session.Info{base}, nil
+		},
+		MoveToProfileFn: func(_ context.Context, opts session.MoveToProfileOpts) (session.MoveToProfileResult, error) {
+			moveCalls++
+			if opts.WorkspaceID != base.WorkspaceID || opts.SessionID != base.ID ||
+				opts.ProfileID != store.DefaultProfileID || opts.TargetProfileID != "profile-marketing" {
+				t.Fatalf("MoveToProfile() opts = %#v", opts)
+			}
+			if moveCalls == 2 {
+				return session.MoveToProfileResult{}, &session.ProfileMoveError{
+					Reason: session.ProfileMoveRefusalHasChildren, Message: "session has 1 child session(s)",
+				}
+			}
+			copied := *base
+			copied.ID, copied.ProfileID, copied.WorktreeID = "sess-copy", "profile-marketing", "wt-new"
+			original := *base
+			original.ArchivedAt = new(time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC))
+			return session.MoveToProfileResult{
+				Copy: &copied, Original: &original, WorktreeID: "wt-new", Branch: "feat/move",
+			}, nil
+		},
+	}
+	fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, testutil.StubWorkspaceService{})
+	fixture.Handlers.Profiles = sessionProfileServiceStub{}
+	const path = "/workspaces/ws-move/sessions/sess-move/move-to-profile"
+
+	t.Run("Should return the copy in the target profile and the archived original", func(t *testing.T) {
+		response := performRequest(t, fixture.Engine, http.MethodPost, path, []byte(`{"target_profile":"marketing"}`))
+		if response.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d; body=%s", response.Code, http.StatusOK, response.Body.String())
+		}
+		var payload contract.MoveSessionToProfileResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if payload.Session.ID != "sess-copy" || payload.Original.ID != base.ID ||
+			payload.Original.ArchivedAt == nil || payload.WorktreeID != "wt-new" || payload.Branch != "feat/move" {
+			t.Fatalf("move response = %#v", payload)
+		}
+	})
+
+	t.Run("Should map a move refusal to a coded conflict", func(t *testing.T) {
+		response := performRequest(t, fixture.Engine, http.MethodPost, path, []byte(`{"target_profile":"marketing"}`))
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("json.Unmarshal() error = %v", err)
+		}
+		if response.Code != http.StatusConflict || payload.Code != "session_move_to_profile_has_children" {
+			t.Fatalf("refusal = %d %#v, want 409 session_move_to_profile_has_children", response.Code, payload)
+		}
+	})
+
+	t.Run("Should reject unknown request fields before moving", func(t *testing.T) {
+		before := moveCalls
+		response := performRequest(
+			t, fixture.Engine, http.MethodPost, path, []byte(`{"target_profile":"marketing","profile":"x"}`),
+		)
+		assertAPIErrorResponse(t, response, http.StatusBadRequest, "profile")
+		if moveCalls != before {
+			t.Fatalf("MoveToProfile() calls = %d, want %d", moveCalls, before)
 		}
 	})
 }
@@ -6489,6 +6600,23 @@ type laterHandlerSessionManager struct {
 	testutil.StubSessionManager
 	now          time.Time
 	withChildren []bool
+	seenRefusal  session.AttentionBlocker
+	seenErr      error
+}
+
+func (s *laterHandlerSessionManager) MarkAttentionSeen(_ context.Context, id string) (*session.Info, error) {
+	if s.seenRefusal != session.AttentionBlockerNone {
+		return nil, &session.AttentionRequiresActionError{SessionID: id, Blocker: s.seenRefusal}
+	}
+	if s.seenErr != nil {
+		return nil, s.seenErr
+	}
+	info := testutil.NewSessionInfo(id)
+	info.ProfileID = store.DefaultProfileID
+	info.State = session.StateStopped
+	info.Failure = &store.SessionFailure{Kind: store.FailureProcess}
+	info.FailureSeenAt = new(s.now)
+	return info, nil
 }
 
 func (s *laterHandlerSessionManager) MoveToLater(

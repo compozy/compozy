@@ -215,6 +215,7 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 			EndedEarlyTurnID:       info.EndedEarlyTurnID,
 			Later:                  store.CloneSessionLater(info.Later),
 			LaterReturnedAt:        cloneTimePointer(info.LaterReturnedAt),
+			FailureSeenAt:          cloneTimePointer(info.FailureSeenAt),
 		},
 		ArchivedAt: cloneTimePointer(info.ArchivedAt),
 		CreatedAt:  info.CreatedAt,
