@@ -40,11 +40,12 @@ func (h *BaseHandlers) logServerError(c *gin.Context, status int, err error) {
 		return
 	}
 	cause := err
+	originalStatus := normalizeErrorStatus(status, err, false).status
 	status, err = requestErrorStatus(c, status, err)
 	status = normalizeErrorStatus(status, err, false).status
 	level := slog.LevelError
 	if status < http.StatusInternalServerError {
-		if status != statusClientClosedRequest || errors.Is(cause, context.Canceled) {
+		if status != statusClientClosedRequest || originalStatus < http.StatusInternalServerError {
 			return
 		}
 		level = slog.LevelWarn
@@ -60,7 +61,7 @@ func (h *BaseHandlers) logServerError(c *gin.Context, status int, err error) {
 	}
 	logger.Log(
 		ctx, level, "api: request failed",
-		"method", method, "path", path, "status", status,
+		"method", method, "path", path, "status", status, "original_status", originalStatus,
 		handlersErrorKey, diagnostics.RedactAndBound(cause.Error(), 2048),
 	)
 }
