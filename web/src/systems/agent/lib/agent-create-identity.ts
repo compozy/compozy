@@ -40,8 +40,17 @@ export function appearancePayload(
   appearance: AgentAvatarAppearance,
   colors: readonly string[]
 ): NonNullable<CreateAgentParams["agent"]["appearance"]> {
-  const color = appearance.color ?? autoAvatarColor(appearance, colors);
-  return { version: 1, ...appearance, color };
+  return { version: 1, ...withAutoAvatarColor(appearance, colors) };
+}
+
+/** The face as it will be saved: an Auto face shows the seeded color it saves with. */
+export function withAutoAvatarColor(
+  appearance: AgentAvatarAppearance,
+  colors: readonly string[]
+): AgentAvatarAppearance {
+  return appearance.color
+    ? appearance
+    : { ...appearance, color: autoAvatarColor(appearance, colors) };
 }
 
 /** Auto keeps a seeded color rather than one shared default, so new agents stay distinct. */

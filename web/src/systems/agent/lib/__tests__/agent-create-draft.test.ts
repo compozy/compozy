@@ -11,7 +11,11 @@ import {
   type AgentCreateDialogDraft,
   type AgentCreateValidationContext,
 } from "../agent-create-draft";
-import { agentIdentityPatchPayload, type AgentIdentityPatch } from "../agent-create-identity";
+import {
+  agentIdentityPatchPayload,
+  withAutoAvatarColor,
+  type AgentIdentityPatch,
+} from "../agent-create-identity";
 import type { AgentPayload } from "../../types";
 
 const providerOptions: readonly RuntimeProviderOption[] = [{ id: "codex", name: "Codex" }];
@@ -313,6 +317,11 @@ describe("profile identity patch mapping", () => {
       generation: 1,
       color: expect.stringMatching(/^#[0-9a-f]{6}$/u),
     });
+  });
+
+  it("Should save an Auto face with the color its preview shows", () => {
+    const face = { avatar: "generated", seed: "issue-watch.4", generation: 1 } as const;
+    expect(saved(face)?.color).toBe(withAutoAvatarColor(face, colors).color);
   });
 
   it.each([

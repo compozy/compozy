@@ -963,7 +963,7 @@ func TestNativeInstanceCheckIns(t *testing.T) {
 func TestInstanceDefinitionPaths(t *testing.T) {
 	t.Run("Should retain every resolved workspace directory in the instance ceiling", func(t *testing.T) {
 		t.Parallel()
-		definitions, resolver := newInstanceDefinitionsFixture(t, compozyconfig.AgentDef{})
+		definitions, resolver := newInstanceDefinitionsFixture(t, nil)
 		definition, err := definitions.InstanceDefinition(
 			t.Context(),
 			store.DefaultProfileID,
@@ -988,9 +988,10 @@ func TestInstanceDefinitionPaths(t *testing.T) {
 	})
 	t.Run("Should read an instance whose definition saved an unsupported appearance [#1204]", func(t *testing.T) {
 		t.Parallel()
-		definitions, _ := newInstanceDefinitionsFixture(t, compozyconfig.AgentDef{
-			Appearance: map[string]any{"version": 1, "avatar": "icon", "icon": "radar"},
-		})
+		definitions, _ := newInstanceDefinitionsFixture(
+			t,
+			map[string]any{"version": 1, "avatar": "icon", "icon": "radar"},
+		)
 		payload := contract.AgentInstancePayload{}
 		err := definitions.projectInstanceDefinition(
 			t.Context(),
@@ -1014,7 +1015,7 @@ func TestInstanceDefinitionPaths(t *testing.T) {
 // lookup with a stays-on definition carrying the given appearance.
 func newInstanceDefinitionsFixture(
 	t *testing.T,
-	identity compozyconfig.AgentDef,
+	appearance map[string]any,
 ) (instanceDefinitions, *workspacepkg.Resolver) {
 	t.Helper()
 	db := openDaemonTestGlobalDB(t)
@@ -1064,7 +1065,7 @@ func newInstanceDefinitionsFixture(
 					Kind:       "stays_on",
 					Provider:   "claude",
 					Prompt:     "Review work.",
-					Appearance: identity.Appearance,
+					Appearance: appearance,
 				}, nil
 			},
 		),

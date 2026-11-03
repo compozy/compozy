@@ -85,7 +85,10 @@ func (a AgentDef) ResolveAppearance() (map[string]any, error) {
 	if err := ValidateAgentAppearance(a.Appearance); err != nil {
 		return a.defaultAppearance(), err
 	}
-	return a.AppearanceOrDefault(), nil
+	if a.Appearance == nil {
+		return a.defaultAppearance(), nil
+	}
+	return CloneAgentAppearance(a.Appearance), nil
 }
 
 // AppearanceOrDefault is the face reads draw: the saved block when valid, otherwise the

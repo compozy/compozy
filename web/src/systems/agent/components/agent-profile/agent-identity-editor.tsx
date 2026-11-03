@@ -28,6 +28,7 @@ import {
 import { useThemePreference } from "@/systems/theme";
 
 import { nextAgentAvatarSeed } from "../../lib/agent-avatar-seed";
+import { withAutoAvatarColor } from "../../lib/agent-create-identity";
 import { AgentMark } from "../agent-mark";
 
 type AvatarMode = "generated" | "symbol";
@@ -38,6 +39,9 @@ const MODE_ITEMS = [
 ];
 
 const SYMBOL_COLOR = "#2aa8a8";
+
+/** The swatches an Auto face draws its saved color from, the same list the save uses. */
+const AVATAR_COLORS = () => PROFILE_IDENTITY_SWATCHES.map(swatch => swatch.value);
 
 interface PaneProps {
   appearance: AgentAvatarAppearance;
@@ -57,7 +61,7 @@ function GeneratedPane({ appearance, name, label, onPick }: PaneProps) {
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-3 rounded-md bg-sunken p-3">
         <AgentMark
-          appearance={generated(seed, color)}
+          appearance={withAutoAvatarColor(generated(seed, color), AVATAR_COLORS())}
           label={label}
           quietIdle
           size={48}
@@ -159,7 +163,7 @@ export function AgentAvatarEditor({
   const current = picked ?? appearance;
   const avatar = (
     <AgentMark
-      appearance={current}
+      appearance={withAutoAvatarColor(current, AVATAR_COLORS())}
       label={label}
       provider={provider}
       quietIdle
