@@ -26,8 +26,10 @@ var (
 	ErrAgentKindInvalid        = errors.New("agent kind must be on_demand or stays_on")
 	ErrAgentDisplayNameInvalid = errors.New("display names can have up to 80 characters")
 	ErrAgentDescriptionInvalid = errors.New("descriptions can have up to 280 characters")
-	ErrAgentAppearanceInvalid  = errors.New("appearance needs a `#rrggbb` color and one icon or emoji")
-	agentColorPattern          = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+	ErrAgentAppearanceInvalid  = errors.New(
+		"appearance needs version 1, a `#rrggbb` color, and a generated face, one icon, or one emoji",
+	)
+	agentColorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 )
 
 func (a AgentDef) EffectiveKind() string {
@@ -77,14 +79,25 @@ func cloneAppearanceValue(value any) any {
 	}
 }
 
+// ResolveAppearance returns the face to draw and, for an unsupported saved block, the reason
+// it fell back to the default face. Callers with a diagnostics channel report the error.
 func (a AgentDef) ResolveAppearance() (map[string]any, error) {
-	if a.Appearance != nil {
-		if err := ValidateAgentAppearance(a.Appearance); err != nil {
-			return a.defaultAppearance(), err
-		}
-		return CloneAgentAppearance(a.Appearance), nil
+	if err := ValidateAgentAppearance(a.Appearance); err != nil {
+		return a.defaultAppearance(), err
 	}
-	return a.defaultAppearance(), nil
+	if a.Appearance == nil {
+		return a.defaultAppearance(), nil
+	}
+	return CloneAgentAppearance(a.Appearance), nil
+}
+
+// AppearanceOrDefault is the face reads draw: the saved block when valid, otherwise the
+// default face. It never fails, so an unsupported appearance cannot make an agent unreadable.
+func (a AgentDef) AppearanceOrDefault() map[string]any {
+	if a.Appearance == nil || ValidateAgentAppearance(a.Appearance) != nil {
+		return a.defaultAppearance()
+	}
+	return CloneAgentAppearance(a.Appearance)
 }
 
 func (a AgentDef) defaultAppearance() map[string]any {
@@ -118,7 +131,7 @@ func ValidateAgentAppearance(a map[string]any) error {
 	}
 	icon := agentAppearanceString(a["icon"])
 	emoji := agentAppearanceString(a["emoji"])
-	if icon != "" && emoji != "" {
+	if icon != "" && emoji != "" || !validAppearanceBackground(a) {
 		return ErrAgentAppearanceInvalid
 	}
 	switch a["avatar"] {
@@ -139,6 +152,23 @@ func ValidateAgentAppearance(a map[string]any) error {
 		return ErrAgentAppearanceInvalid
 	}
 	return nil
+}
+
+// validAppearanceBackground accepts the optional icon/emoji plate choice: unset or "plate"
+// keeps the tinted plate, "none" draws the symbol alone in its color.
+func validAppearanceBackground(a map[string]any) bool {
+	value, ok := a["background"]
+	if !ok {
+		return true
+	}
+	switch value {
+	case "plate":
+		return true
+	case "none":
+		return a["avatar"] == "icon" || a["avatar"] == "emoji"
+	default:
+		return false
+	}
 }
 
 //go:embed lucide_icons.gen.txt
