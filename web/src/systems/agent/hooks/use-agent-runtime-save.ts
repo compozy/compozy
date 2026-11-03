@@ -53,6 +53,19 @@ export function describeError(fallback: string, error: unknown): string {
   return error instanceof Error && error.message.trim().length > 0 ? error.message : fallback;
 }
 
+/** What the row shows: the latest choice while it saves, else server truth. */
+function runtimeView(agent: AgentPayload | undefined, pending: Intended | null) {
+  const value: RuntimeSelectorValue = pending?.value ?? resolveAgentRuntimeValue(agent);
+  const speed: RuntimeSpeed =
+    pending?.speed ?? agent?.effective_runtime?.speed ?? agent?.speed ?? "normal";
+  if (pending) return { value, speed, overridden: pending.value !== null };
+  const overridden = agent ? hasAgentRuntimeOverride(buildSettingsDraftFromAgent(agent)) : false;
+  return { value, speed, overridden };
+}
+
+const speedNotice = (next: RuntimeSpeed) =>
+  next === "fast" ? "Fast turned on" : "Fast turned off";
+
 /**
  * Immediate saves for the agent's runtime. Shows the latest choice while it saves; a choice made
  * during a save applies on the saved definition of the same agent, and a failed save restores
@@ -77,14 +90,7 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
   const notice = useRef(new Map<string, string>());
 
   const pending = intended[key] ?? null;
-  const serverValue = resolveAgentRuntimeValue(agent);
-  const value: RuntimeSelectorValue = pending?.value ?? serverValue;
-  const speed = pending?.speed ?? agent?.effective_runtime?.speed ?? agent?.speed ?? "normal";
-  const overridden = pending
-    ? pending.value !== null
-    : agent
-      ? hasAgentRuntimeOverride(buildSettingsDraftFromAgent(agent))
-      : false;
+  const { value, speed, overridden } = runtimeView(agent, pending);
   const shown = feedback[key] ?? null;
 
   const settle = (owner: string) => setIntended(current => without(current, owner));
@@ -147,6 +153,10 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
     );
   };
 
+  const reload = () => {
+    if (agent) reread(key, agentKeys.detail(agent.name, cacheWorkspace, destination));
+  };
+
   const choose = (
     next: Intended["value"],
     nextSpeed: RuntimeSpeed,
@@ -178,8 +188,7 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
     speed,
     overridden,
     onChange,
-    onSpeedChange: (next: RuntimeSpeed) =>
-      choose(value, next, { speed: next }, next === "fast" ? "Fast turned on" : "Fast turned off"),
+    onSpeedChange: (next: RuntimeSpeed) => choose(value, next, { speed: next }, speedNotice(next)),
     // The server resolves the default's speed, so the current one stays until the reread.
     onUseDefault: () => choose(null, speed, DEFAULT_RUNTIME, "Back to your default"),
     /** A return to the default or a conflict reread is running or failed; picks wait for it. */
@@ -187,10 +196,7 @@ export function useAgentRuntimeSave(agent: AgentPayload | undefined) {
     error: shown?.error ?? null,
     conflictMessage: shown?.conflict ?? null,
     /** Retries a failed conflict reread; null when nothing needs it. */
-    onReload:
-      shown?.reread === "failed" && agent
-        ? () => reread(key, agentKeys.detail(agent.name, cacheWorkspace, destination))
-        : null,
+    onReload: shown?.reread === "failed" ? reload : null,
     onDismissError: () => report(key, null),
   };
 }
