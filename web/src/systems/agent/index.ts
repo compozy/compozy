@@ -52,6 +52,11 @@ export { AgentStartingInstructions } from "./components/agent-editors/agent-star
 export { AgentWhatItDoesEditor } from "./components/agent-editors/agent-what-it-does-editor";
 
 // Adapters
+export {
+  AgentSkillReviewApiError,
+  isSkillReviewStale,
+  type AgentSkillReviewRef,
+} from "./adapters/agent-skill-review-api";
 export { AgentInstanceApiError } from "./adapters/agent-instance-api";
 export {
   AgentApiError,
@@ -101,7 +106,15 @@ export {
   agentSoulHistoryOptions,
   agentSoulOptions,
   agentsListOptions,
+  agentSkillReviewOptions,
 } from "./lib/query-options";
+export { useAgentSkillReview, type AgentSkillReviewView } from "./hooks/use-agent-skill-review";
+export { AgentSkillViewerDialog } from "./components/skill-review/agent-skill-viewer-dialog";
+export type {
+  SkillAutomaticItem,
+  SkillAutomaticKind,
+  SkillReviewFile,
+} from "./lib/agent-skill-review";
 
 // Lib
 export { AGENT_CREATE_PERMISSION_OPTIONS, permissionLabel } from "./lib/agent-permissions";

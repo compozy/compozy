@@ -5,8 +5,21 @@ export interface ReportProposal {
   body: string;
 }
 
+/**
+ * Where an event-derived proposal came from (S13): the trigger that stored the event, the event
+ * name, and the daemon's capped summary. The summary is untrusted event data, shown as text only.
+ */
+export interface ReportEventSource {
+  triggerName: string;
+  event: string;
+  summary?: string;
+}
+
 export interface ReportPayload {
   proposals: ReportProposal[];
+  /** A proposed skill's review (S9); the card offers Review, not pick. */
+  skillReviewId?: string;
+  source?: ReportEventSource;
   detail?: string;
   sessionId?: string;
   tool?: string;
@@ -15,6 +28,16 @@ export interface ReportPayload {
 
 function text(value: unknown) {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function eventSource(value: unknown): ReportEventSource | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const raw = value as Record<string, unknown>;
+  if (raw.kind !== "event") return undefined;
+  const triggerName = text(raw.trigger_name);
+  const event = text(raw.event);
+  if (!triggerName && !event) return undefined;
+  return { triggerName: triggerName ?? "", event: event ?? "", summary: text(raw.summary) };
 }
 
 /** The bounded per-kind payload, read defensively: a malformed field reads as absent. */
@@ -28,6 +51,8 @@ export function reportPayload(data: SessionReportData): ReportPayload {
       const title = text((item as { title?: unknown } | null)?.title);
       return title ? [{ title, body: text((item as { body?: unknown }).body) ?? "" }] : [];
     }),
+    skillReviewId: text(raw.skill_review_id),
+    source: eventSource(raw.source),
     detail: text(raw.detail) ?? text(raw.reason),
     sessionId: text(raw.session_id),
     tool: text(raw.tool),
