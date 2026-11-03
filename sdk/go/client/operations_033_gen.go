@@ -259,9 +259,10 @@ func (c *Client) StreamTask(ctx context.Context, params StreamTaskParams) (*Stre
 
 // StreamTerminalCatalogParams carries the path, query, and header parameters.
 type StreamTerminalCatalogParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	LastEventID *string `url:"Last-Event-ID"`
-	Profile     *string `url:"profile"`
+	WorkspaceID      string  `url:"workspace_id"`
+	LastEventID      *string `url:"Last-Event-ID"`
+	LastEventIDQuery *string `url:"last_event_id"`
+	Profile          *string `url:"profile"`
 }
 
 // StreamTerminalCatalog Stream one profile-scoped terminal catalog
@@ -273,6 +274,9 @@ func (c *Client) StreamTerminalCatalog(ctx context.Context, params StreamTermina
 		headers.Set("Last-Event-ID", *params.LastEventID)
 	}
 	query := url.Values{}
+	if params.LastEventIDQuery != nil {
+		query.Set("last_event_id", *params.LastEventIDQuery)
+	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
 	}
@@ -284,10 +288,11 @@ func (c *Client) StreamTerminalCatalog(ctx context.Context, params StreamTermina
 
 // StreamTerminalsAggregateParams carries the path, query, and header parameters.
 type StreamTerminalsAggregateParams struct {
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	LastEventID   *string   `url:"Last-Event-ID"`
-	Profile       *string   `url:"profile"`
+	AllWorkspaces    *bool     `url:"all_workspaces"`
+	WorkspaceIds     *[]string `url:"workspace_ids"`
+	LastEventID      *string   `url:"Last-Event-ID"`
+	LastEventIDQuery *string   `url:"last_event_id"`
+	Profile          *string   `url:"profile"`
 }
 
 // StreamTerminalsAggregate Stream one profile-scoped terminal catalog
@@ -305,6 +310,9 @@ func (c *Client) StreamTerminalsAggregate(ctx context.Context, params StreamTerm
 	headers := http.Header{}
 	if params.LastEventID != nil {
 		headers.Set("Last-Event-ID", *params.LastEventID)
+	}
+	if params.LastEventIDQuery != nil {
+		query.Set("last_event_id", *params.LastEventIDQuery)
 	}
 	if params.Profile != nil {
 		query.Set("profile", *params.Profile)
@@ -424,22 +432,4 @@ func (c *Client) TerminateSessionProcesses(ctx context.Context, params Terminate
 type TriggerAutomationJobParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// TriggerAutomationJob Trigger one automation job immediately
-func (c *Client) TriggerAutomationJob(ctx context.Context, params TriggerAutomationJobParams) (*RunResponse, error) {
-	path := "/api/automation/jobs/{id}/trigger"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out RunResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

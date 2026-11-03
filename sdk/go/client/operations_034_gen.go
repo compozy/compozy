@@ -8,6 +8,24 @@ import (
 	"strings"
 )
 
+// TriggerAutomationJob Trigger one automation job immediately
+func (c *Client) TriggerAutomationJob(ctx context.Context, params TriggerAutomationJobParams) (*RunResponse, error) {
+	path := "/api/automation/jobs/{id}/trigger"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out RunResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // TriggerSettingsRestart Trigger a daemon restart using the persisted relaunch helper flow
 func (c *Client) TriggerSettingsRestart(ctx context.Context) (*RestartActionResponse, error) {
 	path := "/api/settings/actions/restart"
@@ -424,10 +442,4 @@ func (c *Client) UpdateSessionPresence(ctx context.Context, params UpdateSession
 		return nil, err
 	}
 	return &out, nil
-}
-
-// UpdateSettingsAttentionParams carries the path, query, and header parameters.
-type UpdateSettingsAttentionParams struct {
-	Scope   *string `url:"scope"`
-	Profile *string `url:"profile"`
 }

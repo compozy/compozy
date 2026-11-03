@@ -341,13 +341,13 @@ grant Keychain consent: the native config tools refuse
 
 Scripts can use the same HTTP and UDS routes as the CLI:
 
-| Route                                        | Purpose                                                                                                                           |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/provider-usage?profile=<name>`     | The envelope for one profile, with the topbar signal in `tray`.                                                                   |
-| `GET /api/provider-usage/providers/{id}`     | One provider's row.                                                                                                               |
-| `POST /api/provider-usage/refresh`           | Refresh all or some providers, with `wait_ms` (0–30000) and `max_age_seconds`.                                                    |
-| `GET /api/provider-usage/stream`             | Server-Sent Events: `ready` and `provider_usage_changed`, each with `revision` and `boot_id`. Re-read the envelope on each event. |
-| `GET` / `PATCH /api/settings/provider-usage` | Read or change the `[provider_usage]` settings.                                                                                   |
+| Route                                        | Purpose                                                                                                                                                                            |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/provider-usage?profile=<name>`     | The envelope for one profile, with the topbar signal in `tray`.                                                                                                                    |
+| `GET /api/provider-usage/providers/{id}`     | One provider's row.                                                                                                                                                                |
+| `POST /api/provider-usage/refresh`           | Refresh all or some providers, with `wait_ms` (0–30000) and `max_age_seconds`.                                                                                                     |
+| `GET /api/provider-usage/stream`             | Server-Sent Events, or a WebSocket upgrade carrying the same frames: `ready` and `provider_usage_changed`, each with `revision` and `boot_id`. Re-read the envelope on each event. |
+| `GET` / `PATCH /api/settings/provider-usage` | Read or change the `[provider_usage]` settings.                                                                                                                                    |
 
 The envelope and the settings response carry a read-only `keychain_supported` flag, `true` only when
 the daemon runs on macOS; clients use it to decide whether to offer **Allow**. A read filtered to one

@@ -1534,6 +1534,10 @@ export type StreamTerminalsAggregateData = {
      */
     workspace_ids?: Array<string>;
     /**
+     * Resume cursor when Last-Event-ID cannot be set; the header takes precedence
+     */
+    last_event_id?: string;
+    /**
      * Act as this profile by name
      */
     profile?: string;
@@ -1757,6 +1761,10 @@ export type StreamTerminalCatalogData = {
     workspace_id: string;
   };
   query?: {
+    /**
+     * Resume cursor when Last-Event-ID cannot be set; the header takes precedence
+     */
+    last_event_id?: string;
     /**
      * Act as this profile by name
      */

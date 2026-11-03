@@ -16,6 +16,11 @@ last_report: docs/qa/reports/2026-10-17-issue-774-terminal-workspace-stall.md
 overlaps: ET-terminal-browser-lifecycle; ET-terminal-limits-capabilities
 ---
 
+qa-impact: 2026-11-03 (#1180) the workspace terminal catalog stream and the All-projects
+`/api/terminals/catalog-stream` also accept a WebSocket upgrade, which the Web app now uses; a
+reconnect resumes with `last_event_id`. Re-walk the catalog cursor replay and snapshot reset over
+both transports. Flag only; the next QA cycle owns live retesting.
+
 QA impact 2026-09-04: interactive viewers now share mutation rights and presence no longer carries a
 controller. Reset to verify flow control, reconnect, resize, and explicit read-only attachments under
 the shared-control contract.

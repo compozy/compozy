@@ -3624,6 +3624,7 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 	}
 	// #1008: optional browser registration partition; existing parameters retain their meaning.
 	addTerminalClientPartitionHeader(t, baseline)
+	addTerminalCatalogStreamCursor(t, baseline)
 	// #992: optional execution-environment availability; existing fields remain unchanged.
 	if addSessionWorktreeBindingSchemas(baseline) == 0 {
 		t.Fatal("approved session binding addition: no historical session schemas found")

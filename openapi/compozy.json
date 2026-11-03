@@ -67689,6 +67689,9 @@
           }
         ],
         "responses": {
+          "101": {
+            "description": "WebSocket upgrade; each text message contains one complete SSE frame"
+          },
           "200": {
             "content": {
               "text/event-stream": {
@@ -81985,6 +81988,14 @@
             }
           },
           {
+            "description": "Resume cursor when Last-Event-ID cannot be set; the header takes precedence",
+            "in": "query",
+            "name": "last_event_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
@@ -81994,6 +82005,9 @@
           }
         ],
         "responses": {
+          "101": {
+            "description": "WebSocket upgrade; each text message contains one complete SSE frame"
+          },
           "200": {
             "content": {
               "text/event-stream": {
@@ -101310,6 +101324,14 @@
             }
           },
           {
+            "description": "Resume cursor when Last-Event-ID cannot be set; the header takes precedence",
+            "in": "query",
+            "name": "last_event_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
@@ -101319,6 +101341,9 @@
           }
         ],
         "responses": {
+          "101": {
+            "description": "WebSocket upgrade; each text message contains one complete SSE frame"
+          },
           "200": {
             "content": {
               "text/event-stream": {
