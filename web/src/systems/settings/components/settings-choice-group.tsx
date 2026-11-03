@@ -4,6 +4,8 @@ import { useRef } from "react";
 import { RadioCard, SkeletonText } from "@compozy/ui";
 
 const CHOICE_GRID_CLASS = "grid gap-2 p-3 @min-settings-takeover:grid-cols-3";
+/** Longer ladders (five permission levels) read top to bottom in one column. */
+const CHOICE_STACK_CLASS = "grid gap-2 p-3";
 
 /** One placeholder card per rung of the three-way choices this group serves. */
 const CHOICE_SKELETON_CARDS = ["first", "second", "third"] as const;
@@ -21,6 +23,8 @@ export interface SettingsChoiceGroupProps<V extends string> {
   value: V;
   onChange: (next: V) => void;
   ariaLabel: string;
+  /** `stack` keeps every option in one column; the default grid fits three across. */
+  layout?: "grid" | "stack";
   "data-testid"?: string;
 }
 
@@ -30,6 +34,7 @@ export function SettingsChoiceGroup<V extends string>({
   value,
   onChange,
   ariaLabel,
+  layout = "grid",
   "data-testid": testId,
 }: SettingsChoiceGroupProps<V>) {
   const cardRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -61,7 +66,7 @@ export function SettingsChoiceGroup<V extends string>({
   return (
     <div
       aria-label={ariaLabel}
-      className={CHOICE_GRID_CLASS}
+      className={layout === "stack" ? CHOICE_STACK_CLASS : CHOICE_GRID_CLASS}
       data-testid={testId}
       role="radiogroup"
     >

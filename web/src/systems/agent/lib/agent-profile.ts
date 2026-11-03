@@ -8,7 +8,13 @@ import type { AgentActivityPayload, AgentPayload } from "../types";
 export const AGENT_PROFILE_PANELS = ["model", "tools"] as const;
 export type AgentProfilePanel = (typeof AGENT_PROFILE_PANELS)[number];
 
-export const AGENT_EDITOR_PAGES = ["what-it-does", "check-ins", "memory", "where"] as const;
+export const AGENT_EDITOR_PAGES = [
+  "what-it-does",
+  "check-ins",
+  "memory",
+  "where",
+  "permissions",
+] as const;
 export type AgentEditorPage = (typeof AGENT_EDITOR_PAGES)[number];
 
 export function agentCanResume(reason: AgentTeamPlace["pauseReason"]) {

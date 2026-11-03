@@ -50,6 +50,7 @@ export { AgentCheckInsEditor } from "./components/agent-editors/agent-check-ins-
 export { AgentMemoryEditor } from "./components/agent-editors/agent-memory-editor";
 export { AgentStartingInstructions } from "./components/agent-editors/agent-starting-instructions";
 export { AgentWhatItDoesEditor } from "./components/agent-editors/agent-what-it-does-editor";
+export { AgentPermissionsEditor } from "./components/agent-editors/agent-permissions-editor";
 
 // Adapters
 export { AgentInstanceApiError } from "./adapters/agent-instance-api";
@@ -104,7 +105,12 @@ export {
 } from "./lib/query-options";
 
 // Lib
-export { AGENT_CREATE_PERMISSION_OPTIONS, permissionLabel } from "./lib/agent-permissions";
+export {
+  AGENT_PERMISSION_LEVELS,
+  agentPermissionSummary,
+  permissionLabel,
+  type AgentPermissionLevel,
+} from "./lib/agent-permissions";
 export {
   inheritedAgentRuntimeFields,
   normalizeRuntimeSpeed,

@@ -1,38 +1,13 @@
-import { Eye, Lock, ShieldCheck, Zap } from "@compozy/ui/icons";
-import type { ComponentType } from "react";
+import { Settings2, ShieldCheck } from "@compozy/ui/icons";
 
-import { Alert, AlertDescription, Field, FormSection, RadioCard } from "@compozy/ui";
+import { Field, FormSection, Pill, RadioCard } from "@compozy/ui";
 
+import type { AgentCreateDialogDraft } from "../lib/agent-create-draft";
 import {
-  type AgentCreateDialogDraft,
-  type AgentCreatePermissionChoice,
-} from "../lib/agent-create-draft";
-import { AGENT_CREATE_PERMISSION_OPTIONS } from "../lib/agent-permissions";
-
-interface PermissionPresentation {
-  icon: ComponentType<{ className?: string; size?: number }>;
-  /** What the choice means for new sessions. */
-  consequence: string;
-}
-
-const PERMISSION_PRESENTATION: Record<AgentCreatePermissionChoice, PermissionPresentation> = {
-  "": {
-    icon: ShieldCheck,
-    consequence: "The agent's provider decides when to ask you.",
-  },
-  "deny-all": {
-    icon: Lock,
-    consequence: "New sessions wait for your OK before each action.",
-  },
-  "approve-reads": {
-    icon: Eye,
-    consequence: "New sessions read freely and ask before changing anything.",
-  },
-  "approve-all": {
-    icon: Zap,
-    consequence: "New sessions act without asking you.",
-  },
-};
+  AGENT_PERMISSION_LEVELS,
+  FOLLOW_SETTINGS_LABEL,
+  STAYS_ON_DEFAULT_PERMISSION,
+} from "../lib/agent-permissions";
 
 export interface AgentCreatePermissionsSectionProps {
   draft: AgentCreateDialogDraft;
@@ -40,50 +15,59 @@ export interface AgentCreatePermissionsSectionProps {
 }
 
 /**
- * Advanced tier: the permission policy every session inherits.
- *
- * Four cards, not the reference's three: `permissions` is optional on
- * `CreateAgentPayload`, so "omit the field" is a distinct outcome an operator
- * can choose and must be able to see.
+ * Advanced tier: the permission level every session inherits. An on-demand agent can leave it to
+ * Settings by omitting `permissions`; a stays-on agent with nothing set runs at Edit on its own.
  */
 export function AgentCreatePermissionsSection({
   draft,
   onDraftChange,
 }: AgentCreatePermissionsSectionProps) {
-  const selected = PERMISSION_PRESENTATION[draft.permissions];
+  const staysOn = draft.kind === "stays_on";
+  const unset = draft.permissions === "";
+  const shown = staysOn && unset ? STAYS_ON_DEFAULT_PERMISSION : draft.permissions;
   return (
     <FormSection
       data-testid="agent-create-permissions-section"
-      help="Every session with this agent follows this choice."
+      help="Applies to new sessions with this agent."
       icon={ShieldCheck}
       title="What can it do on its own?"
     >
       <Field>
         <div
-          aria-label="Permission policy"
-          className="grid gap-2 sm:grid-cols-2"
+          aria-label="Permission level"
+          className="flex flex-col gap-2"
           data-testid="agent-create-permissions"
           role="radiogroup"
         >
-          {AGENT_CREATE_PERMISSION_OPTIONS.map(option => {
-            const presentation = PERMISSION_PRESENTATION[option.value];
-            return (
-              <RadioCard
-                data-testid={"agent-create-permissions-" + (option.value || "inherit")}
-                description={option.description}
-                icon={presentation.icon}
-                key={option.value || "inherit"}
-                onSelect={() => onDraftChange({ ...draft, permissions: option.value })}
-                selected={draft.permissions === option.value}
-                title={option.label}
-                titleClassName="min-w-0 flex-1 truncate"
-              />
-            );
-          })}
+          {staysOn ? null : (
+            <RadioCard
+              data-testid="agent-create-permissions-inherit"
+              description="Uses the level in your Settings."
+              icon={Settings2}
+              onSelect={() => onDraftChange({ ...draft, permissions: "" })}
+              selected={unset}
+              title={FOLLOW_SETTINGS_LABEL}
+            />
+          )}
+          {AGENT_PERMISSION_LEVELS.map(option => (
+            <RadioCard
+              badge={
+                staysOn && unset && option.value === STAYS_ON_DEFAULT_PERMISSION ? (
+                  <Pill size="sm" tone="neutral">
+                    Default
+                  </Pill>
+                ) : undefined
+              }
+              data-testid={`agent-create-permissions-${option.value}`}
+              description={option.description}
+              icon={option.icon}
+              key={option.value}
+              onSelect={() => onDraftChange({ ...draft, permissions: option.value })}
+              selected={shown === option.value}
+              title={option.label}
+            />
+          ))}
         </div>
-        <Alert data-testid="agent-create-permissions-consequence" variant="neutral">
-          <AlertDescription>{selected.consequence}</AlertDescription>
-        </Alert>
       </Field>
     </FormSection>
   );

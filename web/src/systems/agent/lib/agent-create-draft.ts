@@ -7,6 +7,7 @@ import { normalizeRuntimeSpeed, runtimeACPSelections } from "./agent-effective-r
 import { agentCreateAppearance, agentCreateSlug, appearancePayload } from "./agent-create-identity";
 import { validateToolPatternList, validateToolsetList } from "./agent-create-tool-patterns";
 import { agentAvatarAppearance, GLOBAL_SCOPE } from "./agent-instance";
+import { isAgentPermissionLevel } from "./agent-permissions";
 import type { AgentPayload, CreateAgentParams, DuplicateAgentParams } from "../types";
 import {
   runtimeACPSelectionsEqual,
@@ -322,17 +323,8 @@ export function buildCreateAgentParams(
   };
 }
 
-const CREATE_PERMISSIONS = new Set<AgentCreatePermission>([
-  "deny-all",
-  "approve-reads",
-  "approve-all",
-]);
-
 function mapPermissionsChoice(permissions: string | undefined): AgentCreatePermissionChoice {
-  if (!permissions) return "";
-  return CREATE_PERMISSIONS.has(permissions as AgentCreatePermission)
-    ? (permissions as AgentCreatePermission)
-    : "";
+  return isAgentPermissionLevel(permissions) ? permissions : "";
 }
 
 /** Prefill the create wizard from a read payload; name stays empty for the operator. */

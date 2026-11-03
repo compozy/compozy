@@ -4,6 +4,7 @@ import {
   AgentAddPlace,
   AgentCheckInsEditor,
   AgentMemoryEditor,
+  AgentPermissionsEditor,
   AgentStartingInstructions,
   AgentWhatItDoesEditor,
   AgentWhereItWorks,
@@ -24,6 +25,7 @@ const PAGE_TITLES: Record<AgentEditorPage, string> = {
   "check-ins": "Check-ins",
   memory: "Memory",
   where: "Where it works",
+  permissions: "Permissions",
 };
 
 function noPanel() {
@@ -82,6 +84,8 @@ function PageBody({
       return <AgentCheckInsEditor {...props} />;
     case "memory":
       return <AgentMemoryEditor {...props} />;
+    case "permissions":
+      return <AgentPermissionsEditor {...props} />;
     case "where":
       return (
         <AgentWhereItWorks

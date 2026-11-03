@@ -11,10 +11,8 @@ import {
   FieldTitle,
   HelpTip,
   Input,
-  RadioCard,
 } from "@compozy/ui";
 
-import { AGENT_CREATE_PERMISSION_OPTIONS } from "../lib/agent-permissions";
 import {
   hasAgentRuntimeOverride,
   inheritedAgentRuntimeFields,
@@ -181,54 +179,6 @@ function AgentSettingsCommandField({
   );
 }
 
-function AgentSettingsPermissionsField({
-  draft,
-  error,
-  disabled,
-  readOnly,
-  onPatch,
-}: AgentSettingsFieldProps & { error: string | undefined }) {
-  return (
-    <Field data-invalid={Boolean(error)}>
-      <FieldLabel id="agent-settings-permissions-label">Permissions</FieldLabel>
-      {draft.legacyPermissions ? (
-        <p
-          className="mb-2 text-small-body text-warning"
-          data-testid="agent-settings-permissions-legacy"
-        >
-          Unrecognized permission mode: {draft.legacyPermissions}
-        </p>
-      ) : null}
-      <div
-        aria-labelledby="agent-settings-permissions-label"
-        className="grid gap-2 sm:grid-cols-2"
-        data-testid="agent-settings-permissions"
-        role="radiogroup"
-      >
-        {AGENT_CREATE_PERMISSION_OPTIONS.map(option => (
-          <RadioCard
-            key={option.value || "inherit"}
-            data-testid={`agent-settings-permissions-${option.value || "inherit"}`}
-            description={option.description}
-            disabled={disabled}
-            aria-disabled={readOnly || undefined}
-            onSelect={() => {
-              if (readOnly) return;
-              onPatch({
-                permissions: option.value,
-                legacyPermissions: null,
-              });
-            }}
-            selected={draft.permissions === option.value}
-            title={option.label}
-          />
-        ))}
-      </div>
-      <FieldError data-testid="agent-settings-permissions-error">{error}</FieldError>
-    </Field>
-  );
-}
-
 /** The model first, then whatever the host adds; the rest waits under Advanced. */
 export function AgentSettingsRuntimeSection({
   errors,
@@ -242,7 +192,6 @@ export function AgentSettingsRuntimeSection({
       <Disclosure label="Advanced" size="md">
         <div className="flex flex-col gap-5">
           <AgentSettingsCommandField {...props} />
-          <AgentSettingsPermissionsField {...props} error={errors.permissions} />
         </div>
       </Disclosure>
     </div>
