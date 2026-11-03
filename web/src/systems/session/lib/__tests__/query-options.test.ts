@@ -241,6 +241,32 @@ describe("sessionScopedDetailOptions", () => {
     client.clear();
   });
 
+  it("Should re-ask a settled foreign lens after a profile rename, which can make it the owner", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    let lensCalls = 0;
+    // The aggregate still names the old owner `a` while the rename reread runs.
+    client.setQueryData(sessionKeys.byId("sess_1", PROFILE_AGGREGATE), { profile_name: "a" });
+    const lens = new QueryObserver(client, {
+      queryKey: sessionKeys.byId("sess_1", "b"),
+      queryFn: () => {
+        lensCalls += 1;
+        return lensCalls === 1
+          ? Promise.reject(new SessionApiError("not found", 404))
+          : Promise.resolve({ profile_name: "b" });
+      },
+    });
+    const unsubscribe = lens.subscribe(() => {});
+    await vi.waitFor(() => expect(lens.getCurrentResult().status).toBe("error"));
+
+    // `a` was renamed to `b`: lens `b` now owns the session, so its settled 404 is stale.
+    await invalidateSessionOwnerLabelReads(client);
+
+    expect(lensCalls).toBe(2);
+    expect(lens.getCurrentResult().data).toEqual({ profile_name: "b" });
+    unsubscribe();
+    client.clear();
+  });
+
   it("Should stop polling entirely when the window does not own the live tail", () => {
     const refetchInterval = sessionScopedDetailOptions(
       "sess_1",

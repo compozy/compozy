@@ -18,7 +18,7 @@ export interface UseProfileEventStreamOptions {
    * after every reconnect: `replay=false` means a rename made while the socket
    * was down never arrives as an event (#1220).
    */
-  onProfileRenamed?: () => void;
+  onProfileRenamed?: () => unknown;
 }
 
 /**

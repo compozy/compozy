@@ -161,14 +161,17 @@ export function invalidateSessionProcessesQueries(
  * catalog keys on the reserved aggregate rather than a name, so the rename
  * moves no key. Without this reread, row actions keep sending the old name and
  * fail with `profile_not_found` until something else refetches (#1220).
+ *
+ * Lenses settled as another profile's are reread too: a rename can make the
+ * lens's name the owner's, and the aggregate that settled them still holds the
+ * old name until this same reread lands.
  */
 export function invalidateSessionOwnerLabelReads(queryClient: QueryClient): Promise<void> {
   return queryClient.invalidateQueries({
     predicate: query =>
-      (queryKeyHasScope(query.queryKey, sessionKeys.lists()) ||
-        queryKeyHasScope(query.queryKey, sessionKeys.byIdAll()) ||
-        isSessionDetailKey(query.queryKey)) &&
-      !isSettledForeignByIdRead(queryClient, query),
+      queryKeyHasScope(query.queryKey, sessionKeys.lists()) ||
+      queryKeyHasScope(query.queryKey, sessionKeys.byIdAll()) ||
+      isSessionDetailKey(query.queryKey),
   });
 }
 

@@ -24,7 +24,7 @@ export function ProfileLifecycleHost({
    * systems, so the shell supplies the reread. It runs for a rename made here and
    * for one announced by the event stream (#1220).
    */
-  onProfileRenamed: () => void;
+  onProfileRenamed: () => Promise<unknown>;
 }) {
   const profiles = useProfiles();
   useProfileEventStream({ onProfileRenamed });

@@ -19,7 +19,7 @@ export interface ProfileLifecycleDialogsProps {
   profiles: readonly ProfilePayload[];
   onSetAutomationEnabled: (identity: string, profile: string, enabled: boolean) => Promise<void>;
   /** Rereads the work rows other systems label with the old profile name (#1220). */
-  onProfileRenamed: () => void;
+  onProfileRenamed: () => Promise<unknown>;
 }
 
 function retryStalePlan(refetch: () => void): (error: unknown) => void {
@@ -40,7 +40,7 @@ export function ProfileLifecycleDialogs({
   onSetAutomationEnabled,
   onProfileRenamed,
 }: ProfileLifecycleDialogsProps) {
-  const model = useProfileLifecycleDialogs(profiles);
+  const model = useProfileLifecycleDialogs(profiles, onProfileRenamed);
   const { lifecycle, target } = model;
   const intent = lifecycle.intent;
   const catalog = useProfileIconCatalog(intent?.flow === "create" || intent?.flow === "update");
@@ -121,10 +121,7 @@ export function ProfileLifecycleDialogs({
               repos: model.acceptedRepos,
             },
             {
-              onSuccess: () => {
-                onProfileRenamed();
-                lifecycle.close();
-              },
+              onSuccess: lifecycle.close,
               onError: retryStalePlan(model.renamePlan.refetch),
             }
           )

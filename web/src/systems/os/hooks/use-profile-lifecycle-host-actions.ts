@@ -23,7 +23,7 @@ export function useProfileLifecycleHostActions() {
     }
     await updateTrigger.mutateAsync(variables);
   };
-  const onProfileRenamed = () => void invalidateSessionOwnerLabelReads(queryClient);
+  const onProfileRenamed = () => invalidateSessionOwnerLabelReads(queryClient);
 
   return { onSetAutomationEnabled, onProfileRenamed };
 }
