@@ -14,6 +14,7 @@ import {
   type AutomationEditorMode,
   type AutomationRequestProjection,
 } from "./automation-requests";
+import { AGENT_INSTANCE_TARGET_KIND } from "./automation-drafts";
 import { projectAutomationTarget, type AutomationTargetProjection } from "./automation-target";
 import {
   ENVELOPE_KEYS,
@@ -121,10 +122,11 @@ function buildEnvelope(
   }
 
   const isWebhook = def.family === "webhook";
+  const link = isWebhook ? linkWorkspace(draft) : "";
   return {
     kind: sampleEventKind(selection, def.sample.kind),
-    scope: isWebhook ? "global" : envelopeScope(draft.scope),
-    workspace_id: isWebhook ? "" : draft.scope === "workspace" ? (draft.workspace_id ?? "") : "",
+    scope: isWebhook ? (link ? "workspace" : "global") : envelopeScope(draft.scope),
+    workspace_id: isWebhook ? link : draft.scope === "workspace" ? (draft.workspace_id ?? "") : "",
     source: def.sample.source,
     data: { ...def.sample.data },
   };
@@ -209,11 +211,24 @@ function buildJsonRows(env: TriggerEnvelope, filteredKeys: ReadonlySet<string>):
   return rows;
 }
 
-/** Real webhook endpoint path — webhooks are always global. */
+/**
+ * The project a link lives in: only a link that tells a stays-on agent keeps one (the daemon then
+ * serves it under `/api/webhooks/workspaces/{workspace_id}/…`); every other link is global.
+ */
+function linkWorkspace(draft: Draft): string {
+  return draft.target_kind === AGENT_INSTANCE_TARGET_KIND && draft.scope === "workspace"
+    ? (draft.workspace_id?.trim() ?? "")
+    : "";
+}
+
+/** Real webhook endpoint path: global, or under its project when the link kept one. */
 export function webhookUrl(draft: Draft): string {
   const slug = draft.endpoint_slug?.trim() || "slug";
   const id = draft.webhook_id?.trim() || "wbh_id";
-  return `/api/webhooks/global/${slug}--${id}`;
+  const workspace = linkWorkspace(draft);
+  return workspace
+    ? `/api/webhooks/workspaces/${workspace}/${slug}--${id}`
+    : `/api/webhooks/global/${slug}--${id}`;
 }
 
 function buildWebhookCurl(url: string): CurlLine[] {

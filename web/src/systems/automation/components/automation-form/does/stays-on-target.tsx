@@ -23,7 +23,6 @@ interface StaysOnTargetProps {
   prompt: string;
   /** The trigger's own scope: `""` for User. */
   workspaceId: string;
-  isWebhook: boolean;
   locked: boolean;
   form: AutomationFormModel;
 }
@@ -57,14 +56,7 @@ function StatusNote({ status }: { status: StaysOnTargetStatus }) {
  * Tell a stays-on agent (S10): the event waits for the agent's next check, which reads it and
  * proposes what to do. Nothing runs on its own; unattended work stays with Ask an agent.
  */
-export function StaysOnTarget({
-  agent,
-  prompt,
-  workspaceId,
-  isWebhook,
-  locked,
-  form,
-}: StaysOnTargetProps) {
+export function StaysOnTarget({ agent, prompt, workspaceId, locked, form }: StaysOnTargetProps) {
   const { instances, settled } = useAgentInstancesState();
   const { destination } = useProfileReadScope();
   const profile = form.profile || destination;
@@ -72,7 +64,6 @@ export function StaysOnTarget({
     instances: instances.filter(instance => instance.profile_name === profile),
     agent,
     workspaceId,
-    isWebhook,
   });
   const missing = model.status.kind === "missing";
   return (
@@ -125,12 +116,7 @@ export function StaysOnTarget({
               </NativeSelectOption>
             ) : null}
             {model.scopes.map(scope => (
-              <NativeSelectOption
-                disabled={Boolean(scope.disabledReason)}
-                key={scope.workspaceId || "@global"}
-                title={scope.disabledReason}
-                value={scope.workspaceId}
-              >
+              <NativeSelectOption key={scope.workspaceId || "@global"} value={scope.workspaceId}>
                 {scope.label}
               </NativeSelectOption>
             ))}

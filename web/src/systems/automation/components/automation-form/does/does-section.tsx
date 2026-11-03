@@ -138,7 +138,6 @@ export function DoesSection({
           <StaysOnTarget
             agent={draft.agent_name}
             form={form}
-            isWebhook={form.isWebhook}
             locked={mode === "edit"}
             prompt={draft.prompt}
             workspaceId={form.effectiveScope === "workspace" ? (draft.workspace_id ?? "") : ""}
