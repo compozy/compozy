@@ -70,6 +70,10 @@ func (r *RuntimeRegistry) normalizeDispatchCallRequest(
 	if err != nil || !decision.Allowed {
 		return CallRequest{}, workspaceAccessDeniedError(req.ToolID)
 	}
+	if !scope.Operator {
+		// The handler now runs against another workspace's data, so its result is redacted.
+		MarkOutsideCallerScope(ctx)
+	}
 	req.WorkspaceID = requestedWorkspaceID
 	return req, nil
 }

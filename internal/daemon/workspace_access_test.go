@@ -299,6 +299,25 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 				t.Fatalf("prompt title = %q, want a session label without its owner", title)
 			}
 		}
+
+		renameDescriptor := statusDescriptor
+		renameDescriptor.ID = toolspkg.ToolIDSessionRename
+		renameDescriptor.ReadOnly = false
+		bound, err := binder.BindCallInput(
+			t.Context(), actorScope, renameDescriptor, json.RawMessage(`{"session_id":"sess-sibling"}`),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = binder.AuthorizeCallInput(t.Context(), actorScope, renameDescriptor, toolspkg.CallRequest{
+			ToolID: renameDescriptor.ID, SessionID: actorScope.SessionID, Input: bound,
+		})
+		if len(requester.requests) != 3 {
+			t.Fatalf("permission requests = %d, want the write prompted too", len(requester.requests))
+		}
+		if title := *requester.requests[2].ToolCall.Title; !strings.HasPrefix(title, "Change session sess-sibling") {
+			t.Fatalf("write prompt title = %q, want the change named, not a read", title)
+		}
 	})
 
 	t.Run("Should redact a seeded secret only when the read crosses the caller scope", func(t *testing.T) {

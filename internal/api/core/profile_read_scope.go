@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -81,11 +82,7 @@ func (h *BaseHandlers) resolveProfileReadSelectionWithSelector(
 	if sessionProfileID != "" && requested != "" {
 		boundProfileID = ""
 	}
-	resolved, err := h.profileService().Resolve(c.Request.Context(), profilepkg.ResolveInput{
-		Flag:             requested,
-		SessionProfileID: boundProfileID,
-		Lens:             profilepkg.Lens{Kind: profilepkg.SelectionLensGlobal},
-	})
+	resolved, err := h.resolveRequestedProfile(c, caller, requested, boundProfileID)
 	if err != nil {
 		return resolvedProfileReadScope{}, err
 	}
@@ -102,6 +99,25 @@ func (h *BaseHandlers) resolveProfileReadSelectionWithSelector(
 		}
 	}
 	return resolvedProfileReadScope{Scope: scope, ProfileName: strings.TrimSpace(resolved.Profile.Name)}, nil
+}
+
+// resolveRequestedProfile resolves the selection. For an agent session without a grant, a missing
+// name answers like an existing foreign one, so the status does not reveal which profiles exist.
+func (h *BaseHandlers) resolveRequestedProfile(
+	c *gin.Context,
+	caller profileReadCaller,
+	requested, boundProfileID string,
+) (profilepkg.Resolution, error) {
+	resolved, err := h.profileService().Resolve(c.Request.Context(), profilepkg.ResolveInput{
+		Flag:             requested,
+		SessionProfileID: boundProfileID,
+		Lens:             profilepkg.Lens{Kind: profilepkg.SelectionLensGlobal},
+	})
+	if err != nil && boundProfileID == "" && caller.sessionProfileID != "" && !caller.granted &&
+		errors.Is(err, profilepkg.ErrNotFound) {
+		_, err = h.sessionBoundProfileReadScope(c, requested, caller.sessionProfileID, err)
+	}
+	return resolved, err
 }
 
 // sessionBoundProfileReadScope answers a denied cross-profile selection with the error the

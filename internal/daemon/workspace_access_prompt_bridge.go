@@ -81,7 +81,7 @@ func (b *workspaceAccessPromptBridge) RequestWorkspaceAccess(
 		SessionId: acpsdk.SessionId(sessionID),
 		ToolCall: acpsdk.ToolCallUpdate{
 			ToolCallId: acpsdk.ToolCallId(toolApprovalCallID(call)),
-			Title:      new(workspaceAccessPromptTitle(targetWorkspaceID)),
+			Title:      new(workspaceAccessPromptTitle(targetWorkspaceID, descriptor.ReadOnly)),
 			RawInput:   workspaceAccessPromptInput(descriptor.ID, targetWorkspaceID),
 			Status:     acpsdk.Ptr(acpsdk.ToolCallStatusPending),
 		},
@@ -156,13 +156,18 @@ const workspaceAccessPromptToolIDKey = "tool_id"
 // nativeAccessPromptProfilePrefix marks a prompt target that names another profile.
 const nativeAccessPromptProfilePrefix = "profile "
 
-func workspaceAccessPromptTitle(target string) string {
+// workspaceAccessPromptTitle names the operation, so approving a write is never presented as a read.
+func workspaceAccessPromptTitle(target string, readOnly bool) string {
 	target = strings.TrimSpace(target)
+	verb := "Change"
+	if readOnly {
+		verb = "Read"
+	}
 	if sessionID, ok := strings.CutPrefix(target, nativeAccessPromptSessionPrefix); ok {
-		return fmt.Sprintf("Read session %s outside this workspace or profile", sessionID)
+		return fmt.Sprintf("%s session %s outside this workspace or profile", verb, sessionID)
 	}
 	if profile, ok := strings.CutPrefix(target, nativeAccessPromptProfilePrefix); ok {
-		return fmt.Sprintf("Read %s", workspaceAccessProfileSubject(profile))
+		return fmt.Sprintf("%s %s", verb, workspaceAccessProfileSubject(profile))
 	}
 	return fmt.Sprintf("Access workspace %s", target)
 }

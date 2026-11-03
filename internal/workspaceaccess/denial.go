@@ -33,7 +33,7 @@ func DenialMessage(decision Decision) string {
 			"to set the agent's permissions.mode to approve-all"
 	case DenialConsentRejected:
 		return "the operator rejected this access outside the session's workspace and profile; " +
-			"do not retry it, and ask the operator to set the agent's permissions.mode to " +
+			"ask the operator to set the agent's permissions.mode to " +
 			"approve-all if the session needs that reach"
 	case DenialNeedsGrant:
 		return "permissions.mode reaches other profiles and All projects for reads only; changing " +

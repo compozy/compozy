@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	"github.com/compozy/compozy/internal/observe"
 	"github.com/compozy/compozy/internal/observe/attention"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -494,8 +495,8 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 		read := testutil.PerformRequestWithHeaders(
 			t, fixture.Engine, http.MethodGet, "/sessions?all_workspaces=true", nil, headers,
 		)
-		if read.Code == http.StatusForbidden {
-			t.Fatalf("approve-all aggregate read status = 403, want admitted; body=%s", read.Body.String())
+		if read.Code != http.StatusOK {
+			t.Fatalf("approve-all aggregate read status = %d, want 200; body=%s", read.Code, read.Body.String())
 		}
 		write := testutil.PerformRequestWithHeaders(
 			t, fixture.Engine, http.MethodPost, "/test-layout", []byte(`{"name":"x"}`), headers,
@@ -510,6 +511,44 @@ func TestBaseHandlersAttentionOperatorScope(t *testing.T) {
 		}
 		if len(targets) < 2 || !targets[0].ReadOnly || targets[len(targets)-1].ReadOnly {
 			t.Fatalf("policy requests = %#v, want a read then a write aggregate request", targets)
+		}
+	})
+
+	t.Run("Should answer a denied agent the same for missing and foreign profile names", func(t *testing.T) {
+		t.Parallel()
+
+		fixture := newHandlerFixture(
+			t,
+			attentionRouteSessionManager(),
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.Profiles = profileExistenceStub{}
+		fixture.Handlers.WorkspaceAccess = testutil.StubWorkspaceAccessPolicy{
+			AuthorizeFn: func(_ context.Context, req workspaceaccess.Request) (workspaceaccess.Decision, error) {
+				if req.Target.Kind == workspaceaccess.TargetAggregate {
+					return workspaceaccess.Decision{Allowed: true, Source: workspaceaccess.SourcePermissionMode}, nil
+				}
+				return workspaceaccess.Decision{
+					Source: workspaceaccess.SourceDenied, Denial: workspaceaccess.DenialModeDenyAll,
+				}, nil
+			},
+		}
+		fixture.Engine.GET("/test-layout", fixture.Handlers.GetWorkspaceLayout)
+		headers := map[string]string{
+			agentidentity.HeaderSessionID: "sess-agent",
+			agentidentity.HeaderAgent:     "coder",
+		}
+		foreign := testutil.PerformRequestWithHeaders(
+			t, fixture.Engine, http.MethodGet, "/test-layout?profile=marketing", nil, headers,
+		)
+		missing := testutil.PerformRequestWithHeaders(
+			t, fixture.Engine, http.MethodGet, "/test-layout?profile=ghost", nil, headers,
+		)
+		if foreign.Code != http.StatusConflict || missing.Code != foreign.Code ||
+			missing.Body.String() != foreign.Body.String() {
+			t.Fatalf("denied profile answers differ:\nforeign: %d %s\nmissing: %d %s",
+				foreign.Code, foreign.Body.String(), missing.Code, missing.Body.String())
 		}
 	})
 
@@ -926,4 +965,31 @@ func TestSessionInteractionDescendants(t *testing.T) {
 		)
 		assertAPIErrorResponse(t, response, http.StatusBadRequest, "api: descendants must be a boolean")
 	})
+}
+
+// profileExistenceStub knows only the default and marketing profiles and binds sessions like
+// the profile manager: a session-bound resolution rejects any other name without a lookup.
+type profileExistenceStub struct{ sessionProfileServiceStub }
+
+func (profileExistenceStub) Resolve(_ context.Context, in profilepkg.ResolveInput) (profilepkg.Resolution, error) {
+	if in.SessionProfileID != "" && in.Flag != "" && in.Flag != "default" {
+		return profilepkg.Resolution{}, &profilepkg.Error{
+			Code: "profile_session_conflict", Message: `session is bound to profile "default"`,
+			Cause: profilepkg.ErrSessionConflict,
+		}
+	}
+	switch in.Flag {
+	case "marketing":
+		return profilepkg.Resolution{Profile: profilepkg.Profile{
+			ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive,
+		}}, nil
+	case "", "default":
+		return profilepkg.Resolution{Profile: profilepkg.Profile{
+			ID: store.DefaultProfileID, Name: "default", State: profilepkg.StateActive,
+		}}, nil
+	default:
+		return profilepkg.Resolution{}, &profilepkg.Error{
+			Code: "profile_not_found", Message: "profile " + in.Flag + " not found", Cause: profilepkg.ErrNotFound,
+		}
+	}
 }

@@ -16,6 +16,8 @@ type dispatchTarget struct {
 
 func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallRequest) (ToolResult, error) {
 	started := time.Now().UTC()
+	// The record exists before normalization so a cross-workspace admission there marks it.
+	ctx, _ = withCallScopeAccess(ctx)
 	if err := contextErr(ctx, req.ToolID); err != nil {
 		return ToolResult{}, err
 	}
@@ -87,7 +89,7 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 	if err := validateCallInput(target.descriptor, patchedReq.Input); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallFailed)
 	}
-	ctx, scopeAccess := withCallScopeAccess(ctx)
+	scopeAccess := callScopeAccessFrom(ctx)
 	if err := r.authorizeBoundCallInput(ctx, scope, target.descriptor, patchedReq); err != nil {
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 	}
