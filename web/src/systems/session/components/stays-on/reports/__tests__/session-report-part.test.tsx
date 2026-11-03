@@ -418,7 +418,7 @@ describe("SessionReportPart", () => {
       ).toBeInTheDocument();
     });
 
-    it("Should name the tool and the action of an expired request", async () => {
+    it("Should show the expired command with the draft reason", async () => {
       const { container } = render(
         <SessionReportPart
           data={{
@@ -436,7 +436,7 @@ describe("SessionReportPart", () => {
       );
 
       expect(
-        await screen.findByText(/so the Bash execute request wasn't allowed/)
+        await screen.findByText("Nobody answered in time, so it wasn't allowed.")
       ).toBeInTheDocument();
       await waitFor(() => expect(container).toHaveTextContent("make migrate"));
     });

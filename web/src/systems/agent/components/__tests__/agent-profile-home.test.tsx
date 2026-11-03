@@ -122,6 +122,9 @@ describe("AgentProfileHome", () => {
     );
     expect(screen.getByText("3.1M tokens")).toBeVisible();
     expect(screen.getByText("No price available")).toBeVisible();
+    // A long project name truncates in the narrow label column and keeps its full name.
+    expect(screen.getByTitle("compozy")).toHaveTextContent("compozy");
+    expect(screen.getByText("2.1M")).toBeInTheDocument();
     expect(screen.queryByText(/\$0\.00|in your plan/)).not.toBeInTheDocument();
   });
 

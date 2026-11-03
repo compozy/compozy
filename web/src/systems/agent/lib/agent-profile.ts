@@ -115,10 +115,14 @@ export function agentActivityView(
   };
 }
 
+function compactCount(tokens: number) {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}K`;
+  return String(tokens);
+}
+
 function compactTokens(tokens: number) {
-  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M tokens`;
-  if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}K tokens`;
-  return `${tokens} tokens`;
+  return `${compactCount(tokens)} tokens`;
 }
 
 /**
@@ -141,7 +145,8 @@ export function agentCostView(activity: AgentActivityPayload) {
         id: row.workspace_id || row.scope,
         label: row.scope === "@user" ? "Global" : row.scope,
         value: total > 0 ? amount / total : 0,
-        formattedValue: unpriced ? compactTokens(row.tokens) : `$${row.usd_estimate.toFixed(2)}`,
+        // The headline says tokens; the narrow value column holds the count alone.
+        formattedValue: unpriced ? compactCount(row.tokens) : `$${row.usd_estimate.toFixed(2)}`,
       };
     }),
   };
