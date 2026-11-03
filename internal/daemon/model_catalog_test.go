@@ -1835,6 +1835,61 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep a real missing command parked across sweeps and restart", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+		provider := compozyconfig.ProviderConfig{}
+		provider.Models.Discovery.Command = filepath.Join(t.TempDir(), "missing-discovery") + " --json"
+		source, err := modelcatalog.NewLiveProviderSource("ollama", provider, &modelcatalog.LiveProviderSourcesConfig{
+			BaseEnv: []string{"PATH=/bin"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, discoveryErr := source.ListModels(
+			testutil.Context(t),
+			modelcatalog.ListOptions{ProviderID: "ollama", Now: now},
+		)
+		if discoveryErr == nil || !modelcatalog.IsPermanentSourceFailure(discoveryErr) {
+			t.Fatalf("ListModels() error = %v, want missing executable", discoveryErr)
+		}
+		service := newCatalogReadRefreshService()
+		service.statuses = []modelcatalog.SourceStatus{{
+			SourceID: source.ID(), ProviderID: "ollama", RefreshState: modelcatalog.RefreshStateFailed,
+			LastRefresh: now, LastError: modelcatalog.RedactString(discoveryErr.Error()),
+		}}
+		for restart := range 2 {
+			runtime, err := newModelCatalogRuntime(testutil.Context(t), service, discardLogger(), func() time.Time {
+				return now.Add(24 * time.Hour)
+			}, time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime.dynamicSources = map[string]modelcatalog.Source{source.ID(): source}
+			for sweep := range 2 {
+				due := runtime.dueRefreshTargets(
+					runtime.catalogExecutionContexts()[0],
+					runtime.dynamicRefreshTargets(),
+					runtime.newHoldSweep(),
+				)
+				if len(due) != 0 {
+					t.Fatalf(
+						"restart %d sweep %d due = %#v, want the unchanged real launch failure held",
+						restart,
+						sweep,
+						due,
+					)
+				}
+			}
+			if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := len(service.refreshes); got != 0 {
+			t.Fatalf("refresh attempts = %d, want none for an unchanged missing executable", got)
+		}
+	})
+
 	t.Run("Should evaluate parked causes separately across execution contexts", func(t *testing.T) {
 		t.Parallel()
 

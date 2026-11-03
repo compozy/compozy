@@ -755,6 +755,37 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep a missing command failure identical between preflight and real execution", func(t *testing.T) {
+		t.Parallel()
+		provider := compozyconfig.ProviderConfig{}
+		provider.Models.Discovery.Command = filepath.Join(t.TempDir(), "missing-discovery") + " --json"
+		source := newLiveSourceForTest(
+			t,
+			"ollama",
+			provider,
+			&LiveProviderSourcesConfig{BaseEnv: []string{"PATH=/bin"}},
+		)
+		preflightErr := source.DiscoveryPreflight(testutil.Context(t))
+		if !errors.Is(preflightErr, exec.ErrNotFound) {
+			t.Fatalf("DiscoveryPreflight() error = %v, want exec.ErrNotFound", preflightErr)
+		}
+		_, discoveryErr := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "ollama", Now: testTime(0)})
+		if !errors.Is(discoveryErr, exec.ErrNotFound) || !IsPermanentSourceFailure(discoveryErr) {
+			t.Fatalf("ListModels() error = %v, want permanent exec.ErrNotFound", discoveryErr)
+		}
+		service := newTestService(t, newMemoryStore(), []Source{source})
+		statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{
+			ProviderID: "ollama", SourceID: source.ID(), Now: testTime(0),
+		})
+		if !errors.Is(err, ErrAllSourcesFailed) {
+			t.Fatalf("Refresh() error = %v, want ErrAllSourcesFailed", err)
+		}
+		status := requireStatus(t, statuses, source.ID())
+		if !status.PermanentFailureHeld() || !status.HeldCauseUnchanged(preflightErr) {
+			t.Fatalf("status = %#v, want the unchanged real launch failure held by preflight", status)
+		}
+	})
+
 	t.Run("Should back off a launch failure when the executable itself exists", func(t *testing.T) {
 		t.Parallel()
 		if runtime.GOOS == "windows" {
