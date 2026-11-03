@@ -173,10 +173,12 @@ Value templates run with `missingkey=error` and a curated function set (`json`, 
 `not`, `and`, and `or` — no arbitrary helpers. Use the comparisons to route prompt text on a value,
 for example `{{ if eq .previous.nodes.deep_qa.output.verdict "fail" }}…{{ end }}`. Comparisons
 order numbers by value whatever their source, so `{{ if lt .nodes.scan.output.count 3 }}` works for
-integer and decimal outputs alike; comparing a number with a string is an error. Builtins that
-invoke values or format and escape output (`call`, `print`, `printf`, `println`, `html`, `js`,
-`urlquery`, `index`, `slice`) are rejected at validation. CEL conditions are compiled and
-cost-limited at publish time.
+integer and decimal outputs alike. Use unquoted numeric literals for numeric comparisons. When
+a JSON-decoded number is compared with a quoted string, the existing text comparison is preserved;
+a Go integer or float compared with a string is an error. Builtins that invoke values or format
+and escape output (`call`, `print`, `printf`, `println`, `html`, `js`, `urlquery`) are rejected at
+validation. Dynamic lookup builtins (`index`, `slice`) are also rejected because they bypass
+reference-path validation. CEL conditions are compiled and cost-limited at publish time.
 
 ## snake_case node IDs
 

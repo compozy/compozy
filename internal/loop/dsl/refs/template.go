@@ -85,13 +85,7 @@ func funcMap() template.FuncMap {
 	return funcs
 }
 
-// allowedBuiltinFunctions lists text/template builtins the walker accepts.
-// Builtins are always available at render time, so validation is the only
-// gate: it admits pure, side-effect-free builtins (length and boolean logic)
-// and rejects ones that invoke values (call) or format and escape output
-// (print, printf, println, html, js, urlquery, index, slice). The comparison
-// names eq, ne, lt, le, gt, and ge are curated in funcMap so numbers compare
-// by value; see template_compare.go.
+// allowedBuiltinFunctions excludes invocation, output helpers, and dynamic lookups that bypass path validation.
 func allowedBuiltinFunctions() map[string]struct{} {
 	return map[string]struct{}{
 		"len": {},
