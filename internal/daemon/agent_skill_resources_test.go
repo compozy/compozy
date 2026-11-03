@@ -34,7 +34,7 @@ func TestAppendProfiledSkillResources(t *testing.T) {
 			t.Fatal(err)
 		}
 		personal, err := compozyconfig.CreateAgentDefFile(path, compozyconfig.AgentDefinitionDraft{
-			Name: "triage", Kind: "stays_on", Provider: "codex", Prompt: "Personal profile agent",
+			Name: "triage", Kind: "always_on", Provider: "codex", Prompt: "Personal profile agent",
 		}, false)
 		if err != nil {
 			t.Fatal(err)

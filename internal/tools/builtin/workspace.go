@@ -153,6 +153,10 @@ const sessionEnvInputSchema = `{
 	}
 }`
 
+// agentKindInputDescription marks stays_on as the deprecated v0.5.0 input alias. Removal: v0.5.2.
+const agentKindInputDescription = `"Agent kind: on_demand (default) or always_on; fixed at creation. ` +
+	`stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2."`
+
 var agentCreateInputSchema = `{
 	"type":"object",
 	"required":["scope","name","prompt"],
@@ -183,7 +187,7 @@ var agentCreateInputSchema = `{
 		"deny_tools":{"type":"array","items":{"type":"string"}},
 		"display_name":{"type":"string"},
  "description":{"type":"string"},
- "kind":{"type":"string","enum":["on_demand","stays_on"]},
+ "kind":{"type":"string","enum":["on_demand","always_on","stays_on"],"description":` + agentKindInputDescription + `},
  "appearance":{"type":"object","additionalProperties":true},
 		"category_path":{"type":"array","items":{"type":"string"}},
 		"disabled_skills":{"type":"array","items":{"type":"string"}},

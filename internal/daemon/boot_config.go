@@ -51,6 +51,7 @@ func (d *Daemon) bootConfig(state *bootState, cleanup *bootCleanup) error {
 	}
 
 	compozyconfig.RouteRetiredProviderWarnings(logger)
+	compozyconfig.RouteDeprecationWarnings(logger)
 	cfg.WarnRetiredProviderReferences()
 
 	state.cfg = cfg

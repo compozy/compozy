@@ -14,7 +14,7 @@ var (
 	ErrStarting              = errors.New("agent_instance_starting")
 	ErrForbidden             = errors.New("agent_instance_forbidden")
 	ErrDepth                 = errors.New("agent_instance_depth")
-	ErrNotStaysOn            = errors.New("agent_not_stays_on")
+	ErrNotAlwaysOn           = errors.New("agent_not_always_on")
 	ErrDefinitionMissing     = errors.New("agent_definition_missing")
 	ErrNotFound              = errors.New("agent_instance_not_found")
 	ErrScopeMismatch         = errors.New("session_scope_mismatch")

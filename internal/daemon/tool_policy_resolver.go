@@ -399,7 +399,7 @@ func applySessionToolPolicy(inputs *toolspkg.PolicyInputs, info *session.Info) e
 	if info == nil {
 		return nil
 	}
-	inputs.StaysOnLineage = inputs.StaysOnLineage || info.InstanceID != ""
+	inputs.AlwaysOnLineage = inputs.AlwaysOnLineage || info.InstanceID != ""
 	if info.Type == session.SessionTypeTriage {
 		inputs.TriageReadOnly = true
 		inputs.ApprovalAvailable = false
@@ -483,7 +483,7 @@ func (r *nativeToolPolicyResolver) applyInstanceToolPolicy(
 			return err
 		}
 		if caller.InstanceID != "" {
-			inputs.StaysOnLineage = true
+			inputs.AlwaysOnLineage = true
 			if err := applyConcreteSessionToolPolicy(inputs, info.ID, caller.PermissionPolicy); err != nil {
 				return err
 			}

@@ -15,7 +15,7 @@ import (
 func TestDaemonNativeToolApprovalGrants(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should refuse both grant mutations for a stays-on descendant", func(t *testing.T) {
+	t.Run("Should refuse both grant mutations for an always-on descendant", func(t *testing.T) {
 		t.Parallel()
 		sessions := nativeTestSessionManager("ws-a")
 		sessions.StatusFn = func(_ context.Context, id string) (*session.Info, error) {

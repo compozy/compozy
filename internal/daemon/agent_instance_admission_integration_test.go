@@ -9,12 +9,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -190,7 +192,7 @@ func TestInstanceSkillApprovalIntegration(t *testing.T) {
 				t.Fatal(err)
 			}
 			body = []byte(
-				strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: stays_on\n", 1),
+				strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: always_on\n", 1),
 			)
 			if err := os.WriteFile(path, body, 0o600); err != nil {
 				t.Fatal(err)
@@ -373,7 +375,7 @@ func TestInstanceWebhookCheckIntegration(t *testing.T) {
 						raw = bytes.Replace(
 							raw,
 							[]byte("name: subagent-test\n"),
-							[]byte("name: subagent-test\nkind: stays_on\n"),
+							[]byte("name: subagent-test\nkind: always_on\n"),
 							1,
 						)
 						if err := os.WriteFile(agentPath, raw, 0o600); err != nil {
@@ -653,7 +655,7 @@ func TestInstanceUnattendedRuntimeIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 		body = []byte(
-			strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: stays_on\n", 1),
+			strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: always_on\n", 1),
 		)
 		if err := os.WriteFile(path, body, 0o600); err != nil {
 			t.Fatal(err)
@@ -912,7 +914,7 @@ func configureInstancePermissionFixture(
 		t.Fatal(err)
 	}
 	body = []byte(
-		strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: stays_on\n"+rules, 1),
+		strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: always_on\n"+rules, 1),
 	)
 	body = []byte(strings.Replace(string(body), "permissions: approve-all", "permissions: "+level, 1))
 	if err := os.WriteFile(path, body, 0o600); err != nil {
@@ -935,7 +937,7 @@ func configureInstancePermissionFixture(
 // the same request in the same autonomous turn is rejected without another pending interval.
 func TestInstancePermissionExpiryIntegration(t *testing.T) {
 	d, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
-		cfg.Agents.StaysOn.ApprovalTimeout = time.Minute
+		cfg.Agents.AlwaysOn.ApprovalTimeout = time.Minute
 	}, "", func(d *Daemon) {
 		configureInstancePermissionFixture(t, d, "approve-reads", "", func(f *acpmock.AgentFixture) {
 			steps := []acpmock.Step{}
@@ -1130,7 +1132,7 @@ func TestInstanceRunningCheckPauseIntegration(t *testing.T) {
 		t.Run(fmt.Sprintf("Should cancel the running check with spend brake=%v", trip), func(t *testing.T) {
 			pauseHookCapture := filepath.Join(t.TempDir(), "pause-hooks.jsonl")
 			d, manager, workspace := newSubagentDaemonWithSetup(t, func(cfg *compozyconfig.Config) {
-				cfg.Agents.StaysOn.UnattendedTurnLimit = 1
+				cfg.Agents.AlwaysOn.UnattendedTurnLimit = 1
 			}, "", func(d *Daemon) {
 				configureInstancePermissionFixture(t, d, "approve-all", "", func(agent *acpmock.AgentFixture) {
 					agent.ConfigOptions = []acpmock.SessionConfigOptionFixture{{
@@ -1354,7 +1356,7 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 	// tool is recorded as that agent, leaves the unattended counter alone, and has its "always" answer narrowed
 	// to once so no durable grant is written; only the operator's approval resets the counter and stays always.
 	t.Run("Should attribute lineage approvals and reset the counter only for the operator", func(t *testing.T) {
-		// IT-028: the stays-on main at approve-all writes with no prompt; its approve-reads child asks below.
+		// IT-028: the always-on main at approve-all writes with no prompt; its approve-reads child asks below.
 		mainEvents, err := manager.Prompt(t.Context(), main.ID, "main edit")
 		if err != nil {
 			t.Fatal(err)
@@ -1478,14 +1480,14 @@ func TestInstanceApprovalTransportBoundaryIntegration(t *testing.T) {
 			t.Fatalf("decisions=%v want=%v", decisions, want)
 		}
 	})
-	// Invariant (rule 15, SEC-1, DFE2-2): only the operator moves a session into or out of a stays-on lineage.
-	// Neither the stays-on main itself nor an ordinary on-demand agent may adopt a session under the main or
+	// Invariant (rule 15, SEC-1, DFE2-2): only the operator moves a session into or out of an always-on lineage.
+	// Neither the always-on main itself nor an ordinary on-demand agent may adopt a session under the main or
 	// detach one from it, on any surface; the operator still can.
 	onDemand, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, actor := range []struct{ name, id string }{{"stays-on main", main.ID}, {"on-demand agent", onDemand.ID}} {
+	for _, actor := range []struct{ name, id string }{{"always-on main", main.ID}, {"on-demand agent", onDemand.ID}} {
 		t.Run("Should refuse "+actor.name+" adopt and detach on every surface", func(t *testing.T) {
 			const refusal = "session_reparent_operator_required"
 			scope := toolspkg.Scope{
@@ -1785,4 +1787,190 @@ func requireSessionPromptOutputSchemaAccepts(t *testing.T, structured []byte) {
 		}
 	}
 	t.Fatal("session_prompt descriptor is missing")
+}
+
+// daemonLogCapture is the harness option that records daemon log lines for assertions; the
+// default harness discards them.
+type daemonLogCapture struct {
+	mu    sync.Mutex
+	lines bytes.Buffer
+}
+
+func (c *daemonLogCapture) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lines.Write(p)
+}
+
+func (c *daemonLogCapture) String() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.lines.String()
+}
+
+// count returns how many captured lines contain every fragment.
+func (c *daemonLogCapture) count(fragments ...string) int {
+	total := 0
+	for line := range strings.SplitSeq(c.String(), "\n") {
+		matched := line != ""
+		for _, fragment := range fragments {
+			matched = matched && strings.Contains(line, fragment)
+		}
+		if matched {
+			total++
+		}
+	}
+	return total
+}
+
+// captureDaemonLogs replaces the harness logger before boot.
+func captureDaemonLogs(d *Daemon) *daemonLogCapture {
+	capture := &daemonLogCapture{}
+	d.logger = slog.New(slog.NewTextHandler(capture, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	return capture
+}
+
+// Invariant (IT-002, Safety Invariants 4–5): the v0.5.1 boot pass rewrites stays_on to always_on
+// only in $COMPOZY_HOME/agents and every $COMPOZY_HOME/profiles/<p>/agents root, before discovery,
+// skipping a symlinked profile root; workspace, workspace-profile, and extension files keep their
+// bytes and load through the alias with one warning. Owning layer: daemon boot.
+func TestAgentKindAliasBootIntegration(t *testing.T) {
+	t.Run("Should rewrite daemon-owned definitions before discovery and leave other roots intact", func(t *testing.T) {
+		const legacy = "kind: stays_on\n"
+		var (
+			logs        *daemonLogCapture
+			global      string
+			profiles    []string
+			extension   string
+			linkedAgent string
+		)
+		writeAgent := func(path, name string) {
+			t.Helper()
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			body := "---\nname: " + name + "\nprovider: " + acpmock.ProviderName + "\n" + legacy + "---\nWatch.\n"
+			if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		d, manager, _ := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
+			logs = captureDaemonLogs(d)
+			global = filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
+			body, err := os.ReadFile(global)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body = []byte(strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\n"+legacy, 1))
+			if err := os.WriteFile(global, body, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			for _, profile := range []struct{ dir, agent string }{
+				{"default", "p1"}, {"archived", "p2"}, {"default", "subagent-test"},
+			} {
+				path := filepath.Join(d.homePaths.ProfilesDir, profile.dir, "agents", profile.agent, "AGENT.md")
+				writeAgent(path, profile.agent)
+				profiles = append(profiles, path)
+			}
+			extension = filepath.Join(d.homePaths.ExtensionDataRoot, "fixture", "agents", "ext", "AGENT.md")
+			writeAgent(extension, "ext")
+			outside := t.TempDir()
+			linkedAgent = filepath.Join(outside, "linked", "AGENT.md")
+			writeAgent(linkedAgent, "linked")
+			if err := os.MkdirAll(filepath.Join(d.homePaths.ProfilesDir, "linked"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink(outside, filepath.Join(d.homePaths.ProfilesDir, "linked", "agents")); err != nil {
+				t.Fatal(err)
+			}
+		})
+		root, err := filepath.EvalSymlinks(t.TempDir())
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspaceAgent := filepath.Join(root, ".compozy", "agents", "triage", "AGENT.md")
+		writeAgent(workspaceAgent, "triage")
+		workspaceProfileAgent := filepath.Join(root, ".compozy", "profiles", "work", "agents", "wp", "AGENT.md")
+		writeAgent(workspaceProfileAgent, "wp")
+		resolved, err := d.workspaceResolver.ResolveOrRegister(t.Context(), root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		workspace := resolved.ID
+
+		for _, path := range append([]string{global}, profiles...) {
+			body, err := os.ReadFile(path)
+			if err != nil || !strings.Contains(string(body), "kind: always_on\n") ||
+				strings.Contains(string(body), "stays_on") {
+				t.Fatalf("%s = %q %v, want kind: always_on", path, body, err)
+			}
+			if got := logs.count("rewrote agent kind stays_on to always_on", "path="+path); got != 1 {
+				t.Fatalf("rewrite lines for %s = %d, want 1\n%s", path, got, logs.String())
+			}
+			if got := logs.count("agent kind stays_on is deprecated", "path="+path); got != 0 {
+				t.Fatalf("deprecation lines for %s = %d, want 0 (rewrite runs before discovery)", path, got)
+			}
+		}
+		if got := logs.count("agent kind rewrite skipped", "reason=symlink",
+			"path="+filepath.Join(d.homePaths.ProfilesDir, "linked", "agents")); got != 1 {
+			t.Fatalf("symlinked profile root skips = %d, want 1\n%s", got, logs.String())
+		}
+		for _, path := range []string{linkedAgent, extension, workspaceAgent, workspaceProfileAgent} {
+			body, err := os.ReadFile(path)
+			if err != nil || !strings.Contains(string(body), legacy) {
+				t.Fatalf("%s = %q %v, want untouched stays_on", path, body, err)
+			}
+		}
+
+		main, err := manager.Create(t.Context(), &session.CreateOpts{AgentName: "subagent-test", Workspace: workspace})
+		if err != nil {
+			t.Fatal(err)
+		}
+		scope := toolspkg.Scope{
+			SessionID: main.ID, WorkspaceID: workspace, ProfileID: main.ProfileID, AgentName: main.AgentName,
+		}
+		listed, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentList, Input: []byte(`{}`), ApprovalGranted: true, ToolCallID: "list-agents",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(listed.Structured), `"triage"`) {
+			t.Fatalf("agent list = %s, want the workspace triage agent", listed.Structured)
+		}
+		if got := logs.count("agent kind stays_on is deprecated", "path="+workspaceAgent); got != 1 {
+			t.Fatalf("workspace deprecation lines = %d, want 1\n%s", got, logs.String())
+		}
+		result, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentInstanceCreate, Input: []byte(`{}`), ApprovalGranted: true,
+			ToolCallID: "create-instance",
+		})
+		if err != nil {
+			t.Fatalf("native instance create: %v", err)
+		}
+		var response contract.AgentInstanceResponse
+		if err := json.Unmarshal(result.Structured, &response); err != nil {
+			t.Fatal(err)
+		}
+		if response.Instance.MainSessionID == "" {
+			t.Fatalf("instance = %s, want a main session", result.Structured)
+		}
+		waitForRuntimeCondition(t, "instance main active", 15*time.Second, func() bool {
+			info, err := manager.Status(t.Context(), response.Instance.MainSessionID)
+			return err == nil && info.State == session.StateActive
+		})
+		agent, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentList, Input: []byte(`{}`), ApprovalGranted: true, ToolCallID: "list-again",
+		})
+		if err != nil || !strings.Contains(string(agent.Structured), `"kind":"always_on"`) ||
+			strings.Contains(string(agent.Structured), `"stays_on"`) {
+			t.Fatalf("agent payloads = %s %v, want always_on kinds only", agent.Structured, err)
+		}
+
+		second := &daemonLogCapture{}
+		rewriteDaemonAgentKindAliases(d.homePaths, slog.New(slog.NewTextHandler(second, nil)))
+		if got := second.count("rewrote agent kind"); got != 0 {
+			t.Fatalf("second boot pass rewrites = %d, want 0\n%s", got, second.String())
+		}
+	})
 }

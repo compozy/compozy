@@ -3246,7 +3246,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		addAttentionTerminalApprovalSchema(t, baseline)
 		correctProviderSettingsCommandAuthorship(t, baseline)
 		addProviderUsageSettingsSection(t, baseline)
-		addStaysOnHardeningSchemas(t, baseline)
+		addAlwaysOnHardeningSchemas(t, baseline)
 		// #1195: instance payloads label their owner profile.
 		if addAgentInstanceProfileName(baseline) == 0 {
 			t.Fatal("approved instance profile_name addition: no historical instance schemas found")
@@ -3963,7 +3963,7 @@ func applyApprovedAdditiveSchemaChanges(t *testing.T, baseline map[string]any) {
 			},
 		)
 	}
-	addStaysOnAdditiveSchemas(baseline)
+	addAlwaysOnAdditiveSchemas(baseline)
 }
 
 // Match historical generic error fields, including payloads that embed them.
@@ -5462,17 +5462,18 @@ func addAgentIdentitySchemas(t *testing.T, baseline map[string]any) {
 				} else {
 					props["display_name"].(map[string]any)["nullable"] = true
 					props["description"].(map[string]any)["nullable"] = true
+					// Request kinds list the deprecated stays_on alias through v0.5.1 (#1199).
+					props["kind"] = agentKindRequestSchemaForTest()
 					if props["name"] != nil {
 						props["display_name"].(map[string]any)["maxLength"] = float64(80)
 						props["description"].(map[string]any)["maxLength"] = float64(280)
-						props["kind"].(map[string]any)["enum"] = []any{"on_demand", "stays_on"}
 						props["label"] = text()
 						props["resolved_appearance"] = open()
 					}
 				}
 			}
 			if props["overrides"] != nil && props["name"] != nil && props["scope"] != nil {
-				props["kind"] = map[string]any{"type": "string", "enum": []any{"on_demand", "stays_on"}}
+				props["kind"] = agentKindRequestSchemaForTest()
 			}
 			if props["agent"] != nil && props["sessions"] != nil {
 				props["scopes"] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
@@ -5556,16 +5557,16 @@ func TestAgentMemoryOpenAPI(t *testing.T) {
 	})
 }
 
-// addStaysOnAdditiveSchemas records the approved instance hooks and B4 approval relay contract.
-func addStaysOnAdditiveSchemas(value any) {
+// addAlwaysOnAdditiveSchemas records the approved instance hooks and B4 approval relay contract.
+func addAlwaysOnAdditiveSchemas(value any) {
 	switch node := value.(type) {
 	case []any:
 		for _, child := range node {
-			addStaysOnAdditiveSchemas(child)
+			addAlwaysOnAdditiveSchemas(child)
 		}
 	case map[string]any:
 		for _, child := range node {
-			addStaysOnAdditiveSchemas(child)
+			addAlwaysOnAdditiveSchemas(child)
 		}
 		if values, ok := node["enum"].([]any); ok && slices.Contains(values, any("session.pre_create")) {
 			for _, event := range []string{"agent.instance.created", "agent.instance.paused", "agent.instance.resumed", "agent.instance.archived", "agent.instance.adopted"} {
@@ -5694,7 +5695,7 @@ func addInstanceReadSchemas(t *testing.T, baseline map[string]any) {
 			addition := map[string]any{
 				"name":        "exclude_instance_main",
 				"in":          "query",
-				"description": "Exclude stays-on main sessions from the page and its total",
+				"description": "Exclude always-on main sessions from the page and its total",
 				"schema":      map[string]any{"type": "boolean"},
 			}
 			get["parameters"] = slices.Insert(parameters, index+1, any(addition), any(finishedAutomationParameter()))
@@ -5898,4 +5899,14 @@ func addSessionLinkedWorkSchemas(value any) int {
 		count++
 	}
 	return count
+}
+
+// agentKindRequestSchemaForTest is the approved request kind schema: on_demand, always_on, and the
+// deprecated v0.5.0 stays_on alias (removal v0.5.2).
+func agentKindRequestSchemaForTest() map[string]any {
+	return map[string]any{
+		"type":        "string",
+		"enum":        []any{"on_demand", "always_on", "stays_on"},
+		"description": agentKindRequestDescription,
+	}
 }

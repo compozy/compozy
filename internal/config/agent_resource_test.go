@@ -356,3 +356,31 @@ func canonicalMCPServerResourceSpecForAgentTest(t *testing.T, spec MCPServer) MC
 	}
 	return got
 }
+
+// TestAgentResourceCodecKindAlias owns UT-022: a v0.5.0 resource record decodes canonically.
+func TestAgentResourceCodecKindAlias(t *testing.T) {
+	t.Parallel()
+
+	codec, err := NewAgentResourceCodec()
+	if err != nil {
+		t.Fatalf("NewAgentResourceCodec() error = %v", err)
+	}
+	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
+	t.Run("Should decode stays_on as always_on", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := codec.DecodeAndValidate(t.Context(), scope,
+			[]byte(`{"name":"triage","prompt":"Watch.","kind":"stays_on"}`))
+		if err != nil || got.Kind != AgentKindAlwaysOn {
+			t.Fatalf("DecodeAndValidate() = %q, %v; want always_on", got.Kind, err)
+		}
+	})
+	t.Run("Should reject an unknown kind", func(t *testing.T) {
+		t.Parallel()
+
+		if _, err := codec.DecodeAndValidate(t.Context(), scope,
+			[]byte(`{"name":"triage","prompt":"Watch.","kind":"sometimes"}`)); err == nil {
+			t.Fatal("DecodeAndValidate(kind: sometimes) succeeded, want rejection")
+		}
+	})
+}

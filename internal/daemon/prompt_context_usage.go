@@ -23,7 +23,7 @@ func instanceContextObservation(
 		}
 		observation := situation.ContextObservation{
 			Known: usage.Known, Used: usage.Used, Size: usage.Size,
-			Threshold: state.cfg.Agents.StaysOn.RotationThreshold,
+			Threshold: state.cfg.Agents.AlwaysOn.RotationThreshold,
 		}
 		if info.InstanceID == "" || info.Type != session.SessionTypeUser {
 			return observation, nil

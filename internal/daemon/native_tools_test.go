@@ -16211,11 +16211,11 @@ func TestNativeSessionPromptCrossWorkspaceReply(t *testing.T) {
 }
 
 func TestAgentMemoryNativeTools(t *testing.T) {
-	t.Run("Should mutate only the calling stays-on agent memory through the registry", func(t *testing.T) {
+	t.Run("Should mutate only the calling always-on agent memory through the registry", func(t *testing.T) {
 		t.Parallel()
 		memory := agentmemory.NewStore(t.TempDir())
 		catalog := newResourceCatalog(cloneAgentDef)
-		agent := compozyconfig.AgentDef{Name: "coder", Kind: compozyconfig.AgentKindStaysOn}
+		agent := compozyconfig.AgentDef{Name: "coder", Kind: compozyconfig.AgentKindAlwaysOn}
 		catalog.Replace(
 			1,
 			[]resources.Record[compozyconfig.AgentDef]{
@@ -16319,7 +16319,7 @@ func TestAgentMemoryNativeTools(t *testing.T) {
 			scope,
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentMemoryAdd, Input: json.RawMessage(`{"text":"refuse"}`)},
 		); err == nil ||
-			!strings.Contains(err.Error(), "agent_not_stays_on") {
+			!strings.Contains(err.Error(), "agent_not_always_on") {
 			t.Fatalf("on-demand result: %v", err)
 		}
 	})

@@ -7,7 +7,7 @@ func (e *EffectivePolicyEvaluator) applyPermissionCeiling(d Descriptor, decision
 	case PermissionModeApproveAll:
 		return
 	case PermissionModeApproveEdits, PermissionModeAuto:
-		if isLineageCoordinationTool(d, e.inputs.StaysOnLineage) || isOwnAgentMemoryWrite(d) ||
+		if isLineageCoordinationTool(d, e.inputs.AlwaysOnLineage) || isOwnAgentMemoryWrite(d) ||
 			isReadOnlyAutoApprovable(d) || isCoordinationMutation(d) {
 			return
 		}
@@ -29,7 +29,7 @@ func (e *EffectivePolicyEvaluator) applyPermissionCeiling(d Descriptor, decision
 // isLineageCoordinationTool lists builtin tools that act only inside the
 // caller's own lineage although their declared risk would ask: delegated
 // subagents, and answering a child's prompt for a stays-on lineage.
-func isLineageCoordinationTool(d Descriptor, staysOnLineage bool) bool {
+func isLineageCoordinationTool(d Descriptor, alwaysOnLineage bool) bool {
 	if d.Source.Kind != SourceBuiltin {
 		return false
 	}
@@ -37,7 +37,7 @@ func isLineageCoordinationTool(d Descriptor, staysOnLineage bool) bool {
 	case ToolIDSubagentDelegate, ToolIDSubagentCancel:
 		return true
 	case ToolIDSessionApprove, ToolIDSessionClarifyAnswer:
-		return staysOnLineage
+		return alwaysOnLineage
 	default:
 		return false
 	}

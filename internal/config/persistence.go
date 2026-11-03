@@ -312,9 +312,16 @@ func (e *OverlayEditor) HasPath(path []string) bool {
 	if err != nil {
 		return false
 	}
-	return document.findKeyValue(cleanPath) != nil ||
-		document.findTable(cleanPath) != nil ||
-		len(document.arrayTableBlocks(cleanPath)) > 0
+	if twin, ok := configPathAliasTwin(cleanPath); ok && overlayDocumentHasPath(document, twin) {
+		return true
+	}
+	return overlayDocumentHasPath(document, cleanPath)
+}
+
+func overlayDocumentHasPath(document *overlayDocument, path []string) bool {
+	return document.findKeyValue(path) != nil ||
+		document.findTable(path) != nil ||
+		len(document.arrayTableBlocks(path)) > 0
 }
 
 func (e *OverlayEditor) Bytes() ([]byte, error) {

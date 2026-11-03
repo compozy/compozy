@@ -39,7 +39,7 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Agent: DefaultAgentName,
 		},
 		Agents: AgentsConfig{
-			StaysOn: StaysOnConfig{
+			AlwaysOn: AlwaysOnConfig{
 				UnattendedTurnLimit: 300,
 				RotationThreshold:   0.8,
 				MaxActiveInstances:  10,

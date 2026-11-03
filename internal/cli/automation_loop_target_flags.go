@@ -75,7 +75,7 @@ func bindAutomationCreateTargetFlags(
 			&input.TargetInstance,
 			"target-instance",
 			"",
-			"Stays-on agent name, not an instance ID, whose check receives the event",
+			"Always-on agent name, not an instance ID, whose check receives the event",
 		)
 		cmd.Flags().StringArrayVar(
 			&input.LoopInputMappingFlags,
@@ -132,7 +132,7 @@ func buildAutomationCreateTarget(
 	}
 }
 
-// buildAutomationInstanceTarget targets a stays-on agent by name. The prompt is an optional
+// buildAutomationInstanceTarget targets an always-on agent by name. The prompt is an optional
 // instruction for its check; the daemon rejects an instance ID in place of the agent name.
 func buildAutomationInstanceTarget(
 	scope automationpkg.Scope,

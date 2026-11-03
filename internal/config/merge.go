@@ -2,6 +2,9 @@ package config
 
 import (
 	"fmt"
+	"slices"
+	"strings"
+	"sync"
 
 	"time"
 
@@ -42,9 +45,12 @@ type defaultsOverlay struct {
 }
 
 type agentsOverlay struct {
-	StaysOn   staysOnOverlay   `toml:"stays_on"`
-	Soul      soulOverlay      `toml:"soul"`
-	Heartbeat heartbeatOverlay `toml:"heartbeat"`
+	AlwaysOn alwaysOnOverlay `toml:"always_on"`
+	// StaysOnAlias decodes the v0.5.0 [agents.stays_on] table. It is applied before AlwaysOn so
+	// per-key new values win within a layer. Removal: v0.5.2.
+	StaysOnAlias alwaysOnOverlay  `toml:"stays_on"`
+	Soul         soulOverlay      `toml:"soul"`
+	Heartbeat    heartbeatOverlay `toml:"heartbeat"`
 }
 
 type soulOverlay struct {
@@ -248,4 +254,60 @@ func applyOptional[T any](source *T, target *T) {
 	if source != nil {
 		*target = *source
 	}
+}
+
+// keys lists the TOML keys an overlay sets, in declaration order.
+func (o alwaysOnOverlay) keys() []string {
+	var keys []string
+	for _, field := range []struct {
+		set bool
+		key string
+	}{
+		{o.UnattendedTurnLimit != nil, "unattended_turn_limit"},
+		{o.RotationThreshold != nil, "rotation_threshold"},
+		{o.ApprovalTimeout != nil, "approval_timeout"},
+		{o.MaxProposals != nil, "max_proposals"},
+		{o.TriageTimeout != nil, "triage_timeout"},
+		{o.MaxActiveInstances != nil, "max_active_instances"},
+	} {
+		if field.set {
+			keys = append(keys, field.key)
+		}
+	}
+	return keys
+}
+
+// applyAlwaysOn applies one layer's v0.5.0 alias table, then its current table, so per-key new
+// values win within the layer. Removal of the alias: v0.5.2.
+func (o agentsOverlay) applyAlwaysOn(dst *AlwaysOnConfig) {
+	warnStaysOnAlias(o.StaysOnAlias, o.AlwaysOn)
+	o.StaysOnAlias.Apply(dst)
+	o.AlwaysOn.Apply(dst)
+}
+
+var configTableAliasWarnings sync.Map
+
+// warnStaysOnAlias warns once per process for each distinct [agents.stays_on] key set read from
+// one layer. ignored lists keys the same layer's [agents.always_on] overrides. Removal: v0.5.2.
+func warnStaysOnAlias(alias alwaysOnOverlay, current alwaysOnOverlay) {
+	keys := alias.keys()
+	if len(keys) == 0 {
+		return
+	}
+	set := current.keys()
+	var ignored []string
+	for _, key := range keys {
+		if slices.Contains(set, key) {
+			ignored = append(ignored, key)
+		}
+	}
+	attrs := []any{"keys", strings.Join(keys, ",")}
+	if len(ignored) > 0 {
+		attrs = append(attrs, "ignored", strings.Join(ignored, ","))
+	}
+	fingerprint := strings.Join(keys, ",") + "|" + strings.Join(ignored, ",")
+	if _, loaded := configTableAliasWarnings.LoadOrStore(fingerprint, struct{}{}); loaded {
+		return
+	}
+	DeprecationLogger().Warn(ConfigPathAliasWarning, attrs...)
 }

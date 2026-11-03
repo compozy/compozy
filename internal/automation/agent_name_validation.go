@@ -40,7 +40,7 @@ func ValidateTriggerAgentName(trigger Trigger, path string) error {
 		return compozyconfig.ValidationError{
 			Path: nestedPath(path, "agent_name"),
 			Message: fmt.Sprintf(
-				"%q is an agent instance id; target a stays-on agent by its agent name, such as \"triage\"",
+				"%q is an agent instance id; target an always-on agent by its agent name, such as \"triage\"",
 				strings.TrimSpace(trigger.AgentName),
 			),
 		}

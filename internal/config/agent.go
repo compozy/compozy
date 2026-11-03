@@ -7,12 +7,10 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/BurntSushi/toml"
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/frontmatter"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	speedpkg "github.com/compozy/compozy/internal/speed"
-	"github.com/goccy/go-yaml"
 )
 
 var resourceProfileNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
@@ -186,7 +184,8 @@ func loadAgentDefFromDirectory(
 		return AgentDef{}, fmt.Errorf("read agent file %q: %w", agentPath, err)
 	}
 
-	agent, err := ParseAgentDef(contents)
+	var deprecated bool
+	agent, err := parseAgentDef(contents, &deprecated)
 	if err != nil {
 		return AgentDef{}, fmt.Errorf("parse agent file %q: %w", agentPath, err)
 	}
@@ -206,6 +205,9 @@ func loadAgentDefFromDirectory(
 		return AgentDef{}, fmt.Errorf("validate agent file %q: %w", agentPath, err)
 	}
 	agent.SourcePath = agentPath
+	if deprecated {
+		warnAgentKindAlias(agentPath)
+	}
 
 	return agent, nil
 }
@@ -303,10 +305,18 @@ func (r WorkspaceDiscoveryRoot) usesHomeResourceLayout() bool {
 
 // ParseAgentDef parses a Markdown file with YAML frontmatter into an AgentDef.
 func ParseAgentDef(content []byte) (AgentDef, error) {
+	return parseAgentDef(content, nil)
+}
+
+func parseAgentDef(content []byte, deprecated *bool) (AgentDef, error) {
 	var parsed parsedAgentDef
 
 	body, err := frontmatter.Decode(content, func(data []byte) error {
-		return decodeAgentFrontmatter(data, &parsed)
+		usedAlias, err := decodeAgentFrontmatter(data, &parsed)
+		if deprecated != nil {
+			*deprecated = usedAlias
+		}
+		return err
 	})
 	if err != nil {
 		return AgentDef{}, wrapFrontmatterError(err)
@@ -434,38 +444,6 @@ func wrapFrontmatterError(err error) error {
 	default:
 		return err
 	}
-}
-
-func decodeAgentFrontmatter(data []byte, parsed *parsedAgentDef) error {
-	if hasEmbeddedTabFrontmatterKey(data) {
-		return ErrInvalidAgentFrontmatterKey
-	}
-	data, err := ignoreRetiredAgentHookMatchers(data)
-	if err != nil {
-		return err
-	}
-
-	yamlErr := yaml.UnmarshalWithOptions(data, parsed, yaml.Strict())
-	if yamlErr == nil {
-		return nil
-	}
-
-	var parsedTOML parsedAgentDef
-	meta, tomlErr := toml.Decode(string(data), &parsedTOML)
-	if tomlErr != nil {
-		return fmt.Errorf(
-			"decode agent frontmatter: %w",
-			errors.Join(
-				fmt.Errorf("yaml: %w", yamlErr),
-				fmt.Errorf("toml: %w", tomlErr),
-			),
-		)
-	}
-	if undecoded := meta.Undecoded(); len(undecoded) > 0 {
-		return fmt.Errorf("decode agent frontmatter: unknown field %q", undecoded[0].String())
-	}
-	*parsed = parsedTOML
-	return nil
 }
 
 type mappedFrontmatterError struct {

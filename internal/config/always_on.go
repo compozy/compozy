@@ -2,7 +2,7 @@ package config
 
 import "time"
 
-type StaysOnConfig struct {
+type AlwaysOnConfig struct {
 	UnattendedTurnLimit int64         `toml:"unattended_turn_limit"`
 	RotationThreshold   float64       `toml:"rotation_threshold"`
 	ApprovalTimeout     time.Duration `toml:"approval_timeout"`
@@ -11,7 +11,7 @@ type StaysOnConfig struct {
 	MaxActiveInstances  int           `toml:"max_active_instances"`
 }
 
-type staysOnOverlay struct {
+type alwaysOnOverlay struct {
 	UnattendedTurnLimit *int64         `toml:"unattended_turn_limit"`
 	RotationThreshold   *float64       `toml:"rotation_threshold"`
 	ApprovalTimeout     *time.Duration `toml:"approval_timeout"`
@@ -20,7 +20,7 @@ type staysOnOverlay struct {
 	MaxActiveInstances  *int           `toml:"max_active_instances"`
 }
 
-func (o staysOnOverlay) Apply(dst *StaysOnConfig) {
+func (o alwaysOnOverlay) Apply(dst *AlwaysOnConfig) {
 	if o.UnattendedTurnLimit != nil {
 		dst.UnattendedTurnLimit = *o.UnattendedTurnLimit
 	}

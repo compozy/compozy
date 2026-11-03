@@ -74,8 +74,8 @@ func (n *daemonNativeTools) agentMemoryCaller(
 		if entry.Def.Name != info.AgentName {
 			continue
 		}
-		if entry.Def.EffectiveKind() != compozyconfig.AgentKindStaysOn {
-			return agentmemory.Key{}, "", nativeInputError(id, errors.New("agent_not_stays_on"))
+		if entry.Def.EffectiveKind() != compozyconfig.AgentKindAlwaysOn {
+			return agentmemory.Key{}, "", nativeInputError(id, errors.New("agent_not_always_on"))
 		}
 		if entry.MemoryOrigin == "" {
 			return agentmemory.Key{}, "", nativeUnavailableError(id, "agent memory identity unavailable")

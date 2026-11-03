@@ -49,7 +49,7 @@ func editAgentDefFileInDirectory(
 	}
 
 	var parsed parsedAgentDef
-	if err := decodeAgentFrontmatter(parts.Metadata, &parsed); err != nil {
+	if _, err := decodeAgentFrontmatter(parts.Metadata, &parsed); err != nil {
 		return AgentDef{}, fmt.Errorf("parse agent file %q: %w", path, err)
 	}
 

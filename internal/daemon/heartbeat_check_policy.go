@@ -40,8 +40,8 @@ func resolveInstanceCheckPolicy(
 	if err != nil {
 		return err
 	}
-	if agent.Kind != compozyconfig.AgentKindStaysOn {
-		target.Gate = "definition_not_stays_on"
+	if agent.Kind != compozyconfig.AgentKindAlwaysOn {
+		target.Gate = "definition_not_always_on"
 		return nil
 	}
 	authoring := heartbeat.AuthoringTarget{

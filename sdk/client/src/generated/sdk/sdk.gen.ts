@@ -1665,7 +1665,7 @@ export class agents extends HeyApiClient {
   }
 
   /**
-   * Create a stays-on agent instance
+   * Create an always-on agent instance
    */
   public createAgentInstance<ThrowOnError extends boolean = true>(
     options: Options<CreateAgentInstanceData, ThrowOnError>

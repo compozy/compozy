@@ -25,11 +25,11 @@ func AuthorizeSessionApproval(
 	if err != nil {
 		return err
 	}
-	staysOn, err := IsStaysOnLineage(ctx, actorID, lookup)
+	alwaysOn, err := IsAlwaysOnLineage(ctx, actorID, lookup)
 	if err != nil {
 		return err
 	}
-	if !staysOn {
+	if !alwaysOn {
 		return nil
 	}
 	if actorID == targetID {
@@ -87,8 +87,8 @@ func AuthorizeSessionApproval(
 	return ErrApprovalOutsideLineage
 }
 
-// IsStaysOnLineage follows persisted parent links, including descendants without an instance ID.
-func IsStaysOnLineage(
+// IsAlwaysOnLineage follows persisted parent links, including descendants without an instance ID.
+func IsAlwaysOnLineage(
 	ctx context.Context,
 	actorID string,
 	lookup func(context.Context, string) (*Info, error),
@@ -117,29 +117,29 @@ func IsStaysOnLineage(
 	return false, nil
 }
 
-// AuthorizeToolApprovalGrantMutation keeps durable grants under operator control in stays-on lineages.
+// AuthorizeToolApprovalGrantMutation keeps durable grants under operator control in always-on lineages.
 func AuthorizeToolApprovalGrantMutation(
 	ctx context.Context,
 	actorID string,
 	lookup func(context.Context, string) (*Info, error),
 ) error {
-	staysOn, err := IsStaysOnLineage(ctx, actorID, lookup)
+	alwaysOn, err := IsAlwaysOnLineage(ctx, actorID, lookup)
 	if err != nil {
 		return err
 	}
-	if staysOn {
+	if alwaysOn {
 		return ErrToolApprovalGrantDenied
 	}
 	return nil
 }
 
 var ErrToolApprovalGrantDenied = errors.New(
-	"tool_approval_grants_denied: stays-on lineages cannot set or revoke tool approval grants",
+	"tool_approval_grants_denied: always-on lineages cannot set or revoke tool approval grants",
 )
 
-// StaysOnApprovalDecision narrows a stays-on actor's persistent decision to its one-time form. An "always"
-// answer would leave a durable grant, and stays-on lineages cannot set grants on any surface (rule 15).
-func StaysOnApprovalDecision(
+// AlwaysOnApprovalDecision narrows an always-on actor's persistent decision to its one-time form. An "always"
+// answer would leave a durable grant, and always-on lineages cannot set grants on any surface (rule 15).
+func AlwaysOnApprovalDecision(
 	ctx context.Context,
 	actorID, decision string,
 	lookup func(context.Context, string) (*Info, error),
@@ -152,8 +152,8 @@ func StaysOnApprovalDecision(
 	if actorID == "" || once == "" {
 		return decision, nil
 	}
-	staysOn, err := IsStaysOnLineage(ctx, actorID, lookup)
-	if err != nil || !staysOn {
+	alwaysOn, err := IsAlwaysOnLineage(ctx, actorID, lookup)
+	if err != nil || !alwaysOn {
 		return decision, err
 	}
 	return once, nil

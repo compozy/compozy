@@ -11,21 +11,21 @@ import (
 	"github.com/compozy/compozy/internal/tools"
 )
 
-// staysOnHardeningAdditions lists the response fields the stays-on hardening spec adds
+// alwaysOnHardeningAdditions lists the response fields the always-on hardening spec adds
 // (`_dx.md`). Each is additive: existing fields, types and required members stay unchanged.
-var staysOnHardeningAdditions = []struct {
+var alwaysOnHardeningAdditions = []struct {
 	pathPrefix string
 	keys       []string
 }{
 	// Every session payload: the mode a session runs at, and whether the reviewer fell back.
 	{"#/", []string{"effective_permissions", "permission_mode_degraded"}},
-	// Queued input rows: input held while a stays-on lineage is paused.
+	// Queued input rows: input held while an always-on lineage is paused.
 	{"#/", []string{"held"}},
 	// Agent definitions: operator-only approval reach and exceptions.
 	{"#/", []string{"session_approval", "permission_rules"}},
 	// Steer and queue results name the instance main a message reached.
 	{"#/", []string{"target_session_id"}},
-	// Triggers record the scope of the stays-on agent they target.
+	// Triggers record the scope of the always-on agent they target.
 	{"#/", []string{"target_instance_scope"}},
 	// Agent instances: the spend brake counter, its limit, held wakes and the next wake.
 	{"#/", []string{"unattended_turns", "unattended_turn_limit", "held_wakes", "next_wake"}},
@@ -35,9 +35,9 @@ var staysOnHardeningAdditions = []struct {
 	{"#/paths/~1api~1sessions~1catalog-stream", []string{"action", "kind", "resource"}},
 }
 
-// addStaysOnHardeningSchemas copies exactly the approved fields from the current document into
+// addAlwaysOnHardeningSchemas copies exactly the approved fields from the current document into
 // the historical baseline, including their required membership, and fails on any other key.
-func addStaysOnHardeningSchemas(t *testing.T, baseline map[string]any) {
+func addAlwaysOnHardeningSchemas(t *testing.T, baseline map[string]any) {
 	t.Helper()
 	doc, err := Document()
 	if err != nil {
@@ -73,7 +73,7 @@ func addStaysOnHardeningSchemas(t *testing.T, baseline map[string]any) {
 
 func approvedAdditionKeys(pointer string) map[string]bool {
 	keys := map[string]bool{}
-	for _, addition := range staysOnHardeningAdditions {
+	for _, addition := range alwaysOnHardeningAdditions {
 		if strings.HasPrefix(pointer, addition.pathPrefix) {
 			for _, key := range addition.keys {
 				keys[key] = true
@@ -91,12 +91,12 @@ type approvedAdditionWalker struct {
 	seen          map[string]bool
 }
 
-// staysOnHardeningEnumValues are the enum members the spec adds; no existing member is removed.
-var staysOnHardeningEnumValues = map[string]bool{
+// alwaysOnHardeningEnumValues are the enum members the spec adds; no existing member is removed.
+var alwaysOnHardeningEnumValues = map[string]bool{
 	"agent_instance":        true, // trigger target_kind
 	"approve-edits":         true, // permission level
 	"auto":                  true, // permission level
-	"goal_on_instance_main": true, // Goal refusal on a stays-on main
+	"goal_on_instance_main": true, // Goal refusal on an always-on main
 	"unattended":            true, // daemon-set pause reason
 }
 
@@ -114,7 +114,7 @@ func copyApprovedEnum(expected, actual map[string]any) {
 	}
 	for _, value := range newEnum {
 		text, _ := value.(string)
-		if !slices.Contains(oldEnum, value) && !staysOnHardeningEnumValues[text] {
+		if !slices.Contains(oldEnum, value) && !alwaysOnHardeningEnumValues[text] {
 			return // an unapproved member stays a diff the comparison reports
 		}
 	}
@@ -260,4 +260,51 @@ func relaxTriggerCreatePrompt(t *testing.T, baseline map[string]any) {
 		t.Fatal("approved trigger prompt relaxation: historical create request does not require prompt")
 	}
 	node["required"] = slices.DeleteFunc(slices.Clone(required), func(value any) bool { return value == "prompt" })
+}
+
+// TestAgentKindRequestSchemas owns the UT-023 schema rows: request kinds accept the deprecated
+// stays_on alias through v0.5.1, while response kinds stay a plain string.
+func TestAgentKindRequestSchemas(t *testing.T) {
+	t.Parallel()
+
+	doc, err := Document()
+	if err != nil {
+		t.Fatalf("Document: %v", err)
+	}
+	schemas := doc.Components.Schemas
+	for _, name := range []string{"CreateAgentPayload", "DuplicateAgentRequest", "DuplicateAgentOverrides"} {
+		t.Run("Should list the request kinds on "+name, func(t *testing.T) {
+			t.Parallel()
+
+			ref := schemas[name]
+			if ref == nil || ref.Value == nil || ref.Value.Properties["kind"] == nil {
+				t.Fatalf("%s.kind is missing", name)
+			}
+			kind := ref.Value.Properties["kind"].Value
+			if !reflect.DeepEqual(kind.Enum, []any{"on_demand", "always_on", "stays_on"}) ||
+				!strings.Contains(kind.Description, "stays_on is the deprecated") ||
+				!strings.Contains(kind.Description, "v0.5.2") {
+				t.Fatalf(
+					"%s.kind = %v %q, want the three kinds and the deprecation text",
+					name,
+					kind.Enum,
+					kind.Description,
+				)
+			}
+		})
+	}
+	for _, name := range []string{"AgentPayload", "GroupedAgentCatalogItemPayload"} {
+		t.Run("Should keep a plain string kind on "+name, func(t *testing.T) {
+			t.Parallel()
+
+			ref := schemas[name]
+			if ref == nil || ref.Value == nil || ref.Value.Properties["kind"] == nil {
+				t.Fatalf("%s.kind is missing", name)
+			}
+			kind := ref.Value.Properties["kind"].Value
+			if len(kind.Enum) != 0 || !kind.Type.Is("string") {
+				t.Fatalf("%s.kind = %v %v, want a plain string", name, kind.Type, kind.Enum)
+			}
+		})
+	}
 }

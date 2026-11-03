@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"strings"
 	"testing"
@@ -642,7 +643,16 @@ func newPromptInputTestSession(workspaceRoot string) *session.Session {
 	}
 }
 
-func TestStaysOnDoctrineStartup(t *testing.T) {
+// TestAlwaysOnDoctrineStartup owns UT-018: always-on sessions get the always_on_doctrine section
+// wrapped in its tag; ordinary sessions do not.
+func TestAlwaysOnDoctrineStartup(t *testing.T) {
+	names := []string{}
+	for _, descriptor := range defaultStartupPromptSectionDescriptors(nil, nil) {
+		names = append(names, descriptor.Name)
+	}
+	if !slices.Contains(names, "always_on_doctrine") {
+		t.Fatalf("startup sections = %v, want always_on_doctrine", names)
+	}
 	for _, tc := range []struct {
 		name       string
 		startup    session.StartupPromptContext
@@ -663,7 +673,8 @@ func TestStaysOnDoctrineStartup(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if strings.Contains(got, "<compozy-stays-on-doctrine>") != tc.want {
+			if strings.Contains(got, "<compozy-always-on-doctrine>") != tc.want ||
+				strings.Contains(got, "</compozy-always-on-doctrine>") != tc.want {
 				t.Fatalf("doctrine presence mismatch: %s", got)
 			}
 			if strings.Contains(got, "Do not start a Goal on this main session") != tc.main {

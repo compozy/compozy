@@ -37,7 +37,7 @@ func TestInstanceAuthority(t *testing.T) {
 		{"Should reject unattended resume", "resume", "unattended", "own", false},
 		{"Should reject unknown pause resume", "resume", "future_reason", "own", false},
 		{"Should reject empty pause resume", "resume", "", "own", false},
-		{"Should allow changed definition resume", "resume", "definition_not_stays_on", "own", true},
+		{"Should allow changed definition resume", "resume", "definition_not_always_on", "own", true},
 		{"Should allow definition pause resume", "resume", "definition_missing", "own", true},
 		{"Should reject agent adoption", "adopt", "", "own", false},
 		{"Should reject enabling checks", "checks_on", "", "own", false},

@@ -1,7 +1,9 @@
 package config
 
 import (
+	"bytes"
 	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -673,4 +675,60 @@ func TestSupervisionTimingCompatibility(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestStaysOnConfigAlias owns UT-006, UT-007 and UT-009: [agents.stays_on] is read into
+// agents.always_on through v0.5.1, the new table wins per key, and validation names the new path.
+// It swaps the process-wide deprecation logger, so it does not run in parallel.
+func TestStaysOnConfigAlias(t *testing.T) {
+	var logs bytes.Buffer
+	RouteDeprecationWarnings(slog.New(slog.NewTextHandler(&logs, nil)))
+	t.Cleanup(func() { RouteDeprecationWarnings(nil) })
+	load := func(t *testing.T, body string) Config {
+		t.Helper()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		path := filepath.Join(t.TempDir(), "config.toml")
+		writeFile(t, path, body)
+		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		return cfg
+	}
+
+	t.Run("Should read the old table into always_on and warn", func(t *testing.T) {
+		logs.Reset()
+		cfg := load(t, "[agents.stays_on]\napproval_timeout = \"2h\"\n")
+		if cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
+			t.Fatalf("ApprovalTimeout = %v, want 2h", cfg.Agents.AlwaysOn.ApprovalTimeout)
+		}
+		if strings.Count(logs.String(), "agents.stays_on is deprecated") != 1 ||
+			!strings.Contains(logs.String(), "use agents.always_on") || !strings.Contains(logs.String(), "v0.5.2") ||
+			!strings.Contains(logs.String(), "keys=approval_timeout") {
+			t.Fatalf("logs = %q, want one warning naming agents.always_on, v0.5.2 and the key", logs.String())
+		}
+	})
+
+	t.Run("Should let always_on win per key and report the ignored key", func(t *testing.T) {
+		logs.Reset()
+		cfg := load(t, "[agents.stays_on]\nmax_proposals = 5\n\n[agents.always_on]\nmax_proposals = 3\n")
+		if cfg.Agents.AlwaysOn.MaxProposals != 3 {
+			t.Fatalf("MaxProposals = %d, want 3", cfg.Agents.AlwaysOn.MaxProposals)
+		}
+		if !strings.Contains(logs.String(), "ignored=max_proposals") {
+			t.Fatalf("logs = %q, want max_proposals listed as ignored", logs.String())
+		}
+	})
+
+	t.Run("Should name the new path in validation errors", func(t *testing.T) {
+		cfg := load(t, "[agents.stays_on]\napproval_timeout = \"30s\"\n")
+		err := cfg.Validate()
+		if err == nil ||
+			!strings.Contains(err.Error(), "agents.always_on.approval_timeout must be between 1m and 72h") {
+			t.Fatalf("Validate() error = %v, want the agents.always_on message", err)
+		}
+	})
 }

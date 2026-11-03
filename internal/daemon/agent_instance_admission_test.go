@@ -50,15 +50,15 @@ func TestInstanceAdoptAdmission(t *testing.T) {
 		name, kind, agent, profile, workspace, parent, grant, want string
 		operator, wider                                            bool
 	}{
-		{name: "Should adopt an eligible root", kind: "stays_on", agent: "coder", profile: "profile", workspace: "workspace", operator: true},
+		{name: "Should adopt an eligible root", kind: "always_on", agent: "coder", profile: "profile", workspace: "workspace", operator: true},
 		{name: "Should reject agent adoption", want: "agent_instance_forbidden"},
-		{name: "Should reject on demand adoption", kind: "on_demand", agent: "coder", profile: "profile", workspace: "workspace", operator: true, want: "agent_not_stays_on"},
+		{name: "Should reject on demand adoption", kind: "on_demand", agent: "coder", profile: "profile", workspace: "workspace", operator: true, want: "agent_not_always_on"},
 		{name: "Should reject child adoption", parent: "parent", operator: true, want: "session_not_root"},
 		{name: "Should reject cross agent adoption", agent: "other", operator: true, want: "session_scope_mismatch"},
 		{name: "Should reject cross profile adoption", agent: "coder", profile: "other", operator: true, want: "session_scope_mismatch"},
 		{name: "Should reject cross workspace adoption", agent: "coder", profile: "profile", workspace: "other", operator: true, want: "session_scope_mismatch"},
-		{name: "Should reject wider permissions", kind: "stays_on", agent: "coder", profile: "profile", workspace: "workspace", operator: true, wider: true, want: "workspace_access_denied"},
-		{name: "Should reject wider workspace grant", kind: "stays_on", agent: "coder", profile: "profile", workspace: "workspace", operator: true, grant: "unrestricted", want: "workspace_access_denied"},
+		{name: "Should reject wider permissions", kind: "always_on", agent: "coder", profile: "profile", workspace: "workspace", operator: true, wider: true, want: "workspace_access_denied"},
+		{name: "Should reject wider workspace grant", kind: "always_on", agent: "coder", profile: "profile", workspace: "workspace", operator: true, grant: "unrestricted", want: "workspace_access_denied"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -127,7 +127,7 @@ func TestInstanceCreateAdmission(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			inputs := &instanceAdmissionInputs{
-				definition: instanceDefinition{Kind: "stays_on", Grant: workspaceaccess.Unrestricted},
+				definition: instanceDefinition{Kind: "always_on", Grant: workspaceaccess.Unrestricted},
 				caller: agentinstance.Caller{
 					AgentName: "coder",
 					ProfileID: "profile",
@@ -160,13 +160,13 @@ func TestInstanceCreateAdmission(t *testing.T) {
 		depth                      int
 		reachErr, wantErr          error
 	}{
-		{"Should admit the same agent", "stays_on", "coder", "profile", 0, nil, nil},
-		{"Should reject on demand definitions", "on_demand", "coder", "profile", 0, nil, agentinstance.ErrNotStaysOn},
-		{"Should reject another agent", "stays_on", "other", "profile", 0, nil, agentinstance.ErrForbidden},
-		{"Should reject another profile", "stays_on", "coder", "other", 0, nil, agentinstance.ErrForbidden},
-		{"Should reject depth one callers", "stays_on", "coder", "profile", 1, nil, agentinstance.ErrDepth},
-		{"Should reject callers below depth one", "stays_on", "coder", "profile", 2, nil, agentinstance.ErrDepth},
-		{"Should retain workspace denial", "stays_on", "coder", "profile", 0, denied, denied},
+		{"Should admit the same agent", "always_on", "coder", "profile", 0, nil, nil},
+		{"Should reject on demand definitions", "on_demand", "coder", "profile", 0, nil, agentinstance.ErrNotAlwaysOn},
+		{"Should reject another agent", "always_on", "other", "profile", 0, nil, agentinstance.ErrForbidden},
+		{"Should reject another profile", "always_on", "coder", "other", 0, nil, agentinstance.ErrForbidden},
+		{"Should reject depth one callers", "always_on", "coder", "profile", 1, nil, agentinstance.ErrDepth},
+		{"Should reject callers below depth one", "always_on", "coder", "profile", 2, nil, agentinstance.ErrDepth},
+		{"Should retain workspace denial", "always_on", "coder", "profile", 0, denied, denied},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

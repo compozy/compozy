@@ -1655,7 +1655,10 @@ export type CreateAgentPayload = {
   description?: string | null;
   display_name?: string | null;
   fallback_chain?: Array<AgentFallbackRoutePayload>;
-  kind?: "on_demand" | "stays_on";
+  /**
+   * Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+   */
+  kind?: "on_demand" | "always_on" | "stays_on";
   label?: string;
   model?: string;
   name: string;
@@ -1977,7 +1980,10 @@ export type DuplicateAgentOverrides = {
   deny_tools?: Array<string>;
   description?: string | null;
   display_name?: string | null;
-  kind?: string;
+  /**
+   * Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+   */
+  kind?: "on_demand" | "always_on" | "stays_on";
   model?: string;
   permission_rules?: Array<AgentPermissionRulePayload>;
   permissions?: "deny-all" | "approve-reads" | "approve-edits" | "auto" | "approve-all";
@@ -1996,7 +2002,10 @@ export type DuplicateAgentOverrides = {
 };
 
 export type DuplicateAgentRequest = {
-  kind?: "on_demand" | "stays_on";
+  /**
+   * Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+   */
+  kind?: "on_demand" | "always_on" | "stays_on";
   name: string;
   overrides?: DuplicateAgentOverrides | null;
   scope?: "workspace" | "global";
@@ -16077,7 +16086,7 @@ export type GetAgentMemoryErrors = {
    */
   409: ErrorPayload;
   /**
-   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   * agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
    */
   422: ErrorPayload;
   /**
@@ -16147,7 +16156,7 @@ export type PutAgentMemoryErrors = {
    */
   409: ErrorPayload;
   /**
-   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   * agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
    */
   422: ErrorPayload;
   /**
@@ -16217,7 +16226,7 @@ export type RemoveAgentMemoryErrors = {
    */
   409: ErrorPayload;
   /**
-   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   * agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
    */
   422: ErrorPayload;
   /**
@@ -16288,7 +16297,7 @@ export type ReplaceAgentMemoryErrors = {
    */
   409: ErrorPayload;
   /**
-   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   * agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
    */
   422: ErrorPayload;
   /**
@@ -16359,7 +16368,7 @@ export type AddAgentMemoryErrors = {
    */
   409: ErrorPayload;
   /**
-   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   * agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
    */
   422: ErrorPayload;
   /**
@@ -16426,7 +16435,7 @@ export type ListAgentMemoryHistoryErrors = {
    */
   409: ErrorPayload;
   /**
-   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   * agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
    */
   422: ErrorPayload;
   /**
@@ -16498,7 +16507,7 @@ export type RollbackAgentMemoryErrors = {
    */
   409: ErrorPayload;
   /**
-   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   * agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
    */
   422: ErrorPayload;
   /**
@@ -16569,7 +16578,7 @@ export type SearchAgentMemoryErrors = {
    */
   409: ErrorPayload;
   /**
-   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   * agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
    */
   422: ErrorPayload;
   /**
@@ -16640,7 +16649,7 @@ export type ValidateAgentMemoryErrors = {
    */
   409: ErrorPayload;
   /**
-   * agent_not_stays_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
+   * agent_not_always_on, agent_memory_entry_too_large, agent_memory_budget_exceeded or invalid input
    */
   422: ErrorPayload;
   /**
@@ -24553,7 +24562,7 @@ export type ListSessionsData = {
      */
     skip_total?: boolean;
     /**
-     * Exclude stays-on main sessions from the page and its total
+     * Exclude always-on main sessions from the page and its total
      */
     exclude_instance_main?: boolean;
     /**
@@ -35658,7 +35667,7 @@ export type ListWorkspaceSessionsData = {
      */
     skip_total?: boolean;
     /**
-     * Exclude stays-on main sessions from the page and its total
+     * Exclude always-on main sessions from the page and its total
      */
     exclude_instance_main?: boolean;
     /**

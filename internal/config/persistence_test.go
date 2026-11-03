@@ -2172,3 +2172,56 @@ func TestOverlayEditorKeepsSessionRuntimeDefaultsWithTheirProvider(t *testing.T)
 		})
 	}
 }
+
+// TestEditConfigOverlayUnsetAlwaysOnAlias owns the UT-008 unset rows: unsetting either spelling
+// removes the key from both [agents.always_on] and [agents.stays_on] in the overlay file, so an
+// old value cannot resurface. Removal: v0.5.2.
+func TestEditConfigOverlayUnsetAlwaysOnAlias(t *testing.T) {
+	t.Parallel()
+
+	for _, path := range [][]string{
+		{"agents", "stays_on", "max_proposals"},
+		{"agents", "always_on", "max_proposals"},
+	} {
+		t.Run("Should clear both tables when unsetting "+strings.Join(path, "."), func(t *testing.T) {
+			t.Parallel()
+
+			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			target, err := ResolveConfigWriteTarget(homePaths, "", WriteScopeUser, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeFile(t, homePaths.ConfigFile, "[agents.stays_on]\nmax_proposals = 5\n")
+			if _, err := EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
+				return editor.SetValue([]string{"agents", "always_on", "max_proposals"}, int64(3))
+			}); err != nil {
+				t.Fatalf("set new path error = %v", err)
+			}
+			deleted := false
+			cfg, err := EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
+				deleted = editor.HasPath(path)
+				return editor.Delete(path)
+			})
+			if err != nil {
+				t.Fatalf("unset %v error = %v", path, err)
+			}
+			if !deleted || cfg.Agents.AlwaysOn.MaxProposals != 2 {
+				t.Fatalf(
+					"deleted = %v MaxProposals = %d, want true and the default 2",
+					deleted,
+					cfg.Agents.AlwaysOn.MaxProposals,
+				)
+			}
+			contents, err := os.ReadFile(homePaths.ConfigFile)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(string(contents), "max_proposals") {
+				t.Fatalf("config after unset = %q, want max_proposals gone from both tables", contents)
+			}
+		})
+	}
+}

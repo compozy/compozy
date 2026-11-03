@@ -164,7 +164,7 @@ type CreateAgentInstanceParams struct {
 	Profile *string `url:"profile"`
 }
 
-// CreateAgentInstance Create a stays-on agent instance
+// CreateAgentInstance Create an always-on agent instance
 func (c *Client) CreateAgentInstance(ctx context.Context, params CreateAgentInstanceParams, body AgentInstanceCreateRequest) (*AgentInstanceResponse, error) {
 	path := "/api/agent-instances"
 	query := url.Values{}

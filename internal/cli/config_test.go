@@ -2876,3 +2876,54 @@ func TestTerminalConfigSetPathsMatchPublicSurface(t *testing.T) {
 		t.Fatalf("terminal config-set paths = %#v, want %#v", got, want)
 	}
 }
+
+// TestConfigCommandsAlwaysOnPathAlias owns the CLI rows of UT-008: get, set and unset accept the
+// v0.5.0 agents.stays_on.* paths, warn on stderr, and operate on agents.always_on.*.
+func TestConfigCommandsAlwaysOnPathAlias(t *testing.T) {
+	t.Parallel()
+
+	const warning = "warning: agents.stays_on is deprecated; use agents.always_on (removed in v0.5.2)"
+	deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+	out, stderr, err := executeRootCommand(t, deps, "config", "set", "agents.stays_on.max_proposals", "3", "-o", "json")
+	if err != nil {
+		t.Fatalf("config set old path error = %v", err)
+	}
+	var setRecord configSetRecord
+	if err := json.Unmarshal([]byte(out), &setRecord); err != nil {
+		t.Fatal(err)
+	}
+	if setRecord.Path != "agents.always_on.max_proposals" || !strings.Contains(stderr, warning) {
+		t.Fatalf("set record = %#v stderr = %q, want the new path and the warning", setRecord, stderr)
+	}
+	out, stderr, err = executeRootCommand(t, deps, "config", "get", "agents.stays_on.max_proposals", "-o", "json")
+	if err != nil {
+		t.Fatalf("config get old path error = %v", err)
+	}
+	var valueRecord configValueRecord
+	if err := json.Unmarshal([]byte(out), &valueRecord); err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(valueRecord.Value) != "3" || !strings.Contains(stderr, warning) {
+		t.Fatalf("get record = %#v stderr = %q, want 3 and the warning", valueRecord, stderr)
+	}
+	if _, stderr, err = executeRootCommand(
+		t,
+		deps,
+		"config",
+		"unset",
+		"agents.stays_on.max_proposals",
+		"-o",
+		"json",
+	); err != nil ||
+		!strings.Contains(stderr, warning) {
+		t.Fatalf("config unset old path = %q, %v; want the warning", stderr, err)
+	}
+	home, err := deps.resolveHome()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := compozyconfig.LoadGlobalConfig(home)
+	if err != nil || cfg.Agents.AlwaysOn.MaxProposals != 2 {
+		t.Fatalf("MaxProposals after unset = %d, %v; want the default 2", cfg.Agents.AlwaysOn.MaxProposals, err)
+	}
+}
