@@ -8,6 +8,10 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+// ErrSessionProfileMoveOpen refuses deleting a session whose move to another profile is
+// still journaled: the journal is what lets recovery release the move's checkouts.
+var ErrSessionProfileMoveOpen = errors.New("session: a move to another profile is not settled yet")
+
 // ErrProfileMoveWorktreeNotFound reports a worktree id no row was ever recorded for.
 // The move's journal chooses ids before creating them, so a missing row means the
 // step that creates it never committed.
@@ -74,7 +78,7 @@ func (m *Manager) settleOpenProfileMove(ctx context.Context, sessionID string) e
 		return &ProfileMoveError{
 			Reason: ProfileMoveRefusalRecoveryIncomplete,
 			Message: fmt.Sprintf(
-				"an earlier move of session %s did not finish its rollback (%v); the session is kept%s",
+				"an earlier move of session %s is not settled yet (%v); the session is kept%s",
 				sessionID, err, profileMoveBranchNote(&move),
 			),
 			cause: err,
@@ -87,8 +91,11 @@ func (m *Manager) settleOpenProfileMove(ctx context.Context, sessionID string) e
 // derive receipt committed completes the move. Otherwise it rolls back in reverse
 // order: the target checkout is released, the branch is checked out again for the
 // source profile when its checkout is gone, and the original is unarchived and
-// rebound to it. Every step reads current state first, so a settle that a stop
-// interrupted is repeated safely. The journal is closed once nothing is left.
+// rebound to it. A binding the original's owner changed before the archive is left
+// as they set it: its checkout was never released. Every step reads current state
+// first, so a settle that a stop interrupted is repeated safely. The journal is
+// closed once nothing is left; a close that fails is reported, so the move is not
+// taken as settled while its row remains.
 func (m *Manager) settleProfileMove(ctx context.Context, move store.SessionProfileMove) (bool, error) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), profileMoveTimeout)
 	defer cancel()
@@ -104,15 +111,15 @@ func (m *Manager) settleProfileMove(ctx context.Context, move store.SessionProfi
 	if err != nil {
 		return false, fmt.Errorf("read the copy's derive receipt: %w", err)
 	}
-	if copied {
-		m.closeProfileMove(ctx, journal, move.SessionID)
-		return true, nil
+	if !copied {
+		if err := m.rollbackProfileMoveState(ctx, journal, &move); err != nil {
+			return false, err
+		}
 	}
-	if err := m.rollbackProfileMoveState(ctx, journal, &move); err != nil {
-		return false, err
+	if err := journal.DeleteSessionProfileMove(ctx, move.SessionID); err != nil {
+		return copied, fmt.Errorf("close the move journal: %w", err)
 	}
-	m.closeProfileMove(ctx, journal, move.SessionID)
-	return false, nil
+	return copied, nil
 }
 
 func (m *Manager) rollbackProfileMoveState(
@@ -195,7 +202,9 @@ func (m *Manager) unarchiveAndRebindLocked(
 }
 
 // releaseProfileMoveTarget removes the copy's checkout when its creation committed;
-// the branch stays.
+// the branch stays. A target that is neither ready nor gone, such as a dismissed
+// creation whose cleanup did not finish, cannot be released here: the restore that
+// follows either finds the branch free or reports that it is still held.
 func releaseProfileMoveTarget(ctx context.Context, port ProfileMoveWorktrees, move *store.SessionProfileMove) error {
 	target, err := port.InspectProfileMoveWorktree(ctx, move.WorkspaceID, move.TargetWorktreeID)
 	switch {
@@ -204,7 +213,7 @@ func releaseProfileMoveTarget(ctx context.Context, port ProfileMoveWorktrees, mo
 	case err != nil:
 		return fmt.Errorf("read the target worktree %s: %w", move.TargetWorktreeID, err)
 	case !target.Ready:
-		return fmt.Errorf("the target worktree %s is still changing", move.TargetWorktreeID)
+		return nil
 	}
 	if err := port.ReleaseProfileMoveWorktree(ctx, move.WorkspaceID, move.TargetWorktreeID); err != nil {
 		return fmt.Errorf("release the target worktree %s: %w", move.TargetWorktreeID, err)
@@ -223,7 +232,7 @@ func (m *Manager) restoreProfileMoveCheckout(
 	meta *store.SessionMeta,
 ) (string, error) {
 	current := meta.WorktreeIDValue()
-	if current == "" || current == move.RestoreWorktreeID {
+	if current == "" {
 		return "", nil
 	}
 	bound, err := port.InspectProfileMoveWorktree(ctx, move.WorkspaceID, current)
@@ -237,6 +246,10 @@ func (m *Manager) restoreProfileMoveCheckout(
 	}
 	restore, err := port.InspectProfileMoveWorktree(ctx, move.WorkspaceID, move.RestoreWorktreeID)
 	switch {
+	case err == nil && restore.Ready && restore.Branch != move.Branch:
+		return "", fmt.Errorf(
+			"the restore worktree %s is on branch %s, not %s", move.RestoreWorktreeID, restore.Branch, move.Branch,
+		)
 	case err == nil && restore.Ready:
 		return move.RestoreWorktreeID, nil
 	case err == nil && restore.Gone:
@@ -284,6 +297,27 @@ func (m *Manager) closeProfileMove(ctx context.Context, journal store.SessionPro
 	if err := journal.DeleteSessionProfileMove(ctx, sessionID); err != nil {
 		m.logger.Warn("session.profile_move.journal_close_failed", "session_id", sessionID, "error", err)
 	}
+}
+
+// refuseOpenProfileMove keeps a journaled move's session until the move settles. The
+// caller holds the profile-move lock, so no move can open between this read and the
+// delete.
+func (m *Manager) refuseOpenProfileMove(ctx context.Context, sessionID string) error {
+	journal, ok := m.creationStore.(store.SessionProfileMoveStore)
+	if !ok || journal == nil {
+		return nil
+	}
+	_, open, err := journal.SessionProfileMove(ctx, sessionID)
+	if err != nil {
+		return fmt.Errorf("session: read the open move of %s: %w", sessionID, err)
+	}
+	if open {
+		return fmt.Errorf(
+			"%w: session %s; it settles when the daemon restarts or the session is moved again",
+			ErrSessionProfileMoveOpen, sessionID,
+		)
+	}
+	return nil
 }
 
 func (m *Manager) profileMoveJournal() (store.SessionProfileMoveStore, error) {

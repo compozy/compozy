@@ -31,6 +31,15 @@ func (m *Manager) Delete(ctx context.Context, id string) (err error) {
 			m.logger.Error("session: deletion failed", "session_id", target, "error", err)
 		}
 	}()
+	// A move takes its lock before the session's conversation lock; so does a delete.
+	ctx, unlockMove, err := m.lockProfileMove(ctx, target)
+	if err != nil {
+		return err
+	}
+	defer unlockMove()
+	if err := m.refuseOpenProfileMove(ctx, target); err != nil {
+		return err
+	}
 	ctx, unlockConversation, err := m.lockConversationOperation(ctx, target)
 	if err != nil {
 		return err

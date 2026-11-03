@@ -439,6 +439,11 @@ func TestDaemonProfileMoveWorktrees(t *testing.T) {
 				name: "failed with its rollback incomplete",
 				item: worktree.Worktree{State: worktree.StateFailed, CreateRollbackError: "checkout left in place"},
 			},
+			{name: "dismissed after a removal", item: worktree.Worktree{State: worktree.StateDismissed}, gone: true},
+			{
+				name: "dismissed with its creation rollback incomplete",
+				item: worktree.Worktree{State: worktree.StateDismissed, CreateRollbackError: "checkout left in place"},
+			},
 			{name: "pending", item: worktree.Worktree{State: worktree.StatePending}},
 		}
 		for _, tt := range tests {

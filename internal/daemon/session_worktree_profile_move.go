@@ -98,13 +98,14 @@ func (r daemonSessionWorktreeResolver) InspectProfileMoveWorktree(
 }
 
 // profileMoveCheckoutGone reports a row whose checkout no longer exists. A failed
-// creation counts only once its rollback completed; until then Git may still hold
-// the branch.
+// creation counts only once its rollback completed, and so does a dismissed one:
+// dismissal leaves an unfinished rollback's files and Git state in place, so Git
+// may still hold the branch.
 func profileMoveCheckoutGone(item *worktree.Worktree) bool {
 	switch item.State {
-	case worktree.StateRemoved, worktree.StateDismissed:
+	case worktree.StateRemoved:
 		return true
-	case worktree.StateFailed:
+	case worktree.StateFailed, worktree.StateDismissed:
 		return item.CreateRollbackError == ""
 	default:
 		return false
