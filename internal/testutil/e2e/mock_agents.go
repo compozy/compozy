@@ -318,6 +318,7 @@ func ensureMockAgentProviderConfig(t testing.TB, cfg *compozyconfig.Config) {
 	if cfg.Providers == nil {
 		cfg.Providers = map[string]compozyconfig.ProviderConfig{}
 	}
+	disableBuiltinLiveDiscovery(cfg)
 	if _, ok := cfg.Providers[acpmock.ProviderName]; ok {
 		return
 	}
@@ -347,4 +348,18 @@ func mockAgentDiagnosticsPath(
 		return "", fmt.Errorf("os.MkdirAll(%q) error = %w", filepath.Dir(diagnosticsPath), err)
 	}
 	return diagnosticsPath, nil
+}
+
+// disableBuiltinLiveDiscovery keeps a mock-agent daemon hermetic: the model catalog's background sweep would
+// otherwise probe every built-in provider, launching real provider CLIs (for example through npx) into the
+// harness home. A provider the scenario configures explicitly keeps its own discovery setting.
+func disableBuiltinLiveDiscovery(cfg *compozyconfig.Config) {
+	for providerID := range compozyconfig.BuiltinProviders() {
+		provider := cfg.Providers[providerID]
+		if provider.Models.Discovery.Enabled != nil {
+			continue
+		}
+		provider.Models.Discovery.Enabled = new(false)
+		cfg.Providers[providerID] = provider
+	}
 }
