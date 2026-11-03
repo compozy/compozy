@@ -356,3 +356,16 @@ and 20 and return more proposals than each limit. Persist exactly the configured
 count. The default and example configuration use 2. `TestParseTriageReply` checks
 all limits from 1 through 20; `TestStaysOnTriageConfiguration` validates their
 acceptance and the default. Daemon wiring passes the configured value directly.
+
+Automation event hardening (UT-053, UT-072, UT-073): deliver an escaping-heavy
+summary followed by ordinary events. The complete serialized batch stays within
+8 KiB, preserves event/trigger/run attribution, and includes the first event so a
+successful check consumes it and later events progress. The digest carries the
+summary once, inside its untrusted fence. `TestCollectDigest` and
+`TestInstanceWakeTransactions` own the collector and real SQLite checks.
+
+With the instance checks switch enabled, disable checks in HEARTBEAT.md or the
+workspace heartbeat policy and deliver a signed webhook. The run completes with
+`instance_event_check_scheduled=false` and `instance_event_reason=policy_disabled`;
+the event remains unconsumed. `TestInstanceWebhookCheckIntegration` exercises both
+policy sources through the real daemon and HTTP webhook boundary.
