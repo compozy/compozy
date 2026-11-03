@@ -48,6 +48,7 @@ CompozyOS archives them on load instead of failing; see
 | `[limits]`                           | Daemon-level concurrently running agent cap.                                           | `max_concurrent_agents = 20`                                                                          |
 | `[session.limits]`                   | Deprecated. `timeout` has no effect and is removed in v0.5.0.                          | `timeout = "0s"`                                                                                      |
 | `[session.supervision]`              | Activity heartbeat, progress, hung-turn watchdog, and idle runtime release controls.   | heartbeat 30 seconds, progress 10 minutes, quiet 30 minutes, stop grace 10 minutes, idle release 30m  |
+| `[session.auth_recovery]`            | How long a turn waits for a lost provider sign-in before it fails.                     | enabled, 10-minute window, 15-second first retry, 1-minute cap                                        |
 | `[session.derive]`                   | Size bounds of every transcript replay into a new agent session.                       | `max_replay_bytes = 131072`, `max_message_bytes = 16384`                                              |
 | `[subagents]`                        | Size cap of the answer a subagent returns to its parent session.                       | `result_max_chars = 60000`                                                                            |
 | `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.                | enabled, 32 KiB body, 2 KiB compact projection                                                        |
@@ -349,6 +350,13 @@ stop_grace = "10m"
 idle_release_after = "30m"
 # Grace after an explicit prompt-budget cancellation.
 timeout_cancel_grace = "30s"
+
+[session.auth_recovery]
+# Global-only. Wait for a lost provider sign-in and retry the turn: 15s, 30s, then every minute for 10 minutes.
+enabled = true
+window = "10m"
+initial_delay = "15s"
+max_delay = "1m"
 
 [session.derive]
 # Hard upper bound, in bytes, of the transcript JSON replayed into any new agent session
@@ -1333,6 +1341,22 @@ These keys are additive: omitted values receive defaults without rewriting exist
 `auto_continue = false` is preserved. They follow the restart-required settings lifecycle and can be
 managed through CLI, HTTP/UDS, and the native config tools. See [restart recovery](/docs/sessions/resume)
 for eligibility, pending-interaction handling, and external-effect limits.
+
+## `[session.auth_recovery]`
+
+| Field           | Type     | Default | Valid values            | Description                                                                |
+| --------------- | -------- | ------- | ----------------------- | -------------------------------------------------------------------------- |
+| `enabled`       | boolean  | `true`  | `true`, `false`         | Wait for a lost provider sign-in and retry the turn instead of failing it. |
+| `window`        | duration | `"10m"` | `initial_delay`–`"1h"`  | Total wait; retries are scheduled only while they fit inside it.           |
+| `initial_delay` | duration | `"15s"` | `"1s"`–`"10m"`          | Wait before the first retry; each later wait doubles.                      |
+| `max_delay`     | duration | `"1m"`  | `initial_delay`–`"10m"` | Cap on the wait between retries.                                           |
+
+The defaults retry after 15 s, 30 s, and then every minute, eleven attempts inside ten minutes. When the
+window ends, the turn fails with the usual provider guidance. Provider startup and delayed auth refusals
+count against the elapsed window; no further retry starts after expiry. The wait does not count as turn activity, so
+keep `window` below `session.supervision.quiet_after` if you shorten that watchdog. These keys are global-only: workspace-scope
+writes are rejected. They follow the restart-required settings lifecycle. See
+[provider sign-in recovery](/docs/sessions/lifecycle#when-the-provider-sign-in-goes-missing-during-a-prompt).
 
 ## `[session.limits]`
 

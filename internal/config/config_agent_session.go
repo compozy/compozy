@@ -49,14 +49,15 @@ type LimitsConfig struct {
 
 // SessionConfig defines session-scoped runtime controls.
 type SessionConfig struct {
-	Restart     SessionRestartConfig     `toml:"restart"`
-	Stop        SessionStopConfig        `toml:"stop"`
-	Limits      SessionLimitsConfig      `toml:"limits"`
-	Supervision SessionSupervisionConfig `toml:"supervision"`
-	BusyInput   SessionBusyInputConfig   `toml:"busy_input"`
-	Messaging   SessionMessagingConfig   `toml:"messaging"`
-	Attachments SessionAttachmentsConfig `toml:"attachments"`
-	Derive      SessionDeriveConfig      `toml:"derive"`
+	Restart      SessionRestartConfig      `toml:"restart"`
+	AuthRecovery SessionAuthRecoveryConfig `toml:"auth_recovery"`
+	Stop         SessionStopConfig         `toml:"stop"`
+	Limits       SessionLimitsConfig       `toml:"limits"`
+	Supervision  SessionSupervisionConfig  `toml:"supervision"`
+	BusyInput    SessionBusyInputConfig    `toml:"busy_input"`
+	Messaging    SessionMessagingConfig    `toml:"messaging"`
+	Attachments  SessionAttachmentsConfig  `toml:"attachments"`
+	Derive       SessionDeriveConfig       `toml:"derive"`
 }
 
 // SessionStopConfig bounds the cooperative phase before process termination.

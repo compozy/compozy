@@ -15398,6 +15398,8 @@ export interface components {
       max_attempts: number;
       /** Format: date-time */
       next_attempt_at?: string | null;
+      /** @enum {string} */
+      reason?: "runtime_exit" | "provider_auth";
       /** Format: date-time */
       started_at: string;
     };

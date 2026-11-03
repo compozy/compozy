@@ -7,6 +7,34 @@ import (
 	"time"
 )
 
+type Tool struct {
+	ID                         ToolID          `json:"id"`
+	Backend                    BackendRef      `json:"backend"`
+	DisplayTitle               string          `json:"display_title,omitempty"`
+	FriendlyVerb               string          `json:"friendly_verb,omitempty"`
+	Preview                    string          `json:"preview,omitempty"`
+	ReservedWorkspacePartition bool            `json:"reserved_workspace_partition,omitempty"`
+	MaxResultBytes             int64           `json:"max_result_bytes,omitempty"`
+	Idempotent                 bool            `json:"idempotent,omitempty"`
+	InputErrorCode             ErrorCode       `json:"input_error_code,omitempty"`
+	Description                string          `json:"description"`
+	InputSchema                json.RawMessage `json:"input_schema"`
+	OutputSchema               json.RawMessage `json:"output_schema,omitempty"`
+	InputSchemaDigest          string          `json:"input_schema_digest"`
+	OutputSchemaDigest         string          `json:"output_schema_digest,omitempty"`
+	Source                     SourceRef       `json:"source"`
+	Visibility                 Visibility      `json:"visibility"`
+	Risk                       RiskClass       `json:"risk"`
+	ReadOnly                   bool            `json:"read_only"`
+	Destructive                bool            `json:"destructive"`
+	OpenWorld                  bool            `json:"open_world"`
+	RequiresInteraction        bool            `json:"requires_interaction"`
+	ConcurrencySafe            bool            `json:"concurrency_safe"`
+	Toolsets                   []ToolsetID     `json:"toolsets,omitempty"`
+	Tags                       []string        `json:"tags,omitempty"`
+	SearchHints                []string        `json:"search_hints,omitempty"`
+}
+
 type ToolCallPatch struct {
 	Deny       bool            `json:"deny,omitempty"`
 	DenyReason string          `json:"deny_reason,omitempty"`
@@ -280,21 +308,4 @@ type ValidationIssue struct {
 type ViewBadge struct {
 	Label string `json:"label"`
 	Tone  string `json:"tone"`
-}
-
-type ViewChrome struct {
-	IsLoading   bool        `json:"is_loading,omitempty"`
-	SearchText  *string     `json:"search_text,omitempty"`
-	EventCount  int64       `json:"event_count,omitempty"`
-	Placeholder string      `json:"search_placeholder,omitempty"`
-	ThrottleMs  int         `json:"throttle_ms,omitempty"`
-	Filtering   *bool       `json:"filtering,omitempty"`
-	Complete    bool        `json:"complete,omitempty"`
-	ActiveChip  string      `json:"active_chip,omitempty"`
-	Columns     int         `json:"columns,omitempty"`
-	Pagination  *Pagination `json:"pagination,omitempty"`
-	OnSearch    string      `json:"on_search,omitempty"`
-	OnChip      string      `json:"on_chip,omitempty"`
-	OnSelection string      `json:"on_selection,omitempty"`
-	OnLoadMore  string      `json:"on_load_more,omitempty"`
 }

@@ -108,7 +108,17 @@ func ProviderFailureDiagnosticFromError(err error) (ProviderFailureDiagnostic, b
 	if diagnostic, matched := providerFailureDiagnosticFromText(text); matched {
 		return diagnostic, true
 	}
-	return providerAuthFailureDiagnosticFromText(text)
+	if diagnostic, matched := providerAuthFailureDiagnosticFromText(text); matched {
+		return diagnostic, true
+	}
+	// ACP reserves -32000 for auth_required, so the code classifies even without auth wording.
+	if IsAuthRequiredError(err) {
+		return providerFailureDiagnosticFromClassification(authproviders.Classification{
+			Kind:   authproviders.ProviderFailureNotAuthenticated,
+			Action: authproviders.ProviderFailureActionLogin,
+		})
+	}
+	return ProviderFailureDiagnostic{}, false
 }
 
 func providerAuthFailureDiagnosticFromError(err error) (ProviderFailureDiagnostic, bool) {

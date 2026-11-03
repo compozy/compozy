@@ -193,6 +193,10 @@ type DriverControlStep struct {
 	ErrorMessage string `json:"error_message,omitempty"`
 	// ErrorCode is the optional JSON-RPC error code for fail_prompt (default -32603).
 	ErrorCode int `json:"error_code,omitzero"`
+	// WhenPathMissing makes fail_prompt fire only while this path, relative to the driver's
+	// working directory, is absent; otherwise the step passes and the turn continues. It lets a
+	// lab remove and restore a stand-in provider credential.
+	WhenPathMissing string `json:"when_path_missing,omitempty"`
 }
 
 // DriverControlAction identifies one supported driver fault injection action.

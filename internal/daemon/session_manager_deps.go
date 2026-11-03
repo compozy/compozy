@@ -34,6 +34,7 @@ type SessionManagerDeps struct {
 	WindowReconciler        session.WindowReconciler
 	SessionSupervision      compozyconfig.SessionSupervisionConfig
 	SessionStop             compozyconfig.SessionStopConfig
+	SessionAuthRecovery     compozyconfig.SessionAuthRecoveryConfig
 	SessionBusyInput        compozyconfig.SessionBusyInputConfig
 	SessionMessaging        compozyconfig.SessionMessagingConfig
 	SessionDerive           compozyconfig.SessionDeriveConfig
@@ -96,6 +97,7 @@ func (d *Daemon) sessionManagerDeps(state *bootState) SessionManagerDeps {
 		WindowReconciler:        reconciler,
 		SessionSupervision:      state.cfg.Session.Supervision,
 		SessionStop:             state.cfg.Session.Stop,
+		SessionAuthRecovery:     state.cfg.Session.AuthRecovery,
 		SessionBusyInput:        state.cfg.Session.BusyInput,
 		SessionMessaging:        state.cfg.Session.Messaging,
 		SessionDerive:           state.cfg.Session.Derive,

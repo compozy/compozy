@@ -462,10 +462,13 @@ and rebuilds context from the transcript (reason `accepted_route_missing`).
 
 ### Recover from a provider error during a turn
 
-The fallback chain does not run once a turn is under way. Authentication and rate-limit failures end the
-affected turn while keeping the session available.
-After restoring authentication or waiting for the provider to recover, send another prompt in the
-same session. CompozyOS does not automatically retry the failed prompt.
+The fallback chain does not run once a turn is under way. A lost sign-in first waits for authentication to
+come back: CompozyOS retries the turn on its own with backoff for up to
+`session.auth_recovery.window` (10 minutes by default; see
+[When the provider sign-in goes missing during a prompt](/docs/sessions/lifecycle#when-the-provider-sign-in-goes-missing-during-a-prompt)).
+Only when that window ends, or for a rate-limit failure, does the failure end the affected turn while
+keeping the session available. After restoring authentication or waiting for the provider to recover,
+send another prompt in the same session. CompozyOS does not automatically retry rate-limited prompts.
 
 On a user session, a `session/prompt` failure classified `rate_limited` or `not_authenticated` prescribes
 `handoff`: the error event's `provider_error.next_action` is `handoff` and its guidance names the continue

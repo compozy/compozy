@@ -27701,6 +27701,13 @@
             "nullable": true,
             "type": "string"
           },
+          "reason": {
+            "enum": [
+              "runtime_exit",
+              "provider_auth"
+            ],
+            "type": "string"
+          },
           "started_at": {
             "format": "date-time",
             "type": "string"

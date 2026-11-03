@@ -13,8 +13,10 @@ func (d DriverControlStep) Validate(path string) error {
 		return err
 	}
 	if d.Action != DriverControlFailPrompt &&
-		(strings.TrimSpace(d.ErrorMessage) != "" || d.ErrorCode != 0) {
-		return fmt.Errorf("acpmock: %s.error_message and error_code are only valid for fail_prompt", path)
+		(strings.TrimSpace(d.ErrorMessage) != "" || d.ErrorCode != 0 || strings.TrimSpace(d.WhenPathMissing) != "") {
+		return fmt.Errorf(
+			"acpmock: %s.error_message, error_code, and when_path_missing are only valid for fail_prompt", path,
+		)
 	}
 	switch d.Action {
 	case DriverControlFailPrompt:

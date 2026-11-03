@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type promptTurnDispatchState struct {
@@ -28,11 +30,43 @@ type promptTurnDispatchState struct {
 }
 
 type promptRecoveryState struct {
-	executionCtx      context.Context
-	request           acp.PromptRequest
-	originalMessage   string
+	executionCtx    context.Context
+	request         acp.PromptRequest
+	originalMessage string
+	budgets         map[store.SessionRuntimeRecoveryReason]*promptRecoveryBudget
+	// workObserved records that the provider already produced output or tool work this turn.
+	workObserved bool
+}
+
+// promptRecoveryBudget tracks one failure class so each keeps its own bounded schedule.
+type promptRecoveryBudget struct {
 	attempts          int
+	startedAt         time.Time
+	expiresAt         time.Time
 	exhaustedRecorded bool
+}
+
+func (r *promptRecoveryState) budget(reason store.SessionRuntimeRecoveryReason) *promptRecoveryBudget {
+	if r.budgets == nil {
+		r.budgets = make(map[store.SessionRuntimeRecoveryReason]*promptRecoveryBudget, 2)
+	}
+	budget := r.budgets[reason]
+	if budget == nil {
+		budget = &promptRecoveryBudget{}
+		r.budgets[reason] = budget
+	}
+	return budget
+}
+
+func (r *promptRecoveryState) observeDelivered(eventType string) {
+	if r == nil || r.workObserved {
+		return
+	}
+	switch eventType {
+	case acp.EventTypeAgentMessage, acp.EventTypeThought, acp.EventTypePlan, acp.EventTypeToolCall,
+		acp.EventTypeToolResult, acp.EventTypePermission, acp.EventTypeClarify:
+		r.workObserved = true
+	}
 }
 
 type promptMessageDispatchState struct {

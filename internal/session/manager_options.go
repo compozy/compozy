@@ -358,6 +358,14 @@ func WithPromptRecoveryDelays(delays ...time.Duration) Option {
 	}
 }
 
+// WithSessionAuthRecoveryConfig sets how long a turn waits for a lost provider sign-in.
+func WithSessionAuthRecoveryConfig(config compozyconfig.SessionAuthRecoveryConfig) Option {
+	return func(manager *Manager) {
+		manager.authRecoveryDelays = config.Delays()
+		manager.authRecoveryWindow = config.Window
+	}
+}
+
 // WithSessionSupervision overrides runtime activity supervision settings.
 func WithSessionSupervision(config compozyconfig.SessionSupervisionConfig) Option {
 	return func(manager *Manager) {

@@ -234,8 +234,8 @@ func (m *Manager) handlePromptPumpEvent(
 				return failure, errorText, true
 			}
 		}
-		if promptEventIsRecoverable(recoveryCandidate) && promptRecoveryAllowed(loop) {
-			recovered, err := m.attemptPromptRecovery(ctx, session, turnState, loop, recoveryCandidate)
+		if reason, ok := promptRecoveryReasonFor(recoveryCandidate); ok && promptRecoveryAllowed(loop) {
+			recovered, err := m.attemptPromptRecovery(ctx, session, turnState, loop, recoveryCandidate, reason)
 			if err != nil {
 				failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
 				return failure, errorText, true
@@ -267,6 +267,7 @@ func (m *Manager) handlePromptPumpEvent(
 		failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
 		return failure, errorText, true
 	}
+	notePromptEventDelivered(session, turnState, normalized.Type)
 	if stop := m.sendPromptPumpEvent(ctx, deliveryCtx, out, loop, normalized, runtimeEvent); stop {
 		return fatalPromptFailure, normalized.Error, true
 	}
