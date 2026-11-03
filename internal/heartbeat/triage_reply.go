@@ -100,10 +100,15 @@ func TriageReplyOutcome(reply string, digest CheckDigest, limit int) TriageOutco
 	if len(proposals) == 0 {
 		return TriageOutcome{Result: "quiet", Reason: "quiet"}
 	}
-	sources := triageEventSources(digest)
 	var source *AutomationEventSource
-	if len(sources) > 0 {
-		source = &sources[0]
+	for _, item := range digest.Items {
+		if item.Source != nil {
+			first := *item.Source
+			// The operator's readable line comes from the admitted, fenced event, never the reply.
+			first.Summary = readableFencedSummary(item.Summary)
+			source = &first
+			break
+		}
 	}
 	payload, err := json.Marshal(struct {
 		Source    *AutomationEventSource `json:"source,omitempty"`

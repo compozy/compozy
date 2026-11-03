@@ -15,11 +15,13 @@ import (
 type AutomationEventSource struct {
 	TriggerName string `json:"trigger_name"`
 	Event       string `json:"event"`
-	Kind        string `json:"kind"`
-	EventID     string `json:"event_id"`
-	TriggerID   string `json:"trigger_id"`
-	RunID       string `json:"run_id"`
-	ReceivedAt  string `json:"received_at"`
+	// Summary is the operator-facing readable line, set only on report sources, never in the check digest.
+	Summary    string `json:"summary,omitempty"`
+	Kind       string `json:"kind"`
+	EventID    string `json:"event_id"`
+	TriggerID  string `json:"trigger_id"`
+	RunID      string `json:"run_id"`
+	ReceivedAt string `json:"received_at"`
 }
 
 type AutomationEventFact struct {
@@ -126,7 +128,7 @@ func automationEventItem(row AutomationEventFact, summary, instruction string) D
 			ReceivedAt:  row.ReceivedAt,
 		},
 		Key:         "automation_event:" + row.ID,
-		Summary:     "<untrusted_automation_event>\n" + quoted + "\n</untrusted_automation_event>",
+		Summary:     automationEventFenceOpen + quoted + automationEventFenceClose,
 		Instruction: instruction,
 	}
 }
