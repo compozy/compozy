@@ -11,6 +11,10 @@ it, and every profile-scoped surface reads it. An open Web client keeps its curr
 client changes the remembered selection; reloading resolves the remembered choice. All profiles is never
 remembered by the daemon; the browser keeps it across reloads, and Web creation under it lands in the
 remembered profile (`default` until one is chosen), shown by the destination chip.
+Under All profiles the Web works on that remembered profile's desks, so another profile's session
+opened there lands on them; an explicit switch into one profile closes, through the normal reopenable
+`window.close`, every session window on its desk that another profile owns. A deep link opened while a
+profile is selected keeps its owner banner.
 
 ## Resolve And Inspect
 
@@ -56,6 +60,11 @@ scope. Agent-native calls derive their immutable session profile and cannot acce
 replacement. Sessions an agent creates through `compozy__session_create`, `compozy__session_spawn`,
 `compozy__subagent_delegate`, or the in-session `compozy session create` bind the caller session's
 profile.
+
+A session's profile never changes. To move work started in the wrong profile, use
+`compozy session move-to-profile <id> <profile>` (native `compozy__session_move_to_profile`): it
+copies a stopped session into the target profile as a fork, moves its worktree branch to a new
+worktree owned by that profile, and archives the original, whose history and usage stay put.
 
 Worktrees are intentionally visible across profiles because they represent workspace filesystem state;
 their rows still identify the owner.

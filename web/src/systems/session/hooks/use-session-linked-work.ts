@@ -11,12 +11,13 @@ import {
 import { sessionKeys } from "../lib/query-keys";
 import {
   leadLink,
+  linkCount,
   linkKey,
   linkRequest,
   linkShortName,
   linkUnlinkedNote,
-  moreLabel,
-  summaryMoreLabel,
+  summaryLinkCount,
+  type LinkedWorkCount,
   type SessionLinkedWorkItem,
   type SessionLinkedWorkResponse,
   type SessionWorkLinkRequest,
@@ -108,7 +109,8 @@ export function useSessionLinkMutations(workspaceId: string, sessionId: string, 
 export interface SessionLinkedWorkModel {
   items: readonly SessionLinkedWorkItem[];
   lead: SessionLinkedWorkItem | null;
-  more: string | null;
+  /** Past one item the header shows this count in place of the lead's chip. */
+  count: LinkedWorkCount;
   refreshing: boolean;
   /** Whether the header's status zone has clipped the chip, moving the list to the actions zone. */
   clipped: boolean;
@@ -147,7 +149,7 @@ export function useSessionLinkedWork({
   return {
     items,
     lead: list.data ? leadLink(list.data.items) : (summary?.lead ?? null),
-    more: list.data ? moreLabel(list.data.items) : summary ? summaryMoreLabel(summary) : null,
+    count: list.data || !summary ? linkCount(items) : summaryLinkCount(summary),
     // Only what the person asked for: background rereads must not spin the chip every minute.
     refreshing: refresh.isPending,
     clipped,

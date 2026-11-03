@@ -1,10 +1,10 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { primaryAgentFixture } from "@/systems/agent/testing";
-import { resetProfileViews, setProfileView } from "@/systems/profiles";
+import { resetProfileViews, setProfileView, useProfileReadScope } from "@/systems/profiles";
 
 const mocks = vi.hoisted(() => ({
   agent: undefined as unknown,
@@ -75,6 +75,8 @@ vi.mock("../use-unsaved-guard", () => ({
 }));
 
 import { AgentApiError, AgentDigestConflictError } from "../../adapters/agent-api";
+import { agentKeys } from "../../lib/query-keys";
+import { useAgentRuntimeEditor } from "../use-agent-runtime-editor";
 import { useAgentSettingsPage } from "../use-agent-settings-page";
 
 function createWrapper() {
@@ -273,4 +275,236 @@ describe("useAgentSettingsPage", () => {
       expect(result.current.dirty).toBe(false);
     }
   );
+});
+
+// Invariant: the agent home's Model row saves a pick, or a return to the default, in one
+//   digest-guarded update that keeps the rest of the definition; a choice made during a save
+//   applies on that agent's saved definition, never on another agent's.
+describe("useAgentRuntimeEditor", () => {
+  type Saved = { resolve: (agent: unknown) => void; reject: (error: unknown) => void };
+  let saves: Saved[];
+
+  afterEach(() => act(() => resetProfileViews()));
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.workspaceId = "ws-test";
+    resetProfileViews();
+    saves = [];
+    mocks.updateMutateAsync = vi.fn(
+      () => new Promise((resolve, reject) => saves.push({ resolve, reject }))
+    );
+  });
+
+  const workspaceAgent = (overrides: Record<string, unknown> = {}) => ({
+    ...primaryAgentFixture,
+    origin: "workspace",
+    provider: "",
+    model: "",
+    reasoning_effort: "",
+    ...overrides,
+  });
+
+  function renderEditor(agent: unknown) {
+    return renderHook(
+      ({ current }: { current: unknown }) => useAgentRuntimeEditor({ agent: current as never }),
+      { wrapper: createWrapper(), initialProps: { current: agent } }
+    );
+  }
+
+  const savedParams = (index: number) => mocks.updateMutateAsync.mock.calls[index]![0];
+
+  it("Should save a picked model at once and keep the agent's command", () => {
+    const { result } = renderEditor(workspaceAgent({ command: "my-claude --fast" }));
+    expect(result.current.overridden).toBe(false);
+
+    act(() =>
+      result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "high" })
+    );
+
+    expect(mocks.updateMutateAsync).toHaveBeenCalledOnce();
+    expect(savedParams(0)).toMatchObject({
+      name: primaryAgentFixture.name,
+      cacheWorkspace: "ws-test",
+      params: {
+        expected_digest: primaryAgentFixture.definition_digest,
+        workspace: "ws-test",
+        agent: {
+          provider: "claude",
+          model: "sonnet",
+          reasoning_effort: "high",
+          command: "my-claude --fast",
+        },
+      },
+    });
+    // The pick shows while it saves, so the next control builds on it.
+    expect(result.current.value).toMatchObject({ provider: "claude", model: "sonnet" });
+  });
+
+  it("Should apply a choice made during a save on the saved definition, not drop it", async () => {
+    const agent = workspaceAgent();
+    const { result } = renderEditor(agent);
+
+    act(() =>
+      result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
+    );
+    act(() =>
+      result.current.onChange({ provider: "claude", model: "opus", reasoning_effort: "high" })
+    );
+    expect(mocks.updateMutateAsync).toHaveBeenCalledOnce();
+
+    await act(async () =>
+      saves[0]!.resolve({ ...agent, provider: "claude", model: "sonnet", definition_digest: "s1" })
+    );
+
+    expect(mocks.updateMutateAsync).toHaveBeenCalledTimes(2);
+    expect(savedParams(1).params).toMatchObject({
+      expected_digest: "s1",
+      agent: { provider: "claude", model: "opus", reasoning_effort: "high" },
+    });
+  });
+
+  it("Should save another agent's choice on that agent while the first save runs", async () => {
+    const first = workspaceAgent({ name: "triage" });
+    const second = workspaceAgent({ name: "reviewer", definition_digest: "reviewer-digest" });
+    const { result, rerender } = renderEditor(first);
+
+    act(() =>
+      result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
+    );
+    rerender({ current: second });
+    expect(result.current.value.model).toBe("");
+    act(() => result.current.onChange({ provider: "claude", model: "opus", reasoning_effort: "" }));
+
+    expect(mocks.updateMutateAsync).toHaveBeenCalledTimes(2);
+    expect(savedParams(1)).toMatchObject({
+      name: "reviewer",
+      params: { expected_digest: "reviewer-digest", agent: { model: "opus" } },
+    });
+
+    // Each agent keeps its own pending choice while its save runs.
+    rerender({ current: first });
+    expect(result.current.value.model).toBe("sonnet");
+
+    await act(async () => saves[0]!.resolve({ ...first, model: "sonnet" }));
+    expect(mocks.updateMutateAsync).toHaveBeenCalledTimes(2);
+  });
+
+  // The page reads the agent through the detail query; the conflict reread refreshes that query.
+  function renderQueryBacked(server: { agent: unknown; offline: boolean }) {
+    return renderHook(
+      () => {
+        const { destination } = useProfileReadScope();
+        const { data } = useQuery({
+          queryKey: agentKeys.detail(primaryAgentFixture.name, "ws-test", destination),
+          queryFn: () =>
+            server.offline ? Promise.reject(new Error("offline")) : Promise.resolve(server.agent),
+        });
+        return { agent: data, editor: useAgentRuntimeEditor({ agent: data as never }) };
+      },
+      { wrapper: createWrapper() }
+    );
+  }
+
+  it("Should hold picks until a conflict's reread brings the fresh digest", async () => {
+    const server = { agent: workspaceAgent() as unknown, offline: false };
+    const { result } = renderQueryBacked(server);
+    await waitFor(() => expect(result.current.agent).toBeDefined());
+
+    act(() =>
+      result.current.editor.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
+    );
+    server.agent = workspaceAgent({ definition_digest: "fresh-digest" });
+    await act(async () => saves[0]!.reject(new AgentDigestConflictError("stale")));
+    expect(result.current.editor.conflictMessage).toBe(
+      "This agent changed somewhere else. Pick the model again."
+    );
+    await waitFor(() => expect(result.current.editor.isPending).toBe(false));
+
+    act(() =>
+      result.current.editor.onChange({ provider: "claude", model: "opus", reasoning_effort: "" })
+    );
+    expect(savedParams(1).params).toMatchObject({ expected_digest: "fresh-digest" });
+  });
+
+  it("Should keep picks held when the conflict reread fails, until a retry succeeds", async () => {
+    const server = { agent: workspaceAgent() as unknown, offline: false };
+    const { result } = renderQueryBacked(server);
+    await waitFor(() => expect(result.current.agent).toBeDefined());
+
+    act(() =>
+      result.current.editor.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
+    );
+    server.offline = true;
+    await act(async () => saves[0]!.reject(new AgentDigestConflictError("stale")));
+    await waitFor(() =>
+      expect(result.current.editor.error).toBe("Couldn't load this agent's latest version.")
+    );
+    expect(result.current.editor.isPending).toBe(true);
+    // A pick from the still-open popup waits too; it would only hit the stale digest again.
+    act(() =>
+      result.current.editor.onChange({ provider: "claude", model: "haiku", reasoning_effort: "" })
+    );
+    expect(mocks.updateMutateAsync).toHaveBeenCalledOnce();
+
+    server.offline = false;
+    server.agent = workspaceAgent({ definition_digest: "fresh-digest" });
+    await act(async () => result.current.editor.onReload!());
+    await waitFor(() => expect(result.current.editor.isPending).toBe(false));
+    expect(result.current.editor.onReload).toBeNull();
+
+    act(() =>
+      result.current.editor.onChange({ provider: "claude", model: "opus", reasoning_effort: "" })
+    );
+    expect(savedParams(1).params).toMatchObject({ expected_digest: "fresh-digest" });
+  });
+
+  it("Should restore server truth and show the error when a save fails", async () => {
+    const { result } = renderEditor(workspaceAgent());
+
+    act(() =>
+      result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "" })
+    );
+    await act(async () => saves[0]!.reject(new Error("disk full")));
+
+    expect(result.current.value.model).toBe("");
+    expect(result.current.error).toBe("disk full");
+  });
+
+  it("Should drop the agent's own runtime when it goes back to the default", () => {
+    const { result } = renderEditor(
+      workspaceAgent({
+        provider: "claude",
+        model: "sonnet",
+        reasoning_effort: "high",
+        speed: "fast",
+      })
+    );
+    expect(result.current.overridden).toBe(true);
+
+    act(() => result.current.onUseDefault());
+
+    // The saved override still shows until the return to the default lands.
+    expect(result.current.overridden).toBe(true);
+    // The server resolves the default's speed; the current one stays until the reread.
+    expect(result.current.speed).toBe("fast");
+    expect(result.current.isPending).toBe(true);
+    const { agent } = savedParams(0).params;
+    expect(agent).not.toHaveProperty("provider");
+    expect(agent).not.toHaveProperty("model");
+    expect(agent).not.toHaveProperty("reasoning_effort");
+    expect(agent).not.toHaveProperty("speed");
+    expect(agent.acp_options).toEqual([]);
+  });
+
+  it("Should name what changed when each save lands", async () => {
+    const { result } = renderEditor(workspaceAgent({ provider: "claude", model: "sonnet" }));
+
+    act(() => result.current.onSpeedChange("fast"));
+    await act(async () => saves[0]!.resolve(workspaceAgent({ speed: "fast" })));
+    expect(mocks.toastSuccess).toHaveBeenLastCalledWith("Fast turned on");
+
+    act(() => result.current.onUseDefault());
+    await act(async () => saves[1]!.resolve(workspaceAgent()));
+    expect(mocks.toastSuccess).toHaveBeenLastCalledWith("Back to your default");
+  });
 });

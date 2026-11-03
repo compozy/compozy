@@ -145,8 +145,8 @@ export function AgentProfileHome({ page }: { page: UseAgentProfile }) {
           <AgentProfileSetup
             onOpenBehavior={() => page.onOpenEditor("what-it-does")}
             onOpenCheckIns={() => page.onOpenEditor("check-ins")}
+            model={page.model}
             onOpenMemory={() => page.onOpenEditor("memory")}
-            onOpenModel={() => page.setPanel("model")}
             onOpenPermissions={() => page.onOpenEditor("permissions")}
             onOpenTools={() => page.setPanel("tools")}
             owner={identity.owner}
@@ -162,7 +162,6 @@ export function AgentProfileHome({ page }: { page: UseAgentProfile }) {
         onClose={() => page.setPanel(null)}
         owner={identity.owner}
         panel={page.panel}
-        provider={identity.provider}
         readOnly={identity.readOnly}
       />
     </div>

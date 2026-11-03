@@ -238,6 +238,12 @@ func (p *AgentProcess) resolvePermissionRequest(
 		return acpsdk.RequestPermissionResponse{}, err
 	}
 	decision, interactive, resolvedBy := resolveHostPermissionDecision(host, request, cancellationActor)
+	if interactive && p.answeredByHostedToolGate(request, cancellationActor, resolvedBy) {
+		// The native tool policy decides this call (or the operator already did),
+		// so no prompt and no second receipt for the same call.
+		outcome, _ := selectPermissionOutcome(request.Options, decisionAllowOnce)
+		return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+	}
 
 	if !interactive {
 		outcome, appliedDecision, raw := p.automaticPermissionOutcome(requestID, request, decision, resolvedBy)
@@ -267,23 +273,7 @@ func (p *AgentProcess) resolvePermissionRequest(
 	expiresAt := timeNowUTC().Add(wait)
 	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, "", "", raw, expiresAt)
 
-	timer := time.NewTimer(wait)
-	defer timer.Stop()
-
-	decision, actor := decisionCanceled, cancellationActor
-	select {
-	case decision = <-pending.response:
-		actor = pending.resolvedBy
-	case <-timer.C:
-		decision, actor = p.expirePendingPermission(pending, decisionRejectOnce, "timeout")
-	case <-p.permissionConnectionDone():
-		decision, actor = p.expirePendingPermission(pending, decisionCanceled, cancellationActor)
-	case <-ctx.Done():
-		if cancellationActor == permissionActorSystem && errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
-			cancellationActor = "timeout"
-		}
-		decision, actor = p.expirePendingPermission(pending, decisionCanceled, cancellationActor)
-	}
+	decision, actor := p.awaitPendingPermission(ctx, pending, wait, cancellationActor)
 	outcome, appliedDecision := selectPermissionOutcome(request.Options, decision)
 	if appliedDecision == "" {
 		appliedDecision = decisionCanceled
@@ -291,9 +281,37 @@ func (p *AgentProcess) resolvePermissionRequest(
 	if p.permissionExpiryCountsAsDenial(actor, decision) {
 		p.permissionDenials.Record(digest, denialEpoch)
 	}
+	if cancellationActor == permissionActorProvider {
+		p.rememberHostedApproval(request, appliedDecision)
+	}
 	raw = buildPermissionEventRaw(requestID, appliedDecision, request)
 	p.emitPermissionEvent(sessionID, turnID, requestID, title, toolCallID, resource, appliedDecision, actor, raw)
 	return acpsdk.RequestPermissionResponse{Outcome: outcome}, nil
+}
+
+// awaitPendingPermission waits for an answer to one registered permission
+// request, expiring it on timeout, disconnect, or cancellation.
+func (p *AgentProcess) awaitPendingPermission(
+	ctx context.Context,
+	pending *pendingPermission,
+	wait time.Duration,
+	cancellationActor string,
+) (permissionDecision, string) {
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case decision := <-pending.response:
+		return decision, pending.resolvedBy
+	case <-timer.C:
+		return p.expirePendingPermission(pending, decisionRejectOnce, "timeout")
+	case <-p.permissionConnectionDone():
+		return p.expirePendingPermission(pending, decisionCanceled, cancellationActor)
+	case <-ctx.Done():
+		if cancellationActor == permissionActorSystem && errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
+			cancellationActor = "timeout"
+		}
+		return p.expirePendingPermission(pending, decisionCanceled, cancellationActor)
+	}
 }
 
 func (p *AgentProcess) interceptPermissionResponse(ctx context.Context, request acpsdk.RequestPermissionRequest,

@@ -1,10 +1,14 @@
 // Suite: session detail polling policy
 // Invariant: durable starting sessions converge quickly while terminal sessions stop polling, and a
-// session carrying a PR lookup is re-read at least every 60 s, only while the document is visible.
+// session carrying a PR lookup is re-read at least every 60 s, only while the document is visible;
+// a profile lens that already answered "not here" for a session found in another profile is not
+// re-asked on every event about it (#1184).
 // Boundary IN: TanStack session detail query options.
 // Boundary OUT: HTTP transport and lifecycle persistence, owned by their adapter/runtime suites.
 import { QueryClient, QueryObserver } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
+
+import { PROFILE_AGGREGATE } from "@/systems/profiles";
 
 import { SessionApiError } from "../../adapters/session-api-errors";
 import type { SessionInteractionRecord, SessionPayload } from "../../types";
@@ -183,6 +187,39 @@ describe("sessionScopedDetailOptions", () => {
 
   it("Should not retry, so a 404 stays a boundary decision rather than a delay", () => {
     expect(sessionScopedDetailOptions("sess_1", { profile: "marketing" }).retry).toBe(false);
+  });
+
+  it("Should stop re-asking a lens that settled a session as another profile's", async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const calls = new Map<string, number>();
+    // An on-screen read: an active observer, so an invalidation refetches it right away.
+    const watch = async (key: readonly unknown[], fail: boolean) => {
+      const label = key.join("/");
+      const observer = new QueryObserver(client, {
+        queryKey: key,
+        queryFn: () => {
+          calls.set(label, (calls.get(label) ?? 0) + 1);
+          return fail ? Promise.reject(new SessionApiError("not found", 404)) : Promise.resolve({});
+        },
+      });
+      const unsubscribe = observer.subscribe(() => {});
+      await vi.waitFor(() => expect(calls.get(label)).toBe(1));
+      await vi.waitFor(() => expect(observer.getCurrentResult().isFetching).toBe(false));
+      return { count: () => calls.get(label), unsubscribe };
+    };
+    const foreign = await watch(sessionKeys.byId("sess_1", "open-design"), true);
+    const aggregate = await watch(sessionKeys.byId("sess_1", PROFILE_AGGREGATE), false);
+    const missing = await watch(sessionKeys.byId("sess_gone", "open-design"), true);
+
+    await invalidateSessionLiveQueries(client, "ws_alpha", "sess_1");
+    await invalidateSessionLiveQueries(client, "ws_alpha", "sess_gone");
+
+    expect(foreign.count()).toBe(1);
+    expect(aggregate.count()).toBe(2);
+    // Missing from every profile is the deletion reconciliation's signal; it still rereads.
+    expect(missing.count()).toBe(2);
+    for (const read of [foreign, aggregate, missing]) read.unsubscribe();
+    client.clear();
   });
 
   it("Should stop polling entirely when the window does not own the live tail", () => {

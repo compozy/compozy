@@ -3074,3 +3074,285 @@ func TestExpiredPermissionRepeatSuppression(t *testing.T) {
 		}
 	})
 }
+
+// Invariant (#1200): at approve-edits and auto the provider gate hands calls to
+// Compozy's hosted MCP server to the native tool policy, identified only by the
+// provider's structured server identity, and one operator approval answers both
+// gates for the same call. Owner: ACP permission resolution; canonical suite: handlers_test.go.
+func TestHostedToolPermissionGates(t *testing.T) {
+	t.Parallel()
+	options := []acpsdk.PermissionOption{
+		{OptionId: "allow-once", Kind: acpsdk.PermissionOptionKindAllowOnce},
+		{OptionId: "reject-once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+	}
+	input := map[string]any{"name": "fix-1200", "workspace": "compozy"}
+	claudeRequest := func(server, source, toolName string) acpsdk.RequestPermissionRequest {
+		return acpsdk.RequestPermissionRequest{
+			SessionId: "sess-direct",
+			Options:   options,
+			ToolCall: acpsdk.ToolCallUpdate{
+				ToolCallId: "toolu_1200",
+				Title:      new(toolName),
+				Kind:       new(acpsdk.ToolKindOther),
+				RawInput:   input,
+				Meta: map[string]any{"claudeCode": map[string]any{
+					"toolName":  toolName,
+					"mcpServer": map[string]any{"name": server, "source": source},
+				}},
+			},
+		}
+	}
+	hostedName := "mcp__compozy-hosted-tools__compozy__worktree_create"
+	codexRequest := func(server string) acpsdk.RequestPermissionRequest {
+		return acpsdk.RequestPermissionRequest{
+			SessionId: "sess-direct",
+			Options:   options,
+			ToolCall: acpsdk.ToolCallUpdate{
+				ToolCallId: "exec-1200",
+				Title:      new("mcp." + server + ".compozy__worktree_create"),
+				Kind:       new(acpsdk.ToolKindExecute),
+				RawInput: map[string]any{
+					"server": server, "tool": "compozy__worktree_create", "arguments": input,
+				},
+			},
+		}
+	}
+	codexAnnounced := func(t *testing.T, proc *AgentProcess, active *activePromptState) acpsdk.RequestPermissionRequest {
+		t.Helper()
+		// The announcement travels the real session/update path.
+		if err := proc.handleSessionUpdate(mustMarshalJSON(map[string]any{
+			"sessionId": "sess-direct",
+			"update": map[string]any{
+				"sessionUpdate": "tool_call", "toolCallId": "exec-announced", "status": "in_progress",
+				"title": "mcp.compozy-hosted-tools.compozy__worktree_create", "kind": "execute",
+				"rawInput": map[string]any{
+					"server": "compozy-hosted-tools", "tool": "compozy__worktree_create", "arguments": input,
+				},
+			},
+		})); err != nil {
+			t.Fatal(err)
+		}
+		collectEventsUntilCount(t, active.events, 1)
+		return acpsdk.RequestPermissionRequest{
+			SessionId: "sess-direct",
+			Options:   options,
+			ToolCall:  acpsdk.ToolCallUpdate{ToolCallId: "exec-announced", Kind: new(acpsdk.ToolKindExecute)},
+		}
+	}
+	claudeWithCodexInput := claudeRequest("github", "dynamic", "mcp__github__create_issue")
+	claudeWithCodexInput.ToolCall.RawInput = map[string]any{
+		"server": "compozy-hosted-tools", "tool": "compozy__worktree_create", "arguments": input,
+	}
+	titleOnly := claudeRequest("", "", hostedName)
+	titleOnly.ToolCall.Meta = nil
+	bridges := map[string]string{
+		"claude": "npx -y @agentclientprotocol/claude-agent-acp",
+		"codex":  "npx -y @agentclientprotocol/codex-acp@latest",
+	}
+	// launch is "minted" for the daemon's hosted launch, "name" for a server that
+	// only reuses its name, and "" for no hosted server.
+	newProcess := func(
+		t *testing.T, mode compozyconfig.PermissionMode, bridge string, launch string,
+	) (*AgentProcess, *activePromptState) {
+		t.Helper()
+		proc := newDirectProcess(t, mode)
+		proc.permissionTimeout = 50 * time.Millisecond
+		opts := StartOpts{Command: bridges[bridge]}
+		switch launch {
+		case "minted":
+			opts.MCPServers = []compozyconfig.MCPServer{{Name: "compozy-hosted-tools", Command: "compozy",
+				Args: []string{"tool", "mcp", "--session", "sess-direct", "--bind-nonce", "nonce"}}}
+		case "name":
+			opts.MCPServers = []compozyconfig.MCPServer{{Name: "compozy-hosted-tools", Command: "my-server"}}
+		}
+		proc.setHostedToolIdentity(opts)
+		active, err := proc.beginPrompt("turn-hosted", 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { proc.endPrompt(active) })
+		return proc, active
+	}
+	assertOutcome := func(t *testing.T, response acpsdk.RequestPermissionResponse, want string) {
+		t.Helper()
+		if response.Outcome.Selected == nil || string(response.Outcome.Selected.OptionId) != want {
+			t.Fatalf("outcome = %+v, want %s", response.Outcome, want)
+		}
+	}
+
+	for _, mode := range []compozyconfig.PermissionMode{
+		compozyconfig.PermissionModeApproveEdits, compozyconfig.PermissionModeAuto,
+	} {
+		for _, tc := range []struct {
+			name    string
+			bridge  string
+			request acpsdk.RequestPermissionRequest
+		}{
+			{"Claude hosted server", "claude", claudeRequest("compozy-hosted-tools", "dynamic", hostedName)},
+			{"Codex hosted server", "codex", codexRequest("compozy-hosted-tools")},
+		} {
+			t.Run("Should not prompt for a "+tc.name+" call at "+string(mode), func(t *testing.T) {
+				t.Parallel()
+				proc, active := newProcess(t, mode, tc.bridge, "minted")
+				response, err := proc.handleRequestPermission(t.Context(), tc.request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertOutcome(t, response, "allow-once")
+				if pending := proc.HasPendingPermission(); pending || len(active.events) != 0 {
+					t.Fatalf("hosted call prompted: pending=%v events=%d", pending, len(active.events))
+				}
+			})
+		}
+	}
+
+	for _, tc := range []struct {
+		name    string
+		request acpsdk.RequestPermissionRequest
+		bridge  string
+		launch  string
+	}{
+		{
+			"a configured server reusing the hosted name",
+			claudeRequest("compozy-hosted-tools", "project", hostedName), "claude", "minted",
+		},
+		{"a non-Compozy MCP server", claudeRequest("github", "dynamic", "mcp__github__create_issue"), "claude", "minted"},
+		{"a non-Compozy Codex MCP execute", codexRequest("github"), "codex", "minted"},
+		{"a title naming the hosted tool", titleOnly, "claude", "minted"},
+		{"a Claude call whose input names the hosted server", claudeWithCodexInput, "claude", "minted"},
+		{"a Codex-shaped request from a non-Codex provider", codexRequest("compozy-hosted-tools"), "claude", "minted"},
+		{
+			"a session server that only reuses the hosted name",
+			claudeRequest("compozy-hosted-tools", "dynamic", hostedName), "claude", "name",
+		},
+		{
+			"a session that never received the hosted server",
+			claudeRequest("compozy-hosted-tools", "dynamic", hostedName), "claude", "",
+		},
+	} {
+		t.Run("Should still ask at approve-edits for "+tc.name, func(t *testing.T) {
+			t.Parallel()
+			proc, active := newProcess(t, compozyconfig.PermissionModeApproveEdits, tc.bridge, tc.launch)
+			response, err := proc.handleRequestPermission(t.Context(), tc.request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertOutcome(t, response, "reject-once")
+			events := collectEventsUntilCount(t, active.events, 2)
+			if events[0].Decision != "" || events[1].ResolvedByValue() != "timeout" {
+				t.Fatalf("events = %+v, want one expired prompt", events)
+			}
+		})
+	}
+
+	// The daemon bridge offers allow-always unless it forces a once-only prompt.
+	daemonOptions := []acpsdk.PermissionOption{
+		{OptionId: "allow-once", Kind: acpsdk.PermissionOptionKindAllowOnce},
+		{OptionId: "allow-always", Kind: acpsdk.PermissionOptionKindAllowAlways},
+		{OptionId: "reject-once", Kind: acpsdk.PermissionOptionKindRejectOnce},
+	}
+	daemonRequest := func(toolID string, kind acpsdk.ToolKind) acpsdk.RequestPermissionRequest {
+		return acpsdk.RequestPermissionRequest{
+			SessionId: "sess-direct",
+			Options:   daemonOptions,
+			Meta:      map[string]any{PermissionToolIDMetaKey: toolID},
+			ToolCall: acpsdk.ToolCallUpdate{
+				ToolCallId: "call-1200",
+				Title:      new(toolID),
+				Kind:       new(kind),
+				RawInput:   map[string]any{"workspace": "compozy", "name": "fix-1200"},
+			},
+		}
+	}
+	answerPrompt := func(t *testing.T, proc *AgentProcess, active *activePromptState,
+		request acpsdk.RequestPermissionRequest, actor string,
+	) acpsdk.RequestPermissionResponse {
+		t.Helper()
+		result := make(chan acpsdk.RequestPermissionResponse, 1)
+		go func() {
+			response, err := proc.resolvePermissionRequest(t.Context(), request, actor)
+			if err != nil {
+				t.Error(err)
+			}
+			result <- response
+		}()
+		if pending := collectEventsUntilCount(t, active.events, 1)[0]; pending.Decision != "" {
+			t.Fatalf("first event = %+v, want a prompt", pending)
+		}
+		if err := proc.ResolvePermission(ApproveRequest{
+			TurnID: "turn-hosted", Decision: string(decisionAllowOnce), ResolvedBy: "operator",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		collectEventsUntilCount(t, active.events, 1)
+		return <-result
+	}
+
+	t.Run("Should not prompt for a Codex call identified by its announced tool call", func(t *testing.T) {
+		t.Parallel()
+		proc, active := newProcess(t, compozyconfig.PermissionModeApproveEdits, "codex", "minted")
+		response, err := proc.handleRequestPermission(t.Context(), codexAnnounced(t, proc, active))
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertOutcome(t, response, "allow-once")
+		if len(active.events) != 0 {
+			t.Fatalf("announced hosted call prompted: events=%d", len(active.events))
+		}
+	})
+
+	t.Run("Should ask once for a destructive hosted call at approve-edits", func(t *testing.T) {
+		t.Parallel()
+		proc, active := newProcess(t, compozyconfig.PermissionModeApproveEdits, "claude", "minted")
+		gate1 := claudeRequest("compozy-hosted-tools", "dynamic", "mcp__compozy-hosted-tools__compozy__worktree_remove")
+		response, err := proc.handleRequestPermission(t.Context(), gate1)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertOutcome(t, response, "allow-once")
+		assertOutcome(t, answerPrompt(t, proc, active,
+			daemonRequest("compozy__worktree_remove", acpsdk.ToolKindDelete), permissionActorSystem), "allow-once")
+		if len(active.events) != 0 {
+			t.Fatalf("extra permission events = %d", len(active.events))
+		}
+	})
+
+	t.Run("Should let one provider-gate approval answer the daemon gate once", func(t *testing.T) {
+		t.Parallel()
+		proc, active := newProcess(t, compozyconfig.PermissionModeApproveReads, "claude", "minted")
+		gate1 := claudeRequest("compozy-hosted-tools", "dynamic", hostedName)
+		// The provider omitted workspace; the daemon binds it before its own gate.
+		gate1.ToolCall.RawInput = map[string]any{"name": "fix-1200"}
+		assertOutcome(t, answerPrompt(t, proc, active, gate1, permissionActorProvider), "allow-once")
+		gate2 := daemonRequest("compozy__worktree_create", acpsdk.ToolKindExecute)
+		response, err := proc.resolvePermissionRequest(t.Context(), gate2, permissionActorSystem)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertOutcome(t, response, "allow-once")
+		if proc.HasPendingPermission() || len(active.events) != 0 {
+			t.Fatal("the daemon gate asked again for an approved call")
+		}
+		changed := daemonRequest("compozy__worktree_create", acpsdk.ToolKindExecute)
+		changed.ToolCall.RawInput = map[string]any{"workspace": "compozy", "name": "other"}
+		otherWorkspace := daemonRequest("compozy__worktree_create", acpsdk.ToolKindExecute)
+		otherWorkspace.ToolCall.RawInput = map[string]any{"workspace": "other", "name": "fix-1200"}
+		forced := daemonRequest("compozy__worktree_create", acpsdk.ToolKindExecute)
+		forced.Options = options
+		for index, request := range []acpsdk.RequestPermissionRequest{gate2, changed, otherWorkspace, forced} {
+			if index >= 2 {
+				// An explicit workspace the provider sent is never ignored, and a forced
+				// once-only daemon prompt is never answered by a provider approval.
+				proc.hostedApprovals.record(hostedToolCall{
+					toolID: "compozy__worktree_create", arguments: []byte(`{"name":"fix-1200","workspace":"compozy"}`),
+				}, timeNowUTC())
+			}
+			response, err := proc.resolvePermissionRequest(t.Context(), request, permissionActorSystem)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assertOutcome(t, response, "reject-once")
+			collectEventsUntilCount(t, active.events, 2)
+		}
+	})
+}

@@ -52,14 +52,14 @@ func (s *Service) runTeardown(ctx context.Context, workspace Workspace, item Wor
 }
 
 func (s *Service) prepareFencedRemoval(
-	ctx context.Context, workspace Workspace, item Worktree, commonDir string, force bool,
+	ctx context.Context, workspace Workspace, item Worktree, commonDir string, mode removalMode,
 ) (bool, RemovalRisk, *RemovalRefusal, error) {
-	terminal, risk, refusalResult, err := s.evaluateFencedRemoval(ctx, workspace, item, commonDir, force)
+	terminal, risk, refusalResult, err := s.evaluateFencedRemoval(ctx, workspace, item, commonDir, mode)
 	if terminal || err != nil || refusalResult != nil {
 		return terminal, risk, refusalResult, err
 	}
 	if s.runTeardown(ctx, workspace, item) {
-		return s.evaluateFencedRemoval(ctx, workspace, item, commonDir, force)
+		return s.evaluateFencedRemoval(ctx, workspace, item, commonDir, mode)
 	}
 	return false, risk, nil, nil
 }

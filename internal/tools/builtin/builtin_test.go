@@ -1665,6 +1665,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_reparent", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__session_move_to_profile", risk: toolspkg.RiskMutating,
+			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__session_outline", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__session_search", risk: toolspkg.RiskRead,
@@ -3677,6 +3679,74 @@ func TestSubagentDescriptorSchemas(t *testing.T) {
 					}
 				}
 			}
+		}
+	})
+}
+
+// Invariant (#1200): at approve-edits and auto the exact set of builtin mutations
+// that run without asking is a security boundary. A new builtin tool must be
+// added here deliberately; owner: builtin catalog risk + native permission ceiling.
+func TestBuiltinEditLevelAutoApprovals(t *testing.T) {
+	t.Parallel()
+	t.Run("Should run only the pinned coordination mutations unasked at approve-edits", func(t *testing.T) {
+		t.Parallel()
+		want := []string{
+			"compozy__agent_draft_instructions", "compozy__agent_heartbeat_wake", "compozy__agent_instance_check",
+			"compozy__agent_instance_checks", "compozy__agent_instance_mark_seen", "compozy__agent_memory_add",
+			"compozy__agent_memory_remove", "compozy__agent_memory_replace", "compozy__agent_skill_propose",
+			"compozy__desktop_create", "compozy__desktop_reorder", "compozy__desktop_switch",
+			"compozy__desktop_update", "compozy__goal_control", "compozy__goal_report", "compozy__layout_arrange",
+			"compozy__layout_balance", "compozy__layout_frame_resize", "compozy__layout_redo",
+			"compozy__layout_resize", "compozy__layout_undo", "compozy__monitor_cancel", "compozy__monitor_create",
+			"compozy__notify", "compozy__session_compact", "compozy__session_continue", "compozy__session_create",
+			"compozy__session_folder_create", "compozy__session_folder_delete", "compozy__session_folder_rename",
+			"compozy__session_folder_reorder", "compozy__session_fork", "compozy__session_input_promote",
+			"compozy__session_input_replace", "compozy__session_inputs_clear", "compozy__session_link",
+			"compozy__session_move", "compozy__session_prompt", "compozy__session_prompt_cancel",
+			"compozy__session_rename", "compozy__session_reorder", "compozy__session_resume_later",
+			"compozy__session_runtime_clear", "compozy__session_runtime_set", "compozy__session_spawn",
+			"compozy__session_unarchive", "compozy__session_unlink", "compozy__session_worktree_bind",
+			"compozy__session_worktree_unbind", "compozy__subagent_cancel", "compozy__subagent_delegate",
+			"compozy__subagent_status", "compozy__task_block", "compozy__task_child_create", "compozy__task_create",
+			"compozy__task_fanout_runs", "compozy__task_recover", "compozy__task_run_claim_next",
+			"compozy__task_run_complete", "compozy__task_run_fail", "compozy__task_run_heartbeat",
+			"compozy__task_run_release", "compozy__task_run_review_request", "compozy__task_run_review_submit",
+			"compozy__task_unblock", "compozy__task_update", "compozy__task_worktree_policy_set",
+			"compozy__terminal_request_input", "compozy__window_activate", "compozy__window_float",
+			"compozy__window_focus", "compozy__window_group", "compozy__window_move", "compozy__window_navigate",
+			"compozy__window_open", "compozy__window_pin", "compozy__window_reopen", "compozy__window_reorder",
+			"compozy__window_resize", "compozy__window_swap", "compozy__window_zoom",
+			"compozy__workspace_folder_create", "compozy__workspace_folder_delete", "compozy__workspace_folder_rename",
+			"compozy__workspace_folder_reorder", "compozy__workspace_move", "compozy__workspace_reorder",
+			"compozy__workspace_unarchive", "compozy__worktree_create",
+		}
+		descriptors := NativeDescriptors()
+		ids := make([]toolspkg.ToolID, 0, len(descriptors))
+		for _, descriptor := range descriptors {
+			ids = append(ids, descriptor.ID)
+		}
+		evaluator, err := toolspkg.NewEffectivePolicyEvaluator(toolspkg.PolicyInputs{
+			SystemPermissionMode: toolspkg.PermissionModeApproveEdits, ApprovalAvailable: true,
+		}, toolspkg.ToolsetCatalog{}, ids)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, descriptor := range descriptors {
+			if descriptor.Risk == toolspkg.RiskRead {
+				continue
+			}
+			decision, err := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, descriptor)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if decision.Callable && !decision.ApprovalRequired {
+				got = append(got, descriptor.ID.String())
+			}
+		}
+		slices.Sort(got)
+		if !slices.Equal(got, want) {
+			t.Fatalf("unasked builtin mutations at approve-edits changed:\ngot  %v\nwant %v", got, want)
 		}
 	})
 }

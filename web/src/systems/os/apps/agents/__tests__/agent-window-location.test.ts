@@ -27,7 +27,7 @@ describe("parseAgentWindowLocation", () => {
   });
 
   it.each([
-    ["runtime", { kind: "detail", search: { panel: "model" } }],
+    ["runtime", { kind: "detail", search: {} }],
     ["access", { kind: "detail", search: { panel: "tools" } }],
     ["mcp", { kind: "detail", search: { panel: "tools" } }],
     ["instructions", { kind: "page", page: "what-it-does" }],
@@ -41,23 +41,31 @@ describe("parseAgentWindowLocation", () => {
 
   it("Should keep the window binding across an old link", () => {
     expect(
-      at("/agents/triage/settings", { section: "runtime", workspace: "ws-compozy" })
-    ).toMatchObject({ search: { panel: "model", workspace: "ws-compozy" } });
+      at("/agents/triage/settings", { section: "access", workspace: "ws-compozy" })
+    ).toMatchObject({ search: { panel: "tools", workspace: "ws-compozy" } });
+  });
+
+  it("Should keep the window binding on the home for an old runtime link", () => {
+    expect(at("/agents/triage/settings", { section: "runtime", workspace: "ws-compozy" })).toEqual({
+      kind: "detail",
+      name: "triage",
+      search: { workspace: "ws-compozy" },
+    });
   });
 
   it("Should keep the agent's profile pin on every agent location [#1183]", () => {
     const pin = { workspace: "ws-compozy", profile: "ops" };
     expect(at("/agents/triage", pin)).toMatchObject({ kind: "detail", search: pin });
     expect(at("/agents/triage/memory", pin)).toMatchObject({ kind: "page", search: pin });
-    expect(at("/agents/triage/settings", { ...pin, section: "runtime" })).toMatchObject({
-      search: { ...pin, panel: "model" },
+    expect(at("/agents/triage/settings", { ...pin, section: "access" })).toMatchObject({
+      search: { ...pin, panel: "tools" },
     });
     expect(at("/agents/triage", { profile: "  " })).toMatchObject({ search: {} });
   });
 
   it.each([
     ["instructions", { kind: "page", page: "what-it-does" }],
-    ["configuration", { kind: "detail", search: { panel: "model" } }],
+    ["configuration", { kind: "detail", search: {} }],
     ["sessions", { kind: "detail", search: {} }],
   ])("Should land the old %s tab", (tab, expected) => {
     expect(at("/agents/triage", { tab })).toMatchObject(expected);

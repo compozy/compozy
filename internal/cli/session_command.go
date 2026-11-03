@@ -19,6 +19,7 @@ func newSessionCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newSessionWorkLinkCommand(deps, false))
 	cmd.AddCommand(newSessionWorkLinkCommand(deps, true))
 	cmd.AddCommand(newSessionReparentCommand(deps))
+	cmd.AddCommand(newSessionMoveToProfileCommand(deps))
 	cmd.AddCommand(newSessionFolderCommand(deps))
 	cmd.AddCommand(newSessionMoveCommand(deps))
 	cmd.AddCommand(newSessionReorderCommand(deps))

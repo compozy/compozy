@@ -128,6 +128,7 @@ func registerSessionFileRoutes(workspaceSessions gin.IRouter, handlers *Handlers
 func registerSessionParentRoutes(workspaceSessions gin.IRouter, handlers *Handlers) {
 	workspaceSessions.PUT("/:session_id/parent", handlers.SetSessionParent)
 	workspaceSessions.DELETE("/:session_id/parent", handlers.ClearSessionParent)
+	workspaceSessions.POST("/:session_id/move-to-profile", handlers.MoveSessionToProfile)
 }
 
 func registerSessionPromptRoutes(workspaceSessions gin.IRouter, handlers *Handlers) {

@@ -80,6 +80,7 @@ func (p *AgentProcess) handleSessionUpdate(params json.RawMessage) error {
 		}
 		p.setConfigOptionCurrent(sessionConfigModeKey, mode)
 	}
+	p.observeHostedToolCall(notification.Update)
 	event, err := translateSessionUpdate(notification, raw.Update, p.activeTurnID())
 	if err != nil {
 		return err

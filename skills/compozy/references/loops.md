@@ -506,6 +506,11 @@ synthetic budget gate.
 Definitions reference data over one namespace with two surfaces, chosen by the field:
 
 - **Values** — Go `{{ }}` templates in string fields (`params.*`, rubrics, `transform.map.*`).
+  Functions: `json`, `toJson`, `join`, `default`, `shellQuote`, and the builtins `len`, `eq`, `ne`,
+  `lt`, `le`, `gt`, `ge`, `not`, `and`, `or`; validation rejects every other function. Comparisons
+  order numeric operands by value, so `lt .nodes.scan.output.count 3` works for any numeric output.
+  Use unquoted numeric literals: JSON-decoded numbers compared with quoted strings retain text
+  comparison behavior; Go integers and floats compared with strings produce an error.
 - **Conditions** — CEL returning `bool` (`branch.condition`, `route.routes[].when`,
   `fan-out.filter`, `contract.stop_when`).
 

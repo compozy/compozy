@@ -270,3 +270,18 @@ type RecapPayload struct {
 	PendingMarkers int                       `json:"pending_markers"`
 	Snapshot       RecapSnapshotPayload      `json:"snapshot"`
 }
+
+// MoveSessionToProfileRequest copies a stopped user session into another profile
+// and archives the original. TargetProfile is the target profile's name.
+type MoveSessionToProfileRequest struct {
+	TargetProfile string `json:"target_profile"`
+}
+
+// MoveSessionToProfileResponse is a completed move: the copy in the target profile,
+// the archived original, and the copy's new worktree when the original had one.
+type MoveSessionToProfileResponse struct {
+	Session    SessionPayload `json:"session"`
+	Original   SessionPayload `json:"original"`
+	WorktreeID string         `json:"worktree_id,omitempty"`
+	Branch     string         `json:"branch,omitempty"`
+}
