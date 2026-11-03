@@ -17,6 +17,7 @@ import {
   setProfileView,
 } from "../stores/profile-view-store";
 import { PROFILE_AGGREGATE, type ProfileView } from "../types";
+import { usePinnedProfileView } from "./use-pinned-profile";
 import { useProfiles } from "./use-profiles";
 
 /** The remembered Global choice — daemon state, cached for instant render. */
@@ -52,8 +53,10 @@ export function useActiveProfileView(enabled = true): ProfileView {
  * row adds no daemon reads. `useActiveProfileView`, mounted by the shell, keeps the store current.
  */
 export function useCurrentProfileName(): string {
-  const local = useSelector(profileViewStore, state => state.context.view);
-  return local?.kind === "profile" ? local.profile : PERMANENT_PROFILE;
+  const local = usePinnedProfileView(
+    useSelector(profileViewStore, state => state.context.view) ?? { kind: "aggregate" }
+  );
+  return local.kind === "profile" ? local.profile : PERMANENT_PROFILE;
 }
 
 /** A view of routes that serve one profile at a time, for leaves rendered in every row. */
@@ -71,10 +74,12 @@ export interface ProfilePerProfileScope {
  * archived ones that refuse reads, and the remembered choice new work lands in.
  */
 export function useProfilePerProfileScope(): ProfilePerProfileScope {
-  const view = useSelector(profileViewStore, state => state.context.view) ?? {
-    kind: "profile" as const,
-    profile: PERMANENT_PROFILE,
-  };
+  const view = usePinnedProfileView(
+    useSelector(profileViewStore, state => state.context.view) ?? {
+      kind: "profile" as const,
+      profile: PERMANENT_PROFILE,
+    }
+  );
   const aggregate = view.kind === "aggregate";
   const remembered = useRememberedProfile(aggregate);
   const profiles = useProfiles(aggregate);

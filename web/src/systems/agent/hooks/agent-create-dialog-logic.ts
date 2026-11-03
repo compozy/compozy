@@ -14,7 +14,10 @@ export interface AgentCreateOutcome {
   startError?: string;
 }
 
-type AgentCreateMode = { kind: "create" } | { kind: "duplicate"; source: AgentPayload };
+/** A duplicate keeps its source's profile: the source is read there and the copy lands there. */
+type AgentCreateMode =
+  | { kind: "create" }
+  | { kind: "duplicate"; source: AgentPayload; profile?: string };
 
 interface AgentCreateFlowBase {
   draft: AgentCreateDialogDraft;
@@ -51,7 +54,7 @@ type AgentCreateDialogEvents = {
   createOpened: { draft: AgentCreateDialogDraft };
   dialogDismissed: { draft: AgentCreateDialogDraft };
   draftChanged: { draft: AgentCreateDialogDraft };
-  duplicateOpened: { draft: AgentCreateDialogDraft; source: AgentPayload };
+  duplicateOpened: { draft: AgentCreateDialogDraft; source: AgentPayload; profile?: string };
   navigationCompleted: { attempt: number; draft: AgentCreateDialogDraft };
   navigationFailed: { attempt: number; error: string };
   navigationRequested: {
@@ -98,7 +101,7 @@ function failedFlow(
     status: "failed" as const,
   };
   return context.kind === "duplicate"
-    ? { ...base, kind: "duplicate", source: context.source }
+    ? { ...base, kind: "duplicate", source: context.source, profile: context.profile }
     : { ...base, kind: "create" };
 }
 
@@ -117,7 +120,11 @@ export const agentCreateDialogLogic = createStoreLogic<
     createOpened: (context, event) =>
       editingFlow(event.draft, context.nextAttempt, { kind: "create" }),
     duplicateOpened: (context, event) =>
-      editingFlow(event.draft, context.nextAttempt, { kind: "duplicate", source: event.source }),
+      editingFlow(event.draft, context.nextAttempt, {
+        kind: "duplicate",
+        source: event.source,
+        profile: event.profile,
+      }),
     dialogDismissed: (context, event) => ({
       draft: event.draft,
       nextAttempt: context.nextAttempt,
