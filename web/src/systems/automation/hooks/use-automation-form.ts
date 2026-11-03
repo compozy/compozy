@@ -300,6 +300,13 @@ export function useAutomationForm({
       patch({ agent_name });
     },
     onPromptChange: (prompt: string) => patch({ prompt }),
+    /** Moves the trigger to the scope of the stays-on instance it names; `""` is Global. */
+    onInstanceScope: (workspaceId: string) =>
+      patch(
+        workspaceId
+          ? { scope: "workspace", workspace_id: workspaceId, target_instance_scope: "" }
+          : { scope: "global", target_instance_scope: "" }
+      ),
     onLoopTargetChange: (next: LoopTargetDraft) =>
       patch({ loop_target: { ...next, workspace_id: loopWorkspaceId } }),
     onTaskTitle: (title: string) => patchTask({ title }),

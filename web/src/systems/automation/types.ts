@@ -12,7 +12,15 @@ export type AutomationSuggestionDismissalResponse = OperationResponse<
   200
 >;
 export type AutomationJob = AutomationJobsListResponse["jobs"][number];
-export type AutomationTrigger = AutomationTriggersListResponse["triggers"][number];
+/**
+ * Which scope's instance a stays-on target means (S10, `_dx.md`); empty is the trigger's own scope.
+ * Declared here until the generated trigger DTOs carry it; delete once they do.
+ */
+interface TriggerInstanceScope {
+  target_instance_scope?: string;
+}
+export type AutomationTrigger = AutomationTriggersListResponse["triggers"][number] &
+  TriggerInstanceScope;
 export type AutomationSuggestion = AutomationSuggestionsListResponse["suggestions"][number];
 export type AutomationRun = OperationResponse<"getAutomationRun", 200>["run"];
 export type AutomationSchedulerState = NonNullable<AutomationJob["scheduler"]>;
@@ -34,7 +42,8 @@ export type AutomationSuggestionsSource =
 
 export type CreateAutomationJobRequest = OperationRequestBody<"createAutomationJob">;
 export type UpdateAutomationJobRequest = OperationRequestBody<"updateAutomationJob">;
-export type CreateAutomationTriggerRequest = OperationRequestBody<"createAutomationTrigger">;
+export type CreateAutomationTriggerRequest = OperationRequestBody<"createAutomationTrigger"> &
+  TriggerInstanceScope;
 export type UpdateAutomationTriggerRequest = OperationRequestBody<"updateAutomationTrigger">;
 
 export type AutomationScope = AutomationJob["scope"];

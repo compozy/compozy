@@ -22,6 +22,7 @@ import {
   createAutomationJobDraft,
   emptyJobTask,
   emptyLoopTarget,
+  AGENT_INSTANCE_TARGET_KIND,
   LOOP_TARGET_KIND,
   retryDraftForStrategy,
 } from "./automation-drafts";
@@ -48,7 +49,7 @@ const WEBHOOK_EVENT = "webhook";
 
 type TriggerOnlyFields = Pick<
   CreateAutomationTriggerRequest,
-  "endpoint_slug" | "webhook_id" | "webhook_secret_value"
+  "endpoint_slug" | "webhook_id" | "webhook_secret_value" | "target_instance_scope"
 >;
 
 /**
@@ -168,6 +169,7 @@ export function automationFormDoes(
   draft: Pick<AutomationFormDraft, "start" | "target_kind" | "task">
 ): AutomationDoes {
   if (draft.start === "schedule" && draft.task) return "task";
+  if (draft.target_kind === AGENT_INSTANCE_TARGET_KIND) return "stays-on";
   return automationTargetMode(draft) === "loop" ? "loop" : "agent";
 }
 
@@ -188,6 +190,11 @@ export function setAutomationFormStart(
   const next: AutomationFormDraft = { ...draft, start };
   if (start !== "schedule" && next.task) {
     next.task = undefined;
+  }
+  // Scheduled jobs cannot reach a stays-on agent; they ask the agent instead.
+  if (start === "schedule" && next.target_kind === AGENT_INSTANCE_TARGET_KIND) {
+    next.target_kind = "agent";
+    next.target_instance_scope = undefined;
   }
   if (start !== "schedule") {
     const def = getEventDef(parseEventSelection(automationFormEvent(next)).catalogId);
@@ -219,9 +226,19 @@ export function setAutomationFormDoes(
       loop_target: draft.loop_target ?? emptyLoopTarget(loopWorkspaceId),
     };
   }
+  if (does === "stays-on") {
+    return {
+      ...draft,
+      task: undefined,
+      target_kind: AGENT_INSTANCE_TARGET_KIND,
+      target_instance_scope: draft.target_instance_scope ?? "",
+      loop_target: undefined,
+    };
+  }
   const agentDraft: AutomationFormDraft = {
     ...draft,
     target_kind: "agent",
+    target_instance_scope: undefined,
     loop_target: undefined,
   };
   if (does === "task" && draft.start === "schedule") {
@@ -270,6 +287,9 @@ export function automationFormTriggerDraft(
     enabled: draft.enabled,
     retry: draft.retry,
     fire_limit: draft.fire_limit,
+    ...(draft.target_kind === AGENT_INSTANCE_TARGET_KIND
+      ? { target_instance_scope: draft.target_instance_scope ?? "" }
+      : {}),
     ...(isWebhook
       ? {
           endpoint_slug: draft.endpoint_slug,

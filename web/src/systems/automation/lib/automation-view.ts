@@ -25,7 +25,12 @@ import {
 import { triggerWebhookPath } from "./automation-rule";
 import type { AutomationJob, AutomationRunStatus, AutomationTrigger } from "../types";
 
-export type { AutomationDoes, AutomationSentence, AutomationStart } from "./automation-sentence";
+export type {
+  AutomationDoes,
+  AutomationListTarget,
+  AutomationSentence,
+  AutomationStart,
+} from "./automation-sentence";
 
 export type AutomationSkipReasonCode = "self_overlap" | "misfire_grace_exceeded";
 
