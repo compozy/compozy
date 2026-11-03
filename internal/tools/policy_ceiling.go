@@ -28,7 +28,7 @@ func (e *EffectivePolicyEvaluator) applyPermissionCeiling(d Descriptor, decision
 
 // isLineageCoordinationTool lists builtin tools that act only inside the
 // caller's own lineage although their declared risk would ask: delegated
-// subagents, and answering a child's prompt for a stays-on lineage.
+// subagents, and answering a child's prompt for an always-on lineage.
 func isLineageCoordinationTool(d Descriptor, alwaysOnLineage bool) bool {
 	if d.Source.Kind != SourceBuiltin {
 		return false

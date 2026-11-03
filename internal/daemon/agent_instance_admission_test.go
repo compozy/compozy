@@ -1044,7 +1044,7 @@ func TestInstanceDefinitionPaths(t *testing.T) {
 }
 
 // newInstanceDefinitionsFixture resolves workspace ws-instance-paths and answers every agent
-// lookup with a stays-on definition carrying the given appearance.
+// lookup with an always-on definition carrying the given appearance.
 func newInstanceDefinitionsFixture(
 	t *testing.T,
 	appearance map[string]any,
@@ -1094,7 +1094,7 @@ func newInstanceDefinitionsFixture(
 			func(name string, _ *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
 				return compozyconfig.AgentDef{
 					Name:       name,
-					Kind:       "stays_on",
+					Kind:       "always_on",
 					Provider:   "claude",
 					Prompt:     "Review work.",
 					Appearance: appearance,

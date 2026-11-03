@@ -10955,7 +10955,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 
 	t.Run("Should decide native tools at the session's effective level", func(t *testing.T) {
 		t.Parallel()
-		// #1200: an undeclared stays-on agent runs at approve-edits; its native tools
+		// #1200: an undeclared always-on agent runs at approve-edits; its native tools
 		// must not fall back to the global approve-all while the provider gate defers.
 		cfg := testConfig(t, testHomePaths(t))
 		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
@@ -10967,7 +10967,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 			want        toolspkg.PermissionMode
 		}{
 			{
-				name: "Should use the stays-on default level", sessionType: session.SessionTypeUser,
+				name: "Should use the always-on default level", sessionType: session.SessionTypeUser,
 				effective: string(compozyconfig.PermissionModeApproveEdits), want: toolspkg.PermissionModeApproveEdits,
 			},
 			{
@@ -11000,7 +11000,7 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 					Config:   &cfg,
 					Sessions: &nativeToolPolicySessionStub{info: info},
 					AgentResolver: &nativeToolPolicyAgentResolverStub{err: tc.agentErr, agent: compozyconfig.AgentDef{
-						Name: "orchestrator", Provider: "opencode", Prompt: "Coordinate.", Kind: "stays_on",
+						Name: "orchestrator", Provider: "opencode", Prompt: "Coordinate.", Kind: "always_on",
 					}},
 					ApprovalAvailable: true,
 				})
