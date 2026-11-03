@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -274,6 +275,9 @@ func (m *Manager) resolveOrphanedInteraction(
 		if err != nil {
 			return PendingInteractionResolution{}, err
 		}
+		if insert.Origin, err = m.orphanAnswerOrigin(ctx); err != nil {
+			return PendingInteractionResolution{}, err
+		}
 		transition.OrphanInput = &insert
 	}
 	commit, err := m.transitionPendingInteraction(ctx, transition)
@@ -297,6 +301,24 @@ func (m *Manager) resolveOrphanedInteraction(
 		RequestID:     resolved.ProviderRequestID,
 		Resolution:    resolved.Resolution,
 	}, nil
+}
+
+// orphanAnswerOrigin attributes an agent's orphan answer to that agent, so its continuation is queued as
+// agent input: held while the lineage is paused, counted rather than resetting the brake, and never human
+// provenance for a child it spawns. Only an operator answer, with no acting session, stays human input.
+func (m *Manager) orphanAnswerOrigin(ctx context.Context) (json.RawMessage, error) {
+	actorID := actingSessionID(ctx)
+	if actorID == "" {
+		return nil, nil
+	}
+	actor, err := m.Status(ctx, actorID)
+	if err != nil {
+		return nil, err
+	}
+	return encodePromptOrigin(&acp.PromptOriginMeta{
+		Kind: acp.PromptOriginKindSession, SessionID: actor.ID, WorkspaceID: actor.WorkspaceID,
+		AgentName: actor.AgentName, Hop: 1,
+	})
 }
 
 func (m *Manager) interactionForResolution(
