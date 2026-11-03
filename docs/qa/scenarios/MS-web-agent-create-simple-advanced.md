@@ -57,3 +57,8 @@ missing-default and recovery journey remains pending.
 B5 isolated re-walk passed: absent defaults.provider produced the actionable copy, selecting Codex
 GPT-6.1-Sol created the agent with the original name, description and instructions, and the public
 API confirmed provider/model. Evidence: `reports/2026-11-01-stays-on-b5-remediation.md`.
+
+QA impact 2026-11-03 (stays-on hardening S5): Advanced's permission cards are one column of the five
+shared levels. An On demand agent adds "Follow Settings" (omits `permissions`); a Stays on agent with
+nothing chosen shows "Edit on its own" marked Default, and the request still omits `permissions`.
+The consequence Alert under the cards is gone; each card's description carries it. Not walked.

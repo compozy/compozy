@@ -78,3 +78,9 @@ ran for this scenario.
 2026-11-02 scope update: the focused editor routes replace the four-tab contract above. Historic
 receipts remain historical. Repeat the profile and editor walk against the merged PR before
 claiming current verification; include same-named definitions in two projects and two profiles.
+
+QA impact 2026-11-03 (stays-on hardening S5/S15): permission values now use the five-level
+vocabulary ("Ask before every action" / "Ask before changes" / "Edit on its own" / "Let a reviewer
+decide" / "Never ask"), with "Follow Settings" for an on-demand agent with nothing set. The Model
+panel no longer carries a permissions field; the level, approval reach and exceptions live on the
+agent's Permissions page (`MS-web-agent-permissions`). Not walked.
