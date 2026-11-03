@@ -818,7 +818,7 @@ describe("cross-workspace session deep-link router integration", () => {
 
   it("Should resolve direct agent detail through the index leaf that owns its search", async () => {
     const { router, agentDetailRoute } = buildSessionDeepLinkRouter({
-      initialEntry: "/agents/general?panel=model&workspace=%20project-a%20",
+      initialEntry: "/agents/general?panel=tools&workspace=%20project-a%20",
     });
     renderRouter(router);
 
@@ -826,7 +826,7 @@ describe("cross-workspace session deep-link router integration", () => {
     expect(router.state.location.pathname).toBe("/agents/general");
     expect(router.state.matches.at(-1)?.routeId).toBe(agentDetailRoute.id);
     expect(router.state.matches.at(-1)?.search).toEqual({
-      panel: "model",
+      panel: "tools",
       workspace: "project-a",
     });
   });

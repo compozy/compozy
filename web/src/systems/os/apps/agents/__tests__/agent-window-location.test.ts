@@ -27,7 +27,7 @@ describe("parseAgentWindowLocation", () => {
   });
 
   it.each([
-    ["runtime", { kind: "detail", search: { panel: "model" } }],
+    ["runtime", { kind: "detail", search: {} }],
     ["access", { kind: "detail", search: { panel: "tools" } }],
     ["mcp", { kind: "detail", search: { panel: "tools" } }],
     ["instructions", { kind: "page", page: "what-it-does" }],
@@ -41,13 +41,13 @@ describe("parseAgentWindowLocation", () => {
 
   it("Should keep the window binding across an old link", () => {
     expect(
-      at("/agents/triage/settings", { section: "runtime", workspace: "ws-compozy" })
-    ).toMatchObject({ search: { panel: "model", workspace: "ws-compozy" } });
+      at("/agents/triage/settings", { section: "access", workspace: "ws-compozy" })
+    ).toMatchObject({ search: { panel: "tools", workspace: "ws-compozy" } });
   });
 
   it.each([
     ["instructions", { kind: "page", page: "what-it-does" }],
-    ["configuration", { kind: "detail", search: { panel: "model" } }],
+    ["configuration", { kind: "detail", search: {} }],
     ["sessions", { kind: "detail", search: {} }],
   ])("Should land the old %s tab", (tab, expected) => {
     expect(at("/agents/triage", { tab })).toMatchObject(expected);

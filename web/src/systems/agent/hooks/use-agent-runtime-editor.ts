@@ -4,10 +4,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@compozy/ui";
 
 import { isAgentDigestConflict } from "../adapters/agent-api";
-import { resolveAgentRuntimeValue } from "../lib/agent-effective-runtime";
-import { buildSettingsDraftFromAgent, buildUpdateAgentParams } from "../lib/agent-settings-draft";
+import { hasAgentRuntimeOverride, resolveAgentRuntimeValue } from "../lib/agent-effective-runtime";
+import {
+  buildSettingsDraftFromAgent,
+  buildUpdateAgentParams,
+  type AgentSettingsDraft,
+} from "../lib/agent-settings-draft";
 import { agentKeys } from "../lib/query-keys";
 import type { AgentPayload } from "../types";
+import { useAgentWindowScope } from "./use-agent-window-scope";
 import { useUpdateAgent } from "./use-agents";
 import { type RuntimeCatalogProvider, useRuntimeModelCatalog } from "@/systems/model-catalog";
 import { type RuntimeSpeed } from "@/lib/api-contract";
@@ -29,14 +34,17 @@ function describeError(fallback: string, error: unknown): string {
 
 export interface UseAgentRuntimeEditorOptions {
   agent: AgentPayload | undefined;
-  workspaceId: string | null;
 }
 
 export interface UseAgentRuntimeEditorResult {
   value: RuntimeSelectorValue;
   speed: RuntimeSpeed;
+  /** The agent sets its own provider, model, Reasoning, Fast or options instead of the default. */
+  overridden: boolean;
   onChange: (next: RuntimeSelectorValue, normalizedSpeed?: RuntimeSpeed) => void;
   onSpeedChange: (next: RuntimeSpeed) => void;
+  /** Drops the agent's own runtime so it follows the default again. */
+  onUseDefault: () => void;
   providerOptions: RuntimeProviderOption[];
   providersLoading: boolean;
   providerSourceError: string | null;
@@ -53,17 +61,26 @@ export interface UseAgentRuntimeEditorResult {
   onDismissError: () => void;
 }
 
+const DEFAULT_RUNTIME: Partial<AgentSettingsDraft> = {
+  provider: "",
+  model: "",
+  reasoningEffort: "",
+  speed: "",
+  acpOptions: [],
+};
+
 /**
- * Immediate Provider · Model · Reasoning mutation for the agent detail header.
+ * Immediate Provider · Model · Reasoning mutation for the agent's Model row.
  * Keeps the closed trigger on server truth; pending disables without collapsing.
  */
 export function useAgentRuntimeEditor({
   agent,
-  workspaceId,
 }: UseAgentRuntimeEditorOptions): UseAgentRuntimeEditorResult {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { destination } = useProfileReadScope();
+  // The window's scope: saves go to its project, the cache write to the key `useAgent` reads.
+  const { workspace: cacheWorkspace, projectId: workspaceId } = useAgentWindowScope();
   const updateAgent = useUpdateAgent();
   const settingsProviders = useSettingsProviders();
   const workspaceDetail = useWorkspace(workspaceId ?? "", {
@@ -97,31 +114,23 @@ export function useAgentRuntimeEditor({
 
   const speed = agent?.effective_runtime?.speed ?? agent?.speed ?? "normal";
 
-  const onChange = (next: RuntimeSelectorValue, normalizedSpeed?: RuntimeSpeed) => {
+  const save = (patch: Partial<AgentSettingsDraft>) => {
     if (!agent || updateAgent.isPending) return;
-    const draft = {
-      ...buildSettingsDraftFromAgent(agent),
-      provider: next.provider,
-      model: next.model ?? "",
-      reasoningEffort: next.reasoning_effort,
-      acpOptions: next.acp_options ?? [],
-      ...(normalizedSpeed ? { speed: normalizedSpeed } : {}),
-    };
+    const draft = { ...buildSettingsDraftFromAgent(agent), ...patch };
     const params = buildUpdateAgentParams(draft, workspaceId);
     if (!params) {
-      setError("Runtime selection is incomplete.");
+      setError("This agent's setup needs fixing before it can change.");
       return;
     }
 
     setError(null);
     setConflictMessage(null);
-    const cacheWorkspace = workspaceId;
     const detailKey = agentKeys.detail(agent.name, cacheWorkspace, destination);
     updateAgent.mutate(
       { name: agent.name, params, cacheWorkspace, profile: destination },
       {
         onSuccess: () => {
-          toast.success("Runtime updated");
+          toast.success("Model updated");
         },
         onError: mutationError => {
           if (isAgentDigestConflict(mutationError)) {
@@ -132,23 +141,32 @@ export function useAgentRuntimeEditor({
               .invalidateQueries({ queryKey: detailKey })
               .then(() => queryClient.refetchQueries({ queryKey: detailKey }))
               .finally(() => {
-                setConflictMessage(
-                  "This agent changed elsewhere. Server truth was refreshed — choose the runtime again."
-                );
+                setConflictMessage("This agent changed somewhere else. Pick the model again.");
               });
             return;
           }
-          setError(describeError("Couldn't update runtime", mutationError));
+          setError(describeError("Couldn't update the model", mutationError));
         },
       }
     );
   };
 
+  const onChange = (next: RuntimeSelectorValue, normalizedSpeed?: RuntimeSpeed) =>
+    save({
+      provider: next.provider,
+      model: next.model ?? "",
+      reasoningEffort: next.reasoning_effort,
+      acpOptions: next.acp_options ?? [],
+      ...(normalizedSpeed ? { speed: normalizedSpeed } : {}),
+    });
+
   return {
     value,
     speed,
+    overridden: agent ? hasAgentRuntimeOverride(buildSettingsDraftFromAgent(agent)) : false,
     onChange,
-    onSpeedChange: next => onChange(value, next),
+    onSpeedChange: next => save({ speed: next }),
+    onUseDefault: () => save(DEFAULT_RUNTIME),
     providerOptions,
     providersLoading,
     providerSourceError,

@@ -75,6 +75,7 @@ vi.mock("../use-unsaved-guard", () => ({
 }));
 
 import { AgentApiError, AgentDigestConflictError } from "../../adapters/agent-api";
+import { useAgentRuntimeEditor } from "../use-agent-runtime-editor";
 import { useAgentSettingsPage } from "../use-agent-settings-page";
 
 function createWrapper() {
@@ -273,4 +274,75 @@ describe("useAgentSettingsPage", () => {
       expect(result.current.dirty).toBe(false);
     }
   );
+});
+
+// Invariant: the agent home's Model row saves a pick, or a return to the default, in one
+//   digest-guarded update that keeps the rest of the definition.
+describe("useAgentRuntimeEditor", () => {
+  afterEach(() => act(() => resetProfileViews()));
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.workspaceId = "ws-test";
+    resetProfileViews();
+  });
+
+  function renderEditor(agent: unknown) {
+    mocks.agent = agent;
+    return renderHook(() => useAgentRuntimeEditor({ agent: mocks.agent as never }), {
+      wrapper: createWrapper(),
+    });
+  }
+
+  it("Should save a picked model at once and keep the agent's command", () => {
+    const { result } = renderEditor({
+      ...primaryAgentFixture,
+      origin: "workspace",
+      provider: "",
+      model: "",
+      reasoning_effort: "",
+      command: "my-claude --fast",
+    });
+    expect(result.current.overridden).toBe(false);
+
+    act(() =>
+      result.current.onChange({ provider: "claude", model: "sonnet", reasoning_effort: "high" })
+    );
+
+    expect(mocks.updateMutate).toHaveBeenCalledOnce();
+    expect(mocks.updateMutate.mock.calls[0]![0]).toMatchObject({
+      name: primaryAgentFixture.name,
+      cacheWorkspace: "ws-test",
+      params: {
+        expected_digest: primaryAgentFixture.definition_digest,
+        workspace: "ws-test",
+        agent: {
+          provider: "claude",
+          model: "sonnet",
+          reasoning_effort: "high",
+          command: "my-claude --fast",
+        },
+      },
+    });
+  });
+
+  it("Should drop the agent's own runtime when it goes back to the default", () => {
+    const { result } = renderEditor({
+      ...primaryAgentFixture,
+      origin: "workspace",
+      provider: "claude",
+      model: "sonnet",
+      reasoning_effort: "high",
+      speed: "fast",
+    });
+    expect(result.current.overridden).toBe(true);
+
+    act(() => result.current.onUseDefault());
+
+    const { agent } = mocks.updateMutate.mock.calls[0]![0].params;
+    expect(agent).not.toHaveProperty("provider");
+    expect(agent).not.toHaveProperty("model");
+    expect(agent).not.toHaveProperty("reasoning_effort");
+    expect(agent).not.toHaveProperty("speed");
+    expect(agent.acp_options).toEqual([]);
+  });
 });

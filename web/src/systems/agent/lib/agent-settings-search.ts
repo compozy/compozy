@@ -38,11 +38,9 @@ export type AgentLegacyDestination =
   | { kind: "home"; panel?: AgentProfilePanel }
   | { kind: "page"; page: AgentEditorPage };
 
-/** Where an old `settings?section=` link lands now that the modal is gone. */
+/** Where an old `settings?section=` link lands now that the modal is gone; the model sits on the home. */
 export function agentSettingsDestination(section: AgentSettingsSection): AgentLegacyDestination {
   switch (section) {
-    case "runtime":
-      return { kind: "home", panel: "model" };
     case "access":
     case "mcp":
       return { kind: "home", panel: "tools" };
@@ -56,6 +54,5 @@ export function agentSettingsDestination(section: AgentSettingsSection): AgentLe
 /** Where an old `?tab=` link lands now that the tabs are gone. */
 export function agentTabDestination(tab: unknown): AgentLegacyDestination {
   if (tab === "instructions") return { kind: "page", page: "what-it-does" };
-  if (tab === "configuration") return { kind: "home", panel: "model" };
   return { kind: "home" };
 }
