@@ -5,8 +5,35 @@ package client
 import (
 	"context"
 	"net/url"
+	"strconv"
 	"strings"
 )
+
+// PreviewExtensionEnable Preview one extension enablement change
+func (c *Client) PreviewExtensionEnable(ctx context.Context, params PreviewExtensionEnableParams) (*ExtensionEnablePreviewPayload, error) {
+	path := "/api/extensions/{name}/preview"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ExtensionEnablePreviewPayload
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PreviewExtensionInstallParams carries the path, query, and header parameters.
+type PreviewExtensionInstallParams struct {
+	Profile *string `url:"profile"`
+}
 
 // PreviewExtensionInstall Preview an extension install without changing state
 func (c *Client) PreviewExtensionInstall(ctx context.Context, params PreviewExtensionInstallParams, body InstallExtensionRequest) (*ExtensionInstallPreviewPayload, error) {
@@ -415,21 +442,4 @@ func (c *Client) PutSettingsProvider(ctx context.Context, params PutSettingsProv
 		return nil, err
 	}
 	return &out, nil
-}
-
-// PutVaultSecret Create or update one write-only vault secret
-func (c *Client) PutVaultSecret(ctx context.Context, body PutVaultSecretRequest) (*VaultSecretResponse, error) {
-	path := "/api/vault/secrets"
-	var out VaultSecretResponse
-	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// PutWindowManagerLayoutProfileParams carries the path, query, and header parameters.
-type PutWindowManagerLayoutProfileParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	ProfileID   string  `url:"profile_id"`
-	Profile     *string `url:"profile"`
 }

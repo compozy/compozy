@@ -9,6 +9,23 @@ import (
 	"strings"
 )
 
+// PutVaultSecret Create or update one write-only vault secret
+func (c *Client) PutVaultSecret(ctx context.Context, body PutVaultSecretRequest) (*VaultSecretResponse, error) {
+	path := "/api/vault/secrets"
+	var out VaultSecretResponse
+	if err := c.doContent(ctx, "PUT", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// PutWindowManagerLayoutProfileParams carries the path, query, and header parameters.
+type PutWindowManagerLayoutProfileParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	ProfileID   string  `url:"profile_id"`
+	Profile     *string `url:"profile"`
+}
+
 // PutWindowManagerLayoutProfile Create or replace one workspace-visible layout profile
 func (c *Client) PutWindowManagerLayoutProfile(ctx context.Context, params PutWindowManagerLayoutProfileParams, body PutResourceRequest) (*ResourceResponse, error) {
 	path := "/api/workspaces/{workspace_id}/window-manager/layout-profiles/{profile_id}"

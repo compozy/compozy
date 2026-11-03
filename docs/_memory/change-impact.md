@@ -1,5 +1,14 @@
 # Compozy Change Impact
 
+## Main CI contract co-ship repairs — 2026-11-03
+
+Regenerate the Go client from the current API registry to restore its canonical operation file
+boundaries. Add the already-shipped `compozy__session_mark_seen` mutation to the explicit
+approve-edits catalog inventory, matching `compozy__agent_instance_mark_seen`; its refusal and
+profile checks remain unchanged. Extract workspace-busy payload enrichment without changing HTTP
+or UDS responses. No runtime behavior, hooks, config, migrations, Web, or official skill changes;
+existing `RT-session-mark-seen` and error-payload suites own verification.
+
 ## Session profile move approval classification — 2026-11-03
 
 The native `compozy__session_move_to_profile` descriptor now declares destructive risk and its
