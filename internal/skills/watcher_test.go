@@ -887,7 +887,9 @@ func TestWatcherCallbackRecovery(t *testing.T) {
 			}
 			return nil
 		})
-		path := writeSkillFile(t, root, filepath.Join("edited", skillFileName), skillWithDescription("edited", "Initial"))
+		path := writeSkillFile(
+			t, root, filepath.Join("edited", skillFileName), skillWithDescription("edited", "Initial"),
+		)
 		if err := watcher.pollOnce(t.Context()); err == nil {
 			t.Fatal("expected callback failure")
 		}
@@ -916,7 +918,11 @@ func TestWatcherCallbackRecovery(t *testing.T) {
 		watcher.reportPollResult(nil)
 		watcher.reportPollResult(projectionErr)
 		if got := strings.Count(logs.String(), "skills: watcher poll failed"); got != 3 {
-			t.Fatalf("poll failure warnings = %d, want 3 (initial, changed cause, after recovery); logs=%s", got, logs.String())
+			t.Fatalf(
+				"poll failure warnings = %d, want 3 (initial, changed cause, after recovery); logs=%s",
+				got,
+				logs.String(),
+			)
 		}
 	})
 	t.Run("Should retry the callback independently of committed skill changes", func(t *testing.T) {

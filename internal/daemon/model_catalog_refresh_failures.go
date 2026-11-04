@@ -91,6 +91,9 @@ func (r *modelCatalogRuntime) targetPreflighter(target modelCatalogRefreshTarget
 	} else {
 		source = r.dynamicSources[target.sourceID]
 	}
-	preflighter, _ := source.(modelCatalogDiscoveryPreflighter)
+	preflighter, ok := source.(modelCatalogDiscoveryPreflighter)
+	if !ok {
+		return nil
+	}
 	return preflighter
 }

@@ -2044,85 +2044,88 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		}
 	})
 
-	t.Run("Should park permanent failures until an explicit refresh without rewriting unchanged rows", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should park permanent failures until an explicit refresh without rewriting unchanged rows",
+		func(t *testing.T) {
+			t.Parallel()
 
-		source := &fakeSource{
-			id:        "provider_live:openrouter",
-			kind:      SourceKindProviderLive,
-			priority:  PriorityProviderLive,
-			providers: []string{"openrouter"},
-			ttl:       5 * time.Minute,
-			err: permanentSourceFailure(errors.New(
-				`model catalog: provider "openrouter" live discovery requires a bound_secret credential`,
-			)),
-		}
-		store := newMemoryStore()
-		service := newTestService(t, store, []Source{source})
-		refresh := func(at time.Time, force bool) ([]SourceStatus, error) {
-			return service.Refresh(testutil.Context(t), RefreshOptions{
-				ProviderID: "openrouter",
-				SourceID:   source.ID(),
-				Force:      force,
-				Now:        at,
-			})
-		}
-		statuses, err := refresh(testTime(0), false)
-		if !errors.Is(err, ErrAllSourcesFailed) {
-			t.Fatalf("Refresh(first failure) error = %v, want ErrAllSourcesFailed", err)
-		}
-		held := requireStatus(t, statuses, source.ID())
-		if held.RefreshState != RefreshStateFailed || !held.PermanentFailureHeld() ||
-			!held.NextRefresh.IsZero() ||
-			!strings.Contains(held.LastError, "requires a bound_secret credential") {
-			t.Fatalf("first failure status = %#v, want failed status parked without a next refresh", held)
-		}
-		writes := store.replaceCount
-
-		// A plain (non-forced) explicit refresh attempts a parked source, days later or not,
-		// and an identical permanent failure keeps the stored row untouched.
-		for _, at := range []time.Time{testTime(1), testTime(3 * 24 * 60)} {
-			statuses, err = refresh(at, false)
+			source := &fakeSource{
+				id:        "provider_live:openrouter",
+				kind:      SourceKindProviderLive,
+				priority:  PriorityProviderLive,
+				providers: []string{"openrouter"},
+				ttl:       5 * time.Minute,
+				err: permanentSourceFailure(errors.New(
+					`model catalog: provider "openrouter" live discovery requires a bound_secret credential`,
+				)),
+			}
+			store := newMemoryStore()
+			service := newTestService(t, store, []Source{source})
+			refresh := func(at time.Time, force bool) ([]SourceStatus, error) {
+				return service.Refresh(testutil.Context(t), RefreshOptions{
+					ProviderID: "openrouter",
+					SourceID:   source.ID(),
+					Force:      force,
+					Now:        at,
+				})
+			}
+			statuses, err := refresh(testTime(0), false)
 			if !errors.Is(err, ErrAllSourcesFailed) {
-				t.Fatalf("Refresh(parked at %s) error = %v, want ErrAllSourcesFailed", at, err)
+				t.Fatalf("Refresh(first failure) error = %v, want ErrAllSourcesFailed", err)
+			}
+			held := requireStatus(t, statuses, source.ID())
+			if held.RefreshState != RefreshStateFailed || !held.PermanentFailureHeld() ||
+				!held.NextRefresh.IsZero() ||
+				!strings.Contains(held.LastError, "requires a bound_secret credential") {
+				t.Fatalf("first failure status = %#v, want failed status parked without a next refresh", held)
+			}
+			writes := store.replaceCount
+
+			// A plain (non-forced) explicit refresh attempts a parked source, days later or not,
+			// and an identical permanent failure keeps the stored row untouched.
+			for _, at := range []time.Time{testTime(1), testTime(3 * 24 * 60)} {
+				statuses, err = refresh(at, false)
+				if !errors.Is(err, ErrAllSourcesFailed) {
+					t.Fatalf("Refresh(parked at %s) error = %v, want ErrAllSourcesFailed", at, err)
+				}
+				if got := requireStatus(t, statuses, source.ID()); !got.PermanentFailureHeld() ||
+					!got.LastRefresh.Equal(testTime(0)) || got.LastError != held.LastError {
+					t.Fatalf("status after repeated failure = %#v, want the parked status unchanged", got)
+				}
+			}
+			if got := source.calls; got != 3 {
+				t.Fatalf("source calls after explicit refreshes = %d, want every explicit refresh attempted", got)
+			}
+			if got := store.replaceCount; got != writes {
+				t.Fatalf("store writes after identical failures = %d, want %d", got, writes)
+			}
+
+			source.err = permanentSourceFailure(errors.New(
+				`model catalog: provider "openrouter" has no configured model discovery path`,
+			))
+			statuses, err = refresh(testTime(10), false)
+			if !errors.Is(err, ErrAllSourcesFailed) {
+				t.Fatalf("Refresh(changed cause) error = %v, want ErrAllSourcesFailed", err)
 			}
 			if got := requireStatus(t, statuses, source.ID()); !got.PermanentFailureHeld() ||
-				!got.LastRefresh.Equal(testTime(0)) || got.LastError != held.LastError {
-				t.Fatalf("status after repeated failure = %#v, want the parked status unchanged", got)
+				!strings.Contains(got.LastError, "no configured model discovery path") {
+				t.Fatalf("status after changed cause = %#v, want parked status with the new reason", got)
 			}
-		}
-		if got := source.calls; got != 3 {
-			t.Fatalf("source calls after explicit refreshes = %d, want every explicit refresh attempted", got)
-		}
-		if got := store.replaceCount; got != writes {
-			t.Fatalf("store writes after identical failures = %d, want %d", got, writes)
-		}
+			if got := store.replaceCount; got != writes+1 {
+				t.Fatalf("store writes after changed cause = %d, want one more than %d", got, writes)
+			}
 
-		source.err = permanentSourceFailure(errors.New(
-			`model catalog: provider "openrouter" has no configured model discovery path`,
-		))
-		statuses, err = refresh(testTime(10), false)
-		if !errors.Is(err, ErrAllSourcesFailed) {
-			t.Fatalf("Refresh(changed cause) error = %v, want ErrAllSourcesFailed", err)
-		}
-		if got := requireStatus(t, statuses, source.ID()); !got.PermanentFailureHeld() ||
-			!strings.Contains(got.LastError, "no configured model discovery path") {
-			t.Fatalf("status after changed cause = %#v, want parked status with the new reason", got)
-		}
-		if got := store.replaceCount; got != writes+1 {
-			t.Fatalf("store writes after changed cause = %d, want one more than %d", got, writes)
-		}
-
-		source.err = errors.New(`model catalog: live discovery for "openrouter" returned HTTP 503`)
-		statuses, err = refresh(testTime(30), false)
-		if !errors.Is(err, ErrAllSourcesFailed) {
-			t.Fatalf("Refresh(transient) error = %v, want ErrAllSourcesFailed", err)
-		}
-		if got := requireStatus(t, statuses, source.ID()); got.PermanentFailureHeld() ||
-			!got.NextRefresh.Equal(testTime(35)) {
-			t.Fatalf("transient status after park = %#v, want doubling restarted from the TTL", got)
-		}
-	})
+			source.err = errors.New(`model catalog: live discovery for "openrouter" returned HTTP 503`)
+			statuses, err = refresh(testTime(30), false)
+			if !errors.Is(err, ErrAllSourcesFailed) {
+				t.Fatalf("Refresh(transient) error = %v, want ErrAllSourcesFailed", err)
+			}
+			if got := requireStatus(t, statuses, source.ID()); got.PermanentFailureHeld() ||
+				!got.NextRefresh.Equal(testTime(35)) {
+				t.Fatalf("transient status after park = %#v, want doubling restarted from the TTL", got)
+			}
+		},
+	)
 
 	t.Run("Should refresh only sources that own the requested provider", func(t *testing.T) {
 		t.Parallel()

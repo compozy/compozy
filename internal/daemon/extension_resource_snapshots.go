@@ -240,11 +240,11 @@ func installedExtensionProfileSnapshots(
 ) ([]scopedExtensionResourceSnapshot, error) {
 	snapshots := make([]scopedExtensionResourceSnapshot, 0, len(infos)*len(profiles))
 	var failures []error
-	for infoIndex := range infos {
+	for _, info := range infos {
 		for _, profile := range profiles {
 			extension, enabled, projectErr := projector.ProjectForProfile(
 				ctx,
-				extensionpkg.GlobalInstanceKey(infos[infoIndex].Name),
+				extensionpkg.GlobalInstanceKey(info.Name),
 				profile,
 			)
 			if errors.Is(projectErr, extensionpkg.ErrExtensionNotFound) {
@@ -255,7 +255,7 @@ func installedExtensionProfileSnapshots(
 					return nil, err
 				}
 				failures = append(failures, fmt.Errorf(
-					"daemon: project installed extension %q for profile %q: %w", infos[infoIndex].Name,
+					"daemon: project installed extension %q for profile %q: %w", info.Name,
 					profile.Name,
 					projectErr,
 				))

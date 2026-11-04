@@ -504,7 +504,11 @@ func TestExtensionProfileResourceSnapshotsIsolateProjectionFailures(t *testing.T
 		delete(runtime.failures, "broken-kit")
 		snapshots, err = extensionProfileResourceSnapshots(t.Context(), registry, runtime, infos, nil)
 		if err != nil || len(snapshots) != 2 {
-			t.Fatalf("extensionProfileResourceSnapshots() after recovery = %d snapshots, %v; want 2, nil", len(snapshots), err)
+			t.Fatalf(
+				"extensionProfileResourceSnapshots() after recovery = %d snapshots, %v; want 2, nil",
+				len(snapshots),
+				err,
+			)
 		}
 	})
 

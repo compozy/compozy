@@ -367,13 +367,15 @@ test.describe("always-on agent vocabulary", () => {
 
     await appPage.getByTestId("agent-setup-check-ins").click();
     await expect.poll(() => new URL(appPage.url()).pathname).toBe("/agents/watch-setup/check-ins");
-    await expect(appPage.getByRole("heading", { level: 1, name: "Heartbeat" })).toBeVisible();
+    await expect(appPage.getByTestId("topbar-title-text")).toHaveText("Heartbeat");
+    await expect(appPage.getByTestId("topbar-title-text")).toBeVisible();
 
     await appPage.goto(runtime.url("/agents/watch-setup/what-it-does"), {
       waitUntil: "domcontentloaded",
     });
     await completeOnboardingIfPrompted(sessionLifecycleSelectors(appPage));
-    await expect(appPage.getByRole("heading", { level: 1, name: "Instructions" })).toBeVisible();
+    await expect(appPage.getByTestId("topbar-title-text")).toHaveText("Instructions");
+    await expect(appPage.getByTestId("topbar-title-text")).toBeVisible();
   });
 });
 

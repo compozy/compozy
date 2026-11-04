@@ -1741,15 +1741,15 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			t.Fatalf("newModelCatalogRuntime() error = %v", err)
 		}
 		held := &catalogPreflightSource{
-			catalogDynamicSource: catalogDynamicSource{id: "extension/held"},
-			outcome:              errors.New("vault: secret value missing"),
+			id:      "extension/held",
+			outcome: errors.New("vault: secret value missing"),
 		}
-		login := &catalogPreflightSource{catalogDynamicSource: catalogDynamicSource{id: "extension/login"}}
+		login := &catalogPreflightSource{id: "extension/login"}
 		// The secret was bound while the daemon was down: preflight now passes.
-		fixed := &catalogPreflightSource{catalogDynamicSource: catalogDynamicSource{id: "extension/fixed"}}
+		fixed := &catalogPreflightSource{id: "extension/fixed"}
 		transient := &catalogPreflightSource{
-			catalogDynamicSource: catalogDynamicSource{id: "extension/transient"},
-			outcome:              errors.New("upstream unavailable"),
+			id:      "extension/transient",
+			outcome: errors.New("upstream unavailable"),
 		}
 		runtime.dynamicSources = map[string]modelcatalog.Source{
 			held.ID(): held, login.ID(): login, fixed.ID(): fixed, transient.ID(): transient,
@@ -1908,7 +1908,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		source := &catalogPreflightSource{catalogDynamicSource: catalogDynamicSource{id: "extension/held"}}
+		source := &catalogPreflightSource{id: "extension/held"}
 		runtime.dynamicSources = map[string]modelcatalog.Source{source.ID(): source}
 		status := modelcatalog.SourceStatus{
 			SourceID: source.ID(), RefreshState: modelcatalog.RefreshStateFailed,
@@ -1961,8 +1961,8 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			LastError:    "resolve provider credential: vault: secret value missing",
 		}}
 		source := &catalogPreflightSource{
-			catalogDynamicSource: catalogDynamicSource{id: "extension/held"},
-			outcome:              errors.New("vault: secret value missing"),
+			id:      "extension/held",
+			outcome: errors.New("vault: secret value missing"),
 		}
 		newRuntime := func() *modelCatalogRuntime {
 			runtime, err := newModelCatalogRuntime(testutil.Context(t), service, discardLogger(), func() time.Time {
@@ -2052,7 +2052,6 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if got := strings.Count(logs.String(), "level=WARN"); got != 4 {
 			t.Fatalf("WARN lines after a different context = %d, want 4: %s", got, logs.String())
 		}
-
 	})
 
 	t.Run("Should return shutdown deadline when refresh worker does not stop in time", func(t *testing.T) {
