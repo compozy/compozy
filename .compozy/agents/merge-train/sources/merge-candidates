@@ -142,16 +142,19 @@ def main():
             for c in notes
             if is_coderabbit(c) and (c.get("updated_at") or c.get("created_at") or "") > last_review
         )
-        return {
-            "reviews": reviews,
-            "rounds": len({r["commit_id"] for r in ours}),
-            "fallback": any(
-                (c.get("user") or {}).get("login") == author
-                and (c.get("body") or "").lstrip().startswith(FALLBACK_HEADING)
-                for c in notes
-            ),
-            "unavailable": next((name for name, rx in UNAVAILABLE if rx.search(refusals)), ""),
-        }
+        rounds = len({r["commit_id"] for r in ours})
+        fallback = any(
+            (c.get("user") or {}).get("login") == author
+            and (c.get("body") or "").lstrip().startswith(FALLBACK_HEADING)
+            for c in notes
+        )
+        unavailable = next((name for name, rx in UNAVAILABLE if rx.search(refusals)), "")
+        # CodeRabbit may skip a >300-file PR without a refusal comment; only a
+        # fallback PR that could not qualify otherwise pays for this GET.
+        if fallback and not unavailable and rounds < min_rounds:
+            if (gh_one(f"repos/{repo}/pulls/{number}").get("changed_files") or 0) > 300:
+                unavailable = "file_limit"
+        return {"reviews": reviews, "rounds": rounds, "fallback": fallback, "unavailable": unavailable}
 
     def candidate_facts(candidate):
         pr, facts = candidate
