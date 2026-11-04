@@ -1,5 +1,31 @@
 # Compozy Change Impact
 
+## Script source approval before the first check-in — issue #1258
+
+Owner: `fix/issue-1258-approve-before-first-check` (PR #1262). QA:
+`docs/qa/scenarios/MS-always-on-check-in-sources.md` §7.5–7.8.
+
+- HTTP/UDS DTOs gain additive fields only (SD-013 additive, no shim): instance
+  `sources[].awaiting_approval` and `sources[].script_sha256` on every agent-instance read, and
+  `scripts[].path` on `GET /api/agents/{name}/heartbeat/sources`. OpenAPI, the TS client and the Go
+  client were regenerated. The approve/revoke routes, their CAS-by-hash body,
+  `source_script_changed`, operator-only and extension-owned gating, `status` values, CLI verbs,
+  native tool IDs, hooks, config keys and SQLite are unchanged.
+- The daemon reads approval from the script's bytes with the poller's own key (profile, resolved
+  definition dir, name), via the shared `source.ApprovedScript`. A never-polled or paused
+  placement therefore reports the wait. Scripts that can't run (disabled, extension-owned,
+  missing, not executable) report nothing to approve.
+- Data boundaries: the bell reads the existing per-profile always-on instance list (same query
+  key, `agent_instance.updated` live merges, 30 s staleness), and the hash travels with the
+  operator's own read scope. Approval from Heartbeat or the bell invalidates the instance lists
+  and that agent's source catalogs. No secrets are exposed: the hash and the local script path
+  are operator-scoped.
+- Web: Heartbeat gets a Sources section with an approval notice per waiting script, and rows only
+  report status. The menubar bell gets a "Scripts to approve" group whose count joins the bell
+  count. Desktop Open script uses the existing `files.openInEditor` bridge.
+- Docs: `packages/site/content/docs/agents/heartbeat.mdx` names both app surfaces. Official skill
+  `skills/compozy/`: no change (the CLI/native approval flow is unchanged).
+
 ## SQLite contention isolation — issue #1227
 
 Owner: `fix/issue-1227-sqlite-contention`; implementation and acceptance receipts:

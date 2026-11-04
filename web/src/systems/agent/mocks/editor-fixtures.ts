@@ -18,6 +18,7 @@ import {
 import { composeSoulFile, parseSoulFile, type SoulForm } from "../lib/agent-soul-form";
 import type { AgentMemoryBudget } from "../types";
 import { agentInstanceFixture } from "./instance-fixtures";
+import { pendingScriptFixture } from "./script-approval-fixtures";
 
 /** A still document for the pure editor views: what a loaded file looks like, with no I/O. */
 export function editorDocumentFixture<TForm>(
@@ -212,3 +213,52 @@ function memoryModel(content: string): MemoryEditorModel {
 
 export const memoryModelFixture = () => memoryModel(MEMORY_FILE);
 export const blankMemoryModelFixture = () => memoryModel("");
+
+/**
+ * Heartbeat with a script source the operator hasn't approved and no check has read (#1258):
+ * the instance still reads `pending_first_poll`, the catalog says the bytes wait.
+ */
+export function awaitingApprovalCheckInsModelFixture({ paused = false } = {}) {
+  const settings: CheckInSettings = {
+    ...CHECK_IN_SETTINGS,
+    sources: [
+      { id: "issues", kind: "forge-github/issues", with: { repo: "compozy/compozy" } },
+      { id: "merges", script: pendingScriptFixture.name },
+    ],
+  };
+  const pending = { status: "pending_first_poll", failure_streak: 0, last_item_count: 0 };
+  const instance = agentInstanceFixture({
+    ...(paused ? { state: "paused", pause_reason: "manual" } : {}),
+    sources: [
+      { ...pending, id: "issues", kind: "forge-github/issues" },
+      {
+        ...pending,
+        id: "merges",
+        script: pendingScriptFixture.name,
+        awaiting_approval: true,
+        script_sha256: pendingScriptFixture.sha256,
+      },
+    ],
+  });
+  const base = checkInsModelFixture();
+  return checkInsModelFixture({
+    document: editorDocumentFixture(settings, composeCheckInsFile(settings)),
+    settings,
+    instance,
+    places: [instance],
+    ...(paused ? { standing: "paused", paused: true, on: false } : {}),
+    catalog: {
+      agent: "merge-train",
+      scripts_enabled: true,
+      limits: { max_per_agent: 8, max_items: 20 },
+      kinds: [],
+      scripts: [
+        {
+          ...pendingScriptFixture,
+          path: "/Users/you/.compozy/agents/merge-train/sources/merge-candidates",
+        },
+      ],
+    },
+    sources: { ...base.sources, catalogState: "ready" },
+  });
+}
