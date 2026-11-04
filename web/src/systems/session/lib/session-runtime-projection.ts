@@ -37,6 +37,19 @@ export function selectionResetRefused(
   return (!selected.model || !selected.reasoning_effort) && !!failure?.trim();
 }
 
+/**
+ * Only a ready, same-provider runtime outside recovery attempts a live apply, so only its
+ * failure can mean the saved selection was refused; recovery and bind failures cannot.
+ */
+function liveApplyAttempted(
+  runtime: SessionRuntimePayload | null | undefined,
+  provider: string
+): boolean {
+  return (
+    runtime?.status === "ready" && !runtime.recovery && runtime.effective?.provider === provider
+  );
+}
+
 export interface SessionRuntimeProjection {
   /** What the session runs now, or last ran; absent before the first bind. */
   current: RuntimeIdentity | undefined;
@@ -60,6 +73,7 @@ export function sessionRuntimeProjection(
   const pending =
     !!selected?.provider &&
     (!runtimeSelectionMatches(selected, recorded) ||
-      (!!runtime?.effective && selectionResetRefused(selected, runtime.failure)));
+      (liveApplyAttempted(runtime, selected.provider) &&
+        selectionResetRefused(selected, runtime?.failure)));
   return { current: recorded, next: pending ? selected : undefined };
 }

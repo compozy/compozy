@@ -1999,6 +1999,25 @@ describe("SessionList provider marks", () => {
     expect(rowButton("refused")).toHaveAccessibleName(/Codex · GPT-6\.1 Sol, next message: Codex /);
   });
 
+  it("announces no switch when a recovery failure leaves an unchanged runtime", () => {
+    renderList({
+      sessions: [
+        row("recovering", {
+          runtime: {
+            ...runtime("codex", "gpt-6.1-sol"),
+            status: "recovering",
+            selected: { provider: "codex" },
+            failure: "replacement runtime failed to start",
+            selection_revision: 2,
+          },
+        }),
+      ],
+    });
+
+    expect(rowButton("recovering")).toHaveAccessibleName(/Codex · GPT-6\.1 Sol/);
+    expect(rowButton("recovering")).not.toHaveAccessibleName(/next message/);
+  });
+
   it("reveals the runtime on keyboard focus, closes on Escape, and adds no tab stop", async () => {
     const user = userEvent.setup();
     renderList({ sessions: [row("keyed", { runtime: runtime("codex", "gpt-6.1-sol") })] });
