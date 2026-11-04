@@ -78,6 +78,21 @@ def run(binary, root, mode, output, name, duration="30s", trace=False, runtime_t
     return result
 
 
+def operation_rates(result):
+    return {name: sample["count"] / result["seconds"]
+            for name, sample in result["latency"].items()}
+
+
+def throughput_regressions(baseline, head):
+    baseline_rates = [operation_rates(run) for run in baseline]
+    head_rates = [operation_rates(run) for run in head]
+    return {name: {"baseline": statistics.median(run.get(name, 0) for run in baseline_rates),
+                   "head": statistics.median(run.get(name, 0) for run in head_rates)}
+            for name in set().union(*baseline_rates)
+            if statistics.median(run.get(name, 0) for run in head_rates)
+            < statistics.median(run.get(name, 0) for run in baseline_rates)}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--baseline", type=Path, required=True)
@@ -138,6 +153,9 @@ def main():
     result = {"environment": environment, "seed": seed, "upgrade": {"rows": before["rows"], "sha256": before["sha256"],
               "baseline_open_ms": baseline_view["open_ms"], "upgrade_ms": head_view["open_ms"], "reopen_ms": reopened["open_ms"]},
               "trials": trials, "traced": traced}
+    regressions = {"untraced": throughput_regressions(trials["baseline"], trials["head"]),
+                   "traced": throughput_regressions([traced["baseline"]], [traced["head"]])}
+    result["throughput_regressions"] = regressions
     save(args.output / "results.json", result)
     lines = ["# SQLite contention paired experiment", "", f"Baseline `{args.baseline_sha}`; head `{args.head_sha}`.", "",
              "30 sessions; 1,000 completed turns each; 20 Hz transcript chunks, 5 Hz transcript reads,",
@@ -150,11 +168,16 @@ def main():
     for metric in ("transcript_read", "catalog_read"):
         values = {label: [r["latency"][metric]["p99_ms"] for r in runs] for label, runs in trials.items()}
         lines.append(f"| {metric} p99 ms (median; three values) | {statistics.median(values['baseline']):.3f}; {values['baseline']} | {statistics.median(values['head']):.3f}; {values['head']} |")
+    for name in sorted(set().union(*(operation_rates(run) for run in trials["baseline"]))):
+        values = {label: statistics.median(operation_rates(run).get(name, 0) for run in runs)
+                  for label, runs in trials.items()}
+        lines.append(f"| {name} completed operations/s (median) | {values['baseline']:.2f} | {values['head']:.2f} |")
     for kind in ("core", "telemetry"):
         values = {label: statistics.median(r["transactions_per_second"][kind] for r in runs) for label, runs in trials.items()}
         lines.append(f"| {kind} write commit hooks/s | {values['baseline']:.2f} | {values['head']:.2f} |")
     for kind in ("core", "telemetry", "sessions"):
         lines.append(f"| {kind} file-write bytes/min (traced) | {traced['baseline']['file_writes']['bytes_per_minute'][kind]:.0f} | {traced['head']['file_writes']['bytes_per_minute'][kind]:.0f} |")
+    lines += ["", "Throughput regressions (untraced medians and traced pair): " + json.dumps(regressions), ""]
     for label, runs in trials.items():
         lines += ["", f"{label}: {sum(sum(map(len,r['failures'].values())) for r in runs)} operation failures; {sum(len(r['contention_diagnostics']) for r in runs)} long-hold/contention warnings."]
         lines += [f"Retention rows removed: {[r['retention']['DeletedEventSummaries'] for r in runs]}."]
@@ -172,7 +195,7 @@ def main():
     invalid = [r for r in head_runs if r["failures"] or r["contention_diagnostics"]]
     incomplete_retention = [r for r in head_runs
                             if r["retention"]["DeletedEventSummaries"] != retention_rows]
-    if invalid or incomplete_retention:
+    if invalid or incomplete_retention or any(regressions.values()):
         # Keep failed acceptance unchanged. A separate diagnostic run attributes
         # time to Go scheduling, GC, locks and syscalls; it never replaces a trial.
         diagnose_failure(args.head, upgraded, args.output)

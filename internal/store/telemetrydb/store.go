@@ -146,7 +146,6 @@ func (s *Store) Close(ctx context.Context) error {
 	}
 	backgroundErr := s.background.Close(ctx)
 	readErr := s.readDB.Close()
-	maintenanceErr := s.checkpoint.Close()
-	checkpointErr := store.CheckpointPassive(ctx, s.db)
-	return errors.Join(backgroundErr, readErr, maintenanceErr, checkpointErr, s.db.Close())
+	closeErr := store.CloseCheckpointedDatabase(ctx, s.db, s.checkpoint)
+	return errors.Join(backgroundErr, readErr, closeErr)
 }

@@ -53,3 +53,10 @@ events were independently read over HTTP and UDS after replacement and a third b
 badge or duplicate continuation was observed. See
 [the scoped report and public readback evidence](../reports/2026-10-23-issue-939-restart-continuation.md).
 The full persona/Web/CLI journey remains untested; this automated evidence does not replace that verdict.
+
+QA impact 2026-11-04 (#1241 follow-up): repeat shutdown with a core or telemetry
+PASSIVE checkpoint stalled in filesystem I/O. Database close must return at its
+caller deadline while owned cleanup retains both connections until the stalled
+worker exits, then closes them. The canonical `TestStoreSQLiteHelpers` suite
+verifies this at the driver I/O boundary with real SQLite. The full daemon walk
+remains unrun in this slice under the host-load restriction.

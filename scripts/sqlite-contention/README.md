@@ -42,7 +42,12 @@ A separate pair of 15-second runs uses seccomp-filtered `strace` to sum successf
 `pwrite64` return values for `.db` and `-wal`. This measures actual application
 file-write volume, including clean shutdown, rather than file-size growth. It
 excludes shared-memory mmap dirtying and filesystem/device amplification.
-Traced latencies are excluded from the p99 comparison.
+Traced latencies are excluded from the p99 comparison. Acceptance also requires
+no decrease in completed operations/second for any baseline operation: compare
+three-trial medians for untraced runs and the separate traced pair. Missing head
+operations count as zero. Runs with operation errors fail independently, so counts
+cannot hide failed work. Rates and regressions are retained in the report and JSON;
+latency and file-write comparisons remain visible alongside throughput.
 
 After a failed acceptance run, the runner preserves its result and replays the
 head separately with `-runtime-trace <path>`. The Go execution trace records named
@@ -85,3 +90,10 @@ python3 scripts/sqlite-contention/qa.py \
   --binary /path/to/compozy --driver /path/to/acpmock-driver \
   --output /new/isolated/daemon-results
 ```
+
+Review follow-up impact (#1241): checkpoint shutdown changes only internal Go
+ownership and deadline handling. Native tool IDs, HTTP/UDS/CLI shapes, hooks,
+extension contracts, config, workspace isolation and `skills/compozy/` are
+unchanged; Web needs no update. The paired gate changes CI acceptance only.
+Shutdown QA coverage is tracked in `RT-daemon-drain-admission`; heavy paired and
+public daemon runs remain CI-owned.

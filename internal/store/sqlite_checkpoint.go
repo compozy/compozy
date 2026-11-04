@@ -60,14 +60,34 @@ func (p *PassiveCheckpointer) run(ctx context.Context, db *sql.DB) {
 	}
 }
 
-// Close cancels and joins maintenance, then returns the connection-close error.
-func (p *PassiveCheckpointer) Close() error {
+// Close cancels maintenance and waits until it exits or ctx ends.
+func (p *PassiveCheckpointer) Close(ctx context.Context) error {
 	if p == nil {
 		return nil
 	}
 	p.cancel()
-	<-p.done
-	return p.err
+	select {
+	case <-p.done:
+		return p.err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// CloseCheckpointedDatabase retains database ownership until maintenance has exited.
+func CloseCheckpointedDatabase(ctx context.Context, db *sql.DB, worker *PassiveCheckpointer) error {
+	done := make(chan error, 1)
+	go func() {
+		maintenanceErr := worker.Close(context.WithoutCancel(ctx))
+		checkpointErr := CheckpointPassive(ctx, db)
+		done <- errors.Join(maintenanceErr, checkpointErr, db.Close())
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Checkpoint truncates the WAL for an open SQLite database.

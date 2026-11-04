@@ -3,15 +3,18 @@ package store
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"net/url"
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/testutil"
+	"modernc.org/sqlite"
 )
 
 func TestStoreSQLHelpers(t *testing.T) {
@@ -172,7 +175,7 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Cleanup(func() {
-			if err := worker.Close(); err != nil {
+			if err := worker.Close(context.Background()); err != nil {
 				t.Error(err)
 			}
 		})
@@ -209,7 +212,7 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 			}
 		}
 		closed := make(chan error, 1)
-		go func() { closed <- worker.Close() }()
+		go func() { closed <- worker.Close(ctx) }()
 		select {
 		case err := <-closed:
 			if err != nil {
@@ -224,6 +227,78 @@ func TestStoreSQLiteHelpers(t *testing.T) {
 		var count int
 		if err := db.QueryRowContext(ctx, "SELECT count(*) FROM items").Scan(&count); err != nil || count != 2 {
 			t.Fatalf("rows after maintenance shutdown = %d, %v, want both commits", count, err)
+		}
+	})
+
+	// Invariant: shutdown honors deadlines and retains connections until stuck I/O exits.
+	// Owner: SQLite lifecycle; canonical suite: TestStoreSQLiteHelpers.
+	t.Run("Should bound close while retaining databases until checkpoint I/O exits", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), "blocked-checkpoint.db")
+		seed := openExecuteWriteTestDB(t, path)
+		if err := seed.Close(); err != nil {
+			t.Fatal(err)
+		}
+		owner := &blockedStoreCheckpointConnector{path: path, closed: make(chan struct{})}
+		db := sql.OpenDB(owner)
+		if _, err := db.ExecContext(ctx, "CREATE TABLE items (value INTEGER)"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.ExecContext(ctx, "INSERT INTO items VALUES (42)"); err != nil {
+			t.Fatal(err)
+		}
+		io := &blockedStoreCheckpointConnector{
+			path: path, entered: make(chan struct{}), released: make(chan struct{}), closed: make(chan struct{}),
+		}
+		checkpointDB := sql.OpenDB(io)
+		workerCtx, cancel := context.WithCancel(ctx)
+		worker := &PassiveCheckpointer{cancel: cancel, done: make(chan struct{})}
+		var release sync.Once
+		t.Cleanup(func() {
+			release.Do(func() { close(io.released) })
+			if err := worker.Close(context.Background()); err != nil {
+				t.Error(err)
+			}
+			if err := db.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		go worker.run(workerCtx, checkpointDB)
+		select {
+		case <-io.entered:
+		case <-ctx.Done():
+			t.Fatal(ctx.Err())
+		}
+		closeCtx, closeCancel := context.WithTimeout(ctx, 20*time.Millisecond)
+		defer closeCancel()
+		if err := worker.Close(closeCtx); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("maintenance close = %v, want deadline", err)
+		}
+		if err := CloseCheckpointedDatabase(closeCtx, db, worker); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("database close = %v, want deadline", err)
+		}
+		for _, closed := range []chan struct{}{io.closed, owner.closed} {
+			select {
+			case <-closed:
+				t.Fatal("connection closed before checkpoint I/O exited")
+			default:
+			}
+		}
+		var value int
+		if err := db.QueryRowContext(ctx, "SELECT value FROM items").Scan(&value); err != nil || value != 42 {
+			t.Fatalf("retained database row = %d, %v", value, err)
+		}
+		release.Do(func() { close(io.released) })
+		for _, closed := range []chan struct{}{io.closed, owner.closed} {
+			select {
+			case <-closed:
+			case <-ctx.Done():
+				t.Fatal("owned cleanup did not close connection")
+			}
+		}
+		if err := db.PingContext(ctx); err == nil {
+			t.Fatal("database remains open after cleanup")
 		}
 	})
 
@@ -443,4 +518,47 @@ func TestSQLiteDSNAppendsExtraPragmas(t *testing.T) {
 			t.Fatalf("sqliteDSN() pragmas = %#v, want no blank pragma", pragmas)
 		}
 	})
+}
+
+// Block only the driver I/O boundary; database queries still execute on real SQLite.
+type blockedStoreCheckpointConnector struct {
+	path     string
+	entered  chan struct{}
+	released chan struct{}
+	closed   chan struct{}
+	once     sync.Once
+}
+
+func (c *blockedStoreCheckpointConnector) Driver() driver.Driver { return &sqlite.Driver{} }
+
+func (c *blockedStoreCheckpointConnector) Connect(context.Context) (driver.Conn, error) {
+	conn, err := c.Driver().Open(sqliteCheckpointDSN(c.path))
+	if err != nil {
+		return nil, err
+	}
+	return &blockedStoreCheckpointConnection{
+		Conn: conn, ExecQuerierContext: conn.(sqlite.ExecQuerierContext), owner: c,
+	}, nil
+}
+
+type blockedStoreCheckpointConnection struct {
+	driver.Conn
+	sqlite.ExecQuerierContext
+	owner *blockedStoreCheckpointConnector
+}
+
+func (c *blockedStoreCheckpointConnection) Close() error {
+	err := c.Conn.Close()
+	close(c.owner.closed)
+	return err
+}
+
+func (c *blockedStoreCheckpointConnection) ExecContext(
+	ctx context.Context, query string, args []driver.NamedValue,
+) (driver.Result, error) {
+	if query == "PRAGMA wal_checkpoint(PASSIVE)" && c.owner.entered != nil {
+		c.owner.once.Do(func() { close(c.owner.entered) })
+		<-c.owner.released
+	}
+	return c.ExecQuerierContext.ExecContext(ctx, query, args)
 }

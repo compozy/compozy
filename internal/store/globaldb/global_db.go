@@ -148,11 +148,9 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 	}
 	readCloseErr := g.readDB.Close()
 	telemetryErr := g.telemetry.Close(ctx)
-	maintenanceErr := g.checkpoint.Close()
-	checkpointErr := store.CheckpointPassive(ctx, g.db)
-	closeErr := g.db.Close()
+	closeErr := store.CloseCheckpointedDatabase(ctx, g.db, g.checkpoint)
 	return errors.Join(healthErr, summaryErr, backgroundErr, readCloseErr, telemetryErr,
-		maintenanceErr, checkpointErr, closeErr)
+		closeErr)
 }
 
 func openGlobalSQLite(ctx context.Context, path string, operatorHomeDir string) (*sql.DB, error) {
