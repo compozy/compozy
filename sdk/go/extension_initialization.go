@@ -59,11 +59,12 @@ func (e *Extension) handleInitialize(params json.RawMessage) (InitializeResponse
 			Provides:    requestedProvides,
 			Permissions: requestedPermissions,
 		},
-		ImplementedMethods:  implemented,
-		SupportedHookEvents: describedHookEventNames(e.definition.SupportedHookEvents),
-		WatchSourceKinds:    e.watchSourceKindsLocked(),
-		CmdPaletteViews:     cmdPaletteViewIDs(e.definition.Resources.CmdPalette),
-		Supports:            InitializeSupports{HealthCheck: true},
+		ImplementedMethods:   implemented,
+		SupportedHookEvents:  describedHookEventNames(e.definition.SupportedHookEvents),
+		HeartbeatSourceKinds: e.heartbeatSourceKindsLocked(),
+		WatchSourceKinds:     e.watchSourceKindsLocked(),
+		CmdPaletteViews:      cmdPaletteViewIDs(e.definition.Resources.CmdPalette),
+		Supports:             InitializeSupports{HealthCheck: true},
 	}
 	session := ExtensionSession{
 		InitializeRequest:    request,

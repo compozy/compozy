@@ -237,3 +237,54 @@ func TestApprovalExpiryNotification(t *testing.T) {
 		})
 	}
 }
+
+func TestUserScopeSourceNotification(t *testing.T) {
+	t.Run("Should leave the ordinary notification window unchanged for source notices", func(t *testing.T) {
+		t.Parallel()
+		manager, advance := newNotifyTestManager()
+		req := NotifyRequest{
+			Kind:        NotifyKindHeartbeatSourceUnapproved,
+			SessionID:   "sess-source",
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: "ws-source",
+			Title:       "Approval",
+		}
+		for range 2 {
+			result, err := manager.PublishOperatorNotification(t.Context(), req)
+			if err != nil || result.Outcome == NotifyOutcomeRateLimited {
+				t.Fatalf("result=%+v err=%v", result, err)
+			}
+		}
+		req.Kind = ""
+		result, err := manager.PublishOperatorNotification(t.Context(), req)
+		if err != nil || result.Outcome == NotifyOutcomeRateLimited {
+			t.Fatalf("result=%+v err=%v", result, err)
+		}
+		advance(100 * time.Millisecond)
+		req.Kind = NotifyKindHeartbeatSourceUnapproved
+		if _, err := manager.PublishOperatorNotification(t.Context(), req); err != nil {
+			t.Fatal(err)
+		}
+		advance(950 * time.Millisecond)
+		req.Kind = ""
+		result, err = manager.PublishOperatorNotification(t.Context(), req)
+		if err != nil || result.Outcome == NotifyOutcomeRateLimited {
+			t.Fatalf("result=%+v err=%v", result, err)
+		}
+	})
+	t.Run("Should allow user scoped source approval notices", func(t *testing.T) {
+		t.Parallel()
+		manager, _ := newNotifyTestManager()
+		notice, err := manager.sanitizedOperatorNotification(
+			NotifyRequest{
+				Kind:      "heartbeat_source_unapproved",
+				SessionID: "sess-source",
+				ProfileID: "default",
+				Title:     "Check-in script needs approval",
+			},
+		)
+		if err != nil || notice.WorkspaceID != "" || notice.Kind != "heartbeat_source_unapproved" {
+			t.Fatalf("notice=%+v err=%v", notice, err)
+		}
+	})
+}

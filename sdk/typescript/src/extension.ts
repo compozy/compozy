@@ -1,3 +1,8 @@
+import {
+  ExtensionHeartbeatSources,
+  type HeartbeatSourceHandler,
+  type HeartbeatSourceKind,
+} from "./heartbeat-source.js";
 import type { TransportLike } from "./transport.js";
 import {
   ExtensionWatchSources,
@@ -19,12 +24,7 @@ import type {
   ShutdownResponse,
 } from "./types.js";
 import { StdioTransport } from "./transport.js";
-import {
-  PROVIDE_TOOLS_METHOD,
-  TOOL_PROVIDER_CAPABILITY,
-  TOOLS_CALL_METHOD,
-  isToolProviderMethod,
-} from "./capabilities.js";
+import { PROVIDE_TOOLS_METHOD, TOOLS_CALL_METHOD, isToolProviderMethod } from "./capabilities.js";
 import {
   InvalidParamsError,
   MethodNotFoundError,
@@ -34,7 +34,6 @@ import {
 
 import {
   implementedExtensionMethods,
-  normalizeStringList,
   parseShutdownRequest,
   transportMethods,
 } from "./extension-runtime.js";
@@ -47,7 +46,10 @@ import {
   defaultExtensionDescribeProcess,
   runExtensionDescribeMode,
 } from "./extension-describe.js";
-import { buildRegisteredTool } from "./extension-tool-registration.js";
+import {
+  buildRegisteredTool,
+  ensureToolProviderCapability,
+} from "./extension-tool-registration.js";
 import { callRegisteredTool, provideRegisteredTools } from "./extension-tool-dispatch.js";
 import {
   ExtensionProvideSurfaces,
@@ -72,6 +74,7 @@ export class Extension {
   private readonly describeProcess: NonNullable<ExtensionOptions["describeProcess"]>;
   private readonly handlers = new Map<string, ExtensionHandler>();
   private readonly toolHandlers = new Map<string, RegisteredTool>();
+  private readonly heartbeatSources = new ExtensionHeartbeatSources();
   private readonly commandGroups: ExtensionCommandGroupSpec[] = [];
   private readonly watchSources = new ExtensionWatchSources({
     bindMethod: method => this.bindMethod(method),
@@ -87,6 +90,8 @@ export class Extension {
       if (this.toolHandlers.size > 0 && isToolProviderMethod(method)) {
         throw new Error(`${method} is reserved by extension.tool()`);
       }
+      if (this.heartbeatSources.hasHandlers() && method === "heartbeat/source_poll")
+        throw new Error("heartbeat/source_poll is reserved by extension.heartbeatSource()");
       if (this.watchSources.hasHandlers() && isWatchSourceMethod(method)) {
         throw new Error(`${method} is reserved by extension.watchSource()`);
       }
@@ -154,6 +159,8 @@ export class Extension {
     if (this.toolHandlers.size > 0 && isToolProviderMethod(cleanMethod)) {
       throw new Error(`${cleanMethod} is reserved by extension.tool()`);
     }
+    if (this.heartbeatSources.hasHandlers() && cleanMethod === "heartbeat/source_poll")
+      throw new Error("heartbeat/source_poll is reserved by extension.heartbeatSource()");
     if (this.watchSources.hasHandlers() && isWatchSourceMethod(cleanMethod)) {
       throw new Error(`${cleanMethod} is reserved by extension.watchSource()`);
     }
@@ -191,7 +198,7 @@ export class Extension {
       cleanHandler,
       buildRegisteredTool(this.definition.name, cleanHandler, options, toolHandler)
     );
-    this.ensureToolProviderCapability();
+    ensureToolProviderCapability(this.definition);
     this.ensureToolProviderHandlers();
     return this;
   }
@@ -206,18 +213,34 @@ export class Extension {
     return this;
   }
 
+  public heartbeatSource(
+    kind: string,
+    options: Omit<HeartbeatSourceKind, "kind">,
+    handler: HeartbeatSourceHandler
+  ): this {
+    this.ensureRegistrationOpen();
+    if (!this.heartbeatSources.hasHandlers() && this.handlers.has("heartbeat/source_poll"))
+      throw new Error("heartbeat/source_poll is already registered");
+    const first = !this.heartbeatSources.hasHandlers();
+    this.heartbeatSources.register(this.definition, kind, options, handler);
+    if (first) {
+      this.handlers.set("heartbeat/source_poll", (_context, params) =>
+        this.heartbeatSources.poll(params)
+      );
+      this.bindMethod("heartbeat/source_poll");
+    }
+    return this;
+  }
   public commandGroup(path: string, summary: string): this {
     this.ensureRegistrationOpen();
     this.commandGroups.push({ path: path.trim(), summary: summary.trim() });
     return this;
   }
-
   private ensureRegistrationOpen(): void {
     if (this.initialized || this.startPromise || this.shutdownStarted) {
       throw new Error("extension registration is closed after start");
     }
   }
-
   public onReady(callback: ReadyCallback): this {
     this.readyCallbacks.add(callback);
     if (this.initialized && this.session) {
@@ -227,7 +250,6 @@ export class Extension {
     }
     return this;
   }
-
   public async start(): Promise<HostAPI> {
     if (runExtensionDescribeMode(this.describeProcess, () => this.describe())) {
       return this.host;
@@ -235,12 +257,10 @@ export class Extension {
     if (this.startPromise) {
       return await this.startPromise;
     }
-
     this.startPromise = new Promise<HostAPI>((resolve, reject) => {
       this.resolveStart = resolve;
       this.rejectStart = reject;
     });
-
     this.transport.onTransportError(error => {
       if (!this.initialized && this.rejectStart) {
         this.rejectStart(error);
@@ -248,10 +268,8 @@ export class Extension {
       this.logError("transport error", error);
     });
     this.transport.start();
-
     return await this.startPromise;
   }
-
   public getImplementedMethods(): string[] {
     return implementedExtensionMethods(
       this.handlers.keys(),
@@ -274,6 +292,7 @@ export class Extension {
       tools: this.getToolDescriptors(),
       commandGroups: this.commandGroups.map(group => ({ ...group })),
       watchSourceKinds: this.watchSources.kinds(),
+      heartbeatSourceKinds: this.heartbeatSources.kinds(),
       sdkVersion: this.sdkVersion,
     });
   }
@@ -351,6 +370,7 @@ export class Extension {
       implementedMethods: this.getImplementedMethods(),
       supportedHookEvents: this.getSupportedHookEvents(),
       watchSourceKinds: this.watchSources.kinds(),
+      heartbeatSourceKinds: this.heartbeatSources.kinds(),
       sdkVersion: this.sdkVersion,
     });
     this.initialized = true;
@@ -451,15 +471,6 @@ export class Extension {
 
   private logError(message: string, error: unknown): void {
     writeExtensionError(this.stderr, message, error);
-  }
-
-  private ensureToolProviderCapability(): void {
-    const capabilities = this.definition.capabilities ?? {};
-    capabilities.provides = normalizeStringList([
-      ...(capabilities.provides ?? []),
-      TOOL_PROVIDER_CAPABILITY,
-    ]);
-    this.definition.capabilities = capabilities;
   }
 
   private ensureToolProviderHandlers(): void {

@@ -112,6 +112,7 @@ const (
 type WakeReason string
 
 const (
+	WakeReasonSourcePollInFlight    WakeReason = "source_poll_in_flight"
 	WakeReasonSent                  WakeReason = "wake_sent"
 	WakeReasonHeartbeatDisabled     WakeReason = "heartbeat_disabled"
 	WakeReasonHeartbeatInvalid      WakeReason = "heartbeat_invalid"

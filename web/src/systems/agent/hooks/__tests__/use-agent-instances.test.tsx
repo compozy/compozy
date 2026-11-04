@@ -143,6 +143,7 @@ describe("instance routes and the selected profile", () => {
       expect(result.current.state).toEqual({
         phase: "result",
         digest: [{ key: "new", summary: "New" }],
+        sources: [],
       });
     }
   );

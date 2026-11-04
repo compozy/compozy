@@ -13,6 +13,7 @@ import (
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
@@ -421,4 +422,52 @@ func slicesEqualStrings(left []string, right []string) bool {
 
 func slicesContainsString(values []string, target string) bool {
 	return slices.Contains(values, target)
+}
+
+func TestManagerIntegrationHeartbeatSource(t *testing.T) {
+	t.Run("Should poll a fixture subprocess and reject invalid params", func(t *testing.T) {
+		withDaemonVersion(t, "0.5.0")
+		env := newRegistryTestEnv(t)
+		fixture := createManagerTestExtension(
+			t,
+			managerTestManifest(
+				"ext-heartbeat",
+				managerManifestOptions{
+					command:      helperCommand(t),
+					args:         helperArgs(),
+					withEnv:      helperEnv("heartbeat_source", ""),
+					capabilities: []string{"heartbeat.source"},
+				},
+			),
+			nil,
+		)
+		installManagerFixture(t, env.registry, fixture, SourceUser, true)
+		manager := NewManager(env.registry)
+		if err := manager.Start(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Stop(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		kinds, err := manager.SourceKinds(t.Context(), source.CatalogScope{})
+		if err != nil || len(kinds) != 1 || kinds[0].Kind != "ext-heartbeat/issues" {
+			t.Fatalf("kinds=%+v err=%v", kinds, err)
+		}
+		req := source.Request{
+			Version: 1,
+			Params:  []byte(`{"repo":"a/b"}`),
+			Limits:  source.Limits{MaxItems: 20, MaxStateBytes: 16384},
+		}
+		result, err := manager.PollSource(t.Context(), source.CatalogScope{}, "ext-heartbeat/issues", req)
+		if err != nil || len(result.Items) != 1 || result.Items[0].Key != "issue:1" {
+			t.Fatalf("result=%+v err=%v", result, err)
+		}
+		req.Params = []byte(`{"repo":3}`)
+		_, err = manager.PollSource(t.Context(), source.CatalogScope{}, "ext-heartbeat/issues", req)
+		if err == nil || !strings.Contains(err.Error(), "source_params_invalid") {
+			t.Fatalf("error=%v", err)
+		}
+	})
 }

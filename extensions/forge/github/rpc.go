@@ -27,6 +27,9 @@ func RunProvider(ctx context.Context, stdin io.Reader, stdout io.Writer, stderr 
 	if err := compozysdk.ForgeProvider(extension, forgeProviderHandlers(provider)); err != nil {
 		return fmt.Errorf("github forge: register provider: %w", err)
 	}
+	if err := registerIssuesSource(extension, provider); err != nil {
+		return fmt.Errorf("github forge: register issues source: %w", err)
+	}
 	if err := extension.Run(ctx); err != nil {
 		return fmt.Errorf("github forge: run extension protocol: %w", err)
 	}
@@ -89,10 +92,10 @@ func providerDefinition() compozysdk.ExtensionDefinition {
 	return compozysdk.ExtensionDefinition{
 		Name:        Name,
 		Version:     "0.1.0",
-		Description: "First-party GitHub pull request provider for worktree exit actions.",
+		Description: "First-party GitHub pull request provider and check-in source for new issues.",
 		RequiresEnv: []string{"GITHUB_TOKEN"},
 		Capabilities: compozysdk.CapabilitiesConfig{
-			Provides: []string{compozysdk.CapabilityProvideForgeProvider},
+			Provides: []string{compozysdk.CapabilityProvideForgeProvider, compozysdk.CapabilityProvideHeartbeatSource},
 		},
 		Subprocess: compozysdk.DescribeSubprocess{
 			Command: "{{compozy_executable}}",

@@ -11,6 +11,8 @@ import {
 import { discover as browserDiscover } from "../browser-discovery.js";
 import type { OperationResponse } from "../operation-types.js";
 import type {
+  SourceStatus,
+  HeartbeatSourceStatus,
   CreateSessionData,
   CreateSessionResponse,
   SessionPayload,
@@ -586,5 +588,16 @@ describe("events", () => {
     await vi.runAllTimersAsync();
     await assertion;
     expect(requests).toHaveLength(40);
+  });
+});
+
+describe("source status contracts", () => {
+  it("preserves palette fields alongside heartbeat fields", () => {
+    expectTypeOf<SourceStatus>().toMatchTypeOf<{
+      source: string;
+      status: string;
+      reason?: string;
+    }>();
+    expectTypeOf<HeartbeatSourceStatus>().toMatchTypeOf<{ id: string; status: string }>();
   });
 });

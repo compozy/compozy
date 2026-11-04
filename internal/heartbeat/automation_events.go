@@ -13,6 +13,10 @@ import (
 )
 
 type AutomationEventSource struct {
+	SourceID    string `json:"source_id,omitempty"`
+	SourceRef   string `json:"source_ref,omitempty"`
+	ItemKey     string `json:"item_key,omitempty"`
+	URL         string `json:"url,omitempty"`
 	TriggerName string `json:"trigger_name"`
 	Event       string `json:"event"`
 	// Summary is the operator-facing readable line, set only on report sources, never in the check digest.

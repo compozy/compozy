@@ -99,7 +99,7 @@ runtime interfaces; extension permissions name Host API access. Those are separa
 
 The closed set of **runtime interfaces an extension implements**, declared as `capabilities.provides` in the extension manifest and generated from the SDK declaration by `compozy extension build`.
 
-Public set: `tool.provider`, `model.source`, `loop.watch_source`, `view.provider`, `connectivity.provider`, `forge.provider`. `view.provider` is the TypeScript-only programmable command-palette interface (`view/open`, `view/event`, `view/close`).
+Public set: `tool.provider`, `model.source`, `loop.watch_source`, `heartbeat.source`, `view.provider`, `connectivity.provider`, `forge.provider`. `view.provider` is the TypeScript-only programmable command-palette interface (`view/open`, `view/event`, `view/close`).
 
 Each provide binds the extension to the CompozyOS → extension service methods the daemon will call (for example `view.provider` → `view/open`, `view/event`, `view/close`). Validation is closed-set membership, not shape: an unknown value fails manifest load rather than loading as a silent no-op.
 
@@ -536,3 +536,7 @@ This table mirrors the Surface Aliases table in `COPY.md` §6. The two are one t
 - Identifiers in code: Go conventions (`PascalCase` exported, `camelCase` unexported).
 - Capability/skill IDs: kebab-case.
 - Commit prefixes: `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `build:` only.
+
+### Check-in source
+
+Something outside the built-in facts that an always-on check-in asks what is new before any model turn. It is an extension kind (`<extension>/<kind>`) or an operator-approved script in the agent's `sources/` folder. It returns keyed items and opaque state committed only with the check that saw them. It is distinct from a wake source (`timer`, `instance_check`) and from automation events.

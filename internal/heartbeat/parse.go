@@ -79,6 +79,11 @@ func parseDocument(
 	if len(diagnosticsList) > 0 {
 		return Frontmatter{}, "", 1, diagnosticsList
 	}
+	if cfg.Sources.MaxPerAgent > 0 && len(parsedFront.Context.Sources) > cfg.Sources.MaxPerAgent {
+		return Frontmatter{}, "", 1, []Diagnostic{
+			sourceLimitDiagnostic(parts.Metadata, parsedFront.Context.Sources, cfg.Sources.MaxPerAgent, sourcePath),
+		}
+	}
 	return parsedFront, body, bodyStartLine(parts.Metadata), nil
 }
 
@@ -113,8 +118,11 @@ func parseFrontmatter(metadata []byte, sourcePath string) (Frontmatter, []Diagno
 			continue
 		}
 		if err := assignAllowedField(&front, key, value); err != nil {
+			if entry, ok := errors.AsType[*sourceDeclError](err); ok {
+				locationLine, locationColumn = sourceEntryLocation(metadata, entry.index)
+			}
 			diagnosticsList = append(diagnosticsList, Diagnostic{
-				Code:       heartbeatHeartbeatInvalidFieldTypeKey,
+				Code:       sourceDiagnosticCode(err),
 				Severity:   diagnosticError,
 				Field:      key,
 				Message:    diagnostics.Redact(err.Error()),
@@ -222,6 +230,12 @@ func parseContextProjection(value any) (ContextProjection, error) {
 	var projection ContextProjection
 	for _, key := range sortedKeys(raw) {
 		switch key {
+		case "sources":
+			sources, err := parseSources(raw[key])
+			if err != nil {
+				return ContextProjection{}, err
+			}
+			projection.Sources = sources
 		case "include":
 			values, err := stringList(raw[key], "context.include")
 			if err != nil {

@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -254,6 +256,192 @@ func TestResumeInterruptedSession(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Invariant: cancellation survives transient skip failures and never waits for skip persistence.
+// Owner: session manager; canonical restart recovery suite with real SQLite and an I/O fault wrapper.
+func TestDaemonShutdownResumeSkip(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		query bool
+		slow  bool
+	}{
+		{name: "Should retry a failed skip append"},
+		{name: "Should retry a failed skip query", query: true},
+		{name: "Should cancel and quiesce without waiting for a slow skip append", slow: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			target := createSession(t, h)
+			source := make(chan acp.AgentEvent)
+			closeSource := sync.OnceFunc(func() { close(source) })
+			h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				return source, nil
+			}
+			h.driver.cancelHook = func(*fakeProcess) error { closeSource(); return nil }
+			stream, err := h.manager.Prompt(t.Context(), target.ID, "work until canceled")
+			if err != nil {
+				t.Fatal(err)
+			}
+			turnID := target.CurrentTurnID()
+			if err := h.manager.PrepareDaemonShutdown(t.Context(), true); err != nil {
+				t.Fatal(err)
+			}
+			release := make(chan struct{})
+			unblock := sync.OnceFunc(func() { close(release) })
+			fault := &restartSkipFaultRecorder{EventRecorder: target.recorderHandle(),
+				query: tc.query, slow: tc.slow, entered: make(chan struct{}), release: release,
+				skipID: restartEventID(turnID, restartSkippedEvent)}
+			target.setRecorder(fault)
+			t.Cleanup(func() {
+				unblock()
+				closeSource()
+				if err := h.manager.WaitForPromptDrains(t.Context()); err != nil {
+					t.Error(err)
+				}
+				reportSessionStop(t, h, target.ID)
+			})
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			returned := make(chan error, 1)
+			go func() { returned <- h.manager.CancelTurn(ctx, target.ID, turnID, CauseUserRequested) }()
+			select {
+			case err := <-returned:
+				if err != nil {
+					t.Fatal(err)
+				}
+			case <-ctx.Done():
+				t.Fatal("CancelTurn waited for skip persistence")
+			}
+			if tc.slow {
+				select {
+				case <-fault.entered:
+				case <-ctx.Done():
+					t.Fatal("skip append did not start")
+				}
+			}
+			outcome, err := h.manager.AwaitTurnQuiesced(ctx, target.ID, turnID)
+			if err != nil || !outcome.Quiesced {
+				t.Fatalf("quiescence = %#v, %v", outcome, err)
+			}
+			unblock()
+			collectEvents(t, stream)
+			if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if !tc.slow && fault.attempts.Load() != 2 {
+				t.Fatalf("skip attempts = %d, want 2", fault.attempts.Load())
+			}
+			rows, err := h.manager.Events(ctx, target.ID, store.EventQuery{ID: fault.skipID})
+			if err != nil || len(rows) != 1 {
+				t.Fatalf("durable skips = %d, %v", len(rows), err)
+			}
+			checkpoint, err := decodeRestartCheckpoint(rows[0])
+			if err != nil || checkpoint.Reason != "turn_canceled" {
+				t.Fatalf("skip = %#v, %v", checkpoint, err)
+			}
+			if pending, err := h.manager.HasPendingRestart(ctx, target.ID); err != nil || pending {
+				t.Fatalf("pending restart = %t, %v", pending, err)
+			}
+			if err := h.manager.StopWithCause(ctx, target.ID, CauseShutdown, "daemon restart"); err != nil {
+				t.Fatal(err)
+			}
+			if resumed, err := h.manager.ResumeInterruptedSession(ctx, target.ID); resumed ||
+				(err != nil && !errors.Is(err, ErrRestartContinuationSkipped)) {
+				t.Fatalf("canceled turn resumed = %t, %v", resumed, err)
+			}
+		})
+	}
+}
+
+// Invariant: cancellation claimed while interruption persistence is in flight prevents continuation.
+// Owner: session manager; canonical restart suite, injecting the race at the SQLite append boundary.
+func TestDaemonShutdownCaptureCancellation(t *testing.T) {
+	for _, pump := range []bool{false, true} {
+		name := "Should settle cancellation claimed during the shutdown scan"
+		if pump {
+			name = "Should settle cancellation claimed during pump capture"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			target := createSession(t, h)
+			source := make(chan acp.AgentEvent)
+			h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) { return source, nil }
+			stream, err := h.manager.Prompt(t.Context(), target.ID, "work until restart")
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				close(source)
+				collectEvents(t, stream)
+				reportSessionStop(t, h, target.ID)
+			})
+			turnID := target.CurrentTurnID()
+			target.setRecorder(&restartSkipFaultRecorder{EventRecorder: target.recorderHandle(), beforeCapture: func() {
+				target.mu.Lock()
+				target.promptCancelRequested, target.currentPromptCancelTurn = true, turnID
+				target.mu.Unlock()
+			}})
+			if pump {
+				h.manager.markDaemonShutdown(true)
+				h.manager.captureDaemonShutdownTurn(t.Context(), target, turnID)
+			} else if err := h.manager.PrepareDaemonShutdown(t.Context(), true); err != nil {
+				t.Fatal(err)
+			}
+			rows, err := h.manager.Events(
+				t.Context(),
+				target.ID,
+				store.EventQuery{ID: restartEventID(turnID, restartSkippedEvent)},
+			)
+			if err != nil || len(rows) != 1 {
+				t.Fatalf("durable skips = %d, %v", len(rows), err)
+			}
+			checkpoint, err := decodeRestartCheckpoint(rows[0])
+			if err != nil || checkpoint.Reason != "turn_canceled" {
+				t.Fatalf("skip = %#v, %v", checkpoint, err)
+			}
+		})
+	}
+}
+
+type restartSkipFaultRecorder struct {
+	EventRecorder
+	query, slow   bool
+	beforeCapture func()
+	skipID        string
+	attempts      atomic.Int32
+	entered       chan struct{}
+	release       <-chan struct{}
+}
+
+func (r *restartSkipFaultRecorder) Query(ctx context.Context, q store.EventQuery) ([]store.SessionEvent, error) {
+	if r.query && q.ID == r.skipID && r.attempts.Add(1) == 1 {
+		return nil, errors.New("transient restart skip read failure")
+	}
+	return r.EventRecorder.Query(ctx, q)
+}
+
+func (r *restartSkipFaultRecorder) AppendEventIfAbsent(
+	ctx context.Context,
+	event store.SessionEvent,
+) (store.SessionEvent, bool, error) {
+	if event.Type == restartInterruptedEvent && r.beforeCapture != nil {
+		r.beforeCapture()
+	}
+	if !r.query && event.ID == r.skipID && r.attempts.Add(1) == 1 {
+		if !r.slow {
+			return store.SessionEvent{}, false, errors.New("transient restart skip write failure")
+		}
+		close(r.entered)
+		select {
+		case <-r.release:
+		case <-ctx.Done():
+			return store.SessionEvent{}, false, ctx.Err()
+		}
+	}
+	return r.EventRecorder.(idempotentSessionEventAppender).AppendEventIfAbsent(ctx, event)
 }
 
 // assertInstanceRestartContinuation proves an instance lineage's continuation runs through the durable

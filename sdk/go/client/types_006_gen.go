@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// EffectResult is a daemon API value.
+type EffectResult struct {
+	EffectID string          `json:"effect_id"`
+	Payload  json.RawMessage `json:"payload,omitempty"`
+}
+
 // EffectSpec is a daemon API value.
 type EffectSpec struct {
 	Emit *EmitSpec      `json:"emit,omitzero"`
@@ -41,6 +47,12 @@ type Entry struct {
 	Message       UIMessage `json:"message"`
 	StartSequence int64     `json:"start_sequence"`
 	Sequence      int64     `json:"sequence"`
+}
+
+// Error is a daemon API value.
+type Error struct {
+	Code   SourceErrorCode `json:"code"`
+	Detail string          `json:"detail"`
 }
 
 // ErrorCode is a daemon API value.
@@ -434,11 +446,5 @@ type FocusPolicy string
 // ForceFailTaskRunRequest is a daemon API value.
 type ForceFailTaskRunRequest struct {
 	Reason   string          `json:"reason"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
-}
-
-// ForceReleaseTaskRunRequest is a daemon API value.
-type ForceReleaseTaskRunRequest struct {
-	Reason   string          `json:"reason,omitempty"`
 	Metadata json.RawMessage `json:"metadata,omitempty"`
 }

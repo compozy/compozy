@@ -258,16 +258,45 @@ describe("frontmatter subset", () => {
     });
   });
 
+  it("Should still read plain numbers and text that YAML reads the same way", () => {
+    expect(
+      parseFrontmatter('version: 1\nratio: 1.5\nat: 09:00\nname: v1.2.3\nwith: {"max": 3}')
+    ).toEqual({ version: 1, ratio: 1.5, at: "09:00", name: "v1.2.3", with: { max: 3 } });
+  });
+
+  it("Should read keys named like built-in object properties as plain settings", () => {
+    const parsed = parseFrontmatter("with:\n  constructor: a\n  toString: b\n  __proto__: c");
+    const values = parsed?.with as Record<string, unknown>;
+    expect(Object.entries(values)).toEqual([
+      ["constructor", "a"],
+      ["toString", "b"],
+      ["__proto__", "c"],
+    ]);
+    expect(parseFrontmatter("with:\n  constructor: a\n  constructor: b")).toBeNull();
+  });
+
   it("Should read a file without frontmatter as all body", () => {
     expect(splitFrontmatter("Hello")).toEqual({ metadata: null, body: "Hello" });
   });
 
-  it.each(["key: |\n  block", "key: &anchor value", "a: 1\na: 2", "\tkey: value"])(
-    "Should give up on %j",
-    metadata => {
-      expect(parseFrontmatter(metadata)).toBeNull();
-    }
-  );
+  it.each([
+    "key: |\n  block",
+    "key: &anchor value",
+    "a: 1\na: 2",
+    "\tkey: value",
+    // YAML reads these as a boolean, a null or a number; taken as text, a save would quote them.
+    "key: True",
+    "key: NULL",
+    "key: 0x1F",
+    "key: 1e3",
+    "key: .5",
+    "key: +1",
+    "key: 010",
+    "key: 12345678901234567890",
+    'with: {"id": 12345678901234567890}',
+  ])("Should give up on %j", metadata => {
+    expect(parseFrontmatter(metadata)).toBeNull();
+  });
 });
 
 describe("MEMORY.md notes", () => {

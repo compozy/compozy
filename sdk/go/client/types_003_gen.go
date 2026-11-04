@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// AgentSpawnResponse is a daemon API value.
+type AgentSpawnResponse struct {
+	Spawn AgentSpawnPayload `json:"spawn"`
+}
+
 // AgentTaskClaimNextRequest is a daemon API value.
 type AgentTaskClaimNextRequest struct {
 	RunID                string   `json:"run_id,omitempty"`
@@ -436,11 +441,4 @@ type BulkForceTaskRunItemPayload struct {
 	OK    bool            `json:"ok"`
 	Run   *TaskRunPayload `json:"run,omitzero"`
 	Error *ErrorPayload   `json:"error,omitzero"`
-}
-
-// BulkForceTaskRunRequest is a daemon API value.
-type BulkForceTaskRunRequest struct {
-	RunIDs   []string        `json:"run_ids"`
-	Reason   string          `json:"reason,omitempty"`
-	Metadata json.RawMessage `json:"metadata,omitempty"`
 }

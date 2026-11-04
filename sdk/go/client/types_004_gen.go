@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// BulkForceTaskRunRequest is a daemon API value.
+type BulkForceTaskRunRequest struct {
+	RunIDs   []string        `json:"run_ids"`
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
 // BulkForceTaskRunResponse is a daemon API value.
 type BulkForceTaskRunResponse struct {
 	Results []BulkForceTaskRunItemPayload `json:"results"`
@@ -439,6 +446,3 @@ type CopyEffect struct {
 
 // CostSource is a daemon API value.
 type CostSource string
-
-// CostStatus is a daemon API value.
-type CostStatus string

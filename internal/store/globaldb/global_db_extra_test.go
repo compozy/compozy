@@ -717,7 +717,7 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 		source, err := openGlobalMigrationPrefixDatabase(
 			t,
 			path,
-			globalMigrationPrefixBefore(t, "00189_telemetry_export_complete.sql"),
+			globalMigrationPrefixBefore(t, "00191_telemetry_export_complete.sql"),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -821,7 +821,7 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 	})
 	t.Run("Should refuse a lost destination after acknowledging an export batch", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00187_schema.sql"))
+		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00189_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -927,7 +927,7 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 	})
 	t.Run("Should preserve a retired cursor when every source row was deleted", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00187_schema.sql"))
+		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00189_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -993,7 +993,7 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 		source, err := openGlobalMigrationPrefixDatabase(
 			t,
 			path,
-			globalMigrationPrefixBefore(t, "00189_telemetry_export_complete.sql"),
+			globalMigrationPrefixBefore(t, "00191_telemetry_export_complete.sql"),
 		)
 		if err != nil {
 			t.Fatal(err)
@@ -1095,7 +1095,7 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 	})
 	t.Run("Should resume binding before freezing or deleting the source", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00187_schema.sql"))
+		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00189_schema.sql"))
 		if err != nil {
 			t.Fatal(err)
 		}

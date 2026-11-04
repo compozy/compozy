@@ -77,8 +77,9 @@ The exact historical owner cannot be recovered from this evidence.
 
 ## Upgrade and compatibility
 
-The published migration through main's `00186_schema.sql` and every prior checksum are unchanged.
-The branch's unpublished relocation migrations follow it at versions 187–190. The migration owner
+Main's published migrations through `00188_schema.sql` and their checksum entries stay
+byte-identical. The branch's unpublished relocation migrations follow them at versions 189–192.
+The migration owner
 freezes the old summary ledger, copies 128 rows per batch, verifies every column and sequence, and
 commits the destination with `synchronous=FULL` before deleting each source batch. An interrupted
 acknowledgement resumes without duplicate events. A conflicting destination preserves the source
@@ -134,7 +135,7 @@ and `queries/observe*.sql`.
 | --- | --- |
 | Daemon observer | `observer_factory.go` injects the daemon registry; it does not open a second global writer. |
 | Independent handles | Admission, reentry detection and owner diagnostics identify the opened SQLite file with `os.SameFile`, including guarded session connectors. Separate handles for the same file share the queue; unrelated files remain independent. |
-| Generated global mutations | The inventory found 104 direct repository mutations in 49 files. They now use named write admission. The five extension transfer operations already belonged to a caller-owned transaction and remain there. |
+| Generated global mutations | The inventory now covers 111 direct repository mutations in 50 files, including seven check-in source calls introduced by the latest main integration. They now use named write admission. The five extension transfer operations already belonged to a caller-owned transaction and remain there. |
 | Raw global mutations | Marketplace replacement, attention snapshots/mutes, automation deletion, dead-entity state and user-scope reconciliation now use the same transaction owner. Snapshot hashing/JSON and migration schema discovery happen before acquiring the writer. |
 | Background producers | Catalog/process observations, health, token/permission observations, worktree status and bounded admission-claim sweeps use background execution. Authoritative lifecycle/authorization changes retain interactive admission. |
 | WAL maintenance | Core and telemetry each own one maintenance connection, running only PASSIVE checkpoints outside writer admission. Runtime writers disable automatic checkpoints. Maintenance cannot reserve the writer/read pools or acquire the WAL writer lock; close cancels and joins it before the final checkpoint. |
@@ -593,3 +594,29 @@ and artifact `13290868844`; subsequent CI must re-exercise this path.
 CodeRabbit completed all 51 files in `89a3dff28..bc1c46432`. The diagnostic failure-path finding
 is repaired in `a4d72aa69`. It confirmed the two main-identical observations as outside this PR in
 comment `6621380712`. The next CLI request was rate-limited, not counted as a completed review.
+
+
+### Main integration: check-in source admission and published history
+
+Main through `bffee35cd` adds two published global migrations and check-in source repositories.
+All 188 published migration files and their checksum entries remain byte-identical. Only this
+PR's unpublished relocation tail moves to 189–192 (freeze/export 190, completion 191). Atlas and
+sqlc regeneration completed without another migration or generated query drift. The historical
+187–190 numbering in prior experiment receipts records those earlier heads, not the current tail.
+
+Seven newly integrated single-statement source mutations now use the existing named writer
+admission; four source/approval reads use the independent read pool. Source binding and finishing
+retain their enclosing atomic wake transaction. The existing `TestHeartbeatSourceTransactions`
+suite now holds a real SQLite writer while reading persisted source state and exercising all seven
+mutation entries. Main's original code failed all seven named-admission checks; the repaired suite
+passed in 0.378 s. No mutation or read contract changed.
+
+Current merge receipts: sequential/checksum stream contract 0.031 s; relocation, interrupted copy,
+identity refusal and cursor preservation suite 0.919 s. The changed source-transaction suite passes
+its convention checker. The relocation file changes only prefix filenames; its six unrelated
+legacy top-level test-shape findings predate this merge and were not rewritten. The obsolete
+`TestMigrationSchemaEquivalence` name matched no tests; schema parity is owned by the current
+fresh/reopen/ahead stream suite, not that empty invocation.
+The current fresh/reopen/ahead suite, including replay/bootstrap/declarative equivalence, passed
+in 4.346 s. After the final shared deletion helper and typed-error assertion, source transactions
+passed again in 0.383 s and focused globaldb lint reported zero issues.

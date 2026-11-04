@@ -22,7 +22,7 @@ WHERE agent_instance_wake_state.instance_id=sqlc.arg(instance_id) AND occurrence
 AND (SELECT count(*) FROM agent_instance_wake_state AS inflight WHERE inflight.occurrence_id<>'') < CAST(sqlc.arg(max_concurrent) AS INTEGER)
 AND EXISTS (SELECT 1 FROM agent_instances i WHERE i.id=agent_instance_wake_state.instance_id AND i.state='active'
 AND i.archived_at IS NULL AND i.checks_enabled=1)
-AND (sqlc.arg(manual_check)=1 OR next_wake_at<=sqlc.arg(now));
+AND (sqlc.arg(manual_check)=1 OR next_wake_at<=sqlc.arg(now) OR (sqlc.arg(expected_due)<>'' AND next_wake_at=sqlc.arg(expected_due)));
 
 -- name: SkipInstanceWake :execrows
 UPDATE agent_instance_wake_state SET next_wake_at=CASE
@@ -30,7 +30,7 @@ WHEN next_wake_at<>'' AND next_wake_at<sqlc.arg(next_wake_at)
 AND EXISTS (SELECT 1 FROM agent_instance_events e WHERE e.instance_id=agent_instance_wake_state.instance_id AND e.consumed_at IS NULL)
 THEN next_wake_at ELSE sqlc.arg(next_wake_at) END
 WHERE agent_instance_wake_state.instance_id=sqlc.arg(instance_id) AND agent_instance_wake_state.occurrence_id='' AND next_wake_at=sqlc.arg(expected_due)
-AND next_wake_at<=sqlc.arg(now);
+AND (next_wake_at<=sqlc.arg(now) OR sqlc.arg(deferred)=1);
 
 -- name: BindInstanceTriage :execrows
 UPDATE agent_instance_wake_state SET triage_session_id=sqlc.arg(session_id)

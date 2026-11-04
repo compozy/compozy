@@ -64,6 +64,9 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 			if err := consumeFinishedInstanceEvents(ctx, q, req, completed); err != nil {
 				return err
 			}
+			if err := finishHeartbeatSources(ctx, q, req, completed); err != nil {
+				return err
+			}
 			if err := recordFinishedWakeEvent(ctx, q, &req); err != nil {
 				return err
 			}
@@ -124,8 +127,11 @@ func nextInstanceWake(req *heartbeat.FinishRequest, quiet, failures int64) time.
 	if req.Interval <= 0 || req.MaxInterval <= 0 {
 		return req.NextWakeAt
 	}
+	if req.SourceMore && (req.Result == instanceWakeQuietResult || req.Result == instanceWakeReportedResult) {
+		return heartbeat.NextCheckTime(req.Now, req.MinInterval, req.InstanceID)
+	}
 	streak := int64(0)
-	if req.Result == instanceWakeQuietResult {
+	if req.Result == instanceWakeQuietResult && !req.HasSources {
 		streak = quiet / 3
 	}
 	if req.Result == loopNodeOutputFailed {

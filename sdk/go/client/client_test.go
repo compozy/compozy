@@ -266,6 +266,14 @@ func TestClientRequests(t *testing.T) {
 }
 
 func TestClientGeneratedOperations(t *testing.T) {
+	t.Run("Should preserve palette source status fields alongside heartbeat status", func(t *testing.T) {
+		t.Parallel()
+		status := SourceStatus{Source: "palette", Reason: "unavailable"}
+		heartbeat := HeartbeatSourceStatus{ID: "incoming", Status: "ok"}
+		if status.Source != "palette" || status.Reason != "unavailable" || heartbeat.ID != "incoming" {
+			t.Fatal("source contracts lost fields")
+		}
+	})
 	t.Parallel()
 	t.Run("Should allow bounded profile captures while preserving caller deadlines", func(t *testing.T) {
 		t.Parallel()

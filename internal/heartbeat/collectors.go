@@ -58,6 +58,7 @@ type DigestItem struct {
 	Summary     string                 `json:"summary,omitempty"`
 }
 type CheckDigest struct {
+	SourceMore       bool         `json:"-"`
 	EventIDs         []string     `json:"event_ids,omitempty"`
 	Items            []DigestItem `json:"items"`
 	Fingerprint      string       `json:"fingerprint"`

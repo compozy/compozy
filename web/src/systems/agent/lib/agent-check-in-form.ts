@@ -1,6 +1,7 @@
 import type { AgentHeartbeatPayload } from "../types";
 import type { DayCell, PastCheckIn } from "./agent-check-in-activity";
 import { serializeAgentHeartbeatSource } from "./agent-authored-file-source";
+import { readCheckInSources, type CheckInSource } from "./agent-check-in-sources";
 import {
   markdownBlock,
   parseFrontmatter,
@@ -38,6 +39,8 @@ export interface CheckInSettings {
   hours: readonly [number, number];
   lunch: boolean;
   looksAt: readonly string[];
+  /** `context.sources` in file order, each entry as written, `with` values included. */
+  sources: readonly CheckInSource[];
   also: string;
   timezone: string;
   kept: {
@@ -46,8 +49,8 @@ export interface CheckInSettings {
     summary?: string;
     /** The file's own spelling, reused until the slider moves off `stop`. */
     interval: { text: string | null; stop: number };
-    /** The file names its sources; otherwise every source stays implicit until one turns off. */
-    listsSources: boolean;
+    /** The file lists `include`; otherwise every built-in stays implicit until one turns off. */
+    listsIncludes: boolean;
   };
 }
 
@@ -61,20 +64,21 @@ export function localTimezone() {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
-/** No file means the daemon's own timer policy: all day, every source. */
+/** No file means the daemon's own timer policy: all day, every built-in. */
 export function blankCheckIns({ defaultStop, timezone }: CheckInDefaults): CheckInSettings {
   return {
     stop: defaultStop,
     hours: ALL_DAY,
     lunch: false,
     looksAt: LOOK_AT_IDS,
+    sources: [],
     also: "",
     timezone,
     kept: {
       version: 1,
       enabled: true,
       interval: { text: null, stop: -1 },
-      listsSources: false,
+      listsIncludes: false,
     },
   };
 }
@@ -160,7 +164,7 @@ export interface ParsedCheckIns {
   block: FileBlock | null;
 }
 
-/** No `include` means every source; an explicit empty list means none. */
+/** No `include` means every built-in; an explicit empty list means none. */
 function readInclude(context: FrontmatterMap) {
   const include = context.include ?? LOOK_AT_IDS;
   if (!Array.isArray(include)) return null;
@@ -181,11 +185,12 @@ function readSettings(
   if (!preferences || !context) return null;
   if (!hasOnlyKeys(data, ["version", "enabled", "summary", "preferences", "context"])) return null;
   if (!hasOnlyKeys(preferences, ["min_interval", "active_hours", "quiet_windows"])) return null;
-  if (!hasOnlyKeys(context, ["include"])) return null;
+  if (!hasOnlyKeys(context, ["include", "sources"])) return null;
   const looksAt = readInclude(context);
+  const sources = readCheckInSources(context.sources);
   const active = readWindows(preferences.active_hours);
   const quiet = readWindows(preferences.quiet_windows);
-  if (!looksAt || active === undefined || quiet === undefined) return null;
+  if (!looksAt || !sources || active === undefined || quiet === undefined) return null;
   if (quiet && (quiet.range[0] !== LUNCH[0] || quiet.range[1] !== LUNCH[1])) return null;
   if (active && quiet && active.timezone !== quiet.timezone) return null;
   const text = typeof preferences.min_interval === "string" ? preferences.min_interval : null;
@@ -196,6 +201,7 @@ function readSettings(
     hours: active?.range ?? ALL_DAY,
     lunch: quiet !== null,
     looksAt,
+    sources,
     also: body,
     timezone: active?.timezone ?? quiet?.timezone ?? defaults.timezone,
     kept: {
@@ -203,7 +209,7 @@ function readSettings(
       enabled: data.enabled !== false,
       ...(typeof data.summary === "string" ? { summary: data.summary } : {}),
       interval: { text, stop },
-      listsSources: context.include !== undefined && context.include !== null,
+      listsIncludes: context.include !== undefined && context.include !== null,
     },
   };
 }
@@ -249,9 +255,10 @@ export function composeCheckInsFile(settings: CheckInSettings) {
       },
       context: {
         include:
-          !kept.listsSources && settings.looksAt.length === LOOK_AT_IDS.length
+          !kept.listsIncludes && settings.looksAt.length === LOOK_AT_IDS.length
             ? undefined
             : [...settings.looksAt],
+        sources: settings.sources.length > 0 ? [...settings.sources] : undefined,
       },
     },
   });
@@ -280,6 +287,7 @@ export function countCheckInChanges(a: CheckInSettings, b: CheckInSettings) {
     a.hours.join() !== b.hours.join(),
     a.lunch !== b.lunch,
     a.looksAt.join() !== b.looksAt.join(),
+    JSON.stringify(a.sources) !== JSON.stringify(b.sources),
     a.also !== b.also,
   ].filter(Boolean).length;
 }

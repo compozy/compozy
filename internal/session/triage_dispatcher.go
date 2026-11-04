@@ -207,6 +207,11 @@ func triagePrompt(items []heartbeat.DigestItem, reports []agentinstance.Report, 
 			instructions = append(instructions, items[i].Instruction)
 		}
 		items[i].Instruction = ""
+		if items[i].Source != nil && items[i].Source.Kind == "source" {
+			metadata := *items[i].Source
+			metadata.URL = ""
+			items[i].Source = &metadata
+		}
 	}
 	if len(instructions) > 0 {
 		guidance += "\nEvent trigger instructions:\n" + strings.Join(instructions, "\n\n")

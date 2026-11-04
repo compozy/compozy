@@ -4,10 +4,42 @@ package client
 
 import (
 	"context"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// CreateTerminal Create an interactive terminal
+func (c *Client) CreateTerminal(ctx context.Context, params CreateTerminalParams, body TerminalCreateRequest) (*TerminalResponse, error) {
+	path := "/api/workspaces/{workspace_id}/terminals"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	headers := http.Header{}
+	if params.XCompozyClientToken != nil {
+		headers.Set("X-Compozy-Client-Token", *params.XCompozyClientToken)
+	}
+	if params.XCompozyClientWorkspace != nil {
+		headers.Set("X-Compozy-Client-Workspace", *params.XCompozyClientWorkspace)
+	}
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TerminalResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateToolApprovalParams carries the path, query, and header parameters.
+type CreateToolApprovalParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
 
 // CreateToolApproval Mint a local single-use approval token for one tool invocation
 func (c *Client) CreateToolApproval(ctx context.Context, params CreateToolApprovalParams, body ToolApprovalRequest) (*ToolApprovalResponse, error) {
@@ -411,38 +443,4 @@ type DeleteSettingsHookParams struct {
 	Scope       *string `url:"scope"`
 	WorkspaceID *string `url:"workspace_id"`
 	Profile     *string `url:"profile"`
-}
-
-// DeleteSettingsHook Delete one settings-backed hook declaration
-func (c *Client) DeleteSettingsHook(ctx context.Context, params DeleteSettingsHookParams) (*SettingsApplyResponse, error) {
-	path := "/api/settings/hooks/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteSettingsMCPServerParams carries the path, query, and header parameters.
-type DeleteSettingsMCPServerParams struct {
-	Name        string  `url:"name"`
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-	Owner       *string `url:"owner"`
-	Target      *string `url:"target"`
 }

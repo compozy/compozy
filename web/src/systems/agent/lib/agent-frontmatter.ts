@@ -1,7 +1,7 @@
 /**
- * The small YAML subset SOUL.md and HEARTBEAT.md use: mappings, lists and plain or quoted
- * scalars. There's no YAML library in `web`, and the forms only need this much. Anything
- * outside it reads as `null`, so a file the subset can't hold stays in Advanced, untouched.
+ * The small YAML subset SOUL.md and HEARTBEAT.md use: mappings, lists, plain or quoted scalars
+ * and JSON flow values. There's no YAML library in `web`, and the forms only need this much.
+ * Anything outside it reads as `null`, so a file the subset can't hold stays in Advanced, untouched.
  */
 export type FrontmatterValue =
   | string
@@ -28,10 +28,45 @@ function parseFlowList(text: string): FrontmatterValue[] {
   );
 }
 
+/** A whole number past what a JS number holds exactly would save back changed. */
+function exactNumber(value: number) {
+  return !Number.isInteger(value) || Number.isSafeInteger(value);
+}
+
+function parseJsonFlow(text: string): FrontmatterValue | undefined {
+  try {
+    return JSON.parse(text, (_key, item: unknown) => {
+      if (typeof item === "number" && !exactNumber(item)) throw new Unsupported();
+      return item;
+    }) as FrontmatterValue;
+  } catch (error) {
+    if (error instanceof Unsupported) throw error;
+    return undefined;
+  }
+}
+
+/**
+ * Plain scalars YAML reads as a null, a boolean or a number that this subset would take as text,
+ * and so save back quoted, as a different value: `True`, `NULL`, `0x1F`, `1e3`, `.5`, `010`.
+ */
+const YAML_TYPED = [
+  /^(?:Null|NULL|True|TRUE|False|FALSE)$/,
+  /^[-+]?(?:\.\d+|\d+\.?\d*)(?:[eE][-+]?\d+)?$/,
+  /^[-+]?\.(?:inf|Inf|INF)$/,
+  /^\.(?:nan|NaN|NAN)$/,
+  /^0o[0-7]+$|^0x[\da-fA-F]+$/,
+  /^[-+]?\d[\d_]*(?:\.[\d_]*)?$/,
+];
+
 function parseScalar(text: string): FrontmatterValue {
   if (text === "" || text === "null" || text === "~") return null;
   if (text === "true") return true;
   if (text === "false") return false;
+  // JSON is valid YAML flow, and is how the forms write nested values such as a source's `with`.
+  if (/^[[{]/.test(text)) {
+    const json = parseJsonFlow(text);
+    if (json !== undefined) return json;
+  }
   if (text.startsWith("[") && text.endsWith("]")) return parseFlowList(text);
   if (text.startsWith('"')) {
     try {
@@ -45,7 +80,12 @@ function parseScalar(text: string): FrontmatterValue {
     return text.slice(1, -1).replaceAll("''", "'");
   }
   if (/^[[{|>&*!%@`]/.test(text) || / #/.test(text)) throw new Unsupported();
-  if (/^-?\d+(\.\d+)?$/.test(text)) return Number(text);
+  if (/^-?\d+(\.\d+)?$/.test(text) && !/^-?0\d/.test(text)) {
+    const value = Number(text);
+    if (!exactNumber(value)) throw new Unsupported();
+    return value;
+  }
+  if (YAML_TYPED.some(pattern => pattern.test(text))) throw new Unsupported();
   return text;
 }
 
@@ -62,7 +102,8 @@ function parseBlock(lines: Line[], start: number, indent: number) {
 }
 
 function parseMap(lines: Line[], start: number, indent: number) {
-  const map: Record<string, FrontmatterValue> = {};
+  // No prototype: keys such as `constructor` or `__proto__` are ordinary settings here.
+  const map: Record<string, FrontmatterValue> = Object.create(null);
   let index = start;
   while (index < lines.length) {
     const line = lines[index]!;
@@ -70,7 +111,7 @@ function parseMap(lines: Line[], start: number, indent: number) {
     const match = line.indent === indent ? KEY.exec(line.text) : null;
     if (!match) throw new Unsupported();
     const key = match[1]!;
-    if (key in map) throw new Unsupported();
+    if (Object.hasOwn(map, key)) throw new Unsupported();
     index += 1;
     if (match[2] !== undefined && match[2] !== "") {
       map[key] = parseScalar(match[2]);

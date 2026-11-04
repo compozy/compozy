@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+// ForceReleaseTaskRunRequest is a daemon API value.
+type ForceReleaseTaskRunRequest struct {
+	Reason   string          `json:"reason,omitempty"`
+	Metadata json.RawMessage `json:"metadata,omitempty"`
+}
+
 // ForkLoopRequest is a daemon API value.
 type ForkLoopRequest struct {
 	Generation int64          `json:"generation"`
@@ -441,10 +447,4 @@ type GoalTurn struct {
 	ActorID        string                  `json:"actor_id"`
 	StartedAt      time.Time               `json:"started_at"`
 	EndedAt        *time.Time              `json:"ended_at"`
-}
-
-// GoalTurnPage is a daemon API value.
-type GoalTurnPage struct {
-	Turns        []GoalTurn `json:"turns"`
-	NextAfterSeq *int64     `json:"next_after_seq"`
 }

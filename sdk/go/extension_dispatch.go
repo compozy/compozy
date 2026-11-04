@@ -33,6 +33,11 @@ func (e *Extension) dispatch(
 			return nil, err
 		}
 		return e.handleToolCall(ctx, request, params)
+	case ExtensionServiceMethodHeartbeatSourcePoll:
+		if err := e.ensureReady(); err != nil {
+			return nil, err
+		}
+		return e.handleHeartbeatSourcePoll(ctx, params)
 	case ExtensionServiceMethodWatchPoll:
 		if err := e.ensureReady(); err != nil {
 			return nil, err

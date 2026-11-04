@@ -122,6 +122,7 @@ const (
 type HeartbeatWakeReason string
 
 const (
+	HeartbeatWakeReasonSourcePollInFlight    HeartbeatWakeReason = "source_poll_in_flight"
 	HeartbeatWakeReasonSent                  HeartbeatWakeReason = "wake_sent"
 	HeartbeatWakeReasonDisabled              HeartbeatWakeReason = "heartbeat_disabled"
 	HeartbeatWakeReasonInvalid               HeartbeatWakeReason = "heartbeat_invalid"

@@ -1,0 +1,51 @@
+---
+title: "compozy agent heartbeat sources"
+description: "List available check-in sources"
+---
+
+## compozy agent heartbeat sources
+
+List available check-in sources
+
+```
+compozy agent heartbeat sources <agent> [flags]
+```
+
+### Options
+
+```
+  -h, --help               help for sources
+      --workspace string   Override workspace context (ID, name, or path)
+```
+
+### Options inherited from parent commands
+
+```
+      --json             Emit JSON output
+  -o, --output string    Output format: human, json, jsonl, or toon (default "human")
+      --profile string   Act as a profile for this command
+```
+
+## Output Formats
+
+The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+
+| Format  | Command result                          |
+| ------- | --------------------------------------- |
+| `human` | Interactive terminal rendering          |
+| `json`  | Machine-readable JSON rendering         |
+| `jsonl` | One JSON record per line when supported |
+| `toon`  | Compact agent-readable rendering        |
+
+Example:
+
+```bash
+compozy agent heartbeat sources <agent> -o json
+```
+
+## Subcommands
+
+| Command                                                                              | Description                               |
+| ------------------------------------------------------------------------------------ | ----------------------------------------- |
+| [compozy agent heartbeat sources approve](/docs/cli/agent/heartbeat/sources/approve) | approve a check-in script (operator only) |
+| [compozy agent heartbeat sources revoke](/docs/cli/agent/heartbeat/sources/revoke)   | revoke a check-in script (operator only)  |

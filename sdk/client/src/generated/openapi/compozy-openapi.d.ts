@@ -659,6 +659,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agents/{name}/heartbeat/scripts/{script}/approve": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Approve exact source script bytes (operator only) */
+    post: operations["approveAgentHeartbeatScript"];
+    /** Revoke a source script approval (operator only) */
+    delete: operations["revokeAgentHeartbeatScript"];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/agents/{name}/heartbeat/sources": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List check-in source kinds, scripts and effective limits */
+    get: operations["getAgentHeartbeatSources"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agents/{name}/heartbeat/status": {
     parameters: {
       query?: never;
@@ -7927,6 +7962,7 @@ export interface components {
     };
     AgentInstanceCheckDigest: {
       key: string;
+      source?: components["schemas"]["AgentInstanceProposalSource"] | null;
       summary: string;
     };
     AgentInstanceCheckInPayload: {
@@ -7948,6 +7984,7 @@ export interface components {
       digest: components["schemas"]["AgentInstanceCheckDigest"][];
       gate?: string;
       occurrence_id?: string;
+      sources?: components["schemas"]["SourceOutcome"][];
     };
     AgentInstanceCreateRequest: {
       agent: string;
@@ -8002,6 +8039,7 @@ export interface components {
         [key: string]: unknown;
       };
       scope: string;
+      sources: components["schemas"]["HeartbeatSourceStatus"][];
       state: string;
       /** Format: int64 */
       unattended_turn_limit: number;
@@ -8025,10 +8063,14 @@ export interface components {
     };
     AgentInstanceProposalSource: {
       event_id: string;
+      item_key?: string;
       kind: string;
       received_at: string;
       run_id: string;
+      source_id?: string;
+      source_ref?: string;
       trigger_id: string;
+      url?: string;
     };
     AgentInstanceReportPayload: {
       action?: string;
@@ -8051,9 +8093,13 @@ export interface components {
     };
     AgentInstanceReportSource: {
       event: string;
+      item_key?: string;
       kind: string;
+      source_id?: string;
+      source_ref?: string;
       summary?: string;
       trigger_name: string;
+      url?: string;
     };
     AgentInstanceReportsResponse: {
       next_cursor: string;
@@ -9724,6 +9770,10 @@ export interface components {
       /** Format: int64 */
       start_sequence: number;
     };
+    Error: {
+      code: string;
+      detail: string;
+    };
     ErrorPayload: {
       blockers?: components["schemas"]["WorkspaceArchiveBlocker"][];
       code?: string;
@@ -10995,6 +11045,7 @@ export interface components {
     };
     HeartbeatContextProjectionPayload: {
       include?: string[];
+      sources?: components["schemas"]["Ref"][];
     };
     HeartbeatDeleteByPathRequest: {
       expected_digest: string;
@@ -11092,6 +11143,50 @@ export interface components {
       target_digest?: string;
       workspace_id?: string;
     };
+    HeartbeatScriptApprovalPayload: {
+      /** Format: date-time */
+      approved_at: string;
+      script: string;
+      sha256: string;
+    };
+    HeartbeatScriptApprovalRequest: {
+      sha256: string;
+    };
+    HeartbeatSourceCatalogPayload: {
+      agent: string;
+      kinds: components["schemas"]["KindDescriptor"][];
+      limits: components["schemas"]["HeartbeatSourceLimitsPayload"];
+      scripts: components["schemas"]["HeartbeatSourceScriptPayload"][];
+      scripts_enabled: boolean;
+    };
+    HeartbeatSourceLimitsPayload: {
+      max_items: number;
+      max_per_agent: number;
+    };
+    HeartbeatSourceScriptPayload: {
+      approved: boolean;
+      approved_sha256: string | null;
+      executable: boolean;
+      /** Format: date-time */
+      last_modified?: string | null;
+      line_count?: number;
+      name: string;
+      sha256: string;
+    };
+    HeartbeatSourceStatus: {
+      error?: components["schemas"]["Error"] | null;
+      /** Format: int64 */
+      failure_streak: number;
+      id: string;
+      kind?: string;
+      /** Format: int64 */
+      last_item_count: number;
+      last_polled_at?: string;
+      last_success_at?: string;
+      next_poll_at?: string;
+      script?: string;
+      status: string;
+    };
     HeartbeatStatusResponse: {
       active: boolean;
       agent_name: string;
@@ -11136,6 +11231,7 @@ export interface components {
       policy_snapshot_id?: string;
       /** @enum {string} */
       reason:
+        | "source_poll_in_flight"
         | "wake_sent"
         | "heartbeat_disabled"
         | "heartbeat_invalid"
@@ -11167,6 +11263,7 @@ export interface components {
       policy_snapshot_id?: string;
       /** @enum {string} */
       reason:
+        | "source_poll_in_flight"
         | "wake_sent"
         | "heartbeat_disabled"
         | "heartbeat_invalid"
@@ -11198,6 +11295,7 @@ export interface components {
       coalesced_count: number;
       /** @enum {string} */
       last_reason?:
+        | "source_poll_in_flight"
         | "wake_sent"
         | "heartbeat_disabled"
         | "heartbeat_invalid"
@@ -11378,6 +11476,13 @@ export interface components {
     JobsResponse: {
       jobs: components["schemas"]["JobPayload"][];
       page: components["schemas"]["CountedCursorPagePayload"];
+    };
+    KindDescriptor: {
+      description?: string;
+      extension: string;
+      kind: string;
+      params_schema?: unknown;
+      title: string;
     };
     LogEventPayload: {
       actor_id?: string;
@@ -13670,6 +13775,12 @@ export interface components {
         | "worktree_missing"
         | "worktree_not_found"
         | "worktree_not_ready";
+    };
+    Ref: {
+      id: string;
+      kind?: string;
+      script?: string;
+      with?: unknown;
     };
     Reference: {
       effective_paused?: boolean;
@@ -17395,6 +17506,15 @@ export interface components {
       /** Format: double */
       exit_slack: number;
       repeat_ratios: number[];
+    };
+    SourceOutcome: {
+      /** Format: int64 */
+      duration_ms: number;
+      error?: components["schemas"]["Error"] | null;
+      id: string;
+      items: number;
+      more: boolean;
+      result: string;
     };
     SourceStatus: {
       reason?: string;
@@ -25537,6 +25657,223 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  approveAgentHeartbeatScript: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+        /** @description Script name */
+        script: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["HeartbeatScriptApprovalRequest"];
+      };
+    };
+    responses: {
+      /** @description Approved */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HeartbeatScriptApprovalPayload"];
+        };
+      };
+      /** @description Operator required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Script changed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid source script request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Source storage unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  revokeAgentHeartbeatScript: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+        /** @description Script name */
+        script: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Script approval revoked */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Operator required */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid source script request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Source storage unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  getAgentHeartbeatSources: {
+    parameters: {
+      query?: {
+        /** @description Workspace id */
+        workspace_id?: string;
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Agent name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["HeartbeatSourceCatalogPayload"];
+        };
+      };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Source storage unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };

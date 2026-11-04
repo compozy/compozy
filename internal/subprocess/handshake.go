@@ -73,14 +73,15 @@ type InitializeRuntime struct {
 
 // InitializeResponse is the extension -> Compozy initialize acknowledgment.
 type InitializeResponse struct {
-	ProtocolVersion      string                  `json:"protocol_version"`
-	ExtensionInfo        InitializeExtensionInfo `json:"extension_info"`
-	AcceptedCapabilities AcceptedCapabilities    `json:"accepted_capabilities"`
-	ImplementedMethods   []string                `json:"implemented_methods"`
-	SupportedHookEvents  []string                `json:"supported_hook_events"`
-	WatchSourceKinds     []string                `json:"watch_source_kinds,omitempty"`
-	CmdPaletteViews      []string                `json:"cmd_palette_views,omitempty"`
-	Supports             InitializeSupports      `json:"supports"`
+	ProtocolVersion      string                                  `json:"protocol_version"`
+	ExtensionInfo        InitializeExtensionInfo                 `json:"extension_info"`
+	AcceptedCapabilities AcceptedCapabilities                    `json:"accepted_capabilities"`
+	ImplementedMethods   []string                                `json:"implemented_methods"`
+	SupportedHookEvents  []string                                `json:"supported_hook_events"`
+	HeartbeatSourceKinds []extensionprotocol.HeartbeatSourceKind `json:"heartbeat_source_kinds,omitempty"`
+	WatchSourceKinds     []string                                `json:"watch_source_kinds,omitempty"`
+	CmdPaletteViews      []string                                `json:"cmd_palette_views,omitempty"`
+	Supports             InitializeSupports                      `json:"supports"`
 }
 
 // InitializeExtensionInfo identifies the running extension implementation.

@@ -383,6 +383,8 @@ export {
 export { agentTeamOptions } from "./lib/query-options";
 export { formatRelativeClock } from "./lib/agent-time";
 export { useAgentMemorySummary } from "./hooks/use-agent-memory";
+export { useHeartbeatSourceCatalog } from "./hooks/use-heartbeat-sources";
+export { checkInSourceRefTitle } from "./lib/agent-check-in-sources";
 export { agentFromOrphanInstance } from "./lib/agent-instance-wire";
 export {
   agentInstanceAwayOptions,

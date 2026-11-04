@@ -128,7 +128,8 @@ const (
 	// ToolIDSessionHealth reads metadata-only session health and wake eligibility.
 	ToolIDSessionHealth ToolID = "compozy__session_health"
 	// ToolIDAgentHeartbeatStatus reads resolved Heartbeat policy, wake state, health, and wake audit.
-	ToolIDAgentHeartbeatStatus ToolID = "compozy__agent_heartbeat_status"
+	ToolIDAgentHeartbeatSources ToolID = "compozy__agent_heartbeat_sources"
+	ToolIDAgentHeartbeatStatus  ToolID = "compozy__agent_heartbeat_status"
 	// ToolIDAgentHeartbeatWake requests one managed advisory Heartbeat wake decision.
 	ToolIDAgentHeartbeatWake ToolID = "compozy__agent_heartbeat_wake"
 	// ToolIDWorkspaceList lists registered workspaces.

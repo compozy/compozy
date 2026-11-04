@@ -1,4 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { toast } from "@compozy/ui";
@@ -17,6 +18,7 @@ import {
   previewNextCheckIn,
   scheduledNextCheckIn,
 } from "../lib/agent-check-in-form";
+import type { CheckInSource } from "../lib/agent-check-in-sources";
 import { fileProblem } from "../lib/agent-frontmatter";
 import { agentHeartbeatOptions } from "../lib/query-options";
 import type { AgentHeartbeatPayload, AgentInstancePayload, AgentPayload } from "../types";
@@ -29,6 +31,7 @@ import {
 } from "./use-agent-instance-checks";
 import { useAgentInstanceActions, useAgentDefinitionInstances } from "./use-agent-instances";
 import { useEditorDocument } from "./use-editor-document";
+import { useApproveHeartbeatScript, useHeartbeatSourceCatalogQuery } from "./use-heartbeat-sources";
 import { useMinuteClock } from "./use-minute-clock";
 
 function matchesWorkspace(instance: AgentInstancePayload, workspace: string | null) {
@@ -113,6 +116,51 @@ function instanceFacts(instance: AgentInstancePayload | null, interval: number) 
   };
 }
 
+/**
+ * What can read into check-ins, and the edits to the file's `context.sources`. Adding or editing
+ * writes the file through the editor's save; removing waits in the unsaved changes.
+ */
+function useCheckInSources(
+  agent: AgentPayload,
+  workspace: string | null,
+  document: ReturnType<typeof useCheckInsDocument>,
+  enabled: boolean
+) {
+  const { destination } = useProfileReadScope();
+  const query = useHeartbeatSourceCatalogQuery(agent.name, workspace, destination, enabled);
+  const approve = useApproveHeartbeatScript(agent.name, workspace, destination);
+  const navigate = useNavigate();
+  const catalog = query.data ?? null;
+  const { form } = document;
+  return {
+    catalog,
+    actions: {
+      catalogState: query.isError
+        ? ("error" as const)
+        : catalog
+          ? ("ready" as const)
+          : ("loading" as const),
+      retryCatalog: () => void query.refetch(),
+      /** Writes `source` in place of `replacing`, or at the end. */
+      save: (source: CheckInSource, replacing?: string) => {
+        const next = replacing
+          ? form.sources.map(item => (item.id === replacing ? source : item))
+          : [...form.sources, source];
+        document.setForm({ ...form, sources: next });
+        void document.save();
+      },
+      remove: (id: string) =>
+        document.setForm({ ...form, sources: form.sources.filter(item => item.id !== id) }),
+      approve: (script: string, sha256: string) => approve.mutate({ script, sha256 }),
+      /** The script an approval is on its way for. */
+      approving: approve.isPending ? (approve.variables?.script ?? null) : null,
+      openExtensions: () => void navigate({ to: "/settings/extensions" }),
+    },
+  };
+}
+
+export type CheckInSourceActions = ReturnType<typeof useCheckInSources>["actions"];
+
 /** The Heartbeat page's file, plus how the agent stands in the project picked on the page. */
 export function useCheckInsEditor(
   agent: AgentPayload,
@@ -121,6 +169,13 @@ export function useCheckInsEditor(
   readOnly: boolean
 ) {
   const document = useCheckInsDocument(agent, workspace, payload);
+  const sources = useCheckInSources(
+    agent,
+    workspace,
+    document,
+    // Titles need it when the file has sources; Add needs its kinds and limit when editable.
+    document.form.sources.length > 0 || !readOnly
+  );
 
   const instances = useAgentDefinitionInstances(agent);
   const [placeId, setPlaceId] = useState<string | null>(null);
@@ -173,6 +228,10 @@ export function useCheckInsEditor(
     next: scheduled ?? previewNextCheckIn(settings, nowHour, fresh),
     activity: checkIns === null ? null : checkInActivity(checkIns, now),
     tryCheck,
+    catalog: sources.catalog,
+    sources: sources.actions,
+    /** The minute clock the page reads relative times against. */
+    now,
     turnOn,
     resume: () => {
       if (!instance) return;

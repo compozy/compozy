@@ -89,7 +89,7 @@ func heartbeatFrontmatterPayload(front heartbeatpkg.Frontmatter) HeartbeatFrontm
 			QuietWindows: heartbeatTimeWindowsPayload(front.Preferences.QuietWindows),
 		},
 		Context: HeartbeatContextProjectionPayload{
-			Include: slices.Clone(front.Context.Include),
+			Include: slices.Clone(front.Context.Include), Sources: slices.Clone(front.Context.Sources),
 		},
 	}
 }
@@ -100,7 +100,7 @@ func heartbeatPreferencesPayload(preferences heartbeatpkg.Preferences) Heartbeat
 		ActiveHours:  heartbeatTimeWindowsPayload(preferences.ActiveHours),
 		QuietWindows: heartbeatTimeWindowsPayload(preferences.QuietWindows),
 		Context: HeartbeatContextProjectionPayload{
-			Include: slices.Clone(preferences.Context.Include),
+			Include: slices.Clone(preferences.Context.Include), Sources: slices.Clone(preferences.Context.Sources),
 		},
 	}
 }
@@ -144,7 +144,7 @@ func heartbeatPromptContributionPayload(
 		MaxBodyBytes:     prompt.MaxBodyBytes,
 		Diagnostics:      diagnostics,
 		Context: HeartbeatContextProjectionPayload{
-			Include: slices.Clone(prompt.Context.Include),
+			Include: slices.Clone(prompt.Context.Include), Sources: slices.Clone(prompt.Context.Sources),
 		},
 	}
 }

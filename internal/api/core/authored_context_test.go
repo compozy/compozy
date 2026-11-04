@@ -14,11 +14,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
@@ -1961,4 +1963,198 @@ func TestSessionStatusReplyWatches(t *testing.T) {
 			t.Fatalf("status = %d, %+v, %v; %s", recorder.Code, payload, err, recorder.Body.String())
 		}
 	})
+}
+
+func TestHeartbeatScriptOperatorBoundary(t *testing.T) {
+	for _, method := range []string{http.MethodPost, http.MethodDelete} {
+		t.Run("Should reject agent approval credentials on "+method+" [UT-063]", func(t *testing.T) {
+			t.Parallel()
+			handlers := core.NewBaseHandlers(&core.BaseHandlerConfig{})
+			engine := gin.New()
+			engine.POST("/agents/:name/heartbeat/scripts/:script/approve", handlers.ApproveAgentHeartbeatScript)
+			engine.DELETE("/agents/:name/heartbeat/scripts/:script/approve", handlers.RevokeAgentHeartbeatScript)
+			request := httptest.NewRequestWithContext(
+				t.Context(),
+				method,
+				"/agents/coder/heartbeat/scripts/poll/approve",
+				strings.NewReader(`{"sha256":"sha256:stale"}`),
+			)
+			request.Header.Set(agentidentity.HeaderSessionID, "sess-agent")
+			recorder := httptest.NewRecorder()
+			engine.ServeHTTP(recorder, request)
+			var failure contract.ErrorPayload
+			decodeJSON(t, recorder.Body.Bytes(), &failure)
+			if failure.Code != "source_approval_operator_only" {
+				t.Fatalf("code=%q", failure.Code)
+			}
+			if recorder.Code != http.StatusForbidden ||
+				!strings.Contains(recorder.Body.String(), "source_approval_operator_only") {
+				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body)
+			}
+		})
+	}
+}
+
+func TestHeartbeatSourceCatalogAndApproval(t *testing.T) {
+	for _, transport := range []string{"httpapi", "udsapi"} {
+		t.Run("Should expose catalog and hash approvals over "+transport+" [IT-007 UT-063]", func(t *testing.T) {
+			t.Parallel()
+			home := testutil.NewTestHomePaths(t)
+			cfg := compozyconfig.DefaultWithHome(home)
+			root, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			dir := filepath.Join(root, "coder")
+			if err := os.MkdirAll(filepath.Join(dir, "sources"), 0700); err != nil {
+				t.Fatal(err)
+			}
+			agentPath := filepath.Join(dir, "AGENT.md")
+			if err := os.WriteFile(agentPath, []byte("Agent"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(
+				filepath.Join(dir, "sources", "poll"),
+				[]byte("#!/bin/sh\necho '{\"items\":[]}'\n"),
+				0700,
+			); err != nil {
+				t.Fatal(err)
+			}
+			db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "compozy.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := db.Close(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			resolve := func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					ID:          "ws",
+					WorkspaceID: "ws",
+					RootDir:     root,
+					Config:      cfg,
+					Agents: []compozyconfig.AgentDef{
+						{Name: "coder", SourcePath: agentPath, SourceLayer: "workspace"},
+					},
+				}, nil
+			}
+			handlers := core.NewBaseHandlers(
+				&core.BaseHandlerConfig{
+					HomePaths:     home,
+					Config:        cfg,
+					TransportName: transport,
+					Profiles:      sessionProfileServiceStub{},
+					Workspaces:    testutil.StubWorkspaceService{ResolveFn: resolve},
+					AgentInstances: &core.AgentInstanceAPI{
+						Store:            db.Instances(),
+						SourceExtensions: catalogExtensionPoller{},
+					},
+				},
+			)
+			engine := gin.New()
+			engine.GET("/agents/:name/heartbeat/sources", handlers.GetAgentHeartbeatSources)
+			engine.POST("/agents/:name/heartbeat/scripts/:script/approve", handlers.ApproveAgentHeartbeatScript)
+			engine.DELETE("/agents/:name/heartbeat/scripts/:script/approve", handlers.RevokeAgentHeartbeatScript)
+			response := performRequest(
+				t,
+				engine,
+				http.MethodGet,
+				"/agents/coder/heartbeat/sources?workspace_id=ws",
+				nil,
+			)
+			if response.Code != 200 {
+				t.Fatalf("catalog=%d %s", response.Code, response.Body)
+			}
+			var catalog contract.HeartbeatSourceCatalogPayload
+			decodeJSON(t, response.Body.Bytes(), &catalog)
+			if len(catalog.Scripts) != 1 || catalog.Scripts[0].Approved || catalog.Limits.MaxItems != 20 ||
+				catalog.Limits.MaxPerAgent != 8 || len(catalog.Kinds) != 1 || catalog.Kinds[0].Kind != "fixture/issues" {
+				t.Fatalf("catalog=%+v", catalog)
+			}
+			endpoint := "/agents/coder/heartbeat/scripts/poll/approve?workspace_id=ws"
+			stale := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				endpoint,
+				[]byte(`{"sha256":"sha256:stale"}`),
+			)
+			var failure contract.ErrorPayload
+			decodeJSON(t, stale.Body.Bytes(), &failure)
+			if failure.Code != "source_script_changed" {
+				t.Fatalf("code=%q", failure.Code)
+			}
+			if stale.Code != 409 || !strings.Contains(stale.Body.String(), "source_script_changed") {
+				t.Fatalf("stale=%d %s", stale.Code, stale.Body)
+			}
+			approved := performRequest(
+				t,
+				engine,
+				http.MethodPost,
+				endpoint,
+				[]byte(`{"sha256":"`+catalog.Scripts[0].SHA256+`"}`),
+			)
+			if approved.Code != 200 || !strings.Contains(approved.Body.String(), catalog.Scripts[0].SHA256) {
+				t.Fatalf("approved=%d %s", approved.Code, approved.Body)
+			}
+			for _, client := range []struct{ header, value, via string }{{"User-Agent", "compozy-cli", "cli"}, {"X-Compozy-Client-ID", "web-test", "web"}} {
+				req := httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodPost,
+					endpoint,
+					strings.NewReader(`{"sha256":"`+catalog.Scripts[0].SHA256+`"}`),
+				)
+				req.Header.Set(client.header, client.value)
+				req.Header.Set("Content-Type", "application/json")
+				recorder := httptest.NewRecorder()
+				engine.ServeHTTP(recorder, req)
+				var via string
+				if err := db.DB().
+					QueryRowContext(t.Context(), `SELECT approved_via FROM heartbeat_source_script_approvals WHERE profile_id=? AND definition_dir=? AND script_name='poll'`, store.DefaultProfileID, dir).
+					Scan(&via); err != nil || via != client.via ||
+					recorder.Code != 200 {
+					t.Fatalf("via=%s status=%d err=%v", via, recorder.Code, err)
+				}
+			}
+			current, err := db.Instances().ApprovedHash(t.Context(), store.DefaultProfileID, dir, "poll")
+			if err != nil || current != catalog.Scripts[0].SHA256 {
+				t.Fatalf("hash=%s err=%v", current, err)
+			}
+			revoked := performRequest(t, engine, http.MethodDelete, endpoint, nil)
+			if revoked.Code != 204 {
+				t.Fatalf("revoke=%d %s", revoked.Code, revoked.Body)
+			}
+			current, err = db.Instances().ApprovedHash(t.Context(), store.DefaultProfileID, dir, "poll")
+			if err != nil || current != "" {
+				t.Fatalf("revoked hash=%s err=%v", current, err)
+			}
+		})
+	}
+}
+
+type catalogExtensionPoller struct{}
+
+var _ source.ExtensionPoller = catalogExtensionPoller{}
+
+func (catalogExtensionPoller) SourceKinds(
+	_ context.Context,
+	scope source.CatalogScope,
+) ([]source.KindDescriptor, error) {
+	if scope.WorkspaceID != "ws" {
+		return nil, errors.New("incorrect source catalog scope")
+	}
+	return []source.KindDescriptor{
+		{Kind: "fixture/issues", Extension: "fixture", Title: "Issues", ParamsSchema: []byte(`{"type":"object"}`)},
+	}, nil
+}
+
+func (catalogExtensionPoller) PollSource(
+	context.Context,
+	source.CatalogScope,
+	string,
+	source.Request,
+) (source.Result, error) {
+	return source.Result{}, errors.New("catalog must not poll sources")
 }
