@@ -159,14 +159,12 @@ type LockOwner struct {
 // InspectLockOwner reports whether the daemon lock is held and which PID its holder recorded.
 // The contention probe takes and immediately releases the lock when it is free, and never
 // rewrites the recorded PID, so a stale file left by a dead daemon reports Held=false.
+// The PID is read after the probe, but a holder that has not yet recorded its own PID still
+// reports the previous value; callers that wait on the holder must re-inspect.
 func InspectLockOwner(path string) (LockOwner, error) {
 	cleanPath := strings.TrimSpace(path)
 	if cleanPath == "" {
 		return LockOwner{}, errors.New("daemon: lock path is required")
-	}
-	pid, err := readLockPID(lockPIDPath(cleanPath))
-	if err != nil {
-		return LockOwner{}, err
 	}
 	if _, err := os.Stat(cleanPath); errors.Is(err, os.ErrNotExist) {
 		return LockOwner{}, nil
@@ -176,13 +174,17 @@ func InspectLockOwner(path string) (LockOwner, error) {
 	if err != nil {
 		return LockOwner{}, fmt.Errorf("daemon: probe daemon lock %q: %w", cleanPath, err)
 	}
-	if !locked {
-		return LockOwner{PID: pid, Held: true}, nil
+	held := !locked
+	if locked {
+		if err := errors.Join(probe.Unlock(), probe.Close()); err != nil {
+			return LockOwner{}, fmt.Errorf("daemon: release daemon lock probe %q: %w", cleanPath, err)
+		}
 	}
-	if err := errors.Join(probe.Unlock(), probe.Close()); err != nil {
-		return LockOwner{}, fmt.Errorf("daemon: release daemon lock probe %q: %w", cleanPath, err)
+	pid, err := readLockPID(lockPIDPath(cleanPath))
+	if err != nil {
+		return LockOwner{}, err
 	}
-	return LockOwner{PID: pid}, nil
+	return LockOwner{PID: pid, Held: held}, nil
 }
 
 func readLockPID(path string) (int, error) {

@@ -896,6 +896,11 @@ type bootstrapLockOwnerFixture struct {
 	ownerPID   int
 	ownerAlive bool
 	lockHeld   bool
+	// staleRecordedPID is reported by the first staleInspections lock inspections before the holder
+	// records ownerPID; 0 reports ownerPID from the start.
+	staleRecordedPID int
+	staleInspections int
+	inspections      int
 	// bootAfterProbes publishes the owner's daemon record after this many post-spawn probes; 0 never boots.
 	bootAfterProbes int
 	// recoverOnSpawn makes this spawn attempt (1-based) a healthy child; 0 never recovers.
@@ -945,11 +950,18 @@ func newBootstrapLockOwnerFixture(t *testing.T) *bootstrapLockOwnerFixture {
 		if path != homePaths.DaemonLock {
 			t.Fatalf("inspectDaemonLock(%q), want %q", path, homePaths.DaemonLock)
 		}
+		fixture.inspections++
+		if fixture.staleRecordedPID > 0 && fixture.inspections <= fixture.staleInspections {
+			return compozydaemon.LockOwner{PID: fixture.staleRecordedPID, Held: fixture.lockHeld}, nil
+		}
 		return compozydaemon.LockOwner{PID: fixture.ownerPID, Held: fixture.lockHeld}, nil
 	}
 	deps.processAlive = func(pid int) bool {
 		if pid == fixture.ownerPID {
 			return fixture.ownerAlive
+		}
+		if pid == fixture.staleRecordedPID {
+			return true
 		}
 		return pid == 42 && fixture.recoverOnSpawn > 0 && fixture.spawns >= fixture.recoverOnSpawn
 	}
@@ -1026,6 +1038,23 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 			ready.Message != "Attached to the running CompozyOS runtime." ||
 			ready.Daemon == nil || ready.Daemon.PID != fixture.ownerPID || ready.Daemon.Owned {
 			t.Fatalf("final event = %#v, want attach to lock owner pid %d", ready, fixture.ownerPID)
+		}
+	})
+
+	t.Run("Should follow the lock holder once it records its pid over a stale live pid", func(t *testing.T) {
+		fixture := newBootstrapLockOwnerFixture(t)
+		fixture.staleRecordedPID = 666
+		fixture.staleInspections = 2
+		fixture.bootAfterProbes = 4
+
+		events, err := fixture.run(t)
+		if err != nil {
+			t.Fatalf("bootstrap error = %v; events=%#v", err, events)
+		}
+		ready := events[len(events)-1]
+		if ready.Phase != bootstrapPhaseReady || ready.Resolution != bootstrapResolutionAttach ||
+			ready.Daemon == nil || ready.Daemon.PID != fixture.ownerPID {
+			t.Fatalf("final event = %#v, want attach to the re-inspected holder pid %d", ready, fixture.ownerPID)
 		}
 	})
 

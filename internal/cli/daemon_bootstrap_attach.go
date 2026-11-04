@@ -62,9 +62,10 @@ func (e *bootstrapExecution) attachBootingOwner(ownerPID int) error {
 	return e.attachRunning(status)
 }
 
-// waitForLockOwnerReady polls the local daemon until ownerPID reports running.
-// The deadline is the single extension seam: a future boot-progress signal can push it out
-// while the owner keeps reporting progress, without changing the readiness predicate.
+// waitForLockOwnerReady polls the local daemon until the current lock holder reports running.
+// Each tick re-inspects the lock so a holder that recorded its PID after classification replaces
+// a stale recorded PID. The deadline is the single extension seam: a future boot-progress signal
+// can push it out while the owner keeps reporting progress, without changing the readiness predicate.
 func (e *bootstrapExecution) waitForLockOwnerReady(ownerPID int) (DaemonStatus, error) {
 	ctx := e.cmd.Context()
 	timeout := e.deps.bootstrapAttachTimeout
@@ -72,6 +73,7 @@ func (e *bootstrapExecution) waitForLockOwnerReady(ownerPID int) (DaemonStatus, 
 	ticker := time.NewTicker(e.deps.pollInterval)
 	defer ticker.Stop()
 	for {
+		ownerPID = e.currentLockOwner(ownerPID)
 		// Probe errors are expected while the owner boots without a listener; liveness and the
 		// deadline decide failure.
 		status, running, probeErr := probeBootstrapDaemon(ctx, e.deps, e.homePaths)
@@ -100,6 +102,16 @@ func (e *bootstrapExecution) waitForLockOwnerReady(ownerPID int) (DaemonStatus, 
 		case <-ticker.C:
 		}
 	}
+}
+
+// currentLockOwner returns the PID recorded by the current lock holder, keeping the last known
+// owner when the lock is free, unrecorded, or unreadable so liveness decides the outcome.
+func (e *bootstrapExecution) currentLockOwner(lastPID int) int {
+	owner, err := e.deps.inspectDaemonLock(e.homePaths.DaemonLock)
+	if err != nil || !owner.Held || owner.PID <= 0 {
+		return lastPID
+	}
+	return owner.PID
 }
 
 // attachRunning attaches to a healthy daemon, replacing it first when it is an outdated desktop runtime.
