@@ -665,6 +665,33 @@ func TestAgentExitClassification(t *testing.T) {
 	}
 }
 
+func TestDaemonShutdownExitReclassification(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep a retried shutdown exit finalization interrupted", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			reportSessionStop(t, h, session.ID)
+		})
+		h.manager.markDaemonShutdown(false)
+		session.setStopCause(CauseProcessExited)
+		exitErr := errors.New("acp subprocess exited: signal: terminated")
+
+		for attempt := range 2 {
+			if got := h.manager.classifyDaemonShutdownExit(session, exitErr); got != nil {
+				t.Fatalf("classifyDaemonShutdownExit(attempt %d) = %v, want nil", attempt, got)
+			}
+		}
+		cause, detail := session.stopCauseDetail()
+		if cause != CauseUserRequested || detail != "daemon stopped by user" {
+			t.Fatalf("stop cause = %v %q, want user_requested %q", cause, detail, "daemon stopped by user")
+		}
+	})
+}
+
 func TestStopAndProcessExitFinalizeOnlyOnce(t *testing.T) {
 	t.Parallel()
 

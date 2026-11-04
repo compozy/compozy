@@ -1,5 +1,7 @@
 package session
 
+import "context"
+
 const (
 	daemonStoppedDetail     = "daemon stopped by user"
 	daemonRestartStopDetail = "Interrupted by daemon restart."
@@ -7,8 +9,9 @@ const (
 
 // daemonShutdownStop is the stop classification the daemon applies while it is shutting down.
 type daemonShutdownStop struct {
-	cause  StopCause
-	detail string
+	cause   StopCause
+	detail  string
+	restart bool
 }
 
 // DaemonShutdownStopCause returns the cause and detail the daemon applies to sessions it stops.
@@ -22,7 +25,33 @@ func DaemonShutdownStopCause(restart bool) (StopCause, string) {
 
 func (m *Manager) markDaemonShutdown(restart bool) {
 	cause, detail := DaemonShutdownStopCause(restart)
-	m.daemonShutdown.Store(&daemonShutdownStop{cause: cause, detail: detail})
+	m.daemonShutdown.Store(&daemonShutdownStop{cause: cause, detail: detail, restart: restart})
+}
+
+// daemonShutdownCaptureReason is the restart checkpoint reason for a turn interrupted by daemon shutdown.
+// A restart leaves it empty so the turn continues after boot; a stop records that the user stopped it.
+func daemonShutdownCaptureReason(restart bool) string {
+	if restart {
+		return ""
+	}
+	return "daemon_stopped_by_user"
+}
+
+// captureDaemonShutdownTurn records the restart checkpoint of a turn the pump is about to end as
+// cancelled because the daemon is shutting down. The cancelled terminal would otherwise land first
+// and make the turn look finished to restart capture. Capture is idempotent, so racing the
+// PrepareDaemonShutdown scan is safe.
+func (m *Manager) captureDaemonShutdownTurn(ctx context.Context, session *Session) {
+	stop := m.daemonShutdown.Load()
+	if stop == nil || session == nil {
+		return
+	}
+	captureCtx, cancel := detachedPromptStopContext(ctx, m)
+	defer cancel()
+	meta := session.Meta()
+	if err := m.captureRestartInterruption(captureCtx, &meta, daemonShutdownCaptureReason(stop.restart)); err != nil {
+		m.sessionLogger(session).Warn("session: capture daemon shutdown interruption failed", "error", err)
+	}
 }
 
 // daemonShuttingDown reports that agent runtime loss is the daemon's shutdown, so a prompt ends as interrupted.
@@ -36,7 +65,7 @@ func (m *Manager) daemonShuttingDown() bool {
 // finalization should use: nil once reclassified, so no failure, crash bundle or agent_crashed follows.
 func (m *Manager) classifyDaemonShutdownExit(session *Session, waitErr error) error {
 	stop := m.daemonShutdown.Load()
-	if stop == nil || !session.replaceStopCause(CauseProcessExited, stop.cause, stop.detail) {
+	if stop == nil || !session.reclassifyDaemonShutdownExit(stop.cause, stop.detail) {
 		return waitErr
 	}
 	logArgs := []any{"stop_cause", stop.cause.String()}

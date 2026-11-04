@@ -197,19 +197,24 @@ func (s *Session) setStopCause(cause StopCause) {
 	s.applyStopCauseLocked(cause, "")
 }
 
-// replaceStopCause swaps an observed cause for the authoritative one when it still matches.
-func (s *Session) replaceStopCause(from, to StopCause, detail string) bool {
+// reclassifyDaemonShutdownExit replaces an unrequested process exit with the daemon's shutdown
+// cause. It stays true for a session already reclassified, so a retried finalization keeps it.
+func (s *Session) reclassifyDaemonShutdownExit(cause StopCause, detail string) bool {
 	if s == nil {
 		return false
 	}
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.stopCause != from {
+	if s.daemonShutdownExit {
+		return true
+	}
+	if s.stopCause != CauseProcessExited {
 		return false
 	}
-	s.stopCause = to
+	s.stopCause = cause
 	s.stopDetail = strings.TrimSpace(detail)
+	s.daemonShutdownExit = true
 	return true
 }
 

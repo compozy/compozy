@@ -684,7 +684,7 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 		}
 	})
 
-	t.Run("Should end a turn whose agent dies during daemon shutdown as interrupted", func(t *testing.T) {
+	t.Run("Should end a turn whose agent dies during daemon restart as a resumable interruption", func(t *testing.T) {
 		t.Parallel()
 
 		h := newHarness(t)
@@ -707,11 +707,9 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 					Timestamp: time.Now().UTC(),
 					Text:      "partial before shutdown",
 				}
-				// The host signals the daemon and its agents together: the daemon records
-				// shutdown intent while the agent dies from the same signal.
-				if err := h.manager.PrepareDaemonShutdown(context.WithoutCancel(t.Context()), false); err != nil {
-					t.Errorf("PrepareDaemonShutdown() error = %v", err)
-				}
+				// The host signals the daemon and its agents together: the agent dies while
+				// PrepareDaemonShutdown is still scanning, before it captured this turn.
+				h.manager.markDaemonShutdown(true)
 				proc.crash(errors.New("acp subprocess exited: signal: terminated"), "")
 				events <- acp.AgentEvent{
 					Type:      acp.EventTypeError,
@@ -744,11 +742,18 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 			t.Fatalf("driver start calls = %d, want no runtime recovery during daemon shutdown", got)
 		}
 		meta := readMeta(t, session.MetaPath())
-		if meta.StopReason == nil || *meta.StopReason != store.StopUserCanceled {
-			t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, store.StopUserCanceled)
+		if meta.StopReason == nil || *meta.StopReason != store.StopShutdown {
+			t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, store.StopShutdown)
 		}
-		if meta.Failure == nil || meta.Failure.Kind != store.FailureCanceled || meta.Failure.CrashBundlePath != "" {
-			t.Fatalf("meta.Failure = %#v, want canceled without crash bundle", meta.Failure)
+		if meta.Failure != nil {
+			t.Fatalf("meta.Failure = %#v, want no failure for a restart interruption", meta.Failure)
+		}
+		pending, err := h.manager.HasPendingRestart(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("HasPendingRestart() error = %v", err)
+		}
+		if !pending {
+			t.Fatal("HasPendingRestart() = false, want the interrupted turn to continue after restart")
 		}
 	})
 

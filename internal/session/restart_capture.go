@@ -26,11 +26,7 @@ func (m *Manager) PrepareDaemonShutdown(ctx context.Context, restart bool) error
 			continue
 		}
 		meta := active.Meta()
-		reason := ""
-		if !restart {
-			reason = "daemon_stopped_by_user"
-		}
-		if err := m.captureRestartInterruption(ctx, &meta, reason); err != nil {
+		if err := m.captureRestartInterruption(ctx, &meta, daemonShutdownCaptureReason(restart)); err != nil {
 			errs = append(errs, err)
 		}
 	}

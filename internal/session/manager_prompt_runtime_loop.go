@@ -334,9 +334,13 @@ func (m *Manager) preparePromptPumpEventForDelivery(
 ) (acp.AgentEvent, bool) {
 	normalized := m.normalizeEvent(session, turnState.turnID, event)
 	normalized = promptErrorForExitedProcess(session.processHandle(), normalized)
-	if (session.ownsTurnStop(turnState.turnID) || m.daemonShuttingDown()) && normalized.Type == acp.EventTypeError &&
+	ownsTurnStop := session.ownsTurnStop(turnState.turnID)
+	if (ownsTurnStop || m.daemonShuttingDown()) && normalized.Type == acp.EventTypeError &&
 		normalized.Failure != nil && (normalized.Failure.Kind == store.FailureProcess ||
 		normalized.Failure.Kind == store.FailureTransport || normalized.Failure.Kind == store.FailureCanceled) {
+		if !ownsTurnStop {
+			m.captureDaemonShutdownTurn(ctx, session)
+		}
 		normalized = m.normalizeEvent(session, turnState.turnID, promptCancellationTerminalEvent())
 	}
 	if runtimeEvent && loop.activity != nil && loop.activity.shouldSkipDeliveredPromptDeadlineWarning(normalized) {
