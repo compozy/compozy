@@ -38,11 +38,6 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 		h.respondError(c, 503, err)
 		return
 	}
-	allowed, err := h.aggregateWorkspaceSet(c, WorkspaceBreadth{AllWorkspaces: true})
-	if err != nil {
-		h.respondError(c, 500, err)
-		return
-	}
 	actor, ok := h.instanceActor(c)
 	if !ok {
 		return
@@ -51,47 +46,23 @@ func (h *BaseHandlers) GetAgentActivity(c *gin.Context) {
 	if h.Now != nil {
 		now = h.Now()
 	}
-	result := agentinstance.Activity{
-		ReportsByDay:  []agentinstance.ActivityDay{},
-		CostByProject: []agentinstance.ActivityCost{},
-		BusyByHour:    []agentinstance.ActivityHour{},
-	}
-	requestedWorkspace, scoped, err := h.resolveAgentActivityWorkspace(c.Request.Context(), c.Query("workspace"))
+	selection := agentActivityScopes{handlers: h, context: c, profileID: scope.ProfileID, actor: actor}
+	workspaces, err := selection.selectWorkspaces([]string{c.Query("workspace")})
 	if err != nil {
-		h.respondError(c, 422, err)
+		h.respondAgentActivityError(c, err)
 		return
 	}
-	for workspace := range allowed {
-		if scoped && workspace != requestedWorkspace {
-			continue
-		}
-		visible, err := h.authorizeAgentActivityWorkspace(c.Request.Context(), actor, scope.ProfileID, workspace)
-		if err != nil {
-			h.respondError(c, 500, err)
-			return
-		}
-		if !visible {
-			continue
-		}
-		activity, err := reader.ReadActivity(
-			c.Request.Context(),
-			agentinstance.ActivityQuery{
-				ProfileID:   scope.ProfileID,
-				WorkspaceID: workspace,
-				AgentName:   c.Param("name"),
-				Since:       store.LocalDayStart(now, days-1),
-			},
-		)
-		if err != nil {
-			h.respondError(c, 500, err)
-			return
-		}
-		label, err := h.agentActivityWorkspaceLabel(c.Request.Context(), workspace)
-		if err != nil {
-			h.respondError(c, 500, err)
-			return
-		}
-		mergeAgentActivity(&result, activity, label)
+	activity, err := reader.ReadActivity(c.Request.Context(), agentinstance.ActivityQuery{
+		ProfileID: scope.ProfileID, WorkspaceIDs: workspaces, AgentName: c.Param("name"),
+		Since: store.LocalDayStart(now, days-1),
+	})
+	if err != nil {
+		h.respondError(c, 500, err)
+		return
+	}
+	result := activity
+	for i := range result.CostByProject {
+		result.CostByProject[i].Scope = selection.labels[result.CostByProject[i].WorkspaceID]
 	}
 	sortAgentActivity(&result)
 	c.JSON(http.StatusOK, result)
@@ -137,36 +108,6 @@ func (h *BaseHandlers) authorizeAgentActivityWorkspace(
 		Seam:     workspaceaccess.SeamTool,
 	})
 	return decision.Allowed, err
-}
-
-func mergeAgentActivity(result *agentinstance.Activity, activity agentinstance.Activity, label string) {
-	for _, cost := range activity.CostByProject {
-		cost.Scope = label
-		result.CostByProject = append(result.CostByProject, cost)
-	}
-	for _, day := range activity.ReportsByDay {
-		index := slices.IndexFunc(
-			result.ReportsByDay,
-			func(item agentinstance.ActivityDay) bool { return item.Day == day.Day },
-		)
-		if index < 0 {
-			result.ReportsByDay = append(result.ReportsByDay, day)
-		} else {
-			result.ReportsByDay[index].Quiet += day.Quiet
-			result.ReportsByDay[index].Told += day.Told
-			result.ReportsByDay[index].NeededYou += day.NeededYou
-		}
-	}
-	for _, hour := range activity.BusyByHour {
-		index := slices.IndexFunc(result.BusyByHour, func(item agentinstance.ActivityHour) bool {
-			return item.Weekday == hour.Weekday && item.Hour == hour.Hour
-		})
-		if index < 0 {
-			result.BusyByHour = append(result.BusyByHour, hour)
-		} else {
-			result.BusyByHour[index].Events += hour.Events
-		}
-	}
 }
 
 func parseAgentActivityDays(raw string) (int, error) {

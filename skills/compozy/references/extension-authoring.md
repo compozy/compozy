@@ -196,7 +196,9 @@ merged evidence, and fetch time, and may add `checks` (at most 64 `failed_names`
 observable; `reviews_unavailable` reports a read that failed this time. Create accepts head/base/title plus optional body/draft and returns
 `created` or `opened_existing` with a positive number and absolute URL. Use only
 `credential_absent`, `credential_expired`, `rate_limited`, or `unsupported_remote` as safe causes;
-never return credential values.
+never return credential values. A `rate_limited` capabilities or status result may carry `retry_after`;
+the daemon then calls that provider for no forge read until that time (one minute when absent), and
+reuses an available capabilities answer per remote set for ten minutes.
 
 The bundled `tailscale` provider requires the declared `TS_AUTHKEY` binding. Set it
 through hidden input with `compozy extension secrets set tailscale --env TS_AUTHKEY`;

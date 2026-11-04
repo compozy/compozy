@@ -7,6 +7,11 @@ import (
 	"time"
 )
 
+// LoopRequestAggregates is a daemon API value.
+type LoopRequestAggregates struct {
+	Pending int `json:"pending"`
+}
+
 // LoopRequestPayload is a daemon API value.
 type LoopRequestPayload struct {
 	WorkspaceID      string          `json:"workspace_id,omitempty"`

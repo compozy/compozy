@@ -44,7 +44,7 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 			if err := deduplicateInstanceProposals(ctx, q, &req); err != nil {
 				return err
 			}
-			completed, quiet, failures, err := instanceWakeStreaks(req.Result, row.QuietStreak, row.FailureStreak)
+			completed, quiet, failures, err := instanceWakeStreaks(&req, row.QuietStreak, row.FailureStreak)
 			if err != nil {
 				return err
 			}
@@ -71,15 +71,7 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 				return err
 			}
 
-			next := ""
-			if !req.NextWakeAt.IsZero() {
-				next = store.FormatTimestamp(req.NextWakeAt)
-			}
-			count, err := q.FinishInstanceWake(ctx, sqlcgen.FinishInstanceWakeParams{
-				InstanceID: req.InstanceID, OccurrenceID: req.OccurrenceID, Now: store.FormatTimestamp(req.Now),
-				Completed: completed, Digest: req.Digest, AutomationCursor: req.AutomationCursor,
-				QuietStreak: quiet, FailureStreak: failures, NextWakeAt: next,
-			})
+			count, err := finishInstanceWakeState(ctx, q, &req, completed, quiet, failures)
 			result.Changed = count == 1
 			if err != nil {
 				return err
@@ -105,8 +97,11 @@ func validateInstanceWakeFinish(req *heartbeat.FinishRequest) error {
 	return nil
 }
 
-func instanceWakeStreaks(result string, quiet, failures int64) (int, int64, int64, error) {
-	switch result {
+func instanceWakeStreaks(req *heartbeat.FinishRequest, quiet, failures int64) (int, int64, int64, error) {
+	if req.Result == loopNodeOutputFailed && !countsAsCheckFailure(req) {
+		return 0, quiet, failures, nil
+	}
+	switch req.Result {
 	case instanceWakeQuietResult:
 		return 1, quiet + 1, 0, nil
 	case instanceWakeReportedResult:
@@ -126,6 +121,10 @@ func nextInstanceWake(req *heartbeat.FinishRequest, quiet, failures int64) time.
 	}
 	if req.Interval <= 0 || req.MaxInterval <= 0 {
 		return req.NextWakeAt
+	}
+	// A rejected configuration fails the same way until the operator fixes it.
+	if req.Result == loopNodeOutputFailed && !countsAsCheckFailure(req) {
+		return heartbeat.NextCheckTime(req.Now, req.MaxInterval, req.InstanceID)
 	}
 	if req.SourceMore && (req.Result == instanceWakeQuietResult || req.Result == instanceWakeReportedResult) {
 		return heartbeat.NextCheckTime(req.Now, req.MinInterval, req.InstanceID)
@@ -183,7 +182,7 @@ func pauseFatiguedInstance(
 	req *heartbeat.FinishRequest,
 	failures int64,
 ) error {
-	if req.Result == loopNodeOutputFailed && req.FatigueLimit > 0 && failures >= req.FatigueLimit {
+	if countsAsCheckFailure(req) && req.FatigueLimit > 0 && failures >= req.FatigueLimit {
 		if changed, err := q.PauseAgentInstance(ctx, sqlcgen.PauseAgentInstanceParams{
 			ID: req.InstanceID, PauseReason: "fatigue", UpdatedAt: store.FormatTimestamp(req.Now),
 		}); err != nil {
@@ -245,9 +244,45 @@ func recordFinishedWakeEvent(ctx context.Context, q *sqlcgen.Queries, req *heart
 const instanceWakeReportedResult = "reported"
 
 func countFinishedCheck(ctx context.Context, q *sqlcgen.Queries, req *heartbeat.FinishRequest) error {
-	if req.Result != instanceWakeReportedResult && req.Result != loopNodeOutputFailed {
+	if req.Result != instanceWakeReportedResult && !countsAsCheckFailure(req) {
 		return nil
 	}
 	_, err := advanceInstanceUnattended(ctx, q, req.InstanceID, req.OccurrenceID, req.UnattendedTurnLimit, req.Now)
 	return err
+}
+
+// countsAsCheckFailure excludes provider configuration rejections: the triage turn never ran,
+// so the rejection must not advance the failure streak, fatigue pause, or unattended budget.
+func countsAsCheckFailure(req *heartbeat.FinishRequest) bool {
+	return req.Result == loopNodeOutputFailed && req.Reason != heartbeat.ReasonTriageConfigUnavailable
+}
+
+// finishInstanceWakeState clears the occurrence and persists streaks and the next deadline.
+func finishInstanceWakeState(
+	ctx context.Context,
+	q *sqlcgen.Queries,
+	req *heartbeat.FinishRequest,
+	completed int,
+	quiet, failures int64,
+) (int64, error) {
+	next := ""
+	if !req.NextWakeAt.IsZero() {
+		next = store.FormatTimestamp(req.NextWakeAt)
+	}
+	return q.FinishInstanceWake(ctx, sqlcgen.FinishInstanceWakeParams{
+		InstanceID: req.InstanceID, OccurrenceID: req.OccurrenceID, Now: store.FormatTimestamp(req.Now),
+		Completed: completed, Digest: req.Digest, AutomationCursor: req.AutomationCursor,
+		QuietStreak: quiet, FailureStreak: failures, NextWakeAt: next,
+		HoldForEvents: holdForPendingEvents(req),
+	})
+}
+
+// holdForPendingEvents keeps an earlier deadline owed to unconsumed events, except after a
+// configuration rejection: it fails the same way until the operator fixes it, so its
+// max_interval retry must not be pulled back by events the rejected check left pending.
+func holdForPendingEvents(req *heartbeat.FinishRequest) int64 {
+	if req.Result == loopNodeOutputFailed && !countsAsCheckFailure(req) {
+		return 0
+	}
+	return 1
 }

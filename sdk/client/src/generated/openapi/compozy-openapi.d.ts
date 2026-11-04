@@ -502,6 +502,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/agents/activity": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Read activity for up to 100 agent and workspace selections in request order */
+    post: operations["batchAgentActivity"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/agents/aggregate": {
     parameters: {
       query?: never;
@@ -7839,10 +7856,21 @@ export interface components {
       id: string;
       value_id?: string;
     };
+    AgentActivityBatchRequest: {
+      days?: number;
+      items: components["schemas"]["AgentActivitySelection"][];
+    };
+    AgentActivityBatchResponse: {
+      activities: components["schemas"]["AgentActivityResponse"][];
+    };
     AgentActivityResponse: {
       busy_by_hour: components["schemas"]["ActivityHour"][];
       cost_by_project: components["schemas"]["ActivityCost"][];
       reports_by_day: components["schemas"]["ActivityDay"][];
+    };
+    AgentActivitySelection: {
+      name: string;
+      workspaces: string[];
     };
     AgentCapabilityPayload: {
       id: string;
@@ -7916,6 +7944,7 @@ export interface components {
     AgentEffectiveRuntimePayload: {
       acp_options?: components["schemas"]["AgentACPOptionSelection"][];
       model?: string;
+      permissions?: string;
       provider: string;
       reasoning_effort?: string;
       session_env?: {
@@ -7928,6 +7957,7 @@ export interface components {
     };
     AgentEffectiveRuntimeSources: {
       model?: string;
+      permissions?: string;
       provider: string;
       reasoning_effort?: string;
       speed?: string;
@@ -11171,9 +11201,11 @@ export interface components {
       last_modified?: string | null;
       line_count?: number;
       name: string;
+      path?: string;
       sha256: string;
     };
     HeartbeatSourceStatus: {
+      awaiting_approval?: boolean;
       error?: components["schemas"]["Error"] | null;
       /** Format: int64 */
       failure_streak: number;
@@ -11185,6 +11217,8 @@ export interface components {
       last_success_at?: string;
       next_poll_at?: string;
       script?: string;
+      script_path?: string;
+      script_sha256?: string;
       status: string;
     };
     HeartbeatStatusResponse: {
@@ -13976,10 +14010,22 @@ export interface components {
       /** Format: date-time */
       old_started_at: string;
       operation_id: string;
+      progress?: components["schemas"]["RestartProgress"] | null;
       /** Format: date-time */
       started_at: string;
       /** @enum {string} */
       status: "pending" | "stopping" | "waiting_release" | "starting" | "ready" | "failed";
+      /** Format: date-time */
+      updated_at: string;
+    };
+    RestartProgress: {
+      /** Format: int64 */
+      completed: number;
+      /** @enum {string} */
+      phase: "migrating";
+      stage: string;
+      /** Format: int64 */
+      total: number;
       /** Format: date-time */
       updated_at: string;
     };
@@ -15451,6 +15497,8 @@ export interface components {
       cause: string;
       /** Format: date-time */
       observed_at: string | null;
+      /** Format: date-time */
+      retry_after?: string | null;
       stale: boolean;
       /** @enum {string} */
       state: "ok" | "pending" | "error" | "incomplete";
@@ -19229,6 +19277,7 @@ export interface components {
       total: number;
     };
     ToolApprovalGrantPayload: {
+      access_scope?: string;
       agent_name?: string;
       /** Format: date-time */
       created_at: string;
@@ -24612,6 +24661,106 @@ export interface operations {
         };
       };
       /** @description Workspace resolver unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+    };
+  };
+  batchAgentActivity: {
+    parameters: {
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AgentActivityBatchRequest"];
+      };
+    };
+    responses: {
+      /** @description Scoped activities in request order */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["AgentActivityBatchResponse"];
+        };
+      };
+      /** @description Invalid profile selection */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ProfileErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Request failed */
       503: {
         headers: {
           [name: string]: unknown;

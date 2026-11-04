@@ -1,5 +1,7 @@
 package config
 
+import "maps"
+
 // CloneConfig returns an ownership-safe copy of the complete runtime configuration.
 func CloneConfig(source *Config) Config {
 	if source == nil {
@@ -17,6 +19,7 @@ func CloneConfig(source *Config) Config {
 	cloned.ModelCatalog.Sources.ModelsDev.Enabled = cloneBoolPtr(
 		source.ModelCatalog.Sources.ModelsDev.Enabled,
 	)
+	cloned.Agents.Overrides = maps.Clone(source.Agents.Overrides)
 	cloned.Roles = CloneRolesConfig(&source.Roles)
 	cloned.RoleSources = CloneRoleFieldSources(source.RoleSources)
 	cloned.Skills.Sources = cloneStrings(source.Skills.Sources)

@@ -60,3 +60,18 @@ caller deadline while owned cleanup retains both connections until the stalled
 worker exits, then closes them. The canonical `TestStoreSQLiteHelpers` suite
 verifies this at the driver I/O boundary with real SQLite. The full daemon walk
 remains unrun in this slice under the host-load restriction.
+
+CI follow-up (#1274): under the thirty-session SQLite transport load, a bounded background
+checkpoint execution deadline defers maintenance and retains its idle retry. Other I/O errors
+remain failures. Re-run the existing load lane with unchanged contention assertions and confirm
+accepted transcripts survive restart without passive-checkpoint failure warnings.
+
+QA impact 2026-11-04 (SQLite acceptance): while 30 sessions stream, periodic
+checkpoint I/O may outlive its 200 ms admission budget on its dedicated connection.
+Verify it completes after a delayed sync, foreground persistence continues,
+errors remain visible, and close cancels/joins maintenance before releasing files.
+Idle maintenance must also return while passive I/O is stalled; only its TRUNCATE
+attempt uses the writer with the bounded reader wait.
+`TestSessionDBPassiveCheckpoint/Should_complete_periodic` covers real SQLite I/O
+beyond admission expiry; the existing blocked-I/O cases own writer/shutdown
+isolation. The paired-load and thirty-session daemon jobs own the CI walk.

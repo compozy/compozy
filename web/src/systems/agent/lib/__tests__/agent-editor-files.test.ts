@@ -405,6 +405,25 @@ describe("check-in activity", () => {
     expect(recent[1]?.description).toBe("Tokens are stuck.");
   });
 
+  it("Should lead a configuration diagnostic with its advice and keep the provider detail", () => {
+    const { recent } = checkInActivity(
+      [
+        {
+          id: "c1",
+          result: "failed",
+          reason: "triage_config_unavailable",
+          detail: 'acp: model "haiku" is unavailable',
+          created_at: at(9),
+        },
+      ],
+      now
+    );
+    expect(recent[0]?.description).toBe(
+      "Its heartbeat model or runtime options were rejected. Check its model settings. " +
+        'acp: model "haiku" is unavailable'
+    );
+  });
+
   it("Should turn every reason into a sentence, and an unknown one into a safe default", () => {
     expect(checkInReason("session_prompt_active")).toBe(
       "It was busy in its main chat, so it skipped this one."

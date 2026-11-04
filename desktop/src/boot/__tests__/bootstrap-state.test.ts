@@ -33,6 +33,20 @@ describe("bootstrapSnapshot", () => {
     ).toEqual({ state: "skew", runtime: "0.4.0", needed: "0.4.0", newer: true });
   });
 
+  it.each(["start", "provision"] as const)(
+    "Should classify a stalled data upgrade reported in the %s phase",
+    phase => {
+      expect(
+        bootstrapSnapshot(
+          failed(
+            'cli: coordinated restart failed; runtime recovery copy retained at "/x": cli: daemon data upgrade "telemetry_relocation" stopped progressing at 1024 of 2048 rows for 5m0s',
+            phase
+          )
+        )
+      ).toMatchObject({ state: "error", error: { code: "runtime_upgrade_stalled" } });
+    }
+  );
+
   it("Should preserve the failed boot phase while redacting secrets", () => {
     expect(bootstrapSnapshot(failed("disk full\u0000 token=raw-secret", "provision"))).toEqual({
       state: "error",
@@ -60,6 +74,28 @@ describe("bootstrapSnapshot", () => {
     [
       { type: "bootstrap", phase: "provision", status: "completed", message: "x" },
       { state: "provisioning", stage: "verify" },
+    ],
+    [
+      {
+        type: "bootstrap",
+        phase: "provision",
+        status: "started",
+        message: "Upgrading CompozyOS data (42%).",
+        stage: "migrate",
+        pct: 42,
+      },
+      { state: "provisioning", stage: "migrate", pct: 42 },
+    ],
+    [
+      {
+        type: "bootstrap",
+        phase: "provision",
+        status: "started",
+        message: "Upgrading CompozyOS data (0%).",
+        stage: "migrate",
+        pct: 0,
+      },
+      { state: "provisioning", stage: "migrate", pct: 0 },
     ],
     [
       { type: "bootstrap", phase: "start", status: "started", message: "x", attempt: 2 },

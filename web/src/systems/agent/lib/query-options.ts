@@ -8,6 +8,7 @@ import {
 } from "../adapters/agent-api";
 import {
   fetchAgentActivity,
+  fetchAgentActivityBatch,
   fetchAgentInstanceCheckIns,
   fetchAgentInstanceReports,
   fetchAgentInstanceOccurrence,
@@ -350,5 +351,19 @@ export function agentHeartbeatStatusOptions(
     staleTime: HEARTBEAT_STATUS_FRESHNESS_MS,
     refetchInterval: options.sessionId ? HEARTBEAT_STATUS_FRESHNESS_MS : false,
     enabled: !!name,
+  });
+}
+
+export function agentActivityBatchOptions(
+  items: { name: string; workspaces: string[] }[],
+  days: number,
+  profile = "default"
+) {
+  return queryOptions({
+    queryKey: agentKeys.activityBatch(items, days, profile),
+    queryFn: ({ signal }) => fetchAgentActivityBatch({ items, days }, profile, signal),
+    staleTime: 60_000,
+    retry: false,
+    enabled: items.length > 0,
   });
 }

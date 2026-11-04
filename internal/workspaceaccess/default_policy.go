@@ -177,3 +177,23 @@ func (p *DefaultPolicy) warnAuditFailure(ctx context.Context, record AccessRecor
 func deniedDecisionFor(denial Denial) Decision {
 	return Decision{Source: SourceDenied, Denial: denial}
 }
+
+// RecordToolConsent audits a successful native read after its separate operator consent gate.
+func (p *DefaultPolicy) RecordToolConsent(ctx context.Context, req Request) {
+	if ctx == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), ConsentAuditTimeout)
+	defer cancel()
+	req = normalizeRequest(req)
+	record := AccessRecord{Actor: req.Actor, Target: req.Target, TargetID: req.Target.WorkspaceID, Seam: req.Seam}
+	decision, mode, err := p.authorize(ctx, req, &record)
+	if err != nil || !req.ReadOnly || req.Seam != SeamTool ||
+		(!decision.PromptEligible && (!decision.Allowed || decision.Source != SourceSessionConsent)) {
+		return
+	}
+	record.Allowed, record.Source, record.Mode = true, SourceToolConsent, mode
+	if err := p.audit.EmitWorkspaceAccess(ctx, record); err != nil {
+		p.warnAuditFailure(ctx, record, err)
+	}
+}

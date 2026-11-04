@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/compozy/compozy/internal/api/contract"
 )
 
 func writeBootstrapEvent(cmd *cobra.Command, event bootstrapEvent) error {
@@ -17,6 +19,22 @@ func writeBootstrapEvent(cmd *cobra.Command, event bootstrapEvent) error {
 	}
 	_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s: %s\n", event.Phase, event.Message)
 	return err
+}
+
+// bootstrapStage refines a phase for the desktop progress label.
+type bootstrapStage string
+
+// bootstrapStageMigrate reports that a replacement runtime is upgrading persisted data before readiness.
+const bootstrapStageMigrate bootstrapStage = "migrate"
+
+// writeBootstrapMigrationProgress tells the desktop the replacement is upgrading data, not failing to start.
+func writeBootstrapMigrationProgress(cmd *cobra.Command, progress contract.RestartProgress) error {
+	percent := restartProgressPercent(progress)
+	return writeBootstrapEvent(cmd, bootstrapEvent{
+		Type: bootstrapEventType, Phase: bootstrapPhaseProvision, Status: bootstrapStatusStarted,
+		Resolution: bootstrapResolutionProvision, Stage: bootstrapStageMigrate, Percent: &percent,
+		Message: fmt.Sprintf("Upgrading CompozyOS data (%d%%).", percent),
+	})
 }
 
 func writeBootstrapFailure(

@@ -3184,6 +3184,86 @@ func TestInstanceProposalDedupe(t *testing.T) {
 }
 
 func TestInstanceCheckFatigue(t *testing.T) {
+	// Invariant: a provider configuration rejection never advances the fatigue streak.
+	t.Run("Should keep configuration rejections out of the failure streak", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "wake-config", "sess-config-main")
+		repo := db.Instances()
+		instance, err := repo.Adopt(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		finish := func(occurrence string, outcome heartbeat.TriageOutcome) {
+			t.Helper()
+			if ok, err := repo.Admit(t.Context(), heartbeat.AdmitRequest{
+				InstanceID: instance.ID, OccurrenceID: occurrence, Now: now, ManualCheck: true, MaxConcurrent: 1,
+			}); err != nil || !ok {
+				t.Fatalf("admit=%v %v", ok, err)
+			}
+			if ok, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
+				InstanceID: instance.ID, OccurrenceID: occurrence, Source: "instance_check",
+				Result: outcome.Result, Reason: outcome.Reason, Detail: outcome.Detail, Report: outcome.Report,
+				Now: now, ExpiresAt: now.Add(time.Hour), FatigueLimit: 2, UnattendedTurnLimit: 2,
+			}); err != nil || !ok.Changed {
+				t.Fatalf("finish=%v %v", ok, err)
+			}
+		}
+		finish("occ-ordinary", heartbeat.TriageOutcome{Result: "failed", Reason: "triage_failed"})
+		for i := range 3 {
+			finish(fmt.Sprintf("occ-config-%d", i), heartbeat.ConfigUnavailableTriage(`model "haiku" is unavailable`))
+		}
+		state, err := repo.WakeState(t.Context(), instance.ID)
+		if err != nil || state.FailureStreak != 1 || state.UnattendedTurns != 1 {
+			t.Fatalf("wake state=%+v err=%v, want only the ordinary failure counted", state, err)
+		}
+		current, err := repo.Get(t.Context(), instance.ID)
+		if err != nil || current.State != "active" {
+			t.Fatalf("instance=%+v err=%v, want active after configuration rejections", current, err)
+		}
+		// A timer rejection waits max_interval even while an automation event stays pending.
+		due := store.FormatTimestamp(now)
+		if _, err := db.DB().ExecContext(t.Context(),
+			"UPDATE agent_instance_wake_state SET next_wake_at=? WHERE instance_id=?", due, instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_instance_events
+			(id,instance_id,trigger_id,run_id,summary,received_at) VALUES ('pending',?,'trigger','run','Event',?)`,
+			instance.ID, due); err != nil {
+			t.Fatal(err)
+		}
+		if ok, err := repo.Admit(t.Context(), heartbeat.AdmitRequest{
+			InstanceID: instance.ID, OccurrenceID: "occ-config-timer", ExpectedDue: due, Now: now,
+			NextWakeAt: now.Add(time.Hour), MaxConcurrent: 1,
+		}); err != nil || !ok {
+			t.Fatalf("timer admit=%v %v", ok, err)
+		}
+		retry := heartbeat.ConfigUnavailableTriage("rejected")
+		if ok, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
+			InstanceID: instance.ID, OccurrenceID: "occ-config-timer", Source: "timer",
+			Result: retry.Result, Reason: retry.Reason, Detail: retry.Detail, Report: retry.Report,
+			Now: now, ExpiresAt: now.Add(time.Hour), Interval: time.Hour, MaxInterval: 24 * time.Hour,
+			FatigueLimit: 2, UnattendedTurnLimit: 2,
+		}); err != nil || !ok.Changed {
+			t.Fatalf("timer finish=%v %v", ok, err)
+		}
+		timerState, err := repo.WakeState(t.Context(), instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		next, err := store.ParseTimestamp(timerState.NextWakeAt)
+		if err != nil || next.Before(now.Add(24*time.Hour)) {
+			t.Fatalf("next wake=%q err=%v, want a retry no sooner than max_interval", timerState.NextWakeAt, err)
+		}
+		finished, err := repo.Occurrence(t.Context(), instance.ID, "occ-config-2")
+		if err != nil || finished.Result != "failed" || finished.Reason != heartbeat.ReasonTriageConfigUnavailable {
+			t.Fatalf("occurrence=%+v err=%v, want configuration diagnostic", finished, err)
+		}
+	})
 	t.Run("Should pause at the failure limit and persist one fatigue report on retry", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
@@ -4697,6 +4777,62 @@ func TestInstanceCollectorSecrets(t *testing.T) {
 }
 
 func TestInstanceActivity(t *testing.T) {
+	t.Run("Should seek activity indexes for every grouped projection", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := t.Context()
+		if _, err := db.telemetry.DB().
+			ExecContext(ctx, `WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x < 2000)
+            INSERT INTO event_summaries(id,profile_id,workspace_id,agent_name,type,timestamp)
+            SELECT 'plan-'||x, ?, '', 'busy', 'thought', '2026-11-01T12:00:00Z' FROM n`, store.DefaultProfileID); err != nil {
+			t.Fatal(err)
+		}
+		cte, args, err := instanceActivityScopes(
+			[]agentinstance.ActivityQuery{
+				{
+					ProfileID:    store.DefaultProfileID,
+					AgentName:    "sparse",
+					WorkspaceIDs: []string{"", "allowed"},
+					Since:        time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC),
+				},
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, projection := range []struct {
+			sql     string
+			indexes []string
+		}{
+			{instanceActivityHours, []string{"idx_summaries_activity (profile_id=? AND agent_name=? AND workspace_id=? AND timestamp>?)"}},
+			{instanceActivityCosts, []string{"idx_token_usage_daily_activity (profile_id=? AND agent_name=? AND workspace_id=? AND day>?)"}},
+			{instanceActivityReports, []string{"idx_agent_instances_activity (profile_id=? AND agent_name=? AND workspace_id=?)", "idx_agent_instance_reports_history", "idx_agent_wake_events_activity"}},
+		} {
+			rows, err := db.readDB.QueryContext(ctx, "EXPLAIN QUERY PLAN "+cte+projection.sql, args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var plan strings.Builder
+			for rows.Next() {
+				var id, parent, unused int
+				var detail string
+				if err := rows.Scan(&id, &parent, &unused, &detail); err != nil {
+					t.Fatal(err)
+				}
+				plan.WriteString(detail + "\n")
+			}
+			if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+				t.Fatal(err)
+			}
+			for _, index := range projection.indexes {
+				if !strings.Contains(plan.String(), index) {
+					t.Fatalf("missing indexed seek %s:\n%s", index, plan.String())
+				}
+			}
+			t.Log(plan.String())
+		}
+	})
+
 	t.Run("Should isolate activity by profile workspace agent and time window", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
@@ -4790,7 +4926,7 @@ func TestInstanceActivity(t *testing.T) {
 		}
 
 		got, err := db.Instances().
-			ReadActivity(ctx, agentinstance.ActivityQuery{ProfileID: store.DefaultProfileID, AgentName: "coder", Since: since})
+			ReadActivity(ctx, agentinstance.ActivityQuery{ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceIDs: []string{""}, Since: since})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -4805,8 +4941,33 @@ func TestInstanceActivity(t *testing.T) {
 			got.ReportsByDay[1].Quiet != 1 || got.ReportsByDay[1].Told != 0 || got.ReportsByDay[1].NeededYou != 0 {
 			t.Fatalf("daily activity=%+v", got.ReportsByDay)
 		}
+		batch, err := db.Instances().ReadActivities(ctx, []agentinstance.ActivityQuery{
+			{
+				ProfileID:    store.DefaultProfileID,
+				AgentName:    "coder",
+				WorkspaceIDs: []string{"", otherWorkspace, otherWorkspace},
+				Since:        since,
+			},
+			{ProfileID: foreign, AgentName: "coder", WorkspaceIDs: []string{""}, Since: since},
+			{ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceIDs: []string{}, Since: since},
+			{ProfileID: store.DefaultProfileID, AgentName: "coder", Since: since},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(batch[0].CostByProject) != 2 || batch[0].BusyByHour[0].Events != 2 ||
+			batch[0].ReportsByDay[0].Quiet != 26 {
+			t.Fatalf("grouped scopes: %+v", batch[0])
+		}
+		if batch[1].CostByProject[0].Tokens != 40 || len(batch[2].CostByProject) != 0 ||
+			len(batch[2].BusyByHour) != 0 ||
+			len(batch[3].CostByProject) != 0 ||
+			len(batch[3].BusyByHour) != 0 {
+			t.Fatalf("batch scope isolation: %+v", batch)
+		}
+
 		empty, err := db.Instances().ReadActivity(ctx, agentinstance.ActivityQuery{
-			ProfileID: store.DefaultProfileID, AgentName: "unused-agent", Since: since,
+			ProfileID: store.DefaultProfileID, AgentName: "unused-agent", WorkspaceIDs: []string{""}, Since: since,
 		})
 		if err != nil || empty.ReportsByDay == nil || len(empty.ReportsByDay) != 0 {
 			t.Fatalf("empty reports=%+v error=%v", empty.ReportsByDay, err)

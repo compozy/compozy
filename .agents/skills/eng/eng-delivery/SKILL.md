@@ -90,7 +90,7 @@ CodeRabbit, Greptile and React Doctor must all finish on the final changes. Conf
 
   Greptile, React Doctor and CI still apply.
 
-A round starts when CI and every reviewer have finished on the current head; a failed check may start it earlier, and the round still folds in every finding already posted. Collect every page of reviews, inline threads and PR comments, including collapsed sections, and address every actionable finding at any severity, including human feedback and findings marked outdated or outside changed lines.
+A round starts as soon as a reviewer posts findings or a check fails on the current head; do not wait for the rest of CI to finish first, because the fix push restarts CI anyway. Fold in every finding already posted, push once, then wait for CI and the reviewers on that new head. Collect every page of reviews, inline threads and PR comments, including collapsed sections and the CodeRabbit "Follow-up" and "outside diff" notes that exist only in review bodies, and address every actionable finding at any severity, including human feedback and findings marked outdated or outside changed lines. Green CI on a head the reviewers have not finished is not delivered.
 
 1. Validate each finding against the current code and the contract.
 2. Fix every valid, in-scope finding and every failed check locally, with focused tests and lint for what changed, then push once. The `pre-push` hook rejects format and lint failures before they reach CI.

@@ -77,3 +77,21 @@ discover about the agent, not how the process starts.
     meta="Lifecycle"
   />
 </RouteList>
+
+## Activity reads
+
+`GET /api/agents/{name}/activity?days=30&workspace=<id>&profile=<name>` returns
+`reports_by_day`, `cost_by_project`, and `busy_by_hour`. Omitting `workspace` aggregates
+all readable projects and User scope; `workspace=@user` selects User only. Days range from 1 to 365.
+
+Team clients can use `POST /api/agents/activity?profile=<name>` over HTTP or UDS:
+
+```json
+{ "days": 14, "items": [{ "name": "reviewer", "workspaces": ["@user", "project-id"] }] }
+```
+
+The response's `activities` array contains one unchanged activity payload per input item, in order.
+Each item selects its own definition's workspaces. The endpoint accepts 1–100 items, 1–100 workspace
+references per item, and at most 5,000 authorized workspace selections overall. Both activity routes
+read one profile, enforce workspace access, and are unavailable to app tokens. The batch read has
+no side effects.

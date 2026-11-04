@@ -21,6 +21,8 @@ const (
 	RuntimeValueSourceProviderDefault
 	// RuntimeValueSourceModelDefault identifies a curated model runtime default.
 	RuntimeValueSourceModelDefault
+	// RuntimeValueSourceConfigOverride identifies an operator [agents.overrides.<name>] value.
+	RuntimeValueSourceConfigOverride
 )
 
 // String returns the public runtime-source value.
@@ -34,6 +36,8 @@ func (s RuntimeValueSource) String() string {
 		return "provider_default"
 	case RuntimeValueSourceModelDefault:
 		return "model_default"
+	case RuntimeValueSourceConfigOverride:
+		return "config_override"
 	case RuntimeValueSourceUnspecified:
 		return ""
 	default:
@@ -47,6 +51,7 @@ type ResolvedRuntimeSources struct {
 	Model           RuntimeValueSource
 	ReasoningEffort RuntimeValueSource
 	Speed           RuntimeValueSource
+	Permissions     RuntimeValueSource
 }
 
 func defaultSpeedForModel(provider ProviderConfig, modelID string) speedpkg.Speed {
@@ -73,4 +78,12 @@ func defaultReasoningEffortForModel(provider ProviderConfig, modelID string) str
 		}
 	}
 	return ""
+}
+
+// permissionsSource attributes an effective level to AGENT.md or to [permissions].mode.
+func permissionsSource(authored string) RuntimeValueSource {
+	if strings.TrimSpace(authored) != "" {
+		return RuntimeValueSourceAgent
+	}
+	return RuntimeValueSourceProjectDefault
 }

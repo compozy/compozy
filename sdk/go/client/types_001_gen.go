@@ -114,11 +114,28 @@ type AgentACPOptionSelection struct {
 	BoolValue *bool  `json:"bool_value,omitempty"`
 }
 
+// AgentActivityBatchRequest is a daemon API value.
+type AgentActivityBatchRequest struct {
+	Days  int                      `json:"days,omitempty"`
+	Items []AgentActivitySelection `json:"items"`
+}
+
+// AgentActivityBatchResponse is a daemon API value.
+type AgentActivityBatchResponse struct {
+	Activities []AgentActivityResponse `json:"activities"`
+}
+
 // AgentActivityResponse is a daemon API value.
 type AgentActivityResponse struct {
 	ReportsByDay  []ActivityDay  `json:"reports_by_day"`
 	CostByProject []ActivityCost `json:"cost_by_project"`
 	BusyByHour    []ActivityHour `json:"busy_by_hour"`
+}
+
+// AgentActivitySelection is a daemon API value.
+type AgentActivitySelection struct {
+	Name       string   `json:"name"`
+	Workspaces []string `json:"workspaces"`
 }
 
 // AgentCapabilityPayload is a daemon API value.
@@ -227,6 +244,7 @@ type AgentEffectiveRuntimePayload struct {
 	ReasoningEffort  Effort                                    `json:"reasoning_effort,omitempty"`
 	Speed            Speed                                     `json:"speed,omitempty"`
 	ACPOptions       []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
+	Permissions      string                                    `json:"permissions,omitempty"`
 	Sources          AgentEffectiveRuntimeSources              `json:"sources"`
 }
 
@@ -236,6 +254,7 @@ type AgentEffectiveRuntimeSources struct {
 	Model           AgentRuntimeValueSource `json:"model,omitempty"`
 	ReasoningEffort AgentRuntimeValueSource `json:"reasoning_effort,omitempty"`
 	Speed           AgentRuntimeValueSource `json:"speed,omitempty"`
+	Permissions     AgentRuntimeValueSource `json:"permissions,omitempty"`
 }
 
 // AgentFallbackRoutePayload is a daemon API value.
@@ -427,20 +446,4 @@ type AgentInstanceReportSource struct {
 	TriggerName string `json:"trigger_name"`
 	Event       string `json:"event"`
 	Summary     string `json:"summary,omitempty"`
-}
-
-// AgentInstanceReportsResponse is a daemon API value.
-type AgentInstanceReportsResponse struct {
-	Reports    []AgentInstanceReportPayload `json:"reports"`
-	NextCursor string                       `json:"next_cursor"`
-}
-
-// AgentInstanceResponse is a daemon API value.
-type AgentInstanceResponse struct {
-	Instance AgentInstancePayload `json:"instance"`
-}
-
-// AgentInstanceSeenResponse is a daemon API value.
-type AgentInstanceSeenResponse struct {
-	LastSeenAt time.Time `json:"last_seen_at"`
 }

@@ -7,6 +7,8 @@ type RawGraph = { nodes: Record<string, unknown>[]; edges: unknown[] };
 
 const delivery = loopDetailByName.get("implement-tasks")!;
 const ENVIRONMENT_FIELD_SLOT = '[data-slot="loop-node-environment-field"]';
+/** The default-category run-agent node of the `implement-tasks` fixture graph. */
+export const ENVIRONMENT_NODE_ID = "execute_default";
 
 /**
  * Adds an environment descriptor without replacing the run-agent node's other
@@ -15,7 +17,7 @@ const ENVIRONMENT_FIELD_SLOT = '[data-slot="loop-node-environment-field"]';
 export function nodeEnvironmentDetail(environment: Record<string, unknown> | null): LoopDetail {
   const graph = delivery.definition.graph as unknown as RawGraph;
   const nodes = graph.nodes.map(node => {
-    if (node.id !== "execute_task") return node;
+    if (node.id !== ENVIRONMENT_NODE_ID) return node;
     const params = { ...(node.params as Record<string, unknown> | undefined) };
     if (environment) params.environment = environment;
     else delete params.environment;
@@ -34,7 +36,7 @@ export function nodeEnvironmentDetail(environment: Record<string, unknown> | nul
 export function retiredCwdDetail(): LoopDetail {
   const graph = delivery.definition.graph as unknown as RawGraph;
   const nodes = graph.nodes.map(node =>
-    node.id === "execute_task"
+    node.id === ENVIRONMENT_NODE_ID
       ? {
           ...node,
           params: { ...(node.params as Record<string, unknown> | undefined), cwd: "packages/api" },
@@ -52,7 +54,7 @@ export function retiredCwdDetail(): LoopDetail {
 
 export const RETIRED_CWD_ISSUES = [
   {
-    node_id: "execute_task",
+    node_id: ENVIRONMENT_NODE_ID,
     code: "environment_cwd_removed",
     message: "params.cwd is retired; use params.environment.directory",
     severity: "error" as const,
@@ -66,8 +68,8 @@ export async function revealNodeEnvironment(
 ) {
   const canvas = within(canvasElement);
   const cards = await canvas.findAllByTestId("loop-editor-node");
-  const card = cards.find(element => element.getAttribute("data-node-id") === "execute_task");
-  if (!card) throw new Error("node card execute_task not found");
+  const card = cards.find(element => element.getAttribute("data-node-id") === ENVIRONMENT_NODE_ID);
+  if (!card) throw new Error(`node card ${ENVIRONMENT_NODE_ID} not found`);
   await userEvent.click(card);
   await canvas.findByTestId("loop-field-environment");
   for (const testId of extraTestIds) {

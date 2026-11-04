@@ -10,6 +10,14 @@ import (
 	"strings"
 )
 
+// DeleteSettingsHookParams carries the path, query, and header parameters.
+type DeleteSettingsHookParams struct {
+	Name        string  `url:"name"`
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
 // DeleteSettingsHook Delete one settings-backed hook declaration
 func (c *Client) DeleteSettingsHook(ctx context.Context, params DeleteSettingsHookParams) (*SettingsApplyResponse, error) {
 	path := "/api/settings/hooks/{name}"

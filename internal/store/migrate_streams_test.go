@@ -221,6 +221,53 @@ func TestProductionMigrationStreams(t *testing.T) {
 }
 
 func TestProductionMigrationStreamsFreshReopenAndAhead(t *testing.T) {
+	t.Run("Should preserve telemetry values and sequence through the activity index upgrade", func(t *testing.T) {
+		t.Parallel()
+		ctx := migrationTestContext(t)
+		stream := telemetrydb.MigrationStream()
+		path := filepath.Join(t.TempDir(), "telemetry.db")
+		prior, err := sql.Open("sqlite", path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := prior.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := store.Apply(ctx, prior, migrationPrefixStream(t, stream, 4)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := prior.ExecContext(
+			ctx,
+			`INSERT INTO event_summaries(seq,id,profile_id,agent_name,workspace_id,type,timestamp,content_json,summary) VALUES (42,'retained','profile','agent','workspace','thought','2026-11-01T12:00:00Z','{"keep":true}','retained summary')`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			upgraded, err := telemetrydb.Open(ctx, path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var seq int
+			var content, summary string
+			err = upgraded.DB().
+				QueryRowContext(ctx, `SELECT seq,content_json,summary FROM event_summaries WHERE id='retained'`).
+				Scan(&seq, &content, &summary)
+			status, statusErr := upgraded.Status(ctx)
+			closeErr := upgraded.Close(context.WithoutCancel(ctx))
+			if err := errors.Join(err, statusErr, closeErr); err != nil {
+				t.Fatal(err)
+			}
+			if seq != 42 || content != `{"keep":true}` || summary != "retained summary" || status.Version != 5 {
+				t.Fatalf("upgraded telemetry: %d %s %s %+v", seq, content, summary, status)
+			}
+		}
+	})
+
 	for _, item := range migrationStreamsUnderTest() {
 		name := "Should fresh-apply, reopen, and reject an ahead " + item.name + " stream"
 		if item.name == "global" {

@@ -1,10 +1,13 @@
 package acp
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
+	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -91,6 +94,24 @@ func newNegotiationError(
 		),
 		negotiationErr,
 	)
+}
+
+// IsConfigurationRejection reports whether err is a provider rejection of a requested model,
+// reasoning effort, or speed: an unadvertised value, a missing or read-only option, a provider
+// invalid-params refusal, or a response that did not apply the value. Deadlines, cancellation,
+// and transport failures wrapped in a NegotiationError are not configuration rejections.
+func IsConfigurationRejection(err error) bool {
+	negotiationErr, ok := errors.AsType[*NegotiationError](err)
+	if !ok || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return false
+	}
+	cause := negotiationErr.Cause
+	if cause == nil || errors.Is(cause, errConfigOptionUnconfirmed) ||
+		errors.Is(cause, errModelConfigOptionRequired) || errors.Is(cause, errModelConfigOptionReadOnly) {
+		return true
+	}
+	requestErr, ok := errors.AsType[*acpsdk.RequestError](cause)
+	return ok && requestErr.Code == acpsdk.NewInvalidParams(nil).Code
 }
 
 func normalizedChoices(values []string) []string {

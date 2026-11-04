@@ -111,7 +111,7 @@ func (m *Manager) instanceLevel(
 	requested := m.startPermissions(startSpecPermissions(spec, resolved.Permissions))
 	if main {
 		if !resolved.PermissionsConfigured {
-			return compozyconfig.PermissionModeApproveEdits
+			return compozyconfig.AlwaysOnDefaultPermissionMode
 		}
 		return configured
 	}

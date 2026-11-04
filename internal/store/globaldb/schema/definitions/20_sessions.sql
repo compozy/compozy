@@ -581,3 +581,5 @@ CREATE INDEX idx_session_subagents_parent_delivery ON session_subagents(parent_s
 CREATE INDEX idx_session_subagents_provider_tool ON session_subagents(parent_session_id,provider_tool_call_id) WHERE origin = 'provider_native';
 
 CREATE INDEX idx_session_subagents_worktree_cleanup ON session_subagents(worktree_cleanup) WHERE worktree_cleanup = 'pending';
+
+CREATE INDEX idx_token_usage_daily_activity ON token_usage_daily(profile_id, agent_name, workspace_id, day);

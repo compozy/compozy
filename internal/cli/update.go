@@ -378,6 +378,7 @@ func waitForSettingsRestart(
 	deps commandDeps,
 	client settingsRestartStatusClient,
 	operationID string,
+	progress *restartProgressWatch,
 ) (SettingsRestartStatusRecord, error) {
 	if err := requirePollingContext(ctx); err != nil {
 		return SettingsRestartStatusRecord{}, err
@@ -400,6 +401,9 @@ func waitForSettingsRestart(
 				reason := cmp.Or(strings.TrimSpace(status.FailureReason), "daemon restart failed")
 				return status, true, errors.New("cli: " + reason)
 			default:
+				if err := progress.observe(status); err != nil {
+					return status, true, err
+				}
 				return SettingsRestartStatusRecord{}, false, nil
 			}
 		},

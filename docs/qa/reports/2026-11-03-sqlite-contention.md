@@ -26,6 +26,126 @@ write attempt, so the log does not establish an external lock holder. Cancellati
 or while another admitted writer is acquiring its connection is also consistent with these records.
 The exact historical owner cannot be recovered from this evidence.
 
+## CI acceptance investigation (2026-11-04)
+
+The job inherited three independent acceptance defects. It interrupted periodic
+checkpoint I/O with its admission deadline, compared rate-limited work including
+drain time with a zero noise budget, and enforced production deadlines under
+ptrace. These are distinct from telemetry relocation readiness, owned by #1256.
+This change does not duplicate its migration work or claim the migration is fast.
+
+Four failed runs were downloaded through the Actions artifacts REST endpoint.
+The baseline in every `results.json` is `d35c63c9a9f70806583d8595f0279f78c5dff84f`;
+the identical workload is built against baseline and head, with no label swap.
+Baseline selection is intentional for the historical upgrade fixture.
+
+| PR / run | Head | Head upgrade seconds | Untraced head operation errors (three trials) | Head checkpoint deadline warnings | Smallest old median rate ratio | Traced head measured seconds / retention |
+| --- | --- | ---: | --- | ---: | ---: | --- |
+| [#1255 / 41881073541](https://github.com/compozy/compozy/actions/runs/41881073541) | `fee79a12c` | 279.52 | 0 / 0 / 0 | 71 | 0.9845 | 60.34 / deadline |
+| [#1262 / 41882338190](https://github.com/compozy/compozy/actions/runs/41882338190) | `95096785d` | 253.56 | 0 / 0 / 0 | 71 | 0.9800 | 60.36 / deadline |
+| [#1256 / 41880292222](https://github.com/compozy/compozy/actions/runs/41880292222) | `c8d29c8b0` | 330.49 | 0 / 0 / 0 | 212 | >= 1 | 60.49 / deadline |
+| [#1268 / 41878693012](https://github.com/compozy/compozy/actions/runs/41878693012) | `b2c3fbffc` | 324.59 | 0 / 0 / 0 | 260 | >= 1 | 60.57 / deadline |
+
+Evidence files in each artifact: `results.json`, `head-{0,1,2}.json/.log`,
+`head-writes.json/.log`, `upgrade-before.json`, `upgrade-after.json`, and
+`report.md`. All 12 untraced head trials removed exactly 43,169 eligible rows.
+All four upgrades preserved 830,020 rows and the same all-column SHA-256
+`e127f4cd408ae5bf01b7119d4d98108543a517cdc2c73547301befaeb742f944`.
+All 614 untraced head warnings were exactly
+`store: passive checkpoint sqlite wal: context deadline exceeded`, rather than
+one-second write holds or exhausted interactive admission. Session maintenance
+already bounded admission to 200 ms but reused that deadline inside SQLite,
+which can repeatedly interrupt backfill before progress is published. Periodic
+maintenance now retains the 200 ms admission limit and runs I/O under its owned
+worker lifetime on the dedicated connection. Foreground writes remain independent;
+shutdown cancels and joins maintenance before releasing the database family.
+Idle maintenance schedules PASSIVE on that same worker; only TRUNCATE remains
+on the writer with its existing 200 ms deadline. Non-deadline I/O failures stay visible; explicit caller deadlines retain the
+deferral classification merged from #1274. The owned worker has no artificial
+checkpoint execution deadline.
+The canonical real SQLite suite holds periodic I/O beyond the admission deadline,
+releases it and requires success; existing cases prove foreground progress and
+bounded close during stalled I/O.
+
+The zero-budget comparison also rejected fixed-count operations: #1255 completed
+all 4,500 transcript reads per trial, but median elapsed time including drain was
+30.576 s on head versus 30.368 s on baseline. The resulting read-rate drop was
+0.59%; the single retention and close operations fell 0.68% solely because of
+that denominator. The largest decrease among the two affected runs was 2.00%.
+Four balanced-order pairs now compare median paired rate ratios against 0.95,
+with every ratio retained. This explicit 5% noise budget is over twice the
+observed median drift; a sustained 6% loss still fails. Individual pairs
+varied by up to 6.3%, so two slow pairs out of four can still fail. Fixed-count
+work has about 1.5 s of drain tolerance at this threshold. Missing/zero baseline
+samples are rejected, and every operation records its pair count. It does not establish statistical
+confidence or excuse any untraced operation error, long hold, incomplete sweep,
+changed row/hash/sequence/cursor, or Observe mismatch.
+
+Retention has a separate measurable cost that throughput count 1 cannot expose:
+head sweeps took 12.69–23.78 s, versus 1.53–2.34 s on baseline. The existing #1241
+design bounds telemetry deletion to 64 rows per background item and prioritizes
+interactive writes; the resulting 7–10x sweep slowdown accompanies the removal
+of baseline foreground errors. Preserve that scheduling contract and guard the
+trade-off explicitly: every untraced head sweep must now finish within 30 s,
+below its existing one-minute deadline and without stretching the 30 s workload.
+The historical maximum leaves 6.22 s of margin. This new ceiling checks duration
+directly rather than interpreting 1/phase-seconds as retention performance.
+
+Under strace, baseline completed all 43,169 rows in 18.24–19.06 s, while head
+reached only 24,832–28,096 rows before the 60 s sweep deadline. This is a
+head-specific amplification of the bounded-background scheduling cost, not just
+universal tracer overhead. Baseline also had hundreds of traced interactive
+failures (#1255: 763); untraced head had zero. The tracer therefore cannot own
+interactive deadline acceptance. Tracing remains enabled for diagnosis, with
+all errors retained; incomplete byte comparisons print `n/a (incomplete)`.
+Untraced trials own zero-error/deadline acceptance, the explicit retention
+duration ceiling, and paired throughput. The 1 GiB fixture, preservation checks
+and real daemon exercise remain in place.
+
+The first revised head `169251403` reached the real-daemon CI walk in run
+[41890831652](https://github.com/compozy/compozy/actions/runs/41890831652), artifact
+`13354066115`. It exposed five remaining PASSIVE deadline warnings at 18:52:30
+UTC, without the periodic worker's `session_id` field: these came from idle
+maintenance still running on the writer. All route/preservation assertions ran,
+and teardown was clean, but the strict log check correctly failed. Idle
+maintenance now schedules PASSIVE on the dedicated worker too, retaining bounded
+TRUNCATE and its backoff. Oversized WALs attempt TRUNCATE first to avoid competing
+with a newly enqueued PASSIVE. Below-limit idle PASSIVE admission deferred by a
+family guard retries on later activity or close; the WAL stays within its bound. The owning blocked-I/O suite additionally proves idle
+maintenance returns while PASSIVE is still stalled. The new head must re-run the
+real daemon walk; the failed head is not passing acceptance evidence.
+
+Greptile follow-up: traced-process/JSON/write-accounting failures are captured as
+diagnostic errors rather than aborting normal acceptance. Eight Python tests
+cover these exceptions and cleanup. The real SQLite test seeds committed WAL-only
+content and requires that content to reach the main database after the stalled
+checkpoint resumes, proving backfill rather than just a nil return.
+
+Passing acceptance evidence: run
+[41895071469](https://github.com/compozy/compozy/actions/runs/41895071469) on
+`a1421a738481853689797aeb6453133327058a4a`, artifacts `13356437933` (paired) and
+`13356255753` (daemon). All four head trials had zero operation errors and zero
+contention/checkpoint warnings, removed 43,169/43,169 eligible rows, and completed
+retention in 12.969/12.471/13.467/13.678 s. The minimum median paired ratio was
+0.984092 (transcript writes); regressions and invalid head trials were empty.
+The 830,020-row upgrade took 280.194 s and preserved the all-column SHA-256 above;
+reopen took 62.472 ms. The daemon exercise passed in 4m52s and the paired job in
+17m51s. These receipts cover that exact head, not later review-only tightening or
+main integration. The broader Verify run independently failed an existing model
+catalog parked-target synchronization case; it is not a passing CI receipt.
+
+CodeRabbit follow-up tightens per-trial sample completeness (a zero head count
+cannot be averaged away), compares head-only operations, isolates missing traced
+JSON fields, and exercises actual PASSIVE statement I/O errors. Ten Python tests
+own runner decisions. The lease/cold-open limitation remains explicit: physical
+opens serialize with checkpoint I/O, whose filesystem sync cannot be bounded by
+context cancellation. This repair preserves that identity-safety contract rather
+than restoring the deadline that repeatedly prevented backfill progress.
+
+Historical artifact analysis is not a passing run of the revised gate. Exact-head
+CI supplies that acceptance evidence; no local load, full Go/race suite or E2E was
+run for this investigation.
+
 ## Implemented changes
 
 - Interactive writers take precedence over queued background work. The bounded background queue
@@ -46,7 +166,8 @@ The exact historical owner cannot be recovered from this evidence.
   `query_only` pool. Transcript reads and preparation use a separate guarded session pool.
   Periodic session checkpoints use a dedicated guarded connection and joined worker, so filesystem
   sync cannot occupy the event writer queue or borrow its last idle connection. Idle truncation
-  retains its existing delay, size bound and family lease; checkpoint deadlines remain unchanged.
+  retains its existing delay, size bound and family lease. Checkpoint admission and TRUNCATE keep
+  their 200 ms budgets; recurring PASSIVE I/O uses the owned worker lifetime.
 - Transcript event assignment, fold reduction and JSON encoding run in a read snapshot. The short
   publication transaction validates projection state and the next sequence before committing the
   canonical ledger and projection together. Concurrent append/archive/clear/rewind invalidates

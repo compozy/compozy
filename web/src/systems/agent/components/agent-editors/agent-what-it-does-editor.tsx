@@ -15,6 +15,8 @@ export interface AgentEditorProps {
   /** An extension owns the definition. */
   readOnly: boolean;
   onAddToProject?: () => void;
+  /** Opens a local file in the operator's editor; absent where the shell can't. */
+  onOpenScript?: (path: string) => void;
 }
 
 function LoadedEditor({ payload, ...props }: AgentEditorProps & { payload: AgentSoulPayload }) {

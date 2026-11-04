@@ -261,6 +261,7 @@ type Manager struct {
 	devOperations        int
 	devOperationsDone    chan struct{}
 	viewCallGates        viewCallGateRegistry
+	forgeQuota           forgeQuota
 	skillResourceCacheMu sync.Mutex
 	skillResourceCache   map[string]skillResourceCacheEntry
 	skillResourceOwners  map[InstanceKey]skillResourceOwner

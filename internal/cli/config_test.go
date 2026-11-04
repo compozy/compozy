@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
@@ -409,6 +410,53 @@ func TestConfigSetShouldManageLoopLifecycleDefaults(t *testing.T) {
 					t.Fatalf("config get %s value = %q, want %q", value.path, got, value.value)
 				}
 			})
+		}
+	})
+}
+
+func TestConfigSetAgentOverrideIsOperatorOnly(t *testing.T) {
+	t.Parallel()
+	const path = "agents.overrides.orchestrator.permissions"
+
+	t.Run("Should persist an operator override for a bundled agent", func(t *testing.T) {
+		t.Parallel()
+		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+		if _, _, err := executeRootCommand(t, deps, "config", "set", path, "approve-all", "-o", "json"); err != nil {
+			t.Fatalf("config set %s error = %v", path, err)
+		}
+		getOut, _, err := executeRootCommand(t, deps, "config", "get", path, "-o", "json")
+		if err != nil {
+			t.Fatalf("config get %s error = %v", path, err)
+		}
+		var valueRecord configValueRecord
+		if err := json.Unmarshal([]byte(getOut), &valueRecord); err != nil {
+			t.Fatalf("json.Unmarshal(config get) error = %v", err)
+		}
+		if got := fmt.Sprint(valueRecord.Value); got != "approve-all" {
+			t.Fatalf("config get %s value = %q, want approve-all", path, got)
+		}
+	})
+
+	t.Run("Should refuse set and unset from an agent session", func(t *testing.T) {
+		t.Parallel()
+		for _, identity := range []struct{ key, value string }{
+			{key: agentidentity.EnvSessionID, value: "sess-agent"},
+			{key: agentidentity.EnvAgent, value: "orchestrator"},
+		} {
+			deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+			deps.getenv = func(key string) string {
+				if key == identity.key {
+					return identity.value
+				}
+				return ""
+			}
+			for _, args := range [][]string{{"set", path, "approve-all"}, {"unset", path}} {
+				_, _, err := executeRootCommand(t, deps, append([]string{"config"}, args...)...)
+				if err == nil || !strings.Contains(err.Error(), "agent_override_operator_only") {
+					t.Fatalf("config %s with %s error = %v, want agent_override_operator_only", args[0],
+						identity.key, err)
+				}
+			}
 		}
 	})
 }

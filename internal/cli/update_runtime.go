@@ -22,6 +22,8 @@ type cliUpdateRuntime struct {
 	deps               commandDeps
 	homePaths          compozyconfig.HomePaths
 	daemonBeforeUpdate compozydaemon.Info
+	// restartProgress receives replacement data-migration progress while RestartDaemon waits.
+	restartProgress func(contract.RestartProgress)
 }
 
 var _ compozyupdate.CoordinatorRuntime = (*cliUpdateRuntime)(nil)
@@ -78,7 +80,8 @@ func (r *cliUpdateRuntime) AcquireMutationLock(context.Context) (compozyupdate.M
 }
 
 // RestartDaemon observes the durable restart operation while the replacement API is unavailable.
-// The caller owns cancellation; elapsed polling windows do not establish boot failure.
+// The caller owns cancellation; elapsed polling windows do not establish boot failure, while a
+// replacement migration that stops advancing for the idle window does.
 func (r *cliUpdateRuntime) RestartDaemon(ctx context.Context) error {
 	_, running, err := daemonInfo(r.homePaths, r.deps)
 	if err != nil {
@@ -100,12 +103,14 @@ func (r *cliUpdateRuntime) RestartDaemon(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	progress := newRestartProgressWatch(r.deps, r.restartProgress)
 	for {
 		_, err = waitForSettingsRestart(
 			ctx,
 			r.deps,
 			localRestartStatusClient{homePaths: r.homePaths, remote: client},
 			action.OperationID,
+			progress,
 		)
 		if !errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 			return err
@@ -154,7 +159,21 @@ func (c localRestartStatusClient) GetSettingsRestartStatus(
 		StartedAt:          operation.StartedAt,
 		UpdatedAt:          operation.UpdatedAt,
 		CompletedAt:        operation.CompletedAt,
+		Progress:           restartProgressRecord(operation.Progress),
 	}, nil
+}
+
+func restartProgressRecord(progress *compozydaemon.RestartProgress) *contract.RestartProgress {
+	if progress == nil {
+		return nil
+	}
+	return &contract.RestartProgress{
+		Phase:     contract.RestartProgressPhase(progress.Phase),
+		Stage:     progress.Stage,
+		Completed: progress.Completed,
+		Total:     progress.Total,
+		UpdatedAt: progress.UpdatedAt,
+	}
 }
 
 func (r *cliUpdateRuntime) HealthCheck(ctx context.Context) error {

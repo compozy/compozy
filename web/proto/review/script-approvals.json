@@ -1,0 +1,319 @@
+{
+    "version": 3,
+    "key": "script-approvals",
+    "sequence": 4,
+    "review": {
+        "status": "in_review",
+        "updatedAt": null
+    },
+    "events": [],
+    "comments": [
+        {
+            "id": "script-approvals-1",
+            "slug": "script-approvals",
+            "status": "resolved",
+            "createdAt": "2026-11-04T16:56:49.316Z",
+            "updatedAt": "2026-11-04T17:08:50.802Z",
+            "resolvedAt": "2026-11-04T17:08:49.874Z",
+            "context": {
+                "commit": "c87c9f47fe27f82f6df7a48dc65af56e588d1f28",
+                "state": "row-callout-paused",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 2084,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "body > div > div:nth-of-type(1) > div > div:nth-of-type(1)",
+                "testId": null,
+                "tag": "div",
+                "text": "merge-candidates needs your approval to run Heartbeat runs it on this computer. You can approve it while the agent is p…",
+                "source": "src/drafts/script-approvals/sources-card.tsx:40:5",
+                "sourceChain": [
+                    "src/drafts/script-approvals/sources-card.tsx:40:5",
+                    "src/drafts/script-approvals/sources-card.tsx:82:43",
+                    "src/drafts/script-approvals/sources-card.tsx:127:9",
+                    "src/systems/agent/components/agent-editors/rich-controls.tsx:307:5",
+                    "src/drafts/script-approvals/sources-card.tsx:126:7",
+                    "src/drafts/script-approvals/sources-card.tsx:119:5",
+                    "src/drafts/script-approvals/index.proto.tsx:60:5"
+                ],
+                "rect": {
+                    "x": 44,
+                    "y": 124,
+                    "width": 680,
+                    "height": 149
+                },
+                "rectNormalized": {
+                    "x": 0.02111324376199616,
+                    "y": 0.10745233968804159,
+                    "width": 0.32629558541266795,
+                    "height": 0.1291161178509532
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "b35c550a-d3fb-487d-b89e-859903c3ede8",
+                    "at": "2026-11-04T16:56:49.385Z",
+                    "editedAt": null,
+                    "body": "warning bem ruim em termos de UI, cores e diagramação basica e ruim",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "7a74a3c7-d974-4802-899b-613b80c35ba6",
+                    "at": "2026-11-04T17:08:49.872Z",
+                    "editedAt": "2026-11-04T17:08:50.802Z",
+                    "body": "Refeito em sources-card.tsx (ApproveCallout): saiu o bloco laranja (Alert warning) e o hash mono. Agora é um Alert neutro usando os slots do próprio primitive: título 'Approve merge-candidates to let it run', uma frase só (pausado: 'Approve it now and it runs as soon as you resume Merge Train'), meta '42 lines · Changed 2h ago', e ações à direita: Open script (ghost) + Approve (primário). Sources virou seção própria ('Sources · 1 needs your approval'). Verificado em row-callout-* e shell-heartbeat-callout-* (dark/light), commit 7c4a341ce.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "107c99c0-c502-4352-b4e2-387a7a2c8975",
+                            "name": "row-callout-paused--dark--1440.png",
+                            "type": "image/png",
+                            "size": 42455,
+                            "width": 1440,
+                            "height": 900,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "script-approvals-2",
+            "slug": "script-approvals",
+            "status": "resolved",
+            "createdAt": "2026-11-04T16:57:14.697Z",
+            "updatedAt": "2026-11-04T17:08:52.417Z",
+            "resolvedAt": "2026-11-04T17:08:51.561Z",
+            "context": {
+                "commit": "c87c9f47fe27f82f6df7a48dc65af56e588d1f28",
+                "state": "bell-inline",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 2084,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section > div:nth-of-type(1)",
+                "testId": null,
+                "tag": "div",
+                "text": "merge-candidates 2h ago Merge Train — waiting for your approval 7f3a91c0 Review Approve",
+                "source": "src/drafts/script-approvals/bell-variations.tsx:82:5",
+                "sourceChain": [
+                    "src/drafts/script-approvals/bell-variations.tsx:82:5",
+                    "src/drafts/script-approvals/bell-variations.tsx:248:17",
+                    "src/drafts/script-approvals/bell-variations.tsx:200:5",
+                    "src/drafts/script-approvals/bell-variations.tsx:243:11",
+                    "src/drafts/script-approvals/bell-variations.tsx:222:7",
+                    "src/drafts/script-approvals/bell-variations.tsx:216:5",
+                    "src/drafts/script-approvals/bell-variations.tsx:273:11",
+                    "src/drafts/script-approvals/bell-variations.tsx:272:9"
+                ],
+                "rect": {
+                    "x": 1744,
+                    "y": 136,
+                    "width": 312,
+                    "height": 81
+                },
+                "rectNormalized": {
+                    "x": 0.836852207293666,
+                    "y": 0.11785095320623917,
+                    "width": 0.14971209213051823,
+                    "height": 0.07019064124783363
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "af4ab466-a9e7-4f79-b489-6e6b6f71ae43",
+                    "at": "2026-11-04T16:57:14.744Z",
+                    "editedAt": null,
+                    "body": "warning bem ruim em termos de UI, cores e diagramação basica e ruim, denso em informação, espaçametno, etc",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "da1f0c2d-7581-4e23-98bb-e9ad7d6144a9",
+                    "at": "2026-11-04T17:08:51.560Z",
+                    "editedAt": "2026-11-04T17:08:52.417Z",
+                    "body": "Refeito em bell-variations.tsx (InlineRow): a linha agora é o frame da linha de produção do bell (AttentionBellRow): marca, 2 linhas ('merge-candidates' / 'Merge Train — new script') e só um Approve no slot final. Saíram o hash, a tag Paused, o Review (clicar na linha abre o Heartbeat) e a terceira linha. Verificado em bell-inline e shell-bell-inline (dark/light), commit 7c4a341ce.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "57ece058-67af-4deb-8ff2-9fe199f03e6a",
+                            "name": "bell-inline--dark--1440.png",
+                            "type": "image/png",
+                            "size": 28686,
+                            "width": 1440,
+                            "height": 900,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "script-approvals-3",
+            "slug": "script-approvals",
+            "status": "resolved",
+            "createdAt": "2026-11-04T16:57:31.736Z",
+            "updatedAt": "2026-11-04T17:08:54.085Z",
+            "resolvedAt": "2026-11-04T17:08:53.221Z",
+            "context": {
+                "commit": "c87c9f47fe27f82f6df7a48dc65af56e588d1f28",
+                "state": "bell-peek",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 2084,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section > div:nth-of-type(1) > div",
+                "testId": null,
+                "tag": "div",
+                "text": "#!/usr/bin/env bash # Pull requests that are green and approved, oldest first. set -euo pipefail gh pr list --repo comp…",
+                "source": "src/drafts/script-approvals/bell-variations.tsx:140:9",
+                "sourceChain": [
+                    "src/drafts/script-approvals/bell-variations.tsx:140:9",
+                    "src/drafts/script-approvals/bell-variations.tsx:121:5",
+                    "src/drafts/script-approvals/bell-variations.tsx:246:17",
+                    "src/drafts/script-approvals/bell-variations.tsx:200:5",
+                    "src/drafts/script-approvals/bell-variations.tsx:243:11",
+                    "src/drafts/script-approvals/bell-variations.tsx:222:7",
+                    "src/drafts/script-approvals/bell-variations.tsx:216:5",
+                    "src/drafts/script-approvals/bell-variations.tsx:273:11"
+                ],
+                "rect": {
+                    "x": 1744,
+                    "y": 184,
+                    "width": 312,
+                    "height": 173.375
+                },
+                "rectNormalized": {
+                    "x": 0.836852207293666,
+                    "y": 0.15944540727902945,
+                    "width": 0.14971209213051823,
+                    "height": 0.15023830155979204
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "bded4f78-36a4-4665-9477-de668037f9c8",
+                    "at": "2026-11-04T16:57:31.791Z",
+                    "editedAt": null,
+                    "body": "pior ainda aqui",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "e917ac45-b148-4a68-a9ae-3886aa4b94ba",
+                    "at": "2026-11-04T17:08:53.220Z",
+                    "editedAt": "2026-11-04T17:08:54.085Z",
+                    "body": "Refeito em bell-variations.tsx (PeekRow): mesma linha de 2 linhas do bell. Expandida, mostra o script num CodeBlock do @compozy/ui (compact, quebra de linha, 5 linhas, sem estouro horizontal), depois uma linha só: '42 lines · changed 2h ago' + Open + Approve. Saíram o <pre> cortado, o hash e o texto micro. Verificado em bell-peek e shell-bell-peek (dark/light), commit 7c4a341ce.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "ad9ae5d0-c3e6-443b-9e65-dcf50cc5dc86",
+                            "name": "bell-peek--dark--1440.png",
+                            "type": "image/png",
+                            "size": 43890,
+                            "width": 1440,
+                            "height": 900,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "id": "script-approvals-4",
+            "slug": "script-approvals",
+            "status": "resolved",
+            "createdAt": "2026-11-04T16:58:30.718Z",
+            "updatedAt": "2026-11-04T17:08:55.630Z",
+            "resolvedAt": "2026-11-04T17:08:54.767Z",
+            "context": {
+                "commit": "c87c9f47fe27f82f6df7a48dc65af56e588d1f28",
+                "state": "shell-heartbeat-inline-paused",
+                "theme": "dark",
+                "role": null,
+                "viewport": {
+                    "width": 2084,
+                    "height": 1154
+                }
+            },
+            "target": {
+                "kind": "element",
+                "selector": "section:nth-of-type(3) > div:nth-of-type(3)",
+                "testId": null,
+                "tag": "div",
+                "text": "Sources New GitHub issues compozy/compozy Checked 12 min ago · 2 new merge-candidates Waiting for your approval · 7f3a9…",
+                "source": "src/drafts/script-approvals/shell-heartbeat.tsx:92:9",
+                "sourceChain": [
+                    "src/drafts/script-approvals/shell-heartbeat.tsx:92:9",
+                    "src/systems/agent/components/agent-editors/rich-controls.tsx:259:5",
+                    "src/drafts/script-approvals/shell-heartbeat.tsx:79:7",
+                    "src/systems/agent/components/agent-editors/rich-controls.tsx:307:5",
+                    "src/drafts/script-approvals/shell-heartbeat.tsx:51:5",
+                    "src/drafts/script-approvals/shell-heartbeat.tsx:186:11",
+                    "src/drafts/script-approvals/shell-heartbeat.tsx:185:9",
+                    "src/drafts/script-approvals/shell-heartbeat.tsx:173:7"
+                ],
+                "rect": {
+                    "x": 616.5,
+                    "y": 697,
+                    "width": 524,
+                    "height": 118
+                },
+                "rectNormalized": {
+                    "x": 0.2958253358925144,
+                    "y": 0.6039861351819757,
+                    "width": 0.2514395393474088,
+                    "height": 0.1022530329289428
+                },
+                "offset": null
+            },
+            "thread": [
+                {
+                    "id": "872e62a7-e7c3-438a-8d29-7d46701d8f3c",
+                    "at": "2026-11-04T16:58:30.777Z",
+                    "editedAt": null,
+                    "body": "nossa, quase nem consegui ver isso aqui, e a mesma coisa, UI bem básica e feita sem capricho",
+                    "author": "reviewer",
+                    "attachments": []
+                },
+                {
+                    "id": "ce5fc355-bb95-43b0-8e0e-e5c4a3cfbfe6",
+                    "at": "2026-11-04T17:08:54.765Z",
+                    "editedAt": "2026-11-04T17:08:55.630Z",
+                    "body": "Refeito em sources-card.tsx (WaitingScriptRow) e shell-heartbeat.tsx: Sources agora é seção própria ('Sources · 1 needs your approval') e fica acima de 'What it looks at', visível sem scroll. O script pendente sai do ritmo da lista: bloco em surface-2 com 'merge-candidates needs your approval', uma frase do que acontece ao aprovar, e Approve (primário) + Open script embaixo. Sem hash no default. Verificado em shell-heartbeat-inline-* e row-inline-* (dark/light), commit 7c4a341ce.",
+                    "author": "agent",
+                    "attachments": [
+                        {
+                            "id": "c759eb30-96b1-45b5-b9f4-109985e61dd0",
+                            "name": "shell-heartbeat-inline-paused--dark--1440.png",
+                            "type": "image/png",
+                            "size": 94179,
+                            "width": 1440,
+                            "height": 900,
+                            "uploaderKind": "agent"
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

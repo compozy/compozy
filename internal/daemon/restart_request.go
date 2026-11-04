@@ -45,6 +45,9 @@ func advanceRestartOperation(
 	next := current
 	next.Status = nextStatus
 	next.UpdatedAt = now
+	if next.terminal() {
+		next.Progress = nil
+	}
 
 	switch nextStatus {
 	case RestartStatusFailed:

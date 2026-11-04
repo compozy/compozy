@@ -8,6 +8,7 @@ CREATE TABLE tool_approval_grants (
 	decision     TEXT NOT NULL CHECK (decision IN ('allow', 'reject')),
 	created_at   TEXT NOT NULL,
 	last_used_at TEXT NOT NULL,
+	access_scope TEXT NOT NULL DEFAULT '',
 	UNIQUE (profile_id, workspace_id, agent_name, tool_id, input_digest)
 );
 

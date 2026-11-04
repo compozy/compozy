@@ -80,8 +80,7 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 	return resolved, nil
 }
 
-// ResolveAgent resolves a parsed agent definition against provider config and global defaults.
-func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
+func (c *Config) resolveAgentDefinition(agent AgentDef, applied agentOverrideFields) (ResolvedAgent, error) {
 	toolPolicyEnforced := len(agent.Tools) > 0 || len(agent.Toolsets) > 0
 	policy, dropped := toolspkg.DropRetiredToolReferences(toolspkg.ToolPolicy{
 		Tools: agent.Tools, Toolsets: agent.Toolsets, DenyTools: agent.DenyTools,
@@ -139,7 +138,9 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		Model:           modelSource,
 		ReasoningEffort: reasoningSource,
 		Speed:           speedSource,
+		Permissions:     permissionsSource(agent.Permissions),
 	}
+	applied.markOverrideSources(&resolved.RuntimeSources)
 	if err := applyProviderFullAccessPreference(&resolved, providerName, provider, permissions); err != nil {
 		return ResolvedAgent{}, err
 	}
@@ -189,6 +190,25 @@ func (c *Config) resolveAgentProvider(
 	return providerName, provider, providerSource, nil
 }
 
+// resolveAgentModel applies the model cascade: the definition, then [defaults].model for a
+// project-default provider, then the provider default.
+func resolveAgentModel(
+	provider ProviderConfig,
+	agent AgentDef,
+	session sessionRuntimeDefaults,
+) (string, RuntimeValueSource) {
+	if model := strings.TrimSpace(agent.Model); model != "" {
+		return model, RuntimeValueSourceAgent
+	}
+	if session.model != "" {
+		return session.model, RuntimeValueSourceProjectDefault
+	}
+	if model := strings.TrimSpace(provider.Models.Default); model != "" {
+		return model, RuntimeValueSourceProviderDefault
+	}
+	return "", RuntimeValueSourceUnspecified
+}
+
 // resolveAgentModelRuntime selects model and effort with source attribution,
 // omitting defaults that the chosen model does not advertise.
 func resolveAgentModelRuntime(
@@ -197,19 +217,7 @@ func resolveAgentModelRuntime(
 	agent AgentDef,
 	session sessionRuntimeDefaults,
 ) (string, string, RuntimeValueSource, RuntimeValueSource, error) {
-	model := strings.TrimSpace(agent.Model)
-	modelSource := RuntimeValueSourceAgent
-	if model == "" {
-		model = session.model
-		modelSource = RuntimeValueSourceProjectDefault
-	}
-	if model == "" {
-		model = strings.TrimSpace(provider.Models.Default)
-		modelSource = RuntimeValueSourceProviderDefault
-	}
-	if model == "" {
-		modelSource = RuntimeValueSourceUnspecified
-	}
+	model, modelSource := resolveAgentModel(provider, agent, session)
 	if model == "" && provider.RequiresRuntimeModel() {
 		return "", "", RuntimeValueSourceUnspecified, RuntimeValueSourceUnspecified,
 			runtimeModelRequiredError{provider: providerName}
@@ -430,22 +438,28 @@ func (c *Config) resolveSessionAgentRuntime(
 	agent AgentDef,
 	overrides RuntimeOverrides,
 ) (ResolvedAgent, error) {
+	agent, applied := c.applyAgentOverride(agent)
 	rawProviderOverride := strings.TrimSpace(overrides.Provider)
 	override := CanonicalProviderName(rawProviderOverride)
 	model := strings.TrimSpace(overrides.Model)
 	reasoningEffort := strings.TrimSpace(overrides.Reasoning)
 	if rawProviderOverride == "" && model == "" && reasoningEffort == "" {
-		return c.ResolveAgent(agent)
+		return c.resolveAgentDefinition(agent, applied)
 	}
 
 	effectiveProvider := CanonicalProviderName(agent.Provider)
 	if effectiveProvider == "" && c != nil {
 		effectiveProvider = CanonicalProviderName(c.Defaults.Provider)
 	}
+	// Selecting the model the agent already resolves to is not a model change, so its effort stays.
+	modelChanged := model != "" && model != c.EffectiveAgentModel(agent)
+	applied = applied.withoutSessionSelections(
+		rawProviderOverride != "" && override != effectiveProvider, model != "", modelChanged, reasoningEffort != "",
+	)
 	if rawProviderOverride == "" || override == effectiveProvider {
 		sessionAgent := agent
 		if model != "" {
-			if model != strings.TrimSpace(agent.Model) && reasoningEffort == "" {
+			if modelChanged && reasoningEffort == "" {
 				sessionAgent.ReasoningEffort = ""
 			}
 			sessionAgent.Model = model
@@ -453,7 +467,7 @@ func (c *Config) resolveSessionAgentRuntime(
 		if reasoningEffort != "" {
 			sessionAgent.ReasoningEffort = reasoningEffort
 		}
-		return c.ResolveAgent(sessionAgent)
+		return c.resolveAgentDefinition(sessionAgent, applied)
 	}
 
 	// A changed provider owns the complete provider-derived runtime. Clearing
@@ -472,7 +486,7 @@ func (c *Config) resolveSessionAgentRuntime(
 		sessionAgent.ReasoningEffort = reasoningEffort
 	}
 
-	resolved, err := c.ResolveAgent(sessionAgent)
+	resolved, err := c.resolveAgentDefinition(sessionAgent, applied)
 	if err != nil {
 		return ResolvedAgent{}, fmt.Errorf("resolve session agent with provider %q: %w", override, err)
 	}

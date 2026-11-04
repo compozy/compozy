@@ -7,6 +7,30 @@ import (
 	"time"
 )
 
+// AgentSpawnRequest is a daemon API value.
+type AgentSpawnRequest struct {
+	AgentName          string                        `json:"agent_name"`
+	Provider           string                        `json:"provider,omitempty"`
+	Model              string                        `json:"model,omitempty"`
+	ReasoningEffort    Effort                        `json:"reasoning_effort,omitempty"`
+	Speed              Speed                         `json:"speed,omitempty"`
+	ACPOptions         []AgentACPOptionSelection     `json:"acp_options,omitempty"`
+	Name               string                        `json:"name,omitempty"`
+	Workspace          string                        `json:"workspace,omitempty"`
+	PromptOverlay      string                        `json:"prompt_overlay,omitempty"`
+	SpawnRole          string                        `json:"spawn_role"`
+	TTLSeconds         int64                         `json:"ttl_seconds"`
+	AutoStopOnParent   bool                          `json:"auto_stop_on_parent"`
+	NotifyCreator      *bool                         `json:"notify_creator,omitzero"`
+	Permissions        SpawnPermissionRequestPayload `json:"permissions"`
+	InheritPermissions bool                          `json:"inherit_permissions,omitempty"`
+	Toolsets           []string                      `json:"toolsets,omitempty"`
+	Worktree           string                        `json:"worktree,omitempty"`
+	NewWorktree        *SpawnNewWorktreeRequest      `json:"new_worktree,omitzero"`
+	Prompt             string                        `json:"prompt,omitempty"`
+	IdempotencyKey     string                        `json:"idempotency_key,omitempty"`
+}
+
 // AgentSpawnResponse is a daemon API value.
 type AgentSpawnResponse struct {
 	Spawn AgentSpawnPayload `json:"spawn"`
@@ -424,21 +448,3 @@ type Briefing struct {
 
 // BriefingTone is a daemon API value.
 type BriefingTone string
-
-// Budget is a daemon API value.
-type Budget struct {
-	Tokens       int32          `json:"tokens"`
-	WallClockSec int32          `json:"wall_clock_sec"`
-	OnExceeded   BudgetExceeded `json:"on_exceeded,omitempty"`
-}
-
-// BudgetExceeded is a daemon API value.
-type BudgetExceeded string
-
-// BulkForceTaskRunItemPayload is a daemon API value.
-type BulkForceTaskRunItemPayload struct {
-	RunID string          `json:"run_id"`
-	OK    bool            `json:"ok"`
-	Run   *TaskRunPayload `json:"run,omitzero"`
-	Error *ErrorPayload   `json:"error,omitzero"`
-}

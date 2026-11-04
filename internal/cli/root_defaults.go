@@ -19,6 +19,7 @@ import (
 func (d commandDeps) withDefaults() commandDeps {
 	d = d.withRegistryDefaults()
 	d = d.withRuntimeDefaults()
+	d = d.withBootstrapDefaults()
 	d = d.withTimingDefaults()
 	return d
 }
@@ -154,6 +155,22 @@ func (d commandDeps) withDaemonRuntimeDefaults() commandDeps {
 	return d
 }
 
+func (d commandDeps) withBootstrapDefaults() commandDeps {
+	if d.inspectDaemonLock == nil {
+		d.inspectDaemonLock = compozydaemon.InspectLockOwner
+	}
+	if d.spawnBootstrapRuntime == nil {
+		d.spawnBootstrapRuntime = func(
+			ctx context.Context,
+			homePaths compozyconfig.HomePaths,
+			binaryPath string,
+		) (daemonProcess, error) {
+			return spawnDetachedDaemonProcess(ctx, homePaths, func() (string, error) { return binaryPath, nil })
+		}
+	}
+	return d
+}
+
 func (d commandDeps) withTimingDefaults() commandDeps {
 	if d.now == nil {
 		d.now = func() time.Time {
@@ -168,6 +185,9 @@ func (d commandDeps) withTimingDefaults() commandDeps {
 	}
 	if d.stopTimeout <= 0 {
 		d.stopTimeout = defaultStopTimeout
+	}
+	if d.bootstrapAttachTimeout <= 0 {
+		d.bootstrapAttachTimeout = bootstrapAttachReadyTimeout
 	}
 	return d
 }

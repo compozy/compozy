@@ -10,6 +10,25 @@ import (
 	"strings"
 )
 
+// CancelLoopRun Cancel one Loop run
+func (c *Client) CancelLoopRun(ctx context.Context, params CancelLoopRunParams, body map[string]any) (*LoopMutationResponse, error) {
+	path := "/api/workspaces/{workspace_id}/loop-runs/{run_id}/cancel"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out LoopMutationResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // CancelPendingToolApprovalParams carries the path, query, and header parameters.
 type CancelPendingToolApprovalParams struct {
 	ID      string  `url:"id"`
@@ -416,29 +435,4 @@ type ClearTaskBlockParams struct {
 	ID      string  `url:"id"`
 	BlockID string  `url:"block_id"`
 	Profile *string `url:"profile"`
-}
-
-// ClearTaskBlock Clear one typed task block
-func (c *Client) ClearTaskBlock(ctx context.Context, params ClearTaskBlockParams, body ClearTaskBlockRequest) (*TaskBlockResponse, error) {
-	path := "/api/tasks/{id}/blocks/{block_id}/clear"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	path = strings.ReplaceAll(path, "{block_id}", url.PathEscape(params.BlockID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskBlockResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CloseCmdPaletteViewSessionParams carries the path, query, and header parameters.
-type CloseCmdPaletteViewSessionParams struct {
-	Session             string `url:"session"`
-	XCompozyClientToken string `url:"X-Compozy-Client-Token"`
 }

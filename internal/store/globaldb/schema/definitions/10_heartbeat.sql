@@ -73,6 +73,7 @@ CREATE TABLE agent_heartbeat_wake_events (
 					'triage_output_invalid',
 					'triage_timeout',
 					'triage_interrupted',
+					'triage_config_unavailable',
 					'triage_failed'
 				)
 			),

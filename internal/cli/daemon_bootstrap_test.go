@@ -9,12 +9,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/testutil"
@@ -175,6 +177,7 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 		missingBundle  bool
 		restartError   bool
 		customSocket   bool
+		migration      string
 	}{
 		{
 			name:     "Should restart a stale desktop-owned runtime through the recovery owner",
@@ -199,6 +202,17 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 		{
 			name:   "Should retain recovery evidence without a raw stop when coordinated restart fails",
 			status: DaemonStatus{PID: 4242, Version: "0.3.0-beta.20"}, restartError: true,
+		},
+		{
+			name:      "Should keep waiting while a slow replacement migration advances",
+			status:    DaemonStatus{PID: 4242, Version: "0.3.0-beta.20"},
+			replaced:  true,
+			migration: "advancing",
+		},
+		{
+			name:      "Should fail and retain recovery evidence when the replacement migration stalls",
+			status:    DaemonStatus{PID: 4242, Version: "0.3.0-beta.20"},
+			migration: "stalled",
 		},
 		{
 			name:   "Should restart the configured local socket even with a remote connection selected",
@@ -234,7 +248,8 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 				writeFile(t, bundlePath, "replacement-runtime")
 			}
 			cmd := &cobra.Command{}
-			cmd.SetOut(&bytes.Buffer{})
+			var events bytes.Buffer
+			cmd.SetOut(&events)
 			cmd.Flags().StringP("output", "o", "jsonl", "")
 			cmd.SetContext(testutil.Context(t))
 			execution := bootstrapExecution{
@@ -278,10 +293,19 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 				}
 				return SettingsRestartActionRecord{OperationID: "bootstrap-restart"}, nil
 			}
+			statuses := bootstrapRestartStatuses(test.migration)
+			polls := 0
 			client.getSettingsRestartStatusFn = func(context.Context, string) (SettingsRestartStatusRecord, error) {
-				return SettingsRestartStatusRecord{OperationID: "bootstrap-restart", Status: "ready", NewPID: 4343}, nil
+				status := statuses[min(polls, len(statuses)-1)]
+				polls++
+				return status, nil
 			}
 			execution.deps.pollInterval = time.Millisecond
+			if test.migration == "stalled" {
+				// Idleness is measured on the observer clock, so the stall needs a moving one.
+				execution.deps.now = time.Now
+				execution.deps.restartMigrationIdleTimeout = 20 * time.Millisecond
+			}
 
 			// A started runtime that rejects the app asks for one re-resolution, never a second.
 			if restart := execution.restartRejectingDesktopRuntime(test.status, true); restart != test.bundleRequired {
@@ -291,7 +315,7 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 				)
 			}
 			replaced, err := execution.replaceOutdatedDesktopRuntime(test.status)
-			if test.missingBundle || test.restartError {
+			if test.missingBundle || test.restartError || test.migration == "stalled" {
 				if err == nil || replaced {
 					t.Fatalf("failed replacement = %t, %v", replaced, err)
 				}
@@ -306,7 +330,11 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 						)
 					}
 				} else {
-					assertErrorContains(t, err, "restart rejected")
+					if test.restartError {
+						assertErrorContains(t, err, "restart rejected")
+					} else {
+						assertErrorContains(t, err, "stopped progressing at 1024 of 2048 rows")
+					}
 					copies, globErr := filepath.Glob(filepath.Join(homePaths.BinDir, ".compozy-bootstrap-backup-*"))
 					if restarts != 1 || globErr != nil || len(copies) != 1 {
 						t.Fatalf(
@@ -334,6 +362,13 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 			}
 			if restarts != wantRestarts {
 				t.Fatalf("restart requests = %d, want %d", restarts, wantRestarts)
+			}
+			copies, err := filepath.Glob(filepath.Join(homePaths.BinDir, ".compozy-bootstrap-backup-*"))
+			if err != nil || len(copies) != 0 {
+				t.Fatalf("successful replacement left recovery copies %v, %v", copies, err)
+			}
+			if test.migration == "advancing" {
+				assertBootstrapMigrationEvents(t, events.String(), []int{0, 0, 50, 100})
 			}
 			if execution.restartRejectingDesktopRuntime(test.status, true) {
 				t.Fatal("restartRejectingDesktopRuntime() after replacement = true, want no second restart")
@@ -886,5 +921,335 @@ func TestBootstrapRuntimeVersionPolicy(t *testing.T) {
 				t.Fatalf("newer = %t, want %t", got, test.newer)
 			}
 		})
+	}
+}
+
+// bootstrapLockOwnerFixture drives bootstrap while another daemon process may own the singleton lock.
+type bootstrapLockOwnerFixture struct {
+	deps       commandDeps
+	homePaths  compozyconfig.HomePaths
+	ownerPID   int
+	ownerAlive bool
+	lockHeld   bool
+	// staleRecordedPID is reported by the classification inspection; later inspections up to
+	// staleInspections report a held lock with no recorded PID before the holder records ownerPID.
+	// 0 reports ownerPID from the start.
+	staleRecordedPID int
+	staleInspections int
+	inspections      int
+	// foreignReadyPID makes a daemon other than the lock holder answer healthy; 0 disables it.
+	foreignReadyPID int
+	// bootAfterProbes publishes the owner's daemon record after this many post-spawn probes; 0 never boots.
+	bootAfterProbes int
+	// recoverOnSpawn makes this spawn attempt (1-based) a healthy child; 0 never recovers.
+	recoverOnSpawn int
+	spawns         int
+	probes         int
+}
+
+func newBootstrapLockOwnerFixture(t *testing.T) *bootstrapLockOwnerFixture {
+	t.Helper()
+	fixture := &bootstrapLockOwnerFixture{ownerPID: 777, ownerAlive: true, lockHeld: true}
+	startedAt := time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
+	var socketPath string
+	statusFor := func(pid int) DaemonStatus {
+		return DaemonStatus{
+			Status: daemonRunningStatus, PID: pid, Version: "v1.2.0", StartedAt: startedAt,
+			Socket: socketPath, HTTPHost: "127.0.0.1", HTTPPort: 2123,
+		}
+	}
+	readyPID := func() int {
+		switch {
+		case fixture.recoverOnSpawn > 0 && fixture.spawns >= fixture.recoverOnSpawn:
+			return 42
+		case fixture.bootAfterProbes > 0 && fixture.probes >= fixture.bootAfterProbes:
+			return fixture.ownerPID
+		case fixture.foreignReadyPID > 0 && fixture.spawns > 0:
+			return fixture.foreignReadyPID
+		default:
+			return 0
+		}
+	}
+	client := &stubClient{daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+		if pid := readyPID(); pid > 0 {
+			return statusFor(pid), nil
+		}
+		return DaemonStatus{}, errors.New("injected: daemon socket is not listening yet")
+	}}
+	deps := newTestDeps(t, client)
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		t.Fatal(err)
+	}
+	socketPath = homePaths.DaemonSocket
+	writeFile(t, bootstrapRuntimePath(homePaths), "operator runtime")
+	deps.executable = os.Executable
+	deps.pollInterval = time.Millisecond
+	deps.startTimeout = time.Second
+	deps.inspectDaemonLock = func(path string) (compozydaemon.LockOwner, error) {
+		if path != homePaths.DaemonLock {
+			t.Fatalf("inspectDaemonLock(%q), want %q", path, homePaths.DaemonLock)
+		}
+		fixture.inspections++
+		if fixture.staleRecordedPID > 0 && fixture.inspections == 1 {
+			return compozydaemon.LockOwner{PID: fixture.staleRecordedPID, Held: fixture.lockHeld}, nil
+		}
+		if fixture.staleRecordedPID > 0 && fixture.inspections <= fixture.staleInspections {
+			return compozydaemon.LockOwner{Held: fixture.lockHeld}, nil
+		}
+		return compozydaemon.LockOwner{PID: fixture.ownerPID, Held: fixture.lockHeld}, nil
+	}
+	deps.processAlive = func(pid int) bool {
+		if pid == fixture.ownerPID {
+			return fixture.ownerAlive
+		}
+		if fixture.foreignReadyPID > 0 && pid == fixture.foreignReadyPID {
+			return true
+		}
+		if pid == fixture.staleRecordedPID {
+			// The stale PID is alive at classification, then exits while the holder keeps the lock.
+			return fixture.inspections <= 1
+		}
+		return pid == 42 && fixture.recoverOnSpawn > 0 && fixture.spawns >= fixture.recoverOnSpawn
+	}
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		if fixture.spawns > 0 {
+			fixture.probes++
+		}
+		if pid := readyPID(); pid > 0 {
+			return compozydaemon.Info{PID: pid, Port: 2123, StartedAt: startedAt}, nil
+		}
+		return compozydaemon.Info{}, os.ErrNotExist
+	}
+	deps.spawnBootstrapRuntime = func(context.Context, compozyconfig.HomePaths, string) (daemonProcess, error) {
+		fixture.spawns++
+		child := &timeoutDaemonProcess{done: make(chan struct{})}
+		if fixture.recoverOnSpawn == 0 || fixture.spawns < fixture.recoverOnSpawn {
+			child.complete(fmt.Errorf(
+				"exit status 1: stderr=error: daemon: already running with pid %d", fixture.ownerPID,
+			))
+		}
+		return child, nil
+	}
+	fixture.deps = deps
+	fixture.homePaths = homePaths
+	return fixture
+}
+
+func (f *bootstrapLockOwnerFixture) run(t *testing.T) ([]bootstrapEvent, error) {
+	t.Helper()
+	stdout, _, err := executeRootCommand(t, f.deps, "daemon", "bootstrap", "-o", "jsonl")
+	var events []bootstrapEvent
+	for line := range strings.SplitSeq(strings.TrimSpace(stdout), "\n") {
+		var event bootstrapEvent
+		if decodeErr := json.Unmarshal([]byte(line), &event); decodeErr != nil {
+			t.Fatalf("json.Unmarshal(%q) error = %v", line, decodeErr)
+		}
+		events = append(events, event)
+	}
+	return events, err
+}
+
+func countBootstrapEvents(events []bootstrapEvent, phase bootstrapPhase, status string) int {
+	count := 0
+	for _, event := range events {
+		if event.Phase == phase && event.Status == status {
+			count++
+		}
+	}
+	return count
+}
+
+// TestDaemonBootstrapLockOwner verifies bootstrap attaches to a live booting lock owner instead of
+// burning start attempts, while stale locks still recover through start.
+func TestDaemonBootstrapLockOwner(t *testing.T) {
+	t.Run("Should attach once a live booting lock owner becomes ready", func(t *testing.T) {
+		fixture := newBootstrapLockOwnerFixture(t)
+		fixture.bootAfterProbes = 3
+		// A different healthy daemon answers first; bootstrap must keep waiting for the holder.
+		fixture.foreignReadyPID = 888
+		newClient := fixture.deps.newClient
+		attachClients := 0
+		fixture.deps.newClient = func(target ClientTarget) (DaemonClient, error) {
+			if fixture.inspections > 1 {
+				attachClients++
+			}
+			return newClient(target)
+		}
+
+		events, err := fixture.run(t)
+		if err != nil {
+			t.Fatalf("bootstrap error = %v; events=%#v", err, events)
+		}
+		if fixture.spawns != 1 {
+			t.Fatalf("spawned children = %d, want one lock-contended start before attach", fixture.spawns)
+		}
+		if attachClients != 1 {
+			t.Fatalf("attach clients = %d, want one transport throughout readiness polling", attachClients)
+		}
+		if got := countBootstrapEvents(events, bootstrapPhaseStart, bootstrapStatusRetrying); got != 0 {
+			t.Fatalf("retrying events = %d, want none while a live owner boots; events=%#v", got, events)
+		}
+		if got := countBootstrapEvents(events, bootstrapPhaseAttach, bootstrapStatusStarted); got != 1 {
+			t.Fatalf("attach started events = %d, want 1; events=%#v", got, events)
+		}
+		ready := events[len(events)-1]
+		if ready.Phase != bootstrapPhaseReady || ready.Resolution != bootstrapResolutionAttach ||
+			ready.Message != "Attached to the running CompozyOS runtime." ||
+			ready.Daemon == nil || ready.Daemon.PID != fixture.ownerPID || ready.Daemon.Owned {
+			t.Fatalf("final event = %#v, want attach to lock owner pid %d", ready, fixture.ownerPID)
+		}
+	})
+
+	t.Run("Should keep waiting for an unrecorded lock holder after a stale recorded pid exits", func(t *testing.T) {
+		fixture := newBootstrapLockOwnerFixture(t)
+		fixture.staleRecordedPID = 666
+		fixture.staleInspections = 3
+		fixture.bootAfterProbes = 4
+
+		events, err := fixture.run(t)
+		if err != nil {
+			t.Fatalf("bootstrap error = %v; events=%#v", err, events)
+		}
+		if fixture.spawns != 1 {
+			t.Fatalf("spawned children = %d, want one lock-contended start before attach", fixture.spawns)
+		}
+		if got := countBootstrapEvents(events, bootstrapPhaseStart, bootstrapStatusRetrying); got != 0 {
+			t.Fatalf("retrying events = %d, want none while a live owner boots; events=%#v", got, events)
+		}
+		ready := events[len(events)-1]
+		if ready.Phase != bootstrapPhaseReady || ready.Resolution != bootstrapResolutionAttach ||
+			ready.Daemon == nil || ready.Daemon.PID != fixture.ownerPID {
+			t.Fatalf("final event = %#v, want attach to the re-inspected holder pid %d", ready, fixture.ownerPID)
+		}
+	})
+
+	t.Run("Should recover a stale lock whose recorded pid was recycled through the start path", func(t *testing.T) {
+		fixture := newBootstrapLockOwnerFixture(t)
+		fixture.lockHeld = false
+		fixture.recoverOnSpawn = 2
+
+		events, err := fixture.run(t)
+		if err != nil {
+			t.Fatalf("bootstrap error = %v; events=%#v", err, events)
+		}
+		if got := countBootstrapEvents(events, bootstrapPhaseAttach, bootstrapStatusStarted); got != 0 {
+			t.Fatalf("attach started events = %d, want none for a free lock; events=%#v", got, events)
+		}
+		if got := countBootstrapEvents(events, bootstrapPhaseStart, bootstrapStatusRetrying); got != 1 {
+			t.Fatalf("retrying events = %d, want 1 failed launch before recovery; events=%#v", got, events)
+		}
+		ready := events[len(events)-1]
+		if ready.Phase != bootstrapPhaseReady || ready.Resolution != bootstrapResolutionStart ||
+			ready.Daemon == nil || ready.Daemon.PID != 42 {
+			t.Fatalf("final event = %#v, want started child pid 42", ready)
+		}
+	})
+
+	t.Run("Should cancel an in-flight status probe and reject readiness after the attach deadline", func(t *testing.T) {
+		fixture := newBootstrapLockOwnerFixture(t)
+		fixture.bootAfterProbes = 3
+		fixture.deps.bootstrapAttachTimeout = 20 * time.Millisecond
+		newClient := fixture.deps.newClient
+		deadlineObserved := false
+		fixture.deps.newClient = func(target ClientTarget) (DaemonClient, error) {
+			client, err := newClient(target)
+			if err != nil {
+				return nil, err
+			}
+			return &stubClient{daemonStatusFn: func(ctx context.Context) (DaemonStatus, error) {
+				status, err := client.DaemonStatus(ctx)
+				if err != nil || status.PID != fixture.ownerPID {
+					return status, err
+				}
+				if _, ok := ctx.Deadline(); !ok {
+					t.Error("attach status request has no deadline")
+					return status, nil
+				}
+				<-ctx.Done()
+				deadlineObserved = true
+				return status, nil
+			}}, nil
+		}
+
+		events, err := fixture.run(t)
+		assertErrorContains(t, err, "the running CompozyOS daemon pid=777 did not become ready")
+		if !deadlineObserved || !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf(
+				"deadline observed = %t, error = %v; want cancellation during status request",
+				deadlineObserved, err,
+			)
+		}
+		failed := events[len(events)-1]
+		if failed.Phase != bootstrapPhaseAttach || failed.Status != bootstrapStatusFailed {
+			t.Fatalf("final event = %#v, want attach failure instead of late readiness", failed)
+		}
+	})
+
+	t.Run("Should fail naming the lock owner while another daemon answers healthy", func(t *testing.T) {
+		fixture := newBootstrapLockOwnerFixture(t)
+		fixture.foreignReadyPID = 888
+		fixture.deps.bootstrapAttachTimeout = 20 * time.Millisecond
+
+		events, err := fixture.run(t)
+		assertErrorContains(t, err, "the running CompozyOS daemon pid=777 did not become ready")
+		if fixture.spawns != 1 {
+			t.Fatalf("spawned children = %d, want 1", fixture.spawns)
+		}
+		failed := events[len(events)-1]
+		if failed.Phase != bootstrapPhaseAttach || failed.Status != bootstrapStatusFailed ||
+			failed.Classification != bootstrapProbeUnavailable ||
+			strings.Contains(failed.Message, "detached daemon exited before readiness") {
+			t.Fatalf("failure event = %#v, want attach failure naming the running daemon", failed)
+		}
+	})
+}
+
+// bootstrapRestartStatuses scripts the restart journal a replacement publishes while it migrates data.
+func bootstrapRestartStatuses(migration string) []SettingsRestartStatusRecord {
+	migratingOf := func(completed, total int64) SettingsRestartStatusRecord {
+		return SettingsRestartStatusRecord{
+			OperationID: "bootstrap-restart",
+			Status:      contract.RestartOperationStarting,
+			Progress: &contract.RestartProgress{
+				Phase: contract.RestartProgressMigrating, Stage: "telemetry_relocation",
+				Completed: completed, Total: total,
+			},
+		}
+	}
+	migrating := func(completed int64) SettingsRestartStatusRecord { return migratingOf(completed, 2048) }
+	ready := SettingsRestartStatusRecord{OperationID: "bootstrap-restart", Status: "ready", NewPID: 4343}
+	switch migration {
+	case "advancing":
+		statuses := []SettingsRestartStatusRecord{migratingOf(0, 0)}
+		for completed := range int64(20) {
+			statuses = append(statuses, migrating(completed/10*1024))
+		}
+		return append(statuses, migrating(2048), ready)
+	case "stalled":
+		return []SettingsRestartStatusRecord{migrating(1024)}
+	default:
+		return []SettingsRestartStatusRecord{ready}
+	}
+}
+
+func assertBootstrapMigrationEvents(t *testing.T, output string, wantPercents []int) {
+	t.Helper()
+	var percents []int
+	for line := range strings.Lines(output) {
+		var event bootstrapEvent
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatalf("bootstrap event %q: %v", line, err)
+		}
+		if event.Stage != bootstrapStageMigrate {
+			continue
+		}
+		if event.Phase != bootstrapPhaseProvision || event.Status != bootstrapStatusStarted || event.Percent == nil {
+			t.Fatalf("migration event = %#v, want a started provision event with a percentage", event)
+		}
+		percents = append(percents, *event.Percent)
+	}
+	if !slices.Equal(percents, wantPercents) {
+		t.Fatalf("migration progress events = %v, want %v", percents, wantPercents)
 	}
 }

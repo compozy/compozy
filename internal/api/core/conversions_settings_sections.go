@@ -358,6 +358,20 @@ func SettingsRestartActionStatusFromOperation(operation SettingsRestartOperation
 		StartedAt:          operation.StartedAt,
 		UpdatedAt:          operation.UpdatedAt,
 		CompletedAt:        cloneTimePointer(operation.CompletedAt),
+		Progress:           settingsRestartProgressPayload(operation.Progress),
+	}
+}
+
+func settingsRestartProgressPayload(progress *SettingsRestartProgress) *contract.RestartProgress {
+	if progress == nil {
+		return nil
+	}
+	return &contract.RestartProgress{
+		Phase:     contract.RestartProgressPhase(strings.TrimSpace(progress.Phase)),
+		Stage:     strings.TrimSpace(progress.Stage),
+		Completed: progress.Completed,
+		Total:     progress.Total,
+		UpdatedAt: progress.UpdatedAt,
 	}
 }
 

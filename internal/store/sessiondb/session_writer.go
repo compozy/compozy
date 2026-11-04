@@ -92,10 +92,11 @@ func (s *SessionDB) passiveCheckpointLoop() {
 			if err := s.passiveCheckpoint(s.writerCtx); err != nil && s.writerCtx.Err() == nil {
 				if errors.Is(err, errSessionCheckpointDeferred) {
 					slog.Default().
-						DebugContext(s.writerCtx, "store: passive session wal checkpoint deferred by a family guard")
+						DebugContext(s.writerCtx, "store: passive session wal checkpoint deferred")
 					continue
 				}
-				slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed", "error", err)
+				slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed",
+					"session_id", s.owner.SessionID, "error", err)
 			}
 		}
 	}
@@ -179,25 +180,24 @@ func sessionWriteCheckpointWeight(req sessionWriteRequest, result sessionWriteRe
 }
 
 func (s *SessionDB) passiveCheckpoint(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, sessionWALCheckpointWait)
+	admissionCtx, cancel := context.WithTimeout(ctx, sessionWALCheckpointWait)
 	defer cancel()
-	return s.checkpointWithLease(ctx, store.CheckpointPassiveConnection)
+	return s.checkpointWithLease(admissionCtx, func(_ context.Context, connection *sql.Conn) error {
+		// Dedicated maintenance must finish I/O to advance the WAL backfill pointer.
+		return store.CheckpointPassiveConnection(ctx, connection)
+	})
 }
 
-// checkpointWAL backfills the WAL and truncates it once it outgrows the live-session bound. The
+// checkpointWAL schedules backfill and truncates once the WAL outgrows the live-session bound. The
 // writer calls it only when idle. It reports whether the WAL is still oversized because readers
 // outlasted the bounded wait.
 func (s *SessionDB) checkpointWAL() bool {
-	if err := s.passiveCheckpoint(s.writerCtx); err != nil {
-		if errors.Is(err, errSessionCheckpointDeferred) {
-			slog.Default().DebugContext(s.writerCtx, "store: passive session wal checkpoint deferred by a family guard")
-			return true
-		}
-		slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed", "error", err)
-		return false
-	}
 	info, err := os.Stat(s.path + "-wal")
 	if err != nil || info.Size() < s.walTruncateLimit() {
+		select {
+		case s.checkpointWake <- struct{}{}:
+		default:
+		}
 		return false
 	}
 	ctx, cancel := context.WithTimeout(s.writerCtx, sessionWALCheckpointWait)
@@ -207,6 +207,10 @@ func (s *SessionDB) checkpointWAL() bool {
 	case err == nil:
 		return false
 	case errors.Is(err, context.DeadlineExceeded):
+		select {
+		case s.checkpointWake <- struct{}{}:
+		default:
+		}
 		slog.Default().DebugContext(s.writerCtx, "store: session wal truncation deferred by readers",
 			"wal_bytes", info.Size())
 		return true
@@ -259,5 +263,9 @@ func (s *SessionDB) checkpointWithLease(
 		return err
 	}
 	defer lease.Release()
-	return checkpoint(ctx, connection)
+	err = checkpoint(ctx, connection)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return errors.Join(errSessionCheckpointDeferred, err)
+	}
+	return err
 }

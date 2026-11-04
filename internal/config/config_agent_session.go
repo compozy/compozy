@@ -10,6 +10,9 @@ type AgentsConfig struct {
 	AlwaysOn  AlwaysOnConfig  `toml:"always_on"`
 	Soul      SoulConfig      `toml:"soul"`
 	Heartbeat HeartbeatConfig `toml:"heartbeat"`
+	// Overrides replaces selected runtime fields of an effective agent definition by name
+	// without forking its prompt. Operator-authored config only; see agent_overrides.go.
+	Overrides map[string]AgentOverride `toml:"overrides,omitempty"`
 }
 
 // SoulConfig controls optional SOUL.md parsing and projection limits.
@@ -149,6 +152,10 @@ const (
 	// DefaultObservabilityAgentProbeTimeout bounds daemon health probes for configured agents.
 	DefaultObservabilityAgentProbeTimeout = 2 * time.Second
 )
+
+// AlwaysOnDefaultPermissionMode is the level an always-on instance session runs at when neither
+// its definition nor an operator override sets one.
+const AlwaysOnDefaultPermissionMode = PermissionModeApproveEdits
 
 // PermissionsConfig defines the global default permission policy.
 type PermissionsConfig struct {

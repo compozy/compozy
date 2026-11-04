@@ -44,3 +44,20 @@ bundle install leaves the live daemon untouched; failure to request coordinated 
 falls back to user-stop signaling. Existing opt-out, pending-interaction and binding-change gates
 remain in force. E2E-016 owns the app/daemon handoff; session/daemon suites own recovery safety.
 Evidence and execution limits: [continuity report](../reports/2026-10-27-update-session-continuity.md).
+
+2026-11-04 large-telemetry upgrade (#1251): upgrade a v0.5.0 home whose global database still
+holds a large `event_summary_export` (fixture of at least 1 GB, or a copy of a real long-running
+install) through the desktop app's bundled-runtime replacement. While the replacement daemon
+relocates telemetry, the boot window shows "Preparing CompozyOS" with "Upgrading data…" and an
+advancing percentage instead of "CompozyOS could not start"; `desktop-bootstrap.jsonl` records
+`provision` events with `stage: "migrate"` and rising `pct`, and
+`~/.compozy/restarts/<operation>.json` carries `progress.phase: "migrating"` with an advancing
+`completed` count. The upgrade ends in the product window with no wall-clock failure, and no
+`~/.compozy/bin/.compozy-bootstrap-backup-*` copy remains. A relocation that stops advancing for
+the idle window (5 minutes) fails with "daemon data upgrade … stopped progressing" and retains the
+recovery copy; a relocation that exits fails as before. Telemetry rows and the event cursor match
+the pre-upgrade database (lossless, resumable after interruption at any batch). Owning suites:
+`TestGlobalDBTelemetryRelocation`, `TestRestartMigrationProgress`,
+`TestDesktopRuntimeBootstrapReplacement`, desktop `bootstrap-state`/`bootstrap-event`. Lab
+evidence (300k rows, ~700 MB, replacement boot with a restart journal): progress advanced every
+~1s from 0 to 300000 rows over ~28s, then the journal turned `ready` with progress cleared.

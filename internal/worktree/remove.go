@@ -410,6 +410,11 @@ func (s *Service) finishRemoval(
 		return fmt.Errorf("worktree: tombstone removal: %w", err)
 	}
 	item.State = StateRemoved
+	if s.pullRequests != nil {
+		if key, err := s.displayPullRequestKey(ctx, item); err == nil {
+			s.pullRequests.ForgetAutomatic(key)
+		}
+	}
 	s.invalidateDiscovery(item.WorkspaceID)
 	s.emit(ctx, EventRemoved, item)
 	return nil

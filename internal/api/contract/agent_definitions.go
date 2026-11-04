@@ -71,6 +71,11 @@ const (
 	AgentRuntimeValueSourceProjectDefault  AgentRuntimeValueSource = "project_default"
 	AgentRuntimeValueSourceProviderDefault AgentRuntimeValueSource = "provider_default"
 	AgentRuntimeValueSourceModelDefault    AgentRuntimeValueSource = "model_default"
+	// AgentRuntimeValueSourceConfigOverride is an operator [agents.overrides.<name>] value.
+	AgentRuntimeValueSourceConfigOverride AgentRuntimeValueSource = "config_override"
+	// AgentRuntimeValueSourceAlwaysOnDefault is the level an always-on instance runs at when
+	// nothing sets one.
+	AgentRuntimeValueSourceAlwaysOnDefault AgentRuntimeValueSource = "always_on_default"
 )
 
 // AgentEffectiveRuntimeSources reports provenance for effective agent runtime values.
@@ -79,6 +84,7 @@ type AgentEffectiveRuntimeSources struct {
 	Model           AgentRuntimeValueSource `json:"model,omitempty"`
 	ReasoningEffort AgentRuntimeValueSource `json:"reasoning_effort,omitempty"`
 	Speed           AgentRuntimeValueSource `json:"speed,omitempty"`
+	Permissions     AgentRuntimeValueSource `json:"permissions,omitempty"`
 }
 
 // AgentEffectiveRuntimePayload is the workspace-scoped runtime projection for
@@ -91,7 +97,12 @@ type AgentEffectiveRuntimePayload struct {
 	ReasoningEffort  ReasoningEffort                           `json:"reasoning_effort,omitempty"`
 	Speed            Speed                                     `json:"speed,omitempty"`
 	ACPOptions       []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
-	Sources          AgentEffectiveRuntimeSources              `json:"sources"`
+	// Permissions is the level a new session of the definition starts at: the operator override,
+	// then the authored level, then [permissions].mode. An always-on definition with neither
+	// reports the level its main instance session runs at (source always_on_default); its
+	// non-instance sessions still fall back to [permissions].mode.
+	Permissions string                       `json:"permissions,omitempty"`
+	Sources     AgentEffectiveRuntimeSources `json:"sources"`
 }
 
 // AgentDefinitionShadowPayload reports one lower-precedence authored definition.

@@ -286,6 +286,17 @@ type RestartActionStatus struct {
 	StartedAt          time.Time              `json:"started_at"`
 	UpdatedAt          time.Time              `json:"updated_at"`
 	CompletedAt        *time.Time             `json:"completed_at,omitempty"`
+	// Progress is present while the replacement daemon upgrades persisted data before readiness.
+	Progress *RestartProgress `json:"progress,omitempty"`
+}
+
+// RestartProgress reports a replacement daemon's data migration; observers keep waiting while it advances.
+type RestartProgress struct {
+	Phase     RestartProgressPhase `json:"phase"`
+	Stage     string               `json:"stage"`
+	Completed int64                `json:"completed"`
+	Total     int64                `json:"total"`
+	UpdatedAt time.Time            `json:"updated_at"`
 }
 
 type SettingsUpdateApplyRequest struct {

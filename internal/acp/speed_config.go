@@ -66,7 +66,7 @@ func (d *Driver) applySessionSpeed(
 		return false, err
 	}
 
-	options, revision := process.configOptionsSnapshot()
+	options, _ := process.configOptionsSnapshot()
 	match, reason := matchSpeedConfig(parsed, options)
 	if match == nil {
 		process.setSpeedResolution(&speedpkg.Resolution{
@@ -100,6 +100,7 @@ func (d *Driver) applySessionSpeed(
 		})
 		return true, rejectedSpeedNegotiation(parsed, match.option.ID, err)
 	}
+	revision := process.configRevisionAfterResponse()
 	options = process.setConfigOptionsResponse(sessionConfigOptionsFromSDK(response.ConfigOptions), revision)
 	if !match.confirmed(options) {
 		process.setSpeedResolution(&speedpkg.Resolution{
@@ -110,7 +111,7 @@ func (d *Driver) applySessionSpeed(
 		return true, rejectedSpeedNegotiation(
 			parsed,
 			match.option.ID,
-			fmt.Errorf("provider response did not confirm the requested speed"),
+			fmt.Errorf("provider response did not confirm the requested speed: %w", errConfigOptionUnconfirmed),
 		)
 	}
 	process.setSpeedResolution(&speedpkg.Resolution{
