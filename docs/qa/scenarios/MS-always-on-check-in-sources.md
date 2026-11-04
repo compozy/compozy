@@ -164,3 +164,10 @@ CI fixture alignment 2026-11-04: IT-011 verifies the documented post-poll policy
 null-cursor assertions. The catalog E2E creates an explicit always-on agent and writes its source
 script beside the profile-owned definition created by the CLI, rather than the old shared agent
 folder. The real browser/runtime E2E remains CI-only under the shared-host restriction.
+
+## Release follow-up: folded proposal details
+
+Return more source proposals than the report limit, with a distinct failure detail only in
+an overflow body. The delivered report retains that detail and the source item keys, sharing
+the 500-rune folded body budget across proposals even when the first body fills the limit.
+Focused regression: `TestSourceDigestGateAndFolding/Should_deliver_overflow_body_details`.

@@ -4,7 +4,6 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -165,30 +164,37 @@ func triageProposalSources(digest CheckDigest, keys []string) []AutomationEventS
 }
 func foldSourceProposals(proposals []TriageProposal, limit int, digest CheckDigest) []TriageProposal {
 	last := &proposals[limit-1]
-	titles := []string{}
 	for _, p := range proposals[limit:] {
 		last.ItemKeys = append(last.ItemKeys, p.ItemKeys...)
-		titles = append(titles, p.Title)
 	}
 	slices.Sort(last.ItemKeys)
 	last.ItemKeys = slices.Compact(last.ItemKeys)
-	body := last.Body
-	for i, title := range titles {
-		candidate := body + "\n" + title
-		suffix := ""
-		if left := len(titles) - i - 1; left > 0 {
-			suffix = fmt.Sprintf(" …and %d more", left)
+	// Share the text budget so a full first body cannot hide later findings.
+	folded := proposals[limit-1:]
+	sections := make([]string, len(folded))
+	budget := TriageBodyMaxRunes
+	for i, p := range folded {
+		allowance := budget / (len(folded) - i)
+		prefix := ""
+		if i > 0 {
+			prefix = "\n" + boundedTriageText(p.Title, allowance/3) + ": "
 		}
-		if utf8.RuneCountInString(candidate+suffix) > TriageBodyMaxRunes {
-			suffix = fmt.Sprintf(" …and %d more", len(titles)-i)
-			runes := []rune(body)
-			last.Body = string(runes[:min(len(runes), TriageBodyMaxRunes-utf8.RuneCountInString(suffix))]) + suffix
-			last.Sources = triageProposalSources(digest, last.ItemKeys)
-			return proposals[:limit]
-		}
-		body = candidate
+		bodyBudget := max(0, allowance-utf8.RuneCountInString(prefix))
+		sections[i] = boundedTriageText(prefix+boundedTriageText(p.Body, bodyBudget), allowance)
+		budget -= utf8.RuneCountInString(sections[i])
 	}
-	last.Body = body
+	last.Body = strings.Join(sections, "")
 	last.Sources = triageProposalSources(digest, last.ItemKeys)
 	return proposals[:limit]
+}
+
+func boundedTriageText(text string, budget int) string {
+	runes := []rune(text)
+	if len(runes) <= budget {
+		return text
+	}
+	if budget == 0 {
+		return ""
+	}
+	return string(runes[:budget-1]) + "…"
 }

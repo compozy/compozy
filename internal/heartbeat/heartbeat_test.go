@@ -1660,15 +1660,44 @@ func TestSourceDigestGateAndFolding(t *testing.T) {
 				t.Fatalf("items=%+v", items)
 			}
 			digest := CheckDigest{Items: items}
-			reply := `{"proposals":[{"title":"one","body":"one","item_keys":["source:s:1"]},{"title":"two","body":"two","item_keys":["source:s::more"]},{"title":"three","body":"three","item_keys":["source:s:1"]}]}`
+			reply := `{"proposals":[{"title":"one","body":"one","item_keys":["source:s:1"]},{"title":"two","body":"two","item_keys":["source:s::more"]},{"title":"three","body":"third failure detail","item_keys":["source:s:1"]}]}`
 			proposals, err := ParseTriageReply(reply, digest, 2)
 			if err != nil || len(proposals) != 2 || len(proposals[1].ItemKeys) != 2 ||
-				!strings.Contains(proposals[1].Body, "three") ||
+				!strings.Contains(proposals[1].Body, "three: third failure detail") ||
 				len(proposals[0].Sources) != 1 {
 				t.Fatalf("proposals=%+v err=%v", proposals, err)
 			}
 		},
 	)
+	t.Run("Should deliver overflow body details within the shared rune budget", func(t *testing.T) {
+		t.Parallel()
+		digest := CheckDigest{Items: []DigestItem{
+			{Key: "source:s:1", Source: &AutomationEventSource{Kind: itemSourceKind, SourceID: "s", ItemKey: "1"}},
+			{Key: "source:s:2", Source: &AutomationEventSource{Kind: itemSourceKind, SourceID: "s", ItemKey: "2"}},
+		}}
+		reply := `{"proposals":[{"title":"First","body":"` + strings.Repeat("界", 500) +
+			`","item_keys":["source:s:1"]},{"title":"Database","body":"Production database failed ` +
+			strings.Repeat("界", 450) + `","item_keys":["source:s:2"]}]}`
+		outcome := TriageReplyOutcome(reply, digest, 1)
+		if outcome.Report == nil {
+			t.Fatalf("outcome = %+v", outcome)
+		}
+		var payload struct {
+			Proposals []TriageProposal `json:"proposals"`
+		}
+		if err := json.Unmarshal(outcome.Report.Payload, &payload); err != nil {
+			t.Fatal(err)
+		}
+		if len(payload.Proposals) != 1 {
+			t.Fatalf("proposals = %+v", payload.Proposals)
+		}
+		proposal := payload.Proposals[0]
+		if !strings.Contains(proposal.Body, "Database: Production database failed") ||
+			utf8.RuneCountInString(proposal.Body) > TriageBodyMaxRunes || len(proposal.ItemKeys) != 2 ||
+			len(proposal.Sources) != 2 {
+			t.Fatalf("folded proposal = %+v", proposal)
+		}
+	})
 }
 
 func TestSourceCadence(t *testing.T) {
