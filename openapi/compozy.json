@@ -22080,6 +22080,19 @@
           "operation_id": {
             "type": "string"
           },
+          "progress": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/RestartProgress"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "started_at": {
             "format": "date-time",
             "type": "string"
@@ -22108,6 +22121,39 @@
           "operation_id",
           "started_at",
           "status",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "RestartProgress": {
+        "properties": {
+          "completed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "phase": {
+            "enum": [
+              "migrating"
+            ],
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "completed",
+          "phase",
+          "stage",
+          "total",
           "updated_at"
         ],
         "type": "object"

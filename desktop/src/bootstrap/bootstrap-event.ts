@@ -20,6 +20,9 @@ export interface BootstrapEvent {
   readonly resolution?: BootstrapResolution;
   readonly attempt?: number;
   readonly backoff_ms?: number;
+  /** Refines the phase; "migrate" means the replacement runtime is upgrading persisted data. */
+  readonly stage?: "migrate";
+  readonly pct?: number;
   readonly compatibility?: {
     readonly reason: "runtime_below_minimum" | "app_below_minimum";
     readonly runtime: string;
@@ -107,6 +110,16 @@ export function parseBootstrapEvent(line: string): BootstrapEvent | null {
     (typeof record.backoff_ms !== "number" ||
       !Number.isSafeInteger(record.backoff_ms) ||
       record.backoff_ms < 0)
+  ) {
+    return null;
+  }
+  if (record.stage !== undefined && record.stage !== "migrate") return null;
+  if (
+    record.pct !== undefined &&
+    (typeof record.pct !== "number" ||
+      !Number.isSafeInteger(record.pct) ||
+      record.pct < 0 ||
+      record.pct > 100)
   ) {
     return null;
   }

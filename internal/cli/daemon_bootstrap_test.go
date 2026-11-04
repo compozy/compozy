@@ -9,12 +9,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	"github.com/compozy/compozy/internal/testutil"
@@ -175,6 +177,7 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 		missingBundle  bool
 		restartError   bool
 		customSocket   bool
+		migration      string
 	}{
 		{
 			name:     "Should restart a stale desktop-owned runtime through the recovery owner",
@@ -199,6 +202,17 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 		{
 			name:   "Should retain recovery evidence without a raw stop when coordinated restart fails",
 			status: DaemonStatus{PID: 4242, Version: "0.3.0-beta.20"}, restartError: true,
+		},
+		{
+			name:      "Should keep waiting while a slow replacement migration advances",
+			status:    DaemonStatus{PID: 4242, Version: "0.3.0-beta.20"},
+			replaced:  true,
+			migration: "advancing",
+		},
+		{
+			name:      "Should fail and retain recovery evidence when the replacement migration stalls",
+			status:    DaemonStatus{PID: 4242, Version: "0.3.0-beta.20"},
+			migration: "stalled",
 		},
 		{
 			name:   "Should restart the configured local socket even with a remote connection selected",
@@ -234,7 +248,8 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 				writeFile(t, bundlePath, "replacement-runtime")
 			}
 			cmd := &cobra.Command{}
-			cmd.SetOut(&bytes.Buffer{})
+			var events bytes.Buffer
+			cmd.SetOut(&events)
 			cmd.Flags().StringP("output", "o", "jsonl", "")
 			cmd.SetContext(testutil.Context(t))
 			execution := bootstrapExecution{
@@ -278,10 +293,19 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 				}
 				return SettingsRestartActionRecord{OperationID: "bootstrap-restart"}, nil
 			}
+			statuses := bootstrapRestartStatuses(test.migration)
+			polls := 0
 			client.getSettingsRestartStatusFn = func(context.Context, string) (SettingsRestartStatusRecord, error) {
-				return SettingsRestartStatusRecord{OperationID: "bootstrap-restart", Status: "ready", NewPID: 4343}, nil
+				status := statuses[min(polls, len(statuses)-1)]
+				polls++
+				return status, nil
 			}
 			execution.deps.pollInterval = time.Millisecond
+			if test.migration == "stalled" {
+				// Idleness is measured on the observer clock, so the stall needs a moving one.
+				execution.deps.now = time.Now
+				execution.deps.restartMigrationIdleTimeout = 20 * time.Millisecond
+			}
 
 			// A started runtime that rejects the app asks for one re-resolution, never a second.
 			if restart := execution.restartRejectingDesktopRuntime(test.status, true); restart != test.bundleRequired {
@@ -291,7 +315,7 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 				)
 			}
 			replaced, err := execution.replaceOutdatedDesktopRuntime(test.status)
-			if test.missingBundle || test.restartError {
+			if test.missingBundle || test.restartError || test.migration == "stalled" {
 				if err == nil || replaced {
 					t.Fatalf("failed replacement = %t, %v", replaced, err)
 				}
@@ -306,7 +330,11 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 						)
 					}
 				} else {
-					assertErrorContains(t, err, "restart rejected")
+					if test.restartError {
+						assertErrorContains(t, err, "restart rejected")
+					} else {
+						assertErrorContains(t, err, "stopped progressing at 1024 of 2048 rows")
+					}
 					copies, globErr := filepath.Glob(filepath.Join(homePaths.BinDir, ".compozy-bootstrap-backup-*"))
 					if restarts != 1 || globErr != nil || len(copies) != 1 {
 						t.Fatalf(
@@ -334,6 +362,13 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 			}
 			if restarts != wantRestarts {
 				t.Fatalf("restart requests = %d, want %d", restarts, wantRestarts)
+			}
+			copies, err := filepath.Glob(filepath.Join(homePaths.BinDir, ".compozy-bootstrap-backup-*"))
+			if err != nil || len(copies) != 0 {
+				t.Fatalf("successful replacement left recovery copies %v, %v", copies, err)
+			}
+			if test.migration == "advancing" {
+				assertBootstrapMigrationEvents(t, events.String(), []int{0, 50})
 			}
 			if execution.restartRejectingDesktopRuntime(test.status, true) {
 				t.Fatal("restartRejectingDesktopRuntime() after replacement = true, want no second restart")
@@ -1168,4 +1203,48 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 			t.Fatalf("failure event = %#v, want attach failure naming the running daemon", failed)
 		}
 	})
+}
+
+// bootstrapRestartStatuses scripts the restart journal a replacement publishes while it migrates data.
+func bootstrapRestartStatuses(migration string) []SettingsRestartStatusRecord {
+	migrating := func(completed int64) SettingsRestartStatusRecord {
+		return SettingsRestartStatusRecord{
+			OperationID: "bootstrap-restart",
+			Status:      contract.RestartOperationStarting,
+			Progress: &contract.RestartProgress{
+				Phase: contract.RestartProgressMigrating, Stage: "telemetry_relocation",
+				Completed: completed, Total: 2048,
+			},
+		}
+	}
+	ready := SettingsRestartStatusRecord{OperationID: "bootstrap-restart", Status: "ready", NewPID: 4343}
+	switch migration {
+	case "advancing":
+		return []SettingsRestartStatusRecord{migrating(0), migrating(0), migrating(1024), migrating(1024), ready}
+	case "stalled":
+		return []SettingsRestartStatusRecord{migrating(1024)}
+	default:
+		return []SettingsRestartStatusRecord{ready}
+	}
+}
+
+func assertBootstrapMigrationEvents(t *testing.T, output string, wantPercents []int) {
+	t.Helper()
+	var percents []int
+	for line := range strings.Lines(output) {
+		var event bootstrapEvent
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			t.Fatalf("bootstrap event %q: %v", line, err)
+		}
+		if event.Stage != bootstrapStageMigrate {
+			continue
+		}
+		if event.Phase != bootstrapPhaseProvision || event.Status != bootstrapStatusStarted || event.Percent == nil {
+			t.Fatalf("migration event = %#v, want a started provision event with a percentage", event)
+		}
+		percents = append(percents, *event.Percent)
+	}
+	if !slices.Equal(percents, wantPercents) {
+		t.Fatalf("migration progress events = %v, want %v", percents, wantPercents)
+	}
 }

@@ -13978,10 +13978,22 @@ export interface components {
       /** Format: date-time */
       old_started_at: string;
       operation_id: string;
+      progress?: components["schemas"]["RestartProgress"] | null;
       /** Format: date-time */
       started_at: string;
       /** @enum {string} */
       status: "pending" | "stopping" | "waiting_release" | "starting" | "ready" | "failed";
+      /** Format: date-time */
+      updated_at: string;
+    };
+    RestartProgress: {
+      /** Format: int64 */
+      completed: number;
+      /** @enum {string} */
+      phase: "migrating";
+      stage: string;
+      /** Format: int64 */
+      total: number;
       /** Format: date-time */
       updated_at: string;
     };

@@ -62,6 +62,17 @@ describe("bootstrapSnapshot", () => {
       { state: "provisioning", stage: "verify" },
     ],
     [
+      {
+        type: "bootstrap",
+        phase: "provision",
+        status: "started",
+        message: "Upgrading CompozyOS data (42%).",
+        stage: "migrate",
+        pct: 42,
+      },
+      { state: "provisioning", stage: "migrate", pct: 42 },
+    ],
+    [
       { type: "bootstrap", phase: "start", status: "started", message: "x", attempt: 2 },
       { state: "starting", stage: "start", attempt: 2 },
     ],

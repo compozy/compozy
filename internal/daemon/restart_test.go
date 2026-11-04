@@ -16,6 +16,7 @@ import (
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -104,6 +105,131 @@ func TestRestartStoreRoundTripAndReadyTransition(t *testing.T) {
 	}
 }
 
+// TestRestartMigrationProgress verifies that a migrating replacement publishes observable progress
+// through the restart journal without outliving the operation it reports for.
+func TestRestartMigrationProgress(t *testing.T) {
+	t.Parallel()
+
+	startingOperation := func(t *testing.T, store *restartStore, homePaths compozyconfig.HomePaths) {
+		t.Helper()
+		operation, err := store.Create(RestartOperation{
+			OperationID:   "restart-migrating",
+			OldPID:        4242,
+			OldStartedAt:  time.Date(2026, 11, 4, 13, 0, 0, 0, time.UTC),
+			OldSocketPath: homePaths.DaemonSocket,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, status := range []RestartStatus{
+			RestartStatusStopping,
+			RestartStatusWaitingRelease,
+			RestartStatusStarting,
+		} {
+			if _, err := store.Transition(operation.OperationID, restartTransition{status: status}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	replacement := func(homePaths compozyconfig.HomePaths, now func() time.Time) *Daemon {
+		return &Daemon{
+			homePaths: homePaths,
+			now:       now,
+			getenv: func(key string) string {
+				if key == RestartOperationEnvKey {
+					return "restart-migrating"
+				}
+				return ""
+			},
+		}
+	}
+
+	t.Run("Should publish throttled progress while starting and clear it at readiness", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+		clock := time.Date(2026, 11, 4, 13, 1, 0, 0, time.UTC)
+		now := func() time.Time { return clock }
+		store := newRestartStore(homePaths, now)
+		startingOperation(t, store, homePaths)
+		report := replacement(homePaths, now).migrationProgressReporter()
+		if report == nil {
+			t.Fatal("migrationProgressReporter() = nil for a restart replacement")
+		}
+		journal := func() *RestartProgress {
+			t.Helper()
+			operation, err := store.Get("restart-migrating")
+			if err != nil {
+				t.Fatal(err)
+			}
+			return operation.Progress
+		}
+
+		report(globaldb.MigrationProgress{Stage: globaldb.MigrationStageTelemetryRelocation, Total: 3000})
+		clock = clock.Add(100 * time.Millisecond)
+		report(
+			globaldb.MigrationProgress{Stage: globaldb.MigrationStageTelemetryRelocation, Completed: 1024, Total: 3000},
+		)
+		if got := journal(); got == nil || got.Completed != 0 || got.Phase != RestartPhaseMigrating {
+			t.Fatalf("throttled progress = %#v, want the first 0/3000 report", got)
+		}
+		clock = clock.Add(restartProgressWriteInterval)
+		report(
+			globaldb.MigrationProgress{Stage: globaldb.MigrationStageTelemetryRelocation, Completed: 2048, Total: 3000},
+		)
+		if got := journal(); got == nil || got.Completed != 2048 || !got.UpdatedAt.Equal(clock) {
+			t.Fatalf("advanced progress = %#v, want 2048/3000 at %v", got, clock)
+		}
+		clock = clock.Add(time.Millisecond)
+		report(
+			globaldb.MigrationProgress{Stage: globaldb.MigrationStageTelemetryRelocation, Completed: 3000, Total: 3000},
+		)
+		if got := journal(); got == nil || got.Completed != 3000 {
+			t.Fatalf("completed progress = %#v, want an unthrottled 3000/3000 report", got)
+		}
+
+		ready, err := store.Transition("restart-migrating", restartTransition{status: RestartStatusReady, newPID: 99})
+		if err != nil || ready.Progress != nil {
+			t.Fatalf("ready transition = %#v, %v; want progress cleared", ready.Progress, err)
+		}
+		report(
+			globaldb.MigrationProgress{Stage: globaldb.MigrationStageTelemetryRelocation, Completed: 3000, Total: 3000},
+		)
+		if got := journal(); got != nil {
+			t.Fatalf("progress after readiness = %#v, want none", got)
+		}
+	})
+
+	t.Run("Should leave a terminal operation untouched", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+		now := func() time.Time { return time.Date(2026, 11, 4, 13, 1, 0, 0, time.UTC) }
+		store := newRestartStore(homePaths, now)
+		startingOperation(t, store, homePaths)
+		failed, err := store.Transition("restart-migrating", restartTransition{
+			status:        RestartStatusFailed,
+			failureReason: "superseded",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		replacement(homePaths, now).migrationProgressReporter()(
+			globaldb.MigrationProgress{Stage: globaldb.MigrationStageTelemetryRelocation, Total: 10},
+		)
+		loaded, err := store.Get("restart-migrating")
+		if err != nil || loaded.Progress != nil || !loaded.UpdatedAt.Equal(failed.UpdatedAt) {
+			t.Fatalf("terminal operation = %#v, %v; want unchanged", loaded, err)
+		}
+	})
+
+	t.Run("Should not report outside a coordinated restart", func(t *testing.T) {
+		t.Parallel()
+		daemon := &Daemon{homePaths: testHomePaths(t), getenv: func(string) string { return "" }}
+		if report := daemon.migrationProgressReporter(); report != nil {
+			t.Fatal("migrationProgressReporter() reported without a restart operation")
+		}
+	})
+}
+
 func TestRestartOperationValidateRejectsInvalidShapes(t *testing.T) {
 	t.Parallel()
 
@@ -174,6 +300,27 @@ func TestRestartOperationValidateRejectsInvalidShapes(t *testing.T) {
 				op.Status = RestartStatus("mystery")
 			},
 			wantError: "unsupported restart status",
+		},
+		{
+			name: "Should reject migration progress without a stage",
+			mutate: func(op *RestartOperation) {
+				op.Status = RestartStatusStarting
+				op.Progress = &RestartProgress{Phase: RestartPhaseMigrating, UpdatedAt: op.UpdatedAt}
+			},
+			wantError: "restart progress stage is required",
+		},
+		{
+			name: "Should reject migration progress on a ready operation",
+			mutate: func(op *RestartOperation) {
+				now := time.Date(2026, 4, 17, 12, 2, 0, 0, time.UTC)
+				op.Status = RestartStatusReady
+				op.NewPID = 9393
+				op.CompletedAt = &now
+				op.Progress = &RestartProgress{
+					Phase: RestartPhaseMigrating, Stage: "telemetry_relocation", UpdatedAt: now,
+				}
+			},
+			wantError: "must not carry migration progress",
 		},
 	}
 

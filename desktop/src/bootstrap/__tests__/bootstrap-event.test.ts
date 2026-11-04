@@ -28,6 +28,19 @@ describe("bootstrap event parser", () => {
     expect(parseBootstrapEvent(JSON.stringify(event))).toMatchObject(event);
   });
 
+  it("Should accept replacement data-migration progress", () => {
+    const event = {
+      type: "bootstrap",
+      phase: "provision",
+      status: "started",
+      message: "Upgrading CompozyOS data (42%).",
+      resolution: "provision",
+      stage: "migrate",
+      pct: 42,
+    };
+    expect(parseBootstrapEvent(JSON.stringify(event))).toMatchObject(event);
+  });
+
   it.each([
     "not-json",
     "{}",
@@ -63,6 +76,23 @@ describe("bootstrap event parser", () => {
       status: "completed",
       message: "x",
       resolution: "invented",
+    },
+    { type: "bootstrap", phase: "provision", status: "started", message: "x", stage: "invented" },
+    {
+      type: "bootstrap",
+      phase: "provision",
+      status: "started",
+      message: "x",
+      stage: "migrate",
+      pct: 101,
+    },
+    {
+      type: "bootstrap",
+      phase: "provision",
+      status: "started",
+      message: "x",
+      stage: "migrate",
+      pct: 4.2,
     },
     {
       type: "bootstrap",

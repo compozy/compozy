@@ -6,6 +6,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyupdate "github.com/compozy/compozy/internal/update"
 )
 
@@ -40,7 +41,14 @@ func (e *bootstrapExecution) replaceOutdatedDesktopRuntime(status DaemonStatus) 
 		homePaths:  e.homePaths, bundlePath: e.bundlePath, installedPath: e.installedPath,
 		provenance: provenance,
 		restart: func() error {
-			return newCLIUpdateRuntime(e.deps, e.homePaths).RestartDaemon(e.cmd.Context())
+			runtime := newCLIUpdateRuntime(e.deps, e.homePaths)
+			runtime.restartProgress = func(progress contract.RestartProgress) {
+				// Progress lines are advisory; readiness and failure still arrive as terminal events.
+				if err := writeBootstrapMigrationProgress(e.cmd, progress); err != nil {
+					e.cmd.PrintErrf("cli: report runtime data upgrade progress: %v\n", err)
+				}
+			}
+			return runtime.RestartDaemon(e.cmd.Context())
 		},
 	}); err != nil {
 		return false, fmt.Errorf("cli: replace outdated desktop runtime: %w", err)

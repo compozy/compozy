@@ -50,6 +50,8 @@ type bootstrapEvent struct {
 	BackoffMS      int64                   `json:"backoff_ms,omitzero"`
 	Classification bootstrapProbeClass     `json:"classification,omitempty"`
 	Message        string                  `json:"message"`
+	Stage          bootstrapStage          `json:"stage,omitempty"`
+	Percent        *int                    `json:"pct,omitempty"`
 	Daemon         *bootstrapDaemon        `json:"daemon,omitzero"`
 	Compatibility  *bootstrapCompatibility `json:"compatibility,omitzero"`
 }

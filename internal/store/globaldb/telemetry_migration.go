@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/compozy/compozy/internal/store"
@@ -14,13 +15,34 @@ import (
 const (
 	telemetryExportVersion = 190
 	telemetryMovedVersion  = 191
-	telemetryExportBatch   = 128
+	// Each batch costs two FULL-synchronous commits; larger batches bound fsyncs
+	// on large histories while keeping every acknowledged batch resumable.
+	telemetryExportBatch = 1024
+
+	// MigrationStageTelemetryRelocation names the #1241 telemetry relocation progress stage.
+	MigrationStageTelemetryRelocation = "telemetry_relocation"
 )
+
+// MigrationProgress reports rows completed by one data-volume-dependent migration stage.
+type MigrationProgress struct {
+	Stage     string
+	Completed int64
+	Total     int64
+}
+
+// MigrationProgressFunc observes migration progress; it must not block the migration.
+type MigrationProgressFunc func(MigrationProgress)
 
 // applyTelemetryRelocation is the migration owner for the two SQLite files.
 // Source rows are removed only after a FULL-synchronous target commit and exact
 // value verification. An interruption at either commit resumes idempotently.
-func applyTelemetryRelocation(ctx context.Context, db *sql.DB, path string, version int64) (retErr error) {
+func applyTelemetryRelocation(
+	ctx context.Context,
+	db *sql.DB,
+	path string,
+	version int64,
+	progress MigrationProgressFunc,
+) (retErr error) {
 	if version == 0 {
 		if _, err := bootstrapGlobalTelemetry(ctx, db); err != nil {
 			return err
@@ -71,7 +93,7 @@ func applyTelemetryRelocation(ctx context.Context, db *sql.DB, path string, vers
 	if _, err := stepper.UpTo(ctx, telemetryExportVersion); err != nil {
 		return err
 	}
-	if err := exportTelemetry(ctx, db, target.DB()); err != nil {
+	if err := exportTelemetry(ctx, db, target.DB(), progress); err != nil {
 		return err
 	}
 	// The SQL boundary refuses to drop a nonempty source, including when a
@@ -97,14 +119,32 @@ func requireTelemetryDestination(ctx context.Context, source *sql.DB, path strin
 	return verifyTelemetryIdentity(ctx, source, db)
 }
 
-func exportTelemetry(ctx context.Context, source, target *sql.DB) error {
+func exportTelemetry(ctx context.Context, source, target *sql.DB, progress MigrationProgressFunc) error {
+	// The export table is frozen at telemetryExportVersion, so its remaining rows bound the work.
+	var total int64
+	if err := source.QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summary_export").Scan(&total); err != nil {
+		return fmt.Errorf("store: count telemetry export: %w", err)
+	}
+	slog.InfoContext(ctx, "store: relocating telemetry", "rows", total)
+	report := func(completed int64) {
+		if progress != nil {
+			progress(MigrationProgress{Stage: MigrationStageTelemetryRelocation, Completed: completed, Total: total})
+		}
+	}
+	report(0)
+	var completed int64
 	for {
 		columns, rows, err := readTelemetryExportBatch(ctx, source)
 		if err != nil {
 			return err
 		}
 		if len(rows) == 0 {
-			return preserveTelemetrySequence(ctx, source, target)
+			if err := preserveTelemetrySequence(ctx, source, target); err != nil {
+				return err
+			}
+			report(total)
+			slog.InfoContext(ctx, "store: relocated telemetry", "rows", completed)
+			return nil
 		}
 		if err := commitTelemetryExportBatch(ctx, target, columns, rows); err != nil {
 			return err
@@ -129,6 +169,8 @@ func exportTelemetry(ctx context.Context, source, target *sql.DB) error {
 		); err != nil {
 			return err
 		}
+		completed += int64(len(rows))
+		report(min(completed, total))
 	}
 }
 

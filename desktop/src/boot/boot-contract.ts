@@ -30,7 +30,7 @@ const STATES = new Set([
   "skew",
   "error",
 ]);
-const STAGES = new Set(["download", "verify", "install", "start", "ready"]);
+const STAGES = new Set(["download", "verify", "install", "migrate", "start", "ready"]);
 const TARGETS = new Set(["app", "runtime"]);
 
 function isRecord(value: unknown): value is Record<string, unknown> {

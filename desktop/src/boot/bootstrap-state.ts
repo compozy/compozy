@@ -46,6 +46,13 @@ export function bootstrapSnapshot(
     case "attach":
       return { state: "attaching" };
     case "provision":
+      if (event.stage === "migrate") {
+        return {
+          state: "provisioning",
+          stage: "migrate",
+          ...(event.pct === undefined ? {} : { pct: event.pct }),
+        };
+      }
       return {
         state: "provisioning",
         stage: event.status === "completed" ? "verify" : "install",

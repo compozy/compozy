@@ -767,6 +767,7 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 			source,
 			path,
 			telemetryExportVersion,
+			nil,
 		); err == nil ||
 			!strings.Contains(err.Error(), "injected export acknowledgement failure") {
 			t.Fatalf("interrupted export = %v, want retained source after committed target", err)
@@ -831,18 +832,37 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 			}
 		})
 		if _, err := source.ExecContext(ctx, `WITH RECURSIVE rows(n) AS (
-			SELECT 1 UNION ALL SELECT n+1 FROM rows WHERE n<129
+			SELECT 1 UNION ALL SELECT n+1 FROM rows WHERE n<?
 		) INSERT INTO event_summaries(seq,id,profile_id,type,timestamp)
-		SELECT n,'export-'||n,?,'settings.changed','2026-11-03T19:00:00Z' FROM rows`, store.DefaultProfileID); err != nil {
+		SELECT n,'export-'||n,?,'settings.changed','2026-11-03T19:00:00Z' FROM rows`,
+			telemetryExportBatch+1, store.DefaultProfileID); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := source.ExecContext(ctx, `CREATE TRIGGER fail_export_tail BEFORE DELETE ON event_summaries
-			WHEN OLD.seq>128 BEGIN SELECT RAISE(ABORT, 'export tail interrupted'); END`); err != nil {
+		if _, err := source.ExecContext(
+			ctx,
+			fmt.Sprintf(`CREATE TRIGGER fail_export_tail BEFORE DELETE ON event_summaries
+			WHEN OLD.seq>%d BEGIN SELECT RAISE(ABORT, 'export tail interrupted'); END`, telemetryExportBatch),
+		); err != nil {
 			t.Fatal(err)
 		}
-		if err := applyTelemetryRelocation(ctx, source, path, 185); err == nil ||
+		var reported []MigrationProgress
+		if err := applyTelemetryRelocation(ctx, source, path, 185, func(progress MigrationProgress) {
+			reported = append(reported, progress)
+		}); err == nil ||
 			!strings.Contains(err.Error(), "export tail interrupted") {
 			t.Fatalf("export interruption = %v", err)
+		}
+		// Progress counts only acknowledged batches, so an interrupted export never reports completion.
+		wantProgress := []MigrationProgress{
+			{Stage: MigrationStageTelemetryRelocation, Completed: 0, Total: telemetryExportBatch + 1},
+			{
+				Stage:     MigrationStageTelemetryRelocation,
+				Completed: telemetryExportBatch,
+				Total:     telemetryExportBatch + 1,
+			},
+		}
+		if !reflect.DeepEqual(reported, wantProgress) {
+			t.Fatalf("interrupted progress = %#v, want %#v", reported, wantProgress)
 		}
 		var remaining int
 		if err := source.QueryRowContext(ctx, "SELECT count(*) FROM event_summary_export").
@@ -920,8 +940,8 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 		})
 		var count, highWater int
 		if err := upgraded.readDB.QueryRowContext(ctx, "SELECT count(*),max(seq) FROM event_summaries").
-			Scan(&count, &highWater); err != nil || count != 129 ||
-			highWater != 129 {
+			Scan(&count, &highWater); err != nil || count != telemetryExportBatch+1 ||
+			highWater != telemetryExportBatch+1 {
 			t.Fatalf("restored export = %d rows through %d, %v", count, highWater, err)
 		}
 	})
@@ -1024,7 +1044,7 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 		if err := target.Close(ctx); err != nil {
 			t.Fatal(err)
 		}
-		if err := applyTelemetryRelocation(ctx, source, path, telemetryExportVersion); err == nil ||
+		if err := applyTelemetryRelocation(ctx, source, path, telemetryExportVersion, nil); err == nil ||
 			!strings.Contains(err.Error(), "collides with different stored values") {
 			t.Fatalf("conflicting payload diagnostic = %v", err)
 		}
@@ -1124,7 +1144,7 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 			BEGIN SELECT RAISE(ABORT, 'binding interrupted'); END`); err != nil {
 			t.Fatal(err)
 		}
-		if err := applyTelemetryRelocation(ctx, source, path, 185); err == nil ||
+		if err := applyTelemetryRelocation(ctx, source, path, 185, nil); err == nil ||
 			!strings.Contains(err.Error(), "binding interrupted") {
 			t.Fatalf("interrupted binding = %v", err)
 		}

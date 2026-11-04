@@ -183,6 +183,12 @@ const (
 	RestartOperationFailed         RestartOperationStatus = "failed"
 )
 
+type RestartProgressPhase string
+
+const (
+	RestartProgressMigrating RestartProgressPhase = "migrating"
+)
+
 type SettingsStreamTransport string
 
 const (

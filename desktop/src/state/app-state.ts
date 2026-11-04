@@ -29,7 +29,7 @@ export interface PublicShellError {
 
 export interface ShellSnapshot {
   readonly state: ShellStateName;
-  readonly stage?: "download" | "verify" | "install" | "start" | "ready";
+  readonly stage?: "download" | "verify" | "install" | "migrate" | "start" | "ready";
   readonly attempt?: number;
   readonly origin?: string;
   readonly owned?: boolean;

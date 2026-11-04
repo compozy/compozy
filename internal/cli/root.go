@@ -61,6 +61,7 @@ type installWizardRunner func(context.Context, installWizardInput) (installWizar
 type mcpServeRunner func(context.Context, mcpServeOptions) error
 
 type commandDeps struct {
+	restartMigrationIdleTimeout time.Duration
 	vaultKeyring                vault.Keyring
 	commandContext              func() context.Context
 	loadConfig                  func() (compozyconfig.Config, error)
