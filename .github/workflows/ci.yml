@@ -660,6 +660,65 @@ jobs:
           path: .turbo
           key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ github.run_id }}
 
+  desktop-windows:
+    name: Desktop (Windows install and update)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    needs: [changes, preflight]
+    if: needs.changes.outputs.heavy == 'true' && (needs.changes.outputs.backend == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.desktop == 'true')
+    env:
+      CGO_ENABLED: 0
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "false"
+      - name: Create an ephemeral signing identity for the native update scenario
+        shell: pwsh
+        run: |
+          $certificate = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=CompozyOS CI' -CertStoreLocation Cert:\CurrentUser\My
+          $password = [Guid]::NewGuid().ToString('N')
+          Write-Output "::add-mask::$password"
+          $pfx = Join-Path $env:RUNNER_TEMP 'compozy-ci.pfx'
+          $public = Join-Path $env:RUNNER_TEMP 'compozy-ci.cer'
+          Export-PfxCertificate -Cert $certificate -FilePath $pfx -Password (ConvertTo-SecureString $password -AsPlainText -Force) | Out-Null
+          Export-Certificate -Cert $certificate -FilePath $public | Out-Null
+          Import-Certificate -FilePath $public -CertStoreLocation Cert:\CurrentUser\Root | Out-Null
+          Add-Content $env:GITHUB_ENV "WIN_CSC_LINK=$pfx"
+          Add-Content $env:GITHUB_ENV "WIN_CSC_KEY_PASSWORD=$password"
+      - name: Verify native bootstrap, journal and control boundaries
+        run: |
+          go test ./internal/cli -run '^(TestAppControlWindows|TestProvisionBundledRuntime|TestDesktopRuntimeBootstrapReplacement)$' -count=1
+          go test ./internal/update ./internal/desktoprelease -count=1
+          bunx turbo run typecheck --filter=@compozy/desktop --only
+          bunx turbo run test --filter=@compozy/desktop --only -- --coverage.enabled=false src/control/__tests__/control-server.test.ts src/release/__tests__/release.test.ts src/update/__tests__/electron-installer-policy.test.ts
+      - name: Build the real web shell and signed Windows installer pair
+        run: |
+          bunx turbo run build --filter=compozy-web
+          bun run --cwd desktop build:e2e-update
+      - name: Exercise packaged Windows startup, deep links, control and native update
+        run: >-
+          bun run --cwd desktop playwright test --config playwright.config.ts
+          --grep 'Windows desktop:|E2E-001 E2E-002:|E2E-004 E2E-013 E2E-014:'
+      - name: Upload Windows diagnostics and installers
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-windows
+          path: |
+            .tmp/playwright
+            desktop/.artifacts/e2e-baseline/*.exe
+            desktop/.artifacts/e2e-update/*.exe
+            desktop/.artifacts/e2e-update/*.yml
+          if-no-files-found: ignore
+          retention-days: 7
+
   verify:
     name: Verify (fmt, lint, unit, build)
     runs-on: ubuntu-latest
@@ -928,7 +987,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs:
-      [changes, preflight, go-integration, go-terminal-windows, e2e-runtime, e2e-web, e2e-desktop]
+      [changes, preflight, go-integration, go-terminal-windows, desktop-windows, e2e-runtime, e2e-web, e2e-desktop]
     if: always()
     steps:
       - name: Require every heavy lane the change needs

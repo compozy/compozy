@@ -53,3 +53,17 @@ bundle install leaves the live daemon untouched; failure to request coordinated 
 falls back to user-stop signaling. Existing opt-out, pending-interaction and binding-change gates
 remain in force. E2E-016 owns the app/daemon handoff; session/daemon suites own recovery safety.
 Evidence and execution limits: [continuity report](../reports/2026-10-27-update-session-continuity.md).
+
+## Windows desktop acceptance (2026-11-04)
+
+Run on Windows x64 with an isolated `COMPOZY_HOME` and install directory containing spaces and
+non-ASCII characters. Install the signed NSIS baseline without administrator elevation. Confirm
+offline bundled-runtime provisioning, product readiness and the existing `app status`, `app open`,
+`app retry` and diagnostic export commands over the authenticated local named pipe. A second
+launch must retain one shell and deliver the requested deep link.
+
+Stage a verified next-version installer through the existing update journal. Observe actual NSIS
+installation, relaunch on the new app version, matching owned-runtime version and archived
+`updated` outcome. The original configuration and workspace data must remain readable. Uninstall
+the app and verify those files still exist. The native `Desktop (Windows install and update)` CI
+lane owns this acceptance; pending CI is not a passing Windows receipt.

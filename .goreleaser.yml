@@ -135,6 +135,8 @@ checksum:
     - glob: ./.artifacts/desktop/CompozyOS-*-mac-x64.zip
     - glob: ./.artifacts/desktop/CompozyOS-*-linux-x64.AppImage
     - glob: ./.artifacts/desktop/CompozyOS-*-linux-x64.deb
+    - glob: ./.artifacts/desktop/CompozyOS-*-win-x64.exe
+    - glob: ./.artifacts/desktop/CompozyOS-*-win-x64.exe.blockmap
     - glob: ./.artifacts/desktop/compat.json
 
 signs:
@@ -237,6 +239,8 @@ release:
     - glob: ./.artifacts/desktop/CompozyOS-*-mac-x64.zip
     - glob: ./.artifacts/desktop/CompozyOS-*-linux-x64.AppImage
     - glob: ./.artifacts/desktop/CompozyOS-*-linux-x64.deb
+    - glob: ./.artifacts/desktop/CompozyOS-*-win-x64.exe
+    - glob: ./.artifacts/desktop/CompozyOS-*-win-x64.exe.blockmap
     - glob: ./.artifacts/desktop/compat.json
 
 sboms:

@@ -791,6 +791,7 @@ func TestManagerCheck(t *testing.T) {
 				{Name: "CompozyOS-1.2.0-mac-arm64.zip"},
 				{Name: "CompozyOS-1.2.0-mac-x64.zip"},
 				{Name: "CompozyOS-1.2.0-linux-x64.AppImage"},
+				{Name: "CompozyOS-1.2.0-win-x64.exe"},
 				{Name: "compozy_darwin_x86_64.tar.gz"},
 				{Name: checksumsAssetName},
 				{Name: checksumsBundleAssetName},
@@ -856,8 +857,13 @@ func TestManagerCheck(t *testing.T) {
 		}
 
 		windows := &Manager{runtimeOS: runtimeOSWindows, runtimeArch: runtimeArchAMD64}
-		if _, err := windows.resolveAppReleaseAsset(t.Context(), release); err == nil {
-			t.Fatal("resolveAppReleaseAsset(Windows) error = nil, want unsupported")
+		asset, err := windows.resolveAppReleaseAsset(t.Context(), release)
+		if err != nil || asset.Name != "CompozyOS-1.2.0-win-x64.exe" {
+			t.Fatalf("resolveAppReleaseAsset(Windows) = %q, %v, want NSIS installer", asset.Name, err)
+		}
+		windowsARM := &Manager{runtimeOS: runtimeOSWindows, runtimeArch: runtimeArchARM64}
+		if _, err := windowsARM.resolveAppReleaseAsset(t.Context(), release); err == nil {
+			t.Fatal("resolveAppReleaseAsset(Windows arm64) must reject an unpublished native architecture")
 		}
 	})
 

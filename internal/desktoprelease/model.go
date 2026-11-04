@@ -11,6 +11,7 @@ const (
 
 	ManifestMac       = "latest-mac.yml"
 	ManifestLinux     = "latest-linux.yml"
+	ManifestWindows   = "latest.yml"
 	GenerationFile    = "generation.json"
 	CompatibilityFile = "compat.json"
 	ChecksumsFile     = "checksums.txt"

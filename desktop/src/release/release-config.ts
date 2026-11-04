@@ -1,5 +1,5 @@
 export type ReleaseArch = "arm64" | "x64";
-export type ReleasePlatform = "linux" | "mac";
+export type ReleasePlatform = "linux" | "mac" | "win";
 export type ReleaseChannel = "stable" | "beta";
 
 export interface ReleaseConfigInput {
@@ -20,23 +20,28 @@ export function validateReleaseConfig(input: ReleaseConfigInput): void {
   if (input.channel !== "stable" && input.channel !== "beta") {
     throw new Error("Release channel must be stable or beta.");
   }
-  if (input.platform !== "mac" && input.platform !== "linux") {
-    throw new Error("Release platform must be mac or linux.");
+  if (input.platform !== "mac" && input.platform !== "linux" && input.platform !== "win") {
+    throw new Error("Release platform must be mac, linux or win.");
   }
   if (input.arch !== "arm64" && input.arch !== "x64") {
     throw new Error("Release architecture must be arm64 or x64.");
   }
-  if (input.platform === "linux" && input.arch !== "x64") {
-    throw new Error("Linux desktop releases support x64 only.");
+  if (input.platform !== "mac" && input.arch !== "x64") {
+    throw new Error("Linux and Windows desktop releases support x64 only.");
   }
-  if (input.platform === "linux" && input.notarize) {
+  if (input.platform !== "mac" && input.notarize) {
     throw new Error("Notarization applies only to macOS releases.");
   }
 }
 
 export function buildReleaseConfig(input: ReleaseConfigInput): Record<string, unknown> {
   validateReleaseConfig(input);
-  const target = input.platform === "mac" ? ["dmg", "zip"] : ["AppImage", "deb"];
+  const target =
+    input.platform === "mac"
+      ? ["dmg", "zip"]
+      : input.platform === "win"
+        ? ["nsis"]
+        : ["AppImage", "deb"];
   return {
     extends: "./electron-builder.yml",
     extraMetadata: { version: input.version },
@@ -54,15 +59,23 @@ export function buildReleaseConfig(input: ReleaseConfigInput): Record<string, un
             target,
           },
         }
-      : {
-          linux: {
-            artifactName: "CompozyOS-${version}-linux-x64.${ext}",
-            detectUpdateChannel: false,
-            executableName: "compozyos",
-            maintainer: "Compozy",
-            syncDesktopName: true,
-            target,
-          },
-        }),
+      : input.platform === "win"
+        ? {
+            win: {
+              artifactName: "CompozyOS-${version}-win-x64.${ext}",
+              detectUpdateChannel: false,
+              target,
+            },
+          }
+        : {
+            linux: {
+              artifactName: "CompozyOS-${version}-linux-x64.${ext}",
+              detectUpdateChannel: false,
+              executableName: "compozyos",
+              maintainer: "Compozy",
+              syncDesktopName: true,
+              target,
+            },
+          }),
   };
 }

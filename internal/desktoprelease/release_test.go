@@ -1,6 +1,7 @@
 package desktoprelease
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -11,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -100,6 +102,8 @@ func TestDesktopArtifactInventory(t *testing.T) {
 		"CompozyOS-0.4.0-beta.2-mac-arm64.zip",
 		"CompozyOS-0.4.0-beta.2-mac-x64.dmg",
 		"CompozyOS-0.4.0-beta.2-mac-x64.zip",
+		"CompozyOS-0.4.0-beta.2-win-x64.exe",
+		"CompozyOS-0.4.0-beta.2-win-x64.exe.blockmap",
 	}
 	got := DesktopArtifactNames(version)
 	slices.Sort(got)
@@ -144,6 +148,43 @@ func TestGitHubBackendSafety(t *testing.T) {
 			return nil, errors.New("request should not be sent")
 		}), "http://api.github.test", "compozy/compozy", "secret")
 		assertErrorContains(t, err, "must be an HTTPS origin")
+	})
+
+	t.Run("Should remove a retired channel feed from the Git tree", func(t *testing.T) {
+		t.Parallel()
+		removed := false
+		backend := &GitHubBackend{
+			client: httpDoerFunc(func(request *http.Request) (*http.Response, error) {
+				response := `{"sha":"new-commit"}`
+				switch {
+				case strings.HasSuffix(request.URL.Path, "/git/commits/parent"):
+					response = `{"tree":{"sha":"parent-tree"}}`
+				case strings.HasSuffix(request.URL.Path, "/git/trees"):
+					var payload struct {
+						Tree []map[string]any `json:"tree"`
+					}
+					if err := json.NewDecoder(request.Body).Decode(&payload); err != nil {
+						t.Fatalf("decode tree request: %v", err)
+					}
+					if len(payload.Tree) != 1 {
+						t.Fatalf("tree entries = %v, want one feed removal", payload.Tree)
+					}
+					entry := payload.Tree[0]
+					sha, present := entry[githubObjectSHAKey]
+					removed = entry["path"] == "desktop/latest.yml" && present && sha == nil
+				}
+				return &http.Response{
+					StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(response)),
+				}, nil
+			}),
+			apiURL: "https://api.github.test", repository: "compozy/compozy", token: "secret",
+		}
+		_, err := backend.Commit(t.Context(), CommitRequest{
+			ParentSHA: "parent", Files: map[string][]byte{"desktop/latest.yml": nil},
+		})
+		if err != nil || !removed {
+			t.Fatalf("Commit(feed removal) error = %v, removed = %v", err, removed)
+		}
 	})
 
 	t.Run("Should preserve the binary accept header for asset verification", func(t *testing.T) {
@@ -447,6 +488,43 @@ func TestChannelAuthority(t *testing.T) {
 		})
 	}
 
+	t.Run("Should retry and restore a pre-Windows generation without keeping a newer Windows feed", func(t *testing.T) {
+		t.Parallel()
+		const version = "1.0.0-beta.1"
+		backend := newFakeAuthorityBackend(t, version)
+		legacy := backend.commits[backend.head]
+		delete(legacy.Files, path.Join(ChannelDirectory, ManifestWindows))
+		delete(backend.releases[version], "CompozyOS-"+version+"-win-x64.exe")
+		delete(backend.releases[version], "CompozyOS-"+version+"-win-x64.exe.blockmap")
+		authority := mustAuthority(t, backend)
+		result, err := authority.Publish(t.Context(), PublishRequest{
+			OperationID: legacy.Generation.OperationID, Channel: ChannelBeta, Version: version, PublishedAt: testTime(),
+		})
+		if err != nil || result.Outcome != "already_completed" || len(result.VerifiedInventory) != 7 {
+			t.Fatalf("retry historical Publish() = %#v, %v", result, err)
+		}
+		backend.seedGeneration(t, "1.0.0-beta.2")
+		request := RepairRequest{
+			OperationID: "repair-pre-windows", Channel: ChannelBeta, Version: version, PublishedAt: testTime(),
+		}
+		result, err = authority.Repair(t.Context(), request)
+		if err != nil {
+			t.Fatalf("Repair(historical) error = %v", err)
+		}
+		files := backend.commits[result.AuditCommit].Files
+		if _, present := files[path.Join(ChannelDirectory, ManifestWindows)]; present {
+			t.Fatal("Repair(historical) retained a Windows feed from the replaced generation")
+		}
+		macPath := path.Join(ChannelDirectory, ManifestMac)
+		if !bytes.Equal(files[macPath], legacy.Files[macPath]) {
+			t.Fatal("Repair(historical) did not restore the original macOS feed")
+		}
+		result, err = authority.Repair(t.Context(), request)
+		if err != nil || result.Outcome != "already_completed" {
+			t.Fatalf("retry historical Repair() = %#v, %v", result, err)
+		}
+	})
+
 	t.Run("Should repair from a known-good generation and refuse missing assets", func(t *testing.T) {
 		t.Parallel()
 		backend := newFakeAuthorityBackend(t, "1.0.0-beta.1")
@@ -545,14 +623,15 @@ func (b *fakeAuthorityBackend) seedGeneration(t *testing.T, version string) {
 		MinAppVersion: version, PublishedAt: testTime(),
 	}
 	files := map[string][]byte{
-		filepath.Join(ChannelDirectory, ManifestMac):   macManifestFixture(version),
-		filepath.Join(ChannelDirectory, ManifestLinux): linuxManifestFixture(version),
+		path.Join(ChannelDirectory, ManifestMac):     macManifestFixture(version),
+		path.Join(ChannelDirectory, ManifestLinux):   linuxManifestFixture(version),
+		path.Join(ChannelDirectory, ManifestWindows): windowsManifestFixture(version),
 	}
 	bytes, err := canonicalJSON(generation)
 	if err != nil {
 		t.Fatalf("canonicalJSON(generation) error = %v", err)
 	}
-	files[filepath.Join(ChannelDirectory, GenerationFile)] = bytes
+	files[path.Join(ChannelDirectory, GenerationFile)] = bytes
 	b.commits[sha] = ChannelCommit{SHA: sha, Generation: generation, Files: files}
 	b.head = sha
 	assets := map[string]Artifact{}
@@ -591,7 +670,14 @@ func (b *fakeAuthorityBackend) Commit(_ context.Context, request CommitRequest) 
 	b.events = append(b.events, "commit")
 	b.nextCommit++
 	sha := fmt.Sprintf("commit-%d", b.nextCommit)
-	files := cloneFiles(request.Files)
+	files := cloneFiles(b.commits[request.ParentSHA].Files)
+	for name, contents := range request.Files {
+		if contents == nil {
+			delete(files, name)
+		} else {
+			files[name] = slices.Clone(contents)
+		}
+	}
 	files[".parent"] = []byte(request.ParentSHA)
 	b.commits[sha] = ChannelCommit{SHA: sha, Generation: request.Generation, Files: files}
 	return sha, nil
@@ -784,6 +870,7 @@ func writeReleaseFixture(t *testing.T, version, minAppVersion string) (string, s
 	channelDir := t.TempDir()
 	writeTestFile(t, filepath.Join(channelDir, ManifestMac), macManifestFixtureForAssets(t, assetDir, version))
 	writeTestFile(t, filepath.Join(channelDir, ManifestLinux), linuxManifestFixtureForAssets(t, assetDir, version))
+	writeTestFile(t, filepath.Join(channelDir, ManifestWindows), windowsManifestFixtureForAssets(t, assetDir, version))
 	return assetDir, channelDir
 }
 
@@ -840,6 +927,25 @@ func linuxManifestFixture(version string) []byte {
 func linuxManifestFixtureForAssets(t *testing.T, assetDir, version string) []byte {
 	t.Helper()
 	name := "CompozyOS-" + version + "-linux-x64.AppImage"
+	digest, size := manifestIntegrityFixture(t, assetDir, name)
+	return fmt.Appendf(
+		nil,
+		"version: %s\nfiles:\n  - url: https://github.com/compozy/compozy/releases/download/v%s/%s\n    sha512: %s\n    size: %d\nreleaseDate: '2026-08-16T12:00:00Z'\n",
+		version,
+		version,
+		name,
+		digest,
+		size,
+	)
+}
+
+func windowsManifestFixture(version string) []byte {
+	return []byte(strings.ReplaceAll(string(linuxManifestFixture(version)), "linux-x64.AppImage", "win-x64.exe"))
+}
+
+func windowsManifestFixtureForAssets(t *testing.T, assetDir, version string) []byte {
+	t.Helper()
+	name := "CompozyOS-" + version + "-win-x64.exe"
 	digest, size := manifestIntegrityFixture(t, assetDir, name)
 	return fmt.Appendf(
 		nil,
