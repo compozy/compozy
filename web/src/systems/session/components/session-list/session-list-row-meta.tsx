@@ -14,21 +14,25 @@ import type { SessionPayload } from "../../types";
  */
 export function SessionListRowWho({
   model,
+  nextModel = "",
   session,
   meta,
 }: {
   model: string;
+  /** The model the next message switches to; drawn after an arrow while a switch is pending. */
+  nextModel?: string;
   session: Pick<SessionPayload, "badge">;
   meta: Pick<RowMeta, "shown" | "notes">;
 }) {
   const { tone } = sessionBadgeSignal(session.badge);
-  const parts: { key: string; kind: "model" | "attention" | "note"; text: string }[] = [];
+  const parts: { key: string; kind: "model" | "next" | "attention" | "note"; text: string }[] = [];
   if (meta.shown.length > 0) {
     meta.shown.forEach((text, index) =>
       parts.push({ key: `attention-${index}`, kind: "attention", text })
     );
   } else if (model) {
     parts.push({ key: "model", kind: "model", text: model });
+    if (nextModel) parts.push({ key: "next", kind: "next", text: nextModel });
   }
   meta.notes.forEach((text, index) => parts.push({ key: `note-${index}`, kind: "note", text }));
   return (
@@ -36,7 +40,7 @@ export function SessionListRowWho({
       {parts.map((part, index) => {
         const next = parts[index + 1];
         const leading = index > 0 && part.kind === "note";
-        const trailing = next !== undefined && next.kind !== "note";
+        const trailing = next !== undefined && next.kind !== "note" && next.kind !== "next";
         return (
           <span
             key={part.key}
@@ -44,6 +48,7 @@ export function SessionListRowWho({
             className={cn(
               "min-w-0 truncate",
               part.kind === "model" && "shrink-[100] text-fg-2",
+              part.kind === "next" && "shrink-[100] text-muted-foreground",
               part.kind === "attention" && "shrink text-fg-3",
               part.kind === "attention" &&
                 index === 0 &&
@@ -53,6 +58,7 @@ export function SessionListRowWho({
             )}
           >
             {leading ? <span className="text-faint">· </span> : null}
+            {part.kind === "next" ? <span className="text-faint">→ </span> : null}
             {part.text}
             {trailing ? <span className="text-faint"> ·</span> : null}
           </span>

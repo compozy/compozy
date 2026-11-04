@@ -37,7 +37,7 @@ export function rowMeta({
   /** What the row calls the agent; `agent_name` stays its id. */
   agentLabel?: string;
   session: SessionPayload;
-  runtime: { label: string } | null;
+  runtime: { label: string; next?: { label: string } } | null;
   signal: ReturnType<typeof sessionBadgeSignal>;
   orphanedSubagent: boolean;
 }): RowMeta {
@@ -53,7 +53,7 @@ export function rowMeta({
   if (session.archived_at !== null) notes.push("Archived");
   const later = sessionLaterSpoken(sessionLaterDetails(session), formatAbsoluteTime);
   const spoken = [
-    runtime?.label,
+    runtime?.next ? `${runtime.label}, next message: ${runtime.next.label}` : runtime?.label,
     [agentLabel ?? session.agent_name, ...attention, ...notes].join(" · "),
     later ? `· ${later}` : null,
   ]

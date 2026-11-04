@@ -1,4 +1,5 @@
 import type { SessionPayload } from "../types";
+import { runtimeSelectionMatches } from "./session-runtime-projection";
 import { normalizeRuntimeACPSelections, type RuntimeProviderLiveApply } from "@/systems/runtime";
 
 export interface RuntimeApplyNotice {
@@ -54,10 +55,7 @@ function selectionApplied(runtime: SessionRuntime): boolean {
   return (
     !!selected &&
     !!effective &&
-    effective.provider === selected.provider &&
-    (!selected.model || effective.model === selected.model) &&
-    (!selected.reasoning_effort || effective.reasoning_effort === selected.reasoning_effort) &&
-    (selected.speed ?? "normal") === (effective.speed ?? "normal") &&
+    runtimeSelectionMatches(selected, effective) &&
     acpOptionsApplied(runtime)
   );
 }

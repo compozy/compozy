@@ -184,6 +184,7 @@ function SessionListRowBody({
       <SessionRowMetaLine
         session={session}
         model={runtime.model ?? ""}
+        nextModel={runtime.next ? runtime.next.model || runtime.next.label : ""}
         badge={badge}
         owner={owner}
         meta={meta}
@@ -292,6 +293,7 @@ function SessionRowTarget({
 function SessionRowMetaLine({
   session,
   model,
+  nextModel,
   badge,
   owner,
   meta,
@@ -300,6 +302,8 @@ function SessionRowMetaLine({
 }: {
   session: SessionPayload;
   model: string;
+  /** The model the next message switches to; empty when nothing is pending. */
+  nextModel: string;
   badge: WorkspaceBadgeIdentity | undefined;
   owner: ProfileOwner | undefined;
   meta: RowMeta;
@@ -318,7 +322,7 @@ function SessionRowMetaLine({
         ) : null}
         {owner ? <ProfileOwnerTag compact size="xs" owner={owner} /> : null}
         {mark}
-        <SessionListRowWho model={model} session={session} meta={meta} />
+        <SessionListRowWho model={model} nextModel={nextModel} session={session} meta={meta} />
         {sessionIsUnrestricted(session) ? (
           <SessionUnrestrictedBadge data-testid={`session-row-unrestricted-${session.id}`} />
         ) : null}
