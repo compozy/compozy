@@ -33,16 +33,19 @@ describe("bootstrapSnapshot", () => {
     ).toEqual({ state: "skew", runtime: "0.4.0", needed: "0.4.0", newer: true });
   });
 
-  it("Should classify a stalled data upgrade apart from provisioning network failures", () => {
-    expect(
-      bootstrapSnapshot(
-        failed(
-          'cli: daemon data upgrade "telemetry_relocation" stopped progressing at 1024 of 2048 rows for 5m0s',
-          "provision"
+  it.each(["start", "provision"] as const)(
+    "Should classify a stalled data upgrade reported in the %s phase",
+    phase => {
+      expect(
+        bootstrapSnapshot(
+          failed(
+            'cli: coordinated restart failed; runtime recovery copy retained at "/x": cli: daemon data upgrade "telemetry_relocation" stopped progressing at 1024 of 2048 rows for 5m0s',
+            phase
+          )
         )
-      )
-    ).toMatchObject({ state: "error", error: { code: "runtime_upgrade_stalled" } });
-  });
+      ).toMatchObject({ state: "error", error: { code: "runtime_upgrade_stalled" } });
+    }
+  );
 
   it("Should preserve the failed boot phase while redacting secrets", () => {
     expect(bootstrapSnapshot(failed("disk full\u0000 token=raw-secret", "provision"))).toEqual({
