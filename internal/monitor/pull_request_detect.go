@@ -306,17 +306,18 @@ func reconcileQueuedConflict(carry, later PullRequestChanges) (PullRequestChange
 	if !carry.Conflict || carry.Number != later.Number {
 		return carry, later
 	}
-	if later.ConflictCleared {
+	switch {
+	case later.ConflictCleared:
 		carry.Conflict = false
 		carry.Wake = len(carry.NewlyFailed) > 0 || carry.FailureRose || carry.AllFinished ||
 			len(carry.Reviews) > 0 || carry.NewThreads > 0 || carry.Terminal != "" ||
 			carry.ForgeDown || carry.ReviewsDown || carry.TimedOut || carry.FireCapHit
-	} else if later.Head != "" && carry.Head != later.Head {
+	case later.Head != "" && carry.Head != later.Head:
 		if later.Base == "" {
 			later.Base = carry.Base
 		}
 		later.Conflict, later.Wake = true, true
-	} else if later.Base != "" {
+	case later.Base != "":
 		carry.Base = later.Base
 	}
 	return carry, later

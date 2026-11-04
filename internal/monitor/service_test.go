@@ -3293,6 +3293,16 @@ func TestServicePullRequestMonitorRestart(t *testing.T) {
 func TestNotificationPullRequest(t *testing.T) {
 	t.Parallel()
 	mon := Monitor{ID: "mon-1", Kind: KindPullRequest, Branch: "feat/x", FireCount: 3, Description: "watch"}
+	t.Run("Should describe the base branch when the provider omits its name", func(t *testing.T) {
+		t.Parallel()
+		for _, base := range []string{"", "  \n"} {
+			changes := &PullRequestChanges{Wake: true, Number: 7, State: "open", Base: base, Conflict: true}
+			text := (Notification{Monitor: mon, PullRequest: changes}).Message()
+			if !strings.Contains(text, "PR #7 now conflicts with its base branch; rebase") {
+				t.Fatalf("conflict message = %s", text)
+			}
+		}
+	})
 	t.Run("Should omit rebase guidance when a queued conflict ends", func(t *testing.T) {
 		t.Parallel()
 		for _, terminal := range []string{pullRequestMerged, pullRequestClosed} {
