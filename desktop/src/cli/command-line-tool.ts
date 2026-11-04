@@ -19,6 +19,8 @@ export type CommandLineToolState =
   | { readonly status: "existing"; readonly path: string }
   | { readonly status: "conflict"; readonly path: string }
   | { readonly status: "needs_admin"; readonly path: string }
+  | { readonly status: "directory_unavailable"; readonly path: string }
+  | { readonly status: "install_failed"; readonly path: string }
   | { readonly status: "path_required"; readonly path: string }
   | { readonly status: "no_runtime" };
 
@@ -97,8 +99,10 @@ export async function ensureCommandLineTool(
     try {
       await deps.fs.mkdir(userDirectory);
       if (await deps.fs.isWritableDirectory(userDirectory)) target = userDirectory;
-    } catch (error) {
-      if (!directories.includes(SYSTEM_BIN_DIRECTORY)) throw error;
+    } catch {
+      if (!directories.includes(SYSTEM_BIN_DIRECTORY)) {
+        return { status: "directory_unavailable", path: userDirectory };
+      }
     }
   }
   if (!target) {
@@ -107,7 +111,9 @@ export async function ensureCommandLineTool(
     }
     return directories.includes(SYSTEM_BIN_DIRECTORY)
       ? { status: "needs_admin", path: systemLink }
-      : { status: "path_required", path: userDirectory };
+      : directories.includes(userDirectory)
+        ? { status: "directory_unavailable", path: userDirectory }
+        : { status: "path_required", path: userDirectory };
   }
   const link = posix.join(target, COMMAND_NAME);
   try {

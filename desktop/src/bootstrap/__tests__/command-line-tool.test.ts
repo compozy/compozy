@@ -15,6 +15,16 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { dialog } from "electron";
+
+import * as commandLineTool from "../../cli/command-line-tool";
+import { createDesktopCommandLineTool } from "../../cli/electron-command-line-tool";
+import { resolveDesktopPaths } from "../../home";
+
+vi.mock("electron", () => ({
+  app: { isPackaged: true },
+  dialog: { showMessageBox: vi.fn().mockResolvedValue({ response: 0 }) },
+}));
 
 import {
   ensureCommandLineTool,
@@ -138,6 +148,82 @@ describe("desktop command installation", () => {
     );
   });
 
+  it.each(["create", "write"])(
+    "Should report an unavailable user directory on PATH when it cannot %s",
+    async failure => {
+      const deps = dependencies({
+        loginShellPath: async () => "/home/test/.local/bin:/usr/bin:/bin",
+      });
+      deps.fs.isWritableDirectory = async () => false;
+      if (failure === "create")
+        deps.fs.mkdir = async () => {
+          throw new Error("permission denied");
+        };
+      const state = await ensureCommandLineTool(deps);
+      expect(state).toEqual({ status: "directory_unavailable", path: "/home/test/.local/bin" });
+      const attempt = flow();
+      vi.mocked(attempt.ensure).mockResolvedValue(state);
+      await exposeCommandLineToolOnFirstRun(attempt);
+      expect(attempt.recordAttempt).toHaveBeenCalledWith(state);
+      expect(attempt.showMessageBox).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "The command directory is not available" })
+      );
+      expect(attempt.linkWithAdministratorPrivileges).not.toHaveBeenCalled();
+    }
+  );
+
+  it("Should show failed or cancelled elevation without repeating the access request", async () => {
+    const deps = flow();
+    vi.mocked(deps.linkWithAdministratorPrivileges).mockRejectedValue(
+      new Error("cancelled by user")
+    );
+    await installCommandLineTool(deps);
+    expect(deps.log).toHaveBeenCalledWith("install compozy command with administrator access", {
+      error: "cancelled by user",
+    });
+    expect(deps.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: "The compozy command was not installed",
+        detail: expect.stringContaining("failed or was cancelled"),
+      })
+    );
+  });
+
+  it("Should acknowledge a menu request during the automatic check", async () => {
+    const platform = Object.getOwnPropertyDescriptor(process, "platform")!;
+    const pending = Promise.withResolvers<commandLineTool.CommandLineToolState>();
+    const ensure = vi
+      .spyOn(commandLineTool, "ensureCommandLineTool")
+      .mockReturnValue(pending.promise);
+    const home = await mkdtemp(join(tmpdir(), "compozy-desktop-pending-"));
+    const logger = { info: vi.fn(), error: vi.fn() };
+    try {
+      Object.defineProperty(process, "platform", { value: "darwin" });
+      vi.stubEnv("COMPOZY_HOME", "");
+      vi.mocked(dialog.showMessageBox).mockClear();
+      const controller = createDesktopCommandLineTool(
+        resolveDesktopPaths({ COMPOZY_HOME: home }),
+        logger,
+        false
+      )!;
+      controller.firstRun();
+      await vi.waitFor(() => expect(ensure).toHaveBeenCalledOnce());
+      controller.install();
+      expect(dialog.showMessageBox).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "Command installation is already running" })
+      );
+      expect(ensure).toHaveBeenCalledOnce();
+      pending.resolve({ status: "no_runtime" });
+      await vi.waitFor(() => expect(logger.info).toHaveBeenCalled());
+    } finally {
+      pending.resolve({ status: "no_runtime" });
+      Object.defineProperty(process, "platform", platform);
+      vi.unstubAllEnvs();
+      ensure.mockRestore();
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
   it("Should request explicit elevation only for a system directory on PATH", async () => {
     const deps = dependencies();
     deps.fs.isWritableDirectory = async () => false;
@@ -167,6 +253,14 @@ describe("desktop command installation", () => {
     const args = run.mock.calls[0]![1] as string[];
     expect(args).toContain("/a user's/runtime");
     expect(args.join(" ")).toContain("quoted form of");
+    expect(args.slice(-3)).toEqual([
+      "/a user's/runtime",
+      "/usr/local/bin",
+      "/usr/local/bin/compozy",
+    ]);
+    expect(args.join(" ")).toContain(
+      '/bin/ln -sh " & quoted form of (item 1 of argv) & " " & quoted form of (item 3 of argv)'
+    );
     expect(args.join(" ")).not.toContain("ln -sf");
   });
 

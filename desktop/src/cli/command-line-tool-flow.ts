@@ -38,6 +38,19 @@ function resultDialog(state: CommandLineToolState): MessageBoxOptions {
         message: "An existing file blocks the compozy command",
         detail: `${state.path} is not an executable command. CompozyOS left it unchanged. Move or repair that file, then choose Install compozy Command again.`,
       };
+    case "directory_unavailable":
+      return {
+        type: "warning",
+        message: "The command directory is not available",
+        detail: `CompozyOS could not create or write to ${state.path}. Check that it is a directory your account can write to, then choose Install compozy Command again.`,
+      };
+    case "install_failed":
+      return {
+        type: "warning",
+        message: "The compozy command was not installed",
+        detail:
+          "Installation failed or was cancelled. You can try again from the CompozyOS menu. See the desktop log for details.",
+      };
     case "needs_admin":
       return {
         type: "warning",
@@ -71,7 +84,8 @@ async function linkAsAdministrator(
       error: error instanceof Error ? error.message : String(error),
     });
   }
-  return await deps.ensure();
+  const state = await deps.ensure();
+  return state.status === "needs_admin" ? { status: "install_failed", path } : state;
 }
 
 /** The app-menu action: always explicit, so it may raise the administrator prompt directly. */
@@ -94,15 +108,11 @@ export async function exposeCommandLineToolOnFirstRun(
   deps.log("expose compozy command on first run", { status: state.status });
   if (state.status === "no_runtime") return;
   await deps.recordAttempt(state);
-  if (
-    state.status === "path_required" ||
-    state.status === "existing" ||
-    state.status === "conflict"
-  ) {
+  if (state.status === "linked" || state.status === "current") return;
+  if (state.status !== "needs_admin") {
     await deps.showMessageBox(resultDialog(state));
     return;
   }
-  if (state.status !== "needs_admin") return;
   const { response } = await deps.showMessageBox({
     type: "question",
     buttons: ["Install", "Not Now"],

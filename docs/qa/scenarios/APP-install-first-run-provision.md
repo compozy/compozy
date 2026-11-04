@@ -69,6 +69,12 @@ QA impact 2026-11-04 — #1257 (macOS command exposure):
 - With an unwritable system directory, decline the first-run install offer. Confirm the
   app remains usable; use **CompozyOS → Install compozy Command…** to retry, approve the
   macOS administrator prompt, and verify from a fresh terminal.
+- Cancel or fail the macOS administrator prompt. Confirm the result states that installation
+  failed or was cancelled and points to the desktop log, rather than asking for the same
+  access without acknowledging the failed attempt.
+- With only `~/.local/bin` on PATH, make that directory unwritable or block its creation.
+  Confirm first launch records the attempt and reports directory access, not a missing PATH.
+  While the automatic check is pending, choose the menu action and confirm visible feedback.
 - Repeat with fish as the login shell and zsh as the interactive shell. Shell profiles
   must remain unchanged. If the installer directories are absent from PATH, follow the
   reported PATH instruction and retry; do not report success before terminal resolution.

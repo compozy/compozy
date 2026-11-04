@@ -116,7 +116,7 @@ export function createCommandLineToolFlowDeps(options: {
 /** Keeps menu and automatic attempts single-flight and outside the bootstrap lifecycle. */
 export function createDesktopCommandLineTool(
   paths: DesktopPaths,
-  logger: DesktopLogger,
+  logger: Pick<DesktopLogger, "info" | "error">,
   e2e: boolean
 ): { install: () => void; firstRun: () => void } | null {
   if (process.platform !== "darwin" || e2e) return null;
@@ -127,7 +127,19 @@ export function createDesktopCommandLineTool(
   });
   let pending: Promise<void> | null = null;
   const run = (automatic: boolean): void => {
-    if (pending) return;
+    if (pending) {
+      if (!automatic) {
+        void dialog
+          .showMessageBox({
+            type: "info",
+            message: "Command installation is already running",
+            detail:
+              "Finish the current installation check or approval prompt, then try again if needed.",
+          })
+          .catch(error => logger.error("show command installation status", error));
+      }
+      return;
+    }
     if (automatic && (!app.isPackaged || process.env.COMPOZY_HOME?.trim())) return;
     pending = (automatic ? exposeCommandLineToolOnFirstRun(deps) : installCommandLineTool(deps))
       .catch(async error => {
