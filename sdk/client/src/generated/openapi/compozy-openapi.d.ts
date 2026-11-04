@@ -15451,6 +15451,8 @@ export interface components {
       cause: string;
       /** Format: date-time */
       observed_at: string | null;
+      /** Format: date-time */
+      retry_after?: string | null;
       stale: boolean;
       /** @enum {string} */
       state: "ok" | "pending" | "error" | "incomplete";

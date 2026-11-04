@@ -4356,7 +4356,8 @@ func addSessionsKanbanSchemas(t *testing.T, baseline map[string]any) {
 			"properties": {
 				"state":{"type":"string","enum":["ok","pending","error","incomplete"]},
 				"cause":{"type":"string"},"observed_at":{"type":"string","format":"date-time","nullable":true},
-				"stale":{"type":"boolean"}
+				"stale":{"type":"boolean"},
+				"retry_after":{"type":"string","format":"date-time","nullable":true}
 			}
 		},
 		"SessionBoardCountsPayload": {

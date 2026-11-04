@@ -46,6 +46,8 @@ type ForgeCapabilitiesResponse struct {
 	CredentialSource    string   `json:"credential_source,omitempty"`
 	DefaultBranch       string   `json:"default_branch,omitempty"`
 	Cause               string   `json:"cause,omitempty"`
+	// RetryAfter is when a rate-limited provider may be asked again; it accompanies Cause rate_limited.
+	RetryAfter *time.Time `json:"retry_after,omitempty"`
 }
 
 type ForgeStatusRequest struct {

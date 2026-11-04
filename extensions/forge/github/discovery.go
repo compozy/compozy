@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	c "github.com/compozy/compozy/internal/extension/contract"
+	compozysdk "github.com/compozy/compozy/sdk/go"
 )
 
 const prSearchQueryKey = "query"
@@ -35,11 +37,6 @@ func (p *Provider) SearchPRs(ctx context.Context, request c.ForgePRSearchRequest
 	if credential.token == "" {
 		return result, errors.New("forge credentials unavailable")
 	}
-	limit := request.Limit
-	if limit < 1 || limit > 100 {
-		limit = 30
-	}
-	page := max(1, request.Page)
 	// GraphQL returns the complete bounded page in one request. Preserve usable
 	// nodes when GitHub reports an error on another node.
 	var response struct {
@@ -55,29 +52,18 @@ func (p *Provider) SearchPRs(ctx context.Context, request c.ForgePRSearchRequest
 		}
 		Errors []graphError
 	}
-	var after *string
-	if page > 1 {
-		cursor := base64.StdEncoding.EncodeToString([]byte("cursor:" + strconv.Itoa((page-1)*limit)))
-		after = &cursor
-	}
-	variables := map[string]any{
-		prSearchQueryKey: fmt.Sprintf(
-			"repo:%s/%s is:pr %q sort:updated-desc",
-			repo.owner,
-			repo.name,
-			strings.TrimSpace(request.Query),
-		),
-		"first": limit,
-		"after": after,
-	}
-	if err := p.api.request(
+	var headers http.Header
+	if err := p.api.requestWithHeaders(
 		ctx,
 		http.MethodPost,
 		"/graphql",
 		credential.token,
-		map[string]any{prSearchQueryKey: prSearchQuery, "variables": variables},
-		&response,
+		map[string]any{prSearchQueryKey: prSearchQuery, "variables": searchVariables(repo, request)},
+		&response, &headers,
 	); err != nil {
+		return result, discoveryError(err)
+	}
+	if err := searchError(response.Errors, headers, p.now()); err != nil {
 		return result, err
 	}
 	for _, node := range response.Data.Search.Nodes {
@@ -107,6 +93,29 @@ func (p *Provider) SearchPRs(ctx context.Context, request c.ForgePRSearchRequest
 	return result, nil
 }
 
+func searchVariables(repo repository, request c.ForgePRSearchRequest) map[string]any {
+	limit := request.Limit
+	if limit < 1 || limit > 100 {
+		limit = 30
+	}
+	page := max(1, request.Page)
+	var after *string
+	if page > 1 {
+		cursor := base64.StdEncoding.EncodeToString([]byte("cursor:" + strconv.Itoa((page-1)*limit)))
+		after = &cursor
+	}
+	return map[string]any{
+		prSearchQueryKey: fmt.Sprintf(
+			"repo:%s/%s is:pr %q sort:updated-desc",
+			repo.owner,
+			repo.name,
+			strings.TrimSpace(request.Query),
+		),
+		"first": limit,
+		"after": after,
+	}
+}
+
 func (p *Provider) ReadPR(ctx context.Context, request c.ForgePRReadRequest) (c.ForgePRCandidate, error) {
 	repo, ok := selectRepository(request.RemoteURLs)
 	if !ok || request.Number < 1 {
@@ -128,7 +137,7 @@ func (p *Provider) ReadPR(ctx context.Context, request c.ForgePRReadRequest) (c.
 		nil,
 		&pull,
 	); err != nil {
-		return c.ForgePRCandidate{}, err
+		return c.ForgePRCandidate{}, discoveryError(err)
 	}
 	state := pull.State
 	if pull.MergedAt != nil {
@@ -146,4 +155,34 @@ func (p *Provider) ReadPR(ctx context.Context, request c.ForgePRReadRequest) (c.
 		Branch:         pull.Head.Ref,
 		State:          state,
 	}, nil
+}
+
+// searchError prioritizes a GraphQL rate limit even when GitHub returned partial search data.
+func searchError(failures []graphError, headers http.Header, now time.Time) error {
+	for i := range failures {
+		if failures[i].Type == "RATE_LIMITED" {
+			return discoveryError(
+				&githubAPIError{
+					cause:      c.ForgeCauseRateLimited,
+					status:     http.StatusTooManyRequests,
+					retryAfter: githubRetryAfter(headers, now),
+				},
+			)
+		}
+	}
+	return nil
+}
+
+// discoveryError reports a rate limit as JSON-RPC error data the daemon reads, so a refused search
+// or read pauses every forge read until the reset like a refused status does.
+func discoveryError(err error) error {
+	apiErr, ok := errors.AsType[*githubAPIError](err)
+	if !ok || apiErr.cause != c.ForgeCauseRateLimited {
+		return err
+	}
+	data := map[string]any{"code": c.ForgeCauseRateLimited}
+	if apiErr.retryAfter != nil {
+		data["retry_after"] = apiErr.retryAfter.UTC().Format(time.RFC3339)
+	}
+	return compozysdk.NewRPCError(-32000, "GitHub rate limit reached; retry later", data)
 }

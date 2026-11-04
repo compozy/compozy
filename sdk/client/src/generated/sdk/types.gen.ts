@@ -7556,6 +7556,7 @@ export type SessionPullRequestErrorPayload = {
 export type SessionPullRequestLookupPayload = {
   cause: string;
   observed_at: string | null;
+  retry_after?: string | null;
   stale: boolean;
   state: "ok" | "pending" | "error" | "incomplete";
 };

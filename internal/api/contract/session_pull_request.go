@@ -33,6 +33,9 @@ type SessionPullRequestLookupPayload struct {
 	Cause      string              `json:"cause"`
 	ObservedAt *time.Time          `json:"observed_at"`
 	Stale      bool                `json:"stale"`
+	// RetryAfter is when a rate-limited forge accepts lookups again; until then refreshes return the
+	// cached facts above. Absent unless Cause is rate_limited.
+	RetryAfter *time.Time `json:"retry_after,omitempty"`
 }
 
 type SessionBoardCountsPayload struct {
