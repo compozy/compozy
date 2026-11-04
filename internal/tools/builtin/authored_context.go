@@ -17,7 +17,7 @@ var authoredContextTools = []toolspkg.Descriptor{
 		"agent_heartbeat_sources",
 		"Agent Heartbeat Sources",
 		"List available check-in source kinds, scripts, approvals and limits.",
-		`{"type":"object","required":["agent","workspace"],"properties":{"agent":{"type":"string"},"workspace":{"type":"string"}},"additionalProperties":false}`,
+		`{"type":"object","required":["agent"],"properties":{"agent":{"type":"string"},"workspace":{"type":"string"}},"additionalProperties":false}`,
 		toolspkg.RiskRead,
 		true,
 		false,

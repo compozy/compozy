@@ -323,17 +323,17 @@ Scripts run with the workspace as their working directory and a minimal environm
 
 ## If something goes wrong
 
-| What you see                                                             | Cause                                                          | Fix                                                                 |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `failing` with `source_credential_absent`                                | The daemon has no GitHub sign-in.                              | Run `gh auth login` for the daemon's user, or bind `GITHUB_TOKEN`.  |
-| `failing` with `source_credential_expired`                               | GitHub rejected the token.                                     | Sign in again or update the bound token.                            |
-| `failing` with `source_rate_limited`                                     | GitHub's rate limit.                                           | Wait. The next check retries from the same place; no issue is lost. |
-| `failing` with `source_params_invalid`                                   | A bad `with` value, or no GitHub `origin` without `with.repo`. | Fix the field named in `error.detail`.                              |
-| `unavailable` with `source_kind_unavailable`                             | The extension is not enabled in this workspace.                | Enable it, then try again.                                          |
-| `unapproved` with `source_script_unapproved`                             | The script is new or changed.                                  | Review it and run `compozy agent heartbeat sources approve`.        |
-| `failing` with `source_script_missing` or `source_script_not_executable` | The file is missing or lacks the executable bit.               | Create it in `sources/` and `chmod +x` it.                          |
-| `failing` with `source_output_invalid`                                   | The script printed bad JSON or too many items.                 | Follow the output contract and page with `more`.                    |
-| A real check says `Not started: a source check is already running for issue-watch (source_poll_in_flight)`                             | A check is already asking the sources.                         | Wait for it to finish. Nothing was started twice.                   |
+| What you see                                                                                               | Cause                                                          | Fix                                                                 |
+| ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `failing` with `source_credential_absent`                                                                  | The daemon has no GitHub sign-in.                              | Run `gh auth login` for the daemon's user, or bind `GITHUB_TOKEN`.  |
+| `failing` with `source_credential_expired`                                                                 | GitHub rejected the token.                                     | Sign in again or update the bound token.                            |
+| `failing` with `source_rate_limited`                                                                       | GitHub's rate limit.                                           | Wait. The next check retries from the same place; no issue is lost. |
+| `failing` with `source_params_invalid`                                                                     | A bad `with` value, or no GitHub `origin` without `with.repo`. | Fix the field named in `error.detail`.                              |
+| `unavailable` with `source_kind_unavailable`                                                               | The extension is not enabled in this workspace.                | Enable it, then try again.                                          |
+| `unapproved` with `source_script_unapproved`                                                               | The script is new or changed.                                  | Review it and run `compozy agent heartbeat sources approve`.        |
+| `failing` with `source_script_missing` or `source_script_not_executable`                                   | The file is missing or lacks the executable bit.               | Create it in `sources/` and `chmod +x` it.                          |
+| `failing` with `source_output_invalid`                                                                     | The script printed bad JSON or too many items.                 | Follow the output contract and page with `more`.                    |
+| A real check says `Not started: a source check is already running for issue-watch (source_poll_in_flight)` | A check is already asking the sources.                         | Wait for it to finish. Nothing was started twice.                   |
 
 A failing source never blocks the agent's other sources. After three failures in a row (`failure_threshold`), the check
 tells the agent once, so the problem reaches you as a report instead of silence.

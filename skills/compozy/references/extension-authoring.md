@@ -42,15 +42,15 @@ extension cannot claim compatibility its SDK does not have.
 `compozy extension init <name> --template <template> [--dir <path>]` writes source plus
 `package.json` or `go.mod` and nothing else.
 
-| Template                   | Use for                                        |
-| -------------------------- | ---------------------------------------------- |
-| `tool-provider-ts`         | Agent-callable tools in TypeScript (default).  |
-| `tool-provider-go`         | Agent-callable tools in Go.                    |
-| `view-provider-ts`         | A programmable palette view with React.        |
-| `loop-watch-source-go`     | The `loop.watch_source` provide surface.       |
-| `heartbeat-source-go` | Check-in source polling with bounded keyed items and opaque state. |
-| `connectivity-provider-go` | A Gateway connectivity provider in Go.         |
-| `connectivity-provider-ts` | A Gateway connectivity provider in TypeScript. |
+| Template                   | Use for                                                            |
+| -------------------------- | ------------------------------------------------------------------ |
+| `tool-provider-ts`         | Agent-callable tools in TypeScript (default).                      |
+| `tool-provider-go`         | Agent-callable tools in Go.                                        |
+| `view-provider-ts`         | A programmable palette view with React.                            |
+| `loop-watch-source-go`     | The `loop.watch_source` provide surface.                           |
+| `heartbeat-source-go`      | Check-in source polling with bounded keyed items and opaque state. |
+| `connectivity-provider-go` | A Gateway connectivity provider in Go.                             |
+| `connectivity-provider-ts` | A Gateway connectivity provider in TypeScript.                     |
 
 ## Declaration Shape
 
@@ -162,7 +162,7 @@ Closed set, validated at build, install, and load.
 | `tool.provider`         | `provide_tools`, `tools/call`                                            | yes    |
 | `model.source`          | `models/list`                                                            | yes    |
 | `loop.watch_source`     | `watch/poll`                                                             | yes    |
-| `heartbeat.source` | `heartbeat/source_poll` | yes |
+| `heartbeat.source`      | `heartbeat/source_poll`                                                  | yes    |
 | `view.provider`         | `view/open`, `view/event`, `view/close`                                  | yes    |
 | `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
 | `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |

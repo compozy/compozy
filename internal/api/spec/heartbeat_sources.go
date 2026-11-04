@@ -7,7 +7,7 @@ func heartbeatSourceOperations() []OperationSpec {
 		{
 			Method:      httpMethodGet,
 			Path:        "/api/agents/{name}/heartbeat/sources",
-			AppAccess:   AppAccessDenied,
+			AppAccess:   AppAccessAllowed,
 			OperationID: "getAgentHeartbeatSources",
 			Summary:     "List check-in source kinds, scripts and effective limits",
 			Tags:        []string{authoredContextAgentsKey},

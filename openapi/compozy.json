@@ -53837,7 +53837,7 @@
         "tags": [
           "agents"
         ],
-        "x-compozy-app-access": "denied",
+        "x-compozy-app-access": "allowed",
         "x-compozy-transports": [
           "http",
           "uds"

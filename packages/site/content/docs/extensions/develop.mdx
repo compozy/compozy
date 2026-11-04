@@ -48,15 +48,15 @@ Every verb supports `-o human|json|jsonl|toon`. Exact flags:
 compozy extension init my-ext --template tool-provider-go
 ```
 
-| Template                   | Language   | Shows                                            |
-| -------------------------- | ---------- | ------------------------------------------------ |
-| `tool-provider-ts`         | TypeScript | One tool with a typed handler. Default template. |
-| `tool-provider-go`         | Go         | The same tool with Go generics.                  |
-| `view-provider-ts`         | TypeScript | A programmable command-palette view with React.  |
-| `loop-watch-source-go`     | Go         | The `loop.watch_source` provide surface.         |
-| `heartbeat-source-go` | Go | Check-in source polling with bounded keyed items and opaque state. |
-| `connectivity-provider-go` | Go         | A Gateway connectivity provider.                 |
-| `connectivity-provider-ts` | TypeScript | A Gateway connectivity provider.                 |
+| Template                   | Language   | Shows                                                              |
+| -------------------------- | ---------- | ------------------------------------------------------------------ |
+| `tool-provider-ts`         | TypeScript | One tool with a typed handler. Default template.                   |
+| `tool-provider-go`         | Go         | The same tool with Go generics.                                    |
+| `view-provider-ts`         | TypeScript | A programmable command-palette view with React.                    |
+| `loop-watch-source-go`     | Go         | The `loop.watch_source` provide surface.                           |
+| `heartbeat-source-go`      | Go         | Check-in source polling with bounded keyed items and opaque state. |
+| `connectivity-provider-go` | Go         | A Gateway connectivity provider.                                   |
+| `connectivity-provider-ts` | TypeScript | A Gateway connectivity provider.                                   |
 
 Templates carry no manifest. They carry `package.json`/`go.mod`, a source file, and nothing else.
 
@@ -277,7 +277,7 @@ and validated at build, install, and load.
 | `tool.provider`         | `provide_tools`, `tools/call`                                            | yes    |
 | `model.source`          | `models/list`                                                            | yes    |
 | `loop.watch_source`     | `watch/poll`                                                             | yes    |
-| `heartbeat.source` | `heartbeat/source_poll` | yes |
+| `heartbeat.source`      | `heartbeat/source_poll`                                                  | yes    |
 | `view.provider`         | `view/open`, `view/event`, `view/close`                                  | yes    |
 | `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
 | `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |

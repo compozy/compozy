@@ -993,7 +993,7 @@
             "go": "c, err := client.New(ctx)\nif err != nil { return err }\n\nresult, err := c.GetAgentHeartbeatSources(ctx, client.GetAgentHeartbeatSourcesParams{Name: \"name\"})\nif err != nil { return err }\nfmt.Println(result)",
             "kind": "json",
             "resource": "agents",
-            "app_access": "denied"
+            "app_access": "allowed"
         },
         "getAgentHeartbeatStatus": {
             "typescript": "import { Compozy } from \"@compozy/client\";\n\nconst compozy = await Compozy.connect();\nconst result = await compozy.agents.getAgentHeartbeatStatus({ path: { \"name\": \"name\" } });",

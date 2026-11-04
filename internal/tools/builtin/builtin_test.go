@@ -3362,6 +3362,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if want := []toolspkg.ToolID{
 			toolspkg.ToolIDAgentActivity,
+			toolspkg.ToolIDAgentHeartbeatSources,
 			toolspkg.ToolIDAgentHeartbeatStatus,
 			toolspkg.ToolIDAgentHeartbeatWake,
 			toolspkg.ToolIDAgentInstanceArchive,

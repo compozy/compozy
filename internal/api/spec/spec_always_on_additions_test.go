@@ -17,6 +17,13 @@ var alwaysOnHardeningAdditions = []struct {
 	pathPrefix string
 	keys       []string
 }{
+	// Check-in sources add only these reviewed fields to the named wire components.
+	{"#/components/schemas/HeartbeatContextProjectionPayload", []string{"sources"}},
+	{"#/components/schemas/AgentInstancePayload", []string{"sources"}},
+	{"#/components/schemas/AgentInstanceCheckResponse", []string{"sources"}},
+	{"#/components/schemas/AgentInstanceCheckDigest", []string{"source"}},
+	{"#/components/schemas/AgentInstanceProposalSource", []string{"source_id", "source_ref", "item_key", "url"}},
+	{"#/components/schemas/AgentInstanceReportSource", []string{"source_id", "source_ref", "item_key", "url"}},
 	// Every session payload: the mode a session runs at, and whether the reviewer fell back.
 	{"#/", []string{"effective_permissions", "permission_mode_degraded"}},
 	// Queued input rows: input held while an always-on lineage is paused.
@@ -98,6 +105,7 @@ var alwaysOnHardeningEnumValues = map[string]bool{
 	"auto":                  true, // permission level
 	"goal_on_instance_main": true, // Goal refusal on an always-on main
 	"unattended":            true, // daemon-set pause reason
+	"source_poll_in_flight": true, // check-in source collection is pending
 }
 
 // copyApprovedEnum extends a baseline enum with approved members the current document added.
@@ -192,6 +200,10 @@ func (w approvedAdditionWalker) copy(oldValue, nextValue any, pointer string) {
 		}
 		copyApprovedEnum(expected, actual)
 		approved := approvedAdditionKeys(pointer)
+		// Inlined historical responses still use the current component's exact allowlist.
+		for key := range approvedAdditionKeys(newRef) {
+			approved[key] = true
+		}
 		oldProperties, hasOld := expected["properties"].(map[string]any)
 		newProperties, hasNew := actual["properties"].(map[string]any)
 		if hasOld && hasNew {
