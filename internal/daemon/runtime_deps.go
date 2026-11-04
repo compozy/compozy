@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentmemory"
+	"github.com/compozy/compozy/internal/providers"
 
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/udsapi"
@@ -99,4 +100,5 @@ type RuntimeDeps struct {
 	StartedAt           time.Time
 
 	OnProviderAuthSuccess func()
+	ProviderAuthVerdicts  *providers.AuthVerdicts
 }

@@ -17,7 +17,7 @@ func (s *Manager) admitLocked(
 	started time.Time,
 ) (bool, *UsageError) {
 	target := state.target
-	collector := s.options.Collectors[id]
+	collector := s.options.Collectors[target.Collector()]
 	known := identity != (CredentialIdentity{})
 	if state.hasIdentity &&
 		((known && !state.identity.Same(identity)) ||

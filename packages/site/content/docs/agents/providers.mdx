@@ -431,6 +431,13 @@ probe (`POST /api/providers/:provider_id/auth/probe` over HTTP/UDS). An `authent
 creation immediately without waiting for the 30-second cache expiry. The next startup checks the
 credentials for its own workspace and profile.
 
+The daemon keeps the last live sign-in result for each `native_cli` provider, whether it came from that
+probe, from **Check sign-in** in Settings → Providers, or from the check that runs before every session
+starts. Settings → Providers and `compozy provider list` show it (`Ready`, checked a few minutes ago, or
+`Needs sign-in`) and expose its time as `auth_status.last_probe_at`. Opening Settings never runs a
+status command. A provider reads `Sign-in unverified` only until its first check after the daemon starts
+or after you change that provider's configuration.
+
 ### Recover from a provider refusal before acceptance
 
 When an agent declares a `fallback_chain` (see [agent definitions](/docs/agents/definitions)), a work

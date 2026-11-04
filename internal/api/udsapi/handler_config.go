@@ -4,6 +4,8 @@ import (
 	"log/slog"
 	"time"
 
+	authproviders "github.com/compozy/compozy/internal/providers"
+
 	"github.com/compozy/compozy/internal/agentmemory"
 
 	"github.com/compozy/compozy/internal/api/core"
@@ -95,4 +97,5 @@ type handlerConfig struct {
 	mcpHostAPI            mcppkg.HostAPIInvoker
 
 	onProviderAuthSuccess func()
+	providerAuthVerdicts  *authproviders.AuthVerdicts
 }

@@ -74,6 +74,8 @@ type SettingsProviderAuthStatusPayload struct {
 	Message    string                         `json:"message,omitempty"`
 	StatusCmd  string                         `json:"status_command,omitempty"`
 	Login      ProviderLoginDescriptorPayload `json:"login"`
+	// LastProbeAt is when the reported sign-in state was last verified live; absent when never.
+	LastProbeAt *time.Time `json:"last_probe_at,omitempty"`
 }
 
 type SettingsProviderSecretWritePayload struct {

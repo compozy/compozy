@@ -91,6 +91,7 @@ func (s *Server) handlerDependencies() handlerConfig {
 		extensions:            s.extensions,
 
 		onProviderAuthSuccess: s.onProviderAuthSuccess,
+		providerAuthVerdicts:  s.providerAuthVerdicts,
 	}
 	s.applySessionHandlerDependencies(&config)
 	return config

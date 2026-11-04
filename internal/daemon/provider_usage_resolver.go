@@ -68,12 +68,13 @@ func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) (
 		if target.ProviderName == "" {
 			target.ProviderName = id
 		}
+		target.CollectorID = r.collectorFamily(id, provider)
 		switch {
 		case !cfg.ProviderUsage.ProviderEnabled(id):
 			target.Error = providerusage.NewUsageError(providerusage.ErrorCodeDisabled, id)
-		case r.collectors[id] == nil:
+		case r.collectors[target.CollectorID] == nil:
 			target.Error = providerusage.NewUsageError(providerusage.ErrorCodeNoCollector, id)
-		case !providerUsageAuthSupported(id, provider.EffectiveAuthMode()):
+		case !providerUsageAuthSupported(target.CollectorID, provider.EffectiveAuthMode()):
 			target.Error = providerusage.NewUsageError(providerusage.ErrorCodeNoCollector, id)
 			target.Error.Message = "Usage collection does not support this provider authentication mode"
 		default:
@@ -81,6 +82,7 @@ func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) (
 				ctx,
 				profileName,
 				id,
+				target.CollectorID,
 				provider,
 				cfg.ProviderUsage.ClaudeKeychainAccess(),
 			)
@@ -97,8 +99,34 @@ func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) (
 	return targets, nil
 }
 
+// collectorFamily picks the collector that owns a provider's usage. A provider's own ID wins, so
+// Pi-harness built-ins whose runtime_provider names a model vendor keep their collector; a configured
+// alias (for example a second Claude account) collects through its runtime_provider's collector
+// with its own launch environment and secrets. It returns the own ID when neither has a collector.
+func (r *providerUsageResolver) collectorFamily(id string, provider config.ProviderConfig) string {
+	if r.collectors[id] != nil {
+		return id
+	}
+	runtime := strings.TrimSpace(provider.RuntimeProvider)
+	if runtime == "" || r.collectors[runtime] == nil ||
+		!providerUsageAuthSupported(runtime, provider.EffectiveAuthMode()) {
+		return id
+	}
+	// Key-based collectors read the bound `api_key` slot; an alias without it cannot collect.
+	if provider.EffectiveAuthMode() == config.ProviderAuthModeBoundSecret &&
+		!slices.ContainsFunc(provider.EffectiveCredentialSlots(), func(slot config.ProviderCredentialSlot) bool {
+			return slot.Name == providerUsageAPIKeySlot
+		}) {
+		return id
+	}
+	return runtime
+}
+
+// providerUsageAPIKeySlot is the bound credential slot key-based usage collectors read.
+const providerUsageAPIKeySlot = "api_key"
+
 func (r *providerUsageResolver) route(
-	ctx context.Context, profileName, id string, provider config.ProviderConfig, keychain bool,
+	ctx context.Context, profileName, id, collectorID string, provider config.ProviderConfig, keychain bool,
 ) (providerusage.ResolvedRoute, string, error) {
 	env := procutil.FilteredDaemonEnv(r.baseEnv)
 	if provider.EffectiveEnvPolicy() == config.ProviderEnvPolicyIsolated {
@@ -111,10 +139,6 @@ func (r *providerUsageResolver) route(
 			id,
 		)
 	}
-	for _, entry := range parsed.Environment {
-		key, value, _ := strings.Cut(entry, "=")
-		env = providerenv.SetEnvValue(env, key, value)
-	}
 	env, err = providerenv.ResolveHomeEnv(r.home, id, provider.EffectiveHomePolicy(), env)
 	if err != nil {
 		return providerusage.ResolvedRoute{}, "", providerusage.NewUsageError(
@@ -122,6 +146,8 @@ func (r *providerUsageResolver) route(
 			id,
 		)
 	}
+	// Session startup applies the home policy first and the launch command's environment last.
+	env = applyLaunchEnvironment(env, parsed)
 	// Declared credentials never remain in the general child environment.
 	for _, slot := range provider.EffectiveCredentialSlots() {
 		env = slices.DeleteFunc(env, func(entry string) bool { return strings.HasPrefix(entry, slot.TargetEnv+"=") })
@@ -129,7 +155,7 @@ func (r *providerUsageResolver) route(
 	route := providerusage.ResolvedRoute{
 		Env:            env,
 		BoundSecrets:   map[string]string{},
-		KeychainAccess: id == "claude" && keychain,
+		KeychainAccess: collectorID == nativeProviderClaude && keychain,
 	}
 	if err := r.bindSecrets(ctx, profileName, id, provider, &route); err != nil {
 		return route, "", err

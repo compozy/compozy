@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
@@ -19,6 +20,7 @@ func runPreStart(
 	ctx context.Context,
 	provider compozyconfig.ProviderConfig,
 	env *ProbeEnv,
+	verdicts *AuthVerdicts,
 ) PreStartReport {
 	normalized := env.Normalize()
 	if ctx == nil {
@@ -59,6 +61,7 @@ func runPreStart(
 	if err != nil {
 		return preStartErrorReport(&normalized, err)
 	}
+	startedAt := time.Now()
 	result, err := normalized.RunCommand(ctx, commandSpec)
 	if err != nil {
 		return preStartErrorReport(&normalized, err)
@@ -71,6 +74,7 @@ func runPreStart(
 		Stdout:   result.Stdout,
 		Stderr:   result.Stderr,
 	}, &normalized)
+	verdicts.Record(normalized.ProviderName, provider, probeClassification, startedAt)
 	if probeClassification.Code == "" {
 		return PreStartReport{}
 	}

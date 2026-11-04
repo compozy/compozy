@@ -524,6 +524,44 @@ func TestClaudeKeychain(t *testing.T) {
 }
 
 func TestClaudeIsolation(t *testing.T) {
+	t.Run("Should keep each Claude account in one profile separate", func(t *testing.T) {
+		t.Parallel()
+		primary, _, _ := claudeFixture(t, true)
+		alias, aliasDir, credential := claudeFixture(t, true)
+		alias.ProviderID, alias.CollectorID, alias.ProviderName = "claude-mm1", "claude", "Claude (mm1)"
+		requireNoError(t, os.WriteFile(
+			filepath.Join(aliasDir, ".credentials.json"),
+			[]byte(strings.ReplaceAll(credential, "synthetic-secret", "alias-secret")),
+			0o600,
+		))
+		server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") == "Bearer synthetic-secret" {
+				claudeResponse(t, w, `{"five_hour":{"utilization":7}}`)
+				return
+			}
+			requireEqual(t, "Bearer alias-secret", r.Header.Get("Authorization"))
+			claudeResponse(t, w, `{"five_hour":{"utilization":12}}`)
+		})
+		c := NewClaudeCollector(WithClaudeClock(fixtureClock(t).Now), WithClaudeHTTP(server.URL, nil))
+		first, err := c.Identity(t.Context(), primary, IntentBackground)
+		requireNoError(t, err)
+		second, err := c.Identity(t.Context(), alias, IntentBackground)
+		requireNoError(t, err)
+		requireEqual(t, false, first.Digest == second.Digest)
+		requireNoError(t, c.ValidateIdentity(t.Context(), primary, first))
+		snapshot, err := c.Collect(t.Context(), alias, IntentBackground, second)
+		requireNoError(t, err)
+		requireEqual(t, "claude-mm1", snapshot.ProviderID)
+		requireEqual(t, float64(12), *snapshot.Windows[0].UsedPercent)
+		primarySnapshot, err := c.Collect(t.Context(), primary, IntentBackground, first)
+		requireNoError(t, err)
+		requireEqual(t, float64(7), *primarySnapshot.Windows[0].UsedPercent)
+		requireNoError(t, c.ValidateIdentity(t.Context(), primary, first))
+		c.ForgetTarget(alias)
+		err = c.ValidateIdentity(t.Context(), alias, second)
+		requireEqual(t, ErrorCodeAuthMissing, AsUsageError(err, "Claude").Code)
+		requireNoError(t, c.ValidateIdentity(t.Context(), primary, first))
+	})
 	t.Run("Should resolve exact secure storage service and account", func(t *testing.T) {
 		t.Parallel()
 		target, _, _ := claudeFixture(t, false)

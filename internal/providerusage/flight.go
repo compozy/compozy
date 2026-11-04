@@ -9,7 +9,7 @@ func (s *Manager) runFlight(ctx context.Context, profile, id string, state *targ
 	defer s.wg.Done()
 	defer func() { s.mu.Lock(); defer s.mu.Unlock(); s.finishFlightLocked(profile, state, f) }()
 	timeout := 30 * time.Second
-	if id == codexProviderID || id == claudeProviderID {
+	if family := s.targetFamily(state); family == codexProviderID || family == claudeProviderID {
 		timeout = 60 * time.Second
 	}
 	defer f.cancel()
@@ -22,7 +22,8 @@ func (s *Manager) runFlight(ctx context.Context, profile, id string, state *targ
 			continue
 		}
 		s.mu.Lock()
-		follow := intent == IntentBackground && f.explicit && explicitRecovery(id, outcome)
+		// A retried flight may now collect through another family after a target change.
+		follow := intent == IntentBackground && f.explicit && explicitRecovery(state.target.Collector(), outcome)
 		if follow {
 			intent = IntentExplicit
 			f.intent = IntentExplicit
@@ -37,13 +38,19 @@ func (s *Manager) runFlight(ctx context.Context, profile, id string, state *targ
 	}
 }
 
-func explicitRecovery(provider string, e *UsageError) bool {
+func (s *Manager) targetFamily(state *targetState) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return state.target.Collector()
+}
+
+func explicitRecovery(family string, e *UsageError) bool {
 	if e == nil {
 		return false
 	}
 	switch e.Code {
 	case ErrorCodeAuthMissing:
-		return provider == claudeProviderID
+		return family == claudeProviderID
 	case ErrorCodeKeychainConsentRequired,
 		ErrorCodeKeychainDenied,
 		ErrorCodeKeychainReadTimeout,
@@ -70,7 +77,7 @@ func (s *Manager) collectOnce(
 	}
 	target := state.target
 	epoch := state.epoch
-	collector := s.options.Collectors[id]
+	collector := s.options.Collectors[target.Collector()]
 	s.mu.Unlock()
 	started := s.options.Clock.Now()
 	identity, err := collector.Identity(ctx, target, intent)
@@ -195,7 +202,7 @@ func (s *Manager) discardOwnership(profile, id string, state *targetState) {
 	if !s.currentLocked(profile, id, state) {
 		return
 	}
-	state.snapshot = initialSnapshot(state.target, s.options.Collectors[id])
+	state.snapshot = initialSnapshot(state.target, s.options.Collectors[state.target.Collector()])
 	state.hasIdentity = false
 	state.lastSuccess = time.Time{}
 	state.cooldown = nil

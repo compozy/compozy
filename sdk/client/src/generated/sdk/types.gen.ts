@@ -8607,6 +8607,7 @@ export type SettingsProviderAuthStatusPayload = {
   code?: string;
   env_policy: string;
   home_policy: string;
+  last_probe_at?: string | null;
   login: ProviderLoginDescriptorPayload;
   message?: string;
   mode: string;

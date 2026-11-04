@@ -643,3 +643,6 @@ Final focused receipts for this repair: complete passive-checkpoint suite 3.999 
 close/reopen 0.112 s; internal write lifecycle 0.074 s; existing six-reader/150-write real SQLite
 integration 0.314 s. Focused store/sessiondb lint reports zero issues. Batch-test conventions pass;
 the session file retains the previously documented file-level `t.Setenv` heuristic false positive.
+Main's provider usage/auth-verdict updates through `d731d2c34` were then integrated without
+conflicts or changes to the SQLite migration history. The source-generation and runtime gates
+for the complete integrated head remain CI-owned.

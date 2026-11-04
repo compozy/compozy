@@ -80,6 +80,7 @@ type BaseHandlerConfig struct {
 	ProviderUsage               ProviderUsageService
 	MarketplaceCatalog          MarketplaceCatalogService
 	OnProviderAuthSuccess       func()
+	ProviderAuthVerdicts        *authproviders.AuthVerdicts
 	ProviderAuthRunner          authproviders.ProviderAuthCommandRunner
 	ProviderAuthCommandResolver authproviders.ProviderAuthCommandResolver
 	ProviderACPProbe            func(context.Context, acp.SessionInspectionRequest) error
@@ -170,6 +171,7 @@ type BaseHandlers struct {
 	ProviderUsage                ProviderUsageService
 	MarketplaceCatalog           MarketplaceCatalogService
 	OnProviderAuthSuccess        func()
+	ProviderAuthVerdicts         *authproviders.AuthVerdicts
 	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
 	ProviderAuthCommandResolver  authproviders.ProviderAuthCommandResolver
 	ProviderACPProbe             func(context.Context, acp.SessionInspectionRequest) error
@@ -288,6 +290,7 @@ func baseHandlersFromConfig(cfg *BaseHandlerConfig, defaults baseHandlerDefaults
 		ProviderUsage:                cfg.ProviderUsage,
 		MarketplaceCatalog:           cfg.MarketplaceCatalog,
 		OnProviderAuthSuccess:        cfg.OnProviderAuthSuccess,
+		ProviderAuthVerdicts:         cfg.ProviderAuthVerdicts,
 		ProviderAuthRunner:           defaults.providerAuthRunner,
 		ProviderAuthCommandResolver:  defaults.providerAuthCommandResolver,
 		ProviderACPProbe:             defaults.providerACPProbe,

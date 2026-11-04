@@ -148,7 +148,7 @@ export function useSettingsProvidersPage() {
     setNameQuery,
     counts,
     restart: page.restart,
-    inspector: inspectorFlow.inspector,
+    inspector: withLiveInspectedEntry(inspectorFlow.inspector, providers),
     inspectorIsValid,
     inspectorError: inspectorFlow.saveError,
     inspectorWarnings: putMutation.data?.warnings,
@@ -171,4 +171,18 @@ export function useSettingsProvidersPage() {
     lastAction: inspectorFlow.lastAction,
     dismissLastAction: () => inspectorStore.trigger.lastActionDismissed(),
   };
+}
+
+/**
+ * The overview reads the inspected provider from the current collection, so a refetch (for
+ * example after "Check sign-in") updates the open dialog. The stored entry stays the fallback
+ * while the provider is missing from the list.
+ */
+function withLiveInspectedEntry(
+  inspector: ProviderInspectorState,
+  providers: readonly SettingsProviderEntry[]
+): ProviderInspectorState {
+  if (inspector.mode !== "inspect") return inspector;
+  const live = providers.find(provider => provider.name === inspector.entry.name);
+  return live && live !== inspector.entry ? { ...inspector, entry: live } : inspector;
 }

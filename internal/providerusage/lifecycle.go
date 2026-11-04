@@ -188,9 +188,10 @@ func (s *Manager) join(ctx context.Context) error {
 	}
 }
 
-// ClearCredentials invalidates a provider cache and its snapshots after consent changes.
-func (s *Manager) ClearCredentials(profileID, providerID string) {
-	if cache, ok := s.options.Collectors[providerID].(CredentialCache); ok {
+// ClearCredentials invalidates a collector family's cache and every snapshot it owns, including
+// configured aliases that collect through the family, after consent changes.
+func (s *Manager) ClearCredentials(profileID, collectorID string) {
+	if cache, ok := s.options.Collectors[collectorID].(CredentialCache); ok {
 		cache.ClearCredentials(profileID)
 	}
 	s.mu.Lock()
@@ -199,12 +200,19 @@ func (s *Manager) ClearCredentials(profileID, providerID string) {
 		if profileID != "" && profile != profileID {
 			continue
 		}
-		if state := p.targets[providerID]; state != nil {
+		changed := false
+		for _, state := range p.targets {
+			if state.target.Collector() != collectorID {
+				continue
+			}
 			state.epoch++
-			state.snapshot = initialSnapshot(state.target, s.options.Collectors[providerID])
+			state.snapshot = initialSnapshot(state.target, s.options.Collectors[collectorID])
 			state.hasIdentity = false
 			state.lastSuccess = time.Time{}
 			state.cooldown = nil
+			changed = true
+		}
+		if changed {
 			s.changedLocked(p)
 		}
 	}

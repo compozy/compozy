@@ -16510,6 +16510,8 @@ export interface components {
       code?: string;
       env_policy: string;
       home_policy: string;
+      /** Format: date-time */
+      last_probe_at?: string | null;
       login: components["schemas"]["ProviderLoginDescriptorPayload"];
       message?: string;
       mode: string;

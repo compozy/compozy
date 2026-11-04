@@ -80,6 +80,7 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	if preStarter != nil {
 		preStarter.Clear()
 	}
+	a.daemon.providerAuthVerdicts.Forget(changedProviderNames(&previous, &next)...)
 	if a.state.providerUsage != nil {
 		a.state.providerUsage.ApplyConsent(ctx, previous.ProviderUsage, next.ProviderUsage)
 	}

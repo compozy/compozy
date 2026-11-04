@@ -3317,6 +3317,127 @@ func TestProviderUsageResolver(t *testing.T) {
 			t.Fatal("missing configured provider")
 		}
 	})
+	t.Run("Should collect an alias through its runtime provider with its own config dir", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+		aliasDir := filepath.Join(t.TempDir(), ".claude-mm1")
+		cfg.Providers["claude-mm1"] = compozyconfig.ProviderConfig{
+			DisplayName:     "Claude (mm1)",
+			Harness:         compozyconfig.ProviderHarnessACP,
+			RuntimeProvider: "claude",
+			AuthMode:        compozyconfig.ProviderAuthModeNativeCLI,
+			HomePolicy:      compozyconfig.ProviderHomePolicyOperator,
+			Command:         "env -u ARGV0 CLAUDE_CONFIG_DIR=" + aliasDir + " npx -y claude-agent-acp",
+		}
+		cfg.Providers["claude-unsupported"] = compozyconfig.ProviderConfig{
+			Command:         "claude-agent-acp",
+			RuntimeProvider: "claude",
+			AuthMode:        compozyconfig.ProviderAuthModeNone,
+		}
+		resolver := &providerUsageResolver{cfg: cfg, home: home,
+			baseEnv:    []string{"HOME=" + t.TempDir()},
+			collectors: providerusage.DefaultRegistry(providerusage.RegistryOptions{}),
+		}
+		targets, err := resolver.Targets(t.Context(), store.DefaultProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		byID := make(map[string]providerusage.Target, len(targets))
+		for _, target := range targets {
+			byID[target.ProviderID] = target
+		}
+		alias := byID["claude-mm1"]
+		if alias.Status != "" || alias.Error != nil || alias.CollectorID != "claude" {
+			t.Fatalf(
+				"alias not routed to the Claude collector: status=%s collector=%s",
+				alias.Status,
+				alias.CollectorID,
+			)
+		}
+		if !slices.Contains(alias.Route.Env, "CLAUDE_CONFIG_DIR="+aliasDir) {
+			t.Fatal("alias route lost its own CLAUDE_CONFIG_DIR")
+		}
+		if alias.RouteFingerprint == "" || alias.RouteFingerprint == byID["claude"].RouteFingerprint {
+			t.Fatal("alias shares the built-in Claude route")
+		}
+		if got := byID["claude"].CollectorID; got != "claude" {
+			t.Fatalf("built-in Claude collector = %q", got)
+		}
+		if got := byID["moonshot"].CollectorID; got != "moonshot" {
+			t.Fatalf("own collector must win over runtime_provider: %q", got)
+		}
+		if unsupported := byID["claude-unsupported"]; unsupported.Error == nil ||
+			unsupported.Error.Code != providerusage.ErrorCodeNoCollector {
+			t.Fatalf("unsupported auth alias accepted: status=%s", unsupported.Status)
+		}
+	})
+	t.Run("Should apply env utility options to an alias route", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+		accountDir := filepath.Join(t.TempDir(), ".claude-work")
+		claudeAlias := func(command string) compozyconfig.ProviderConfig {
+			return compozyconfig.ProviderConfig{
+				Harness:         compozyconfig.ProviderHarnessACP,
+				RuntimeProvider: "claude",
+				AuthMode:        compozyconfig.ProviderAuthModeNativeCLI,
+				HomePolicy:      compozyconfig.ProviderHomePolicyOperator,
+				Command:         command,
+			}
+		}
+		cfg.Providers["claude-unset"] = claudeAlias("env -u CLAUDE_CONFIG_DIR npx -y claude-agent-acp")
+		cfg.Providers["claude-chdir"] = claudeAlias(
+			"env -C /tmp CLAUDE_CONFIG_DIR=" + accountDir + " npx -y claude-agent-acp",
+		)
+		cfg.Providers["claude-split"] = claudeAlias(
+			"env -S 'CLAUDE_CONFIG_DIR=" + accountDir + " npx -y claude-agent-acp'",
+		)
+		isolated := claudeAlias("env HOME=" + accountDir + " npx -y claude-agent-acp")
+		isolated.HomePolicy = compozyconfig.ProviderHomePolicyIsolated
+		cfg.Providers["claude-isolated"] = isolated
+		cfg.Providers["openrouter-team"] = compozyconfig.ProviderConfig{
+			Command:         "pi-acp",
+			Harness:         compozyconfig.ProviderHarnessPiACP,
+			RuntimeProvider: "openrouter",
+			AuthMode:        compozyconfig.ProviderAuthModeBoundSecret,
+			CredentialSlots: []compozyconfig.ProviderCredentialSlot{{
+				Name: "token", TargetEnv: "OPENROUTER_API_KEY", SecretRef: "env:TEAM_KEY", Required: true,
+			}},
+		}
+		resolver := &providerUsageResolver{cfg: cfg, home: home,
+			baseEnv:    []string{"HOME=" + t.TempDir(), "CLAUDE_CONFIG_DIR=/inherited/.claude"},
+			collectors: providerusage.DefaultRegistry(providerusage.RegistryOptions{}),
+		}
+		targets, err := resolver.Targets(t.Context(), store.DefaultProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		byID := make(map[string]providerusage.Target, len(targets))
+		for _, target := range targets {
+			byID[target.ProviderID] = target
+		}
+		if slices.ContainsFunc(byID["claude-unset"].Route.Env, func(entry string) bool {
+			return strings.HasPrefix(entry, "CLAUDE_CONFIG_DIR=")
+		}) {
+			t.Fatal("env -u left the inherited CLAUDE_CONFIG_DIR in the alias route")
+		}
+		for _, id := range []string{"claude-chdir", "claude-split"} {
+			if !slices.Contains(byID[id].Route.Env, "CLAUDE_CONFIG_DIR="+accountDir) {
+				t.Fatalf("%s route lost its own CLAUDE_CONFIG_DIR", id)
+			}
+		}
+		// Session startup applies the home policy first, then the command's own environment.
+		if !slices.Contains(byID["claude-isolated"].Route.Env, "HOME="+accountDir) {
+			t.Fatal("isolated home policy replaced the launch command's HOME")
+		}
+		if team := byID["openrouter-team"]; team.CollectorID != "openrouter-team" || team.Error == nil ||
+			team.Error.Code != providerusage.ErrorCodeNoCollector {
+			t.Fatalf("bound-secret alias without an api_key slot collected: collector=%s", team.CollectorID)
+		}
+	})
 	t.Run("Should report disabled providers", func(t *testing.T) {
 		t.Parallel()
 		home := testHomePaths(t)

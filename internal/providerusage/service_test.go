@@ -632,6 +632,20 @@ func TestUsageService(t *testing.T) {
 		}
 	})
 
+	t.Run("Should collect an alias through its collector family under its own provider ID", func(t *testing.T) {
+		t.Parallel()
+		f := usageFixture(t, func(w http.ResponseWriter, _ *http.Request) { writeFixture(w, t, codexHTTPFixture) })
+		alias := codexTarget(t, "account-b", f.clock.Now().Add(24*time.Hour))
+		alias.ProviderID, alias.CollectorID, alias.ProviderName = "codex-work", codexProviderID, "Codex (work)"
+		f.catalog.Replace("personal", []Target{f.target, alias})
+		env := refreshFixture(t, f, IntentExplicit)
+		requireEqual(t, 2, len(env.Targets))
+		for i, want := range []string{"codex", "codex-work"} {
+			requireEqual(t, want, env.Targets[i].ProviderID)
+			requireEqual(t, StatusOK, env.Targets[i].Status)
+		}
+		requireEqual(t, "Codex (work)", env.Targets[1].ProviderName)
+	})
 	t.Run("Should coalesce concurrent flights and enforce success based freshness floors", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32

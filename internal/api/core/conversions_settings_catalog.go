@@ -146,14 +146,15 @@ func settingsProviderAuthStatusPayload(
 	value settingspkg.ProviderAuthStatus,
 ) *contract.SettingsProviderAuthStatusPayload {
 	payload := contract.SettingsProviderAuthStatusPayload{
-		Mode:       string(value.Mode),
-		EnvPolicy:  string(value.EnvPolicy),
-		HomePolicy: string(value.HomePolicy),
-		State:      strings.TrimSpace(value.State),
-		Code:       strings.TrimSpace(value.Code),
-		Message:    strings.TrimSpace(value.Message),
-		StatusCmd:  strings.TrimSpace(value.StatusCmd),
-		Login:      providerLoginDescriptorPayload(value.Login),
+		Mode:        string(value.Mode),
+		EnvPolicy:   string(value.EnvPolicy),
+		HomePolicy:  string(value.HomePolicy),
+		State:       strings.TrimSpace(value.State),
+		Code:        strings.TrimSpace(value.Code),
+		Message:     strings.TrimSpace(value.Message),
+		StatusCmd:   strings.TrimSpace(value.StatusCmd),
+		Login:       providerLoginDescriptorPayload(value.Login),
+		LastProbeAt: optionalTime(value.CheckedAt),
 	}
 	return &payload
 }

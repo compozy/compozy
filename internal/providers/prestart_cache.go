@@ -31,6 +31,7 @@ type PreStarter struct {
 	cacheKey            preStartCacheHMACKey
 	cacheReady          bool
 	profileAvailability ProfileAvailabilityChecker
+	verdicts            *AuthVerdicts
 }
 
 type preStartCacheEntry struct {
@@ -44,15 +45,23 @@ type preStartCacheCandidate struct {
 	entry preStartCacheEntry
 }
 
-type preStarterOption func(*PreStarter)
+// PreStarterOption configures one PreStarter.
+type PreStarterOption func(*PreStarter)
+
+// WithAuthVerdicts records every live status-command verdict a pre-start probe produces.
+func WithAuthVerdicts(verdicts *AuthVerdicts) PreStarterOption {
+	return func(starter *PreStarter) {
+		starter.verdicts = verdicts
+	}
+}
 
 // NewPreStarter constructs an isolated pre-start probe cache for one daemon.
-func NewPreStarter() *PreStarter {
-	return newPreStarter()
+func NewPreStarter(options ...PreStarterOption) *PreStarter {
+	return newPreStarter(options...)
 }
 
 // newPreStarter applies internal cache policy overrides for package tests.
-func newPreStarter(options ...preStarterOption) *PreStarter {
+func newPreStarter(options ...PreStarterOption) *PreStarter {
 	starter := &PreStarter{
 		entries:  make(map[preStartCacheKey]preStartCacheEntry),
 		now:      time.Now,
@@ -89,11 +98,11 @@ func (s *PreStarter) PreStart(
 		return preStartErrorReport(&normalized, err)
 	}
 	if s == nil || !preStartContextCacheable(ctx) {
-		return runPreStart(ctx, provider, &normalized)
+		return runPreStart(ctx, provider, &normalized, s.authVerdicts())
 	}
 	key, cacheable := s.newPreStartCacheKey(provider, &normalized)
 	if !cacheable {
-		return runPreStart(ctx, provider, &normalized)
+		return runPreStart(ctx, provider, &normalized, s.authVerdicts())
 	}
 
 	now := s.now()
@@ -107,12 +116,12 @@ func (s *PreStarter) PreStart(
 		if cloneable {
 			return report
 		}
-		return runPreStart(ctx, provider, &normalized)
+		return runPreStart(ctx, provider, &normalized, s.authVerdicts())
 	}
 	generation := s.generation
 	s.mu.Unlock()
 
-	report := runPreStart(ctx, provider, &normalized)
+	report := runPreStart(ctx, provider, &normalized, s.authVerdicts())
 	if !preStartContextCacheable(ctx) || !preStartReportSafeForCache(report, provider, &normalized) {
 		return report
 	}
@@ -141,6 +150,13 @@ func (s *PreStarter) PreStart(
 	return returned
 }
 
+func (s *PreStarter) authVerdicts() *AuthVerdicts {
+	if s == nil {
+		return nil
+	}
+	return s.verdicts
+}
+
 // Clear drops every cached report owned by this starter. The generation prevents
 // a probe that began before Clear from repopulating the new configuration cache.
 func (s *PreStarter) Clear() {
@@ -152,19 +168,19 @@ func (s *PreStarter) Clear() {
 	s.mu.Unlock()
 }
 
-func withPreStartCacheTTL(ttl time.Duration) preStarterOption {
+func withPreStartCacheTTL(ttl time.Duration) PreStarterOption {
 	return func(starter *PreStarter) {
 		starter.ttl = ttl
 	}
 }
 
-func withPreStartCacheCapacity(capacity int) preStarterOption {
+func withPreStartCacheCapacity(capacity int) PreStarterOption {
 	return func(starter *PreStarter) {
 		starter.capacity = capacity
 	}
 }
 
-func withPreStartClock(now func() time.Time) preStarterOption {
+func withPreStartClock(now func() time.Time) PreStarterOption {
 	return func(starter *PreStarter) {
 		starter.now = now
 	}

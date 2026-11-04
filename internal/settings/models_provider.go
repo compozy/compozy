@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"time"
+
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -53,6 +55,8 @@ type ProviderAuthStatus struct {
 	Message    string
 	StatusCmd  string
 	Login      authproviders.ProviderLoginDescriptor
+	// CheckedAt is when the reported live sign-in verdict was observed; zero when none was.
+	CheckedAt time.Time
 }
 
 // ProviderSecretWrite is one write-only provider secret mutation.
