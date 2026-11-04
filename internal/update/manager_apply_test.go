@@ -191,8 +191,9 @@ func TestManagerApplyRelease(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ApplyRelease() error = %v", err)
 		}
-		if applier.targetPath != executablePath || applier.mode != installed.Mode().Perm() {
-			t.Fatalf("binary apply = %#v, want target %q mode %04o", applier, executablePath, installed.Mode().Perm())
+		wantMode := installed.Mode().Perm() | 0o111
+		if applier.targetPath != executablePath || applier.mode != wantMode {
+			t.Fatalf("binary apply = %#v, want target %q mode %04o", applier, executablePath, wantMode)
 		}
 	})
 
@@ -685,14 +686,14 @@ func TestManagerRestore(t *testing.T) {
 		if applier.restoreCalls != 1 {
 			t.Fatalf("RestoreBinary() calls = %d, want 1", applier.restoreCalls)
 		}
-		if applier.targetPath != executablePath || applier.backupPath != backupPath ||
-			applier.mode != backup.Mode().Perm() {
+		wantMode := backup.Mode().Perm() | 0o111
+		if applier.targetPath != executablePath || applier.backupPath != backupPath || applier.mode != wantMode {
 			t.Fatalf(
 				"binary restore = %#v, want backup %q target %q mode %04o",
 				applier,
 				backupPath,
 				executablePath,
-				backup.Mode().Perm(),
+				wantMode,
 			)
 		}
 	})
