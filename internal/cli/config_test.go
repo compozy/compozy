@@ -2928,20 +2928,29 @@ func TestTerminalConfigSetPathsMatchPublicSurface(t *testing.T) {
 func TestConfigCommandsAlwaysOnPathAlias(t *testing.T) {
 	t.Parallel()
 	for _, verb := range []string{"get", "set", "unset"} {
-		t.Run("Should reject retired path on "+verb, func(t *testing.T) {
-			t.Parallel()
-			deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
-			args := []string{"config", verb, "agents.stays_on.max_proposals"}
-			if verb == "set" {
-				args = append(args, "3")
-			}
-			if _, _, err := executeRootCommand(
-				t,
-				deps,
-				args...); err == nil ||
-				!strings.Contains(err.Error(), "agents.always_on.max_proposals") {
-				t.Fatalf("error = %v", err)
-			}
-		})
+		for _, path := range []struct {
+			name string
+			key  string
+		}{
+			{name: "retired path", key: "agents.stays_on.max_proposals"},
+			{name: "padded retired path", key: "agents. stays_on.max_proposals"},
+			{name: "retired path with padded segments", key: " agents . stays_on . max_proposals "},
+		} {
+			t.Run("Should reject "+path.name+" on "+verb, func(t *testing.T) {
+				t.Parallel()
+				deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+				args := []string{"config", verb, path.key}
+				if verb == "set" {
+					args = append(args, "3")
+				}
+				if _, _, err := executeRootCommand(
+					t,
+					deps,
+					args...); err == nil ||
+					!strings.Contains(err.Error(), "agents.always_on.max_proposals") {
+					t.Fatalf("error = %v", err)
+				}
+			})
+		}
 	}
 }

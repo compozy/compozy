@@ -30,4 +30,8 @@ Teardown reported `TEARDOWN_CLEAN=true` and removed all owned daemon/provider pr
 
 Focused tests, integration tests, generated artifacts and CI are recorded separately in the PR.
 
+The final review follow-up also ran the built CLI's `config get`, `set` and `unset` with
+` agents . stays_on . max_proposals ` against a temporary user home. All three exited 1 with
+`removed config key "agents.stays_on.max_proposals": use "agents.always_on.max_proposals"`.
+
 Final QA verdict: PASS for this targeted journey. PR readiness awaits current-head CI and reviewers.
