@@ -1210,10 +1210,23 @@ func TestConfigureRuntime(t *testing.T) {
 		proc := startHelperProcess(t, driver, "config_options_unconfirmed", "", StartOpts{})
 		defer stopProcess(t, driver, proc)
 		err := driver.ConfigureRuntime(testutil.Context(t), proc, RuntimeConfig{ReasoningEffort: "high"})
-		if err == nil || !strings.Contains(err.Error(), "did not confirm") {
-			t.Fatalf("error = %v, want unconfirmed configuration failure", err)
+		if err == nil || !strings.Contains(err.Error(), "did not confirm") || !IsConfigurationRejection(err) {
+			t.Fatalf("error = %v, want unconfirmed configuration rejection", err)
 		}
 		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "medium", "high")
+	})
+
+	// Invariant: a notification sent before the provider's response cannot discard that confirmation.
+	t.Run("Should confirm a model when a stale update precedes the response", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "config_options_stale_update", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
+		if err := driver.ConfigureRuntime(testutil.Context(t), proc, RuntimeConfig{Model: "other-model"}); err != nil {
+			t.Fatalf("ConfigureRuntime() error = %v, want provider-confirmed model", err)
+		}
+		options := proc.CapsSnapshot().ConfigOptions
+		assertConfigOption(t, options, "model", "other-model", "new-model", "loaded-model", "other-model")
 	})
 
 	t.Run("Should apply model then refreshed reasoning effort then speed", func(t *testing.T) {

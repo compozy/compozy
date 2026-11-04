@@ -44,6 +44,8 @@ const REASON: Record<string, string> = {
   triage_output_invalid: "It gave an answer it couldn't use.",
   triage_timeout: "It ran out of time.",
   triage_interrupted: "It was interrupted partway through.",
+  triage_config_unavailable:
+    "Its heartbeat model or runtime options were rejected. Check its model settings.",
   triage_failed: "It lost its connection partway through.",
   cooldown_active: "It checked in very recently, so it waited.",
   quiet_window: "It was outside its hours.",
@@ -93,12 +95,12 @@ function single(checkIn: AgentInstanceCheckIn): RecentCheckIn {
   const base = { key: checkIn.id, time: clockAt(checkIn.created_at) };
   const sentence = checkInReason(checkIn.reason);
   if (checkIn.result === "failed") {
-    return {
-      ...base,
-      title: "Couldn't finish",
-      description: checkIn.detail || sentence,
-      failed: true,
-    };
+    // A configuration diagnostic leads with the advice; the provider's detail follows it.
+    const description =
+      checkIn.reason === "triage_config_unavailable" && checkIn.detail
+        ? `${sentence} ${checkIn.detail}`
+        : checkIn.detail || sentence;
+    return { ...base, title: "Couldn't finish", description, failed: true };
   }
   if (isTold(checkIn)) {
     return { ...base, title: "Told you something", description: checkIn.detail, told: true };

@@ -3184,6 +3184,86 @@ func TestInstanceProposalDedupe(t *testing.T) {
 }
 
 func TestInstanceCheckFatigue(t *testing.T) {
+	// Invariant: a provider configuration rejection never advances the fatigue streak.
+	t.Run("Should keep configuration rejections out of the failure streak", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "wake-config", "sess-config-main")
+		repo := db.Instances()
+		instance, err := repo.Adopt(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		finish := func(occurrence string, outcome heartbeat.TriageOutcome) {
+			t.Helper()
+			if ok, err := repo.Admit(t.Context(), heartbeat.AdmitRequest{
+				InstanceID: instance.ID, OccurrenceID: occurrence, Now: now, ManualCheck: true, MaxConcurrent: 1,
+			}); err != nil || !ok {
+				t.Fatalf("admit=%v %v", ok, err)
+			}
+			if ok, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
+				InstanceID: instance.ID, OccurrenceID: occurrence, Source: "instance_check",
+				Result: outcome.Result, Reason: outcome.Reason, Detail: outcome.Detail, Report: outcome.Report,
+				Now: now, ExpiresAt: now.Add(time.Hour), FatigueLimit: 2, UnattendedTurnLimit: 2,
+			}); err != nil || !ok.Changed {
+				t.Fatalf("finish=%v %v", ok, err)
+			}
+		}
+		finish("occ-ordinary", heartbeat.TriageOutcome{Result: "failed", Reason: "triage_failed"})
+		for i := range 3 {
+			finish(fmt.Sprintf("occ-config-%d", i), heartbeat.ConfigUnavailableTriage(`model "haiku" is unavailable`))
+		}
+		state, err := repo.WakeState(t.Context(), instance.ID)
+		if err != nil || state.FailureStreak != 1 || state.UnattendedTurns != 1 {
+			t.Fatalf("wake state=%+v err=%v, want only the ordinary failure counted", state, err)
+		}
+		current, err := repo.Get(t.Context(), instance.ID)
+		if err != nil || current.State != "active" {
+			t.Fatalf("instance=%+v err=%v, want active after configuration rejections", current, err)
+		}
+		// A timer rejection waits max_interval even while an automation event stays pending.
+		due := store.FormatTimestamp(now)
+		if _, err := db.DB().ExecContext(t.Context(),
+			"UPDATE agent_instance_wake_state SET next_wake_at=? WHERE instance_id=?", due, instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_instance_events
+			(id,instance_id,trigger_id,run_id,summary,received_at) VALUES ('pending',?,'trigger','run','Event',?)`,
+			instance.ID, due); err != nil {
+			t.Fatal(err)
+		}
+		if ok, err := repo.Admit(t.Context(), heartbeat.AdmitRequest{
+			InstanceID: instance.ID, OccurrenceID: "occ-config-timer", ExpectedDue: due, Now: now,
+			NextWakeAt: now.Add(time.Hour), MaxConcurrent: 1,
+		}); err != nil || !ok {
+			t.Fatalf("timer admit=%v %v", ok, err)
+		}
+		retry := heartbeat.ConfigUnavailableTriage("rejected")
+		if ok, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
+			InstanceID: instance.ID, OccurrenceID: "occ-config-timer", Source: "timer",
+			Result: retry.Result, Reason: retry.Reason, Detail: retry.Detail, Report: retry.Report,
+			Now: now, ExpiresAt: now.Add(time.Hour), Interval: time.Hour, MaxInterval: 24 * time.Hour,
+			FatigueLimit: 2, UnattendedTurnLimit: 2,
+		}); err != nil || !ok.Changed {
+			t.Fatalf("timer finish=%v %v", ok, err)
+		}
+		timerState, err := repo.WakeState(t.Context(), instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		next, err := store.ParseTimestamp(timerState.NextWakeAt)
+		if err != nil || next.Before(now.Add(24*time.Hour)) {
+			t.Fatalf("next wake=%q err=%v, want a retry no sooner than max_interval", timerState.NextWakeAt, err)
+		}
+		finished, err := repo.Occurrence(t.Context(), instance.ID, "occ-config-2")
+		if err != nil || finished.Result != "failed" || finished.Reason != heartbeat.ReasonTriageConfigUnavailable {
+			t.Fatalf("occurrence=%+v err=%v, want configuration diagnostic", finished, err)
+		}
+	})
 	t.Run("Should pause at the failure limit and persist one fatigue report on retry", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)
