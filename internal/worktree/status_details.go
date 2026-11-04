@@ -67,8 +67,11 @@ func (s *Service) readDisplayPullRequest(ctx context.Context, item Worktree) *Fo
 	if err != nil {
 		return nil
 	}
-	entry := s.pullRequests.Read(ctx, []PullRequestKey{key})[key]
-	return entry.Facts
+	read := s.pullRequests.Peek
+	if displayRefreshes(item.State) {
+		read = s.pullRequests.Read
+	}
+	return read(ctx, []PullRequestKey{key})[key].Facts
 }
 
 // hydrateDisplayPullRequests shares workspace resolution only within this read.
