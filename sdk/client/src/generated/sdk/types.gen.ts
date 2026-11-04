@@ -5789,6 +5789,7 @@ export type ProviderUsageTarget = {
   account: ProviderUsageAccount | null;
   balances: Array<ProviderUsageBalance>;
   checked_at: string | null;
+  collector_id?: string;
   confidence: string;
   error: ProviderUsageError | null;
   measured_at: string | null;

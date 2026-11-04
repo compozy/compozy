@@ -32,6 +32,34 @@ export const PROVIDER_USAGE_COLLECTOR_IDS: readonly string[] = [
   "gemini",
 ];
 
+/** Collectors that read the provider CLI's own sign-in; the rest read a bound `api_key`. */
+const NATIVE_CLI_COLLECTOR_IDS = new Set(["codex", "claude", "kimi-cli", "cursor", "gemini"]);
+
+export interface ProviderUsageFamilySettings {
+  runtime_provider?: string;
+  auth_mode?: string;
+  credential_slots?: ReadonlyArray<{ name: string }>;
+}
+
+/**
+ * The collector a provider's usage goes through, mirroring the daemon: its own
+ * ID when it has a collector, else its `runtime_provider` when that collector
+ * supports the provider's auth mode (bound-secret aliases also need an
+ * `api_key` slot). `null` when the provider cannot collect.
+ */
+export function providerUsageCollectorFamily(
+  id: string,
+  settings: ProviderUsageFamilySettings | undefined
+): string | null {
+  if (PROVIDER_USAGE_COLLECTOR_IDS.includes(id)) return id;
+  const runtime = settings?.runtime_provider?.trim() ?? "";
+  if (!PROVIDER_USAGE_COLLECTOR_IDS.includes(runtime)) return null;
+  const slots = settings?.credential_slots ?? [];
+  const mode = settings?.auth_mode || (slots.length > 0 ? "bound_secret" : "native_cli");
+  if (NATIVE_CLI_COLLECTOR_IDS.has(runtime)) return mode === "native_cli" ? runtime : null;
+  return mode === "bound_secret" && slots.some(slot => slot.name === "api_key") ? runtime : null;
+}
+
 export const PROVIDER_USAGE_KEYCHAIN_PROVIDER = "claude";
 
 /**

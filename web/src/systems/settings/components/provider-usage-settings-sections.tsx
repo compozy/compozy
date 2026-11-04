@@ -73,14 +73,17 @@ export function ProviderUsageCollectionSection({ draft, onChange, disabled }: Dr
   );
 }
 
-/** One switch per configured provider that has a usage collector. */
+/**
+ * One switch per configured provider that has a usage collector. Stays
+ * editable while collection is off so providers can be chosen before it starts.
+ */
 export function ProviderUsageProvidersSection({
   draft,
   onChange,
   disabled,
   providers,
 }: DraftProps & { providers: readonly ProviderUsageSettingsProvider[] }) {
-  if (!draft.enabled || providers.length === 0) return null;
+  if (providers.length === 0) return null;
   return (
     <SettingsGroup title="Providers" data-testid="settings-provider-usage-providers">
       {providers.map(provider => (
@@ -89,7 +92,7 @@ export function ProviderUsageProvidersSection({
           data-testid={`settings-provider-usage-provider-${provider.id}-row`}
           label={
             <span className="flex items-center gap-2">
-              <ProviderLogo aria-hidden="true" provider={provider.id} />
+              <ProviderLogo aria-hidden="true" provider={provider.logoId} />
               {provider.name}
             </span>
           }

@@ -257,6 +257,7 @@ type ProviderUsageStreamEvent struct {
 // ProviderUsageTarget is a daemon API value.
 type ProviderUsageTarget struct {
 	ProviderID    string                  `json:"provider_id"`
+	CollectorID   string                  `json:"collector_id,omitempty"`
 	ProviderName  string                  `json:"provider_name"`
 	Status        string                  `json:"status"`
 	Source        *ProviderUsageSource    `json:"source"`

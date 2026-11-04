@@ -3597,7 +3597,7 @@ func TestProviderUsageResolver(t *testing.T) {
 }
 
 func TestProviderUsageAliasSelector(t *testing.T) {
-	t.Run("Should never send another account's token for an alias IT-001", func(t *testing.T) {
+	t.Run("Should keep alias accounts apart and tag alias rows with their family IT-001 IT-002", func(t *testing.T) {
 		t.Parallel()
 		writeAccount := func(dir, token string) {
 			t.Helper()
@@ -3645,6 +3645,12 @@ func TestProviderUsageAliasSelector(t *testing.T) {
 			"env -u ARGV0 CLAUDE_CONFIG_DIR=" + filepath.Join(accounts, "b") + " npx -y claude-agent-acp",
 		)
 		cfg.Providers["claude-mm5"] = alias("npx -y claude-agent-acp")
+		cfg.Providers["claude-mm2"] = alias(
+			"env CLAUDE_CONFIG_DIR=" + filepath.Join(accounts, "b") + " claude-agent-acp",
+		)
+		cfg.ProviderUsage.Providers = map[string]compozyconfig.ProviderUsageProviderConfig{
+			"claude-mm2": {Enabled: false},
+		}
 		registry := providerusage.Registry{
 			"claude": providerusage.NewClaudeCollector(providerusage.WithClaudeHTTP(server.URL, nil)),
 		}
@@ -3680,9 +3686,38 @@ func TestProviderUsageAliasSelector(t *testing.T) {
 			t.Fatalf("alias without selector = status %s error %+v", mm5.Status, mm5.Error)
 		}
 		mu.Lock()
-		defer mu.Unlock()
 		if slices.Contains(seen, "Bearer token-C") {
 			t.Fatal("daemon default account token was sent for an alias")
+		}
+		mu.Unlock()
+		full, err := service.Envelope(t.Context(), store.DefaultProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoded, err := json.Marshal(core.ProviderUsageEnvelopePayload(full))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wire struct {
+			Targets []map[string]any `json:"targets"`
+		}
+		if err := json.Unmarshal(encoded, &wire); err != nil {
+			t.Fatal(err)
+		}
+		collectors := map[string]any{}
+		for _, row := range wire.Targets {
+			collectors[row["provider_id"].(string)] = row["collector_id"]
+		}
+		// IT-002: ok, selector-rejected, and disabled aliases name their family; others omit it.
+		for _, id := range []string{"claude-mm1", "claude-mm5", "claude-mm2"} {
+			if collectors[id] != "claude" {
+				t.Fatalf("%s collector_id = %v, want claude", id, collectors[id])
+			}
+		}
+		for _, id := range []string{"claude", "opencode"} {
+			if got, ok := collectors[id]; !ok || got != nil {
+				t.Fatalf("%s collector_id = %v (listed %t), want omitted", id, got, ok)
+			}
 		}
 	})
 }

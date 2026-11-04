@@ -191,6 +191,43 @@ describe("Provider usage components", () => {
       expect(within(quiet).getByRole("button", { name: "Open settings" })).toBeInTheDocument();
     });
 
+    it("Should draw an alias row with its family logo but keep the alias ID (UT-013)", () => {
+      const alias = {
+        ...claudeOkTarget(NOW),
+        provider_id: "claude-mm1",
+        provider_name: "Claude (mm1)",
+      };
+      renderPanel({ viewModel: viewModelOf([{ ...alias, collector_id: "claude" }]) });
+
+      const aliasRow = row("Claude \\(mm1\\)");
+      expect(aliasRow).toHaveAttribute("data-provider", "claude-mm1");
+      expect(aliasRow.querySelector("[data-slot=kind-icon]")).toHaveAttribute(
+        "data-kind",
+        "claude"
+      );
+    });
+
+    it("Should draw the family logo for an alias in the quiet group (UT-014)", async () => {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const { disabled } = statusTargets(NOW);
+      const alias = {
+        ...disabled,
+        provider_id: "claude-mm1",
+        provider_name: "Claude (mm1)",
+        collector_id: "claude",
+      };
+      const { onAction } = renderPanel({ viewModel: viewModelOf([codexOkTarget(NOW), alias]) });
+
+      await user.click(screen.getByRole("button", { name: /without usage data/ }));
+      const item = screen
+        .getByRole("list", { name: /without usage data/ })
+        .querySelector<HTMLElement>("[data-provider=claude-mm1]");
+      if (!item) throw new Error("no quiet row for claude-mm1");
+      expect(item.querySelector("[data-slot=kind-icon]")).toHaveAttribute("data-kind", "claude");
+      await user.click(within(item).getByRole("button"));
+      expect(onAction).toHaveBeenCalledWith("claude-mm1", expect.anything());
+    });
+
     it("Should keep a row expanded while new revisions arrive (UT-055)", async () => {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const { rerender } = renderPanel();

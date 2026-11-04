@@ -2,7 +2,8 @@
 // Invariant: a provider switch saves `provider_usage.providers.<id>.enabled`
 // with the whole config through PATCH /api/settings/provider-usage; a rejected
 // apply shows the daemon's message and keeps the draft; the Claude Keychain row
-// exists only for a macOS daemon host; the feature switch hides the rest.
+// exists only for a macOS daemon host; the feature switch hides the cadence but providers stay
+// editable; aliases eligible by config are listed with their collector family's logo.
 // Boundary IN: the route page, its page hook, and the settings/usage adapters
 // over a stubbed `fetch`. Boundary OUT: the router (only route matching).
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -40,6 +41,47 @@ const PROVIDERS = {
     { name: "codex", settings: {} },
     { name: "cursor", settings: { display_name: "Cursor" } },
     { name: "opencode", settings: { display_name: "OpenCode" } },
+  ],
+};
+
+// Aliases: one per eligibility rule. Ineligible ones must not be listed.
+const ALIAS_PROVIDERS = {
+  providers: [
+    ...PROVIDERS.providers,
+    {
+      name: "claude-mm1",
+      settings: {
+        display_name: "Claude (mm1)",
+        runtime_provider: "claude",
+        auth_mode: "native_cli",
+      },
+    },
+    { name: "claude-keyed", settings: { runtime_provider: "claude", auth_mode: "bound_secret" } },
+    { name: "orphan", settings: { runtime_provider: "unknown-runtime" } },
+    {
+      name: "openrouter-team",
+      settings: {
+        runtime_provider: "openrouter",
+        credential_slots: [
+          { name: "token", target_env: "OPENROUTER_API_KEY", secret_ref: "env:T", required: true },
+        ],
+      },
+    },
+    {
+      name: "openrouter-alt",
+      settings: {
+        runtime_provider: "openrouter",
+        auth_mode: "bound_secret",
+        credential_slots: [
+          {
+            name: "api_key",
+            target_env: "OPENROUTER_API_KEY",
+            secret_ref: "env:K",
+            required: true,
+          },
+        ],
+      },
+    },
   ],
 };
 
@@ -243,14 +285,55 @@ describe("ProviderUsageSettingsPage", () => {
     expect(await screen.findByTestId("settings-provider-usage-keychain")).toBeChecked();
   });
 
-  it("Should hide everything but the master switch while the feature is off", async () => {
+  it("Should hide the cadence but keep providers editable while the feature is off (UT-012)", async () => {
     const user = userEvent.setup();
-    renderPage();
+    renderPage({
+      providers: Promise.resolve(json(ALIAS_PROVIDERS)),
+      section: { ...SECTION, config: { ...SECTION.config, enabled: false } },
+    });
 
-    await user.click(await screen.findByTestId("settings-provider-usage-enabled"));
-
+    const mm1 = await screen.findByTestId("settings-provider-usage-provider-claude-mm1");
     expect(screen.queryByTestId("settings-provider-usage-interval")).toBeNull();
-    expect(screen.queryByTestId("settings-provider-usage-providers")).toBeNull();
+    expect(mm1).toBeChecked();
+
+    await user.click(mm1);
+    await user.click(screen.getByTestId("settings-page-provider-usage-save"));
+
+    await waitFor(async () =>
+      expect(await patchBodies()).toEqual([
+        {
+          config: {
+            enabled: false,
+            refresh_interval: "5m0s",
+            providers: { cursor: { enabled: false }, "claude-mm1": { enabled: false } },
+          },
+        },
+      ])
+    );
+  });
+
+  it("Should list aliases eligible by config with their family logo (UT-010, UT-011)", async () => {
+    renderPage({
+      providers: Promise.resolve(json(ALIAS_PROVIDERS)),
+      section: {
+        ...SECTION,
+        config: { ...SECTION.config, providers: { "gone-alias": { enabled: false } } },
+      },
+    });
+
+    const list = await screen.findByTestId("settings-provider-usage-providers");
+    const ids = [...list.querySelectorAll("[data-testid$='-row']")].map(row =>
+      row.getAttribute("data-testid")?.replace(/^settings-provider-usage-provider-|-row$/g, "")
+    );
+    expect(ids).toEqual(["codex", "cursor", "claude-mm1", "gone-alias", "openrouter-alt"]);
+    const mm1 = screen.getByTestId("settings-provider-usage-provider-claude-mm1-row");
+    expect(mm1).toHaveTextContent("Claude (mm1)");
+    expect(mm1.querySelector("[data-slot=provider-logo]")).toHaveAttribute("data-kind", "claude");
+    expect(
+      screen
+        .getByTestId("settings-provider-usage-provider-openrouter-alt-row")
+        .querySelector("[data-slot=provider-logo]")
+    ).toHaveAttribute("data-kind", "openrouter");
   });
 
   it("Should carry the active profile into the consent apply", async () => {

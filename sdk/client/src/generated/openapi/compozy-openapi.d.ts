@@ -13633,6 +13633,7 @@ export interface components {
       balances: components["schemas"]["ProviderUsageBalance"][];
       /** Format: date-time */
       checked_at: string | null;
+      collector_id?: string;
       confidence: string;
       error: components["schemas"]["ProviderUsageError"] | null;
       /** Format: date-time */

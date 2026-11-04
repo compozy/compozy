@@ -263,6 +263,9 @@ func (s *Manager) envelopeLocked(profile string) Envelope {
 		}
 		snapshot := cloneSnapshot(row.snapshot)
 		snapshot.Refreshing = row.flight != nil && row.target.Status == ""
+		if collector := row.target.Collector(); collector != snapshot.ProviderID {
+			snapshot.CollectorID = collector
+		}
 		result.Targets = append(result.Targets, snapshot)
 	}
 	result.Revision = p.revision

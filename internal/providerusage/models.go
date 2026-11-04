@@ -24,6 +24,7 @@ type TraySignal struct {
 
 type Snapshot struct {
 	ProviderID    string
+	CollectorID   string // collector family when it differs from ProviderID (an alias); "" otherwise
 	ProviderName  string
 	Status        Status
 	Source        *Source // nil before first success

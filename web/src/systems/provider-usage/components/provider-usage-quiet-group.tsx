@@ -58,7 +58,7 @@ export function ProviderUsageQuietGroup({
               <span className="flex min-h-6 items-center gap-2">
                 <KindIcon
                   aria-hidden="true"
-                  kind={row.providerId}
+                  kind={row.target.collector_id ?? row.providerId}
                   registry={providerKindIconRegistry}
                   size="sm"
                   tone="muted"
