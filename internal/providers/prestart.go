@@ -19,6 +19,7 @@ func runPreStart(
 	ctx context.Context,
 	provider compozyconfig.ProviderConfig,
 	env *ProbeEnv,
+	verdicts *AuthVerdicts,
 ) PreStartReport {
 	normalized := env.Normalize()
 	if ctx == nil {
@@ -71,6 +72,7 @@ func runPreStart(
 		Stdout:   result.Stdout,
 		Stderr:   result.Stderr,
 	}, &normalized)
+	verdicts.Record(normalized.ProviderName, provider, probeClassification)
 	if probeClassification.Code == "" {
 		return PreStartReport{}
 	}

@@ -115,10 +115,7 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		},
 		&env,
 	)
-	if classification.State == authproviders.ProviderAuthStateAuthenticated &&
-		c.Request.Context().Err() == nil && h.OnProviderAuthSuccess != nil {
-		h.OnProviderAuthSuccess()
-	}
+	h.observeProviderAuthProbe(c.Request.Context(), providerName, provider, classification)
 	authStatus, err := providerAuthStatusPayload(
 		c.Request.Context(), provider, classification, &env, h.nowUTC(),
 	)
@@ -191,11 +188,25 @@ func (h *BaseHandlers) probeProviderACPAuth(
 		return
 	}
 	classification := acp.ClassifyProbeError(providerName, probeErr)
-	if classification.State == authproviders.ProviderAuthStateAuthenticated &&
-		c.Request.Context().Err() == nil && h.OnProviderAuthSuccess != nil {
+	h.observeProviderAuthProbe(c.Request.Context(), providerName, provider, classification)
+	h.respondProviderAuthStatus(c, providerName, provider, classification, &env)
+}
+
+// observeProviderAuthProbe keeps a completed live probe's verdict for later provider reads and
+// clears cached startup failures after a successful sign-in. Canceled probes change nothing.
+func (h *BaseHandlers) observeProviderAuthProbe(
+	ctx context.Context,
+	providerName string,
+	provider compozyconfig.ProviderConfig,
+	classification authproviders.Classification,
+) {
+	if ctx.Err() != nil {
+		return
+	}
+	h.ProviderAuthVerdicts.Record(providerName, provider, classification)
+	if classification.State == authproviders.ProviderAuthStateAuthenticated && h.OnProviderAuthSuccess != nil {
 		h.OnProviderAuthSuccess()
 	}
-	h.respondProviderAuthStatus(c, providerName, provider, classification, &env)
 }
 
 func respondProviderAuthStatusCommandRequired(c *gin.Context, providerName string) {
@@ -264,11 +275,13 @@ func (h *BaseHandlers) providerSummaryPayload(
 	if err != nil {
 		return contract.ProviderSummaryPayload{}, err
 	}
-	classification, err := authproviders.ClassifyDeclared(ctx, provider, &env)
+	declared, err := authproviders.ClassifyDeclared(ctx, provider, &env)
 	if err != nil {
 		return contract.ProviderSummaryPayload{}, err
 	}
-	authStatus, err := providerAuthStatusPayload(ctx, provider, classification, &env, timeZero())
+	// Reads never run a status command; they report the last live verdict, if any.
+	classification, checkedAt := h.ProviderAuthVerdicts.Apply(providerName, provider, declared)
+	authStatus, err := providerAuthStatusPayload(ctx, provider, classification, &env, checkedAt)
 	if err != nil {
 		return contract.ProviderSummaryPayload{}, err
 	}
@@ -415,8 +428,4 @@ func providerAuthStatusPayload(
 		),
 		LastProbeAt: optionalTime(lastProbeAt),
 	}, nil
-}
-
-func timeZero() time.Time {
-	return time.Time{}
 }

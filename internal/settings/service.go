@@ -206,7 +206,9 @@ type Dependencies struct {
 	LogTailAvailable            bool
 	CommandLookPath             func(string) (string, error)
 	ProviderAuthCommandResolver authproviders.ProviderAuthCommandResolver
-	LookupEnv                   func(string) (string, bool)
+	// ProviderAuthVerdicts supplies the last live native_cli sign-in verdicts; nil reports none.
+	ProviderAuthVerdicts *authproviders.AuthVerdicts
+	LookupEnv            func(string) (string, bool)
 }
 
 type ShellScopeRevisionStore interface {
@@ -246,6 +248,7 @@ type service struct {
 	logTailAvailable            bool
 	commandLookPath             func(string) (string, error)
 	providerAuthCommandResolver authproviders.ProviderAuthCommandResolver
+	providerAuthVerdicts        *authproviders.AuthVerdicts
 	lookupEnv                   func(string) (string, bool)
 }
 
@@ -310,6 +313,7 @@ func NewService(homePaths compozyconfig.HomePaths, deps Dependencies) (Service, 
 		logTailAvailable:            deps.LogTailAvailable,
 		commandLookPath:             commandLookPath,
 		providerAuthCommandResolver: providerAuthCommandResolver,
+		providerAuthVerdicts:        deps.ProviderAuthVerdicts,
 		lookupEnv:                   lookupEnv,
 	}, nil
 }

@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"time"
 
+	authproviders "github.com/compozy/compozy/internal/providers"
+
 	"github.com/compozy/compozy/internal/agentmemory"
 
 	"github.com/compozy/compozy/internal/api/core"
@@ -110,6 +112,7 @@ type handlerConfig struct {
 	extensions            ExtensionService
 
 	onProviderAuthSuccess func()
+	providerAuthVerdicts  *authproviders.AuthVerdicts
 }
 
 // Handlers expose request/response and SSE endpoints for the Compozy API.
@@ -244,6 +247,7 @@ func coreHandlerDependencies(cfg *handlerConfig) *core.BaseHandlerConfig {
 		CmdPalette:             cfg.cmdPalette,
 		Clarify:                cfg.clarify,
 		OnProviderAuthSuccess:  cfg.onProviderAuthSuccess,
+		ProviderAuthVerdicts:   cfg.providerAuthVerdicts,
 		Settings:               cfg.settings,
 		SettingsRestart:        cfg.settingsRestart,
 		SettingsUpdate:         cfg.settingsUpdate,

@@ -185,6 +185,54 @@ func TestProviderAuthHandlers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should report the last live sign-in verdict on provider reads", func(t *testing.T) {
+		t.Parallel()
+
+		verdicts := authproviders.NewAuthVerdicts()
+		handlers := NewBaseHandlers(&BaseHandlerConfig{
+			Config: providerAuthTestConfig(t),
+			ProviderAuthCommandResolver: func(context.Context, string, []string, string) (string, error) {
+				return "/test/bin/provider-cli", nil
+			},
+			ProviderAuthRunner: func(context.Context, authproviders.ProviderAuthCommandSpec) (authproviders.ProviderAuthCommandResult, error) {
+				return authproviders.ProviderAuthCommandResult{Stdout: "logged in"}, nil
+			},
+			ProviderAuthVerdicts: verdicts,
+		})
+		router := gin.New()
+		router.GET("/providers/:provider_id", handlers.GetProvider)
+		router.POST("/providers/:provider_id/auth/probe", handlers.ProbeProviderAuth)
+		read := func() contract.ProviderSummaryPayload {
+			t.Helper()
+			response := httptest.NewRecorder()
+			router.ServeHTTP(response, httptest.NewRequestWithContext(
+				t.Context(), http.MethodGet, "/providers/native", http.NoBody,
+			))
+			var payload contract.ProviderSummaryPayload
+			if response.Code != http.StatusOK || json.Unmarshal(response.Body.Bytes(), &payload) != nil {
+				t.Fatalf("get provider status = %d, body = %s", response.Code, response.Body.String())
+			}
+			return payload
+		}
+		if before := read(); before.AuthStatus.State != contract.ProviderAuthStateUnknown ||
+			before.AuthStatus.LastProbeAt != nil {
+			t.Fatalf("auth status before probe = %#v, want unverified", before.AuthStatus)
+		}
+
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequestWithContext(
+			t.Context(), http.MethodPost, "/providers/native/auth/probe", http.NoBody,
+		))
+		if response.Code != http.StatusOK {
+			t.Fatalf("probe status = %d, body = %s", response.Code, response.Body.String())
+		}
+
+		after := read()
+		if after.AuthStatus.State != contract.ProviderAuthStateAuthenticated || after.AuthStatus.LastProbeAt == nil {
+			t.Fatalf("auth status after probe = %#v, want authenticated with a check time", after.AuthStatus)
+		}
+	})
+
 	for _, tc := range []struct {
 		name        string
 		cancelProbe bool

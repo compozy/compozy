@@ -10,7 +10,8 @@ export type ProviderStateLabel =
   | "auth-unknown"
   | "auth-unavailable";
 
-export type ProviderStateIntent = "edit" | "configure";
+/** `check` runs the live sign-in check in place; the others open the editor. */
+export type ProviderStateIntent = "edit" | "configure" | "check";
 
 export interface ProviderStateView {
   tone: PillTone;
@@ -95,7 +96,7 @@ export function getProviderStateView(provider: SettingsProviderEntry): ProviderS
         display: "Sign-in unverified",
         hint:
           provider.auth_status?.message?.trim() || "CompozyOS couldn't confirm you're signed in.",
-        cta: { label: "Check sign-in", intent: "edit" },
+        cta: { label: "Check sign-in", intent: "check" },
       };
     case "auth-unavailable":
       return {
@@ -103,7 +104,7 @@ export function getProviderStateView(provider: SettingsProviderEntry): ProviderS
         label,
         display: "Sign-in unavailable",
         hint: provider.auth_status?.message?.trim() || "CompozyOS couldn't check the sign-in.",
-        cta: { label: "Check sign-in", intent: "edit" },
+        cta: { label: "Check sign-in", intent: "check" },
       };
   }
 }

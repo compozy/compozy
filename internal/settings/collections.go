@@ -191,6 +191,7 @@ func (s *service) buildProviderItems(ctx context.Context, cfg *compozyconfig.Con
 			resolved,
 			credentials,
 			s.providerAuthCommandResolver,
+			s.providerAuthVerdicts,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("settings: provider %q auth status: %w", name, err)
@@ -239,6 +240,7 @@ func providerAuthStatus(
 	provider compozyconfig.ProviderConfig,
 	credentials []ProviderCredentialStatus,
 	resolver authproviders.ProviderAuthCommandResolver,
+	verdicts *authproviders.AuthVerdicts,
 ) (ProviderAuthStatus, error) {
 	status := ProviderAuthStatus{
 		Mode:       provider.EffectiveAuthMode(),
@@ -256,10 +258,13 @@ func providerAuthStatus(
 	if err != nil {
 		return ProviderAuthStatus{}, err
 	}
-	classification, err := authproviders.ClassifyDeclared(ctx, provider, probeEnv)
+	declared, err := authproviders.ClassifyDeclared(ctx, provider, probeEnv)
 	if err != nil {
 		return ProviderAuthStatus{}, err
 	}
+	// Settings reads never run a status command; they report the last live verdict, if any.
+	classification, checkedAt := verdicts.Apply(providerName, provider, declared)
+	status.CheckedAt = checkedAt
 	status.State = string(classification.State)
 	status.Code = classification.Code
 	status.Message = classification.Message

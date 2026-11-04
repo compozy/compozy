@@ -6,7 +6,12 @@ export type {
   ProviderSummary,
 } from "./types";
 
-export { ProvidersApiError, getProvider, listProviders } from "./adapters/providers-api";
+export {
+  ProvidersApiError,
+  getProvider,
+  listProviders,
+  probeProviderAuth,
+} from "./adapters/providers-api";
 export { providerKeys } from "./lib/query-keys";
 export {
   providerDetailOptions,

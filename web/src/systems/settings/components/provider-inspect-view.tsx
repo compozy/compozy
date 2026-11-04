@@ -17,6 +17,7 @@ import {
   Time,
 } from "@compozy/ui";
 
+import { useCheckProviderSignIn } from "../hooks/use-check-provider-sign-in";
 import { providerAuthStateLabel, providerAuthSummary } from "../lib/provider-copy";
 import { getProviderStateView } from "../lib/provider-state";
 import type { SettingsProviderEntry } from "../types";
@@ -40,7 +41,7 @@ const CATALOG_SKELETON_ROWS = ["first", "second"] as const;
 interface ProviderInspectViewProps {
   provider: SettingsProviderEntry;
   onRefreshCatalog: () => void;
-  /** Runs the status summary's next step (opens the Configure tab). */
+  /** Runs the status summary's next step when it opens the editor (the Configure tab). */
   onAction?: () => void;
 }
 
@@ -53,6 +54,10 @@ export function ProviderInspectView({ provider, onAction }: ProviderInspectViewP
   const ready = state.label === "installed";
   const defaultModel = provider.settings.models?.default ?? null;
   const showLogin = state.label === "needs-sign-in" && Boolean(provider.auth_status?.login);
+  const checkSignIn = useCheckProviderSignIn();
+  const checksInPlace = state.cta.intent === "check";
+  const checkedAt = provider.auth_status?.last_probe_at;
+  const runAction = checksInPlace ? () => checkSignIn.mutate(provider.name) : onAction;
 
   return (
     <div className="flex flex-col gap-5">
@@ -69,6 +74,19 @@ export function ProviderInspectView({ provider, onAction }: ProviderInspectViewP
           />
           {state.hint ? (
             <p className="text-small-body text-muted-foreground">{state.hint}</p>
+          ) : null}
+          {checkedAt ? (
+            <p
+              className="text-small-body text-muted-foreground"
+              data-testid="provider-detail-checked-at"
+            >
+              Checked <Time iso={checkedAt} mode="relative" />
+            </p>
+          ) : null}
+          {checkSignIn.error ? (
+            <p className="text-small-body text-destructive" role="alert">
+              {checkSignIn.error.message}
+            </p>
           ) : null}
         </div>
         <MetadataList>
@@ -87,15 +105,17 @@ export function ProviderInspectView({ provider, onAction }: ProviderInspectViewP
             testId="inspect-login-descriptor"
           />
         ) : null}
-        {!ready && onAction ? (
+        {!ready && runAction ? (
           <Button
             className="w-fit"
             data-testid="provider-detail-summary-action"
-            onClick={onAction}
+            disabled={checkSignIn.isPending}
+            onClick={runAction}
             size="sm"
             type="button"
             variant="secondary"
           >
+            {checkSignIn.isPending ? <Spinner aria-hidden="true" className="size-3.5" /> : null}
             {state.cta.label}
           </Button>
         ) : null}

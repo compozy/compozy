@@ -192,6 +192,48 @@ func TestPreStarter(t *testing.T) {
 		})
 		assertNoPreStartReport(t, report)
 	})
+
+	t.Run("Should keep the live status verdict until the provider config changes", func(t *testing.T) {
+		t.Parallel()
+
+		provider := compozyconfig.ProviderConfig{
+			Command:       "acme acp",
+			AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
+			AuthStatusCmd: "acme auth status",
+		}
+		verdicts := NewAuthVerdicts()
+		declared := Classification{
+			State: ProviderAuthStateUnknown,
+			Code:  diagcontract.CodeProviderClassificationUnknown,
+		}
+		if got, checkedAt := verdicts.Apply("acme", provider, declared); got.State != ProviderAuthStateUnknown ||
+			!checkedAt.IsZero() {
+			t.Fatalf("Apply(before probe) = %q at %v, want unverified", got.State, checkedAt)
+		}
+
+		report := NewPreStarter(WithAuthVerdicts(verdicts)).PreStart(testutil.Context(t), provider, &ProbeEnv{
+			ProviderName: "acme",
+			LookPath:     func(string) (string, error) { return "/bin/acme", nil },
+			RunCommand: func(context.Context, ProviderAuthCommandSpec) (ProviderAuthCommandResult, error) {
+				return ProviderAuthCommandResult{ExitCode: 0, Stdout: "Logged in"}, nil
+			},
+		})
+		assertNoPreStartReport(t, report)
+
+		got, checkedAt := verdicts.Apply("acme", provider, declared)
+		if got.State != ProviderAuthStateAuthenticated || checkedAt.IsZero() {
+			t.Fatalf("Apply(after probe) = %q at %v, want authenticated with a check time", got.State, checkedAt)
+		}
+		missing := Classification{State: ProviderAuthStateMissingCLI}
+		if got, _ := verdicts.Apply("acme", provider, missing); got.State != ProviderAuthStateMissingCLI {
+			t.Fatalf("Apply(missing CLI) = %q, want the current declared state to win", got.State)
+		}
+		changed := provider
+		changed.AuthStatusCmd = "acme whoami"
+		if got, _ := verdicts.Apply("acme", changed, declared); got.State != ProviderAuthStateUnknown {
+			t.Fatalf("Apply(changed config) = %q, want the verdict invalidated", got.State)
+		}
+	})
 }
 
 type profileCredentialMetadata map[string]bool
