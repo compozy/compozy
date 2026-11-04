@@ -285,9 +285,41 @@ func TestRoleResolver(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Resolve(coordinator) error = %v", err)
 		}
-		if resolved.Model != "role-model" || resolved.ReasoningEffort == "high" {
-			t.Fatalf("Resolve(coordinator) = %q/%q, want role-model without the override effort",
+		if resolved.Model != "role-model" || resolved.ReasoningEffort != "" {
+			t.Fatalf("Resolve(coordinator) = %q/%q, want role-model with no reasoning effort",
 				resolved.Model, resolved.ReasoningEffort)
+		}
+	})
+
+	t.Run("Should keep the override effort when the role selects the effective model", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := roleResolverConfig()
+		cfg.Roles.Coordinator.Enabled = true
+		cfg.Providers["mock"] = compozyconfig.ProviderConfig{
+			Command: "mock-acp",
+			Models: compozyconfig.ProviderModelsConfig{
+				Default:   "provider-model",
+				Reasoning: compozyconfig.ProviderReasoningConfig{Apply: compozyconfig.ReasoningApplyACPOption},
+			},
+		}
+		cfg.Roles.Coordinator.Agent = "my-curator"
+		cfg.Roles.Coordinator.Model = "provider-model"
+		cfg.Agents.Overrides = map[string]compozyconfig.AgentOverride{
+			"my-curator": {ReasoningEffort: "high"},
+		}
+		resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{
+			agents: map[string]compozyconfig.AgentDef{
+				"my-curator": {Name: "my-curator", Provider: "mock", Prompt: "Coordinate work."},
+			},
+		})
+
+		resolved, err := resolver.Resolve(t.Context(), "", compozyconfig.RoleCoordinator)
+		if err != nil {
+			t.Fatalf("Resolve(coordinator) error = %v", err)
+		}
+		if resolved.Model != "provider-model" || resolved.ReasoningEffort != "high" {
+			t.Fatalf("Resolve(coordinator) = %q/%q, want provider-model/high", resolved.Model, resolved.ReasoningEffort)
 		}
 	})
 

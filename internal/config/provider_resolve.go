@@ -190,6 +190,25 @@ func (c *Config) resolveAgentProvider(
 	return providerName, provider, providerSource, nil
 }
 
+// resolveAgentModel applies the model cascade: the definition, then [defaults].model for a
+// project-default provider, then the provider default.
+func resolveAgentModel(
+	provider ProviderConfig,
+	agent AgentDef,
+	session sessionRuntimeDefaults,
+) (string, RuntimeValueSource) {
+	if model := strings.TrimSpace(agent.Model); model != "" {
+		return model, RuntimeValueSourceAgent
+	}
+	if session.model != "" {
+		return session.model, RuntimeValueSourceProjectDefault
+	}
+	if model := strings.TrimSpace(provider.Models.Default); model != "" {
+		return model, RuntimeValueSourceProviderDefault
+	}
+	return "", RuntimeValueSourceUnspecified
+}
+
 // resolveAgentModelRuntime selects model and effort with source attribution,
 // omitting defaults that the chosen model does not advertise.
 func resolveAgentModelRuntime(
@@ -198,19 +217,7 @@ func resolveAgentModelRuntime(
 	agent AgentDef,
 	session sessionRuntimeDefaults,
 ) (string, string, RuntimeValueSource, RuntimeValueSource, error) {
-	model := strings.TrimSpace(agent.Model)
-	modelSource := RuntimeValueSourceAgent
-	if model == "" {
-		model = session.model
-		modelSource = RuntimeValueSourceProjectDefault
-	}
-	if model == "" {
-		model = strings.TrimSpace(provider.Models.Default)
-		modelSource = RuntimeValueSourceProviderDefault
-	}
-	if model == "" {
-		modelSource = RuntimeValueSourceUnspecified
-	}
+	model, modelSource := resolveAgentModel(provider, agent, session)
 	if model == "" && provider.RequiresRuntimeModel() {
 		return "", "", RuntimeValueSourceUnspecified, RuntimeValueSourceUnspecified,
 			runtimeModelRequiredError{provider: providerName}
@@ -444,14 +451,15 @@ func (c *Config) resolveSessionAgentRuntime(
 	if effectiveProvider == "" && c != nil {
 		effectiveProvider = CanonicalProviderName(c.Defaults.Provider)
 	}
+	// Selecting the model the agent already resolves to is not a model change, so its effort stays.
+	modelChanged := model != "" && model != c.EffectiveAgentModel(agent)
 	applied = applied.withoutSessionSelections(
-		rawProviderOverride != "" && override != effectiveProvider,
-		model != "", model != "" && model != strings.TrimSpace(agent.Model), reasoningEffort != "",
+		rawProviderOverride != "" && override != effectiveProvider, model != "", modelChanged, reasoningEffort != "",
 	)
 	if rawProviderOverride == "" || override == effectiveProvider {
 		sessionAgent := agent
 		if model != "" {
-			if model != strings.TrimSpace(agent.Model) && reasoningEffort == "" {
+			if modelChanged && reasoningEffort == "" {
 				sessionAgent.ReasoningEffort = ""
 			}
 			sessionAgent.Model = model

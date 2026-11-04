@@ -159,6 +159,21 @@ func (c *Config) applyAgentOverride(agent AgentDef) (AgentDef, agentOverrideFiel
 	return agent, applied
 }
 
+// EffectiveAgentModel returns the model the definition resolves to without a session selection:
+// the authored or overridden model, then [defaults].model, then the provider default. It is
+// empty when the provider cannot be resolved.
+func (c *Config) EffectiveAgentModel(agent AgentDef) string {
+	if model := strings.TrimSpace(agent.Model); model != "" || c == nil {
+		return model
+	}
+	_, provider, source, err := c.resolveAgentProvider(agent.Provider, c.Defaults.Provider)
+	if err != nil {
+		return ""
+	}
+	model, _ := resolveAgentModel(provider, agent, c.Defaults.sessionRuntimeFor(source))
+	return model
+}
+
 // withoutSessionSelections drops attribution for fields a session runtime selection replaced,
 // because session selections outrank the operator override.
 // A selected model replaces the override effort only when it differs from the current model,

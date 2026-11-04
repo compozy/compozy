@@ -4144,15 +4144,33 @@ func TestResolveAgentAppliesOperatorOverride(t *testing.T) {
 	t.Run("Should keep project runtime defaults when the override repeats the default provider", func(t *testing.T) {
 		t.Parallel()
 		cfg := loadWithOverrides(t,
-			"[defaults]\nprovider = \"claude\"\nmodel = \"defaults-model\"\n\n"+
+			"[defaults]\nprovider = \"claude\"\nmodel = \"defaults-model\"\nreasoning_effort = \"high\"\n\n"+
 				"[agents.overrides.orchestrator]\nprovider = \"claude\"\n", "")
 		agent := AgentDef{Name: "orchestrator", Prompt: "packaged prompt"}
 		resolved, err := cfg.ResolveAgent(agent)
 		if err != nil {
 			t.Fatalf("ResolveAgent() error = %v", err)
 		}
-		if resolved.Provider != "claude" || resolved.Model != "defaults-model" {
-			t.Fatalf("resolved = %q/%q, want claude/defaults-model", resolved.Provider, resolved.Model)
+		if resolved.Provider != "claude" || resolved.Model != "defaults-model" || resolved.ReasoningEffort != "high" {
+			t.Fatalf("resolved = %q/%q/%q, want claude/defaults-model/high", resolved.Provider, resolved.Model,
+				resolved.ReasoningEffort)
+		}
+	})
+
+	t.Run("Should keep the override effort when a session selects the inherited default model", func(t *testing.T) {
+		t.Parallel()
+		cfg := loadWithOverrides(t,
+			"[defaults]\nprovider = \"claude\"\nmodel = \"defaults-model\"\n\n"+
+				"[agents.overrides.orchestrator]\nreasoning_effort = \"high\"\n", "")
+		agent := AgentDef{Name: "orchestrator", Prompt: "packaged prompt"}
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(agent, RuntimeOverrides{Model: "defaults-model"})
+		if err != nil {
+			t.Fatalf("ResolveSessionAgentWithRuntime() error = %v", err)
+		}
+		if resolved.ReasoningEffort != "high" ||
+			resolved.RuntimeSources.ReasoningEffort != RuntimeValueSourceConfigOverride {
+			t.Fatalf("effort = %q (%q), want high from config_override", resolved.ReasoningEffort,
+				resolved.RuntimeSources.ReasoningEffort)
 		}
 	})
 
