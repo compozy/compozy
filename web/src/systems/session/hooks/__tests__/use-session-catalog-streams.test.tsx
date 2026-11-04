@@ -14,7 +14,12 @@ import { resetProfileViews, setProfileView } from "@/systems/profiles";
 
 import { primarySessionFixture } from "../../mocks/fixtures";
 import { sessionKeys } from "../../lib/query-keys";
-import { sessionDetailOptions, sessionTranscriptOptions } from "../../lib/query-options";
+import {
+  sessionDetailOptions,
+  sessionExpiredInteractionsOptions,
+  sessionRelayedInteractionsOptions,
+  sessionTranscriptOptions,
+} from "../../lib/query-options";
 import type { SessionTranscriptData } from "../../lib/session-transcript-query";
 import type {
   NormalizedSessionTranscriptResponse,
@@ -23,6 +28,7 @@ import type {
   SessionState,
 } from "../../types";
 import {
+  useSessionCatalogStreamLive,
   useSessionCatalogStreams,
   type SessionCatalogEventSource,
 } from "../use-session-catalog-streams";
@@ -32,10 +38,17 @@ import { sessionBoardPageOptions, sessionFacetsOptions } from "../../lib/session
 vi.mock("../../adapters/session-api", async importOriginal => ({
   ...(await importOriginal<typeof import("../../adapters/session-api")>()),
   fetchSession: vi.fn(),
+  fetchSessionInteractions: vi.fn(),
+  fetchSessionPendingWithDescendants: vi.fn(),
   fetchSessionTranscript: vi.fn(),
 }));
 
-import { fetchSession, fetchSessionTranscript } from "../../adapters/session-api";
+import {
+  fetchSession,
+  fetchSessionInteractions,
+  fetchSessionPendingWithDescendants,
+  fetchSessionTranscript,
+} from "../../adapters/session-api";
 
 const WORKSPACE_ID = primarySessionFixture.workspace_id ?? "ws_primary";
 const SESSION_ID = primarySessionFixture.id;
@@ -217,6 +230,150 @@ describe("useSessionCatalogStreams", () => {
     act(() => sources[1]!.emit("open"));
     act(() => vi.advanceTimersByTime(10_000));
     expect(result.current).toBe("live");
+    unmount();
+    client.clear();
+  });
+
+  // Invariant: a poll the catalog stream covers drops to the safety cadence while that
+  // stream is live for the read's profile scope, is re-read by the stream's wake, and
+  // resumes its fallback poll once the stream goes stale.
+  it("Should replace covered interaction polls with stream wakes only while the stream is live", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetchSessionPendingWithDescendants).mockResolvedValue([]);
+    vi.mocked(fetchSessionInteractions).mockResolvedValue([]);
+    const client = createQueryClient();
+    let source: FakeCatalogEventSource | undefined;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { result, unmount } = renderHook(
+      () => {
+        useSessionCatalogStreams({ eventSourceFactory: factory });
+        const streamCovered = useSessionCatalogStreamLive("default");
+        // A session of another profile is outside this stream's scope.
+        const foreignCovered = useSessionCatalogStreamLive("other");
+        useQuery(sessionRelayedInteractionsOptions(WORKSPACE_ID, SESSION_ID, true, streamCovered));
+        useQuery(
+          sessionExpiredInteractionsOptions(WORKSPACE_ID, SESSION_ID, {
+            undecidedRequestIds: new Set(["req_open"]),
+            streamCovered,
+          })
+        );
+        return { streamCovered, foreignCovered };
+      },
+      { wrapper: wrapper(client) }
+    );
+    const relayed = vi.mocked(fetchSessionPendingWithDescendants);
+    const expired = vi.mocked(fetchSessionInteractions);
+    const settle = (ms: number) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)));
+
+    await settle(1);
+    expect(result.current.streamCovered).toBe(false);
+    // Before the stream is live both reads keep their fallback polls.
+    await settle(5_000);
+    expect(expired).toHaveBeenCalledTimes(2);
+
+    act(() => source!.emit("open"));
+    expect(result.current).toEqual({ streamCovered: true, foreignCovered: false });
+    await settle(5_000);
+    let relayedLive = relayed.mock.calls.length;
+    let expiredLive = expired.mock.calls.length;
+    // Only the 30s safety cadence remains, so neither 5s nor 15s fallback poll fires.
+    await settle(15_000);
+    expect(relayed).toHaveBeenCalledTimes(relayedLive);
+    expect(expired).toHaveBeenCalledTimes(expiredLive);
+    // The safety cadence still re-reads both covered reads while the stream stays live.
+    await settle(15_000);
+    expect(relayed).toHaveBeenCalledTimes(relayedLive + 1);
+    expect(expired).toHaveBeenCalledTimes(expiredLive + 1);
+    relayedLive = relayed.mock.calls.length;
+    expiredLive = expired.mock.calls.length;
+
+    // A catalog change in the read's workspace re-reads both; another workspace does not.
+    act(() =>
+      source!.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: "ws_other",
+        session_id: "sess_other",
+      })
+    );
+    await settle(1);
+    expect(relayed).toHaveBeenCalledTimes(relayedLive);
+    act(() =>
+      source!.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: WORKSPACE_ID,
+        session_id: "sess_child",
+      })
+    );
+    await settle(5_000);
+    expect(relayed).toHaveBeenCalledTimes(relayedLive + 1);
+    expect(expired).toHaveBeenCalledTimes(expiredLive + 1);
+
+    // Once the stream is lost past its grace the fallback polls return.
+    act(() => source!.emit("error"));
+    await settle(10_000);
+    expect(result.current.streamCovered).toBe(false);
+    await settle(15_000);
+    expect(relayed.mock.calls.length).toBeGreaterThan(relayedLive + 1);
+    expect(expired.mock.calls.length).toBeGreaterThan(expiredLive + 1);
+
+    unmount();
+    expect(client.getQueryData(sessionKeys.catalogStreamStatus(source!.url))).toBe("disabled");
+    client.clear();
+  });
+
+  // Invariant: with its fast poll stopped, a covered read still observes a change that
+  // arrives during an older read, and a failed read keeps a bounded retry.
+  it("Should trail an in-flight covered read and retry a failed one while the stream is live", async () => {
+    vi.useFakeTimers();
+    let release: (rows: []) => void = () => {};
+    const relayed = vi.mocked(fetchSessionPendingWithDescendants);
+    relayed.mockResolvedValue([]);
+    const client = createQueryClient();
+    let source: FakeCatalogEventSource | undefined;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { unmount } = renderHook(
+      () => {
+        useSessionCatalogStreams({ eventSourceFactory: factory });
+        const streamCovered = useSessionCatalogStreamLive("default");
+        useQuery(sessionRelayedInteractionsOptions(WORKSPACE_ID, SESSION_ID, true, streamCovered));
+      },
+      { wrapper: wrapper(client) }
+    );
+    const settle = (ms: number) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)));
+    act(() => source!.emit("open"));
+    await settle(5_000);
+    const baseline = relayed.mock.calls.length;
+
+    // A wake joins the read already in flight, then reads once more after it settles.
+    relayed.mockImplementationOnce(() => new Promise(resolve => (release = resolve)));
+    act(() => {
+      void client.refetchQueries({
+        queryKey: sessionKeys.interactions(WORKSPACE_ID, SESSION_ID, "descendants"),
+      });
+    });
+    const upsert = { kind: "upserted", workspace_id: WORKSPACE_ID, session_id: "sess_child" };
+    act(() => source!.emit("session_catalog_changed", upsert));
+    await settle(5_000);
+    expect(relayed).toHaveBeenCalledTimes(baseline + 1);
+    const trailing = [{ id: "ask_trailing" }] as unknown as Awaited<
+      ReturnType<typeof fetchSessionPendingWithDescendants>
+    >;
+    relayed.mockResolvedValueOnce(trailing);
+    await act(async () => release([]));
+    await settle(5_000);
+    expect(relayed).toHaveBeenCalledTimes(baseline + 2);
+    expect(
+      client.getQueryData(sessionKeys.interactions(WORKSPACE_ID, SESSION_ID, "descendants"))
+    ).toEqual(trailing);
+
+    // A failed read is repaired by the bounded safety cadence without another wake.
+    relayed.mockRejectedValueOnce(new Error("relayed unavailable"));
+    act(() => source!.emit("session_catalog_changed", upsert));
+    await settle(5_000);
+    expect(relayed).toHaveBeenCalledTimes(baseline + 3);
+    await settle(30_000);
+    expect(relayed).toHaveBeenCalledTimes(baseline + 4);
+
     unmount();
     client.clear();
   });
