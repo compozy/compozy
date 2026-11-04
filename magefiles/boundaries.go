@@ -206,6 +206,7 @@ func Boundaries() error {
 	}{
 		{importer: "internal/heartbeat/source", allowed: map[string]struct{}{
 			"github.com/compozy/compozy/internal/diagnostics": {},
+			"github.com/compozy/compozy/internal/fileutil":    {},
 			"github.com/compozy/compozy/internal/procutil":    {},
 		}},
 		{importer: "internal/redact", allowed: map[string]struct{}{}},
