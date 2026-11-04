@@ -1216,6 +1216,18 @@ func TestConfigureRuntime(t *testing.T) {
 		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "medium", "high")
 	})
 
+	// Invariant: a notification sent before the provider's response cannot discard that confirmation.
+	t.Run("Should confirm a model when a stale update precedes the response", func(t *testing.T) {
+		t.Parallel()
+		driver := New()
+		proc := startHelperProcess(t, driver, "config_options_stale_update", "", StartOpts{})
+		defer stopProcess(t, driver, proc)
+		if err := driver.ConfigureRuntime(testutil.Context(t), proc, RuntimeConfig{Model: "other-model"}); err != nil {
+			t.Fatalf("ConfigureRuntime() error = %v, want provider-confirmed model", err)
+		}
+		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "model", "other-model", "new-model", "loaded-model", "other-model")
+	})
+
 	t.Run("Should apply model then refreshed reasoning effort then speed", func(t *testing.T) {
 		t.Parallel()
 

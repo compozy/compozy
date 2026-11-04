@@ -671,6 +671,7 @@ func (a *helperACPAgent) NewSession(
 	if a.scenario == "config_options" || a.scenario == "stall_config" ||
 		a.scenario == "stall_last_config" || a.scenario == "config_options_slow_close" ||
 		a.scenario == "config_options_unconfirmed" ||
+		a.scenario == "config_options_stale_update" ||
 		a.scenario == "config_options_reject_speed" ||
 		a.scenario == "config_options_no_model" ||
 		a.scenario == "config_options_no_reasoning" ||
@@ -1083,6 +1084,17 @@ func (a *helperACPAgent) SetSessionConfigOption(
 	}
 	a.configOptionsMu.Lock()
 	defer a.configOptionsMu.Unlock()
+	if a.scenario == "config_options_stale_update" {
+		// Like Claude's adapter, publish pre-change state while the request is outstanding.
+		if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{
+			SessionId: "sess-new",
+			Update: acpsdk.SessionUpdate{ConfigOptionUpdate: &acpsdk.SessionConfigOptionUpdate{
+				ConfigOptions: append([]acpsdk.SessionConfigOption(nil), a.configOptions...),
+			}},
+		}); err != nil {
+			return acpsdk.SetSessionConfigOptionResponse{}, err
+		}
+	}
 	if a.scenario == "config_options_unconfirmed" || a.scenario == "triage_config_unconfirmed" {
 		return acpsdk.SetSessionConfigOptionResponse{ConfigOptions: a.configOptions}, nil
 	}

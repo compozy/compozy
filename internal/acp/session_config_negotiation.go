@@ -219,7 +219,6 @@ func (d *Driver) applySessionConfigOption(
 	if err != nil {
 		return err
 	}
-	_, revision := process.configOptionsSnapshot()
 	response, err := process.sendControlRequest[acpsdk.SetSessionConfigOptionResponse](ctx,
 		acpsdk.AgentMethodSessionSetConfigOption,
 		request,
@@ -227,6 +226,7 @@ func (d *Driver) applySessionConfigOption(
 	if err != nil {
 		return err
 	}
+	revision := process.configRevisionAfterResponse()
 	options := process.setConfigOptionsResponse(sessionConfigOptionsFromSDK(response.ConfigOptions), revision)
 	confirmed, ok := findConfigOptionByID(options, selection.ID)
 	if !ok || !selection.matches(confirmed) {
