@@ -38,10 +38,11 @@ func load(g *globaldb.GlobalDB, opts options, m *measurements, openMS float64) (
 		}
 		sessions = append(sessions, s)
 	}
+	warmupStart := time.Now().UTC()
 	runWorkload(g, sessions, opts.warmup, m, "warmup")
 	start := time.Now().UTC()
 	m.active.Store(true)
-	runWorkload(g, sessions, opts.duration, m, "measured")
+	retention := runWorkload(g, sessions, opts.duration, m, "measured")
 	// Include the flush and checkpoints of all accepted work in transaction and
 	// file-write accounting. Never cancel accepted requests at the stop boundary.
 	for _, s := range sessions {
@@ -55,6 +56,8 @@ func load(g *globaldb.GlobalDB, opts options, m *measurements, openMS float64) (
 	result := m.result(start, end, openMS)
 	result["sessions"] = opts.sessions
 	result["history_turns"] = opts.turns
+	result["warmup_start"] = warmupStart
+	result["retention"] = retention
 	return json.NewEncoder(os.Stdout).Encode(result)
 }
 
@@ -64,9 +67,10 @@ func runWorkload(
 	duration time.Duration,
 	m *measurements,
 	phase string,
-) {
+) store.ObservabilityRetentionSweepResult {
+	var retention store.ObservabilityRetentionSweepResult
 	if duration == 0 {
-		return
+		return retention
 	}
 	until := time.Now().Add(duration)
 	var workers sync.WaitGroup
@@ -130,7 +134,24 @@ func runWorkload(
 		}
 		return g.SaveProcessObservations(ctx, observations, nil)
 	})
+	if phase == "measured" {
+		workers.Go(func() { retention = runRetention(g, m) })
+	}
 	workers.Wait()
+	return retention
+}
+
+func runRetention(g *globaldb.GlobalDB, m *measurements) (result store.ObservabilityRetentionSweepResult) {
+	m.call("retention_sweep", func() error {
+		// A sweep may contain many bounded commits. Its overall deadline is
+		// separate from the two-second interactive request deadline.
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		var err error
+		result, err = g.SweepObservability(ctx, time.Date(2026, 10, 26, 6, 0, 0, 0, time.UTC))
+		return err
+	})
+	return result
 }
 
 func refreshCatalog(ctx context.Context, g *globaldb.GlobalDB, generation int) error {

@@ -16,8 +16,8 @@ import (
 type measurements struct {
 	core      string
 	active    atomic.Bool
-	commits   [3]atomic.Int64
-	rollbacks [3]atomic.Int64
+	commits   [2]atomic.Int64
+	rollbacks [2]atomic.Int64
 	mu        sync.Mutex
 	samples   map[string][]float64
 	failures  map[string][]string
@@ -37,12 +37,15 @@ func (m *measurements) install() error {
 		if err != nil {
 			return err
 		}
-		index := 2
+		index := -1
 		switch path {
 		case m.core:
 			index = 0
 		case m.core + ".telemetry.db":
 			index = 1
+		}
+		if index < 0 {
+			return nil
 		}
 		hooks, ok := conn.(sqlite.HookRegisterer)
 		if !ok {
@@ -94,7 +97,7 @@ func (m *measurements) result(start, end time.Time, openMS float64) map[string]a
 	}
 	hooks := map[string]int64{}
 	rollbacks := map[string]int64{}
-	for i, name := range []string{"core", "telemetry", "sessions"} {
+	for i, name := range []string{"core", "telemetry"} {
 		hooks[name] = m.commits[i].Load()
 		rollbacks[name] = m.rollbacks[i].Load()
 	}

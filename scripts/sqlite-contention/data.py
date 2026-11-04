@@ -78,12 +78,14 @@ def inspect_data(root):
             "workspace_replay": ("SELECT seq,id FROM event_summaries WHERE workspace_id=? AND seq>? ORDER BY seq LIMIT 100", ("contention-workspace", 100000)),
             "session_recent": ("SELECT seq,id FROM event_summaries WHERE session_id=? ORDER BY timestamp DESC,seq DESC LIMIT 100", ("contention-session-07",)),
             "provider_recent": ("SELECT seq,id FROM event_summaries WHERE provider=? ORDER BY timestamp DESC,seq DESC LIMIT 100", ("claude",)),
-            "failures": ("SELECT seq,id FROM event_summaries WHERE outcome='failure' ORDER BY timestamp DESC,seq DESC LIMIT 100", ()),
+            "failures": ("SELECT seq,id FROM event_summaries WHERE outcome IN ('failure','warning') ORDER BY timestamp DESC,seq DESC LIMIT 100", ()),
+            "exact_failure_outcome": ("SELECT seq,id FROM event_summaries WHERE outcome='failure' ORDER BY timestamp DESC,seq DESC LIMIT 100", ()),
             "task": ("SELECT seq,id FROM event_summaries WHERE task_id=? ORDER BY timestamp DESC,seq DESC LIMIT 100", ("task-17",)),
             "run": ("SELECT seq,id FROM event_summaries WHERE run_id=? ORDER BY timestamp DESC,seq DESC LIMIT 100", ("run-23",)),
         }
         plans = {name: {"sql": sql, "bindings": args, "plan": db.execute("EXPLAIN QUERY PLAN " + sql, args).fetchall()} for name, (sql, args) in queries.items()}
         return {"all_columns": columns, "sha256": digest.hexdigest(), "rows": count,
+                "retention_eligible_rows": db.execute("SELECT COUNT(*) FROM event_summaries WHERE timestamp < '2026-10-26T06:00:00.000000000Z'").fetchone()[0],
                 "max_seq": db.execute("SELECT MAX(seq) FROM event_summaries").fetchone()[0],
                 "high_water": db.execute("SELECT seq FROM sqlite_sequence WHERE name='event_summaries'").fetchone()[0],
                 "integrity": "ok", "indexes": indexes, "pages": pages, "plans": plans}

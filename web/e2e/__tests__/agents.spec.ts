@@ -265,14 +265,6 @@ async function createAlwaysOnAgent(
   await appPage.getByTestId("agents-topbar-create").click();
   await expect(appPage.getByTestId("agent-create-dialog")).toBeVisible();
   await appPage.getByTestId("agent-create-name").fill(name);
-  const runtimeTrigger = appPage.getByTestId("agent-create-runtime-select");
-  await runtimeTrigger.click();
-  await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
-  await appPage
-    .locator(`[data-provider="${mockAgentProvider}"][data-model="${reasoningCatalogModel}"]`)
-    .click();
-  await appPage.keyboard.press("Escape");
-  await expect(runtimeTrigger).toContainText(reasoningCatalogModelLabel);
   await appPage
     .getByTestId("agent-create-prompt")
     .locator('[contenteditable="true"]')
@@ -285,6 +277,17 @@ async function createAlwaysOnAgent(
   await appPage.getByTestId("agent-create-where").click();
   await appPage.getByText("Decide later", { exact: true }).click();
   await expect(appPage.getByTestId("agent-create-where")).toContainText("Decide later");
+
+  // Always-on definitions use global scope. Select its runtime after the kind
+  // change, which intentionally clears overrides from the workspace scope.
+  const runtimeTrigger = appPage.getByTestId("agent-create-runtime-select");
+  await runtimeTrigger.click();
+  await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
+  await appPage
+    .locator(`[data-provider="${mockAgentProvider}"][data-model="${reasoningCatalogModel}"]`)
+    .click();
+  await appPage.keyboard.press("Escape");
+  await expect(runtimeTrigger).toContainText(reasoningCatalogModelLabel);
 
   await appPage.getByRole("button", { name: "Advanced", exact: true }).click();
   const acceptEdits = appPage.getByTestId("agent-create-permissions-approve-edits");
@@ -301,7 +304,13 @@ async function createAlwaysOnAgent(
   );
   await appPage.getByTestId("submit-agent-create").click();
   expect((await createRequest).postDataJSON()).toMatchObject({
-    agent: { name, kind: "always_on", ...(level ? { permissions: level } : {}) },
+    agent: {
+      name,
+      kind: "always_on",
+      provider: mockAgentProvider,
+      model: reasoningCatalogModel,
+      ...(level ? { permissions: level } : {}),
+    },
   });
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${name}`);
 }

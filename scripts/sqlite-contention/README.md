@@ -19,18 +19,26 @@ index pages/query plans and open/upgrade/reopen time are retained as JSON.
 requests the session catalog at 20 Hz. Every two seconds, 1,500 model rows and
 90 process observations refresh. Model content changes once every three
 refreshes, exercising both replacement and unchanged-content paths.
+Each measured phase also sweeps the first six hours of retained synthetic
+summaries (at least 20,000 rows), while the streams and interactive routes run.
+The report records exact eligible/deleted counts. The whole sweep has a one-minute
+deadline; each interactive operation retains its two-second deadline. The sweep
+must complete and each individual write transaction must remain below one second.
 
 Three 30-second trials follow five-second warmups, alternating baseline/head
-order. Every trial starts from a fresh copy of the same fixture. The stop
+order. Every trial starts from a fresh copy of the same fixture. Each fixture
+copy is fsynced before process launch so its bulk copy does not become work in
+SQLite's first commit. The stop
 boundary stops admission and waits for requests, health flush and checkpoints;
 it never cancels accepted work to manufacture clean latency results. Each
 request has a two-second deadline. Failed operations and long-lock/contention
 messages remain in the output and fail head acceptance.
 
-The modernc commit hook counts write commit attempts by core, telemetry and
-session database. Operation errors and rollback hooks are reported separately;
+The modernc commit hook counts write commit attempts by core and telemetry
+database. Session connectors own a separate driver, so session commit counts are
+not instrumented. Operation errors and rollback hooks are reported separately;
 only an error-free run supports interpreting those hooks as successful commits.
-A separate pair of 15-second runs uses `strace` to sum successful `write` and
+A separate pair of 15-second runs uses seccomp-filtered `strace` to sum successful `write` and
 `pwrite64` return values for `.db` and `-wal`. This measures actual application
 file-write volume, including clean shutdown, rather than file-size growth. It
 excludes shared-memory mmap dirtying and filesystem/device amplification.

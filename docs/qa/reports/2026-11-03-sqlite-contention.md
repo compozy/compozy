@@ -248,3 +248,66 @@ under the operator's CI-only gate rule, after the named focused checks.
 | --- | --- | --- |
 | Paired 30-session store workload and 1 GiB upgrade | Pending | Dedicated CI report and raw artifacts |
 | Real daemon HTTP/SSE/UDS/CLI load and clean restart | Pending | `TestSQLiteContentionDaemonLoad`, bootstrap audit and teardown |
+
+### First paired experiment: failed acceptance, retained evidence
+
+[CI run 41747249696](https://github.com/compozy/compozy/actions/runs/41747249696) compared
+baseline `d35c63c9a9` with `1f2f7cc94`. The 1,073,917,952-byte fixture contained 830,020 retained
+summaries. Every column, sequence, retired cursor and Observe result survived the production
+upgrade. The all-column SHA-256 was `e127f4cd408ae5bf01b7119d4d98108543a517cdc2c73547301befaeb742f944`.
+Open/upgrade/reopen took 44.0 / 283,199.1 / 53.4 ms. These are Linux runner observations.
+
+| Initial measurement | Baseline | Candidate |
+| --- | ---: | ---: |
+| Transcript p99, median of three trials | 59.761 ms | 36.001 ms |
+| Catalog p99, median of three trials | 17.688 ms | 20.605 ms |
+| Core write commit hooks/s | 238.32 | 62.35 |
+| Core file-write bytes/min, traced | 79,049,881 | 109,967,957 |
+| Operation failures, including warmup | 281 | 48 |
+
+**FAIL:** candidate admission failures occurred during warmup. Copied fixture files were not
+fsynced before process launch; the trace recorded expensive initial core/auxiliary/session syncs.
+Fixture-copy writeback is a suspected contributor, not a proven sole cause. The corrected runner fsyncs
+every copied file before launch. Warmup errors and long holds still fail acceptance. No numerical
+improvement is accepted from this failed run, and the increased core write figure is retained.
+Traced runs also had errors and do not establish equal completed throughput. The corrected tracer
+uses seccomp filtering to avoid tracing unrelated syscalls. Session commit hooks are not available
+through the separate guarded driver; their previous zero is not a measured count and is removed.
+
+The next experiment also explicitly sweeps the first six hours of retained summaries while streams
+run. Exact eligible/deleted counts prove that the large retention path was exercised, with the
+same two-second interactive deadlines and a separate one-minute whole-sweep deadline.
+
+### Fresh initialization and scoped publication repair
+
+The first integrated CI run exposed a production startup regression: fresh global databases
+replayed all historical migrations rather than applying the current declarative schema. Several
+race jobs exhausted the unchanged 45-second initialization deadline. Fresh bootstrap now commits
+the current schema, family identity and a pending initialization marker together, then binds the
+telemetry sibling before exposing repositories. Reopening at either cross-file boundary resumes
+initialization; a foreign sibling is rejected. Existing installations retain the ordered export
+path and missing-sibling refusal after initialization completes.
+
+CodeRabbit also identified a scope leak in publication waiting. Observe and watch readers now
+wait only for foreground attempts in the profile/workspace their query can see. The existing
+telemetry suite verifies that unrelated reads proceed and matching waits honor cancellation.
+
+Focused receipts after these repairs: migration streams 10.909 s; telemetry relocation 1.015 s;
+telemetry delivery 1.773 s; physical session-owner guards 0.146 s; heartbeat snapshot/revision
+0.804 s; suggestion consent invariants 0.512 s; daemon managed-delivery recovery 7.755 s;
+config MCP resource round trip 0.081 s; bundled Tailscale install 0.105 s; failed MCP probe stderr
+0.473 s. Focused store/globaldb/sessiondb/harness lint reports zero issues.
+
+Two browser failures were fixture ordering errors after main's Always-on integration: the test
+selected a workspace runtime before changing the definition to global scope, which intentionally
+clears scope-specific overrides. The existing browser scenario now selects the global runtime
+after that change and additionally checks provider/model in the POST. All final vocabulary,
+permission and navigation assertions remain. Browser execution remains CI-owned.
+
+The same CI run found fresh stores replaying all historical migrations under race instrumentation.
+Fresh initialization now uses the existing declarative bootstrap with an atomic core identity and
+pending marker. Startup binds the auxiliary file before exposing repositories and removes that
+marker only after the durable binding. Interrupted creation/binding resumes; foreign siblings
+remain rejected. Existing databases retain the ordered lossless export path. The relocation suite
+including those interruption cases passes in 1.015 s, and the previously timed-out Tailscale
+integration function passes in 0.105 s without changing its deadline.

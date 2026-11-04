@@ -18,18 +18,29 @@ def save(path, value):
     path.write_text(json.dumps(value, indent=2) + "\n")
 
 
+def copy_fixture(source, target):
+    shutil.copytree(source, target)
+    # A copied 1 GiB database is dirty kernel cache, unlike a cleanly stopped
+    # production database. Flush fixture construction before timing SQLite's
+    # first commit so that it does not pay for our unrelated copy operation.
+    for path in target.rglob("*"):
+        if path.is_file():
+            with path.open("rb") as copied:
+                os.fsync(copied.fileno())
+
+
 def run(binary, root, mode, output, name, duration="30s", trace=False):
     command = [str(binary), "-mode", mode, "-root", str(root), "-duration", duration]
     trace_file = output / (name + ".strace")
     if trace:
-        command = ["strace", "-f", "-yy", "-ttt", "-s", "0", "-e", "trace=write,pwrite64,fsync,fdatasync", "-o", str(trace_file)] + command
+        command = ["strace", "--seccomp-bpf", "-f", "-yy", "-ttt", "-T", "-s", "0", "-e", "trace=write,pwrite64,fsync,fdatasync", "-o", str(trace_file)] + command
     print(name, flush=True)
     with (output / (name + ".log")).open("w") as logs, (output / (name + ".json")).open("w") as report:
         subprocess.run(command, check=True, stdout=report, stderr=logs, timeout=1800)
     result = json.loads((output / (name + ".json")).read_text())
     if mode == "load":
-        start = datetime.fromisoformat(result["start"].replace("Z", "+00:00"))
         end = datetime.fromisoformat(result["end"].replace("Z", "+00:00"))
+        warmup_start = datetime.fromisoformat(result["warmup_start"].replace("Z", "+00:00"))
         warnings = []
         for line in (output / (name + ".log")).read_text().splitlines():
             try:
@@ -37,7 +48,7 @@ def run(binary, root, mode, output, name, duration="30s", trace=False):
                 stamp = datetime.fromisoformat(record["time"].replace("Z", "+00:00"))
             except (ValueError, KeyError):
                 continue
-            if start <= stamp <= end and ("held for at least one second" in record.get("msg", "") or "contention exhausted" in record.get("msg", "")):
+            if warmup_start <= stamp <= end and ("held for at least one second" in record.get("msg", "") or "contention exhausted" in record.get("msg", "")):
                 warnings.append(record)
         result["contention_diagnostics"] = warnings
         result["transactions_per_second"] = {key: value / result["seconds"] for key, value in result["write_commit_hooks"].items()}
@@ -64,8 +75,11 @@ def main():
     save(args.output / "seed-size.json", seed)
     before = inspect_data(fixture)
     save(args.output / "upgrade-before.json", before)
+    retention_rows = before["retention_eligible_rows"]
+    if retention_rows < 20000:
+        raise RuntimeError(f"fixture lacks representative retention work: {retention_rows} rows")
     baseline_view = run(args.baseline, fixture, "inspect", args.output, "baseline-observe")
-    shutil.copytree(fixture, upgraded)
+    copy_fixture(fixture, upgraded)
     head_view = run(args.head, upgraded, "inspect", args.output, "head-upgrade")
     after = inspect_data(upgraded)
     save(args.output / "upgrade-after.json", after)
@@ -83,7 +97,7 @@ def main():
         for label in (("baseline", "head") if trial % 2 == 0 else ("head", "baseline")):
             source = fixture if label == "baseline" else upgraded
             root = args.output / "trial-data"
-            shutil.copytree(source, root)
+            copy_fixture(source, root)
             try:
                 trials[label].append(run(getattr(args, label), root, "load", args.output, f"{label}-{trial}"))
             finally:
@@ -91,7 +105,7 @@ def main():
     traced = {}
     for label, source in (("baseline", fixture), ("head", upgraded)):
         root = args.output / "trial-data"
-        shutil.copytree(source, root)
+        copy_fixture(source, root)
         try:
             traced[label] = run(getattr(args, label), root, "load", args.output, f"{label}-writes", duration="15s", trace=True)
         finally:
@@ -108,28 +122,36 @@ def main():
     lines = ["# SQLite contention paired experiment", "", f"Baseline `{args.baseline_sha}`; head `{args.head_sha}`.", "",
              "30 sessions; 1,000 completed turns each; 20 Hz transcript chunks, 5 Hz transcript reads,",
              "4 Hz health and 2 Hz summaries/state per session; 20 Hz catalog reads; 1,500 model rows",
-             "and 90 process observations refreshed every two seconds. Five-second warmup, three",
+             "and 90 process observations refreshed every two seconds. Each measured phase also",
+             f"sweeps {retention_rows:,} retained summaries older than the fixed six-hour boundary.",
+             "Five-second warmup, three",
              "30-second untraced trials; separate 15-second strace trials for actual file-write bytes.", "",
              "| Metric | Baseline | Head |", "| --- | ---: | ---: |"]
     for metric in ("transcript_read", "catalog_read"):
         values = {label: [r["latency"][metric]["p99_ms"] for r in runs] for label, runs in trials.items()}
         lines.append(f"| {metric} p99 ms (median; three values) | {statistics.median(values['baseline']):.3f}; {values['baseline']} | {statistics.median(values['head']):.3f}; {values['head']} |")
-    for kind in ("core", "telemetry", "sessions"):
+    for kind in ("core", "telemetry"):
         values = {label: statistics.median(r["transactions_per_second"][kind] for r in runs) for label, runs in trials.items()}
         lines.append(f"| {kind} write commit hooks/s | {values['baseline']:.2f} | {values['head']:.2f} |")
+    for kind in ("core", "telemetry", "sessions"):
         lines.append(f"| {kind} file-write bytes/min (traced) | {traced['baseline']['file_writes']['bytes_per_minute'][kind]:.0f} | {traced['head']['file_writes']['bytes_per_minute'][kind]:.0f} |")
     for label, runs in trials.items():
         lines += ["", f"{label}: {sum(sum(map(len,r['failures'].values())) for r in runs)} operation failures; {sum(len(r['contention_diagnostics']) for r in runs)} long-hold/contention warnings."]
+        lines += [f"Retention rows removed: {[r['retention']['DeletedEventSummaries'] for r in runs]}."]
     lines += ["", f"Upgrade: {before['rows']:,} rows, {seed['logical_bytes']:,} core bytes; all-column SHA-256 `{before['sha256']}` unchanged.",
               f"Open/upgrade/reopen: {baseline_view['open_ms']:.1f}/{head_view['open_ms']:.1f}/{reopened['open_ms']:.1f} ms.",
               "Observe results, surviving sequence and retired high-water mark match. Index pages/plans are in upgrade-before.json and upgrade-after.json.", "",
               "Commit hooks execute before SQLite commits; rollback hooks and operation errors are reported separately. No failed transaction is silently counted as successful.",
+              "Session commit counts are not instrumented: the guarded session connector owns a separate driver. Session file-write bytes are captured by the syscall tracer.",
+              "Fixture copies are fsynced before launch. Errors and long-hold warnings include warmup; latency and file-write rates use the measured interval.",
               "File-write bytes sum successful write/pwrite64 return values for each .db and -wal, including clean drain/checkpoint. They exclude shm mmap dirtying and physical filesystem/device amplification.",
               "Traced timings are excluded from the latency comparison. These are synthetic store measurements, not HTTP/browser or live-provider latency guarantees."]
     (args.output / "report.md").write_text("\n".join(lines) + "\n")
     # Preserve receipts even if an acceptance condition fails.
     invalid = [r for r in trials["head"] if r["failures"] or r["contention_diagnostics"]]
-    if invalid or traced["head"]["failures"]:
+    incomplete_retention = [r for r in trials["head"] + [traced["head"]]
+                            if r["retention"]["DeletedEventSummaries"] != retention_rows]
+    if invalid or traced["head"]["failures"] or incomplete_retention:
         raise RuntimeError("head acceptance failed; inspect results.json and per-trial logs")
     shutil.rmtree(fixture)
     shutil.rmtree(upgraded)
