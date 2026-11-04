@@ -6,10 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/goccy/go-yaml"
+
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/frontmatter"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
-	"github.com/goccy/go-yaml"
 )
 
 // EditAgentDefFile rewrites one AGENT.md frontmatter block while preserving the prompt body.
@@ -49,7 +50,7 @@ func editAgentDefFileInDirectory(
 	}
 
 	var parsed parsedAgentDef
-	if _, err := decodeAgentFrontmatter(parts.Metadata, &parsed); err != nil {
+	if err := decodeAgentFrontmatter(parts.Metadata, &parsed); err != nil {
 		return AgentDef{}, fmt.Errorf("parse agent file %q: %w", path, err)
 	}
 
@@ -62,6 +63,9 @@ func editAgentDefFileInDirectory(
 	originalAppearance := CloneAgentAppearance(agent.Appearance)
 
 	if err := mutate(&agent); err != nil {
+		return AgentDef{}, err
+	}
+	if err := agent.ValidateIdentity(); err != nil {
 		return AgentDef{}, err
 	}
 	if agent.EffectiveKind() != originalKind {

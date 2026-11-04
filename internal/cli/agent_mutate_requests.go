@@ -81,7 +81,9 @@ func createAgentRequestFromFlags(
 	if err != nil {
 		return contract.CreateAgentRequest{}, err
 	}
-	canonicalAgentKindFlag(cmd, &flags)
+	if err := validateAgentKindFlag(cmd, &flags); err != nil {
+		return contract.CreateAgentRequest{}, err
+	}
 	prompt, _, err := agentPromptFromFlags(cmd, flags, true)
 	if err != nil {
 		return contract.CreateAgentRequest{}, err
@@ -152,13 +154,14 @@ func updateAgentRequestFromFlags(
 		return contract.UpdateAgentRequest{}, err
 	}
 	if cmd.Flags().Changed("kind") {
-		canonicalAgentKindFlag(cmd, &flags)
+		if err := validateAgentKindFlag(cmd, &flags); err != nil {
+			return contract.UpdateAgentRequest{}, err
+		}
 		current, err := client.GetAgent(cmd.Context(), name, AgentQuery{Workspace: workspace})
 		if err != nil {
 			return contract.UpdateAgentRequest{}, err
 		}
-		// A v0.5.0 daemon still reports stays_on. Removal: v0.5.2.
-		kind, _ := compozyconfig.CanonicalAgentKind(current.Kind)
+		kind := current.Kind
 		if kind == "" {
 			kind = compozyconfig.AgentKindOnDemand
 		}
@@ -204,7 +207,9 @@ func duplicateAgentRequestFromFlags(
 	if err != nil {
 		return contract.DuplicateAgentRequest{}, err
 	}
-	canonicalAgentKindFlag(cmd, &flags)
+	if err := validateAgentKindFlag(cmd, &flags); err != nil {
+		return contract.DuplicateAgentRequest{}, err
+	}
 	createScope, err := parseAgentCreateScope(scope)
 	if err != nil {
 		return contract.DuplicateAgentRequest{}, err

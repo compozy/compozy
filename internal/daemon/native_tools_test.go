@@ -5299,6 +5299,24 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 		}, nativeApproveAllPolicyInputs())
 
+		for _, id := range []toolspkg.ToolID{toolspkg.ToolIDConfigGet, toolspkg.ToolIDConfigSet, toolspkg.ToolIDConfigUnset} {
+			input := json.RawMessage(`{"path":"agents.stays_on.max_proposals"}`)
+			if id == toolspkg.ToolIDConfigSet {
+				input = json.RawMessage(`{"path":"agents.stays_on.max_proposals","scope":"user","value":3}`)
+			}
+			if id == toolspkg.ToolIDConfigUnset {
+				input = json.RawMessage(`{"path":"agents.stays_on.max_proposals","scope":"user"}`)
+			}
+			_, err := registry.Call(
+				t.Context(),
+				toolspkg.Scope{Operator: true},
+				toolspkg.CallRequest{ToolID: id, Input: input},
+			)
+			if err == nil || !strings.Contains(err.Error(), "agents.always_on.max_proposals") {
+				t.Fatalf("%s removed path error = %v", id, err)
+			}
+		}
+
 		for _, toolID := range []toolspkg.ToolID{
 			toolspkg.ToolIDConfigShow,
 			toolspkg.ToolIDConfigList,

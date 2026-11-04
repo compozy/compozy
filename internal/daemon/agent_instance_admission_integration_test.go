@@ -30,7 +30,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	monitorpkg "github.com/compozy/compozy/internal/monitor"
-	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -641,7 +640,6 @@ func TestInstanceWebhookCheckIntegration(t *testing.T) {
 			},
 		)
 	}
-
 }
 
 // Invariant (IT-004, IT-007, IT-015): 300 real monitor turns trip once, the next wake is held,
@@ -1831,212 +1829,44 @@ func captureDaemonLogs(d *Daemon) *daemonLogCapture {
 	return capture
 }
 
-// Invariant (IT-002, Safety Invariants 4–5): the v0.5.1 boot pass rewrites stays_on to always_on
-// only in $COMPOZY_HOME/agents and every $COMPOZY_HOME/profiles/<p>/agents root, before discovery,
-// skipping a symlinked profile root; workspace, workspace-profile, and extension files keep their
-// bytes and load through the alias with one warning. Owning layer: daemon boot.
+// Invariant: boot and discovery reject retired definitions without rewriting any root.
 func TestAgentKindAliasBootIntegration(t *testing.T) {
-	t.Run("Should rewrite daemon-owned definitions before discovery and leave other roots intact", func(t *testing.T) {
-		const legacy = "kind: stays_on\n"
-		var (
-			logs        *daemonLogCapture
-			global      string
-			profiles    []string
-			extension   string
-			linkedAgent string
-			workID      string
-		)
-		writeAgent := func(path, name string) {
+	t.Run("Should reject retired definitions without rewriting their bytes", func(t *testing.T) {
+		var paths []string
+		seed := func(path string) {
 			t.Helper()
-			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 				t.Fatal(err)
 			}
-			body := "---\nname: " + name + "\nprovider: " + acpmock.ProviderName + "\n" + legacy + "---\nWatch.\n"
-			if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			if err := os.WriteFile(
+				path,
+				[]byte("---\nname: retired\nkind: stays_on\n---\nWatch.\n"),
+				0600,
+			); err != nil {
 				t.Fatal(err)
 			}
+			paths = append(paths, path)
 		}
-		d, manager, _ := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
-			logs = captureDaemonLogs(d)
-			db, err := globaldb.OpenGlobalDB(t.Context(), d.homePaths.DatabaseFile)
-			if err != nil {
-				t.Fatal(err)
-			}
-			profilesManager, err := profilepkg.NewManager(
-				profilepkg.WithStore(db), profilepkg.WithHomePaths(d.homePaths),
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			work, err := profilesManager.Create(t.Context(), profilepkg.CreateInput{Name: "work"})
-			if err != nil {
-				t.Fatal(err)
-			}
-			workID = work.ID
-			if err := profilesManager.PutSelection(t.Context(), profilepkg.Selection{
-				Lens: profilepkg.SelectionLensGlobal, ProfileID: workID,
-			}); err != nil {
-				t.Fatal(err)
-			}
-			if err := db.Close(t.Context()); err != nil {
-				t.Fatal(err)
-			}
-			global = filepath.Join(d.homePaths.AgentsDir, "subagent-test", "AGENT.md")
-			body, err := os.ReadFile(global)
-			if err != nil {
-				t.Fatal(err)
-			}
-			body = []byte(strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\n"+legacy, 1))
-			if err := os.WriteFile(global, body, 0o600); err != nil {
-				t.Fatal(err)
-			}
-			for _, profile := range []struct{ dir, agent string }{
-				{"default", "p1"}, {"archived", "p2"}, {"default", "subagent-test"},
-			} {
-				path := filepath.Join(d.homePaths.ProfilesDir, profile.dir, "agents", profile.agent, "AGENT.md")
-				writeAgent(path, profile.agent)
-				profiles = append(profiles, path)
-			}
-			extension = filepath.Join(d.homePaths.ExtensionDataRoot, "fixture", "agents", "ext", "AGENT.md")
-			writeAgent(extension, "ext")
-			outside := t.TempDir()
-			linkedAgent = filepath.Join(outside, "linked", "AGENT.md")
-			writeAgent(linkedAgent, "linked")
-			if err := os.MkdirAll(filepath.Join(d.homePaths.ProfilesDir, "linked"), 0o755); err != nil {
-				t.Fatal(err)
-			}
-			if err := os.Symlink(outside, filepath.Join(d.homePaths.ProfilesDir, "linked", "agents")); err != nil {
-				t.Fatal(err)
-			}
-		})
-		root, err := filepath.EvalSymlinks(t.TempDir())
-		if err != nil {
-			t.Fatal(err)
-		}
-		workspaceAgent := filepath.Join(root, ".compozy", "agents", "triage", "AGENT.md")
-		writeAgent(workspaceAgent, "triage")
-		workspaceProfileAgent := filepath.Join(root, ".compozy", "profiles", "work", "agents", "wp", "AGENT.md")
-		writeAgent(workspaceProfileAgent, "wp")
-		resolved, err := d.workspaceResolver.ResolveOrRegister(t.Context(), root)
-		if err != nil {
-			t.Fatal(err)
-		}
-		workspace := resolved.ID
-
-		for _, path := range append([]string{global}, profiles...) {
-			body, err := os.ReadFile(path)
-			if err != nil || !strings.Contains(string(body), "kind: always_on\n") ||
-				strings.Contains(string(body), "stays_on") {
-				t.Fatalf("%s = %q %v, want kind: always_on", path, body, err)
-			}
-			if got := logs.count("rewrote agent kind stays_on to always_on", "path="+path); got != 1 {
-				t.Fatalf("rewrite lines for %s = %d, want 1\n%s", path, got, logs.String())
-			}
-			if got := logs.count("agent kind stays_on is deprecated", "path="+path); got != 0 {
-				t.Fatalf("deprecation lines for %s = %d, want 0 (rewrite runs before discovery)", path, got)
-			}
-		}
-		if got := logs.count("agent kind rewrite skipped", "reason=symlink",
-			"path="+filepath.Join(d.homePaths.ProfilesDir, "linked", "agents")); got != 1 {
-			t.Fatalf("symlinked profile root skips = %d, want 1\n%s", got, logs.String())
-		}
-		for _, path := range []string{linkedAgent, extension, workspaceAgent, workspaceProfileAgent} {
-			body, err := os.ReadFile(path)
-			if err != nil || !strings.Contains(string(body), legacy) {
-				t.Fatalf("%s = %q %v, want untouched stays_on", path, body, err)
-			}
+		home := testHomePaths(t)
+		d := newTestDaemon(t, home, nil)
+		seed(filepath.Join(home.AgentsDir, "retired", "AGENT.md"))
+		seed(filepath.Join(home.ProfilesDir, "default", "agents", "retired", "AGENT.md"))
+		seed(filepath.Join(home.ExtensionDataRoot, "fixture", "agents", "retired", "AGENT.md"))
+		if err := d.boot(t.Context()); !errors.Is(err, compozyconfig.ErrAgentKindInvalid) {
+			t.Fatalf("boot error = %v", err)
 		}
 
-		// Native instance creation is restricted to the caller's own agent identity.
-		main, err := manager.Create(t.Context(), &session.CreateOpts{
-			AgentName: "triage", Workspace: workspace, ProfileID: workID,
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		scope := toolspkg.Scope{
-			SessionID: main.ID, WorkspaceID: workspace, ProfileID: main.ProfileID, AgentName: main.AgentName,
-		}
-		listed, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAgentList, Input: []byte(`{}`), ApprovalGranted: true, ToolCallID: "list-agents",
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !strings.Contains(string(listed.Structured), `"triage"`) ||
-			!strings.Contains(string(listed.Structured), `"wp"`) {
-			t.Fatalf("agent list = %s, want the workspace triage agent", listed.Structured)
-		}
-		for _, path := range []string{workspaceAgent, workspaceProfileAgent} {
-			if got := logs.count("agent kind stays_on is deprecated", "path="+path); got != 1 {
-				t.Fatalf("deprecation lines for %s = %d, want 1\n%s", path, got, logs.String())
+		root := t.TempDir()
+		seed(filepath.Join(root, ".compozy", "agents", "retired", "AGENT.md"))
+		seed(filepath.Join(root, ".compozy", "profiles", "default", "agents", "retired", "AGENT.md"))
+		for _, path := range paths {
+			if _, err := compozyconfig.LoadAgentDefFile(path); !errors.Is(err, compozyconfig.ErrAgentKindInvalid) {
+				t.Fatalf("load %s: %v", path, err)
 			}
-		}
-		result, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAgentInstanceCreate, Input: []byte(`{"agent":"triage"}`), ApprovalGranted: true,
-			ToolCallID: "create-instance",
-		})
-		if err != nil {
-			t.Fatalf("native instance create: %v", err)
-		}
-		var response contract.AgentInstanceResponse
-		if err := json.Unmarshal(result.Structured, &response); err != nil {
-			t.Fatal(err)
-		}
-		if response.Instance.MainSessionID == "" || response.Instance.AgentName != "triage" ||
-			response.Instance.State != "active" {
-			t.Fatalf("instance = %s, want a main session", result.Structured)
-		}
-		waitForRuntimeCondition(t, "instance main active", 15*time.Second, func() bool {
-			info, err := manager.Status(t.Context(), response.Instance.MainSessionID)
-			return err == nil && info.State == session.StateActive
-		})
-		agent, err := d.toolRegistry.Call(t.Context(), scope, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAgentList, Input: []byte(`{}`), ApprovalGranted: true, ToolCallID: "list-again",
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		var payload struct {
-			Agents []contract.AgentPayload `json:"agents"`
-		}
-		if err := json.Unmarshal(agent.Structured, &payload); err != nil {
-			t.Fatal(err)
-		}
-		for _, name := range []string{"triage", "wp"} {
-			index := slices.IndexFunc(
-				payload.Agents,
-				func(agent contract.AgentPayload) bool { return agent.Name == name },
-			)
-			if index < 0 || payload.Agents[index].Kind != "always_on" {
-				t.Fatalf("agent payloads = %s, want %s with kind always_on", agent.Structured, name)
-			}
-		}
-		for _, path := range []string{workspaceAgent, workspaceProfileAgent} {
 			body, err := os.ReadFile(path)
-			if err != nil || !strings.Contains(string(body), legacy) {
-				t.Fatalf("%s changed after admission: %q %v", path, body, err)
+			if err != nil || string(body) != "---\nname: retired\nkind: stays_on\n---\nWatch.\n" {
+				t.Fatalf("definition changed: %q %v", body, err)
 			}
-			if got := logs.count("agent kind stays_on is deprecated", "path="+path); got != 1 {
-				t.Fatalf("deprecation lines for %s = %d, want 1", path, got)
-			}
-		}
-
-		if err := d.Shutdown(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		restarted := newTestDaemon(t, d.homePaths, &d.config)
-		second := captureDaemonLogs(restarted)
-		if err := restarted.boot(t.Context()); err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() {
-			if err := restarted.Shutdown(context.Background()); err != nil {
-				t.Error(err)
-			}
-		})
-		if got := second.count("rewrote agent kind"); got != 0 {
-			t.Fatalf("second boot pass rewrites = %d, want 0\n%s", got, second.String())
 		}
 	})
 }

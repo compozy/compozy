@@ -252,6 +252,9 @@ func normalizeMutationPath(path []string) ([]string, error) {
 		}
 		clean = append(clean, trimmed)
 	}
+	if err := ValidateRemovedConfigPath(clean); err != nil {
+		return nil, err
+	}
 	return clean, nil
 }
 

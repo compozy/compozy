@@ -2879,8 +2879,8 @@ See [User scope](/docs/user-scope) for the walkthrough.
 
 The `[agents.always_on]` section bounds instance lifecycle and triage execution. These settings apply after a daemon restart.
 
-The section was renamed in v0.5.1. The v0.5.0 table name and its `compozy config` paths still work
-through v0.5.1 with a warning, and a key set in `[agents.always_on]` wins; v0.5.2 removes them. See
+The section was renamed in v0.5.1. The old table name and its CLI/native config paths are rejected
+in the release after v0.5.2. Errors identify the corresponding `agents.always_on` replacement. See
 [the migration guide](/docs/migration#always-on-vocabulary). Validation messages name
 `agents.always_on.*`.
 

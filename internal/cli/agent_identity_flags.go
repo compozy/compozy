@@ -24,17 +24,11 @@ func addAgentIdentityFlags(cmd *cobra.Command, f *agentDefinitionFlags) {
 	)
 }
 
-// canonicalAgentKindFlag maps the v0.5.0 --kind stays_on spelling to always_on and warns on
-// stderr. Removal: v0.5.2.
-func canonicalAgentKindFlag(cmd *cobra.Command, f *agentDefinitionFlags) {
-	if !cmd.Flags().Changed("kind") {
-		return
+func validateAgentKindFlag(cmd *cobra.Command, f *agentDefinitionFlags) error {
+	if cmd.Flags().Changed("kind") && f.kind != config.AgentKindAlwaysOn && f.kind != config.AgentKindOnDemand {
+		return fmt.Errorf("agent_kind_invalid: %w", config.ErrAgentKindInvalid)
 	}
-	kind, deprecated := config.CanonicalAgentKind(f.kind)
-	if deprecated {
-		fmt.Fprintln(cmd.ErrOrStderr(), "warning: --kind stays_on is deprecated; use always_on (removed in v0.5.2)")
-	}
-	f.kind = kind
+	return nil
 }
 
 func agentIdentityFlagsChanged(cmd *cobra.Command) bool {

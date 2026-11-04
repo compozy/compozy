@@ -13,6 +13,10 @@ func descriptorInputError(descriptor Descriptor, input json.RawMessage, err erro
 	if err == nil {
 		return nil
 	}
+	if kindErr := agentCreateKindInputError(descriptor.ID, input); kindErr != nil {
+		return kindErr
+	}
+
 	if descriptor.ExecutionMetadata().InputErrorCode == "" {
 		return err
 	}
@@ -54,4 +58,23 @@ func descriptorInputError(descriptor Descriptor, input json.RawMessage, err erro
 		}
 	}
 	return &cloned
+}
+
+func agentCreateKindInputError(id ToolID, input json.RawMessage) error {
+	if id != ToolIDAgentCreate {
+		return nil
+	}
+	var fields struct {
+		Kind string `json:"kind"`
+	}
+	if decodeErr := jsonv2.Unmarshal(input, &fields); decodeErr != nil {
+		return nil
+	}
+	switch fields.Kind {
+	case "", "on_demand", "always_on":
+		return nil
+	}
+	return NewToolError(ErrorCode("agent_kind_invalid"), id,
+		"agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)",
+		ErrToolInvalidInput, ReasonSchemaInvalid)
 }

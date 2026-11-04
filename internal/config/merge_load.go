@@ -83,6 +83,12 @@ func loadConfigOverlayBytes(contents []byte, source string) (configOverlay, erro
 			return overlay, nil
 		}
 		unknown := &UnknownKeysError{Path: source, Keys: uniqueTOMLKeys(undecoded)}
+		for _, key := range undecoded {
+			if err := ValidateRemovedConfigPath(key); err != nil {
+				unknown.Err = err
+				return overlay, unknown
+			}
+		}
 		if err := rejectRemovedLoopRuntimeKeys(source, undecoded); err != nil {
 			unknown.Err = err
 			return overlay, unknown
@@ -228,7 +234,7 @@ func (o defaultsOverlay) Apply(dst *DefaultsConfig) {
 }
 
 func (o agentsOverlay) Apply(dst *AgentsConfig) {
-	o.applyAlwaysOn(&dst.AlwaysOn)
+	o.AlwaysOn.Apply(&dst.AlwaysOn)
 	o.Soul.Apply(&dst.Soul)
 	o.Heartbeat.Apply(&dst.Heartbeat)
 	applyAgentOverrideOverlays(o.Overrides, &dst.Overrides)

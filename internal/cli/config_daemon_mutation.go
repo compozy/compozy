@@ -347,6 +347,9 @@ func settingsSkillsPayloadFromConfig(cfg compozyconfig.SkillsConfig) contract.Se
 
 func configMutationPath(raw string) ([]string, configSetValueKind, bool, error) {
 	segments, err := parseDottedConfigPath(raw)
+	if err == nil {
+		err = compozyconfig.ValidateRemovedConfigPath(segments)
+	}
 	if err != nil {
 		return nil, configSetString, false, err
 	}

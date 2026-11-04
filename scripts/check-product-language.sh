@@ -84,9 +84,7 @@ else
 fi
 
 # Retired agent-kind vocabulary (#1199). The space form "stays on" is ordinary English and is not
-# matched. Rule A keeps the v0.5.1 stays_on aliases at their listed boundaries (Safety Invariant 1);
-# Rule B keeps the retired word off public surfaces. In v0.5.2 the alias files leave rule_a_allowed;
-# the rules stay.
+# matched. Rule A permits only removed-input diagnostics; Rule B keeps retired product copy off public surfaces.
 retired_kind='(?i)stays[-_]?on'
 # Rule B skips immutable history identifiers only: the shipped stays-on-hardening spec, its branch,
 # reports and artifacts, dated reports, and content-addressed QA scenario, charter and bug IDs.
@@ -98,32 +96,11 @@ history_refs='(?x:
 )'
 rule_b_pattern="${history_refs}(*SKIP)(*F)|${retired_kind}"
 
-# Production Go files that may name stays_on or call CanonicalAgentKind.
-rule_a_allowed=(
-  internal/config/agent_identity.go
-  internal/config/agent_frontmatter_decode.go
-  internal/config/agent_kind_rewrite.go
-  internal/config/agent_create.go
-  internal/config/agent_resource.go
-  internal/config/merge.go
-  internal/config/tool_surface.go
-  internal/api/core/agent_create.go
-  internal/api/spec/agent_name_schema.go
-  internal/cli/agent_identity_flags.go
-  internal/cli/agent_mutate_requests.go
-  internal/tools/builtin/workspace.go
-  internal/daemon/boot_agent_kind_rewrite.go
-)
-
 rule_a_in_scope() {
   local rel="$1"
   [[ "$rel" == *.go && "$rel" != *_test.go && "$rel" != */testdata/* && "$rel" != testdata/* ]] || return 1
   [[ "$rel" == internal/* || "$rel" == cmd/* || "$rel" == sdk/go/* ]] || return 1
   [[ "$rel" == sdk/go/client/* ]] && return 1
-  local allowed
-  for allowed in "${rule_a_allowed[@]}"; do
-    [[ "$rel" == "$allowed" ]] && return 1
-  done
   return 0
 }
 
@@ -138,7 +115,7 @@ rule_b_in_scope() {
 rule_b_allowed() {
   local rel="$1"
   case "$rel" in
-    RELEASE_NOTES.md | RELEASE_BODY.md | CHANGELOG.md | .release-notes/archive/* | .release-notes/always-on-vocabulary-v0.5.1.md) return 0 ;;
+    RELEASE_NOTES.md | RELEASE_BODY.md | CHANGELOG.md | .release-notes/archive/* | .release-notes/always-on-vocabulary-v0.5.1.md | .release-notes/remove-agent-kind-aliases.md) return 0 ;;
     sdk/client/* | sdk/go/client/* | openapi/compozy.json | internal/tools/builtin/testdata/native-tool-catalog.json) return 0 ;;
     docs/_memory/glossary.md | COPY.md | MIGRATION_GUIDE.md | packages/site/content/docs/migration/index.mdx) return 0 ;;
     skills/compozy/references/agent-definitions.md | packages/site/content/docs/agents/definitions.mdx) return 0 ;;
@@ -147,10 +124,6 @@ rule_b_allowed() {
     web/proto/review/*) return 0 ;;
     scripts/check-product-language.sh | scripts/product_language_integration_test.go) return 0 ;;
   esac
-  local allowed
-  for allowed in "${rule_a_allowed[@]}"; do
-    [[ "$rel" == "$allowed" ]] && return 0
-  done
   return 1
 }
 
@@ -189,7 +162,10 @@ kind_scan() {
   return 0
 }
 
-rule_a_files="$(kind_scan "Rule A" --glob '*.go' "${retired_kind}|\bCanonicalAgentKind\b" -- "${rule_a_paths[@]}")"
+# Only actionable removal diagnostics may retain the retired token.
+removed_diagnostics='"agent kind must be on_demand or always_on \(stays_on was renamed to always_on in v0\.5\.1\)"|path\[1\] == "stays_on"'
+rule_a_pattern="(?:${removed_diagnostics})(*SKIP)(*F)|${retired_kind}|\\bCanonicalAgentKind\\b"
+rule_a_files="$(kind_scan "Rule A" --glob '*.go' "$rule_a_pattern" -- "${rule_a_paths[@]}")"
 while IFS= read -r file; do
   [[ -n "$file" ]] || continue
   rel="$(relative_path "$file")"
@@ -208,7 +184,7 @@ done <<<"$rule_b_files"
 
 if ((${#kind_findings[@]} > 0)); then
   printf '%s\n' "${kind_findings[@]}" >&2
-  echo "Retired agent-kind vocabulary found. Use always_on / Always-on; stays_on stays only at the v0.5.1 alias boundaries." >&2
+  echo "Retired agent-kind vocabulary found. Use always_on / Always-on; stays_on stays only in removed-input diagnostics." >&2
   failed=1
 fi
 

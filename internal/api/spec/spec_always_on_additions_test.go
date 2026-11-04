@@ -303,11 +303,10 @@ func TestAgentKindRequestSchemas(t *testing.T) {
 				t.Fatalf("%s.kind is missing", name)
 			}
 			kind := ref.Value.Properties["kind"].Value
-			if !reflect.DeepEqual(kind.Enum, []any{"on_demand", "always_on", "stays_on"}) ||
-				!strings.Contains(kind.Description, "stays_on is the deprecated") ||
-				!strings.Contains(kind.Description, "v0.5.2") {
+			if !reflect.DeepEqual(kind.Enum, []any{"on_demand", "always_on"}) ||
+				kind.Description != agentKindRequestDescription {
 				t.Fatalf(
-					"%s.kind = %v %q, want the three kinds and the deprecation text",
+					"%s.kind = %v %q, want the two canonical kinds and identity description",
 					name,
 					kind.Enum,
 					kind.Description,

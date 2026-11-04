@@ -9411,10 +9411,10 @@ export interface components {
       display_name?: string | null;
       fallback_chain?: components["schemas"]["AgentFallbackRoutePayload"][];
       /**
-       * @description Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+       * @description Agent kind: on_demand (default) or always_on; fixed at creation.
        * @enum {string}
        */
-      kind?: "on_demand" | "always_on" | "stays_on";
+      kind?: "on_demand" | "always_on";
       label?: string;
       model?: string;
       name: string;
@@ -9723,10 +9723,10 @@ export interface components {
       description?: string | null;
       display_name?: string | null;
       /**
-       * @description Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+       * @description Agent kind: on_demand (default) or always_on; fixed at creation.
        * @enum {string}
        */
-      kind?: "on_demand" | "always_on" | "stays_on";
+      kind?: "on_demand" | "always_on";
       model?: string;
       permission_rules?: components["schemas"]["AgentPermissionRulePayload"][];
       /** @enum {string} */
@@ -9747,10 +9747,10 @@ export interface components {
     };
     DuplicateAgentRequest: {
       /**
-       * @description Agent kind: on_demand (default) or always_on; fixed at creation. stays_on is the deprecated v0.5.0 spelling of always_on and is removed in v0.5.2.
+       * @description Agent kind: on_demand (default) or always_on; fixed at creation.
        * @enum {string}
        */
-      kind?: "on_demand" | "always_on" | "stays_on";
+      kind?: "on_demand" | "always_on";
       name: string;
       overrides?: components["schemas"]["DuplicateAgentOverrides"] | null;
       /** @enum {string} */

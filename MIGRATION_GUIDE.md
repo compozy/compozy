@@ -2,7 +2,7 @@
 
 v0.4.0 is the first stable CompozyOS release. It follows the v0.3.0 beta line, and Homebrew and npm `latest` move from v0.2.15 to v0.4.0.
 
-- **From v0.5.0:** update in place, then follow [Stays on is now Always-on](#always-on-vocabulary) before v0.5.2.
+- **From v0.5.0:** update in place, then follow [Stays on is now Always-on](#always-on-vocabulary) before upgrading beyond v0.5.2.
 - **From any v0.3.0 beta:** update in place from the app's Update action or with `compozy update`; no reinstall is needed. The first start applies [User scope and All projects](#user-scope-and-all-projects). Before that, follow [Memory removal](#memory-removal), then [Networks, Bridges, and Sandbox removal](#networks-bridges-and-sandbox-removal), if you are upgrading from a beta that predates them.
 - **From v0.2:** v0.2 has reached end of life and receives no further releases. The numbered sections below describe the v0.2.15 clean-state transition.
 
@@ -18,25 +18,20 @@ Back up your global and workspace `.compozy/` directories before changing instal
 
 ## Stays on is now Always-on (v0.5.1)
 
-v0.5.1 upgrades in place. The agent kind `stays_on` is now `always_on`, and the app reads
-"Always-on" and "On-demand". Every v0.5.0 file, config table, request value, and stored row keeps
-working through v0.5.1; readers of emitted `kind`, reason, and error values must update now. Update
-the inputs before v0.5.2, which removes every alias below. Update the daemon and the
-CLI together: a v0.5.1 CLI sends `always_on`, which a v0.5.0 daemon rejects.
+The release after v0.5.2 removes the input aliases introduced with the v0.5.1 rename.
+Update the daemon and CLI together. Use `always_on` for AGENT.md `kind`, `--kind`, HTTP/UDS
+create/update/duplicate requests, and native agent creation. Old input fails with
+`agent_kind_invalid`: "agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)".
 
-| v0.5.0                                                        | v0.5.1                                     | Through v0.5.1                                                                                                                                                                                                                                         |
-| ------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| AGENT.md `kind: stays_on`                                     | `kind: always_on`                          | Accepted with a daemon warning. Files under `$COMPOZY_HOME/agents` and `$COMPOZY_HOME/profiles/<p>/agents` are rewritten at boot                                                                                                                       |
-| `[agents.stays_on]` and `agents.stays_on.*` config paths      | `[agents.always_on]`, `agents.always_on.*` | Read with a warning; `agents.always_on` wins per key                                                                                                                                                                                                   |
-| `--kind stays_on`, request `kind: "stays_on"`                 | `always_on`                                | Accepted with a warning                                                                                                                                                                                                                                |
-| Emitted `kind: "stays_on"` in responses, events, and the SDKs | `kind: "always_on"`                        | Changed at once. Readers that compare `stays_on` break                                                                                                                                                                                                 |
-| Reason `definition_not_stays_on`                              | `definition_not_always_on`                 | Changed at once in the instance `pause_reason`, the instance check `gate` (`compozy agent instance check`, `compozy__agent_instance_check`), the check-in history `reason`, and the `agent.instance.*` hook payload `reason`; stored rows are migrated |
-| Error `agent_not_stays_on`                                    | `agent_not_always_on`                      | Changed at once. The experimental memory routes have no window                                                                                                                                                                                         |
-| Startup section `stays_on_doctrine`                           | `always_on_doctrine`                       | Changed at once                                                                                                                                                                                                                                        |
+Replace `[agents.stays_on]` with `[agents.always_on]` in every config overlay. Old tables fail
+config load with `removed config key "agents.stays_on": use "agents.always_on"`.
+Old `agents.stays_on.*` paths in CLI and native config get/set/unset fail with a removed-key
+error naming the corresponding `agents.always_on.*` path.
 
-AGENT.md files in a repository, a workspace profile, or an extension are never rewritten. Change
-`kind: stays_on` to `kind: always_on` in them yourself; the daemon log names each file it reads
-through the alias.
+Edit repository, workspace-profile, additional-root and extension AGENT.md files manually.
+The v0.5.1 boot rewrite covered daemon-owned files only; the rewrite no longer runs.
+Invalid definitions stay unchanged and report the actionable load error in agent diagnostics.
+Persisted rows already migrated in v0.5.1 need no new migration.
 
 The permission labels in the app also changed. The values did not, so nothing needs editing:
 **Accept edits** (`approve-edits`), **Auto-review** (`auto`), and **Full access** (`approve-all`).

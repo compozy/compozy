@@ -4680,49 +4680,27 @@ func TestBootConfigEnsuresManagedAgents(t *testing.T) {
 	})
 }
 
-// TestBootConfigRoutesConfigAliasWarningToDaemonLog owns FR-006: the boot-time [agents.stays_on]
-// warning from the daemon's first config load lands once in the daemon log and never on
-// slog.Default. It swaps process-wide loggers, so it does not run in parallel.
 func TestBootConfigRoutesConfigAliasWarningToDaemonLog(t *testing.T) {
-	var stray, daemonLog bytes.Buffer
-	previous := slog.Default()
-	slog.SetDefault(slog.New(slog.NewTextHandler(&stray, nil)))
-	compozyconfig.RouteDeprecationWarnings(nil)
-	t.Cleanup(func() {
-		compozyconfig.RouteDeprecationWarnings(nil)
-		slog.SetDefault(previous)
+	t.Run("Should enforce the current input contract", func(t *testing.T) {
+		t.Parallel()
+		homePaths := testHomePaths(t)
+		if err := os.WriteFile(
+			homePaths.ConfigFile,
+			[]byte("[agents.stays_on]\napproval_timeout = \"2h\"\n"),
+			0600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		d := newTestDaemon(t, homePaths, nil)
+		d.loadConfig = func() (compozyconfig.Config, error) { return loadConfigFromHome(homePaths, d.getenv) }
+		if err := d.bootConfig(
+			&bootState{},
+			&bootCleanup{},
+		); err == nil ||
+			!strings.Contains(err.Error(), "agents.always_on") {
+			t.Fatalf("boot error = %v", err)
+		}
 	})
-
-	homePaths := testHomePaths(t)
-	if err := os.WriteFile(
-		homePaths.ConfigFile,
-		[]byte("[agents.stays_on]\napproval_timeout = \"2h\"\n"),
-		0o600,
-	); err != nil {
-		t.Fatal(err)
-	}
-	d := newTestDaemon(t, homePaths, nil)
-	d.logger = slog.New(slog.NewTextHandler(&daemonLog, nil))
-	d.loadConfig = func() (compozyconfig.Config, error) { return loadConfigFromHome(homePaths, d.getenv) }
-
-	state := &bootState{}
-	if err := d.bootConfig(state, &bootCleanup{}); err != nil {
-		t.Fatalf("bootConfig() error = %v", err)
-	}
-	if _, err := d.loadConfig(); err != nil {
-		t.Fatalf("second loadConfig() error = %v", err)
-	}
-	if state.cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
-		t.Fatalf("ApprovalTimeout = %v, want 2h", state.cfg.Agents.AlwaysOn.ApprovalTimeout)
-	}
-	if got := strings.Count(daemonLog.String(), "agents.stays_on is deprecated"); got != 1 ||
-		!strings.Contains(daemonLog.String(), "level=WARN") ||
-		!strings.Contains(daemonLog.String(), "keys=approval_timeout") {
-		t.Fatalf("daemon log = %q, want one WARN naming keys=approval_timeout", daemonLog.String())
-	}
-	if strings.Contains(stray.String(), "agents.stays_on") {
-		t.Fatalf("slog.Default received %q, want the warning only in the daemon log", stray.String())
-	}
 }
 
 func TestRunShutsDownOnInjectedSignal(t *testing.T) {

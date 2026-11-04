@@ -94,7 +94,7 @@ The API uses ` + "`Compozy.connect()` and `Compozy.start()`" + `.
 }
 
 // TestProductLanguageGuardAgentKind owns UT-020: Rule A keeps stays_on and CanonicalAgentKind at
-// the listed production alias files, and Rule B keeps the retired word off public surfaces. Each
+// removed-input diagnostics, and Rule B keeps the retired word off public surfaces. Each
 // fixture is classified as the repository-relative path it stands for.
 func TestProductLanguageGuardAgentKind(t *testing.T) {
 	t.Parallel()
@@ -106,7 +106,7 @@ func TestProductLanguageGuardAgentKind(t *testing.T) {
 			content: "package daemon\n\nconst kind = \"stays_on\"\n"},
 		{name: "Should reject a CanonicalAgentKind call outside the boundary", as: "internal/daemon/x.go",
 			content: "package daemon\n\nfunc f(v string) { config.CanonicalAgentKind(v) }\n"},
-		{name: "Should allow the alias in the identity file", as: "internal/config/agent_identity.go", allowed: true,
+		{name: "Should reject the alias in the identity file", as: "internal/config/agent_identity.go",
 			content: "package config\n\nconst alias = \"stays_on\"\n\nfunc CanonicalAgentKind(raw string) {}\n"},
 		{name: "Should allow stays_on fixtures in tests", as: "internal/config/agent_test.go", allowed: true,
 			content: "package config\n\nconst fixture = \"stays_on\"\n"},
