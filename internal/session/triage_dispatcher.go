@@ -81,20 +81,8 @@ func (d *TriageDispatcher) Dispatch(
 	}
 	child, err := d.Manager.Create(ctx, &(opts))
 	if err != nil {
-		if errors.Is(err, acp.ErrTriageUnsupported) {
-			return heartbeat.TriageOutcome{
-				Result: string(BadgeFailed),
-				Reason: "triage_unsupported",
-				Report: &agentinstance.ReportInput{
-					Kind: "failure",
-					Payload: []byte(
-						`{"reason":"triage_unsupported","detail":"The provider does not support read-only triage."}`,
-					),
-				},
-			}, nil
-		}
-		if negotiationErr, ok := errors.AsType[*acp.NegotiationError](err); ok && acp.IsConfigurationRejection(err) {
-			return heartbeat.ConfigUnavailableTriage(negotiationErr.Error()), nil
+		if refused, ok := triageStartRefusal(err); ok {
+			return refused, nil
 		}
 		return outcome, err
 	}
@@ -112,6 +100,9 @@ func (d *TriageDispatcher) Dispatch(
 	}
 	events, err := d.Manager.Prompt(ctx, child.ID, prompt)
 	if err != nil {
+		if rejected, ok := triageConfigRejection(err); ok {
+			return rejected, nil
+		}
 		return outcome, err
 	}
 	deniedCalls, err = waitTriageEvents(ctx, events)
@@ -237,4 +228,32 @@ func triagePrompt(items []heartbeat.DigestItem, reports []agentinstance.Report, 
 		"`",
 		`\u0060`,
 	) + "\n```", nil
+}
+
+// triageStartRefusal reports a provider that cannot run read-only triage, or that rejects the
+// configured triage model or runtime options, as a finished check rather than a failure.
+func triageStartRefusal(err error) (heartbeat.TriageOutcome, bool) {
+	if errors.Is(err, acp.ErrTriageUnsupported) {
+		return heartbeat.TriageOutcome{
+			Result: string(BadgeFailed),
+			Reason: "triage_unsupported",
+			Report: &agentinstance.ReportInput{
+				Kind: "failure",
+				Payload: []byte(
+					`{"reason":"triage_unsupported","detail":"The provider does not support read-only triage."}`,
+				),
+			},
+		}, true
+	}
+	return triageConfigRejection(err)
+}
+
+// triageConfigRejection reports a provider refusal of the triage model or runtime options,
+// at session start or when a prompt reapplies them, as a configuration diagnostic.
+func triageConfigRejection(err error) (heartbeat.TriageOutcome, bool) {
+	negotiationErr, ok := errors.AsType[*acp.NegotiationError](err)
+	if !ok || !acp.IsConfigurationRejection(err) {
+		return heartbeat.TriageOutcome{}, false
+	}
+	return heartbeat.ConfigUnavailableTriage(negotiationErr.Error()), true
 }

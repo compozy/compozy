@@ -3208,7 +3208,7 @@ func TestInstanceCheckFatigue(t *testing.T) {
 			if ok, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
 				InstanceID: instance.ID, OccurrenceID: occurrence, Source: "instance_check",
 				Result: outcome.Result, Reason: outcome.Reason, Detail: outcome.Detail, Report: outcome.Report,
-				Now: now, ExpiresAt: now.Add(time.Hour), FatigueLimit: 2,
+				Now: now, ExpiresAt: now.Add(time.Hour), FatigueLimit: 2, UnattendedTurnLimit: 2,
 			}); err != nil || !ok.Changed {
 				t.Fatalf("finish=%v %v", ok, err)
 			}
@@ -3218,8 +3218,8 @@ func TestInstanceCheckFatigue(t *testing.T) {
 			finish(fmt.Sprintf("occ-config-%d", i), heartbeat.ConfigUnavailableTriage(`model "haiku" is unavailable`))
 		}
 		state, err := repo.WakeState(t.Context(), instance.ID)
-		if err != nil || state.FailureStreak != 1 {
-			t.Fatalf("failure streak=%+v err=%v, want only the ordinary failure", state, err)
+		if err != nil || state.FailureStreak != 1 || state.UnattendedTurns != 1 {
+			t.Fatalf("wake state=%+v err=%v, want only the ordinary failure counted", state, err)
 		}
 		current, err := repo.Get(t.Context(), instance.ID)
 		if err != nil || current.State != "active" {

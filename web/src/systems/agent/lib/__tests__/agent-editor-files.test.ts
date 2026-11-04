@@ -419,7 +419,7 @@ describe("check-in activity", () => {
       now
     );
     expect(recent[0]?.description).toBe(
-      "Its heartbeat model isn't available. Check its model settings. " +
+      "Its heartbeat model or runtime options were rejected. Check its model settings. " +
         'acp: model "haiku" is unavailable'
     );
   });

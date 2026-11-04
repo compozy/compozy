@@ -44,7 +44,8 @@ const REASON: Record<string, string> = {
   triage_output_invalid: "It gave an answer it couldn't use.",
   triage_timeout: "It ran out of time.",
   triage_interrupted: "It was interrupted partway through.",
-  triage_config_unavailable: "Its heartbeat model isn't available. Check its model settings.",
+  triage_config_unavailable:
+    "Its heartbeat model or runtime options were rejected. Check its model settings.",
   triage_failed: "It lost its connection partway through.",
   cooldown_active: "It checked in very recently, so it waited.",
   quiet_window: "It was outside its hours.",

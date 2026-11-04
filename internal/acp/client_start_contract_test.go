@@ -1225,7 +1225,8 @@ func TestConfigureRuntime(t *testing.T) {
 		if err := driver.ConfigureRuntime(testutil.Context(t), proc, RuntimeConfig{Model: "other-model"}); err != nil {
 			t.Fatalf("ConfigureRuntime() error = %v, want provider-confirmed model", err)
 		}
-		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "model", "other-model", "new-model", "loaded-model", "other-model")
+		options := proc.CapsSnapshot().ConfigOptions
+		assertConfigOption(t, options, "model", "other-model", "new-model", "loaded-model", "other-model")
 	})
 
 	t.Run("Should apply model then refreshed reasoning effort then speed", func(t *testing.T) {

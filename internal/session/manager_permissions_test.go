@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -807,6 +808,11 @@ func TestTriageDispatcher(t *testing.T) {
 			heartbeat.ReasonTriageConfigUnavailable, nil,
 		},
 		{"Should keep a model request deadline on the ordinary failure path", "", context.DeadlineExceeded},
+		{
+			"Should classify a provider invalid-params refusal as a configuration diagnostic",
+			heartbeat.ReasonTriageConfigUnavailable,
+			acpsdk.NewInvalidParams(nil),
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

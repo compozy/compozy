@@ -106,7 +106,7 @@ func ConfigUnavailableTriage(detail string) TriageOutcome {
 		return failedTriage("triage_failed")
 	}
 	return TriageOutcome{
-		Result: "failed",
+		Result: string(WakeResultFailed),
 		Reason: ReasonTriageConfigUnavailable,
 		Detail: detail,
 		Report: &agentinstance.ReportInput{Kind: "failure", Payload: payload},

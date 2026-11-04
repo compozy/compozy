@@ -230,7 +230,11 @@ func (d *Driver) applySessionConfigOption(
 	options := process.setConfigOptionsResponse(sessionConfigOptionsFromSDK(response.ConfigOptions), revision)
 	confirmed, ok := findConfigOptionByID(options, selection.ID)
 	if !ok || !selection.matches(confirmed) {
-		return fmt.Errorf("acp: provider did not confirm config option %q: %w", selection.ID, errConfigOptionUnconfirmed)
+		return fmt.Errorf(
+			"acp: provider did not confirm config option %q: %w",
+			selection.ID,
+			errConfigOptionUnconfirmed,
+		)
 	}
 	return nil
 }
