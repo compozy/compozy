@@ -265,6 +265,11 @@ async function createAlwaysOnAgent(
   await appPage.getByTestId("agents-topbar-create").click();
   await expect(appPage.getByTestId("agent-create-dialog")).toBeVisible();
   await appPage.getByTestId("agent-create-name").fill(name);
+  // Always-on switches to global scope and clears the workspace runtime selection.
+  const alwaysOn = appPage.getByTestId("agent-create-kind-always-on");
+  await expect(alwaysOn).toContainText("Always-on");
+  await expect(appPage.getByTestId("agent-create-kind-on-demand")).toContainText("On-demand");
+  await alwaysOn.click();
   const runtimeTrigger = appPage.getByTestId("agent-create-runtime-select");
   await runtimeTrigger.click();
   await expect(appPage.getByTestId("runtime-selector-popup")).toBeVisible();
@@ -278,10 +283,6 @@ async function createAlwaysOnAgent(
     .locator('[contenteditable="true"]')
     .fill("Watch the repository and report what needs attention.");
 
-  const alwaysOn = appPage.getByTestId("agent-create-kind-always-on");
-  await expect(alwaysOn).toContainText("Always-on");
-  await expect(appPage.getByTestId("agent-create-kind-on-demand")).toContainText("On-demand");
-  await alwaysOn.click();
   await appPage.getByTestId("agent-create-where").click();
   await appPage.getByText("Decide later", { exact: true }).click();
   await expect(appPage.getByTestId("agent-create-where")).toContainText("Decide later");
@@ -301,7 +302,13 @@ async function createAlwaysOnAgent(
   );
   await appPage.getByTestId("submit-agent-create").click();
   expect((await createRequest).postDataJSON()).toMatchObject({
-    agent: { name, kind: "always_on", ...(level ? { permissions: level } : {}) },
+    agent: {
+      name,
+      kind: "always_on",
+      provider: mockAgentProvider,
+      model: reasoningCatalogModel,
+      ...(level ? { permissions: level } : {}),
+    },
   });
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${name}`);
 }
