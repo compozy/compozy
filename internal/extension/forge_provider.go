@@ -66,6 +66,14 @@ func (m *Manager) ForgeCapabilities(
 	ctx context.Context,
 	remoteURLs []string,
 ) (extensioncontract.ForgeCapabilitiesResponse, error) {
+	return m.forgeCapabilities(ctx, remoteURLs, false)
+}
+
+// forgeCapabilities permits writes to reuse known capabilities during a read quota hold.
+// A cache miss still obeys the hold because discovering capabilities is itself a read.
+func (m *Manager) forgeCapabilities(
+	ctx context.Context, remoteURLs []string, allowLimitedCached bool,
+) (extensioncontract.ForgeCapabilitiesResponse, error) {
 	remotes, err := normalizeForgeRemoteURLs(remoteURLs)
 	if err != nil {
 		return extensioncontract.ForgeCapabilitiesResponse{}, err
@@ -83,7 +91,7 @@ func (m *Manager) ForgeCapabilities(
 	if cached, ok := m.forgeQuota.cachedCapabilities(key, m.now()); ok {
 		// A limited winner falls through to the provider loop, which reports the limit, so callers such
 		// as the exit plan do not offer forge actions the provider would refuse.
-		if _, limited := m.forgeQuota.limitedUntil(cached.Winner, m.now()); !limited {
+		if _, limited := m.forgeQuota.limitedUntil(cached.Winner, m.now()); allowLimitedCached || !limited {
 			return cached, nil
 		}
 	}
@@ -212,7 +220,7 @@ func (m *Manager) ForgeCreatePR(
 			"extension: forge head, base, and title are required",
 		)
 	}
-	capabilities, err := m.ForgeCapabilities(ctx, request.RemoteURLs)
+	capabilities, err := m.forgeCapabilities(ctx, request.RemoteURLs, true)
 	if err != nil {
 		return extensioncontract.ForgePRCreateResponse{}, err
 	}

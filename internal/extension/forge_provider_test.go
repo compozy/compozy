@@ -382,6 +382,43 @@ func TestManagerForgeQuota(t *testing.T) {
 		}
 	})
 
+	// Invariant: a read quota hold does not prevent an explicit write using cached capabilities.
+	// Owner: Manager forge write admission; canonical forge quota suite.
+	t.Run("Should permit PR creation with cached capabilities during a read hold", func(t *testing.T) {
+		t.Parallel()
+		var creates atomic.Int32
+		process := newFakeProcess(5205)
+		process.callFn = func(_ context.Context, method string, _ any, result any) error {
+			switch method {
+			case string(extensionprotocol.ExtensionServiceMethodForgeCapabilities):
+				*result.(*extensioncontract.ForgeCapabilitiesResponse) = availableForgeCapabilities()
+			case string(extensionprotocol.ExtensionServiceMethodForgePRCreate):
+				creates.Add(1)
+				*result.(*extensioncontract.ForgePRCreateResponse) = extensioncontract.ForgePRCreateResponse{
+					Status: "created", Number: 7, URL: "https://github.com/acme/repo/pull/7",
+				}
+			default:
+				return errors.New("read must remain held")
+			}
+			return nil
+		}
+		manager := NewManager(nil)
+		installForgeTestProvider(manager, "github-provider", process, time.Unix(1, 0))
+		if _, err := manager.ForgeCapabilities(t.Context(), remotes); err != nil {
+			t.Fatal(err)
+		}
+		manager.forgeQuota.limit("github-provider", nil, manager.now())
+		if _, err := manager.ForgeCapabilities(t.Context(), remotes); ForgeProviderErrorCause(err) != extensioncontract.ForgeCauseRateLimited {
+			t.Fatalf("read hold = %v", err)
+		}
+		_, err := manager.ForgeCreatePR(t.Context(), extensioncontract.ForgePRCreateRequest{
+			RemoteURLs: remotes, Head: "topic", Base: "main", Title: "Quota",
+		})
+		if err != nil || creates.Load() != 1 {
+			t.Fatalf("create under read hold: calls=%d err=%v", creates.Load(), err)
+		}
+	})
+
 	for _, source := range []string{"status", "capabilities"} {
 		t.Run("Should hold every forge read until a "+source+" rate limit resets", func(t *testing.T) {
 			t.Parallel()
