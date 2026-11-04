@@ -33,10 +33,15 @@ func TestEmbeddedResources(t *testing.T) {
 			if kind == "always_on" && agent.Permissions != string(compozyconfig.PermissionModeAuto) {
 				t.Fatalf("%s permissions = %q, want auto", name, agent.Permissions)
 			}
-			// A built-in reads as part of the app: an icon without its plate, never a generated face.
+			// #1259: an on-demand built-in reads as part of the app, a bare icon without its plate;
+			// an always-on built-in keeps its generated face like every other always-on agent.
 			appearance, err := agent.ResolveAppearance()
-			if err != nil || appearance["avatar"] != "icon" || appearance["background"] != "none" {
-				t.Fatalf("%s appearance = %#v, %v", name, appearance, err)
+			if err != nil {
+				t.Fatalf("%s appearance: %v", name, err)
+			}
+			if kind == "always_on" && (appearance["avatar"] != "generated" || appearance["seed"] != name) ||
+				kind == "on_demand" && (appearance["avatar"] != "icon" || appearance["background"] != "none") {
+				t.Fatalf("%s (%s) appearance = %#v", name, kind, appearance)
 			}
 		}
 	})
