@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""Merge Train check-in source: pull requests ready for a merge attempt.
+
+Emits one item per open, non-draft pull request to main authored by the
+configured author whose head branch is not release/*, and that has CodeRabbit
+reviews on at least the configured number of distinct commits. The item key
+binds the head SHA, so a new head or a new candidate changes the digest and
+an unchanged candidate set skips the model.
+
+Read-only: GitHub REST GETs through the operator's authenticated `gh` CLI.
+Contract: CompozyOS check-in source v1 (JSON on stdin, {"items": [...]} on stdout).
+"""
+
+import json
+import os
+import subprocess
+import sys
+
+CODERABBIT = "coderabbitai[bot]"
+
+
+def gh_list(path):
+    """GET a paginated REST list with gh; returns the concatenated entries."""
+    proc = subprocess.run(
+        ["gh", "api", "--paginate", "--slurp", path],
+        capture_output=True,
+        text=True,
+        timeout=25,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"gh api {path}: {proc.stderr.strip()[:500]}")
+    return [entry for page in json.loads(proc.stdout or "[]") for entry in page]
+
+
+def gh_one(path):
+    proc = subprocess.run(["gh", "api", path], capture_output=True, text=True, timeout=25)
+    if proc.returncode != 0:
+        raise RuntimeError(f"gh api {path}: {proc.stderr.strip()[:500]}")
+    return json.loads(proc.stdout)
+
+
+def main():
+    raw = sys.stdin.read()
+    request = json.loads(raw) if raw.strip() else {}
+    params = request.get("params") or {}
+    limits = request.get("limits") or {}
+    max_items = int(limits.get("max_items") or 20)
+
+    repo = params.get("repo", "compozy/compozy")
+    base = params.get("base", "main")
+    author = params.get("author", "pedronauck")
+    min_rounds = int(params.get("min_coderabbit_rounds", 2))
+
+    home = os.environ.get("HOME", "")
+    extra = [p for p in ("/opt/homebrew/bin", "/usr/local/bin", f"{home}/.local/bin") if p]
+    os.environ["PATH"] = os.pathsep.join([os.environ.get("PATH", "")] + extra)
+
+    pulls = gh_list(f"repos/{repo}/pulls?state=open&base={base}&per_page=100")
+    candidates = []
+    for pr in sorted(pulls, key=lambda p: p["number"]):
+        if pr.get("draft") or (pr.get("user") or {}).get("login") != author:
+            continue
+        head = pr.get("head") or {}
+        if str(head.get("ref", "")).startswith("release/"):
+            continue
+        number = pr["number"]
+        reviews = gh_list(f"repos/{repo}/pulls/{number}/reviews?per_page=100")
+        rounds = len(
+            {
+                r.get("commit_id")
+                for r in reviews
+                if (r.get("user") or {}).get("login") == CODERABBIT and r.get("commit_id")
+            }
+        )
+        if rounds < min_rounds:
+            continue
+        candidates.append((pr, rounds))
+
+    # Keyed by head SHA with no cursor, so no state and no `more`: the oldest
+    # max_items candidates are reported and the rest surface once those merge.
+    items = []
+    for pr, rounds in candidates[:max_items]:
+        number = pr["number"]
+        sha = pr["head"]["sha"]
+        detail = gh_one(f"repos/{repo}/pulls/{number}")
+        items.append(
+            {
+                "key": f"pr-{number}@{sha[:12]}",
+                "title": (pr.get("title") or f"#{number}")[:200],
+                "url": pr.get("html_url", ""),
+                "attributes": {
+                    "number": number,
+                    "head_sha": sha,
+                    "mergeable_state": detail.get("mergeable_state") or "unknown",
+                    "coderabbit_rounds": rounds,
+                },
+            }
+        )
+
+    json.dump({"items": items}, sys.stdout)
+    sys.stdout.write("\n")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:  # report a real failure to the daemon
+        print(f"merge-candidates: {exc}", file=sys.stderr)
+        sys.exit(1)
