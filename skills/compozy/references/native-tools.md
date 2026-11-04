@@ -193,8 +193,10 @@ check newly failing and once per head when all checks finish. A
 conflict transition wakes once and can wake again after a known clearance; unknown mergeability never
 clears a conflict, including across restarts or forge outages. A new
 review or unresolved thread on the current head wakes after 2 minutes of quiet, held at most 5, and the first
-read is the baseline for reviews and threads. A new head wakes nothing by itself and drops
-what the old head had pending, and a late review or thread on an old head wakes nothing, though open threads
+read is the baseline for reviews and threads. A new head wakes nothing by itself and drops pending
+check and review activity from the old head. A conflict collected while an earlier wake awaits admission
+survives a push on the same PR until a known clearance. A late review or thread on an old head wakes
+nothing, though open threads
 stay in the count each wake reports; a rerun on the same head wakes only if it fails. The wake carries the pull
 request, head, check counts, failed names, and new reviews and threads, in an entity-encoded untrusted
 block, and says what the forge could not observe. It carries no review text: read the reviews yourself,
