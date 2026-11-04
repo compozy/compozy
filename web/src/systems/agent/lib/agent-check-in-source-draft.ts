@@ -161,9 +161,11 @@ export function sourceDraftFrom(source: CheckInSource, catalog: Catalog | null):
     }
     return draft;
   }
-  const fields = sourceParamFields(kindOf(catalog, ref)?.params_schema);
+  const fields = new Map(
+    sourceParamFields(kindOf(catalog, ref)?.params_schema).map(field => [field.key, field])
+  );
   for (const [key, value] of Object.entries(values)) {
-    const field = fields.find(item => item.key === key);
+    const field = fields.get(key);
     const shown = field ? fieldValue(field, value) : undefined;
     if (shown === undefined) draft.kept[key] = value;
     else {
