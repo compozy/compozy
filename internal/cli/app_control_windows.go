@@ -19,6 +19,14 @@ import (
 var appControlPipePattern = regexp.MustCompile(`^\\\\\.\\pipe\\compozyos-[a-f0-9]{64}$`)
 
 func dialAppControl(ctx context.Context, path string) (net.Conn, error) {
+	return dialAppControlWithProcessInspector(ctx, path, procutil.InspectWindowsProcess)
+}
+
+func dialAppControlWithProcessInspector(
+	ctx context.Context,
+	path string,
+	inspectProcess func(uint32) (string, string, error),
+) (net.Conn, error) {
 	contents, err := fileutil.ReadPrivateFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("app control: read pipe discovery: %w", err)
@@ -31,13 +39,13 @@ func dialAppControl(ctx context.Context, path string) (net.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("app control: connect to pipe: %w", err)
 	}
-	if err := validateAppControlPipeOwner(connection); err != nil {
+	if err := validateAppControlPipeOwner(connection, inspectProcess); err != nil {
 		return nil, errors.Join(err, connection.Close())
 	}
 	return connection, nil
 }
 
-func validateAppControlPipeOwner(connection net.Conn) error {
+func validateAppControlPipeOwner(connection net.Conn, inspectProcess func(uint32) (string, string, error)) error {
 	file, ok := connection.(interface{ Fd() uintptr })
 	if !ok {
 		return errors.New("app control: pipe handle is unavailable")
@@ -46,7 +54,7 @@ func validateAppControlPipeOwner(connection net.Conn) error {
 	if err := windows.GetNamedPipeServerProcessId(windows.Handle(file.Fd()), &pid); err != nil {
 		return fmt.Errorf("app control: inspect pipe server: %w", err)
 	}
-	sid, _, err := procutil.InspectWindowsProcess(pid)
+	sid, _, err := inspectProcess(pid)
 	if err != nil {
 		return fmt.Errorf("app control: inspect pipe owner: %w", err)
 	}

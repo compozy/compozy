@@ -683,6 +683,7 @@ jobs:
           install-playwright: "false"
       - name: Create an ephemeral signing identity for the native update scenario
         shell: pwsh
+        timeout-minutes: 2
         run: |
           $certificate = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=CompozyOS CI' -CertStoreLocation Cert:\CurrentUser\My
           $password = [Guid]::NewGuid().ToString('N')
@@ -691,7 +692,7 @@ jobs:
           $public = Join-Path $env:RUNNER_TEMP 'compozy-ci.cer'
           Export-PfxCertificate -Cert $certificate -FilePath $pfx -Password (ConvertTo-SecureString $password -AsPlainText -Force) | Out-Null
           Export-Certificate -Cert $certificate -FilePath $public | Out-Null
-          Import-Certificate -FilePath $public -CertStoreLocation Cert:\CurrentUser\Root | Out-Null
+          Import-Certificate -FilePath $public -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
           Add-Content $env:GITHUB_ENV "WIN_CSC_LINK=$pfx"
           Add-Content $env:GITHUB_ENV "WIN_CSC_KEY_PASSWORD=$password"
       - name: Verify native bootstrap, journal and control boundaries

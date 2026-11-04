@@ -1414,19 +1414,30 @@ jobs:
             printf 'APPLE_TEAM_ID=%s\n' "${APPLE_TEAM_ID_VALUE}"
           } >>"${GITHUB_ENV}"
 
-      - name: Require Windows signing identity
+      - name: Require the existing Azure Windows signing identity
         if: matrix.platform == 'win' && steps.reuse.outputs.available != 'true'
         shell: pwsh
         env:
-          WIN_CSC_LINK: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_CODE_SIGNING_ACCOUNT: ${{ secrets.AZURE_CODE_SIGNING_ACCOUNT }}
+          AZURE_CERTIFICATE_PROFILE: ${{ secrets.AZURE_CERTIFICATE_PROFILE }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_PUBLISHER_NAME: ${{ vars.AZURE_PUBLISHER_NAME }}
         run: |
-          if (!$env:WIN_CSC_LINK -or !$env:WIN_CSC_KEY_PASSWORD) {
-            throw "WINDOWS_CERTIFICATE and WINDOWS_CERTIFICATE_PASSWORD are required for Windows releases."
+          $required = @('AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'AZURE_CODE_SIGNING_ACCOUNT', 'AZURE_CERTIFICATE_PROFILE', 'AZURE_SIGNING_ENDPOINT', 'AZURE_PUBLISHER_NAME')
+          foreach ($name in $required) {
+            if (![Environment]::GetEnvironmentVariable($name)) { throw "Missing Windows signing configuration: $name" }
           }
 
       - name: Generate release builder configuration
         if: steps.reuse.outputs.available != 'true'
+        env:
+          AZURE_CODE_SIGNING_ACCOUNT: ${{ matrix.platform == 'win' && secrets.AZURE_CODE_SIGNING_ACCOUNT || '' }}
+          AZURE_CERTIFICATE_PROFILE: ${{ matrix.platform == 'win' && secrets.AZURE_CERTIFICATE_PROFILE || '' }}
+          AZURE_SIGNING_ENDPOINT: ${{ matrix.platform == 'win' && vars.AZURE_SIGNING_ENDPOINT || '' }}
+          AZURE_PUBLISHER_NAME: ${{ matrix.platform == 'win' && vars.AZURE_PUBLISHER_NAME || '' }}
         run: |
           bun run --cwd desktop release:config -- \
             --version "${{ needs.release-plan.outputs.release_version }}" \
@@ -1451,8 +1462,9 @@ jobs:
           COMPOZY_RELEASE_VERSION: ${{ needs.release-plan.outputs.release_version }}
           COMPOZY_MIN_APP_VERSION: ${{ needs.desktop-compatibility.outputs.min_app_version }}
           COMPOZY_RELEASE_CHANNEL: ${{ needs.release-plan.outputs.desktop_channel }}
-          WIN_CSC_LINK: ${{ matrix.platform == 'win' && secrets.WINDOWS_CERTIFICATE || '' }}
-          WIN_CSC_KEY_PASSWORD: ${{ matrix.platform == 'win' && secrets.WINDOWS_CERTIFICATE_PASSWORD || '' }}
+          AZURE_TENANT_ID: ${{ matrix.platform == 'win' && secrets.AZURE_TENANT_ID || '' }}
+          AZURE_CLIENT_ID: ${{ matrix.platform == 'win' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ matrix.platform == 'win' && secrets.AZURE_CLIENT_SECRET || '' }}
         run: |
           bun run --cwd desktop build:runtime
           bun run --cwd desktop build:main
@@ -1627,7 +1639,7 @@ jobs:
             .operation == "publish" and
             (.channel_ref_after | length > 0) and
             (.audit_commit == .channel_ref_after) and
-            (.verified_inventory | length == 7) and
+            (.verified_inventory | length == 9) and
             (.outcome == "published" or .outcome == "already_completed")
           ' .artifacts/channel-publish-result.json >/dev/null
 

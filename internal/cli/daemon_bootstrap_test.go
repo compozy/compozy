@@ -384,7 +384,7 @@ func TestProvisionBundledRuntime(t *testing.T) {
 
 		homePaths := mustTestHomePaths(t)
 		source := filepath.Join(t.TempDir(), "bundled-compozy")
-		installedPath := filepath.Join(homePaths.BinDir, bootstrapBinaryName)
+		installedPath := bootstrapRuntimePath(homePaths)
 		writeFile(t, source, "bundled-runtime")
 		cmd := &cobra.Command{}
 		cmd.Flags().StringP("output", "o", "jsonl", "")
@@ -424,7 +424,7 @@ func TestProvisionBundledRuntime(t *testing.T) {
 
 		homePaths := mustTestHomePaths(t)
 		source := filepath.Join(t.TempDir(), "bundled-compozy")
-		installedPath := filepath.Join(homePaths.BinDir, bootstrapBinaryName)
+		installedPath := bootstrapRuntimePath(homePaths)
 		writeFile(t, source, "bundled-runtime")
 		cmd := &cobra.Command{}
 		cmd.Flags().StringP("output", "o", "jsonl", "")
@@ -446,7 +446,7 @@ func TestProvisionBundledRuntime(t *testing.T) {
 		t.Parallel()
 
 		homePaths := mustTestHomePaths(t)
-		installedPath := filepath.Join(homePaths.BinDir, bootstrapBinaryName)
+		installedPath := bootstrapRuntimePath(homePaths)
 		bundlePath := filepath.Join(t.TempDir(), "bundled-compozy")
 		writeFile(t, installedPath, "old-runtime")
 		writeFile(t, bundlePath, "new-runtime")
@@ -500,7 +500,7 @@ func TestProvisionBundledRuntime(t *testing.T) {
 		t.Parallel()
 
 		homePaths := mustTestHomePaths(t)
-		installedPath := filepath.Join(homePaths.BinDir, bootstrapBinaryName)
+		installedPath := bootstrapRuntimePath(homePaths)
 		bundlePath := filepath.Join(t.TempDir(), "bundled-compozy")
 		writeFile(t, installedPath, "old-runtime")
 		writeFile(t, bundlePath, "new-runtime")

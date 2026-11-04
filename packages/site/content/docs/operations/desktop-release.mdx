@@ -39,10 +39,17 @@ The authority directory must contain these exact versioned names:
 ## Windows signing and validation
 
 Windows releases are built on `windows-latest` with the repository-pinned Electron and
-`electron-builder`. Configure `WINDOWS_CERTIFICATE` (an electron-builder-compatible PFX value or
-URL) and `WINDOWS_CERTIFICATE_PASSWORD` in GitHub Actions. The release job requires both and
-verifies Authenticode on the installer, Electron executable and bundled `compozy.exe` before
-publishing. Never use the ephemeral CI test certificate for a public release.
+`electron-builder`. Production signing uses its native Azure Trusted Signing integration and the
+existing organization secrets `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`,
+`AZURE_CODE_SIGNING_ACCOUNT` and `AZURE_CERTIFICATE_PROFILE`. Grant this repository access to
+those secrets; no new PFX certificate or password is required.
+
+Set repository variables `AZURE_SIGNING_ENDPOINT` to the account's regional HTTPS endpoint and
+`AZURE_PUBLISHER_NAME` to the certificate's exact Common Name (CN). These are public signer
+metadata, not authentication credentials. The publisher is embedded in `app-update.yml` so
+Electron can verify subsequent installers. Authentication credentials stay in the runner environment.
+The release job fails on missing configuration or invalid Authenticode signatures on the installer,
+Electron executable or bundled `compozy.exe`. Never use the ephemeral CI certificate for a public release.
 
 After signing the runtime, the packaging hook regenerates its bundled SHA-256 manifest. The
 channel publishes `latest.yml`; the exact installer and its blockmap join the existing checksum

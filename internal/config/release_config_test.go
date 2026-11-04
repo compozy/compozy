@@ -1002,12 +1002,12 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		assertEqualString(t, "checksum.algorithm", stringAt(t, checksum, "algorithm"), "sha256")
 
 		checksumFiles := sliceAt(t, checksum, "extra_files")
-		if len(checksumFiles) != 7 {
-			t.Fatalf("checksum.extra_files length = %d, want seven desktop compatibility inputs", len(checksumFiles))
+		if len(checksumFiles) != 9 {
+			t.Fatalf("checksum.extra_files length = %d, want nine desktop compatibility inputs", len(checksumFiles))
 		}
 		releaseFiles := sliceAt(t, release, "extra_files")
-		if len(releaseFiles) != 8 {
-			t.Fatalf("release.extra_files length = %d, want installer plus seven desktop inputs", len(releaseFiles))
+		if len(releaseFiles) != 10 {
+			t.Fatalf("release.extra_files length = %d, want installer plus nine desktop inputs", len(releaseFiles))
 		}
 		for _, required := range []string{
 			"./.artifacts/desktop/CompozyOS-*-mac-arm64.dmg",
@@ -1016,6 +1016,8 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			"./.artifacts/desktop/CompozyOS-*-mac-x64.zip",
 			"./.artifacts/desktop/CompozyOS-*-linux-x64.AppImage",
 			"./.artifacts/desktop/CompozyOS-*-linux-x64.deb",
+			"./.artifacts/desktop/CompozyOS-*-win-x64.exe",
+			"./.artifacts/desktop/CompozyOS-*-win-x64.exe.blockmap",
 			"./.artifacts/desktop/compat.json",
 		} {
 			assertExtraFileGlob(t, "checksum.extra_files", checksumFiles, required)
@@ -1099,6 +1101,9 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 			"arch: x64",
 			"id: linux",
 			"runner: ubuntu-22.04",
+			"id: windows",
+			"runner: windows-latest",
+			"platform: win",
 			"bun run --cwd desktop electron-builder",
 			"--publish never",
 			"release:collect",
@@ -1112,11 +1117,6 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 		assertContainsText(t, "production Electron builder", productionBuild, "bun run --cwd desktop electron-builder")
 		assertNotContainsText(t, "unlocked Electron builder", workflow, "bunx")
 		assertContainsText(t, "production Electron publish suppression", productionBuild, "--publish never")
-		for _, forbidden := range []string{
-			"runner: windows-latest",
-		} {
-			assertNotContainsText(t, "Electron release workflow", workflow, forbidden)
-		}
 	})
 
 	t.Run("Should stamp dry-run desktop bundles with the prospective release identity", func(t *testing.T) {
@@ -1247,7 +1247,7 @@ printf 'CompozyOS %s\n' "${FAKE_COMPOZY_VERSION:?}"
 			"--channel \"${RELEASE_CHANNEL}\"",
 			".operation == \"publish\"",
 			".audit_commit == .channel_ref_after",
-			".verified_inventory | length == 7",
+			".verified_inventory | length == 9",
 			"already_completed",
 		} {
 			assertContainsText(t, "channel authority lane", publisher, required)
