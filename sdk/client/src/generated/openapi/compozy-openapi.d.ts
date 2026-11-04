@@ -11145,6 +11145,9 @@ export interface components {
       approved: boolean;
       approved_sha256: string | null;
       executable: boolean;
+      /** Format: date-time */
+      last_modified?: string | null;
+      line_count?: number;
       name: string;
       sha256: string;
     };

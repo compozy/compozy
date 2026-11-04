@@ -1,8 +1,10 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -28,7 +30,7 @@ func (h *BaseHandlers) heartbeatSourceTarget(c *gin.Context) (authoredAgentTarge
 	}
 	if _, err := os.Stat(target.agentPath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			err = source.Failure("agent_not_found", "agent definition was not found")
+			err = source.Failure("agent_not_found", fmt.Sprintf("agent %q not found", pathAgentName(c)))
 		}
 		h.respondError(c, 404, err)
 		return target, nil, false
@@ -105,7 +107,7 @@ func HeartbeatSourceCatalog(
 		if entry.IsDir() || !source.ValidScript(entry.Name()) {
 			continue
 		}
-		_, hash, readErr := source.InspectScript(dir, entry.Name())
+		data, hash, readErr := source.InspectScript(dir, entry.Name())
 		if readErr != nil {
 			continue
 		}
@@ -118,10 +120,15 @@ func HeartbeatSourceCatalog(
 			continue
 		}
 		row := contract.HeartbeatSourceScriptPayload{
-			Name:       entry.Name(),
-			Executable: info.Mode()&0111 != 0,
-			SHA256:     hash,
-			Approved:   hash == approved,
+			Name:         entry.Name(),
+			LineCount:    bytes.Count(data, []byte("\n")),
+			LastModified: new(info.ModTime()),
+			Executable:   info.Mode()&0111 != 0,
+			SHA256:       hash,
+			Approved:     hash == approved,
+		}
+		if len(data) > 0 && data[len(data)-1] != '\n' {
+			row.LineCount++
 		}
 		if approved != "" {
 			row.ApprovedSHA256 = new(approved)
@@ -182,7 +189,7 @@ func (h *BaseHandlers) mutateHeartbeatScript(c *gin.Context, revoke bool) {
 		h.respondError(
 			c,
 			409,
-			source.Failure("source_script_changed", "script contents changed; review and approve its current hash"),
+			source.Failure("source_script_changed", fmt.Sprintf("%s is %s, not %s", name, hash, req.SHA256)),
 		)
 		return
 	}

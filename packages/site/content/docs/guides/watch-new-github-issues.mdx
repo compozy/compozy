@@ -138,12 +138,14 @@ compozy agent instance check issue-watch --workspace my-project --dry-run
 The first time, expected output is:
 
 ```text
-digest_empty
-  new-issues  ok  0 items (412 ms)
+Would run: no
+Sources:
+  new-issues  forge-github/issues  ok  0 items  (412 ms)
+Digest:
 ```
 
 That is correct. On its first check the source records the newest open issue and reports nothing
-older, so you are not flooded with the backlog. `digest_empty` means "nothing new, so no model
+older, so you are not flooded with the backlog. `Would run: no` means "nothing new, so no model
 turn".
 
 A dry run asks the source what is new but saves nothing: no cursor moves and the source's status
@@ -153,12 +155,14 @@ To see real items while you test, add `backfill: "24h"` under `with`, save, and 
 first check then includes open issues created in the last 24 hours:
 
 ```text
-would_run
-  new-issues  ok  1 items (512 ms)
+Would run: yes
+Sources:
+  new-issues  forge-github/issues  ok  1 item  (512 ms)
+Digest:
   source:new-issues:my-org/my-repo#1201  #1201 Terminal loses scrollback after resize
 ```
 
-`would_run` means a real check would hand those items to the model. Each item key is
+`Would run: yes` means a real check would hand those items to the model. Each item key is
 `source:<id>:<owner>/<repo>#<number>`. Remove `backfill` again when you are done, or keep it if you
 want a first catch-up.
 
@@ -181,23 +185,17 @@ each source's result above the items; **Run it for real** starts a real check.
 ## Step 6: Read the source's status
 
 ```bash
-compozy agent instance show issue-watch --workspace my-project -o json
+compozy agent instance show issue-watch --workspace my-project
 ```
 
-Look at `instance.sources`:
+The output includes a `Sources` block:
 
-```json
-{
-  "id": "new-issues",
-  "kind": "forge-github/issues",
-  "status": "ok",
-  "last_polled_at": "2026-11-03T15:00:02Z",
-  "last_success_at": "2026-11-03T15:00:02Z",
-  "last_item_count": 0,
-  "failure_streak": 0,
-  "next_poll_at": "2026-11-03T16:00:41Z"
-}
+```text
+Sources
+  new-issues  forge-github/issues  ok  0 items  polled 15:00
 ```
+
+Add `-o json` to inspect `instance.sources`, including the timestamps and error details.
 
 | `status`             | Meaning                                                                       |
 | -------------------- | ----------------------------------------------------------------------------- |
@@ -303,8 +301,9 @@ Expected output:
 ```text
 Script new-issues (issue-watch)
   sha256:7f3a91c0...
-approve this exact script? [y/N] y
-approved new-issues
+  12 lines, last modified 2026-11-03 14:58
+Approve this exact file to run on check-ins? [y/N] y
+Approved new-issues (sha256:7f3a91c0...)
 ```
 
 The approval covers that exact file. Any later edit, by you or by an agent, puts the source back
@@ -315,7 +314,8 @@ the prompt with `--sha256 sha256:7f3a91c0... --yes`; a different hash fails with
 `compozy agent heartbeat sources revoke issue-watch new-issues --workspace my-project --yes`.
 
 In the app, an unapproved script's row on the **Check-ins** page reads "Waiting for your approval"
-with the short hash, and its **Approve** action approves the hash shown.
+with the short hash. For an editable operator view, its **Approve** button approves the current
+script hash from the catalog. Open the script to review its contents before approving.
 
 Scripts run with the workspace as their working directory and a minimal environment: `PATH`,
 `HOME`, `LANG`, `TMPDIR`, `USER`, `COMPOZY_SOURCE_ID`, `COMPOZY_AGENT`, and any names you list in
@@ -333,7 +333,7 @@ Scripts run with the workspace as their working directory and a minimal environm
 | `unapproved` with `source_script_unapproved`                             | The script is new or changed.                                  | Review it and run `compozy agent heartbeat sources approve`.        |
 | `failing` with `source_script_missing` or `source_script_not_executable` | The file is missing or lacks the executable bit.               | Create it in `sources/` and `chmod +x` it.                          |
 | `failing` with `source_output_invalid`                                   | The script printed bad JSON or too many items.                 | Follow the output contract and page with `more`.                    |
-| A real check returns `source_poll_in_flight`                             | A check is already asking the sources.                         | Wait for it to finish. Nothing was started twice.                   |
+| A real check says `Not started: a source check is already running for issue-watch (source_poll_in_flight)`                             | A check is already asking the sources.                         | Wait for it to finish. Nothing was started twice.                   |
 
 A failing source never blocks the agent's other sources. After three failures in a row (`failure_threshold`), the check
 tells the agent once, so the problem reaches you as a report instead of silence.

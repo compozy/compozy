@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+// LoopEffectSpec is a daemon API value.
+type LoopEffectSpec struct {
+	Emit *LoopEmitSpec  `json:"emit,omitzero"`
+	Tool string         `json:"tool,omitempty"`
+	With map[string]any `json:"with,omitempty"`
+}
+
 // LoopEffectiveConfig is a daemon API value.
 type LoopEffectiveConfig struct {
 	HumanGateEnabled   bool                  `json:"human_gate_enabled"`
@@ -440,8 +447,3 @@ const (
 
 // LoopReattemptStrategy is a daemon API value.
 type LoopReattemptStrategy string
-
-// LoopRequestAggregates is a daemon API value.
-type LoopRequestAggregates struct {
-	Pending int `json:"pending"`
-}

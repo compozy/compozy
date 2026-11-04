@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"text/tabwriter"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/heartbeat/source"
@@ -35,6 +36,9 @@ func (c *daemonClient) HeartbeatSources(
 		nil,
 		&result,
 	)
+	if failure, ok := errors.AsType[*daemonAPIError](err); ok && failure.payload.Code == "agent_not_found" {
+		return result, source.Failure("agent_not_found", fmt.Sprintf("agent %q not found in %s", name, query.Workspace))
+	}
 	return result, err
 }
 
@@ -82,18 +86,26 @@ func newAgentHeartbeatSourcesCommand(deps commandDeps) *cobra.Command {
 			}
 			return writeCommandOutput(cmd, outputBundle{jsonValue: catalog, human: func() (string, error) {
 				var b strings.Builder
-				if len(catalog.Kinds) > 0 {
-					fmt.Fprintln(&b, "KIND\tTITLE\tFROM")
-					for _, kind := range catalog.Kinds {
-						fmt.Fprintf(&b, "%s\t%s\textension %s\n", kind.Kind, kind.Title, kind.Extension)
-					}
+				table := tabwriter.NewWriter(&b, 0, 0, 2, ' ', 0)
+				fmt.Fprintln(table, "KIND\tTITLE\tFROM")
+				if len(catalog.Kinds) == 0 {
+					fmt.Fprintln(table, "(none)")
 				}
-				fmt.Fprintln(&b, "SCRIPT\tEXECUTABLE\tAPPROVED")
+				for _, kind := range catalog.Kinds {
+					fmt.Fprintf(table, "%s\t%s\textension %s\n", kind.Kind, kind.Title, kind.Extension)
+				}
+				if err := table.Flush(); err != nil {
+					return "", err
+				}
+				fmt.Fprintln(table, "SCRIPT\tEXECUTABLE\tAPPROVED")
 				if len(catalog.Scripts) == 0 {
-					fmt.Fprintln(&b, "(none)")
+					fmt.Fprintln(table, "(none)")
 				}
 				for _, script := range catalog.Scripts {
-					fmt.Fprintf(&b, "%s\t%t\t%t\n", script.Name, script.Executable, script.Approved)
+					fmt.Fprintf(table, "%s\t%t\t%t\n", script.Name, script.Executable, script.Approved)
+				}
+				if err := table.Flush(); err != nil {
+					return "", err
 				}
 				state := "enabled"
 				if !catalog.ScriptsEnabled {
@@ -153,17 +165,11 @@ func newHeartbeatScriptApprovalCommand(deps commandDeps, revoke bool) *cobra.Com
 				}
 			}
 			if !yes {
-				if !supportBundleInputIsTerminal(cmd.InOrStdin()) {
-					return errors.New("script approval requires --yes when stdin is not interactive")
-				}
-				if _, err := fmt.Fprintf(cmd.ErrOrStderr(), "%s this exact script? [y/N] ", verb); err != nil {
-					return err
-				}
-				line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+				confirmed, err := confirmHeartbeatScriptApproval(cmd, revoke)
 				if err != nil {
 					return err
 				}
-				if strings.ToLower(strings.TrimSpace(line)) != "y" {
+				if !confirmed {
 					return nil
 				}
 			}
@@ -181,7 +187,9 @@ func newHeartbeatScriptApprovalCommand(deps commandDeps, revoke bool) *cobra.Com
 				cmd,
 				outputBundle{
 					jsonValue: map[string]string{"script": args[1], "action": verb},
-					human:     func() (string, error) { return verb + "d " + args[1] + "\n", nil },
+					human: func() (string, error) {
+						return heartbeatScriptApprovalText(args[1], hash, revoke), nil
+					},
 				},
 			)
 		},
@@ -209,6 +217,12 @@ func reviewHeartbeatScript(
 	for _, script := range catalog.Scripts {
 		if script.Name == name {
 			found = true
+			if hash != "" && hash != script.SHA256 {
+				return "", source.Failure(
+					"source_script_changed",
+					fmt.Sprintf("%s is %s, not %s", name, script.SHA256, hash),
+				)
+			}
 			if hash == "" {
 				hash = script.SHA256
 			}
@@ -221,10 +235,45 @@ func reviewHeartbeatScript(
 			); err != nil {
 				return "", err
 			}
+			if script.LastModified != nil {
+				if _, err := fmt.Fprintf(
+					cmd.ErrOrStderr(),
+					"  %d lines, last modified %s\n",
+					script.LineCount,
+					script.LastModified.Format("2006-01-02 15:04"),
+				); err != nil {
+					return "", err
+				}
+			}
 		}
 	}
 	if !found {
 		return "", errors.New("source_script_missing: script is not in the catalog")
 	}
 	return hash, nil
+}
+
+func heartbeatScriptApprovalText(script, hash string, revoke bool) string {
+	if revoke {
+		return "Revoked approval for " + script + "\n"
+	}
+	return fmt.Sprintf("Approved %s (%s)\n", script, hash)
+}
+
+func confirmHeartbeatScriptApproval(cmd *cobra.Command, revoke bool) (bool, error) {
+	if !supportBundleInputIsTerminal(cmd.InOrStdin()) {
+		return false, errors.New("script approval requires --yes when stdin is not interactive")
+	}
+	prompt := "Approve this exact file to run on check-ins? [y/N] "
+	if revoke {
+		prompt = "Revoke approval for this script? [y/N] "
+	}
+	if _, err := fmt.Fprint(cmd.ErrOrStderr(), prompt); err != nil {
+		return false, err
+	}
+	line, err := bufio.NewReader(cmd.InOrStdin()).ReadString('\n')
+	if err != nil {
+		return false, err
+	}
+	return strings.EqualFold(strings.TrimSpace(line), "y"), nil
 }

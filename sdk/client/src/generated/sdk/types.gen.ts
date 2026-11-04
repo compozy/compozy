@@ -3456,6 +3456,8 @@ export type HeartbeatSourceScriptPayload = {
   approved: boolean;
   approved_sha256: string | null;
   executable: boolean;
+  last_modified?: string | null;
+  line_count?: number;
   name: string;
   sha256: string;
 };

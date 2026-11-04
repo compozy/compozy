@@ -37,8 +37,9 @@ the transcript is checked in `MS-web-stays-on-reports`.
    `executable: true`, `approved: false` and its `sha256`. Run a dry check: the source reads
    `unapproved` (`source_script_unapproved`) and the script did not execute (it writes a marker
    file; the marker is absent). A real check sends exactly one notification for it.
-3. `compozy agent heartbeat sources approve issue-watch failed-deploys` shows the hash, asks
-   `[y/N]`, and prints `approved failed-deploys`. The next check executes the script.
+3. `compozy agent heartbeat sources approve issue-watch failed-deploys` shows the script header, hash, line count and last-modified time, asks
+   `Approve this exact file to run on check-ins? [y/N]`, and prints
+   `Approved failed-deploys (sha256:…)`. The next check executes the script.
 4. Edit one byte of the script. The next check shows `unapproved` again and the new bytes do not
    run. `approve --sha256 <old hash> --yes` fails with `source_script_changed`.
 5. From inside an agent session, `approve` and the HTTP route fail with
@@ -65,7 +66,8 @@ the transcript is checked in `MS-web-stays-on-reports`.
 ## 3. Try it now without consuming (US-012)
 
 1. With one new issue pending, run `compozy agent instance check issue-watch --dry-run` twice.
-   Both print `would_run`, the per-source line (`ok`, `1 items`) and the same item key.
+   Both print `Would run: yes`, `Sources:` with the per-source line
+   (`deploys  script failed-deploys  ok  1 item  (<ms> ms)` for a script), and `Digest:` with the same item key.
    `agent instance show -o json` keeps `last_polled_at`, `last_item_count` and `next_poll_at`
    unchanged, and a following real check still receives the item.
 2. Pause the instance and dry-run again: it still polls and reports outcomes.
@@ -90,7 +92,8 @@ the transcript is checked in `MS-web-stays-on-reports`.
 ## 6. `source_poll_in_flight` (US-007)
 
 1. Give the script a 20 s `sleep`. Start a real check, then immediately run a second
-   `compozy agent instance check issue-watch`. The second prints `source_poll_in_flight` and starts
+   `compozy agent instance check issue-watch`. The second exits 0 and prints
+   `Not started: a source check is already running for issue-watch (source_poll_in_flight)` and starts
    no occurrence; on Web, "Run it for real" says "A check is already running." The first check
    finishes normally.
 
@@ -106,11 +109,14 @@ the transcript is checked in `MS-web-stays-on-reports`.
 3. Try it now lists each source's outcome ("Nothing new", "1 new", or the error) above the items.
 4. Add source: the dialog lists catalog kinds and scripts, renders fields from the kind's
    `params_schema`, and saves through the editor's CAS write. Add is hidden at
-   `limits.max_per_agent`. Edit changes a source's `with`; Remove deletes it; both save through the
+   `limits.max_per_agent`. The row's More menu offers Edit and Remove. Edit locks the Reads
+   selection and changes the source name and settings; Remove deletes it; both save through the
    same write and survive reload.
-5. Approve on an unapproved row approves the shown hash; the row then reads ok after the next check.
-   A stale hash returns `source_script_changed` and the row asks to review again.
+5. In an editable operator view, the Approve button on an unapproved row approves the current
+   script hash from the catalog; the row then reads ok after the next check.
+   A stale hash returns `source_script_changed`; verify the error is shown and the catalog refreshes
+   before reviewing and approving again.
 
 Focused automation: `_tests.md` UT/IT ids per slice (S1 Go suites, S1w/S4 Vitest files,
-`TestDaemonE2EHeartbeatSourceCatalog` in CI). Steps 7.4–7.5 depend on the S4 add/edit/remove/approve
+`TestDaemonE2EHeartbeatSourceCatalog` in CI). Steps 7.4–7.5 match the S4 row controls and add/edit
 dialog and must be walked on the integrated branch.

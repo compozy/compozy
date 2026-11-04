@@ -14,6 +14,9 @@ import (
 	"testing"
 	"time"
 
+	"bytes"
+
+	"github.com/charmbracelet/x/xpty"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
 	apitestutil "github.com/compozy/compozy/internal/api/testutil"
@@ -793,6 +796,7 @@ func TestHeartbeatScriptApprovalRuntime(t *testing.T) {
 		router := gin.New()
 		router.GET("/api/agents/:name/heartbeat/sources", handlers.GetAgentHeartbeatSources)
 		router.POST("/api/agents/:name/heartbeat/scripts/:script/approve", handlers.ApproveAgentHeartbeatScript)
+		router.DELETE("/api/agents/:name/heartbeat/scripts/:script/approve", handlers.RevokeAgentHeartbeatScript)
 		server := httptest.NewServer(router)
 		t.Cleanup(server.Close)
 		transport := &daemonClient{
@@ -852,9 +856,162 @@ func TestHeartbeatScriptApprovalRuntime(t *testing.T) {
 		if err != nil || approved != hash {
 			t.Fatalf("approved=%s want=%s %v", approved, hash, err)
 		}
+		baseArgs := []string{"agent", "heartbeat", "sources"}
+		catalogOut, _, err := executeRootCommand(t, deps, append(baseArgs, "coder", "--workspace", "checkout-api")...)
+		if err != nil || !strings.Contains(catalogOut, "SCRIPT  EXECUTABLE  APPROVED") ||
+			!strings.Contains(catalogOut, "poll    true") ||
+			!strings.Contains(catalogOut, "Scripts: enabled · Limits: 8 sources, 20 items per check") {
+			t.Fatalf("catalog=%q %v", catalogOut, err)
+		}
+		staleOut, _, err := executeRootCommand(
+			t,
+			deps,
+			append(
+				baseArgs,
+				"approve",
+				"coder",
+				"poll",
+				"--workspace",
+				"checkout-api",
+				"--sha256",
+				"sha256:stale",
+				"--yes",
+			)...)
+		if err == nil || !strings.Contains(err.Error(), "source_script_changed: poll is "+hash+", not sha256:stale") {
+			t.Fatalf("stale=%s %v", staleOut, err)
+		}
+		_, _, err = executeRootCommand(
+			t,
+			deps,
+			append(baseArgs, "approve", "coder", "poll", "--workspace", "checkout-api")...)
+		if err == nil || !strings.Contains(err.Error(), "requires --yes") {
+			t.Fatalf("noninteractive=%v", err)
+		}
+		device, err := xpty.NewUnixPty(80, 24)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := device.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := device.Master().WriteString("y\n"); err != nil {
+			t.Fatal(err)
+		}
+		cmd := newRootCommand(deps)
+		var out, review bytes.Buffer
+		cmd.SetIn(device.Slave())
+		cmd.SetOut(&out)
+		cmd.SetErr(&review)
+		cmd.SetArgs(append(baseArgs, "approve", "coder", "poll", "--workspace", "checkout-api"))
+		if err := cmd.ExecuteContext(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if out.String() != "Approved poll ("+hash+")\n" ||
+			!strings.Contains(review.String(), "Script poll (coder)\n  "+hash+"\n  3 lines, last modified ") ||
+			!strings.Contains(review.String(), "Approve this exact file to run on check-ins? [y/N] ") {
+			t.Fatalf("approve=%q review=%q", out.String(), review.String())
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			deps,
+			append(baseArgs, "approve", "coder", "poll", "--workspace", "checkout-api", "--sha256", hash, "--yes")...)
+		if err != nil || stdout != "Approved poll ("+hash+")\n" {
+			t.Fatalf("exact hash approval=%q %v", stdout, err)
+		}
+
 		result, err := runner.Poll(t.Context(), source.Ref{ID: "s", Script: "poll"}, req)
 		if err != nil || len(result.Items) != 1 || result.Items[0].Key != "1" {
 			t.Fatalf("result=%+v %v", result, err)
 		}
+		revoked, _, err := executeRootCommand(
+			t,
+			deps,
+			append(baseArgs, "revoke", "coder", "poll", "--workspace", "checkout-api", "--yes")...)
+		if err != nil || revoked != "Revoked approval for poll\n" {
+			t.Fatalf("revoke=%q %v", revoked, err)
+		}
+		if _, err := runner.Poll(t.Context(), source.Ref{ID: "s", Script: "poll"}, req); err == nil {
+			t.Fatal("revoked script executed")
+		}
+		deps.getenv = func(key string) string {
+			if key == "COMPOZY_SESSION_ID" {
+				return "sess-agent"
+			}
+			return ""
+		}
+		_, _, err = executeRootCommand(t, deps, append(baseArgs, "approve", "coder", "poll", "--yes")...)
+		if err == nil ||
+			!strings.Contains(
+				err.Error(),
+				"source_approval_operator_only: only the operator can approve or revoke source scripts",
+			) {
+			t.Fatalf("agent approval=%v", err)
+		}
 	})
+}
+
+func TestHeartbeatSourceCatalogOutput(t *testing.T) {
+	t.Parallel()
+	// Invariant: the operator can discover available kinds, empty scripts, limits and missing-agent errors.
+	// Owner and canonical suite: authored heartbeat CLI commands.
+	for _, tc := range []struct {
+		name, body, want string
+		status           int
+	}{
+		{name: "Should list a kind and empty scripts", status: 200, body: `{"scripts_enabled":true,"limits":{"max_per_agent":8,"max_items":20},"kinds":[{"kind":"forge-github/issues","title":"New GitHub issues","extension":"forge-github"}],"scripts":[]}`, want: "KIND                 TITLE              FROM\nforge-github/issues  New GitHub issues  extension forge-github\nSCRIPT  EXECUTABLE  APPROVED\n(none)\nScripts: enabled · Limits: 8 sources, 20 items per check\n"},
+		{name: "Should show empty catalogs and disabled scripts", status: 200, body: `{"scripts_enabled":false,"limits":{"max_per_agent":2,"max_items":5},"kinds":[],"scripts":[]}`, want: "KIND  TITLE  FROM\n(none)\nSCRIPT  EXECUTABLE  APPROVED\n(none)\nScripts: disabled · Limits: 2 sources, 5 items per check\n"},
+		{name: "Should explain a missing agent", status: 404, body: `{"code":"agent_not_found","error":"agent_not_found: agent definition was not found"}`, want: `agent_not_found: agent "typo" not found in checkout-api`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || r.URL.Path != "/api/agents/typo/heartbeat/sources" ||
+					r.URL.Query().Get("workspace") != "checkout-api" {
+					t.Errorf("request=%s %s", r.Method, r.URL)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.status)
+				if _, err := io.WriteString(w, tc.body); err != nil {
+					t.Error(err)
+				}
+			}))
+			t.Cleanup(server.Close)
+			target, err := url.Parse(server.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			transport := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
+				httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+					r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+					return server.Client().Transport.RoundTrip(r)
+				})},
+			}
+			stub := &stubClient{}
+			withWorkspaceResolution(stub)
+			deps := newTestDeps(t, &heartbeatSourcesHTTPClient{stubClient: stub, transport: transport})
+			stdout, _, err := executeRootCommand(
+				t,
+				deps,
+				"agent",
+				"heartbeat",
+				"sources",
+				"typo",
+				"--workspace",
+				"checkout-api",
+			)
+			if tc.status != 200 {
+				if err == nil || err.Error() != tc.want {
+					t.Fatalf("error=%v, want %s", err, tc.want)
+				}
+				return
+			}
+			if err != nil || stdout != tc.want {
+				t.Fatalf("output=%q err=%v, want %q", stdout, err, tc.want)
+			}
+		})
+	}
 }

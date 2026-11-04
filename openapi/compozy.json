@@ -12378,6 +12378,14 @@
           "executable": {
             "type": "boolean"
           },
+          "last_modified": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "line_count": {
+            "type": "integer"
+          },
           "name": {
             "type": "string"
           },

@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+// HookMatcher is a daemon API value.
+type HookMatcher struct {
+	AgentName        string           `json:"agent_name,omitempty"`
+	AgentType        string           `json:"agent_type,omitempty"`
+	WorkspaceID      string           `json:"workspace_id,omitempty"`
+	WorktreeID       string           `json:"worktree_id,omitempty"`
+	WorkspaceRoot    string           `json:"workspace_root,omitempty"`
+	SessionType      string           `json:"session_type,omitempty"`
+	InputClass       string           `json:"input_class,omitempty"`
+	ACPEventType     string           `json:"acp_event_type,omitempty"`
+	TurnID           string           `json:"turn_id,omitempty"`
+	ToolID           string           `json:"tool_id,omitempty"`
+	ToolName         string           `json:"tool_name,omitempty"`
+	ToolReadOnly     *bool            `json:"tool_read_only,omitempty"`
+	DecisionClass    string           `json:"decision_class,omitempty"`
+	MessageRole      string           `json:"message_role,omitempty"`
+	MessageDeltaType string           `json:"message_delta_type,omitempty"`
+	Trigger          string           `json:"compaction_trigger,omitempty"`
+	Autonomy         *AutonomyMatcher `json:"autonomy,omitempty"`
+}
+
 // HookMode is a daemon API value.
 type HookMode string
 
@@ -422,11 +443,4 @@ type LoopDiffValue struct {
 	Inline json.RawMessage `json:"inline,omitempty"`
 	Size   int             `json:"size,omitzero"`
 	Hash   string          `json:"hash,omitempty"`
-}
-
-// LoopEffectSpec is a daemon API value.
-type LoopEffectSpec struct {
-	Emit *LoopEmitSpec  `json:"emit,omitzero"`
-	Tool string         `json:"tool,omitempty"`
-	With map[string]any `json:"with,omitempty"`
 }

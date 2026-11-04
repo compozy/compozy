@@ -280,11 +280,13 @@ type HeartbeatSourceLimitsPayload struct {
 
 // HeartbeatSourceScriptPayload is a daemon API value.
 type HeartbeatSourceScriptPayload struct {
-	Name           string  `json:"name"`
-	Executable     bool    `json:"executable"`
-	SHA256         string  `json:"sha256"`
-	Approved       bool    `json:"approved"`
-	ApprovedSHA256 *string `json:"approved_sha256"`
+	LineCount      int        `json:"line_count,omitzero"`
+	LastModified   *time.Time `json:"last_modified,omitempty"`
+	Name           string     `json:"name"`
+	Executable     bool       `json:"executable"`
+	SHA256         string     `json:"sha256"`
+	Approved       bool       `json:"approved"`
+	ApprovedSHA256 *string    `json:"approved_sha256"`
 }
 
 // HeartbeatStatusResponse is a daemon API value.
@@ -426,24 +428,3 @@ type HookEventsResponse struct {
 
 // HookExecutorKind is a daemon API value.
 type HookExecutorKind string
-
-// HookMatcher is a daemon API value.
-type HookMatcher struct {
-	AgentName        string           `json:"agent_name,omitempty"`
-	AgentType        string           `json:"agent_type,omitempty"`
-	WorkspaceID      string           `json:"workspace_id,omitempty"`
-	WorktreeID       string           `json:"worktree_id,omitempty"`
-	WorkspaceRoot    string           `json:"workspace_root,omitempty"`
-	SessionType      string           `json:"session_type,omitempty"`
-	InputClass       string           `json:"input_class,omitempty"`
-	ACPEventType     string           `json:"acp_event_type,omitempty"`
-	TurnID           string           `json:"turn_id,omitempty"`
-	ToolID           string           `json:"tool_id,omitempty"`
-	ToolName         string           `json:"tool_name,omitempty"`
-	ToolReadOnly     *bool            `json:"tool_read_only,omitempty"`
-	DecisionClass    string           `json:"decision_class,omitempty"`
-	MessageRole      string           `json:"message_role,omitempty"`
-	MessageDeltaType string           `json:"message_delta_type,omitempty"`
-	Trigger          string           `json:"compaction_trigger,omitempty"`
-	Autonomy         *AutonomyMatcher `json:"autonomy,omitempty"`
-}
