@@ -18,7 +18,10 @@ import { describe, expect, it, vi } from "vitest";
 import { dialog } from "electron";
 
 import * as commandLineTool from "../../cli/command-line-tool";
-import { createDesktopCommandLineTool } from "../../cli/electron-command-line-tool";
+import {
+  createDesktopCommandLineTool,
+  createCommandLineToolFlowDeps,
+} from "../../cli/electron-command-line-tool";
 import { resolveDesktopPaths } from "../../home";
 
 vi.mock("electron", () => ({
@@ -187,6 +190,25 @@ describe("desktop command installation", () => {
     vi.mocked(deps.attempted).mockResolvedValue(true);
     await exposeCommandLineToolOnFirstRun(deps);
     expect(deps.ensure).toHaveBeenCalledOnce();
+    expect(deps.showMessageBox).toHaveBeenCalledOnce();
+  });
+
+  it("Should retain a recorded attempt when recreating the marker adapter", async () => {
+    const home = await mkdtemp(join(tmpdir(), "compozy-desktop-cli-marker-"));
+    const options = {
+      runtime: join(home, "bin/compozy"),
+      marker: join(home, "desktop-cli-command.json"),
+      log: vi.fn(),
+    };
+    try {
+      const deps = createCommandLineToolFlowDeps(options);
+      expect(await deps.attempted()).toBe(false);
+      await deps.recordAttempt({ status: "install_failed" });
+      expect(await deps.attempted()).toBe(true);
+      expect(await createCommandLineToolFlowDeps(options).attempted()).toBe(true);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
   });
 
   it("Should show failed or cancelled elevation without repeating the access request", async () => {
