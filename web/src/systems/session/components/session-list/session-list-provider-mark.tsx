@@ -12,7 +12,7 @@ import type { SessionRuntimeLabel } from "../../hooks/use-session-runtime-label"
 
 export interface SessionListProviderMarkProps {
   sessionId: string;
-  /** The row's resolved current, recorded, selected, or default runtime. */
+  /** The row's resolved current, recorded, selected, or default runtime, and any pending switch. */
   runtime: SessionRuntimeLabel | null;
   /**
    * Set while the row holds keyboard focus, fresh for every focus, so the
@@ -71,7 +71,10 @@ export function SessionListProviderMark({
           />
         }
       />
-      <TooltipContent>{runtime.label}</TooltipContent>
+      <TooltipContent>
+        {runtime.label}
+        {runtime.next ? <span className="block">Next message: {runtime.next.label}</span> : null}
+      </TooltipContent>
     </Tooltip>
   );
 }

@@ -1,4 +1,5 @@
 import type { SessionPayload } from "../types";
+import { runtimeSelectionMatches, selectionResetRefused } from "./session-runtime-projection";
 import { normalizeRuntimeACPSelections, type RuntimeProviderLiveApply } from "@/systems/runtime";
 
 export interface RuntimeApplyNotice {
@@ -48,16 +49,11 @@ function acpOptionsApplied(runtime: SessionRuntime): boolean {
 
 function selectionApplied(runtime: SessionRuntime): boolean {
   const { selected, effective, failure } = runtime;
-  // A field left empty resolves to a default the payload can't compare, so a recorded
-  // failure is the only evidence that clearing it was refused.
-  if (selected && (!selected.model || !selected.reasoning_effort) && failure?.trim()) return false;
+  if (selected && selectionResetRefused(selected, failure)) return false;
   return (
     !!selected &&
     !!effective &&
-    effective.provider === selected.provider &&
-    (!selected.model || effective.model === selected.model) &&
-    (!selected.reasoning_effort || effective.reasoning_effort === selected.reasoning_effort) &&
-    (selected.speed ?? "normal") === (effective.speed ?? "normal") &&
+    runtimeSelectionMatches(selected, effective) &&
     acpOptionsApplied(runtime)
   );
 }
