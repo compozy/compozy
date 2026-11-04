@@ -216,25 +216,20 @@ func (w *BackgroundWriter) run() {
 func (w *BackgroundWriter) commit(batch []*backgroundWrite, admission *writeAdmission) int {
 	// Authenticated mutations retain their fence immediately before their own commit.
 	if hasMutationCommitFence(batch[0].ctx) {
-		item := batch[0]
-		ctx, cancel := w.itemContext(item.ctx)
-		defer cancel()
-		item.result <- ExecuteWriteOperation(ctx, w.db, item.operation, func(ctx context.Context, tx *WriteTx) error {
-			item.mu.Lock()
-			item.started = true
-			item.mu.Unlock()
-			return item.fn(ctx, tx)
-		})
+		batch[0].result <- w.executeSingle(batch[0])
 		<-w.slots
 		return 1
 	}
 	results := make([]error, len(batch))
 	completed := 0
+	abortedItem := -1
 	cfg := defaultExecuteWriteConfig()
 	cfg.operation = "coalesced background writes"
 	cfg.background = true
 	err := executeWrite(w.ctx, w.db, cfg, func(ctx context.Context, tx *WriteTx) error {
 		completed = 0
+		abortedItem = -1
+		clear(results)
 		started := time.Now()
 		for i, item := range batch {
 			if hasMutationCommitFence(item.ctx) {
@@ -243,6 +238,9 @@ func (w *BackgroundWriter) commit(batch []*backgroundWrite, admission *writeAdmi
 			itemErr, fatal := w.executeItem(ctx, tx, item)
 			results[i] = itemErr
 			if fatal != nil {
+				if itemErr != nil && !IsSQLiteBusy(fatal) {
+					abortedItem = i
+				}
 				return fatal
 			}
 			completed++
@@ -252,6 +250,10 @@ func (w *BackgroundWriter) commit(batch []*backgroundWrite, admission *writeAdmi
 		}
 		return nil
 	})
+	if err != nil && abortedItem >= 0 && w.ctx.Err() == nil {
+		results[abortedItem] = errors.Join(results[abortedItem], err)
+		return w.commitIndividually(batch, results)
+	}
 	if err != nil {
 		completed = len(batch)
 	}
@@ -260,6 +262,35 @@ func (w *BackgroundWriter) commit(batch []*backgroundWrite, admission *writeAdmi
 		<-w.slots
 	}
 	return completed
+}
+
+func (w *BackgroundWriter) executeSingle(item *backgroundWrite) error {
+	ctx, cancel := w.itemContext(item.ctx)
+	defer cancel()
+	cfg := defaultExecuteWriteConfig()
+	cfg.operation = item.operation
+	cfg.background = !hasMutationCommitFence(item.ctx)
+	return executeWrite(ctx, w.db, cfg, func(ctx context.Context, tx *WriteTx) error {
+		item.mu.Lock()
+		item.started = true
+		item.mu.Unlock()
+		return item.fn(ctx, tx)
+	})
+}
+
+func (w *BackgroundWriter) commitIndividually(batch []*backgroundWrite, results []error) int {
+	// A failed statement can abort the transaction and destroy every savepoint.
+	// executeWrite has rolled back or discarded that connection before returning.
+	// Replay healthy peers separately, only after callback failure, never after an
+	// ambiguous commit result. Like BUSY retries, callbacks must be replayable.
+	for i, item := range batch {
+		if results[i] == nil {
+			results[i] = w.executeSingle(item)
+		}
+		item.result <- results[i]
+		<-w.slots
+	}
+	return len(batch)
 }
 
 func (w *BackgroundWriter) executeItem(

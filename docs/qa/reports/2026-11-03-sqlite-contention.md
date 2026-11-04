@@ -33,6 +33,8 @@ The exact historical owner cannot be recovered from this evidence.
   commit. It yields after an item when interactive work is waiting or the 10 ms batch budget has
   elapsed. An individual atomic operation is not preempted. Mutation authorization fences retain
   an individual commit. Cancellation, reentry rejection and shutdown join remain explicit.
+  If SQLite aborts the whole transaction during a failed item, rollback/discard completes before
+  healthy peers retry in individual transactions. This recovery never replays an ambiguous commit.
 - Event summaries, model-catalog updates, process observations, token totals/daily rollups,
   permission audit writes and heartbeat wake decisions use the background owner. Each producer
   remains visible in contention diagnostics while its callback owns the transaction.
@@ -514,3 +516,27 @@ assertions and their deadlines remain unchanged. The rerun remains CI-owned.
 Focused integration receipts: discovery failure classification 0.016 s, canceled authentication
 wait 0.259 s, daemon-shutdown exit classification 1.092 s, and focused session/modelcatalog lint
 with zero issues. Both changed browser files pass formatting; their actual walks run only in CI.
+
+### Transaction-abort isolation and current daemon receipts
+
+The fourth experiment exposed a cancellation that destroyed the enclosing SQLite transaction:
+the item rollback reported `no such savepoint`, followed by `no transaction is active`. The batch
+writer previously returned that failure to healthy peers too. A deterministic real-SQLite
+`INSERT OR ROLLBACK` case in the canonical `TestBackgroundWrites` reproduced the defect: both
+healthy peers failed and zero rows persisted. The repair retains failed-item outcomes and replays
+only healthy/unexecuted peers separately after rollback/discard. Individual contexts, priority,
+authorization fences and durable acknowledgements use the existing write helper. Commit failures
+never enter this fallback. Callbacks retain the replayability already required for BUSY retries.
+
+Focused receipts: new red/green regression 0.029 s, complete `TestBackgroundWrites` function
+0.079 s, complete `TestExecuteWrite` function 0.265 s, test conventions and scoped store lint with
+zero issues. The diagnostic runner also preserves the original acceptance failure when its extra
+trace fails, writing a separate error receipt and removing its copied fixture. Four focused
+success/exit-error/timeout/invalid-JSON cases verified that boundary.
+
+[Daemon job 126353809248](https://github.com/compozy/compozy/actions/runs/41762695929/job/126353809248)
+passed on `bc1c46432`: 30 completed streams and preserved transcripts, zero strict-audit blockers
+or warnings, clean teardown and no survivors. Transcript/catalog/rename p99 were
+126.319/83.395/246.742 ms across 3,000/196/40 successful requests. All six log files contained zero
+long-hold, retry-exhaustion, passive-checkpoint or completed/rolled-back transaction errors.
+Artifact `13290493945` preserves this run. Paired-load acceptance and final-head CI remain open.

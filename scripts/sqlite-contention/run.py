@@ -29,6 +29,22 @@ def copy_fixture(source, target):
                 os.fsync(copied.fileno())
 
 
+def diagnose_failure(binary, upgraded, output):
+    root = output / "diagnostic-data"
+    diagnostic_error = None
+    try:
+        try:
+            copy_fixture(upgraded, root)
+            run(binary, root, "load", output, "head-diagnostic", runtime_trace=True)
+        finally:
+            if root.exists():
+                shutil.rmtree(root)
+    except (OSError, subprocess.SubprocessError, ValueError) as error:
+        diagnostic_error = error
+        save(output / "head-diagnostic-error.json", {"error": str(error), "type": type(error).__name__})
+    raise RuntimeError("head acceptance failed; inspect results.json and per-trial logs") from diagnostic_error
+
+
 def run(binary, root, mode, output, name, duration="30s", trace=False, runtime_trace=False):
     command = [str(binary), "-mode", mode, "-root", str(root), "-duration", duration]
     if runtime_trace:
@@ -158,13 +174,7 @@ def main():
     if invalid or incomplete_retention:
         # Keep failed acceptance unchanged. A separate diagnostic run attributes
         # time to Go scheduling, GC, locks and syscalls; it never replaces a trial.
-        root = args.output / "diagnostic-data"
-        copy_fixture(upgraded, root)
-        try:
-            run(args.head, root, "load", args.output, "head-diagnostic", runtime_trace=True)
-        finally:
-            shutil.rmtree(root)
-        raise RuntimeError("head acceptance failed; inspect results.json and per-trial logs")
+        diagnose_failure(args.head, upgraded, args.output)
     shutil.rmtree(fixture)
     shutil.rmtree(upgraded)
 

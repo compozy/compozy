@@ -21,6 +21,63 @@ import (
 )
 
 func TestBackgroundWrites(t *testing.T) {
+	// Invariant: a SQLite statement that aborts its transaction rejects only its
+	// item; healthy queued peers still commit. The store batch suite owns isolation.
+	t.Run("Should isolate a transaction-aborting item from its queued peers", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "batch-transaction-abort.db"))
+		if _, err := db.ExecContext(ctx, `CREATE TABLE items (id INTEGER PRIMARY KEY)`); err != nil {
+			t.Fatal(err)
+		}
+		admission, unregister := registerWriteAdmission(db)
+		defer unregister()
+		release, err := admission.acquire(ctx, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		release = sync.OnceFunc(release)
+		defer release()
+		writer := NewBackgroundWriter(db)
+		t.Cleanup(func() {
+			if err := writer.Close(testutil.Context(t)); err != nil {
+				t.Error(err)
+			}
+		})
+		items := make([]*backgroundWrite, 3)
+		for i := range items {
+			item, err := writer.submit(ctx, "record observation", func(ctx context.Context, tx *WriteTx) error {
+				if i == 1 {
+					// Unlike ABORT, ROLLBACK destroys the surrounding savepoints too,
+					// as an interrupted SQLite write can do under cancellation.
+					_, err := tx.ExecContext(ctx, `INSERT OR ROLLBACK INTO items VALUES (0)`)
+					return err
+				}
+				_, err := tx.ExecContext(ctx, `INSERT INTO items VALUES (?)`, i)
+				return err
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			items[i] = item
+		}
+		release()
+		for i, item := range items {
+			err := item.wait()
+			if (err != nil) != (i == 1) {
+				t.Errorf("item %d error = %v, want failure only for the rejected item", i, err)
+			}
+		}
+		var count, total int
+		if err := db.QueryRowContext(ctx, `SELECT count(*), coalesce(sum(id), 0) FROM items`).
+			Scan(&count, &total); err != nil {
+			t.Fatal(err)
+		}
+		if count != 2 || total != 2 {
+			t.Fatalf("persisted rows = %d, id sum = %d; want healthy peers 0 and 2", count, total)
+		}
+	})
+
 	// Invariant: an expired shutdown cancels and joins its worker before the owner
 	// can close SQLite; the background writer suite owns this lifecycle boundary.
 	t.Run("Should join the active callback when shutdown expires", func(t *testing.T) {
