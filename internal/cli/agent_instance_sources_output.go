@@ -40,7 +40,7 @@ func instanceSourcesText(instance contract.AgentInstancePayload) string {
 	return b.String()
 }
 
-func instanceSourceRef(source heartbeat.SourceStatus) string {
+func instanceSourceRef(source heartbeat.HeartbeatSourceStatus) string {
 	if source.Script != "" {
 		return "script " + source.Script
 	}
@@ -50,7 +50,7 @@ func instanceSourceRef(source heartbeat.SourceStatus) string {
 func instanceCheckText(
 	result contract.AgentInstanceCheckResponse,
 	target string,
-	states []heartbeat.SourceStatus,
+	states []heartbeat.HeartbeatSourceStatus,
 ) string {
 	if result.Gate == "source_poll_in_flight" {
 		return fmt.Sprintf("Not started: a source check is already running for %s (source_poll_in_flight)\n", target)

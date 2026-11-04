@@ -3270,6 +3270,7 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 			t.Fatalf("unmarshal: %v", err)
 		}
 		oldComponents := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+		assertAlwaysOnHardeningFields(t, current)
 		newComponents := current["components"].(map[string]any)["schemas"].(map[string]any)
 		compareDocumentSchemas(t, baseline["paths"], current["paths"], "#/paths", oldComponents, newComponents)
 		for name, oldSchema := range oldComponents {

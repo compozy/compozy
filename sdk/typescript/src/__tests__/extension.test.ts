@@ -545,6 +545,19 @@ describe("Extension", () => {
     ).resolves.toEqual({ items: [{ key: "1", title: "incoming" }], state: { cursor: 1 } });
   });
 
+  it("leaves method registration open after an invalid heartbeat source", () => {
+    const extension = new Extension({
+      name: "heartbeat-fixture",
+      version: "1.0.0",
+      subprocess: { command: "fixture" },
+    });
+    expect(() =>
+      extension.heartbeatSource("bad/kind", { title: "Invalid" }, () => ({ items: [] }))
+    ).toThrow();
+    expect(extension.describe().heartbeat_source_kinds).toEqual([]);
+    expect(() => extension.handle("heartbeat/source_poll", () => ({ items: [] }))).not.toThrow();
+  });
+
   it("registers watch sources and serves watch/poll", async () => {
     const harness = new TestHarness();
     const extension = new Extension({

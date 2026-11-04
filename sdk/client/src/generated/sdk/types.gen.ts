@@ -1228,7 +1228,7 @@ export type CmdPaletteCommandsResponse = {
   commands: Array<CmdPaletteCommand>;
   context_revision?: string;
   profile_lens: ProfileLens;
-  sources: Array<CmdpaletteSourceStatus>;
+  sources: Array<SourceStatus>;
 };
 
 export type CmdPaletteError = {
@@ -1328,12 +1328,6 @@ export type CmdPaletteViewSessionOpenResponse = {
   profile_lens: ProfileLens;
   stream_token: string;
   view_session: string;
-};
-
-export type CmdpaletteSourceStatus = {
-  reason?: string;
-  source: string;
-  status: string;
 };
 
 export type CommandFlag = {
@@ -9614,6 +9608,12 @@ export type SourceOutcome = {
   result: string;
 };
 
+export type SourceStatus = {
+  reason?: string;
+  source: string;
+  status: string;
+};
+
 export type SpawnBudgetPayload = {
   max_active_per_workspace?: number;
   max_children: number;
@@ -15980,6 +15980,22 @@ export type RevokeAgentHeartbeatScriptErrors = {
    * Operator required
    */
   403: ErrorPayload;
+  /**
+   * Agent not found
+   */
+  404: ErrorPayload;
+  /**
+   * Invalid source script request
+   */
+  422: ErrorPayload;
+  /**
+   * Internal error
+   */
+  500: ErrorPayload;
+  /**
+   * Source storage unavailable
+   */
+  503: ErrorPayload;
 };
 
 export type RevokeAgentHeartbeatScriptError =
@@ -16029,9 +16045,25 @@ export type ApproveAgentHeartbeatScriptErrors = {
    */
   403: ErrorPayload;
   /**
+   * Agent not found
+   */
+  404: ErrorPayload;
+  /**
    * Script changed
    */
   409: ErrorPayload;
+  /**
+   * Invalid source script request
+   */
+  422: ErrorPayload;
+  /**
+   * Internal error
+   */
+  500: ErrorPayload;
+  /**
+   * Source storage unavailable
+   */
+  503: ErrorPayload;
 };
 
 export type ApproveAgentHeartbeatScriptError =
@@ -16073,6 +16105,14 @@ export type GetAgentHeartbeatSourcesErrors = {
    * Agent not found
    */
   404: ErrorPayload;
+  /**
+   * Internal error
+   */
+  500: ErrorPayload;
+  /**
+   * Source storage unavailable
+   */
+  503: ErrorPayload;
 };
 
 export type GetAgentHeartbeatSourcesError =

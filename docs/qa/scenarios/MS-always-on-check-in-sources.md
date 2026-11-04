@@ -142,3 +142,16 @@ the transcript is checked in `MS-web-stays-on-reports`.
 Focused automation: `_tests.md` UT/IT ids per slice (S1 Go suites, S1w/S4 Vitest files,
 `TestDaemonE2EHeartbeatSourceCatalog` in CI). Steps 7.4–7.5 match the S4 row controls and add/edit
 dialog and must be walked on the integrated branch.
+
+## Corrective boundary checks
+
+- Put a FIFO in `sources/` without a writer. Discovery, approval and polling must return promptly and reject it as a script.
+- Poll multiple sources across simultaneous instances, including dry runs: active source calls never exceed `max_concurrent_polls` in total.
+- Start a main-session prompt or edit the policy while a timer poll is blocked. Release it and verify the batch is discarded, a skip is recorded, and the next wake uses the resolved cadence rather than the temporary polling deadline.
+- A source approval notice must neither consume nor extend the ordinary session-notification rate window.
+
+Focused regression receipt 2026-11-04: the real SQLite/ACP
+`TestHeartbeatSourceRuntime/Should_persist_source_hook_cancellation` exposed a test expectation
+that spelled the persisted reason as `hook_canceled`. The runtime and pre-existing source
+contract retain `hook_cancelled`; restore that exact expectation rather than rename stored data.
+This fixture correction preserves the assertion and the public reason contract.

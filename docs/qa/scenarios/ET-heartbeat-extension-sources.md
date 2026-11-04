@@ -36,7 +36,7 @@ and `TestDaemonE2EHeartbeatSourceCatalog` run in CI/integration QA.
    URL, and linked open PRs. Closing references have `closes: true`; other PR
    references have `closes: false`; closed PRs are absent.
 3. Exceed the batch size. Verify oldest issues arrive first, `more` is true, and
-   later checks deliver the remainder. Exclude a label and verify excluded issues
+   later checks deliver the remainder. With several pages, verify each poll makes only one issue-page request and resumes without skipping an older issue, including when a page needs several batches. Exclude a label and verify excluded issues
    do not reappear. In a new source, use `backfill: "24h"` and verify its time window.
 4. Remove credentials, use an expired token, and simulate a secondary rate limit.
    Verify `source_credential_absent`, `source_credential_expired`, and
@@ -50,3 +50,12 @@ UT-050–UT-057 through the real HTTP client against an `httptest` GitHub server
 `TestRunProviderForgeProtocolConformanceIT035` also checks source dispatch through
 SDK stdio. The live agent check-in journey (declare, Try it now, gate, approval, Web) is
 `MS-always-on-check-in-sources`; this scenario keeps the authoring, scope and provider matrix.
+
+Focused SDK regression receipt 2026-11-04: the extension SDK build and typecheck pass with
+`exactOptionalPropertyTypes`; describe and initialize omit absent `heartbeat_source_kinds` and
+retain supplied kinds. The existing `extension.test.ts` (24 tests) and
+`authored-context-contracts.test.ts` (4 tests) passed through Turbo `--only`, including the exact
+public `source_poll_in_flight` wake reason. File lint and formatting passed. This repairs the
+fixture dependency build from #1247; the real subprocess/profile journey above still belongs to CI.
+Impact remains the check-in sources audit in `docs/_memory/change-impact.md`; no wire, native tool,
+hook, configuration, isolation or official skill contract changed in this repair.

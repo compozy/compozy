@@ -267,12 +267,12 @@ func (api *AgentInstanceAPI) payloadWithOwners(
 	}
 	payload.ProfileName = owners[i.ProfileID].Name
 	if reader, ok := api.Checks.(interface {
-		SourceStatuses(context.Context, string) ([]heartbeat.SourceStatus, error)
+		SourceStatuses(context.Context, string) ([]heartbeat.HeartbeatSourceStatus, error)
 	}); ok && payload.Sources == nil {
 		var err error
 		payload.Sources, err = reader.SourceStatuses(ctx, i.ID)
 		if err != nil {
-			payload.Sources = []heartbeat.SourceStatus{}
+			payload.Sources = []heartbeat.HeartbeatSourceStatus{}
 		}
 	}
 	payload.FatigueLimit = api.FatigueLimit

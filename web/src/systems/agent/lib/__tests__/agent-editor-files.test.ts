@@ -264,6 +264,17 @@ describe("frontmatter subset", () => {
     ).toEqual({ version: 1, ratio: 1.5, at: "09:00", name: "v1.2.3", with: { max: 3 } });
   });
 
+  it("Should read keys named like built-in object properties as plain settings", () => {
+    const parsed = parseFrontmatter("with:\n  constructor: a\n  toString: b\n  __proto__: c");
+    const values = parsed?.with as Record<string, unknown>;
+    expect(Object.entries(values)).toEqual([
+      ["constructor", "a"],
+      ["toString", "b"],
+      ["__proto__", "c"],
+    ]);
+    expect(parseFrontmatter("with:\n  constructor: a\n  constructor: b")).toBeNull();
+  });
+
   it("Should read a file without frontmatter as all body", () => {
     expect(splitFrontmatter("Hello")).toEqual({ metadata: null, body: "Hello" });
   });

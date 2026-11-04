@@ -3,11 +3,12 @@ package github
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 )
 
 const issuesQuery = `query($owner:String!,$name:String!,$after:String){repository(owner:$owner,name:$name){
- issues(states:OPEN,orderBy:{field:CREATED_AT,direction:DESC},first:50,after:$after){
+ issues(states:OPEN,orderBy:{field:CREATED_AT,direction:ASC},first:50,after:$after){
  nodes{__typename number title body url createdAt author{login} labels(first:100){nodes{name}}
  closedByPullRequestsReferences(first:5,includeClosedPrs:false){nodes{number title url state}}
  timelineItems(first:10,itemTypes:[CROSS_REFERENCED_EVENT]){nodes{
@@ -83,41 +84,48 @@ func (p *Provider) fetchIssues(
 	initial bool,
 	backfill time.Duration,
 	now time.Time,
-) ([]graphIssue, int, error) {
+	after string,
+) ([]graphIssue, int, string, bool, error) {
 	var cursor *string
+	if after != "" {
+		cursor = new(after)
+	}
+	query := issuesQuery
+	if initial && backfill == 0 {
+		query = strings.Replace(query, "direction:ASC", "direction:DESC", 1)
+	}
+	response, err := p.graphRequest(ctx, token, query, graphPageVariables(repo, cursor))
+	if err != nil {
+		return nil, watermark, "", false, err
+	}
+	page := response.Data.Repository.Issues
+	if page == nil {
+		return nil, watermark, "", false, errors.New("github issues: missing issue collection")
+	}
 	var issues []graphIssue
 	baseline := watermark
-	for {
-		response, err := p.graphRequest(ctx, token, issuesQuery, graphPageVariables(repo, cursor))
-		if err != nil {
-			return nil, baseline, err
+	for _, issue := range page.Nodes {
+		if issue.Typename != "Issue" {
+			continue
 		}
-		page := response.Data.Repository.Issues
-		if page == nil {
-			return nil, baseline, errors.New("github issues: missing issue collection")
+		if initial && backfill == 0 {
+			baseline = max(baseline, issue.Number)
+			continue
 		}
-		for _, issue := range page.Nodes {
-			if issue.Typename != "Issue" {
-				continue
-			}
-			if initial && backfill == 0 {
-				baseline = max(baseline, issue.Number)
-				continue
-			}
-			if issue.Number <= watermark {
-				return issues, baseline, nil
-			}
-			if initial && issue.CreatedAt.Before(now.Add(-backfill)) {
-				return issues, max(baseline, issue.Number), nil
-			}
-			issues = append(issues, issue)
+		if issue.Number <= watermark {
+			continue
 		}
-		if (initial && backfill == 0) || !page.PageInfo.HasNextPage {
-			return issues, baseline, nil
+		if initial && issue.CreatedAt.Before(now.Add(-backfill)) {
+			baseline = max(baseline, issue.Number)
+			continue
 		}
-		if page.PageInfo.EndCursor == "" || (cursor != nil && *cursor == page.PageInfo.EndCursor) {
-			return nil, baseline, errors.New("github issues: pagination did not advance")
-		}
-		cursor = new(page.PageInfo.EndCursor)
+		issues = append(issues, issue)
 	}
+	if initial && backfill == 0 {
+		return issues, baseline, "", false, nil
+	}
+	if page.PageInfo.HasNextPage && (page.PageInfo.EndCursor == "" || page.PageInfo.EndCursor == after) {
+		return nil, baseline, "", false, errors.New("github issues: pagination did not advance")
+	}
+	return issues, baseline, page.PageInfo.EndCursor, page.PageInfo.HasNextPage, nil
 }

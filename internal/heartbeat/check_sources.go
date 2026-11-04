@@ -89,17 +89,17 @@ func (s *CheckService) collectSources(
 	return CheckResult{Gate: checkSourcePollInFlight}, nil
 }
 
-func (s *CheckService) SourceStatuses(ctx context.Context, id string) ([]SourceStatus, error) {
+func (s *CheckService) SourceStatuses(ctx context.Context, id string) ([]HeartbeatSourceStatus, error) {
 	storage, ok := s.store.(interface {
-		SourceStatuses(context.Context, string) ([]SourceStatus, error)
+		SourceStatuses(context.Context, string) ([]HeartbeatSourceStatus, error)
 	})
 	if !ok {
-		return []SourceStatus{}, nil
+		return []HeartbeatSourceStatus{}, nil
 	}
 	statuses, err := storage.SourceStatuses(ctx, id)
 	if err != nil {
 		slog.Warn("heartbeat source statuses unavailable", "instance_id", id, "error", err)
-		return []SourceStatus{}, nil
+		return []HeartbeatSourceStatus{}, nil
 	}
 	return statuses, nil
 }
@@ -148,14 +148,7 @@ func (s *CheckService) pollSourceTarget(
 		}
 		reason, err := s.environment.BeforeCheck(ctx, target, source)
 		if err != nil {
-			return CheckResult{}, s.rescheduleCheckFailure(
-				ctx,
-				state,
-				manual,
-				s.checkInterval(&target.Policy),
-				true,
-				err,
-			)
+			return s.sourceCheckFailure(ctx, state, target, manual, err)
 		}
 		if reason != "" {
 			_, err := s.store.Skip(
@@ -180,27 +173,22 @@ func (s *CheckService) pollSourceTarget(
 		s.recordSourceMetrics(batch)
 	}
 	if err != nil {
-		return CheckResult{}, s.rescheduleCheckFailure(
-			ctx,
-			state,
-			manual || dry,
-			s.checkInterval(&target.Policy),
-			true,
-			err,
-		)
+		return s.sourceCheckFailure(ctx, state, target, manual || dry, err)
 	}
 	if err := ctx.Err(); err != nil {
 		return CheckResult{}, err
 	}
 	current, err := s.environment.ResolveCheck(ctx, state.InstanceID)
 	if err != nil {
-		return CheckResult{}, err
+		return s.sourceCheckFailure(ctx, state, target, manual || dry, err)
 	}
 	if current.Policy.Digest != target.Policy.Digest {
-		return CheckResult{Gate: "heartbeat_invalid"}, nil
+		return s.skipPolledSourceTarget(ctx, state, &current, manual, dry, "heartbeat_invalid", batch)
 	}
-	if gate, err := s.checkGate(&current, dry, s.now()); err != nil || gate != "" {
-		return CheckResult{Gate: gate, Sources: batch.Outcomes()}, err
+	if gate, err := s.checkGate(&current, dry, s.now()); err != nil {
+		return s.sourceCheckFailure(ctx, state, &current, manual || dry, err)
+	} else if gate != "" {
+		return s.skipPolledSourceTarget(ctx, state, &current, manual, dry, gate, batch)
 	}
 	result, err := s.collectTarget(ctx, state, &current, manual, dry, batch)
 	result.Sources = batch.Outcomes()
@@ -213,4 +201,39 @@ func (s *CheckService) hasSourcesAfterResolveFailure(ctx context.Context, target
 	}
 	statuses, err := s.SourceStatuses(ctx, target.Instance.ID)
 	return err == nil && len(statuses) > 0
+}
+
+func (s *CheckService) skipPolledSourceTarget(
+	ctx context.Context,
+	state InstanceWakeState,
+	target *CheckTarget,
+	manual, dry bool,
+	gate string,
+	batch PollBatch,
+) (CheckResult, error) {
+	result := CheckResult{Gate: gate, Sources: batch.Outcomes()}
+	if manual || dry {
+		return result, nil
+	}
+	now := s.now()
+	_, err := s.store.Skip(ctx, SkipRequest{
+		Deferred:    state.Deferred,
+		InstanceID:  state.InstanceID,
+		ExpectedDue: state.NextWakeAt,
+		Reason:      gate,
+		Now:         now,
+		NextWakeAt:  NextCheckTime(now, s.checkInterval(&target.Policy), state.InstanceID),
+		ExpiresAt:   now.Add(s.config.Retention),
+	})
+	return result, err
+}
+
+func (s *CheckService) sourceCheckFailure(
+	ctx context.Context,
+	state InstanceWakeState,
+	target *CheckTarget,
+	passive bool,
+	cause error,
+) (CheckResult, error) {
+	return CheckResult{}, s.rescheduleCheckFailure(ctx, state, passive, s.checkInterval(&target.Policy), true, cause)
 }

@@ -7,21 +7,6 @@ import (
 	"time"
 )
 
-// SupportBundleOperationPayload is a daemon API value.
-type SupportBundleOperationPayload struct {
-	OperationID   string                        `json:"operation_id"`
-	Status        string                        `json:"status"`
-	StatusURL     string                        `json:"status_url"`
-	DownloadURL   string                        `json:"download_url,omitempty"`
-	FileName      string                        `json:"file_name,omitempty"`
-	SizeBytes     int64                         `json:"size_bytes,omitzero"`
-	Manifest      *SupportBundleManifestPayload `json:"manifest,omitzero"`
-	FailureReason string                        `json:"failure_reason,omitempty"`
-	CreatedAt     time.Time                     `json:"created_at"`
-	UpdatedAt     time.Time                     `json:"updated_at"`
-	CompletedAt   *time.Time                    `json:"completed_at,omitempty"`
-}
-
 // SupportBundleOperationResponse is a daemon API value.
 type SupportBundleOperationResponse struct {
 	Operation SupportBundleOperationPayload `json:"operation"`
@@ -442,4 +427,17 @@ type TaskInboxResponse struct {
 type TaskInboxStatusFacetPayload struct {
 	Status TaskStatus `json:"status"`
 	Count  int        `json:"count"`
+}
+
+// TaskInboxTaskPayload is a daemon API value.
+type TaskInboxTaskPayload struct {
+	ID             string     `json:"id"`
+	Identifier     string     `json:"identifier,omitempty"`
+	Title          string     `json:"title"`
+	Status         TaskStatus `json:"status"`
+	Priority       Priority   `json:"priority,omitempty"`
+	Owner          *Ownership `json:"owner,omitempty"`
+	Scope          TaskScope  `json:"scope"`
+	WorkspaceID    string     `json:"workspace_id,omitempty"`
+	LatestEventSeq int64      `json:"latest_event_seq"`
 }

@@ -152,11 +152,11 @@ type CmdPaletteCommand struct {
 
 // CmdPaletteCommandsResponse is a daemon API value.
 type CmdPaletteCommandsResponse struct {
-	ProfileLens     ProfileLens              `json:"profile_lens"`
-	Commands        []CmdPaletteCommand      `json:"commands"`
-	Sources         []CmdpaletteSourceStatus `json:"sources"`
-	CatalogRevision string                   `json:"catalog_revision"`
-	ContextRevision string                   `json:"context_revision,omitempty"`
+	ProfileLens     ProfileLens         `json:"profile_lens"`
+	Commands        []CmdPaletteCommand `json:"commands"`
+	Sources         []SourceStatus      `json:"sources"`
+	CatalogRevision string              `json:"catalog_revision"`
+	ContextRevision string              `json:"context_revision,omitempty"`
 }
 
 // CmdPaletteInvokeRequest is a daemon API value.
@@ -265,13 +265,6 @@ type CmdPaletteViewSessionOpenResponse struct {
 	ViewSession string      `json:"view_session"`
 	StreamToken string      `json:"stream_token"`
 	FirstFrame  ViewFrame   `json:"first_frame"`
-}
-
-// CmdpaletteSourceStatus is a daemon API value.
-type CmdpaletteSourceStatus struct {
-	Source string       `json:"source"`
-	Status SourceHealth `json:"status"`
-	Reason string       `json:"reason,omitempty"`
 }
 
 // CommandFlag is a daemon API value.
@@ -445,3 +438,11 @@ type CoordinatorProfile struct {
 	Model     string          `json:"model,omitempty"`
 	Guidance  string          `json:"guidance,omitempty"`
 }
+
+// CopyEffect is a daemon API value.
+type CopyEffect struct {
+	Content string `json:"content"`
+}
+
+// CostSource is a daemon API value.
+type CostSource string

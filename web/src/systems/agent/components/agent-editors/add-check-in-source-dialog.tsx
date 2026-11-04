@@ -300,10 +300,13 @@ function DraftFields({
 function CatalogBody({
   actions,
   catalog,
+  editing,
   children,
 }: {
   actions: CheckInSourceActions;
   catalog: Catalog | null;
+  /** An existing source stays editable even when nothing is offered to add. */
+  editing: boolean;
   children: (catalog: Catalog) => ReactNode;
 }) {
   if (actions.catalogState === "error") {
@@ -324,7 +327,7 @@ function CatalogBody({
       </p>
     );
   }
-  if (sourceChoices(catalog).empty) {
+  if (!editing && sourceChoices(catalog).empty) {
     return (
       <p className="text-small-body text-muted-foreground">
         No sources installed. Add a script to <code className="font-mono">sources/</code> or install
@@ -376,7 +379,7 @@ export function AddCheckInSourceDialog({
             It reads this at every check-in and only tells you about what's new.
           </DialogDescription>
         </DialogHeader>
-        <CatalogBody actions={actions} catalog={catalog}>
+        <CatalogBody actions={actions} catalog={catalog} editing={Boolean(source)}>
           {loaded => (
             <DraftFields
               catalog={loaded}
@@ -394,7 +397,7 @@ export function AddCheckInSourceDialog({
           </Button>
           <Button
             aria-busy={saving || undefined}
-            disabled={saving || !catalog || sourceChoices(catalog).empty}
+            disabled={saving || !catalog || (!source && sourceChoices(catalog).empty)}
             onClick={submit}
             type="button"
           >

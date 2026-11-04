@@ -1576,10 +1576,12 @@ func TestAgentInstanceSourceOutput(t *testing.T) {
 	for _, tc := range []struct {
 		name, action, body, want string
 		json, dry                bool
+		showFails                bool
 	}{
 		{name: "Should show all source statuses", action: "show", want: "Sources\n  new-issues  forge-github/issues  ok  1 item  polled 15:00\n  deploys  script failed-deploys  failing  source_exit_nonzero: exit 1: gh: authentication required (2 in a row)\n  pending  forge-github/issues  pending_first_poll\n  disabled  script off  disabled  source_scripts_disabled: scripts are disabled\n  linear  linear/issues  unavailable  source_kind_unavailable: extension linear is not enabled in compozy\n  unapproved  script new  unapproved  source_script_unapproved: review first\n"},
 		{name: "Should preserve source status JSON", action: "show", json: true, want: `"status":"pending_first_poll"`},
 		{name: "Should preview source items and digest", action: "check", dry: true, body: `{"gate":"would_run","sources":[{"id":"new-issues","result":"ok","items":1,"duration_ms":412},{"id":"deploys","result":"ok","items":2,"duration_ms":5}],"digest":[{"key":"source:new-issues:repo#1201","summary":"#1201 Terminal"}]}`, want: "Would run: yes\nSources:\n  new-issues  forge-github/issues  ok  1 item  (412 ms)\n  deploys  script failed-deploys  ok  2 items  (5 ms)\nDigest:\n  source:new-issues:repo#1201  #1201 Terminal\n"},
+		{name: "Should preserve check results when source references cannot be read", action: "check", dry: true, showFails: true, body: `{"gate":"digest_empty","sources":[{"id":"new-issues","result":"ok","items":0,"duration_ms":1}]}`, want: "Would run: no\nSources:\n  new-issues    ok  0 items  (1 ms)\nDigest:\n"},
 		{name: "Should explain an empty source gate", action: "check", body: `{"gate":"digest_empty","sources":[{"id":"new-issues","result":"ok","items":0,"duration_ms":1}],"digest":[]}`, want: "Would run: no\nSources:\n  new-issues  forge-github/issues  ok  0 items  (1 ms)\nDigest:\n"},
 		{name: "Should show source errors", action: "check", dry: true, body: `{"gate":"digest_empty","sources":[{"id":"deploys","result":"failing","items":0,"error":{"code":"source_timeout","detail":"timed out"}}],"digest":[]}`, want: "Would run: no\nSources:\n  deploys  script failed-deploys  failing  0 items  (0 ms)\n    source_timeout: timed out\nDigest:\n"},
 		{name: "Should explain an in flight check", action: "check", body: `{"gate":"source_poll_in_flight"}`, want: "Not started: a source check is already running for triage (source_poll_in_flight)\n"},
@@ -1595,6 +1597,13 @@ func TestAgentInstanceSourceOutput(t *testing.T) {
 				case "/api/agent-instances":
 					body = `{"instances":[{"id":"ainst-test","agent_name":"triage"}]}`
 				case "/api/agent-instances/ainst-test":
+					if tc.showFails {
+						w.WriteHeader(503)
+						if _, err := io.WriteString(w, `{"error":"unavailable"}`); err != nil {
+							t.Error(err)
+						}
+						return
+					}
 					if tc.json && tc.action == "check" {
 						t.Error("JSON check fetched instance status")
 					}

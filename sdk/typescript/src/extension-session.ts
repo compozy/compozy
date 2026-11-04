@@ -42,7 +42,9 @@ export function buildExtensionSession(options: BuildExtensionSessionOptions): {
       permissions: requestedPermissions,
     },
     implemented_methods: options.implementedMethods,
-    heartbeat_source_kinds: options.heartbeatSourceKinds,
+    ...(options.heartbeatSourceKinds === undefined
+      ? {}
+      : { heartbeat_source_kinds: options.heartbeatSourceKinds }),
     supported_hook_events: options.supportedHookEvents,
     ...(options.watchSourceKinds.length > 0
       ? { watch_source_kinds: options.watchSourceKinds }

@@ -35,7 +35,9 @@ type issuesParams struct {
 	Backfill      string   `json:"backfill"`
 }
 type issuesState struct {
-	MaxNumber int `json:"max_number"`
+	MaxNumber     int       `json:"max_number"`
+	Cursor        string    `json:"cursor,omitempty"`
+	BackfillSince time.Time `json:"backfill_since,omitzero"`
 }
 
 func registerIssuesSource(extension *compozysdk.Extension, provider *Provider) error {
@@ -90,14 +92,58 @@ func (p *Provider) pollIssues(
 	if now.IsZero() {
 		now = p.now()
 	}
-	issues, baseline, err := p.fetchIssues(ctx, repo, credential.token, state.MaxNumber, initial, backfill, now)
+	if initial && backfill > 0 {
+		state.BackfillSince = now.Add(-backfill)
+	}
+	if !state.BackfillSince.IsZero() {
+		backfill = now.Sub(state.BackfillSince)
+		initial = true
+	}
+	issues, baseline, cursor, more, err := p.fetchIssues(
+		ctx,
+		repo,
+		credential.token,
+		state.MaxNumber,
+		initial,
+		backfill,
+		now,
+		state.Cursor,
+	)
 	if err != nil {
 		return compozysdk.HeartbeatSourceResult{}, issueSourceError(err)
 	}
 	if initial {
 		state.MaxNumber = baseline
 	}
-	return issueBatch(issues, params, repo, state, req.Limits)
+	result, err := issueBatch(issues, params, repo, state, req.Limits)
+	if err != nil {
+		return result, err
+	}
+	return finishIssuesPage(result, cursor, more)
+}
+
+func finishIssuesPage(
+	result compozysdk.HeartbeatSourceResult,
+	cursor string,
+	more bool,
+) (compozysdk.HeartbeatSourceResult, error) {
+	var state issuesState
+	var err error
+	if err := json.Unmarshal(result.State, &state); err != nil {
+		return result, err
+	}
+	if !result.More {
+		state.Cursor = ""
+		if more {
+			state.Cursor = cursor
+		}
+	}
+	if !more {
+		state.BackfillSince = time.Time{}
+	}
+	result.More = result.More || more
+	result.State, err = json.Marshal(state)
+	return result, err
 }
 
 func resolveIssuesParams(ctx context.Context, req compozysdk.HeartbeatSourceRequest) (issuesParams, repository, error) {
@@ -185,8 +231,9 @@ func issueBatch(
 		})
 		state.MaxNumber = max(state.MaxNumber, issue.Number)
 	}
-	result.State = []byte(fmt.Sprintf(`{"max_number":%d}`, state.MaxNumber))
-	return result, nil
+	var err error
+	result.State, err = json.Marshal(state)
+	return result, err
 }
 
 func issueMatchesLabels(issue graphIssue, params issuesParams) bool {

@@ -144,13 +144,21 @@ function TryResult({
       </div>
     );
   }
-  if (state.phase === "unavailable" || state.phase === "stopped") {
+  if (state.phase === "unavailable") {
     return (
       <Banner onClose={onClose}>
-        <span className="min-w-0 flex-1">
-          {state.phase === "stopped" ? state.sentence : "This can't run here yet."}
-        </span>
+        <span className="min-w-0 flex-1">This can't run here yet.</span>
       </Banner>
+    );
+  }
+  if (state.phase === "stopped") {
+    return (
+      <div className="flex flex-col gap-2">
+        <Banner onClose={onClose}>
+          <span className="min-w-0 flex-1">{state.sentence}</span>
+        </Banner>
+        <TrySources catalog={catalog} outcomes={state.sources ?? []} sources={sources} />
+      </div>
     );
   }
   if (state.phase === "sent") {

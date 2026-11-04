@@ -69,7 +69,9 @@ func (c *instanceSourceDeclarations) resolve(
 	} else {
 		var resolver heartbeat.PolicyResolver
 		if artifacts == nil {
-			resolver, _ = agents.(heartbeat.PolicyResolver)
+			if candidate, ok := agents.(heartbeat.PolicyResolver); ok {
+				resolver = candidate
+			}
 		}
 		policy, err = resolveTimerPolicy(ctx, resolver, target)
 	}

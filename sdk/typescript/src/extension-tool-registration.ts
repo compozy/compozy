@@ -9,7 +9,8 @@ import {
   normalizeStringList,
 } from "./extension-runtime.js";
 import { schemaDigest } from "./schema-digest.js";
-import type { ExtensionToolRuntimeDescriptor } from "./types.js";
+import { TOOL_PROVIDER_CAPABILITY } from "./capabilities.js";
+import type { ExtensionDefinition, ExtensionToolRuntimeDescriptor } from "./types.js";
 
 export function buildRegisteredTool<TInput>(
   extensionName: string,
@@ -54,4 +55,13 @@ export function buildRegisteredTool<TInput>(
     handler: toolHandler as ExtensionToolHandler,
     sensitiveInputFields: normalizeStringList(options.sensitiveInputFields),
   };
+}
+
+export function ensureToolProviderCapability(definition: ExtensionDefinition): void {
+  const capabilities = definition.capabilities ?? {};
+  capabilities.provides = normalizeStringList([
+    ...(capabilities.provides ?? []),
+    TOOL_PROVIDER_CAPABILITY,
+  ]);
+  definition.capabilities = capabilities;
 }

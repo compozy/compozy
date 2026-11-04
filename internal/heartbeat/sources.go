@@ -36,7 +36,7 @@ type SourceOutcome struct {
 	DurationMS int64         `json:"duration_ms"`
 	Error      *source.Error `json:"error,omitempty"`
 }
-type SourceStatus struct {
+type HeartbeatSourceStatus struct {
 	ID            string        `json:"id"`
 	Kind          string        `json:"kind,omitempty"`
 	Script        string        `json:"script,omitempty"`
@@ -140,7 +140,7 @@ func (b PollBatch) DigestItems(threshold int) []DigestItem {
 			)
 		}
 		if p.Result.More {
-			out = append(out, DigestItem{Key: prefix + "more", Summary: "More items remain in this source"})
+			out = append(out, DigestItem{Key: prefix + ":more", Summary: "More items remain in this source"})
 		}
 	}
 	return out

@@ -25,6 +25,8 @@ import { seedAgentMemoryMock } from "../../mocks/memory-handlers";
 import {
   sourceDraftFrom,
   sourceFromDraft,
+  sourceValuePair,
+  validateSourceDraft,
   type SourceParamValue,
 } from "../../lib/agent-check-in-source-draft";
 import type {
@@ -621,6 +623,37 @@ describe("Heartbeat", () => {
     expect(await screen.findByText("A check is already running.")).toBeTruthy();
   });
 
+  it("Should still say how each source went when a try finds nothing new", async () => {
+    serveHeartbeat(sourcesPayload());
+    serveSourceCatalog();
+    seedCheckingInstance();
+    server.use(
+      http.post("*/api/agent-instances/:id/check", () =>
+        HttpResponse.json({
+          gate: "digest_empty",
+          sources: [
+            {
+              id: "deploys",
+              result: "failing",
+              items: 0,
+              more: false,
+              duration_ms: 9,
+              error: { code: "source_script_failed", detail: "exit status 2" },
+            },
+          ],
+        })
+      )
+    );
+    const user = userEvent.setup();
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+    await user.click(await screen.findByRole("button", { name: "Try it now" }));
+
+    expect(await screen.findByText("Nothing new, so it didn't bother you.")).toBeTruthy();
+    const outcomes = screen.getByRole("list", { name: "Sources" });
+    expect(outcomes.textContent).toContain("Couldn't check: exit status 2");
+    expect(screen.queryByRole("button", { name: "Run it for real" })).toBeNull();
+  });
+
   const ISSUES_KIND = {
     kind: "forge-github/issues",
     extension: "forge-github",
@@ -636,13 +669,23 @@ describe("Heartbeat", () => {
   };
   const SCRIPT_SHA = "sha256:7f3a91c0d2b4e6f8a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5e2";
 
+  /**
+   * Records each save and, as the daemon would, answers it and every later read with the sources
+   * that save kept; reads before the first save fall through to the served file.
+   */
   function captureHeartbeatWrites() {
     const bodies: string[] = [];
+    let written: AgentHeartbeatPayload | undefined;
     server.use(
+      http.get("*/api/agents/:name/heartbeat", () =>
+        written ? HttpResponse.json(written) : undefined
+      ),
       http.put("*/api/agents/:name/heartbeat", async ({ request }) => {
         const { body } = (await request.json()) as { body: string };
         bodies.push(body);
-        return HttpResponse.json({ heartbeat: sourcesPayload(SOURCES, "beat-2") });
+        const kept = SOURCES.filter(source => body.includes(`- id: "${source.id}"`));
+        written = sourcesPayload(kept, `beat-${bodies.length + 1}`);
+        return HttpResponse.json({ heartbeat: written });
       })
     );
     return bodies;
@@ -834,6 +877,33 @@ describe("Heartbeat", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(bodies).toHaveLength(2));
     expect(bodies[1]).not.toContain("new-issues");
+    // Once the save settles, the editor shows the file the daemon answered with.
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Save" })).toBeNull());
+    expect(screen.getAllByTestId("check-in-source-row")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "More for New GitHub issues" })).toBeNull();
+  });
+
+  it("Should keep an existing source editable when nothing is offered to add", async () => {
+    serveHeartbeat(sourcesPayload());
+    serveSourceCatalog({ kinds: [], scripts: [] });
+    seedCheckingInstance();
+    const bodies = captureHeartbeatWrites();
+    const user = userEvent.setup();
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+
+    await user.click(await screen.findByRole("button", { name: "More for failed-deploys" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).not.toHaveTextContent("No sources installed.");
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("deploys");
+    await user.clear(within(dialog).getByLabelText("Value 1"));
+    await user.type(within(dialog).getByLabelText("Value 1"), "staging");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toContain(
+      ['      script: "failed-deploys"', "      with:", '        env: "staging"'].join("\n")
+    );
   });
 
   const WATCH_KIND = {
@@ -883,6 +953,28 @@ describe("Heartbeat", () => {
         source
       );
     }
+  });
+
+  it("Should keep settings named like built-in object properties, and refuse a script value that would replace one", () => {
+    const source = {
+      id: "deploys",
+      script: "failed-deploys",
+      with: JSON.parse('{"env":"prod","constructor":{"a":1},"__proto__":{"b":2}}') as Record<
+        string,
+        unknown
+      >,
+    };
+    const draft = sourceDraftFrom(source, WATCH_CATALOG);
+    const saved = sourceFromDraft(draft, WATCH_CATALOG).with as Record<string, unknown>;
+    expect(Object.entries(saved)).toEqual([
+      ["env", "prod"],
+      ["constructor", { a: 1 }],
+      ["__proto__", { b: 2 }],
+    ]);
+
+    const clash = { ...draft, pairs: [...draft.pairs, sourceValuePair("constructor", "x")] };
+    expect(validateSourceDraft(clash, WATCH_CATALOG, []).pairs).toBe("Each name can be used once.");
+    expect(validateSourceDraft(draft, WATCH_CATALOG, []).pairs).toBeUndefined();
   });
 
   it("Should write only the settings the operator changed into a file that left them out", () => {

@@ -7,14 +7,6 @@ import (
 	"time"
 )
 
-// CopyEffect is a daemon API value.
-type CopyEffect struct {
-	Content string `json:"content"`
-}
-
-// CostSource is a daemon API value.
-type CostSource string
-
 // CostStatus is a daemon API value.
 type CostStatus string
 
@@ -442,4 +434,14 @@ type DuplicateAgentRequest struct {
 type Edge struct {
 	From NodeID `json:"from"`
 	To   NodeID `json:"to"`
+}
+
+// Effect is a daemon API value.
+type Effect struct {
+	ID        string           `json:"id"`
+	Toast     *ToastEffect     `json:"toast,omitempty"`
+	Copy      *CopyEffect      `json:"copy,omitempty"`
+	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
+	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
+	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
 }

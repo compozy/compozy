@@ -1513,7 +1513,7 @@ func issueTestProvider(t *testing.T, issues []map[string]any, status int) *Provi
 
 func TestProviderIssuesPagination(t *testing.T) {
 	t.Parallel()
-	t.Run("Should page to the watermark before choosing the oldest batch", func(t *testing.T) {
+	t.Run("Should bound each poll and advance only through delivered oldest pages", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32
 		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
@@ -1522,13 +1522,13 @@ func TestProviderIssuesPagination(t *testing.T) {
 				t.Error(err)
 			}
 			calls.Add(1)
-			nodes := []map[string]any{issueFixture(1204), issueFixture(1203)}
+			nodes := []map[string]any{issueFixture(1201), issueFixture(1202)}
 			more, cursor := true, "page2"
 			if request.Variables.After != nil {
 				if *request.Variables.After != "page2" {
 					t.Errorf("cursor=%s", *request.Variables.After)
 				}
-				nodes = []map[string]any{issueFixture(1202), issueFixture(1201), issueFixture(1200)}
+				nodes = []map[string]any{issueFixture(1203), issueFixture(1204)}
 				more, cursor = false, ""
 			}
 			writeJSON(
@@ -1552,12 +1552,19 @@ func TestProviderIssuesPagination(t *testing.T) {
 		req.Limits.MaxItems = 2
 		req.Limits.MaxSummaryBytes = 3
 		result, err := provider.pollIssues(t.Context(), req)
-		if err != nil || calls.Load() != 2 || len(result.Items) != 2 || !result.More ||
+		if err != nil || calls.Load() != 1 || len(result.Items) != 2 || !result.More ||
 			result.Items[0].Key != "compozy/compozy#1201" ||
-			string(result.State) != `{"max_number":1202}` ||
+			string(result.State) != `{"max_number":1202,"cursor":"page2"}` ||
 			result.Items[0].Summary != "Det" ||
 			result.Items[1].Summary != "" {
 			t.Fatalf("result=%+v calls=%d err=%v", result, calls.Load(), err)
+		}
+		req.State = result.State
+		result, err = provider.pollIssues(t.Context(), req)
+		if err != nil || calls.Load() != 2 || result.More || len(result.Items) != 2 ||
+			result.Items[0].Key != "compozy/compozy#1203" ||
+			string(result.State) != `{"max_number":1204}` {
+			t.Fatalf("result=%+v err=%v", result, err)
 		}
 	})
 	t.Run("Should map GraphQL rate limits without accepting partial data", func(t *testing.T) {

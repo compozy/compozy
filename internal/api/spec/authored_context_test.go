@@ -8,6 +8,25 @@ import (
 
 func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 	doc := authoredContextDocument(t)
+	t.Run("Should declare source catalog and approval error responses", func(t *testing.T) {
+		t.Parallel()
+		for _, endpoint := range []struct {
+			path, method string
+			statuses     []int
+		}{
+			{"/api/agents/{name}/heartbeat/sources", "GET", []int{404, 500, 503}},
+			{"/api/agents/{name}/heartbeat/scripts/{script}/approve", "POST", []int{403, 404, 409, 422, 500, 503}},
+			{"/api/agents/{name}/heartbeat/scripts/{script}/approve", "DELETE", []int{403, 404, 422, 500, 503}},
+		} {
+			operation := operationFor(t, doc, endpoint.path, endpoint.method)
+			for _, status := range endpoint.statuses {
+				assertResponseStatus(t, operation, status)
+				if schema := jsonResponseSchema(t, operation, status); len(schema.Properties) == 0 {
+					t.Fatalf("empty error body for %s %d", endpoint.method, status)
+				}
+			}
+		}
+	})
 
 	t.Run("Should select one optional profile on every authored agent operation", func(t *testing.T) {
 		t.Parallel()

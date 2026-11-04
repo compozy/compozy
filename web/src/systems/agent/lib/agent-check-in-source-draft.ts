@@ -141,7 +141,8 @@ export function suggestSourceId(ref: string, others: readonly string[]) {
 }
 
 export function blankSourceDraft(): SourceDraft {
-  return { id: "", ref: "", params: {}, read: {}, pairs: [], kept: {}, hasWith: false };
+  const kept: Record<string, unknown> = Object.create(null);
+  return { id: "", ref: "", params: {}, read: {}, pairs: [], kept, hasWith: false };
 }
 
 /** The draft for an existing entry; values the form can't show are kept for the save. */
@@ -207,7 +208,8 @@ function fieldWith(draft: SourceDraft, field: SourceParamField) {
 }
 
 function draftWith(draft: SourceDraft, fields: readonly SourceParamField[]) {
-  const values: Record<string, unknown> = {};
+  // No prototype: a setting named `constructor` or `__proto__` is kept like any other.
+  const values: Record<string, unknown> = Object.create(null);
   if (draft.ref.startsWith("script:")) {
     for (const pair of draft.pairs) {
       if (pair.key.trim() !== "") values[pair.key.trim()] = pair.value;
@@ -219,7 +221,7 @@ function draftWith(draft: SourceDraft, fields: readonly SourceParamField[]) {
     }
   }
   for (const [key, value] of Object.entries(draft.kept)) {
-    if (!(key in values)) values[key] = value;
+    if (!Object.hasOwn(values, key)) values[key] = value;
   }
   return values;
 }
@@ -283,8 +285,12 @@ export function validateSourceDraft(
   if (draft.ref === "") errors.ref = "Pick what it reads.";
   if (draft.ref.startsWith("script:")) {
     const keys = draft.pairs.map(pair => pair.key.trim());
+    // A name the file already uses for a value the form can't show would replace it unseen.
+    const taken = keys.some(key => Object.hasOwn(draft.kept, key));
     if (keys.some(key => key === "")) errors.pairs = "Give each value a name.";
-    else if (new Set(keys).size !== keys.length) errors.pairs = "Each name can be used once.";
+    else if (taken || new Set(keys).size !== keys.length) {
+      errors.pairs = "Each name can be used once.";
+    }
   }
   const fields = sourceParamFields(kindOf(catalog, draft.ref)?.params_schema);
   for (const field of fields) {

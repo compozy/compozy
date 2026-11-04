@@ -1347,6 +1347,57 @@ func (h *heartbeatSourceRuntime) advance(t *testing.T) {
 // follows successful checks, and source fences/provenance reach real triage sessions.
 // Owning layer and canonical suite: daemon heartbeat wake runtime integration.
 func TestHeartbeatSourceRuntime(t *testing.T) {
+	for _, mode := range []string{"session_prompt_active", "heartbeat_invalid", "triage_failed"} {
+		t.Run("Should restore timer cadence after post-poll "+mode, func(t *testing.T) {
+			h := newHeartbeatSourceRuntime(t, true, false)
+			env := &postPollHeartbeatEnvironment{instanceCheckEnvironment: h.env, mode: mode}
+			checks, err := heartbeat.NewCheckService(
+				t.Context(),
+				h.db.Instances(),
+				env,
+				&session.TriageDispatcher{
+					Manager:      h.manager,
+					Reports:      h.db.InstanceReports(),
+					MaxProposals: 2,
+					StopTimeout:  time.Second,
+				},
+				h.config,
+				h.now,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := checks.Shutdown(context.Background()); err != nil {
+					t.Error(err)
+				}
+			})
+			if err := checks.Recover(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			if err := checks.Tick(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			want := store.FormatTimestamp(heartbeat.NextCheckTime(h.now(), time.Hour, h.instance.ID))
+			waitForCondition(t, "post-poll schedule restored", func() bool {
+				wake, err := h.db.Instances().WakeState(t.Context(), h.instance.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return wake.NextWakeAt == want
+			})
+			var reason string
+			if err := h.db.DB().
+				QueryRowContext(t.Context(), "SELECT reason FROM agent_heartbeat_wake_events WHERE instance_id=? ORDER BY created_at DESC LIMIT 1", h.instance.ID).
+				Scan(&reason); err != nil {
+				t.Fatal(err)
+			}
+			if reason != mode {
+				t.Fatalf("reason=%s want=%s", reason, mode)
+			}
+		})
+	}
+
 	// Invariant: list rows share policy parsing, while edits invalidate the next read.
 	t.Run("Should reuse source declarations across list rows and refresh edits", func(t *testing.T) {
 		h := newHeartbeatSourceRuntime(t, true, false)
@@ -1466,7 +1517,7 @@ func TestHeartbeatSourceRuntime(t *testing.T) {
 		read("z")
 	})
 
-	// Invariant: cancelled reads stop before resolving even a cached policy.
+	// Invariant: canceled reads stop before resolving even a cached policy.
 	t.Run("Should cancel source declaration reads", func(t *testing.T) {
 		h := newHeartbeatSourceRuntime(t, true, false)
 		ctx, cancel := context.WithCancel(t.Context())
@@ -1534,7 +1585,7 @@ func TestHeartbeatSourceRuntime(t *testing.T) {
 		name, reason string
 		failure      error
 	}{
-		{"Should persist source hook cancellation", "hook_cancelled", hookspkg.ErrHeartbeatWakeCancelled},
+		{"Should persist source hook cancellation", "hook_cancelled", hookspkg.ErrHeartbeatWakeCancelled}, //nolint:misspell // Persisted wake reason.
 		{"Should persist source hook error", "triage_failed", errors.New("hook unavailable")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1807,7 +1858,7 @@ func TestHeartbeatSourceRuntime(t *testing.T) {
 					t.Fatalf("page %d missing key %d: %s", i, key, data)
 				}
 			}
-			if i == 0 && !strings.Contains(string(data), "source:s:more") {
+			if i == 0 && !strings.Contains(string(data), "source:s::more") {
 				t.Fatalf("missing more: %s", data)
 			}
 		}
@@ -2339,6 +2390,35 @@ func (heartbeatFixturePoller) PollSource(
 	return source.Result{Items: []source.Item{{Key: "issue:1", Title: "New issue"}}, State: []byte(`{"cursor":1}`)}, nil
 }
 func TestHeartbeatExtensionSourceRuntime(t *testing.T) {
+	t.Run("Should share individual poll limits across simultaneous collections", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		h.env.sourceConfig.MaxConcurrentPolls = 2
+		poller := &boundedHeartbeatPoller{}
+		h.env.sourceExtensions = poller
+		target, err := h.env.ResolveCheck(t.Context(), h.instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		target.Policy.Preferences.Context.Sources = nil
+		for i := range 8 {
+			target.Policy.Preferences.Context.Sources = append(
+				target.Policy.Preferences.Context.Sources,
+				source.Ref{ID: fmt.Sprintf("s%d", i), Kind: "fake/issues"},
+			)
+		}
+		done := make(chan error, 2)
+		for range 2 {
+			go func() { _, err := h.env.PollSources(t.Context(), &target, true); done <- err }()
+		}
+		for range 2 {
+			if err := <-done; err != nil {
+				t.Fatal(err)
+			}
+		}
+		if peak := poller.peak.Load(); peak > 2 || poller.calls.Load() != 16 {
+			t.Fatalf("peak=%d calls=%d", peak, poller.calls.Load())
+		}
+	})
 	t.Run("Should collect extension items and preserve parameter failures [IT-005]", func(t *testing.T) {
 		t.Parallel()
 		h := newHeartbeatSourceRuntime(t, true, false)
@@ -2471,4 +2551,67 @@ func (r *artifactInstancePolicyResolver) ResolveAgentArtifacts(
 		HeartbeatSourcePath: path,
 		HeartbeatBody:       r.body,
 	}, err
+}
+
+type boundedHeartbeatPoller struct{ active, peak, calls atomic.Int32 }
+
+var _ source.ExtensionPoller = (*boundedHeartbeatPoller)(nil)
+
+func (*boundedHeartbeatPoller) SourceKinds(context.Context, source.CatalogScope) ([]source.KindDescriptor, error) {
+	return nil, nil
+}
+
+func (p *boundedHeartbeatPoller) PollSource(
+	ctx context.Context,
+	_ source.CatalogScope,
+	_ string,
+	_ source.Request,
+) (source.Result, error) {
+	active := p.active.Add(1)
+	defer p.active.Add(-1)
+	p.calls.Add(1)
+	for peak := p.peak.Load(); active > peak; peak = p.peak.Load() {
+		if p.peak.CompareAndSwap(peak, active) {
+			break
+		}
+	}
+	timer := time.NewTimer(10 * time.Millisecond)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return source.Result{Items: []source.Item{}}, nil
+	case <-ctx.Done():
+		return source.Result{}, ctx.Err()
+	}
+}
+
+type postPollHeartbeatEnvironment struct {
+	*instanceCheckEnvironment
+	mode   string
+	polled bool
+}
+
+func (e *postPollHeartbeatEnvironment) PollSources(
+	ctx context.Context,
+	target *heartbeat.CheckTarget,
+	dry bool,
+) (heartbeat.PollBatch, error) {
+	batch, err := e.instanceCheckEnvironment.PollSources(ctx, target, dry)
+	e.polled = true
+	return batch, err
+}
+func (e *postPollHeartbeatEnvironment) ResolveCheck(ctx context.Context, id string) (heartbeat.CheckTarget, error) {
+	target, err := e.instanceCheckEnvironment.ResolveCheck(ctx, id)
+	if err != nil || !e.polled {
+		return target, err
+	}
+	switch e.mode {
+	case "session_prompt_active":
+		target.MainPrompting = true
+	case "heartbeat_invalid":
+		target.Policy.Digest += "changed"
+	case "triage_failed":
+		return target, errors.New("policy unavailable")
+	}
+	return target, nil
 }
