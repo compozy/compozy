@@ -50,22 +50,22 @@ type claudeOAuthFile struct {
 func (c *ClaudeCollector) resolve(ctx context.Context, target Target, intent Intent) (*claudeCredential, error) {
 	record, err := loadClaudeFile(target, c.now())
 	if !isClaudeFileAbsent(err) {
-		c.clearLocked(target.ProfileID)
+		c.clearLocked(claudeKeyOf(target))
 		if record != nil {
-			c.records[target.ProfileID] = record
+			c.records[claudeKeyOf(target)] = record
 		}
 		return record, err
 	}
 	if claudeCredentialPath(target) == "" || c.platform != "darwin" {
-		c.clearLocked(target.ProfileID)
+		c.clearLocked(claudeKeyOf(target))
 		return nil, NewUsageError(ErrorCodeAuthMissing, "Claude")
 	}
 	if !target.Route.KeychainAccess {
-		c.clearLocked(target.ProfileID)
+		c.clearLocked(claudeKeyOf(target))
 		return nil, NewUsageError(ErrorCodeKeychainConsentRequired, "Claude")
 	}
 	if intent != IntentExplicit {
-		record = c.records[target.ProfileID]
+		record = c.records[claudeKeyOf(target)]
 		if record != nil && c.validateLocked(target, record.identity) == nil {
 			if !record.singleUse && !record.expired && c.now().Before(record.expires) {
 				return record, nil
@@ -81,21 +81,21 @@ func (c *ClaudeCollector) readKeychainLocked(
 	target Target,
 	intent Intent,
 ) (*claudeCredential, error) {
-	c.clearLocked(target.ProfileID)
+	c.clearLocked(claudeKeyOf(target))
 	path, account := claudeAccountEvidence(target)
 	service, username := claudeKeychainItem(target)
 	readCtx, cancel := context.WithCancel(ctx)
 	pending := &claudeRead{cancel: cancel}
-	c.pending[target.ProfileID] = pending
+	c.pending[claudeKeyOf(target)] = pending
 	c.mu.Unlock()
 	data, err := c.keychain.Read(readCtx, service, username, intent == IntentExplicit)
 	c.mu.Lock()
 	defer cancel()
 	defer clear(data)
-	if c.closed || c.pending[target.ProfileID] != pending {
+	if c.closed || c.pending[claudeKeyOf(target)] != pending {
 		return nil, NewUsageError(ErrorCodeAuthMissing, "Claude")
 	}
-	delete(c.pending, target.ProfileID)
+	delete(c.pending, claudeKeyOf(target))
 	if err != nil {
 		switch {
 		case errors.Is(err, os.ErrNotExist):
@@ -117,7 +117,7 @@ func (c *ClaudeCollector) readKeychainLocked(
 		record.expire()
 		err = claudeExpiryError()
 	}
-	c.records[target.ProfileID] = record
+	c.records[claudeKeyOf(target)] = record
 	if err := c.validateLocked(target, record.identity); err != nil {
 		return nil, err
 	}

@@ -144,8 +144,11 @@ func (d *Daemon) applyDefaults() {
 }
 
 func (d *Daemon) applyCoreDefaults() {
+	if d.providerAuthVerdicts == nil {
+		d.providerAuthVerdicts = providers.NewAuthVerdicts()
+	}
 	if d.providerPreStarter == nil {
-		d.providerPreStarter = providers.NewPreStarter()
+		d.providerPreStarter = providers.NewPreStarter(providers.WithAuthVerdicts(d.providerAuthVerdicts))
 	}
 	if d.now == nil {
 		d.now = func() time.Time {

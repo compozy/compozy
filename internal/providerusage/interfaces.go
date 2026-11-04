@@ -9,11 +9,20 @@ import (
 type Target struct {
 	ProfileID        string
 	ProviderID       string // canonical Compozy provider ID
+	CollectorID      string // collector family; empty means ProviderID (aliases resolve via runtime_provider)
 	ProviderName     string // catalog display name
 	RouteFingerprint string // daemon-derived; never caller-supplied
 	Status           Status // Empty means eligible for collection.
 	Error            *UsageError
 	Route            ResolvedRoute
+}
+
+// Collector returns the collector family that owns this target.
+func (t Target) Collector() string {
+	if t.CollectorID != "" {
+		return t.CollectorID
+	}
+	return t.ProviderID
 }
 
 // ResolvedRoute is the read-only launch context a collector may use.
@@ -81,6 +90,11 @@ type Revision struct {
 // PublicationValidator validates one-shot credentials without loading them again.
 type PublicationValidator interface {
 	ValidateIdentity(ctx context.Context, t Target, captured CredentialIdentity) error
+}
+
+// TargetCredentialCache evicts the cached credential of one target that left the catalog.
+type TargetCredentialCache interface {
+	ForgetTarget(t Target)
 }
 
 type CredentialCache interface {

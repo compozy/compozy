@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
@@ -84,6 +85,62 @@ func TestProviderAuthStatusDiagnostics(t *testing.T) {
 		}
 		if got, want := resolveCalls, 1; got != want {
 			t.Fatalf("auth status resolver calls = %d, want %d", got, want)
+		}
+	})
+
+	t.Run("Should report the last live sign-in verdict instead of unverified", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig()+
+			"\n[providers.local]\n"+
+			"command = \"local-agent acp\"\n"+
+			"auth_mode = \"native_cli\"\n"+
+			"auth_status_command = \"local-agent auth status\"\n")
+		verdicts := authproviders.NewAuthVerdicts()
+		service := testService(t, homePaths, Dependencies{
+			CommandLookPath: func(command string) (string, error) { return "/test/bin/" + command, nil },
+			ProviderAuthCommandResolver: func(_ context.Context, command string, _ []string, _ string) (string, error) {
+				return "/test/bin/" + command, nil
+			},
+			ProviderAuthVerdicts: verdicts,
+		})
+		list := func() ProviderItem {
+			t.Helper()
+			envelope, err := service.ListCollection(ctx, CollectionRequest{Collection: CollectionProviders})
+			if err != nil {
+				t.Fatalf("ListCollection(providers) error = %v", err)
+			}
+			return mustFindProviderItem(t, envelope.Providers, "local")
+		}
+		if local := list(); local.AuthStatus.State != "unknown" || !local.AuthStatus.CheckedAt.IsZero() {
+			t.Fatalf(
+				"AuthStatus before probe = %q at %v, want unverified",
+				local.AuthStatus.State,
+				local.AuthStatus.CheckedAt,
+			)
+		}
+
+		cfg, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		provider, err := cfg.ResolveProvider("local")
+		if err != nil {
+			t.Fatalf("ResolveProvider(local) error = %v", err)
+		}
+		verdicts.Record("local", provider, authproviders.Classification{
+			State:   authproviders.ProviderAuthStateAuthenticated,
+			Message: "Provider status command completed successfully.",
+		}, time.Now())
+
+		local := list()
+		if got, want := local.AuthStatus.State, "authenticated"; got != want {
+			t.Fatalf("AuthStatus.State = %q, want %q", got, want)
+		}
+		if local.AuthStatus.Code != "" || local.AuthStatus.CheckedAt.IsZero() {
+			t.Fatalf("AuthStatus = %#v, want a verified state with its check time", local.AuthStatus)
 		}
 	})
 

@@ -83,6 +83,7 @@ func (d *Daemon) runtimeDeps(
 		Vault:                 state.providerVault,
 		StartedAt:             state.startedAt,
 		OnProviderAuthSuccess: d.providerPreStarter.Clear,
+		ProviderAuthVerdicts:  d.providerAuthVerdicts,
 	}
 }
 

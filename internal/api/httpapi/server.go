@@ -6,6 +6,8 @@ import (
 	"sync"
 	"time"
 
+	authproviders "github.com/compozy/compozy/internal/providers"
+
 	"github.com/compozy/compozy/internal/agentmemory"
 
 	"github.com/compozy/compozy/internal/session"
@@ -117,6 +119,7 @@ type Server struct {
 	actualPort   int
 
 	onProviderAuthSuccess func()
+	providerAuthVerdicts  *authproviders.AuthVerdicts
 }
 
 // WithSupportBundleService injects the daemon-owned support bundle operation service.
@@ -304,6 +307,13 @@ func New(opts ...Option) (*Server, error) {
 	})
 
 	return server, nil
+}
+
+// WithProviderAuthVerdicts shares the daemon's last live provider sign-in verdicts.
+func WithProviderAuthVerdicts(verdicts *authproviders.AuthVerdicts) Option {
+	return func(server *Server) {
+		server.providerAuthVerdicts = verdicts
+	}
 }
 
 // WithProviderAuthSuccess observes a successful live authentication probe.

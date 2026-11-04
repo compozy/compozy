@@ -31020,6 +31020,11 @@
           "home_policy": {
             "type": "string"
           },
+          "last_probe_at": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
           "login": {
             "$ref": "#/components/schemas/ProviderLoginDescriptorPayload"
           },

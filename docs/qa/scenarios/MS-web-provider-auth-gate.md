@@ -32,6 +32,13 @@ src: web/src/systems/settings/components/provider-edit-form-auth-fields.tsx; web
 3. Immediately retry session creation, within the 30-second pre-start cache TTL. The daemon must probe readiness again and accept the authenticated provider, without restarting the daemon or changing provider settings.
 4. Repeat through the UDS provider probe. A failed or canceled probe must not be treated as successful authentication. Other workspaces and profiles must still verify their own credentials.
 
+## Settings keeps the last live sign-in verdict (#1249)
+
+1. Configure a signed-in `native_cli` provider with a working `auth_status_command` and restart the daemon. Settings → Providers and `compozy provider list` show `Sign-in unverified` / `unknown`; opening the page runs no status command.
+2. In the provider's overview choose **Check sign-in**. The probe runs in place (the editor does not open) and the row turns `Ready` with `Checked … ago`; `compozy provider list` reports `authenticated`.
+3. Restart the daemon, start a session on that provider, then reopen Settings: the session's pre-start check alone turns the row `Ready`.
+4. Edit the provider's command or status command. The row returns to `Sign-in unverified` until the next probe or session start.
+
 2026-09-05 sessions-stability task02: shared HTTP/UDS success invalidates the daemon-owned pre-start cache. Focused API/cache tests cover the transition; this real-provider walk remains pending for final QA.
 
 QA 2026-09-06 — sessions-stability selected scope: The real reauthentication/cache branch remains blocked-verify. The native Claude account reports loggedIn=true and successful prompts; Compozy classifies its auth probe unknown because no auth_status_command is configured. A separate real account/session with controllable expiry or provider rate limiting is required; no operator logout or credential changes were made. Existing owning cache/API evidence is reused, not substituted for that live branch. Evidence: docs/qa/reports/2026-09-06-sessions-stability.md.

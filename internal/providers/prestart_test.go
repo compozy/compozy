@@ -192,6 +192,55 @@ func TestPreStarter(t *testing.T) {
 		})
 		assertNoPreStartReport(t, report)
 	})
+
+	t.Run("Should keep the live status verdict until the provider config changes", func(t *testing.T) {
+		t.Parallel()
+
+		provider := compozyconfig.ProviderConfig{
+			Command:       "acme acp",
+			AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
+			AuthStatusCmd: "acme auth status",
+		}
+		verdicts := NewAuthVerdicts()
+		declared := Classification{
+			State: ProviderAuthStateUnknown,
+			Code:  diagcontract.CodeProviderClassificationUnknown,
+		}
+		if got, checkedAt := verdicts.Apply("acme", provider, declared); got.State != ProviderAuthStateUnknown ||
+			!checkedAt.IsZero() {
+			t.Fatalf("Apply(before probe) = %q at %v, want unverified", got.State, checkedAt)
+		}
+
+		// A session start prepares the launch command with its resolved executable.
+		prepared := provider
+		prepared.Command = "/bin/acme acp"
+		report := NewPreStarter(WithAuthVerdicts(verdicts)).PreStart(testutil.Context(t), prepared, &ProbeEnv{
+			ProviderName: "acme",
+			LookPath:     func(string) (string, error) { return "/bin/acme", nil },
+			RunCommand: func(context.Context, ProviderAuthCommandSpec) (ProviderAuthCommandResult, error) {
+				return ProviderAuthCommandResult{ExitCode: 0, Stdout: "Logged in"}, nil
+			},
+		})
+		assertNoPreStartReport(t, report)
+
+		got, checkedAt := verdicts.Apply("acme", provider, declared)
+		if got.State != ProviderAuthStateAuthenticated || checkedAt.IsZero() {
+			t.Fatalf("Apply(after probe) = %q at %v, want authenticated with a check time", got.State, checkedAt)
+		}
+		verdicts.Record("acme", provider, Classification{State: ProviderAuthStateNeedsLogin}, time.Unix(0, 0))
+		if got, _ := verdicts.Apply("acme", provider, declared); got.State != ProviderAuthStateAuthenticated {
+			t.Fatalf("Apply(after an older probe finished) = %q, want the newer verdict kept", got.State)
+		}
+		missing := Classification{State: ProviderAuthStateMissingCLI}
+		if got, _ := verdicts.Apply("acme", provider, missing); got.State != ProviderAuthStateMissingCLI {
+			t.Fatalf("Apply(missing CLI) = %q, want the current declared state to win", got.State)
+		}
+		changed := provider
+		changed.AuthStatusCmd = "acme whoami"
+		if got, _ := verdicts.Apply("acme", changed, declared); got.State != ProviderAuthStateUnknown {
+			t.Fatalf("Apply(changed config) = %q, want the verdict invalidated", got.State)
+		}
+	})
 }
 
 type profileCredentialMetadata map[string]bool

@@ -5,7 +5,7 @@ import {
   requireResponseData,
 } from "@/lib/api-client";
 
-import type { ProviderListResponse, ProviderSummary } from "../types";
+import type { ProviderAuthProbeResponse, ProviderListResponse, ProviderSummary } from "../types";
 
 export class ProvidersApiError extends Error {
   constructor(
@@ -47,4 +47,25 @@ export async function getProvider(
     );
   }
   return requireResponseData(data, response, `Failed to load provider "${trimmed}"`);
+}
+
+/** Runs the provider's live sign-in check; the daemon keeps the verdict for later reads. */
+export async function probeProviderAuth(providerId: string): Promise<ProviderAuthProbeResponse> {
+  const trimmed = providerId.trim();
+  if (trimmed.length === 0) {
+    throw new ProvidersApiError("provider_id is required", 400);
+  }
+  const { data, error, response } = await apiClient.POST(
+    "/api/providers/{provider_id}/auth/probe",
+    {
+      params: { path: { provider_id: trimmed } },
+    }
+  );
+  if (apiRequestFailed(response, error)) {
+    throw new ProvidersApiError(
+      defaultApiErrorMessage(`Failed to check sign-in for "${trimmed}"`, response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, `Failed to check sign-in for "${trimmed}"`);
 }

@@ -2,6 +2,8 @@
 
 package client
 
+import "time"
+
 // SettingsMarketplaceResponse is a daemon API value.
 type SettingsMarketplaceResponse struct {
 	Section         SettingsSectionName               `json:"section"`
@@ -75,14 +77,15 @@ type SettingsPersonaResponse struct {
 
 // SettingsProviderAuthStatusPayload is a daemon API value.
 type SettingsProviderAuthStatusPayload struct {
-	Mode       string                         `json:"mode"`
-	EnvPolicy  string                         `json:"env_policy"`
-	HomePolicy string                         `json:"home_policy"`
-	State      string                         `json:"state"`
-	Code       string                         `json:"code,omitempty"`
-	Message    string                         `json:"message,omitempty"`
-	StatusCmd  string                         `json:"status_command,omitempty"`
-	Login      ProviderLoginDescriptorPayload `json:"login"`
+	Mode        string                         `json:"mode"`
+	EnvPolicy   string                         `json:"env_policy"`
+	HomePolicy  string                         `json:"home_policy"`
+	State       string                         `json:"state"`
+	Code        string                         `json:"code,omitempty"`
+	Message     string                         `json:"message,omitempty"`
+	StatusCmd   string                         `json:"status_command,omitempty"`
+	Login       ProviderLoginDescriptorPayload `json:"login"`
+	LastProbeAt *time.Time                     `json:"last_probe_at,omitempty"`
 }
 
 // SettingsProviderCredentialSlotPayload is a daemon API value.

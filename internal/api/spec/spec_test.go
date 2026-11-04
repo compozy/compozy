@@ -3253,6 +3253,10 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		}
 		addSessionRouteProfileSelectors(t, baseline)
 		addRuntimeRecoveryReason(baseline)
+		// #1249: settings provider auth status reports when its sign-in was last verified live.
+		if addSettingsProviderLastProbeAt(baseline) == 0 {
+			t.Fatal("approved settings last_probe_at addition: no historical provider auth status schema found")
+		}
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -5630,6 +5634,27 @@ func addProfileRemovalInstanceCounts(t *testing.T, baseline map[string]any) {
 }
 
 // addRuntimeRecoveryReason records the approved optional runtime.recovery.reason discriminator.
+func addSettingsProviderLastProbeAt(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addSettingsProviderLastProbeAt(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addSettingsProviderLastProbeAt(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["status_command"] != nil && properties["login"] != nil &&
+			properties["home_policy"] != nil && properties["last_probe_at"] == nil {
+			properties["last_probe_at"] = map[string]any{"type": "string", "format": "date-time", "nullable": true}
+			count++
+		}
+	}
+	return count
+}
+
 func addRuntimeRecoveryReason(baseline map[string]any) {
 	var walk func(any)
 	walk = func(value any) {

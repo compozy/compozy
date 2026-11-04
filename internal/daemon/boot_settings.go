@@ -45,6 +45,7 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 		MCPExtensionManagement:  settingsMCPExtensionDefinitions{state: state, auth: surface},
 		MCPDefinitionRetirer:    state.mcpToolProvider,
 		ModelCatalog:            state.modelCatalog,
+		ProviderAuthVerdicts:    d.providerAuthVerdicts,
 		RuntimeApplier: daemonSettingsRuntimeApplier{
 			daemon: d,
 			state:  state,

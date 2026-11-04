@@ -247,5 +247,7 @@ type Daemon struct {
 	config             compozyconfig.Config
 	admission          admission.Gate
 	providerPreStarter *providers.PreStarter
+	// providerAuthVerdicts keeps the last live provider sign-in verdict for settings and provider list.
+	providerAuthVerdicts *providers.AuthVerdicts
 	daemonRuntimeState
 }

@@ -157,7 +157,7 @@ func (s *Manager) applyTargetsLocked(p *profileState, profile string, targets []
 				replacements = append(replacements, target.ProviderID)
 			}
 			state.epoch++
-			state.snapshot = initialSnapshot(target, s.options.Collectors[target.ProviderID])
+			state.snapshot = initialSnapshot(target, s.options.Collectors[target.Collector()])
 			state.hasIdentity = false
 			state.readFence = nil
 			state.lastSuccess = time.Time{}
@@ -172,6 +172,10 @@ func (s *Manager) applyTargetsLocked(p *profileState, profile string, targets []
 	}
 	for id := range p.targets {
 		if !seen[id] {
+			removed := p.targets[id].target
+			if cache, ok := s.options.Collectors[removed.Collector()].(TargetCredentialCache); ok {
+				cache.ForgetTarget(removed)
+			}
 			if f := p.targets[id].flight; f != nil {
 				f.cancel()
 				canceled = append(canceled, f)
@@ -197,7 +201,8 @@ func (s *Manager) shouldCollectTargetLocked(previous Target) bool {
 }
 
 func targetChanged(previous, current Target) bool {
-	return previous.ProviderID == "" || previous.RouteFingerprint != current.RouteFingerprint ||
+	return previous.ProviderID == "" || previous.Collector() != current.Collector() ||
+		previous.RouteFingerprint != current.RouteFingerprint ||
 		previous.Status != current.Status ||
 		!maps.Equal(previous.Route.BoundSecrets, current.Route.BoundSecrets)
 }
@@ -335,7 +340,7 @@ func (s *Manager) admitFlightsLocked(p *profileState, ids []string, req RefreshR
 	flights := make([]*flight, 0, len(ids))
 	for _, id := range ids {
 		state := p.targets[id]
-		if state.target.Status != "" || s.options.Collectors[id] == nil {
+		if state.target.Status != "" || s.options.Collectors[state.target.Collector()] == nil {
 			continue
 		}
 		f := state.flight

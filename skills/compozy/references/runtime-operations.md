@@ -1221,7 +1221,9 @@ exit `0` even when rows fail and `1` for request errors (`invalid_request`, `pro
 repeated; `--max-age` only raises that floor.
 
 Collectors exist for `codex`, `claude`, `openrouter`, `vercel-ai-gateway`, `zai`, `moonshot`,
-`kimi-cli`, `cursor`, and `gemini`; every other provider reports `unsupported` (`no_collector`). They
+`kimi-cli`, `cursor`, and `gemini`. A custom provider whose own ID has no collector collects through
+its `runtime_provider`'s collector with its own launch environment (for example its own
+`CLAUDE_CONFIG_DIR`) and bound secrets; every other provider reports `unsupported` (`no_collector`). They
 use only the credentials the profile's route resolves and never write credential files (the Codex CLI
 may renew its own login). Codex runs only with its file credential store; `keyring`/`auto` report
 `unsupported` (`auth_store_unsupported`) and CompozyOS never changes that setting.
@@ -1453,7 +1455,9 @@ startup failure; failed or canceled probes change nothing. Agy models come only 
 `provider_live:agy` discovery: select an exact currently advertised ID, use `view=all` before
 concluding a new model is absent, and treat a missing-login diagnostic as a prompt to run the explicit operator sign-in, not a
 secret-binding or shell workaround. In Settings the provider shows `Sign-in unverified` until a
-live probe succeeds, and the runtime picker plus session attribution carry the exact selected
+live probe succeeds (the daemon keeps each native_cli provider's last live verdict from explicit
+probes and session pre-start checks, invalidated by a provider config change or daemon restart, and
+Settings, `provider list`, and `auth_status.last_probe_at` report it), and the runtime picker plus session attribution carry the exact selected
 model ID (on the verified 1.4.0 server the bare `gemini-4-argon` / `gemini-3.8-flash` IDs; effort is the first-class `thinking_level` option, not an ID suffix).
 
 For the `copilot` built-in (GitHub Copilot CLI, ACP in public preview upstream), sign in with

@@ -381,6 +381,62 @@ describe("ProviderDetailDialog", () => {
     expect(screen.getByTestId("settings-providers-editor-basics")).toBeVisible();
   });
 
+  it("Should check an unverified sign-in in place without opening the editor", async () => {
+    // Invariant: "Check sign-in" runs the live probe; the daemon keeps the verdict for the row.
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      if (url.includes("/auth/probe")) {
+        return Response.json({
+          provider: "agy",
+          auth_status: { ...nativeACPProvider.auth_status!, state: "authenticated" },
+        });
+      }
+      return Response.json({}, { status: 404 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    try {
+      renderDialog({ mode: "inspect", entry: nativeACPProvider });
+      const action = screen.getByTestId("provider-detail-summary-action");
+      expect(action).toHaveTextContent("Check sign-in");
+
+      await user.click(action);
+
+      await vi.waitFor(() => {
+        const probe = fetchMock.mock.calls
+          .map(([input]) => input)
+          .find(input =>
+            (input instanceof Request ? input.url : String(input)).includes("/auth/probe")
+          );
+        expect(probe).toBeInstanceOf(Request);
+        expect((probe as Request).method).toBe("POST");
+        expect((probe as Request).url).toContain("/api/providers/agy/auth/probe");
+      });
+      expect(screen.queryByTestId("settings-providers-editor-basics")).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("Should show when a verified sign-in was last checked", () => {
+    renderDialog({
+      mode: "inspect",
+      entry: {
+        ...nativeACPProvider,
+        auth_status: {
+          ...nativeACPProvider.auth_status!,
+          state: "authenticated",
+          code: undefined,
+          message: undefined,
+          last_probe_at: new Date(Date.now() - 3 * 60_000).toISOString(),
+        },
+      },
+    });
+
+    expect(screen.getByTestId("provider-detail-summary-status")).toHaveTextContent("Ready");
+    expect(screen.getByTestId("provider-detail-checked-at")).toHaveTextContent("Checked");
+  });
+
   it("Should offer delete only for providers the operator can remove", () => {
     const builtin: SettingsProviderEntry = {
       ...nativeProvider,
