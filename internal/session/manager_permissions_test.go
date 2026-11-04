@@ -802,28 +802,40 @@ func TestTriageDispatcher(t *testing.T) {
 	for _, tc := range []struct {
 		name, reason string
 		cause        error
+		atPrompt     bool
 	}{
 		{
 			"Should classify a rejected triage model as a configuration diagnostic",
-			heartbeat.ReasonTriageConfigUnavailable, nil,
+			heartbeat.ReasonTriageConfigUnavailable, nil, false,
 		},
-		{"Should keep a model request deadline on the ordinary failure path", "", context.DeadlineExceeded},
+		{"Should keep a model request deadline on the ordinary failure path", "", context.DeadlineExceeded, false},
 		{
 			"Should classify a provider invalid-params refusal as a configuration diagnostic",
 			heartbeat.ReasonTriageConfigUnavailable,
-			acpsdk.NewInvalidParams(nil),
+			acpsdk.NewInvalidParams(nil), false,
+		},
+		{
+			"Should classify a rejection when the triage prompt reapplies its options",
+			heartbeat.ReasonTriageConfigUnavailable, nil, true,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			h := newDeriveHarness(t).harness
-			h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
-				return nil, &acp.AcceptedStartError{SessionID: "acp-triage", Cause: fmt.Errorf(
-					"acp: set session model: %w",
-					&acp.NegotiationError{
-						Code: acp.NegotiationCodeModelUnavailable, Stage: "model", Requested: "haiku", Cause: tc.cause,
-					},
-				)}
+			rejection := &acp.NegotiationError{
+				Code: acp.NegotiationCodeModelUnavailable, Stage: "model", Requested: "haiku",
+				ValidChoices: []string{"opus", "sonnet"}, Cause: tc.cause,
+			}
+			if tc.atPrompt {
+				h.driver.promptHook = func(*fakeProcess, acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					return nil, fmt.Errorf("acp: configure prompt runtime: %w", rejection)
+				}
+			} else {
+				h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+					return nil, &acp.AcceptedStartError{
+						SessionID: "acp-triage", Cause: fmt.Errorf("acp: set session model: %w", rejection),
+					}
+				}
 			}
 			dispatcher := &TriageDispatcher{
 				Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second,
@@ -834,7 +846,12 @@ func TestTriageDispatcher(t *testing.T) {
 					ID: "config-instance", AgentName: "coder", WorkspaceID: h.workspaceID,
 				}},
 				heartbeat.CheckDigest{},
-				func(string) error { t.Error("failed start bound a session"); return nil },
+				func(string) error {
+					if !tc.atPrompt {
+						t.Error("failed start bound a session")
+					}
+					return nil
+				},
 			)
 			if tc.reason == "" {
 				if !errors.Is(err, context.DeadlineExceeded) || outcome.Reason != "" {
@@ -843,7 +860,8 @@ func TestTriageDispatcher(t *testing.T) {
 				return
 			}
 			if err != nil || outcome.Result != "failed" || outcome.Reason != tc.reason ||
-				!strings.Contains(outcome.Detail, `model "haiku" is unavailable`) || outcome.Report == nil {
+				outcome.Detail != `The provider rejected the heartbeat model "haiku". Valid choices: opus, sonnet.` ||
+				outcome.Report == nil {
 				t.Fatalf("outcome=%+v error=%v, want configuration diagnostic", outcome, err)
 			}
 		})

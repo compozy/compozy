@@ -130,6 +130,10 @@ func nextInstanceWake(req *heartbeat.FinishRequest, quiet, failures int64) time.
 	if req.Interval <= 0 || req.MaxInterval <= 0 {
 		return req.NextWakeAt
 	}
+	// A rejected configuration fails the same way until the operator fixes it.
+	if req.Result == loopNodeOutputFailed && !countsAsCheckFailure(req) {
+		return heartbeat.NextCheckTime(req.Now, req.MaxInterval, req.InstanceID)
+	}
 	if req.SourceMore && (req.Result == instanceWakeQuietResult || req.Result == instanceWakeReportedResult) {
 		return heartbeat.NextCheckTime(req.Now, req.MinInterval, req.InstanceID)
 	}

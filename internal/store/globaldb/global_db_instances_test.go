@@ -3225,6 +3225,14 @@ func TestInstanceCheckFatigue(t *testing.T) {
 		if err != nil || current.State != "active" {
 			t.Fatalf("instance=%+v err=%v, want active after configuration rejections", current, err)
 		}
+		retry := heartbeat.ConfigUnavailableTriage("rejected")
+		next := nextInstanceWake(&heartbeat.FinishRequest{
+			InstanceID: instance.ID, Source: "timer", Result: retry.Result, Reason: retry.Reason,
+			Now: now, Interval: time.Hour, MaxInterval: 24 * time.Hour,
+		}, 0, 0)
+		if next.Before(now.Add(24 * time.Hour)) {
+			t.Fatalf("next wake=%v, want a retry no sooner than max_interval", next)
+		}
 		finished, err := repo.Occurrence(t.Context(), instance.ID, "occ-config-2")
 		if err != nil || finished.Result != "failed" || finished.Reason != heartbeat.ReasonTriageConfigUnavailable {
 			t.Fatalf("occurrence=%+v err=%v, want configuration diagnostic", finished, err)

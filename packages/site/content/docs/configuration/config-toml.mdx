@@ -2927,7 +2927,8 @@ claude = "claude-haiku-5-5"
 If the provider rejects the configured model or runtime options, the check finishes
 `failed` with reason `triage_config_unavailable` and a detail naming the rejected value.
 This configuration diagnostic does not count toward `fatigue_limit`, so the agent is
-never paused for it. Correct the model and the next check runs normally.
+never paused for it. Timer checks retry it only after `max_interval`. Correct the model,
+then run a manual check or wait for the next timer check.
 
 ### `[agents.heartbeat.sources]`
 

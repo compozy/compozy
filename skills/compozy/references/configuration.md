@@ -709,7 +709,8 @@ table clears it. Model IDs and provider names must be nonempty and trimmed.
 When the provider rejects the configured model or runtime options, the check finishes
 `failed` with reason `triage_config_unavailable` and a detail naming the rejected value.
 That configuration diagnostic does not advance `failure_streak`, so it never triggers the
-`fatigue_limit` pause; fix the model and the next check runs normally.
+`fatigue_limit` pause. Timer checks retry it only after `max_interval`; fix the model and run
+a manual check, or wait for the next timer check, to resume normally.
 
 HEARTBEAT.md `context.include` selects proactive collectors. Omitting `context`
 uses all six collectors; an explicit `include: []` disables them and remains

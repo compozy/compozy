@@ -1210,8 +1210,8 @@ func TestConfigureRuntime(t *testing.T) {
 		proc := startHelperProcess(t, driver, "config_options_unconfirmed", "", StartOpts{})
 		defer stopProcess(t, driver, proc)
 		err := driver.ConfigureRuntime(testutil.Context(t), proc, RuntimeConfig{ReasoningEffort: "high"})
-		if err == nil || !strings.Contains(err.Error(), "did not confirm") {
-			t.Fatalf("error = %v, want unconfirmed configuration failure", err)
+		if err == nil || !strings.Contains(err.Error(), "did not confirm") || !IsConfigurationRejection(err) {
+			t.Fatalf("error = %v, want unconfirmed configuration rejection", err)
 		}
 		assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "reasoning_effort", "medium", "high")
 	})

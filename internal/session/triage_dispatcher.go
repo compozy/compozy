@@ -255,5 +255,10 @@ func triageConfigRejection(err error) (heartbeat.TriageOutcome, bool) {
 	if !ok || !acp.IsConfigurationRejection(err) {
 		return heartbeat.TriageOutcome{}, false
 	}
-	return heartbeat.ConfigUnavailableTriage(negotiationErr.Error()), true
+	// Build the detail from structured fields: the provider's raw error text is unredacted.
+	detail := fmt.Sprintf("The provider rejected the heartbeat %s %q.", negotiationErr.Stage, negotiationErr.Requested)
+	if len(negotiationErr.ValidChoices) > 0 {
+		detail += " Valid choices: " + strings.Join(negotiationErr.ValidChoices, ", ") + "."
+	}
+	return heartbeat.ConfigUnavailableTriage(detail), true
 }
