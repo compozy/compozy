@@ -2,7 +2,9 @@
 // Invariant: the bell renders Needs you and Finished as separate, populated-only
 // sections; finished-unseen work can be acknowledged independently of opening it; muted
 // and stale rows stay listed and activatable; loop-node rows render only when
-// supplied and hand their deep-link state to the host.
+// supplied and hand their deep-link state to the host; scripts waiting for approval group above
+// Needs you, approve or open Heartbeat without acknowledging anything, and keep the bell from
+// reading as all quiet.
 // Boundary IN: AttentionBell props, section shape, and row union.
 // Boundary OUT: menubar navigation and the cross-workspace jump.
 import { render, screen, within } from "@testing-library/react";
@@ -10,6 +12,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { Popover } from "@compozy/ui";
+
+import { ScriptApprovalsBellSection, type ScriptApprovalItem } from "@/systems/agent";
 
 import type {
   OsAttentionSections,
@@ -219,6 +223,95 @@ describe("AttentionBell sections", () => {
 
     await user.click(rendered);
     expect(onSelect).toHaveBeenCalledWith(row);
+  });
+
+  it("Should group scripts to approve above Needs you and act on them without acknowledging (#1258)", async () => {
+    const script: ScriptApprovalItem = {
+      key: "default\nmerge-train\nmerge-candidates\nsha256:abc",
+      agentName: "merge-train",
+      agentLabel: "Merge Train",
+      script: "merge-candidates",
+      sha256: "sha256:abc",
+      workspace: "ws-compozy",
+      profile: "default",
+    };
+    const onApprove = vi.fn();
+    const onReview = vi.fn();
+    const onAcknowledge = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <Popover open>
+        <AttentionBell
+          loading={false}
+          onAcknowledge={onAcknowledge}
+          onSelect={vi.fn()}
+          scriptCount={1}
+          scripts={
+            <ScriptApprovalsBellSection
+              approving={null}
+              items={[script]}
+              onApprove={onApprove}
+              onReview={onReview}
+            />
+          }
+          sections={{ needsYou: [sessionRow()], finished: [] }}
+          sessionsDisconnected={false}
+          tasksDisconnected={false}
+        />
+      </Popover>
+    );
+
+    const scripts = screen.getByTestId("os-bell-scripts");
+    expect(scripts.compareDocumentPosition(screen.getByTestId("os-bell-needs-you"))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    );
+    expect(within(scripts).getByText("Scripts to approve")).toBeInTheDocument();
+    expect(within(scripts).getByText("Merge Train")).toBeInTheDocument();
+    await user.click(
+      within(scripts).getByRole("button", { name: "Approve merge-candidates for Merge Train" })
+    );
+    expect(onApprove).toHaveBeenCalledWith(script);
+    await user.click(within(scripts).getByRole("button", { name: "Review in Heartbeat" }));
+    expect(onReview).toHaveBeenCalledWith(script);
+    expect(onAcknowledge).not.toHaveBeenCalled();
+  });
+
+  it("Should not read as all quiet while only a script waits", () => {
+    render(
+      <Popover open>
+        <AttentionBell
+          loading={false}
+          onSelect={vi.fn()}
+          scriptCount={1}
+          scripts={<span>waiting script</span>}
+          sections={{ needsYou: [], finished: [] }}
+          sessionsDisconnected={false}
+          tasksDisconnected={false}
+        />
+      </Popover>
+    );
+
+    expect(screen.queryByTestId("os-bell-empty")).not.toBeInTheDocument();
+  });
+
+  it("Should say it can't update instead of all quiet when the scripts list never loaded", () => {
+    render(
+      <Popover open>
+        <AttentionBell
+          loading={false}
+          onSelect={vi.fn()}
+          scriptsUnavailable
+          sections={{ needsYou: [], finished: [] }}
+          sessionsDisconnected={false}
+          tasksDisconnected={false}
+        />
+      </Popover>
+    );
+
+    expect(screen.queryByTestId("os-bell-empty")).not.toBeInTheDocument();
+    expect(screen.getByTestId("os-bell-disconnected")).toHaveTextContent(
+      "Some notifications can't update right now."
+    );
   });
 
   it("Should render the quiet state at zero attention (US-005.EC-1)", () => {

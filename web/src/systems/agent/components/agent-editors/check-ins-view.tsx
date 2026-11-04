@@ -43,7 +43,15 @@ const LOOKS_AT: readonly { id: string; label: string; icon: LucideIcon }[] = [
   { id: "work_log", label: "Work that never got started", icon: Hourglass },
 ];
 
-function SettingsCard({ model, disabled }: { model: CheckInsEditorModel; disabled: boolean }) {
+function SettingsCard({
+  model,
+  disabled,
+  agentLabel,
+}: {
+  model: CheckInsEditorModel;
+  disabled: boolean;
+  agentLabel: string;
+}) {
   const { settings, limit, floor, document, nowHour } = model;
   const patch = (next: Partial<CheckInSettings>) => document.setForm({ ...document.form, ...next });
   const toggle = (id: string, on: boolean) =>
@@ -93,6 +101,7 @@ function SettingsCard({ model, disabled }: { model: CheckInsEditorModel; disable
           onChange={lunch => patch({ lunch })}
         />
       </SettingRow>
+      <CheckInSources agentLabel={agentLabel} disabled={disabled} model={model} />
       <SettingRow title="What it looks at">
         <div className="flex flex-col divide-y divide-line-soft">
           {LOOKS_AT.map(item => (
@@ -106,7 +115,6 @@ function SettingsCard({ model, disabled }: { model: CheckInsEditorModel; disable
             />
           ))}
         </div>
-        <CheckInSources disabled={disabled} model={model} />
       </SettingRow>
       <SettingRow title="Anything else to keep an eye on">
         <MarkdownEditor
@@ -194,7 +202,7 @@ function CheckInsConflict({ label, model }: { label: string; model: CheckInsEdit
   );
 }
 
-function CheckInsFile({ model }: { model: CheckInsEditorModel }) {
+function CheckInsFile({ model, agentLabel }: { model: CheckInsEditorModel; agentLabel: string }) {
   const { document, readOnly, on } = model;
   const { block, problem, raw } = document;
   return (
@@ -202,7 +210,11 @@ function CheckInsFile({ model }: { model: CheckInsEditorModel }) {
       {block ? (
         <FileBlockNotice block={block} />
       ) : (
-        <SettingsCard disabled={!on || readOnly || raw !== null} model={model} />
+        <SettingsCard
+          agentLabel={agentLabel}
+          disabled={!on || readOnly || raw !== null}
+          model={model}
+        />
       )}
       <RawFile
         defaultOpen={block !== null || Boolean(problem)}
@@ -261,7 +273,7 @@ export function AgentCheckInsView({ agent, state, model, onAddToProject }: Agent
       {readOnly ? <ReadOnlyNotice agent={agent} /> : null}
       <CheckInsConflict label={label} model={model} />
       <div className="grid grid-cols-[minmax(0,1fr)_23rem] items-start gap-5">
-        <CheckInsFile model={model} />
+        <CheckInsFile agentLabel={label} model={model} />
         <CheckInsSide agent={agent} model={model} onAddToProject={onAddToProject} />
       </div>
       {readOnly ? null : (

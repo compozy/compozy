@@ -115,12 +115,14 @@ func HeartbeatSourceCatalog(
 		if err != nil {
 			return result, err
 		}
-		info, err := os.Stat(filepath.Join(dir, "sources", entry.Name()))
+		path := filepath.Join(dir, "sources", entry.Name())
+		info, err := os.Stat(path)
 		if err != nil {
 			continue
 		}
 		row := contract.HeartbeatSourceScriptPayload{
 			Name:         entry.Name(),
+			Path:         path,
 			LineCount:    bytes.Count(data, []byte("\n")),
 			LastModified: new(info.ModTime()),
 			Executable:   info.Mode()&0111 != 0,

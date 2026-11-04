@@ -11173,9 +11173,11 @@ export interface components {
       last_modified?: string | null;
       line_count?: number;
       name: string;
+      path?: string;
       sha256: string;
     };
     HeartbeatSourceStatus: {
+      awaiting_approval?: boolean;
       error?: components["schemas"]["Error"] | null;
       /** Format: int64 */
       failure_streak: number;
@@ -11187,6 +11189,8 @@ export interface components {
       last_success_at?: string;
       next_poll_at?: string;
       script?: string;
+      script_path?: string;
+      script_sha256?: string;
       status: string;
     };
     HeartbeatStatusResponse: {

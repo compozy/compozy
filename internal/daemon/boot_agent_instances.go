@@ -44,6 +44,7 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		profiles:           state.profiles,
 		agents:             catalog,
 		sessions:           manager,
+		scriptsEnabled:     state.cfg.Agents.Heartbeat.Sources.ScriptsEnabled,
 	}
 	admission := &instanceAdmission{
 		definitions: definitions,

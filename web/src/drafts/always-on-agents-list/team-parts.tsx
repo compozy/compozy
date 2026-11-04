@@ -111,6 +111,7 @@ export function AgentFlags({ agent }: { agent: ListedAgent }) {
   return (
     <>
       {agent.origin ? <Pill size="xs">{agent.origin}</Pill> : null}
+      {agent.flag}
       {agent.invalid ? (
         <Pill size="sm" tone="warning">
           Can't start

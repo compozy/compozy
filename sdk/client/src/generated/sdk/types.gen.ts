@@ -3464,10 +3464,12 @@ export type HeartbeatSourceScriptPayload = {
   last_modified?: string | null;
   line_count?: number;
   name: string;
+  path?: string;
   sha256: string;
 };
 
 export type HeartbeatSourceStatus = {
+  awaiting_approval?: boolean;
   error?: Error | null;
   failure_streak: number;
   id: string;
@@ -3477,6 +3479,8 @@ export type HeartbeatSourceStatus = {
   last_success_at?: string;
   next_poll_at?: string;
   script?: string;
+  script_path?: string;
+  script_sha256?: string;
   status: string;
 };
 

@@ -13,7 +13,7 @@ import { Icon, Kbd, Pill, ThemeToggle, useTopbarSlot, type TopbarSlotValue } fro
 import { cn } from "@/lib/utils";
 import { DesktopPager } from "@/systems/os/components/desktop-pager";
 import { OsDock, OsRailButton } from "@/systems/os/components/os-dock";
-import { OsMenuBar } from "@/systems/os/components/os-menubar";
+import { OsMenuBar, type OsMenuBarProps } from "@/systems/os/components/os-menubar";
 import { OsTrafficLights } from "@/systems/os/components/os-traffic-lights";
 import { OsWindowChrome, OsWindowSurface } from "@/systems/os/components/os-window-frame";
 import {
@@ -140,6 +140,8 @@ export interface DraftShellProps {
   children: ReactNode;
   /** Dialogs and popovers that sit over the window. */
   overlay?: ReactNode;
+  /** Wraps the system bar's bell in its popover, as `DesktopMenubar` does. */
+  wrapBellTrigger?: OsMenuBarProps["wrapBellTrigger"];
 }
 
 /** Topbar, rail, desk and one window around a surface, as in the running product. */
@@ -156,6 +158,7 @@ export function DraftShell({
   notifications = 1,
   children,
   overlay,
+  wrapBellTrigger,
 }: DraftShellProps) {
   const deck = tabs && tabs.length > 1;
   return (
@@ -181,6 +184,7 @@ export function DraftShell({
           />
         }
         workspace={{ name: scope }}
+        wrapBellTrigger={wrapBellTrigger}
       />
       <OsDock
         className="col-start-1 row-start-2"

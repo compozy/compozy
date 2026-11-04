@@ -27,7 +27,7 @@ import { AlwaysOnWelcome, TeamColumns, TeamSection } from "../always-on-agents-l
 import type { ScopePickerProps } from "./add-pickers";
 import { PROJECTS } from "./agents-fixtures";
 import type { AgentState } from "./agent-state";
-import { DraftShell } from "./draft-shell";
+import { DraftShell, type DraftShellProps } from "./draft-shell";
 import type { DraftAgent, PauseReason } from "./fixtures";
 
 export interface AddScopeState {
@@ -52,6 +52,8 @@ export interface ListedAgent extends DraftAgent {
   activity?: readonly number[];
   recap?: string;
   lastActive?: string;
+  /** Extra flag beside the name, such as a script waiting for approval. */
+  flag?: ReactNode;
 }
 
 const FOCUS: { value: TeamFocus; label: string }[] = [
@@ -85,6 +87,8 @@ export interface AgentsPageProps {
   onCreate?: () => void;
   /** Holds one always-on card's `+` picker open for review. */
   adding?: AddScopeState;
+  /** System bar overrides: the bell count and its open popover. */
+  shell?: Pick<DraftShellProps, "notifications" | "wrapBellTrigger">;
 }
 
 function AgentsToolbar({
@@ -197,6 +201,7 @@ export function AgentsPage({
   overlay,
   onCreate,
   adding,
+  shell,
 }: AgentsPageProps) {
   const [view, setView] = useState<ListingViewMode>(initialView);
   const [draft, setDraft] = useState(query);
@@ -245,7 +250,14 @@ export function AgentsPage({
   const unfiltered = draft === "" && chips.length === 0 && focus === "all";
   const welcome = unfiltered ? <AlwaysOnWelcome onCreate={create} /> : null;
   return (
-    <DraftShell app="agents" glyph={<Users2 />} overlay={overlay} title="Agents" topbar={topbar}>
+    <DraftShell
+      {...shell}
+      app="agents"
+      glyph={<Users2 />}
+      overlay={overlay}
+      title="Agents"
+      topbar={topbar}
+    >
       <ListingPage>
         {nothing ? (
           <NoAgentsMatch onClear={clear} />

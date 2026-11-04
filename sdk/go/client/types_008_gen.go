@@ -255,6 +255,7 @@ type HeartbeatSourceScriptPayload struct {
 	LineCount      int        `json:"line_count,omitzero"`
 	LastModified   *time.Time `json:"last_modified,omitempty"`
 	Name           string     `json:"name"`
+	Path           string     `json:"path,omitempty"`
 	Executable     bool       `json:"executable"`
 	SHA256         string     `json:"sha256"`
 	Approved       bool       `json:"approved"`
@@ -263,16 +264,19 @@ type HeartbeatSourceScriptPayload struct {
 
 // HeartbeatSourceStatus is a daemon API value.
 type HeartbeatSourceStatus struct {
-	ID            string `json:"id"`
-	Kind          string `json:"kind,omitempty"`
-	Script        string `json:"script,omitempty"`
-	Status        string `json:"status"`
-	LastPolledAt  string `json:"last_polled_at,omitempty"`
-	LastSuccessAt string `json:"last_success_at,omitempty"`
-	LastItemCount int64  `json:"last_item_count"`
-	FailureStreak int64  `json:"failure_streak"`
-	Error         *Error `json:"error,omitempty"`
-	NextPollAt    string `json:"next_poll_at,omitempty"`
+	ID               string `json:"id"`
+	Kind             string `json:"kind,omitempty"`
+	Script           string `json:"script,omitempty"`
+	Status           string `json:"status"`
+	LastPolledAt     string `json:"last_polled_at,omitempty"`
+	LastSuccessAt    string `json:"last_success_at,omitempty"`
+	LastItemCount    int64  `json:"last_item_count"`
+	FailureStreak    int64  `json:"failure_streak"`
+	Error            *Error `json:"error,omitempty"`
+	NextPollAt       string `json:"next_poll_at,omitempty"`
+	ScriptSHA256     string `json:"script_sha256,omitempty"`
+	ScriptPath       string `json:"script_path,omitempty"`
+	AwaitingApproval bool   `json:"awaiting_approval,omitempty"`
 }
 
 // HeartbeatStatusResponse is a daemon API value.
