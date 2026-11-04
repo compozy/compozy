@@ -16,7 +16,9 @@ func TestEmbeddedResources(t *testing.T) {
 	t.Parallel()
 	t.Run("Should resolve the four published agent kinds and the always-on level", func(t *testing.T) {
 		t.Parallel()
-		icons := map[string]string{"spec_conductor": "list-checks", "code_implementer": "code-xml", "reviewer": "scan-eye"}
+		icons := map[string]string{
+			"spec_conductor": "list-checks", "code_implementer": "code-xml", "reviewer": "scan-eye",
+		}
 		for name, kind := range map[string]string{"orchestrator": "always_on", "spec_conductor": "on_demand", "code_implementer": "on_demand", "reviewer": "on_demand"} {
 			data, err := fs.ReadFile(FS(), "agents/"+name+"/AGENT.md")
 			if err != nil {
