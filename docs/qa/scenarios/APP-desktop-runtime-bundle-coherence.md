@@ -49,5 +49,5 @@ launch must retain one shell and deliver the requested deep link.
 Stage a verified next-version installer through the existing update journal. Observe actual NSIS
 installation, relaunch on the new app version, matching owned-runtime version and archived
 `updated` outcome. The original configuration and workspace data must remain readable. Uninstall
-the app and verify those files still exist. The native `Desktop (Windows install and update)` CI
+the app and verify its executable disappears while those files still exist. The native `Desktop (Windows install and update)` CI
 lane owns this acceptance; pending CI is not a passing Windows receipt.

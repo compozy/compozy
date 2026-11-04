@@ -221,8 +221,12 @@ func TestGitHubBackendSafety(t *testing.T) {
 			Name: "CompozyOS.exe", SHA256: hex.EncodeToString(digest[:]), Size: int64(len(contents)),
 			expectedSHA512: base64.StdEncoding.EncodeToString(manifestDigest[:]),
 		}
-		if err := backend.VerifyAsset(t.Context(), "1.0.0", artifact); err != nil {
-			t.Fatalf("VerifyAsset() error = %v", err)
+		// Invariant: hexadecimal case does not change integrity; owner: GitHub asset verification.
+		for _, expected := range []string{artifact.SHA256, strings.ToUpper(artifact.SHA256)} {
+			artifact.SHA256 = expected
+			if err := backend.VerifyAsset(t.Context(), "1.0.0", artifact); err != nil {
+				t.Fatalf("VerifyAsset(%q) error = %v", expected, err)
+			}
 		}
 		artifact.expectedSHA512 = base64.StdEncoding.EncodeToString(make([]byte, sha512.Size))
 		assertErrorContains(t, backend.VerifyAsset(t.Context(), "1.0.0", artifact), "channel manifest digest")
@@ -950,18 +954,6 @@ func writeDesktopArtifacts(t *testing.T, dir, version string) {
 	}
 }
 
-func macManifestFixture(version string) []byte {
-	return fmt.Appendf(
-		nil,
-		"version: %s\nfiles:\n  - url: https://github.com/compozy/compozy/releases/download/v%s/CompozyOS-%s-mac-arm64.zip\n    sha512: arm64\n    size: 10\n  - url: https://github.com/compozy/compozy/releases/download/v%s/CompozyOS-%s-mac-x64.zip\n    sha512: x64\n    size: 10\nreleaseDate: '2026-08-16T12:00:00Z'\n",
-		version,
-		version,
-		version,
-		version,
-		version,
-	)
-}
-
 func macManifestFixtureForAssets(t *testing.T, assetDir, version string) []byte {
 	t.Helper()
 	arm64Name := "CompozyOS-" + version + "-mac-arm64.zip"
@@ -1006,10 +998,6 @@ func linuxManifestFixtureForAssets(t *testing.T, assetDir, version string) []byt
 		digest,
 		size,
 	)
-}
-
-func windowsManifestFixture(version string) []byte {
-	return []byte(strings.ReplaceAll(string(linuxManifestFixture(version)), "linux-x64.AppImage", "win-x64.exe"))
 }
 
 func windowsManifestFixtureForAssets(t *testing.T, assetDir, version string) []byte {

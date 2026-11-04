@@ -7,11 +7,74 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 	"testing"
 
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/svc/mgr"
 )
+
+// Invariant: process inspection returns the target account, not the caller's account.
+// Owner: procutil Windows process identity; canonical suite: native Windows process tests.
+func TestWindowsProcessIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should inspect the owner of a running system service", func(t *testing.T) {
+		t.Parallel()
+		manager, err := windows.OpenSCManager(nil, nil, windows.SC_MANAGER_CONNECT)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := windows.CloseServiceHandle(manager); err != nil {
+				t.Error(err)
+			}
+		})
+		name, err := windows.UTF16PtrFromString("Schedule")
+		if err != nil {
+			t.Fatal(err)
+		}
+		handle, err := windows.OpenService(manager, name, windows.SERVICE_QUERY_STATUS|windows.SERVICE_QUERY_CONFIG)
+		if err != nil {
+			t.Fatal(err)
+		}
+		service := mgr.Service{Handle: handle}
+		t.Cleanup(func() {
+			if err := service.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		config, err := service.Config()
+		if err != nil {
+			t.Fatal(err)
+		}
+		status, err := service.Query()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.EqualFold(config.ServiceStartName, "LocalSystem") || status.ProcessId == 0 {
+			t.Skip("Task Scheduler is not running as LocalSystem on this host")
+		}
+		caller, err := windows.GetCurrentProcessToken().GetTokenUser()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if caller.User.Sid.String() == "S-1-5-18" {
+			t.Skip("the test itself is running as LocalSystem")
+		}
+		owner, executable, err := InspectWindowsProcess(status.ProcessId)
+		if errors.Is(err, windows.ERROR_ACCESS_DENIED) && os.Getenv("GITHUB_ACTIONS") != "true" {
+			t.Skip("this account cannot inspect the system service process")
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if owner != "S-1-5-18" || owner == caller.User.Sid.String() || executable == "" {
+			t.Fatalf("InspectWindowsProcess() = (%q, %q), want the LocalSystem service identity", owner, executable)
+		}
+	})
+}
 
 func TestWindowsProcessJobIdentity(t *testing.T) {
 	t.Parallel()

@@ -4,14 +4,14 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 
 const execute = promisify(execFile);
-const protectedDirectories = new Map<string, { identity: string; pending: Promise<void> }>();
+const protectedDirectories = new Map<string, { identity: string; pending: Promise<void> | null }>();
 
 /** chmod cannot protect tokens on Windows; new children must inherit a private DACL. */
-export async function protectWindowsDirectory(path: string): Promise<void> {
+export async function protectWindowsDirectory(path: string, refresh = false): Promise<void> {
   const metadata = await lstat(path, { bigint: true });
   const identity = `${metadata.dev}:${metadata.ino}:${metadata.birthtimeNs}`;
   let entry = protectedDirectories.get(path);
-  if (entry?.identity !== identity) {
+  if (entry?.identity !== identity || (refresh && !entry.pending)) {
     const pending = setPrivateACL(path).catch(error => {
       if (protectedDirectories.get(path)?.pending === pending) protectedDirectories.delete(path);
       throw error;
@@ -20,6 +20,7 @@ export async function protectWindowsDirectory(path: string): Promise<void> {
     protectedDirectories.set(path, entry);
   }
   await entry.pending;
+  if (protectedDirectories.get(path) === entry) entry.pending = null;
 }
 
 async function setPrivateACL(path: string): Promise<void> {

@@ -634,7 +634,7 @@ jobs:
       - name: Verify Windows terminal runtime
         run: >-
           gotestsum --rerun-fails=1 --rerun-fails-max-failures=5 --jsonfile .tmp/gotest-json/gotest-windows-2.json --packages "./internal/procutil ./internal/terminal/pty ./internal/terminal" --
-          -run '^(TestWindowsProcessHandleTermination|TestWindowsPTYHardening|TestWindowsPipeRuntime|TestWindowsDefaultShellResolution|TestResolveCapabilities)$'
+          -run '^(TestWindowsProcessIdentity|TestWindowsProcessHandleTermination|TestWindowsPTYHardening|TestWindowsPipeRuntime|TestWindowsDefaultShellResolution|TestResolveCapabilities)$'
           -count=1
         env:
           CGO_ENABLED: 0
