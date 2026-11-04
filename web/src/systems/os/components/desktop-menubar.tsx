@@ -205,7 +205,10 @@ function DesktopMenubarChrome({
     onOpenChange: (open: boolean) => onOverlayOpenChange(id, open),
   });
 
-  const { focusAttentionRow, scriptApprovals } = useMenubarAttention(onOverlayOpenChange);
+  const { focusAttentionRow, scriptApprovals } = useMenubarAttention(
+    onOverlayOpenChange,
+    activeOverlay === "bell"
+  );
   const usage = useProviderUsageSurface();
   const usageVisible = usage.trayVisible;
   const usageOpen = activeOverlay === "usage";

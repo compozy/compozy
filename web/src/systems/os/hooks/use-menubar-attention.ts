@@ -5,10 +5,11 @@ import { useMenubarAttentionSelection } from "./use-menubar-attention-selection"
 
 /** What the bell acts on: notification rows to focus, and scripts that wait for approval. */
 export function useMenubarAttention(
-  onOverlayOpenChange: (overlay: DesktopOverlay, open: boolean) => void
+  onOverlayOpenChange: (overlay: DesktopOverlay, open: boolean) => void,
+  bellOpen: boolean
 ) {
   return {
     focusAttentionRow: useMenubarAttentionSelection(onOverlayOpenChange),
-    scriptApprovals: useScriptApprovals(),
+    scriptApprovals: useScriptApprovals({ open: bellOpen }),
   };
 }

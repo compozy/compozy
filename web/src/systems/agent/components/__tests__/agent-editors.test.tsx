@@ -1150,7 +1150,8 @@ describe("Heartbeat", () => {
     expect(screen.getByText("1 needs your approval")).toBeInTheDocument();
     const [row, draft] = screen.getAllByTestId("check-in-source-row");
     expect(row).toHaveTextContent("Needs your approval");
-    expect(draft).toHaveTextContent("Not checked yet");
+    // Without its exec bit it can't run, so it says that rather than asking for approval.
+    expect(draft).toHaveTextContent("Can't run: the file isn't executable");
     // Rows only report; the notice owns Approve.
     expect(within(row!).queryByRole("button", { name: "Approve" })).toBeNull();
 
@@ -1162,42 +1163,61 @@ describe("Heartbeat", () => {
   it.each([
     {
       name: "scripts are off",
+      status: "pending_first_poll",
       scriptsEnabled: false,
       script: { executable: true, approved: false, approved_sha256: null },
+      label: "Scripts are turned off",
+    },
+    {
+      name: "scripts are off after an unapproved check",
+      status: "unapproved",
+      scriptsEnabled: false,
+      script: { executable: true, approved: false, approved_sha256: null },
+      label: "Scripts are turned off",
     },
     {
       name: "an approved script lost its exec bit",
+      status: "pending_first_poll",
       scriptsEnabled: true,
       script: { executable: false, approved: true, approved_sha256: SCRIPT_SHA },
+      label: "Can't run: the file isn't executable",
     },
-  ])("Should promise nothing that can't run when $name", async ({ scriptsEnabled, script }) => {
-    serveHeartbeat(sourcesPayload([{ id: "deploys", script: "failed-deploys" }]));
-    server.use(
-      http.get("*/api/agents/:name/heartbeat/sources", () =>
-        HttpResponse.json({
-          agent: agent.name,
-          scripts_enabled: scriptsEnabled,
-          limits: { max_per_agent: 16, max_items: 20 },
-          kinds: [],
-          scripts: [{ name: "failed-deploys", sha256: SCRIPT_SHA, ...script }],
-        })
-      )
-    );
-    seedAgentInstanceMock([
-      agentInstanceFixture({
-        agent_name: agent.name,
-        sources: [
-          { id: "deploys", status: "pending_first_poll", failure_streak: 0, last_item_count: 0 },
-        ],
-      }),
-    ]);
-    renderEditor(<AgentCheckInsEditor {...props()} />);
+    {
+      name: "an unapproved check read a file without its exec bit",
+      status: "unapproved",
+      scriptsEnabled: true,
+      script: { executable: false, approved: false, approved_sha256: null },
+      label: "Can't run: the file isn't executable",
+    },
+  ])(
+    "Should promise nothing that can't run when $name",
+    async ({ status, scriptsEnabled, script, label }) => {
+      serveHeartbeat(sourcesPayload([{ id: "deploys", script: "failed-deploys" }]));
+      server.use(
+        http.get("*/api/agents/:name/heartbeat/sources", () =>
+          HttpResponse.json({
+            agent: agent.name,
+            scripts_enabled: scriptsEnabled,
+            limits: { max_per_agent: 16, max_items: 20 },
+            kinds: [],
+            scripts: [{ name: "failed-deploys", sha256: SCRIPT_SHA, ...script }],
+          })
+        )
+      );
+      seedAgentInstanceMock([
+        agentInstanceFixture({
+          agent_name: agent.name,
+          sources: [{ id: "deploys", status, failure_streak: 0, last_item_count: 0 }],
+        }),
+      ]);
+      renderEditor(<AgentCheckInsEditor {...props()} />);
 
-    const row = await screen.findByTestId("check-in-source-row");
-    await waitFor(() => expect(row).toHaveTextContent("Not checked yet"));
-    expect(screen.queryByTestId("check-in-script-approval")).toBeNull();
-    expect(screen.queryByText(/needs your approval/)).toBeNull();
-  });
+      const row = await screen.findByTestId("check-in-source-row");
+      await waitFor(() => expect(row).toHaveTextContent(label));
+      expect(screen.queryByTestId("check-in-script-approval")).toBeNull();
+      expect(screen.queryByText(/needs your approval/i)).toBeNull();
+    }
+  );
 
   it("Should open a custom schedule in Advanced only", async () => {
     serveHeartbeat(

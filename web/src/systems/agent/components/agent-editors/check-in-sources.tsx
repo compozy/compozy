@@ -96,10 +96,7 @@ export function CheckInSources({
       {settings.sources.length > 0 ? (
         <div className="flex flex-col divide-y divide-line-soft">
           {settings.sources.map(source => {
-            // Scripts that are off have nothing to approve or run; the poll status says so.
-            const script = catalog?.scripts_enabled
-              ? catalog.scripts.find(item => item.name === source.script)
-              : undefined;
+            const script = catalog?.scripts.find(item => item.name === source.script);
             const state = states.find(item => item.id === source.id);
             const title = checkInSourceTitle(source, catalog);
             return (
@@ -117,7 +114,7 @@ export function CheckInSources({
                 key={source.id}
                 params={checkInSourceParams(source)}
                 script={Boolean(source.script)}
-                status={checkInSourceStatus(source, state, now, script)}
+                status={checkInSourceStatus(source, state, now, script, catalog?.scripts_enabled)}
                 title={title}
               />
             );

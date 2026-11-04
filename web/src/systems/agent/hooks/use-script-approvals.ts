@@ -11,19 +11,22 @@ import {
 import { useApproveWaitingScript } from "./use-heartbeat-sources";
 import { agentInstancesOptions } from "../lib/query-options";
 
-const SCRIPT_APPROVAL_REREAD_MS = 30_000;
+/** While the bell is open its rows are on screen; closed, only its count is. */
+const OPEN_REREAD_MS = 30_000;
+const CLOSED_REREAD_MS = 5 * 60_000;
 
 /**
  * The scripts waiting for approval across every always-on placement the operator can see, read
  * from the same live instance list as the Agents window, with approve and review actions.
  */
-export function useScriptApprovals() {
+export function useScriptApprovals({ open = false }: { open?: boolean } = {}) {
   const { key, names } = useProfilePerProfileScope();
   const visible = useDocumentVisible();
-  // A script edit changes no instance and fires no event, so the bell rereads while visible.
+  // A script edit changes no instance and fires no event, so the bell rereads while visible:
+  // often while open, rarely while closed, and once more as it opens (`refresh`).
   const query = useQuery({
     ...agentInstancesOptions(key, names),
-    refetchInterval: visible ? SCRIPT_APPROVAL_REREAD_MS : false,
+    refetchInterval: visible ? (open ? OPEN_REREAD_MS : CLOSED_REREAD_MS) : false,
   });
   const approve = useApproveWaitingScript();
   const navigate = useNavigate();

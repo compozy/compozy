@@ -92,6 +92,7 @@ const ERROR_WORDS: Record<string, string> = {
   source_credential_expired: "its sign-in expired",
   source_rate_limited: "it was asked too often, so it waits",
   source_timeout: "it took too long",
+  source_script_not_executable: "the file isn't executable",
 };
 
 function couldNot(error: AgentInstanceSourceStatus["error"]) {
@@ -175,16 +176,24 @@ export function checkInSourceStatus(
   source: Pick<CheckInSource, "kind" | "script">,
   state: AgentInstanceSourceStatus | undefined,
   now: number,
-  script?: CheckInScriptRead
+  script?: CheckInScriptRead,
+  /** The catalog's `scripts_enabled`; `undefined` until the catalog answers. */
+  scriptsEnabled?: boolean
 ): SourceStatusView {
   // Scripts that are turned off say so first; approving them changes nothing until they're on.
+  if (source.script && scriptsEnabled === false) {
+    return statusView("disabled", source, state?.error, () => "");
+  }
+  const unread = !state || state.status === "unapproved" || state.status === "pending_first_poll";
+  // Approval covers bytes only: a file without its exec bit can't run, approved or not.
+  if (unread && script && !script.executable) {
+    return { label: "Can't run: the file isn't executable", tone: "warning" };
+  }
   if (state?.status !== "disabled" && checkInScriptAwaitsApproval(script)) {
     return statusView("unapproved", source, state?.error, () => "");
   }
   if (!state) return { label: "Not checked yet", tone: "muted" };
-  const unread = state.status === "unapproved" || state.status === "pending_first_poll";
-  // Approval covers bytes only: a script that lost its exec bit still fails its next poll.
-  if (unread && script?.approved && script.executable) {
+  if (unread && script?.approved) {
     return { label: "Approved · runs at the next check-in", tone: "muted" };
   }
   const ok = () => {

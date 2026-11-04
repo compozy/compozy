@@ -125,8 +125,10 @@ the transcript is checked in `MS-web-stays-on-reports`.
    looks at", with one row per source: title (kind title or script name), parameter summary and
    status. Statuses are "Not checked yet" before the first check, "Checked N min ago · K new"
    when ok, "Couldn't check: …" in the danger tone when failing, "Scripts are turned off",
-   "Extension forge-github is off", and "Needs your approval" for an unapproved script. Rows only
-   report: none of them carries Approve.
+   "Extension forge-github is off", "Needs your approval" for an unapproved script, and "Can't
+   run: the file isn't executable" for an unchecked script without its exec bit (approved or
+   not). With scripts off, script rows read "Scripts are turned off" and nothing asks for
+   approval. Rows only report: none of them carries Approve.
 2. The HEARTBEAT editor keeps a file with `context.sources` in the form view and round-trips source
    order and `with` values the form does not show.
 3. Try it now lists each source's outcome ("Nothing new", "1 new", or the error) above the items.
