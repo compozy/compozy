@@ -52,14 +52,15 @@ func (r *Registry) toolVisibility(
 	if err != nil {
 		return nil, err
 	}
-	return globaldb.NewExtensionRegistryRepo(r.db).ToolVisibility(ctx, profileID, strings.TrimSpace(workspaceID))
+	return globaldb.NewExtensionRegistryRepo(r.readDB).ToolVisibility(ctx, profileID, strings.TrimSpace(workspaceID))
 }
 
 func (r *Registry) workspaceInstallationNames(ctx context.Context, workspaceID string) (map[string]struct{}, error) {
 	if err := r.checkReady("list workspace extension installations"); err != nil {
 		return nil, err
 	}
-	names, err := globaldb.NewExtensionRegistryRepo(r.db).WorkspaceInstallations(ctx, strings.TrimSpace(workspaceID))
+	names, err := globaldb.NewExtensionRegistryRepo(r.readDB).
+		WorkspaceInstallations(ctx, strings.TrimSpace(workspaceID))
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +79,7 @@ func (r *Registry) listInstallations(ctx context.Context, name string, activeOnl
 	if err != nil {
 		return nil, err
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT profile_id, workspace_id, created_at
+	rows, err := r.readDB.QueryContext(ctx, `SELECT profile_id, workspace_id, created_at
  FROM extension_installations AS installation WHERE extension_name = ?
  AND (NOT ? OR profile_id = '' OR EXISTS (
   SELECT 1 FROM profiles WHERE profiles.id = installation.profile_id AND state = 'active'
@@ -120,7 +121,7 @@ func (r *Registry) ResolveInstallation(
 	scope = scope.normalize()
 	var result Installation
 	var createdAt string
-	err = r.db.QueryRowContext(ctx, `SELECT profile_id, workspace_id, created_at FROM extension_installations
+	err = r.readDB.QueryRowContext(ctx, `SELECT profile_id, workspace_id, created_at FROM extension_installations
  WHERE extension_name = ? AND profile_id IN ('', ?) AND workspace_id IN ('', ?)
  ORDER BY (workspace_id = ?) DESC, (profile_id = ?) DESC LIMIT 1`,
 		name, scope.ProfileID, scope.WorkspaceID, scope.WorkspaceID, scope.ProfileID).
@@ -224,7 +225,7 @@ func (r *Registry) EnvBindingScopes(ctx context.Context, name string) ([]Install
 	if err != nil {
 		return nil, err
 	}
-	rows, err := globaldb.NewExtensionRegistryRepo(r.db).EnvBindingScopes(ctx, name)
+	rows, err := globaldb.NewExtensionRegistryRepo(r.readDB).EnvBindingScopes(ctx, name)
 	if err != nil {
 		return nil, err
 	}

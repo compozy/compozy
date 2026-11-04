@@ -1,10 +1,13 @@
 package globaldb
 
 import (
+	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
@@ -13,6 +16,33 @@ func TestAppMetadataFreshDB(t *testing.T) {
 
 	db := openTestGlobalDB(t)
 	ctx := testutil.Context(t)
+
+	// Invariant: single-statement mutations acknowledge only committed data and
+	// honor the caller's commit fence. Owner: repository; canonical suite: app metadata.
+	t.Run("Should retain the committed value when a write fence rejects its replacement", func(t *testing.T) {
+		const key = "fenced-value"
+		if err := db.SetAppMetadata(ctx, key, "committed"); err != nil {
+			t.Fatal(err)
+		}
+		rejected := errors.New("mutation authorization changed")
+		fencedCtx := store.ContextWithMutationCommitFence(ctx, func(ctx context.Context) error {
+			value, found, err := db.GetAppMetadata(ctx, key)
+			if err != nil {
+				return err
+			}
+			if !found || value != "committed" {
+				t.Errorf("reader observed uncommitted replacement: %q", value)
+			}
+			return rejected
+		})
+		if err := db.SetAppMetadata(fencedCtx, key, "rejected"); !errors.Is(err, rejected) {
+			t.Fatalf("fenced write = %v", err)
+		}
+		value, found, err := db.GetAppMetadata(ctx, key)
+		if err != nil || !found || value != "committed" {
+			t.Fatalf("after rollback = %q/%t/%v", value, found, err)
+		}
+	})
 
 	t.Run("Should report missing key as not found", func(t *testing.T) {
 		value, found, err := db.GetAppMetadata(ctx, "onboarding.completed")

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -59,7 +60,7 @@ func (r *AttentionRepo) ReplaceAttentionWorkspaceMutes(
 	ctx context.Context,
 	profileID string,
 	workspaceIDs []string,
-) (err error) {
+) error {
 	if err := r.checkReady(ctx, "replace attention workspace mutes"); err != nil {
 		return err
 	}
@@ -68,16 +69,22 @@ func (r *AttentionRepo) ReplaceAttentionWorkspaceMutes(
 		return errors.New("store: attention profile id is required")
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("store: begin attention workspace mute replacement: %w", err)
-	}
-	defer func() {
-		if err != nil {
-			err = errors.Join(err, tx.Rollback())
-		}
-	}()
-	queries := r.queries.WithTx(tx)
+	return store.ExecuteWriteOperation(
+		ctx,
+		r.db,
+		"replace attention workspace mutes",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			return replaceAttentionWorkspaceMutes(ctx, sqlcgen.New(tx), profileID, workspaceIDs)
+		},
+	)
+}
+
+func replaceAttentionWorkspaceMutes(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	profileID string,
+	workspaceIDs []string,
+) error {
 	if err := queries.DeleteAttentionWorkspaceMutesForProfile(ctx, profileID); err != nil {
 		return fmt.Errorf("store: clear attention workspace mutes for profile %q: %w", profileID, err)
 	}
@@ -102,9 +109,6 @@ func (r *AttentionRepo) ReplaceAttentionWorkspaceMutes(
 				err,
 			)
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit attention workspace mute replacement: %w", err)
 	}
 	return nil
 }

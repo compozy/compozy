@@ -27,14 +27,21 @@ func (g *ApprovalGrantRepo) LookupApprovalGrant(
 	if err := key.Validate(); err != nil {
 		return toolspkg.ApprovalGrant{}, false, err
 	}
-	row, err := sqlcgen.New(g.db).LookupApprovalGrant(ctx, sqlcgen.LookupApprovalGrantParams{
-		LastUsedAt:  store.FormatTimestamp(g.now().UTC()),
-		ProfileID:   key.ProfileID,
-		WorkspaceID: key.WorkspaceID,
-		ToolID:      key.ToolID.String(),
-		AgentName:   key.AgentName,
-		InputDigest: key.InputDigest,
-	})
+	row, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.LookupApprovalGrant",
+		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.ToolApprovalGrant, error) {
+			return queries.LookupApprovalGrant(ctx, sqlcgen.LookupApprovalGrantParams{
+				LastUsedAt:  store.FormatTimestamp(g.now().UTC()),
+				ProfileID:   key.ProfileID,
+				WorkspaceID: key.WorkspaceID,
+				ToolID:      key.ToolID.String(),
+				AgentName:   key.AgentName,
+				InputDigest: key.InputDigest,
+			})
+		},
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return toolspkg.ApprovalGrant{}, false, nil
 	}
@@ -79,17 +86,24 @@ func (g *ApprovalGrantRepo) PutApprovalGrant(
 	if grant.LastUsedAt.IsZero() {
 		grant.LastUsedAt = now
 	}
-	row, err := sqlcgen.New(g.db).PutApprovalGrant(ctx, sqlcgen.PutApprovalGrantParams{
-		ProfileID:   grant.ProfileID,
-		ID:          grant.ID,
-		WorkspaceID: grant.WorkspaceID,
-		AgentName:   grant.AgentName,
-		ToolID:      grant.ToolID.String(),
-		InputDigest: grant.InputDigest,
-		Decision:    string(grant.Decision),
-		CreatedAt:   store.FormatTimestamp(grant.CreatedAt),
-		LastUsedAt:  store.FormatTimestamp(grant.LastUsedAt),
-	})
+	row, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.PutApprovalGrant",
+		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.ToolApprovalGrant, error) {
+			return queries.PutApprovalGrant(ctx, sqlcgen.PutApprovalGrantParams{
+				ProfileID:   grant.ProfileID,
+				ID:          grant.ID,
+				WorkspaceID: grant.WorkspaceID,
+				AgentName:   grant.AgentName,
+				ToolID:      grant.ToolID.String(),
+				InputDigest: grant.InputDigest,
+				Decision:    string(grant.Decision),
+				CreatedAt:   store.FormatTimestamp(grant.CreatedAt),
+				LastUsedAt:  store.FormatTimestamp(grant.LastUsedAt),
+			})
+		},
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return toolspkg.ApprovalGrant{}, fmt.Errorf(
 			"%w: approval key belongs to another profile", toolspkg.ErrApprovalGrantInvalid,
@@ -224,9 +238,16 @@ func (g *ApprovalGrantRepo) RevokeApprovalGrant(ctx context.Context, profileID, 
 	if profileID == "" || workspaceID == "" || id == "" {
 		return fmt.Errorf("%w: profile_id, workspace_id and id are required", toolspkg.ErrApprovalGrantInvalid)
 	}
-	rows, err := sqlcgen.New(g.db).RevokeApprovalGrant(ctx, sqlcgen.RevokeApprovalGrantParams{
-		ProfileID: profileID, WorkspaceID: workspaceID, ID: id,
-	})
+	rows, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.RevokeApprovalGrant",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.RevokeApprovalGrant(ctx, sqlcgen.RevokeApprovalGrantParams{
+				ProfileID: profileID, WorkspaceID: workspaceID, ID: id,
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: revoke tool approval grant %q in %q: %w", id, workspaceID, err)
 	}

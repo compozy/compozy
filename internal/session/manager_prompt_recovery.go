@@ -75,6 +75,11 @@ func (m *Manager) attemptPromptRecovery(
 		); err != nil {
 			return false, err
 		}
+		// A stop can claim the turn between startablePromptRecovery and publishing
+		// the recovery state. In that case it did not yet see a daemon-owned wait.
+		if session.promptCancellationRequested(turnState.turnID) {
+			return false, m.settleStoppedPromptRecovery(ctx, session, reason)
+		}
 		if err := waitForPromptRecovery(recovery.executionCtx, delay); err != nil {
 			return false, m.settleStoppedPromptRecovery(ctx, session, reason)
 		}

@@ -189,7 +189,7 @@ func (d *Daemon) newExtensionGatewayProvider(
 		return nil, errors.New("daemon: gateway store does not provide provider identities")
 	}
 	trust, err := extensionpkg.NewConnectivityProviderTrustResolver(
-		extensionpkg.NewRegistry(dbSource.DB()),
+		extensionpkg.NewRegistry(dbSource.DB(), extensionpkg.WithRegistryReadDB(dbSource.ReadDB())),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create connectivity provider trust resolver: %w", err)

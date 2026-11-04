@@ -86,16 +86,22 @@ func (g *TaskRepo) UpsertTaskTriageState(ctx context.Context, state taskpkg.Tria
 		return err
 	}
 
-	err = g.queries.UpsertTaskTriageState(ctx, sqlcgen.UpsertTaskTriageStateParams{
-		TaskID:             normalized.TaskID,
-		ActorKind:          string(normalized.Actor.Kind),
-		ActorID:            normalized.Actor.Ref,
-		IsRead:             normalized.Read,
-		Archived:           normalized.Archived,
-		Dismissed:          normalized.Dismissed,
-		LastSeenActivityAt: nullableTaskTime(normalized.LastSeenActivityAt),
-		UpdatedAt:          store.FormatTimestamp(normalized.UpdatedAt),
-	})
+	err = g.executeWriteQuery(
+		ctx,
+		"globaldb.UpsertTaskTriageState",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.UpsertTaskTriageState(ctx, sqlcgen.UpsertTaskTriageStateParams{
+				TaskID:             normalized.TaskID,
+				ActorKind:          string(normalized.Actor.Kind),
+				ActorID:            normalized.Actor.Ref,
+				IsRead:             normalized.Read,
+				Archived:           normalized.Archived,
+				Dismissed:          normalized.Dismissed,
+				LastSeenActivityAt: nullableTaskTime(normalized.LastSeenActivityAt),
+				UpdatedAt:          store.FormatTimestamp(normalized.UpdatedAt),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf(
 			"store: upsert task triage state for task %q actor %q/%q: %w",
@@ -230,9 +236,16 @@ func (g *TaskRepo) DeleteDependency(ctx context.Context, taskID string, dependsO
 		return err
 	}
 
-	affected, err := g.queries.DeleteTaskDependency(ctx, sqlcgen.DeleteTaskDependencyParams{
-		TaskID: trimmedTaskID, DependsOnTaskID: trimmedDependsOnID,
-	})
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.DeleteTaskDependency",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.DeleteTaskDependency(ctx, sqlcgen.DeleteTaskDependencyParams{
+				TaskID: trimmedTaskID, DependsOnTaskID: trimmedDependsOnID,
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf(
 			"store: delete task dependency %q -> %q: %w",

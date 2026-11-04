@@ -328,7 +328,7 @@ func (d *Daemon) bootMarketplace(ctx context.Context, state *bootState, cleanup 
 	notifier := &daemonMarketplaceNotifier{writer: state.registry, logger: state.logger, now: d.now}
 	options := []marketplace.ServiceOption{marketplace.WithLogger(state.logger)}
 	if dbSource, ok := state.registry.(extensionDBSource); ok && dbSource.DB() != nil {
-		registry := extensionpkg.NewRegistry(dbSource.DB())
+		registry := extensionpkg.NewRegistry(dbSource.DB(), extensionpkg.WithRegistryReadDB(dbSource.ReadDB()))
 		options = append(
 			options,
 			marketplace.WithInstalledPackages(func(ctx context.Context) ([]marketplace.InstalledPackage, error) {

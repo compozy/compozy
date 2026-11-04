@@ -33,7 +33,6 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	globalschema "github.com/compozy/compozy/internal/store/globaldb/schema"
 	"github.com/compozy/compozy/internal/store/sessiondb"
-	"github.com/compozy/compozy/internal/store/telemetrydb"
 	"github.com/compozy/compozy/internal/store/workspacedb"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -105,22 +104,14 @@ func runGlobalDBTests(m *testing.M) (code int) {
 	}()
 
 	ctx := context.Background()
-	path, migrationTemplates, err := buildGlobalMigrationTestSeeds(ctx, dir)
+	_, migrationTemplates, err := buildGlobalMigrationTestSeeds(ctx, dir)
 	if err != nil {
 		reportTestMainError("build global migration seeds error = %v", err)
 		return 1
 	}
-	// The SQL-only seed builder starts with empty data; its sibling stream must
-	// also exist before opening a core schema that records completed relocation.
-	telemetrySeed, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
-	if err != nil {
-		reportTestMainError("open telemetry seed: %v", err)
-		return 1
-	}
-	if err := telemetrySeed.Close(ctx); err != nil {
-		reportTestMainError("close telemetry seed: %v", err)
-		return 1
-	}
+	// Historical SQL prefixes remain migration fixtures. The current family is
+	// created by its production owner, including the cross-file identity.
+	path := filepath.Join(dir, "current-"+GlobalDatabaseName)
 	globalDB, err := OpenGlobalDB(ctx, path)
 	if err != nil {
 		reportTestMainError("OpenGlobalDB(globaldb seed) error = %v", err)

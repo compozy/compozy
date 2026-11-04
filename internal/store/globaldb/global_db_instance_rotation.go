@@ -90,12 +90,19 @@ func (r *InstanceRepo) RotationWaitingSince(
 	instanceID, sessionID string,
 	now time.Time,
 ) (time.Time, error) {
-	value, err := r.queries.BeginInstanceRotationWait(
+	value, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.BeginInstanceRotationWaitParams{
-			InstanceID:    instanceID,
-			MainSessionID: sessionID,
-			StartedAt:     store.FormatTimestamp(now),
+		r.repoBase,
+		"globaldb.BeginInstanceRotationWait",
+		func(ctx context.Context, queries *sqlcgen.Queries) (string, error) {
+			return queries.BeginInstanceRotationWait(
+				ctx,
+				sqlcgen.BeginInstanceRotationWaitParams{
+					InstanceID:    instanceID,
+					MainSessionID: sessionID,
+					StartedAt:     store.FormatTimestamp(now),
+				},
+			)
 		},
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -108,9 +115,15 @@ func (r *InstanceRepo) RotationWaitingSince(
 }
 
 func (r *InstanceRepo) ClearRotationWait(ctx context.Context, instanceID, sessionID string) error {
-	return r.queries.ClearInstanceRotationWait(
+	return r.executeWriteQuery(
 		ctx,
-		sqlcgen.ClearInstanceRotationWaitParams{InstanceID: instanceID, MainSessionID: sessionID},
+		"globaldb.ClearInstanceRotationWait",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.ClearInstanceRotationWait(
+				ctx,
+				sqlcgen.ClearInstanceRotationWaitParams{InstanceID: instanceID, MainSessionID: sessionID},
+			)
+		},
 	)
 }
 

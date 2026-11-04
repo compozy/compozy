@@ -25,34 +25,40 @@ func (g *ToolRuntimeRepo) UpsertProcessRecord(ctx context.Context, record toolru
 	if err != nil {
 		return fmt.Errorf("store: encode tool process args for %q: %w", record.ID, err)
 	}
-	err = g.queries.UpsertToolProcessRecord(ctx, sqlcgen.UpsertToolProcessRecordParams{
-		ID:            record.ID,
-		Source:        string(record.Source),
-		SessionID:     record.Owner.SessionID,
-		TurnID:        record.Owner.TurnID,
-		ToolCallID:    record.Owner.ToolCallID,
-		TerminalID:    record.Owner.TerminalID,
-		ExtensionName: record.Owner.ExtensionName,
-		HookName:      record.Owner.HookName,
+	err = g.executeWriteQuery(
+		ctx,
+		"globaldb.UpsertToolProcessRecord",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.UpsertToolProcessRecord(ctx, sqlcgen.UpsertToolProcessRecordParams{
+				ID:            record.ID,
+				Source:        string(record.Source),
+				SessionID:     record.Owner.SessionID,
+				TurnID:        record.Owner.TurnID,
+				ToolCallID:    record.Owner.ToolCallID,
+				TerminalID:    record.Owner.TerminalID,
+				ExtensionName: record.Owner.ExtensionName,
+				HookName:      record.Owner.HookName,
 
-		Pid:            int64(record.PID),
-		ProcessGroupID: int64(record.ProcessGroupID),
-		Command:        record.Command,
-		ArgsJson:       string(argsJSON),
-		Cwd:            record.Cwd,
-		StartedAt:      nullableProcessTimestamp(record.StartedAt),
-		StartedByPid: int64(
-			record.StartedByPID,
-		),
-		State:     string(record.State),
-		ExitCode:  nullableProcessInt(record.ExitCode),
-		Error:     record.Error,
-		CreatedAt: store.FormatTimestamp(record.CreatedAt),
-		UpdatedAt: store.FormatTimestamp(
-			record.UpdatedAt,
-		),
-		CompletedAt: nullableProcessTimestampPtr(record.CompletedAt),
-	})
+				Pid:            int64(record.PID),
+				ProcessGroupID: int64(record.ProcessGroupID),
+				Command:        record.Command,
+				ArgsJson:       string(argsJSON),
+				Cwd:            record.Cwd,
+				StartedAt:      nullableProcessTimestamp(record.StartedAt),
+				StartedByPid: int64(
+					record.StartedByPID,
+				),
+				State:     string(record.State),
+				ExitCode:  nullableProcessInt(record.ExitCode),
+				Error:     record.Error,
+				CreatedAt: store.FormatTimestamp(record.CreatedAt),
+				UpdatedAt: store.FormatTimestamp(
+					record.UpdatedAt,
+				),
+				CompletedAt: nullableProcessTimestampPtr(record.CompletedAt),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: upsert tool process record %q: %w", record.ID, err)
 	}
@@ -67,16 +73,23 @@ func (g *ToolRuntimeRepo) UpdateProcessRecordState(ctx context.Context, update t
 	if strings.TrimSpace(update.ID) == "" {
 		return errors.New("store: tool process id is required")
 	}
-	rowsAffected, err := g.queries.UpdateToolProcessRecordState(ctx, sqlcgen.UpdateToolProcessRecordStateParams{
-		State:    string(update.State),
-		ExitCode: nullableProcessInt(update.ExitCode),
-		Error:    update.Error,
-		UpdatedAt: store.FormatTimestamp(
-			update.UpdatedAt,
-		),
-		CompletedAt: nullableProcessTimestampPtr(update.CompletedAt),
-		ID:          update.ID,
-	})
+	rowsAffected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.UpdateToolProcessRecordState",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UpdateToolProcessRecordState(ctx, sqlcgen.UpdateToolProcessRecordStateParams{
+				State:    string(update.State),
+				ExitCode: nullableProcessInt(update.ExitCode),
+				Error:    update.Error,
+				UpdatedAt: store.FormatTimestamp(
+					update.UpdatedAt,
+				),
+				CompletedAt: nullableProcessTimestampPtr(update.CompletedAt),
+				ID:          update.ID,
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: update tool process record %q state: %w", update.ID, err)
 	}

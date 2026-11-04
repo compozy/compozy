@@ -22,15 +22,21 @@ func (g *SessionRepo) InsertSessionProfileMove(ctx context.Context, move store.S
 	if move.CreatedAt.IsZero() {
 		move.CreatedAt = now
 	}
-	err := g.queries.InsertSessionProfileMove(ctx, sqlcgen.InsertSessionProfileMoveParams{
-		SessionID: strings.TrimSpace(move.SessionID), WorkspaceID: strings.TrimSpace(move.WorkspaceID),
-		ProfileID: strings.TrimSpace(move.ProfileID), TargetProfileID: strings.TrimSpace(move.TargetProfileID),
-		CopyKey: strings.TrimSpace(move.CopyKey), SourceWorktreeID: strings.TrimSpace(move.SourceWorktreeID),
-		Branch: strings.TrimSpace(move.Branch), HeadSha: strings.TrimSpace(move.HeadSHA),
-		TargetWorktreeID:  strings.TrimSpace(move.TargetWorktreeID),
-		RestoreWorktreeID: strings.TrimSpace(move.RestoreWorktreeID),
-		CreatedAt:         store.FormatTimestamp(move.CreatedAt), UpdatedAt: store.FormatTimestamp(now),
-	})
+	err := g.executeWriteQuery(
+		ctx,
+		"globaldb.InsertSessionProfileMove",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.InsertSessionProfileMove(ctx, sqlcgen.InsertSessionProfileMoveParams{
+				SessionID: strings.TrimSpace(move.SessionID), WorkspaceID: strings.TrimSpace(move.WorkspaceID),
+				ProfileID: strings.TrimSpace(move.ProfileID), TargetProfileID: strings.TrimSpace(move.TargetProfileID),
+				CopyKey: strings.TrimSpace(move.CopyKey), SourceWorktreeID: strings.TrimSpace(move.SourceWorktreeID),
+				Branch: strings.TrimSpace(move.Branch), HeadSha: strings.TrimSpace(move.HeadSHA),
+				TargetWorktreeID:  strings.TrimSpace(move.TargetWorktreeID),
+				RestoreWorktreeID: strings.TrimSpace(move.RestoreWorktreeID),
+				CreatedAt:         store.FormatTimestamp(move.CreatedAt), UpdatedAt: store.FormatTimestamp(now),
+			})
+		},
+	)
 	if isSQLitePrimaryKeyConstraint(err) {
 		return fmt.Errorf("%w: %s", store.ErrSessionProfileMoveExists, move.SessionID)
 	}
@@ -48,7 +54,7 @@ func (g *SessionRepo) SessionProfileMove(
 	if err := g.checkReady(ctx, "get session profile move"); err != nil {
 		return store.SessionProfileMove{}, false, err
 	}
-	row, err := g.queries.GetSessionProfileMove(ctx, strings.TrimSpace(sessionID))
+	row, err := g.readQueries.GetSessionProfileMove(ctx, strings.TrimSpace(sessionID))
 	if errors.Is(err, sql.ErrNoRows) {
 		return store.SessionProfileMove{}, false, nil
 	}
@@ -64,7 +70,7 @@ func (g *SessionRepo) ListSessionProfileMoves(ctx context.Context) ([]store.Sess
 	if err := g.checkReady(ctx, "list session profile moves"); err != nil {
 		return nil, err
 	}
-	rows, err := g.queries.ListSessionProfileMoves(ctx)
+	rows, err := g.readQueries.ListSessionProfileMoves(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("store: list session profile moves: %w", err)
 	}
@@ -88,11 +94,18 @@ func (g *SessionRepo) SetSessionProfileMoveRestoreWorktree(
 	if err := g.checkReady(ctx, "update session profile move"); err != nil {
 		return err
 	}
-	count, err := g.queries.SetSessionProfileMoveRestoreWorktree(
+	count, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.SetSessionProfileMoveRestoreWorktreeParams{
-			RestoreWorktreeID: strings.TrimSpace(worktreeID), UpdatedAt: store.FormatTimestamp(g.now()),
-			SessionID: strings.TrimSpace(sessionID),
+		g.repoBase,
+		"globaldb.SetSessionProfileMoveRestoreWorktree",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.SetSessionProfileMoveRestoreWorktree(
+				ctx,
+				sqlcgen.SetSessionProfileMoveRestoreWorktreeParams{
+					RestoreWorktreeID: strings.TrimSpace(worktreeID), UpdatedAt: store.FormatTimestamp(g.now()),
+					SessionID: strings.TrimSpace(sessionID),
+				},
+			)
 		},
 	)
 	if err != nil {
@@ -109,7 +122,13 @@ func (g *SessionRepo) DeleteSessionProfileMove(ctx context.Context, sessionID st
 	if err := g.checkReady(ctx, "delete session profile move"); err != nil {
 		return err
 	}
-	if err := g.queries.DeleteSessionProfileMove(ctx, strings.TrimSpace(sessionID)); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.DeleteSessionProfileMove",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteSessionProfileMove(ctx, strings.TrimSpace(sessionID))
+		},
+	); err != nil {
 		return fmt.Errorf("store: delete session profile move %q: %w", sessionID, err)
 	}
 	return nil
@@ -120,7 +139,14 @@ func (g *SessionRepo) CloseCompletedSessionProfileMove(ctx context.Context, sess
 	if err := g.checkReady(ctx, "close completed session profile move"); err != nil {
 		return false, err
 	}
-	count, err := g.queries.CloseCompletedSessionProfileMove(ctx, strings.TrimSpace(sessionID))
+	count, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.CloseCompletedSessionProfileMove",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.CloseCompletedSessionProfileMove(ctx, strings.TrimSpace(sessionID))
+		},
+	)
 	if err != nil {
 		return false, fmt.Errorf("store: close completed session profile move %q: %w", sessionID, err)
 	}

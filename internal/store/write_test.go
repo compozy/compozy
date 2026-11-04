@@ -142,7 +142,9 @@ func TestBackgroundWrites(t *testing.T) {
 	t.Run("Should prioritize interactive writes over queued background writes", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()
-		db := openExecuteWriteTestDB(t, filepath.Join(t.TempDir(), "priority.db"))
+		path := filepath.Join(t.TempDir(), "priority.db")
+		db := openExecuteWriteTestDB(t, path)
+		interactiveDB := openExecuteWriteTestDB(t, path)
 		admission, unregister := registerWriteAdmission(db)
 		defer unregister()
 		release, err := admission.acquire(ctx, false)
@@ -162,7 +164,7 @@ func TestBackgroundWrites(t *testing.T) {
 			})
 		}()
 		go func() {
-			results <- ExecuteWrite(ctx, db, func(context.Context, *WriteTx) error {
+			results <- ExecuteWrite(ctx, interactiveDB, func(context.Context, *WriteTx) error {
 				order <- "interactive"
 				return nil
 			})
@@ -323,6 +325,59 @@ func waitForWriteCondition(t *testing.T, ready func() bool) {
 }
 
 func TestExecuteWrite(t *testing.T) {
+	// Invariant: all handles for one file share admission, owner attribution and
+	// reentry detection. Owner: store transaction executor; canonical suite: ExecuteWrite.
+	t.Run("Should coordinate separately opened handles of the same file", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		path := filepath.Join(t.TempDir(), "shared-admission.db")
+		first, second := openExecuteWriteTestDB(t, path), openExecuteWriteTestDB(t, path)
+		if err := ExecuteWrite(ctx, first, func(ctx context.Context, _ *WriteTx) error {
+			return ExecuteWrite(ctx, second, func(context.Context, *WriteTx) error {
+				t.Error("nested callback ran through another handle")
+				return nil
+			})
+		}); !errors.Is(err, errWriteReentry) {
+			t.Fatalf("nested write = %v", err)
+		}
+		started, release := make(chan struct{}), make(chan struct{})
+		done := make(chan error, 1)
+		finish := sync.OnceFunc(func() {
+			close(release)
+			if err := <-done; err != nil {
+				t.Error(err)
+			}
+		})
+		go func() {
+			done <- ExecuteWriteOperation(ctx, first, "first handle owner", func(context.Context, *WriteTx) error {
+				close(started)
+				<-release
+				return nil
+			})
+		}()
+		<-started
+		defer finish()
+		waitCtx, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
+		defer cancel()
+		err := ExecuteWriteOperation(waitCtx, second, "second handle waiter", func(context.Context, *WriteTx) error {
+			t.Error("waiting callback ran before owner released")
+			return nil
+		})
+		contention, ok := errors.AsType[*WriteContentionError](err)
+		if !ok || contention.Attempts != 0 || contention.Phase != "admission" ||
+			contention.Owner != "first handle owner" || contention.TransactionID == 0 ||
+			!errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("cross-handle admission = %#v, error = %v", contention, err)
+		}
+		if second.Stats().InUse != 0 {
+			t.Fatal("waiting handle reserved a pooled connection")
+		}
+		finish()
+		if err := ExecuteWrite(ctx, second, func(context.Context, *WriteTx) error { return nil }); err != nil {
+			t.Fatalf("write after releasing owner = %v", err)
+		}
+	})
+
 	// Invariant: storage failures remain distinguishable from cancellation and transaction contract errors.
 	for _, tc := range []struct {
 		name        string
@@ -1136,7 +1191,7 @@ func openExecuteWriteTestDB(t *testing.T, path string) *sql.DB {
 		}
 	}
 	dsn.RawQuery = query.Encode()
-	db, err := sql.Open(sqliteDriverName, dsn.String())
+	db, err := openSQLiteHandle(t.Context(), path, dsn.String())
 	if err != nil {
 		t.Fatalf("sql.Open() error = %v", err)
 	}

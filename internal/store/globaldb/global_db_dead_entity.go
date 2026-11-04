@@ -24,16 +24,23 @@ func (g *DeadEntityRepo) MarkDeadEntity(ctx context.Context, entity store.DeadEn
 		return err
 	}
 	var persistedProfileID string
-	err := g.db.QueryRowContext(ctx, `INSERT INTO dead_entities (
+	err := store.ExecuteWriteOperation(
+		ctx,
+		g.db,
+		"mark dead entity",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			return tx.QueryRowContext(ctx, `INSERT INTO dead_entities (
 			profile_id, workspace_id, kind, entity_id, reason, marked_at
 		) VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(profile_id, workspace_id, kind, entity_id) DO UPDATE SET
 			reason = excluded.reason, marked_at = excluded.marked_at
 		WHERE dead_entities.profile_id = excluded.profile_id
 		RETURNING profile_id`,
-		normalized.ProfileID, normalized.WorkspaceID, string(normalized.Kind),
-		normalized.EntityID, normalized.Reason, store.FormatTimestamp(normalized.MarkedAt),
-	).Scan(&persistedProfileID)
+				normalized.ProfileID, normalized.WorkspaceID, string(normalized.Kind),
+				normalized.EntityID, normalized.Reason, store.FormatTimestamp(normalized.MarkedAt),
+			).Scan(&persistedProfileID)
+		},
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf(
 			"%w: dead entity %q/%q/%q belongs to another profile",
@@ -67,9 +74,17 @@ func (g *DeadEntityRepo) ClearDeadEntity(
 	if err := key.Validate(); err != nil {
 		return err
 	}
-	if _, err := g.db.ExecContext(ctx, `DELETE FROM dead_entities
+	if err := store.ExecuteWriteOperation(
+		ctx,
+		g.db,
+		"clear dead entity",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			_, err := tx.ExecContext(ctx, `DELETE FROM dead_entities
 		WHERE profile_id = ? AND workspace_id = ? AND kind = ? AND entity_id = ?`,
-		key.ProfileID, key.WorkspaceID, string(key.Kind), key.EntityID,
+				key.ProfileID, key.WorkspaceID, string(key.Kind), key.EntityID,
+			)
+			return err
+		},
 	); err != nil {
 		return fmt.Errorf(
 			"store: clear dead entity %q/%q/%q: %w",

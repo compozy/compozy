@@ -117,7 +117,7 @@ func executeWrite(
 		parent = nil
 	}
 	for owner := parent; owner != nil; owner = owner.parent {
-		if owner.db == db && owner.active.Load() {
+		if sameWriteDatabase(owner.db, db) && owner.active.Load() {
 			return errWriteReentry
 		}
 	}

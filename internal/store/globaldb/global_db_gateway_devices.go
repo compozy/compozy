@@ -22,13 +22,19 @@ func (g *GatewayRepo) CreateDevice(ctx context.Context, record gateway.StoredDev
 	if err != nil {
 		return err
 	}
-	err = g.queries.CreateGatewayDevice(ctx, sqlcgen.CreateGatewayDeviceParams{
-		ID: record.Session.ID, Name: record.Session.Name, TokenHash: record.TokenHash,
-		ActorKind: string(record.Session.ActorKind), PairingOrigin: record.Session.PairingOrigin,
-		RevokeEpoch: epoch, CreatedAt: store.FormatTimestamp(record.Session.CreatedAt),
-		LastSeenAt: nullableGatewayTime(record.Session.LastSeenAt),
-		RevokedAt:  nullableGatewayTime(record.Session.RevokedAt),
-	})
+	err = g.executeWriteQuery(
+		ctx,
+		"globaldb.CreateGatewayDevice",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.CreateGatewayDevice(ctx, sqlcgen.CreateGatewayDeviceParams{
+				ID: record.Session.ID, Name: record.Session.Name, TokenHash: record.TokenHash,
+				ActorKind: string(record.Session.ActorKind), PairingOrigin: record.Session.PairingOrigin,
+				RevokeEpoch: epoch, CreatedAt: store.FormatTimestamp(record.Session.CreatedAt),
+				LastSeenAt: nullableGatewayTime(record.Session.LastSeenAt),
+				RevokedAt:  nullableGatewayTime(record.Session.RevokedAt),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: create gateway device: %w", err)
 	}
@@ -43,10 +49,17 @@ func (g *GatewayRepo) FindDeviceByTokenHash(
 	if err := g.checkReady(ctx, "find gateway device credential"); err != nil {
 		return gateway.StoredDeviceSession{}, err
 	}
-	row, err := g.queries.FindActiveGatewayDeviceByTokenHash(
+	row, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.FindActiveGatewayDeviceByTokenHashParams{
-			LastSeenAt: nullableGatewayTime(now), TokenHash: tokenHash,
+		g.repoBase,
+		"globaldb.FindActiveGatewayDeviceByTokenHash",
+		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.GatewayDeviceSession, error) {
+			return queries.FindActiveGatewayDeviceByTokenHash(
+				ctx,
+				sqlcgen.FindActiveGatewayDeviceByTokenHashParams{
+					LastSeenAt: nullableGatewayTime(now), TokenHash: tokenHash,
+				},
+			)
 		},
 	)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -99,9 +112,16 @@ func (g *GatewayRepo) RenameDevice(
 	if err := g.checkReady(ctx, "rename gateway device"); err != nil {
 		return gateway.DeviceSession{}, err
 	}
-	row, err := g.queries.RenameGatewayDevice(ctx, sqlcgen.RenameGatewayDeviceParams{
-		Name: name, ID: deviceID,
-	})
+	row, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.RenameGatewayDevice",
+		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.GatewayDeviceSession, error) {
+			return queries.RenameGatewayDevice(ctx, sqlcgen.RenameGatewayDeviceParams{
+				Name: name, ID: deviceID,
+			})
+		},
+	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return gateway.DeviceSession{}, gateway.ErrDeviceNotFound
 	}
@@ -125,9 +145,16 @@ func (g *GatewayRepo) RenameDeviceForActor(
 	if err != nil {
 		return gateway.DeviceSession{}, err
 	}
-	row, err := g.queries.RenameGatewayDeviceForActor(ctx, sqlcgen.RenameGatewayDeviceForActorParams{
-		Name: name, TargetID: deviceID, ActorID: actorID, ActorEpoch: epoch,
-	})
+	row, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.RenameGatewayDeviceForActor",
+		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.GatewayDeviceSession, error) {
+			return queries.RenameGatewayDeviceForActor(ctx, sqlcgen.RenameGatewayDeviceForActorParams{
+				Name: name, TargetID: deviceID, ActorID: actorID, ActorEpoch: epoch,
+			})
+		},
+	)
 	if err == nil {
 		return gatewayDeviceSessionFromGenerated(row)
 	}
@@ -145,9 +172,16 @@ func (g *GatewayRepo) RevokeDevice(
 	if err := g.checkReady(ctx, "revoke gateway device"); err != nil {
 		return gateway.DeviceSession{}, false, err
 	}
-	row, err := g.queries.RevokeGatewayDevice(ctx, sqlcgen.RevokeGatewayDeviceParams{
-		RevokedAt: nullableGatewayTime(now), ID: deviceID,
-	})
+	row, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.RevokeGatewayDevice",
+		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.GatewayDeviceSession, error) {
+			return queries.RevokeGatewayDevice(ctx, sqlcgen.RevokeGatewayDeviceParams{
+				RevokedAt: nullableGatewayTime(now), ID: deviceID,
+			})
+		},
+	)
 	if err == nil {
 		device, mapErr := gatewayDeviceSessionFromGenerated(row)
 		return device, true, mapErr
@@ -176,10 +210,17 @@ func (g *GatewayRepo) RevokeDeviceForActor(
 	if err != nil {
 		return gateway.DeviceSession{}, false, err
 	}
-	row, err := g.queries.RevokeGatewayDeviceForActor(ctx, sqlcgen.RevokeGatewayDeviceForActorParams{
-		RevokedAt: nullableGatewayTime(now), TargetID: deviceID,
-		ActorID: actorID, ActorEpoch: epoch,
-	})
+	row, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.RevokeGatewayDeviceForActor",
+		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.GatewayDeviceSession, error) {
+			return queries.RevokeGatewayDeviceForActor(ctx, sqlcgen.RevokeGatewayDeviceForActorParams{
+				RevokedAt: nullableGatewayTime(now), TargetID: deviceID,
+				ActorID: actorID, ActorEpoch: epoch,
+			})
+		},
+	)
 	if err == nil {
 		device, mapErr := gatewayDeviceSessionFromGenerated(row)
 		return device, true, mapErr

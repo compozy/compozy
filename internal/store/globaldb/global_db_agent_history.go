@@ -30,9 +30,15 @@ func (g *HeartbeatRepo) DeleteHeartbeatAgentHistory(
 	if (workspaceID == "" && profileID == "") || agentName == "" || sourcePath == "" {
 		return fmt.Errorf("store: delete heartbeat agent history requires workspace id, agent name, and source path")
 	}
-	if err := g.queries.DeleteHeartbeatAgentHistory(ctx, sqlcgen.DeleteHeartbeatAgentHistoryParams{
-		ProfileID: profileID, WorkspaceID: workspaceID, AgentName: agentName, SourcePath: sourcePath,
-	}); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.DeleteHeartbeatAgentHistory",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteHeartbeatAgentHistory(ctx, sqlcgen.DeleteHeartbeatAgentHistoryParams{
+				ProfileID: profileID, WorkspaceID: workspaceID, AgentName: agentName, SourcePath: sourcePath,
+			})
+		},
+	); err != nil {
 		return fmt.Errorf("store: delete heartbeat agent history: %w", err)
 	}
 	return nil
@@ -59,9 +65,15 @@ func (g *SoulRepo) DeleteSoulAgentHistory(
 	if (workspaceID == "" && profileID == "") || agentName == "" || sourcePath == "" {
 		return fmt.Errorf("store: delete soul agent history requires workspace id, agent name, and source path")
 	}
-	if err := g.queries.DeleteSoulAgentHistory(ctx, sqlcgen.DeleteSoulAgentHistoryParams{
-		ProfileID: profileID, WorkspaceID: workspaceID, AgentName: agentName, SourcePath: sourcePath,
-	}); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.DeleteSoulAgentHistory",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteSoulAgentHistory(ctx, sqlcgen.DeleteSoulAgentHistoryParams{
+				ProfileID: profileID, WorkspaceID: workspaceID, AgentName: agentName, SourcePath: sourcePath,
+			})
+		},
+	); err != nil {
 		return fmt.Errorf("store: delete soul agent history: %w", err)
 	}
 	return nil

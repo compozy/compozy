@@ -146,9 +146,16 @@ func (g *SessionRepo) CancelPendingSessionSteer(ctx context.Context, sessionID, 
 	if now.IsZero() {
 		now = g.now()
 	}
-	_, err := sqlcgen.New(g.db).CancelPendingSessionSteer(ctx, sqlcgen.CancelPendingSessionSteerParams{
-		SessionID: sessionID, ID: entryID, Now: nullableSessionTime(now),
-	})
+	_, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.CancelPendingSessionSteer",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.CancelPendingSessionSteer(ctx, sqlcgen.CancelPendingSessionSteerParams{
+				SessionID: sessionID, ID: entryID, Now: nullableSessionTime(now),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: cancel pending steer: %w", err)
 	}

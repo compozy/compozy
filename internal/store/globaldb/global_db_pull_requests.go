@@ -119,34 +119,40 @@ func (g *WorktreeRepo) SavePullRequest(ctx context.Context, entry worktree.PullR
 	if mergeable == "" {
 		mergeable = forgeFactUnknown
 	}
-	err = g.queries.UpsertForgePullRequest(ctx, sqlcgen.UpsertForgePullRequestParams{
-		WorkspaceID:       entry.Key.WorkspaceID,
-		RepoKey:           entry.Key.RepoKey,
-		Branch:            entry.Key.Branch,
-		Provider:          facts.Provider,
-		PrNumber:          nullableInt(facts.PRNumber),
-		PrUrl:             facts.PRURL,
-		Title:             facts.Title,
-		PrState:           nullableString(facts.PRState),
-		Merged:            nullableBool(facts.Merged),
-		Draft:             nullableBool(facts.Draft),
-		HeadSha:           facts.HeadSHA,
-		BaseRef:           facts.Base,
-		ChecksState:       checks.State,
-		ChecksPassed:      int64(checks.Passed),
-		ChecksFailed:      int64(checks.Failed),
-		ChecksPending:     int64(checks.Pending),
-		ChecksFailedNames: string(data),
-		ReviewDecision:    review,
-		Mergeable:         mergeable,
-		PrUpdatedAt:       nullableTime(facts.UpdatedAt),
-		ObservedAt:        nullableTime(facts.FetchedAt),
-		LookupState:       entry.LookupState,
-		LookupCause:       entry.LookupCause,
-		AttemptAt:         nullableTime(entry.AttemptAt),
-		FailureCount:      int64(entry.FailureCount),
-		RetryAfter:        nullableTime(entry.RetryAfter),
-	})
+	err = g.executeWriteQuery(
+		ctx,
+		"globaldb.UpsertForgePullRequest",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.UpsertForgePullRequest(ctx, sqlcgen.UpsertForgePullRequestParams{
+				WorkspaceID:       entry.Key.WorkspaceID,
+				RepoKey:           entry.Key.RepoKey,
+				Branch:            entry.Key.Branch,
+				Provider:          facts.Provider,
+				PrNumber:          nullableInt(facts.PRNumber),
+				PrUrl:             facts.PRURL,
+				Title:             facts.Title,
+				PrState:           nullableString(facts.PRState),
+				Merged:            nullableBool(facts.Merged),
+				Draft:             nullableBool(facts.Draft),
+				HeadSha:           facts.HeadSHA,
+				BaseRef:           facts.Base,
+				ChecksState:       checks.State,
+				ChecksPassed:      int64(checks.Passed),
+				ChecksFailed:      int64(checks.Failed),
+				ChecksPending:     int64(checks.Pending),
+				ChecksFailedNames: string(data),
+				ReviewDecision:    review,
+				Mergeable:         mergeable,
+				PrUpdatedAt:       nullableTime(facts.UpdatedAt),
+				ObservedAt:        nullableTime(facts.FetchedAt),
+				LookupState:       entry.LookupState,
+				LookupCause:       entry.LookupCause,
+				AttemptAt:         nullableTime(entry.AttemptAt),
+				FailureCount:      int64(entry.FailureCount),
+				RetryAfter:        nullableTime(entry.RetryAfter),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: save pull request: %w", err)
 	}

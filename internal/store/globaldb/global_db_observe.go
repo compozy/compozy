@@ -97,6 +97,9 @@ func (g *ObserveRepo) ListEventSummaries(
 	if err := g.validateEventSummaryQuery(ctx, query); err != nil {
 		return nil, err
 	}
+	if err := g.summaryPublications.wait(ctx); err != nil {
+		return nil, err
+	}
 
 	// dynamic-sql: optional event/memory filters, registry-derived IN lists, UNION inclusion, and limit shape the query.
 	eventQuery := `SELECT 0 AS source_rank, event_summaries.seq AS source_sequence,

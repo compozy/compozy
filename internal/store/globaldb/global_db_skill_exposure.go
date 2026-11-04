@@ -19,12 +19,19 @@ func (r *SkillExposureRepo) CreateSkillExposure(
 		return store.SkillExposureRecord{}, err
 	}
 	now := r.now().UTC()
-	row, err := r.queries.CreateSkillExposure(ctx, sqlcgen.CreateSkillExposureParams{
-		SkillName: record.SkillName, CanonicalDir: record.CanonicalDir,
-		TargetSlug: record.TargetSlug, LinkPath: record.LinkPath, LinkTarget: record.LinkTarget,
-		OwnerScope: string(record.OwnerScope), WorkspaceID: store.SQLNullString(record.WorkspaceID),
-		CreatedAt: now, UpdatedAt: now,
-	})
+	row, err := executeWriteQueryResult(
+		ctx,
+		r.repoBase,
+		"globaldb.CreateSkillExposure",
+		func(ctx context.Context, queries *sqlcgen.Queries) (sqlcgen.SkillExposure, error) {
+			return queries.CreateSkillExposure(ctx, sqlcgen.CreateSkillExposureParams{
+				SkillName: record.SkillName, CanonicalDir: record.CanonicalDir,
+				TargetSlug: record.TargetSlug, LinkPath: record.LinkPath, LinkTarget: record.LinkTarget,
+				OwnerScope: string(record.OwnerScope), WorkspaceID: store.SQLNullString(record.WorkspaceID),
+				CreatedAt: now, UpdatedAt: now,
+			})
+		},
+	)
 	if err != nil {
 		return store.SkillExposureRecord{}, fmt.Errorf(
 			"store: create skill exposure %q for target %q: %w",
@@ -101,7 +108,13 @@ func (r *SkillExposureRepo) DeleteSkillExposure(ctx context.Context, id int64) e
 	if err := r.checkReady(ctx, "delete skill exposure"); err != nil {
 		return err
 	}
-	if err := r.queries.DeleteSkillExposure(ctx, id); err != nil {
+	if err := r.executeWriteQuery(
+		ctx,
+		"globaldb.DeleteSkillExposure",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteSkillExposure(ctx, id)
+		},
+	); err != nil {
 		return fmt.Errorf("store: delete skill exposure %d: %w", id, err)
 	}
 	return nil

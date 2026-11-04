@@ -26,6 +26,7 @@ type turnStopRun struct {
 	promptDone <-chan struct{}
 	cancel     context.CancelFunc
 	setup      bool
+	recovering bool
 	done       chan struct{}
 	outcome    TurnCancelOutcome
 	err        error
@@ -58,7 +59,10 @@ func (m *Manager) requestTurnStop(ctx context.Context, id, expectedTurn string, 
 	}
 	m.turnStopRuns[session.ID] = run
 	m.mu.Unlock()
-	if run.setup && run.cancel != nil {
+	// Recovery waits belong to the daemon; the provider has already ended the
+	// failed prompt and cannot cancel that wait for us. Stop it before entering
+	// the termination ladder, which would otherwise kill an idle healthy runtime.
+	if (run.setup || run.recovering) && run.cancel != nil {
 		run.cancel()
 	}
 	m.emitPromptCancelMarker(ctx, session, run.turnID)
@@ -113,7 +117,7 @@ func (s *Session) claimTurnStop(expected string) (*turnStopRun, bool, error) {
 	run := &turnStopRun{
 		session: s, process: s.process, turnID: s.currentTurnID,
 		promptDone: s.currentPromptDone, cancel: s.currentPromptCancel,
-		setup: s.promptSetupCount > 0, done: make(chan struct{}),
+		setup: s.promptSetupCount > 0, recovering: s.RuntimeRecovery != nil, done: make(chan struct{}),
 	}
 	s.turnStop, s.turnStopPending = run, true
 	s.promptCancelRequested, s.currentPromptCancelTurn = true, run.turnID

@@ -53,8 +53,8 @@ func (r *Registry) ReconcileBundledProvenance(manifest *Manifest) error {
 		"previous_installed_from", info.Provenance.InstalledFrom,
 		"previous_registry_tier", info.Provenance.RegistryTier,
 	)
-	result, err := r.db.ExecContext(
-		registryContext(),
+	result, err := r.execWrite(
+		registryContext(), "reconcile bundled extension provenance",
 		`UPDATE extensions SET provenance_json = ? WHERE name = ? AND source = ?`,
 		string(provenanceJSON),
 		info.Name,

@@ -164,7 +164,14 @@ func (g *GatewayRepo) SweepOrphanedIngressBindings(ctx context.Context) (int64, 
 	if err := g.checkReady(ctx, "sweep orphaned gateway ingress bindings"); err != nil {
 		return 0, err
 	}
-	rows, err := g.queries.SweepOrphanedGatewayIngressBindings(ctx)
+	rows, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.SweepOrphanedGatewayIngressBindings",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.SweepOrphanedGatewayIngressBindings(ctx)
+		},
+	)
 	if err != nil {
 		return 0, fmt.Errorf("store: sweep orphaned gateway ingress bindings: %w", err)
 	}

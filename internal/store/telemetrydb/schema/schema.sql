@@ -1,3 +1,8 @@
+CREATE TABLE telemetry_identity (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    identity TEXT NOT NULL CHECK (length(identity) > 0)
+);
+
 CREATE TABLE event_summaries (
             seq INTEGER PRIMARY KEY AUTOINCREMENT,
 			id                     TEXT NOT NULL UNIQUE,

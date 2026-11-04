@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 
@@ -84,7 +83,7 @@ func providerAuthProbeEnv(
 			value := deps.getenv(key)
 			return value, strings.TrimSpace(value) != ""
 		},
-		Vault:      cliProviderVaultMetadataResolver{homePaths: homePaths, getenv: deps.getenv},
+		Vault:      cliProviderVaultMetadataResolver{homePaths: homePaths},
 		CommandEnv: commandEnv,
 		CommandDir: commandDir,
 		RunCommand: deps.runProviderAuthCommand,
@@ -93,54 +92,16 @@ func providerAuthProbeEnv(
 
 type cliProviderVaultMetadataResolver struct {
 	homePaths compozyconfig.HomePaths
-	getenv    func(string) string
 }
 
 func (r cliProviderVaultMetadataResolver) GetMetadata(ctx context.Context, ref string) (vault.Metadata, error) {
-	db, err := openLocalGlobalDatabase(ctx, r.homePaths.DatabaseFile, "provider auth")
+	reader, err := openLocalVaultReader(ctx, r.homePaths.DatabaseFile, "provider auth")
 	if err != nil {
 		return vault.Metadata{}, err
 	}
-	lookupEnv := func(key string) (string, bool) {
-		value := r.getenv(key)
-		return value, strings.TrimSpace(value) != ""
-	}
-	service, err := vault.NewService(
-		db,
-		compozyconfig.NewVaultKeyProvider(r.homePaths.HomeDir, lookupEnv),
-		vault.WithLookupEnv(lookupEnv),
-	)
-	if err != nil {
-		closeErr := db.Close(ctx)
-		if closeErr != nil {
-			return vault.Metadata{}, fmt.Errorf(
-				"cli: initialize provider auth vault status: %w; close global DB: %v",
-				err,
-				closeErr,
-			)
-		}
-		return vault.Metadata{}, fmt.Errorf("cli: initialize provider auth vault status: %w", err)
-	}
-	metadata, err := service.GetMetadata(ctx, ref)
-	closeErr := db.Close(ctx)
-	if err != nil {
-		if errors.Is(err, vault.ErrSecretNotFound) {
-			if closeErr != nil {
-				return vault.Metadata{}, fmt.Errorf("cli: close provider auth vault status DB: %w", closeErr)
-			}
-			return vault.Metadata{}, err
-		}
-		if closeErr != nil {
-			return vault.Metadata{}, fmt.Errorf(
-				"cli: read provider credential metadata: %w; close global DB: %v",
-				err,
-				closeErr,
-			)
-		}
-		return vault.Metadata{}, fmt.Errorf("cli: read provider credential metadata: %w", err)
-	}
-	if closeErr != nil {
-		return vault.Metadata{}, fmt.Errorf("cli: close provider auth vault status DB: %w", closeErr)
+	metadata, readErr := vault.ReadMetadata(ctx, reader, ref)
+	if err := errors.Join(readErr, reader.Close()); err != nil {
+		return vault.Metadata{}, err
 	}
 	return metadata, nil
 }

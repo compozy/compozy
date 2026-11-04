@@ -13,9 +13,10 @@ import (
 
 // WriteContentionError preserves SQLite error identity and safe write provenance.
 // Owner is empty when the lock belongs to an untracked transaction or another
-// database handle/process; SQLite does not expose that owner's identity.
+// process; SQLite does not expose that owner's identity.
 type WriteContentionError struct {
 	Operation     string
+	Phase         string
 	Attempts      int
 	Wait          time.Duration
 	Owner         string
@@ -26,8 +27,9 @@ type WriteContentionError struct {
 
 func (e *WriteContentionError) Error() string {
 	return fmt.Sprintf(
-		"store: sqlite contention operation=%s attempts=%d wait=%s owner=%s transaction=%d owner_elapsed=%s: %v",
+		"store: sqlite contention operation=%s phase=%s attempts=%d wait=%s owner=%s transaction=%d owner_elapsed=%s: %v",
 		e.Operation,
+		e.Phase,
 		e.Attempts,
 		e.Wait,
 		e.Owner,
@@ -116,12 +118,30 @@ func trackBackgroundItem(db *sql.DB, operation string) func() {
 func writeContentionError(db *sql.DB, operation string, attempts int, started time.Time, cause error) error {
 	writeOwners.Lock()
 	owner, known := writeOwners.active[db]
+	if !known {
+		for candidate, active := range writeOwners.active {
+			if sameWriteDatabase(candidate, db) {
+				owner, known = active, true
+				break
+			}
+		}
+	}
 	writeOwners.Unlock()
-	err := &WriteContentionError{Operation: operation, Attempts: attempts, Wait: time.Since(started), Err: cause}
+	phase, message := "sqlite", "sqlite write contention exhausted bounded retry"
+	if attempts == 0 {
+		phase, message = "admission", "sqlite write canceled while waiting for admission"
+	}
+	err := &WriteContentionError{
+		Phase:     phase,
+		Operation: operation,
+		Attempts:  attempts,
+		Wait:      time.Since(started),
+		Err:       cause,
+	}
 	if known {
 		err.Owner, err.TransactionID, err.OwnerElapsed = owner.operation, owner.id, time.Since(owner.started)
 	}
-	slog.Warn("sqlite write contention exhausted bounded retry",
+	slog.Warn(message, "phase", phase,
 		"operation", operation, "attempts", attempts, "wait_ms", err.Wait.Milliseconds(),
 		"owner_known", known, "owner_operation", err.Owner, "transaction_id", err.TransactionID,
 		"owner_elapsed_ms", err.OwnerElapsed.Milliseconds())

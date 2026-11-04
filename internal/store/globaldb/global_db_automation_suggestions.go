@@ -10,7 +10,6 @@ import (
 	"time"
 
 	automation "github.com/compozy/compozy/internal/automation/model"
-	"github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
@@ -191,6 +190,22 @@ func (g *AutomationRepo) ResolveSuggestion(
 		)
 	}
 	resolvedAt := g.now().UTC()
+	var observation store.EventSummary
+	if to == automation.SuggestionStatusDismissed {
+		// Source, dedup key and payload are immutable. Prepare the event before
+		// taking the writer; the conditional UPDATE still owns resolution races.
+		current, err := g.GetSuggestion(ctx, profileID, workspaceID, id)
+		if err != nil {
+			return automation.Suggestion{}, err
+		}
+		current.Status, current.ResolvedAt = to, &resolvedAt
+		observation, err = g.prepareSuggestionTransition(ctx, current, "")
+		if err != nil {
+			return automation.Suggestion{}, err
+		}
+		finishPublication := g.summaryPublications.begin()
+		defer finishPublication()
+	}
 	err = store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
 		affected, updateErr := queries.ResolveAutomationSuggestion(ctx, sqlcgen.ResolveAutomationSuggestionParams{
@@ -227,10 +242,16 @@ func (g *AutomationRepo) ResolveSuggestion(
 			return mapErr
 		}
 		resolved = mapped
+		if to == automation.SuggestionStatusDismissed {
+			return insertEventSummary(ctx, queries, observation)
+		}
 		return nil
 	})
 	if err != nil {
 		return automation.Suggestion{}, err
+	}
+	if to == automation.SuggestionStatusDismissed {
+		g.drainCommittedEventSummaries(ctx, observation)
 	}
 	return resolved, nil
 }
@@ -252,13 +273,20 @@ func (g *AutomationRepo) RollbackSuggestionAcceptance(
 	if resolvedAt.IsZero() {
 		return errors.New("store: automation suggestion resolved timestamp is required")
 	}
-	affected, err := g.queries.RollbackAutomationSuggestionAcceptance(
+	affected, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.RollbackAutomationSuggestionAcceptanceParams{
-			ProfileID:   profileID,
-			WorkspaceID: nullableAutomationString(workspaceID),
-			ID:          id,
-			ResolvedAt:  nullableAutomationTime(&resolvedAt),
+		g.repoBase,
+		"globaldb.RollbackAutomationSuggestionAcceptance",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.RollbackAutomationSuggestionAcceptance(
+				ctx,
+				sqlcgen.RollbackAutomationSuggestionAcceptanceParams{
+					ProfileID:   profileID,
+					WorkspaceID: nullableAutomationString(workspaceID),
+					ID:          id,
+					ResolvedAt:  nullableAutomationTime(&resolvedAt),
+				},
+			)
 		},
 	)
 	if err != nil {
@@ -266,64 +294,6 @@ func (g *AutomationRepo) RollbackSuggestionAcceptance(
 	}
 	if affected == 0 {
 		return automation.ErrSuggestionResolved
-	}
-	return nil
-}
-
-func (g *AutomationRepo) RecordSuggestionTransition(
-	ctx context.Context,
-	suggestion automation.Suggestion,
-	jobID string,
-) error {
-	if err := g.checkReady(ctx, "record automation suggestion transition"); err != nil {
-		return err
-	}
-	if err := suggestion.Validate("suggestion"); err != nil {
-		return err
-	}
-	if suggestion.Status != automation.SuggestionStatusAccepted &&
-		suggestion.Status != automation.SuggestionStatusDismissed {
-		return fmt.Errorf("store: cannot record pending automation suggestion transition %q", suggestion.ID)
-	}
-	if suggestion.ResolvedAt == nil || suggestion.ResolvedAt.IsZero() {
-		return errors.New("store: automation suggestion resolved timestamp is required")
-	}
-	jobID = strings.TrimSpace(jobID)
-	if suggestion.Status == automation.SuggestionStatusAccepted && jobID == "" {
-		return errors.New("store: accepted automation suggestion job id is required")
-	}
-	content, err := json.Marshal(suggestionTransitionContent{
-		WorkspaceID:  suggestion.WorkspaceID,
-		SuggestionID: suggestion.ID,
-		Source:       suggestion.Source,
-		DedupKey:     suggestion.DedupKey,
-		JobID:        jobID,
-	})
-	if err != nil {
-		return fmt.Errorf("store: marshal automation suggestion transition: %w", err)
-	}
-	eventType := events.AutomationSuggestionDismissed
-	summary := "automation suggestion dismissed"
-	if suggestion.Status == automation.SuggestionStatusAccepted {
-		eventType = events.AutomationSuggestionAccepted
-		summary = "automation suggestion accepted"
-	}
-	observation := store.EventSummary{
-		ProfileID:   suggestion.ProfileID,
-		ID:          "automation-suggestion:" + suggestion.ID + ":" + string(suggestion.Status),
-		WorkspaceID: suggestion.WorkspaceID, Type: eventType,
-		ActorKind: "automation_suggestion", ActorID: suggestion.ID,
-		Outcome: string(events.OutcomeFor(eventType)), Summary: summary, Timestamp: *suggestion.ResolvedAt,
-	}
-	observation.SetContent(content)
-	observe := &ObserveRepo{repoBase: g.repoBase}
-	if err := observe.prepareEventSummary(ctx, &observation); err != nil {
-		return err
-	}
-	if err := g.telemetry.WriteSuggestion(ctx, observation, func(ctx context.Context) error {
-		return observe.validateEventSummaryOwner(ctx, observation)
-	}); err != nil {
-		return fmt.Errorf("store: record automation suggestion transition %q: %w", suggestion.ID, err)
 	}
 	return nil
 }

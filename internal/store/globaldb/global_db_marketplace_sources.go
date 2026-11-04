@@ -21,57 +21,61 @@ func (r *MarketplaceRepo) ConfigureMarketplaceSources(
 	if revision == "" {
 		return configuration, errors.New("store: marketplace source configuration revision is required")
 	}
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return configuration, err
-	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			err = errors.Join(err, fmt.Errorf("store: roll back marketplace sources: %w", rollbackErr))
-		}
-	}()
-	queries := sqlcgen.New(tx)
-	previous, err := queries.ClaimMarketplaceSourceConfiguration(ctx)
-	if err != nil {
-		return configuration, err
-	}
-	configuration = store.MarketplaceSourceConfiguration{Generation: previous.Generation, Revision: previous.Revision}
-	if previous.Revision != revision {
-		next, err := queries.SetMarketplaceSourceConfiguration(ctx, revision)
-		if err != nil {
-			return configuration, err
-		}
-		configuration = store.MarketplaceSourceConfiguration{Generation: next.Generation, Revision: next.Revision}
-		names := make([]string, 0, len(sources))
-		for _, source := range sources {
-			if err := registerMarketplaceSource(ctx, queries, source, next.Generation); err != nil {
-				return configuration, err
-			}
-			names = append(names, source.Name)
-		}
-		encodedNames, err := json.Marshal(names)
-		if err != nil {
-			return configuration, err
-		}
-		if err := queries.DeleteUnconfiguredMarketplaceEntries(ctx, string(encodedNames)); err != nil {
-			return configuration, err
-		}
-		if err := queries.DeleteUnconfiguredMarketplaceStates(ctx, string(encodedNames)); err != nil {
-			return configuration, err
-		}
-	}
-	configuration.SourceGenerations = make(map[string]int64, len(sources))
+	names := make([]string, 0, len(sources))
 	for _, source := range sources {
-		state, err := queries.GetMarketplaceCatalogState(ctx, source.Name)
-		if err != nil {
-			return configuration, err
-		}
-		configuration.SourceGenerations[source.Name] = state.Generation
+		names = append(names, source.Name)
 	}
-	if err := tx.Commit(); err != nil {
+	encodedNames, err := json.Marshal(names)
+	if err != nil {
 		return configuration, err
 	}
-	return configuration, nil
+	err = store.ExecuteWriteOperation(
+		ctx,
+		r.db,
+		"configure marketplace sources",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			queries := sqlcgen.New(tx)
+			previous, err := queries.ClaimMarketplaceSourceConfiguration(ctx)
+			if err != nil {
+				return err
+			}
+			configuration = store.MarketplaceSourceConfiguration{
+				Generation: previous.Generation,
+				Revision:   previous.Revision,
+			}
+			if previous.Revision != revision {
+				next, err := queries.SetMarketplaceSourceConfiguration(ctx, revision)
+				if err != nil {
+					return err
+				}
+				configuration = store.MarketplaceSourceConfiguration{
+					Generation: next.Generation,
+					Revision:   next.Revision,
+				}
+				for _, source := range sources {
+					if err := registerMarketplaceSource(ctx, queries, source, next.Generation); err != nil {
+						return err
+					}
+				}
+				if err := queries.DeleteUnconfiguredMarketplaceEntries(ctx, string(encodedNames)); err != nil {
+					return err
+				}
+				if err := queries.DeleteUnconfiguredMarketplaceStates(ctx, string(encodedNames)); err != nil {
+					return err
+				}
+			}
+			configuration.SourceGenerations = make(map[string]int64, len(sources))
+			for _, source := range sources {
+				state, err := queries.GetMarketplaceCatalogState(ctx, source.Name)
+				if err != nil {
+					return err
+				}
+				configuration.SourceGenerations[source.Name] = state.Generation
+			}
+			return nil
+		},
+	)
+	return configuration, err
 }
 
 func registerMarketplaceSource(

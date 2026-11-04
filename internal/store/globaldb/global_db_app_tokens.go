@@ -191,9 +191,16 @@ func (g *GatewayRepo) TouchAppTokenLastSeen(
 	if err != nil {
 		return err
 	}
-	count, err := g.queries.TouchAppTokenLastSeen(ctx, sqlcgen.TouchAppTokenLastSeenParams{
-		ID: id, RevokeEpoch: value, LastSeenAt: nullableGatewayTime(now),
-	})
+	count, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.TouchAppTokenLastSeen",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.TouchAppTokenLastSeen(ctx, sqlcgen.TouchAppTokenLastSeenParams{
+				ID: id, RevokeEpoch: value, LastSeenAt: nullableGatewayTime(now),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: touch app token last use: %w", err)
 	}

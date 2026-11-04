@@ -16,28 +16,25 @@ var _ store.MarketplaceCatalogRepository = (*MarketplaceRepo)(nil)
 func (r *MarketplaceRepo) ReplaceMarketplaceCatalog(
 	ctx context.Context,
 	replacement store.MarketplaceCatalogReplacement,
-) (err error) {
+) error {
 	if err := r.checkReady(ctx, "replace marketplace catalog"); err != nil {
 		return err
 	}
-	tx, err := r.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("store: begin marketplace catalog %q replacement: %w", replacement.Source, err)
+	for _, entry := range replacement.Entries {
+		if entry.Source != replacement.Source {
+			return errors.New("store: marketplace entry source does not match replacement")
+		}
 	}
-	committed := false
-	defer func() {
-		if committed {
-			return
-		}
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			err = errors.Join(
-				err,
-				fmt.Errorf("store: roll back marketplace catalog %q replacement: %w", replacement.Source, rollbackErr),
-			)
-		}
-	}()
+	return r.writeBackground(ctx, "replace marketplace catalog", func(ctx context.Context, tx *store.WriteTx) error {
+		return replaceMarketplaceCatalog(ctx, sqlcgen.New(tx), replacement)
+	})
+}
 
-	queries := sqlcgen.New(tx)
+func replaceMarketplaceCatalog(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	replacement store.MarketplaceCatalogReplacement,
+) error {
 	claimed, err := queries.ClaimMarketplaceCatalogGeneration(ctx, sqlcgen.ClaimMarketplaceCatalogGenerationParams{
 		Source: replacement.Source, SourceRef: replacement.SourceRef, Generation: replacement.Generation,
 	})
@@ -52,9 +49,6 @@ func (r *MarketplaceRepo) ReplaceMarketplaceCatalog(
 	}
 	installable := int64(0)
 	for _, entry := range replacement.Entries {
-		if entry.Source != replacement.Source {
-			return errors.New("store: marketplace entry source does not match replacement")
-		}
 		if entry.Installable {
 			installable++
 		}
@@ -83,10 +77,6 @@ func (r *MarketplaceRepo) ReplaceMarketplaceCatalog(
 	}); err != nil {
 		return fmt.Errorf("store: upsert marketplace catalog %q state: %w", replacement.Source, err)
 	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("store: commit marketplace catalog %q replacement: %w", replacement.Source, err)
-	}
-	committed = true
 	return nil
 }
 
@@ -97,9 +87,16 @@ func (r *MarketplaceRepo) MarkMarketplaceCatalogStale(
 	if err := r.checkReady(ctx, "mark marketplace catalog stale"); err != nil {
 		return err
 	}
-	changed, err := r.queries.MarkMarketplaceCatalogStateStale(ctx, sqlcgen.MarkMarketplaceCatalogStateStaleParams{
-		Source: source, Generation: generation, ErrorClass: errorClass, LastError: lastError,
-	})
+	changed, err := executeWriteQueryResult(
+		ctx,
+		r.repoBase,
+		"globaldb.MarkMarketplaceCatalogStateStale",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.MarkMarketplaceCatalogStateStale(ctx, sqlcgen.MarkMarketplaceCatalogStateStaleParams{
+				Source: source, Generation: generation, ErrorClass: errorClass, LastError: lastError,
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: mark marketplace catalog %q stale: %w", source, err)
 	}

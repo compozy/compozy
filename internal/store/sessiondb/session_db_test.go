@@ -1164,7 +1164,7 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 				t.Fatal(err)
 			}
 			at := time.Date(2026, 10, 9, 0, 0, 0, 0, time.UTC)
-			seed := &SessionDB{db: prefix, owner: owner, now: func() time.Time { return at }}
+			seed := &SessionDB{db: prefix, readDB: prefix, owner: owner, now: func() time.Time { return at }}
 			wantEvents, err := seed.writeEventBatch(ctx, []SessionEvent{
 				{ID: "archived", SessionID: owner.SessionID, TurnID: "old", Type: "user_message",
 					AgentName: "user", Content: `{"text":"retained archived bytes"}`, Archived: true, Timestamp: at},
@@ -1871,6 +1871,17 @@ func TestSessionDBTranscriptProjection(t *testing.T) {
 			}
 			if count != 1 {
 				t.Fatalf("candidate persisted %d times, want once", count)
+			}
+			page, err := db.TranscriptPage(ctx, transcript.PageQuery{Limit: 10})
+			if err != nil {
+				t.Fatal(err)
+			}
+			visible := false
+			for _, entry := range page.Entries {
+				visible = visible || strings.Contains(transcript.UIMessageText(entry.Message), "prepared answer")
+			}
+			if !visible {
+				t.Fatalf("retried candidate missing from transcript: %#v", page.Entries)
 			}
 		})
 	}

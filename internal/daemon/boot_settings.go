@@ -21,7 +21,11 @@ func (d *Daemon) bootSettings(ctx context.Context, state *bootState) error {
 	}
 	var applyRecords settingspkg.ApplyRecordStore
 	if dbSource, ok := state.registry.(settingspkg.ApplyRecordDBSource); ok {
-		applyRecords = settingspkg.NewConfigApplyRecordRepository(dbSource.DB(), time.Now)
+		applyRecords = settingspkg.NewConfigApplyRecordRepository(
+			dbSource.DB(),
+			time.Now,
+			settingspkg.WithConfigApplyReadDB(dbSource.ReadDB()),
+		)
 	}
 	scopeRevisions, ok := state.registry.(settingspkg.ShellScopeRevisionStore)
 	if !ok {

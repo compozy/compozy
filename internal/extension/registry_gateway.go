@@ -93,13 +93,13 @@ func (r *Registry) ConfirmGatewayRequirement(
 	timestamp := store.FormatTimestamp(at.UTC())
 	var result sql.Result
 	if key.IsGlobal() {
-		result, err = r.db.ExecContext(registryContext(), `
+		result, err = r.execWrite(registryContext(), "persist extension gateway confirmation", `
 			UPDATE extensions
 			SET gateway_requirement_digest = ?, gateway_confirmed_by = ?, gateway_confirmed_at = ?
 			WHERE name = ?
 		`, current, actor, timestamp, key.Name)
 	} else {
-		result, err = r.db.ExecContext(registryContext(), `
+		result, err = r.execWrite(registryContext(), "persist extension gateway confirmation", `
 			UPDATE extension_dev_links
 			SET gateway_requirement_digest = ?, gateway_confirmed_by = ?, gateway_confirmed_at = ?
 			WHERE extension_name = ? AND workspace_id = ?
@@ -142,7 +142,7 @@ func (r *Registry) ConfirmDevelopmentGatewayCandidate(
 	if at.IsZero() {
 		return errors.New("extension: gateway confirmation time is required")
 	}
-	result, err := r.db.ExecContext(registryContext(), `
+	result, err := r.execWrite(registryContext(), "persist extension gateway confirmation", `
 		UPDATE extension_dev_links
 		SET gateway_requirement_digest = ?, gateway_confirmed_by = ?, gateway_confirmed_at = ?
 		WHERE extension_name = ? AND workspace_id = ?
@@ -167,14 +167,14 @@ func (r *Registry) RestoreGatewayConfirmation(key InstanceKey, confirmation Gate
 	var result sql.Result
 	var err error
 	if key.IsGlobal() {
-		result, err = r.db.ExecContext(registryContext(), `
+		result, err = r.execWrite(registryContext(), "persist extension gateway confirmation", `
 			UPDATE extensions
 			SET gateway_requirement_digest = ?, gateway_confirmed_by = ?, gateway_confirmed_at = ?
 			WHERE name = ?
 		`, strings.TrimSpace(confirmation.Digest), nullableRegistryString(confirmation.ConfirmedBy),
 			nullableRegistryTime(confirmation.ConfirmedAt), key.Name)
 	} else {
-		result, err = r.db.ExecContext(registryContext(), `
+		result, err = r.execWrite(registryContext(), "persist extension gateway confirmation", `
 			UPDATE extension_dev_links
 			SET gateway_requirement_digest = ?, gateway_confirmed_by = ?, gateway_confirmed_at = ?
 			WHERE extension_name = ? AND workspace_id = ?
@@ -193,12 +193,12 @@ func (r *Registry) storedGatewayConfirmation(key InstanceKey) (GatewayConfirmati
 	var timestamp sql.NullString
 	var err error
 	if key.IsGlobal() {
-		err = r.db.QueryRowContext(registryContext(), `
+		err = r.readDB.QueryRowContext(registryContext(), `
 			SELECT gateway_requirement_digest, gateway_confirmed_by, gateway_confirmed_at
 			FROM extensions WHERE name = ?
 		`, key.Name).Scan(&digest, &actor, &timestamp)
 	} else {
-		err = r.db.QueryRowContext(registryContext(), `
+		err = r.readDB.QueryRowContext(registryContext(), `
 			SELECT gateway_requirement_digest, gateway_confirmed_by, gateway_confirmed_at
 			FROM extension_dev_links WHERE extension_name = ? AND workspace_id = ?
 		`, key.Name, key.WorkspaceID).Scan(&digest, &actor, &timestamp)

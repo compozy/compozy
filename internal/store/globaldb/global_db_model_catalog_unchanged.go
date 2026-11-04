@@ -19,31 +19,14 @@ import (
 func touchUnchangedModelCatalogSourceRows(
 	ctx context.Context,
 	exec modelCatalogSQLExecutor,
-	executionContext modelcatalog.CatalogExecutionContext,
 	contextID string,
 	rows []modelcatalog.ModelRow,
 	status modelcatalog.SourceStatus,
-) (bool, error) {
-	refreshedAt, uniform := uniformModelCatalogRefreshedAt(rows)
-	if !uniform {
-		return false, nil
-	}
-	stored, err := listModelCatalogRows(ctx, exec, modelcatalog.ListOptions{
-		ExecutionContext: executionContext,
-		SourceID:         status.SourceID,
-		ProviderID:       status.ProviderID,
-		IncludeAll:       true,
-		IncludeStale:     true,
-	})
-	if err != nil {
-		return false, err
-	}
-	if !modelCatalogRowContentEqual(stored, rows, status) {
-		return false, nil
-	}
+) error {
 	if len(rows) == 0 {
-		return true, nil
+		return nil
 	}
+	refreshedAt := rows[0].RefreshedAt
 	if _, err := exec.ExecContext(
 		ctx,
 		`UPDATE model_catalog_rows
@@ -56,9 +39,9 @@ func touchUnchangedModelCatalogSourceRows(
 		status.SourceID,
 		status.ProviderID,
 	); err != nil {
-		return false, fmt.Errorf("store: touch unchanged model catalog rows: %w", err)
+		return fmt.Errorf("store: touch unchanged model catalog rows: %w", err)
 	}
-	return true, nil
+	return nil
 }
 
 func uniformModelCatalogRefreshedAt(rows []modelcatalog.ModelRow) (time.Time, bool) {

@@ -43,7 +43,13 @@ func (g *AutomationRepo) CreateRun(ctx context.Context, run automation.Run) (aut
 		return automation.Run{}, err
 	}
 
-	if err := g.queries.InsertAutomationRun(ctx, params); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.InsertAutomationRun",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.InsertAutomationRun(ctx, params)
+		},
+	); err != nil {
 		return automation.Run{}, fmt.Errorf(
 			"store: create automation run %q: %w",
 			normalized.ID,
@@ -69,9 +75,16 @@ func (g *AutomationRepo) UpdateRun(ctx context.Context, run automation.Run) (aut
 		return automation.Run{}, err
 	}
 
-	affected, err := g.queries.UpdateAutomationRun(
+	affected, err := executeWriteQueryResult(
 		ctx,
-		automationRunUpdateParams(normalized, metadataJSON),
+		g.repoBase,
+		"globaldb.UpdateAutomationRun",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UpdateAutomationRun(
+				ctx,
+				automationRunUpdateParams(normalized, metadataJSON),
+			)
+		},
 	)
 	if err != nil {
 		return automation.Run{}, fmt.Errorf(
@@ -104,7 +117,14 @@ func (g *AutomationRepo) DeleteRun(ctx context.Context, id string) error {
 		return err
 	}
 
-	affected, err := g.queries.DeleteAutomationRun(ctx, trimmedID)
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.DeleteAutomationRun",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.DeleteAutomationRun(ctx, trimmedID)
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: delete automation run %q: %w", trimmedID, err)
 	}

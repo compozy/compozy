@@ -49,13 +49,13 @@ func (g *ModelCatalogRepo) ReplaceSourceRows(
 		return err
 	}
 
-	return g.withModelCatalogImmediateTransaction(
-		ctx,
-		"model catalog source replacement",
-		func(ctx context.Context, exec modelCatalogSQLExecutor) error {
-			return replaceModelCatalogSourceRows(ctx, exec, normalizedContext, normalizedRows, normalizedStatus)
-		},
-	)
+	plan, err := g.prepareModelCatalogReplacements(ctx, []normalizedModelCatalogReplacement{{
+		executionContext: normalizedContext, rows: normalizedRows, status: normalizedStatus,
+	}})
+	if err != nil {
+		return err
+	}
+	return g.commitModelCatalogReplacements(ctx, "model catalog source replacement", plan)
 }
 
 // ListRows returns deterministic catalog source rows matching the query.

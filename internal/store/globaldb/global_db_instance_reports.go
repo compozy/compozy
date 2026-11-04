@@ -35,16 +35,22 @@ func (r *InstanceReportRepo) AppendReport(
 	if err != nil {
 		return agentinstance.Report{}, err
 	}
-	err = r.queries.InsertAgentInstanceReport(
+	err = r.executeWriteQuery(
 		ctx,
-		sqlcgen.InsertAgentInstanceReportParams{
-			ID:          id,
-			InstanceID:  instanceID,
-			SourceKey:   input.SourceKey,
-			Kind:        input.Kind,
-			Payload:     string(input.Payload),
-			Fingerprint: input.Fingerprint,
-			CreatedAt:   store.FormatTimestamp(r.now()),
+		"globaldb.InsertAgentInstanceReport",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.InsertAgentInstanceReport(
+				ctx,
+				sqlcgen.InsertAgentInstanceReportParams{
+					ID:          id,
+					InstanceID:  instanceID,
+					SourceKey:   input.SourceKey,
+					Kind:        input.Kind,
+					Payload:     string(input.Payload),
+					Fingerprint: input.Fingerprint,
+					CreatedAt:   store.FormatTimestamp(r.now()),
+				},
+			)
 		},
 	)
 	if err != nil {
@@ -176,9 +182,15 @@ func (r *InstanceReportRepo) MarkReportPublished(ctx context.Context, id, sessio
 	if sessionID == "" || seq <= 0 {
 		return errors.New("report publication requires session and positive event sequence")
 	}
-	return r.queries.MarkAgentInstanceReportPublished(
+	return r.executeWriteQuery(
 		ctx,
-		sqlcgen.MarkAgentInstanceReportPublishedParams{ID: id, SessionID: sessionID, EventSeq: seq},
+		"globaldb.MarkAgentInstanceReportPublished",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.MarkAgentInstanceReportPublished(
+				ctx,
+				sqlcgen.MarkAgentInstanceReportPublishedParams{ID: id, SessionID: sessionID, EventSeq: seq},
+			)
+		},
 	)
 }
 
@@ -224,11 +236,18 @@ func (r *InstanceReportRepo) SweepTerminalReports(
 		return 0, errors.New("report retention requires time and positive batch limit")
 	}
 	retention = max(retention, 48*time.Hour)
-	return r.queries.SweepTerminalInstanceReports(
+	return executeWriteQueryResult(
 		ctx,
-		sqlcgen.SweepTerminalInstanceReportsParams{
-			Cutoff:     sql.NullString{String: store.FormatTimestamp(now.Add(-retention)), Valid: true},
-			BatchLimit: int64(limit),
+		r.repoBase,
+		"globaldb.SweepTerminalInstanceReports",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.SweepTerminalInstanceReports(
+				ctx,
+				sqlcgen.SweepTerminalInstanceReportsParams{
+					Cutoff:     sql.NullString{String: store.FormatTimestamp(now.Add(-retention)), Valid: true},
+					BatchLimit: int64(limit),
+				},
+			)
 		},
 	)
 }

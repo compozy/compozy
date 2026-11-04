@@ -2797,7 +2797,7 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 				t.Fatal(err)
 			}
 			at := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
-			previous := &SessionDB{db: prefix, owner: owner, now: func() time.Time { return at }}
+			previous := &SessionDB{db: prefix, readDB: prefix, owner: owner, now: func() time.Time { return at }}
 			var input []SessionEvent
 			for _, event := range tc.events {
 				input = append(input, canonicalStoreEvent(t, event, "coder"))
@@ -2955,7 +2955,7 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 			t.Fatal(err)
 		}
 		at := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
-		previous := &SessionDB{db: prefix, owner: owner, now: func() time.Time { return at }}
+		previous := &SessionDB{db: prefix, readDB: prefix, owner: owner, now: func() time.Time { return at }}
 		write := func(events ...acp.AgentEvent) {
 			t.Helper()
 			input := make([]SessionEvent, 0, len(events))
@@ -3081,7 +3081,7 @@ func TestSessionDBUnarchiveCompactionSpans(t *testing.T) {
 			t.Fatal(err)
 		}
 		at := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
-		previous := &SessionDB{db: prefix, owner: owner, now: func() time.Time { return at }}
+		previous := &SessionDB{db: prefix, readDB: prefix, owner: owner, now: func() time.Time { return at }}
 		var input []SessionEvent
 		for _, event := range []acp.AgentEvent{
 			{Type: acp.EventTypeUserMessage, TurnID: "old", Text: "Recover the historic guide"},

@@ -25,17 +25,23 @@ func (g *WorktreeRepo) Insert(ctx context.Context, item worktree.Worktree) error
 	if err := g.checkReady(ctx, "insert worktree"); err != nil {
 		return err
 	}
-	return g.queries.InsertWorktree(ctx, sqlcgen.InsertWorktreeParams{
-		ProfileID: strings.TrimSpace(item.ProfileID),
-		ID:        strings.TrimSpace(item.ID), WorkspaceID: strings.TrimSpace(item.WorkspaceID),
-		Name: strings.TrimSpace(item.Name), Branch: strings.TrimSpace(item.Branch),
-		Path: strings.TrimSpace(item.Path), GitDir: strings.TrimSpace(item.GitDir),
-		State: string(item.State), PendingPhase: string(item.PendingPhase), Origin: string(item.Origin),
-		SetupState: string(item.SetupState), SetupError: item.SetupError, BaseRef: item.BaseRef,
-		CreatedBranch: boolToInt64(item.CreatedBranch), RunNamespace: item.RunNamespace,
-		CreatedHead: item.CreatedHead, RunID: item.RunID,
-		CreatedAt: store.FormatTimestamp(item.CreatedAt), UpdatedAt: store.FormatTimestamp(item.UpdatedAt),
-	})
+	return g.executeWriteQuery(
+		ctx,
+		"globaldb.InsertWorktree",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.InsertWorktree(ctx, sqlcgen.InsertWorktreeParams{
+				ProfileID: strings.TrimSpace(item.ProfileID),
+				ID:        strings.TrimSpace(item.ID), WorkspaceID: strings.TrimSpace(item.WorkspaceID),
+				Name: strings.TrimSpace(item.Name), Branch: strings.TrimSpace(item.Branch),
+				Path: strings.TrimSpace(item.Path), GitDir: strings.TrimSpace(item.GitDir),
+				State: string(item.State), PendingPhase: string(item.PendingPhase), Origin: string(item.Origin),
+				SetupState: string(item.SetupState), SetupError: item.SetupError, BaseRef: item.BaseRef,
+				CreatedBranch: boolToInt64(item.CreatedBranch), RunNamespace: item.RunNamespace,
+				CreatedHead: item.CreatedHead, RunID: item.RunID,
+				CreatedAt: store.FormatTimestamp(item.CreatedAt), UpdatedAt: store.FormatTimestamp(item.UpdatedAt),
+			})
+		},
+	)
 }
 
 // Get resolves IDs before live names. Dismissed rows remain addressable only by ID.
@@ -118,9 +124,16 @@ func (g *WorktreeRepo) DeletePending(ctx context.Context, workspaceID, id string
 	if err := g.checkReady(ctx, "delete pending worktree"); err != nil {
 		return err
 	}
-	count, err := g.queries.DeletePendingWorktree(ctx, sqlcgen.DeletePendingWorktreeParams{
-		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
-	})
+	count, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.DeletePendingWorktree",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.DeletePendingWorktree(ctx, sqlcgen.DeletePendingWorktreeParams{
+				WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: delete pending worktree: %w", err)
 	}
@@ -172,13 +185,20 @@ func (g *WorktreeRepo) UpdatePending(
 	if err := g.checkReady(ctx, "update pending worktree"); err != nil {
 		return err
 	}
-	count, err := g.queries.UpdatePendingWorktree(ctx, sqlcgen.UpdatePendingWorktreeParams{
-		PendingPhase: string(update.Phase), Branch: update.Branch, GitDir: update.GitDir,
-		BaseRef: update.BaseRef, CreatedBranch: boolToInt64(update.CreatedBranch),
-		RunNamespace: update.RunNamespace, CreatedHead: update.CreatedHead,
-		UpdatedAt:   store.FormatTimestamp(g.now().UTC()),
-		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
-	})
+	count, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.UpdatePendingWorktree",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UpdatePendingWorktree(ctx, sqlcgen.UpdatePendingWorktreeParams{
+				PendingPhase: string(update.Phase), Branch: update.Branch, GitDir: update.GitDir,
+				BaseRef: update.BaseRef, CreatedBranch: boolToInt64(update.CreatedBranch),
+				RunNamespace: update.RunNamespace, CreatedHead: update.CreatedHead,
+				UpdatedAt:   store.FormatTimestamp(g.now().UTC()),
+				WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: update pending worktree: %w", err)
 	}
@@ -196,11 +216,18 @@ func (g *WorktreeRepo) CompleteCreate(
 	if err := g.checkReady(ctx, "complete worktree create"); err != nil {
 		return err
 	}
-	count, err := g.queries.CompleteWorktreeCreate(ctx, sqlcgen.CompleteWorktreeCreateParams{
-		SetupState: string(setupState), SetupError: setupError,
-		UpdatedAt: store.FormatTimestamp(updatedAt), WorkspaceID: strings.TrimSpace(workspaceID),
-		WorktreeID: strings.TrimSpace(id),
-	})
+	count, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.CompleteWorktreeCreate",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.CompleteWorktreeCreate(ctx, sqlcgen.CompleteWorktreeCreateParams{
+				SetupState: string(setupState), SetupError: setupError,
+				UpdatedAt: store.FormatTimestamp(updatedAt), WorkspaceID: strings.TrimSpace(workspaceID),
+				WorktreeID: strings.TrimSpace(id),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: complete worktree create: %w", err)
 	}
@@ -218,10 +245,20 @@ func (g *WorktreeRepo) FailCreate(
 	if err := g.checkReady(ctx, "fail worktree create"); err != nil {
 		return err
 	}
-	count, err := g.queries.FailWorktreeCreate(ctx, sqlcgen.FailWorktreeCreateParams{
-		CreateError: createError, CreateRollbackError: rollbackError, UpdatedAt: store.FormatTimestamp(updatedAt),
-		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
-	})
+	count, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.FailWorktreeCreate",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.FailWorktreeCreate(ctx, sqlcgen.FailWorktreeCreateParams{
+				CreateError:         createError,
+				CreateRollbackError: rollbackError,
+				UpdatedAt:           store.FormatTimestamp(updatedAt),
+				WorkspaceID:         strings.TrimSpace(workspaceID),
+				WorktreeID:          strings.TrimSpace(id),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: fail worktree create: %w", err)
 	}
@@ -237,11 +274,18 @@ func (g *WorktreeRepo) CompleteFailedCreateRollback(
 	if err := g.checkReady(ctx, "complete failed worktree create rollback"); err != nil {
 		return err
 	}
-	count, err := g.queries.CompleteFailedWorktreeCreateRollback(
+	count, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.CompleteFailedWorktreeCreateRollbackParams{
-			UpdatedAt:   store.FormatTimestamp(updatedAt),
-			WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
+		g.repoBase,
+		"globaldb.CompleteFailedWorktreeCreateRollback",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.CompleteFailedWorktreeCreateRollback(
+				ctx,
+				sqlcgen.CompleteFailedWorktreeCreateRollbackParams{
+					UpdatedAt:   store.FormatTimestamp(updatedAt),
+					WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
+				},
+			)
 		},
 	)
 	if err != nil {
@@ -264,11 +308,18 @@ func (g *WorktreeRepo) CompareAndSwapState(
 	if err := g.checkReady(ctx, "compare and swap worktree state"); err != nil {
 		return false, err
 	}
-	count, err := g.queries.CompareAndSwapWorktreeState(ctx, sqlcgen.CompareAndSwapWorktreeStateParams{
-		NextState: string(next), UpdatedAt: store.FormatTimestamp(updatedAt),
-		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
-		ExpectedState: string(expected),
-	})
+	count, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.CompareAndSwapWorktreeState",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.CompareAndSwapWorktreeState(ctx, sqlcgen.CompareAndSwapWorktreeStateParams{
+				NextState: string(next), UpdatedAt: store.FormatTimestamp(updatedAt),
+				WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
+				ExpectedState: string(expected),
+			})
+		},
+	)
 	if err != nil {
 		return false, fmt.Errorf("store: compare and swap worktree state: %w", err)
 	}
@@ -289,10 +340,17 @@ func (g *WorktreeRepo) FenceRemoval(
 	if keepBranch {
 		mode = worktreeRemovalKeepBranch
 	}
-	count, err := g.queries.FenceWorktreeRemoval(ctx, sqlcgen.FenceWorktreeRemovalParams{
-		RemovalMode: mode, UpdatedAt: store.FormatTimestamp(updatedAt),
-		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
-	})
+	count, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.FenceWorktreeRemoval",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.FenceWorktreeRemoval(ctx, sqlcgen.FenceWorktreeRemovalParams{
+				RemovalMode: mode, UpdatedAt: store.FormatTimestamp(updatedAt),
+				WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
+			})
+		},
+	)
 	if err != nil {
 		return false, fmt.Errorf("store: fence worktree removal: %w", err)
 	}
@@ -309,10 +367,17 @@ func (g *WorktreeRepo) SetState(
 	if err := g.checkReady(ctx, "set worktree state"); err != nil {
 		return err
 	}
-	count, err := g.queries.SetWorktreeState(ctx, sqlcgen.SetWorktreeStateParams{
-		State: string(state), UpdatedAt: store.FormatTimestamp(updatedAt),
-		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
-	})
+	count, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.SetWorktreeState",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.SetWorktreeState(ctx, sqlcgen.SetWorktreeStateParams{
+				State: string(state), UpdatedAt: store.FormatTimestamp(updatedAt),
+				WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: set worktree state: %w", err)
 	}

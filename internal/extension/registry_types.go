@@ -10,8 +10,9 @@ import (
 
 // Registry persists installed extension metadata in the global SQLite database.
 type Registry struct {
-	db  *sql.DB
-	now func() time.Time
+	db     *sql.DB
+	readDB *sql.DB
+	now    func() time.Time
 
 	bundledCacheMu     sync.RWMutex
 	bundledCacheLoaded bool

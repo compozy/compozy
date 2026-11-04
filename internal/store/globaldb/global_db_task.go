@@ -86,7 +86,11 @@ func (g *TaskRepo) CreateTask(ctx context.Context, record taskpkg.Task) error {
 		return err
 	}
 
-	if err := insertTaskWithExecutor(ctx, g.db, normalized); err != nil {
+	if err := g.withTaskImmediateTransaction(
+		ctx,
+		"create task",
+		func(exec taskSQLExecutor) error { return insertTaskWithExecutor(ctx, exec, normalized) },
+	); err != nil {
 		return fmt.Errorf("store: create task %q: %w", normalized.ID, err)
 	}
 
@@ -100,7 +104,11 @@ func (g *TaskRepo) DeleteTask(ctx context.Context, id string) error {
 		return err
 	}
 
-	return g.deleteTaskWithExecutor(ctx, g.db, id)
+	return g.withTaskImmediateTransaction(
+		ctx,
+		"delete task",
+		func(exec taskSQLExecutor) error { return g.deleteTaskWithExecutor(ctx, exec, id) },
+	)
 }
 
 // WithDeleteTaskTransaction executes one delete-task mutation flow inside a

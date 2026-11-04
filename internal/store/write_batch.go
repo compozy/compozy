@@ -90,7 +90,7 @@ func (w *BackgroundWriter) submit(
 		return nil, errors.New("store: background write requires context, database and callback")
 	}
 	for owner := writeContextParent(ctx); owner != nil; owner = owner.parent {
-		if owner.db == w.db && owner.active.Load() {
+		if sameWriteDatabase(owner.db, w.db) && owner.active.Load() {
 			return nil, errWriteReentry
 		}
 	}

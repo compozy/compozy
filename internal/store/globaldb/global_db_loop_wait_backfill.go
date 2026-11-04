@@ -40,10 +40,17 @@ func (g *LoopRepo) BackfillLoopWaitAdmissionDeadlines(ctx context.Context, limit
 			return 0, err
 		}
 		deadline := row.CreatedAt.UTC().Add(lifecycle.AdmissionHorizon)
-		if _, err := g.queries.BackfillLoopEventWaitDeadline(ctx, sqlcgen.BackfillLoopEventWaitDeadlineParams{
-			LoopRunID: row.LoopRunID, Generation: row.Generation, NodeID: row.NodeID, ItemIndex: row.ItemIndex,
-			Deadline: sql.NullTime{Time: deadline, Valid: true},
-		}); err != nil {
+		if _, err := executeWriteQueryResult(
+			ctx,
+			g.repoBase,
+			"globaldb.BackfillLoopEventWaitDeadline",
+			func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+				return queries.BackfillLoopEventWaitDeadline(ctx, sqlcgen.BackfillLoopEventWaitDeadlineParams{
+					LoopRunID: row.LoopRunID, Generation: row.Generation, NodeID: row.NodeID, ItemIndex: row.ItemIndex,
+					Deadline: sql.NullTime{Time: deadline, Valid: true},
+				})
+			},
+		); err != nil {
 			return 0, err
 		}
 	}

@@ -148,10 +148,17 @@ func (r *SkillReviewRepo) DecideReview(ctx context.Context, id, digest, state, o
 	if id == "" || digest == "" || operator == "" || (state != "approved" && state != "rejected") {
 		return errors.New("skill review decision requires identity, digest, operator and terminal state")
 	}
-	count, err := r.queries.DecideAgentSkillReview(ctx, sqlcgen.DecideAgentSkillReviewParams{
-		ID: id, Digest: digest, State: state, DecidedBy: operator,
-		DecidedAt: sql.NullString{String: store.FormatTimestamp(r.now()), Valid: true},
-	})
+	count, err := executeWriteQueryResult(
+		ctx,
+		r.repoBase,
+		"globaldb.DecideAgentSkillReview",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.DecideAgentSkillReview(ctx, sqlcgen.DecideAgentSkillReviewParams{
+				ID: id, Digest: digest, State: state, DecidedBy: operator,
+				DecidedAt: sql.NullString{String: store.FormatTimestamp(r.now()), Valid: true},
+			})
+		},
+	)
 	if err != nil {
 		return err
 	}

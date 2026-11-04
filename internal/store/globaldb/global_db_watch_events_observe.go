@@ -16,6 +16,9 @@ func (g *WatchEventsRepo) readObserveWatchEventsCursor(
 	if len(query.kinds) == 0 {
 		return 0, nil
 	}
+	if err := g.summaryPublications.wait(ctx); err != nil {
+		return 0, err
+	}
 	// dynamic-sql: caller-selected observability event kinds require a variable-width IN list.
 	placeholders, kindArgs := sqlInPlaceholders(query.kinds)
 	scopeSQL, scopeArgs := watchEventsScopeClause("profile_id", query.readScope)
@@ -42,6 +45,9 @@ func (g *WatchEventsRepo) readObserveWatchEvents(
 ) ([]looppkg.WatchEvent, error) {
 	if len(query.kinds) == 0 {
 		return nil, nil
+	}
+	if err := g.summaryPublications.wait(ctx); err != nil {
+		return nil, err
 	}
 	// dynamic-sql: caller-selected observability event kinds require a variable-width IN list.
 	placeholders, kindArgs := sqlInPlaceholders(query.kinds)

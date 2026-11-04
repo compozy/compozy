@@ -23,7 +23,7 @@ const (
 func applyTelemetryRelocation(ctx context.Context, db *sql.DB, path string, version int64) (retErr error) {
 	targetPath := telemetrydb.Path(path)
 	if version >= telemetryExportVersion {
-		if err := requireTelemetryDestination(ctx, targetPath); err != nil {
+		if err := requireTelemetryDestination(ctx, db, targetPath); err != nil {
 			return err
 		}
 	}
@@ -35,19 +35,17 @@ func applyTelemetryRelocation(ctx context.Context, db *sql.DB, path string, vers
 		return err
 	}
 	defer func() { retErr = errors.Join(retErr, target.Close(context.WithoutCancel(ctx))) }()
-	if version == 0 {
-		var count int64
-		if err := target.DB().QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summaries").Scan(&count); err != nil {
-			return err
-		}
-		if count != 0 {
-			return errors.New("store: refusing to attach existing telemetry to a new core database")
-		}
-		return store.Apply(ctx, db, MigrationStream())
-	}
 	stepper, err := store.NewMigrationStepper(ctx, db, MigrationStream())
 	if err != nil {
 		return err
+	}
+	if version < telemetryExportVersion {
+		if _, err := stepper.UpTo(ctx, telemetryExportVersion-1); err != nil {
+			return err
+		}
+		if err := bindTelemetryDestination(ctx, db, target.DB()); err != nil {
+			return err
+		}
 	}
 	if _, err := stepper.UpTo(ctx, telemetryExportVersion); err != nil {
 		return err
@@ -62,7 +60,7 @@ func applyTelemetryRelocation(ctx context.Context, db *sql.DB, path string, vers
 
 // The destination exists before the source freeze commits. Once export can have
 // acknowledged a batch, neither a missing file nor an empty replacement is safe.
-func requireTelemetryDestination(ctx context.Context, path string) (err error) {
+func requireTelemetryDestination(ctx context.Context, source *sql.DB, path string) (err error) {
 	db, err := store.OpenSQLiteReadPool(ctx, path)
 	if err != nil {
 		return fmt.Errorf("store: relocated telemetry database is required: %w", err)
@@ -75,7 +73,7 @@ func requireTelemetryDestination(ctx context.Context, path string) (err error) {
 	if status.Version == 0 {
 		return errors.New("store: relocated telemetry database is uninitialized")
 	}
-	return nil
+	return verifyTelemetryIdentity(ctx, source, db)
 }
 
 func exportTelemetry(ctx context.Context, source, target *sql.DB) error {
@@ -88,6 +86,9 @@ func exportTelemetry(ctx context.Context, source, target *sql.DB) error {
 			return preserveTelemetrySequence(ctx, source, target)
 		}
 		if err := commitTelemetryExportBatch(ctx, target, columns, rows); err != nil {
+			return err
+		}
+		if err := verifyTelemetryIdentity(ctx, source, target); err != nil {
 			return err
 		}
 		sequences := make([]any, len(rows))

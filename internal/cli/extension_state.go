@@ -6,9 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"strings"
 
+	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/spf13/cobra"
 )
@@ -158,6 +160,14 @@ func withLocalExtensionRegistry[T any](
 		return result, err
 	}
 
+	// Reachability can change after the daemon probe. Own the same singleton
+	// lease through close so offline migration/install cannot race daemon boot.
+	lock, err := compozydaemon.AcquireLock(runtime.HomePaths.DaemonLock, os.Getpid())
+	if err != nil {
+		return result, fmt.Errorf("cli: reserve offline extension database: %w", err)
+	}
+	defer func() { err = errors.Join(err, lock.Release()) }()
+
 	globalDB, err := openLocalGlobalDatabase(ctx, runtime.HomePaths.DatabaseFile, "extension")
 	if err != nil {
 		return result, err
@@ -175,5 +185,5 @@ func withLocalExtensionRegistry[T any](
 		err = errors.Join(err, closeErr)
 	}()
 
-	return fn(runtime, extensionpkg.NewRegistry(globalDB.DB()))
+	return fn(runtime, extensionpkg.NewRegistry(globalDB.DB(), extensionpkg.WithRegistryReadDB(globalDB.ReadDB())))
 }

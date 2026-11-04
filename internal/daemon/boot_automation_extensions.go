@@ -26,7 +26,7 @@ func (d *Daemon) bootExtensions(ctx context.Context, state *bootState, cleanup *
 		return nil
 	}
 
-	extRegistry := extensionpkg.NewRegistry(dbSource.DB())
+	extRegistry := extensionpkg.NewRegistry(dbSource.DB(), extensionpkg.WithRegistryReadDB(dbSource.ReadDB()))
 	if err := extensionpkg.ReconcileManagedExtensionArtifacts(d.homePaths, extRegistry); err != nil {
 		return fmt.Errorf("daemon: reconcile managed extension artifacts: %w", err)
 	}

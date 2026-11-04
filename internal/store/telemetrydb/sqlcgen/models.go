@@ -38,3 +38,8 @@ type EventSummary struct {
 	Provider             string
 	Outcome              string
 }
+
+type TelemetryIdentity struct {
+	Singleton int64
+	Identity  string
+}

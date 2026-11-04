@@ -501,6 +501,33 @@ func openExtensionSecretTestInput(t *testing.T) *os.File {
 func TestExtensionInstallOfflinePersistsExtension(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: a stale reachability probe cannot start an offline writer while
+	// the daemon owns the home. Owner: CLI fallback; canonical suite: offline install.
+	t.Run("Should refuse the offline fallback while the daemon singleton is held", func(t *testing.T) {
+		t.Parallel()
+		deps, homePaths := newExtensionLocalDeps(t, &stubClient{})
+		lock, err := compozydaemon.AcquireLock(homePaths.DaemonLock, os.Getpid())
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := lock.Release(); err != nil {
+				t.Error(err)
+			}
+		}()
+		_, err = withLocalExtensionRegistry(
+			t.Context(),
+			deps,
+			func(*runtimeContext, localExtensionRegistry) (bool, error) {
+				t.Error("offline registry opened while daemon singleton was held")
+				return true, nil
+			},
+		)
+		if !errors.Is(err, compozydaemon.ErrAlreadyRunning) {
+			t.Fatalf("offline writer = %v", err)
+		}
+	})
+
 	deps, homePaths := newExtensionLocalDeps(t, &stubClient{})
 	dir := writeExtensionFixture(t, "alpha-ext", extensionFixtureOptions{})
 

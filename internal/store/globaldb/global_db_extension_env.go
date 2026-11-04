@@ -142,20 +142,26 @@ func (r *ExtensionEnvRepo) PutEnvBinding(ctx context.Context, binding extensione
 	if err != nil {
 		return err
 	}
-	err = r.queries.UpsertExtensionEnvBinding(ctx, sqlcgen.UpsertExtensionEnvBindingParams{
-		ExtensionName: normalized.ExtensionName,
-		ProfileID:     normalized.ProfileID,
-		WorkspaceID:   normalized.WorkspaceID,
-		EnvName:       normalized.EnvName,
-		SecretRef:     normalized.SecretRef,
-		InputID:       normalized.InputID,
-		Active:        extensionEnvBindingActive(normalized),
-		McpServer:     normalized.MCPServer,
-		HeaderName:    normalized.HeaderName,
-		Kind:          normalized.Kind,
-		CreatedAt:     store.FormatTimestamp(normalized.CreatedAt),
-		UpdatedAt:     store.FormatTimestamp(normalized.UpdatedAt),
-	})
+	err = r.executeWriteQuery(
+		ctx,
+		"globaldb.UpsertExtensionEnvBinding",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.UpsertExtensionEnvBinding(ctx, sqlcgen.UpsertExtensionEnvBindingParams{
+				ExtensionName: normalized.ExtensionName,
+				ProfileID:     normalized.ProfileID,
+				WorkspaceID:   normalized.WorkspaceID,
+				EnvName:       normalized.EnvName,
+				SecretRef:     normalized.SecretRef,
+				InputID:       normalized.InputID,
+				Active:        extensionEnvBindingActive(normalized),
+				McpServer:     normalized.MCPServer,
+				HeaderName:    normalized.HeaderName,
+				Kind:          normalized.Kind,
+				CreatedAt:     store.FormatTimestamp(normalized.CreatedAt),
+				UpdatedAt:     store.FormatTimestamp(normalized.UpdatedAt),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf(
 			"store: put extension env binding %s env %q: %w",
@@ -183,9 +189,16 @@ func (r *ExtensionEnvRepo) DeleteEnvBinding(
 	if !vault.EnvNamePattern.MatchString(env) {
 		return fmt.Errorf("store: invalid extension env name %q", env)
 	}
-	_, err = r.queries.DeleteExtensionEnvBinding(ctx, sqlcgen.DeleteExtensionEnvBindingParams{
-		ExtensionName: name, ProfileID: strings.TrimSpace(profileID), WorkspaceID: workspace, EnvName: env,
-	})
+	_, err = executeWriteQueryResult(
+		ctx,
+		r.repoBase,
+		"globaldb.DeleteExtensionEnvBinding",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.DeleteExtensionEnvBinding(ctx, sqlcgen.DeleteExtensionEnvBindingParams{
+				ExtensionName: name, ProfileID: strings.TrimSpace(profileID), WorkspaceID: workspace, EnvName: env,
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf(
 			"store: delete extension env binding %s env %q: %w",
@@ -209,9 +222,16 @@ func (r *ExtensionEnvRepo) DeleteEnvBindings(
 	if err != nil {
 		return err
 	}
-	_, err = r.queries.DeleteExtensionEnvBindings(ctx, sqlcgen.DeleteExtensionEnvBindingsParams{
-		ExtensionName: name, ProfileID: strings.TrimSpace(profileID), WorkspaceID: workspace,
-	})
+	_, err = executeWriteQueryResult(
+		ctx,
+		r.repoBase,
+		"globaldb.DeleteExtensionEnvBindings",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.DeleteExtensionEnvBindings(ctx, sqlcgen.DeleteExtensionEnvBindingsParams{
+				ExtensionName: name, ProfileID: strings.TrimSpace(profileID), WorkspaceID: workspace,
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf(
 			"store: delete extension env bindings for %s: %w",

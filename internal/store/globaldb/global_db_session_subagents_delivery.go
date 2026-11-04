@@ -104,9 +104,16 @@ func (g *SessionRepo) MarkFirstPromptAdmitted(ctx context.Context, id string) er
 	if err := g.checkReady(ctx, "mark first subagent prompt admitted"); err != nil {
 		return err
 	}
-	n, err := g.queries.MarkSubagentFirstPromptAdmitted(
+	n, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.MarkSubagentFirstPromptAdmittedParams{ID: id, UpdatedAt: store.FormatTimestamp(g.now())},
+		g.repoBase,
+		"globaldb.MarkSubagentFirstPromptAdmitted",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.MarkSubagentFirstPromptAdmitted(
+				ctx,
+				sqlcgen.MarkSubagentFirstPromptAdmittedParams{ID: id, UpdatedAt: store.FormatTimestamp(g.now())},
+			)
+		},
 	)
 	if err != nil {
 		return err
@@ -120,7 +127,14 @@ func (g *SessionRepo) DeleteReserved(ctx context.Context, id string) error {
 	if err := g.checkReady(ctx, "delete reserved subagent"); err != nil {
 		return err
 	}
-	n, err := g.queries.DeleteReservedSubagent(ctx, id)
+	n, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.DeleteReservedSubagent",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.DeleteReservedSubagent(ctx, id)
+		},
+	)
 	if err != nil {
 		return err
 	}

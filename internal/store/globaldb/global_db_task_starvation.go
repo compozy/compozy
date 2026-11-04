@@ -101,15 +101,21 @@ func (g *TaskRunRepo) UpsertRunStarvation(
 	if err != nil {
 		return taskpkg.RunStarvation{}, err
 	}
-	if err := g.queries.UpsertRunStarvation(ctx, sqlcgen.UpsertRunStarvationParams{
-		RunID: id, WakeCount: int64(mutation.WakeCount),
-		FirstStarvedAt:   store.FormatTimestamp(mutation.FirstStarvedAt),
-		LastWakeAt:       nullableStarvationTime(mutation.LastWakeAt),
-		EscalationTier:   int64(mutation.EscalationTier),
-		SpawnRequestedAt: nullableStarvationTimePtr(mutation.SpawnRequestedAt),
-		StarvedEventAt:   nullableStarvationTimePtr(mutation.StarvedEventAt),
-		UpdatedAt:        store.FormatTimestamp(mutation.UpdatedAt),
-	}); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.UpsertRunStarvation",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.UpsertRunStarvation(ctx, sqlcgen.UpsertRunStarvationParams{
+				RunID: id, WakeCount: int64(mutation.WakeCount),
+				FirstStarvedAt:   store.FormatTimestamp(mutation.FirstStarvedAt),
+				LastWakeAt:       nullableStarvationTime(mutation.LastWakeAt),
+				EscalationTier:   int64(mutation.EscalationTier),
+				SpawnRequestedAt: nullableStarvationTimePtr(mutation.SpawnRequestedAt),
+				StarvedEventAt:   nullableStarvationTimePtr(mutation.StarvedEventAt),
+				UpdatedAt:        store.FormatTimestamp(mutation.UpdatedAt),
+			})
+		},
+	); err != nil {
 		return taskpkg.RunStarvation{}, fmt.Errorf("store: upsert run starvation: %w", err)
 	}
 	return taskpkg.RunStarvation{
@@ -133,7 +139,13 @@ func (g *TaskRunRepo) ClearRunStarvation(ctx context.Context, runID string) erro
 	if err != nil {
 		return err
 	}
-	if err := g.queries.DeleteRunStarvation(ctx, id); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.DeleteRunStarvation",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteRunStarvation(ctx, id)
+		},
+	); err != nil {
 		return fmt.Errorf("store: clear run starvation: %w", err)
 	}
 	return nil

@@ -1727,6 +1727,62 @@ func TestGlobalDBAutomationSuggestionsEnforceConsentInvariants(t *testing.T) {
 		}
 	})
 
+	// Invariant: a committed dismissal retains its event through telemetry failure.
+	// Owner and canonical suite: automation suggestion persistence over real SQLite.
+	t.Run("Should commit a dismissal event before attempting telemetry delivery", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		db.summaryRetry.cancel()
+		<-db.summaryRetry.done
+		workspaceID := registerWorkspaceForGlobalTests(t, db, "dismissal-outbox", t.TempDir())
+		created, err := db.CreateSuggestion(ctx, automationSuggestionForTest(
+			"dismissal-outbox", workspaceID, "catalog:v1:dismissal-outbox",
+		), automation.DefaultSuggestionPendingCap)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.telemetry.DB().ExecContext(ctx, `CREATE TRIGGER fail_dismissal BEFORE INSERT ON event_summaries
+			BEGIN SELECT RAISE(ABORT,'dismissal delivery unavailable'); END`); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if _, err := db.telemetry.DB().
+				ExecContext(context.Background(), "DROP TRIGGER IF EXISTS fail_dismissal"); err != nil {
+				t.Error(err)
+			}
+		})
+		resolved, err := db.ResolveSuggestion(
+			ctx,
+			created.ProfileID,
+			workspaceID,
+			created.ID,
+			automation.SuggestionStatusDismissed,
+		)
+		if err != nil || resolved.Status != automation.SuggestionStatusDismissed {
+			t.Fatalf("committed dismissal = %#v, %v", resolved, err)
+		}
+		var eventID, eventType string
+		if err := db.readDB.QueryRowContext(ctx, "SELECT id, type FROM event_summary_outbox").
+			Scan(&eventID, &eventType); err != nil ||
+			eventID != "automation-suggestion:"+created.ID+":dismissed" ||
+			eventType != events.AutomationSuggestionDismissed {
+			t.Fatalf("durable dismissal event = %q/%q, %v", eventID, eventType, err)
+		}
+		if _, err := db.telemetry.DB().ExecContext(ctx, "DROP TRIGGER fail_dismissal"); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.ObserveRepo.flushEventSummaryOutbox(ctx); err != nil {
+			t.Fatal(err)
+		}
+		rows, err := db.ListEventSummaries(ctx, store.EventSummaryQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, Type: events.AutomationSuggestionDismissed,
+		})
+		if err != nil || len(rows) != 1 || rows[0].ID != eventID {
+			t.Fatalf("replayed dismissal = %#v, %v", rows, err)
+		}
+	})
+
 	t.Run("Should serialize the pending cap at five", func(t *testing.T) {
 		t.Parallel()
 

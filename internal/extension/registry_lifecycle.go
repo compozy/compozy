@@ -25,7 +25,7 @@ func (r *Registry) IsEnabledForProfile(name string, profileID string) (bool, err
 		return false, err
 	}
 	var enabled bool
-	err = r.db.QueryRowContext(registryContext(), `
+	err = r.readDB.QueryRowContext(registryContext(), `
 		SELECT COALESCE((
 			SELECT enabled
 			FROM extension_profile_enablement

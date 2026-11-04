@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"modernc.org/sqlite"
 )
 
 // OpenSQLiteDatabase opens a SQLite database and applies shared configuration.
@@ -109,10 +111,12 @@ func openSQLiteHandle(ctx context.Context, path string, dsn string) (*sql.DB, er
 	if err := sqliteUnicodeSearchRegistrationErr; err != nil {
 		return nil, fmt.Errorf("store: register SQLite Unicode search: %w", err)
 	}
-	db, err := sql.Open(sqliteDriverName, dsn)
+	connector, err := sqlite.NewConnector(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("store: open sqlite database %q: %w", path, err)
 	}
+	identity := &sqliteFileDriver{Driver: connector.Driver()}
+	db := sql.OpenDB(&sqliteFileConnector{Connector: connector, identity: identity})
 	db.SetMaxOpenConns(defaultMaxOpenConns)
 	db.SetMaxIdleConns(defaultMaxIdleConns)
 	if err := db.PingContext(ctx); err != nil {
@@ -121,6 +125,14 @@ func openSQLiteHandle(ctx context.Context, path string, dsn string) (*sql.DB, er
 			db,
 			primaryErr,
 			fmt.Sprintf("database %q after ping failure", path),
+		)
+	}
+	identity.info, err = os.Stat(path)
+	if err != nil {
+		return nil, closeSQLiteAfterError(
+			db,
+			fmt.Errorf("store: identify sqlite database %q: %w", path, err),
+			"database after identity failure",
 		)
 	}
 	return db, nil

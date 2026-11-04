@@ -38,8 +38,9 @@ An interrupted migration resumes on the next start. The first start of a large i
 space for the new file and can take longer while it copies the retained summaries.
 
 Keep `compozy.db`, `compozy.db.telemetry.db`, and their SQLite sidecars together when backing up or
-restoring. If the relocated telemetry file is missing, startup refuses to create an empty replacement.
-Restore the complete family from a matching backup. The Observe API retains its filters and cursors.
+restoring. The two databases carry a matching identity. If the relocated telemetry file is missing,
+uninitialized, or belongs to a different core, startup refuses to replace or rebind it. Restore
+the complete family from a matching backup. The Observe API retains its filters and cursors.
 
 ## Session event store ownership
 

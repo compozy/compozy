@@ -34,13 +34,13 @@ func eventSummaryParams(summary store.EventSummary) sqlcgen.InsertEventSummaryPa
 	}
 }
 
-func (s *Store) WriteOutbox(ctx context.Context, summaries []store.EventSummary) error {
-	return s.background.Submit(
-		ctx,
-		"deliver durable lifecycle events",
-		func(ctx context.Context, tx *store.WriteTx) error {
-			queries := sqlcgen.New(tx)
-			for _, summary := range summaries {
+func (s *Store) WriteOutbox(ctx context.Context, summaries []store.EventSummary) []error {
+	operations := make([]store.BackgroundWriteOperation, 0, len(summaries))
+	for _, summary := range summaries {
+		operations = append(operations, store.BackgroundWriteOperation{
+			Name: "deliver durable lifecycle event",
+			Run: func(ctx context.Context, tx *store.WriteTx) error {
+				queries := sqlcgen.New(tx)
 				params := eventSummaryParams(summary)
 				if err := queries.InsertEventSummaryIfAbsent(
 					ctx,
@@ -58,10 +58,11 @@ func (s *Store) WriteOutbox(ctx context.Context, summaries []store.EventSummary)
 				if identical != 1 {
 					return errors.New("store: lifecycle event identity collides with different telemetry")
 				}
-			}
-			return nil
-		},
-	)
+				return nil
+			},
+		})
+	}
+	return s.background.SubmitBatch(ctx, operations)
 }
 
 func eventSummaryLeaseUntil(value *time.Time) string {

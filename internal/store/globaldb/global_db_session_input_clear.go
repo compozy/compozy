@@ -142,7 +142,13 @@ func (g *SessionRepo) MarkSessionInputClearTraceProjected(
 	if err := g.checkReady(ctx, "mark queue clear trace projected"); err != nil {
 		return err
 	}
-	return g.queries.MarkSessionInputClearTraceProjected(ctx, sqlcgen.MarkSessionInputClearTraceProjectedParams{
-		SessionID: sessionID, EntryID: entryID, Now: nullableSessionTime(now),
-	})
+	return g.executeWriteQuery(
+		ctx,
+		"globaldb.MarkSessionInputClearTraceProjected",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.MarkSessionInputClearTraceProjected(ctx, sqlcgen.MarkSessionInputClearTraceProjectedParams{
+				SessionID: sessionID, EntryID: entryID, Now: nullableSessionTime(now),
+			})
+		},
+	)
 }

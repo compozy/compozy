@@ -43,7 +43,13 @@ func (r *InstanceRepo) ForgetSettledRuns(ctx context.Context, instanceID string)
 	if err := r.checkReady(ctx, "forget settled instance runs"); err != nil {
 		return err
 	}
-	return r.queries.ForgetSettledInstanceRuns(ctx, instanceID)
+	return r.executeWriteQuery(
+		ctx,
+		"globaldb.ForgetSettledInstanceRuns",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.ForgetSettledInstanceRuns(ctx, instanceID)
+		},
+	)
 }
 
 // RequireInstanceRunResumable is an early read guard; the canonical mutations repeat it in their transaction.

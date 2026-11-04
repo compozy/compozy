@@ -186,11 +186,18 @@ func (g *HeartbeatRepo) MarkSessionHealthStale(
 	if g.healthBuffer != nil {
 		return g.healthBuffer.markStale(ctx, cutoff, updatedAt)
 	}
-	affected, err := g.queries.MarkSessionHealthStale(ctx, sqlcgen.MarkSessionHealthStaleParams{
-		Health:              string(heartbeat.SessionHealthStale),
-		IneligibilityReason: nullableHeartbeatString(string(heartbeat.SessionHealthReasonStale)),
-		UpdatedAt:           store.FormatTimestamp(updatedAt), Cutoff: nullableHeartbeatTimestamp(cutoff),
-	})
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.MarkSessionHealthStale",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.MarkSessionHealthStale(ctx, sqlcgen.MarkSessionHealthStaleParams{
+				Health:              string(heartbeat.SessionHealthStale),
+				IneligibilityReason: nullableHeartbeatString(string(heartbeat.SessionHealthReasonStale)),
+				UpdatedAt:           store.FormatTimestamp(updatedAt), Cutoff: nullableHeartbeatTimestamp(cutoff),
+			})
+		},
+	)
 	if err != nil {
 		return 0, fmt.Errorf("store: mark session health stale: %w", err)
 	}

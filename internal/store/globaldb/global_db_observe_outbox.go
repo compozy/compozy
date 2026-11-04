@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -31,45 +32,65 @@ func insertEventSummary(ctx context.Context, queries *sqlcgen.Queries, summary s
 
 // drainCommittedEventSummaries does not turn an acknowledged core commit into
 // an apparent rollback. The durable outbox retains failed deliveries for retry.
-func (g *repoBase) drainCommittedEventSummaries(ctx context.Context) {
-	if err := g.flushEventSummaryOutbox(ctx); err != nil {
+func (g *repoBase) drainCommittedEventSummaries(ctx context.Context, summaries ...store.EventSummary) {
+	var err error
+	if len(summaries) > 0 {
+		err = g.deliverEventSummaryBatch(ctx, summaries)
+	} else {
+		err = g.flushEventSummaryOutbox(ctx)
+	}
+	if err != nil {
 		slog.WarnContext(ctx, "store: telemetry delivery deferred", "error", err)
 	}
 }
 
+const eventSummaryOutboxBatchSize = 128
+
+// flushEventSummaryOutbox does one bounded batch. Request handlers never inherit
+// an unbounded backlog; the owned retry worker and clean close drain the rest.
 func (g *repoBase) flushEventSummaryOutbox(ctx context.Context) error {
-	const batchSize = 128
-	for {
-		rows, err := g.readQueries.ListEventSummaryOutbox(ctx, batchSize)
+	_, err := g.flushEventSummaryBatch(ctx)
+	return err
+}
+
+func (g *repoBase) flushEventSummaryBatch(ctx context.Context) (int, error) {
+	rows, err := g.readQueries.ListEventSummaryOutbox(ctx, eventSummaryOutboxBatchSize)
+	if err != nil {
+		return 0, err
+	}
+	summaries := make([]store.EventSummary, 0, len(rows))
+	for _, row := range rows {
+		summary, err := eventSummaryFromOutbox(row)
 		if err != nil {
-			return err
+			return 0, err
 		}
-		if len(rows) == 0 {
-			return nil
-		}
-		summaries := make([]store.EventSummary, 0, len(rows))
-		ids := make([]string, 0, len(rows))
-		for _, row := range rows {
-			summary, err := eventSummaryFromOutbox(row)
-			if err != nil {
-				return err
-			}
-			summaries = append(summaries, summary)
-			ids = append(ids, row.ID)
-		}
-		if err := g.telemetry.WriteOutbox(ctx, summaries); err != nil {
-			return err
-		}
-		if err := g.writeBackground(
-			ctx,
-			"acknowledge event summary outbox",
-			func(ctx context.Context, tx *store.WriteTx) error {
-				return sqlcgen.New(tx).DeleteEventSummaryOutbox(ctx, ids)
-			},
-		); err != nil {
-			return err
+		summaries = append(summaries, summary)
+	}
+	return len(rows), g.deliverEventSummaryBatch(ctx, summaries)
+}
+
+func (g *repoBase) deliverEventSummaryBatch(ctx context.Context, summaries []store.EventSummary) error {
+	if len(summaries) == 0 {
+		return nil
+	}
+	results := g.telemetry.WriteOutbox(ctx, summaries)
+	ids := make([]string, 0, len(summaries))
+	for i, summary := range summaries {
+		if results[i] == nil {
+			ids = append(ids, summary.ID)
 		}
 	}
+	if len(ids) == 0 {
+		return errors.Join(results...)
+	}
+	ackErr := g.writeBackground(
+		ctx,
+		"acknowledge event summary outbox",
+		func(ctx context.Context, tx *store.WriteTx) error {
+			return sqlcgen.New(tx).DeleteEventSummaryOutbox(ctx, ids)
+		},
+	)
+	return errors.Join(append(results, ackErr)...)
 }
 
 func eventSummaryFromOutbox(row sqlcgen.EventSummaryOutbox) (store.EventSummary, error) {

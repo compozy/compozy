@@ -77,6 +77,15 @@ const (
 // Option configures a Kernel instance.
 type Option func(*Kernel)
 
+// WithReadDB supplies the independently owned catalog read pool.
+func WithReadDB(db *sql.DB) Option {
+	return func(k *Kernel) {
+		if db != nil {
+			k.readDB = db
+		}
+	}
+}
+
 // WithNow overrides the clock used by the kernel.
 func WithNow(now func() time.Time) Option {
 	return func(k *Kernel) {
@@ -115,7 +124,8 @@ func WithMaxSnapshotBytes(limit int) Option {
 
 // Kernel implements the canonical raw desired-state persistence contract.
 type Kernel struct {
-	db *sql.DB
+	db     *sql.DB
+	readDB *sql.DB
 
 	now                func() time.Time
 	maxSpecBytes       int
@@ -141,6 +151,7 @@ func NewKernel(db *sql.DB, opts ...Option) (*Kernel, error) {
 
 	kernel := &Kernel{
 		db:                 db,
+		readDB:             db,
 		now:                func() time.Time { return time.Now().UTC() },
 		maxSpecBytes:       defaultMaxSpecBytes,
 		maxSnapshotRecords: defaultMaxSnapshotRecords,
@@ -240,7 +251,7 @@ func (k *Kernel) GetRaw(ctx context.Context, actor MutationActor, kind ResourceK
 		return RawRecord{}, fmt.Errorf("%w: actor cannot read resource kind %q", ErrPermissionDenied, normalizedKind)
 	}
 
-	record, found, err := lookupRecordWithExecutor(ctx, k.db, normalizedKind, trimmedID)
+	record, found, err := lookupRecordWithExecutor(ctx, k.readDB, normalizedKind, trimmedID)
 	if err != nil {
 		return RawRecord{}, err
 	}
@@ -273,7 +284,7 @@ func (k *Kernel) ListRaw(
 
 	query, args := buildListRawQuery(normalizedActor, normalizedFilter)
 
-	rows, err := k.db.QueryContext(ctx, query, args...)
+	rows, err := k.readDB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("resources: query records: %w", err)
 	}

@@ -19,7 +19,7 @@ import (
 func MigrateToKeyring(
 	ctx context.Context,
 	home string,
-	store Store,
+	store ReadStore,
 	ring Keyring,
 	activate func() error,
 ) (verified int, err error) {
@@ -112,7 +112,7 @@ func inspectMigrationDestination(ring Keyring, account string, source []byte) (b
 	return false, nil
 }
 
-func verifyStoredKeys(ctx context.Context, store Store, key []byte) (int, error) {
+func verifyStoredKeys(ctx context.Context, store ReadStore, key []byte) (int, error) {
 	records, err := store.ListVaultSecrets(ctx, "")
 	if err != nil {
 		return 0, fmt.Errorf("vault: enumerate records for migration: %w", err)

@@ -143,9 +143,15 @@ func (g *SessionRepo) ListPendingReplyWatchesBySender(ctx context.Context, sende
 }
 
 func (g *SessionRepo) BindReplyWatch(ctx context.Context, id, turn, queue string) error {
-	return g.queries.BindReplyWatch(
+	return g.executeWriteQuery(
 		ctx,
-		sqlcgen.BindReplyWatchParams{ID: id, TurnID: replyNull(turn), QueueEntryID: replyNull(queue)},
+		"globaldb.BindReplyWatch",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.BindReplyWatch(
+				ctx,
+				sqlcgen.BindReplyWatchParams{ID: id, TurnID: replyNull(turn), QueueEntryID: replyNull(queue)},
+			)
+		},
 	)
 }
 
@@ -163,21 +169,37 @@ func (g *SessionRepo) FireReplyWatch(ctx context.Context, id string, f store.Rep
 	if utf8.RuneCountInString(f.Text) > 12000 {
 		return false, errors.New("store: reply exceeds 12000 runes")
 	}
-	n, err := g.queries.FireReplyWatch(
+	n, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.FireReplyWatchParams{
-			ID:             id,
-			Outcome:        replyNull(f.Outcome),
-			ReplyText:      replyNull(f.Text),
-			ReplyTruncated: subagentBool(f.Truncated),
-			FiredAt:        replyNull(store.FormatTimestamp(g.now())),
+		g.repoBase,
+		"globaldb.FireReplyWatch",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.FireReplyWatch(
+				ctx,
+				sqlcgen.FireReplyWatchParams{
+					ID:             id,
+					Outcome:        replyNull(f.Outcome),
+					ReplyText:      replyNull(f.Text),
+					ReplyTruncated: subagentBool(f.Truncated),
+					FiredAt:        replyNull(store.FormatTimestamp(g.now())),
+				},
+			)
 		},
 	)
 	return n == 1, err
 }
 
 func (g *SessionRepo) AbandonReplyWatch(ctx context.Context, id, reason string) error {
-	return g.queries.AbandonReplyWatch(ctx, sqlcgen.AbandonReplyWatchParams{ID: id, AbandonReason: replyNull(reason)})
+	return g.executeWriteQuery(
+		ctx,
+		"globaldb.AbandonReplyWatch",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.AbandonReplyWatch(
+				ctx,
+				sqlcgen.AbandonReplyWatchParams{ID: id, AbandonReason: replyNull(reason)},
+			)
+		},
+	)
 }
 
 func (g *SessionRepo) DeliverReplyWatch(

@@ -30,7 +30,8 @@ type repoBase struct {
 	tasks        *TaskRepo
 	sessions     *SessionRepo
 
-	outboxSignals *outboxSignalHub
+	outboxSignals       *outboxSignalHub
+	summaryPublications eventSummaryPublications
 }
 
 func newRepoBase(db, readDB *sql.DB, now func() time.Time, closed *atomic.Int32) *repoBase {

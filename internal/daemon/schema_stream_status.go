@@ -24,7 +24,7 @@ func newDaemonSchemaStreamStatusReader(registry Registry) core.SchemaStreamStatu
 	if !ok {
 		return nil
 	}
-	return &daemonSchemaStreamStatusReader{db: source.DB()}
+	return &daemonSchemaStreamStatusReader{db: source.ReadDB()}
 }
 
 func (r *daemonSchemaStreamStatusReader) SchemaStreamStatuses(ctx context.Context) ([]store.StreamStatus, error) {

@@ -152,11 +152,18 @@ func (r *ExtensionMCPRepo) Update(
 	if err != nil {
 		return err
 	}
-	count, err := r.queries.UpdateExtensionMCPOverride(ctx, sqlcgen.UpdateExtensionMCPOverrideParams{
-		Extension: target.Extension, Profile: target.ProfileID, WorkspaceID: target.WorkspaceID,
-		Server: target.ServerName, EnvJson: string(env), HeadersJson: string(headers), Url: override.URL,
-		UpdatedAt: store.FormatTimestamp(r.now().UTC()),
-	})
+	count, err := executeWriteQueryResult(
+		ctx,
+		r.repoBase,
+		"globaldb.UpdateExtensionMCPOverride",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UpdateExtensionMCPOverride(ctx, sqlcgen.UpdateExtensionMCPOverrideParams{
+				Extension: target.Extension, Profile: target.ProfileID, WorkspaceID: target.WorkspaceID,
+				Server: target.ServerName, EnvJson: string(env), HeadersJson: string(headers), Url: override.URL,
+				UpdatedAt: store.FormatTimestamp(r.now().UTC()),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: update MCP override: %w", err)
 	}
@@ -173,13 +180,19 @@ func (r *ExtensionMCPRepo) DeleteInstance(ctx context.Context, extension, profil
 	if strings.TrimSpace(extension) == "" {
 		return errors.New("store: extension name is required")
 	}
-	return r.queries.DeleteExtensionMCPOverrides(ctx, sqlcgen.DeleteExtensionMCPOverridesParams{
-		Extension: strings.TrimSpace(
-			extension,
-		),
-		Profile:     extensionMCPProfileID(profileID),
-		WorkspaceID: strings.TrimSpace(workspaceID),
-	})
+	return r.executeWriteQuery(
+		ctx,
+		"globaldb.DeleteExtensionMCPOverrides",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteExtensionMCPOverrides(ctx, sqlcgen.DeleteExtensionMCPOverridesParams{
+				Extension: strings.TrimSpace(
+					extension,
+				),
+				Profile:     extensionMCPProfileID(profileID),
+				WorkspaceID: strings.TrimSpace(workspaceID),
+			})
+		},
+	)
 }
 
 func listExtensionMCPRecords(
@@ -263,9 +276,15 @@ func (r *ExtensionMCPRepo) DeleteWorkspace(ctx context.Context, extension, works
 	if strings.TrimSpace(extension) == "" {
 		return errors.New("store: extension name is required")
 	}
-	return r.queries.DeleteExtensionMCPWorkspace(ctx, sqlcgen.DeleteExtensionMCPWorkspaceParams{
-		Extension: strings.TrimSpace(extension), WorkspaceID: strings.TrimSpace(workspaceID),
-	})
+	return r.executeWriteQuery(
+		ctx,
+		"globaldb.DeleteExtensionMCPWorkspace",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.DeleteExtensionMCPWorkspace(ctx, sqlcgen.DeleteExtensionMCPWorkspaceParams{
+				Extension: strings.TrimSpace(extension), WorkspaceID: strings.TrimSpace(workspaceID),
+			})
+		},
+	)
 }
 
 // DeleteTargets compensates only allocations introduced by a failed lifecycle mutation.
@@ -291,6 +310,8 @@ func (r *ExtensionMCPRepo) RetireTargets(
 	if err := observe.prepareEventSummary(ctx, &summary); err != nil {
 		return err
 	}
+	finishPublication := r.summaryPublications.begin()
+	defer finishPublication()
 	err := store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
 		if err := deleteExtensionMCPTargets(ctx, queries, targets); err != nil {
@@ -299,7 +320,7 @@ func (r *ExtensionMCPRepo) RetireTargets(
 		return insertEventSummary(ctx, queries, summary)
 	})
 	if err == nil {
-		r.drainCommittedEventSummaries(ctx)
+		r.drainCommittedEventSummaries(ctx, summary)
 	}
 	return err
 }
@@ -338,6 +359,8 @@ func (r *ExtensionMCPRepo) RetireWorkspace(
 	if err := observe.prepareEventSummary(ctx, &summary); err != nil {
 		return err
 	}
+	finishPublication := r.summaryPublications.begin()
+	defer finishPublication()
 	err := store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
 		if err := queries.DeleteExtensionMCPWorkspace(ctx, sqlcgen.DeleteExtensionMCPWorkspaceParams{
@@ -348,7 +371,7 @@ func (r *ExtensionMCPRepo) RetireWorkspace(
 		return insertEventSummary(ctx, queries, summary)
 	})
 	if err == nil {
-		r.drainCommittedEventSummaries(ctx)
+		r.drainCommittedEventSummaries(ctx, summary)
 	}
 	return err
 }

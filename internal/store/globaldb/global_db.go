@@ -54,12 +54,11 @@ func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*Glo
 		},
 	}
 	globalDB.initializeRepositories(config)
-	if err := globalDB.ObserveRepo.flushEventSummaryOutbox(ctx); err != nil {
-		return nil, errors.Join(err, globalDB.Close(context.WithoutCancel(ctx)))
-	}
+	globalDB.ObserveRepo.drainCommittedEventSummaries(ctx)
 	if err := globalDB.PurgeDeletedTelemetry(ctx); err != nil {
 		return nil, errors.Join(err, globalDB.Close(context.WithoutCancel(ctx)))
 	}
+	globalDB.summaryRetry = startEventSummaryRetry(globalDB.ObserveRepo.repoBase)
 	return globalDB, nil
 }
 
@@ -134,6 +133,10 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 	if g.healthBuffer != nil {
 		healthErr = g.healthBuffer.close(ctx)
 	}
+	var summaryErr error
+	if g.summaryRetry != nil {
+		summaryErr = g.summaryRetry.close(ctx)
+	}
 	var backgroundErr error
 	if g.background != nil {
 		backgroundErr = g.background.Close(ctx)
@@ -142,7 +145,7 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 	telemetryErr := g.telemetry.Close(ctx)
 	checkpointErr := store.CheckpointPassive(ctx, g.db)
 	closeErr := g.db.Close()
-	return errors.Join(healthErr, backgroundErr, readCloseErr, telemetryErr, checkpointErr, closeErr)
+	return errors.Join(healthErr, summaryErr, backgroundErr, readCloseErr, telemetryErr, checkpointErr, closeErr)
 }
 
 func openGlobalSQLite(ctx context.Context, path string, operatorHomeDir string) (*sql.DB, error) {

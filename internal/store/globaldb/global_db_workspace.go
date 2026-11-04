@@ -28,17 +28,23 @@ func (g *WorkspaceRepo) InsertWorkspace(ctx context.Context, ws compozyworkspace
 		return err
 	}
 
-	if err := g.queries.InsertWorkspace(ctx, sqlcgen.InsertWorkspaceParams{
-		ID:           normalized.ID,
-		RootDir:      normalized.RootDir,
-		AddDirs:      addDirsJSON,
-		Name:         normalized.Name,
-		DefaultAgent: nullableWorkspaceString(normalized.DefaultAgent),
-		CreatedAt: store.FormatTimestamp(
-			normalized.CreatedAt,
-		),
-		UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
-	}); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.InsertWorkspace",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.InsertWorkspace(ctx, sqlcgen.InsertWorkspaceParams{
+				ID:           normalized.ID,
+				RootDir:      normalized.RootDir,
+				AddDirs:      addDirsJSON,
+				Name:         normalized.Name,
+				DefaultAgent: nullableWorkspaceString(normalized.DefaultAgent),
+				CreatedAt: store.FormatTimestamp(
+					normalized.CreatedAt,
+				),
+				UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
+			})
+		},
+	); err != nil {
 		return fmt.Errorf(
 			"store: insert workspace %q: %w",
 			normalized.ID,
@@ -60,13 +66,20 @@ func (g *WorkspaceRepo) UpdateWorkspace(ctx context.Context, ws compozyworkspace
 		return err
 	}
 
-	affected, err := g.queries.UpdateWorkspace(ctx, sqlcgen.UpdateWorkspaceParams{
-		RootDir: normalized.RootDir, AddDirs: addDirsJSON, Name: normalized.Name,
-		DefaultAgent: nullableWorkspaceString(
-			normalized.DefaultAgent,
-		),
-		UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt), ID: normalized.ID,
-	})
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.UpdateWorkspace",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UpdateWorkspace(ctx, sqlcgen.UpdateWorkspaceParams{
+				RootDir: normalized.RootDir, AddDirs: addDirsJSON, Name: normalized.Name,
+				DefaultAgent: nullableWorkspaceString(
+					normalized.DefaultAgent,
+				),
+				UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt), ID: normalized.ID,
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf(
 			"store: update workspace %q: %w",

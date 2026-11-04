@@ -8,18 +8,22 @@ import (
 	"fmt"
 	"io"
 	"net/url"
+	"os"
 	"strings"
+	"sync"
 
 	"github.com/compozy/compozy/internal/store"
 	"modernc.org/sqlite"
 )
 
 type sessionSQLiteConnector struct {
-	driver   driver.Driver
-	dsn      string
-	path     string
-	owner    store.SessionDBOwner
-	readOnly bool
+	driver     driver.Driver
+	dsn        string
+	path       string
+	owner      store.SessionDBOwner
+	readOnly   bool
+	identityMu sync.RWMutex
+	identity   os.FileInfo
 }
 
 var _ driver.Connector = (*sessionSQLiteConnector)(nil)
@@ -68,6 +72,11 @@ func (c *sessionSQLiteConnector) Connect(ctx context.Context) (driver.Conn, erro
 	if err != nil {
 		return nil, closePinnedSessionSQLiteDriverConnection(connection, pinned, err)
 	}
+	c.identityMu.Lock()
+	if c.identity == nil {
+		c.identity = pinned.info
+	}
+	c.identityMu.Unlock()
 	if err := pinned.Close(); err != nil {
 		return nil, closeSessionSQLiteDriverConnection(connection, err)
 	}
@@ -160,8 +169,15 @@ func verifySessionDBOwnerOnce(
 	return databaseID, nil
 }
 
-func (c *sessionSQLiteConnector) Driver() driver.Driver {
-	return c.driver
+func (c *sessionSQLiteConnector) Driver() driver.Driver { return c }
+
+func (c *sessionSQLiteConnector) Open(name string) (driver.Conn, error) { return c.driver.Open(name) }
+
+// SQLiteFileIdentity joins write admission across handles verified against the same file.
+func (c *sessionSQLiteConnector) SQLiteFileIdentity() os.FileInfo {
+	c.identityMu.RLock()
+	defer c.identityMu.RUnlock()
+	return c.identity
 }
 
 func closeSessionSQLiteDriverConnection(connection driver.Conn, primaryErr error) error {

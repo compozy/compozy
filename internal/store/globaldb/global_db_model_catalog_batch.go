@@ -14,6 +14,7 @@ type normalizedModelCatalogReplacement struct {
 	rows             []modelcatalog.ModelRow
 	status           modelcatalog.SourceStatus
 	removeSource     bool
+	unchanged        bool
 }
 
 // ReplaceSourceRowsBatch publishes a complete model catalog generation in one transaction.
@@ -50,30 +51,11 @@ func (g *ModelCatalogRepo) ReplaceSourceRowsBatch(
 		normalized = append(normalized, entry)
 	}
 
-	return g.withModelCatalogImmediateTransaction(
-		ctx,
-		"model catalog source replacement batch",
-		func(ctx context.Context, exec modelCatalogSQLExecutor) error {
-			for _, replacement := range normalized {
-				if replacement.removeSource {
-					if err := deleteModelCatalogSource(ctx, exec, replacement.status); err != nil {
-						return err
-					}
-					continue
-				}
-				if err := replaceModelCatalogSourceRows(
-					ctx,
-					exec,
-					replacement.executionContext,
-					replacement.rows,
-					replacement.status,
-				); err != nil {
-					return err
-				}
-			}
-			return nil
-		},
-	)
+	plan, err := g.prepareModelCatalogReplacements(ctx, normalized)
+	if err != nil {
+		return err
+	}
+	return g.commitModelCatalogReplacements(ctx, "model catalog source replacement batch", plan)
 }
 
 func replaceModelCatalogSourceRows(
@@ -82,6 +64,7 @@ func replaceModelCatalogSourceRows(
 	executionContext modelcatalog.CatalogExecutionContext,
 	rows []modelcatalog.ModelRow,
 	status modelcatalog.SourceStatus,
+	unchanged bool,
 ) error {
 	queries := sqlcgen.New(exec)
 	contextID, err := upsertModelCatalogExecutionContext(ctx, exec, executionContext)
@@ -102,11 +85,10 @@ func replaceModelCatalogSourceRows(
 	if err := upsertModelCatalogSourceStatus(ctx, exec, contextID, status); err != nil {
 		return err
 	}
-	unchanged, err := touchUnchangedModelCatalogSourceRows(ctx, exec, executionContext, contextID, rows, status)
-	if err != nil {
-		return err
-	}
 	if unchanged {
+		if err := touchUnchangedModelCatalogSourceRows(ctx, exec, contextID, rows, status); err != nil {
+			return err
+		}
 		return deleteUnusedModelCatalogExecutionContexts(ctx, exec)
 	}
 	if err := deleteModelCatalogSourceRowData(ctx, queries, contextID, status); err != nil {

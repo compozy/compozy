@@ -163,15 +163,19 @@ func (g *LoopRepo) SweepAdmissionClaims(ctx context.Context, now time.Time, limi
 	if now.IsZero() || limit <= 0 || limit > 1000 {
 		return 0, fmt.Errorf("%w: admission sweep boundary or limit is invalid", looppkg.ErrValidation)
 	}
-	result, err := g.db.ExecContext(ctx, `DELETE FROM loop_admission_claims WHERE rowid IN (
+	var affected int64
+	err := g.writeBackground(ctx, "sweep Loop admission claims", func(ctx context.Context, tx *storepkg.WriteTx) error {
+		result, err := tx.ExecContext(ctx, `DELETE FROM loop_admission_claims WHERE rowid IN (
 		SELECT rowid FROM loop_admission_claims WHERE expires_at <= ? ORDER BY expires_at LIMIT ?
 	)`, storepkg.FormatTimestamp(now), limit)
+		if err != nil {
+			return err
+		}
+		affected, err = result.RowsAffected()
+		return err
+	})
 	if err != nil {
 		return 0, fmt.Errorf("store: sweep Loop admission claims: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("store: inspect Loop admission sweep: %w", err)
 	}
 	return int(affected), nil
 }

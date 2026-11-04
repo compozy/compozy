@@ -125,7 +125,13 @@ func (g *SessionMonitorRepo) PruneFinishedMonitors(ctx context.Context, cutoff t
 	if err := g.checkReady(ctx, "prune session monitors"); err != nil {
 		return err
 	}
-	if err := g.queries.PruneFinishedSessionMonitors(ctx, cutoff.UTC().Format(time.RFC3339Nano)); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.PruneFinishedSessionMonitors",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.PruneFinishedSessionMonitors(ctx, cutoff.UTC().Format(time.RFC3339Nano))
+		},
+	); err != nil {
 		return fmt.Errorf("store: prune session monitors: %w", err)
 	}
 	return nil

@@ -48,13 +48,25 @@ func (g *SoulRepo) UpsertSoulSnapshot(ctx context.Context, snapshot soul.Snapsho
 		return existing, nil
 	}
 
-	affected, err := g.queries.InsertSoulSnapshot(ctx, sqlcgen.InsertSoulSnapshotParams{
-		ID: normalized.ID, WorkspaceID: normalized.WorkspaceID,
-		ProfileID: normalized.ProfileID, AgentName: normalized.AgentName,
-		SourcePath: normalized.SourcePath, Digest: normalized.Digest, ProfileJson: string(normalized.ProfileJSON),
-		Body: normalized.Body, Truncated: int64(soulBoolToInt(normalized.Truncated)),
-		CreatedAt: store.FormatTimestamp(normalized.CreatedAt),
-	})
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.InsertSoulSnapshot",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.InsertSoulSnapshot(ctx, sqlcgen.InsertSoulSnapshotParams{
+				ID:          normalized.ID,
+				WorkspaceID: normalized.WorkspaceID,
+				ProfileID:   normalized.ProfileID,
+				AgentName:   normalized.AgentName,
+				SourcePath:  normalized.SourcePath,
+				Digest:      normalized.Digest,
+				ProfileJson: string(normalized.ProfileJSON),
+				Body:        normalized.Body,
+				Truncated:   int64(soulBoolToInt(normalized.Truncated)),
+				CreatedAt:   store.FormatTimestamp(normalized.CreatedAt),
+			})
+		},
+	)
 	if err != nil {
 		return soul.Snapshot{}, fmt.Errorf("store: insert soul snapshot %q: %w", normalized.ID, err)
 	}
@@ -216,15 +228,21 @@ func (g *SoulRepo) AppendSoulRevision(ctx context.Context, revision soul.Revisio
 		return soul.Revision{}, err
 	}
 
-	err := g.queries.InsertSoulRevision(ctx, sqlcgen.InsertSoulRevisionParams{
-		ID: normalized.ID, WorkspaceID: normalized.WorkspaceID,
-		ProfileID: normalized.ProfileID, AgentName: normalized.AgentName,
-		SourcePath: normalized.SourcePath, Action: string(normalized.Action),
-		PreviousDigest: normalized.PreviousDigest, NewDigest: normalized.NewDigest, Body: normalized.Body,
-		DiagnosticsJson: string(normalized.DiagnosticsJSON), ActorKind: normalized.ActorKind,
-		ActorID: normalized.ActorID, OriginKind: normalized.OriginKind, OriginRef: normalized.OriginRef,
-		CreatedAt: store.FormatTimestamp(normalized.CreatedAt),
-	})
+	err := g.executeWriteQuery(
+		ctx,
+		"globaldb.InsertSoulRevision",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.InsertSoulRevision(ctx, sqlcgen.InsertSoulRevisionParams{
+				ID: normalized.ID, WorkspaceID: normalized.WorkspaceID,
+				ProfileID: normalized.ProfileID, AgentName: normalized.AgentName,
+				SourcePath: normalized.SourcePath, Action: string(normalized.Action),
+				PreviousDigest: normalized.PreviousDigest, NewDigest: normalized.NewDigest, Body: normalized.Body,
+				DiagnosticsJson: string(normalized.DiagnosticsJSON), ActorKind: normalized.ActorKind,
+				ActorID: normalized.ActorID, OriginKind: normalized.OriginKind, OriginRef: normalized.OriginRef,
+				CreatedAt: store.FormatTimestamp(normalized.CreatedAt),
+			})
+		},
+	)
 	if err != nil {
 		return soul.Revision{}, fmt.Errorf("store: append soul revision %q: %w", normalized.ID, err)
 	}
@@ -352,11 +370,22 @@ func (g *SoulRepo) UpdateSessionSoulSnapshot(ctx context.Context, update store.S
 	if updatedAt.IsZero() {
 		updatedAt = g.now()
 	}
-	affected, err := g.queries.UpdateSessionSoulSnapshot(ctx, sqlcgen.UpdateSessionSoulSnapshotParams{
-		SoulSnapshotID: nullableSessionString(update.SoulSnapshotID), SoulDigest: strings.TrimSpace(update.SoulDigest),
-		ParentSoulDigest: strings.TrimSpace(update.ParentSoulDigest), UpdatedAt: store.FormatTimestamp(updatedAt),
-		ID: strings.TrimSpace(update.ID),
-	})
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.UpdateSessionSoulSnapshot",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UpdateSessionSoulSnapshot(ctx, sqlcgen.UpdateSessionSoulSnapshotParams{
+				SoulSnapshotID: nullableSessionString(
+					update.SoulSnapshotID,
+				),
+				SoulDigest:       strings.TrimSpace(update.SoulDigest),
+				ParentSoulDigest: strings.TrimSpace(update.ParentSoulDigest),
+				UpdatedAt:        store.FormatTimestamp(updatedAt),
+				ID:               strings.TrimSpace(update.ID),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: update session soul snapshot %q: %w", update.ID, err)
 	}

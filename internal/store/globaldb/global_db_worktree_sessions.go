@@ -15,10 +15,17 @@ func (g *WorktreeRepo) RemoveMissing(ctx context.Context, workspaceID, id string
 	if err := g.checkReady(ctx, "remove missing worktree"); err != nil {
 		return false, err
 	}
-	count, err := g.queries.RemoveMissingWorktree(ctx, sqlcgen.RemoveMissingWorktreeParams{
-		WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
-		UpdatedAt: store.FormatTimestamp(at),
-	})
+	count, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.RemoveMissingWorktree",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.RemoveMissingWorktree(ctx, sqlcgen.RemoveMissingWorktreeParams{
+				WorkspaceID: strings.TrimSpace(workspaceID), WorktreeID: strings.TrimSpace(id),
+				UpdatedAt: store.FormatTimestamp(at),
+			})
+		},
+	)
 	if err != nil {
 		return false, fmt.Errorf("store: remove missing worktree: %w", err)
 	}

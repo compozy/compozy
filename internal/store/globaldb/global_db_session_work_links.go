@@ -33,9 +33,23 @@ func (g *SessionRepo) SaveSessionWorkLink(ctx context.Context, link store.Sessio
 	}
 	var err error
 	if automatic {
-		_, err = g.queries.SaveAutomaticSessionWorkLink(ctx, sqlcgen.SaveAutomaticSessionWorkLinkParams(params))
+		_, err = executeWriteQueryResult(
+			ctx,
+			g.repoBase,
+			"globaldb.SaveAutomaticSessionWorkLink",
+			func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+				return queries.SaveAutomaticSessionWorkLink(ctx, sqlcgen.SaveAutomaticSessionWorkLinkParams(params))
+			},
+		)
 	} else {
-		_, err = g.queries.SaveSessionWorkLink(ctx, params)
+		_, err = executeWriteQueryResult(
+			ctx,
+			g.repoBase,
+			"globaldb.SaveSessionWorkLink",
+			func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+				return queries.SaveSessionWorkLink(ctx, params)
+			},
+		)
 	}
 	if err != nil {
 		return fmt.Errorf("store: save session work link: %w", err)
@@ -47,17 +61,24 @@ func (g *SessionRepo) UnlinkSessionWork(ctx context.Context, link store.SessionW
 	if err := g.checkReady(ctx, "unlink session work"); err != nil {
 		return err
 	}
-	_, err := g.queries.UnlinkSessionWork(
+	_, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.UnlinkSessionWorkParams{
-			SessionID:    link.SessionID,
-			WorkspaceID:  link.WorkspaceID,
-			RepoKey:      link.Repository,
-			Branch:       link.Branch,
-			PrNumber:     sql.NullInt64{Int64: int64(link.PRNumber), Valid: link.PRNumber > 0},
-			WorktreeID:   link.WorktreeID,
-			WorktreeName: link.WorktreeName,
-			Provenance:   link.Provenance,
+		g.repoBase,
+		"globaldb.UnlinkSessionWork",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UnlinkSessionWork(
+				ctx,
+				sqlcgen.UnlinkSessionWorkParams{
+					SessionID:    link.SessionID,
+					WorkspaceID:  link.WorkspaceID,
+					RepoKey:      link.Repository,
+					Branch:       link.Branch,
+					PrNumber:     sql.NullInt64{Int64: int64(link.PRNumber), Valid: link.PRNumber > 0},
+					WorktreeID:   link.WorktreeID,
+					WorktreeName: link.WorktreeName,
+					Provenance:   link.Provenance,
+				},
+			)
 		},
 	)
 	if err != nil {

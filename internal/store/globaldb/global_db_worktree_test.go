@@ -2,6 +2,7 @@ package globaldb
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -948,11 +949,57 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 		if err != nil || len(summaries) != 0 {
 			t.Fatalf("events after rollback = %#v, %v, want none", summaries, err)
 		}
-		finished, err := globalDB.FinishExitOperationWithEvent(
-			ctx, workspaceID, item.ID, operation.ID, "completed", now, event,
-		)
-		if err != nil || !finished {
-			t.Fatalf("FinishExitOperationWithEvent() = %t, %v", finished, err)
+		// Invariant: observing the committed lifecycle state cannot race ahead of
+		// its active publication attempt. Waiting Observe reads reserve no pool slot.
+		writer, err := globalDB.telemetry.DB().Conn(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() {
+			if err := writer.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
+				t.Error(err)
+			}
+		}()
+		completed := make(chan error, 1)
+		go func() {
+			finished, err := globalDB.FinishExitOperationWithEvent(
+				ctx, workspaceID, item.ID, operation.ID, "completed", now, event,
+			)
+			if err == nil && !finished {
+				err = errors.New("exit operation did not finish")
+			}
+			completed <- err
+		}()
+		deadline := time.NewTimer(5 * time.Second)
+		defer deadline.Stop()
+		ticker := time.NewTicker(time.Millisecond)
+		defer ticker.Stop()
+		for {
+			running, err = globalDB.Worktrees.ListRunningExitOperations(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(running) == 0 {
+				break
+			}
+			select {
+			case <-deadline.C:
+				t.Fatal("core state did not commit independently of the telemetry writer")
+			case <-ticker.C:
+			}
+		}
+		bounded, cancel := context.WithTimeout(ctx, 20*time.Millisecond)
+		defer cancel()
+		if _, err := globalDB.ListEventSummaries(bounded, store.EventSummaryQuery{
+			ReadScope: store.ReadScope{AllProfiles: true}, WorktreeID: item.ID,
+		}); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("read during publication = %v, want cancellation instead of a missing terminal event", err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := <-completed; err != nil {
+			t.Fatal(err)
 		}
 		running, err = globalDB.Worktrees.ListRunningExitOperations(ctx)
 		if err != nil || len(running) != 0 {

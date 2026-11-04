@@ -31,9 +31,16 @@ func (g *SessionRepo) SaveSessionBranch(ctx context.Context, workspaceID, id, br
 	if err := g.checkReady(ctx, "save session branch"); err != nil {
 		return err
 	}
-	_, err := g.queries.SaveSessionBranch(
+	_, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.SaveSessionBranchParams{WorkspaceID: workspaceID, ID: id, Branch: branch},
+		g.repoBase,
+		"globaldb.SaveSessionBranch",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.SaveSessionBranch(
+				ctx,
+				sqlcgen.SaveSessionBranchParams{WorkspaceID: workspaceID, ID: id, Branch: branch},
+			)
+		},
 	)
 	if err != nil {
 		return fmt.Errorf("store: save session branch: %w", err)

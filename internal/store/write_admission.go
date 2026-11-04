@@ -24,10 +24,19 @@ var writeAdmissions = struct {
 // transaction's commit fence may need a separate read connection from that pool.
 func registerWriteAdmission(db *sql.DB) (*writeAdmission, func()) {
 	writeAdmissions.Lock()
-	admission := writeAdmissions.byDB[db]
+	key := db
+	admission := writeAdmissions.byDB[key]
+	if admission == nil {
+		for candidate, existing := range writeAdmissions.byDB {
+			if sameWriteDatabase(candidate, db) {
+				key, admission = candidate, existing
+				break
+			}
+		}
+	}
 	if admission == nil {
 		admission = &writeAdmission{changed: make(chan struct{})}
-		writeAdmissions.byDB[db] = admission
+		writeAdmissions.byDB[key] = admission
 	}
 	admission.users++
 	writeAdmissions.Unlock()
@@ -36,7 +45,7 @@ func registerWriteAdmission(db *sql.DB) (*writeAdmission, func()) {
 		defer writeAdmissions.Unlock()
 		admission.users--
 		if admission.users == 0 {
-			delete(writeAdmissions.byDB, db)
+			delete(writeAdmissions.byDB, key)
 		}
 	}
 }

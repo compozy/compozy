@@ -26,12 +26,18 @@ func (g *TaskRepo) PutTaskDesignationRollup(ctx context.Context, rollup store.Ta
 	if err := normalized.Validate(); err != nil {
 		return fmt.Errorf("store: validate task designation rollup: %w", err)
 	}
-	if err := g.queries.UpsertTaskDesignationRollup(ctx, sqlcgen.UpsertTaskDesignationRollupParams{
-		DesignationGroupID: normalized.DesignationGroupID,
-		TaskID:             normalized.TaskID,
-		SummaryJson:        string(normalized.SummaryJSON),
-		CreatedAt:          store.FormatTimestamp(normalized.CreatedAt),
-	}); err != nil {
+	if err := g.executeWriteQuery(
+		ctx,
+		"globaldb.UpsertTaskDesignationRollup",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.UpsertTaskDesignationRollup(ctx, sqlcgen.UpsertTaskDesignationRollupParams{
+				DesignationGroupID: normalized.DesignationGroupID,
+				TaskID:             normalized.TaskID,
+				SummaryJson:        string(normalized.SummaryJSON),
+				CreatedAt:          store.FormatTimestamp(normalized.CreatedAt),
+			})
+		},
+	); err != nil {
 		return fmt.Errorf("store: upsert task designation rollup: %w", err)
 	}
 	return nil

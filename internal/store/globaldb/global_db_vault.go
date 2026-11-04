@@ -208,7 +208,11 @@ func (g *VaultRepo) DeleteVaultSecret(ctx context.Context, ref string) error {
 	if normalized == "" {
 		return errors.New("store: vault secret ref is required")
 	}
-	return deleteVaultSecretWithExecutor(ctx, g.db, normalized)
+	return g.withImmediateTransaction(
+		ctx,
+		"delete vault secret",
+		func(exec globalSQLExecutor) error { return deleteVaultSecretWithExecutor(ctx, exec, normalized) },
+	)
 }
 
 func deleteVaultSecretWithExecutor(ctx context.Context, exec globalSQLExecutor, ref string) error {

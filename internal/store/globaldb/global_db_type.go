@@ -48,6 +48,7 @@ type GlobalDB struct {
 	background   *store.BackgroundWriter
 	telemetry    *telemetrydb.Store
 	healthBuffer *sessionHealthBuffer
+	summaryRetry *eventSummaryRetry
 	path         string
 	now          func() time.Time
 	closed       atomic.Int32

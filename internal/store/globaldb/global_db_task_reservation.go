@@ -292,7 +292,11 @@ func (g *TaskRepo) SaveTaskRunIdempotency(ctx context.Context, record taskpkg.Ru
 		return err
 	}
 
-	return g.saveTaskRunIdempotencyWithExecutor(ctx, g.db, record)
+	return g.withTaskImmediateTransaction(
+		ctx,
+		"save task run idempotency",
+		func(exec taskSQLExecutor) error { return g.saveTaskRunIdempotencyWithExecutor(ctx, exec, record) },
+	)
 }
 
 func (g *TaskRepo) saveTaskRunIdempotencyWithExecutor(

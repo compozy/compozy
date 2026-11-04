@@ -98,11 +98,18 @@ func (g *SessionRepo) UnparkSession(ctx context.Context, workspaceID string, ses
 	if sessionID == "" {
 		return false, errors.New("store: unpark session id is required")
 	}
-	affected, err := g.queries.UnparkSession(ctx, sqlcgen.UnparkSessionParams{
-		UpdatedAt:   store.FormatTimestamp(g.now()),
-		WorkspaceID: strings.TrimSpace(workspaceID),
-		ID:          sessionID,
-	})
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.UnparkSession",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UnparkSession(ctx, sqlcgen.UnparkSessionParams{
+				UpdatedAt:   store.FormatTimestamp(g.now()),
+				WorkspaceID: strings.TrimSpace(workspaceID),
+				ID:          sessionID,
+			})
+		},
+	)
 	if err != nil {
 		return false, fmt.Errorf("store: unpark session %q: %w", sessionID, err)
 	}
@@ -141,12 +148,19 @@ func (g *SessionRepo) UnparkSessionParkedAt(
 		return false, err
 	}
 	sessionID = strings.TrimSpace(sessionID)
-	affected, err := g.queries.UnparkSessionParkedAt(ctx, sqlcgen.UnparkSessionParkedAtParams{
-		UpdatedAt:   store.FormatTimestamp(g.now()),
-		WorkspaceID: strings.TrimSpace(workspaceID),
-		ID:          sessionID,
-		ParkedAt:    sql.NullString{String: store.FormatTimestamp(parkedAt), Valid: true},
-	})
+	affected, err := executeWriteQueryResult(
+		ctx,
+		g.repoBase,
+		"globaldb.UnparkSessionParkedAt",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.UnparkSessionParkedAt(ctx, sqlcgen.UnparkSessionParkedAtParams{
+				UpdatedAt:   store.FormatTimestamp(g.now()),
+				WorkspaceID: strings.TrimSpace(workspaceID),
+				ID:          sessionID,
+				ParkedAt:    sql.NullString{String: store.FormatTimestamp(parkedAt), Valid: true},
+			})
+		},
+	)
 	if err != nil {
 		return false, fmt.Errorf("store: unpark owned session %q: %w", sessionID, err)
 	}

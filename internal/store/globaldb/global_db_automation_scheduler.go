@@ -165,12 +165,19 @@ func (g *AutomationRepo) RecordRunDeliveryError(
 		return g.GetRun(ctx, trimmedID)
 	}
 
-	affected, err := g.queries.RecordAutomationRunDeliveryError(
+	affected, err := executeWriteQueryResult(
 		ctx,
-		sqlcgen.RecordAutomationRunDeliveryErrorParams{
-			DeliveryError:   nullableAutomationString(runErr.Error()),
-			DeliveryErrorAt: nullableAutomationString(store.FormatTimestamp(g.now().UTC())),
-			ID:              trimmedID,
+		g.repoBase,
+		"globaldb.RecordAutomationRunDeliveryError",
+		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
+			return queries.RecordAutomationRunDeliveryError(
+				ctx,
+				sqlcgen.RecordAutomationRunDeliveryErrorParams{
+					DeliveryError:   nullableAutomationString(runErr.Error()),
+					DeliveryErrorAt: nullableAutomationString(store.FormatTimestamp(g.now().UTC())),
+					ID:              trimmedID,
+				},
+			)
 		},
 	)
 	if err != nil {

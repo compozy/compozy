@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -2041,8 +2042,13 @@ func seedSessionPromptAdmissionRuntimePrefix(t *testing.T, prefixDB *sql.DB, pat
 func openSessionPromptAdmissionMigrationCopy(t *testing.T, sourcePath string) *GlobalDB {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), GlobalDatabaseName)
-	if err := copyGlobalMigrationSeedFile(sourcePath, path); err != nil {
-		t.Fatalf("copy populated upgraded database: %v", err)
+	for _, suffix := range []string{"", "-wal", "-shm", ".telemetry.db", ".telemetry.db-wal", ".telemetry.db-shm"} {
+		if err := copyGlobalMigrationSeedFile(sourcePath+suffix, path+suffix); err != nil {
+			if suffix != "" && suffix != ".telemetry.db" && errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			t.Fatalf("copy populated upgraded database family: %v", err)
+		}
 	}
 	return openGlobalDBForTest(t, path)
 }

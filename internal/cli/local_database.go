@@ -104,3 +104,16 @@ func openLocalGlobalDatabase(
 	}
 	return db, nil
 }
+
+// openLocalVaultReader never runs migrations or background recovery alongside a daemon.
+func openLocalVaultReader(ctx context.Context, path, surface string) (*globaldb.VaultReader, error) {
+	reader, err := globaldb.OpenVaultReader(store.WithMigrationLogger(ctx, localDatabaseMigrationLogger), path)
+	if err != nil {
+		return nil, &localDatabaseOpenError{
+			Surface: strings.TrimSpace(surface),
+			Path:    strings.TrimSpace(path),
+			Err:     err,
+		}
+	}
+	return reader, nil
+}

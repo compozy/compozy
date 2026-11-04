@@ -45,6 +45,10 @@ The exact historical owner cannot be recovered from this evidence.
   publication transaction validates projection state and the next sequence before committing the
   canonical ledger and projection together. Concurrent append/archive/clear/rewind invalidates
   preparation. Speculative cached folds are published only after a successful commit.
+- Catalog hydration, normalization and JSON content comparison run before writer admission. A
+  durable metadata revision fences prepared comparisons across handles/processes. A concurrent
+  publication or earlier source pruning in the same batch forces replacement, preserving atomic
+  generations without holding the writer for content comparison.
 - Event summaries move to `compozy.db.telemetry.db`, with its own writer, reader and migration
   stream. The core writer never attaches this file. Core read connections attach it read-only and
   install a scoped view, retaining Observe responses, metadata, filters and cursors.
@@ -52,10 +56,16 @@ The exact historical owner cannot be recovered from this evidence.
   when its read probe finds no expired rows. Profile/workspace deletion records a durable tombstone
   that hides telemetry immediately, then retries bounded physical cleanup. Profile deletion completes its recoverable lifecycle only
   after telemetry cleanup succeeds; a failure remains visible and retryable.
-- MCP retirement and worktree terminal transitions retain atomic state/event durability through a
-  core outbox. Failed delivery does not turn a committed state transition into an apparent rollback.
+- MCP retirement, worktree terminal transitions and suggestion dismissal retain atomic state/event
+  durability through a core outbox. Failed delivery does not turn a committed state transition into an apparent rollback.
   Delivery is idempotent, verifies the full payload, and acknowledges the outbox only after the
-  telemetry commit. Startup, retention and later lifecycle deliveries retry pending entries.
+  telemetry commit. A foreground operation publishes its own committed event; backlog drains are
+  bounded to 128 items and isolate failures per item. An owned one-second retry loop handles
+  deferred delivery without depending on the daily retention sweep, and clean close joins it and
+  drains the remainder. Startup logs a deferred outbox failure while preserving core availability.
+  Observe readers await publication attempts already in flight without reserving SQL connections;
+  subsequent attempts cannot extend that wait. Failed attempts remain replayable in the outbox.
+  Replay cursors are assigned only by the telemetry ledger and never change during delivery.
 - The incident's direct `ClearLaterReturn` mutation now uses named interactive admission. Process
   observation and heartbeat decision transactions no longer bypass admission with raw `BeginTx`.
 
@@ -68,8 +78,12 @@ commits the destination with `synchronous=FULL` before deleting each source batc
 acknowledgement resumes without duplicate events. A conflicting destination preserves the source
 and fails explicitly. The high-water cursor survives even when retention deleted every source row.
 
-Startup refuses a missing or uninitialized destination as soon as export can acknowledge source rows,
-including an interrupted version-187 upgrade. Older home-workspace upgrades read their migration
+Before freezing the source, the coordinator commits a random family identity in core metadata
+and the auxiliary identity table (telemetry migration 3). A crash between these commits resumes
+before export. Every acknowledged batch and every relocated reopen verifies that identity.
+Startup refuses missing, uninitialized, unbound or mismatched destinations as soon as export can
+acknowledge source rows, including an interrupted version-187 upgrade. A schema-valid empty
+replacement and a file from another core cannot silently replace already acknowledged events. Older home-workspace upgrades read their migration
 inventory through the relocated read owner. Backups and restores must preserve both databases and
 all sidecars. The old core file can retain reusable free pages; this change does not run a large
 blocking VACUUM during startup. Operator database/file-location docs and the official runtime
@@ -99,25 +113,26 @@ and `queries/observe*.sql`.
 - This is a source-based audit, not a measured production query-plan or index-size comparison.
   The release follow-up must measure selectivity, page count and p99 on representative retained data.
 
-## Writer ownership inventory and limits
+## Writer ownership inventory
 
 | Source | Finding and disposition |
 | --- | --- |
 | Daemon observer | `observer_factory.go` injects the daemon registry; it does not open a second global writer. |
-| Standalone observer | `observe.New` can open another handle when no registry is injected. Its summaries now target telemetry; other core mutations still use SQLite's cross-handle locking. |
-| Process observations | Raw transaction replaced with named, ordered background execution. |
-| Heartbeat wake decision | Event/state atomic transaction replaced with named background execution. |
-| Token/permission producers | Direct generated mutations routed through the background owner. |
-| Return from Later | Direct mutation observed in the incident routed through interactive admission. |
-| Extension CLI | Uses daemon APIs while the daemon runs; stopped-daemon local listing opens the database directly. |
-| Provider-auth metadata | Can open an independent handle; metadata itself is read-only, but normal open/migration/recovery still applies. |
-| Vault-key migration | Opens independently and uses its own migration file lock, not the daemon's admission gate. |
-| Remaining direct writers | Marketplace/profile-attention replacements, some generated one-statement mutations and extension-registry operations remain outside this process-local admission owner. |
+| Independent handles | Admission, reentry detection and owner diagnostics identify the opened SQLite file with `os.SameFile`, including guarded session connectors. Separate handles for the same file share the queue; unrelated files remain independent. |
+| Generated global mutations | The inventory found 104 direct repository mutations in 49 files. They now use named write admission. The five extension transfer operations already belonged to a caller-owned transaction and remain there. |
+| Raw global mutations | Marketplace replacement, attention snapshots/mutes, automation deletion, dead-entity state and user-scope reconciliation now use the same transaction owner. Snapshot hashing/JSON and migration schema discovery happen before acquiring the writer. |
+| Background producers | Catalog/process observations, health, token/permission observations, worktree status and bounded admission-claim sweeps use background execution. Authoritative lifecycle/authorization changes retain interactive admission. |
+| Composition-root adapters | Extension registry and config-apply mutations use named admission. Extension, settings, resources and observer task reads receive the independent read pool. |
+| Extension CLI | Calls the daemon while available. The offline fallback acquires the same daemon file lock before opening the store and retains it through close; a running or concurrently starting daemon excludes it. |
+| Provider-auth metadata | Uses a schema-validated read-only vault reader. It cannot migrate, checkpoint, initialize telemetry or recover state; a missing database remains absent. |
+| Vault-key migration | Reads ciphertext through the same read-only reader; keyring writes retain the existing vault migration lock. |
+| Demo seed | Its production entry point acquires the daemon lock before opening the global store. |
 
-The admission gate is still keyed by `*sql.DB`; it does not order other handles or processes.
-Those remaining paths are not proven unable to conflict. Their attribution and ordering remain
-required implementation work before this issue is complete. The inventory is a checkpoint, not an
-accepted exception to the original scope.
+The queue does not synchronize arbitrary external SQLite clients. Supported production writers are
+routed through the daemon or excluded by its process lock; in-process handles share file identity.
+Startup migration/schema initialization owns the file before exposing repositories. Raw SQLite
+locks remain represented separately from cancellation while waiting for admission in diagnostics.
+The load experiment still must establish maximum holds for large atomic catalog/process operations.
 
 ## Verification receipts
 
@@ -148,6 +163,29 @@ After the operator restricted local execution, checks run one function at a time
 | `core.TestAuthoredContextProfileScope` after CI repair | Passed (0.755 s): the canonical seed clones the complete database family for each profile-isolation case. Browser runtime seeding now copies the same required sibling; its actual walk remains CI-owned. |
 | `acp.TestPromptErrorPreservesRequestErrorData` after main integration | Passed (0.155 s): the rate-limit I/O fixture uses an internal-error response instead of the reserved authentication-required code. Classification/recovery assertions and production authentication semantics are unchanged. |
 
+Additional ownership checks passed individually: `TestExecuteWrite` (0.218 s),
+`TestBackgroundWrites` (0.079 s), `TestAttentionAcknowledgements` (0.472 s),
+`TestGlobalDBVaultSecretsCRUD` (0.283 s), `TestAppMetadataFreshDB` (0.209 s),
+`TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent` (0.140 s),
+`TestExtensionInstallOfflinePersistsExtension` (0.256 s), `TestProviderAuthStatusCommand` (0.111 s),
+`TestVaultCommands` (0.269 s), and the tagged `TestRegistryIntegrationLifecycle` integration
+function (0.105 s). The close-error repository fixture still preserves both independent errors
+(`TestConfigApplyRecordRepositoryListApplyRecordsRowsCloseErrors`, 0.029 s). These cover actual
+SQLite writer occupation, cross-handle priority/reentry/attribution, committed read isolation,
+read-only vault access at schema 185, and offline exclusion by the daemon lock. Focused store and
+globaldb lint reported zero issues. Settings and extension focused lint also passed after waiting for the shared runner lock.
+The first attempts rejected by that lock are not passing evidence.
+
+Review/CI remediation checks passed individually: `TestGlobalDBTelemetryRelocation` (8.022 s),
+`TestGlobalDBTelemetryDelivery` (5.114 s), the atomic worktree terminal-event subtest (3.901 s),
+`TestGlobalDBAutomationSuggestionsEnforceConsentInvariants` (4.602 s),
+`TestGlobalDBSessionPromptAdmissionMigration` (20.057 s),
+`TestDaemonManagedDeliveryRecovery` (14.060 s), stale transcript preparation subtests (0.132 s),
+and `TestProductionMigrationStreamsFreshReopenAndAhead` (5.542 s). The migration fixtures now
+use the production family owner and copy both SQLite files; their preservation assertions remain.
+The existing auth-wait cancellation subtest passed (3.750 s) after canceling the daemon-owned wait
+before the stop ladder can kill/rebind an idle runtime. No assertion was weakened.
+
 The owning Atlas and sqlc generators completed after main integration. Full `make codegen` passed
 before integration; `make codegen-check` was externally terminated and is not a passing receipt.
 The test-convention heuristic reported existing legacy test shapes and file-wide parallel/environment
@@ -162,8 +200,15 @@ The following acceptance items remain unverified and are not implied by the focu
 1. Same-machine before/after load with approximately 30 streaming sessions: p99 transcript/catalog
    latency, transactions/sec, core bytes/minute, zero interactive failures and no holds over one second.
 2. A production-sized (~1 GB) upgrade, representative index page counts/query plans and startup time.
-3. An isolated real-daemon multi-session QA lab and the complete `MS-daemon-host-load-governance`
-   journey. No operator provider credentials or runtime home were reused.
-4. Complete same-file/multiple-handle/direct-writer attribution and ordering. Large individual
-   catalog/process operations retain atomicity and need their maximum hold measured.
+3. An isolated real-daemon multi-session QA lab and the SQLite contention acceptance walk in
+   `MS-daemon-host-load-governance`. No operator provider credentials or runtime home were reused.
+4. Measure the remaining large atomic catalog/process operations under the representative load;
+   routing coverage is implemented but does not by itself prove the latency target.
 5. Final-head CI plus two CodeRabbit reviews, followed by merge-train handoff; this agent does not merge.
+
+### Complete ownership and review checkpoint
+
+Focused lint across the 12 affected Go packages passed with zero issues (bounded concurrency 2,
+serialized against other lint runners). The catalog store suite passed in 10.090 s, including
+preparation with the sole writer connection occupied and invalidation by another database handle.
+No performance conclusion is inferred from those correctness checks.

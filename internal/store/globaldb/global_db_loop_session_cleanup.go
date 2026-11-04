@@ -52,10 +52,16 @@ func (g *GoalRepo) ReconcileLoopSessionCleanup(ctx context.Context) error {
 	if err := g.checkReady(ctx, "reconcile Loop session cleanup"); err != nil {
 		return err
 	}
-	err := sqlcgen.New(g.db).ReconcileLoopSessionCleanup(ctx, sqlcgen.ReconcileLoopSessionCleanupParams{
-		SettledFailureCode:   goalNullableString(goalBindingFailureControlRevokedInFlight),
-		UnsettledFailureCode: goalNullableString(goalBindingFailureStopCreationUnsettled),
-	})
+	err := g.executeWriteQuery(
+		ctx,
+		"reconcile Loop session cleanup",
+		func(ctx context.Context, queries *sqlcgen.Queries) error {
+			return queries.ReconcileLoopSessionCleanup(ctx, sqlcgen.ReconcileLoopSessionCleanupParams{
+				SettledFailureCode:   goalNullableString(goalBindingFailureControlRevokedInFlight),
+				UnsettledFailureCode: goalNullableString(goalBindingFailureStopCreationUnsettled),
+			})
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("store: reconcile stopped Goal binding creation: %w", err)
 	}
