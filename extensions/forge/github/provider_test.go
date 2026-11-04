@@ -995,12 +995,18 @@ func TestProviderGraphQL(t *testing.T) {
 				results <- outcome{branch, pages, err}
 			}()
 		}
+		deadline := time.Now().Add(5 * time.Second)
 		for joined := 0; joined < 3; time.Sleep(time.Millisecond) {
 			provider.batchMu.Lock()
+			joined = 0
 			for _, batch := range provider.batches {
-				joined = len(batch.branches)
+				joined += len(batch.branches)
 			}
+			batches := len(provider.batches)
 			provider.batchMu.Unlock()
+			if batches > 1 || time.Now().After(deadline) {
+				t.Fatalf("callers joined=%d across %d batches, want 3 in one batch", joined, batches)
+			}
 		}
 		close(flush)
 		<-received
@@ -1139,8 +1145,9 @@ func TestProviderGraphQL(t *testing.T) {
 		})
 		defer closeServer()
 		provider.api.logger = slog.New(slog.NewJSONHandler(&logs, nil))
-		if _, err := provider.Status(t.Context(), graphTopicRequest()); err == nil {
-			t.Fatal("undecodable GraphQL response unexpectedly succeeded")
+		if _, err := provider.Status(t.Context(), graphTopicRequest()); err == nil ||
+			!strings.Contains(err.Error(), "decode response") {
+			t.Fatalf("Status err=%v, want a decode response failure", err)
 		}
 		var record map[string]any
 		if err := json.Unmarshal(logs.Bytes(), &record); err != nil {

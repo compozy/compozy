@@ -66,10 +66,15 @@ func (p *Provider) runPullBatch(
 	token string,
 	batch *pullBatch,
 ) {
-	timer := time.NewTimer(pullBatchWindow)
-	defer timer.Stop()
+	// A test flush replaces the window so joining callers never race the timer.
+	var window <-chan time.Time
+	if p.batchFlush == nil {
+		timer := time.NewTimer(pullBatchWindow)
+		defer timer.Stop()
+		window = timer.C
+	}
 	select {
-	case <-timer.C:
+	case <-window:
 	case <-p.batchFlush:
 	case <-p.batchCtx.Done():
 		batch.err = p.batchCtx.Err()
