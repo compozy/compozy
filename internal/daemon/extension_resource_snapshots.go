@@ -240,7 +240,8 @@ func installedExtensionProfileSnapshots(
 ) ([]scopedExtensionResourceSnapshot, error) {
 	snapshots := make([]scopedExtensionResourceSnapshot, 0, len(infos)*len(profiles))
 	var failures []error
-	for _, info := range infos {
+	for infoIndex := range infos {
+		info := &infos[infoIndex]
 		for _, profile := range profiles {
 			extension, enabled, projectErr := projector.ProjectForProfile(
 				ctx,
