@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -40,12 +41,17 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		}
 		canceledCtx, cancel := context.WithCancel(t.Context())
 		cancel()
+		startedAt := time.Now()
 		policy.RecordToolConsent(canceledCtx, req)
 		if lastFactsContext == nil {
 			t.Fatal("consent facts lookup was skipped")
 		}
-		if _, bounded := lastFactsContext.Deadline(); !bounded {
+		deadline, bounded := lastFactsContext.Deadline()
+		if !bounded {
 			t.Fatal("consent facts lookup has no deadline")
+		}
+		if deadline.After(startedAt.Add(ConsentAuditTimeout + time.Second)) {
+			t.Fatalf("facts lookup deadline = %s, want bounded by %s", deadline, ConsentAuditTimeout)
 		}
 		if !errors.Is(lastFactsContext.Err(), context.Canceled) {
 			t.Fatalf("facts lookup context after recording = %v, want canceled", lastFactsContext.Err())
