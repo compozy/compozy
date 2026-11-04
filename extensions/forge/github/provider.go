@@ -37,6 +37,8 @@ type Provider struct {
 	batchMu     sync.Mutex
 	batches     map[pullBatchKey]*pullBatch
 	batchWG     sync.WaitGroup
+	// batchFlush ends a batch window early; nil in production, set by tests to flush deterministically.
+	batchFlush  <-chan struct{}
 	batchCtx    context.Context
 	batchCancel context.CancelFunc
 	batchClosed bool

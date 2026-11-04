@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -944,6 +945,7 @@ func TestProviderGraphQL(t *testing.T) {
 		var calls atomic.Int32
 		received := make(chan struct{})
 		release := make(chan struct{})
+		releaseHandler := sync.OnceFunc(func() { close(release) })
 		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
 			calls.Add(1)
 			var input struct{ Variables map[string]any }
@@ -972,6 +974,9 @@ func TestProviderGraphQL(t *testing.T) {
 			writeGraphBody(t, w, `{"data":{"repository":{`+strings.Join(pages, ",")+`}}}`)
 		})
 		defer closeServer()
+		defer releaseHandler()
+		flush := make(chan struct{})
+		provider.batchFlush = flush
 		repo := repository{owner: "acme", name: "repo"}
 		canceledCtx, cancel := context.WithCancel(t.Context())
 		type outcome struct {
@@ -980,7 +985,6 @@ func TestProviderGraphQL(t *testing.T) {
 			err    error
 		}
 		results := make(chan outcome, 3)
-		provider.batchMu.Lock()
 		for _, branch := range []string{"feature/one", "feature/two", "feature/three"} {
 			ctx := t.Context()
 			if branch == "feature/two" {
@@ -991,14 +995,21 @@ func TestProviderGraphQL(t *testing.T) {
 				results <- outcome{branch, pages, err}
 			}()
 		}
-		provider.batchMu.Unlock()
+		for joined := 0; joined < 3; time.Sleep(time.Millisecond) {
+			provider.batchMu.Lock()
+			for _, batch := range provider.batches {
+				joined = len(batch.branches)
+			}
+			provider.batchMu.Unlock()
+		}
+		close(flush)
 		<-received
 		cancel()
 		first := <-results
 		if first.branch != "feature/two" || !errors.Is(first.err, context.Canceled) {
 			t.Fatalf("first outcome=%+v, want canceled feature/two", first)
 		}
-		close(release)
+		releaseHandler()
 		for range 2 {
 			got := <-results
 			want := map[string]int{"feature/one": 1, "feature/three": 3}[got.branch]
@@ -1031,8 +1042,8 @@ func TestProviderGraphQL(t *testing.T) {
 		}()
 		<-received
 		provider.closeBatches()
-		if err := <-errs; err == nil {
-			t.Fatal("waiting caller succeeded after provider shutdown")
+		if err := <-errs; !errors.Is(err, context.Canceled) {
+			t.Fatalf("waiting caller err=%v after provider shutdown, want context.Canceled", err)
 		}
 		if _, err := provider.batchedPullPages(
 			t.Context(),
@@ -1058,7 +1069,7 @@ func TestProviderGraphQL(t *testing.T) {
 				writeGraphBody(
 					t,
 					w,
-					`{"data":{"repository":{"terminalPullRequests":{"nodes":[{"number":3,"state":"MERGED","headRepository":{"nameWithOwner":"acme/repo"}}]},"pullRequests":{"nodes":[{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}]}}}}`,
+					`{"data":{"repository":{"terminalPullRequests":{"nodes":[{"number":3,"state":"MERGED","updatedAt":"2026-08-12T11:00:00Z","headRepository":{"nameWithOwner":"acme/repo"}}]},"pullRequests":{"nodes":[{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}]}}}}`,
 				)
 				return
 			}
@@ -1093,6 +1104,50 @@ func TestProviderGraphQL(t *testing.T) {
 			record["source"] != "forge/status/pull_lookup" ||
 			record["failed"] != true {
 			t.Fatalf("GraphQL error log=%s", logs.String())
+		}
+	})
+	// Invariant: only a typed GraphQL RATE_LIMITED error marks a call rate limited; payload text never does.
+	t.Run("Should not mark REST payload text as a GraphQL rate limit", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, http.StatusOK, map[string]any{"title": "RATE_LIMITED"})
+		})
+		defer closeServer()
+		provider.api.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		var out map[string]any
+		if err := provider.api.request(
+			t.Context(),
+			http.MethodGet,
+			"/repos/acme/repo/pulls/1",
+			"secret",
+			nil,
+			&out,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(logs.String(), "graphql_rate_limited") {
+			t.Fatalf("REST payload text marked a GraphQL rate limit: %s", logs.String())
+		}
+	})
+	// Invariant: a GraphQL body that cannot decode into the typed response is logged as a failed call.
+	t.Run("Should mark undecodable GraphQL responses as failed calls", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+			writeGraphBody(t, w, `{"data":{"repository":"unexpected"}}`)
+		})
+		defer closeServer()
+		provider.api.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		if _, err := provider.Status(t.Context(), graphTopicRequest()); err == nil {
+			t.Fatal("undecodable GraphQL response unexpectedly succeeded")
+		}
+		var record map[string]any
+		if err := json.Unmarshal(logs.Bytes(), &record); err != nil {
+			t.Fatal(err)
+		}
+		if record["api"] != "graphql" || record["failed"] != true {
+			t.Fatalf("decode failure log=%s", logs.String())
 		}
 	})
 	t.Run("Should attribute rate limited calls without logging credentials", func(t *testing.T) {

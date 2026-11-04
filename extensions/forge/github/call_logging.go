@@ -5,8 +5,8 @@ import (
 	"encoding/json/v2"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -34,9 +34,19 @@ func (c githubClient) logCall(
 		remaining = value
 	}
 	var graph struct {
-		Errors []any `json:"errors"`
+		Errors []struct {
+			Type string `json:"type"`
+		} `json:"errors"`
 	}
-	graphFailed := api == "graphql" && json.Unmarshal(payload, &graph) == nil && len(graph.Errors) > 0
+	graphFailed, graphRateLimited := false, false
+	if api == "graphql" && json.Unmarshal(payload, &graph) == nil {
+		graphFailed = len(graph.Errors) > 0
+		graphRateLimited = slices.ContainsFunc(graph.Errors, func(e struct {
+			Type string `json:"type"`
+		}) bool {
+			return e.Type == graphErrorRateLimited
+		})
+	}
 	attrs := []any{
 		"source",
 		source,
@@ -63,7 +73,7 @@ func (c githubClient) logCall(
 	if seconds, parseErr := strconv.Atoi(header.Get("Retry-After")); parseErr == nil {
 		attrs = append(attrs, "retry_after_seconds", seconds)
 	}
-	if strings.Contains(string(payload), `"RATE_LIMITED"`) {
+	if graphRateLimited {
 		attrs = append(attrs, "graphql_rate_limited", true)
 	}
 	logger.InfoContext(ctx, "forge.call", attrs...)

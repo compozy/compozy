@@ -70,6 +70,7 @@ func (p *Provider) runPullBatch(
 	defer timer.Stop()
 	select {
 	case <-timer.C:
+	case <-p.batchFlush:
 	case <-p.batchCtx.Done():
 		batch.err = p.batchCtx.Err()
 		close(batch.done)

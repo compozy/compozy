@@ -85,6 +85,9 @@ type graphResponse struct {
 	Errors []graphError
 }
 
+// graphErrorRateLimited is the GraphQL error type GitHub returns for an exhausted point budget.
+const graphErrorRateLimited = "RATE_LIMITED"
+
 type graphError struct {
 	Type       string
 	Extensions struct{ Code string }
@@ -134,8 +137,10 @@ func (p *Provider) graphRequest(
 	if operation != "" {
 		ctx = context.WithValue(ctx, forgeSourceKey{}, source+"/"+operation)
 	}
-	var result graphResponse
-	var raw json.RawMessage
+	// Decode inside the request so forge.call records a malformed response as a failed call.
+	envelope := graphEnvelope{
+		pages: strings.Contains(query, "terminalPullRequests") || strings.Contains(query, "branch0Open"),
+	}
 	var headers http.Header
 	if err := p.api.requestWithHeaders(
 		ctx,
@@ -143,18 +148,16 @@ func (p *Provider) graphRequest(
 		"/graphql",
 		token,
 		map[string]any{"query": query, "variables": variables},
-		&raw, &headers,
+		&envelope, &headers,
 	); err != nil {
-		return result, err
+		return envelope.result, err
 	}
-	if err := json.Unmarshal(raw, &result); err != nil {
-		return result, err
-	}
+	result := envelope.result
 	if len(result.Errors) > 0 {
 		unsupported := true
 		for i := range result.Errors {
 			e := &result.Errors[i]
-			if e.Type == "RATE_LIMITED" {
+			if e.Type == graphErrorRateLimited {
 				return result, &githubAPIError{
 					cause:      extensioncontract.ForgeCauseRateLimited,
 					status:     http.StatusTooManyRequests,
@@ -171,16 +174,30 @@ func (p *Provider) graphRequest(
 	if result.Data.Repository == nil {
 		return result, errors.New("github forge: repository unavailable")
 	}
+	return result, nil
+}
+
+// graphEnvelope decodes the typed response and, for aliased PR lookups, the alias-keyed pages.
+type graphEnvelope struct {
+	pages  bool
+	result graphResponse
+}
+
+func (e *graphEnvelope) UnmarshalJSON(data []byte) error {
+	if err := json.Unmarshal(data, &e.result); err != nil {
+		return err
+	}
+	if !e.pages || e.result.Data.Repository == nil {
+		return nil
+	}
 	var pages struct {
 		Data struct{ Repository map[string]graphPage }
 	}
-	if strings.Contains(query, "terminalPullRequests") || strings.Contains(query, "branch0Open") {
-		if err := json.Unmarshal(raw, &pages); err != nil {
-			return result, err
-		}
-		result.Data.Repository.Pages = pages.Data.Repository
+	if err := json.Unmarshal(data, &pages); err != nil {
+		return err
 	}
-	return result, nil
+	e.result.Data.Repository.Pages = pages.Data.Repository
+	return nil
 }
 
 func (p *Provider) graphStatus(

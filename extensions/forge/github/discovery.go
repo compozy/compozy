@@ -162,7 +162,7 @@ func (p *Provider) ReadPR(ctx context.Context, request c.ForgePRReadRequest) (c.
 // searchError prioritizes a GraphQL rate limit even when GitHub returned partial search data.
 func searchError(failures []graphError, headers http.Header, now time.Time) error {
 	for i := range failures {
-		if failures[i].Type == "RATE_LIMITED" {
+		if failures[i].Type == graphErrorRateLimited {
 			return discoveryError(
 				&githubAPIError{
 					cause:      c.ForgeCauseRateLimited,
