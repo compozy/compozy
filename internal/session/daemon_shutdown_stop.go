@@ -1,10 +1,6 @@
 package session
 
-import (
-	"context"
-
-	"github.com/compozy/compozy/internal/store"
-)
+import "context"
 
 const (
 	daemonStoppedDetail     = "daemon stopped by user"
@@ -103,8 +99,9 @@ func (m *Manager) classifyDaemonShutdownExit(session *Session, waitErr error) er
 	return nil
 }
 
-// skipDaemonShutdownResume settles a turn stopped during daemon shutdown after its restart
-// interruption was captured. The turn was ended deliberately, so restart must not continue it.
+// skipDaemonShutdownResume settles a turn stopped during daemon shutdown. The turn was ended
+// deliberately, so restart must not continue it. The skip is written whether or not the shutdown scan
+// has captured the interruption yet, because restart continuation rejects any turn with a skip.
 func (m *Manager) skipDaemonShutdownResume(ctx context.Context, session *Session, turnID string) {
 	if !m.daemonShuttingDown() || session == nil || turnID == "" {
 		return
@@ -118,17 +115,11 @@ func (m *Manager) skipDaemonShutdownResume(ctx context.Context, session *Session
 }
 
 func (m *Manager) appendDaemonShutdownResumeSkip(ctx context.Context, session *Session, turnID string) error {
-	rows, err := m.Events(ctx, session.ID, store.EventQuery{
-		ID: restartEventID(turnID, restartInterruptedEvent), Limit: 1,
-	})
-	if err != nil || len(rows) == 0 {
-		return err
-	}
-	checkpoint, err := decodeRestartCheckpoint(rows[0])
-	if err != nil {
+	meta := session.Meta()
+	checkpoint, found, err := m.latestRestartBoundary(ctx, &meta)
+	if err != nil || !found || checkpoint.TurnID != turnID {
 		return err
 	}
 	checkpoint.Reason = "turn_canceled"
-	meta := session.Meta()
 	return m.appendRestartEvent(ctx, &meta, restartSkippedEvent, checkpoint, "Turn canceled.")
 }
