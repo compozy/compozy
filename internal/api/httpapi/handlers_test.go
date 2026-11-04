@@ -156,6 +156,7 @@ func assertRegisteredRouteContract(t *testing.T) {
 		"POST /api/agents/:name/heartbeat/scripts/:script/approve",
 		"DELETE /api/agents/:name/heartbeat/scripts/:script/approve",
 		"GET /api/agents/:name/activity",
+		"POST /api/agents/activity",
 		"GET /api/agents/:name/memory",
 		"GET /api/agents/:name/memory/history",
 		"GET /api/permissions",
