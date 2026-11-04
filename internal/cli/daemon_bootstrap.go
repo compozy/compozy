@@ -350,30 +350,8 @@ func probeBootstrapDaemon(
 	deps commandDeps,
 	homePaths compozyconfig.HomePaths,
 ) (DaemonStatus, bool, error) {
-	info, running, err := daemonInfo(homePaths, deps)
-	if err != nil || !running {
-		return DaemonStatus{}, false, err
-	}
-	target, err := resolveLocalClientTarget(deps, homePaths)
-	if err != nil {
-		return DaemonStatus{}, false, err
-	}
-	client, err := deps.newClient(target)
-	if err != nil {
-		return DaemonStatus{}, false, err
-	}
-	status, err := client.DaemonStatus(ctx)
-	if err != nil {
-		return DaemonStatus{}, false, err
-	}
-	if status.PID <= 0 || strings.TrimSpace(status.Status) != daemonRunningStatus {
-		return status, false, errors.New("cli: running daemon did not report healthy status")
-	}
-	if status.PID != info.PID || !status.StartedAt.Equal(info.StartedAt) ||
-		status.HTTPPort != info.Port || filepath.Clean(status.Socket) != filepath.Clean(target.socketPath) {
-		return status, false, errors.New("cli: daemon status does not match the local discovery record")
-	}
-	return status, true, nil
+	probe := bootstrapDaemonProbe{deps: deps, homePaths: homePaths}
+	return probe.status(ctx)
 }
 
 // runBootstrapDaemonDetached owns the startup mutation lock until readiness, exit, or cancellation.

@@ -1,8 +1,11 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"strings"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -62,48 +65,83 @@ func (e *bootstrapExecution) attachBootingOwner(ownerPID int) error {
 	return e.attachRunning(status)
 }
 
-// waitForLockOwnerReady polls the local daemon until the current lock holder reports running.
-// Each tick re-inspects the lock so a holder that recorded its PID after classification replaces
-// a stale recorded PID. The deadline is the single extension seam: a future boot-progress signal
-// can push it out while the owner keeps reporting progress, without changing the readiness predicate.
+type bootstrapDaemonProbe struct {
+	deps      commandDeps
+	homePaths compozyconfig.HomePaths
+	target    ClientTarget
+	client    DaemonClient
+}
+
+// status reuses one transport while rechecking discovery identity on every observation.
+func (p *bootstrapDaemonProbe) status(ctx context.Context) (DaemonStatus, bool, error) {
+	info, running, err := daemonInfo(p.homePaths, p.deps)
+	if err != nil || !running {
+		return DaemonStatus{}, false, err
+	}
+	if p.client == nil {
+		p.target, err = resolveLocalClientTarget(p.deps, p.homePaths)
+		if err != nil {
+			return DaemonStatus{}, false, err
+		}
+		p.client, err = p.deps.newClient(p.target)
+		if err != nil {
+			return DaemonStatus{}, false, err
+		}
+	}
+	status, err := p.client.DaemonStatus(ctx)
+	if err != nil {
+		return DaemonStatus{}, false, err
+	}
+	if status.PID <= 0 || strings.TrimSpace(status.Status) != daemonRunningStatus {
+		return status, false, errors.New("cli: running daemon did not report healthy status")
+	}
+	if status.PID != info.PID || !status.StartedAt.Equal(info.StartedAt) ||
+		status.HTTPPort != info.Port || filepath.Clean(status.Socket) != filepath.Clean(p.target.socketPath) {
+		return status, false, errors.New("cli: daemon status does not match the local discovery record")
+	}
+	return status, true, nil
+}
+
+// waitForLockOwnerReady rechecks ownership because a holder may record its PID after taking the lock.
 func (e *bootstrapExecution) waitForLockOwnerReady(ownerPID int) (DaemonStatus, error) {
-	ctx := e.cmd.Context()
 	timeout := e.deps.bootstrapAttachTimeout
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(e.cmd.Context(), timeout)
+	defer cancel()
+	probe := bootstrapDaemonProbe{deps: e.deps, homePaths: e.homePaths}
 	ticker := time.NewTicker(e.deps.pollInterval)
 	defer ticker.Stop()
-	for {
+	for ctx.Err() == nil {
 		var lockHeld bool
 		ownerPID, lockHeld = e.currentLockOwner(ownerPID)
-		// Probe errors are expected while the owner boots without a listener; lock state, liveness,
-		// and the deadline decide failure.
-		status, running, probeErr := probeBootstrapDaemon(ctx, e.deps, e.homePaths)
+		status, running, probeErr := probe.status(ctx)
+		if ctx.Err() != nil {
+			break
+		}
 		if probeErr == nil && running && daemonReadyAs(status, ownerPID) {
 			return status, nil
 		}
-		// A held lock always has a live holder, even one that has not recorded its PID yet.
+		// The holder may not have recorded its PID yet, so a held lock takes precedence over liveness.
 		if !lockHeld && !e.deps.processAlive(ownerPID) {
 			return DaemonStatus{}, fmt.Errorf(
 				"cli: the running CompozyOS daemon pid=%d exited before it became ready; inspect the runtime log",
 				ownerPID,
 			)
 		}
-		if !time.Now().Before(deadline) {
-			return DaemonStatus{}, fmt.Errorf(
-				"cli: the running CompozyOS daemon pid=%d did not become ready within %s; "+
-					"it may still be starting, inspect the runtime log before retrying",
-				ownerPID,
-				timeout,
-			)
-		}
 		select {
 		case <-ctx.Done():
-			return DaemonStatus{}, fmt.Errorf(
-				"cli: stopped waiting for the running CompozyOS daemon pid=%d: %w", ownerPID, ctx.Err(),
-			)
 		case <-ticker.C:
 		}
 	}
+	if e.cmd.Context().Err() != nil {
+		return DaemonStatus{}, fmt.Errorf(
+			"cli: stopped waiting for the running CompozyOS daemon pid=%d: %w", ownerPID, e.cmd.Context().Err(),
+		)
+	}
+	return DaemonStatus{}, fmt.Errorf(
+		"cli: the running CompozyOS daemon pid=%d did not become ready within %s; "+
+			"it may still be starting, inspect the runtime log before retrying: %w",
+		ownerPID, timeout, ctx.Err(),
+	)
 }
 
 // currentLockOwner returns the PID recorded by the current lock holder and whether the lock is

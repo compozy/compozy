@@ -1033,6 +1033,14 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 		fixture.bootAfterProbes = 3
 		// A different healthy daemon answers first; bootstrap must keep waiting for the holder.
 		fixture.foreignReadyPID = 888
+		newClient := fixture.deps.newClient
+		attachClients := 0
+		fixture.deps.newClient = func(target ClientTarget) (DaemonClient, error) {
+			if fixture.inspections > 1 {
+				attachClients++
+			}
+			return newClient(target)
+		}
 
 		events, err := fixture.run(t)
 		if err != nil {
@@ -1040,6 +1048,9 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 		}
 		if fixture.spawns != 1 {
 			t.Fatalf("spawned children = %d, want one lock-contended start before attach", fixture.spawns)
+		}
+		if attachClients != 1 {
+			t.Fatalf("attach clients = %d, want one transport throughout readiness polling", attachClients)
 		}
 		if got := countBootstrapEvents(events, bootstrapPhaseStart, bootstrapStatusRetrying); got != 0 {
 			t.Fatalf("retrying events = %d, want none while a live owner boots; events=%#v", got, events)
@@ -1097,6 +1108,43 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 		if ready.Phase != bootstrapPhaseReady || ready.Resolution != bootstrapResolutionStart ||
 			ready.Daemon == nil || ready.Daemon.PID != 42 {
 			t.Fatalf("final event = %#v, want started child pid 42", ready)
+		}
+	})
+
+	t.Run("Should cancel an in-flight status probe and reject readiness after the attach deadline", func(t *testing.T) {
+		fixture := newBootstrapLockOwnerFixture(t)
+		fixture.bootAfterProbes = 3
+		fixture.deps.bootstrapAttachTimeout = 20 * time.Millisecond
+		newClient := fixture.deps.newClient
+		deadlineObserved := false
+		fixture.deps.newClient = func(target ClientTarget) (DaemonClient, error) {
+			client, err := newClient(target)
+			if err != nil {
+				return nil, err
+			}
+			return &stubClient{daemonStatusFn: func(ctx context.Context) (DaemonStatus, error) {
+				status, err := client.DaemonStatus(ctx)
+				if err != nil || status.PID != fixture.ownerPID {
+					return status, err
+				}
+				if _, ok := ctx.Deadline(); !ok {
+					t.Error("attach status request has no deadline")
+					return status, nil
+				}
+				<-ctx.Done()
+				deadlineObserved = true
+				return status, nil
+			}}, nil
+		}
+
+		events, err := fixture.run(t)
+		assertErrorContains(t, err, "the running CompozyOS daemon pid=777 did not become ready")
+		if !deadlineObserved || !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("deadline observed = %t, error = %v; want cancellation during status request", deadlineObserved, err)
+		}
+		failed := events[len(events)-1]
+		if failed.Phase != bootstrapPhaseAttach || failed.Status != bootstrapStatusFailed {
+			t.Fatalf("final event = %#v, want attach failure instead of late readiness", failed)
 		}
 	})
 
