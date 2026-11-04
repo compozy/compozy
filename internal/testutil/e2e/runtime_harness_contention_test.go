@@ -452,8 +452,10 @@ func assertContentionLogFile(t *testing.T, path string) {
 		t.Fatal(err)
 	}
 	for line := range strings.SplitSeq(string(data), "\n") {
+		// Maintenance errors must not hide behind otherwise successful requests.
 		if strings.Contains(line, "contention exhausted bounded retry") ||
 			strings.Contains(line, "held for at least one second") ||
+			strings.Contains(line, "sqlite passive checkpoint failed") ||
 			strings.Contains(line, "SQLITE_BUSY") {
 			t.Errorf("SQLite contention in daemon log: %s", line)
 		}

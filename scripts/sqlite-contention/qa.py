@@ -90,7 +90,7 @@ def main():
             teardown = json.loads((qa / "teardown.json").read_text())
         except (OSError, ValueError):
             teardown = {"clean": False}
-        if not isinstance(teardown, dict):
+        if not isinstance(teardown, dict) or not isinstance(teardown.get("clean"), bool):
             teardown = {"clean": False}
         if not teardown.get("clean"):
             result = result or 1
