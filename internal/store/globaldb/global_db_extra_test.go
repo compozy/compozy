@@ -851,9 +851,9 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		if versionAtDone < telemetryMovedVersion {
+		if versionAtDone != telemetryMovedVersion {
 			t.Fatalf(
-				"schema version when Done was reported = %d, want at least %d",
+				"schema version when Done was reported = %d, want exactly %d",
 				versionAtDone,
 				telemetryMovedVersion,
 			)

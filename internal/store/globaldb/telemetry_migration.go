@@ -105,13 +105,14 @@ func applyTelemetryRelocation(
 	}
 	// The SQL boundary refuses to drop a nonempty source, including when a
 	// caller tries to apply the stream without this cross-file coordinator.
-	if err := store.Apply(ctx, db, MigrationStream()); err != nil {
+	if _, err := stepper.UpTo(ctx, telemetryMovedVersion); err != nil {
 		return err
 	}
+	// Done covers only the relocation's own steps; later migrations are not this stage's work.
 	if progress != nil {
 		progress(MigrationProgress{Stage: MigrationStageTelemetryRelocation, Done: true})
 	}
-	return nil
+	return store.Apply(ctx, db, MigrationStream())
 }
 
 // The destination exists before the source freeze commits. Once export can have

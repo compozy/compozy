@@ -14,6 +14,8 @@ function skewSnapshot(event: BootstrapEvent): ShellSnapshot | null {
 
 function failureCode(event: BootstrapEvent): string {
   if (event.phase === "provision") {
+    if (/data upgrade .* stopped progressing/iu.test(event.message))
+      return "runtime_upgrade_stalled";
     if (/permission|operation not permitted|access denied/iu.test(event.message)) {
       return "provision_permission";
     }
