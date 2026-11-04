@@ -66,7 +66,7 @@ curl -sI https://pub-6cb601c36b3b4de9bc57fae6b15686d0.r2.dev/<key>
 
 ## CI
 
-The `main` ruleset requires no status checks, so `gh pr checks --required` reports nothing. This list is the gate, for the current head only:
+The `main` ruleset requires only `Verify (fmt, lint, unit, build)` and `E2E (combined lane)` and merges through the merge queue, so `gh pr checks --required` is not the whole gate. This list is, for the current head only:
 
 - `Verify (fmt, lint, unit, build)`, `E2E (combined lane)`, `PR title`, `React Doctor`
 - Every other reported check except CodeRabbit, which [Reviewers](#reviewers) owns, is successful or legitimately skipped
