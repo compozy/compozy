@@ -1,5 +1,14 @@
 # Compozy Change Impact
 
+## Preserve agent runtime selection across kind changes — 2026-11-03
+
+The Web create draft keeps an explicit runtime when switching between workspace On-demand and
+global Always-on if the destination catalog contains its provider. A destination without that
+provider clears all runtime overrides. Native tools, CLI/HTTP/UDS contracts, hooks, configuration,
+SDKs, and stored data are unchanged. No migration or official skill change is needed. The owning
+QA scenario is `MS-web-agent-create-simple-advanced`; existing always-on browser journeys verify
+creation after choosing a model before changing kind.
+
 ## Always-on vocabulary alignment (v0.5.1) — 2026-11-03
 
 Owner: issue #1199, spec `.compozy/tasks/vocabulary-alignment/`. This is a public-surface rename of `stays_on` to `always_on`. The shims are removed in v0.5.2.
