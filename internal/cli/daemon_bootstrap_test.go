@@ -1062,7 +1062,7 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 		}
 		failed := events[len(events)-1]
 		if failed.Phase != bootstrapPhaseAttach || failed.Status != bootstrapStatusFailed ||
-			failed.Classification == bootstrapProbeListeningUnhealthy ||
+			failed.Classification != bootstrapProbeUnavailable ||
 			strings.Contains(failed.Message, "detached daemon exited before readiness") {
 			t.Fatalf("failure event = %#v, want attach failure naming the running daemon", failed)
 		}
