@@ -325,7 +325,10 @@ function DesktopMenubarChrome({
       wrapBellTrigger={trigger => (
         <Popover
           open={activeOverlay === "bell"}
-          onOpenChange={open => onOverlayOpenChange("bell", open)}
+          onOpenChange={open => {
+            if (open) scriptApprovals.refresh();
+            onOverlayOpenChange("bell", open);
+          }}
         >
           <PopoverTrigger render={trigger} />
           <PopoverContent

@@ -156,8 +156,10 @@ export function checkInScriptAwaitsApproval(
 /** The declared scripts whose current bytes wait for the operator, in the file's order. */
 export function checkInScriptsAwaitingApproval(
   sources: readonly Pick<CheckInSource, "script">[],
-  catalog: Pick<AgentHeartbeatSourceCatalog, "scripts"> | null | undefined
+  catalog: Pick<AgentHeartbeatSourceCatalog, "scripts" | "scripts_enabled"> | null | undefined
 ) {
+  // With scripts off nothing runs, so approving promises nothing: the row says they're off.
+  if (!catalog?.scripts_enabled) return [];
   const names = sources.flatMap(source => (source.script ? [source.script] : []));
   return [...new Set(names)].filter(name =>
     checkInScriptAwaitsApproval(catalog?.scripts.find(item => item.name === name))
@@ -181,7 +183,8 @@ export function checkInSourceStatus(
   }
   if (!state) return { label: "Not checked yet", tone: "muted" };
   const unread = state.status === "unapproved" || state.status === "pending_first_poll";
-  if (unread && script?.approved) {
+  // Approval covers bytes only: a script that lost its exec bit still fails its next poll.
+  if (unread && script?.approved && script.executable) {
     return { label: "Approved · runs at the next check-in", tone: "muted" };
   }
   const ok = () => {

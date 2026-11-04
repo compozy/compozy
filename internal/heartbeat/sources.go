@@ -51,6 +51,8 @@ type HeartbeatSourceStatus struct {
 	NextPollAt    string        `json:"next_poll_at,omitempty"`
 	// ScriptSHA256 is a script source's current content hash, read without polling it.
 	ScriptSHA256 string `json:"script_sha256,omitempty"`
+	// ScriptPath is the script's resolved file path, which with the profile identifies its approval.
+	ScriptPath string `json:"script_path,omitempty"`
 	// AwaitingApproval holds while those bytes are not approved, whether or not a check ran:
 	// a new or paused source is never polled, so the poll status alone can't say it waits.
 	AwaitingApproval bool `json:"awaiting_approval,omitempty"`

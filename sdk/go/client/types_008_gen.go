@@ -275,6 +275,7 @@ type HeartbeatSourceStatus struct {
 	Error            *Error `json:"error,omitempty"`
 	NextPollAt       string `json:"next_poll_at,omitempty"`
 	ScriptSHA256     string `json:"script_sha256,omitempty"`
+	ScriptPath       string `json:"script_path,omitempty"`
 	AwaitingApproval bool   `json:"awaiting_approval,omitempty"`
 }
 

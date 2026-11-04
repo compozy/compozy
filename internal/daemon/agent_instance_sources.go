@@ -38,7 +38,7 @@ func (r instanceDefinitions) projectInstanceSources(
 	if err != nil {
 		return
 	}
-	scripts := newInstanceScriptApprovals(instance, agent, artifacts, workspace, reader)
+	scripts := newInstanceScriptApprovals(instance, agent, artifacts, r.scriptsEnabled, reader)
 	out := make([]heartbeat.HeartbeatSourceStatus, 0, len(refs))
 	if len(refs) == 0 {
 		payload.Sources = out
@@ -82,7 +82,7 @@ func newInstanceScriptApprovals(
 	instance agentinstance.Instance,
 	agent compozyconfig.AgentDef,
 	artifacts *session.AgentArtifacts,
-	workspace *workspacepkg.ResolvedWorkspace,
+	scriptsEnabled bool,
 	reader instanceAttentionReader,
 ) instanceScriptApprovals {
 	approvals, ok := reader.(source.ApprovalReader)
@@ -91,7 +91,7 @@ func newInstanceScriptApprovals(
 		approvals: approvals,
 		profileID: instance.ProfileID,
 		dir:       filepath.Dir(agent.SourcePath),
-		ready:     ok && !packageOwned && workspace.Config.Agents.Heartbeat.Sources.ScriptsEnabled,
+		ready:     ok && !packageOwned && scriptsEnabled,
 	}
 }
 
@@ -107,6 +107,10 @@ func projectScriptApproval(
 	_, hash, approved, err := source.ApprovedScript(ctx, scripts.approvals, scripts.profileID, scripts.dir, name)
 	if err != nil {
 		return
+	}
+	// The resolved path is the approval's identity: two copies of a definition need two approvals.
+	if dir, err := filepath.EvalSymlinks(scripts.dir); err == nil {
+		status.ScriptPath = filepath.Join(dir, "sources", name)
 	}
 	status.ScriptSHA256 = hash
 	status.AwaitingApproval = !approved

@@ -3477,6 +3477,7 @@ export type HeartbeatSourceStatus = {
   last_success_at?: string;
   next_poll_at?: string;
   script?: string;
+  script_path?: string;
   script_sha256?: string;
   status: string;
 };

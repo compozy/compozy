@@ -498,4 +498,3 @@ export * from "./subagents";
 export * from "./processes";
 export * from "./board-drawer";
 export * from "./always-on";
-export { EDITOR_SETTINGS_PATH, reportOpenInEditorResult } from "./hooks/use-open-in-editor";

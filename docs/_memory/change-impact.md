@@ -6,13 +6,15 @@ Owner: `fix/issue-1258-approve-before-first-check` (PR #1262). QA:
 `docs/qa/scenarios/MS-always-on-check-in-sources.md` §7.5–7.8.
 
 - HTTP/UDS DTOs gain additive fields only (SD-013 additive, no shim): instance
-  `sources[].awaiting_approval` and `sources[].script_sha256` on every agent-instance read, and
+  `sources[].awaiting_approval`, `sources[].script_sha256` and `sources[].script_path` (the
+  approval's identity) on every agent-instance read, and
   `scripts[].path` on `GET /api/agents/{name}/heartbeat/sources`. OpenAPI, the TS client and the Go
   client were regenerated. The approve/revoke routes, their CAS-by-hash body,
   `source_script_changed`, operator-only and extension-owned gating, `status` values, CLI verbs,
   native tool IDs, hooks, config keys and SQLite are unchanged.
 - The daemon reads approval from the script's bytes with the poller's own key (profile, resolved
-  definition dir, name), via the shared `source.ApprovedScript`. A never-polled or paused
+  definition dir, name) and the poller's daemon-level `scripts_enabled`, via the shared
+  `source.ApprovedScript`. A never-polled or paused
   placement therefore reports the wait. Scripts that can't run (disabled, extension-owned,
   missing, not executable) report nothing to approve.
 - Data boundaries: the bell reads the existing per-profile always-on instance list (same query

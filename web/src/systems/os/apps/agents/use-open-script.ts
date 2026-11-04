@@ -1,8 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 
-import { EDITOR_SETTINGS_PATH, reportOpenInEditorResult } from "@/systems/session";
-
 import { desktopShellBridge, type OpenInEditorResult } from "../../lib/desktop-shell-bridge";
+import { EDITOR_SETTINGS_PATH, reportOpenInEditorResult } from "../../lib/open-in-editor-report";
 
 /**
  * Opens a check-in script in the operator's editor through the desktop shell. `undefined` on

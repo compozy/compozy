@@ -4,7 +4,7 @@ import type { AgentInstancePayload } from "../types";
 const USER_SCOPE = "@user";
 
 export interface ScriptApprovalItem {
-  /** One per agent, script and bytes: placements of one definition share its approval. */
+  /** One per approval: profile, resolved script file and bytes. Placements of one file share it. */
   key: string;
   agentName: string;
   agentLabel: string;
@@ -27,7 +27,10 @@ export function scriptApprovalsFromInstances(
     for (const source of instance.sources ?? []) {
       if (!source.awaiting_approval || !source.script || !source.script_sha256) continue;
       const profile = instance.profile_name;
-      const key = [profile, instance.agent_name, source.script, source.script_sha256].join("\n");
+      // Approvals are keyed by profile and resolved script path; copies in two projects are two.
+      const identity =
+        source.script_path || [instance.workspace_id, instance.agent_name, source.script].join(":");
+      const key = [profile, identity, source.script_sha256].join("\n");
       if (items.has(key)) continue;
       items.set(key, {
         key,

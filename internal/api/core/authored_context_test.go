@@ -2073,9 +2073,11 @@ func TestHeartbeatSourceCatalogAndApproval(t *testing.T) {
 				catalog.Limits.MaxPerAgent != 8 || len(catalog.Kinds) != 1 || catalog.Kinds[0].Kind != "fixture/issues" {
 				t.Fatalf("catalog=%+v", catalog)
 			}
-			if filepath.Base(catalog.Scripts[0].Path) != "poll" ||
-				filepath.Base(filepath.Dir(catalog.Scripts[0].Path)) != "sources" ||
-				!filepath.IsAbs(catalog.Scripts[0].Path) {
+			resolvedDir, err := filepath.EvalSymlinks(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if catalog.Scripts[0].Path != filepath.Join(resolvedDir, "sources", "poll") {
 				t.Fatalf("script path=%q", catalog.Scripts[0].Path)
 			}
 			endpoint := "/agents/coder/heartbeat/scripts/poll/approve?workspace_id=ws"

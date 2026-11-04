@@ -1159,6 +1159,46 @@ describe("Heartbeat", () => {
     expect(screen.queryByTestId("check-in-script-approval")).toBeNull();
   });
 
+  it.each([
+    {
+      name: "scripts are off",
+      scriptsEnabled: false,
+      script: { executable: true, approved: false, approved_sha256: null },
+    },
+    {
+      name: "an approved script lost its exec bit",
+      scriptsEnabled: true,
+      script: { executable: false, approved: true, approved_sha256: SCRIPT_SHA },
+    },
+  ])("Should promise nothing that can't run when $name", async ({ scriptsEnabled, script }) => {
+    serveHeartbeat(sourcesPayload([{ id: "deploys", script: "failed-deploys" }]));
+    server.use(
+      http.get("*/api/agents/:name/heartbeat/sources", () =>
+        HttpResponse.json({
+          agent: agent.name,
+          scripts_enabled: scriptsEnabled,
+          limits: { max_per_agent: 16, max_items: 20 },
+          kinds: [],
+          scripts: [{ name: "failed-deploys", sha256: SCRIPT_SHA, ...script }],
+        })
+      )
+    );
+    seedAgentInstanceMock([
+      agentInstanceFixture({
+        agent_name: agent.name,
+        sources: [
+          { id: "deploys", status: "pending_first_poll", failure_streak: 0, last_item_count: 0 },
+        ],
+      }),
+    ]);
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+
+    const row = await screen.findByTestId("check-in-source-row");
+    await waitFor(() => expect(row).toHaveTextContent("Not checked yet"));
+    expect(screen.queryByTestId("check-in-script-approval")).toBeNull();
+    expect(screen.queryByText(/needs your approval/)).toBeNull();
+  });
+
   it("Should open a custom schedule in Advanced only", async () => {
     serveHeartbeat(
       heartbeatPayload({

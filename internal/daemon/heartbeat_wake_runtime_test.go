@@ -1196,6 +1196,7 @@ func newHeartbeatSourceRuntime(t *testing.T, approved, blocked bool) *heartbeatS
 			profiles:           nativeProfileReaderStub{},
 			sessions:           h.manager,
 			agents:             agents,
+			scriptsEnabled:     cfg.Agents.Heartbeat.Sources.ScriptsEnabled,
 		},
 	}
 	h.config = heartbeat.CheckConfig{
@@ -1581,7 +1582,8 @@ func TestHeartbeatSourceRuntime(t *testing.T) {
 		}
 	})
 	// Invariant (#1258): an unapproved script reads as awaiting approval from its bytes alone, so a
-	// new or paused instance that is never polled still asks; approval clears it, an edit asks again.
+	// new or paused instance that is never polled still asks; approval clears it, an edit asks again,
+	// and the read follows the poller's scripts_enabled and approval key (resolved script path).
 	t.Run("Should project script approval before the first check and while paused", func(t *testing.T) {
 		h := newHeartbeatSourceRuntime(t, false, false)
 		api := core.AgentInstanceAPI{
@@ -1603,9 +1605,16 @@ func TestHeartbeatSourceRuntime(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got := read(h.instance, true); got.ScriptSHA256 != hash {
-			t.Fatalf("hash=%q want %q", got.ScriptSHA256, hash)
+		if got := read(h.instance, true); got.ScriptSHA256 != hash ||
+			got.ScriptPath != filepath.Join(h.dir, "sources", "poll") {
+			t.Fatalf("hash=%q path=%q want %q", got.ScriptSHA256, got.ScriptPath, hash)
 		}
+		// With scripts off for the poller, nothing would run, so nothing asks.
+		h.env.definitions.scriptsEnabled = false
+		if got := read(h.instance, false); got.ScriptSHA256 != "" {
+			t.Fatalf("disabled hash=%q", got.ScriptSHA256)
+		}
+		h.env.definitions.scriptsEnabled = true
 		result, err := h.db.Instances().Pause(t.Context(), h.instance.ID, "manual")
 		if err != nil {
 			t.Fatal(err)

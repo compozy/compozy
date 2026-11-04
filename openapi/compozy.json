@@ -12441,6 +12441,9 @@
           "script": {
             "type": "string"
           },
+          "script_path": {
+            "type": "string"
+          },
           "script_sha256": {
             "type": "string"
           },
