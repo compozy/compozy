@@ -222,6 +222,7 @@ type InitializeResponse struct {
 	AcceptedCapabilities AcceptedCapabilities    `json:"accepted_capabilities"`
 	ImplementedMethods   []string                `json:"implemented_methods"`
 	SupportedHookEvents  []string                `json:"supported_hook_events"`
+	HeartbeatSourceKinds []HeartbeatSourceKind   `json:"heartbeat_source_kinds,omitempty"`
 	WatchSourceKinds     []string                `json:"watch_source_kinds,omitempty"`
 	CmdPaletteViews      []string                `json:"cmd_palette_views,omitempty"`
 	Supports             InitializeSupports      `json:"supports"`

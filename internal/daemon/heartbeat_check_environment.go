@@ -7,6 +7,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -15,6 +16,7 @@ type checkWorkspaceReader interface {
 }
 
 type instanceCheckEnvironment struct {
+	sourceExtensions  source.ExtensionPoller
 	sourceConfig      compozyconfig.HeartbeatSourcesConfig
 	sourceNow         func() time.Time
 	sourceMaxInterval time.Duration

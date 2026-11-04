@@ -103,7 +103,18 @@ func (e *instanceCheckEnvironment) pollHeartbeatSource(
 	}
 	var pollErr error
 	if p.Ref.Kind != "" {
-		pollErr = source.Failure("source_kind_unavailable", "source kind is not enabled in this workspace")
+		if e.sourceExtensions == nil {
+			pollErr = source.Failure("source_kind_unavailable", "source kind is not enabled in this workspace")
+		} else {
+			pollCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
+			defer cancel()
+			p.Result, pollErr = e.sourceExtensions.PollSource(
+				pollCtx,
+				source.CatalogScope{ProfileID: target.Instance.ProfileID, WorkspaceID: target.Instance.WorkspaceID},
+				p.Ref.Kind,
+				req,
+			)
+		}
 	} else {
 		p.Result, pollErr = runner.Poll(ctx, p.Ref, req)
 	}

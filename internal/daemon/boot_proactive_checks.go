@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -45,6 +46,10 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 		policies:   catalog,
 		hooks:      state.notifier,
 		workspaces: workspaces,
+	}
+	if poller, ok := state.extensions.(source.ExtensionPoller); ok {
+		environment.sourceExtensions = poller
+		state.agentInstances.SourceExtensions = poller
 	}
 	dispatcher := &session.TriageDispatcher{
 		Manager:      manager,

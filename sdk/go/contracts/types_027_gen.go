@@ -4,6 +4,11 @@ package contracts
 
 import "time"
 
+type WorktreeControlPatch struct {
+	Deny       bool   `json:"deny,omitempty"`
+	DenyReason string `json:"deny_reason,omitempty"`
+}
+
 type WorktreeObservationPatch struct{}
 
 type WorktreeObservationPayload struct {

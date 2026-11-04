@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json/v2"
 	"errors"
@@ -19,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/agentinstance"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/api/core"
+	apitest "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/heartbeat/source"
@@ -31,6 +33,7 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
+	tools "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 	"github.com/jonboulle/clockwork"
@@ -1967,5 +1970,125 @@ func TestHeartbeatSourceSchedulerCycle(t *testing.T) {
 		}
 		release()
 		h.waitIdle(t, 1)
+	})
+}
+
+type heartbeatFixturePoller struct{}
+
+var _ source.ExtensionPoller = heartbeatFixturePoller{}
+
+func (heartbeatFixturePoller) SourceKinds(context.Context, source.CatalogScope) ([]source.KindDescriptor, error) {
+	return []source.KindDescriptor{{Kind: "fake/issues"}}, nil
+}
+
+func (heartbeatFixturePoller) PollSource(
+	_ context.Context,
+	_ source.CatalogScope,
+	_ string,
+	req source.Request,
+) (source.Result, error) {
+	if string(req.Params) != `{"repo":"a/b"}` {
+		return source.Result{}, source.Failure("source_params_invalid", "repo is required")
+	}
+	return source.Result{Items: []source.Item{{Key: "issue:1", Title: "New issue"}}, State: []byte(`{"cursor":1}`)}, nil
+}
+func TestHeartbeatExtensionSourceRuntime(t *testing.T) {
+	t.Run("Should collect extension items and preserve parameter failures [IT-005]", func(t *testing.T) {
+		t.Parallel()
+		h := newHeartbeatSourceRuntime(t, true, false)
+		h.env.sourceExtensions = heartbeatFixturePoller{}
+		body := "---\nversion: 1\nenabled: true\ncontext:\n  include: []\n  sources:\n    - id: incoming\n      kind: fake/issues\n      with: {repo: a/b}\n---\nReview incoming issues.\n"
+		if err := os.WriteFile(filepath.Join(h.dir, "HEARTBEAT.md"), []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+		target, err := h.env.ResolveCheck(t.Context(), h.instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		batch, err := h.env.PollSources(t.Context(), &target, true)
+		if err != nil || len(batch.Sources) != 1 || batch.Sources[0].Err != nil ||
+			len(batch.Sources[0].Result.Items) != 1 {
+			t.Fatalf("batch=%+v err=%v", batch, err)
+		}
+		digest := batch.DigestItems(3)
+		if len(digest) != 1 || digest[0].Source.SourceRef != "fake/issues" {
+			t.Fatalf("digest=%+v", digest)
+		}
+		target.Policy.Preferences.Context.Sources[0].With = []byte(`{}`)
+		batch, err = h.env.PollSources(t.Context(), &target, true)
+		if err != nil || len(batch.Sources) != 1 || batch.Sources[0].Err == nil ||
+			batch.Sources[0].Err.Code != "source_params_invalid" {
+			t.Fatalf("batch=%+v err=%v", batch, err)
+		}
+	})
+}
+
+func TestNativeHeartbeatSourcesCatalog(t *testing.T) {
+	t.Run("Should return the shared catalog JSON [UT-060]", func(t *testing.T) {
+		t.Parallel()
+		h := newHeartbeatSourceRuntime(t, true, false)
+		resolver := apitest.StubWorkspaceService{
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					ID:          "ws",
+					WorkspaceID: "ws",
+					RootDir:     h.dir,
+					ProfileID:   store.DefaultProfileID,
+					Config: compozyconfig.Config{
+						Agents: compozyconfig.AgentsConfig{Heartbeat: compozyconfig.DefaultHeartbeatConfig()},
+					},
+					Agents: []compozyconfig.AgentDef{
+						{Name: h.instance.AgentName, SourcePath: filepath.Join(h.dir, "AGENT.md")},
+					},
+				}, nil
+			},
+		}
+		api := &core.AgentInstanceAPI{Store: h.db.Instances(), SourceExtensions: heartbeatFixturePoller{}}
+		native := &daemonNativeTools{
+			deps: &daemonNativeToolsDeps{
+				WorkspaceResolver: resolver,
+				AgentInstances:    func() *core.AgentInstanceAPI { return api },
+			},
+		}
+		input, err := json.Marshal(map[string]string{"agent": h.instance.AgentName, "workspace": "ws"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := native.agentHeartbeatSources(
+			t.Context(),
+			tools.Scope{Operator: true, ProfileID: store.DefaultProfileID},
+			tools.CallRequest{ToolID: tools.ToolIDAgentHeartbeatSources, Input: input},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected, err := core.HeartbeatSourceCatalog(
+			t.Context(),
+			h.instance.AgentName,
+			h.dir,
+			false,
+			source.CatalogScope{ProfileID: store.DefaultProfileID, WorkspaceID: "ws"},
+			compozyconfig.DefaultHeartbeatSourcesConfig(),
+			h.db.Instances(),
+			heartbeatFixturePoller{},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var actual contract.HeartbeatSourceCatalogPayload
+		if err := json.Unmarshal(result.Structured, &actual); err != nil {
+			t.Fatal(err)
+		}
+		actualJSON, err := json.Marshal(actual)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expectedJSON, err := json.Marshal(expected)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(actualJSON, expectedJSON) {
+			t.Fatalf("catalog=%s expected=%s", actualJSON, expectedJSON)
+		}
 	})
 }

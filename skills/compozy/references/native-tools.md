@@ -1132,3 +1132,10 @@ and `source_session_title` and are read-only on their parent.
 `compozy__observe_metrics` includes `agent_instances.pause_counts` (current paused instances keyed
 by reason) and `agent_instances.held_input_count` (queued autonomous inputs, including coalesced
 members). These counts belong to the caller's profile and workspace, including its User scope.
+
+### Check-in source catalog
+
+`compozy__agent_heartbeat_sources` is read-only. Pass `agent` and `workspace` to list
+scoped extension `kinds` (including `params_schema`), local `scripts` and their approval
+status, `scripts_enabled`, and effective `limits`. It returns the same catalog JSON as
+`compozy agent heartbeat sources <agent> -o json` and HTTP/UDS source discovery.

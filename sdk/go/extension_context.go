@@ -189,6 +189,9 @@ func (e *Extension) implementedMethodsLocked() []string {
 		methods[ExtensionServiceMethodProvideTools] = struct{}{}
 		methods[ExtensionServiceMethodToolsCall] = struct{}{}
 	}
+	if len(e.heartbeatHandlers) > 0 {
+		methods[ExtensionServiceMethodHeartbeatSourcePoll] = struct{}{}
+	}
 	if len(e.watchHandlers) > 0 {
 		methods[ExtensionServiceMethodWatchPoll] = struct{}{}
 	}

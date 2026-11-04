@@ -13,6 +13,20 @@ const (
 
 var authoredContextTools = []toolspkg.Descriptor{
 	nativeDescriptor(
+		toolspkg.ToolIDAgentHeartbeatSources,
+		"agent_heartbeat_sources",
+		"Agent Heartbeat Sources",
+		"List available check-in source kinds, scripts, approvals and limits.",
+		`{"type":"object","required":["agent","workspace"],"properties":{"agent":{"type":"string"},"workspace":{"type":"string"}},"additionalProperties":false}`,
+		toolspkg.RiskRead,
+		true,
+		false,
+		false,
+		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext},
+		[]string{descriptorKeywordAgents, authoredContextHeartbeatKey, "sources"},
+		[]string{"check-in sources"},
+	),
+	nativeDescriptor(
 		toolspkg.ToolIDSessionHealth,
 		"session_health",
 		"Session Health",

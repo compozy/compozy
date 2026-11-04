@@ -4,6 +4,16 @@ package contracts
 
 import "time"
 
+type SessionPostStopPatch struct {
+	Deny        bool    `json:"deny,omitempty"`
+	DenyReason  string  `json:"deny_reason,omitempty"`
+	SessionName *string `json:"session_name,omitempty"`
+	SessionType *string `json:"session_type,omitempty"`
+	AgentName   *string `json:"agent_name,omitempty"`
+	WorkspaceID *string `json:"workspace_id,omitempty"`
+	Workspace   *string `json:"workspace,omitempty"`
+}
+
 type SessionPostStopPayload struct {
 	Event          HookEvent `json:"event"`
 	Timestamp      time.Time `json:"timestamp"`
@@ -285,29 +295,4 @@ type SessionStatus struct {
 type SessionStatusGetParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	SessionID   string `json:"session_id"`
-}
-
-type SessionStatusResponse struct {
-	Diagnostics         []DiagnosticItem                 `json:"diagnostics,omitempty"`
-	ReplyWatches        []ReplyWatchPayload              `json:"reply_watches,omitempty"`
-	Queue               *SessionQueueSummaryPayload      `json:"queue,omitempty"`
-	LifecycleState      State                            `json:"lifecycle_state,omitempty"`
-	Verified            *bool                            `json:"verified,omitempty"`
-	Escalated           *bool                            `json:"escalated,omitempty"`
-	Attention           string                           `json:"attention,omitempty"`
-	SessionID           string                           `json:"session_id"`
-	WorkspaceID         string                           `json:"workspace_id"`
-	AgentName           string                           `json:"agent_name"`
-	State               SessionHealthState               `json:"state"`
-	Badge               Badge                            `json:"badge"`
-	Health              SessionHealthStatus              `json:"health"`
-	ActivePrompt        bool                             `json:"active_prompt"`
-	Attachable          bool                             `json:"attachable"`
-	EligibleForWake     bool                             `json:"eligible_for_wake"`
-	IneligibilityReason SessionHealthIneligibilityReason `json:"ineligibility_reason,omitempty"`
-	WakeState           *HeartbeatWakeStatePayload       `json:"wake_state,omitempty"`
-	PendingInteractions []PendingInteractionPayload      `json:"pending_interactions"`
-	Lineage             *SessionLineagePayload           `json:"lineage,omitempty"`
-	Derivation          *SessionDerivationPayload        `json:"derivation,omitempty"`
-	UpdatedAt           time.Time                        `json:"updated_at"`
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/gin-gonic/gin"
 )
@@ -48,27 +49,57 @@ func (h *BaseHandlers) GetAgentHeartbeatSources(c *gin.Context) {
 	if !ok {
 		return
 	}
-	cfg := target.heartbeatConfig.Sources
 	dir, err := filepath.EvalSymlinks(filepath.Dir(target.agentPath))
 	if err != nil {
 		h.respondError(c, 404, err)
 		return
 	}
+	result, err := HeartbeatSourceCatalog(
+		c.Request.Context(),
+		target.agentName,
+		dir,
+		target.packageOwned,
+		source.CatalogScope{ProfileID: target.profileID, WorkspaceID: target.workspaceID},
+		target.heartbeatConfig.Sources,
+		storage,
+		h.AgentInstances.SourceExtensions,
+	)
+	if err != nil {
+		h.respondError(c, 500, err)
+		return
+	}
+	c.JSON(http.StatusOK, result)
+}
+
+func HeartbeatSourceCatalog(
+	ctx context.Context,
+	agent, dir string,
+	packageOwned bool,
+	scope source.CatalogScope,
+	cfg compozyconfig.HeartbeatSourcesConfig,
+	storage source.ApprovalReader,
+	poller source.ExtensionPoller,
+) (contract.HeartbeatSourceCatalogPayload, error) {
+	var err error
 	result := contract.HeartbeatSourceCatalogPayload{
-		Agent:          target.agentName,
+		Agent:          agent,
 		ScriptsEnabled: cfg.ScriptsEnabled,
 		Limits:         contract.HeartbeatSourceLimitsPayload{MaxPerAgent: cfg.MaxPerAgent, MaxItems: cfg.MaxItems},
 		Kinds:          []source.KindDescriptor{},
 		Scripts:        []contract.HeartbeatSourceScriptPayload{},
 	}
-	if target.packageOwned {
-		c.JSON(200, result)
-		return
+	if poller != nil {
+		result.Kinds, err = poller.SourceKinds(ctx, scope)
+		if err != nil {
+			return result, err
+		}
+	}
+	if packageOwned {
+		return result, nil
 	}
 	entries, err := os.ReadDir(filepath.Join(dir, "sources"))
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		h.respondError(c, 500, err)
-		return
+		return result, err
 	}
 	for _, entry := range entries {
 		if entry.IsDir() || !source.ValidScript(entry.Name()) {
@@ -78,10 +109,9 @@ func (h *BaseHandlers) GetAgentHeartbeatSources(c *gin.Context) {
 		if readErr != nil {
 			continue
 		}
-		approved, err := storage.ApprovedHash(c.Request.Context(), target.profileID, dir, entry.Name())
+		approved, err := storage.ApprovedHash(ctx, scope.ProfileID, dir, entry.Name())
 		if err != nil {
-			h.respondError(c, 500, err)
-			return
+			return result, err
 		}
 		info, err := os.Stat(filepath.Join(dir, "sources", entry.Name()))
 		if err != nil {
@@ -98,8 +128,9 @@ func (h *BaseHandlers) GetAgentHeartbeatSources(c *gin.Context) {
 		}
 		result.Scripts = append(result.Scripts, row)
 	}
-	c.JSON(http.StatusOK, result)
+	return result, nil
 }
+
 func (h *BaseHandlers) ApproveAgentHeartbeatScript(c *gin.Context) { h.mutateHeartbeatScript(c, false) }
 func (h *BaseHandlers) RevokeAgentHeartbeatScript(c *gin.Context)  { h.mutateHeartbeatScript(c, true) }
 func (h *BaseHandlers) mutateHeartbeatScript(c *gin.Context, revoke bool) {

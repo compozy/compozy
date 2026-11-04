@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -20,6 +21,7 @@ import (
 )
 
 type AgentInstanceAPI struct {
+	SourceExtensions    source.ExtensionPoller
 	Metrics             func(context.Context, string, string) (agentinstance.Metrics, error)
 	ReadPeer            func(context.Context, agentinstance.Instance) (contract.AgentInstancePeer, error)
 	SkillPublished      func(context.Context) error

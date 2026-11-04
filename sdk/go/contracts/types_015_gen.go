@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type ReasonCode string
+
 type ReasoningSource string
 
 type Redaction struct {
@@ -121,5 +123,3 @@ type RetryConfig struct {
 	MaxRetries int           `json:"max_retries"`
 	BaseDelay  string        `json:"base_delay"`
 }
-
-type RetryStrategy string

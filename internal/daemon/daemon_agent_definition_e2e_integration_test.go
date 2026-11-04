@@ -1077,3 +1077,100 @@ func runDaemonE2EAgentFallbackChain(t *testing.T) {
 		t.Fatalf("runtime.effective = %#v, want the accepted %s route", effective, seatProvider)
 	}
 }
+
+func TestDaemonE2EHeartbeatSourceCatalog(t *testing.T) {
+	acpmock.RequireDriver(t)
+	t.Parallel()
+	t.Run("Should list a script and show successful source status after a check [E2E-002]", func(t *testing.T) {
+		t.Parallel()
+		seed := agentDefinitionE2EConfigSeed(t)
+		harness := e2etest.StartRuntimeHarness(
+			t,
+			&e2etest.RuntimeHarnessOptions{
+				ConfigSeed: seed,
+				MockAgents: []e2etest.MockAgentSpec{
+					{
+						FixturePath:  mockFixturePath(t, "multi_agent_fixture.json"),
+						FixtureAgent: "alpha",
+						AgentName:    "source-provider-fixture",
+					},
+				},
+			},
+		)
+		ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+		defer cancel()
+		const name = "source-catalog-agent"
+		run := func(result any, args ...string) {
+			t.Helper()
+			if err := harness.CLI.RunJSONInDir(ctx, harness.WorkspaceRoot, result, args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		var created compozycontract.AgentPayload
+		run(
+			&created,
+			"agent",
+			"create",
+			name,
+			"--workspace",
+			harness.WorkspaceRoot,
+			"--provider",
+			acpmock.ProviderName,
+			"--model",
+			"model-v1",
+			"--prompt",
+			"Review incoming items.",
+			"-o",
+			"json",
+		)
+		dir := filepath.Join(harness.WorkspaceRoot, ".compozy", "agents", name)
+		if err := os.MkdirAll(filepath.Join(dir, "sources"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(dir, "sources", "updates"),
+			[]byte("#!/bin/sh\nprintf '{\"items\":[]}'\n"),
+			0700,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(dir, "HEARTBEAT.md"),
+			[]byte(
+				"---\nversion: 1\nenabled: true\ncontext:\n  include: []\n  sources:\n    - id: updates\n      script: updates\n---\n",
+			),
+			0600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		var catalog compozycontract.HeartbeatSourceCatalogPayload
+		run(&catalog, "agent", "heartbeat", "sources", name, "--workspace", harness.WorkspaceRoot, "-o", "json")
+		if len(catalog.Scripts) != 1 || catalog.Limits.MaxItems == 0 {
+			t.Fatalf("catalog=%+v", catalog)
+		}
+		var approval map[string]any
+		run(
+			&approval,
+			"agent",
+			"heartbeat",
+			"sources",
+			"approve",
+			name,
+			"updates",
+			"--workspace",
+			harness.WorkspaceRoot,
+			"--yes",
+			"-o",
+			"json",
+		)
+		var instance compozycontract.AgentInstancePayload
+		run(&instance, "agent", "instance", "create", name, "--workspace", harness.WorkspaceRoot, "-o", "json")
+		run(&instance, "agent", "instance", "checks", "on", name, "--workspace", harness.WorkspaceRoot, "-o", "json")
+		var check map[string]any
+		run(&check, "agent", "instance", "check", name, "--workspace", harness.WorkspaceRoot, "-o", "json")
+		run(&instance, "agent", "instance", "show", name, "--workspace", harness.WorkspaceRoot, "-o", "json")
+		if len(instance.Sources) != 1 || instance.Sources[0].Status != "ok" {
+			t.Fatalf("instance sources=%+v check=%v", instance.Sources, check)
+		}
+	})
+}

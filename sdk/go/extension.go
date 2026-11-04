@@ -49,6 +49,7 @@ type Extension struct {
 	handlers             map[string]ExtensionHandler
 	toolHandlers         map[string]registeredTool
 	commandGroups        []contracts.ExtensionCommandGroupSpec
+	heartbeatHandlers    map[string]registeredHeartbeatSource
 	watchHandlers        map[string]registeredWatchSource
 	connectivityProvider bool
 	forgeProvider        bool
@@ -102,14 +103,15 @@ func WithSDKVersion(version string) Option {
 // NewExtension creates a public Go extension runtime.
 func NewExtension(definition ExtensionDefinition, options ...Option) *Extension {
 	extension := &Extension{
-		definition:     definition,
-		transport:      NewStdioTransport(StdioTransportOptions{}),
-		stderr:         os.Stderr,
-		sdkVersion:     SDKVersion,
-		handlers:       make(map[string]ExtensionHandler),
-		toolHandlers:   make(map[string]registeredTool),
-		watchHandlers:  make(map[string]registeredWatchSource),
-		readyLifecycle: newReadyCallbackLifecycle(),
+		definition:        definition,
+		transport:         NewStdioTransport(StdioTransportOptions{}),
+		stderr:            os.Stderr,
+		sdkVersion:        SDKVersion,
+		handlers:          make(map[string]ExtensionHandler),
+		toolHandlers:      make(map[string]registeredTool),
+		heartbeatHandlers: make(map[string]registeredHeartbeatSource),
+		watchHandlers:     make(map[string]registeredWatchSource),
+		readyLifecycle:    newReadyCallbackLifecycle(),
 	}
 	extension.host = newHostAPI(extension.transport, extension.ready)
 	for _, option := range options {
@@ -142,6 +144,9 @@ func (e *Extension) Handle(method string, handler ExtensionHandler) error {
 	}
 	if len(e.toolHandlers) > 0 && isToolProviderMethod(cleanMethod) {
 		return NewInvalidParamsError(cleanMethod+" is reserved by Tool", nil)
+	}
+	if len(e.heartbeatHandlers) > 0 && cleanMethod == ExtensionServiceMethodHeartbeatSourcePoll {
+		return NewInvalidParamsError("heartbeat/source_poll is reserved", nil)
 	}
 	if len(e.watchHandlers) > 0 && isWatchSourceMethod(cleanMethod) {
 		return NewInvalidParamsError(cleanMethod+" is reserved by WatchSource", nil)

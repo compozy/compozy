@@ -7,6 +7,17 @@ import (
 	"time"
 )
 
+type SessionEventsParams struct {
+	WorkspaceID string    `json:"workspace_id"`
+	SessionID   string    `json:"session_id"`
+	Type        string    `json:"type,omitempty"`
+	AgentName   string    `json:"agent_name,omitempty"`
+	TurnID      string    `json:"turn_id,omitempty"`
+	Limit       int       `json:"limit,omitempty"`
+	Offset      int64     `json:"offset,omitempty"`
+	Since       time.Time `json:"since,omitzero"`
+}
+
 type SessionFailureHealth struct {
 	SessionID       string      `json:"session_id"`
 	AgentName       string      `json:"agent_name,omitempty"`
@@ -265,14 +276,4 @@ type SessionPostResumePayload struct {
 	SoulDigest     string    `json:"soul_digest,omitempty"`
 	CreatedAt      time.Time `json:"created_at"`
 	UpdatedAt      time.Time `json:"updated_at"`
-}
-
-type SessionPostStopPatch struct {
-	Deny        bool    `json:"deny,omitempty"`
-	DenyReason  string  `json:"deny_reason,omitempty"`
-	SessionName *string `json:"session_name,omitempty"`
-	SessionType *string `json:"session_type,omitempty"`
-	AgentName   *string `json:"agent_name,omitempty"`
-	WorkspaceID *string `json:"workspace_id,omitempty"`
-	Workspace   *string `json:"workspace,omitempty"`
 }

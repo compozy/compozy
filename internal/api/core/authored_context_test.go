@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/store"
@@ -2044,12 +2045,15 @@ func TestHeartbeatSourceCatalogAndApproval(t *testing.T) {
 			}
 			handlers := core.NewBaseHandlers(
 				&core.BaseHandlerConfig{
-					HomePaths:      home,
-					Config:         cfg,
-					TransportName:  transport,
-					Profiles:       sessionProfileServiceStub{},
-					Workspaces:     testutil.StubWorkspaceService{ResolveFn: resolve},
-					AgentInstances: &core.AgentInstanceAPI{Store: db.Instances()},
+					HomePaths:     home,
+					Config:        cfg,
+					TransportName: transport,
+					Profiles:      sessionProfileServiceStub{},
+					Workspaces:    testutil.StubWorkspaceService{ResolveFn: resolve},
+					AgentInstances: &core.AgentInstanceAPI{
+						Store:            db.Instances(),
+						SourceExtensions: catalogExtensionPoller{},
+					},
 				},
 			)
 			engine := gin.New()
@@ -2069,7 +2073,7 @@ func TestHeartbeatSourceCatalogAndApproval(t *testing.T) {
 			var catalog contract.HeartbeatSourceCatalogPayload
 			decodeJSON(t, response.Body.Bytes(), &catalog)
 			if len(catalog.Scripts) != 1 || catalog.Scripts[0].Approved || catalog.Limits.MaxItems != 20 ||
-				catalog.Limits.MaxPerAgent != 8 {
+				catalog.Limits.MaxPerAgent != 8 || len(catalog.Kinds) != 1 || catalog.Kinds[0].Kind != "fixture/issues" {
 				t.Fatalf("catalog=%+v", catalog)
 			}
 			endpoint := "/agents/coder/heartbeat/scripts/poll/approve?workspace_id=ws"
@@ -2112,4 +2116,29 @@ func TestHeartbeatSourceCatalogAndApproval(t *testing.T) {
 			}
 		})
 	}
+}
+
+type catalogExtensionPoller struct{}
+
+var _ source.ExtensionPoller = catalogExtensionPoller{}
+
+func (catalogExtensionPoller) SourceKinds(
+	_ context.Context,
+	scope source.CatalogScope,
+) ([]source.KindDescriptor, error) {
+	if scope.WorkspaceID != "ws" {
+		return nil, errors.New("incorrect source catalog scope")
+	}
+	return []source.KindDescriptor{
+		{Kind: "fixture/issues", Extension: "fixture", Title: "Issues", ParamsSchema: []byte(`{"type":"object"}`)},
+	}, nil
+}
+
+func (catalogExtensionPoller) PollSource(
+	context.Context,
+	source.CatalogScope,
+	string,
+	source.Request,
+) (source.Result, error) {
+	return source.Result{}, errors.New("catalog must not poll sources")
 }
