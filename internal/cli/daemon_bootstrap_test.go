@@ -902,6 +902,8 @@ type bootstrapLockOwnerFixture struct {
 	staleRecordedPID int
 	staleInspections int
 	inspections      int
+	// foreignReadyPID makes a daemon other than the lock holder answer healthy; 0 disables it.
+	foreignReadyPID int
 	// bootAfterProbes publishes the owner's daemon record after this many post-spawn probes; 0 never boots.
 	bootAfterProbes int
 	// recoverOnSpawn makes this spawn attempt (1-based) a healthy child; 0 never recovers.
@@ -927,6 +929,8 @@ func newBootstrapLockOwnerFixture(t *testing.T) *bootstrapLockOwnerFixture {
 			return 42
 		case fixture.bootAfterProbes > 0 && fixture.probes >= fixture.bootAfterProbes:
 			return fixture.ownerPID
+		case fixture.foreignReadyPID > 0 && fixture.spawns > 0:
+			return fixture.foreignReadyPID
 		default:
 			return 0
 		}
@@ -963,6 +967,9 @@ func newBootstrapLockOwnerFixture(t *testing.T) *bootstrapLockOwnerFixture {
 	deps.processAlive = func(pid int) bool {
 		if pid == fixture.ownerPID {
 			return fixture.ownerAlive
+		}
+		if fixture.foreignReadyPID > 0 && pid == fixture.foreignReadyPID {
+			return true
 		}
 		if pid == fixture.staleRecordedPID {
 			// The stale PID is alive at classification, then exits while the holder keeps the lock.
@@ -1085,8 +1092,9 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 		}
 	})
 
-	t.Run("Should fail naming the running daemon when the lock owner stays unready", func(t *testing.T) {
+	t.Run("Should fail naming the lock owner while another daemon answers healthy", func(t *testing.T) {
 		fixture := newBootstrapLockOwnerFixture(t)
+		fixture.foreignReadyPID = 888
 		fixture.deps.bootstrapAttachTimeout = 20 * time.Millisecond
 
 		events, err := fixture.run(t)
