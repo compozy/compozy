@@ -264,6 +264,33 @@ func TestRoleResolver(t *testing.T) {
 		}
 	})
 
+	t.Run("Should drop the override effort when the role selects another model", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := roleResolverConfig()
+		cfg.Roles.Coordinator.Enabled = true
+		cfg.Providers["mock"] = compozyconfig.ProviderConfig{Command: "mock-acp"}
+		cfg.Roles.Coordinator.Agent = "my-curator"
+		cfg.Roles.Coordinator.Model = "role-model"
+		cfg.Agents.Overrides = map[string]compozyconfig.AgentOverride{
+			"my-curator": {Model: "override-model", ReasoningEffort: "high"},
+		}
+		resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{
+			agents: map[string]compozyconfig.AgentDef{
+				"my-curator": {Name: "my-curator", Provider: "mock", Prompt: "Coordinate work."},
+			},
+		})
+
+		resolved, err := resolver.Resolve(t.Context(), "", compozyconfig.RoleCoordinator)
+		if err != nil {
+			t.Fatalf("Resolve(coordinator) error = %v", err)
+		}
+		if resolved.Model != "role-model" || resolved.ReasoningEffort == "high" {
+			t.Fatalf("Resolve(coordinator) = %q/%q, want role-model without the override effort",
+				resolved.Model, resolved.ReasoningEffort)
+		}
+	})
+
 	t.Run("Should reject providers that require an unresolved runtime model", func(t *testing.T) {
 		t.Parallel()
 

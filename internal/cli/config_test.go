@@ -439,17 +439,23 @@ func TestConfigSetAgentOverrideIsOperatorOnly(t *testing.T) {
 
 	t.Run("Should refuse set and unset from an agent session", func(t *testing.T) {
 		t.Parallel()
-		deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
-		deps.getenv = func(key string) string {
-			if key == agentidentity.EnvSessionID {
-				return "sess-agent"
+		for _, identity := range []struct{ key, value string }{
+			{key: agentidentity.EnvSessionID, value: "sess-agent"},
+			{key: agentidentity.EnvAgent, value: "orchestrator"},
+		} {
+			deps := newDefaultProfileWorkspaceTestDeps(t, &stubClient{})
+			deps.getenv = func(key string) string {
+				if key == identity.key {
+					return identity.value
+				}
+				return ""
 			}
-			return ""
-		}
-		for _, args := range [][]string{{"set", path, "approve-all"}, {"unset", path}} {
-			_, _, err := executeRootCommand(t, deps, append([]string{"config"}, args...)...)
-			if err == nil || !strings.Contains(err.Error(), "agent_override_operator_only") {
-				t.Fatalf("config %s error = %v, want agent_override_operator_only", args[0], err)
+			for _, args := range [][]string{{"set", path, "approve-all"}, {"unset", path}} {
+				_, _, err := executeRootCommand(t, deps, append([]string{"config"}, args...)...)
+				if err == nil || !strings.Contains(err.Error(), "agent_override_operator_only") {
+					t.Fatalf("config %s with %s error = %v, want agent_override_operator_only", args[0],
+						identity.key, err)
+				}
 			}
 		}
 	})

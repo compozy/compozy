@@ -249,6 +249,11 @@ func resolveRoleRuntime(cfg *compozyconfig.Config, common compozyconfig.RoleConf
 	// Role routing is narrower than the operator's per-agent override, so it layers on top.
 	route := cfg.ApplyAgentOverride(compozyconfig.CloneAgentDef(resolved.AgentDef))
 	dropForeignProviderRuntime(cfg, common.Provider, &route)
+	if model := strings.TrimSpace(common.Model); model != "" && model != strings.TrimSpace(route.Model) &&
+		strings.TrimSpace(common.ReasoningEffort) == "" {
+		// A different role model owns its effort default, as a session model change does.
+		route.ReasoningEffort = ""
+	}
 	route.Provider = firstRoleValue(common.Provider, route.Provider)
 	route.Model = firstRoleValue(common.Model, route.Model)
 	route.ReasoningEffort = firstRoleValue(common.ReasoningEffort, route.ReasoningEffort)

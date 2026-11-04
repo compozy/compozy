@@ -1574,7 +1574,8 @@ Precedence and scope:
 - Agent reads keep the authored values and report the result in `effective_runtime`, with
   `sources.<field> = "config_override"`. `compozy agent info <name>` prints the effective
   permissions and their source. An always-on definition with no level anywhere reports
-  `approve-edits` with source `always_on_default`, the level its instance runs at.
+  `approve-edits` with source `always_on_default`, the level its main instance session runs at;
+  its sessions outside the instance still use `[permissions].mode`.
 
 Authority: only the operator writes this table. Edit the file or run
 `compozy config set agents.overrides.<agent>.permissions <mode>` from your own shell. The native

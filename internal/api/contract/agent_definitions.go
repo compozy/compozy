@@ -97,7 +97,10 @@ type AgentEffectiveRuntimePayload struct {
 	ReasoningEffort  ReasoningEffort                           `json:"reasoning_effort,omitempty"`
 	Speed            Speed                                     `json:"speed,omitempty"`
 	ACPOptions       []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
-	// Permissions is the effective level after the operator override and [permissions].mode.
+	// Permissions is the level a new session of the definition starts at: the operator override,
+	// then the authored level, then [permissions].mode. An always-on definition with neither
+	// reports the level its main instance session runs at (source always_on_default); its
+	// non-instance sessions still fall back to [permissions].mode.
 	Permissions string                       `json:"permissions,omitempty"`
 	Sources     AgentEffectiveRuntimeSources `json:"sources"`
 }

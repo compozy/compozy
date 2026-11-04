@@ -445,7 +445,8 @@ func (c *Config) resolveSessionAgentRuntime(
 		effectiveProvider = CanonicalProviderName(c.Defaults.Provider)
 	}
 	applied = applied.withoutSessionSelections(
-		rawProviderOverride != "" && override != effectiveProvider, model != "", reasoningEffort != "",
+		rawProviderOverride != "" && override != effectiveProvider,
+		model != "", model != "" && model != strings.TrimSpace(agent.Model), reasoningEffort != "",
 	)
 	if rawProviderOverride == "" || override == effectiveProvider {
 		sessionAgent := agent

@@ -48,7 +48,9 @@ func applyAgentOverrideOverlays(layer map[string]agentOverrideOverlay, dst *map[
 	if *dst == nil {
 		*dst = make(map[string]AgentOverride, len(layer))
 	}
-	for name, overlay := range layer {
+	// Sorted iteration keeps the result stable when two raw names trim to the same agent.
+	for _, name := range slices.Sorted(maps.Keys(layer)) {
+		overlay := layer[name]
 		key := NormalizeAgentName(name)
 		current := (*dst)[key]
 		assignTrimmed(&current.Permissions, overlay.Permissions)
@@ -130,10 +132,13 @@ func (c *Config) applyAgentOverride(agent AgentDef) (AgentDef, agentOverrideFiel
 	agent = CloneAgentDef(agent)
 	var applied agentOverrideFields
 	if provider := CanonicalProviderName(override.Provider); provider != "" {
+		// Repeating the inherited provider leaves the definition unchanged, so [defaults].model
+		// and reasoning_effort still apply; only a different provider becomes agent-owned.
 		if provider != CanonicalProviderName(cmp.Or(strings.TrimSpace(agent.Provider), c.Defaults.Provider)) {
 			agent.Command, agent.Model, agent.ReasoningEffort = "", "", ""
+			agent.Provider = provider
 		}
-		agent.Provider, applied.provider = provider, true
+		applied.provider = true
 	}
 	if override.Model != "" {
 		if override.Model != agent.Model && override.ReasoningEffort == "" {
@@ -156,12 +161,14 @@ func (c *Config) applyAgentOverride(agent AgentDef) (AgentDef, agentOverrideFiel
 
 // withoutSessionSelections drops attribution for fields a session runtime selection replaced,
 // because session selections outrank the operator override.
+// A selected model replaces the override effort only when it differs from the current model,
+// matching the session rule that keeps the effort for a same-model selection.
 func (applied agentOverrideFields) withoutSessionSelections(
-	providerChanged, model, reasoningEffort bool,
+	providerChanged, modelSelected, modelChanged, effortSelected bool,
 ) agentOverrideFields {
 	applied.provider = applied.provider && !providerChanged
-	applied.model = applied.model && !model && !providerChanged
-	applied.reasoningEffort = applied.reasoningEffort && !reasoningEffort && !model && !providerChanged
+	applied.model = applied.model && !modelSelected && !providerChanged
+	applied.reasoningEffort = applied.reasoningEffort && !effortSelected && !modelChanged && !providerChanged
 	return applied
 }
 

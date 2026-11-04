@@ -166,7 +166,7 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		}
 		if !strings.Contains(
 			toon,
-			"agent{name,provider,command,model,reasoning_effort,speed,acp_options,category,origin,workspace_id,disabled_skills,layer,shadows,definition_digest,tools,permissions,prompt}:",
+			"agent{name,provider,command,model,reasoning_effort,speed,acp_options,category,origin,workspace_id,disabled_skills,layer,shadows,definition_digest,tools,permissions,effective_permissions,effective_permissions_source,prompt}:",
 		) ||
 			!strings.Contains(toon, agent.Name) ||
 			!strings.Contains(toon, "max") || !strings.Contains(toon, "fast") ||

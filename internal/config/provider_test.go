@@ -4060,6 +4060,9 @@ func TestResolveAgentAppliesOperatorOverride(t *testing.T) {
 		if resolved.Prompt != bundled.Prompt || resolved.Model != bundled.Model {
 			t.Fatalf("resolved prompt/model = %q/%q, want source values", resolved.Prompt, resolved.Model)
 		}
+		if got := cfg.ApplyAgentOverride(bundled).Appearance; !maps.Equal(got, bundled.Appearance) {
+			t.Fatalf("overridden appearance = %#v, want packaged %#v", got, bundled.Appearance)
+		}
 		if got := resolved.RuntimeSources.Permissions; got != RuntimeValueSourceConfigOverride {
 			t.Fatalf("Permissions source = %q, want config_override", got)
 		}
@@ -4125,12 +4128,31 @@ func TestResolveAgentAppliesOperatorOverride(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ResolveAgent() error = %v", err)
 		}
-		if resolved.Provider != "codex" || resolved.Model == bundled.Model || resolved.Command == agent.Command {
-			t.Fatalf("resolved = %q/%q/%q, want codex runtime without claude fields", resolved.Provider,
-				resolved.Model, resolved.Command)
+		codex, err := cfg.ResolveProvider("codex")
+		if err != nil {
+			t.Fatalf("ResolveProvider(codex) error = %v", err)
+		}
+		if resolved.Provider != "codex" || resolved.Model != codex.Models.Default || resolved.Command != codex.Command {
+			t.Fatalf("resolved = %q/%q/%q, want codex defaults %q/%q", resolved.Provider, resolved.Model,
+				resolved.Command, codex.Models.Default, codex.Command)
 		}
 		if resolved.RuntimeSources.Provider != RuntimeValueSourceConfigOverride {
 			t.Fatalf("Provider source = %q, want config_override", resolved.RuntimeSources.Provider)
+		}
+	})
+
+	t.Run("Should keep project runtime defaults when the override repeats the default provider", func(t *testing.T) {
+		t.Parallel()
+		cfg := loadWithOverrides(t,
+			"[defaults]\nprovider = \"claude\"\nmodel = \"defaults-model\"\n\n"+
+				"[agents.overrides.orchestrator]\nprovider = \"claude\"\n", "")
+		agent := AgentDef{Name: "orchestrator", Prompt: "packaged prompt"}
+		resolved, err := cfg.ResolveAgent(agent)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.Provider != "claude" || resolved.Model != "defaults-model" {
+			t.Fatalf("resolved = %q/%q, want claude/defaults-model", resolved.Provider, resolved.Model)
 		}
 	})
 
