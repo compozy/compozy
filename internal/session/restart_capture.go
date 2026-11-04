@@ -19,6 +19,10 @@ func (m *Manager) PrepareDaemonShutdown(ctx context.Context, restart bool) error
 	}
 	for _, info := range infos {
 		active, ok := m.Get(info.ID)
+		if ok && active.IsPrompting() && active.promptCancellationRequested(active.CurrentTurnID()) {
+			// The user already canceled this turn; it is not interrupted work to continue.
+			continue
+		}
 		if !ok || !active.IsPrompting() {
 			if !restart && info.StopReason == store.StopShutdown {
 				errs = append(errs, m.cancelPendingRestart(ctx, info.ID))

@@ -684,78 +684,94 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 		}
 	})
 
-	t.Run("Should end a turn whose agent dies during daemon restart as a resumable interruption", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		userCanceled bool
+		wantPending  bool
+	}{
+		{name: "Should end a turn whose agent dies during daemon restart as a resumable interruption", wantPending: true},
+		{name: "Should not resume a user-canceled turn whose agent dies during daemon restart", userCanceled: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-		h := newHarness(t)
-		h.manager.promptRecoveryDelays = []time.Duration{0, 0, 0}
-		session := createSession(t, h)
-		originalACP := session.Info().ACPSessionID
-		t.Cleanup(func() {
-			if _, ok := h.manager.Get(session.ID); ok {
-				reportSessionStop(t, h, session.ID)
+			h := newHarness(t)
+			h.manager.promptRecoveryDelays = []time.Duration{0, 0, 0}
+			session := createSession(t, h)
+			originalACP := session.Info().ACPSessionID
+			t.Cleanup(func() {
+				if _, ok := h.manager.Get(session.ID); ok {
+					reportSessionStop(t, h, session.ID)
+				}
+			})
+			h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				events := make(chan acp.AgentEvent, 2)
+				go func() {
+					defer close(events)
+					events <- acp.AgentEvent{
+						Type:      acp.EventTypeAgentMessage,
+						SessionID: originalACP,
+						TurnID:    req.TurnID,
+						Timestamp: time.Now().UTC(),
+						Text:      "partial before shutdown",
+					}
+					// The host signals the daemon and its agents together: the agent dies while
+					// PrepareDaemonShutdown is still scanning, before it captured this turn.
+					if tc.userCanceled {
+						// The operator canceled the turn, but its stop was not verified yet.
+						active, _ := h.manager.Get(session.ID)
+						active.mu.Lock()
+						active.promptCancelRequested, active.currentPromptCancelTurn = true, req.TurnID
+						active.mu.Unlock()
+					}
+					h.manager.markDaemonShutdown(true)
+					proc.crash(errors.New("acp subprocess exited: signal: terminated"), "")
+					events <- acp.AgentEvent{
+						Type:      acp.EventTypeError,
+						SessionID: originalACP,
+						TurnID:    req.TurnID,
+						Timestamp: time.Now().UTC(),
+						Error:     "ACP subprocess exited unexpectedly",
+						Failure: &store.SessionFailure{
+							Kind:    store.FailureProcess,
+							Summary: "ACP subprocess exited unexpectedly",
+						},
+					}
+				}()
+				return events, nil
+			}
+
+			eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+			if err != nil {
+				t.Fatalf("Prompt() error = %v", err)
+			}
+			events := collectEvents(t, eventsCh)
+			for _, event := range events {
+				if event.Failure != nil {
+					t.Fatalf("Prompt() event = %#v, want no turn failure during daemon shutdown", event)
+				}
+			}
+			h.notifier.waitForStopped(t, session.ID)
+
+			if got := len(h.driver.startCalls); got != 1 {
+				t.Fatalf("driver start calls = %d, want no runtime recovery during daemon shutdown", got)
+			}
+			meta := readMeta(t, session.MetaPath())
+			if meta.StopReason == nil || *meta.StopReason != store.StopShutdown {
+				t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, store.StopShutdown)
+			}
+			if meta.Failure != nil {
+				t.Fatalf("meta.Failure = %#v, want no failure for a restart interruption", meta.Failure)
+			}
+			pending, err := h.manager.HasPendingRestart(testutil.Context(t), session.ID)
+			if err != nil {
+				t.Fatalf("HasPendingRestart() error = %v", err)
+			}
+			if pending != tc.wantPending {
+				t.Fatalf("HasPendingRestart() = %v, want %v", pending, tc.wantPending)
 			}
 		})
-		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-			events := make(chan acp.AgentEvent, 2)
-			go func() {
-				defer close(events)
-				events <- acp.AgentEvent{
-					Type:      acp.EventTypeAgentMessage,
-					SessionID: originalACP,
-					TurnID:    req.TurnID,
-					Timestamp: time.Now().UTC(),
-					Text:      "partial before shutdown",
-				}
-				// The host signals the daemon and its agents together: the agent dies while
-				// PrepareDaemonShutdown is still scanning, before it captured this turn.
-				h.manager.markDaemonShutdown(true)
-				proc.crash(errors.New("acp subprocess exited: signal: terminated"), "")
-				events <- acp.AgentEvent{
-					Type:      acp.EventTypeError,
-					SessionID: originalACP,
-					TurnID:    req.TurnID,
-					Timestamp: time.Now().UTC(),
-					Error:     "ACP subprocess exited unexpectedly",
-					Failure: &store.SessionFailure{
-						Kind:    store.FailureProcess,
-						Summary: "ACP subprocess exited unexpectedly",
-					},
-				}
-			}()
-			return events, nil
-		}
-
-		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
-		if err != nil {
-			t.Fatalf("Prompt() error = %v", err)
-		}
-		events := collectEvents(t, eventsCh)
-		for _, event := range events {
-			if event.Failure != nil {
-				t.Fatalf("Prompt() event = %#v, want no turn failure during daemon shutdown", event)
-			}
-		}
-		h.notifier.waitForStopped(t, session.ID)
-
-		if got := len(h.driver.startCalls); got != 1 {
-			t.Fatalf("driver start calls = %d, want no runtime recovery during daemon shutdown", got)
-		}
-		meta := readMeta(t, session.MetaPath())
-		if meta.StopReason == nil || *meta.StopReason != store.StopShutdown {
-			t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, store.StopShutdown)
-		}
-		if meta.Failure != nil {
-			t.Fatalf("meta.Failure = %#v, want no failure for a restart interruption", meta.Failure)
-		}
-		pending, err := h.manager.HasPendingRestart(testutil.Context(t), session.ID)
-		if err != nil {
-			t.Fatalf("HasPendingRestart() error = %v", err)
-		}
-		if !pending {
-			t.Fatal("HasPendingRestart() = false, want the interrupted turn to continue after restart")
-		}
-	})
+	}
 
 	t.Run("Should classify an ACP error followed by exit code zero as a transport failure", func(t *testing.T) {
 		t.Parallel()

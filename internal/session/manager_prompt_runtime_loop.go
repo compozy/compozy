@@ -344,7 +344,7 @@ func (m *Manager) preparePromptPumpEventForDelivery(
 				"turn_id", turnState.turnID,
 				"failure_kind", normalized.Failure.Kind,
 			)
-			m.captureDaemonShutdownTurn(ctx, session)
+			m.captureDaemonShutdownTurn(ctx, session, turnState.turnID)
 		}
 		normalized = m.normalizeEvent(session, turnState.turnID, promptCancellationTerminalEvent())
 	}

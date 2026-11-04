@@ -37,20 +37,31 @@ func daemonShutdownCaptureReason(restart bool) string {
 	return "daemon_stopped_by_user"
 }
 
+// daemonShutdownCaptureAttempts bounds retries of a transient checkpoint write before the turn ends.
+const daemonShutdownCaptureAttempts = 3
+
 // captureDaemonShutdownTurn records the restart checkpoint of a turn the pump is about to end as
 // canceled because the daemon is shutting down. The canceled terminal would otherwise land first
 // and make the turn look finished to restart capture. Capture is idempotent, so racing the
-// PrepareDaemonShutdown scan is safe.
-func (m *Manager) captureDaemonShutdownTurn(ctx context.Context, session *Session) {
+// PrepareDaemonShutdown scan and retrying are safe. A turn the user already canceled is not resumable.
+func (m *Manager) captureDaemonShutdownTurn(ctx context.Context, session *Session, turnID string) {
 	stop := m.daemonShutdown.Load()
-	if stop == nil || session == nil {
+	if stop == nil || session == nil || session.promptCancellationRequested(turnID) {
 		return
 	}
 	captureCtx, cancel := detachedPromptStopContext(ctx, m)
 	defer cancel()
 	meta := session.Meta()
-	if err := m.captureRestartInterruption(captureCtx, &meta, daemonShutdownCaptureReason(stop.restart)); err != nil {
-		m.sessionLogger(session).Warn("session: capture daemon shutdown interruption failed", "error", err)
+	reason := daemonShutdownCaptureReason(stop.restart)
+	var err error
+	for range daemonShutdownCaptureAttempts {
+		if err = m.captureRestartInterruption(captureCtx, &meta, reason); err == nil || captureCtx.Err() != nil {
+			break
+		}
+	}
+	if err != nil {
+		m.sessionLogger(session).Warn("session: capture daemon shutdown interruption failed",
+			"turn_id", turnID, "attempts", daemonShutdownCaptureAttempts, "error", err)
 	}
 }
 
