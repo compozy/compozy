@@ -191,13 +191,15 @@ describe("Provider usage components", () => {
       expect(within(quiet).getByRole("button", { name: "Open settings" })).toBeInTheDocument();
     });
 
-    it("Should draw an alias row with its family logo but keep the alias ID (UT-013)", () => {
+    it("Should draw an alias row with its family logo but keep the alias ID (UT-013)", async () => {
       const alias = {
         ...claudeOkTarget(NOW),
         provider_id: "claude-mm1",
         provider_name: "Claude (mm1)",
       };
-      renderPanel({ viewModel: viewModelOf([{ ...alias, collector_id: "claude" }]) });
+      await act(async () => {
+        renderPanel({ viewModel: viewModelOf([{ ...alias, collector_id: "claude" }]) });
+      });
 
       const aliasRow = row("Claude \\(mm1\\)");
       expect(aliasRow).toHaveAttribute("data-provider", "claude-mm1");
@@ -215,6 +217,13 @@ describe("Provider usage components", () => {
       const alias = {
         ...disabled,
         status: "unsupported" as const,
+        error: {
+          code: "auth_store_unsupported",
+          message:
+            'Codex keeps its login in the system keyring; usage needs cli_auth_credentials_store = "file"',
+          action: "configure" as const,
+          retry_after: null,
+        },
         provider_id: "codex-work",
         provider_name: "Codex (work)",
         collector_id: "codex",

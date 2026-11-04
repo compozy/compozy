@@ -33,8 +33,8 @@ type providerUsageResolver struct {
 	metadata   providers.VaultRefResolver
 	collectors providerusage.Registry
 	logger     *slog.Logger
-	// selectorWarned holds the selector key last logged as missing per provider, so a gated alias
-	// logs once per change instead of on every resolution.
+	// selectorWarned holds the selector key last logged as missing per profile and provider, so a
+	// gated alias logs once per change instead of on every resolution.
 	selectorWarned sync.Map
 }
 
@@ -79,7 +79,7 @@ func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) (
 			target.Error = providerusage.NewUsageError(providerusage.ErrorCodeDisabled, id)
 		case r.collectors[target.CollectorID] == nil:
 			target.Error = providerusage.NewUsageError(providerusage.ErrorCodeNoCollector, id)
-		case !providerUsageAuthSupported(target.CollectorID, provider.EffectiveAuthMode()):
+		case !config.ProviderUsageAuthSupported(target.CollectorID, provider.EffectiveAuthMode()):
 			target.Error = providerusage.NewUsageError(providerusage.ErrorCodeNoCollector, id)
 			target.Error.Message = "Usage collection does not support this provider authentication mode"
 		default:
@@ -104,31 +104,10 @@ func (r *providerUsageResolver) Targets(ctx context.Context, profileID string) (
 	return targets, nil
 }
 
-// collectorFamily picks the collector that owns a provider's usage. A provider's own ID wins, so
-// Pi-harness built-ins whose runtime_provider names a model vendor keep their collector; a configured
-// alias (for example a second Claude account) collects through its runtime_provider's collector
-// with its own launch environment and secrets. It returns the own ID when neither has a collector.
+// collectorFamily picks the collector family that owns a provider's usage among registered collectors.
 func (r *providerUsageResolver) collectorFamily(id string, provider config.ProviderConfig) string {
-	if r.collectors[id] != nil {
-		return id
-	}
-	runtime := strings.TrimSpace(provider.RuntimeProvider)
-	if runtime == "" || r.collectors[runtime] == nil ||
-		!providerUsageAuthSupported(runtime, provider.EffectiveAuthMode()) {
-		return id
-	}
-	// Key-based collectors read the bound `api_key` slot; an alias without it cannot collect.
-	if provider.EffectiveAuthMode() == config.ProviderAuthModeBoundSecret &&
-		!slices.ContainsFunc(provider.EffectiveCredentialSlots(), func(slot config.ProviderCredentialSlot) bool {
-			return slot.Name == providerUsageAPIKeySlot
-		}) {
-		return id
-	}
-	return runtime
+	return config.ProviderUsageFamily(id, provider, func(family string) bool { return r.collectors[family] != nil })
 }
-
-// providerUsageAPIKeySlot is the bound credential slot key-based usage collectors read.
-const providerUsageAPIKeySlot = "api_key"
 
 func (r *providerUsageResolver) route(
 	ctx context.Context, profileName, id, collectorID string, provider config.ProviderConfig, keychain bool,
@@ -158,7 +137,7 @@ func (r *providerUsageResolver) route(
 		usageErr.Message = err.Error()
 		return providerusage.ResolvedRoute{}, "", usageErr
 	}
-	if usageErr := r.aliasSelectorError(id, collectorID, provider, env, owned); usageErr != nil {
+	if usageErr := r.aliasSelectorError(profileName, id, collectorID, provider, env, owned); usageErr != nil {
 		return providerusage.ResolvedRoute{}, "", usageErr
 	}
 	// Declared credentials never remain in the general child environment.
@@ -211,7 +190,7 @@ func (r *providerUsageResolver) route(
 // default account and publish its quota under the alias. The family-ID provider and bound-secret
 // aliases are exempt.
 func (r *providerUsageResolver) aliasSelectorError(
-	id, collectorID string, provider config.ProviderConfig, env []string, owned map[string]bool,
+	profileName, id, collectorID string, provider config.ProviderConfig, env []string, owned map[string]bool,
 ) *providerusage.UsageError {
 	if id == collectorID || provider.EffectiveAuthMode() != config.ProviderAuthModeNativeCLI {
 		return nil
@@ -222,15 +201,19 @@ func (r *providerUsageResolver) aliasSelectorError(
 	}
 	key := selector.SelectorKey(env)
 	if key == "" || owned[key] {
-		r.selectorWarned.Delete(id)
+		r.selectorWarned.Delete(profileName + "\x00" + id)
 		return nil
 	}
-	if previous, logged := r.selectorWarned.Swap(id, key); (!logged || previous != key) && r.logger != nil {
+	if previous, logged := r.selectorWarned.Swap(
+		profileName+"\x00"+id,
+		key,
+	); (!logged || previous != key) &&
+		r.logger != nil {
 		r.logger.Warn("provider_usage.alias_selector_missing",
 			"provider", id, "collector", collectorID, "selector_key", key)
 	}
 	usageErr := providerusage.NewUsageError(providerusage.ErrorCodeAuthMissing, id)
-	usageErr.Message = "Set " + key + " in this provider's command so Compozy reads its own sign-in"
+	usageErr.Message = "Set " + key + " in this provider's command so CompozyOS reads its own sign-in"
 	return usageErr
 }
 
@@ -269,15 +252,4 @@ func (r *providerUsageResolver) bindSecrets(
 		}
 	}
 	return nil
-}
-
-func providerUsageAuthSupported(id string, mode config.ProviderAuthMode) bool {
-	switch id {
-	case "codex", nativeProviderClaude, "cursor", "gemini", "kimi-cli":
-		return mode == config.ProviderAuthModeNativeCLI
-	case "openrouter", "vercel-ai-gateway", "zai", "moonshot":
-		return mode == config.ProviderAuthModeBoundSecret
-	default:
-		return false
-	}
 }

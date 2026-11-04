@@ -34,7 +34,7 @@ numbers per account are covered by `TestProviderUsageAliasSelector` (real Claude
 ### QA-2 — alias without selector
 
 - `claude-mm5` (no `CLAUDE_CONFIG_DIR`) refreshed to `signed_out` / `auth_missing` with
-  "Set CLAUDE_CONFIG_DIR in this provider's command so Compozy reads its own sign-in" over CLI and
+  "Set CLAUDE_CONFIG_DIR in this provider's command so CompozyOS reads its own sign-in" over CLI and
   HTTP, `collector_id: "claude"`, and zero `CONNECT`s during its refresh — the synthetic default
   account in the daemon `HOME` was never used. The Usage app row shows the same message.
 - Finding: the WARN `provider_usage.alias_selector_missing` repeated on every resolution
@@ -58,6 +58,9 @@ numbers per account are covered by `TestProviderUsageAliasSelector` (real Claude
 - `data-provider` stays the alias ID on every row.
 
 ## Limitations
+
+- The message was reworded after this walk from "so Compozy reads" to "so CompozyOS reads" (product
+  language check); the JSON captures keep the wording observed at the time.
 
 - No live upstream usage numbers (no reachable fake for the Claude collector in a daemon); covered
   by IT-001.

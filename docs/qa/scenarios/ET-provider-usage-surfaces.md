@@ -170,7 +170,7 @@ Run in an isolated lab with synthetic Claude config dirs only; never the operato
    `collector_id` on built-in rows.
 2. QA-2 — Add `claude-mm5` with no `CLAUDE_CONFIG_DIR` in its command (the daemon environment may
    still define one). Refresh it: the row is `signed_out` / `auth_missing` with
-   "Set CLAUDE_CONFIG_DIR in this provider's command so Compozy reads its own sign-in", no request
+   "Set CLAUDE_CONFIG_DIR in this provider's command so CompozyOS reads its own sign-in", no request
    leaves the daemon for it, and the daemon log has `provider_usage.alias_selector_missing` without
    any path value. Repeat with `CLAUDE_CONFIG_DIR=` (empty) and `env -u CLAUDE_CONFIG_DIR`. Remove the
    alias: its row disappears.

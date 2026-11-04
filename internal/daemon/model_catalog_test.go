@@ -3505,7 +3505,7 @@ func TestProviderUsageResolver(t *testing.T) {
 		}
 		requireGated := func(target providerusage.Target, key string) {
 			t.Helper()
-			want := "Set " + key + " in this provider's command so Compozy reads its own sign-in"
+			want := "Set " + key + " in this provider's command so CompozyOS reads its own sign-in"
 			if target.Status != providerusage.StatusSignedOut || target.Error == nil ||
 				target.Error.Code != providerusage.ErrorCodeAuthMissing || target.Error.Message != want ||
 				len(target.Route.Env) != 0 {
@@ -3552,17 +3552,57 @@ func TestProviderUsageResolver(t *testing.T) {
 			collectors: providerusage.DefaultRegistry(providerusage.RegistryOptions{}),
 			logger:     slog.New(slog.NewTextHandler(&logs, nil)),
 		}
+		warnings := func(want int, step string) {
+			t.Helper()
+			for range 3 {
+				if _, err := resolver.Targets(t.Context(), store.DefaultProfileID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if got := strings.Count(logs.String(), "provider_usage.alias_selector_missing"); got != want {
+				t.Fatalf("%s: selector warnings = %d, want %d:\n%s", step, got, want, logs.String())
+			}
+		}
+		warnings(1, "unchanged missing selector")
+		resolver.baseEnv = append(resolver.baseEnv, "CLAUDE_SECURESTORAGE_CONFIG_DIR=/secure")
+		warnings(2, "changed effective selector")
+		resolver.baseEnv = []string{"HOME=" + daemonHome}
+		owned := resolver.cfg.Providers["claude-mm5"]
+		owned.Command = "CLAUDE_CONFIG_DIR=/accounts/mm5 npx -y claude-agent-acp"
+		resolver.cfg.Providers["claude-mm5"] = owned
+		warnings(2, "selector fixed")
+		owned.Command = "npx -y claude-agent-acp"
+		resolver.cfg.Providers["claude-mm5"] = owned
+		warnings(3, "selector removed again")
+		if !strings.Contains(logs.String(), "selector_key=CLAUDE_CONFIG_DIR") ||
+			!strings.Contains(logs.String(), "selector_key=CLAUDE_SECURESTORAGE_CONFIG_DIR") ||
+			strings.Contains(logs.String(), daemonHome) || strings.Contains(logs.String(), "/secure") {
+			t.Fatalf("selector warning must name the key without values:\n%s", logs.String())
+		}
+	})
+	t.Run("Should keep alias selector warnings apart per profile", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		resolver := &providerUsageResolver{
+			collectors: providerusage.DefaultRegistry(providerusage.RegistryOptions{}),
+			logger:     slog.New(slog.NewTextHandler(&logs, nil)),
+		}
+		alias := compozyconfig.ProviderConfig{
+			RuntimeProvider: "claude",
+			AuthMode:        compozyconfig.ProviderAuthModeNativeCLI,
+		}
+		env := []string{"CLAUDE_CONFIG_DIR=/accounts/b"}
 		for range 3 {
-			if _, err := resolver.Targets(t.Context(), store.DefaultProfileID); err != nil {
-				t.Fatal(err)
+			if resolver.aliasSelectorError("work", "claude-mm5", "claude", alias, env, nil) == nil {
+				t.Fatal("profile without an owned selector was not gated")
+			}
+			owned := map[string]bool{"CLAUDE_CONFIG_DIR": true}
+			if resolver.aliasSelectorError("personal", "claude-mm5", "claude", alias, env, owned) != nil {
+				t.Fatal("profile with an owned selector was gated")
 			}
 		}
 		if got := strings.Count(logs.String(), "provider_usage.alias_selector_missing"); got != 1 {
-			t.Fatalf("selector warning logged %d times, want once:\n%s", got, logs.String())
-		}
-		if !strings.Contains(logs.String(), "selector_key=CLAUDE_CONFIG_DIR") ||
-			strings.Contains(logs.String(), daemonHome) {
-			t.Fatalf("selector warning must name the key without values:\n%s", logs.String())
+			t.Fatalf("selector warnings = %d across alternating profiles, want 1:\n%s", got, logs.String())
 		}
 	})
 	t.Run("Should report disabled providers", func(t *testing.T) {
@@ -3747,6 +3787,17 @@ func TestProviderUsageAliasSelector(t *testing.T) {
 		for _, id := range []string{"claude", "opencode"} {
 			if got, ok := collectors[id]; !ok || got != nil {
 				t.Fatalf("%s collector_id = %v (listed %t), want omitted", id, got, ok)
+			}
+		}
+		// IT-002: with collection off, the single-provider diagnostic row still names the family.
+		for id, want := range map[string]string{"claude-mm1": "claude", "claude": ""} {
+			view, err := core.ProviderUsageView(providerusage.Envelope{}, id, &cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(view.Targets) != 1 || view.Targets[0].Status != providerusage.StatusDisabled ||
+				view.Targets[0].CollectorID != want {
+				t.Fatalf("master-off %s view = %+v, want collector %q", id, view.Targets, want)
 			}
 		}
 	})
