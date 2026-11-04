@@ -668,6 +668,8 @@ jobs:
     if: needs.changes.outputs.heavy == 'true' && (needs.changes.outputs.backend == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.desktop == 'true')
     env:
       CGO_ENABLED: 0
+      # The required preflight job already verified generated files for this head.
+      COMPOZY_CODEGEN_CHECKED: "1"
     defaults:
       run:
         shell: bash
