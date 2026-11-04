@@ -20,10 +20,11 @@ make web-dev    # run the web UI locally
 ## Quality gates
 
 - `make gate` — runs the checks affected by your diff. Run it before every push.
-- Required PR CI checks — run the full verification and must be green before delivery.
+- Required PR CI checks — run the lanes your change touches and must be green before delivery. When the merge queue is on, pull requests run the fast lane (preflight, lint, typecheck, unit, build) and the merge queue runs integration, Windows and E2E once before `main`; add the `ci:full` label and re-run CI to get those lanes on the pull request.
 - `make gate-full` — optional local full verification when you want extra pre-push certainty.
 - Lint is zero-tolerance: `make lint` (Go) and `bun run lint` (JS/TS) must pass with no warnings.
 - A pre-commit hook formats staged files for you (oxfmt for JS/TS/YAML/Markdown, `make fmt` for Go).
+- A pre-push hook checks format and lint on the files your branch changes, including type-aware Go lint on the changed packages. `COMPOZY_SKIP_PRE_PUSH=1` or `git push --no-verify` skips it.
 
 ## Commit messages
 

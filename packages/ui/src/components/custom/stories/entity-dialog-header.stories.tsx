@@ -99,7 +99,8 @@ export const FocusVisibleClose: Story = {
     const close = await waitFor(() => body.getByRole("button", { name: "Close" }));
     close.focus();
     await userEvent.keyboard("{Tab}{Shift>}{Tab}{/Shift}");
-    await expect(close).toHaveFocus();
+    // Base UI's FloatingFocusManager restores focus in a requestAnimationFrame callback.
+    await waitFor(() => expect(close).toHaveFocus());
   },
 };
 
