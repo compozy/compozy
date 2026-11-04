@@ -19,6 +19,7 @@ import (
 	"time"
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
+	compozysdk "github.com/compozy/compozy/sdk/go"
 )
 
 // Canonical suite: GitHub forge credential, HTTP, and pull-request behavior.
@@ -97,15 +98,28 @@ func TestRunProviderForgeProtocolConformanceIT035(t *testing.T) {
 		t.Fatalf("initialize RPC error = %#v", initialize.Error)
 	}
 	var initializeResult struct {
-		ImplementedMethods []string `json:"implemented_methods"`
+		ImplementedMethods []string                         `json:"implemented_methods"`
+		SourceKinds        []compozysdk.HeartbeatSourceKind `json:"heartbeat_source_kinds"`
 	}
 	if err := json.Unmarshal(initialize.Result, &initializeResult); err != nil {
 		t.Fatalf("decode initialize result: %v; result=%s", err, initialize.Result)
 	}
-	for _, method := range []string{"forge/capabilities", "forge/status", "forge/pr_create"} {
+	for _, method := range []string{"forge/capabilities", "forge/status", "forge/pr_create", "heartbeat/source_poll"} {
 		if !slices.Contains(initializeResult.ImplementedMethods, method) {
 			t.Fatalf("implemented methods = %#v, want %q", initializeResult.ImplementedMethods, method)
 		}
+	}
+
+	if len(initializeResult.SourceKinds) != 1 || initializeResult.SourceKinds[0].Kind != "issues" ||
+		initializeResult.SourceKinds[0].Title != "New GitHub issues" {
+		t.Fatalf("source descriptors = %+v", initializeResult.SourceKinds)
+	}
+
+	sourceResponse := runtime.call(t, 3, "heartbeat/source_poll", map[string]any{
+		"kind": "issues", "params": map[string]string{"repo": "invalid"},
+	})
+	if sourceResponse.Error == nil || !strings.Contains(string(sourceResponse.Error.Data), "source_params_invalid") {
+		t.Fatalf("source RPC response = %+v", sourceResponse)
 	}
 
 	for _, test := range []struct {
@@ -159,8 +173,9 @@ type forgeRPCResponse struct {
 	ID      int             `json:"id"`
 	Result  json.RawMessage `json:"result"`
 	Error   *struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
+		Code    int             `json:"code"`
+		Message string          `json:"message"`
+		Data    json.RawMessage `json:"data"`
 	} `json:"error,omitempty"`
 }
 
@@ -260,14 +275,19 @@ func forgeInitializeParams() map[string]any {
 			"name": Name, "version": "0.1.0", "source_tier": "bundled",
 		},
 		"capabilities": map[string]any{
-			"provides":                []string{"forge.provider"},
+			"provides":                []string{"forge.provider", "heartbeat.source"},
 			"granted_permissions":     []string{},
 			"granted_resource_kinds":  []string{},
 			"granted_resource_scopes": []string{},
 		},
 		"methods": map[string]any{
-			"daemon_requests":    []string{"health_check", "shutdown"},
-			"extension_services": []string{"forge/capabilities", "forge/status", "forge/pr_create"},
+			"daemon_requests": []string{"health_check", "shutdown"},
+			"extension_services": []string{
+				"forge/capabilities",
+				"forge/status",
+				"forge/pr_create",
+				"heartbeat/source_poll",
+			},
 		},
 		"runtime": map[string]any{
 			"health_check_interval_ms": 30000,
@@ -1173,4 +1193,316 @@ func writeJSON(t *testing.T, w http.ResponseWriter, status int, value any) {
 	if err := json.NewEncoder(w).Encode(value); err != nil && !strings.Contains(err.Error(), "closed") {
 		t.Errorf("encode response: %v", err)
 	}
+}
+
+// Invariants: issue delivery advances only through the consumed batch; GitHub I/O stays in the provider.
+func TestProviderIssues(t *testing.T) {
+	t.Parallel()
+	t.Run("Should baseline without delivering old issues UT050", func(t *testing.T) {
+		t.Parallel()
+		provider := issueTestProvider(t, []map[string]any{issueFixture(1201), issueFixture(1202)}, http.StatusOK)
+		result, err := provider.pollIssues(t.Context(), issueRequest("", `{"repo":"compozy/compozy"}`))
+		if err != nil || len(result.Items) != 0 || string(result.State) != `{"max_number":1202}` {
+			t.Fatalf("result=%+v err=%v", result, err)
+		}
+	})
+	t.Run("Should deliver issue fields and bounded Unicode excerpt UT051", func(t *testing.T) {
+		t.Parallel()
+		issue := issueFixture(1201)
+		issue["body"] = strings.Repeat("界", 450)
+		provider := issueTestProvider(t, []map[string]any{issue}, http.StatusOK)
+		result, err := provider.pollIssues(
+			t.Context(),
+			issueRequest(`{"max_number":1200}`, `{"repo":"compozy/compozy"}`),
+		)
+		if err != nil || len(result.Items) != 1 {
+			t.Fatalf("result=%+v err=%v", result, err)
+		}
+		item := result.Items[0]
+		var attrs struct {
+			Author      string
+			Labels      []string
+			BodyExcerpt string `json:"body_excerpt"`
+		}
+		if err := json.Unmarshal(item.Attributes, &attrs); err != nil {
+			t.Fatal(err)
+		}
+		if item.Key != "compozy/compozy#1201" || item.Title != "Issue 1201" ||
+			item.URL != "https://github.com/compozy/compozy/issues/1201" ||
+			attrs.Author != "pedro" ||
+			!slices.Equal(attrs.Labels, []string{"bug"}) ||
+			len([]rune(attrs.BodyExcerpt)) != 400 ||
+			len([]rune(item.Summary)) != 400 ||
+			string(result.State) != `{"max_number":1201}` {
+			t.Fatalf("item=%+v attrs=%+v state=%s", item, attrs, result.State)
+		}
+	})
+	t.Run("Should combine closing and cross references from open PRs UT052", func(t *testing.T) {
+		t.Parallel()
+		issue := issueFixture(1201)
+		open := map[string]any{
+			"__typename": "PullRequest",
+			"number":     1203,
+			"url":        "https://github.com/compozy/compozy/pull/1203",
+			"state":      "OPEN",
+		}
+		closed := map[string]any{"number": 1204, "url": "closed", "state": "CLOSED"}
+		cross := map[string]any{"__typename": "PullRequest", "number": 1205, "url": "cross", "state": "OPEN"}
+		issue["closedByPullRequestsReferences"] = map[string]any{"nodes": []any{open, closed}}
+		issue["timelineItems"] = map[string]any{
+			"nodes": []any{
+				map[string]any{"source": open},
+				map[string]any{"source": cross},
+				map[string]any{"source": closed},
+			},
+		}
+		provider := issueTestProvider(t, []map[string]any{issue}, http.StatusOK)
+		result, err := provider.pollIssues(
+			t.Context(),
+			issueRequest(`{"max_number":1200}`, `{"repo":"compozy/compozy"}`),
+		)
+		if err != nil || len(result.Items) != 1 {
+			t.Fatalf("result=%+v err=%v", result, err)
+		}
+		var attrs struct {
+			PRs []linkedIssuePR `json:"linked_open_prs"`
+		}
+		if err := json.Unmarshal(result.Items[0].Attributes, &attrs); err != nil {
+			t.Fatal(err)
+		}
+		if len(attrs.PRs) != 2 || attrs.PRs[0].Number != 1203 || !attrs.PRs[0].Closes || attrs.PRs[1].Number != 1205 ||
+			attrs.PRs[1].Closes {
+			t.Fatalf("PRs=%+v", attrs.PRs)
+		}
+	})
+	t.Run("Should drain oldest first without losing remaining issues UT053", func(t *testing.T) {
+		t.Parallel()
+		issues := make([]map[string]any, 0, 30)
+		for n := 1230; n > 1200; n-- {
+			issues = append(issues, issueFixture(n))
+		}
+		provider := issueTestProvider(t, issues, http.StatusOK)
+		req := issueRequest(`{"max_number":1200}`, `{"repo":"compozy/compozy"}`)
+		first, err := provider.pollIssues(t.Context(), req)
+		if err != nil || len(first.Items) != 20 || !first.More || first.Items[0].Key != "compozy/compozy#1201" ||
+			string(first.State) != `{"max_number":1220}` {
+			t.Fatalf("first=%+v err=%v", first, err)
+		}
+		req.State = first.State
+		second, err := provider.pollIssues(t.Context(), req)
+		if err != nil || len(second.Items) != 10 || second.More || second.Items[0].Key != "compozy/compozy#1221" ||
+			string(second.State) != `{"max_number":1230}` {
+			t.Fatalf("second=%+v err=%v", second, err)
+		}
+		req.State = second.State
+		last, err := provider.pollIssues(t.Context(), req)
+		if err != nil || len(last.Items) != 0 || string(last.State) != string(second.State) {
+			t.Fatalf("last=%+v err=%v", last, err)
+		}
+	})
+	t.Run("Should filter labels and exclude pull requests UT055", func(t *testing.T) {
+		t.Parallel()
+		excluded := issueFixture(1202)
+		excluded["labels"] = map[string]any{"nodes": []any{map[string]string{"name": "wontfix"}}}
+		pr := issueFixture(1203)
+		pr["__typename"] = "PullRequest"
+		provider := issueTestProvider(t, []map[string]any{pr, excluded, issueFixture(1201)}, http.StatusOK)
+		result, err := provider.pollIssues(
+			t.Context(),
+			issueRequest(
+				`{"max_number":1200}`,
+				`{"repo":"compozy/compozy","labels":["BUG"],"exclude_labels":["wontfix"]}`,
+			),
+		)
+		if err != nil || len(result.Items) != 1 || result.Items[0].Key != "compozy/compozy#1201" ||
+			string(result.State) != `{"max_number":1202}` {
+			t.Fatalf("result=%+v err=%v", result, err)
+		}
+	})
+	t.Run("Should backfill within the first window across batches UT057", func(t *testing.T) {
+		t.Parallel()
+		old := issueFixture(1200)
+		old["createdAt"] = "2026-08-10T00:00:00Z"
+		provider := issueTestProvider(t, []map[string]any{issueFixture(1202), issueFixture(1201), old}, http.StatusOK)
+		req := issueRequest("", `{"repo":"compozy/compozy","backfill":"24h"}`)
+		req.Limits.MaxItems = 1
+		first, err := provider.pollIssues(t.Context(), req)
+		if err != nil || len(first.Items) != 1 || !first.More || string(first.State) != `{"max_number":1201}` {
+			t.Fatalf("first=%+v err=%v", first, err)
+		}
+		req.State = first.State
+		second, err := provider.pollIssues(t.Context(), req)
+		if err != nil || len(second.Items) != 1 || second.More || string(second.State) != `{"max_number":1202}` {
+			t.Fatalf("second=%+v err=%v", second, err)
+		}
+	})
+}
+
+func TestProviderIssuesErrors(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		status int
+		absent bool
+		code   string
+	}{
+		{"Should report missing credentials UT054", 200, true, "source_credential_absent"},
+		{"Should report expired credentials UT054", 401, false, "source_credential_expired"},
+		{"Should report secondary rate limits UT054", 403, false, "source_rate_limited"},
+		{"Should report exhausted rate limits UT054", 429, false, "source_rate_limited"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			provider := issueTestProvider(t, nil, tc.status)
+			if tc.absent {
+				provider.credentials.getenv = func(string) string { return "" }
+			}
+			_, err := provider.pollIssues(t.Context(), issueRequest("", `{"repo":"compozy/compozy"}`))
+			rpc, ok := errors.AsType[*compozysdk.RPCError](err)
+			if !ok || !strings.Contains(string(rpc.Data), tc.code) ||
+				(tc.absent && !strings.Contains(rpc.Message, "gh auth login")) {
+				t.Fatalf("error=%+v", err)
+			}
+		})
+	}
+	t.Run("Should require repo for a non GitHub origin UT056", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		for _, args := range [][]string{{"init", root}, {"-C", root, "remote", "add", "origin", "https://gitlab.com/acme/repo.git"}} {
+			if out, err := exec.CommandContext(t.Context(), "git", args...).CombinedOutput(); err != nil {
+				t.Fatalf("git: %s %v", out, err)
+			}
+		}
+		req := issueRequest("", `{}`)
+		req.Workspace.RootDir = root
+		_, _, err := resolveIssuesParams(t.Context(), req)
+		rpc, ok := errors.AsType[*compozysdk.RPCError](err)
+		if !ok || !strings.Contains(string(rpc.Data), "source_params_invalid") ||
+			!strings.Contains(rpc.Message, "set with.repo") {
+			t.Fatalf("error=%+v", err)
+		}
+		if out, err := exec.CommandContext(t.Context(), "git", "-C", root, "remote", "set-url", "origin", "git@github.com:compozy/compozy.git").
+			CombinedOutput(); err != nil {
+			t.Fatalf("git: %s %v", out, err)
+		}
+		_, repo, err := resolveIssuesParams(t.Context(), req)
+		if err != nil || repo.owner != "compozy" || repo.name != "compozy" {
+			t.Fatalf("repo=%+v err=%v", repo, err)
+		}
+	})
+}
+
+func issueFixture(number int) map[string]any {
+	return map[string]any{
+		"__typename": "Issue",
+		"number":     number,
+		"title":      fmt.Sprintf("Issue %d", number),
+		"body":       "Details",
+		"url":        fmt.Sprintf("https://github.com/compozy/compozy/issues/%d", number),
+		"createdAt":  "2026-08-12T10:00:00Z",
+		"author":     map[string]string{"login": "pedro"},
+		"labels":     map[string]any{"nodes": []any{map[string]string{"name": "bug"}}},
+	}
+}
+func issueRequest(state, params string) compozysdk.HeartbeatSourceRequest {
+	return compozysdk.HeartbeatSourceRequest{
+		Version: 1,
+		Kind:    "issues",
+		Params:  []byte(params),
+		State:   []byte(state),
+		Limits:  compozysdk.HeartbeatSourceLimits{MaxItems: 20, MaxSummaryBytes: 8192},
+	}
+}
+func issueTestProvider(t *testing.T, issues []map[string]any, status int) *Provider {
+	t.Helper()
+	provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/graphql" || r.Header.Get("Authorization") != "Bearer secret" {
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL)
+		}
+		var query struct{ Query string }
+		if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
+			t.Error(err)
+		}
+		if !strings.Contains(query.Query, "issues(states:OPEN") ||
+			!strings.Contains(query.Query, "CROSS_REFERENCED_EVENT") {
+			t.Errorf("unexpected query: %s", query.Query)
+		}
+		writeJSON(
+			t,
+			w,
+			status,
+			map[string]any{
+				"data": map[string]any{
+					"repository": map[string]any{
+						"issues": map[string]any{"nodes": issues, "pageInfo": map[string]any{"hasNextPage": false}},
+					},
+				},
+			},
+		)
+	})
+	t.Cleanup(closeServer)
+	return provider
+}
+
+func TestProviderIssuesPagination(t *testing.T) {
+	t.Parallel()
+	t.Run("Should page to the watermark before choosing the oldest batch", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			var request struct{ Variables struct{ After *string } }
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Error(err)
+			}
+			calls.Add(1)
+			nodes := []map[string]any{issueFixture(1204), issueFixture(1203)}
+			more, cursor := true, "page2"
+			if request.Variables.After != nil {
+				if *request.Variables.After != "page2" {
+					t.Errorf("cursor=%s", *request.Variables.After)
+				}
+				nodes = []map[string]any{issueFixture(1202), issueFixture(1201), issueFixture(1200)}
+				more, cursor = false, ""
+			}
+			writeJSON(
+				t,
+				w,
+				http.StatusOK,
+				map[string]any{
+					"data": map[string]any{
+						"repository": map[string]any{
+							"issues": map[string]any{
+								"nodes":    nodes,
+								"pageInfo": map[string]any{"hasNextPage": more, "endCursor": cursor},
+							},
+						},
+					},
+				},
+			)
+		})
+		t.Cleanup(closeServer)
+		req := issueRequest(`{"max_number":1200}`, `{"repo":"compozy/compozy"}`)
+		req.Limits.MaxItems = 2
+		req.Limits.MaxSummaryBytes = 3
+		result, err := provider.pollIssues(t.Context(), req)
+		if err != nil || calls.Load() != 2 || len(result.Items) != 2 || !result.More ||
+			result.Items[0].Key != "compozy/compozy#1201" ||
+			string(result.State) != `{"max_number":1202}` ||
+			result.Items[0].Summary != "Det" ||
+			result.Items[1].Summary != "" {
+			t.Fatalf("result=%+v calls=%d err=%v", result, calls.Load(), err)
+		}
+	})
+	t.Run("Should map GraphQL rate limits without accepting partial data", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, http.StatusOK, map[string]any{"errors": []any{map[string]string{"type": "RATE_LIMITED"}}})
+		})
+		t.Cleanup(closeServer)
+		_, err := provider.pollIssues(t.Context(), issueRequest(`{"max_number":1200}`, `{"repo":"compozy/compozy"}`))
+		rpc, ok := errors.AsType[*compozysdk.RPCError](err)
+		if !ok || !strings.Contains(string(rpc.Data), "source_rate_limited") {
+			t.Fatalf("error=%v", err)
+		}
+	})
 }

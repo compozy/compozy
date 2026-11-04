@@ -24,3 +24,27 @@ qa_status: pending
 Focused automation covers the manager subprocess, scope selection, schema rejection,
 SDK stdio, daemon digest, and HTTP/UDS catalog paths. The full public-interface walk
 and `TestDaemonE2EHeartbeatSourceCatalog` run in CI/integration QA.
+
+## Bundled GitHub provider
+
+1. Enable `forge-github` and declare `forge-github/issues` with `with.repo` in the
+   disposable agent's `HEARTBEAT.md`. Verify the catalog title is "New GitHub issues"
+   and its parameter schema lists `repo`, `labels`, `exclude_labels`, and `backfill`.
+2. Poll without state: existing open issues produce no items. Open a new issue and
+   check again: verify `owner/repo#number`, author, labels, bounded body excerpt,
+   URL, and linked open PRs. Closing references have `closes: true`; other PR
+   references have `closes: false`; closed PRs are absent.
+3. Exceed the batch size. Verify oldest issues arrive first, `more` is true, and
+   later checks deliver the remainder. Exclude a label and verify excluded issues
+   do not reappear. In a new source, use `backfill: "24h"` and verify its time window.
+4. Remove credentials, use an expired token, and simulate a secondary rate limit.
+   Verify `source_credential_absent`, `source_credential_expired`, and
+   `source_rate_limited` respectively. Restore credentials and recheck without
+   losing issues. Without `with.repo`, verify GitHub origin inference and the
+   actionable `source_params_invalid` error for a non-GitHub origin.
+
+Provider automation: `TestProviderIssues`, `TestProviderIssuesErrors`, and
+`TestProviderIssuesPagination` in `extensions/forge/github/provider_test.go` cover
+UT-050–UT-057 through the real HTTP client against an `httptest` GitHub server.
+`TestRunProviderForgeProtocolConformanceIT035` also checks source dispatch through
+SDK stdio. The live agent check-in journey remains integration QA owned by S5.

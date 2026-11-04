@@ -676,3 +676,45 @@ Kinds resolve within the selected workspace and profile. User scope uses the pro
 instance; an extension enabled only in another workspace is unavailable. Discover available
 kinds and limits with `compozy agent heartbeat sources <agent> --workspace <workspace> -o json`
 or `compozy__agent_heartbeat_sources`.
+
+## New GitHub issues source
+
+The bundled `forge-github` extension also provides `forge-github/issues` for agent check-ins.
+Declare it in `HEARTBEAT.md`:
+
+```yaml
+context:
+  sources:
+    - id: new-issues
+      kind: forge-github/issues
+      with:
+        repo: compozy/compozy
+        labels: [bug]
+        exclude_labels: [wontfix]
+        backfill: "0s"
+```
+
+All four parameters are optional. `repo` is `owner/repo`; when omitted, the source uses the
+instance workspace's GitHub `origin` remote. Without a GitHub origin, set `with.repo` explicitly.
+`labels` requires every listed label, and `exclude_labels` rejects an issue with any listed label;
+both filters run client-side and ignore case.
+
+The first successful poll records the highest open issue number without reporting existing issues.
+Set `backfill` to a non-negative duration such as `"24h"` to include open issues created within that
+window on the first poll. Later polls return open issues above the saved `max_number` watermark,
+oldest first, within the requested item limit. `more: true` leaves remaining issues for the next
+check. Filtered issues advance the watermark; pull requests and issues closed before collection
+are excluded. This source watches creation, not edits or reopened older issues.
+
+Each item has key `owner/repo#number`, title, URL, and a body summary of at most 400 characters,
+also bounded by the poll's summary byte budget. Attributes include `number`, `author`, `labels`,
+`body_excerpt` (at most 400 characters), and `linked_open_prs`. Each linked PR includes `number`,
+`title`, `url`, and `closes`: closing references set it to `true`, other cross-references to `false`.
+Only open PRs appear, deduplicated by URL. Each issue reads at most five closing references and
+ten cross-reference timeline events, so this is bounded coverage rather than an exhaustive PR list.
+
+Authentication uses the same bound `GITHUB_TOKEN`, then `gh auth token`, as the forge provider.
+A missing sign-in yields `source_credential_absent` with a `gh auth login` hint; HTTP 401 yields
+`source_credential_expired`, and GitHub rate limits yield `source_rate_limited`. A failed poll
+leaves the saved watermark unchanged. Source state belongs to each agent instance; the provider
+keeps no local cursor and a dry run does not consume issues.

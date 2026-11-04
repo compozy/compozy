@@ -187,6 +187,11 @@ func TestManagerHeartbeatSource(t *testing.T) {
 		{name: "Should reject invalid params before polling", kind: "ext/issues", params: `{"repo":3}`, code: "source_params_invalid"},
 		{name: "Should reject unregistered kinds", kind: "other/issues", params: `{}`, code: "source_kind_unavailable"},
 		{name: "Should map process crashes", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: errors.New("process exited"), code: "source_extension_failed"},
+		{name: "Should preserve source_credential_absent", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: &subprocess.RPCError{Code: -32000, Data: json.RawMessage(`{"code":"source_credential_absent"}`)}, code: "source_credential_absent"},
+		{name: "Should preserve source_credential_expired", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: &subprocess.RPCError{Code: -32000, Data: json.RawMessage(`{"code":"source_credential_expired"}`)}, code: "source_credential_expired"},
+		{name: "Should preserve source_rate_limited", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: &subprocess.RPCError{Code: -32000, Data: json.RawMessage(`{"code":"source_rate_limited"}`)}, code: "source_rate_limited"},
+		{name: "Should preserve source_params_invalid", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: &subprocess.RPCError{Code: -32000, Data: json.RawMessage(`{"code":"source_params_invalid"}`)}, code: "source_params_invalid"},
+		{name: "Should preserve typed rate limit causes", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: &subprocess.RPCError{Code: -32000, Data: json.RawMessage(`{"code":"provider_failed","cause":"rate_limited"}`)}, code: "source_rate_limited"},
 		{name: "Should map typed rate limits", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: &subprocess.RPCError{Code: -32000, Data: json.RawMessage(`{"code":"rate_limited"}`)}, code: "source_rate_limited"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

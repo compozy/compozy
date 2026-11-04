@@ -135,8 +135,15 @@ func (m *Manager) PollSource(
 				Code  string `json:"code"`
 				Cause string `json:"cause"`
 			}
-			if json.Unmarshal(rpc.Data, &data) == nil && (data.Code == "rate_limited" || data.Cause == "rate_limited") {
-				code = "source_rate_limited"
+			if json.Unmarshal(rpc.Data, &data) == nil {
+				for _, cause := range []string{data.Code, data.Cause} {
+					switch cause {
+					case "rate_limited", "source_rate_limited":
+						code = "source_rate_limited"
+					case "source_credential_absent", "source_credential_expired", "source_params_invalid":
+						code = cause
+					}
+				}
 			}
 		}
 		return source.Result{}, source.Failure(code, err.Error())
