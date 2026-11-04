@@ -95,38 +95,38 @@ func TestProviderAGYACPProbe(t *testing.T) {
 					t.Fatalf("ResolveProvider(agy) error = %v", err)
 				}
 				verdicts := authproviders.NewAuthVerdicts()
-				var probeEnv []string
 				handlers := NewBaseHandlers(&BaseHandlerConfig{
 					Config: cfg,
 					ProviderAuthCommandResolver: func(_ context.Context, command string, _ []string, _ string) (string, error) {
 						return "/test/bin/" + command, nil
 					},
-					ProviderACPProbe: func(_ context.Context, req acp.SessionInspectionRequest) error {
-						probeEnv = req.Env
+					ProviderACPProbe: func(context.Context, acp.SessionInspectionRequest) error {
 						return tc.probeErr
 					},
 					ProviderAuthVerdicts: verdicts,
 				})
-				router := gin.New()
-				router.POST("/providers/:provider_id/auth/probe", handlers.ProbeProviderAuth)
-				post := func() {
-					t.Helper()
-					response := httptest.NewRecorder()
-					router.ServeHTTP(response, httptest.NewRequestWithContext(
-						testutil.Context(t), http.MethodPost, "/providers/agy/auth/probe", http.NoBody,
-					))
-					if response.Code != http.StatusOK {
-						t.Fatalf("status = %d body = %s, want 200", response.Code, response.Body.String())
-					}
+				env, err := handlers.providerProbeEnv("agy", agy)
+				if err != nil {
+					t.Fatalf("providerProbeEnv(agy) error = %v", err)
 				}
-				// The first probe captures the daemon probe env; an older seeded verdict never wins.
-				post()
+				probeEnv := env.CommandEnv
 				verdicts.Record("agy", agy, probeEnv, authproviders.Classification{
 					State: authproviders.ProviderAuthStateAuthenticated,
 				}, time.Unix(0, 0))
-				before, _ := verdicts.Lookup("agy", agy, probeEnv)
+				before, ok := verdicts.Lookup("agy", agy, probeEnv)
+				if !ok || before.Classification.State != authproviders.ProviderAuthStateAuthenticated {
+					t.Fatalf("seeded verdict = %#v (found %v), want authenticated", before, ok)
+				}
 
-				post()
+				router := gin.New()
+				router.POST("/providers/:provider_id/auth/probe", handlers.ProbeProviderAuth)
+				response := httptest.NewRecorder()
+				router.ServeHTTP(response, httptest.NewRequestWithContext(
+					testutil.Context(t), http.MethodPost, "/providers/agy/auth/probe", http.NoBody,
+				))
+				if response.Code != http.StatusOK {
+					t.Fatalf("status = %d body = %s, want 200", response.Code, response.Body.String())
+				}
 				after, ok := verdicts.Lookup("agy", agy, probeEnv)
 				if !ok || after.Classification.State != tc.want {
 					t.Fatalf("stored verdict = %#v (found %v), want %q", after, ok, tc.want)

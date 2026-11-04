@@ -19,6 +19,12 @@ port, and sockets; no operator daemon, state, or accounts. Synthetic provider `q
 (`auth_mode = "native_cli"`) whose command and `auth_status_command` point at a fake CLI script
 that always reports a signed-in user. Teardown: `teardown.json` `clean: true`.
 
+Lab evidence (outside the repository, kept after teardown):
+`~/dev/qa-labs/compozy-auth-verdict-1267-20261104-172002-886911-lab/qa-artifacts/qa/` —
+`bootstrap-manifest.json`, `qa1-walk.log` (raw CLI/API captures for every step),
+`journey-log.jsonl`, `verification-report.md`, `qa-audit-report.md` (strict audit, no blockers),
+`teardown.json`, and `logs/make-gate-task01.log`.
+
 ## Walk
 
 | Step | `GET /api/providers` | `GET /api/settings/providers` | `compozy provider list --json` |
