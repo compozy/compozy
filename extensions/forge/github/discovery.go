@@ -72,15 +72,19 @@ func (p *Provider) SearchPRs(ctx context.Context, request c.ForgePRSearchRequest
 		"first": limit,
 		"after": after,
 	}
-	if err := p.api.request(
+	var headers http.Header
+	if err := p.api.requestWithHeaders(
 		ctx,
 		http.MethodPost,
 		"/graphql",
 		credential.token,
 		map[string]any{prSearchQueryKey: prSearchQuery, "variables": variables},
-		&response,
+		&response, &headers,
 	); err != nil {
 		return result, discoveryError(err)
+	}
+	if err := searchError(response.Errors, headers, p.now()); err != nil {
+		return result, err
 	}
 	for _, node := range response.Data.Search.Nodes {
 		if node.Number < 1 || node.HeadRefName == "" {
@@ -104,7 +108,7 @@ func (p *Provider) SearchPRs(ctx context.Context, request c.ForgePRSearchRequest
 	}
 	result.HasMore = response.Data.Search.PageInfo.HasNextPage
 	if len(response.Errors) > 0 && len(result.Items) == 0 {
-		return result, searchError(response.Errors)
+		return result, errors.New("forge pull request search failed")
 	}
 	return result, nil
 }
@@ -150,14 +154,14 @@ func (p *Provider) ReadPR(ctx context.Context, request c.ForgePRReadRequest) (c.
 	}, nil
 }
 
-// searchError reports a search that returned only errors, keeping a GraphQL rate limit distinct.
-func searchError(failures []graphError) error {
+// searchError prioritizes a GraphQL rate limit even when GitHub returned partial search data.
+func searchError(failures []graphError, headers http.Header, now time.Time) error {
 	for i := range failures {
 		if failures[i].Type == "RATE_LIMITED" {
-			return discoveryError(&githubAPIError{cause: c.ForgeCauseRateLimited, status: http.StatusTooManyRequests})
+			return discoveryError(&githubAPIError{cause: c.ForgeCauseRateLimited, status: http.StatusTooManyRequests, retryAfter: githubRetryAfter(headers, now)})
 		}
 	}
-	return errors.New("forge pull request search failed")
+	return nil
 }
 
 // discoveryError reports a rate limit as JSON-RPC error data the daemon reads, so a refused search

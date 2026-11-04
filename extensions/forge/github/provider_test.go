@@ -404,6 +404,33 @@ func TestProvider(t *testing.T) {
 		}
 	})
 
+	// Invariant: HTTP 200 GraphQL rate limits retain the reset even with partial search results.
+	// Owner: GitHub discovery provider; canonical provider suite.
+	for _, partial := range []bool{false, true} {
+		t.Run(fmt.Sprintf("Should preserve GraphQL search quota reset with partial results %t", partial), func(t *testing.T) {
+			t.Parallel()
+			provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("X-RateLimit-Remaining", "0")
+				w.Header().Set("X-RateLimit-Reset", "1800000000")
+				nodes := []any{}
+				if partial {
+					nodes = append(nodes, map[string]any{"number": 7, "headRefName": "topic", "state": "OPEN"})
+				}
+				writeJSON(t, w, http.StatusOK, map[string]any{
+					"data":   map[string]any{"search": map[string]any{"nodes": nodes}},
+					"errors": []any{map[string]string{"type": "RATE_LIMITED"}},
+				})
+			})
+			defer closeServer()
+			_, err := provider.SearchPRs(t.Context(), extensioncontract.ForgePRSearchRequest{RemoteURLs: []string{"https://github.com/acme/repo.git"}})
+			rpc, ok := errors.AsType[*compozysdk.RPCError](err)
+			if !ok || !strings.Contains(string(rpc.Data), `"code":"rate_limited"`) ||
+				!strings.Contains(string(rpc.Data), `"retry_after":"2027-01-15T08:00:00Z"`) {
+				t.Fatalf("GraphQL search error = %#v", err)
+			}
+		})
+	}
+
 	for _, scenario := range []string{"open first", "terminal newest", "incomplete", "bounded"} {
 		t.Run("Should preserve REST display selection for "+scenario, func(t *testing.T) {
 			t.Parallel()
