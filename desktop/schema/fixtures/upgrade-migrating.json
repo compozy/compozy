@@ -1,0 +1,18 @@
+{
+    "schema_version": 2,
+    "pid": 4242,
+    "started_at": "2026-08-10T03:00:00Z",
+    "diagnostic_report": {
+        "schema_version": 1,
+        "boot_id": "boot-fixture-upgrade-migrating",
+        "boot_phase": "provisioning",
+        "app_version": "0.4.1",
+        "runtime_version": null,
+        "runtime_owned": null,
+        "current_error": null,
+        "previous_crash": null
+    },
+    "state": "provisioning",
+    "stage": "migrate",
+    "pct": 42
+}
