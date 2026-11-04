@@ -11,16 +11,19 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/store"
 )
 
 type CheckTarget struct {
-	Instance      agentinstance.Instance
-	Policy        ResolvedPolicy
-	Scope         CollectorScope
-	Gate          string
-	MainPrompting bool
+	DefinitionDir, RootDir string
+	UntrustedScripts       bool
+	Instance               agentinstance.Instance
+	Policy                 ResolvedPolicy
+	Scope                  CollectorScope
+	Gate                   string
+	MainPrompting          bool
 }
 type CheckEnvironment interface {
 	ResolveCheck(context.Context, string) (CheckTarget, error)
@@ -37,17 +40,19 @@ type TriageDispatcher interface {
 	Stop(context.Context, string) error
 }
 type CheckConfig struct {
-	UnattendedTurnLimit                       int64
-	QuietBackoffCap                           time.Duration
-	FatigueLimit                              int
-	Enabled                                   bool
-	Interval, MaxInterval, Retention, Timeout time.Duration
-	MaxConcurrent, BatchSize                  int
+	Sources                                                compozyconfig.HeartbeatSourcesConfig
+	UnattendedTurnLimit                                    int64
+	QuietBackoffCap                                        time.Duration
+	FatigueLimit                                           int
+	Enabled                                                bool
+	Interval, MinInterval, MaxInterval, Retention, Timeout time.Duration
+	MaxConcurrent, BatchSize                               int
 }
 type CheckResult struct {
-	Gate         string       `json:"gate,omitempty"`
-	Digest       *CheckDigest `json:"digest,omitempty"`
-	OccurrenceID string       `json:"occurrence_id,omitempty"`
+	Sources      []SourceOutcome `json:"sources,omitempty"`
+	Gate         string          `json:"gate,omitempty"`
+	Digest       *CheckDigest    `json:"digest,omitempty"`
+	OccurrenceID string          `json:"occurrence_id,omitempty"`
 }
 type checkRun struct {
 	occurrence string
@@ -55,20 +60,24 @@ type checkRun struct {
 }
 
 type CheckService struct {
-	recoveryMu    sync.Mutex
-	afterPause    func(context.Context, agentinstance.Instance) error
-	running       map[string]checkRun
-	store         InstanceWakeStore
-	environment   CheckEnvironment
-	dispatcher    TriageDispatcher
-	config        CheckConfig
-	now           func() time.Time
-	ctx           context.Context
-	cancel        context.CancelFunc
-	mu            sync.Mutex
-	ready, closed bool
-	pending       map[string]FinishRequest
-	wg            sync.WaitGroup
+	sourcePollCounts   map[string]int64
+	sourcePollDuration int64
+	collecting         map[string]context.CancelFunc
+	pollSem            chan struct{}
+	recoveryMu         sync.Mutex
+	afterPause         func(context.Context, agentinstance.Instance) error
+	running            map[string]checkRun
+	store              InstanceWakeStore
+	environment        CheckEnvironment
+	dispatcher         TriageDispatcher
+	config             CheckConfig
+	now                func() time.Time
+	ctx                context.Context
+	cancel             context.CancelFunc
+	mu                 sync.Mutex
+	ready, closed      bool
+	pending            map[string]FinishRequest
+	wg                 sync.WaitGroup
 }
 
 func NewCheckService(
@@ -87,8 +96,18 @@ func NewCheckService(
 		config.BatchSize < 1 || config.UnattendedTurnLimit < 0 {
 		return nil, errors.New("heartbeat: incomplete check service configuration")
 	}
+	if config.MinInterval <= 0 {
+		config.MinInterval = compozyconfig.DefaultHeartbeatConfig().MinInterval
+	}
+	if config.Sources.IsZero() {
+		config.Sources = compozyconfig.DefaultHeartbeatSourcesConfig()
+	}
+	if err := config.Sources.Validate(); err != nil {
+		return nil, err
+	}
 	lifetime, cancel := context.WithCancel(ctx)
 	return &CheckService{
+		collecting: map[string]context.CancelFunc{}, pollSem: make(chan struct{}, config.Sources.MaxConcurrentPolls),
 		store:       storage,
 		environment: environment,
 		dispatcher:  dispatcher,
@@ -103,6 +122,9 @@ func NewCheckService(
 func (s *CheckService) Shutdown(context.Context) error {
 	s.mu.Lock()
 	s.closed = true
+	for _, cancel := range s.collecting {
+		cancel()
+	}
 	s.cancel()
 	s.mu.Unlock()
 	s.wg.Wait()
@@ -134,13 +156,25 @@ func (s *CheckService) Check(ctx context.Context, id string, dryRun bool) (Check
 func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manual, dryRun bool) (CheckResult, error) {
 	s.mu.Lock()
 	ready := s.ready && !s.closed
+	_, collecting := s.collecting[state.InstanceID]
 	s.mu.Unlock()
+	if collecting && !dryRun {
+		return CheckResult{Gate: checkSourcePollInFlight}, nil
+	}
 	if !ready {
 		return CheckResult{}, errors.New("heartbeat: checks are not running")
 	}
 	target, err := s.environment.ResolveCheck(ctx, state.InstanceID)
 	if err != nil {
-		return CheckResult{}, s.rescheduleCheckFailure(ctx, state, manual || dryRun, s.config.Interval, err)
+		target.Instance.ID = state.InstanceID
+		return CheckResult{}, s.rescheduleCheckFailure(
+			ctx,
+			state,
+			manual || dryRun,
+			s.config.Interval,
+			s.hasSourcesAfterResolveFailure(ctx, &target),
+			err,
+		)
 	}
 	if manual && !dryRun && target.Instance.State == "paused" {
 		return CheckResult{}, agentinstance.ErrPaused
@@ -150,7 +184,7 @@ func (s *CheckService) check(ctx context.Context, state InstanceWakeState, manua
 		return CheckResult{}, err
 	}
 	if state.OccurrenceID != "" || len(inflight) >= s.config.MaxConcurrent {
-		return CheckResult{Gate: "no_slot"}, nil
+		return CheckResult{Gate: checkNoSlot}, nil
 	}
 	return s.checkTarget(ctx, state, &target, manual, dryRun)
 }
@@ -167,20 +201,25 @@ func (s *CheckService) checkTarget(
 		return CheckResult{Gate: "cooldown_active"}, err
 	}
 	skip := func(reason, detail string) (CheckResult, error) {
-		if dryRun || (manual && reason != "hook_cancelled") { //nolint:misspell // Persisted wake reason.
+		if dryRun || (manual && reason != checkHookCancelled) {
 			return CheckResult{Gate: reason}, nil
 		}
 		_, err := s.store.Skip(
 			ctx,
 			SkipRequest{
+				Deferred:    state.Deferred,
 				ManualCheck: manual,
 				InstanceID:  state.InstanceID,
 				ExpectedDue: state.NextWakeAt,
 				Reason:      reason,
 				Detail:      diagnostics.RedactAndBound(detail, 300),
 				Now:         now,
-				NextWakeAt:  NextCheckTime(now, s.checkBackoff(cadence, state), state.InstanceID),
-				ExpiresAt:   now.Add(s.config.Retention),
+				NextWakeAt: NextCheckTime(
+					now,
+					s.checkBackoff(cadence, state, len(target.Policy.Preferences.Context.Sources) > 0),
+					state.InstanceID,
+				),
+				ExpiresAt: now.Add(s.config.Retention),
 			},
 		)
 		return CheckResult{Gate: reason}, err
@@ -192,18 +231,80 @@ func (s *CheckService) checkTarget(
 	if gate != "" {
 		return skip(gate, "")
 	}
-	source := "timer"
+	source := checkTimerSource
 	if manual {
-		source = "instance_check"
+		source = checkManualSource
 	}
-	if !dryRun {
+	if !dryRun && len(target.Policy.Preferences.Context.Sources) == 0 {
+		if env, ok := s.environment.(interface {
+			ReconcileSourcePolicy(context.Context, *CheckTarget) error
+		}); ok {
+			if err := env.ReconcileSourcePolicy(ctx, target); err != nil {
+				return CheckResult{}, s.rescheduleCheckFailure(ctx, state, manual, cadence, false, err)
+			}
+		}
 		reason, err := s.environment.BeforeCheck(ctx, target, source)
 		if err != nil {
-			return CheckResult{}, s.rescheduleCheckFailure(ctx, state, manual || dryRun, cadence, err)
+			return CheckResult{}, s.rescheduleCheckFailure(
+				ctx,
+				state,
+				manual || dryRun,
+				cadence,
+				len(target.Policy.Preferences.Context.Sources) > 0,
+				err,
+			)
 		}
 		if reason != "" {
-			return skip("hook_cancelled", reason) //nolint:misspell // Matches the persisted wake reason.
+			return skip(checkHookCancelled, reason)
 		}
+	}
+	if len(target.Policy.Preferences.Context.Sources) > 0 {
+		return s.collectSources(ctx, state, target, manual, dryRun)
+	}
+	return s.collectTarget(ctx, state, target, manual, dryRun, PollBatch{})
+}
+
+func (s *CheckService) collectTarget(
+	ctx context.Context,
+	state InstanceWakeState,
+	target *CheckTarget,
+	manual, dryRun bool,
+	batch PollBatch,
+) (CheckResult, error) {
+	now := s.now()
+	cadence := s.checkInterval(&target.Policy)
+	skip := func(reason string) (CheckResult, error) {
+		result := CheckResult{Gate: reason, Sources: batch.Outcomes()}
+		if dryRun {
+			return result, nil
+		}
+		if manual && len(batch.Sources) == 0 {
+			return result, nil
+		}
+		delay := s.checkBackoff(cadence, state, len(target.Policy.Preferences.Context.Sources) > 0)
+		if batch.HasMore() {
+			delay = s.config.MinInterval
+		}
+		_, err := s.store.Skip(
+			ctx,
+			SkipRequest{
+				Deferred:    state.Deferred,
+				ManualCheck: manual,
+				InstanceID:  state.InstanceID,
+				ExpectedDue: state.NextWakeAt,
+				Reason:      reason,
+				Now:         now,
+				NextWakeAt:  NextCheckTime(now, delay, state.InstanceID),
+				ExpiresAt:   now.Add(s.config.Retention),
+				Sources:     batch.Sources,
+			},
+		)
+		return result, err
+	}
+	var err error
+	source := checkTimerSource
+	if manual {
+		source = checkManualSource
 	}
 	target.Scope.Now = now
 	target.Scope.AutomationCursor = state.AutomationCursor
@@ -222,16 +323,31 @@ func (s *CheckService) checkTarget(
 		target.Policy.GuidanceMarkdown,
 	)
 	if err != nil {
-		return CheckResult{}, s.rescheduleCheckFailure(ctx, state, manual || dryRun, cadence, err)
+		return CheckResult{}, s.rescheduleCheckFailure(
+			ctx,
+			state,
+			manual || dryRun,
+			cadence,
+			len(target.Policy.Preferences.Context.Sources) > 0,
+			err,
+		)
+	}
+	if len(batch.Sources) > 0 {
+		if err := AppendSourceDigest(&digest, batch, s.config.Sources.FailureThreshold); err != nil {
+			return CheckResult{}, err
+		}
 	}
 	if gate := s.checkDigestGate(target, &digest, state, manual, now); gate != "" {
-		return skip(gate, "")
+		return skip(gate)
 	}
 	if dryRun {
-		return CheckResult{Gate: "would_run", Digest: &digest}, nil
+		return CheckResult{Gate: "would_run", Digest: &digest, Sources: batch.Outcomes()}, nil
+	}
+	if batch.HasMore() {
+		cadence = s.config.MinInterval
 	}
 	return s.admitCheck(ctx, target, digest, AdmitRequest{
-		InstanceID: state.InstanceID, Now: now,
+		ExpectedDue: state.NextWakeAt, Sources: batch.Sources, InstanceID: state.InstanceID, Now: now,
 		NextWakeAt:  NextCheckTime(now, cadence, state.InstanceID),
 		ManualCheck: manual, MaxConcurrent: s.config.MaxConcurrent,
 	}, source)
@@ -264,6 +380,7 @@ func (s *CheckService) rescheduleCheckFailure(
 	state InstanceWakeState,
 	passive bool,
 	cadence time.Duration,
+	hasSources bool,
 	cause error,
 ) error {
 	if passive {
@@ -273,12 +390,13 @@ func (s *CheckService) rescheduleCheckFailure(
 	defer cancel()
 	now := s.now()
 	_, err := s.store.Skip(cleanupCtx, SkipRequest{
+		Deferred:    state.Deferred,
 		InstanceID:  state.InstanceID,
 		ExpectedDue: state.NextWakeAt,
 		Reason:      "triage_failed",
 		Detail:      "The check could not be prepared; retry scheduled.",
 		Now:         now,
-		NextWakeAt:  NextCheckTime(now, s.checkBackoff(cadence, state), state.InstanceID),
+		NextWakeAt:  NextCheckTime(now, s.checkBackoff(cadence, state, hasSources), state.InstanceID),
 		ExpiresAt:   now.Add(s.config.Retention),
 	})
 	return errors.Join(cause, err)
@@ -316,11 +434,12 @@ func (s *CheckService) checkDigestGate(
 	manual bool,
 	now time.Time,
 ) string {
-	if len(digest.Items) == 0 && strings.TrimSpace(target.Policy.GuidanceMarkdown) == "" {
+	hasSources := len(target.Policy.Preferences.Context.Sources) > 0
+	if len(digest.Items) == 0 && (hasSources || strings.TrimSpace(target.Policy.GuidanceMarkdown) == "") {
 		return "digest_empty"
 	}
-	if !manual && digest.Fingerprint == state.LastDigest &&
-		now.Sub(target.Scope.LastCompletedAt) < s.config.MaxInterval {
+	if (hasSources || !manual) && digest.Fingerprint == state.LastDigest &&
+		(hasSources || now.Sub(target.Scope.LastCompletedAt) < s.config.MaxInterval) {
 		return "digest_unchanged"
 	}
 	return ""
@@ -342,6 +461,7 @@ func (s *CheckService) skipInitialCheck(
 		return false, nil
 	}
 	_, err := s.store.Skip(ctx, SkipRequest{
+		Deferred:    state.Deferred,
 		InstanceID:  state.InstanceID,
 		ExpectedDue: state.NextWakeAt,
 		Reason:      "cooldown_active",

@@ -49,6 +49,14 @@ export type DeleteAgentHeartbeatResponse = OperationResponse<"deleteAgentHeartbe
 export type AgentHeartbeatStatusPayload = OperationResponse<"getAgentHeartbeatStatus", 200>;
 export type WakeAgentHeartbeatParams = OperationRequestBody<"wakeAgentHeartbeat">;
 export type WakeAgentHeartbeatResponse = OperationResponse<"wakeAgentHeartbeat", 200>;
+/** The kinds and scripts an agent's check-ins can read, with the daemon's limits. */
+export type AgentHeartbeatSourceCatalog = OperationResponse<"getAgentHeartbeatSources", 200>;
+/** The script and hash an approval recorded. */
+export type AgentHeartbeatScriptApproval = OperationResponse<"approveAgentHeartbeatScript", 200>;
+/** One `context.sources` entry as HEARTBEAT.md declares it. */
+export type AgentHeartbeatSourceDecl = NonNullable<
+  AgentHeartbeatPayload["frontmatter"]["context"]["sources"]
+>[number];
 
 export type AgentMemoryDocument = OperationResponse<"getAgentMemory", 200>;
 export type AgentMemoryBudget = AgentMemoryDocument["budget"];
@@ -128,6 +136,8 @@ export interface AgentInstancePayload {
   unattended_turn_limit?: number;
   /** Non-human input held while paused, delivered on resume. */
   held_wakes?: number;
+  /** How each declared check-in source last went; absent from daemons without sources. */
+  sources?: AgentInstanceSourceStatus[];
   created_at: string;
   updated_at: string;
 }
@@ -156,6 +166,13 @@ export type AgentInstanceCheckResponse = OperationResponse<"checkAgentInstance",
 export type AgentInstanceCheckDigestItem = NonNullable<
   AgentInstanceCheckResponse["digest"]
 >[number];
+
+export type AgentInstanceSourceStatus = OperationResponse<
+  "listAgentInstances",
+  200
+>["instances"][number]["sources"][number];
+/** What a check's read of one source returned. */
+export type AgentInstanceSourceOutcome = NonNullable<AgentInstanceCheckResponse["sources"]>[number];
 
 export interface AgentInstanceOccurrence {
   state: "running" | "finished";

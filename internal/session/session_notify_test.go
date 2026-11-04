@@ -237,3 +237,21 @@ func TestApprovalExpiryNotification(t *testing.T) {
 		})
 	}
 }
+
+func TestUserScopeSourceNotification(t *testing.T) {
+	t.Run("Should allow user scoped source approval notices", func(t *testing.T) {
+		t.Parallel()
+		manager, _ := newNotifyTestManager()
+		notice, err := manager.sanitizedOperatorNotification(
+			NotifyRequest{
+				Kind:      "heartbeat_source_unapproved",
+				SessionID: "sess-source",
+				ProfileID: "default",
+				Title:     "Check-in script needs approval",
+			},
+		)
+		if err != nil || notice.WorkspaceID != "" || notice.Kind != "heartbeat_source_unapproved" {
+			t.Fatalf("notice=%+v err=%v", notice, err)
+		}
+	})
+}

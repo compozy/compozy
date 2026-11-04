@@ -9,6 +9,32 @@ import (
 	"strings"
 )
 
+// ApproveSessionParams carries the path, query, and header parameters.
+type ApproveSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
+// ApproveSession Approve or deny an interactive permission request
+func (c *Client) ApproveSession(ctx context.Context, params ApproveSessionParams, body ApproveSessionRequest) (*SessionApprovalResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/approve"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionApprovalResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // ApproveTaskParams carries the path, query, and header parameters.
 type ApproveTaskParams struct {
 	ID      string  `url:"id"`
@@ -414,30 +440,6 @@ func (c *Client) CancelLoopRun(ctx context.Context, params CancelLoopRunParams, 
 	}
 	var out LoopMutationResponse
 	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CancelPendingToolApprovalParams carries the path, query, and header parameters.
-type CancelPendingToolApprovalParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// CancelPendingToolApproval Cancel one pending tool approval
-func (c *Client) CancelPendingToolApproval(ctx context.Context, params CancelPendingToolApprovalParams) (*ToolApprovalStatusResponse, error) {
-	path := "/api/tools/approvals/{id}/cancel"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolApprovalStatusResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}
 	return &out, nil

@@ -7,6 +7,27 @@ import (
 	"time"
 )
 
+type TerminalSubscriberEvictedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
+	At          time.Time `json:"at"`
+	Flow        string    `json:"flow"`
+	Reason      string    `json:"reason"`
+}
+
+type ToastEffect struct {
+	Tone    string `json:"tone"`
+	Message string `json:"message"`
+}
+
 type Tool struct {
 	ID                         ToolID          `json:"id"`
 	Backend                    BackendRef      `json:"backend"`
@@ -293,19 +314,4 @@ type TurnStartPayload struct {
 	TurnID         string    `json:"turn_id,omitempty"`
 	InputClass     string    `json:"input_class,omitempty"`
 	UserMessage    string    `json:"user_message,omitempty"`
-}
-
-type ValidationIssue struct {
-	Path     string        `json:"path"`
-	Scope    string        `json:"scope,omitempty"`
-	Line     int           `json:"line,omitempty"`
-	Column   int           `json:"column,omitempty"`
-	Field    string        `json:"field,omitempty"`
-	Message  string        `json:"message"`
-	Severity IssueSeverity `json:"severity"`
-}
-
-type ViewBadge struct {
-	Label string `json:"label"`
-	Tone  string `json:"tone"`
 }

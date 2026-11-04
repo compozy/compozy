@@ -197,6 +197,11 @@ func (n *daemonNativeTools) observeMetrics(
 	}
 	if n.deps.AgentInstances != nil {
 		api := n.deps.AgentInstances()
+		if api != nil {
+			if sources, ok := api.Checks.(interface{ SourceMetrics() map[string]any }); ok {
+				maps.Copy(result, sources.SourceMetrics())
+			}
+		}
 		if api != nil && api.Metrics != nil {
 			metrics, err := api.Metrics(ctx, scope.ProfileID, scope.WorkspaceID)
 			if err != nil {

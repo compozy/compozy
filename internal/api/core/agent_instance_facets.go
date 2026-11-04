@@ -62,9 +62,12 @@ func (h *BaseHandlers) instanceFacetRows(
 					}
 					return nil, err
 				}
-				payload, err := h.AgentInstances.Payload(c.Request.Context(), row)
-				if err != nil {
-					return nil, err
+				payload := AgentInstancePayload(row)
+				if h.AgentInstances.ReadAttention != nil {
+					payload.NeedsAttention, err = h.AgentInstances.ReadAttention(c.Request.Context(), row.ID)
+					if err != nil {
+						return nil, err
+					}
 				}
 				result = append(result, payload)
 			}

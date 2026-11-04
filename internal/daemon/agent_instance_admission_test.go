@@ -1011,7 +1011,7 @@ func TestInstanceDefinitionPaths(t *testing.T) {
 				WorkspaceID: "ws-instance-paths",
 				AgentName:   "coder",
 			},
-			&payload,
+			&payload, nil,
 		)
 		if err != nil {
 			t.Fatalf("projectInstanceDefinition() error = %v, want the default face", err)
@@ -1034,7 +1034,7 @@ func TestInstanceDefinitionPaths(t *testing.T) {
 				WorkspaceID: "ws-instance-paths",
 				AgentName:   "coder",
 			},
-			&payload,
+			&payload, nil,
 		)
 		if err != nil {
 			t.Fatalf("projectInstanceDefinition() error = %v", err)

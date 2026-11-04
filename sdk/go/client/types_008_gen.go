@@ -2,10 +2,41 @@
 
 package client
 
-import (
-	"encoding/json"
-	"time"
-)
+import "time"
+
+// GoalTurn is a daemon API value.
+type GoalTurn struct {
+	Seq            int64                   `json:"seq"`
+	Generation     int64                   `json:"generation"`
+	NodeID         string                  `json:"node_id"`
+	ItemIndex      int                     `json:"item_index"`
+	Turn           int                     `json:"turn"`
+	PromptAttempt  int                     `json:"prompt_attempt"`
+	SessionID      string                  `json:"session_id"`
+	BindingHandle  string                  `json:"binding_handle"`
+	BindingEpoch   int64                   `json:"binding_epoch"`
+	PromptID       string                  `json:"prompt_id"`
+	ResultStatus   *GoalTurnResultStatus   `json:"result_status"`
+	ReasonCode     *GoalReasonCode         `json:"reason_code"`
+	StopReason     *ACPPromptStopReason    `json:"stop_reason"`
+	VerdictOutcome *GoalVerdictOutcome     `json:"verdict_outcome"`
+	BlockingIssues []GoalBlockingIssue     `json:"blocking_issues"`
+	Criteria       []GoalCriterionResult   `json:"criteria"`
+	Warnings       []GoalDiagnosticWarning `json:"warnings"`
+	EvidenceRef    *string                 `json:"evidence_ref"`
+	PromptRef      *string                 `json:"prompt_ref"`
+	TokensUsed     *int64                  `json:"tokens_used"`
+	ActorKind      string                  `json:"actor_kind"`
+	ActorID        string                  `json:"actor_id"`
+	StartedAt      time.Time               `json:"started_at"`
+	EndedAt        *time.Time              `json:"ended_at"`
+}
+
+// GoalTurnPage is a daemon API value.
+type GoalTurnPage struct {
+	Turns        []GoalTurn `json:"turns"`
+	NextAfterSeq *int64     `json:"next_after_seq"`
+}
 
 // GoalTurnResultStatus is a daemon API value.
 type GoalTurnResultStatus string
@@ -101,6 +132,7 @@ type HeartbeatConfigSubsetPayload struct {
 
 // HeartbeatContextProjectionPayload is a daemon API value.
 type HeartbeatContextProjectionPayload struct {
+	Sources []Ref    `json:"sources,omitempty"`
 	Include []string `json:"include,omitzero"`
 }
 
@@ -217,6 +249,44 @@ type HeartbeatRollbackByPathRequest struct {
 	TargetDigest   string `json:"target_digest,omitempty"`
 	ExpectedDigest string `json:"expected_digest"`
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+// HeartbeatScriptApprovalPayload is a daemon API value.
+type HeartbeatScriptApprovalPayload struct {
+	Script     string    `json:"script"`
+	SHA256     string    `json:"sha256"`
+	ApprovedAt time.Time `json:"approved_at"`
+}
+
+// HeartbeatScriptApprovalRequest is a daemon API value.
+type HeartbeatScriptApprovalRequest struct {
+	SHA256 string `json:"sha256"`
+}
+
+// HeartbeatSourceCatalogPayload is a daemon API value.
+type HeartbeatSourceCatalogPayload struct {
+	Agent          string                         `json:"agent"`
+	ScriptsEnabled bool                           `json:"scripts_enabled"`
+	Limits         HeartbeatSourceLimitsPayload   `json:"limits"`
+	Kinds          []KindDescriptor               `json:"kinds"`
+	Scripts        []HeartbeatSourceScriptPayload `json:"scripts"`
+}
+
+// HeartbeatSourceLimitsPayload is a daemon API value.
+type HeartbeatSourceLimitsPayload struct {
+	MaxPerAgent int `json:"max_per_agent"`
+	MaxItems    int `json:"max_items"`
+}
+
+// HeartbeatSourceScriptPayload is a daemon API value.
+type HeartbeatSourceScriptPayload struct {
+	LineCount      int        `json:"line_count,omitzero"`
+	LastModified   *time.Time `json:"last_modified,omitempty"`
+	Name           string     `json:"name"`
+	Executable     bool       `json:"executable"`
+	SHA256         string     `json:"sha256"`
+	Approved       bool       `json:"approved"`
+	ApprovedSHA256 *string    `json:"approved_sha256"`
 }
 
 // HeartbeatStatusResponse is a daemon API value.
@@ -358,93 +428,3 @@ type HookEventsResponse struct {
 
 // HookExecutorKind is a daemon API value.
 type HookExecutorKind string
-
-// HookMatcher is a daemon API value.
-type HookMatcher struct {
-	AgentName        string           `json:"agent_name,omitempty"`
-	AgentType        string           `json:"agent_type,omitempty"`
-	WorkspaceID      string           `json:"workspace_id,omitempty"`
-	WorktreeID       string           `json:"worktree_id,omitempty"`
-	WorkspaceRoot    string           `json:"workspace_root,omitempty"`
-	SessionType      string           `json:"session_type,omitempty"`
-	InputClass       string           `json:"input_class,omitempty"`
-	ACPEventType     string           `json:"acp_event_type,omitempty"`
-	TurnID           string           `json:"turn_id,omitempty"`
-	ToolID           string           `json:"tool_id,omitempty"`
-	ToolName         string           `json:"tool_name,omitempty"`
-	ToolReadOnly     *bool            `json:"tool_read_only,omitempty"`
-	DecisionClass    string           `json:"decision_class,omitempty"`
-	MessageRole      string           `json:"message_role,omitempty"`
-	MessageDeltaType string           `json:"message_delta_type,omitempty"`
-	Trigger          string           `json:"compaction_trigger,omitempty"`
-	Autonomy         *AutonomyMatcher `json:"autonomy,omitempty"`
-}
-
-// HookMode is a daemon API value.
-type HookMode string
-
-// HookRunPayload is a daemon API value.
-type HookRunPayload struct {
-	HookName      string          `json:"hook_name"`
-	Event         string          `json:"event"`
-	Source        string          `json:"source"`
-	Mode          string          `json:"mode"`
-	DurationMS    int64           `json:"duration_ms"`
-	Outcome       string          `json:"outcome"`
-	DispatchDepth int             `json:"dispatch_depth"`
-	PatchApplied  json.RawMessage `json:"patch_applied,omitempty"`
-	Error         string          `json:"error,omitempty"`
-	Required      bool            `json:"required,omitzero"`
-	RecordedAt    time.Time       `json:"recorded_at"`
-}
-
-// HookRunsResponse is a daemon API value.
-type HookRunsResponse struct {
-	Runs []HookRunPayload `json:"runs"`
-}
-
-// Image is a daemon API value.
-type Image struct {
-	URL   string `json:"url,omitempty"`
-	Token string `json:"token,omitempty"`
-	Emoji string `json:"emoji,omitempty"`
-}
-
-// Input is a daemon API value.
-type Input struct {
-	Type        InputType `json:"type"`
-	Required    bool      `json:"required,omitzero"`
-	Description string    `json:"description,omitempty"`
-	Ref         *InputRef `json:"ref,omitzero"`
-	Enum        []string  `json:"enum,omitempty"`
-	Default     any       `json:"default,omitempty"`
-}
-
-// InputRef is a daemon API value.
-type InputRef struct {
-	Kind InputRefKind `json:"kind"`
-}
-
-// InputRefKind is a daemon API value.
-type InputRefKind string
-
-// InputType is a daemon API value.
-type InputType string
-
-// InstallExtensionRequest is a daemon API value.
-type InstallExtensionRequest struct {
-	Scope                string                 `json:"scope,omitempty"`
-	WorkspaceID          string                 `json:"workspace_id,omitempty"`
-	Profile              string                 `json:"profile,omitempty"`
-	Inputs               map[string]Value       `json:"inputs,omitempty"`
-	ExpectedDigest       string                 `json:"expected_digest,omitempty"`
-	Source               InstallExtensionSource `json:"source"`
-	Ref                  string                 `json:"ref"`
-	Version              string                 `json:"version,omitempty"`
-	Asset                string                 `json:"asset,omitempty"`
-	AllowUnverified      bool                   `json:"allow_unverified,omitzero"`
-	ConfirmGatewayDigest string                 `json:"confirm_gateway_digest,omitempty"`
-}
-
-// InstallExtensionSource is a daemon API value.
-type InstallExtensionSource string

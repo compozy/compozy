@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	watchpkg "github.com/compozy/compozy/internal/loop/watch"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
@@ -173,4 +175,186 @@ func newWatchSourceManagerForTest(
 			},
 		},
 	}
+}
+
+func TestManagerHeartbeatSource(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, workspace, kind, params, code string
+		fail                                error
+		cap                                 int
+	}{
+		{name: "Should enforce extension encoded result bytes", kind: "ext/issues", params: `{"repo":"a/b"}`, cap: 10, code: "source_output_too_large"},
+		{name: "Should poll a namespaced kind", kind: "ext/issues", params: `{"repo":"a/b"}`},
+		{name: "Should reject invalid params before polling", kind: "ext/issues", params: `{"repo":3}`, code: "source_params_invalid"},
+		{name: "Should reject unregistered kinds", kind: "other/issues", params: `{}`, code: "source_kind_unavailable"},
+		{name: "Should map process crashes", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: errors.New("process exited"), code: "source_extension_failed"},
+		{name: "Should preserve source_credential_absent", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: &subprocess.RPCError{Code: -32000, Data: json.RawMessage(`{"code":"source_credential_absent"}`)}, code: "source_credential_absent"},
+		{name: "Should preserve source_credential_expired", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: &subprocess.RPCError{Code: -32000, Data: json.RawMessage(`{"code":"source_credential_expired"}`)}, code: "source_credential_expired"},
+		{name: "Should preserve source_rate_limited", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: &subprocess.RPCError{Code: -32000, Data: json.RawMessage(`{"code":"source_rate_limited"}`)}, code: "source_rate_limited"},
+		{name: "Should preserve source_params_invalid", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: &subprocess.RPCError{Code: -32000, Data: json.RawMessage(`{"code":"source_params_invalid"}`)}, code: "source_params_invalid"},
+		{name: "Should preserve typed rate limit causes", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: &subprocess.RPCError{Code: -32000, Data: json.RawMessage(`{"code":"provider_failed","cause":"rate_limited"}`)}, code: "source_rate_limited"},
+		{name: "Should map typed rate limits", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: &subprocess.RPCError{Code: -32000, Data: json.RawMessage(`{"code":"rate_limited"}`)}, code: "source_rate_limited"},
+	} {
+		t.Run("Should not start profile runtimes without a declared source capability", func(t *testing.T) {
+			t.Parallel()
+			m := newWatchSourceManagerForTest("ext", []string{"heartbeat.source"}, nil, nil, newFakeProcess(9209))
+			m.extensions["ext"].manifest = &Manifest{}
+			resolver := &sourceCatalogProfileResolver{}
+			m.profileNames = resolver
+			kinds, err := m.SourceKinds(t.Context(), source.CatalogScope{ProfileID: "other-profile"})
+			if err != nil || len(kinds) != 0 || resolver.calls != 0 {
+				t.Fatalf("kinds=%v calls=%d err=%v", kinds, resolver.calls, err)
+			}
+		})
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			process := newFakeProcess(9201)
+			process.callFn = func(_ context.Context, method string, params, result any) error {
+				if method != "heartbeat/source_poll" {
+					t.Fatalf("method=%s", method)
+				}
+				req := params.(source.Request)
+				if req.Kind != "issues" {
+					t.Fatalf("kind=%s", req.Kind)
+				}
+				if tc.fail != nil {
+					return tc.fail
+				}
+				*result.(*source.Result) = source.Result{Items: []source.Item{{Key: "1", Title: "New issue"}}}
+				return nil
+			}
+			m := newWatchSourceManagerForTest(
+				"ext",
+				[]string{"heartbeat.source"},
+				[]string{"heartbeat/source_poll"},
+				nil,
+				process,
+			)
+			m.extensions["ext"].initialize.HeartbeatSourceKinds = []extensionprotocol.HeartbeatSourceKind{
+				{
+					Kind:  "issues",
+					Title: "Issues",
+					ParamsSchema: json.RawMessage(
+						`{"type":"object","required":["repo"],"properties":{"repo":{"type":"string"}}}`,
+					),
+				},
+			}
+			var poller source.ExtensionPoller = m
+			kinds, err := poller.SourceKinds(t.Context(), source.CatalogScope{})
+			if err != nil || len(kinds) != 1 || kinds[0].Kind != "ext/issues" {
+				t.Fatalf("kinds=%+v err=%v", kinds, err)
+			}
+			result, err := poller.PollSource(
+				t.Context(),
+				source.CatalogScope{},
+				tc.kind,
+				source.Request{
+					Params: []byte(tc.params),
+					Limits: source.Limits{MaxItems: 20, MaxStateBytes: 16384, MaxOutputBytes: tc.cap},
+				},
+			)
+			if tc.code != "" {
+				failure, ok := errors.AsType[*source.Error](err)
+				if !ok || string(failure.Code) != tc.code {
+					t.Fatalf("error=%v want %s", err, tc.code)
+				}
+				return
+			}
+			if err != nil || len(result.Items) != 1 {
+				t.Fatalf("result=%+v err=%v", result, err)
+			}
+		})
+	}
+	t.Run("Should distinguish equal local kinds and exclude disabled extensions", func(t *testing.T) {
+		t.Parallel()
+		m := newWatchSourceManagerForTest(
+			"one",
+			[]string{"heartbeat.source"},
+			[]string{"heartbeat/source_poll"},
+			nil,
+			newFakeProcess(9204),
+		)
+		second := newWatchSourceManagerForTest(
+			"two",
+			[]string{"heartbeat.source"},
+			[]string{"heartbeat/source_poll"},
+			nil,
+			newFakeProcess(9205),
+		)
+		m.extensions["two"] = second.extensions["two"]
+		for _, ext := range m.extensions {
+			ext.initialize.HeartbeatSourceKinds = []extensionprotocol.HeartbeatSourceKind{{Kind: "issues"}}
+		}
+		kinds, err := m.SourceKinds(t.Context(), source.CatalogScope{})
+		if err != nil || len(kinds) != 2 || kinds[0].Kind != "one/issues" || kinds[1].Kind != "two/issues" {
+			t.Fatalf("kinds=%v err=%v", kinds, err)
+		}
+		m.extensions["two"].active = false
+		kinds, err = m.SourceKinds(t.Context(), source.CatalogScope{})
+		if err != nil || len(kinds) != 1 {
+			t.Fatalf("kinds=%v err=%v", kinds, err)
+		}
+		_, err = m.PollSource(t.Context(), source.CatalogScope{}, "two/issues", source.Request{})
+		if err == nil || !strings.Contains(err.Error(), "source_kind_unavailable") {
+			t.Fatalf("error=%v", err)
+		}
+	})
+
+	t.Run("Should resolve the profile-global instance in User scope", func(t *testing.T) {
+		t.Parallel()
+		m := newWatchSourceManagerForTest(
+			"ext",
+			[]string{"heartbeat.source"},
+			[]string{"heartbeat/source_poll"},
+			nil,
+			newFakeProcess(9203),
+		)
+		key := ProfileInstanceKey("ext", "profile-a", "")
+		ext := m.extensions["ext"]
+		ext.key = key
+		ext.initialize.HeartbeatSourceKinds = []extensionprotocol.HeartbeatSourceKind{{Kind: "issues"}}
+		m.scopedExtensions = map[InstanceKey]*managedExtension{key: ext}
+		m.profileCoordinators = map[InstanceKey]*sync.Mutex{}
+		m.profileNames = fixedProfileNameResolver{"profile-a": "profile-a"}
+		kinds, err := m.SourceKinds(t.Context(), source.CatalogScope{ProfileID: "profile-a"})
+		if err != nil || len(kinds) != 1 || kinds[0].Kind != "ext/issues" {
+			t.Fatalf("kinds=%v err=%v", kinds, err)
+		}
+	})
+
+	t.Run("Should keep workspace kinds out of User scope", func(t *testing.T) {
+		t.Parallel()
+		key := InstanceKey{Name: "ext", WorkspaceID: "ws-a"}
+		m := newWatchSourceManagerForTest(
+			"ext",
+			[]string{"heartbeat.source"},
+			[]string{"heartbeat/source_poll"},
+			nil,
+			newFakeProcess(9202),
+		)
+		ext := m.extensions["ext"]
+		ext.key = key
+		ext.initialize.HeartbeatSourceKinds = []extensionprotocol.HeartbeatSourceKind{{Kind: "issues"}}
+		delete(m.extensions, "ext")
+		m.devExtensions = map[InstanceKey]*managedExtension{key: ext}
+		m.devCoordinators = map[InstanceKey]*sync.Mutex{}
+		kinds, err := m.SourceKinds(t.Context(), source.CatalogScope{WorkspaceID: "ws-a"})
+		if err != nil || len(kinds) != 1 {
+			t.Fatalf("kinds=%v err=%v", kinds, err)
+		}
+		for _, scope := range []source.CatalogScope{{}, {WorkspaceID: "ws-b"}} {
+			kinds, err = m.SourceKinds(t.Context(), scope)
+			if err != nil || len(kinds) != 0 {
+				t.Fatalf("leaked kinds=%v err=%v", kinds, err)
+			}
+		}
+	})
+}
+
+type sourceCatalogProfileResolver struct{ calls int }
+
+func (r *sourceCatalogProfileResolver) ProfileName(context.Context, string) (string, error) {
+	r.calls++
+	return "test", nil
 }

@@ -25,6 +25,7 @@ import {
 import { agentEditorMark } from "../../lib/agent-editor-mark";
 import type { AgentPayload } from "../../types";
 import { AgentMark } from "../agent-mark";
+import { CheckInSources } from "./check-in-sources";
 import { NextCard, RecentCard } from "./check-ins-activity";
 import { ConflictCard } from "./conflict-card";
 import { EditorHead } from "./editor-head";
@@ -105,6 +106,7 @@ function SettingsCard({ model, disabled }: { model: CheckInsEditorModel; disable
             />
           ))}
         </div>
+        <CheckInSources disabled={disabled} model={model} />
       </SettingRow>
       <SettingRow title="Anything else to keep an eye on">
         <MarkdownEditor

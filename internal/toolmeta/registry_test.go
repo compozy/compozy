@@ -106,6 +106,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__subagent_status":                expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
 		"compozy__subagent_cancel":                expectedNativeEntry("Canceling", " ", false, "🤖", "auto"),
 		"compozy__agent_create":                   expectedNativeEntry("Creating", " ", false, "🤖", "auto"),
+		"compozy__agent_heartbeat_sources":        expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
 		"compozy__agent_heartbeat_status":         expectedNativeEntry("Reading", " ", false, "🤖", "auto"),
 		"compozy__agent_heartbeat_wake":           expectedNativeEntry("Running", " ", false, "🤖", "auto"),
 		"compozy__agent_list":                     expectedNativeEntry("Reading", " ", false, "🤖", "auto"),

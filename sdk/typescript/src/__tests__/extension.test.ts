@@ -514,6 +514,37 @@ describe("Extension", () => {
     });
   });
 
+  it("describes and polls heartbeat sources", async () => {
+    const harness = new TestHarness();
+    const extension = new Extension({
+      name: "heartbeat-fixture",
+      version: "0.1.0",
+      subprocess: { command: "node", args: ["index.js"] },
+    });
+    extension.heartbeatSource(
+      "issues",
+      { title: "Issues", params_schema: { type: "object" } },
+      req => ({ items: [{ key: "1", title: req.source_id }], state: req.state })
+    );
+    expect(extension.describe().heartbeat_source_kinds).toEqual([
+      { kind: "issues", title: "Issues", params_schema: { type: "object" } },
+    ]);
+    expect(() => extension.handle("heartbeat/source_poll", () => ({ items: [] }))).toThrow(
+      "reserved"
+    );
+    await harness.loadExtension(extension);
+    expect(harness.getLastInitializeResponse()?.heartbeat_source_kinds).toEqual([
+      { kind: "issues", title: "Issues", params_schema: { type: "object" } },
+    ]);
+    await expect(
+      harness.call("heartbeat/source_poll", {
+        kind: "issues",
+        source_id: "incoming",
+        state: { cursor: 1 },
+      })
+    ).resolves.toEqual({ items: [{ key: "1", title: "incoming" }], state: { cursor: 1 } });
+  });
+
   it("registers watch sources and serves watch/poll", async () => {
     const harness = new TestHarness();
     const extension = new Extension({

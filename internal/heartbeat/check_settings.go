@@ -35,9 +35,12 @@ func (s *CheckService) checkInterval(policy *ResolvedPolicy) time.Duration {
 	return s.config.Interval
 }
 
-func (s *CheckService) checkBackoff(cadence time.Duration, state InstanceWakeState) time.Duration {
+func (s *CheckService) checkBackoff(cadence time.Duration, state InstanceWakeState, hasSources bool) time.Duration {
 	if state.FailureStreak > 0 {
 		return CheckBackoff(cadence, s.config.MaxInterval, state.FailureStreak)
+	}
+	if hasSources {
+		return cadence
 	}
 	maximum := s.config.MaxInterval
 	if s.config.QuietBackoffCap > 0 {

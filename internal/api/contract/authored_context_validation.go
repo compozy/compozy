@@ -110,6 +110,7 @@ func HeartbeatWakeResultValues() []string {
 // HeartbeatWakeReasonValues returns the closed wake reason enum values.
 func HeartbeatWakeReasonValues() []string {
 	return []string{
+		string(HeartbeatWakeReasonSourcePollInFlight),
 		string(HeartbeatWakeReasonSent),
 		string(HeartbeatWakeReasonDisabled),
 		string(HeartbeatWakeReasonInvalid),
@@ -170,7 +171,7 @@ func (s AuthoredDiagnosticSeverity) Validate() error {
 // Valid reports whether the wake reason is a closed enum member.
 func (r HeartbeatWakeReason) Valid() bool {
 	switch r {
-	case HeartbeatWakeReasonSent,
+	case HeartbeatWakeReasonSourcePollInFlight, HeartbeatWakeReasonSent,
 		HeartbeatWakeReasonDisabled,
 		HeartbeatWakeReasonInvalid,
 		HeartbeatWakeReasonNoPolicy,

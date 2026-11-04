@@ -9,6 +9,77 @@ import (
 	"strings"
 )
 
+// GetSessionHistory List grouped session turn history
+func (c *Client) GetSessionHistory(ctx context.Context, params GetSessionHistoryParams) (*SessionHistoryResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/history"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Since != nil {
+		query.Set("since", *params.Since)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.AfterSequence != nil {
+		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
+	}
+	if params.Type != nil {
+		query.Set("type", *params.Type)
+	}
+	if params.AgentName != nil {
+		query.Set("agent_name", *params.AgentName)
+	}
+	if params.TurnID != nil {
+		query.Set("turn_id", *params.TurnID)
+	}
+	if params.Archive != nil {
+		query.Set("archive", *params.Archive)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionHistoryResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSessionOwnerParams carries the path, query, and header parameters.
+type GetSessionOwnerParams struct {
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// GetSessionOwner Get a session owner; Global history has an empty workspace id
+func (c *Client) GetSessionOwner(ctx context.Context, params GetSessionOwnerParams) (*SessionOwner, error) {
+	path := "/api/sessions/{session_id}/owner"
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionOwner
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSessionRecapParams carries the path, query, and header parameters.
 type GetSessionRecapParams struct {
 	WorkspaceID string  `url:"workspace_id"`
@@ -371,78 +442,6 @@ func (c *Client) GetSettingsMarketplace(ctx context.Context) (*SettingsMarketpla
 func (c *Client) GetSettingsObservability(ctx context.Context) (*SettingsObservabilityResponse, error) {
 	path := "/api/settings/observability"
 	var out SettingsObservabilityResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsPersonaParams carries the path, query, and header parameters.
-type GetSettingsPersonaParams struct {
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
-}
-
-// GetSettingsPersona Read profile-layerable persona defaults
-func (c *Client) GetSettingsPersona(ctx context.Context, params GetSettingsPersonaParams) (*SettingsPersonaResponse, error) {
-	path := "/api/settings/persona"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsPersonaResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsProviderParams carries the path, query, and header parameters.
-type GetSettingsProviderParams struct {
-	Name string `url:"name"`
-}
-
-// GetSettingsProvider Read one settings-backed provider
-func (c *Client) GetSettingsProvider(ctx context.Context, params GetSettingsProviderParams) (*SettingsProviderResponse, error) {
-	path := "/api/settings/providers/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	var out SettingsProviderResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsProviderUsage Read the provider usage settings section
-func (c *Client) GetSettingsProviderUsage(ctx context.Context) (*SettingsProviderUsageResponse, error) {
-	path := "/api/settings/provider-usage"
-	var out SettingsProviderUsageResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSettingsRestartStatusParams carries the path, query, and header parameters.
-type GetSettingsRestartStatusParams struct {
-	OperationID string `url:"operation_id"`
-}
-
-// GetSettingsRestartStatus Get the persisted status for one daemon restart operation
-func (c *Client) GetSettingsRestartStatus(ctx context.Context, params GetSettingsRestartStatusParams) (*RestartActionStatus, error) {
-	path := "/api/settings/actions/restart/{operation_id}"
-	path = strings.ReplaceAll(path, "{operation_id}", url.PathEscape(params.OperationID))
-	var out RestartActionStatus
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

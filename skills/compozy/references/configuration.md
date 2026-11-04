@@ -699,3 +699,22 @@ table clears it. Model IDs and provider names must be nonempty and trimmed.
 HEARTBEAT.md `context.include` selects proactive collectors. Omitting `context`
 uses all six collectors; an explicit `include: []` disables them and remains
 empty after saving, reloading or rolling back the policy.
+
+### `[agents.heartbeat.sources]`
+
+These settings are daemon-wide and require a restart. Workspace and profile overlays are ignored with a warning.
+
+```toml
+[agents.heartbeat.sources]
+scripts_enabled = true
+timeout = "30s"
+max_concurrent_polls = 4
+max_per_agent = 8
+max_items = 20
+max_output_bytes = 262144
+max_state_bytes = 16384
+failure_threshold = 3
+env_allow = []
+```
+
+`timeout` must be 1s–5m; concurrent polls and sources per agent 1–32; items 1–100; output 4 KiB–4 MiB; state 1 KiB–256 KiB; failure threshold 1–20. Scripts require operator hash approval even when enabled. `env_allow` names daemon variables explicitly passed to scripts.

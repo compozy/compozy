@@ -4,6 +4,7 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"errors"
+	"fmt"
 	"slices"
 	"strings"
 	"unicode/utf8"
@@ -53,7 +54,15 @@ func ParseTriageReply(reply string, digest CheckDigest, limit int) ([]TriageProp
 		allowed[item.Key] = true
 	}
 	proposals := make([]TriageProposal, 0, min(limit, len(*envelope.Proposals)))
-	for _, value := range (*envelope.Proposals)[:min(limit, len(*envelope.Proposals))] {
+	values := *envelope.Proposals
+	hasSources := slices.ContainsFunc(
+		digest.Items,
+		func(item DigestItem) bool { return item.Source != nil && item.Source.Kind == itemSourceKind },
+	)
+	if !hasSources {
+		values = values[:min(limit, len(values))]
+	}
+	for _, value := range values {
 		raw, err := parseTriageProposal(value)
 		if err != nil {
 			return nil, err
@@ -66,7 +75,10 @@ func ParseTriageReply(reply string, digest CheckDigest, limit int) ([]TriageProp
 		}
 		slices.Sort(keys)
 		proposals = append(proposals, TriageProposal{Title: raw.Title, Body: raw.Body, ItemKeys: slices.Compact(keys),
-			Sources: triageEventSources(digest)})
+			Sources: triageProposalSources(digest, keys)})
+	}
+	if hasSources && len(proposals) > limit {
+		proposals = foldSourceProposals(proposals, limit, digest)
 	}
 	return proposals, nil
 }
@@ -103,6 +115,13 @@ func TriageReplyOutcome(reply string, digest CheckDigest, limit int) TriageOutco
 	var source *AutomationEventSource
 	for _, item := range digest.Items {
 		if item.Source != nil {
+			if item.Source.Kind == itemSourceKind &&
+				!slices.ContainsFunc(
+					proposals,
+					func(p TriageProposal) bool { return slices.Contains(p.ItemKeys, item.Key) },
+				) {
+				continue
+			}
 			first := *item.Source
 			// The operator's readable line comes from the admitted, fenced event, never the reply.
 			first.Summary = readableFencedSummary(item.Summary)
@@ -136,4 +155,40 @@ func triageEventSources(digest CheckDigest) []AutomationEventSource {
 		}
 	}
 	return sources
+}
+
+func triageProposalSources(digest CheckDigest, keys []string) []AutomationEventSource {
+	out := triageEventSources(digest)
+	return slices.DeleteFunc(out, func(s AutomationEventSource) bool {
+		return s.Kind == itemSourceKind && !slices.Contains(keys, "source:"+s.SourceID+":"+s.ItemKey)
+	})
+}
+func foldSourceProposals(proposals []TriageProposal, limit int, digest CheckDigest) []TriageProposal {
+	last := &proposals[limit-1]
+	titles := []string{}
+	for _, p := range proposals[limit:] {
+		last.ItemKeys = append(last.ItemKeys, p.ItemKeys...)
+		titles = append(titles, p.Title)
+	}
+	slices.Sort(last.ItemKeys)
+	last.ItemKeys = slices.Compact(last.ItemKeys)
+	body := last.Body
+	for i, title := range titles {
+		candidate := body + "\n" + title
+		suffix := ""
+		if left := len(titles) - i - 1; left > 0 {
+			suffix = fmt.Sprintf(" …and %d more", left)
+		}
+		if utf8.RuneCountInString(candidate+suffix) > TriageBodyMaxRunes {
+			suffix = fmt.Sprintf(" …and %d more", len(titles)-i)
+			runes := []rune(body)
+			last.Body = string(runes[:min(len(runes), TriageBodyMaxRunes-utf8.RuneCountInString(suffix))]) + suffix
+			last.Sources = triageProposalSources(digest, last.ItemKeys)
+			return proposals[:limit]
+		}
+		body = candidate
+	}
+	last.Body = body
+	last.Sources = triageProposalSources(digest, last.ItemKeys)
+	return proposals[:limit]
 }

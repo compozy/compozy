@@ -59,6 +59,9 @@ func (m *Manager) captureDaemonShutdownTurn(ctx context.Context, session *Sessio
 			break
 		}
 	}
+	if session.promptCancellationRequested(turnID) {
+		m.skipDaemonShutdownResume(ctx, session, turnID)
+	}
 	if err != nil {
 		m.sessionLogger(session).Warn("session: capture daemon shutdown interruption failed",
 			"turn_id", turnID, "attempts", daemonShutdownCaptureAttempts, "error", err)
@@ -108,7 +111,13 @@ func (m *Manager) skipDaemonShutdownResume(ctx context.Context, session *Session
 	}
 	skipCtx, cancel := detachedPromptStopContext(ctx, m)
 	defer cancel()
-	if err := m.appendDaemonShutdownResumeSkip(skipCtx, session, turnID); err != nil {
+	var err error
+	for range daemonShutdownCaptureAttempts {
+		if err = m.appendDaemonShutdownResumeSkip(skipCtx, session, turnID); err == nil || skipCtx.Err() != nil {
+			break
+		}
+	}
+	if err != nil {
 		m.sessionLogger(session).Warn("session: skip restart continuation of canceled turn failed",
 			"turn_id", turnID, "error", err)
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -20,6 +21,7 @@ import (
 )
 
 type AgentInstanceAPI struct {
+	SourceExtensions    source.ExtensionPoller
 	Metrics             func(context.Context, string, string) (agentinstance.Metrics, error)
 	ReadPeer            func(context.Context, agentinstance.Instance) (contract.AgentInstancePeer, error)
 	SkillPublished      func(context.Context) error
@@ -31,6 +33,7 @@ type AgentInstanceAPI struct {
 	CountActive         func(context.Context, string) (int64, error)
 	MaxActiveInstances  int
 	FatigueLimit        int
+	ReadAttention       func(context.Context, string) (bool, error)
 	ReadPayload         func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error)
 	CheckSettings       AgentInstanceCheckSettings
 	Checks              AgentInstanceChecker
@@ -263,6 +266,15 @@ func (api *AgentInstanceAPI) payloadWithOwners(
 		}
 	}
 	payload.ProfileName = owners[i.ProfileID].Name
+	if reader, ok := api.Checks.(interface {
+		SourceStatuses(context.Context, string) ([]heartbeat.SourceStatus, error)
+	}); ok && payload.Sources == nil {
+		var err error
+		payload.Sources, err = reader.SourceStatuses(ctx, i.ID)
+		if err != nil {
+			payload.Sources = []heartbeat.SourceStatus{}
+		}
+	}
 	payload.FatigueLimit = api.FatigueLimit
 	payload.UnattendedTurnLimit = api.UnattendedTurnLimit
 	if api.HeldWakes != nil {

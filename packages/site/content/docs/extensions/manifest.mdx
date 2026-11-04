@@ -95,6 +95,7 @@ most authors never write this block.
 | `tool.provider`         | `provide_tools`, `tools/call`                                            | yes    |
 | `model.source`          | `models/list`                                                            | yes    |
 | `loop.watch_source`     | `watch/poll`                                                             | yes    |
+| `heartbeat.source`      | `heartbeat/source_poll`                                                  | yes    |
 | `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
 | `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |
 
@@ -400,3 +401,25 @@ before an operator does.
 - [Extension Commands](/docs/extensions/commands)
 - [Publish an Extension](/docs/extensions/publish)
 - [Agent Plugins Interoperability](/docs/extensions/agent-plugins)
+
+### Check-in source polling
+
+Declare `heartbeat.source` and register kinds with `extension.HeartbeatSource` in Go or
+`extension.heartbeatSource` in TypeScript. Both helpers include `heartbeat_source_kinds`
+in describe and initialize results and negotiate `heartbeat/source_poll`.
+Each kind declares `kind`, `title`, optional `description`, and `params_schema`.
+The catalog prefixes the local kind with the extension name, for example `example/issues`.
+
+The daemon validates `context.sources[].with` against `params_schema` before polling.
+The request contains `version: 1`, `source_id`, the local `kind`, `params`, committed `state`,
+`limits` (`max_items`, `max_summary_bytes`, `max_state_bytes`), `workspace` (`id`, `root_dir`),
+`now`, and `dry_run`. Return `{items: [], state, more: false}`. Items have a stable `key`,
+`title`, and optional `summary`, `url`, and `attributes`. Omit `state` to keep the cursor.
+Advance it only over returned items; the daemon commits it with the completed check.
+Dry runs must not mutate provider state. Return JSON-RPC error data `{code: "rate_limited"}`
+for rate limiting. Other process failures become `source_extension_failed`.
+
+Kinds resolve within the selected workspace and profile. User scope uses the profile-global
+instance; an extension enabled only in another workspace is unavailable. Discover available
+kinds and limits with `compozy agent heartbeat sources <agent> --workspace <workspace> -o json`
+or `compozy__agent_heartbeat_sources`.

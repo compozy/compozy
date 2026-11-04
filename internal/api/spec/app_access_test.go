@@ -12,6 +12,7 @@ func TestAppAccessPolicy(t *testing.T) {
 	t.Parallel()
 	decisions := map[AppAccess][]string{
 		AppAccessAllowed: {
+			"getAgentHeartbeatSources",
 			"listSessionLinkedWork",
 			"listSessionPendingInteractions",
 			"listSessionProcesses", "terminateSessionProcesses",
@@ -212,6 +213,8 @@ func TestAppAccessPolicy(t *testing.T) {
 			"waitForSession",
 		},
 		AppAccessDenied: {
+			"approveAgentHeartbeatScript",
+			"revokeAgentHeartbeatScript",
 			"addSessionWorkLink", "refreshSessionWorkLink", "removeSessionWorkLink",
 			// Skill review: drafts an agent proposed and the operator-only approve/reject decision.
 			"listAgentSkillReviews", "getAgentSkillReview", "approveAgentSkillReview", "rejectAgentSkillReview",

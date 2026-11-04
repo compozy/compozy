@@ -10,6 +10,30 @@ import (
 	"strings"
 )
 
+// CancelPendingToolApprovalParams carries the path, query, and header parameters.
+type CancelPendingToolApprovalParams struct {
+	ID      string  `url:"id"`
+	Profile *string `url:"profile"`
+}
+
+// CancelPendingToolApproval Cancel one pending tool approval
+func (c *Client) CancelPendingToolApproval(ctx context.Context, params CancelPendingToolApprovalParams) (*ToolApprovalStatusResponse, error) {
+	path := "/api/tools/approvals/{id}/cancel"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolApprovalStatusResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // CancelQueuedSessionPromptParams carries the path, query, and header parameters.
 type CancelQueuedSessionPromptParams struct {
 	WorkspaceID  string  `url:"workspace_id"`
@@ -417,24 +441,4 @@ func (c *Client) ClearTaskBlock(ctx context.Context, params ClearTaskBlockParams
 type CloseCmdPaletteViewSessionParams struct {
 	Session             string `url:"session"`
 	XCompozyClientToken string `url:"X-Compozy-Client-Token"`
-}
-
-// CloseCmdPaletteViewSession Close one programmable command palette view
-func (c *Client) CloseCmdPaletteViewSession(ctx context.Context, params CloseCmdPaletteViewSessionParams) (*CmdPaletteViewSessionClosed, error) {
-	path := "/api/cmd-palette/view-sessions/{session}"
-	path = strings.ReplaceAll(path, "{session}", url.PathEscape(params.Session))
-	headers := http.Header{}
-	headers.Set("X-Compozy-Client-Token", params.XCompozyClientToken)
-	var out CmdPaletteViewSessionClosed
-	if err := c.doContent(ctx, "DELETE", path, headers, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CompactSessionParams carries the path, query, and header parameters.
-type CompactSessionParams struct {
-	WorkspaceID string  `url:"workspace_id"`
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
 }

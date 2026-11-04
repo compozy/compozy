@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type InitializeCapabilities struct {
+	Provides              []string        `json:"provides"`
+	GrantedPermissions    []HostAPIMethod `json:"granted_permissions"`
+	GrantedResourceKinds  []string        `json:"granted_resource_kinds"`
+	GrantedResourceScopes []string        `json:"granted_resource_scopes"`
+}
+
 type InitializeExtension struct {
 	Name       string `json:"name"`
 	Version    string `json:"version"`
@@ -42,6 +49,7 @@ type InitializeResponse struct {
 	AcceptedCapabilities AcceptedCapabilities    `json:"accepted_capabilities"`
 	ImplementedMethods   []string                `json:"implemented_methods"`
 	SupportedHookEvents  []string                `json:"supported_hook_events"`
+	HeartbeatSourceKinds []HeartbeatSourceKind   `json:"heartbeat_source_kinds,omitempty"`
 	WatchSourceKinds     []string                `json:"watch_source_kinds,omitempty"`
 	CmdPaletteViews      []string                `json:"cmd_palette_views,omitempty"`
 	Supports             InitializeSupports      `json:"supports"`
@@ -269,15 +277,3 @@ type LoopGatePrePayload struct {
 	Denied         bool            `json:"denied,omitempty"`
 	DenyReason     string          `json:"deny_reason,omitempty"`
 }
-
-type LoopGenerationOrigin string
-
-const (
-	LoopGenerationOriginInitial            LoopGenerationOrigin = "initial"
-	LoopGenerationOriginStopWhen           LoopGenerationOrigin = "stop_when"
-	LoopGenerationOriginReattempt          LoopGenerationOrigin = "reattempt"
-	LoopGenerationOriginGateRevise         LoopGenerationOrigin = "gate_revise"
-	LoopGenerationOriginGateNextGeneration LoopGenerationOrigin = "gate_next_generation"
-	LoopGenerationOriginDodRetry           LoopGenerationOrigin = "dod_retry"
-	LoopGenerationOriginRatchetRestore     LoopGenerationOrigin = "ratchet_restore"
-)

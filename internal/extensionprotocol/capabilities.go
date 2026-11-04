@@ -12,7 +12,8 @@ const (
 	// CapabilityProvideModelSource is the provide surface for model catalog source rows.
 	CapabilityProvideModelSource = "model.source"
 	// CapabilityProvideWatchSource is the provide surface for loop watch-source polling.
-	CapabilityProvideWatchSource = "loop.watch_source"
+	CapabilityProvideWatchSource     = "loop.watch_source"
+	CapabilityProvideHeartbeatSource = "heartbeat.source"
 	// CapabilityProvideConnectivityProvider is the public provide surface for daemon reachability providers.
 	CapabilityProvideConnectivityProvider = "connectivity.provider"
 	// CapabilityProvideForgeProvider is the provide surface for remote code-forge operations.
@@ -29,6 +30,7 @@ const (
 	ExtensionServiceMethodToolsCall             ExtensionServiceMethod = "tools/call"
 	ExtensionServiceMethodModelsList            ExtensionServiceMethod = "models/list"
 	ExtensionServiceMethodWatchPoll             ExtensionServiceMethod = "watch/poll"
+	ExtensionServiceMethodHeartbeatSourcePoll   ExtensionServiceMethod = "heartbeat/source_poll"
 	ExtensionServiceMethodConnectivityEstablish ExtensionServiceMethod = "connectivity/establish"
 	ExtensionServiceMethodConnectivityStatus    ExtensionServiceMethod = "connectivity/status"
 	ExtensionServiceMethodConnectivityTeardown  ExtensionServiceMethod = "connectivity/teardown"
@@ -50,6 +52,7 @@ var capabilityServiceMethods = map[string][]ExtensionServiceMethod{
 	CapabilityProvideModelSource: {
 		ExtensionServiceMethodModelsList,
 	},
+	CapabilityProvideHeartbeatSource: {ExtensionServiceMethodHeartbeatSourcePoll},
 	CapabilityProvideWatchSource: {
 		ExtensionServiceMethodWatchPoll,
 	},

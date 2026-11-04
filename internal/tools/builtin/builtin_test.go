@@ -1357,6 +1357,7 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 		{id: toolspkg.ToolIDSubagentCancel, risk: toolspkg.RiskDestructive, destructive: true},
 		{id: "compozy__agent_create", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
+		{id: "compozy__agent_heartbeat_sources", risk: toolspkg.RiskRead, readOnly: true},
 		{id: "compozy__agent_heartbeat_status", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__agent_heartbeat_wake", risk: toolspkg.RiskMutating,
@@ -3361,6 +3362,7 @@ func TestBuiltinToolsetCatalog(t *testing.T) {
 		}
 		if want := []toolspkg.ToolID{
 			toolspkg.ToolIDAgentActivity,
+			toolspkg.ToolIDAgentHeartbeatSources,
 			toolspkg.ToolIDAgentHeartbeatStatus,
 			toolspkg.ToolIDAgentHeartbeatWake,
 			toolspkg.ToolIDAgentInstanceArchive,

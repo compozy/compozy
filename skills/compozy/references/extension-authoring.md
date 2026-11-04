@@ -42,14 +42,15 @@ extension cannot claim compatibility its SDK does not have.
 `compozy extension init <name> --template <template> [--dir <path>]` writes source plus
 `package.json` or `go.mod` and nothing else.
 
-| Template                   | Use for                                        |
-| -------------------------- | ---------------------------------------------- |
-| `tool-provider-ts`         | Agent-callable tools in TypeScript (default).  |
-| `tool-provider-go`         | Agent-callable tools in Go.                    |
-| `view-provider-ts`         | A programmable palette view with React.        |
-| `loop-watch-source-go`     | The `loop.watch_source` provide surface.       |
-| `connectivity-provider-go` | A Gateway connectivity provider in Go.         |
-| `connectivity-provider-ts` | A Gateway connectivity provider in TypeScript. |
+| Template                   | Use for                                                            |
+| -------------------------- | ------------------------------------------------------------------ |
+| `tool-provider-ts`         | Agent-callable tools in TypeScript (default).                      |
+| `tool-provider-go`         | Agent-callable tools in Go.                                        |
+| `view-provider-ts`         | A programmable palette view with React.                            |
+| `loop-watch-source-go`     | The `loop.watch_source` provide surface.                           |
+| `heartbeat-source-go`      | Check-in source polling with bounded keyed items and opaque state. |
+| `connectivity-provider-go` | A Gateway connectivity provider in Go.                             |
+| `connectivity-provider-ts` | A Gateway connectivity provider in TypeScript.                     |
 
 ## Declaration Shape
 
@@ -161,6 +162,7 @@ Closed set, validated at build, install, and load.
 | `tool.provider`         | `provide_tools`, `tools/call`                                            | yes    |
 | `model.source`          | `models/list`                                                            | yes    |
 | `loop.watch_source`     | `watch/poll`                                                             | yes    |
+| `heartbeat.source`      | `heartbeat/source_poll`                                                  | yes    |
 | `view.provider`         | `view/open`, `view/event`, `view/close`                                  | yes    |
 | `connectivity.provider` | `connectivity/establish`, `connectivity/status`, `connectivity/teardown` | yes    |
 | `forge.provider`        | `forge/capabilities`, `forge/status`, `forge/pr_create`                  | yes    |
@@ -338,3 +340,27 @@ Agent-native equivalents are `compozy__extensions_{init,build,validate,dev,reloa
 Stop and report instead of guessing when `validate` returns any `error` severity, when a permission
 is rejected as unknown, when a build reports a command-tree or flag-projection failure, or when a
 reload reports `activation_failed` (the last-good generation is still serving).
+
+### Check-in source polling
+
+Declare `heartbeat.source` and register kinds with `extension.HeartbeatSource` in Go or
+`extension.heartbeatSource` in TypeScript. Both helpers include `heartbeat_source_kinds`
+in describe and initialize results and negotiate `heartbeat/source_poll`.
+Each kind declares `kind`, `title`, optional `description`, and `params_schema`.
+The catalog prefixes the local kind with the extension name, for example `example/issues`.
+
+Each item requires a unique stable `key` matching `[A-Za-z0-9][A-Za-z0-9._:/#@+-]{0,199}` (ASCII, at most 200 bytes) and a nonempty `title` of at most 200 Unicode characters. `summary` is at most 1 KiB; the daemon shortens longer summaries at a UTF-8 boundary. `attributes` JSON is at most 2 KiB, and `url` is at most 2 KiB of UTF-8. Invalid keys, titles, attributes or URLs fail the poll with `source_output_invalid`. `[agents.heartbeat.sources].max_output_bytes` caps script stdout and the encoded extension result before summary shortening (`source_output_too_large`); `max_state_bytes` bounds opaque state. Item text is redacted and fenced as untrusted input before triage.
+
+The daemon validates `context.sources[].with` against `params_schema` before polling.
+The request contains `version: 1`, `source_id`, the local `kind`, `params`, committed `state`,
+`limits` (`max_items`, `max_summary_bytes`, `max_state_bytes`), `workspace` (`id`, `root_dir`),
+`now`, and `dry_run`. Return `{items: [], state, more: false}`. Items have a stable `key`,
+`title`, and optional `summary`, `url`, and `attributes`. Omit `state` to keep the cursor.
+Advance it only over returned items; the daemon commits it with the completed check.
+Dry runs must not mutate provider state. Return JSON-RPC error data `{code: "rate_limited"}`
+for rate limiting. Other process failures become `source_extension_failed`.
+
+Kinds resolve within the selected workspace and profile. User scope uses the profile-global
+instance; an extension enabled only in another workspace is unavailable. Discover available
+kinds and limits with `compozy agent heartbeat sources <agent> --workspace <workspace> -o json`
+or `compozy__agent_heartbeat_sources`.

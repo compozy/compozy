@@ -38,11 +38,12 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 		soul: state.soulCatalog, heartbeat: state.heartbeatCatalog,
 	})
 	definitions := instanceDefinitions{
-		monitors:   state.sessionMonitors,
-		workspaces: state.workspaceResolver,
-		profiles:   state.profiles,
-		agents:     catalog,
-		sessions:   manager,
+		sourceDeclarations: &instanceSourceDeclarations{},
+		monitors:           state.sessionMonitors,
+		workspaces:         state.workspaceResolver,
+		profiles:           state.profiles,
+		agents:             catalog,
+		sessions:           manager,
 	}
 	admission := &instanceAdmission{
 		definitions: definitions,
@@ -81,9 +82,10 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	}
 	manager.SetInstancePauseHandler(service.AfterPause)
 	state.agentInstances = &core.AgentInstanceAPI{
-		ReadPeer: definitions.instancePeer,
-		Metrics:  repo.Metrics,
-		Service:  service, Store: repo, Reports: provider.InstanceReports(),
+		ReadPeer:      definitions.instancePeer,
+		ReadAttention: repo.NeedsAttention,
+		Metrics:       repo.Metrics,
+		Service:       service, Store: repo, Reports: provider.InstanceReports(),
 		WakeState: repo.WakeState, CountActive: repo.CountActive,
 		HeldWakes: repo.HeldWakes, UnattendedTurnLimit: state.cfg.Agents.AlwaysOn.UnattendedTurnLimit,
 		MaxActiveInstances: state.cfg.Agents.AlwaysOn.MaxActiveInstances,

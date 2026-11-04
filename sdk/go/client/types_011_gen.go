@@ -7,6 +7,102 @@ import (
 	"time"
 )
 
+// LoopRequestAggregates is a daemon API value.
+type LoopRequestAggregates struct {
+	Pending int `json:"pending"`
+}
+
+// LoopRequestPayload is a daemon API value.
+type LoopRequestPayload struct {
+	WorkspaceID      string          `json:"workspace_id,omitempty"`
+	ProfileID        string          `json:"profile_id"`
+	LoopRunID        string          `json:"loop_run_id"`
+	LoopName         string          `json:"loop_name,omitempty"`
+	Generation       int             `json:"generation"`
+	NodeID           string          `json:"node_id"`
+	ItemIndex        int             `json:"item_index"`
+	Kind             string          `json:"kind"`
+	State            string          `json:"state"`
+	Prompt           string          `json:"prompt"`
+	Context          json.RawMessage `json:"context"`
+	Expect           json.RawMessage `json:"expect,omitempty"`
+	EditSchema       json.RawMessage `json:"edit_schema,omitempty"`
+	RespondSchema    json.RawMessage `json:"respond_schema,omitempty"`
+	ProposedPreview  json.RawMessage `json:"proposed_preview,omitempty"`
+	Decisions        []string        `json:"decisions"`
+	Agents           string          `json:"agents"`
+	AnsweredDecision string          `json:"answered_decision,omitempty"`
+	ActorKind        string          `json:"actor_kind,omitempty"`
+	ActorID          string          `json:"actor_id,omitempty"`
+	OpenedAt         time.Time       `json:"opened_at"`
+	AnsweredAt       *time.Time      `json:"answered_at,omitempty"`
+	ResolvedAt       *time.Time      `json:"resolved_at,omitempty"`
+	ExpiresAt        *time.Time      `json:"expires_at,omitempty"`
+}
+
+// LoopRequestProvenance is a daemon API value.
+type LoopRequestProvenance struct {
+	ActorKind  string    `json:"actor_kind"`
+	ActorID    string    `json:"actor_id"`
+	AnsweredAt time.Time `json:"answered_at"`
+}
+
+// LoopRequestsResponse is a daemon API value.
+type LoopRequestsResponse struct {
+	Items      []LoopRequestPayload  `json:"items"`
+	Aggregates LoopRequestAggregates `json:"aggregates"`
+	NextCursor string                `json:"next_cursor"`
+}
+
+// LoopResolvedLifecycleConfig is a daemon API value.
+type LoopResolvedLifecycleConfig struct {
+	RetryMaxAttempts       int               `json:"retry_max_attempts"`
+	RetryBackoffBase       string            `json:"retry_backoff_base"`
+	RetryBackoffMax        string            `json:"retry_backoff_max"`
+	RetryNonRetryable      []string          `json:"retry_non_retryable"`
+	LivenessSilenceWindow  string            `json:"liveness_silence_window"`
+	ResumeDeathStreakLimit int               `json:"resume_death_streak_limit"`
+	PredicateCostLimit     uint64            `json:"predicate_cost_limit"`
+	WaitAdmissionAttempts  int               `json:"wait_admission_attempts"`
+	WaitAdmissionInterval  string            `json:"wait_admission_interval"`
+	AdmissionHorizon       string            `json:"admission_horizon"`
+	Sources                map[string]string `json:"sources"`
+}
+
+// LoopResolvedRuntime is a daemon API value.
+type LoopResolvedRuntime struct {
+	Provider        string                    `json:"provider,omitempty"`
+	Model           string                    `json:"model,omitempty"`
+	Reasoning       string                    `json:"reasoning,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	SpeedResolution *Resolution               `json:"speed_resolution,omitzero"`
+	Source          LoopRuntimeProvenance     `json:"source"`
+}
+
+// LoopResponse is a daemon API value.
+type LoopResponse struct {
+	Loop LoopDefinitionPayload `json:"loop"`
+}
+
+// LoopRouteCausePayload is a daemon API value.
+type LoopRouteCausePayload struct {
+	NodeID      string    `json:"node_id"`
+	ItemIndex   int       `json:"item_index"`
+	Route       string    `json:"route"`
+	Cause       string    `json:"cause"`
+	MatchedWhen string    `json:"matched_when,omitempty"`
+	Default     bool      `json:"default,omitzero"`
+	At          time.Time `json:"at"`
+}
+
+// LoopRunAttention is a daemon API value.
+type LoopRunAttention struct {
+	Kind  string    `json:"kind"`
+	Count int       `json:"count"`
+	Since time.Time `json:"since"`
+}
+
 // LoopRunEventPayload is a daemon API value.
 type LoopRunEventPayload struct {
 	ID          string          `json:"id"`
@@ -349,101 +445,4 @@ type MarketplaceServerPayload struct {
 	Auth        *MCPAuthSummary `json:"auth,omitzero"`
 	Profile     string          `json:"profile,omitempty"`
 	WorkspaceID string          `json:"workspace_id,omitempty"`
-}
-
-// MarketplaceSourcePayload is a daemon API value.
-type MarketplaceSourcePayload struct {
-	Name         string           `json:"name"`
-	Kind         string           `json:"kind"`
-	Source       string           `json:"source"`
-	Enabled      bool             `json:"enabled"`
-	State        string           `json:"state"`
-	Plugins      int              `json:"plugins"`
-	Installable  int              `json:"installable"`
-	LastReadAt   *time.Time       `json:"last_read_at,omitempty"`
-	ErrorClass   string           `json:"error_class,omitempty"`
-	Error        string           `json:"error,omitempty"`
-	DocumentPath string           `json:"document_path,omitempty"`
-	Owner        string           `json:"owner,omitempty"`
-	Stability    string           `json:"stability"`
-	Diagnostics  []DiagnosticItem `json:"diagnostics"`
-}
-
-// MarketplaceSourcePreviewPayload is a daemon API value.
-type MarketplaceSourcePreviewPayload struct {
-	Name         string           `json:"name"`
-	Owner        string           `json:"owner,omitempty"`
-	DocumentPath string           `json:"document_path"`
-	Plugins      int              `json:"plugins"`
-	Installable  int              `json:"installable"`
-	Diagnostics  []DiagnosticItem `json:"diagnostics"`
-}
-
-// MarketplaceSourceResponse is a daemon API value.
-type MarketplaceSourceResponse struct {
-	Source MarketplaceSourcePayload `json:"source"`
-}
-
-// MarketplaceSourceSummary is a daemon API value.
-type MarketplaceSourceSummary struct {
-	Name       string     `json:"name"`
-	Kind       string     `json:"kind"`
-	State      string     `json:"state"`
-	Count      int        `json:"count"`
-	LastReadAt *time.Time `json:"last_read_at,omitempty"`
-}
-
-// MarketplaceSourcesResponse is a daemon API value.
-type MarketplaceSourcesResponse struct {
-	Sources []MarketplaceSourcePayload `json:"sources"`
-}
-
-// Mergeable is a daemon API value.
-type Mergeable string
-
-// Meta is a daemon API value.
-type Meta struct {
-	Name        string      `json:"name"`
-	Version     int         `json:"version,omitzero"`
-	Description string      `json:"description,omitempty"`
-	Catalog     CatalogMeta `json:"catalog"`
-}
-
-// MetaField is a daemon API value.
-type MetaField struct {
-	Label    string            `json:"label"`
-	Value    string            `json:"value"`
-	Requires map[string]string `json:"requires,omitempty"`
-	Fallback string            `json:"fallback,omitempty"`
-}
-
-// MetricDirection is a daemon API value.
-type MetricDirection string
-
-// MetricSpec is a daemon API value.
-type MetricSpec struct {
-	Direction MetricDirection `json:"direction"`
-	MinDelta  *float64        `json:"min_delta,omitzero"`
-}
-
-// MissingPolicy is a daemon API value.
-type MissingPolicy string
-
-// ModelCatalogCostPayload is a daemon API value.
-type ModelCatalogCostPayload struct {
-	InputPerMillion      *float64 `json:"input_per_million,omitempty"`
-	OutputPerMillion     *float64 `json:"output_per_million,omitempty"`
-	CacheReadPerMillion  *float64 `json:"cache_read_per_million,omitempty"`
-	CacheWritePerMillion *float64 `json:"cache_write_per_million,omitempty"`
-	ReasoningPerMillion  *float64 `json:"reasoning_per_million,omitempty"`
-}
-
-// ModelCatalogSourceRefPayload is a daemon API value.
-type ModelCatalogSourceRefPayload struct {
-	SourceID    string `json:"source_id"`
-	SourceKind  string `json:"source_kind"`
-	Priority    int    `json:"priority"`
-	RefreshedAt string `json:"refreshed_at,omitempty"`
-	Stale       bool   `json:"stale"`
-	LastError   string `json:"last_error,omitempty"`
 }

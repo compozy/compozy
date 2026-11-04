@@ -29,6 +29,7 @@ var nativeEntries = map[string]Entry{
 	"compozy__subagent_status":                nativeEntry("Reading", " ", false, "🤖", "auto"),
 	"compozy__subagent_cancel":                nativeEntry("Canceling", " ", false, "🤖", "auto"),
 	"compozy__agent_create":                   nativeEntry("Creating", " ", false, "🤖", "auto"),
+	"compozy__agent_heartbeat_sources":        nativeEntry("Reading", " ", false, "🤖", "auto"),
 	"compozy__agent_heartbeat_status":         nativeEntry("Reading", " ", false, "🤖", "auto"),
 	"compozy__agent_heartbeat_wake":           nativeEntry("Running", " ", false, "🤖", "auto"),
 	"compozy__agent_list":                     nativeEntry("Reading", " ", false, "🤖", "auto"),

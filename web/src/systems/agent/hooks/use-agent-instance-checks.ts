@@ -17,7 +17,11 @@ import {
   agentInstanceDayCheckInsOptions,
   agentInstanceOccurrenceOptions,
 } from "../lib/query-options";
-import type { AgentInstanceCheckDigestItem, AgentInstanceOccurrence } from "../types";
+import type {
+  AgentInstanceCheckDigestItem,
+  AgentInstanceOccurrence,
+  AgentInstanceSourceOutcome,
+} from "../types";
 import { applyAgentInstanceUpdate } from "./use-agent-instances";
 
 const NO_INSTANCE: AgentInstanceRef = { id: "", profile_name: "" };
@@ -51,7 +55,12 @@ export function useSetAgentInstanceChecks() {
 export type TryCheck =
   | { phase: "idle" }
   | { phase: "running" }
-  | { phase: "result"; digest: readonly AgentInstanceCheckDigestItem[] }
+  | {
+      phase: "result";
+      digest: readonly AgentInstanceCheckDigestItem[];
+      /** How each declared source's read went; empty when it declares none. */
+      sources: readonly AgentInstanceSourceOutcome[];
+    }
   | { phase: "stopped"; sentence: string }
   | { phase: "sent"; sentence: string }
   | { phase: "unavailable" };
@@ -119,11 +128,11 @@ export function useTryCheck(ref: AgentInstanceRef | null) {
     if (!ref) return;
     const put = begin();
     try {
-      const { gate, digest } = await runAgentInstanceCheck(ref, true);
+      const { gate, digest, sources } = await runAgentInstanceCheck(ref, true);
       put(
         gate && gate !== "would_run"
           ? { phase: "stopped", sentence: checkInReason(gate) }
-          : { phase: "result", digest: digest ?? [] }
+          : { phase: "result", digest: digest ?? [], sources: sources ?? [] }
       );
     } catch (error) {
       put(failedCheck(error));

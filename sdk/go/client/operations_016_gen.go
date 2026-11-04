@@ -11,6 +11,86 @@ import (
 	"strings"
 )
 
+// GetWorktreeStatus Read or refresh worktree status
+func (c *Client) GetWorktreeStatus(ctx context.Context, params GetWorktreeStatusParams) (*WorktreeStatusResponse, error) {
+	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/status"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
+	query := url.Values{}
+	if params.Refresh != nil {
+		query.Set("refresh", strconv.FormatBool(*params.Refresh))
+	}
+	if params.Forge != nil {
+		query.Set("forge", strconv.FormatBool(*params.Forge))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out WorktreeStatusResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// HeartbeatAgentTaskRunParams carries the path, query, and header parameters.
+type HeartbeatAgentTaskRunParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+	RunID             string `url:"run_id"`
+}
+
+// HeartbeatAgentTaskRun Extend a claimed task-run lease for the calling agent
+func (c *Client) HeartbeatAgentTaskRun(ctx context.Context, params HeartbeatAgentTaskRunParams, body AgentTaskHeartbeatRequest) (*AgentTaskLeaseResponse, error) {
+	path := "/api/agent/tasks/{run_id}/heartbeat"
+	headers := http.Header{}
+	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
+	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
+	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
+	var out AgentTaskLeaseResponse
+	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InspectRunParams carries the path, query, and header parameters.
+type InspectRunParams struct {
+	ID          string  `url:"id"`
+	Profile     *string `url:"profile"`
+	AllProfiles *bool   `url:"all_profiles"`
+}
+
+// InspectRun Inspect one task run with diagnostics
+func (c *Client) InspectRun(ctx context.Context, params InspectRunParams) (*TaskInspectResponse, error) {
+	path := "/api/runs/{id}/inspect"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskInspectResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// InspectSessionParams carries the path, query, and header parameters.
+type InspectSessionParams struct {
+	WorkspaceID             string  `url:"workspace_id"`
+	SessionID               string  `url:"session_id"`
+	IncludeRecentWakeEvents *bool   `url:"include_recent_wake_events"`
+	Profile                 *string `url:"profile"`
+	AllProfiles             *bool   `url:"all_profiles"`
+}
+
 // InspectSession Inspect session health, wake audit, and policy correlation metadata
 func (c *Client) InspectSession(ctx context.Context, params InspectSessionParams) (*SessionInspectResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/inspect"
@@ -357,88 +437,6 @@ func (c *Client) ListAgentInstanceReports(ctx context.Context, params ListAgentI
 		path += "?" + query.Encode()
 	}
 	var out AgentInstanceReportsResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentInstancesParams carries the path, query, and header parameters.
-type ListAgentInstancesParams struct {
-	Workspace     *string `url:"workspace"`
-	AllWorkspaces *string `url:"all_workspaces"`
-	Peers         *string `url:"peers"`
-	Agent         *string `url:"agent"`
-	State         *string `url:"state"`
-	Cursor        *string `url:"cursor"`
-	Limit         *string `url:"limit"`
-	Profile       *string `url:"profile"`
-	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// ListAgentInstances List agent instances
-func (c *Client) ListAgentInstances(ctx context.Context, params ListAgentInstancesParams) (*AgentInstanceListResponse, error) {
-	path := "/api/agent-instances"
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", *params.AllWorkspaces)
-	}
-	if params.Peers != nil {
-		query.Set("peers", *params.Peers)
-	}
-	if params.Agent != nil {
-		query.Set("agent", *params.Agent)
-	}
-	if params.State != nil {
-		query.Set("state", *params.State)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", *params.Limit)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentInstanceListResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// ListAgentMemoryHistoryParams carries the path, query, and header parameters.
-type ListAgentMemoryHistoryParams struct {
-	Name      string  `url:"name"`
-	Workspace *string `url:"workspace"`
-	Profile   *string `url:"profile"`
-}
-
-// ListAgentMemoryHistory List the last fifty memory revisions (experimental) Experimental: pin the exact SDK version.
-func (c *Client) ListAgentMemoryHistory(ctx context.Context, params ListAgentMemoryHistoryParams) (*AgentMemoryHistoryResponse, error) {
-	path := "/api/agents/{name}/memory/history"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out AgentMemoryHistoryResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

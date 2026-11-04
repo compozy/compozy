@@ -135,6 +135,12 @@ func (n *daemonNativeTools) authoredContextToolBindings(
 			call:         n.sessionHealth,
 			availability: healthAvailability,
 		},
+		toolspkg.ToolIDAgentHeartbeatSources: {
+			call: n.agentHeartbeatSources,
+			availability: n.dependencyAvailability(func() bool {
+				return n.deps.AgentInstances != nil && n.deps.AgentInstances() != nil && n.deps.WorkspaceResolver != nil
+			}),
+		},
 		toolspkg.ToolIDAgentHeartbeatStatus: {
 			call:         n.agentHeartbeatStatus,
 			availability: statusAvailability,

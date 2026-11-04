@@ -4,11 +4,94 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// GetTaskInboxParams carries the path, query, and header parameters.
+type GetTaskInboxParams struct {
+	Scope         *string   `url:"scope"`
+	Workspace     *string   `url:"workspace"`
+	AllWorkspaces *bool     `url:"all_workspaces"`
+	WorkspaceIds  *[]string `url:"workspace_ids"`
+	Worktree      *string   `url:"worktree"`
+	OwnerKind     *string   `url:"owner_kind"`
+	OwnerRef      *string   `url:"owner_ref"`
+	Lane          *string   `url:"lane"`
+	Status        *string   `url:"status"`
+	Priority      *string   `url:"priority"`
+	Unread        *bool     `url:"unread"`
+	Query         *string   `url:"query"`
+	Cursor        *string   `url:"cursor"`
+	Limit         *int      `url:"limit"`
+	Profile       *string   `url:"profile"`
+	AllProfiles   *bool     `url:"all_profiles"`
+}
+
+// GetTaskInbox Get the observer-backed task inbox
+func (c *Client) GetTaskInbox(ctx context.Context, params GetTaskInboxParams) (*TaskInboxResponse, error) {
+	path := "/api/observe/tasks/inbox"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.Workspace != nil {
+		query.Set("workspace", *params.Workspace)
+	}
+	if params.AllWorkspaces != nil {
+		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
+	}
+	if params.WorkspaceIds != nil {
+		for _, value := range *params.WorkspaceIds {
+			query.Add("workspace_ids", value)
+		}
+	}
+	if params.Worktree != nil {
+		query.Set("worktree", *params.Worktree)
+	}
+	if params.OwnerKind != nil {
+		query.Set("owner_kind", *params.OwnerKind)
+	}
+	if params.OwnerRef != nil {
+		query.Set("owner_ref", *params.OwnerRef)
+	}
+	if params.Lane != nil {
+		query.Set("lane", *params.Lane)
+	}
+	if params.Status != nil {
+		query.Set("status", *params.Status)
+	}
+	if params.Priority != nil {
+		query.Set("priority", *params.Priority)
+	}
+	if params.Unread != nil {
+		query.Set("unread", strconv.FormatBool(*params.Unread))
+	}
+	if params.Query != nil {
+		query.Set("query", *params.Query)
+	}
+	if params.Cursor != nil {
+		query.Set("cursor", *params.Cursor)
+	}
+	if params.Limit != nil {
+		query.Set("limit", strconv.Itoa(*params.Limit))
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if params.AllProfiles != nil {
+		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskInboxResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // GetTaskRunParams carries the path, query, and header parameters.
 type GetTaskRunParams struct {
@@ -356,84 +439,4 @@ type GetWorktreeStatusParams struct {
 	WorktreeID  string `url:"worktree_id"`
 	Refresh     *bool  `url:"refresh"`
 	Forge       *bool  `url:"forge"`
-}
-
-// GetWorktreeStatus Read or refresh worktree status
-func (c *Client) GetWorktreeStatus(ctx context.Context, params GetWorktreeStatusParams) (*WorktreeStatusResponse, error) {
-	path := "/api/workspaces/{workspace_id}/worktrees/{worktree_id}/status"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{worktree_id}", url.PathEscape(params.WorktreeID))
-	query := url.Values{}
-	if params.Refresh != nil {
-		query.Set("refresh", strconv.FormatBool(*params.Refresh))
-	}
-	if params.Forge != nil {
-		query.Set("forge", strconv.FormatBool(*params.Forge))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out WorktreeStatusResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// HeartbeatAgentTaskRunParams carries the path, query, and header parameters.
-type HeartbeatAgentTaskRunParams struct {
-	XCompozySessionID string `url:"X-Compozy-Session-ID"`
-	XCompozyAgent     string `url:"X-Compozy-Agent"`
-	RunID             string `url:"run_id"`
-}
-
-// HeartbeatAgentTaskRun Extend a claimed task-run lease for the calling agent
-func (c *Client) HeartbeatAgentTaskRun(ctx context.Context, params HeartbeatAgentTaskRunParams, body AgentTaskHeartbeatRequest) (*AgentTaskLeaseResponse, error) {
-	path := "/api/agent/tasks/{run_id}/heartbeat"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	var out AgentTaskLeaseResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// InspectRunParams carries the path, query, and header parameters.
-type InspectRunParams struct {
-	ID          string  `url:"id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// InspectRun Inspect one task run with diagnostics
-func (c *Client) InspectRun(ctx context.Context, params InspectRunParams) (*TaskInspectResponse, error) {
-	path := "/api/runs/{id}/inspect"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskInspectResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// InspectSessionParams carries the path, query, and header parameters.
-type InspectSessionParams struct {
-	WorkspaceID             string  `url:"workspace_id"`
-	SessionID               string  `url:"session_id"`
-	IncludeRecentWakeEvents *bool   `url:"include_recent_wake_events"`
-	Profile                 *string `url:"profile"`
-	AllProfiles             *bool   `url:"all_profiles"`
 }

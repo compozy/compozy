@@ -13,11 +13,12 @@ import (
 )
 
 type instanceDefinitions struct {
-	monitors   instanceRotationMonitors
-	workspaces *workspacepkg.Resolver
-	profiles   session.ProfileNameResolver
-	agents     session.AgentResolver
-	sessions   *session.Manager
+	sourceDeclarations *instanceSourceDeclarations
+	monitors           instanceRotationMonitors
+	workspaces         *workspacepkg.Resolver
+	profiles           session.ProfileNameResolver
+	agents             session.AgentResolver
+	sessions           *session.Manager
 }
 
 var _ instanceDefinitionReader = instanceDefinitions{}

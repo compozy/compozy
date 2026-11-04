@@ -4,6 +4,7 @@ import { compozyApiMock } from "@/storybook/openapi-msw";
 import { sessionFixtures } from "@/systems/session/mocks";
 
 import { agentFixtures, FIXTURE_AGENT_DEFINITION_DIGEST } from "./fixtures";
+import { heartbeatSourceHandlers, resetHeartbeatSourceMock } from "./heartbeat-source-handlers";
 import {
   agentInstanceMockScopes,
   instanceHandlers,
@@ -24,6 +25,7 @@ export function resetAgentMockState(): void {
   agentsState = cloneAgents();
   soulBodies.clear();
   heartbeatBodies.clear();
+  resetHeartbeatSourceMock();
   resetAgentInstanceMock();
   resetAgentMemoryMock();
 }
@@ -506,6 +508,7 @@ export const handlers: HttpHandler[] = [
       diagnostics: [],
     });
   }),
+  ...heartbeatSourceHandlers(name => agentByName(name) !== undefined),
   compozyApiMock.get("/api/agents/{name}/heartbeat/history", ({ params }) => {
     const name = String(params.name);
     if (!agentByName(name)) {

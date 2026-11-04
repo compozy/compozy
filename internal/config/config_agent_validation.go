@@ -20,6 +20,7 @@ func DefaultSoulConfig() SoulConfig {
 // DefaultHeartbeatConfig returns built-in Agent Heartbeat wake-policy limits.
 func DefaultHeartbeatConfig() HeartbeatConfig {
 	return HeartbeatConfig{
+		Sources:                      DefaultHeartbeatSourcesConfig(),
 		MaxInterval:                  24 * time.Hour,
 		MaxConcurrentTriage:          2,
 		QuietBackoffCap:              4 * time.Hour,
@@ -94,6 +95,9 @@ func (c SoulConfig) Validate() error {
 
 // Validate ensures HEARTBEAT.md limits and timing bounds are internally consistent.
 func (c HeartbeatConfig) Validate() error {
+	if err := c.Sources.Validate(); err != nil {
+		return err
+	}
 	if err := validateTriageModelNames(c.TriageModels); err != nil {
 		return err
 	}

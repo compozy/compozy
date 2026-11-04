@@ -128,6 +128,7 @@ func (h *BaseHandlers) GetAgentInstanceOccurrence(c *gin.Context) {
 // AgentInstanceCheckResponse projects the public check result for every transport.
 func AgentInstanceCheckResponse(result heartbeat.CheckResult) contract.AgentInstanceCheckResponse {
 	response := contract.AgentInstanceCheckResponse{
+		Sources:      result.Sources,
 		Gate:         result.Gate,
 		OccurrenceID: result.OccurrenceID,
 		Digest:       []contract.AgentInstanceCheckDigest{},
@@ -137,7 +138,11 @@ func AgentInstanceCheckResponse(result heartbeat.CheckResult) contract.AgentInst
 		for _, item := range result.Digest.Items {
 			response.Digest = append(
 				response.Digest,
-				contract.AgentInstanceCheckDigest{Key: item.Key, Summary: agentCheckDigestSummary(item.Key)},
+				contract.AgentInstanceCheckDigest{
+					Key:     item.Key,
+					Summary: agentDigestItemSummary(item),
+					Source:  agentDigestItemSource(item),
+				},
 			)
 		}
 	}
@@ -151,4 +156,28 @@ func agentCheckDigestSummary(key string) string {
 		queryFilterIdleValue: "Idle session", "auto": "Failed automation", "monitor": "Fired monitor",
 	}[family]
 	return diagnostics.RedactAndBound(label+" "+strings.ReplaceAll(rest, ":", " · "), 200)
+}
+
+func agentDigestItemSummary(item heartbeat.DigestItem) string {
+	if strings.HasPrefix(item.Key, "source:") {
+		return item.Summary
+	}
+	return agentCheckDigestSummary(item.Key)
+}
+func agentDigestItemSource(item heartbeat.DigestItem) *contract.AgentInstanceProposalSource {
+	if item.Source == nil {
+		return nil
+	}
+	s := item.Source
+	return &contract.AgentInstanceProposalSource{
+		Kind:       s.Kind,
+		SourceID:   s.SourceID,
+		SourceRef:  s.SourceRef,
+		ItemKey:    s.ItemKey,
+		URL:        s.URL,
+		EventID:    s.EventID,
+		TriggerID:  s.TriggerID,
+		RunID:      s.RunID,
+		ReceivedAt: s.ReceivedAt,
+	}
 }

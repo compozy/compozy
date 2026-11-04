@@ -54,3 +54,12 @@ QA impact 2026-09-10: cancellation worker ordering now preserves the accepted pr
 must report `499` at WARN and omit `api: request failed` at ERROR. Cancel between a transcript
 read and its commit as well. A live-context double commit, deadline and SQLite lock error must
 remain server failures. This read cancellation must not cancel the agent's execution.
+
+2026-11-03 shutdown cancellation follow-up (#1245): cancel an active turn during daemon restart
+while restart-skip storage has a transient read or append failure. The bounded retry must persist
+one `turn_canceled` skip and the canceled turn must not resume. Hold the skip append open and verify
+that cancellation returns and the provider turn quiesces before storage is released. Cancel before
+the shutdown scan captures the interruption as well; the skip must still prevent continuation.
+Focused SQLite verification is owned by `TestDaemonShutdownResumeSkip` and
+`TestResumeInterruptedSession`. Public-surface and live-provider re-walks remain deferred under the
+merge train's host-load restriction.

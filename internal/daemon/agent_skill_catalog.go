@@ -259,6 +259,9 @@ func (c *resourceAgentCatalog) ResolveHeartbeatPolicy(
 		Content:       []byte(artifacts.HeartbeatBody),
 		Config:        config,
 	})
+	if parseErr == nil {
+		heartbeat.WarnUntrustedScripts(&policy)
+	}
 	return policy, true, parseErr
 }
 

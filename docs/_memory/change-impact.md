@@ -1,5 +1,20 @@
 # Compozy Change Impact
 
+## Check-in sources for always-on agents — 2026-11-04
+
+Owner: spec `.compozy/tasks/heartbeat-sources/`. Always-on agents can ask an external system what is new on each check-in without a model turn.
+
+- **Native tools.** New read-only `compozy__agent_heartbeat_sources`. No tool approves or revokes scripts (operator-only). `compozy__agent_instance_get` and `compozy__agent_instance_check` results gain `sources`. No tool writes source scripts.
+- **CLI/HTTP/UDS.** `compozy agent heartbeat sources`, `sources approve|revoke` (operator-only; agent credentials get `source_approval_operator_only`); `GET /api/agents/:name/heartbeat/sources` / UDS `agent.heartbeat.sources`; instance reads and dry-run checks gain `sources`; proposal provenance gains `kind:"source"`.
+- **Extensibility and hooks.** New provide surface `heartbeat.source` (`heartbeat/source_poll`, describe `heartbeat_source_kinds`), SDK helpers, scaffold `heartbeat-source-go`. `forge-github` provides `heartbeat.source` kind `issues`. Extension-shipped `sources/` scripts never run. Hooks unchanged.
+- **Config.** `[agents.heartbeat.sources]`, daemon-wide (overlays are ignored with a warning) and restart-required. Keys: `scripts_enabled`, `timeout`, `max_concurrent_polls`, `max_per_agent`, `max_items`, `max_output_bytes`, `max_state_bytes`, `failure_threshold`, `env_allow`.
+- **Workspace data isolation.** Source state is per instance, and so per profile and workspace. Scripts run with cwd = the instance's workspace root or the User `work_dir`, and get no `session_env`. Extension kinds resolve the agent instance's own workspace extension instance. Catalog reads follow the agent's scope.
+- **User state.** `HEARTBEAT.md` `context.sources` (additive; older daemons reject it on downgrade). New tables `agent_instance_source_states` and `heartbeat_source_script_approvals` and a widened wake-reason CHECK (`source_poll_in_flight`), in append-only migrations `00187` (tables, reason CHECK) and `00188` (approvals cascade with profile deletion). No file is rewritten on upgrade.
+- **Runtime behavior.** Only for instances with sources: off-tick polling, a source-aware gate, cadence without quiet backoff (a `more` batch wakes at `agents.heartbeat.min_interval`), and proposal folding. Instances without sources are unchanged.
+- **Web.** Check-ins page source rows, Add source dialog, report provenance. No new page.
+- **Docs and official skill.** heartbeat.mdx, config-toml.mdx, extensions manifest/develop, tutorial "Watch new GitHub issues"; `skills/compozy/references/{agent-definitions,configuration,extension-authoring,native-tools}.md`; glossary "check-in source".
+- **QA.** New `docs/qa/scenarios/MS-always-on-check-in-sources.md`; extend `MS-web-stays-on-reports.md` (source provenance).
+
 ## Preserve agent runtime selection across kind changes — 2026-11-03
 
 The Web create draft keeps an explicit runtime when switching between workspace On-demand and

@@ -472,6 +472,38 @@ func isRepositoryField(field reflect.StructField) bool {
 func TestOpenGlobalDBReopenPreservesRowsAndStatus(t *testing.T) {
 	// IT-024: v0.4.8 ends at migration 163. Preserve its heartbeat wake state,
 	// permission history and automation trigger through the real upgrade and reopen.
+	t.Run("Should preserve script approvals through cascade migration and reopen", func(t *testing.T) {
+		t.Parallel()
+		ctx := globalMigrationTestContext(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prior, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00188_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := prior.ExecContext(
+			ctx,
+			`INSERT INTO heartbeat_source_script_approvals VALUES ('00000000000000000000000000','/definition','poll','approved-hash','2026-11-03','cli')`,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if err := prior.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for range 2 {
+			db := openGlobalDBForTest(t, path)
+			var hash string
+			if err := db.DB().
+				QueryRowContext(ctx, `SELECT sha256 FROM heartbeat_source_script_approvals WHERE script_name='poll'`).
+				Scan(&hash); err != nil ||
+				hash != "approved-hash" {
+				t.Fatalf("hash=%s err=%v", hash, err)
+			}
+			assertGlobalMigrationIntegrity(ctx, t, db.DB())
+			if err := db.Close(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+	})
 	t.Run("Should preserve v0.4.8 wake permission and trigger data through hardening", func(t *testing.T) {
 		t.Parallel()
 		ctx := globalMigrationTestContext(t)

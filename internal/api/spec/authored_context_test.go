@@ -247,6 +247,7 @@ func TestAuthoredContextOpenAPIContracts(t *testing.T) {
 			"failed",
 		)
 		assertEnumValues(t, propertySchema(t, decisionSchema, "reason"),
+			"source_poll_in_flight",
 			"wake_sent",
 			"heartbeat_disabled",
 			"heartbeat_invalid",

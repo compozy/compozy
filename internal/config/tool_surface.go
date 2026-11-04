@@ -10,8 +10,6 @@ import (
 
 	"strings"
 	"time"
-
-	hookspkg "github.com/compozy/compozy/internal/hooks"
 )
 
 const (
@@ -78,6 +76,15 @@ var (
 		"agents.soul.enabled":                                      ConfigValueBool,
 		toolSurfaceAgentsSoulMaxBodyBytesPath:                      ConfigValueInt64,
 		toolSurfaceAgentsSoulContextProjectionBytesPath:            ConfigValueInt64,
+		"agents.heartbeat.sources.scripts_enabled":                 ConfigValueBool,
+		"agents.heartbeat.sources.timeout":                         ConfigValueDuration,
+		"agents.heartbeat.sources.max_concurrent_polls":            ConfigValueInt,
+		"agents.heartbeat.sources.max_per_agent":                   ConfigValueInt,
+		"agents.heartbeat.sources.max_items":                       ConfigValueInt,
+		"agents.heartbeat.sources.max_output_bytes":                ConfigValueInt,
+		"agents.heartbeat.sources.max_state_bytes":                 ConfigValueInt,
+		"agents.heartbeat.sources.failure_threshold":               ConfigValueInt,
+		"agents.heartbeat.sources.env_allow":                       ConfigValueStringSlice,
 		"agents.heartbeat.enabled":                                 ConfigValueBool,
 		toolSurfaceAgentsHeartbeatMaxBodyBytesPath:                 ConfigValueInt64,
 		toolSurfaceAgentsHeartbeatContextProjectionBytesPath:       ConfigValueInt64,
@@ -403,65 +410,6 @@ func normalizeScalarConfigValue(kind ValueKind, value any) (any, error) {
 		return nil, fmt.Errorf("config: expected string, boolean, number, or object value, got %T", value)
 	}
 	return nil, fmt.Errorf("config: expected string, boolean, or number value, got %T", value)
-}
-
-// OverlayHookDeclarations returns config-backed hook declarations from one overlay target.
-func OverlayHookDeclarations(target WriteTarget) ([]hookspkg.HookDecl, error) {
-	if !target.isConfigTarget() {
-		return nil, fmt.Errorf("config: write target %q is not a config overlay", target.Kind())
-	}
-	overlay, err := loadConfigOverlayFile(target.path)
-	if err != nil {
-		return nil, err
-	}
-	decls := make([]hookspkg.HookDecl, 0, len(overlay.Hooks.Declarations))
-	for idx := range overlay.Hooks.Declarations {
-		raw := &overlay.Hooks.Declarations[idx]
-		decl, err := raw.toHookDecl(hookspkg.HookSourceConfig, "")
-		if err != nil {
-			return nil, fmt.Errorf("hooks.declarations[%d]: %w", idx, err)
-		}
-		decls = append(decls, decl)
-	}
-	return decls, nil
-}
-
-// HookDeclarationOverlayValues converts a hook declaration to TOML overlay values.
-func HookDeclarationOverlayValues(decl hookspkg.HookDecl) map[string]any {
-	values := map[string]any{
-		toolSurfaceEventKey: string(decl.Event),
-	}
-	if decl.Enabled != nil {
-		values[string(ToolsExternalDefaultEnabled)] = *decl.Enabled
-	}
-	if decl.Mode != "" {
-		values["mode"] = string(decl.Mode)
-	}
-	if decl.Required {
-		values["required"] = true
-	}
-	if decl.PrioritySet || decl.Priority != 0 {
-		values["priority"] = decl.Priority
-	}
-	if decl.Timeout > 0 {
-		values["timeout"] = decl.Timeout.String()
-	}
-	if matcher := hookMatcherOverlayValues(decl.Matcher); len(matcher) > 0 {
-		values["matcher"] = matcher
-	}
-	if decl.Command != "" {
-		values[toolSurfaceCommandKey] = decl.Command
-	}
-	if len(decl.Args) > 0 {
-		values["args"] = append([]string(nil), decl.Args...)
-	}
-	if len(decl.Env) > 0 {
-		values["env"] = mergeStringMaps(nil, decl.Env)
-	}
-	if decl.ExecutorKind != "" && decl.ExecutorKind != hookspkg.HookExecutorSubprocess {
-		values["executor"] = map[string]any{"kind": string(decl.ExecutorKind)}
-	}
-	return values
 }
 
 func providerMutableConfigPolicy(clean []string) (PathPolicy, bool) {

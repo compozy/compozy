@@ -7,12 +7,21 @@ import (
 	"time"
 )
 
+type ReasonCode string
+
 type ReasoningSource string
 
 type Redaction struct {
 	Path   string     `json:"path"`
 	Reason ReasonCode `json:"reason"`
 	Bytes  int64      `json:"bytes,omitempty"`
+}
+
+type Ref struct {
+	ID     string          `json:"id"`
+	Kind   string          `json:"kind,omitempty"`
+	Script string          `json:"script,omitempty"`
+	With   json.RawMessage `json:"with,omitempty"`
 }
 
 type ReplyWatchPayload struct {
@@ -114,7 +123,3 @@ type RetryConfig struct {
 	MaxRetries int           `json:"max_retries"`
 	BaseDelay  string        `json:"base_delay"`
 }
-
-type RetryStrategy string
-
-type RiskClass string

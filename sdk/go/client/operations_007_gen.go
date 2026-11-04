@@ -4,11 +4,37 @@ package client
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+// DismissTask Dismiss one task inbox item
+func (c *Client) DismissTask(ctx context.Context, params DismissTaskParams) (*TaskTriageStateResponse, error) {
+	path := "/api/tasks/{id}/triage/dismiss"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskTriageStateResponse
+	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DismissWorktreeParams carries the path, query, and header parameters.
+type DismissWorktreeParams struct {
+	WorkspaceID  string  `url:"workspace_id"`
+	WorktreeID   string  `url:"worktree_id"`
+	DeleteBranch *bool   `url:"delete_branch"`
+	Force        *bool   `url:"force"`
+	Profile      *string `url:"profile"`
+}
 
 // DismissWorktree Dismiss a worktree tombstone
 func (c *Client) DismissWorktree(ctx context.Context, params DismissWorktreeParams) (*WorktreeCleanupResponse, error) {
@@ -412,24 +438,4 @@ type FailAgentTaskRunParams struct {
 	XCompozySessionID string `url:"X-Compozy-Session-ID"`
 	XCompozyAgent     string `url:"X-Compozy-Agent"`
 	RunID             string `url:"run_id"`
-}
-
-// FailAgentTaskRun Fail a claimed task run for the calling agent
-func (c *Client) FailAgentTaskRun(ctx context.Context, params FailAgentTaskRunParams, body AgentTaskFailRequest) (*AgentTaskLeaseResponse, error) {
-	path := "/api/agent/tasks/{run_id}/fail"
-	headers := http.Header{}
-	headers.Set("X-Compozy-Session-ID", params.XCompozySessionID)
-	headers.Set("X-Compozy-Agent", params.XCompozyAgent)
-	path = strings.ReplaceAll(path, "{run_id}", url.PathEscape(params.RunID))
-	var out AgentTaskLeaseResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// FailTaskRunParams carries the path, query, and header parameters.
-type FailTaskRunParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

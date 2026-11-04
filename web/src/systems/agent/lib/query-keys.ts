@@ -63,6 +63,8 @@ export const agentKeys = {
     [...agentKeys.detail(name, workspace, profile), "heartbeat"] as const,
   heartbeatHistory: (name: string, workspace?: string | null, profile = "default") =>
     [...agentKeys.heartbeat(name, workspace, profile), "history"] as const,
+  heartbeatSources: (name: string, workspace?: string | null, profile = "default") =>
+    [...agentKeys.heartbeat(name, workspace, profile), "sources"] as const,
   heartbeatStatuses: (name: string, workspace?: string | null, profile = "default") =>
     [...agentKeys.heartbeat(name, workspace, profile), "status"] as const,
   heartbeatStatus: (name: string, options: AgentHeartbeatStatusKeyOptions = {}) =>

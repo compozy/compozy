@@ -21,6 +21,7 @@ func (m *Manager) PrepareDaemonShutdown(ctx context.Context, restart bool) error
 		active, ok := m.Get(info.ID)
 		if ok && active.IsPrompting() && active.promptCancellationRequested(active.CurrentTurnID()) {
 			// The user already canceled this turn; it is not interrupted work to continue.
+			m.skipDaemonShutdownResume(ctx, active, active.CurrentTurnID())
 			continue
 		}
 		if !ok || !active.IsPrompting() {
@@ -30,8 +31,12 @@ func (m *Manager) PrepareDaemonShutdown(ctx context.Context, restart bool) error
 			continue
 		}
 		meta := active.Meta()
+		turnID := active.CurrentTurnID()
 		if err := m.captureRestartInterruption(ctx, &meta, daemonShutdownCaptureReason(restart)); err != nil {
 			errs = append(errs, err)
+		}
+		if active.promptCancellationRequested(turnID) {
+			m.skipDaemonShutdownResume(ctx, active, turnID)
 		}
 	}
 	return errors.Join(errs...)

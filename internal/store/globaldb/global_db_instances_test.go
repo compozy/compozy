@@ -16,7 +16,9 @@ import (
 
 	"github.com/compozy/compozy/internal/agentinstance"
 	automationmodel "github.com/compozy/compozy/internal/automation/model"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/sessiondb"
@@ -2521,9 +2523,27 @@ func TestInstanceCheckRecovery(t *testing.T) {
 					t.Fatal(err)
 				}
 				now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+				refs := []source.Ref{{ID: "recovery-source", Script: "poll"}}
+				sources, err := repo.SourceStates(t.Context(), instance.ID, refs, false, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+
 				if ok, err := repo.Admit(
 					t.Context(),
 					heartbeat.AdmitRequest{
+						Sources: []heartbeat.PolledSource{
+							{
+								Ref:        refs[0],
+								RefDigest:  sources[0].RefDigest,
+								Generation: sources[0].Generation,
+								Result: source.Result{
+									Items: []source.Item{{Key: "1", Title: "pending"}},
+									State: []byte(`{"cursor":1}`),
+								},
+							},
+						},
+
 						InstanceID:    instance.ID,
 						OccurrenceID:  occurrence,
 						NextWakeAt:    now.Add(17 * time.Minute),
@@ -2579,6 +2599,17 @@ func TestInstanceCheckRecovery(t *testing.T) {
 				})
 				if err := service.Recover(t.Context()); err != nil {
 					t.Fatal(err)
+				}
+				sources, err = repo.SourceStates(t.Context(), instance.ID, refs, true, now)
+				if err != nil || len(sources[0].State) != 0 || sources[0].Generation != 2 {
+					t.Fatalf("recovered source=%+v err=%v", sources, err)
+				}
+				var pending bool
+				if err := db.DB().
+					QueryRowContext(t.Context(), "SELECT pending_occurrence_id IS NOT NULL FROM agent_instance_source_states WHERE instance_id=? AND source_id='recovery-source'", instance.ID).
+					Scan(&pending); err != nil ||
+					pending {
+					t.Fatalf("pending=%v err=%v", pending, err)
 				}
 				if len(dispatcher.stopped) != 1 || dispatcher.stopped[0] != "hidden" {
 					t.Fatalf("stopped=%v", dispatcher.stopped)
@@ -5486,6 +5517,365 @@ func TestInstanceCheckUnattendedPauseEffects(t *testing.T) {
 			}
 		case <-waitCtx.Done():
 			t.Fatal("counted check did not publish pause effects")
+		}
+	})
+}
+
+func TestHeartbeatSourceTransactions(t *testing.T) {
+	for _, outcome := range []string{"quiet", "failed"} {
+		t.Run("Should commit only successful bound state "+outcome+" [UT-040 IT-003 IT-004]", func(t *testing.T) {
+			t.Parallel()
+			db := openTestGlobalDB(t)
+			repo := db.Instances()
+			now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+			_, err := db.DB().
+				ExecContext(t.Context(), `INSERT INTO agent_instances (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at) VALUES ('source-test',?,'coder','active','human','operator',?,?)`, store.DefaultProfileID, store.FormatTimestamp(now), store.FormatTimestamp(now))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.DB().
+				ExecContext(t.Context(), "INSERT INTO agent_instance_wake_state(instance_id) VALUES ('source-test')"); err != nil {
+				t.Fatal(err)
+			}
+			refs := []source.Ref{{ID: "s", Script: "poll"}}
+			states, err := repo.SourceStates(t.Context(), "source-test", refs, false, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			batch := []heartbeat.PolledSource{
+				{
+					Ref:        refs[0],
+					RefDigest:  states[0].RefDigest,
+					Generation: states[0].Generation,
+					Result: source.Result{
+						State: []byte(`{"cursor":1}`),
+						Items: []source.Item{{Key: "1", Title: "one"}},
+					},
+				},
+			}
+			deferred, err := repo.DeferWake(t.Context(), "source-test", "", now.Add(time.Minute))
+			if err != nil || !deferred {
+				t.Fatalf("defer=%v %v", deferred, err)
+			}
+			admitted, err := repo.Admit(
+				t.Context(),
+				heartbeat.AdmitRequest{
+					InstanceID:    "source-test",
+					OccurrenceID:  "occ",
+					ExpectedDue:   store.FormatTimestamp(now.Add(time.Minute)),
+					Now:           now,
+					NextWakeAt:    now.Add(time.Hour),
+					MaxConcurrent: 1,
+					Sources:       batch,
+				},
+			)
+			if err != nil || !admitted {
+				t.Fatalf("admit=%v %v", admitted, err)
+			}
+			_, err = repo.Finish(
+				t.Context(),
+				heartbeat.FinishRequest{
+					InstanceID:   "source-test",
+					OccurrenceID: "occ",
+					Source:       "timer",
+					Result:       outcome,
+					Reason:       map[string]string{"quiet": "quiet", "failed": "triage_failed"}[outcome],
+					Now:          now,
+					NextWakeAt:   now.Add(time.Hour),
+					ExpiresAt:    now.Add(24 * time.Hour),
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			states, err = repo.SourceStates(t.Context(), "source-test", refs, true, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (len(states[0].State) > 0) != (outcome == "quiet") {
+				t.Fatalf("state=%s after %s", states[0].State, outcome)
+			}
+			refs[0].With = []byte(`{"changed":true}`)
+			reset, err := repo.SourceStates(t.Context(), "source-test", refs, false, now)
+			if err != nil || len(reset[0].State) != 0 || reset[0].Generation <= states[0].Generation {
+				t.Fatalf("reset=%+v err=%v", reset, err)
+			}
+			admitted, err = repo.Admit(
+				t.Context(),
+				heartbeat.AdmitRequest{
+					InstanceID:    "source-test",
+					OccurrenceID:  "stale",
+					Now:           now,
+					NextWakeAt:    now.Add(time.Hour),
+					ManualCheck:   true,
+					MaxConcurrent: 1,
+					Sources:       batch,
+				},
+			)
+			if !errors.Is(err, errSourceCAS) || admitted {
+				t.Fatalf("stale admit=%v err=%v", admitted, err)
+			}
+			wake, err := repo.WakeState(t.Context(), "source-test")
+			if err != nil || wake.OccurrenceID != "" {
+				t.Fatalf("stale admission did not rollback: %+v %v", wake, err)
+			}
+			empty := heartbeat.PolledSource{
+				Ref:        refs[0],
+				RefDigest:  reset[0].RefDigest,
+				Generation: reset[0].Generation,
+				Result:     source.Result{State: []byte(`{"cursor":2}`)},
+			}
+			skipped, err := repo.Skip(
+				t.Context(),
+				heartbeat.SkipRequest{
+					InstanceID:  "source-test",
+					ManualCheck: true,
+					Reason:      "digest_empty",
+					Now:         now,
+					NextWakeAt:  now.Add(time.Hour),
+					ExpiresAt:   now.Add(24 * time.Hour),
+					Sources:     []heartbeat.PolledSource{empty},
+				},
+			)
+			if err != nil || !skipped {
+				t.Fatalf("empty skip=%v err=%v", skipped, err)
+			}
+			after, err := repo.SourceStates(t.Context(), "source-test", refs, true, now)
+			if err != nil || string(after[0].State) != `{"cursor":2}` {
+				t.Fatalf("empty commit=%+v err=%v", after, err)
+			}
+		})
+	}
+}
+
+func TestSourceFinishCadence(t *testing.T) {
+	t.Run("Should keep source cadence after quiet finish [UT-042]", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+		req := heartbeat.FinishRequest{
+			HasSources:      true,
+			InstanceID:      "s",
+			Source:          "timer",
+			Result:          "quiet",
+			Interval:        time.Hour,
+			MaxInterval:     24 * time.Hour,
+			QuietBackoffCap: 4 * time.Hour,
+			Now:             now,
+		}
+		if got := nextInstanceWake(&req, 6, 0); !got.Equal(heartbeat.NextCheckTime(now, time.Hour, "s")) {
+			t.Fatal(got)
+		}
+		req.HasSources = false
+		if got := nextInstanceWake(&req, 6, 0); !got.Equal(heartbeat.NextCheckTime(now, 4*time.Hour, "s")) {
+			t.Fatal(got)
+		}
+	})
+}
+
+type sourceCollectionEnvironment struct {
+	instanceCheckEnvironment
+	repo    *InstanceRepo
+	started chan struct{}
+	release chan struct{}
+	fast    chan struct{}
+}
+
+func (e *sourceCollectionEnvironment) ResolveCheck(ctx context.Context, id string) (heartbeat.CheckTarget, error) {
+	target := e.target
+	instance, err := e.repo.Get(ctx, id)
+	target.Instance = instance
+	return target, err
+}
+
+func (e *sourceCollectionEnvironment) PollSources(
+	ctx context.Context,
+	target *heartbeat.CheckTarget,
+	_ bool,
+) (heartbeat.PollBatch, error) {
+	if target.Instance.AgentName == "slow" {
+		close(e.started)
+		select {
+		case <-e.release:
+		case <-ctx.Done():
+			return heartbeat.PollBatch{}, ctx.Err()
+		}
+	} else {
+		close(e.fast)
+	}
+	states, err := e.repo.SourceStates(
+		ctx,
+		target.Instance.ID,
+		target.Policy.Preferences.Context.Sources,
+		false,
+		e.target.Scope.Now,
+	)
+	if err != nil {
+		return heartbeat.PollBatch{}, err
+	}
+	return heartbeat.PollBatch{
+		Sources: []heartbeat.PolledSource{
+			{
+				Ref:        target.Policy.Preferences.Context.Sources[0],
+				RefDigest:  states[0].RefDigest,
+				Generation: states[0].Generation,
+				Result: source.Result{
+					Items: []source.Item{{Key: target.Instance.ID, Title: target.Instance.ID}},
+					State: []byte(`{"cursor":1}`),
+				},
+			},
+		},
+	}, nil
+}
+
+type sourceSchedulingDispatcher struct{ admitted chan string }
+
+func (d *sourceSchedulingDispatcher) Dispatch(
+	_ context.Context,
+	target *heartbeat.CheckTarget,
+	_ heartbeat.CheckDigest,
+	_ func(string) error,
+) (heartbeat.TriageOutcome, error) {
+	d.admitted <- target.Instance.ID
+	return heartbeat.TriageOutcome{Result: "quiet", Reason: "quiet"}, nil
+}
+func (*sourceSchedulingDispatcher) Stop(context.Context, string) error { return nil }
+
+var _ heartbeat.CheckEnvironment = (*sourceCollectionEnvironment)(nil)
+
+func TestSourceCollectionScheduling(t *testing.T) {
+	t.Run("Should reserve slow polls without blocking other due instances [IT-009 IT-010 UT-044]", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		repo := db.Instances()
+		now := time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC)
+		for _, id := range []string{"slow", "fast"} {
+			_, err := db.DB().
+				ExecContext(t.Context(), `INSERT INTO agent_instances (id,profile_id,agent_name,state,created_by_kind,created_by_id,created_at,updated_at) VALUES (?,?,?,'active','human','operator',?,?)`, id, store.DefaultProfileID, id, store.FormatTimestamp(now.Add(-24*time.Hour)), store.FormatTimestamp(now))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.DB().
+				ExecContext(t.Context(), "INSERT INTO agent_instance_wake_state(instance_id) VALUES (?)", id); err != nil {
+				t.Fatal(err)
+			}
+		}
+		env := &sourceCollectionEnvironment{
+			repo:    repo,
+			started: make(chan struct{}),
+			release: make(chan struct{}),
+			fast:    make(chan struct{}),
+
+			target: heartbeat.CheckTarget{
+				Policy: heartbeat.ResolvedPolicy{
+					Enabled:          true,
+					GuidanceMarkdown: "Watch sources",
+					Preferences: heartbeat.Preferences{
+						MinInterval: time.Hour,
+						Context:     heartbeat.ContextProjection{Sources: []source.Ref{{ID: "s", Script: "poll"}}},
+					},
+				},
+			},
+		}
+		dispatcher := &sourceSchedulingDispatcher{admitted: make(chan string, 2)}
+		service, err := heartbeat.NewCheckService(
+			t.Context(),
+			repo,
+			env,
+			dispatcher,
+			heartbeat.CheckConfig{
+				Enabled:       true,
+				Interval:      time.Hour,
+				MaxInterval:   24 * time.Hour,
+				Retention:     24 * time.Hour,
+				Timeout:       time.Minute,
+				MaxConcurrent: 2,
+				BatchSize:     2,
+				Sources:       compozyconfig.DefaultHeartbeatSourcesConfig(),
+			},
+			func() time.Time { return now },
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := service.Shutdown(context.Background()); err != nil {
+				t.Error(err)
+			}
+		})
+		if err := service.Recover(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		returned := make(chan error, 1)
+		go func() { returned <- service.Tick(t.Context()) }()
+		select {
+		case err := <-returned:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("tick blocked on source poll")
+		}
+		select {
+		case <-env.started:
+		case <-time.After(time.Second):
+			t.Fatal("slow source did not start")
+		}
+		select {
+		case <-env.fast:
+		case <-time.After(time.Second):
+			t.Fatal("fast source was blocked")
+		}
+		// A fast check must reach admission before the slow poll is released.
+		select {
+		case id := <-dispatcher.admitted:
+			if id != "fast" {
+				t.Fatalf("admitted %s before release", id)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("fast check was not admitted")
+		}
+		result, err := service.Check(t.Context(), "slow", false)
+		if err != nil || result.Gate != "source_poll_in_flight" {
+			t.Fatalf("manual=%+v err=%v", result, err)
+		}
+		state, err := repo.WakeState(t.Context(), "slow")
+		if err != nil || state.NextWakeAt != store.FormatTimestamp(now.Add(60*time.Second)) {
+			t.Fatalf("deferred=%+v err=%v", state, err)
+		}
+		var count int
+		if err := db.DB().
+			QueryRowContext(t.Context(), "SELECT count(*) FROM agent_heartbeat_wake_events WHERE instance_id='slow'").
+			Scan(&count); err != nil ||
+			count != 0 {
+			t.Fatalf("events=%d err=%v", count, err)
+		}
+		close(env.release)
+		select {
+		case id := <-dispatcher.admitted:
+			if id != "slow" {
+				t.Fatalf("second admitted=%s", id)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("slow check was not admitted")
+		}
+		deadline := time.Now().Add(time.Second)
+		for {
+			var committed int
+			if err := db.DB().
+				QueryRowContext(t.Context(), "SELECT count(*) FROM agent_instance_source_states WHERE committed_state=?", `{"cursor":1}`).
+				Scan(&committed); err != nil {
+				t.Fatal(err)
+			}
+			if committed == 2 {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("committed batches=%d", committed)
+			}
+			time.Sleep(time.Millisecond)
+		}
+		if err := service.Shutdown(t.Context()); err != nil {
+			t.Fatal(err)
 		}
 	})
 }

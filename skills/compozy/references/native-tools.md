@@ -1086,6 +1086,14 @@ does not produce a lost-wake report; stopping the main session still reports its
 - `compozy__agent_instance_check` accepts `id` or `agent` plus `workspace`, and optional
   `dry_run`. Dry runs admit nothing; real checks return `occurrence_id` or a stopping `gate`.
   Agent real checks require approval and share the timer's single occurrence slot.
+  With `context.sources`, results add per-source `sources` outcomes (`id`, `result`, `items`,
+  `more`, `duration_ms`, optional `error`) and source digest items keyed
+  `source:<id>:<item key>`. A dry run polls without committing state or status. A real check
+  while a source poll runs returns gate `source_poll_in_flight` and starts nothing.
+- `compozy__agent_instance_get` includes `sources`: per declared source `id`, `kind` or
+  `script`, `status` (`pending_first_poll`, `ok`, `failing`, `unavailable`, `disabled`,
+  `unapproved`), poll timestamps, `last_item_count`, `failure_streak`, optional `error`, and
+  `next_poll_at`.
 - `compozy__agent_instance_checks` requires `enabled`. Only the operator can enable checks;
   the instance's own agent can disable them. Enabling schedules one cadence ahead.
 - `compozy__agent_instance_occurrence` requires `occurrence_id` and the instance selector.
@@ -1132,3 +1140,10 @@ and `source_session_title` and are read-only on their parent.
 `compozy__observe_metrics` includes `agent_instances.pause_counts` (current paused instances keyed
 by reason) and `agent_instances.held_input_count` (queued autonomous inputs, including coalesced
 members). These counts belong to the caller's profile and workspace, including its User scope.
+
+### Check-in source catalog
+
+`compozy__agent_heartbeat_sources` is read-only. Pass `agent` and `workspace` to list
+scoped extension `kinds` (including `params_schema`), local `scripts` and their approval
+status, `scripts_enabled`, and effective `limits`. It returns the same catalog JSON as
+`compozy agent heartbeat sources <agent> -o json` and HTTP/UDS source discovery.

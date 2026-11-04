@@ -1561,6 +1561,13 @@ export interface DescribeHookEvent {
   profile?: string;
 }
 
+export interface HeartbeatSourceKind {
+  kind: string;
+  title: string;
+  description?: string;
+  params_schema?: JSONValue;
+}
+
 export interface ExtensionCommandGroupSpec {
   path: string;
   summary: string;
@@ -1587,6 +1594,7 @@ export interface DescribePayload {
   gateway?: DescribeGatewayRequirement;
   tools?: ExtensionToolRuntimeDescriptor[];
   hook_events?: DescribeHookEvent[];
+  heartbeat_source_kinds?: HeartbeatSourceKind[];
   watch_source_kinds?: string[];
   cmd_palette_views?: string[];
   command_groups?: ExtensionCommandGroupSpec[];
@@ -1947,7 +1955,15 @@ export interface HeartbeatFrontmatterPreferencesPayload {
   quiet_windows?: HeartbeatTimeWindowPayload[];
 }
 
+export interface Ref {
+  id: string;
+  kind?: string;
+  script?: string;
+  with?: JSONValue;
+}
+
 export interface HeartbeatContextProjectionPayload {
+  sources?: Ref[];
   include?: string[];
 }
 
@@ -2057,6 +2073,7 @@ export interface HeartbeatStatusRequest {
 export type HeartbeatWakeResult = "sent" | "skipped" | "coalesced" | "rate_limited" | "failed";
 
 export type HeartbeatWakeReason =
+  | "source_poll_in_flight"
   | "wake_sent"
   | "heartbeat_disabled"
   | "heartbeat_invalid"
@@ -2318,6 +2335,7 @@ export interface InitializeResponse {
   accepted_capabilities: AcceptedCapabilities;
   implemented_methods: string[];
   supported_hook_events: string[];
+  heartbeat_source_kinds?: HeartbeatSourceKind[];
   watch_source_kinds?: string[];
   cmd_palette_views?: string[];
   supports: InitializeSupports;
@@ -7177,6 +7195,7 @@ export const REQUIRED_METHODS_BY_PROVIDE = {
     "connectivity/teardown",
   ],
   "forge.provider": ["forge/capabilities", "forge/pr_create", "forge/status"],
+  "heartbeat.source": ["heartbeat/source_poll"],
   "loop.watch_source": ["watch/poll"],
   "model.source": ["models/list"],
   "tool.provider": ["provide_tools", "tools/call"],
@@ -7194,6 +7213,10 @@ export const PUBLIC_PROVIDE_CONFORMANCE_FIXTURES: readonly ProvideConformanceFix
     required_methods: REQUIRED_METHODS_BY_PROVIDE["connectivity.provider"],
   },
   { provide: "forge.provider", required_methods: REQUIRED_METHODS_BY_PROVIDE["forge.provider"] },
+  {
+    provide: "heartbeat.source",
+    required_methods: REQUIRED_METHODS_BY_PROVIDE["heartbeat.source"],
+  },
   {
     provide: "loop.watch_source",
     required_methods: REQUIRED_METHODS_BY_PROVIDE["loop.watch_source"],
