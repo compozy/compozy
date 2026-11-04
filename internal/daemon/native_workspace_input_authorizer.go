@@ -160,7 +160,10 @@ func (b *nativeWorkspaceInputBinder) authorizeAccessTarget(
 	if !decision.PromptEligible || b.prompter == nil {
 		return false, nativeWorkspaceAccessDecisionError(descriptor.ID, decision)
 	}
-	prompt := workspaceAccessPrompt{label: target.label, remember: !decision.NeedsGrantAfterConsent}
+	prompt := workspaceAccessPrompt{
+		label: target.label, remember: !decision.NeedsGrantAfterConsent,
+		unresolvedTarget: target.ref.Kind == workspaceaccess.TargetUnresolved,
+	}
 	if prompt.remember {
 		prompt.grant = workspaceAccessReadGrantKey(scope, call, descriptor, actor, target.ref)
 	}

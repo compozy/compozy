@@ -36,10 +36,11 @@ type workspaceAccessPrompter interface {
 // the durable key that answer leaves for the same agent, tool, and target scope. A target that
 // resolves to no owner has no key, yet asks the same question so the prompt reveals nothing.
 type workspaceAccessPrompt struct {
-	targetWorkspace string
-	label           string
-	remember        bool
-	grant           *toolspkg.ApprovalGrantKey
+	unresolvedTarget bool
+	targetWorkspace  string
+	label            string
+	remember         bool
+	grant            *toolspkg.ApprovalGrantKey
 }
 
 type workspaceAccessPromptBridge struct {
@@ -84,7 +85,8 @@ func (b *workspaceAccessPromptBridge) RequestWorkspaceAccess(
 	if b == nil {
 		return false, errors.New("daemon: workspace access prompt channel is unavailable")
 	}
-	remember := b.grants != nil && prompt.remember && descriptor.ReadOnly
+	remember := b.grants != nil && prompt.remember && descriptor.ReadOnly &&
+		(prompt.grant != nil || prompt.unresolvedTarget)
 	var grant *toolspkg.ApprovalGrantKey
 	if remember {
 		grant = prompt.grant
@@ -116,7 +118,11 @@ func (b *workspaceAccessPromptBridge) RequestWorkspaceAccess(
 	title := workspaceAccessPromptTitle(prompt.label, descriptor.ReadOnly)
 	input := workspaceAccessPromptInput(descriptor.ID, prompt.label)
 	if prompt.targetWorkspace != "" {
-		title += " in workspace " + prompt.targetWorkspace
+		if prompt.targetWorkspace == workspaceaccess.UserSelector {
+			title += " in User scope"
+		} else {
+			title += " in workspace " + prompt.targetWorkspace
+		}
 		input["target_workspace_id"] = prompt.targetWorkspace
 	}
 	response, err := sessions.RequestPermission(promptCtx, sessionID, acp.RequestPermissionRequest{

@@ -459,6 +459,36 @@ func TestWorkspaceAccessPromptBridgeFailurePaths(t *testing.T) {
 	call := toolApprovalTestCall(descriptor.ID, "ws-a")
 	scope := toolspkg.Scope{SessionID: "sess-1", WorkspaceID: "ws-a"}
 
+	t.Run("Should retain session consent when a resolved read has no durable owner", func(t *testing.T) {
+		t.Parallel()
+		requester := selectedPermissionRequester(workspaceAccessAllowSessionID)
+		cache := newWorkspaceAccessConsentCache()
+		grants := &recordingApprovalGrantStore{}
+		bridge := newWorkspaceAccessPromptBridge(
+			func() sessionPermissionRequester { return requester }, time.Second, cache, grants, nil,
+		)
+		readDescriptor := descriptor
+		readDescriptor.ReadOnly = true
+		allowed, err := bridge.RequestWorkspaceAccess(t.Context(), scope, call, readDescriptor,
+			workspaceAccessPrompt{label: "ws-b", remember: true})
+		if err != nil || !allowed {
+			t.Fatalf("RequestWorkspaceAccess() = %t, %v, want session consent", allowed, err)
+		}
+		if option := requester.requests[0].Options[1]; option.OptionId != workspaceAccessAllowSessionID {
+			t.Fatalf("read option = %q, want temporary consent without a durable owner", option.OptionId)
+		}
+		if consent, ok := cache.ConsentFor(
+			t.Context(),
+			scope.SessionID,
+		); !ok ||
+			consent != workspaceaccess.ConsentAllow {
+			t.Fatalf("cached consent = %q, %t, want session allow", consent, ok)
+		}
+		if len(grants.grants) != 0 {
+			t.Fatalf("stored grants = %#v, want none without an owner", grants.grants)
+		}
+	})
+
 	t.Run("Should identify the workspace and profile covered by read consent", func(t *testing.T) {
 		t.Parallel()
 		requester := selectedPermissionRequester(workspaceAccessAllowOnceID)
@@ -479,6 +509,38 @@ func TestWorkspaceAccessPromptBridgeFailurePaths(t *testing.T) {
 		}
 		input, ok := request.ToolCall.RawInput.(map[string]any)
 		if !ok || input["target_profile"] != "p-target" || input["target_workspace_id"] != "ws-target" {
+			t.Fatalf("prompt input = %#v, want both target workspace and profile", request.ToolCall.RawInput)
+		}
+	})
+	t.Run("Should identify the workspace and profile covered by User read consent", func(t *testing.T) {
+		t.Parallel()
+		requester := selectedPermissionRequester(workspaceAccessAllowOnceID)
+		bridge := newWorkspaceAccessPromptBridge(
+			func() sessionPermissionRequester { return requester }, time.Second,
+			newWorkspaceAccessConsentCache(), nil, nil,
+		)
+		readDescriptor := descriptor
+		readDescriptor.ReadOnly = true
+		allowed, err := bridge.RequestWorkspaceAccess(
+			t.Context(),
+			scope,
+			call,
+			readDescriptor,
+			workspaceAccessPrompt{
+				label:           nativeAccessPromptProfilePrefix + "p-target",
+				targetWorkspace: workspaceaccess.UserSelector,
+			},
+		)
+		if err != nil || !allowed {
+			t.Fatalf("RequestWorkspaceAccess() = %t, %v", allowed, err)
+		}
+		request := requester.requests[0]
+		if request.ToolCall.Title == nil || *request.ToolCall.Title != "Read profile p-target in User scope" {
+			t.Fatalf("prompt title = %v, want both target workspace and profile", request.ToolCall.Title)
+		}
+		input, ok := request.ToolCall.RawInput.(map[string]any)
+		if !ok || input["target_profile"] != "p-target" ||
+			input["target_workspace_id"] != workspaceaccess.UserSelector {
 			t.Fatalf("prompt input = %#v, want both target workspace and profile", request.ToolCall.RawInput)
 		}
 	})

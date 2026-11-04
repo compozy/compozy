@@ -405,6 +405,15 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 			t.Fatalf("stored grants = %#v, want one %s grant for coder in its own workspace", grants.grants, wantScope)
 		}
 
+		toolInput, err := json.Marshal(map[string]string{"access_scope": wantScope})
+		if err != nil {
+			t.Fatal(err)
+		}
+		toolDigest, err := toolspkg.ApprovalInputDigest(toolInput, "")
+		if err != nil || toolDigest == grants.grants[0].InputDigest {
+			t.Fatalf("tool input digest = %q, %v, want a separate read-grant namespace", toolDigest, err)
+		}
+
 		// The same tool reading the same scope through a different input asks nobody.
 		requester.response.Outcome = acpsdk.NewRequestPermissionOutcomeSelected(workspaceAccessRejectOnceID)
 		if err := call(statusDescriptor, `{"session_id":"sess-sibling"}`); err != nil {
@@ -430,7 +439,7 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		requirePrompts(t, 1)
 
 		// Another target scope and another tool stay outside the grant.
-		err := call(statusDescriptor, `{"session_id":"sess-foreign"}`)
+		err = call(statusDescriptor, `{"session_id":"sess-foreign"}`)
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		historyDescriptor := statusDescriptor
 		historyDescriptor.ID = toolspkg.ToolIDSessionHistory

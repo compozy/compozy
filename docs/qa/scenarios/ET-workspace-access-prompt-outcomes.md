@@ -105,3 +105,9 @@ final consent audit is retained alongside the durable grant.
 Audit review follow-up: consent recording applies its own bounded facts-lookup deadline after
 originating-request cancellation. A read approved with session consent also emits the final
 `tool_consent` granted event; a rejected cached consent emits no granted event.
+
+Fallback review follow-up (#1270): a resolved read without a durable agent identity offers
+`allow_session` and reuses that temporary answer. An unresolved session retains the opaque read
+prompt. User-target profile reads say `in User scope`. The User-owned read integration journey
+creates consent over hosted MCP, compares the `@user` HTTP list with the native list omitting its
+workspace selector, replays without prompting, and revokes through `@user` before a new rejection.

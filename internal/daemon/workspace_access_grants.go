@@ -2,7 +2,8 @@ package daemon
 
 import (
 	"context"
-	"encoding/json"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -40,8 +41,7 @@ func workspaceAccessReadGrantKey(
 	if agentName == "" {
 		agentName = strings.TrimSpace(scope.AgentName)
 	}
-	digest, err := workspaceAccessScopeDigest(accessScope)
-	if err != nil || agentName == "" {
+	if agentName == "" {
 		return nil
 	}
 	key := toolspkg.ApprovalGrantKey{
@@ -49,7 +49,7 @@ func workspaceAccessReadGrantKey(
 		WorkspaceID: workspaceID,
 		AgentName:   agentName,
 		ToolID:      descriptor.ID,
-		InputDigest: digest,
+		InputDigest: workspaceAccessScopeDigest(accessScope),
 		AccessScope: accessScope,
 	}.Normalize()
 	if key.Validate() != nil {
@@ -89,14 +89,10 @@ func workspaceAccessReadScope(target workspaceaccess.TargetRef, actorProfileID s
 }
 
 // workspaceAccessScopeDigest keys the grant row, so each target scope keeps its own decision.
-func workspaceAccessScopeDigest(accessScope string) (string, error) {
-	shape, err := json.Marshal(struct {
-		AccessScope string `json:"access_scope"`
-	}{AccessScope: accessScope})
-	if err != nil {
-		return "", fmt.Errorf("encode workspace access scope: %w", err)
-	}
-	return toolspkg.ApprovalInputDigest(shape, "")
+func workspaceAccessScopeDigest(accessScope string) string {
+	// This preimage cannot be tool-input JSON, so the two grant domains cannot alias.
+	sum := sha256.Sum256([]byte("workspace-access-read\x00" + accessScope))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 // rememberedAllow reports an operator "Always allow" stored for this exact read scope. Lookup

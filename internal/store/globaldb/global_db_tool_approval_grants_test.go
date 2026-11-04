@@ -158,6 +158,31 @@ func TestGlobalDBToolApprovalGrants(t *testing.T) {
 		assertApprovalGrantLookup(t, globalDB, approvalGrantTestKey(workspaceID, "claude", otherDigest), "", "")
 	})
 
+	t.Run("Should reject scope changes on a conflicting digest without altering the decision", func(t *testing.T) {
+		t.Parallel()
+		for _, accessScope := range []string{"", "read:workspace:ws-target@default"} {
+			db := openTestGlobalDB(t)
+			workspaceID := registerWorkspaceForGlobalTests(t, db, "approval-collision", t.TempDir())
+			key := approvalGrantTestKey(workspaceID, "codex", approvalGrantDigest("collision"))
+			key.AccessScope = accessScope
+			created := putApprovalGrantForTest(t, db, toolspkg.ApprovalGrant{
+				ApprovalGrantKey: key, Decision: toolspkg.ApprovalGrantReject,
+			})
+			otherKey := key
+			otherKey.AccessScope = "read:workspace:ws-other@default"
+			_, err := db.PutApprovalGrant(t.Context(), toolspkg.ApprovalGrant{
+				ApprovalGrantKey: otherKey, Decision: toolspkg.ApprovalGrantAllow,
+			})
+			if !errors.Is(err, toolspkg.ErrApprovalGrantInvalid) {
+				t.Fatalf("PutApprovalGrant(scope change) = %v, want invalid key", err)
+			}
+			found, ok, err := db.LookupApprovalGrant(t.Context(), key)
+			if err != nil || !ok || found.ID != created.ID || found.Decision != toolspkg.ApprovalGrantReject {
+				t.Fatalf("original grant = %#v, %t, %v, want the unchanged reject", found, ok, err)
+			}
+		}
+	})
+
 	t.Run("Should match access scope grants exactly and keep them out of tool approval", func(t *testing.T) {
 		t.Parallel()
 

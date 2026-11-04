@@ -11,9 +11,9 @@ INSERT INTO tool_approval_grants (
 ON CONFLICT DO UPDATE SET
   decision = excluded.decision,
   created_at = excluded.created_at,
-  last_used_at = excluded.last_used_at,
-  access_scope = excluded.access_scope
+  last_used_at = excluded.last_used_at
 WHERE tool_approval_grants.profile_id = excluded.profile_id
+  AND tool_approval_grants.access_scope = excluded.access_scope
 RETURNING id, profile_id, workspace_id, agent_name, tool_id, input_digest, decision, created_at, last_used_at, access_scope;
 
 -- name: LookupApprovalGrant :one

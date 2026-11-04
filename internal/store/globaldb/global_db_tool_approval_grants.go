@@ -120,7 +120,7 @@ func (g *ApprovalGrantRepo) PutApprovalGrant(
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return toolspkg.ApprovalGrant{}, fmt.Errorf(
-			"%w: approval key belongs to another profile", toolspkg.ErrApprovalGrantInvalid,
+			"%w: approval key conflicts with another profile or access scope", toolspkg.ErrApprovalGrantInvalid,
 		)
 	}
 	if err != nil {
