@@ -45,6 +45,7 @@ func detectPullRequest(cur prCursor, obs PullRequestObservation, now time.Time) 
 		changes.Wake = changes.Conflict
 		next.Conflicting = true
 	case "mergeable":
+		changes.ConflictCleared = true
 		next.Conflicting = false
 	}
 	next = detectChecks(&changes, next, obs.Checks)
@@ -255,6 +256,7 @@ func flushBurst(changes PullRequestChanges, next prCursor) (PullRequestChanges, 
 // mergePullRequestChanges folds what later reports into what is already waiting for the next fire. It
 // keeps everything the agent still has to hear, except what a new head or pull request superseded.
 func mergePullRequestChanges(carry, later PullRequestChanges) PullRequestChanges {
+	carry, later = reconcileQueuedConflict(carry, later)
 	if carry.Head != "" && later.Head != "" && (carry.Head != later.Head || carry.Number != later.Number) {
 		carry = PullRequestChanges{}
 	}
@@ -298,4 +300,19 @@ func mergeReviewActivity(first, second, into PullRequestChanges) PullRequestChan
 	into.Reviews = reviews[max(len(reviews)-maxBurstReviews, 0):]
 	into.NewThreads = first.NewThreads + second.NewThreads
 	return into
+}
+
+func reconcileQueuedConflict(carry, later PullRequestChanges) (PullRequestChanges, PullRequestChanges) {
+	if !carry.Conflict || carry.Number != later.Number || later.Head == "" {
+		return carry, later
+	}
+	if later.ConflictCleared {
+		carry.Conflict = false
+		carry.Wake = len(carry.NewlyFailed) > 0 || carry.FailureRose || carry.AllFinished ||
+			len(carry.Reviews) > 0 || carry.NewThreads > 0 || carry.Terminal != "" ||
+			carry.ForgeDown || carry.ReviewsDown || carry.TimedOut || carry.FireCapHit
+	} else if carry.Head != later.Head {
+		later.Conflict, later.Wake = true, true
+	}
+	return carry, later
 }

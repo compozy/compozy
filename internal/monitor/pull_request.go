@@ -197,6 +197,8 @@ type PullRequestChanges struct {
 	ReviewsDown   bool `json:"reviews_down,omitempty"`
 	// EndedNumber names a pull request that had already ended when a timed-out watch saw it.
 	EndedNumber int `json:"ended_number,omitempty"`
+
+	ConflictCleared bool `json:"conflict_cleared,omitzero"`
 }
 
 func (changes PullRequestChanges) reason() string {

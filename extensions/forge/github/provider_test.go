@@ -312,6 +312,8 @@ func TestProvider(t *testing.T) {
 	}{
 		{"dirty", "dirty", new(false), "conflicting"},
 		{"clean", "clean", new(true), "mergeable"},
+		{"draft conflict", "draft", new(false), "conflicting"},
+		{"retarget", "dirty", new(false), "conflicting"},
 		{"unknown", "unknown", new(false), "unknown"},
 		{"null", "dirty", nil, "unknown"},
 	} {
@@ -330,6 +332,9 @@ func TestProvider(t *testing.T) {
 				if r.URL.Path == "/repos/acme/repo/pulls/7" {
 					details.Add(1)
 					pull.Mergeable, pull.MergeableState = tc.mergeable, tc.state
+					if tc.name == "retarget" {
+						pull.Base.Ref = "release"
+					}
 					writeJSON(t, w, http.StatusOK, pull)
 				} else {
 					writeJSON(t, w, http.StatusOK, []pullPayload{pull})
@@ -339,7 +344,11 @@ func TestProvider(t *testing.T) {
 			got, err := provider.restDisplayStatus(
 				t.Context(), repository{owner: "acme", name: "repo"}, "topic", "token",
 			)
-			if err != nil || got.Mergeable != tc.want || got.Base != "main" || details.Load() != 1 {
+			wantBase := "main"
+			if tc.name == "retarget" {
+				wantBase = "release"
+			}
+			if err != nil || got.Mergeable != tc.want || got.Base != wantBase || details.Load() != 1 {
 				t.Fatalf("status = %+v, err = %v, detail calls = %d", got, err, details.Load())
 			}
 		})

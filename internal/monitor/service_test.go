@@ -3029,6 +3029,67 @@ func TestServicePullRequestMonitorRestart(t *testing.T) {
 		}
 		return after
 	}
+	for _, scenario := range []string{"push", "clear", "clear with other changes"} {
+		t.Run("Should reconcile a queued conflict after "+scenario, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				forge := &fakeForge{observation: openPull("head-a", pending(1, 3), noReviews())}
+				store := newMemoryStore()
+				refusing := &recordingWaker{errs: slices.Repeat([]error{errors.New("input queue full")}, 64)}
+				before := durableWatch(t, forge, store, refusing)
+				if _, err := before.Create(t.Context(), pullRequestSpec("sess-1")); err != nil {
+					t.Fatal(err)
+				}
+				synctest.Wait()
+				obs := openPull("head-a", failing(2, "lint"), noReviews())
+				obs.Base = "main"
+				forge.set(obs)
+				poll(2)
+				obs.Mergeable = "conflicting"
+				if scenario == "clear with other changes" {
+					obs.Checks = failing(1, "lint", "test")
+				}
+				forge.set(obs)
+				poll(2)
+				if scenario == "push" {
+					obs.Head, obs.Mergeable = "head-b", "unknown"
+					obs.Checks = pending(1, 3)
+				} else {
+					obs.Mergeable = "mergeable"
+				}
+				forge.set(obs)
+				poll(2)
+				waker := &recordingWaker{}
+				restart(t, before, forge, store, waker)
+				synctest.Wait()
+				poll(1)
+				got := waker.notifications()
+				want := 2
+				if scenario == "clear" {
+					want = 1
+				}
+				if len(got) != want {
+					t.Fatalf("wakes = %+v", got)
+				}
+				if want == 2 && got[1].PullRequest.Conflict != (scenario == "push") {
+					t.Fatalf("queued wake = %+v", got[1].PullRequest)
+				}
+				if scenario == "clear with other changes" && !slices.Contains(got[1].PullRequest.NewlyFailed, "test") {
+					t.Fatalf("lost check failure = %+v", got[1].PullRequest)
+				}
+				obs.Mergeable = "conflicting"
+				forge.set(obs)
+				poll(2)
+				expected := want
+				if scenario != "push" {
+					expected++
+				}
+				if got := waker.notifications(); len(got) != expected {
+					t.Fatalf("repeat wakes = %+v", got)
+				}
+			})
+		})
+	}
 	t.Run("Should preserve conflicts through restart and unknown reads", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {

@@ -200,7 +200,11 @@ Repeated conflicting reads must not wake again. Unknown/null mergeability and
 forge failures must neither wake nor clear the remembered conflict, including
 after daemon restart. Clear the conflict with a known mergeable observation, then
 introduce another conflict and verify a second wake. A changed head alone does not
-clear the conflict. Merge queue removal is not currently observable independently.
+clear the conflict. While another wake is held for admission, observe a conflict
+then push a new head: the undelivered conflict must survive. Repeat with a known
+clearance before admission: omit stale rebase guidance while preserving any other
+queued check/review changes. REST retargets must name the base from the detail read.
+Merge queue removal is not currently observable independently.
 
 Backend coverage: `TestDetectPullRequest` and `TestServicePullRequestMonitorRestart`
 exercise transition detection, durable recovery and wake rendering. `TestMonitorIdleReleaseIntegration` verifies conflict wake admission through real
