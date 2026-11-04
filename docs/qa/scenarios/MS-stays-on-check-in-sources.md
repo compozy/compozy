@@ -71,6 +71,11 @@ the transcript is checked in `MS-web-stays-on-reports`.
    `agent instance show -o json` keeps `last_polled_at`, `last_item_count` and `next_poll_at`
    unchanged, and a following real check still receives the item.
 2. Pause the instance and dry-run again: it still polls and reports outcomes.
+3. Before the first real poll, instance show lists every declared source as `pending_first_poll`
+   with its kind or script. After polling it shows `ok` with the same reference. Edit `with`:
+   status returns to `pending_first_poll` without changing stored cursors. Remove a declaration:
+   it disappears immediately from show, before the next real poll. An unreadable or invalid
+   policy falls back to stored source rows without failing the instance response.
 
 ## 4. Cheap gate (US-003, US-013 AC-4)
 
@@ -82,7 +87,11 @@ the transcript is checked in `MS-web-stays-on-reports`.
    Immediately run a real manual check after a timer check and confirm it polls again.
 3. Return `more: true`: after either a completed triage or an unchanged-digest skip, the next timer
    wake uses `agents.heartbeat.min_interval` plus jitter, rather than the agent cadence.
-4. Use a GitHub issue with a 256-character title, a Unicode body and many labels/linked PRs.
+4. Cancel a scheduled source check with `agent.heartbeat.wake.before`: check-ins records
+   `hook_cancelled`, the script does not run, and the next wake uses the resolved cadence.
+   A hook error records `triage_failed` and schedules failure backoff (when present), never
+   the short source-collection recovery deadline.
+5. Use a GitHub issue with a 256-character title, a Unicode body and many labels/linked PRs.
    Confirm the bounded item reaches triage without blocking later issues; overflow attributes
    are dropped deterministically and counted in `omitted`.
 

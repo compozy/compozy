@@ -24,6 +24,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/heartbeat/source"
+	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/providers"
 	schedulerpkg "github.com/compozy/compozy/internal/scheduler"
 	"github.com/compozy/compozy/internal/session"
@@ -1344,6 +1345,98 @@ func (h *heartbeatSourceRuntime) advance(t *testing.T) {
 // follows successful checks, and source fences/provenance reach real triage sessions.
 // Owning layer and canonical suite: daemon heartbeat wake runtime integration.
 func TestHeartbeatSourceRuntime(t *testing.T) {
+	// Invariant: real instance payloads join declarations with matching persisted refs without mutating rows.
+	t.Run("Should project current declarations through the real payload producer", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		api := core.AgentInstanceAPI{
+			Checks: h.checks,
+			ReadPayload: func(ctx context.Context, instance agentinstance.Instance) (contract.AgentInstancePayload, error) {
+				return h.env.definitions.instancePayload(ctx, instance, h.db.Instances())
+			},
+		}
+		read := func(status, script, kind string) {
+			t.Helper()
+			payload, err := api.Payload(t.Context(), h.instance)
+			if err != nil || len(payload.Sources) != 1 || payload.Sources[0].Status != status ||
+				payload.Sources[0].Script != script ||
+				payload.Sources[0].Kind != kind {
+				t.Fatalf("payload=%+v err=%v", payload.Sources, err)
+			}
+		}
+		read("pending_first_poll", "poll", "")
+		h.tick(t, 1)
+		read("ok", "poll", "")
+		if err := os.WriteFile(
+			filepath.Join(h.dir, "HEARTBEAT.md"),
+			[]byte("---\ncontext: [invalid\n---\n"),
+			0600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		fallback, err := api.Payload(t.Context(), h.instance)
+		if err != nil || len(fallback.Sources) != 1 || fallback.Sources[0].Status != "ok" {
+			t.Fatalf("fallback=%+v err=%v", fallback.Sources, err)
+		}
+		h.writePolicy(t, "{repo: changed}")
+		read("pending_first_poll", "poll", "")
+		body := "---\nversion: 1\nenabled: true\ncontext:\n  sources:\n    - id: other\n      kind: forge-github/issues\n---\n"
+		if err := os.WriteFile(filepath.Join(h.dir, "HEARTBEAT.md"), []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+		read("pending_first_poll", "", "forge-github/issues")
+		if err := os.WriteFile(
+			filepath.Join(h.dir, "HEARTBEAT.md"),
+			[]byte("---\nenabled: true\ncontext:\n  include: []\n---\n"),
+			0600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		payload, err := api.Payload(t.Context(), h.instance)
+		if err != nil || len(payload.Sources) != 0 {
+			t.Fatalf("removed=%+v err=%v", payload.Sources, err)
+		}
+	})
+	// Invariant: deferred hook exits persist the timer event and resolved cadence.
+	for _, tc := range []struct {
+		name, reason string
+		failure      error
+	}{
+		{"Should persist source hook cancellation", "hook_cancelled", hookspkg.ErrHeartbeatWakeCancelled},
+		{"Should persist source hook error", "triage_failed", errors.New("hook unavailable")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHeartbeatSourceRuntime(t, true, false)
+			h.env.hooks = &hooksNotifier{
+				logger: discardLogger(),
+				now:    h.now,
+				hooks:  heartbeatCancelTestRuntime{fakeHookRuntime: &fakeHookRuntime{}, failure: tc.failure},
+			}
+			delay := time.Hour
+			if tc.reason == "triage_failed" {
+				delay = 4 * time.Hour
+				if _, err := h.db.DB().
+					ExecContext(t.Context(), "UPDATE agent_instance_wake_state SET failure_streak=2, quiet_streak=9 WHERE instance_id=?", h.instance.ID); err != nil {
+					t.Fatal(err)
+				}
+			}
+			h.tick(t, 1)
+			wake, err := h.db.Instances().WakeState(t.Context(), h.instance.ID)
+			want := store.FormatTimestamp(heartbeat.NextCheckTime(h.now(), delay, h.instance.ID))
+			if err != nil || wake.NextWakeAt != want {
+				t.Fatalf("wake=%+v want=%s err=%v", wake, want, err)
+			}
+			var reason string
+			if err := h.db.DB().
+				QueryRowContext(t.Context(), "SELECT reason FROM agent_heartbeat_wake_events WHERE instance_id=?", h.instance.ID).
+				Scan(&reason); err != nil ||
+				reason != tc.reason {
+				t.Fatalf("reason=%s err=%v", reason, err)
+			}
+			if len(h.inputs(t)) != 0 {
+				t.Fatal("hook exit polled source")
+			}
+		})
+	}
 	t.Run("Should reconcile removed sources only on a real check", func(t *testing.T) {
 		h := newHeartbeatSourceRuntime(t, true, false)
 		h.tick(t, 1)

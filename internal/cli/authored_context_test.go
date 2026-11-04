@@ -957,6 +957,19 @@ func TestHeartbeatSourceCatalogOutput(t *testing.T) {
 	t.Parallel()
 	// Invariant: the operator can discover available kinds, empty scripts, limits and missing-agent errors.
 	// Owner and canonical suite: authored heartbeat CLI commands.
+	t.Run("Should explain missing agent without an explicit workspace", func(t *testing.T) {
+		t.Parallel()
+		client := &daemonClient{
+			target: LocalClientTarget("/tmp/compozy.sock"),
+			httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+				return newHTTPResponse(404, `{"code":"agent_not_found","error":"missing"}`), nil
+			})},
+		}
+		_, err := client.HeartbeatSources(t.Context(), "typo", AgentQuery{})
+		if err == nil || err.Error() != `agent_not_found: agent "typo" not found` {
+			t.Fatalf("error=%v", err)
+		}
+	})
 	for _, tc := range []struct {
 		name, body, want string
 		status           int

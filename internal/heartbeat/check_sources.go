@@ -70,6 +70,7 @@ func (s *CheckService) collectSources(
 		return CheckResult{}, err
 	}
 	state.NextWakeAt = store.FormatTimestamp(until)
+	state.Deferred = true
 	s.wg.Go(func() {
 		defer cleanup()
 		if _, err := s.pollSourceTarget(
@@ -160,6 +161,7 @@ func (s *CheckService) pollSourceTarget(
 			_, err := s.store.Skip(
 				ctx,
 				SkipRequest{
+					Deferred:    state.Deferred,
 					ManualCheck: manual,
 					InstanceID:  state.InstanceID,
 					ExpectedDue: state.NextWakeAt,

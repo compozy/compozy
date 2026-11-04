@@ -28,7 +28,7 @@ func (r instanceDefinitions) instancePayload(
 	attention instanceAttentionReader,
 ) (contract.AgentInstancePayload, error) {
 	payload := core.AgentInstancePayload(instance)
-	if err := r.projectInstanceDefinition(ctx, instance, &payload); err != nil {
+	if err := r.projectInstanceDefinition(ctx, instance, &payload, attention); err != nil {
 		return payload, err
 	}
 	if instance.MainSessionID != "" {
@@ -106,6 +106,7 @@ func (r instanceDefinitions) projectInstanceDefinition(
 	ctx context.Context,
 	instance agentinstance.Instance,
 	payload *contract.AgentInstancePayload,
+	reader instanceAttentionReader,
 ) error {
 	var resolved workspacepkg.ResolvedWorkspace
 	var err error
@@ -140,6 +141,7 @@ func (r instanceDefinitions) projectInstanceDefinition(
 	} else if err != nil {
 		return err
 	}
+	r.projectInstanceSources(ctx, instance, agent, resolved, payload, reader)
 	payload.Label = agent.Label()
 	// An unsupported saved appearance resolves to the default face; the definition read
 	// carries the agent_appearance_invalid diagnostic, so the instance read never fails on it.

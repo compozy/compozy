@@ -207,6 +207,7 @@ func (s *CheckService) checkTarget(
 		_, err := s.store.Skip(
 			ctx,
 			SkipRequest{
+				Deferred:    state.Deferred,
 				ManualCheck: manual,
 				InstanceID:  state.InstanceID,
 				ExpectedDue: state.NextWakeAt,
@@ -287,6 +288,7 @@ func (s *CheckService) collectTarget(
 		_, err := s.store.Skip(
 			ctx,
 			SkipRequest{
+				Deferred:    state.Deferred,
 				ManualCheck: manual,
 				InstanceID:  state.InstanceID,
 				ExpectedDue: state.NextWakeAt,
@@ -388,6 +390,7 @@ func (s *CheckService) rescheduleCheckFailure(
 	defer cancel()
 	now := s.now()
 	_, err := s.store.Skip(cleanupCtx, SkipRequest{
+		Deferred:    state.Deferred,
 		InstanceID:  state.InstanceID,
 		ExpectedDue: state.NextWakeAt,
 		Reason:      "triage_failed",
@@ -458,6 +461,7 @@ func (s *CheckService) skipInitialCheck(
 		return false, nil
 	}
 	_, err := s.store.Skip(ctx, SkipRequest{
+		Deferred:    state.Deferred,
 		InstanceID:  state.InstanceID,
 		ExpectedDue: state.NextWakeAt,
 		Reason:      "cooldown_active",

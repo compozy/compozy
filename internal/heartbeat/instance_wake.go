@@ -14,6 +14,7 @@ type InstanceWakeState struct {
 	OccurrenceID, TriageSessionID, OccurrenceStartedAt                             string
 	QuietStreak, FailureStreak                                                     int64
 	Canceled                                                                       bool
+	Deferred                                                                       bool
 }
 type AdmitRequest struct {
 	ExpectedDue              string
@@ -43,6 +44,7 @@ type FinishRequest struct {
 	Report                                                   *agentinstance.ReportInput
 }
 type SkipRequest struct {
+	Deferred                                bool
 	Sources                                 []PolledSource
 	ManualCheck                             bool
 	InstanceID, ExpectedDue, Reason, Detail string

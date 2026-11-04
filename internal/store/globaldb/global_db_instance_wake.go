@@ -132,7 +132,7 @@ func (r *InstanceRepo) Skip(ctx context.Context, req heartbeat.SkipRequest) (boo
 				count, err := q.SkipInstanceWake(
 					ctx,
 					sqlcgen.SkipInstanceWakeParams{
-						Deferred: len(req.Sources) > 0, InstanceID: req.InstanceID,
+						Deferred: req.Deferred || len(req.Sources) > 0, InstanceID: req.InstanceID,
 						ExpectedDue: req.ExpectedDue,
 						Now:         store.FormatTimestamp(req.Now),
 						NextWakeAt:  store.FormatTimestamp(req.NextWakeAt),

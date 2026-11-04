@@ -37,7 +37,11 @@ func (c *daemonClient) HeartbeatSources(
 		&result,
 	)
 	if failure, ok := errors.AsType[*daemonAPIError](err); ok && failure.payload.Code == "agent_not_found" {
-		return result, source.Failure("agent_not_found", fmt.Sprintf("agent %q not found in %s", name, query.Workspace))
+		message := fmt.Sprintf("agent %q not found", name)
+		if query.Workspace != "" {
+			message += " in " + query.Workspace
+		}
+		return result, source.Failure("agent_not_found", message)
 	}
 	return result, err
 }

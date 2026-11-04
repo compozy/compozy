@@ -267,7 +267,7 @@ func (api *AgentInstanceAPI) payloadWithOwners(
 	payload.ProfileName = owners[i.ProfileID].Name
 	if reader, ok := api.Checks.(interface {
 		SourceStatuses(context.Context, string) ([]heartbeat.SourceStatus, error)
-	}); ok {
+	}); ok && payload.Sources == nil {
 		var err error
 		payload.Sources, err = reader.SourceStatuses(ctx, i.ID)
 		if err != nil {
