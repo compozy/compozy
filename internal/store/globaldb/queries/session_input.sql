@@ -158,8 +158,9 @@ SET status = sqlc.arg(status), steer_delivery = sqlc.arg(steer_delivery),
     delivery = CASE WHEN sqlc.arg(status) = 'queued' AND (origin_class <> 'human' OR sqlc.arg(steer_delivery) = 'after_turn') THEN 'after_turn' ELSE delivery END,
     turn_id = CASE WHEN sqlc.arg(status) = 'sent' THEN target_turn_id ELSE turn_id END,
     sent_at = sqlc.narg(sent_at), dispatch_started_at = NULL, updated_at = sqlc.arg(now)
-WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
-  AND mode = 'steer' AND status = 'dispatching' AND (owner_kind IS NULL OR owner_kind = 'synthetic');
+WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
+  AND mode = 'steer' AND status = 'dispatching' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id));
 
 -- name: CancelPendingSessionSteer :execrows
 UPDATE session_input_queue
@@ -171,12 +172,12 @@ WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
 -- name: SettlePendingSessionSteer :execrows
 UPDATE session_input_queue
 SET steer_delivery = sqlc.arg(steer_delivery), updated_at = sqlc.arg(now),
-    status = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN 'queued' ELSE 'sent' END,
-    dispatchable = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN 1 ELSE 0 END,
-    delivery = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' AND origin_class <> 'human'
+    status = CASE WHEN sqlc.arg(steer_delivery) <> 'injected' THEN 'queued' ELSE 'sent' END,
+    dispatchable = CASE WHEN sqlc.arg(steer_delivery) <> 'injected' THEN 1 ELSE 0 END,
+    delivery = CASE WHEN sqlc.arg(steer_delivery) = 'after_turn' OR (sqlc.arg(steer_delivery) = 'interrupt_fallback' AND origin_class <> 'human')
                     THEN 'after_turn' ELSE delivery END,
-    sent_at = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN NULL ELSE sent_at END,
-    turn_id = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN sqlc.arg(fallback_turn_id) ELSE turn_id END
+    sent_at = CASE WHEN sqlc.arg(steer_delivery) <> 'injected' THEN NULL ELSE sent_at END,
+    turn_id = CASE WHEN sqlc.arg(steer_delivery) <> 'injected' THEN sqlc.arg(fallback_turn_id) ELSE turn_id END
 WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
   AND mode = 'steer' AND ((status = 'sent' AND steer_delivery = 'pending_injection')
     OR (status = 'queued' AND steer_delivery = 'pending_boundary' AND sqlc.arg(steer_delivery) = 'interrupt_fallback'))
@@ -436,9 +437,16 @@ SELECT EXISTS (SELECT 1 FROM session_input_queue AS queued WHERE queued.session_
 
 -- name: SupersedeBoundarySteersForInterrupt :many
 UPDATE session_input_queue
-SET status = 'canceled', dispatchable = 0, canceled_at = sqlc.arg(now), updated_at = sqlc.arg(now)
+SET superseded_by = sqlc.arg(replacement_id), status = 'canceled', dispatchable = 0, canceled_at = sqlc.arg(now), updated_at = sqlc.arg(now)
 WHERE session_id = sqlc.arg(session_id) AND target_turn_id = sqlc.arg(target_turn_id)
   AND session_generation = sqlc.arg(session_generation)
-  AND status = 'queued' AND mode = 'steer' AND origin_class = 'human'
-  AND steer_delivery IN ('pending_boundary', 'interrupt_fallback')
+  AND mode = 'steer' AND origin_class = 'human'
+  AND ((status = 'queued' AND steer_delivery IN ('pending_boundary', 'interrupt_fallback'))
+    OR status = 'dispatching')
 RETURNING id;
+
+-- name: ListSupersededSessionSteers :many
+SELECT * FROM session_input_queue
+WHERE session_id = sqlc.arg(session_id) AND mode = 'steer' AND status = 'canceled'
+  AND superseded_by IS NOT NULL AND id > sqlc.arg(after_id)
+ORDER BY id LIMIT 100;

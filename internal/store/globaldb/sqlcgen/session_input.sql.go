@@ -324,7 +324,7 @@ func (q *Queries) FreezePreparedGoalInputBatch(ctx context.Context, arg FreezePr
 }
 
 const getCoalescibleSessionInput = `-- name: GetCoalescibleSessionInput :one
-SELECT goal_input_batch_max_rowid, id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at, priority, origin_class, origin_session_id, mentions_json, human_ingress, unattended_counted FROM session_input_queue
+SELECT goal_input_batch_max_rowid, id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, superseded_by, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at, priority, origin_class, origin_session_id, mentions_json, human_ingress, unattended_counted FROM session_input_queue
 WHERE session_id = ?1 AND owner_kind = 'synthetic'
   AND status = 'queued' AND mode = 'queue' AND dispatchable = 1
   AND json_extract(synthetic_prompt_json, '$.coalesce_key') = CAST(?2 AS TEXT)
@@ -355,6 +355,7 @@ func (q *Queries) GetCoalescibleSessionInput(ctx context.Context, arg GetCoalesc
 		&i.Status,
 		&i.Mode,
 		&i.Delivery,
+		&i.SupersededBy,
 		&i.SteerDelivery,
 		&i.Text,
 		&i.SyntheticPromptJson,
@@ -420,7 +421,7 @@ WITH prepared_goal AS (
     AND session_generation = (SELECT input_generation FROM sessions WHERE id = ?1)
   ORDER BY enqueued_at, id LIMIT 1
 )
-SELECT queued.goal_input_batch_max_rowid, queued.id, queued.session_id, queued.prompt_admission_id, queued.message_id, queued.idempotency_key, queued.turn_id, queued.target_turn_id, queued.event_id, queued.status, queued.mode, queued.delivery, queued.steer_delivery, queued.text, queued.synthetic_prompt_json, queued.skill_invocations_json, queued.attachments_json, queued.origin_json, queued.runtime_provider, queued.runtime_model, queued.runtime_reasoning_effort, queued.runtime_speed, queued.runtime_acp_options_json, queued.session_generation, queued.task_run_id, queued.run_generation, queued.attempt_count, queued.enqueued_at, queued.dispatch_started_at, queued.sent_at, queued.failed_at, queued.failure_summary, queued.canceled_at, queued.updated_at, queued.loop_run_id, queued.owner_kind, queued.owner_epoch, queued.binding_epoch, queued.prompt_id, queued.prompt_kind, queued.operation_usage_base_tokens, queued.prompt_attempt, queued.dispatchable, queued.activated_at, queued.dispatch_token_hash, queued.fence_kind, queued.fence_disposition, queued.fence_reason_code, queued.fenced_at, queued.terminal_event_start_seq, queued.terminal_event_end_seq, queued.terminal_kind, queued.terminal_stop_reason, queued.terminal_disposition, queued.terminal_reason_code, queued.terminal_tokens_reported, queued.terminal_tokens_used, queued.terminal_at, queued.priority, queued.origin_class, queued.origin_session_id, queued.mentions_json, queued.human_ingress, queued.unattended_counted FROM session_input_queue AS queued
+SELECT queued.goal_input_batch_max_rowid, queued.id, queued.session_id, queued.prompt_admission_id, queued.message_id, queued.idempotency_key, queued.turn_id, queued.target_turn_id, queued.event_id, queued.status, queued.mode, queued.delivery, queued.superseded_by, queued.steer_delivery, queued.text, queued.synthetic_prompt_json, queued.skill_invocations_json, queued.attachments_json, queued.origin_json, queued.runtime_provider, queued.runtime_model, queued.runtime_reasoning_effort, queued.runtime_speed, queued.runtime_acp_options_json, queued.session_generation, queued.task_run_id, queued.run_generation, queued.attempt_count, queued.enqueued_at, queued.dispatch_started_at, queued.sent_at, queued.failed_at, queued.failure_summary, queued.canceled_at, queued.updated_at, queued.loop_run_id, queued.owner_kind, queued.owner_epoch, queued.binding_epoch, queued.prompt_id, queued.prompt_kind, queued.operation_usage_base_tokens, queued.prompt_attempt, queued.dispatchable, queued.activated_at, queued.dispatch_token_hash, queued.fence_kind, queued.fence_disposition, queued.fence_reason_code, queued.fenced_at, queued.terminal_event_start_seq, queued.terminal_event_end_seq, queued.terminal_kind, queued.terminal_stop_reason, queued.terminal_disposition, queued.terminal_reason_code, queued.terminal_tokens_reported, queued.terminal_tokens_used, queued.terminal_at, queued.priority, queued.origin_class, queued.origin_session_id, queued.mentions_json, queued.human_ingress, queued.unattended_counted FROM session_input_queue AS queued
 WHERE queued.session_id = ?1
   AND (queued.origin_class = 'human' OR NOT EXISTS (
     SELECT 1 FROM sessions AS target
@@ -472,6 +473,7 @@ func (q *Queries) GetNextDispatchableSessionInput(ctx context.Context, arg GetNe
 		&i.Status,
 		&i.Mode,
 		&i.Delivery,
+		&i.SupersededBy,
 		&i.SteerDelivery,
 		&i.Text,
 		&i.SyntheticPromptJson,
@@ -540,7 +542,7 @@ func (q *Queries) GetSessionInputGeneration(ctx context.Context, id string) (int
 }
 
 const getSessionInputQueueEntry = `-- name: GetSessionInputQueueEntry :one
-SELECT goal_input_batch_max_rowid, id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at, priority, origin_class, origin_session_id, mentions_json, human_ingress, unattended_counted FROM session_input_queue
+SELECT goal_input_batch_max_rowid, id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, superseded_by, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at, priority, origin_class, origin_session_id, mentions_json, human_ingress, unattended_counted FROM session_input_queue
 WHERE session_id = ?1 AND id = ?2
 `
 
@@ -565,6 +567,7 @@ func (q *Queries) GetSessionInputQueueEntry(ctx context.Context, arg GetSessionI
 		&i.Status,
 		&i.Mode,
 		&i.Delivery,
+		&i.SupersededBy,
 		&i.SteerDelivery,
 		&i.Text,
 		&i.SyntheticPromptJson,
@@ -622,7 +625,7 @@ func (q *Queries) GetSessionInputQueueEntry(ctx context.Context, arg GetSessionI
 }
 
 const getSessionInputQueueEntryByID = `-- name: GetSessionInputQueueEntryByID :one
-SELECT goal_input_batch_max_rowid, id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at, priority, origin_class, origin_session_id, mentions_json, human_ingress, unattended_counted FROM session_input_queue WHERE id = ?1
+SELECT goal_input_batch_max_rowid, id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, superseded_by, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at, priority, origin_class, origin_session_id, mentions_json, human_ingress, unattended_counted FROM session_input_queue WHERE id = ?1
 `
 
 func (q *Queries) GetSessionInputQueueEntryByID(ctx context.Context, id string) (SessionInputQueue, error) {
@@ -641,6 +644,7 @@ func (q *Queries) GetSessionInputQueueEntryByID(ctx context.Context, id string) 
 		&i.Status,
 		&i.Mode,
 		&i.Delivery,
+		&i.SupersededBy,
 		&i.SteerDelivery,
 		&i.Text,
 		&i.SyntheticPromptJson,
@@ -698,7 +702,7 @@ func (q *Queries) GetSessionInputQueueEntryByID(ctx context.Context, id string) 
 }
 
 const getSyntheticSessionInputByMessage = `-- name: GetSyntheticSessionInputByMessage :one
-SELECT goal_input_batch_max_rowid, id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at, priority, origin_class, origin_session_id, mentions_json, human_ingress, unattended_counted FROM session_input_queue
+SELECT goal_input_batch_max_rowid, id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, superseded_by, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at, priority, origin_class, origin_session_id, mentions_json, human_ingress, unattended_counted FROM session_input_queue
 WHERE session_id = ?1 AND owner_kind = 'synthetic' AND status IN ('queued','dispatching')
   AND CAST(?2 AS TEXT) <> ''
   AND (message_id = ?2 OR EXISTS (
@@ -729,6 +733,7 @@ func (q *Queries) GetSyntheticSessionInputByMessage(ctx context.Context, arg Get
 		&i.Status,
 		&i.Mode,
 		&i.Delivery,
+		&i.SupersededBy,
 		&i.SteerDelivery,
 		&i.Text,
 		&i.SyntheticPromptJson,
@@ -909,7 +914,7 @@ WITH prepared_goal AS (
     AND session_generation = (SELECT input_generation FROM sessions WHERE id = ?1)
   ORDER BY enqueued_at, id LIMIT 1
 )
-SELECT queued.goal_input_batch_max_rowid, queued.id, queued.session_id, queued.prompt_admission_id, queued.message_id, queued.idempotency_key, queued.turn_id, queued.target_turn_id, queued.event_id, queued.status, queued.mode, queued.delivery, queued.steer_delivery, queued.text, queued.synthetic_prompt_json, queued.skill_invocations_json, queued.attachments_json, queued.origin_json, queued.runtime_provider, queued.runtime_model, queued.runtime_reasoning_effort, queued.runtime_speed, queued.runtime_acp_options_json, queued.session_generation, queued.task_run_id, queued.run_generation, queued.attempt_count, queued.enqueued_at, queued.dispatch_started_at, queued.sent_at, queued.failed_at, queued.failure_summary, queued.canceled_at, queued.updated_at, queued.loop_run_id, queued.owner_kind, queued.owner_epoch, queued.binding_epoch, queued.prompt_id, queued.prompt_kind, queued.operation_usage_base_tokens, queued.prompt_attempt, queued.dispatchable, queued.activated_at, queued.dispatch_token_hash, queued.fence_kind, queued.fence_disposition, queued.fence_reason_code, queued.fenced_at, queued.terminal_event_start_seq, queued.terminal_event_end_seq, queued.terminal_kind, queued.terminal_stop_reason, queued.terminal_disposition, queued.terminal_reason_code, queued.terminal_tokens_reported, queued.terminal_tokens_used, queued.terminal_at, queued.priority, queued.origin_class, queued.origin_session_id, queued.mentions_json, queued.human_ingress, queued.unattended_counted FROM session_input_queue AS queued
+SELECT queued.goal_input_batch_max_rowid, queued.id, queued.session_id, queued.prompt_admission_id, queued.message_id, queued.idempotency_key, queued.turn_id, queued.target_turn_id, queued.event_id, queued.status, queued.mode, queued.delivery, queued.superseded_by, queued.steer_delivery, queued.text, queued.synthetic_prompt_json, queued.skill_invocations_json, queued.attachments_json, queued.origin_json, queued.runtime_provider, queued.runtime_model, queued.runtime_reasoning_effort, queued.runtime_speed, queued.runtime_acp_options_json, queued.session_generation, queued.task_run_id, queued.run_generation, queued.attempt_count, queued.enqueued_at, queued.dispatch_started_at, queued.sent_at, queued.failed_at, queued.failure_summary, queued.canceled_at, queued.updated_at, queued.loop_run_id, queued.owner_kind, queued.owner_epoch, queued.binding_epoch, queued.prompt_id, queued.prompt_kind, queued.operation_usage_base_tokens, queued.prompt_attempt, queued.dispatchable, queued.activated_at, queued.dispatch_token_hash, queued.fence_kind, queued.fence_disposition, queued.fence_reason_code, queued.fenced_at, queued.terminal_event_start_seq, queued.terminal_event_end_seq, queued.terminal_kind, queued.terminal_stop_reason, queued.terminal_disposition, queued.terminal_reason_code, queued.terminal_tokens_reported, queued.terminal_tokens_used, queued.terminal_at, queued.priority, queued.origin_class, queued.origin_session_id, queued.mentions_json, queued.human_ingress, queued.unattended_counted FROM session_input_queue AS queued
 WHERE queued.session_id = ?1
   AND (queued.origin_class = 'human' OR NOT EXISTS (
     SELECT 1 FROM sessions AS target
@@ -968,6 +973,7 @@ func (q *Queries) ListDispatchableSessionInputs(ctx context.Context, arg ListDis
 			&i.Status,
 			&i.Mode,
 			&i.Delivery,
+			&i.SupersededBy,
 			&i.SteerDelivery,
 			&i.Text,
 			&i.SyntheticPromptJson,
@@ -1043,7 +1049,7 @@ WITH prepared_goal AS (
     AND session_generation = (SELECT input_generation FROM sessions WHERE id = ?1)
   ORDER BY enqueued_at, id LIMIT 1
 )
-SELECT queued.goal_input_batch_max_rowid, queued.id, queued.session_id, queued.prompt_admission_id, queued.message_id, queued.idempotency_key, queued.turn_id, queued.target_turn_id, queued.event_id, queued.status, queued.mode, queued.delivery, queued.steer_delivery, queued.text, queued.synthetic_prompt_json, queued.skill_invocations_json, queued.attachments_json, queued.origin_json, queued.runtime_provider, queued.runtime_model, queued.runtime_reasoning_effort, queued.runtime_speed, queued.runtime_acp_options_json, queued.session_generation, queued.task_run_id, queued.run_generation, queued.attempt_count, queued.enqueued_at, queued.dispatch_started_at, queued.sent_at, queued.failed_at, queued.failure_summary, queued.canceled_at, queued.updated_at, queued.loop_run_id, queued.owner_kind, queued.owner_epoch, queued.binding_epoch, queued.prompt_id, queued.prompt_kind, queued.operation_usage_base_tokens, queued.prompt_attempt, queued.dispatchable, queued.activated_at, queued.dispatch_token_hash, queued.fence_kind, queued.fence_disposition, queued.fence_reason_code, queued.fenced_at, queued.terminal_event_start_seq, queued.terminal_event_end_seq, queued.terminal_kind, queued.terminal_stop_reason, queued.terminal_disposition, queued.terminal_reason_code, queued.terminal_tokens_reported, queued.terminal_tokens_used, queued.terminal_at, queued.priority, queued.origin_class, queued.origin_session_id, queued.mentions_json, queued.human_ingress, queued.unattended_counted FROM session_input_queue AS queued
+SELECT queued.goal_input_batch_max_rowid, queued.id, queued.session_id, queued.prompt_admission_id, queued.message_id, queued.idempotency_key, queued.turn_id, queued.target_turn_id, queued.event_id, queued.status, queued.mode, queued.delivery, queued.superseded_by, queued.steer_delivery, queued.text, queued.synthetic_prompt_json, queued.skill_invocations_json, queued.attachments_json, queued.origin_json, queued.runtime_provider, queued.runtime_model, queued.runtime_reasoning_effort, queued.runtime_speed, queued.runtime_acp_options_json, queued.session_generation, queued.task_run_id, queued.run_generation, queued.attempt_count, queued.enqueued_at, queued.dispatch_started_at, queued.sent_at, queued.failed_at, queued.failure_summary, queued.canceled_at, queued.updated_at, queued.loop_run_id, queued.owner_kind, queued.owner_epoch, queued.binding_epoch, queued.prompt_id, queued.prompt_kind, queued.operation_usage_base_tokens, queued.prompt_attempt, queued.dispatchable, queued.activated_at, queued.dispatch_token_hash, queued.fence_kind, queued.fence_disposition, queued.fence_reason_code, queued.fenced_at, queued.terminal_event_start_seq, queued.terminal_event_end_seq, queued.terminal_kind, queued.terminal_stop_reason, queued.terminal_disposition, queued.terminal_reason_code, queued.terminal_tokens_reported, queued.terminal_tokens_used, queued.terminal_at, queued.priority, queued.origin_class, queued.origin_session_id, queued.mentions_json, queued.human_ingress, queued.unattended_counted FROM session_input_queue AS queued
 WHERE queued.session_id = ?1
   AND (queued.owner_kind IS NULL OR queued.owner_kind != 'goal')
   AND queued.status IN (?2, ?3)
@@ -1087,6 +1093,7 @@ func (q *Queries) ListPendingSessionInputs(ctx context.Context, arg ListPendingS
 			&i.Status,
 			&i.Mode,
 			&i.Delivery,
+			&i.SupersededBy,
 			&i.SteerDelivery,
 			&i.Text,
 			&i.SyntheticPromptJson,
@@ -1241,6 +1248,107 @@ func (q *Queries) ListStaleDispatchingSessionInputs(ctx context.Context) ([]List
 	return items, nil
 }
 
+const listSupersededSessionSteers = `-- name: ListSupersededSessionSteers :many
+SELECT goal_input_batch_max_rowid, id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id, status, mode, delivery, superseded_by, steer_delivery, text, synthetic_prompt_json, skill_invocations_json, attachments_json, origin_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, session_generation, task_run_id, run_generation, attempt_count, enqueued_at, dispatch_started_at, sent_at, failed_at, failure_summary, canceled_at, updated_at, loop_run_id, owner_kind, owner_epoch, binding_epoch, prompt_id, prompt_kind, operation_usage_base_tokens, prompt_attempt, dispatchable, activated_at, dispatch_token_hash, fence_kind, fence_disposition, fence_reason_code, fenced_at, terminal_event_start_seq, terminal_event_end_seq, terminal_kind, terminal_stop_reason, terminal_disposition, terminal_reason_code, terminal_tokens_reported, terminal_tokens_used, terminal_at, priority, origin_class, origin_session_id, mentions_json, human_ingress, unattended_counted FROM session_input_queue
+WHERE session_id = ?1 AND mode = 'steer' AND status = 'canceled'
+  AND superseded_by IS NOT NULL AND id > ?2
+ORDER BY id LIMIT 100
+`
+
+type ListSupersededSessionSteersParams struct {
+	SessionID string `json:"session_id"`
+	AfterID   string `json:"after_id"`
+}
+
+func (q *Queries) ListSupersededSessionSteers(ctx context.Context, arg ListSupersededSessionSteersParams) ([]SessionInputQueue, error) {
+	rows, err := q.db.QueryContext(ctx, listSupersededSessionSteers, arg.SessionID, arg.AfterID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SessionInputQueue{}
+	for rows.Next() {
+		var i SessionInputQueue
+		if err := rows.Scan(
+			&i.GoalInputBatchMaxRowid,
+			&i.ID,
+			&i.SessionID,
+			&i.PromptAdmissionID,
+			&i.MessageID,
+			&i.IdempotencyKey,
+			&i.TurnID,
+			&i.TargetTurnID,
+			&i.EventID,
+			&i.Status,
+			&i.Mode,
+			&i.Delivery,
+			&i.SupersededBy,
+			&i.SteerDelivery,
+			&i.Text,
+			&i.SyntheticPromptJson,
+			&i.SkillInvocationsJson,
+			&i.AttachmentsJson,
+			&i.OriginJson,
+			&i.RuntimeProvider,
+			&i.RuntimeModel,
+			&i.RuntimeReasoningEffort,
+			&i.RuntimeSpeed,
+			&i.RuntimeAcpOptionsJson,
+			&i.SessionGeneration,
+			&i.TaskRunID,
+			&i.RunGeneration,
+			&i.AttemptCount,
+			&i.EnqueuedAt,
+			&i.DispatchStartedAt,
+			&i.SentAt,
+			&i.FailedAt,
+			&i.FailureSummary,
+			&i.CanceledAt,
+			&i.UpdatedAt,
+			&i.LoopRunID,
+			&i.OwnerKind,
+			&i.OwnerEpoch,
+			&i.BindingEpoch,
+			&i.PromptID,
+			&i.PromptKind,
+			&i.OperationUsageBaseTokens,
+			&i.PromptAttempt,
+			&i.Dispatchable,
+			&i.ActivatedAt,
+			&i.DispatchTokenHash,
+			&i.FenceKind,
+			&i.FenceDisposition,
+			&i.FenceReasonCode,
+			&i.FencedAt,
+			&i.TerminalEventStartSeq,
+			&i.TerminalEventEndSeq,
+			&i.TerminalKind,
+			&i.TerminalStopReason,
+			&i.TerminalDisposition,
+			&i.TerminalReasonCode,
+			&i.TerminalTokensReported,
+			&i.TerminalTokensUsed,
+			&i.TerminalAt,
+			&i.Priority,
+			&i.OriginClass,
+			&i.OriginSessionID,
+			&i.MentionsJson,
+			&i.HumanIngress,
+			&i.UnattendedCounted,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markSessionInputFailed = `-- name: MarkSessionInputFailed :execrows
 UPDATE session_input_queue
 SET status = ?1, failed_at = ?2,
@@ -1311,7 +1419,7 @@ WITH prepared_goal AS (
     AND session_generation = (SELECT input_generation FROM sessions WHERE id = ?1)
   ORDER BY enqueued_at, id LIMIT 1
 )
-SELECT queued.goal_input_batch_max_rowid, queued.id, queued.session_id, queued.prompt_admission_id, queued.message_id, queued.idempotency_key, queued.turn_id, queued.target_turn_id, queued.event_id, queued.status, queued.mode, queued.delivery, queued.steer_delivery, queued.text, queued.synthetic_prompt_json, queued.skill_invocations_json, queued.attachments_json, queued.origin_json, queued.runtime_provider, queued.runtime_model, queued.runtime_reasoning_effort, queued.runtime_speed, queued.runtime_acp_options_json, queued.session_generation, queued.task_run_id, queued.run_generation, queued.attempt_count, queued.enqueued_at, queued.dispatch_started_at, queued.sent_at, queued.failed_at, queued.failure_summary, queued.canceled_at, queued.updated_at, queued.loop_run_id, queued.owner_kind, queued.owner_epoch, queued.binding_epoch, queued.prompt_id, queued.prompt_kind, queued.operation_usage_base_tokens, queued.prompt_attempt, queued.dispatchable, queued.activated_at, queued.dispatch_token_hash, queued.fence_kind, queued.fence_disposition, queued.fence_reason_code, queued.fenced_at, queued.terminal_event_start_seq, queued.terminal_event_end_seq, queued.terminal_kind, queued.terminal_stop_reason, queued.terminal_disposition, queued.terminal_reason_code, queued.terminal_tokens_reported, queued.terminal_tokens_used, queued.terminal_at, queued.priority, queued.origin_class, queued.origin_session_id, queued.mentions_json, queued.human_ingress, queued.unattended_counted FROM session_input_queue AS queued
+SELECT queued.goal_input_batch_max_rowid, queued.id, queued.session_id, queued.prompt_admission_id, queued.message_id, queued.idempotency_key, queued.turn_id, queued.target_turn_id, queued.event_id, queued.status, queued.mode, queued.delivery, queued.superseded_by, queued.steer_delivery, queued.text, queued.synthetic_prompt_json, queued.skill_invocations_json, queued.attachments_json, queued.origin_json, queued.runtime_provider, queued.runtime_model, queued.runtime_reasoning_effort, queued.runtime_speed, queued.runtime_acp_options_json, queued.session_generation, queued.task_run_id, queued.run_generation, queued.attempt_count, queued.enqueued_at, queued.dispatch_started_at, queued.sent_at, queued.failed_at, queued.failure_summary, queued.canceled_at, queued.updated_at, queued.loop_run_id, queued.owner_kind, queued.owner_epoch, queued.binding_epoch, queued.prompt_id, queued.prompt_kind, queued.operation_usage_base_tokens, queued.prompt_attempt, queued.dispatchable, queued.activated_at, queued.dispatch_token_hash, queued.fence_kind, queued.fence_disposition, queued.fence_reason_code, queued.fenced_at, queued.terminal_event_start_seq, queued.terminal_event_end_seq, queued.terminal_kind, queued.terminal_stop_reason, queued.terminal_disposition, queued.terminal_reason_code, queued.terminal_tokens_reported, queued.terminal_tokens_used, queued.terminal_at, queued.priority, queued.origin_class, queued.origin_session_id, queued.mentions_json, queued.human_ingress, queued.unattended_counted FROM session_input_queue AS queued
 WHERE queued.session_id = ?1
   AND (queued.origin_class = 'human' OR NOT EXISTS (
     SELECT 1 FROM sessions AS target
@@ -1357,6 +1465,7 @@ func (q *Queries) PeekNextSessionInput(ctx context.Context, arg PeekNextSessionI
 		&i.Status,
 		&i.Mode,
 		&i.Delivery,
+		&i.SupersededBy,
 		&i.SteerDelivery,
 		&i.Text,
 		&i.SyntheticPromptJson,
@@ -1573,8 +1682,9 @@ SET status = ?1, steer_delivery = ?2,
     delivery = CASE WHEN ?1 = 'queued' AND (origin_class <> 'human' OR ?2 = 'after_turn') THEN 'after_turn' ELSE delivery END,
     turn_id = CASE WHEN ?1 = 'sent' THEN target_turn_id ELSE turn_id END,
     sent_at = ?3, dispatch_started_at = NULL, updated_at = ?4
-WHERE session_id = ?5 AND id = ?6
+WHERE session_input_queue.session_id = ?5 AND session_input_queue.id = ?6
   AND mode = 'steer' AND status = 'dispatching' AND (owner_kind IS NULL OR owner_kind = 'synthetic')
+  AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?5)
 `
 
 type ResolveSessionSteerParams struct {
@@ -1632,12 +1742,12 @@ func (q *Queries) RevertPromotedAgentSessionInput(ctx context.Context, arg Rever
 const settlePendingSessionSteer = `-- name: SettlePendingSessionSteer :execrows
 UPDATE session_input_queue
 SET steer_delivery = ?1, updated_at = ?2,
-    status = CASE WHEN ?1 = 'interrupt_fallback' THEN 'queued' ELSE 'sent' END,
-    dispatchable = CASE WHEN ?1 = 'interrupt_fallback' THEN 1 ELSE 0 END,
-    delivery = CASE WHEN ?1 = 'interrupt_fallback' AND origin_class <> 'human'
+    status = CASE WHEN ?1 <> 'injected' THEN 'queued' ELSE 'sent' END,
+    dispatchable = CASE WHEN ?1 <> 'injected' THEN 1 ELSE 0 END,
+    delivery = CASE WHEN ?1 = 'after_turn' OR (?1 = 'interrupt_fallback' AND origin_class <> 'human')
                     THEN 'after_turn' ELSE delivery END,
-    sent_at = CASE WHEN ?1 = 'interrupt_fallback' THEN NULL ELSE sent_at END,
-    turn_id = CASE WHEN ?1 = 'interrupt_fallback' THEN ?3 ELSE turn_id END
+    sent_at = CASE WHEN ?1 <> 'injected' THEN NULL ELSE sent_at END,
+    turn_id = CASE WHEN ?1 <> 'injected' THEN ?3 ELSE turn_id END
 WHERE session_input_queue.session_id = ?4 AND session_input_queue.id = ?5
   AND mode = 'steer' AND ((status = 'sent' AND steer_delivery = 'pending_injection')
     OR (status = 'queued' AND steer_delivery = 'pending_boundary' AND ?1 = 'interrupt_fallback'))
@@ -1669,15 +1779,17 @@ func (q *Queries) SettlePendingSessionSteer(ctx context.Context, arg SettlePendi
 
 const supersedeBoundarySteersForInterrupt = `-- name: SupersedeBoundarySteersForInterrupt :many
 UPDATE session_input_queue
-SET status = 'canceled', dispatchable = 0, canceled_at = ?1, updated_at = ?1
-WHERE session_id = ?2 AND target_turn_id = ?3
-  AND session_generation = ?4
-  AND status = 'queued' AND mode = 'steer' AND origin_class = 'human'
-  AND steer_delivery IN ('pending_boundary', 'interrupt_fallback')
+SET superseded_by = ?1, status = 'canceled', dispatchable = 0, canceled_at = ?2, updated_at = ?2
+WHERE session_id = ?3 AND target_turn_id = ?4
+  AND session_generation = ?5
+  AND mode = 'steer' AND origin_class = 'human'
+  AND ((status = 'queued' AND steer_delivery IN ('pending_boundary', 'interrupt_fallback'))
+    OR status = 'dispatching')
 RETURNING id
 `
 
 type SupersedeBoundarySteersForInterruptParams struct {
+	ReplacementID     sql.NullString `json:"replacement_id"`
 	Now               sql.NullString `json:"now"`
 	SessionID         string         `json:"session_id"`
 	TargetTurnID      string         `json:"target_turn_id"`
@@ -1686,6 +1798,7 @@ type SupersedeBoundarySteersForInterruptParams struct {
 
 func (q *Queries) SupersedeBoundarySteersForInterrupt(ctx context.Context, arg SupersedeBoundarySteersForInterruptParams) ([]string, error) {
 	rows, err := q.db.QueryContext(ctx, supersedeBoundarySteersForInterrupt,
+		arg.ReplacementID,
 		arg.Now,
 		arg.SessionID,
 		arg.TargetTurnID,

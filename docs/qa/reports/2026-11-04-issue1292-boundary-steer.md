@@ -23,8 +23,8 @@ included in this report.
 `TestManagerBoundarySteer` exercises the production session manager and real SQLite queue with
 only the provider I/O stubbed: duplicate starts, two overlapping tools, no cancellation after the
 first result, cancellation after the last result, timeout escalation, no-event after-turn delivery,
-zero-timeout compatibility, and immediate explicit interrupt. Tool lifecycle events bypass chunk
-coalescing so cancellation is requested while processing the completion event.
+zero-timeout compatibility, and immediate explicit interrupt. Tool lifetimes are tracked before batching; only a waiting boundary forces the completion event
+to flush durably before cancellation. Ordinary provider bursts retain batched persistence.
 
 The durable acceptance retains `pending_boundary`; settlement changes the queued row to
 `interrupt_fallback` without rewriting the idempotent admission receipt. The migration suite
@@ -62,7 +62,8 @@ is exercised with the timer backstop. Tool-event support persists across turns o
 and resets on process replacement. Closed tool IDs remain terminal despite later metadata updates.
 The expanded boundary suite and native descriptor suite passed with race.
 
-Tool events still bypass the 25 ms chunk coalescer to preserve the requested immediate boundary.
+Tool lifetimes are observed at ingress. Only a waiting boundary bypasses the 25 ms chunk coalescer;
+ordinary tool bursts retain batched writes.
 Fallback protection also applies when native injection is refused or unavailable for a particular
 message; prediction reflects the advertised capability, while the acceptance receipt remains
 final delivery truth. Explicit interrupt cancels immediately and atomically supersedes older pending-boundary or released
@@ -75,7 +76,7 @@ with race after that correction (23.182s).
 The existing no-tool-events browser fixture now requires `after_turn` and the corresponding inline
 feedback, rather than accepting an open-ended delivery list. Its E2E execution is CI-owned.
 
-Final local commands (all PASS on the reviewed source):
+Initial implementation commands (passed before PR remediation; current-round receipts follow):
 
 ```sh
 CGO_ENABLED=1 go test -race ./internal/session -parallel=4 -run '^(TestManagerLiveSteerDelivery|TestManagerBoundarySteer|TestManagerBusyInputActivationCleanup|TestManagerPendingInputPromotionReplay)$' -count=1 -timeout=60s
@@ -98,3 +99,53 @@ The temporary provider probe was removed from the checkout after its source was 
 Review follow-ups corrected interrupt/parked-steer ordering, atomicity, completed-turn markers, and
 stale delivery-table and configuration-lifecycle prose. The documented `after_turn` ordering remains
 queue-like, as requested; newer steering may supersede undelivered guidance.
+
+## PR review and CI remediation
+
+Greptile and CodeRabbit identified a missing rowid copy and delayed native refusal path. The
+unreleased migration now preserves rowids, including gaps and saved Goal cutoffs. Delayed native
+refusals use the same boundary decision as initial refusals and retain their original acceptance
+receipt. The OpenAPI compatibility suite records only the two approved additive delivery values;
+its exact comparisons remain intact.
+
+The cancellation claim shares the tool-observation lock with settlement. A tool observed before
+that claim postpones cancellation until the next safe boundary or the timeout. Timeout reads and
+settlement retry transient storage failures without replaying a committed cancellation. Positive
+fallbacks are staged at a boundary even when the observed tool set is currently empty, so the
+fenced activation can cancel immediately or notice a newly observed tool safely.
+
+Operator interrupts, including empty interrupts, retire queued or reserved human steering without
+removing ordinary queued input. The additive `superseded_by` migration persists that relationship.
+Session activation repairs missing transcript markers using stable event IDs, with bounded queue
+pages and idempotent ledger reads. Existing manager/store suites cover crash-window repair,
+reserved-steer fencing, empty interrupts, timeout retry faults, and rollback's specific constraint.
+
+CI also exposed two mention fixtures that kept their active turn open while waiting for after-turn
+delivery; they now finish that turn before asserting the same mention resolution. The catalogue
+fixture now waits for every expected context refresh before shutdown can cancel admission, with
+its count and no-parked-target checks retained. The provider-burst test's assertions remain unchanged.
+The SQLite paired experiment showed no throughput regression, but one retention sweep took 32.1s
+against its 30s limit; the threshold remains unchanged for the next CI round.
+
+Current-round receipts:
+
+- PASS: `make codegen` and `make codegen-check`, including the appended supersession migration.
+- PASS: real ACP subprocess fallback integration with race (9.664s) after cancellation claim refactoring.
+- PASS: exact OpenAPI compatibility comparison (three runs, 46.200s) and catalogue fixture (three runs, 4.509s).
+- PASS: queue-generation suite including reserved-steer fencing, rollback and persisted supersession (100.860s).
+- PASS: focused interrupt/fence and idle-boundary rerun with race (23.915s).
+- PASS: final combined boundary selection (35.481s), preservation/settlement selection (62.623s), and scoped Go lint (zero diagnostics).
+- PASS: manager regressions for reserved steering superseded inside the native call (6.346s), covering injected, pending and unsupported outcomes.
+- PASS: native-delivery regression (10.185s) and session lint (zero diagnostics) after the final terminal-outcome correction.
+
+The earlier combined boundary runs passed every case except the idle-boundary timing assertion;
+that case now explicitly requires immediate activation and is excluded from the timer lower bound.
+The timer cases retain the lower-bound assertion. Invalid generated SQL discovered during the first
+late-refusal rerun was corrected in the owning query and regenerated; those failed runs are not
+passing evidence.
+
+The final Opus corrective review accepted cancellation fencing, timeout retries, empty interrupts,
+restart repair, migration preservation and source size. Its remaining finding was a permanent retry
+when an interrupt canceled a reserved steer during the native call. Late resolution now recognizes
+the persisted supersession as terminal, ends its watcher, and avoids recording canceled guidance as
+delivered. The canonical manager suite covers all three native return outcomes.

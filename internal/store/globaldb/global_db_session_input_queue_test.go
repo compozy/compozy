@@ -25,7 +25,7 @@ import (
 func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 	t.Run("Should atomically supersede undelivered steering when admitting an interrupt", func(t *testing.T) {
 		t.Parallel()
-		for _, delivery := range []store.SteerDeliveryMode{store.SteerDeliveryPendingBoundary, store.SteerDeliveryInterruptFallback} {
+		for _, delivery := range []store.SteerDeliveryMode{store.SteerDeliveryPendingBoundary, store.SteerDeliveryInterruptFallback, ""} {
 			for _, rollback := range []bool{false, true} {
 				t.Run(
 					fmt.Sprintf("Should preserve atomic supersede for %s rollback %t", delivery, rollback),
@@ -41,6 +41,17 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 						} {
 							if _, _, err := db.EnqueueSessionInput(ctx, entry); err != nil {
 								t.Fatal(err)
+							}
+						}
+						if delivery == "" {
+							if _, ok, err := db.ReserveSessionSteer(
+								ctx,
+								sessionID,
+								"old-steer",
+								now,
+							); err != nil ||
+								!ok {
+								t.Fatalf("reserve=%t/%v", ok, err)
 							}
 						}
 						id := "interrupt"
@@ -59,8 +70,9 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 							},
 						)
 						if rollback {
-							if err == nil {
-								t.Fatal("duplicate interrupt unexpectedly admitted")
+							if err == nil ||
+								!strings.Contains(err.Error(), "UNIQUE constraint failed: session_input_queue.id") {
+								t.Fatalf("duplicate interrupt error=%v, want queue ID uniqueness constraint", err)
 							}
 						} else if err != nil || canceled != 1 || !slices.Equal(replacement.SupersededIDs, []string{"old-steer"}) {
 							t.Fatalf("interrupt=%#v/%d/%v", replacement, canceled, err)
@@ -72,6 +84,9 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 						want := store.SessionInputQueueStatusCanceled
 						if rollback {
 							want = store.SessionInputQueueStatusQueued
+							if delivery == "" {
+								want = store.SessionInputQueueStatusDispatching
+							}
 						}
 						if old.Status != want {
 							t.Fatalf("old steering status=%s, want %s", old.Status, want)
@@ -81,6 +96,21 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 							t.Fatalf("ordinary queue=%#v/%v", queued, err)
 						}
 						if !rollback {
+							if old.SupersededBy != "interrupt" {
+								t.Fatalf("superseding identity=%q", old.SupersededBy)
+							}
+							if delivery == "" {
+								_, err := db.ResolveSessionSteer(
+									ctx,
+									sessionID,
+									"old-steer",
+									store.SteerDeliveryPendingBoundary,
+									now,
+								)
+								if !errors.Is(err, store.ErrSessionInputQueueEntryNotQueued) {
+									t.Fatalf("late resolution=%v", err)
+								}
+							}
 							claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(2*time.Second))
 							if err != nil || !ok || claimed.ID != "interrupt" {
 								t.Fatalf("next input=%#v/%t/%v", claimed, ok, err)
@@ -2362,6 +2392,8 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 		}{
 			{"Should record successful injection", store.SteerDeliveryInjected, false},
 			{"Should release fallback once", store.SteerDeliveryInterruptFallback, false},
+			{"Should park a delayed refusal at the boundary", store.SteerDeliveryPendingBoundary, false},
+			{"Should queue a delayed refusal after the turn", store.SteerDeliveryAfterTurn, false},
 			{"Should fence late failure from an older generation", store.SteerDeliveryInterruptFallback, true},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
@@ -2418,8 +2450,9 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 					t.Fatalf("duplicate settlement=%v/%v", changed, err)
 				}
 				claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(3*time.Second))
-				wantDispatch := !tc.stale && delivery == store.SteerDeliveryInterruptFallback
-				if err != nil || ok != wantDispatch || (ok && claimed.ID != entry.ID) {
+				wantDispatch := !tc.stale && delivery != store.SteerDeliveryInjected
+				if err != nil || ok != wantDispatch ||
+					(ok && (claimed.ID != entry.ID || claimed.TurnID == "original-turn")) {
 					t.Fatalf("dispatch=%#v/%v/%v", claimed, ok, err)
 				}
 				receipt, found, err := db.ReplaySessionPromptAdmission(ctx, req)

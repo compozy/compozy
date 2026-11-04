@@ -67,7 +67,9 @@ func (m *Manager) runPromptPumpLoop(run *promptPumpRun) {
 				}
 				break
 			}
-			if coalescer.append(event, runtimeEvent) {
+			// Track tools before batching; only a waiting boundary needs an immediate durable flush.
+			boundary := run.session.trackSteerToolEvent(event, run.turnState.turnID)
+			if coalescer.append(event, runtimeEvent || boundary) {
 				if !coalescer.shouldFlush() {
 					continue
 				}
@@ -79,7 +81,7 @@ func (m *Manager) runPromptPumpLoop(run *promptPumpRun) {
 			if m.flushPromptPumpRun(run, &loop, coalescer) {
 				return
 			}
-			if coalescer.append(event, runtimeEvent) {
+			if coalescer.append(event, runtimeEvent || boundary) {
 				if !coalescer.shouldFlush() {
 					continue
 				}

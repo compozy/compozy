@@ -101,6 +101,7 @@ func scanSessionInputOrigin(row *sqlcgen.SessionInputQueue, entry *store.Session
 	entry.OriginClass = strings.TrimSpace(row.OriginClass)
 	entry.MentionsJSON = store.NormalizeMentionsJSON(row.MentionsJson)
 	entry.HumanIngress = row.HumanIngress != 0
+	entry.SupersededBy = strings.TrimSpace(row.SupersededBy.String)
 	entry.OriginSessionID = strings.TrimSpace(row.OriginSessionID)
 }
 

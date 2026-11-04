@@ -70,6 +70,9 @@ func (m *Manager) activateAndWatch(
 		m.sessionLogger(session).Warn("session: persist health presence failed", "error", err)
 	}
 	m.watchProcess(session)
+	if err := m.reconcileSteerSupersessions(ctx, session); err != nil {
+		m.sessionLogger(session).Warn("session: recover steering supersessions failed", "error", err)
+	}
 	return nil
 }
 

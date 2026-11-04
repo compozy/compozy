@@ -12,7 +12,7 @@ import (
 // a pending steer whose resolution could not be saved at injection time; the watch saves it first, so the
 // outcome still settles without sending the guidance again.
 func (m *Manager) watchSteerCompletion(
-	session *Session, entryID, targetTurnID string, completion <-chan error, unresolved bool,
+	session *Session, entryID string, completion <-chan error, unresolved bool,
 ) {
 	m.startTrackedPromptTask(func() {
 		deliveryErr, open := <-completion
@@ -56,11 +56,7 @@ func (m *Manager) watchSteerCompletion(
 					Error("session: revert promoted queued input failed", "entry_id", entryID, "error", err)
 			}
 		}
-		if steerFallbackWaitsForTurn(&resolved) || session.CurrentTurnID() != targetTurnID {
-			m.startNextQueuedInputPrompt(session.ID)
-			return
-		}
-		if err := m.activateInterruptingInput(ctx, session, &resolved); err != nil {
+		if err := m.activateSteerFallback(ctx, session, &resolved); err != nil {
 			m.sessionLogger(session).
 				Error("session: activate pending steer fallback failed", "entry_id", entryID, "error", err)
 		}
@@ -85,14 +81,26 @@ func (m *Manager) settleSteerCompletion(
 			err      error
 		)
 		if unresolved {
-			_, err = m.resolveAcceptedSteer(ctx, session.ID, entryID, store.SteerDeliveryPendingInjection)
+			resolved, err = m.resolveAcceptedSteer(ctx, session.ID, entryID, store.SteerDeliveryPendingInjection)
 			unresolved = err != nil
+			if err == nil && resolved.SupersededBy != "" {
+				session.mu.Unlock()
+				return resolved, false, nil
+			}
+		}
+		settledDelivery := delivery
+		if err == nil && delivery == store.SteerDeliveryInterruptFallback {
+			var pending store.SessionInputQueueEntry
+			pending, err = m.inputQueue.Get(ctx, session.ID, entryID)
+			if err == nil {
+				settledDelivery = m.boundarySteerDeliveryLocked(session, &pending)
+			}
 		}
 		if err == nil {
-			resolved, changed, err = m.inputQueue.SettlePendingSteer(ctx, session.ID, entryID, delivery)
+			resolved, changed, err = m.inputQueue.SettlePendingSteer(ctx, session.ID, entryID, settledDelivery)
 		}
 		if err == nil && changed {
-			session.steerDelivery = delivery
+			session.steerDelivery = settledDelivery
 		}
 		session.mu.Unlock()
 		if err == nil {

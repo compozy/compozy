@@ -7,54 +7,68 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
-	"github.com/compozy/compozy/internal/transcript"
 )
 
+// boundarySteerDelivery chooses a safe fallback from the current runtime observation.
 func (m *Manager) boundarySteerDelivery(session *Session, entry *store.SessionInputQueueEntry) store.SteerDeliveryMode {
+	session.mu.RLock()
+	defer session.mu.RUnlock()
+	return m.boundarySteerDeliveryLocked(session, entry)
+}
+
+// boundarySteerDeliveryLocked shares the decision with completion settlement under the session fence.
+func (m *Manager) boundarySteerDeliveryLocked(
+	session *Session,
+	entry *store.SessionInputQueueEntry,
+) store.SteerDeliveryMode {
 	if m.busyInput.SteerBoundaryTimeout == 0 || !store.IsHumanSessionInputOriginClass(entry.OriginClass) {
 		return store.SteerDeliveryInterruptFallback
 	}
-	session.mu.RLock()
-	defer session.mu.RUnlock()
 	if session.currentTurnID != entry.TargetTurnID {
 		return store.SteerDeliveryAfterTurn
-	}
-	if session.openToolCallCountLocked() > 0 {
-		return store.SteerDeliveryPendingBoundary
 	}
 	if !session.toolEventsObserved {
 		return store.SteerDeliveryAfterTurn
 	}
-	return store.SteerDeliveryInterruptFallback
+	return store.SteerDeliveryPendingBoundary
 }
 
-func (m *Manager) observeSteerToolBoundary(ctx context.Context, session *Session, event acp.AgentEvent) {
+// trackSteerToolEvent tracks duplicate-safe tool lifetimes before event batching.
+func (s *Session) trackSteerToolEvent(event acp.AgentEvent, turnID string) bool {
+	if event.TurnID == "" {
+		event.TurnID = turnID
+	}
 	if event.ToolCallID == "" || (event.Type != acp.EventTypeToolCall && event.Type != acp.EventTypeToolResult) {
-		return
+		return false
 	}
-	session.mu.Lock()
-	if event.TurnID != session.currentTurnID {
-		session.mu.Unlock()
-		return
+	s.mu.Lock()
+	if event.TurnID != s.currentTurnID {
+		s.mu.Unlock()
+		return false
 	}
-	session.toolEventsObserved = true
+	s.toolEventsObserved = true
 	if event.Type == acp.EventTypeToolCall && event.ToolStatus() != string(acpsdk.ToolCallStatusCompleted) &&
 		event.ToolStatus() != string(acpsdk.ToolCallStatusFailed) {
-		if session.openToolCalls == nil {
-			session.openToolCalls = make(map[string]bool)
+		if s.openToolCalls == nil {
+			s.openToolCalls = make(map[string]bool)
 		}
-		if open, exists := session.openToolCalls[event.ToolCallID]; !exists || open {
-			session.openToolCalls[event.ToolCallID] = true
+		if open, exists := s.openToolCalls[event.ToolCallID]; !exists || open {
+			s.openToolCalls[event.ToolCallID] = true
 		}
 	} else {
-		if session.openToolCalls == nil {
-			session.openToolCalls = make(map[string]bool)
+		if s.openToolCalls == nil {
+			s.openToolCalls = make(map[string]bool)
 		}
-		session.openToolCalls[event.ToolCallID] = false
+		s.openToolCalls[event.ToolCallID] = false
 	}
-	boundary := session.openToolCallCountLocked() == 0 && session.hasBoundarySteer
-	session.mu.Unlock()
-	if !boundary {
+	boundary := s.openToolCallCountLocked() == 0 && s.hasBoundarySteer
+	s.mu.Unlock()
+	return boundary
+}
+
+// observeSteerToolBoundary activates waiting guidance after the boundary event is durable.
+func (m *Manager) observeSteerToolBoundary(ctx context.Context, session *Session, event acp.AgentEvent) {
+	if !session.trackSteerToolEvent(event, event.TurnID) {
 		return
 	}
 	entries, err := m.inputQueue.List(ctx, session.ID)
@@ -65,7 +79,7 @@ func (m *Manager) observeSteerToolBoundary(ctx context.Context, session *Session
 	for index := range entries {
 		entry := &entries[index]
 		if entry.SteerDelivery == store.SteerDeliveryPendingBoundary && entry.TargetTurnID == event.TurnID {
-			if err := m.activateBoundarySteer(ctx, session, entry.ID, event.TurnID); err != nil {
+			if err := m.activateBoundarySteer(ctx, session, entry.ID, event.TurnID, false); err != nil {
 				m.sessionLogger(session).
 					Warn("session: activate boundary steering failed", "entry_id", entry.ID, "error", err)
 			}
@@ -73,6 +87,7 @@ func (m *Manager) observeSteerToolBoundary(ctx context.Context, session *Session
 	}
 }
 
+// watchSteerBoundary races tool completion against a lifecycle-owned timeout.
 func (m *Manager) watchSteerBoundary(session *Session, entry *store.SessionInputQueueEntry) {
 	session.mu.Lock()
 	if session.currentTurnID != entry.TargetTurnID {
@@ -86,11 +101,10 @@ func (m *Manager) watchSteerBoundary(session *Session, entry *store.SessionInput
 	session.mu.Unlock()
 	ctx := m.fallbackLifecycleContext()
 	if boundary {
-		if err := m.activateBoundarySteer(ctx, session, entry.ID, entry.TargetTurnID); err != nil {
+		if err := m.activateBoundarySteer(ctx, session, entry.ID, entry.TargetTurnID, false); err != nil {
 			m.sessionLogger(session).
 				Error("session: activate boundary steering failed", "entry_id", entry.ID, "error", err)
 		}
-		return
 	}
 	entryID, turnID := entry.ID, entry.TargetTurnID
 	m.startTrackedPromptTask(func() {
@@ -103,25 +117,72 @@ func (m *Manager) watchSteerBoundary(session *Session, entry *store.SessionInput
 			return
 		case <-timer.C:
 		}
-		if err := m.activateBoundarySteer(ctx, session, entryID, turnID); err != nil {
+		if err := m.activateBoundarySteer(ctx, session, entryID, turnID, true); err != nil {
 			m.sessionLogger(session).
 				Error("session: boundary steering timeout failed", "entry_id", entryID, "error", err)
 		}
 	})
 }
 
-func (m *Manager) activateBoundarySteer(ctx context.Context, session *Session, entryID, turnID string) error {
+// activateBoundarySteer retries only uncommitted timeout settlement; cancellation is claimed once.
+func (m *Manager) activateBoundarySteer(
+	ctx context.Context,
+	session *Session,
+	entryID, turnID string,
+	expired bool,
+) error {
+	for delay := queuedInputSentRetryDelay; ; delay = min(2*delay, queuedInputSentRetryMaxDelay) {
+		resolved, run, owned, err := m.claimBoundarySteer(ctx, session, entryID, turnID, expired)
+		if err == nil {
+			if resolved != nil {
+				m.emitSteerMarker(ctx, session, resolved)
+			}
+			if owned {
+				m.startTurnStop(ctx, run, CauseUserRequested)
+			}
+			return nil
+		}
+		if !expired {
+			return err
+		}
+		m.sessionLogger(session).
+			Warn("session: boundary steer settlement failed; retrying", "entry_id", entryID, "error", err)
+		timer := time.NewTimer(delay)
+		session.mu.RLock()
+		done := session.currentPromptDone
+		session.mu.RUnlock()
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-done:
+			timer.Stop()
+			return nil
+		case <-timer.C:
+		}
+	}
+}
+
+// claimBoundarySteer fences observed tool starts with settlement and the shared cancellation claim.
+func (m *Manager) claimBoundarySteer(
+	ctx context.Context,
+	session *Session,
+	entryID, turnID string,
+	expired bool,
+) (*store.SessionInputQueueEntry, *turnStopRun, bool, error) {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if session.State != StateActive || session.currentTurnID != turnID ||
+		(!expired && session.openToolCallCountLocked() > 0) {
+		return nil, nil, false, nil
+	}
 	entry, err := m.inputQueue.Get(ctx, session.ID, entryID)
 	if err != nil {
-		return err
+		return nil, nil, false, err
 	}
 	if entry.Status != store.SessionInputQueueStatusQueued ||
 		entry.SteerDelivery != store.SteerDeliveryPendingBoundary {
-		return nil
-	}
-	if session.CurrentTurnID() != turnID {
-		m.startNextQueuedInputPrompt(session.ID)
-		return nil
+		return nil, nil, false, nil
 	}
 	resolved, changed, err := m.inputQueue.SettlePendingSteer(
 		ctx,
@@ -130,12 +191,14 @@ func (m *Manager) activateBoundarySteer(ctx context.Context, session *Session, e
 		store.SteerDeliveryInterruptFallback,
 	)
 	if err != nil || !changed {
-		return err
+		return nil, nil, false, err
 	}
-	m.emitSteerMarker(ctx, session, &resolved)
-	return m.activateInterruptingInput(ctx, session, &resolved)
+	session.steerDelivery = resolved.SteerDelivery
+	run, owned, err := session.claimTurnStopLocked(turnID)
+	return &resolved, run, owned, err
 }
 
+// openToolCallCountLocked derives the count without maintaining a second mutable counter.
 func (s *Session) openToolCallCountLocked() int {
 	count := 0
 	for _, open := range s.openToolCalls {
@@ -144,22 +207,4 @@ func (s *Session) openToolCallCountLocked() int {
 		}
 	}
 	return count
-}
-
-func (m *Manager) emitInterruptSupersededSteers(
-	ctx context.Context,
-	session *Session,
-	replacement *store.SessionInputQueueEntry,
-) {
-	for _, id := range replacement.SupersededIDs {
-		evidence := map[string]any{promptEvidenceQueueEntryIDKey: id, "replacement_entry_id": replacement.ID}
-		entry, err := m.inputQueue.Get(ctx, session.ID, id)
-		if err != nil {
-			m.sessionLogger(session).Warn("session: read superseded steering failed", "entry_id", id, "error", err)
-		} else {
-			addSteerAuthoredEvidence(evidence, &entry)
-		}
-		m.emitTranscriptMarker(ctx, session, replacement.TargetTurnID, transcript.MarkerPromptSuperseded,
-			"Undelivered steering replaced by an explicit interrupt.", evidence)
-	}
 }

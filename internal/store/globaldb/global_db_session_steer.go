@@ -109,14 +109,17 @@ func (g *SessionRepo) SettlePendingSessionSteer(
 	if err := g.checkReady(ctx, "settle pending session steer"); err != nil {
 		return entry, false, err
 	}
-	if delivery != store.SteerDeliveryInjected && delivery != store.SteerDeliveryInterruptFallback {
-		return entry, false, errors.New("store: pending steer must settle as injected or interrupt fallback")
+	switch delivery {
+	case store.SteerDeliveryInjected, store.SteerDeliveryInterruptFallback,
+		store.SteerDeliveryPendingBoundary, store.SteerDeliveryAfterTurn:
+	default:
+		return entry, false, errors.New("store: invalid pending steer settlement")
 	}
 	if now.IsZero() {
 		now = g.now()
 	}
 	fallbackTurnID := ""
-	if delivery == store.SteerDeliveryInterruptFallback {
+	if delivery != store.SteerDeliveryInjected {
 		fallbackTurnID, err = store.NewID("turn")
 		if err != nil {
 			return entry, false, fmt.Errorf("store: allocate fallback steer turn: %w", err)
@@ -163,6 +166,7 @@ func (g *SessionRepo) CancelPendingSessionSteer(ctx context.Context, sessionID, 
 	return nil
 }
 
+// supersedeBoundarySteersForInterrupt keeps replacement admission and retirement in one transaction.
 func supersedeBoundarySteersForInterrupt(
 	ctx context.Context,
 	exec globalSQLExecutor,
@@ -174,7 +178,65 @@ func supersedeBoundarySteersForInterrupt(
 	return sqlcgen.New(exec).SupersedeBoundarySteersForInterrupt(ctx, sqlcgen.SupersedeBoundarySteersForInterruptParams{
 		SessionID:         req.SessionID,
 		TargetTurnID:      req.TargetTurnID,
+		ReplacementID:     sql.NullString{String: req.ID, Valid: true},
 		SessionGeneration: req.SessionGeneration,
 		Now:               nullableSessionTime(req.Now),
 	})
+}
+
+// SupersedeSessionBoundarySteers retires undelivered human guidance before an empty interrupt.
+func (g *SessionRepo) SupersedeSessionBoundarySteers(
+	ctx context.Context,
+	sessionID, targetTurnID, replacementID string,
+	now time.Time,
+) ([]string, error) {
+	if err := g.checkReady(ctx, "supersede boundary steers"); err != nil {
+		return nil, err
+	}
+	var ids []string
+	err := g.withImmediateTransaction(ctx, "supersede boundary steers", func(exec globalSQLExecutor) error {
+		req, err := prepareInterruptSessionInput(
+			ctx,
+			exec,
+			store.SessionInputQueueInsert{
+				ID:           replacementID,
+				SessionID:    sessionID,
+				TargetTurnID: targetTurnID,
+				OriginClass:  store.SessionInputOriginClassHuman,
+				Now:          now,
+			},
+		)
+		if err != nil {
+			return err
+		}
+		ids, err = supersedeBoundarySteersForInterrupt(ctx, exec, req)
+		return err
+	})
+	return ids, err
+}
+
+// ListSupersededSessionSteers pages durable supersessions for transcript repair on resume.
+func (g *SessionRepo) ListSupersededSessionSteers(
+	ctx context.Context,
+	sessionID, afterID string,
+) ([]store.SessionInputQueueEntry, error) {
+	if err := g.checkReady(ctx, "list superseded steers"); err != nil {
+		return nil, err
+	}
+	rows, err := g.readQueries.ListSupersededSessionSteers(
+		ctx,
+		sqlcgen.ListSupersededSessionSteersParams{SessionID: sessionID, AfterID: afterID},
+	)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]store.SessionInputQueueEntry, 0, len(rows))
+	for i := range rows {
+		entry, err := sessionInputQueueFromGenerated(&rows[i])
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
 }

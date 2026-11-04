@@ -53,6 +53,13 @@ func (m *Manager) requestTurnStop(ctx context.Context, id, expectedTurn string, 
 	if err != nil || !owned {
 		return run, err
 	}
+	m.startTurnStop(ctx, run, cause)
+	return run, nil
+}
+
+// startTurnStop launches the single owner after the cancellation claim releases the session fence.
+func (m *Manager) startTurnStop(ctx context.Context, run *turnStopRun, cause StopCause) {
+	session := run.session
 	m.mu.Lock()
 	if m.turnStopRuns == nil {
 		m.turnStopRuns = make(map[string]*turnStopRun)
@@ -70,7 +77,6 @@ func (m *Manager) requestTurnStop(ctx context.Context, id, expectedTurn string, 
 	if m.daemonShuttingDown() {
 		m.startTrackedPromptTask(func() { m.skipDaemonShutdownResume(ctx, session, run.turnID) })
 	}
-	return run, nil
 }
 
 // AwaitTurnQuiesced joins the shared cancellation independently of its request context.
@@ -101,6 +107,11 @@ func (m *Manager) AwaitTurnQuiesced(ctx context.Context, id, turnID string) (Tur
 func (s *Session) claimTurnStop(expected string) (*turnStopRun, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.claimTurnStopLocked(expected)
+}
+
+// claimTurnStopLocked shares the cancellation fence with tool-boundary settlement.
+func (s *Session) claimTurnStopLocked(expected string) (*turnStopRun, bool, error) {
 	if s.State != StateActive {
 		return nil, false, ErrSessionNotActive
 	}

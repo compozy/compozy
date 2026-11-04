@@ -87,6 +87,7 @@ CREATE TABLE session_health (
 			mode TEXT NOT NULL CHECK (mode IN ('queue', 'steer', 'interrupt')),
 			delivery TEXT NOT NULL DEFAULT 'after_turn'
 				CHECK (delivery IN ('after_turn', 'interrupt_then_prompt')),
+			superseded_by TEXT,
 			steer_delivery TEXT CHECK (steer_delivery IN ('injected', 'pending_injection', 'interrupt_fallback', 'pending_boundary', 'after_turn')),
 			text TEXT NOT NULL,
 			synthetic_prompt_json TEXT CHECK (synthetic_prompt_json IS NULL OR json_valid(synthetic_prompt_json)),

@@ -81,12 +81,15 @@ func (m *Manager) activateSteeringInputText(
 	}
 	*entry = resolved
 	entry.SupersededIDs = superseded
+	if entry.SupersededBy != "" {
+		return nil
+	}
 	session.mu.Lock()
 	session.steerDelivery = delivery
 	session.mu.Unlock()
 	m.emitSteerMarker(ctx, session, entry)
 	if completion != nil {
-		m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion, false)
+		m.watchSteerCompletion(session, entry.ID, completion, false)
 	}
 	return m.activateSteerFallback(ctx, session, entry)
 }
@@ -247,7 +250,7 @@ func (m *Manager) persistSteerDelivery(
 	if entry.SteerDelivery == store.SteerDeliveryInterruptFallback ||
 		entry.SteerDelivery == store.SteerDeliveryPendingBoundary ||
 		entry.SteerDelivery == store.SteerDeliveryAfterTurn {
-		return m.inputQueue.ResolveSteer(ctx, session.ID, entry.ID, entry.SteerDelivery)
+		return m.resolveAcceptedSteer(ctx, session.ID, entry.ID, entry.SteerDelivery)
 	}
 	var resolved store.SessionInputQueueEntry
 	err := m.recordAcceptedSteerInput(ctx, session, entry)
@@ -257,7 +260,7 @@ func (m *Manager) persistSteerDelivery(
 	if err != nil {
 		if entry.SteerDelivery == store.SteerDeliveryPendingInjection && completion != nil {
 			// The provider still owes the outcome: a later rejection must restore after-turn delivery.
-			m.watchSteerCompletion(session, entry.ID, entry.TargetTurnID, completion, true)
+			m.watchSteerCompletion(session, entry.ID, completion, true)
 		}
 		return store.SessionInputQueueEntry{}, errors.Join(errSteerDeliveredUnresolved, err)
 	}
@@ -278,6 +281,14 @@ func (m *Manager) recordAcceptedSteerInput(
 		return err
 	}
 	for range steerPersistAttempts {
+		latest, lookupErr := m.inputQueue.Get(ctx, session.ID, entry.ID)
+		if lookupErr != nil {
+			err = lookupErr
+			continue
+		}
+		if latest.SupersededBy != "" {
+			return nil
+		}
 		if err = m.recordPromptInputEvent(ctx, session, &req); err == nil {
 			return nil
 		}
@@ -295,6 +306,12 @@ func (m *Manager) resolveAcceptedSteer(
 	for range steerPersistAttempts {
 		if resolved, err = m.inputQueue.ResolveSteer(ctx, sessionID, entryID, delivery); err == nil {
 			return resolved, nil
+		}
+		if errors.Is(err, store.ErrSessionInputQueueEntryNotQueued) {
+			latest, lookupErr := m.inputQueue.Get(ctx, sessionID, entryID)
+			if lookupErr == nil && latest.SupersededBy != "" && latest.Status == store.SessionInputQueueStatusCanceled {
+				return latest, nil
+			}
 		}
 	}
 	return store.SessionInputQueueEntry{}, err

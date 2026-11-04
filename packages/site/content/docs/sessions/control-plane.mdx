@@ -34,7 +34,10 @@ turn. If injection is unavailable or refused, delivery follows the boundary and 
 An `after_turn` steer follows ordinary queued-input ordering, behind earlier queued operator messages.
 It remains undelivered guidance: a newer steer can supersede it. A `pending_boundary` steer keeps
 replacement priority if its turn ends naturally. An explicit operator interrupt supersedes older
-pending-boundary guidance so the interrupt text runs next; ordinary queued messages are retained.
+pending-boundary or reserved human guidance, including when the interrupt has no replacement text;
+ordinary queued messages are retained. The superseding relationship survives restart, and session
+activation repairs a missing transcript marker. An observed idle boundary may activate immediately
+after `pending_boundary` is accepted; replay retains that original acceptance receipt.
 
 Confirmed live steering persists one authored message with its original identity in the active
 turn. Pending and superseded guidance retain their authored text and identity in durable delivery
