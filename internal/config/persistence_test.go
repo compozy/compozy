@@ -2173,19 +2173,31 @@ func TestOverlayEditorKeepsSessionRuntimeDefaultsWithTheirProvider(t *testing.T)
 	}
 }
 
-// TestEditConfigOverlayUnsetAlwaysOnAlias owns the UT-008 unset rows: unsetting either spelling
-// removes the key from both [agents.always_on] and [agents.stays_on] in the overlay file, so an
-// old value cannot resurface. Removal: v0.5.2.
-func TestEditConfigOverlayUnsetAlwaysOnAlias(t *testing.T) {
+// TestEditConfigOverlayRetiredAlwaysOnTable owns the UT-008 unset rows: since v0.5.2 an overlay
+// file that still has [agents.stays_on] is not edited. Setting or unsetting either spelling fails
+// with the removed-key error that names [agents.always_on], and the file keeps its bytes.
+func TestEditConfigOverlayRetiredAlwaysOnTable(t *testing.T) {
 	t.Parallel()
 
-	for _, path := range [][]string{
-		{"agents", "stays_on", "max_proposals"},
-		{"agents", "always_on", "max_proposals"},
-		{"agents", "stays_on"},
-		{"agents", "always_on"},
+	const body = "[agents.stays_on]\nmax_proposals = 5\n"
+	for _, tc := range []struct {
+		name string
+		edit func(*OverlayEditor) error
+	}{
+		{
+			name: "Should refuse a set on the new path",
+			edit: func(editor *OverlayEditor) error {
+				return editor.SetValue([]string{"agents", "always_on", "max_proposals"}, int64(3))
+			},
+		},
+		{
+			name: "Should refuse an unset of the old path",
+			edit: func(editor *OverlayEditor) error {
+				return editor.Delete([]string{"agents", "stays_on", "max_proposals"})
+			},
+		},
 	} {
-		t.Run("Should clear both tables when unsetting "+strings.Join(path, "."), func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
 			homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
@@ -2196,33 +2208,19 @@ func TestEditConfigOverlayUnsetAlwaysOnAlias(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			writeFile(t, homePaths.ConfigFile, "[agents.stays_on]\nmax_proposals = 5\n")
-			if _, err := EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
-				return editor.SetValue([]string{"agents", "always_on", "max_proposals"}, int64(3))
-			}); err != nil {
-				t.Fatalf("set new path error = %v", err)
-			}
-			deleted := false
-			cfg, err := EditConfigOverlay(homePaths, "", target, func(editor *OverlayEditor) error {
-				deleted = editor.HasPath(path)
-				return editor.Delete(path)
-			})
-			if err != nil {
-				t.Fatalf("unset %v error = %v", path, err)
-			}
-			if !deleted || cfg.Agents.AlwaysOn.MaxProposals != 2 {
-				t.Fatalf(
-					"deleted = %v MaxProposals = %d, want true and the default 2",
-					deleted,
-					cfg.Agents.AlwaysOn.MaxProposals,
-				)
+			writeFile(t, homePaths.ConfigFile, body)
+			_, err = EditConfigOverlay(homePaths, "", target, tc.edit)
+			want := `removed config key "agents.stays_on"`
+			if err == nil || !strings.Contains(err.Error(), want) ||
+				!strings.Contains(err.Error(), `use "agents.always_on"`) {
+				t.Fatalf("EditConfigOverlay() error = %v, want %s naming agents.always_on", err, want)
 			}
 			contents, err := os.ReadFile(homePaths.ConfigFile)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if strings.Contains(string(contents), "max_proposals") {
-				t.Fatalf("config after unset = %q, want max_proposals gone from both tables", contents)
+			if string(contents) != body {
+				t.Fatalf("config after refused edit = %q, want unchanged %q", contents, body)
 			}
 		})
 	}

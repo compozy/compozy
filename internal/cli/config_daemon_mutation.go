@@ -350,6 +350,9 @@ func configMutationPath(raw string) ([]string, configSetValueKind, bool, error) 
 	if err != nil {
 		return nil, configSetString, false, err
 	}
+	if err := compozyconfig.RejectRemovedConfigPath(segments); err != nil {
+		return nil, configSetString, false, err
+	}
 	if len(segments) > 3 && segments[0] == configWindowManagerKey &&
 		(segments[1] == configWindowManagerShortcutsKey ||
 			segments[1] == configWindowManagerGlobalShortcutsKey) {

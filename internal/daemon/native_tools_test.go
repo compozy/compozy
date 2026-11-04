@@ -5765,6 +5765,29 @@ func TestDaemonNativeTools(t *testing.T) {
 				requireToolReason(t, err, toolspkg.ErrToolDenied, tc.reason)
 			})
 		}
+		// UT-008 native rows: since v0.5.2 the agents.stays_on.* paths are removed and the
+		// message names the agents.always_on.* replacement.
+		for _, tc := range []struct {
+			id    toolspkg.ToolID
+			input string
+		}{
+			{id: toolspkg.ToolIDConfigGet, input: `{"path":"agents.stays_on.max_proposals"}`},
+			{id: toolspkg.ToolIDConfigSet, input: `{"path":"agents.stays_on.max_proposals","value":3}`},
+			{id: toolspkg.ToolIDConfigUnset, input: `{"path":"agents.stays_on.max_proposals"}`},
+		} {
+			t.Run("Should reject the removed agents.stays_on path on "+tc.id.String(), func(t *testing.T) {
+				_, err := registry.Call(
+					t.Context(),
+					toolspkg.Scope{Operator: true},
+					toolspkg.CallRequest{ToolID: tc.id, Input: json.RawMessage(tc.input)},
+				)
+				requireToolReason(t, err, toolspkg.ErrToolInvalidInput, toolspkg.ReasonConfigPathNotFound)
+				toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+				if !ok || !strings.Contains(toolErr.Message, `use "agents.always_on.max_proposals"`) {
+					t.Fatalf("%s error = %#v, want a message naming agents.always_on.max_proposals", tc.id, err)
+				}
+			})
+		}
 	})
 
 	t.Run("Should report live config reconciliation failures from the settings apply record", func(t *testing.T) {

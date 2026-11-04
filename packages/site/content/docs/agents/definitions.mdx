@@ -473,9 +473,9 @@ Watch issues and propose the next step.
 
 `kind` defaults to `on_demand` and is fixed at creation. Duplicate an agent to choose another kind.
 Declaring `always_on` in an extension does not start a session or create an instance.
-`stays_on`, the v0.5.0 spelling, still loads as `always_on` through v0.5.1 with a daemon warning;
-AGENT.md files under `$COMPOZY_HOME` are rewritten at boot, and repository, workspace-profile, and
-extension files are left for you to edit. v0.5.2 removes the alias.
+`stays_on`, the v0.5.0 spelling, is rejected since v0.5.2: a file that still says it stops loading with
+`agent_kind_invalid`, and the error names `always_on`. See the
+[migration guide](/docs/migration#always-on-aliases-removed).
 Display names allow 80 characters after trimming; descriptions allow 280. Blank display names use
 the humanized slug. Appearance supports `generated` (seed and generation), `icon` (a Lucide slug),
 or `emoji` (one emoji), with a `#rrggbb` color. An icon or emoji sits on a tinted plate unless

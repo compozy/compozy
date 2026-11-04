@@ -67,6 +67,9 @@ func nativeConfigPathPolicy(id toolspkg.ToolID, raw string) (compozyconfig.PathP
 		)
 	}
 	policy, err := compozyconfig.ClassifyToolConfigPath(path)
+	if errors.Is(err, compozyconfig.ErrConfigPathRemoved) {
+		return compozyconfig.PathPolicy{}, nativeRemovedConfigPathError(id, err)
+	}
 	if err != nil {
 		return compozyconfig.PathPolicy{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeInvalidInput,
@@ -77,9 +80,6 @@ func nativeConfigPathPolicy(id toolspkg.ToolID, raw string) (compozyconfig.PathP
 		)
 	}
 	if policy.Denial == compozyconfig.ConfigPathAllowed {
-		if policy.DeprecatedAlias {
-			compozyconfig.LogConfigPathAlias(policy.Segments)
-		}
 		return policy, nil
 	}
 	return compozyconfig.PathPolicy{}, toolspkg.NewToolError(
@@ -88,6 +88,17 @@ func nativeConfigPathPolicy(id toolspkg.ToolID, raw string) (compozyconfig.PathP
 		fmt.Sprintf("config path %q is not mutable by tools", strings.TrimSpace(raw)),
 		toolspkg.ErrToolDenied,
 		nativeConfigDenialReason(policy.Denial),
+	)
+}
+
+// nativeRemovedConfigPathError reports a renamed config path with its replacement in the message.
+func nativeRemovedConfigPathError(id toolspkg.ToolID, err error) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeInvalidInput,
+		id,
+		err.Error(),
+		fmt.Errorf("%w: %w", toolspkg.ErrToolInvalidInput, err),
+		toolspkg.ReasonConfigPathNotFound,
 	)
 }
 

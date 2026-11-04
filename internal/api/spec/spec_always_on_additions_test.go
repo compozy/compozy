@@ -284,8 +284,8 @@ func relaxTriggerCreatePrompt(t *testing.T, baseline map[string]any) {
 	node["required"] = slices.DeleteFunc(slices.Clone(required), func(value any) bool { return value == "prompt" })
 }
 
-// TestAgentKindRequestSchemas owns the UT-023 schema rows: request kinds accept the deprecated
-// stays_on alias through v0.5.1, while response kinds stay a plain string.
+// TestAgentKindRequestSchemas owns the UT-023 schema rows: since v0.5.2 request kinds are
+// on_demand | always_on, while response kinds stay a plain string.
 func TestAgentKindRequestSchemas(t *testing.T) {
 	t.Parallel()
 
@@ -303,11 +303,10 @@ func TestAgentKindRequestSchemas(t *testing.T) {
 				t.Fatalf("%s.kind is missing", name)
 			}
 			kind := ref.Value.Properties["kind"].Value
-			if !reflect.DeepEqual(kind.Enum, []any{"on_demand", "always_on", "stays_on"}) ||
-				!strings.Contains(kind.Description, "stays_on is the deprecated") ||
-				!strings.Contains(kind.Description, "v0.5.2") {
+			if !reflect.DeepEqual(kind.Enum, []any{"on_demand", "always_on"}) ||
+				kind.Description != "Agent kind: on_demand (default) or always_on; fixed at creation." {
 				t.Fatalf(
-					"%s.kind = %v %q, want the three kinds and the deprecation text",
+					"%s.kind = %v %q, want on_demand and always_on",
 					name,
 					kind.Enum,
 					kind.Description,

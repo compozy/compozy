@@ -342,23 +342,14 @@ always-on agents ship no `appearance` and keep their generated face, like every 
 `general` agent resolves the same kind of icon (`sparkles`) while its AGENT.md has no `appearance`, so an existing
 install changes face without its file being rewritten. The CLI sets the plate with `--appearance-background none|plate`.
 
-`stays_on` is the v0.5.0 spelling of `always_on`. Through v0.5.1 every input (AGENT.md `kind`, `--kind`,
-HTTP/UDS create, update and duplicate, and `compozy__agent_create`) accepts it as `always_on` with a
-deprecation warning, and no output emits it; `stays_on` versus `always_on` never raises
-`agent_kind_immutable`. On boot the daemon rewrites the `kind` value of AGENT.md files under
-`$COMPOZY_HOME/agents` and `$COMPOZY_HOME/profiles/<profile>/agents`; repository, workspace-profile, and
-extension files are never rewritten and keep the warning until edited. The alias is removed in v0.5.2,
-so write `always_on`.
-
-The same window covers config: `[agents.stays_on]` is read into `[agents.always_on]` with one daemon
-warning per process, and `agents.always_on` wins per key. `compozy config get|set|unset` and
-`compozy__config_*` accept `agents.stays_on.*` paths, warn on stderr or in the daemon log, and operate on
-`agents.always_on.*`; `unset` through either spelling clears the key from both tables in the selected
-file. Outputs switched at once with no window: emitted `kind` is `always_on`, the error
-`agent_not_stays_on` is `agent_not_always_on`, the reason `definition_not_stays_on` is
-`definition_not_always_on` (stored rows are migrated), and the startup section `stays_on_doctrine` is
-`always_on_doctrine`. Update the daemon with the CLI: a v0.5.1 CLI sends `always_on`, which a v0.5.0
-daemon rejects.
+`stays_on` was the v0.5.0 spelling of `always_on`. v0.5.1 accepted it with a warning; since v0.5.2 every
+input rejects it. AGENT.md `kind`, `--kind`, and HTTP/UDS create, update and duplicate fail with
+`agent_kind_invalid`: "agent kind must be on_demand or always_on (stays_on was renamed to always_on in
+v0.5.1)". The `compozy__agent_create` input schema lists only `on_demand` and `always_on`, so `stays_on`
+fails input validation on `$.kind`. An AGENT.md that still says `stays_on` stops loading, and
+the daemon no longer rewrites files at boot, so write `always_on`. In config, `[agents.stays_on]` fails
+config load as a removed key that names `[agents.always_on]`, and `compozy config get|set|unset` and
+`compozy__config_*` reject `agents.stays_on.*` paths and name the `agents.always_on.*` replacement.
 
 ## Always-on approval authority
 

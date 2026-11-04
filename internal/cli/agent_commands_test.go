@@ -1669,13 +1669,13 @@ func TestAgentInstanceSourceOutput(t *testing.T) {
 	}
 }
 
-// TestAgentKindFlagAlias owns UT-010, UT-011 and the UT-012 help text: --kind stays_on is sent as
-// always_on with a stderr warning, never trips the immutability check, and help names always_on.
-func TestAgentKindFlagAlias(t *testing.T) {
+// TestAgentKindFlagRetiredSpelling owns UT-010, UT-011 and the UT-012 help text: since v0.5.2
+// --kind stays_on is no longer rewritten. Create sends it unchanged for the daemon to reject, update
+// fails with agent_kind_invalid before the immutability check, and help names always_on.
+func TestAgentKindFlagRetiredSpelling(t *testing.T) {
 	t.Parallel()
 
-	const warning = "warning: --kind stays_on is deprecated; use always_on (removed in v0.5.2)"
-	t.Run("Should send always_on for a stays_on create and warn", func(t *testing.T) {
+	t.Run("Should send stays_on unchanged on create without a warning", func(t *testing.T) {
 		t.Parallel()
 
 		client := &stubClient{}
@@ -1691,17 +1691,21 @@ func TestAgentKindFlagAlias(t *testing.T) {
 		if err != nil {
 			t.Fatalf("createAgentRequestFromFlags() error = %v", err)
 		}
-		if request.Agent.Kind != "always_on" || !strings.Contains(stderr.String(), warning) {
-			t.Fatalf("kind = %q stderr = %q, want always_on and the warning", request.Agent.Kind, stderr.String())
+		if request.Agent.Kind != "stays_on" || stderr.Len() != 0 {
+			t.Fatalf("kind = %q stderr = %q, want stays_on and no warning", request.Agent.Kind, stderr.String())
 		}
 	})
 
 	for _, tc := range []struct {
 		name, kind, wantErr string
-		warns               bool
 	}{
-		{name: "Should accept stays_on on an always-on agent", kind: "stays_on", warns: true},
+		{
+			name:    "Should reject stays_on on an always-on agent as an invalid kind",
+			kind:    "stays_on",
+			wantErr: "agent_kind_invalid: agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)",
+		},
 		{name: "Should reject on_demand on an always-on agent", kind: "on_demand", wantErr: "agent_kind_immutable"},
+		{name: "Should keep always_on on an always-on agent", kind: "always_on"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -1710,8 +1714,6 @@ func TestAgentKindFlagAlias(t *testing.T) {
 				return AgentRecord{Name: "triage", Kind: "always_on", Prompt: "Watch."}, nil
 			}}
 			cmd := newAgentUpdateCommand(newTestDeps(t, client))
-			var stderr bytes.Buffer
-			cmd.SetErr(&stderr)
 			if err := cmd.ParseFlags([]string{"--kind", tc.kind}); err != nil {
 				t.Fatal(err)
 			}
@@ -1726,9 +1728,6 @@ func TestAgentKindFlagAlias(t *testing.T) {
 			}
 			if err != nil || request.Agent.Kind != "always_on" {
 				t.Fatalf("update = %+v, %v; want always_on", request.Agent.Kind, err)
-			}
-			if strings.Contains(stderr.String(), warning) != tc.warns {
-				t.Fatalf("stderr = %q, want warning=%v", stderr.String(), tc.warns)
 			}
 		})
 	}

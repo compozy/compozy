@@ -357,8 +357,9 @@ func canonicalMCPServerResourceSpecForAgentTest(t *testing.T, spec MCPServer) MC
 	return got
 }
 
-// TestAgentResourceCodecKindAlias owns UT-022: a v0.5.0 resource record decodes canonically.
-func TestAgentResourceCodecKindAlias(t *testing.T) {
+// TestAgentResourceCodecRetiredKind owns UT-022: since v0.5.2 a record that still says stays_on
+// is rejected. The v0.5.1 migration already rewrote stored agent resource records.
+func TestAgentResourceCodecRetiredKind(t *testing.T) {
 	t.Parallel()
 
 	codec, err := NewAgentResourceCodec()
@@ -366,11 +367,20 @@ func TestAgentResourceCodecKindAlias(t *testing.T) {
 		t.Fatalf("NewAgentResourceCodec() error = %v", err)
 	}
 	scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
-	t.Run("Should decode stays_on as always_on", func(t *testing.T) {
+	t.Run("Should reject stays_on", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := codec.DecodeAndValidate(t.Context(), scope,
+			[]byte(`{"name":"triage","prompt":"Watch.","kind":"stays_on"}`))
+		if !errors.Is(err, ErrAgentKindInvalid) {
+			t.Fatalf("DecodeAndValidate(kind: stays_on) error = %v, want ErrAgentKindInvalid", err)
+		}
+	})
+	t.Run("Should decode always_on", func(t *testing.T) {
 		t.Parallel()
 
 		got, err := codec.DecodeAndValidate(t.Context(), scope,
-			[]byte(`{"name":"triage","prompt":"Watch.","kind":"stays_on"}`))
+			[]byte(`{"name":"triage","prompt":"Watch.","kind":"always_on"}`))
 		if err != nil || got.Kind != AgentKindAlwaysOn {
 			t.Fatalf("DecodeAndValidate() = %q, %v; want always_on", got.Kind, err)
 		}

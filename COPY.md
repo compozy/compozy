@@ -426,7 +426,7 @@ Use those words only when discussing external systems or historical migration co
 - `lease`: bounded ownership interval.
 - `safe spawn`: daemon-managed child-session creation with TTL, caps, and permission narrowing.
 - `coordinator`: managed CompozyOS session that orchestrates coordinated work.
-- Agent kind: "Always-on" (`always_on`) and "On-demand" (`on_demand`), hyphenated as labels and before nouns ("an always-on agent"), in sentence case. The v0.5.0 word "Stays on" (`stays_on`) is retired; the input alias is removed in v0.5.2. The glossary entry **Always-on agent / On-demand agent** is authoritative.
+- Agent kind: "Always-on" (`always_on`) and "On-demand" (`on_demand`), hyphenated as labels and before nouns ("an always-on agent"), in sentence case. The v0.5.0 word "Stays on" (`stays_on`) is retired, and v0.5.2 removed its input alias. The glossary entry **Always-on agent / On-demand agent** is authoritative.
 - The skill-source "always on" flag (Settings → Skill sources) is a different concept, "always loaded", and keeps its wording. No agent copy reuses it.
 
 ### OS Shell Terms

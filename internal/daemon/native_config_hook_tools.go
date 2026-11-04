@@ -99,6 +99,9 @@ func (n *daemonNativeTools) configGet(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	if err := compozyconfig.RejectRemovedDottedConfigPath(input.Path); err != nil {
+		return toolspkg.ToolResult{}, nativeRemovedConfigPathError(req.ToolID, err)
+	}
 	workspaceRoot, err := n.nativeWorkspaceRoot(ctx, req.ToolID, input.WorkspaceRoot)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -108,11 +111,7 @@ func (n *daemonNativeTools) configGet(
 		return toolspkg.ToolResult{}, nativeConfigValidationError(req.ToolID, err)
 	}
 	entries := compozyconfig.FlattenConfigEntries(compozyconfig.RedactedConfigMap(&cfg))
-	path, deprecated := compozyconfig.CanonicalDottedConfigPath(input.Path)
-	if deprecated {
-		compozyconfig.LogConfigPathAlias(strings.Split(path, "."))
-	}
-	entry, ok := compozyconfig.EntryByPath(entries, path)
+	entry, ok := compozyconfig.EntryByPath(entries, input.Path)
 	if !ok {
 		return toolspkg.ToolResult{}, toolspkg.NewToolError(
 			toolspkg.ErrorCodeNotFound,

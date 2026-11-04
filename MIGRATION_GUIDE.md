@@ -2,7 +2,7 @@
 
 v0.4.0 is the first stable CompozyOS release. It follows the v0.3.0 beta line, and Homebrew and npm `latest` move from v0.2.15 to v0.4.0.
 
-- **From v0.5.0:** update in place, then follow [Stays on is now Always-on](#always-on-vocabulary) before v0.5.2.
+- **From v0.5.0 or v0.5.1:** update in place after following [The stays_on aliases are removed](#always-on-aliases-removed). From v0.5.0, read [Stays on is now Always-on](#always-on-vocabulary) first.
 - **From any v0.3.0 beta:** update in place from the app's Update action or with `compozy update`; no reinstall is needed. The first start applies [User scope and All projects](#user-scope-and-all-projects). Before that, follow [Memory removal](#memory-removal), then [Networks, Bridges, and Sandbox removal](#networks-bridges-and-sandbox-removal), if you are upgrading from a beta that predates them.
 - **From v0.2:** v0.2 has reached end of life and receives no further releases. The numbered sections below describe the v0.2.15 clean-state transition.
 
@@ -14,6 +14,27 @@ extension contracts, and review behavior do not carry forward automatically.
 This guide uses v0.2.15 (`8f8908afd70c731b815e20282bacad05aa026827`) as the legacy baseline.
 Back up your global and workspace `.compozy/` directories before changing installations.
 
+<a id="always-on-aliases-removed"></a>
+
+## The stays_on aliases are removed (v0.5.2)
+
+v0.5.2 removes the v0.5.1 compatibility layer for the `stays_on` spelling. Only `on_demand` and
+`always_on` are accepted, and the daemon no longer rewrites AGENT.md files at boot. Stored rows need
+nothing, because the v0.5.1 migration already moved them.
+
+| Input that still says `stays_on`                                                | v0.5.2 result                                                                                                     |
+| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| AGENT.md `kind: stays_on` in any root                                           | The file stops loading: `agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)` |
+| `[agents.stays_on]` in `config.toml`                                            | Config load fails: `removed config key "agents.stays_on" in "<file>": use "agents.always_on"`                     |
+| `agents.stays_on.*` in `compozy config get\|set\|unset` and `compozy__config_*` | Rejected: `config: removed config path "agents.stays_on.<key>": use "agents.always_on.<key>"`                     |
+| `--kind stays_on`, request `kind: "stays_on"`                                   | Fails with `agent_kind_invalid` and the AGENT.md message above                                                    |
+| `compozy__agent_create` with `kind: "stays_on"`                                 | Fails input validation: `"$.kind": value is not allowed` (the schema lists `on_demand` and `always_on`)           |
+
+If you ran v0.5.1, edit only the AGENT.md files in a repository, a workspace profile, an additional
+root, or an extension, plus any `[agents.stays_on]` table. If you upgrade straight from v0.5.0, also
+edit the files under `$COMPOZY_HOME/agents` and `$COMPOZY_HOME/profiles/<profile>/agents`, or start
+v0.5.1 once first so its boot rewrite runs.
+
 <a id="always-on-vocabulary"></a>
 
 ## Stays on is now Always-on (v0.5.1)
@@ -21,7 +42,8 @@ Back up your global and workspace `.compozy/` directories before changing instal
 v0.5.1 upgrades in place. The agent kind `stays_on` is now `always_on`, and the app reads
 "Always-on" and "On-demand". Every v0.5.0 file, config table, request value, and stored row keeps
 working through v0.5.1; readers of emitted `kind`, reason, and error values must update now. Update
-the inputs before v0.5.2, which removes every alias below. Update the daemon and the
+the inputs before v0.5.2, which removed every alias below (see
+[The stays_on aliases are removed](#always-on-aliases-removed)). Update the daemon and the
 CLI together: a v0.5.1 CLI sends `always_on`, which a v0.5.0 daemon rejects.
 
 | v0.5.0                                                        | v0.5.1                                     | Through v0.5.1                                                                                                                                                                                                                                         |

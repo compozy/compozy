@@ -184,8 +184,7 @@ func loadAgentDefFromDirectory(
 		return AgentDef{}, fmt.Errorf("read agent file %q: %w", agentPath, err)
 	}
 
-	var deprecated bool
-	agent, err := parseAgentDef(contents, &deprecated)
+	agent, err := ParseAgentDef(contents)
 	if err != nil {
 		return AgentDef{}, fmt.Errorf("parse agent file %q: %w", agentPath, err)
 	}
@@ -205,9 +204,6 @@ func loadAgentDefFromDirectory(
 		return AgentDef{}, fmt.Errorf("validate agent file %q: %w", agentPath, err)
 	}
 	agent.SourcePath = agentPath
-	if deprecated {
-		warnAgentKindAlias(agentPath)
-	}
 
 	return agent, nil
 }
@@ -305,18 +301,10 @@ func (r WorkspaceDiscoveryRoot) usesHomeResourceLayout() bool {
 
 // ParseAgentDef parses a Markdown file with YAML frontmatter into an AgentDef.
 func ParseAgentDef(content []byte) (AgentDef, error) {
-	return parseAgentDef(content, nil)
-}
-
-func parseAgentDef(content []byte, deprecated *bool) (AgentDef, error) {
 	var parsed parsedAgentDef
 
 	body, err := frontmatter.Decode(content, func(data []byte) error {
-		usedAlias, err := decodeAgentFrontmatter(data, &parsed)
-		if deprecated != nil {
-			*deprecated = usedAlias
-		}
-		return err
+		return decodeAgentFrontmatter(data, &parsed)
 	})
 	if err != nil {
 		return AgentDef{}, wrapFrontmatterError(err)

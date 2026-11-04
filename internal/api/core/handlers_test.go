@@ -18,7 +18,6 @@ import (
 	"reflect"
 	"slices"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -4169,8 +4168,8 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		}
 	})
 
-	// IT-003: the exact _dx.md body with the v0.5.0 kind spelling creates an always-on agent.
-	t.Run("Should create an always-on agent from a stays_on request", func(t *testing.T) {
+	// IT-003: since v0.5.2 the v0.5.0 kind spelling is rejected and no AGENT.md is written.
+	t.Run("Should reject a stays_on create request", func(t *testing.T) {
 		t.Parallel()
 
 		workspaceRoot := t.TempDir()
@@ -4192,16 +4191,10 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
   "agent": { "name": "triage", "provider": "claude", "kind": "stays_on",
              "prompt": "Watch the repository and report what needs attention." } }`)
 		resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents", body)
-		if resp.Code != http.StatusCreated {
-			t.Fatalf("create status = %d, want 201; body=%s", resp.Code, resp.Body.String())
-		}
-		var payload contract.AgentResponse
-		decodeJSON(t, resp.Body.Bytes(), &payload)
-		if payload.Agent.Name != "triage" || payload.Agent.Kind != "always_on" {
-			t.Fatalf("created agent = %#v, want always_on triage", payload.Agent)
-		}
-		if strings.Contains(resp.Body.String(), "stays_on") {
-			t.Fatalf("create body = %s, want no stays_on", resp.Body.String())
+		assertRetiredAgentKindRejected(t, "create", resp)
+		agentDir := filepath.Join(workspaceRoot, ".compozy", "agents", "triage")
+		if _, err := os.Stat(agentDir); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("workspace agent directory stat error = %v, want not exist", err)
 		}
 	})
 
@@ -7204,11 +7197,10 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 			t.Fatalf("copy: %#v", copied.Agent)
 		}
 	})
-	// UT-023: the v0.5.0 stays_on spelling is an input alias on PUT and both duplicate kinds.
-	t.Run("Should accept stays_on on update and duplicate and write always_on", func(t *testing.T) {
-		logs := &lockedLogBuffer{}
-		compozyconfig.RouteDeprecationWarnings(slog.New(slog.NewTextHandler(logs, nil)))
-		t.Cleanup(func() { compozyconfig.RouteDeprecationWarnings(nil) })
+	// UT-023: since v0.5.2 stays_on is rejected on PUT and both duplicate kinds.
+	t.Run("Should reject stays_on on update and duplicate", func(t *testing.T) {
+		t.Parallel()
+
 		fixture := newHandlerFixture(
 			t,
 			&testutil.StubSessionManager{},
@@ -7242,9 +7234,7 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 				},
 			}),
 		)
-		if resp.Code != http.StatusOK {
-			t.Fatalf("PUT stays_on: %d %s", resp.Code, resp.Body.String())
-		}
+		assertRetiredAgentKindRejected(t, "PUT", resp)
 		assertAgentFileKind(t, path, "always_on")
 		for _, tc := range []struct {
 			name    string
@@ -7262,56 +7252,29 @@ func TestBaseHandlersAgentIdentityRoundTrip(t *testing.T) {
 				"/agents/scout/duplicate",
 				mustJSON(t, tc.request),
 			)
-			if resp.Code != http.StatusCreated {
-				t.Fatalf("duplicate %s: %d %s", tc.name, resp.Code, resp.Body.String())
-			}
-			var copied contract.AgentResponse
-			decodeJSON(t, resp.Body.Bytes(), &copied)
-			if copied.Agent.Kind != "always_on" {
-				t.Fatalf("duplicate %s kind = %q, want always_on", tc.name, copied.Agent.Kind)
-			}
-			assertAgentFileKind(
-				t,
-				filepath.Join(fixture.HomePaths.AgentsDir, tc.name, compozyconfig.AgentDefinitionFileName),
-				"always_on",
-			)
-			if got := logs.count("source=request", "agent="+tc.name); got != 1 {
-				t.Fatalf("duplicate %s warnings = %d, want 1\n%s", tc.name, got, logs.String())
+			assertRetiredAgentKindRejected(t, "duplicate "+tc.name, resp)
+			copyDir := filepath.Join(fixture.HomePaths.AgentsDir, tc.name)
+			if _, err := os.Stat(copyDir); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("duplicate %s directory stat error = %v, want not exist", tc.name, err)
 			}
 		}
 	})
 }
 
-// lockedLogBuffer collects slog lines from concurrent handlers.
-type lockedLogBuffer struct {
-	mu  sync.Mutex
-	buf bytes.Buffer
-}
-
-func (b *lockedLogBuffer) Write(p []byte) (int, error) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.Write(p)
-}
-
-func (b *lockedLogBuffer) String() string {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	return b.buf.String()
-}
-
-func (b *lockedLogBuffer) count(fragments ...string) int {
-	total := 0
-	for line := range strings.SplitSeq(b.String(), "\n") {
-		matched := line != ""
-		for _, fragment := range fragments {
-			matched = matched && strings.Contains(line, fragment)
-		}
-		if matched {
-			total++
-		}
+// assertRetiredAgentKindRejected checks the v0.5.2 rejection of the removed stays_on kind.
+func assertRetiredAgentKindRejected(t *testing.T, label string, resp *httptest.ResponseRecorder) {
+	t.Helper()
+	var payload contract.ErrorPayload
+	decodeJSON(t, resp.Body.Bytes(), &payload)
+	if resp.Code != http.StatusBadRequest || payload.Code != "agent_kind_invalid" ||
+		!strings.Contains(payload.Error, "stays_on was renamed to always_on in v0.5.1") {
+		t.Fatalf(
+			"%s stays_on = %d %s, want 400 agent_kind_invalid naming the rename",
+			label,
+			resp.Code,
+			resp.Body.String(),
+		)
 	}
-	return total
 }
 
 func assertAgentFileKind(t *testing.T, path string, want string) {

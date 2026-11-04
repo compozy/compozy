@@ -297,6 +297,9 @@ func updateAgentDraft(
 	if payload.Kind == "" {
 		draft.Kind = currentDraft.Kind
 	}
+	if err := compozyconfig.ValidateAgentKind(draft.Kind); err != nil {
+		return compozyconfig.AgentDefinitionDraft{}, errors.Join(compozyconfig.ErrInvalidAgentDefinition, err)
+	}
 	if (compozyconfig.AgentDef{Kind: draft.Kind}).EffectiveKind() != current.EffectiveKind() {
 		return compozyconfig.AgentDefinitionDraft{}, compozyconfig.ErrAgentKindImmutable
 	}

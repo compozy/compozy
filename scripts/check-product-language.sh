@@ -84,9 +84,9 @@ else
 fi
 
 # Retired agent-kind vocabulary (#1199). The space form "stays on" is ordinary English and is not
-# matched. Rule A keeps the v0.5.1 stays_on aliases at their listed boundaries (Safety Invariant 1);
-# Rule B keeps the retired word off public surfaces. In v0.5.2 the alias files leave rule_a_allowed;
-# the rules stay.
+# matched. v0.5.2 removed the v0.5.1 stays_on aliases (#1239). Rule A keeps the retired word out of
+# production Go except the one file that names it to explain rejections; Rule B keeps it off public
+# surfaces.
 retired_kind='(?i)stays[-_]?on'
 # Rule B skips immutable history identifiers only: the shipped stays-on-hardening spec, its branch,
 # reports and artifacts, dated reports, and content-addressed QA scenario, charter and bug IDs.
@@ -98,21 +98,9 @@ history_refs='(?x:
 )'
 rule_b_pattern="${history_refs}(*SKIP)(*F)|${retired_kind}"
 
-# Production Go files that may name stays_on or call CanonicalAgentKind.
+# Production Go files that may name stays_on: the v0.5.2 rejection messages that point at always_on.
 rule_a_allowed=(
-  internal/config/agent_identity.go
-  internal/config/agent_frontmatter_decode.go
-  internal/config/agent_kind_rewrite.go
-  internal/config/agent_create.go
-  internal/config/agent_resource.go
-  internal/config/merge.go
-  internal/config/tool_surface.go
-  internal/api/core/agent_create.go
-  internal/api/spec/agent_name_schema.go
-  internal/cli/agent_identity_flags.go
-  internal/cli/agent_mutate_requests.go
-  internal/tools/builtin/workspace.go
-  internal/daemon/boot_agent_kind_rewrite.go
+  internal/config/agent_kind_retired.go
 )
 
 rule_a_in_scope() {
@@ -138,7 +126,7 @@ rule_b_in_scope() {
 rule_b_allowed() {
   local rel="$1"
   case "$rel" in
-    RELEASE_NOTES.md | RELEASE_BODY.md | CHANGELOG.md | .release-notes/archive/* | .release-notes/always-on-vocabulary-v0.5.1.md) return 0 ;;
+    RELEASE_NOTES.md | RELEASE_BODY.md | CHANGELOG.md | .release-notes/archive/* | .release-notes/always-on-aliases-removed-v0.5.2.md) return 0 ;;
     sdk/client/* | sdk/go/client/* | openapi/compozy.json | internal/tools/builtin/testdata/native-tool-catalog.json) return 0 ;;
     docs/_memory/glossary.md | COPY.md | MIGRATION_GUIDE.md | packages/site/content/docs/migration/index.mdx) return 0 ;;
     skills/compozy/references/agent-definitions.md | packages/site/content/docs/agents/definitions.mdx) return 0 ;;
@@ -194,7 +182,7 @@ while IFS= read -r file; do
   [[ -n "$file" ]] || continue
   rel="$(relative_path "$file")"
   rule_a_in_scope "$rel" || continue
-  kind_findings+=("Rule A: $file ($rel) names stays_on or calls CanonicalAgentKind outside the alias boundary")
+  kind_findings+=("Rule A: $file ($rel) names stays_on or calls CanonicalAgentKind outside the rejection boundary")
 done <<<"$rule_a_files"
 
 rule_b_files="$(kind_scan "Rule B" "$rule_b_pattern" -- "${rule_b_paths[@]}")"
@@ -208,7 +196,7 @@ done <<<"$rule_b_files"
 
 if ((${#kind_findings[@]} > 0)); then
   printf '%s\n' "${kind_findings[@]}" >&2
-  echo "Retired agent-kind vocabulary found. Use always_on / Always-on; stays_on stays only at the v0.5.1 alias boundaries." >&2
+  echo "Retired agent-kind vocabulary found. Use always_on / Always-on; stays_on stays only in the v0.5.2 rejection messages." >&2
   failed=1
 fi
 

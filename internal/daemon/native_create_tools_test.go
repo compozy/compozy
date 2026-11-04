@@ -1,12 +1,9 @@
 package daemon
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -504,59 +501,60 @@ func (s nativeAgentCatalogStub) GetAgent(_ context.Context, name string) (core.A
 	return core.AgentCatalogEntry{}, os.ErrNotExist
 }
 
-// TestNativeAgentCreateKindAlias owns UT-024: compozy__agent_create accepts the v0.5.0 stays_on
-// kind, creates an always-on agent with the same result shape as always_on, and logs one
-// source=request warning. It swaps the process-wide deprecation logger, so it is not parallel.
-func TestNativeAgentCreateKindAlias(t *testing.T) {
-	var logs bytes.Buffer
-	compozyconfig.RouteDeprecationWarnings(slog.New(slog.NewTextHandler(&logs, nil)))
-	t.Cleanup(func() { compozyconfig.RouteDeprecationWarnings(nil) })
-	home := testHomePaths(t)
-	cfg := compozyconfig.DefaultWithHome(home)
-	cfg.Defaults.Provider = "claude"
-	cfg.Providers["claude"] = compozyconfig.ProviderConfig{Command: "claude"}
-	registry := newDaemonNativeRegistry(
-		t,
-		&daemonNativeToolsDeps{
-			HomePaths:   home,
-			Workspaces:  nativeTestWorkspaceService(t),
-			Config:      cfg,
-			AgentSkills: agentSkillPublisherFunc(func(context.Context) error { return nil }),
-		},
-		nativeApproveAllPolicyInputs(),
-	)
-	shapes := map[string][]string{}
-	for _, tc := range []struct{ name, kind string }{{"triage", "stays_on"}, {"scout", "always_on"}} {
-		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
-			ToolID: toolspkg.ToolIDAgentCreate,
-			Input: json.RawMessage(
-				`{"scope":"global","name":"` + tc.name + `","prompt":"Watch.","kind":"` + tc.kind + `"}`,
-			),
-		})
+// TestNativeAgentCreateRetiredKind owns UT-024: since v0.5.2 the compozy__agent_create input
+// schema lists only on_demand and always_on, so stays_on fails input validation on $.kind before
+// the handler runs and nothing is written, while always_on still creates.
+func TestNativeAgentCreateRetiredKind(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject stays_on and still create always_on", func(t *testing.T) {
+		t.Parallel()
+
+		home := testHomePaths(t)
+		cfg := compozyconfig.DefaultWithHome(home)
+		cfg.Defaults.Provider = "claude"
+		cfg.Providers["claude"] = compozyconfig.ProviderConfig{Command: "claude"}
+		registry := newDaemonNativeRegistry(
+			t,
+			&daemonNativeToolsDeps{
+				HomePaths:   home,
+				Workspaces:  nativeTestWorkspaceService(t),
+				Config:      cfg,
+				AgentSkills: agentSkillPublisherFunc(func(context.Context) error { return nil }),
+			},
+			nativeApproveAllPolicyInputs(),
+		)
+		create := func(name, kind string) (toolspkg.ToolResult, error) {
+			return registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDAgentCreate,
+				Input: json.RawMessage(
+					`{"scope":"global","name":"` + name + `","prompt":"Watch.","kind":"` + kind + `"}`,
+				),
+			})
+		}
+
+		_, err := create("triage", "stays_on")
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonSchemaInvalid) ||
+			toolErr.Operator == nil || !strings.Contains(toolErr.Operator.Cause, `"$.kind": value is not allowed`) {
+			t.Fatalf("create stays_on error = %#v, want a schema_invalid rejection of $.kind", err)
+		}
+		if _, err := compozyconfig.LoadAgentDef("triage", home); err == nil {
+			t.Fatal("LoadAgentDef(triage) succeeded, want no stored definition")
+		}
+
+		result, err := create("scout", "always_on")
 		if err != nil {
-			t.Fatalf("create %s: %v", tc.name, err)
+			t.Fatalf("create always_on: %v", err)
 		}
 		var payload map[string]any
 		if err := json.Unmarshal(result.Structured, &payload); err != nil {
 			t.Fatal(err)
 		}
 		agent, _ := payload["agent"].(map[string]any)
-		if agent["kind"] != "always_on" || strings.Contains(string(result.Structured), "stays_on") {
-			t.Fatalf("create %s result = %s, want kind always_on", tc.name, result.Structured)
+		if agent["kind"] != "always_on" {
+			t.Fatalf("create always_on result = %s, want kind always_on", result.Structured)
 		}
-		keys := slices.Sorted(maps.Keys(payload))
-		agentKeys := slices.Sorted(maps.Keys(agent))
-		shapes[tc.kind] = append(keys, agentKeys...)
-		stored, err := compozyconfig.LoadAgentDef(tc.name, home)
-		if err != nil || stored.Kind != "always_on" {
-			t.Fatalf("stored %s = %q, %v; want always_on", tc.name, stored.Kind, err)
-		}
-	}
-	if !slices.Equal(shapes["stays_on"], shapes["always_on"]) {
-		t.Fatalf("result shapes differ: %v vs %v", shapes["stays_on"], shapes["always_on"])
-	}
-	if got := strings.Count(logs.String(), "source=request"); got != 1 ||
-		!strings.Contains(logs.String(), "agent=triage") {
-		t.Fatalf("logs = %q, want one source=request warning for triage", logs.String())
-	}
+	})
 }

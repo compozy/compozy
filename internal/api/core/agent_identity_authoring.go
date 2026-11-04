@@ -18,7 +18,7 @@ func applyDuplicateAgentIdentity(
 		draft.Description = *overrides.Description
 	}
 	if overrides.Kind != "" {
-		draft.Kind = canonicalRequestAgentKind(overrides.Kind, draft.Name)
+		draft.Kind = overrides.Kind
 	}
 	if overrides.Appearance != nil {
 		if err := compozyconfig.ValidateAgentAppearance(overrides.Appearance); err != nil {
@@ -47,7 +47,7 @@ func duplicateAgentDraft(
 	label := []rune(source.Label())
 	draft.DisplayName = string(label[:min(len(label), 75)]) + " copy"
 	if req.Kind != "" {
-		draft.Kind = canonicalRequestAgentKind(req.Kind, draft.Name)
+		draft.Kind = req.Kind
 	}
 	if req.Overrides == nil {
 		return draft, nil

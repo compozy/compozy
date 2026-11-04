@@ -15,11 +15,9 @@ import (
 )
 
 const (
-	AgentKindOnDemand = "on_demand"
-	AgentKindAlwaysOn = "always_on"
-	// AgentKindStaysOnAlias accepts the v0.5.0 spelling. Removal: v0.5.2.
-	AgentKindStaysOnAlias = "stays_on"
-	agentAvatarGenerated  = "generated"
+	AgentKindOnDemand    = "on_demand"
+	AgentKindAlwaysOn    = "always_on"
+	agentAvatarGenerated = "generated"
 )
 
 var (
@@ -143,8 +141,8 @@ func (a AgentDef) ValidateIdentity() error {
 	if utf8.RuneCountInString(a.Description) > 280 {
 		return ErrAgentDescriptionInvalid
 	}
-	if a.EffectiveKind() != AgentKindOnDemand && a.EffectiveKind() != AgentKindAlwaysOn {
-		return ErrAgentKindInvalid
+	if err := ValidateAgentKind(a.Kind); err != nil {
+		return err
 	}
 	// Appearance is decoded loosely; read projections diagnose invalid or future values.
 	return nil
@@ -256,12 +254,4 @@ func agentAppearanceString(value any) string {
 		return text
 	}
 	return ""
-}
-
-// CanonicalAgentKind normalizes input aliases. Removal of the alias: v0.5.2.
-func CanonicalAgentKind(raw string) (kind string, deprecated bool) {
-	if raw == AgentKindStaysOnAlias {
-		return AgentKindAlwaysOn, true
-	}
-	return raw, false
 }

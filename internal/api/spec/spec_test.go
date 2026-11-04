@@ -5480,7 +5480,7 @@ func addAgentIdentitySchemas(t *testing.T, baseline map[string]any) {
 				} else {
 					props["display_name"].(map[string]any)["nullable"] = true
 					props["description"].(map[string]any)["nullable"] = true
-					// Request kinds list the deprecated stays_on alias through v0.5.1 (#1199).
+					// Request kinds are on_demand | always_on (#1199, #1239).
 					props["kind"] = agentKindRequestSchemaForTest()
 					if props["name"] != nil {
 						props["display_name"].(map[string]any)["maxLength"] = float64(80)
@@ -6006,12 +6006,11 @@ func addSessionLinkedWorkSchemas(value any) int {
 	return count
 }
 
-// agentKindRequestSchemaForTest is the approved request kind schema: on_demand, always_on, and the
-// deprecated v0.5.0 stays_on alias (removal v0.5.2).
+// agentKindRequestSchemaForTest is the approved request kind schema: on_demand and always_on.
 func agentKindRequestSchemaForTest() map[string]any {
 	return map[string]any{
 		"type":        "string",
-		"enum":        []any{"on_demand", "always_on", "stays_on"},
+		"enum":        []any{"on_demand", "always_on"},
 		"description": agentKindRequestDescription,
 	}
 }

@@ -1,9 +1,8 @@
 package config
 
 import (
-	"bytes"
 	"errors"
-	"log/slog"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -677,19 +676,13 @@ func TestSupervisionTimingCompatibility(t *testing.T) {
 	}
 }
 
-// TestStaysOnConfigAlias owns UT-006, UT-007 and UT-009: [agents.stays_on] is read into
-// agents.always_on through v0.5.1, the new table wins per key, and validation names the new path.
-// It swaps the process-wide deprecation logger, so it does not run in parallel.
-func TestStaysOnConfigAlias(t *testing.T) {
-	var logs bytes.Buffer
-	logger := slog.New(slog.NewTextHandler(&logs, nil))
-	// rearm starts a fresh process-wide warning window for each case.
-	rearm := func() {
-		logs.Reset()
-		RouteDeprecationWarnings(logger)
-	}
-	t.Cleanup(func() { RouteDeprecationWarnings(nil) })
-	load := func(t *testing.T, body string) Config {
+// TestRetiredAlwaysOnConfigTable owns UT-006, UT-007 and UT-009: since v0.5.2 [agents.stays_on]
+// fails config load as a removed key that names its [agents.always_on] replacement, also next to
+// the new table, while [agents.always_on] validation keeps naming the new path.
+func TestRetiredAlwaysOnConfigTable(t *testing.T) {
+	t.Parallel()
+
+	load := func(t *testing.T, body string) (Config, string, error) {
 		t.Helper()
 		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
 		if err != nil {
@@ -698,48 +691,48 @@ func TestStaysOnConfigAlias(t *testing.T) {
 		cfg := DefaultWithHome(homePaths)
 		path := filepath.Join(t.TempDir(), "config.toml")
 		writeFile(t, path, body)
-		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
-			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
-		}
-		return cfg
+		err = ApplyConfigOverlayFile(path, &cfg)
+		return cfg, path, err
 	}
 
-	t.Run("Should read the old table into always_on and warn", func(t *testing.T) {
-		rearm()
-		cfg := load(t, "[agents.stays_on]\napproval_timeout = \"2h\"\n")
-		if cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
-			t.Fatalf("ApprovalTimeout = %v, want 2h", cfg.Agents.AlwaysOn.ApprovalTimeout)
-		}
-		if strings.Count(logs.String(), "agents.stays_on is deprecated") != 1 ||
-			!strings.Contains(logs.String(), "use agents.always_on") || !strings.Contains(logs.String(), "v0.5.2") ||
-			!strings.Contains(logs.String(), "keys=approval_timeout") {
-			t.Fatalf("logs = %q, want one warning naming agents.always_on, v0.5.2 and the key", logs.String())
-		}
-	})
+	const oldTable, newTable = "agents.stays_on", "agents.always_on"
+	for _, tc := range []struct{ name, body, removed, replacement string }{
+		{
+			name:    "Should reject the old table",
+			body:    "[agents.stays_on]\napproval_timeout = \"2h\"\n",
+			removed: oldTable, replacement: newTable,
+		},
+		{
+			name:    "Should reject the old table next to the new one",
+			body:    "[agents.stays_on]\nmax_proposals = 5\n\n[agents.always_on]\nmax_proposals = 3\n",
+			removed: oldTable, replacement: newTable,
+		},
+		{name: "Should reject an empty old table", body: "[agents.stays_on]\n", removed: oldTable, replacement: newTable},
+		{
+			name:    "Should reject a dotted old key",
+			body:    "[agents]\nstays_on.max_proposals = 5\n",
+			removed: oldTable + ".max_proposals", replacement: newTable + ".max_proposals",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("Should let always_on win per key and report the ignored key", func(t *testing.T) {
-		rearm()
-		cfg := load(t, "[agents.stays_on]\nmax_proposals = 5\n\n[agents.always_on]\nmax_proposals = 3\n")
-		if cfg.Agents.AlwaysOn.MaxProposals != 3 {
-			t.Fatalf("MaxProposals = %d, want 3", cfg.Agents.AlwaysOn.MaxProposals)
-		}
-		if !strings.Contains(logs.String(), "ignored=max_proposals") {
-			t.Fatalf("logs = %q, want max_proposals listed as ignored", logs.String())
-		}
-	})
-
-	t.Run("Should warn once per process across layers with different key sets", func(t *testing.T) {
-		rearm()
-		load(t, "[agents.stays_on]\napproval_timeout = \"2h\"\n")
-		load(t, "[agents.stays_on]\nmax_proposals = 5\n")
-		if got := strings.Count(logs.String(), "agents.stays_on is deprecated"); got != 1 {
-			t.Fatalf("logs = %q, want exactly one config-table warning per process", logs.String())
-		}
-	})
+			_, path, err := load(t, tc.body)
+			want := fmt.Sprintf("removed config key %q in %q: use %q", tc.removed, path, tc.replacement)
+			if _, ok := errors.AsType[*UnknownKeysError](err); !ok || err.Error() != want {
+				t.Fatalf("ApplyConfigOverlayFile() error = %v, want UnknownKeysError %q", err, want)
+			}
+		})
+	}
 
 	t.Run("Should name the new path in validation errors", func(t *testing.T) {
-		cfg := load(t, "[agents.stays_on]\napproval_timeout = \"30s\"\n")
-		err := cfg.Validate()
+		t.Parallel()
+
+		cfg, _, err := load(t, "[agents.always_on]\napproval_timeout = \"30s\"\n")
+		if err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		err = cfg.Validate()
 		if err == nil ||
 			!strings.Contains(err.Error(), "agents.always_on.approval_timeout must be between 1m and 72h") {
 			t.Fatalf("Validate() error = %v, want the agents.always_on message", err)

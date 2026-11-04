@@ -3670,37 +3670,42 @@ func resolvedSkillPath(dir string, source string) workspacepkg.SkillPath {
 	}
 }
 
-// TestRegistrySetEnabledForAgentKindAlias owns the UT-004 skill attach case: toggling a skill on a
-// v0.5.0 stays_on definition edits it without a kind change and writes always_on.
-func TestRegistrySetEnabledForAgentKindAlias(t *testing.T) {
+// TestRegistrySetEnabledForRetiredAgentKind owns the UT-004 skill attach case: since v0.5.2 a
+// stays_on definition is an invalid agent-local layer, so toggling a skill on it fails with the
+// rename named in the load detail and leaves the file as is.
+func TestRegistrySetEnabledForRetiredAgentKind(t *testing.T) {
 	t.Parallel()
 
-	agentsDir := t.TempDir()
-	path := filepath.Join(agentsDir, "triage", "AGENT.md")
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(
-		path,
-		[]byte("---\nname: triage\nkind: stays_on\ndescription: Watches issues\n---\nWatch.\n"),
-		0o600,
-	); err != nil {
-		t.Fatal(err)
-	}
-	registry := newTestRegistry(t, RegistryConfig{GlobalAgentsDir: agentsDir})
-	if err := registry.SetEnabledForAgent("review", nil, "triage", false); err != nil {
-		t.Fatalf("SetEnabledForAgent() error = %v", err)
-	}
-	body, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, want := range []string{"kind: always_on", "description: Watches issues", "- review"} {
-		if !strings.Contains(string(body), want) {
-			t.Fatalf("AGENT.md = %q, want %q", body, want)
+	t.Run("Should reject the toggle and leave the file unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		agentsDir := t.TempDir()
+		path := filepath.Join(agentsDir, "triage", "AGENT.md")
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
 		}
-	}
-	if strings.Contains(string(body), "stays_on") {
-		t.Fatalf("AGENT.md = %q, want no stays_on", body)
-	}
+		const body = "---\nname: triage\nkind: stays_on\ndescription: Watches issues\n---\nWatch.\n"
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		registry := newTestRegistry(t, RegistryConfig{GlobalAgentsDir: agentsDir})
+		err := registry.SetEnabledForAgent("review", nil, "triage", false)
+		_, code, detail := agentLocalLoadErrorDetails(err)
+		if !errors.Is(err, ErrAgentLocalInvalid) || code != "validation" ||
+			!strings.Contains(detail, "stays_on was renamed to always_on in v0.5.1") {
+			t.Fatalf(
+				"SetEnabledForAgent() error = %v (code %q, detail %q), want the rename in the load detail",
+				err,
+				code,
+				detail,
+			)
+		}
+		got, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if string(got) != body {
+			t.Fatalf("AGENT.md = %q, want unchanged %q", got, body)
+		}
+	})
 }

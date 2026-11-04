@@ -93,9 +93,10 @@ The API uses ` + "`Compozy.connect()` and `Compozy.start()`" + `.
 	}
 }
 
-// TestProductLanguageGuardAgentKind owns UT-020: Rule A keeps stays_on and CanonicalAgentKind at
-// the listed production alias files, and Rule B keeps the retired word off public surfaces. Each
-// fixture is classified as the repository-relative path it stands for.
+// TestProductLanguageGuardAgentKind owns UT-020: since v0.5.2 Rule A keeps stays_on out of
+// production Go except the rejection-message file, the former alias files included, and Rule B
+// keeps the retired word off public surfaces. Each fixture is classified as the repository-relative
+// path it stands for.
 func TestProductLanguageGuardAgentKind(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -106,8 +107,14 @@ func TestProductLanguageGuardAgentKind(t *testing.T) {
 			content: "package daemon\n\nconst kind = \"stays_on\"\n"},
 		{name: "Should reject a CanonicalAgentKind call outside the boundary", as: "internal/daemon/x.go",
 			content: "package daemon\n\nfunc f(v string) { config.CanonicalAgentKind(v) }\n"},
-		{name: "Should allow the alias in the identity file", as: "internal/config/agent_identity.go", allowed: true,
+		{name: "Should allow the retired spelling in the rejection file", as: "internal/config/agent_kind_retired.go",
+			allowed: true, content: "package config\n\nconst retiredAgentKind = \"stays_on\"\n"},
+		{name: "Should reject the alias in the former identity alias file", as: "internal/config/agent_identity.go",
 			content: "package config\n\nconst alias = \"stays_on\"\n\nfunc CanonicalAgentKind(raw string) {}\n"},
+		{name: "Should reject stays_on in the former config table alias file", as: "internal/config/merge.go",
+			content: "package config\n\nconst table = \"stays_on\"\n"},
+		{name: "Should reject stays_on in the former boot rewrite file", as: "internal/daemon/boot_agent_kind_rewrite.go",
+			content: "package daemon\n\nconst kind = \"stays_on\"\n"},
 		{name: "Should allow stays_on fixtures in tests", as: "internal/config/agent_test.go", allowed: true,
 			content: "package config\n\nconst fixture = \"stays_on\"\n"},
 		{name: "Should reject the upper-case spelling", as: "internal/daemon/x.go",
@@ -130,6 +137,9 @@ func TestProductLanguageGuardAgentKind(t *testing.T) {
 			content: "See MS-web-stays-on-reports, then open the stays-on row.\n"},
 		{name: "Should allow a charter history identifier in QA scenarios", as: "docs/qa/scenarios/X.md",
 			allowed: true, content: "charter: CH-web-stays-on-fleet\n"},
+		{name: "Should allow the v0.5.2 alias removal release note",
+			as: ".release-notes/always-on-aliases-removed-v0.5.2.md", allowed: true,
+			content: "Rename `[agents.stays_on]` to `[agents.always_on]`.\n"},
 		{name: "Should reject the retired word in another v0.5.1 release fragment",
 			as: ".release-notes/other-change-v0.5.1.md", content: "Stays-on agents now pause.\n"},
 		{name: "Should reject stays_on in the central agent loader", as: "internal/config/agent.go",

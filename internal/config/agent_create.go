@@ -64,6 +64,9 @@ func CreateAgentDefFile(path string, draft AgentDefinitionDraft, overwrite bool)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			return AgentDef{}, err
 		}
+		if kindErr := ValidateAgentKind(draft.Kind); kindErr != nil {
+			return AgentDef{}, errors.Join(ErrInvalidAgentDefinition, kindErr)
+		}
 		if err == nil && current.EffectiveKind() != (AgentDef{Kind: draft.Kind}).EffectiveKind() {
 			return AgentDef{}, ErrAgentKindImmutable
 		}
@@ -99,7 +102,6 @@ func CreateAgentDefFile(path string, draft AgentDefinitionDraft, overwrite bool)
 
 // RenderAgentDefinition renders a draft to AGENT.md bytes and validates by parsing the result.
 func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error) {
-	draft.Kind, _ = CanonicalAgentKind(draft.Kind)
 	agentName := NormalizeAgentName(draft.Name)
 	if err := ValidateAuthoredAgentName(agentName); err != nil {
 		return nil, AgentDef{}, errors.Join(ErrInvalidAgentDefinition, err)
