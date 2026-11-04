@@ -127,7 +127,8 @@ func copyApprovedEnum(expected, actual map[string]any, pointer, reference string
 	for _, value := range newEnum {
 		text, _ := value.(string)
 		if !slices.Contains(oldEnum, value) &&
-			!(slices.Contains(alwaysOnHardeningEnumValues[pointer], text) || slices.Contains(alwaysOnHardeningEnumValues[reference], text)) {
+			!slices.Contains(alwaysOnHardeningEnumValues[pointer], text) &&
+			!slices.Contains(alwaysOnHardeningEnumValues[reference], text) {
 			return // an unapproved member stays a diff the comparison reports
 		}
 	}

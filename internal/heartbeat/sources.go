@@ -36,6 +36,8 @@ type SourceOutcome struct {
 	DurationMS int64         `json:"duration_ms"`
 	Error      *source.Error `json:"error,omitempty"`
 }
+
+//nolint:revive // The distinct schema name avoids colliding with palette SourceStatus in generated clients.
 type HeartbeatSourceStatus struct {
 	ID            string        `json:"id"`
 	Kind          string        `json:"kind,omitempty"`
