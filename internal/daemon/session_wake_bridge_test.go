@@ -340,6 +340,7 @@ func TestMonitorPullRequestObservation(t *testing.T) {
 	number, open := 7, "open"
 	facts := &worktree.ForgeStatus{
 		PRNumber: &number, PRState: &open, PRURL: "https://forge.test/pull/7", HeadSHA: "head-a",
+		Base: "main", Mergeable: "conflicting",
 		Checks: &worktree.ForgeChecks{State: "failing", Failed: 1, FailedNames: []string{"lint"}},
 		Reviews: &worktree.ForgeReviews{
 			Items: []worktree.ForgeReview{
@@ -354,6 +355,7 @@ func TestMonitorPullRequestObservation(t *testing.T) {
 
 		got := monitorPullRequestObservation(worktree.PullRequestEntry{LookupState: "ok", Facts: facts}, nil)
 		if got.Lookup != monitorpkg.PullRequestFound || got.Number != 7 || got.Head != "head-a" ||
+			got.Base != "main" || got.Mergeable != "conflicting" ||
 			got.Checks == nil || got.Checks.Failed != 1 || got.Reviews == nil ||
 			got.Reviews.UnresolvedThreads != 2 || got.Reviews.Items[0].ID != "r1" ||
 			got.Reviews.Threads[0] != (monitorpkg.PullRequestThread{ID: "t1", Commit: "head-a"}) {

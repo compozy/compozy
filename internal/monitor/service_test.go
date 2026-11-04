@@ -2037,6 +2037,32 @@ func TestDetectPullRequest(t *testing.T) {
 		_, next := detectPullRequest(prCursor{}, obs, start)
 		return next
 	}
+	t.Run("Should report conflict transitions without clearing unknown observations", func(t *testing.T) {
+		t.Parallel()
+		cur := prCursor{}
+		for i, step := range []struct {
+			mergeable, head string
+			wake            bool
+		}{
+			{"unknown", "a", false}, {"conflicting", "a", true},
+			{"conflicting", "a", false}, {"unknown", "b", false},
+			{"conflicting", "b", false}, {"mergeable", "b", false},
+			{"conflicting", "b", true},
+		} {
+			obs := openPull(step.head, pending(0, 1), noReviews())
+			obs.Mergeable, obs.Base = step.mergeable, "main"
+			changes, next := detectPullRequest(cur, obs, start.Add(time.Duration(i)*time.Minute))
+			if changes.Wake != step.wake || changes.Conflict != step.wake || changes.Base != "main" {
+				t.Fatalf("step %d changes = %+v", i, changes)
+			}
+			watch := &pullRequestWatch{cursor: next}
+			restored, err := decodePullRequestWatch("repo", watch.encode())
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, cur = detectPullRequest(restored.cursor, PullRequestObservation{Lookup: PullRequestFailed}, start)
+		}
+	})
 	t.Run("Should baseline reviews and threads on the first observation", func(t *testing.T) {
 		t.Parallel()
 		changes, next := detectPullRequest(prCursor{}, openPull("head-a", pending(1, 2), reviewed(3, "r1")), start)
@@ -3003,6 +3029,41 @@ func TestServicePullRequestMonitorRestart(t *testing.T) {
 		}
 		return after
 	}
+	t.Run("Should preserve conflicts through restart and unknown reads", func(t *testing.T) {
+		t.Parallel()
+		synctest.Test(t, func(t *testing.T) {
+			obs := openPull("head-a", pending(0, 1), noReviews())
+			obs.Mergeable, obs.Base = "conflicting", "main"
+			forge := &fakeForge{observation: obs}
+			store, waker := newMemoryStore(), &recordingWaker{}
+			before := durableWatch(t, forge, store, waker)
+			if _, err := before.Create(t.Context(), pullRequestSpec("sess-1")); err != nil {
+				t.Fatal(err)
+			}
+			synctest.Wait()
+			obs.Mergeable = "unknown"
+			forge.set(obs)
+			after := restart(t, before, forge, store, waker)
+			poll(1)
+			obs.Mergeable = "conflicting"
+			forge.set(obs)
+			poll(2)
+			if got := waker.notifications(); len(got) != 1 {
+				t.Fatalf("duplicate wakes = %+v", got)
+			}
+			obs.Mergeable = "mergeable"
+			forge.set(obs)
+			poll(1)
+			obs.Mergeable = "conflicting"
+			forge.set(obs)
+			poll(1)
+			got := waker.notifications()
+			if len(got) != 2 || !strings.Contains(got[1].Message(), "PR #7 now conflicts with main; rebase") ||
+				onlyMonitor(t, after, "sess-1").Status != StatusActive {
+				t.Fatalf("wakes = %+v", got)
+			}
+		})
+	})
 	t.Run("Should keep the baseline, so changes during downtime still wake", func(t *testing.T) {
 		t.Parallel()
 		synctest.Test(t, func(t *testing.T) {

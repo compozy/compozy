@@ -32,12 +32,20 @@ func detectPullRequest(cur prCursor, obs PullRequestObservation, now time.Time) 
 		next.EndedNumber = obs.Number
 		return PullRequestChanges{}, next
 	}
-	changes := PullRequestChanges{Number: obs.Number, URL: obs.URL, State: obs.State, Head: obs.Head}
+	changes := PullRequestChanges{Number: obs.Number, URL: obs.URL, State: obs.State, Head: obs.Head, Base: obs.Base}
 	next = resetForNewPullRequest(next, obs)
 	next.URL = obs.URL
 	if terminal {
 		changes.Terminal, changes.Wake = obs.State, true
 		return flushBurst(changes, next)
+	}
+	switch obs.Mergeable {
+	case "conflicting":
+		changes.Conflict = !next.Conflicting
+		changes.Wake = changes.Conflict
+		next.Conflicting = true
+	case "mergeable":
+		next.Conflicting = false
 	}
 	next = detectChecks(&changes, next, obs.Checks)
 	next = detectReviews(&changes, next, obs, now, missedReads)
@@ -69,6 +77,7 @@ func resetForNewPullRequest(next prCursor, obs PullRequestObservation) prCursor 
 	}
 	if next.Number != obs.Number {
 		next.ReviewsBaselined, next.Burst = false, nil
+		next.Conflicting = false
 		next.SeenReviews, next.SeenThreads = nil, nil
 	}
 	if burst := next.Burst; burst != nil {
@@ -269,6 +278,10 @@ func mergePullRequestChanges(carry, later PullRequestChanges) PullRequestChanges
 		}
 	}
 	merged = mergeReviewActivity(carry, later, merged)
+	merged.Conflict = merged.Conflict || carry.Conflict
+	if merged.Base == "" {
+		merged.Base = carry.Base
+	}
 	merged.FailureRose = merged.FailureRose || carry.FailureRose
 	merged.AllFinished = merged.AllFinished || carry.AllFinished
 	merged.ForgeDown = merged.ForgeDown || carry.ForgeDown

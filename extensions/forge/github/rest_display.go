@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -74,11 +75,41 @@ func (p *Provider) restDisplayStatus(
 			response.Head, response.Base = selected.Head.Ref, selected.Base.Ref
 			response.HeadSHA, response.Draft = selected.Head.SHA, selected.Draft
 			response.UpdatedAt = &selected.UpdatedAt
+			if selected.State == prStateOpen {
+				return p.restPullMergeability(ctx, repo, token, *selected, response)
+			}
 			return response, nil
 		}
 		if len(pulls) >= githubPullPageSize {
 			response.Selection = pullSelectionIncomplete
 			return response, nil
+		}
+	}
+	return response, nil
+}
+
+func (p *Provider) restPullMergeability(
+	ctx context.Context, repo repository, token string, selected pullPayload,
+	response extensioncontract.ForgeStatusResponse,
+) (extensioncontract.ForgeStatusResponse, error) {
+	var detail pullPayload
+	path := repositoryAPIPath(repo, fmt.Sprintf("/pulls/%d", selected.Number))
+	if err := p.api.request(ctx, http.MethodGet, path, token, nil, &detail); err != nil {
+		if cause := githubErrorCause(err); cause != "" {
+			response.Cause = cause
+			if failure, ok := errors.AsType[*githubAPIError](err); ok {
+				response.RetryAfter = failure.retryAfter
+			}
+			return response, nil
+		}
+		return response, err
+	}
+	response.Mergeable = graphChecksUnknown
+	if detail.Head.SHA == selected.Head.SHA && detail.Mergeable != nil && detail.MergeableState != graphChecksUnknown {
+		if detail.MergeableState == "dirty" {
+			response.Mergeable = "conflicting"
+		} else if *detail.Mergeable {
+			response.Mergeable = "mergeable"
 		}
 	}
 	return response, nil

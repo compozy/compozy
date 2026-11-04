@@ -28,6 +28,7 @@ const (
 )
 
 const prStateMerged = "merged"
+const prStateOpen = "open"
 
 type Provider struct {
 	credentials credentialResolver
@@ -40,15 +41,17 @@ type repositoryPayload struct {
 }
 
 type pullPayload struct {
-	Title     string     `json:"title"`
-	Number    int        `json:"number"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	HTMLURL   string     `json:"html_url"`
-	State     string     `json:"state"`
-	MergedAt  *time.Time `json:"merged_at"`
-	Head      pullRef    `json:"head"`
-	Base      pullRef    `json:"base"`
-	Draft     *bool      `json:"draft"`
+	Mergeable      *bool      `json:"mergeable"`
+	MergeableState string     `json:"mergeable_state"`
+	Title          string     `json:"title"`
+	Number         int        `json:"number"`
+	UpdatedAt      time.Time  `json:"updated_at"`
+	HTMLURL        string     `json:"html_url"`
+	State          string     `json:"state"`
+	MergedAt       *time.Time `json:"merged_at"`
+	Head           pullRef    `json:"head"`
+	Base           pullRef    `json:"base"`
+	Draft          *bool      `json:"draft"`
 }
 
 type pullRef struct {

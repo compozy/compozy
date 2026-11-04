@@ -188,7 +188,10 @@ when the monitor first read it: a reused branch's old pull request is history, a
 monitor saw open can end it. `timeout_seconds` defaults to 21,600 and caps at
 86,400. One monitor fires many times and stays armed until the pull request merges or closes, the timeout
 expires, you cancel it, or it reaches 64 wakes. It wakes at once when checks are already failing on the
-head, then within about a minute of a check newly failing and once per head when all checks finish; a new
+head or the PR already conflicts with its base (with rebase guidance), then within about a minute of a
+check newly failing and once per head when all checks finish. A
+conflict transition wakes once and can wake again after a known clearance; unknown mergeability never
+clears a conflict, including across restarts or forge outages. A new
 review or unresolved thread on the current head wakes after 2 minutes of quiet, held at most 5, and the first
 read is the baseline for reviews and threads. A new head wakes nothing by itself and drops
 what the old head had pending, and a late review or thread on an old head wakes nothing, though open threads

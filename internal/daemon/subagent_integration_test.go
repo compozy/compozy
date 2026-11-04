@@ -5658,6 +5658,51 @@ func assertInstanceMainGoalTransports(t *testing.T, d *Daemon, workspace string,
 // Invariant: daemon monitors survive process release and their wake reloads the same ACP session.
 // Owner: session lifecycle through real daemon wiring (B3 IT-014).
 func TestMonitorIdleReleaseIntegration(t *testing.T) {
+	t.Run("Should deliver a conflict wake through the durable session queue", func(t *testing.T) {
+		_, manager, workspace := newSubagentDaemonConfigured(t, nil)
+		target, err := manager.Create(t.Context(), new(session.CreateOpts{
+			AgentName: "subagent-test", Workspace: workspace,
+		}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		events, err := manager.Prompt(t.Context(), target.ID, "child work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		for event := range events {
+			if event.Type == acp.EventTypeError {
+				t.Fatalf("initial turn: %+v", event)
+			}
+		}
+		waker := &monitorSessionWaker{sessions: func() monitorSessionManager { return manager }}
+		wake := monitorpkg.Notification{
+			Monitor: monitorpkg.Monitor{
+				ID: "mon-0123456789ab", SessionID: target.ID, Kind: monitorpkg.KindPullRequest,
+				Branch: "topic", FireCount: 1, Description: "resolve conflicts on wake",
+			},
+			Outcome: monitorpkg.Outcome{Reason: monitorpkg.ReasonPullRequestChanged},
+			PullRequest: &monitorpkg.PullRequestChanges{
+				Wake: true, Number: 7, State: "open", Head: "abc", Base: "main", Conflict: true,
+			},
+		}
+		if err := waker.WakeSession(t.Context(), wake); err != nil {
+			t.Fatal(err)
+		}
+		waitForRuntimeCondition(t, "conflict wake reaches ACP", 20*time.Second, func() bool {
+			rows, err := manager.Events(t.Context(), target.ID,
+				store.EventQuery{Type: acp.EventTypeAgentMessage, Limit: 100})
+			if err != nil {
+				return false
+			}
+			for _, row := range rows {
+				if strings.Contains(row.Content, "wake received") {
+					return true
+				}
+			}
+			return false
+		})
+	})
 	t.Run("Should release a monitor-only runtime and reload its ACP session", func(t *testing.T) {
 		d, manager, workspace := newSubagentDaemonConfigured(t, func(cfg *compozyconfig.Config) {
 			cfg.Session.Supervision.IdleReleaseAfter = time.Second
