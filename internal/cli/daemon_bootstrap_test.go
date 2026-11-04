@@ -1031,6 +1031,8 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 	t.Run("Should attach once a live booting lock owner becomes ready", func(t *testing.T) {
 		fixture := newBootstrapLockOwnerFixture(t)
 		fixture.bootAfterProbes = 3
+		// A different healthy daemon answers first; bootstrap must keep waiting for the holder.
+		fixture.foreignReadyPID = 888
 
 		events, err := fixture.run(t)
 		if err != nil {
