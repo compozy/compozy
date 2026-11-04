@@ -16,6 +16,7 @@ func TestEmbeddedResources(t *testing.T) {
 	t.Parallel()
 	t.Run("Should resolve the four published agent kinds and the always-on level", func(t *testing.T) {
 		t.Parallel()
+		icons := map[string]string{"spec_conductor": "list-checks", "code_implementer": "code-xml", "reviewer": "scan-eye"}
 		for name, kind := range map[string]string{"orchestrator": "always_on", "spec_conductor": "on_demand", "code_implementer": "on_demand", "reviewer": "on_demand"} {
 			data, err := fs.ReadFile(FS(), "agents/"+name+"/AGENT.md")
 			if err != nil {
@@ -40,7 +41,8 @@ func TestEmbeddedResources(t *testing.T) {
 				t.Fatalf("%s appearance: %v", name, err)
 			}
 			if kind == "always_on" && (appearance["avatar"] != "generated" || appearance["seed"] != name) ||
-				kind == "on_demand" && (appearance["avatar"] != "icon" || appearance["background"] != "none") {
+				kind == "on_demand" && (appearance["avatar"] != "icon" || appearance["icon"] != icons[name] ||
+					appearance["background"] != "none") {
 				t.Fatalf("%s (%s) appearance = %#v", name, kind, appearance)
 			}
 		}
