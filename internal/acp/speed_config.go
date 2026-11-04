@@ -111,7 +111,7 @@ func (d *Driver) applySessionSpeed(
 		return true, rejectedSpeedNegotiation(
 			parsed,
 			match.option.ID,
-			fmt.Errorf("provider response did not confirm the requested speed"),
+			fmt.Errorf("provider response did not confirm the requested speed: %w", errConfigOptionUnconfirmed),
 		)
 	}
 	process.setSpeedResolution(&speedpkg.Resolution{

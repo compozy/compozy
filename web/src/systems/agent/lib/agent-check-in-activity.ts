@@ -94,12 +94,12 @@ function single(checkIn: AgentInstanceCheckIn): RecentCheckIn {
   const base = { key: checkIn.id, time: clockAt(checkIn.created_at) };
   const sentence = checkInReason(checkIn.reason);
   if (checkIn.result === "failed") {
-    return {
-      ...base,
-      title: "Couldn't finish",
-      description: checkIn.detail || sentence,
-      failed: true,
-    };
+    // A configuration diagnostic leads with the advice; the provider's detail follows it.
+    const description =
+      checkIn.reason === "triage_config_unavailable" && checkIn.detail
+        ? `${sentence} ${checkIn.detail}`
+        : checkIn.detail || sentence;
+    return { ...base, title: "Couldn't finish", description, failed: true };
   }
   if (isTold(checkIn)) {
     return { ...base, title: "Told you something", description: checkIn.detail, told: true };

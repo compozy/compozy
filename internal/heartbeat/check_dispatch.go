@@ -86,11 +86,17 @@ func (s *CheckService) dispatch(
 // so it never advances the failure streak that pauses an instance.
 const ReasonTriageConfigUnavailable = "triage_config_unavailable"
 
+const maxConfigUnavailableDetailRunes = 2000
+
 // ConfigUnavailableTriage reports a provider configuration rejection with its diagnostic.
 func ConfigUnavailableTriage(detail string) TriageOutcome {
 	detail = strings.TrimSpace(detail)
 	if detail == "" {
 		detail = "The provider rejected the heartbeat model or runtime options."
+	}
+	// Reports are capped at 64 KiB; a provider can list many choices or echo a long error.
+	if runes := []rune(detail); len(runes) > maxConfigUnavailableDetailRunes {
+		detail = string(runes[:maxConfigUnavailableDetailRunes]) + " (truncated)"
 	}
 	payload, err := json.Marshal(struct {
 		Reason string `json:"reason"`

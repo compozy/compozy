@@ -93,7 +93,7 @@ func (d *TriageDispatcher) Dispatch(
 				},
 			}, nil
 		}
-		if negotiationErr, ok := errors.AsType[*acp.NegotiationError](err); ok {
+		if negotiationErr, ok := errors.AsType[*acp.NegotiationError](err); ok && acp.IsConfigurationRejection(err) {
 			return heartbeat.ConfigUnavailableTriage(negotiationErr.Error()), nil
 		}
 		return outcome, err
