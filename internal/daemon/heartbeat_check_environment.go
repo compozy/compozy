@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -18,6 +19,8 @@ type checkWorkspaceReader interface {
 type instanceCheckEnvironment struct {
 	sourceExtensions  source.ExtensionPoller
 	sourceConfig      compozyconfig.HeartbeatSourcesConfig
+	sourcePollOnce    sync.Once
+	sourcePollSem     chan struct{}
 	sourceNow         func() time.Time
 	sourceMaxInterval time.Duration
 	instanceDigestCollector

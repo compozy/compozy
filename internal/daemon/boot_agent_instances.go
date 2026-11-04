@@ -98,6 +98,10 @@ func (d *Daemon) bootAgentInstances(ctx context.Context, state *bootState) error
 	}
 	d.bindInstanceSkillReviews(state, provider, definitions)
 	state.deps.AgentInstances = state.agentInstances
+	return reconcileBootInstances(ctx, state, service)
+}
+
+func reconcileBootInstances(ctx context.Context, state *bootState, service *agentinstance.Service) error {
 	bindInstanceCatalogReconciliation(ctx, state, service.Reconcile)
 	if err := service.Reconcile(ctx); err != nil {
 		state.logger.ErrorContext(ctx, "daemon: reconcile instances at startup", "error", err)

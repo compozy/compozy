@@ -308,7 +308,7 @@ func (options agentInstanceOptions) check(cmd *cobra.Command, base any, action, 
 				}
 				instance, err := instanceClient.MutateAgentInstance(cmd.Context(), id, "show")
 				if err != nil {
-					return "", err
+					return instanceCheckText(result, target, nil), nil
 				}
 				return instanceCheckText(result, target, instance.Instance.Sources), nil
 			},

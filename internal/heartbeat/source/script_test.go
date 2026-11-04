@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 	"unicode/utf8"
@@ -19,6 +20,22 @@ func (a approvalHash) ApprovedHash(context.Context, string, string, string) (str
 	return string(a), nil
 }
 func TestScriptRunner(t *testing.T) {
+	t.Run("Should reject named pipes without waiting for a writer", func(t *testing.T) {
+		t.Parallel()
+		dir := t.TempDir()
+		if err := os.Mkdir(filepath.Join(dir, "sources"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := syscall.Mkfifo(filepath.Join(dir, "sources", "pipe"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		for _, read := range []func(string, string) ([]byte, string, error){ReadScript, InspectScript} {
+			_, _, err := read(dir, "pipe")
+			if cause, ok := errors.AsType[*Error](err); !ok || cause.Code != "source_script_invalid" {
+				t.Fatalf("error=%v", err)
+			}
+		}
+	})
 	for _, tc := range []struct {
 		name, body, code string
 		approve, enabled bool

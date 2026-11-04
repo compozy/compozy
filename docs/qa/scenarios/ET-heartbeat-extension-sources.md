@@ -36,7 +36,7 @@ and `TestDaemonE2EHeartbeatSourceCatalog` run in CI/integration QA.
    URL, and linked open PRs. Closing references have `closes: true`; other PR
    references have `closes: false`; closed PRs are absent.
 3. Exceed the batch size. Verify oldest issues arrive first, `more` is true, and
-   later checks deliver the remainder. Exclude a label and verify excluded issues
+   later checks deliver the remainder. With several pages, verify each poll makes only one issue-page request and resumes without skipping an older issue, including when a page needs several batches. Exclude a label and verify excluded issues
    do not reappear. In a new source, use `backfill: "24h"` and verify its time window.
 4. Remove credentials, use an expired token, and simulate a secondary rate limit.
    Verify `source_credential_absent`, `source_credential_expired`, and

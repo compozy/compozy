@@ -1795,7 +1795,7 @@ func TestAgentInstanceAllProfilesReads(t *testing.T) {
 
 type failingSourceStatuses struct{ instanceCheckStub }
 
-func (*failingSourceStatuses) SourceStatuses(context.Context, string) ([]heartbeat.SourceStatus, error) {
+func (*failingSourceStatuses) SourceStatuses(context.Context, string) ([]heartbeat.HeartbeatSourceStatus, error) {
 	return nil, errors.New("source store unavailable")
 }
 

@@ -4372,7 +4372,7 @@
           },
           "sources": {
             "items": {
-              "$ref": "#/components/schemas/CmdpaletteSourceStatus"
+              "$ref": "#/components/schemas/SourceStatus"
             },
             "type": "array"
           }
@@ -4755,24 +4755,6 @@
           "profile_lens",
           "stream_token",
           "view_session"
-        ],
-        "type": "object"
-      },
-      "CmdpaletteSourceStatus": {
-        "properties": {
-          "reason": {
-            "type": "string"
-          },
-          "source": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "source",
-          "status"
         ],
         "type": "object"
       },
@@ -34535,6 +34517,24 @@
         ],
         "type": "object"
       },
+      "SourceStatus": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "status"
+        ],
+        "type": "object"
+      },
       "SpawnBudgetPayload": {
         "properties": {
           "max_active_per_workspace": {
@@ -53677,6 +53677,46 @@
               }
             },
             "description": "Operator required"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent not found"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid source script request"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Source storage unavailable"
           }
         },
         "summary": "Revoke a source script approval (operator only)",
@@ -53759,6 +53799,16 @@
             },
             "description": "Operator required"
           },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent not found"
+          },
           "409": {
             "content": {
               "application/json": {
@@ -53768,6 +53818,36 @@
               }
             },
             "description": "Script changed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Invalid source script request"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Source storage unavailable"
           }
         },
         "summary": "Approve exact source script bytes (operator only)",
@@ -53831,6 +53911,26 @@
               }
             },
             "description": "Agent not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Internal error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Source storage unavailable"
           }
         },
         "summary": "List check-in source kinds, scripts and effective limits",

@@ -153,7 +153,7 @@ func (r instanceDefinitions) projectInstanceDefinition(
 	} else if err != nil {
 		return err
 	}
-	r.projectInstanceSources(ctx, instance, agent, artifacts, resolved, payload, reader)
+	r.projectInstanceSources(ctx, instance, agent, artifacts, &resolved, payload, reader)
 	payload.Label = agent.Label()
 	// An unsupported saved appearance resolves to the default face; the definition read
 	// carries the agent_appearance_invalid diagnostic, so the instance read never fails on it.

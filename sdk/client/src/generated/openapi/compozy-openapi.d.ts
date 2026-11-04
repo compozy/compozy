@@ -8907,7 +8907,7 @@ export interface components {
       commands: components["schemas"]["CmdPaletteCommand"][];
       context_revision?: string;
       profile_lens: components["schemas"]["ProfileLens"];
-      sources: components["schemas"]["CmdpaletteSourceStatus"][];
+      sources: components["schemas"]["SourceStatus"][];
     };
     CmdPaletteError: {
       clients?: string[];
@@ -9003,11 +9003,6 @@ export interface components {
       profile_lens: components["schemas"]["ProfileLens"];
       stream_token: string;
       view_session: string;
-    };
-    CmdpaletteSourceStatus: {
-      reason?: string;
-      source: string;
-      status: string;
     };
     CommandFlag: {
       default?: unknown;
@@ -17521,6 +17516,11 @@ export interface components {
       more: boolean;
       result: string;
     };
+    SourceStatus: {
+      reason?: string;
+      source: string;
+      status: string;
+    };
     SpawnBudgetPayload: {
       max_active_per_workspace?: number;
       max_children: number;
@@ -25708,8 +25708,44 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
       /** @description Script changed */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid source script request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Source storage unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -25754,6 +25790,42 @@ export interface operations {
           "application/json": components["schemas"]["ErrorPayload"];
         };
       };
+      /** @description Agent not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Invalid source script request */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Source storage unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
     };
   };
   getAgentHeartbeatSources: {
@@ -25784,6 +25856,24 @@ export interface operations {
       };
       /** @description Agent not found */
       404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Internal error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": components["schemas"]["ErrorPayload"];
+        };
+      };
+      /** @description Source storage unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };

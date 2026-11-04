@@ -273,34 +273,6 @@ func (s *CheckService) collectTarget(
 ) (CheckResult, error) {
 	now := s.now()
 	cadence := s.checkInterval(&target.Policy)
-	skip := func(reason string) (CheckResult, error) {
-		result := CheckResult{Gate: reason, Sources: batch.Outcomes()}
-		if dryRun {
-			return result, nil
-		}
-		if manual && len(batch.Sources) == 0 {
-			return result, nil
-		}
-		delay := s.checkBackoff(cadence, state, len(target.Policy.Preferences.Context.Sources) > 0)
-		if batch.HasMore() {
-			delay = s.config.MinInterval
-		}
-		_, err := s.store.Skip(
-			ctx,
-			SkipRequest{
-				Deferred:    state.Deferred,
-				ManualCheck: manual,
-				InstanceID:  state.InstanceID,
-				ExpectedDue: state.NextWakeAt,
-				Reason:      reason,
-				Now:         now,
-				NextWakeAt:  NextCheckTime(now, delay, state.InstanceID),
-				ExpiresAt:   now.Add(s.config.Retention),
-				Sources:     batch.Sources,
-			},
-		)
-		return result, err
-	}
 	var err error
 	source := checkTimerSource
 	if manual {
@@ -338,7 +310,7 @@ func (s *CheckService) collectTarget(
 		}
 	}
 	if gate := s.checkDigestGate(target, &digest, state, manual, now); gate != "" {
-		return skip(gate)
+		return s.skipCollectedTarget(ctx, state, target, manual, dryRun, batch, gate)
 	}
 	if dryRun {
 		return CheckResult{Gate: "would_run", Digest: &digest, Sources: batch.Outcomes()}, nil
@@ -470,4 +442,42 @@ func (s *CheckService) skipInitialCheck(
 		ExpiresAt:   now.Add(s.config.Retention),
 	})
 	return true, err
+}
+
+func (s *CheckService) skipCollectedTarget(
+	ctx context.Context,
+	state InstanceWakeState,
+	target *CheckTarget,
+	manual, dryRun bool,
+	batch PollBatch,
+	reason string,
+) (CheckResult, error) {
+	now := s.now()
+	cadence := s.checkInterval(&target.Policy)
+	result := CheckResult{Gate: reason, Sources: batch.Outcomes()}
+	if dryRun {
+		return result, nil
+	}
+	if manual && len(batch.Sources) == 0 {
+		return result, nil
+	}
+	delay := s.checkBackoff(cadence, state, len(target.Policy.Preferences.Context.Sources) > 0)
+	if batch.HasMore() {
+		delay = s.config.MinInterval
+	}
+	_, err := s.store.Skip(
+		ctx,
+		SkipRequest{
+			Deferred:    state.Deferred,
+			ManualCheck: manual,
+			InstanceID:  state.InstanceID,
+			ExpectedDue: state.NextWakeAt,
+			Reason:      reason,
+			Now:         now,
+			NextWakeAt:  NextCheckTime(now, delay, state.InstanceID),
+			ExpiresAt:   now.Add(s.config.Retention),
+			Sources:     batch.Sources,
+		},
+	)
+	return result, err
 }

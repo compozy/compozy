@@ -126,7 +126,9 @@ func (m *Manager) publishOperatorNotification(
 		m.logNotificationOutcome(ctx, notification, result, 0)
 		return result, nil
 	}
-	m.notifyLastBySession[notification.SessionID] = notification.At
+	if rateLimit {
+		m.notifyLastBySession[notification.SessionID] = notification.At
+	}
 	m.notifyMu.Unlock()
 	if muted {
 		result := NotifyResult{Outcome: NotifyOutcomeMutedWorkspace}

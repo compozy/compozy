@@ -99,17 +99,21 @@ type approvedAdditionWalker struct {
 }
 
 // alwaysOnHardeningEnumValues are the enum members the spec adds; no existing member is removed.
-var alwaysOnHardeningEnumValues = map[string]bool{
-	"agent_instance":        true, // trigger target_kind
-	"approve-edits":         true, // permission level
-	"auto":                  true, // permission level
-	"goal_on_instance_main": true, // Goal refusal on an always-on main
-	"unattended":            true, // daemon-set pause reason
-	"source_poll_in_flight": true, // check-in source collection is pending
+var alwaysOnHardeningEnumValues = map[string][]string{
+	"#/components/schemas/CreateAgentPayload/properties/permissions":        {"approve-edits", "auto"},
+	"#/components/schemas/DuplicateAgentOverrides/properties/permissions":   {"approve-edits", "auto"},
+	"#/components/schemas/SettingsPermissionsPayload/properties/mode":       {"approve-edits", "auto"},
+	"#/components/schemas/GoalCommandResult/properties/reason_code":         {"goal_on_instance_main"},
+	"#/components/schemas/GoalSnapshot/properties/cause":                    {"goal_on_instance_main"},
+	"#/components/schemas/GoalTurn/properties/reason_code":                  {"goal_on_instance_main"},
+	"#/components/schemas/HeartbeatWakeDecisionPayload/properties/reason":   {"source_poll_in_flight"},
+	"#/components/schemas/HeartbeatWakeEventPayload/properties/reason":      {"source_poll_in_flight"},
+	"#/components/schemas/HeartbeatWakeStatePayload/properties/last_reason": {"source_poll_in_flight"},
+	"#/paths/~1api~1automation~1triggers/get/parameters/schema":             {"agent_instance"},
 }
 
 // copyApprovedEnum extends a baseline enum with approved members the current document added.
-func copyApprovedEnum(expected, actual map[string]any) {
+func copyApprovedEnum(expected, actual map[string]any, pointer, reference string) {
 	oldEnum, okOld := expected["enum"].([]any)
 	newEnum, okNew := actual["enum"].([]any)
 	if !okOld || !okNew || len(newEnum) <= len(oldEnum) {
@@ -122,7 +126,8 @@ func copyApprovedEnum(expected, actual map[string]any) {
 	}
 	for _, value := range newEnum {
 		text, _ := value.(string)
-		if !slices.Contains(oldEnum, value) && !alwaysOnHardeningEnumValues[text] {
+		if !slices.Contains(oldEnum, value) &&
+			!(slices.Contains(alwaysOnHardeningEnumValues[pointer], text) || slices.Contains(alwaysOnHardeningEnumValues[reference], text)) {
 			return // an unapproved member stays a diff the comparison reports
 		}
 	}
@@ -198,7 +203,7 @@ func (w approvedAdditionWalker) copy(oldValue, nextValue any, pointer string) {
 		if !ok {
 			return
 		}
-		copyApprovedEnum(expected, actual)
+		copyApprovedEnum(expected, actual, pointer, newRef)
 		approved := approvedAdditionKeys(pointer)
 		// Inlined historical responses still use the current component's exact allowlist.
 		for key := range approvedAdditionKeys(newRef) {
@@ -217,8 +222,12 @@ func (w approvedAdditionWalker) copy(oldValue, nextValue any, pointer string) {
 			}
 			copyApprovedRequired(expected, actual, added)
 		}
+		childPointer := pointer
+		if newRef != "" {
+			childPointer = newRef
+		}
 		for key, value := range expected {
-			w.copy(value, actual[key], pointer+"/"+escapePointerToken(key))
+			w.copy(value, actual[key], childPointer+"/"+escapePointerToken(key))
 		}
 	case []any:
 		actual, ok := next.([]any)
@@ -318,5 +327,44 @@ func TestAgentKindRequestSchemas(t *testing.T) {
 				t.Fatalf("%s.kind = %v %v, want a plain string", name, kind.Type, kind.Enum)
 			}
 		})
+	}
+}
+
+func assertAlwaysOnHardeningFields(t *testing.T, current map[string]any) {
+	t.Helper()
+	for _, addition := range alwaysOnHardeningAdditions {
+		for _, field := range addition.keys {
+			found := false
+			seenRefs := map[string]bool{}
+			var visit func(any, string)
+			visit = func(value any, pointer string) {
+				switch node := value.(type) {
+				case map[string]any:
+					if ref, ok := node["$ref"].(string); ok && strings.HasPrefix(pointer, addition.pathPrefix) &&
+						!seenRefs[ref] {
+						seenRefs[ref] = true
+						components := current["components"].(map[string]any)["schemas"].(map[string]any)
+						visit(components[strings.TrimPrefix(ref, "#/components/schemas/")], pointer)
+					}
+					if properties, ok := node["properties"].(map[string]any); ok &&
+						strings.HasPrefix(pointer, addition.pathPrefix) {
+						if _, exists := properties[field]; exists {
+							found = true
+						}
+					}
+					for key, child := range node {
+						visit(child, pointer+"/"+escapePointerToken(key))
+					}
+				case []any:
+					for _, child := range node {
+						visit(child, pointer)
+					}
+				}
+			}
+			visit(current, "#")
+			if !found {
+				t.Errorf("approved field %s missing under %s", field, addition.pathPrefix)
+			}
+		}
 	}
 }

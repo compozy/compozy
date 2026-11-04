@@ -98,16 +98,9 @@ type SourceOutcome struct {
 
 // SourceStatus is a daemon API value.
 type SourceStatus struct {
-	ID            string `json:"id"`
-	Kind          string `json:"kind,omitempty"`
-	Script        string `json:"script,omitempty"`
-	Status        string `json:"status"`
-	LastPolledAt  string `json:"last_polled_at,omitempty"`
-	LastSuccessAt string `json:"last_success_at,omitempty"`
-	LastItemCount int64  `json:"last_item_count"`
-	FailureStreak int64  `json:"failure_streak"`
-	Error         *Error `json:"error,omitempty"`
-	NextPollAt    string `json:"next_poll_at,omitempty"`
+	Source string       `json:"source"`
+	Status SourceHealth `json:"status"`
+	Reason string       `json:"reason,omitempty"`
 }
 
 // SpawnBudgetPayload is a daemon API value.
@@ -437,4 +430,19 @@ type SupportBundleManifestPayload struct {
 	EventSummaryMaxBytes int64                                  `json:"event_summary_max_bytes"`
 	RedactionVersion     string                                 `json:"redaction_version"`
 	Artifacts            []SupportBundleManifestArtifactPayload `json:"artifacts"`
+}
+
+// SupportBundleOperationPayload is a daemon API value.
+type SupportBundleOperationPayload struct {
+	OperationID   string                        `json:"operation_id"`
+	Status        string                        `json:"status"`
+	StatusURL     string                        `json:"status_url"`
+	DownloadURL   string                        `json:"download_url,omitempty"`
+	FileName      string                        `json:"file_name,omitempty"`
+	SizeBytes     int64                         `json:"size_bytes,omitzero"`
+	Manifest      *SupportBundleManifestPayload `json:"manifest,omitzero"`
+	FailureReason string                        `json:"failure_reason,omitempty"`
+	CreatedAt     time.Time                     `json:"created_at"`
+	UpdatedAt     time.Time                     `json:"updated_at"`
+	CompletedAt   *time.Time                    `json:"completed_at,omitempty"`
 }

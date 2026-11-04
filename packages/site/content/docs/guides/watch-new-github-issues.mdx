@@ -317,6 +317,8 @@ In the app, an unapproved script's row on the **Check-ins** page reads "Waiting 
 with the short hash. For an editable operator view, its **Approve** button approves the current
 script hash from the catalog. Open the script to review its contents before approving.
 
+Only regular files are accepted as scripts; named pipes, sockets and devices are rejected during discovery and approval.
+
 Scripts run with the workspace as their working directory and a minimal environment: `PATH`,
 `HOME`, `LANG`, `TMPDIR`, `USER`, `COMPOZY_SOURCE_ID`, `COMPOZY_AGENT`, and any names you list in
 `[agents.heartbeat.sources].env_allow`. They never receive a session's environment.
@@ -346,3 +348,5 @@ tells the agent once, so the problem reaches you as a report instead of silence.
   for every parameter and item field of `forge-github/issues`.
 - [Develop Extensions](/docs/extensions/develop) to ship your own source kind.
 - [`config.toml`](/docs/configuration/config-toml) for `[agents.heartbeat.sources]` limits.
+
+The GitHub source reads at most one issue page per poll, oldest first. Its opaque state keeps page progress and advances the issue watermark only through delivered or filtered issues. A page can take several batches; `more` keeps the next check at the minimum interval until the backlog is drained.

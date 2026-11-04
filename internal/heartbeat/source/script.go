@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
+	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/procutil"
 )
 
@@ -59,12 +60,16 @@ func readScript(dir, name string, executable bool) ([]byte, string, error) {
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return nil, "", Failure("source_script_invalid", "script escapes sources folder")
 	}
-	f, err := os.Open(path)
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return nil, "", Failure("source_script_invalid", "script must be a regular file")
+	}
+	f, err := fileutil.OpenRegularFile(path)
 	if err != nil {
 		return nil, "", Failure("source_script_missing", "script could not be read")
 	}
 	defer f.Close()
-	info, err := f.Stat()
+	info, err = f.Stat()
 	if err != nil || !info.Mode().IsRegular() {
 		return nil, "", Failure("source_script_invalid", "script must be a regular file")
 	}

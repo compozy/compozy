@@ -58,6 +58,7 @@ describe("generated authored context contracts", () => {
       | "session_prompt_active_race"
       | "synthetic_prompt_failed"
       | "wake_coalesced"
+      | "source_poll_in_flight"
     >();
     expectTypeOf<HeartbeatStatusResponse["session_health"]>().toMatchTypeOf<
       SessionHealthPayload | null | undefined

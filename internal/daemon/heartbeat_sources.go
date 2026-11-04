@@ -51,7 +51,9 @@ func (e *instanceCheckEnvironment) PollSources(
 	}
 	batch.Sources = make([]heartbeat.PolledSource, len(states))
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, max(1, cfg.MaxPerAgent))
+	e.sourcePollOnce.Do(func() {
+		e.sourcePollSem = make(chan struct{}, max(1, cfg.MaxConcurrentPolls))
+	})
 	for i, ref := range target.Policy.Preferences.Context.Sources {
 		wg.Go(func() {
 			state := states[i]
@@ -67,11 +69,11 @@ func (e *instanceCheckEnvironment) PollSources(
 				return
 			}
 			select {
-			case sem <- struct{}{}:
+			case e.sourcePollSem <- struct{}{}:
 			case <-ctx.Done():
 				return
 			}
-			defer func() { <-sem }()
+			defer func() { <-e.sourcePollSem }()
 			e.pollHeartbeatSource(ctx, target, state, runner, &p, now, dry)
 		})
 	}

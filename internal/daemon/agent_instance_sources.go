@@ -19,7 +19,7 @@ func (r instanceDefinitions) projectInstanceSources(
 	instance agentinstance.Instance,
 	agent compozyconfig.AgentDef,
 	artifacts *session.AgentArtifacts,
-	workspace workspacepkg.ResolvedWorkspace,
+	workspace *workspacepkg.ResolvedWorkspace,
 	payload *contract.AgentInstancePayload,
 	reader instanceAttentionReader,
 ) {
@@ -37,7 +37,7 @@ func (r instanceDefinitions) projectInstanceSources(
 	if err != nil {
 		return
 	}
-	out := make([]heartbeat.SourceStatus, 0, len(refs))
+	out := make([]heartbeat.HeartbeatSourceStatus, 0, len(refs))
 	if len(refs) == 0 {
 		payload.Sources = out
 		return
@@ -48,7 +48,7 @@ func (r instanceDefinitions) projectInstanceSources(
 	}
 	for i, ref := range refs {
 		state := states[i]
-		status := heartbeat.SourceStatus{
+		status := heartbeat.HeartbeatSourceStatus{
 			ID: ref.ID, Kind: ref.Kind, Script: ref.Script, Status: "pending_first_poll",
 			LastPolledAt: state.LastPolledAt, LastSuccessAt: state.LastSuccessAt,
 			LastItemCount: state.LastItemCount, FailureStreak: state.FailureStreak, Error: state.Error,

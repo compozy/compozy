@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -995,6 +996,37 @@ func TestScaffoldExtension(t *testing.T) {
 			})
 			if err != nil {
 				t.Fatalf("ScaffoldExtension() error = %v", err)
+			}
+			if template == ScaffoldTemplateHeartbeatSourceGo {
+				repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+				if err != nil {
+					t.Fatal(err)
+				}
+				edit := exec.CommandContext(
+					t.Context(),
+					"go",
+					"mod",
+					"edit",
+					"-replace",
+					"github.com/compozy/compozy/sdk/go="+filepath.Join(repoRoot, "sdk", "go"),
+				)
+				edit.Dir = target
+				if output, err := edit.CombinedOutput(); err != nil {
+					t.Fatalf("go mod edit: %v\n%s", err, output)
+				}
+				build := exec.CommandContext(
+					t.Context(),
+					"go",
+					"build",
+					"-o",
+					filepath.Join(t.TempDir(), "extension-bin"),
+					".",
+				)
+				build.Dir = target
+				build.Env = append(os.Environ(), "CGO_ENABLED=0")
+				if output, err := build.CombinedOutput(); err != nil {
+					t.Fatalf("build heartbeat scaffold: %v\n%s", err, output)
+				}
 			}
 			if len(result.Files) == 0 || !slices.IsSorted(result.Files) {
 				t.Fatalf("Files = %v, want non-empty sorted paths", result.Files)

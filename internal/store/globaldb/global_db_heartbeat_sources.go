@@ -235,14 +235,14 @@ func finishHeartbeatSources(ctx context.Context, q *sqlcgen.Queries, req heartbe
 	)
 }
 
-func (r *InstanceRepo) SourceStatuses(ctx context.Context, id string) ([]heartbeat.SourceStatus, error) {
+func (r *InstanceRepo) SourceStatuses(ctx context.Context, id string) ([]heartbeat.HeartbeatSourceStatus, error) {
 	rows, err := r.queries.ListHeartbeatSources(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]heartbeat.SourceStatus, 0, len(rows))
+	out := make([]heartbeat.HeartbeatSourceStatus, 0, len(rows))
 	for _, row := range rows {
-		status := heartbeat.SourceStatus{
+		status := heartbeat.HeartbeatSourceStatus{
 			ID:            row.SourceID,
 			Status:        "pending_first_poll",
 			LastPolledAt:  row.LastPolledAt.String,

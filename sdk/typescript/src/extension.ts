@@ -224,11 +224,14 @@ export class Extension {
     this.ensureRegistrationOpen();
     if (!this.heartbeatSources.hasHandlers() && this.handlers.has("heartbeat/source_poll"))
       throw new Error("heartbeat/source_poll is already registered");
-    if (!this.heartbeatSources.hasHandlers())
-      this.handle("heartbeat/source_poll", (_context, params) =>
+    const first = !this.heartbeatSources.hasHandlers();
+    this.heartbeatSources.register(this.definition, kind, options, handler);
+    if (first) {
+      this.handlers.set("heartbeat/source_poll", (_context, params) =>
         this.heartbeatSources.poll(params)
       );
-    this.heartbeatSources.register(this.definition, kind, options, handler);
+      this.bindMethod("heartbeat/source_poll");
+    }
     return this;
   }
   public commandGroup(path: string, summary: string): this {
