@@ -7,19 +7,18 @@ import { CheckInSourceRow } from "@/systems/agent/components/agent-editors/check
 import { EditorHead } from "@/systems/agent/components/agent-editors/editor-head";
 import { EditorCard } from "@/systems/agent/components/agent-editors/rich-controls";
 import { shortHash, type SourceStatusView } from "@/systems/agent/lib/agent-check-in-sources";
-import { primaryAgentFixture } from "@/systems/agent/mocks/fixtures";
 import {
   approvedScriptFixture,
   changedScriptFixture,
   pendingScriptFixture,
 } from "@/systems/agent/mocks/script-approval-fixtures";
 
+import { MERGE_TRAIN_PAYLOAD } from "./fleet-fixtures";
+
 /** `inline`: the row carries the hash and Approve. `callout`: a card above the list asks first. */
 export type SourcesVariant = "inline" | "callout";
 /** Before the first check, on a paused place, after an edit, and once approved. */
 export type SourcesCase = "first" | "paused" | "changed" | "approved";
-
-const AGENT = { ...primaryAgentFixture, name: "merge-train", label: "Merge Train" };
 
 function scriptOf(which: SourcesCase) {
   if (which === "changed") return changedScriptFixture;
@@ -68,7 +67,8 @@ function ApproveCallout({ which }: { which: SourcesCase }) {
   );
 }
 
-export function ScriptSourcesCard({
+/** Heartbeat's Sources list with the waiting script, and the callout above it in variant B. */
+export function ScriptSourcesBlock({
   variant,
   which,
 }: {
@@ -77,40 +77,54 @@ export function ScriptSourcesCard({
 }) {
   const script = scriptOf(which);
   const waiting = which !== "approved";
+  return (
+    <>
+      {variant === "callout" && waiting ? <ApproveCallout which={which} /> : null}
+      <div className="flex flex-col">
+        <Eyebrow className="text-subtle">Sources</Eyebrow>
+        <div className="flex flex-col divide-y divide-line-soft">
+          <CheckInSourceRow
+            params="compozy/compozy"
+            script={false}
+            status={{ label: "Checked 12 min ago · 2 new", tone: "neutral" }}
+            title="New GitHub issues"
+          />
+          <CheckInSourceRow
+            actions={
+              variant === "inline" && waiting ? (
+                <Button size="sm" type="button" variant="neutral">
+                  Approve
+                </Button>
+              ) : null
+            }
+            script
+            status={scriptStatus(which, variant)}
+            title={script.name}
+          />
+        </div>
+      </div>
+    </>
+  );
+}
+
+export function ScriptSourcesCard({
+  variant,
+  which,
+}: {
+  variant: SourcesVariant;
+  which: SourcesCase;
+}) {
   const paused = which === "paused";
   return (
     <div className="flex max-w-3xl flex-col gap-6 p-6">
       <EditorHead
-        agent={AGENT}
+        agent={MERGE_TRAIN_PAYLOAD}
         state={paused ? "paused" : "idle"}
         subtitle={paused ? "Waiting for you" : "Every 30 min, 9:00–18:00"}
         title="Heartbeat"
       />
       <EditorCard>
-        {variant === "callout" && waiting ? <ApproveCallout which={which} /> : null}
-        <div className="flex flex-col">
-          <Eyebrow className="text-subtle">Sources</Eyebrow>
-          <div className="flex flex-col divide-y divide-line-soft">
-            <CheckInSourceRow
-              params="compozy/compozy"
-              script={false}
-              status={{ label: "Checked 12 min ago · 2 new", tone: "neutral" }}
-              title="New GitHub issues"
-            />
-            <CheckInSourceRow
-              actions={
-                variant === "inline" && waiting ? (
-                  <Button size="sm" type="button" variant="neutral">
-                    Approve
-                  </Button>
-                ) : null
-              }
-              script
-              status={scriptStatus(which, variant)}
-              title={script.name}
-            />
-          </div>
-        </div>
+        <ScriptSourcesBlock variant={variant} which={which} />
       </EditorCard>
     </div>
   );

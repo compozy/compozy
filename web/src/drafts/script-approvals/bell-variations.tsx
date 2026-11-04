@@ -23,6 +23,8 @@ import {
   type ScriptApprovalNotice,
 } from "@/systems/agent/mocks/script-approval-fixtures";
 
+import { SCRIPT_BELL_TOTAL } from "./fleet-fixtures";
+
 export type BellVariant = "inline" | "peek" | "section";
 
 /** The bell row grid: mark, two lines, trailing slot (same frame as the production row). */
@@ -206,10 +208,56 @@ function BellGroup({
   );
 }
 
+/** What the open bell shows, inside the menubar's popover or a stand-in for it. */
+export function ScriptApprovalBellPanel({ variant }: { variant: BellVariant }) {
+  const notices = scriptApprovalNoticesFixture;
+  const total = SCRIPT_BELL_TOTAL;
+  return (
+    <div className="flex min-h-0 flex-col text-small-body text-fg">
+      <div className="flex items-center justify-end border-b border-line px-1 pb-2">
+        <Button size="sm" type="button" variant="ghost">
+          Clear all
+        </Button>
+      </div>
+      <div className="-mx-1 flex max-h-[min(36rem,70vh)] flex-col overflow-y-auto pt-1.5">
+        {variant === "section" ? (
+          <>
+            <BellGroup
+              count={notices.length}
+              footer={
+                <Button className="mx-1 mt-1 self-start" size="xs" type="button" variant="link">
+                  Review in Heartbeat
+                </Button>
+              }
+              label="Scripts to approve"
+            >
+              {notices.map(notice => (
+                <SectionRow key={notice.id} notice={notice} />
+              ))}
+            </BellGroup>
+            <BellGroup count={1} label="Needs you">
+              <QuestionRow />
+            </BellGroup>
+          </>
+        ) : (
+          <BellGroup count={total} label="Needs you">
+            {notices.map((notice, index) =>
+              variant === "peek" ? (
+                <PeekRow key={notice.id} notice={notice} defaultOpen={index === 0} />
+              ) : (
+                <InlineRow key={notice.id} notice={notice} />
+              )
+            )}
+            <QuestionRow />
+          </BellGroup>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** The bell button, its count, and the open popover as the menubar shows it. */
 export function ScriptApprovalBell({ variant }: { variant: BellVariant }) {
-  const notices = scriptApprovalNoticesFixture;
-  const total = notices.length + 1;
   return (
     <div className="flex justify-end p-6">
       <div className="flex flex-col items-end gap-2">
@@ -218,48 +266,11 @@ export function ScriptApprovalBell({ variant }: { variant: BellVariant }) {
             <Bell aria-hidden="true" />
           </Button>
           <span className="absolute -top-0.5 -right-0.5 grid min-w-3.5 place-items-center rounded-full bg-brand px-1 font-mono text-micro text-brand-foreground">
-            {total}
+            {SCRIPT_BELL_TOTAL}
           </span>
         </span>
-        <div className="flex w-80 flex-col rounded-lg bg-popover p-2 text-small-body text-fg shadow-pop">
-          <div className="flex items-center justify-end border-b border-line px-1 pb-2">
-            <Button size="sm" type="button" variant="ghost">
-              Clear all
-            </Button>
-          </div>
-          <div className="-mx-1 flex flex-col pt-1.5">
-            {variant === "section" ? (
-              <>
-                <BellGroup
-                  count={notices.length}
-                  footer={
-                    <Button className="mx-1 mt-1 self-start" size="xs" type="button" variant="link">
-                      Review in Heartbeat
-                    </Button>
-                  }
-                  label="Scripts to approve"
-                >
-                  {notices.map(notice => (
-                    <SectionRow key={notice.id} notice={notice} />
-                  ))}
-                </BellGroup>
-                <BellGroup count={1} label="Needs you">
-                  <QuestionRow />
-                </BellGroup>
-              </>
-            ) : (
-              <BellGroup count={total} label="Needs you">
-                {notices.map((notice, index) =>
-                  variant === "peek" ? (
-                    <PeekRow key={notice.id} notice={notice} defaultOpen={index === 0} />
-                  ) : (
-                    <InlineRow key={notice.id} notice={notice} />
-                  )
-                )}
-                <QuestionRow />
-              </BellGroup>
-            )}
-          </div>
+        <div className="w-80 rounded-lg bg-popover p-2 shadow-pop">
+          <ScriptApprovalBellPanel variant={variant} />
         </div>
       </div>
     </div>

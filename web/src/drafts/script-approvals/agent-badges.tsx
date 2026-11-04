@@ -6,6 +6,15 @@ import { Alert, AlertDescription, AlertTitle, Button, Eyebrow, Pill } from "@com
 import { AgentMark } from "@/systems/agent/components/agent-mark";
 import { scriptApprovalNoticesFixture } from "@/systems/agent/mocks/script-approval-fixtures";
 
+/** The pill an agent shows wherever it's listed while one of its scripts waits. */
+export function ScriptWaitingPill() {
+  return (
+    <Pill form="plain" tone="warning">
+      <Pill.Dot />1 script to approve
+    </Pill>
+  );
+}
+
 function AgentListRow({
   label,
   seed,
@@ -32,17 +41,13 @@ function AgentListRow({
           {paused ? "Paused · compozy" : "Resting · compozy"}
         </span>
       </span>
-      {waiting ? (
-        <Pill form="plain" tone="warning">
-          <Pill.Dot />1 script to approve
-        </Pill>
-      ) : null}
+      {waiting ? <ScriptWaitingPill /> : null}
     </div>
   );
 }
 
 /** The profile's alert, beside the "Stopped" alert it already shows. */
-function ProfileAlert() {
+export function ProfileAlert() {
   const [first] = scriptApprovalNoticesFixture;
   return (
     <Alert variant="warning">
