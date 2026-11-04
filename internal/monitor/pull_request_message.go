@@ -48,7 +48,7 @@ func pullRequestLines(mon Monitor, changes *PullRequestChanges) []string {
 	if changes.EndedNumber > 0 {
 		add("no open pull request seen; #%d had already ended when this monitor read it", changes.EndedNumber)
 	}
-	if changes.Conflict {
+	if changes.Conflict && changes.Terminal == "" {
 		add("PR #%d now conflicts with %s; rebase", changes.Number, forgeLine(changes.Base))
 	}
 	if changes.ChecksKnown {

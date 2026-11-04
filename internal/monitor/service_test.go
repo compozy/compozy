@@ -3213,6 +3213,18 @@ func TestServicePullRequestMonitorRestart(t *testing.T) {
 func TestNotificationPullRequest(t *testing.T) {
 	t.Parallel()
 	mon := Monitor{ID: "mon-1", Kind: KindPullRequest, Branch: "feat/x", FireCount: 3, Description: "watch"}
+	t.Run("Should omit rebase guidance when a queued conflict ends", func(t *testing.T) {
+		t.Parallel()
+		for _, terminal := range []string{pullRequestMerged, pullRequestClosed} {
+			changes := &PullRequestChanges{
+				Wake: true, Number: 7, State: terminal, Terminal: terminal, Base: "main", Conflict: true,
+			}
+			text := (Notification{Monitor: mon, PullRequest: changes}).Message()
+			if strings.Contains(text, "; rebase") || !strings.Contains(text, "pull request "+terminal) {
+				t.Fatalf("terminal wake = %s", text)
+			}
+		}
+	})
 	t.Run("Should keep forge text inside its untrusted block", func(t *testing.T) {
 		t.Parallel()
 		changes := &PullRequestChanges{
