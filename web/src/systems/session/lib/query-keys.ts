@@ -27,6 +27,12 @@ export const sessionKeys = {
   lists: () => [...sessionKeys.all, "list"] as const,
   /** Exact cross-workspace attention counts — operator scope, no workspace segment. */
   attentionSummary: () => [...sessionKeys.all, "attention-summary"] as const,
+  /**
+   * The catalog stream's connection status for one stream scope, written by the stream
+   * and read by the polls it covers. The stream URL carries the profile scope.
+   */
+  catalogStreamStatus: (streamUrl: string) =>
+    [...sessionKeys.all, "catalog-stream-status", streamUrl] as const,
   /** Processes left running by stopped, archived, or unknown sessions — operator scope. */
   processesLeftRunning: () => [...sessionKeys.all, "processes-left-running"] as const,
   workspaceLists: (workspace: string) => [...sessionKeys.lists(), workspace.trim()] as const,

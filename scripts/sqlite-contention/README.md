@@ -44,6 +44,13 @@ file-write volume, including clean shutdown, rather than file-size growth. It
 excludes shared-memory mmap dirtying and filesystem/device amplification.
 Traced latencies are excluded from the p99 comparison.
 
+After a failed acceptance run, the runner preserves its result and replays the
+head separately with `-runtime-trace <path>`. The Go execution trace records named
+workload regions and scheduling, GC, lock and syscall events for diagnosis. It
+is uploaded as `head-diagnostic.trace`; `go tool trace` can inspect it or produce
+`-pprof=sync`, `-pprof=syscall` and `-pprof=sched` profiles. This replay never
+replaces a measurement or turns the original failure into a passing job.
+
 For a dedicated Linux lab, build the harness in each checkout, then run:
 
 ```sh

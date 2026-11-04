@@ -48,6 +48,8 @@ func TestResumeInterruptedSession(t *testing.T) {
 		permissions compozyconfig.PermissionMode
 		batched     bool
 		completed   bool
+		canceled    bool
+		cancelRace  bool
 		instance    string
 		wantResume  bool
 	}{
@@ -63,6 +65,8 @@ func TestResumeInterruptedSession(t *testing.T) {
 		{name: "Should require a new permission decision", restart: true, interaction: store.PendingInteractionKindPermission},
 		{name: "Should require a new clarification answer", restart: true, interaction: store.PendingInteractionKindClarify},
 		{name: "Should not continue a turn that completed during drain", restart: true, completed: true},
+		{name: "Should not continue a turn the user canceled during shutdown", restart: true, canceled: true},
+		{name: "Should not continue a turn canceled before the shutdown scan captured it", restart: true, cancelRace: true},
 		{name: "Should hold a paused instance continuation until resume", restart: true, instance: "paused", wantResume: true},
 		{name: "Should count an active instance continuation once", restart: true, instance: "active", wantResume: true},
 	} {
@@ -141,8 +145,25 @@ func TestResumeInterruptedSession(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			if tc.cancelRace {
+				// The cancellation lands after the scan passed its cancellation check but
+				// before it wrote the interruption.
+				h.manager.markDaemonShutdown(true)
+				if err := h.manager.CancelTurn(t.Context(), target.ID, "", CauseUserRequested); err != nil {
+					t.Fatal(err)
+				}
+				meta := target.Meta()
+				if err := h.manager.captureRestartInterruption(t.Context(), &meta, ""); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if err := h.manager.PrepareDaemonShutdown(t.Context(), tc.restart); err != nil {
 				t.Fatal(err)
+			}
+			if tc.canceled {
+				if err := h.manager.CancelTurn(t.Context(), target.ID, "", CauseUserRequested); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if tc.completed {
 				source <- acp.AgentEvent{Type: acp.EventTypeDone, PromptStopReason: acp.PromptStopReasonEndTurn}

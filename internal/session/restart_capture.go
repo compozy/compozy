@@ -9,7 +9,9 @@ import (
 )
 
 // PrepareDaemonShutdown records intent before brokers or subprocesses can settle an interrupted turn.
+// Agent exits finalized from here on take the daemon's shutdown classification.
 func (m *Manager) PrepareDaemonShutdown(ctx context.Context, restart bool) error {
+	m.markDaemonShutdown(restart)
 	var errs []error
 	infos, err := m.ListAll(ctx)
 	if err != nil {
@@ -17,6 +19,10 @@ func (m *Manager) PrepareDaemonShutdown(ctx context.Context, restart bool) error
 	}
 	for _, info := range infos {
 		active, ok := m.Get(info.ID)
+		if ok && active.IsPrompting() && active.promptCancellationRequested(active.CurrentTurnID()) {
+			// The user already canceled this turn; it is not interrupted work to continue.
+			continue
+		}
 		if !ok || !active.IsPrompting() {
 			if !restart && info.StopReason == store.StopShutdown {
 				errs = append(errs, m.cancelPendingRestart(ctx, info.ID))
@@ -24,11 +30,7 @@ func (m *Manager) PrepareDaemonShutdown(ctx context.Context, restart bool) error
 			continue
 		}
 		meta := active.Meta()
-		reason := ""
-		if !restart {
-			reason = "daemon_stopped_by_user"
-		}
-		if err := m.captureRestartInterruption(ctx, &meta, reason); err != nil {
+		if err := m.captureRestartInterruption(ctx, &meta, daemonShutdownCaptureReason(restart)); err != nil {
 			errs = append(errs, err)
 		}
 	}

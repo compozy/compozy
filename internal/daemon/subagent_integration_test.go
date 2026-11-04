@@ -4781,21 +4781,48 @@ func TestInstanceNativeCreateJourney(t *testing.T) {
 			if len(parent.Info().Lineage.PermissionPolicy.Tools) <= len(childInfo.Lineage.PermissionPolicy.Tools) {
 				t.Fatal("child is not narrower than root")
 			}
-			result, err := d.toolRegistry.Call(
-				t.Context(),
-				toolspkg.Scope{
-					SessionID:   childInfo.ID,
-					WorkspaceID: workspace,
-					ProfileID:   childInfo.ProfileID,
-					AgentName:   childInfo.AgentName,
-				},
-				toolspkg.CallRequest{
-					ToolID:          toolspkg.ToolIDAgentInstanceCreate,
-					Input:           []byte(`{}`),
-					ApprovalGranted: true,
-					ToolCallID:      "create-instance",
-				},
-			)
+			type createOutcome struct {
+				result toolspkg.ToolResult
+				err    error
+			}
+			created := make(chan createOutcome, 1)
+			go func() {
+				result, callErr := d.toolRegistry.Call(
+					t.Context(),
+					toolspkg.Scope{
+						SessionID:   childInfo.ID,
+						WorkspaceID: workspace,
+						ProfileID:   childInfo.ProfileID,
+						AgentName:   childInfo.AgentName,
+					},
+					toolspkg.CallRequest{
+						ToolID:     toolspkg.ToolIDAgentInstanceCreate,
+						Input:      []byte(`{}`),
+						ToolCallID: "create-instance",
+					},
+				)
+				created <- createOutcome{result: result, err: callErr}
+			}()
+			var pending store.PendingInteraction
+			waitForRuntimeCondition(t, "native creation approval", 15*time.Second, func() bool {
+				rows, err := manager.DescendantPendingInteractions(
+					t.Context(),
+					parent.ID,
+					[]string{store.PendingInteractionStatusPending},
+				)
+				if err != nil || len(rows) != 1 {
+					return false
+				}
+				pending = rows[0]
+				return pending.SessionID == childInfo.ID
+			})
+			if _, err := manager.ApprovePermission(t.Context(), childInfo.ID, acp.ApproveRequest{
+				RequestID: pending.ProviderRequestID, Decision: "allow-once",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			outcome := <-created
+			result, err := outcome.result, outcome.err
 			if err != nil {
 				t.Fatalf(
 					"native create: %#v; workspace=%s profile=%s childWorkspace=%s",

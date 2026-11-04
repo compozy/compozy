@@ -66,7 +66,7 @@ export {
   type WorkspaceWorkingSessions,
 } from "./use-workspace-working-sessions";
 export {
-  sessionCatalogStreamURL,
+  useSessionCatalogStreamLive,
   useSessionCatalogStreams,
   type SessionCatalogEventSource,
   type SessionCatalogEventSourceFactory,

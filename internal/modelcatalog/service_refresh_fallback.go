@@ -39,12 +39,10 @@ func (s *CatalogService) recordEmptySourceFailure(
 			ProviderID:       provider,
 			SourceID:         source.ID(),
 			ExecutionContext: historyExecutionContext,
-			SourceContexts: map[string]CatalogExecutionContext{
-				source.ID(): historyExecutionContext,
-			},
-			IncludeAll:   true,
-			IncludeStale: true,
-			Now:          now,
+			SourceContexts:   map[string]CatalogExecutionContext{source.ID(): historyExecutionContext},
+			IncludeAll:       true,
+			IncludeStale:     true,
+			Now:              now,
 		})
 		if listErr != nil {
 			return nil, refreshOutcomeEmpty, fmt.Errorf(

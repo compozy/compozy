@@ -73,7 +73,7 @@ func TestStopTransitionsToStoppedAndNotifies(t *testing.T) {
 				t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
 			}
 			if meta.StopReason == nil || *meta.StopReason != tc.wantReason {
-				t.Fatalf("meta.StopReason = %v, want %q", meta.StopReason, tc.wantReason)
+				t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, tc.wantReason)
 			}
 			if got := sess.Info().StopReason; got != tc.wantReason {
 				t.Fatalf("session.Info().StopReason = %q, want %q", got, tc.wantReason)
@@ -551,38 +551,182 @@ func TestCleanupFailedStartWithoutSessionDirSkipsRemoval(t *testing.T) {
 	}
 }
 
-func TestAgentCrashTransitionsToStoppedAndNotifies(t *testing.T) {
+func TestAgentExitClassification(t *testing.T) {
 	t.Parallel()
 
-	h := newHarness(t)
-	session := createSession(t, h)
+	cases := []struct {
+		name         string
+		shutdown     bool
+		restart      bool
+		wantReason   store.StopReason
+		wantDetail   string
+		wantFailure  store.FailureKind
+		wantCrash    bool
+		wantErrorEvt bool
+	}{
+		{
+			name:         "Should classify an agent exit while the daemon runs as a crash",
+			wantReason:   store.StopAgentCrashed,
+			wantDetail:   "boom",
+			wantFailure:  store.FailureProcess,
+			wantCrash:    true,
+			wantErrorEvt: true,
+		},
+		{
+			name:        "Should classify an agent exit during daemon shutdown as stopped by the daemon",
+			shutdown:    true,
+			wantReason:  store.StopUserCanceled,
+			wantDetail:  "daemon stopped by user",
+			wantFailure: store.FailureCanceled,
+		},
+		{
+			name:       "Should classify an agent exit during daemon restart as a restart interruption",
+			shutdown:   true,
+			restart:    true,
+			wantReason: store.StopShutdown,
+			wantDetail: "Interrupted by daemon restart.",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	h.driver.lastProcess().crash(errors.New("boom"), "stderr trace")
-	h.notifier.waitForStopped(t, session.ID)
-	if _, ok := h.manager.Get(session.ID); ok {
-		t.Fatalf("Get(%q) found session after stopped notification", session.ID)
-	}
+			var crashedHooks atomic.Int32
+			hooks := newNativeHookDispatcher(t,
+				[]hookspkg.HookDecl{{
+					Name:         "observe-agent-crash",
+					Event:        hookspkg.HookAgentCrashed,
+					Mode:         hookspkg.HookModeSync,
+					ExecutorKind: hookspkg.HookExecutorNative,
+				}},
+				map[string]hookspkg.Executor{
+					"observe-agent-crash": hookspkg.NewTypedNativeExecutor(
+						func(
+							context.Context, hookspkg.RegisteredHook, hookspkg.AgentCrashedPayload,
+						) (hookspkg.AgentCrashedPatch, error) {
+							crashedHooks.Add(1)
+							return hookspkg.AgentCrashedPatch{}, nil
+						},
+					),
+				},
+			)
+			h := newHarness(t, WithHookSet(fullHookSet(hooks)))
+			session := createSession(t, h)
+			if tc.shutdown {
+				if err := h.manager.PrepareDaemonShutdown(t.Context(), tc.restart); err != nil {
+					t.Fatalf("PrepareDaemonShutdown() error = %v", err)
+				}
+			}
 
-	meta := readMeta(t, session.MetaPath())
-	if meta.State != string(StateStopped) {
-		t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
-	}
-	if meta.StopReason == nil {
-		t.Fatal("meta.StopReason = nil, want non-nil")
-	}
-	if *meta.StopReason != store.StopAgentCrashed {
-		t.Fatalf("meta.StopReason = %q, want %q", *meta.StopReason, store.StopAgentCrashed)
-	}
+			h.driver.lastProcess().crash(errors.New("boom"), "stderr trace")
+			h.notifier.waitForStopped(t, session.ID)
+			if _, ok := h.manager.Get(session.ID); ok {
+				t.Fatalf("Get(%q) found session after stopped notification", session.ID)
+			}
 
-	events := readStoredEvents(t, session)
-	if !containsEventType(events, acp.EventTypeError) {
-		t.Fatalf("stored events missing crash error: %#v", events)
+			meta := readMeta(t, session.MetaPath())
+			if meta.State != string(StateStopped) {
+				t.Fatalf("meta state = %q, want %q", meta.State, StateStopped)
+			}
+			if meta.StopReason == nil || *meta.StopReason != tc.wantReason {
+				t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, tc.wantReason)
+			}
+			if meta.StopDetail != tc.wantDetail {
+				t.Fatalf("meta.StopDetail = %q, want %q", meta.StopDetail, tc.wantDetail)
+			}
+			gotFailure := store.FailureKind("")
+			crashBundle := ""
+			if meta.Failure != nil {
+				gotFailure, crashBundle = meta.Failure.Kind, meta.Failure.CrashBundlePath
+			}
+			if gotFailure != tc.wantFailure {
+				t.Fatalf("meta.Failure = %#v, want kind %q", meta.Failure, tc.wantFailure)
+			}
+			if got := crashBundle != ""; got != tc.wantCrash {
+				t.Fatalf("crash bundle path = %q, want present %v", crashBundle, tc.wantCrash)
+			}
+			wantHooks := int32(0)
+			if tc.wantCrash {
+				wantHooks = 1
+			}
+			if got := crashedHooks.Load(); got != wantHooks {
+				t.Fatalf("agent.crashed hook calls = %d, want %d", got, wantHooks)
+			}
+
+			events := readStoredEvents(t, session)
+			if got := containsEventType(events, acp.EventTypeError); got != tc.wantErrorEvt {
+				t.Fatalf("stored crash error event present = %v, want %v: %#v", got, tc.wantErrorEvt, events)
+			}
+			stopPayload := decodeStoredEventPayload(t, storedEventByType(t, events, EventTypeSessionStopped))
+			if got, want := stopPayload["stop_reason"], string(tc.wantReason); got != want {
+				t.Fatalf("session_stopped stop_reason = %v, want %q", got, want)
+			}
+		})
 	}
-	stopEvent := storedEventByType(t, events, EventTypeSessionStopped)
-	stopPayload := decodeStoredEventPayload(t, stopEvent)
-	if got, want := stopPayload["stop_reason"], string(store.StopAgentCrashed); got != want {
-		t.Fatalf("session_stopped stop_reason = %v, want %q", got, want)
-	}
+}
+
+func TestDaemonShutdownExitReclassification(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should keep a retried shutdown exit finalization interrupted", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			reportSessionStop(t, h, session.ID)
+		})
+		h.manager.markDaemonShutdown(false)
+		session.setStopCause(CauseProcessExited)
+		exitErr := errors.New("acp subprocess exited: signal: terminated")
+
+		for attempt := range 2 {
+			if got := h.manager.classifyDaemonShutdownExit(session, exitErr); got != nil {
+				t.Fatalf("classifyDaemonShutdownExit(attempt %d) = %v, want nil", attempt, got)
+			}
+		}
+		cause, detail := session.stopCauseDetail()
+		if cause != CauseUserRequested || detail != "daemon stopped by user" {
+			t.Fatalf("stop cause = %v %q, want user_requested %q", cause, detail, "daemon stopped by user")
+		}
+	})
+
+	t.Run("Should keep an agent exit after the daemon's own shutdown stop interrupted", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			reportSessionStop(t, h, session.ID)
+		})
+		h.manager.markDaemonShutdown(true)
+		cause, _ := DaemonShutdownStopCause(true)
+		session.setStopCause(cause)
+
+		exitErr := errors.New("acp subprocess exited: signal: terminated")
+		if got := h.manager.classifyDaemonShutdownExit(session, exitErr); got != nil {
+			t.Fatalf("classifyDaemonShutdownExit() = %v, want nil", got)
+		}
+		if got, _ := session.stopCauseDetail(); got != CauseShutdown {
+			t.Fatalf("stop cause = %v, want %v", got, CauseShutdown)
+		}
+	})
+
+	t.Run("Should keep an agent exit after a non-shutdown stop a failure", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			reportSessionStop(t, h, session.ID)
+		})
+		session.setStopCause(CauseProcessExited)
+
+		exitErr := errors.New("boom")
+		if got := h.manager.classifyDaemonShutdownExit(session, exitErr); !errors.Is(got, exitErr) {
+			t.Fatalf("classifyDaemonShutdownExit() = %v, want %v while the daemon runs", got, exitErr)
+		}
+	})
 }
 
 func TestStopAndProcessExitFinalizeOnlyOnce(t *testing.T) {

@@ -68,6 +68,16 @@ export function useProfileReadScope(): ProfileReadScope {
   };
 }
 
+/**
+ * The work-read scope from the view store alone, adding no daemon reads: no profile list,
+ * no selection read (the shell's `useActiveProfileView` keeps the store current). For
+ * leaves that only match a scope, such as a stream's URL; before the shell settles the
+ * view it may name `default`, so a match there must fail open.
+ */
+export function useProfileReadScopeParams(): ProfileScopeParams {
+  return profileScopeParams(usePinnedProfileView(useActiveProfileView(false)));
+}
+
 function archivedLookup(rows: readonly ProfilePayload[]): Map<string, boolean> {
   return new Map(rows.map(row => [row.id, isArchived(row)]));
 }

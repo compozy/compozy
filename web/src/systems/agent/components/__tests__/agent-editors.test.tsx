@@ -147,7 +147,7 @@ describe("Instructions", () => {
     serveSoul(soulPayload({ present: false, body: "", frontmatter: {} }));
     renderEditor(<AgentWhatItDoesEditor {...props()} />);
     expect(await screen.findByText("Start from an example")).toBeTruthy();
-    expect(screen.getByRole("heading", { level: 1, name: "Instructions" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Instructions" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Keep issues moving" })).toBeTruthy();
   });
 
@@ -375,7 +375,7 @@ describe("Heartbeat", () => {
     const user = userEvent.setup();
     renderEditor(<AgentCheckInsEditor {...props()} />);
     expect(await screen.findByText("It ran out of time.")).toBeTruthy();
-    expect(screen.getByRole("heading", { level: 1, name: "Heartbeat" })).toBeTruthy();
+    expect(screen.getByRole("heading", { level: 2, name: "Heartbeat" })).toBeTruthy();
     expect(screen.getByText("Next heartbeat")).toBeTruthy();
     expect(screen.getByRole("list", { name: "Recent heartbeats" })).toBeTruthy();
 

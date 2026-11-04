@@ -88,3 +88,15 @@ agent's Permissions page (`MS-web-agent-permissions`). Not walked.
 QA verification 2026-11-03 (always-on hardening, soh/qa 583415ef5): Partial. Only the S5/S15 vocabulary was checked. The agent Permissions page and Settings → General both list the five levels with the same labels and descriptions (screenshots `05-s5-permissions-levels.png`, `15-s15-settings-levels.png`). The full tab-parity walk was not repeated.
 
 QA impact 2026-11-03 (#1199 vocabulary, v0.5.1): the focused pages read Instructions, Heartbeat, Memory and Tools, the setup section reads Setup, and the permission labels read Accept edits, Auto-review and Full access. URLs `what-it-does` and `check-ins` are unchanged. Not walked; S4 walks it on the integration head.
+
+QA regression 2026-11-03 (main CI repair): focused editor content uses an H2 below the shell's
+H1 so Heartbeat and Instructions each have one page-level heading. Keep `agents.spec.ts`
+E2E-002 unchanged and verify both existing slugs in CI; local E2E is deferred because the
+shared host is overloaded.
+
+Focused validation: `bunx turbo run test --filter=./web --only --
+src/systems/agent/components/__tests__/agent-editors.test.tsx` passed all 36 tests,
+and `bunx turbo run typecheck --filter=./web --only` passed after building the missing
+`@compozy/client` declarations. File lint and formatting passed. An initial unrelated
+memory-history wait timed out; the unchanged case passed on repetition. Browser E2E remains
+owned by CI.

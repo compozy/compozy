@@ -263,6 +263,24 @@ describe("useOsAttention", () => {
     expect(vi.mocked(useSessionCatalog)).toHaveBeenCalledTimes(1);
   });
 
+  // Invariant: the catalog stream carries no task, loop-request, terminal-input or
+  // cross-profile notification change, so those reads keep their poll while it is live.
+  it("Should keep polling the sources the catalog stream does not cover while it is live", () => {
+    renderHook(() => useOsAttention(workspace, "live", false));
+
+    expect(vi.mocked(useTaskDashboard)).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ refetchIntervalMs: 5_000 })
+    );
+    expect(vi.mocked(useLoopRequestAttention)).toHaveBeenCalledWith(expect.anything(), true, true);
+    const calls = vi.mocked(useQuery).mock.calls.map(([options]) => options);
+    const terminal = calls.find(options => options.queryKey[0] === "terminal");
+    expect(terminal?.refetchInterval).toBe(5_000);
+    const bell = calls.find(options => options.queryKey[0] === "notifications");
+    const interval = bell?.refetchInterval as (query: unknown) => number | false;
+    expect(interval({ state: { status: "success" } })).toBe(5_000);
+  });
+
   it("Should leave the modal catalog on active sessions when the archive is off", () => {
     vi.mocked(useSessionCatalog).mockReturnValue(sessionsQuery({}));
 

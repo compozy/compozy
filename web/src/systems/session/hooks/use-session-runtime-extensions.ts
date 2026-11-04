@@ -95,6 +95,7 @@ export function useSessionRuntimeExtensions({
     liveTailEnabled,
     clarifications,
     inputs,
+    profileName: session.data?.profile_name,
   });
 
   return {
@@ -118,6 +119,7 @@ function useSessionDecisionState({
   liveTailEnabled,
   clarifications,
   inputs,
+  profileName,
 }: {
   transcript: ReturnType<typeof useMergedSessionRuntimeTranscript>;
   workspaceId: string;
@@ -125,6 +127,8 @@ function useSessionDecisionState({
   liveTailEnabled: boolean;
   clarifications: ReturnType<typeof useSessionClarifications>;
   inputs: ReturnType<typeof useSessionInputs>;
+  /** The session's owner profile; it decides whether the catalog stream covers its reads. */
+  profileName: string | undefined;
 }) {
   const pendingPermissions = derivePendingPermissions(transcript.messages);
   // Only an undecided ask on screen can be a decision the daemon settled behind the
@@ -138,6 +142,7 @@ function useSessionDecisionState({
   const expiredInteractions = useSessionExpiredInteractions(workspaceId, sessionId, {
     enabled: liveTailEnabled && undecidedRequestIds.size > 0,
     undecidedRequestIds,
+    profileName,
   });
   // A decided ask's receipt names who decided only from the daemon's resolved row; the
   // read runs while a receipt is on screen and re-reads once per new decision.

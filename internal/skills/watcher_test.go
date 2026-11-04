@@ -888,10 +888,7 @@ func TestWatcherCallbackRecovery(t *testing.T) {
 			return nil
 		})
 		path := writeSkillFile(
-			t,
-			root,
-			filepath.Join("edited", skillFileName),
-			skillWithDescription("edited", "Initial"),
+			t, root, filepath.Join("edited", skillFileName), skillWithDescription("edited", "Initial"),
 		)
 		if err := watcher.pollOnce(t.Context()); err == nil {
 			t.Fatal("expected callback failure")

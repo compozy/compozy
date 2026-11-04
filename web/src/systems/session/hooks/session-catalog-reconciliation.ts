@@ -151,6 +151,30 @@ function catalogReadAffected(key: QueryKey, change: CatalogChange | undefined): 
   return !scope.workspace_ids?.length || scope.workspace_ids.includes(workspace);
 }
 
+/**
+ * Interaction reads whose every change upserts a session on the catalog stream: a main
+ * session's relayed asks (the asking descendant upserts) and its restart-expired asks
+ * (the expiring session upserts, and the reconnect after a restart wakes every scope).
+ * While the stream is live these reads keep only a safety cadence, so its wake re-reads them.
+ */
+const STREAM_COVERED_INTERACTIONS: ReadonlySet<unknown> = new Set(["descendants", "canceled"]);
+
+function isStreamCoveredInteractionRead(
+  key: QueryKey,
+  workspaces: ReadonlySet<string>,
+  everyWorkspace: boolean
+): boolean {
+  return (
+    key[0] === sessionKeys.all[0] &&
+    key[1] === "workspace" &&
+    key[3] === "detail" &&
+    key[5] === "interactions" &&
+    STREAM_COVERED_INTERACTIONS.has(key[6]) &&
+    // The User scope reaches the wake as `@user`; its reads may key it either way.
+    (everyWorkspace || (typeof key[2] === "string" && workspaces.has(key[2] || "@user")))
+  );
+}
+
 // One wake window per stream, independent of the number of lifecycle/attention frames.
 // An in-flight read is allowed to finish; cancelling it on every frame amplified
 // one background transition into repeated full-catalog walks.
@@ -158,6 +182,7 @@ export function createCatalogReconciler(queryClient: QueryClient) {
   const workspaces = new Set<string>();
   const pending = new Set<string>();
   const changes = new Map<string, CatalogChange | undefined>();
+  let everyWorkspace = false;
   let lastRead = -Infinity;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let focused = true;
@@ -183,7 +208,16 @@ export function createCatalogReconciler(queryClient: QueryClient) {
           ]
         : []),
     ];
+    const wokenWorkspaces = new Set(workspaces);
+    const wokeEveryWorkspace = everyWorkspace;
+    everyWorkspace = false;
     workspaces.clear();
+    const coveredInteraction = ({ queryKey }: { queryKey: QueryKey }) =>
+      wokenWorkspaces.size > 0 &&
+      isStreamCoveredInteractionRead(queryKey, wokenWorkspaces, wokeEveryWorkspace);
+    for (const query of queryClient.getQueryCache().findAll({ predicate: coveredInteraction })) {
+      hashes.delete(query.queryHash);
+    }
     for (const queryKey of prefixes) {
       for (const query of queryClient.getQueryCache().findAll({ queryKey })) {
         if (matches(query)) hashes.delete(query.queryHash);
@@ -208,6 +242,12 @@ export function createCatalogReconciler(queryClient: QueryClient) {
         { cancelRefetch: false }
       );
     }
+    // A covered interaction read has only a safety cadence while the stream is live, so one in flight
+    // (it may predate this change) or recently failed is retained for a trailing read.
+    void queryClient.invalidateQueries(
+      { predicate: query => coveredInteraction(query) && predicate(query) },
+      { cancelRefetch: false }
+    );
     if (hashes.size > 0) {
       void queryClient.invalidateQueries(
         { predicate: query => hashes.has(query.queryHash) && predicate(query) },
@@ -240,12 +280,14 @@ export function createCatalogReconciler(queryClient: QueryClient) {
       changes.set(JSON.stringify([workspace, change?.profile_name, change?.kind]), change);
       workspaces.add("");
       if (workspace !== undefined) workspaces.add(workspace || "@user");
-      else
+      else {
+        everyWorkspace = true;
         for (const query of queryClient
           .getQueryCache()
           .findAll({ queryKey: sessionKeys.lists() })) {
           if (typeof query.queryKey[2] === "string") workspaces.add(query.queryKey[2]);
         }
+      }
       schedule();
     },
     close() {

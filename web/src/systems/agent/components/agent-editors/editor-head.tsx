@@ -29,7 +29,7 @@ export function EditorHead({
         state={state}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <h1 className="text-ui-title-lg font-medium text-fg">{title}</h1>
+        <h2 className="text-ui-title-lg font-medium text-fg">{title}</h2>
         <p className="truncate text-body text-muted-foreground">{subtitle}</p>
       </div>
       {children}

@@ -4,7 +4,7 @@ Status: implementation and verification are in progress. The operator reaffirmed
 the remaining ownership work, representative upgrade and 30-session measurements are required before
 completion. Focused correctness checks do not establish the performance acceptance criteria.
 
-The implementation baseline is `d35c63c9a`. Main through `eb865c4f2` is integrated. Its version 186 remains byte-for-byte intact;
+The implementation baseline is `d35c63c9a`. Main through `dc37fd7f0` is integrated. Its version 186 remains byte-for-byte intact;
 the unreleased branch migration tail was resequenced after it during conflict resolution.
 All work is isolated in `fix/issue-1227-sqlite-contention`. Operator runtime databases, credentials
 and running sessions were not changed. The incident log was read only for sanitized aggregates.
@@ -497,3 +497,20 @@ version false positive in comment `6620660789`. Its CLI then reviewed all 13 fil
 failure cases passed; the three-file follow-up CodeRabbit review completed with zero findings.
 Tagged harness compilation and focused lint passed with zero issues. Final-head CI/review remains
 required after the unresolved performance cause is repaired.
+
+The next main integration preserves main's shutdown/revocation repairs and the branch's
+daemon-owned authentication-wait cancellation. Conflicting lint-only changes take main's exact
+form. Main now renders editor content as `h2`; the owning Agents browser suite keeps its unique
+global `h1` assertion and also verifies the scoped `h2` content noun. No behavior assertion is
+removed. No schema/dependency change arrived with this merge.
+
+The prior-head Web shard 3 failed the custom-skill removal walk. Its trace/log records navigation
+while the settings PATCH was still applying, followed by HTTP 499 and canceled publication; the
+test had waited only for desired config to appear in GET. The settings contract separately reports
+`applied` after runtime reconciliation. The existing skill-sources E2E now awaits that same PATCH
+and asserts HTTP 200 plus `applied: true` before navigation. The persisted-config and absent-picker
+assertions and their deadlines remain unchanged. The rerun remains CI-owned.
+
+Focused integration receipts: discovery failure classification 0.016 s, canceled authentication
+wait 0.259 s, daemon-shutdown exit classification 1.092 s, and focused session/modelcatalog lint
+with zero issues. Both changed browser files pass formatting; their actual walks run only in CI.
