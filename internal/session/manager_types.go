@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -145,6 +146,7 @@ type Manager struct {
 	metadataCacheMu            sync.Mutex
 	metadataCache              map[string]cachedSessionMetadata
 	restartInputsHeld          sync.Map
+	daemonShutdown             atomic.Pointer[daemonShutdownStop]
 	pullRequestReader          PullRequestReader
 	catalogRefreshes           map[[32]byte]time.Time
 	branchSnapshots            BranchSnapshotReader

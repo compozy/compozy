@@ -684,6 +684,74 @@ func TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory(t *tes
 		}
 	})
 
+	t.Run("Should end a turn whose agent dies during daemon shutdown as interrupted", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		h.manager.promptRecoveryDelays = []time.Duration{0, 0, 0}
+		session := createSession(t, h)
+		originalACP := session.Info().ACPSessionID
+		t.Cleanup(func() {
+			if _, ok := h.manager.Get(session.ID); ok {
+				reportSessionStop(t, h, session.ID)
+			}
+		})
+		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent, 2)
+			go func() {
+				defer close(events)
+				events <- acp.AgentEvent{
+					Type:      acp.EventTypeAgentMessage,
+					SessionID: originalACP,
+					TurnID:    req.TurnID,
+					Timestamp: time.Now().UTC(),
+					Text:      "partial before shutdown",
+				}
+				// The host signals the daemon and its agents together: the daemon records
+				// shutdown intent while the agent dies from the same signal.
+				if err := h.manager.PrepareDaemonShutdown(context.WithoutCancel(t.Context()), false); err != nil {
+					t.Errorf("PrepareDaemonShutdown() error = %v", err)
+				}
+				proc.crash(errors.New("acp subprocess exited: signal: terminated"), "")
+				events <- acp.AgentEvent{
+					Type:      acp.EventTypeError,
+					SessionID: originalACP,
+					TurnID:    req.TurnID,
+					Timestamp: time.Now().UTC(),
+					Error:     "ACP subprocess exited unexpectedly",
+					Failure: &store.SessionFailure{
+						Kind:    store.FailureProcess,
+						Summary: "ACP subprocess exited unexpectedly",
+					},
+				}
+			}()
+			return events, nil
+		}
+
+		eventsCh, err := h.manager.Prompt(testutil.Context(t), session.ID, "hello")
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		events := collectEvents(t, eventsCh)
+		for _, event := range events {
+			if event.Failure != nil {
+				t.Fatalf("Prompt() event = %#v, want no turn failure during daemon shutdown", event)
+			}
+		}
+		h.notifier.waitForStopped(t, session.ID)
+
+		if got := len(h.driver.startCalls); got != 1 {
+			t.Fatalf("driver start calls = %d, want no runtime recovery during daemon shutdown", got)
+		}
+		meta := readMeta(t, session.MetaPath())
+		if meta.StopReason == nil || *meta.StopReason != store.StopUserCanceled {
+			t.Fatalf("meta.StopReason = %#v, want %q", meta.StopReason, store.StopUserCanceled)
+		}
+		if meta.Failure == nil || meta.Failure.Kind != store.FailureCanceled || meta.Failure.CrashBundlePath != "" {
+			t.Fatalf("meta.Failure = %#v, want canceled without crash bundle", meta.Failure)
+		}
+	})
+
 	t.Run("Should classify an ACP error followed by exit code zero as a transport failure", func(t *testing.T) {
 		t.Parallel()
 

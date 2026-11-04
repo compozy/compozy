@@ -234,7 +234,8 @@ func (m *Manager) handlePromptPumpEvent(
 				return failure, errorText, true
 			}
 		}
-		if reason, ok := promptRecoveryReasonFor(recoveryCandidate); ok && promptRecoveryAllowed(loop) {
+		if reason, ok := promptRecoveryReasonFor(recoveryCandidate); ok && promptRecoveryAllowed(loop) &&
+			!m.daemonShuttingDown() {
 			recovered, err := m.attemptPromptRecovery(ctx, session, turnState, loop, recoveryCandidate, reason)
 			if err != nil {
 				failure, errorText := m.promptPersistenceFailure(session, turnState.turnID, err)
@@ -333,7 +334,7 @@ func (m *Manager) preparePromptPumpEventForDelivery(
 ) (acp.AgentEvent, bool) {
 	normalized := m.normalizeEvent(session, turnState.turnID, event)
 	normalized = promptErrorForExitedProcess(session.processHandle(), normalized)
-	if session.ownsTurnStop(turnState.turnID) && normalized.Type == acp.EventTypeError &&
+	if (session.ownsTurnStop(turnState.turnID) || m.daemonShuttingDown()) && normalized.Type == acp.EventTypeError &&
 		normalized.Failure != nil && (normalized.Failure.Kind == store.FailureProcess ||
 		normalized.Failure.Kind == store.FailureTransport || normalized.Failure.Kind == store.FailureCanceled) {
 		normalized = m.normalizeEvent(session, turnState.turnID, promptCancellationTerminalEvent())

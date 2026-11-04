@@ -28,10 +28,7 @@ func (d *Daemon) stopSessions(ctx context.Context, sessions SessionManager) erro
 
 	infos := sessions.List()
 	d.mu.Lock()
-	cause, detail := session.CauseUserRequested, "daemon stopped by user"
-	if d.restartRequested {
-		cause, detail = session.CauseShutdown, "Interrupted by daemon restart."
-	}
+	cause, detail := session.DaemonShutdownStopCause(d.restartRequested)
 	d.mu.Unlock()
 	errs := make([]error, len(infos))
 	var workers sync.WaitGroup

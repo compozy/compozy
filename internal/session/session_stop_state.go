@@ -197,6 +197,22 @@ func (s *Session) setStopCause(cause StopCause) {
 	s.applyStopCauseLocked(cause, "")
 }
 
+// replaceStopCause swaps an observed cause for the authoritative one when it still matches.
+func (s *Session) replaceStopCause(from, to StopCause, detail string) bool {
+	if s == nil {
+		return false
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.stopCause != from {
+		return false
+	}
+	s.stopCause = to
+	s.stopDetail = strings.TrimSpace(detail)
+	return true
+}
+
 func (s *Session) stopCauseDetail() (StopCause, string) {
 	if s == nil {
 		return CauseNone, ""

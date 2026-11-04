@@ -9,7 +9,9 @@ import (
 )
 
 // PrepareDaemonShutdown records intent before brokers or subprocesses can settle an interrupted turn.
+// Agent exits finalized from here on take the daemon's shutdown classification.
 func (m *Manager) PrepareDaemonShutdown(ctx context.Context, restart bool) error {
+	m.markDaemonShutdown(restart)
 	var errs []error
 	infos, err := m.ListAll(ctx)
 	if err != nil {
