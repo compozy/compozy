@@ -33,6 +33,9 @@ type providerUsageResolver struct {
 	metadata   providers.VaultRefResolver
 	collectors providerusage.Registry
 	logger     *slog.Logger
+	// selectorWarned holds the selector key last logged as missing per provider, so a gated alias
+	// logs once per change instead of on every resolution.
+	selectorWarned sync.Map
 }
 
 // Targets skips archived and reserved profiles so they cannot block reconciliation.
@@ -219,9 +222,10 @@ func (r *providerUsageResolver) aliasSelectorError(
 	}
 	key := selector.SelectorKey(env)
 	if key == "" || owned[key] {
+		r.selectorWarned.Delete(id)
 		return nil
 	}
-	if r.logger != nil {
+	if previous, logged := r.selectorWarned.Swap(id, key); (!logged || previous != key) && r.logger != nil {
 		r.logger.Warn("provider_usage.alias_selector_missing",
 			"provider", id, "collector", collectorID, "selector_key", key)
 	}

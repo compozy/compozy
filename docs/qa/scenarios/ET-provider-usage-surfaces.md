@@ -177,3 +177,6 @@ Run in an isolated lab with synthetic Claude config dirs only; never the operato
 
 Supporting checks: `TestApplyLaunchEnvironment`, `TestProviderUsageResolver/Should_fail_closed_…`,
 `TestProviderUsageAliasSelector` (IT-001/IT-002 with the real Claude collector), `TestAccountSelector`.
+
+Targeted evidence: [#1266 report](../reports/2026-11-04-provider-usage-runtime-alias.md) — QA-1/QA-2 Pass
+(BUG-20261104-alias-selector-log-repeats fixed). The broader scenario keeps its status.

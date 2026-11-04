@@ -3535,6 +3535,36 @@ func TestProviderUsageResolver(t *testing.T) {
 		secure := resolve([]string{"HOME=" + t.TempDir(), "CLAUDE_SECURESTORAGE_CONFIG_DIR=/c"})
 		requireGated(secure["claude-mm1"], "CLAUDE_SECURESTORAGE_CONFIG_DIR")
 	})
+	t.Run("Should log a missing alias selector once per change", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+		cfg.Providers["claude-mm5"] = compozyconfig.ProviderConfig{
+			Harness:         compozyconfig.ProviderHarnessACP,
+			RuntimeProvider: "claude",
+			AuthMode:        compozyconfig.ProviderAuthModeNativeCLI,
+			Command:         "npx -y claude-agent-acp",
+		}
+		var logs bytes.Buffer
+		daemonHome := t.TempDir()
+		resolver := &providerUsageResolver{cfg: cfg, home: home, baseEnv: []string{"HOME=" + daemonHome},
+			collectors: providerusage.DefaultRegistry(providerusage.RegistryOptions{}),
+			logger:     slog.New(slog.NewTextHandler(&logs, nil)),
+		}
+		for range 3 {
+			if _, err := resolver.Targets(t.Context(), store.DefaultProfileID); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := strings.Count(logs.String(), "provider_usage.alias_selector_missing"); got != 1 {
+			t.Fatalf("selector warning logged %d times, want once:\n%s", got, logs.String())
+		}
+		if !strings.Contains(logs.String(), "selector_key=CLAUDE_CONFIG_DIR") ||
+			strings.Contains(logs.String(), daemonHome) {
+			t.Fatalf("selector warning must name the key without values:\n%s", logs.String())
+		}
+	})
 	t.Run("Should report disabled providers", func(t *testing.T) {
 		t.Parallel()
 		home := testHomePaths(t)

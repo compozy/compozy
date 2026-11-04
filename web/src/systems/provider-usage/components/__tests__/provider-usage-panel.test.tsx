@@ -207,25 +207,28 @@ describe("Provider usage components", () => {
       );
     });
 
-    it("Should draw the family logo for an alias in the quiet group (UT-014)", async () => {
+    // Disabled rows never reach the panel; an alias lands in the quiet group when its family cannot
+    // collect for it, such as a Codex alias whose login lives in the system keyring.
+    it("Should draw the family logo for an unsupported alias in the quiet group (UT-014)", async () => {
       const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const { disabled } = statusTargets(NOW);
       const alias = {
         ...disabled,
-        provider_id: "claude-mm1",
-        provider_name: "Claude (mm1)",
-        collector_id: "claude",
+        status: "unsupported" as const,
+        provider_id: "codex-work",
+        provider_name: "Codex (work)",
+        collector_id: "codex",
       };
       const { onAction } = renderPanel({ viewModel: viewModelOf([codexOkTarget(NOW), alias]) });
 
       await user.click(screen.getByRole("button", { name: /without usage data/ }));
       const item = screen
         .getByRole("list", { name: /without usage data/ })
-        .querySelector<HTMLElement>("[data-provider=claude-mm1]");
-      if (!item) throw new Error("no quiet row for claude-mm1");
-      expect(item.querySelector("[data-slot=kind-icon]")).toHaveAttribute("data-kind", "claude");
+        .querySelector<HTMLElement>("[data-provider=codex-work]");
+      if (!item) throw new Error("no quiet row for codex-work");
+      expect(item.querySelector("[data-slot=kind-icon]")).toHaveAttribute("data-kind", "codex");
       await user.click(within(item).getByRole("button"));
-      expect(onAction).toHaveBeenCalledWith("claude-mm1", expect.anything());
+      expect(onAction).toHaveBeenCalledWith("codex-work", expect.anything());
     });
 
     it("Should keep a row expanded while new revisions arrive (UT-055)", async () => {
