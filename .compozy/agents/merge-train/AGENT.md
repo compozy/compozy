@@ -29,7 +29,7 @@ The only accepted form is:
 ready: #<number> <head-sha>
 ```
 
-`<head-sha>` is at least 10 hex characters. Refuse any other form, including one without a head, with `refused: expected ready: #<number> <head-sha>`. Work on one pull request at a time, in arrival order.
+`<head-sha>` is at least 10 hex characters. Refuse any other form, including one without a head, with `refused: expected ready: #<number> <head-sha>`. Verify one pull request at a time, in arrival order.
 
 ## Verify
 
@@ -44,7 +44,7 @@ gh api graphql --paginate -F n=<n> -f query='query($n:Int!,$endCursor:String){re
 1. **Target.** The pull request is open, not a draft, and targets `main`.
 2. **Head.** `headRefOid` starts with the handed-off SHA. Use the full `headRefOid` from here on.
 3. **Title.** It matches `<type>: <description>` or `<type>!: <description>`. If it mentions the product, it says `CompozyOS`, never bare `Compozy`, because squash subjects reach the release notes.
-4. **CI.** The `main` ruleset requires no status checks (verified with `gh api repos/compozy/compozy/rules/branches/main` on 2026-11-02), so `gh pr checks --required` proves nothing and this list is the gate. `Verify (fmt, lint, unit, build)`, `E2E (combined lane)`, `PR title` and `React Doctor` must succeed. The first two may skip only when `Detect changes` succeeded and found no relevant change. Every other reported check except CodeRabbit, which condition 5 owns, must be successful or skipped. Pending, cancelled or missing is a refusal. If the ruleset gains required checks, those are required too.
+4. **CI.** The `main` ruleset requires no status checks (verified with `gh api repos/compozy/compozy/rules/branches/main` on 2026-11-02), so `gh pr checks --required` proves nothing and this list is the gate. `Verify (fmt, lint, unit, build)`, `E2E (combined lane)`, `PR title` and `React Doctor` must succeed. Both always run; a pull request that defers the heavy lane to the merge queue still gets a successful `E2E (combined lane)`. Every other reported check except CodeRabbit, which condition 5 owns, must be successful or skipped. Pending, cancelled or missing is a refusal. If the ruleset gains required checks, those are required too.
 5. **Reviewers.** `Greptile Review` succeeded on this head. CodeRabbit has a completed review with `commit_id` equal to this head, or a successful check on it; a skipped check proves nothing. When CodeRabbit refused this pull request (file limit, rate limit, or an already-reviewed head, per its comments) or it changes more than 300 files, a `## CodeRabbit fallback review` comment by `pedronauck` after its last review replaces this CodeRabbit requirement, as eng-delivery "Reviewers" defines. Every review thread on every page is resolved.
 6. **Mergeability.** `mergeable` is `MERGEABLE`.
 
@@ -66,6 +66,8 @@ gh pr merge <n> --squash --match-head-commit <full-head-sha>
 
 The head binding is the merge condition, so a moved head fails instead of racing. If GitHub rejects the request, report its reason as a refusal and do not retry with other flags.
 
+When `main` requires the merge queue, the same command adds the pull request to the queue instead of merging it; the queue runs the heavy CI lane on the combined commit and merges on success. Report `queued #<n> at <head>` and take the next handoff, because the queue, not you, serializes merges. Register a `pull_request` monitor for each queued pull request. When it merges, confirm and report as below. When the queue removes it, report `refused #<n>: merge queue removed it (<failing check>)` with the failing check from its `merge_group` run, and do not re-queue it yourself.
+
 Confirm with `gh pr view <n> --json state,mergeCommit` that the state is `MERGED`, then report `merged #<n> at <head>`.
 
 ## Conflicts
@@ -81,7 +83,7 @@ On a direct operator message, load the `releasepr` skill and own the release unt
 3. Wait for CI on the final head.
 4. Run the Verify checks on that head, with two exceptions: its title may start with `build: release ` or `build: prepare release `, and condition 5 does not require CodeRabbit, because release pull requests routinely have no CodeRabbit review on their head. `Greptile Review` and resolved threads still apply.
 5. Squash-merge that verified head with the [Merge](#merge) command.
-6. Follow the `Release` workflow on `main` to its end. Each push to `main` cancels the running CI there, so do not merge anything else meanwhile.
+6. Follow the `Release` workflow on `main` to its end, and do not merge anything else meanwhile, so the release is cut from the merged release head.
 7. Report the version only after confirming it with `gh release view` and the workflow conclusion with `gh run view`.
 
 ## Waiting
