@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -9,6 +10,8 @@ import (
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 )
+
+const graphStateOpen = "OPEN"
 
 const graphFactsNone = "none"
 const graphChecksUnknown = "unknown"
@@ -41,7 +44,7 @@ type graphPull struct {
 	HeadRepository *struct{ NameWithOwner string }
 }
 
-func (p *graphPull) isOpen() bool { return strings.EqualFold(p.State, "OPEN") }
+func (p *graphPull) isOpen() bool { return strings.EqualFold(p.State, graphStateOpen) }
 
 type graphPage struct {
 	Nodes    []graphPull
@@ -70,6 +73,7 @@ type graphResponse struct {
 	Data struct {
 		Repository *struct {
 			PullRequests graphPage
+			Pages        map[string]graphPage `json:"-"`
 			Issues       *graphIssuesPage
 			Object       *struct {
 				OID               string
@@ -112,7 +116,26 @@ func (p *Provider) graphRequest(
 	token, query string,
 	variables map[string]any,
 ) (graphResponse, error) {
+	source := forgeCallSource(ctx)
+	operation := ""
+	switch query {
+	case checksQuery:
+		operation = "checks"
+	case reviewsQuery:
+		operation = "reviews"
+	case issuesQuery:
+		operation = "issues"
+	case pullQuery:
+		operation = "pull_lookup"
+	}
+	if strings.Contains(query, "terminalPullRequests") || strings.Contains(query, "branch0Open") {
+		operation = "pull_lookup"
+	}
+	if operation != "" {
+		ctx = context.WithValue(ctx, forgeSourceKey{}, source+"/"+operation)
+	}
 	var result graphResponse
+	var raw json.RawMessage
 	var headers http.Header
 	if err := p.api.requestWithHeaders(
 		ctx,
@@ -120,8 +143,11 @@ func (p *Provider) graphRequest(
 		"/graphql",
 		token,
 		map[string]any{"query": query, "variables": variables},
-		&result, &headers,
+		&raw, &headers,
 	); err != nil {
+		return result, err
+	}
+	if err := json.Unmarshal(raw, &result); err != nil {
 		return result, err
 	}
 	if len(result.Errors) > 0 {
@@ -144,6 +170,15 @@ func (p *Provider) graphRequest(
 	}
 	if result.Data.Repository == nil {
 		return result, errors.New("github forge: repository unavailable")
+	}
+	var pages struct {
+		Data struct{ Repository map[string]graphPage }
+	}
+	if strings.Contains(query, "terminalPullRequests") || strings.Contains(query, "branch0Open") {
+		if err := json.Unmarshal(raw, &pages); err != nil {
+			return result, err
+		}
+		result.Data.Repository.Pages = pages.Data.Repository
 	}
 	return result, nil
 }
@@ -254,21 +289,17 @@ func (p *Provider) selectGraphPull(
 	repo repository,
 	branch, token string,
 ) (*graphPull, bool, error) {
+	pages, err := p.batchedPullPages(ctx, repo, branch, token)
+	if err != nil {
+		return nil, false, err
+	}
 	incomplete := false
-	for _, states := range [][]string{{"OPEN"}, {"MERGED", "CLOSED"}} {
-		var cursor *string
-		for range 2 {
-			variables := graphPageVariables(repo, cursor)
-			variables["branch"], variables["states"] = branch, states
-			result, err := p.graphRequest(ctx, token, pullQuery, variables)
-			if err != nil {
-				return nil, false, err
-			}
-			page := result.Data.Repository.PullRequests
+	for group, states := range [][]string{{graphStateOpen}, {"MERGED", "CLOSED"}} {
+		page := pages[group]
+		for attempt := range 2 {
 			for _, pull := range page.Nodes {
 				if pull.HeadRepository != nil &&
 					strings.EqualFold(pull.HeadRepository.NameWithOwner, repo.owner+"/"+repo.name) {
-					// An incomplete open population cannot justify choosing a terminal PR.
 					if incomplete {
 						return nil, true, nil
 					}
@@ -276,17 +307,22 @@ func (p *Provider) selectGraphPull(
 				}
 			}
 			if !page.PageInfo.HasNextPage {
-				cursor = nil
 				break
 			}
-			cursor = &page.PageInfo.EndCursor
-			if *cursor == "" {
+			if page.PageInfo.EndCursor == "" {
 				return nil, false, errors.New("github forge: missing pagination cursor")
 			}
-		}
-		if cursor != nil {
-			// A second full page with a continuation leaves selection incomplete.
-			incomplete = true
+			if attempt == 1 {
+				incomplete = true
+				break
+			}
+			variables := graphPageVariables(repo, &page.PageInfo.EndCursor)
+			variables["branch"], variables["states"] = branch, states
+			result, err := p.graphRequest(ctx, token, pullQuery, variables)
+			if err != nil {
+				return nil, false, err
+			}
+			page = result.Data.Repository.PullRequests
 		}
 	}
 	return nil, incomplete, nil

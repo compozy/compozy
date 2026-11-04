@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os/exec"
@@ -852,7 +853,7 @@ func TestProvider(t *testing.T) {
 
 const emptyGraphChecks = `{"data":{"repository":{"object":{"oid":"head-a"}}}}`
 
-const graphOpenPull = `{"data":{"repository":{"pullRequests":{"nodes":[{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`
+const graphOpenPull = `{"data":{"repository":{"terminalPullRequests":{"nodes":[]},"pullRequests":{"nodes":[{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`
 
 func graphTopicRequest() extensioncontract.ForgeStatusRequest {
 	return extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"}
@@ -899,6 +900,127 @@ func writeGraphBody(t *testing.T, w http.ResponseWriter, body string) {
 // Owner: GitHub provider; canonical httptest provider suite.
 func TestProviderGraphQL(t *testing.T) {
 	t.Parallel()
+	// Invariant: one repository lookup uses aliases and all PR states without interpolating branch values.
+	t.Run("Should batch branches in one repository query", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			var input struct {
+				Query     string
+				Variables map[string]any
+			}
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				t.Error(err)
+				return
+			}
+			if input.Variables["owner"] != "acme" || input.Variables["branch0"] != "feature/one" ||
+				input.Variables["branch1"] != "feature/two" ||
+				strings.Contains(input.Query, "feature/") ||
+				strings.Count(
+					input.Query,
+					"states:[OPEN]",
+				) != 2 || strings.Count(input.Query, "states:[MERGED,CLOSED]") != 2 {
+				t.Errorf("batch query=%s vars=%v", input.Query, input.Variables)
+			}
+			writeGraphBody(
+				t,
+				w,
+				`{"data":{"repository":{"branch0Open":{"nodes":[{"number":1,"state":"OPEN"}]},"branch0Terminal":{"nodes":[]},"branch1Open":{"nodes":[]},"branch1Terminal":{"nodes":[{"number":2,"state":"MERGED"}]}}}}`,
+			)
+		})
+		defer closeServer()
+		batch := &pullBatch{branches: []string{"feature/one", "feature/two"}, done: make(chan struct{})}
+		provider.batchCtx = t.Context()
+		provider.runPullBatch(t.Context(), pullBatchKey{}, repository{owner: "acme", name: "repo"}, "secret", batch)
+		if batch.err != nil || calls.Load() != 1 || batch.pages["feature/one"][0].Nodes[0].Number != 1 ||
+			batch.pages["feature/two"][1].Nodes[0].Number != 2 {
+			t.Fatalf("batch=%+v calls=%d", batch, calls.Load())
+		}
+	})
+	t.Run("Should prefer an open PR over a newer terminal PR", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			var input struct{ Query string }
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				t.Error(err)
+				return
+			}
+			if strings.Contains(input.Query, "$branch") {
+				writeGraphBody(
+					t,
+					w,
+					`{"data":{"repository":{"terminalPullRequests":{"nodes":[{"number":3,"state":"MERGED","headRepository":{"nameWithOwner":"acme/repo"}}]},"pullRequests":{"nodes":[{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}]}}}}`,
+				)
+				return
+			}
+			if strings.Contains(input.Query, "$oid") {
+				writeGraphBody(t, w, emptyGraphChecks)
+				return
+			}
+			writeGraphBody(t, w, `{"data":{"repository":{"pullRequest":{}}}}`)
+		})
+		defer closeServer()
+		got, err := provider.Status(t.Context(), graphTopicRequest())
+		if err != nil || got.PRNumber == nil || *got.PRNumber != 2 || *got.PRState != "open" {
+			t.Fatalf("status=%+v err=%v", got, err)
+		}
+	})
+	t.Run("Should mark HTTP 200 GraphQL errors as failed calls", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+			writeGraphBody(t, w, `{"errors":[{"type":"SERVICE_UNAVAILABLE"}]}`)
+		})
+		defer closeServer()
+		provider.api.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		if _, err := provider.Status(t.Context(), graphTopicRequest()); err == nil {
+			t.Fatal("GraphQL execution error unexpectedly succeeded")
+		}
+		var record map[string]any
+		if err := json.Unmarshal(logs.Bytes(), &record); err != nil {
+			t.Fatal(err)
+		}
+		if record["status"] != float64(200) || record["api"] != "graphql" ||
+			record["source"] != "forge/status/pull_lookup" ||
+			record["failed"] != true {
+			t.Fatalf("GraphQL error log=%s", logs.String())
+		}
+	})
+	t.Run("Should attribute rate limited calls without logging credentials", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "300")
+			w.Header().Set("X-RateLimit-Reset", "1800000000")
+			w.Header().Set("Retry-After", "60")
+			w.WriteHeader(http.StatusForbidden)
+			writeGraphBody(t, w, `{"message":"secondary rate limit secret"}`)
+		})
+		defer closeServer()
+		provider.api.logger = slog.New(slog.NewJSONHandler(&logs, nil))
+		got, err := provider.Capabilities(
+			t.Context(),
+			extensioncontract.ForgeCapabilitiesRequest{RemoteURLs: []string{"https://github.com/acme/repo"}},
+		)
+		if err != nil || got.Cause != "rate_limited" {
+			t.Fatalf("capabilities=%+v err=%v", got, err)
+		}
+		var record map[string]any
+		if err := json.Unmarshal(logs.Bytes(), &record); err != nil {
+			t.Fatal(err)
+		}
+		if record["source"] != "forge/capabilities" || record["method"] != "GET" || record["api"] != "rest" ||
+			record["status"] != float64(403) ||
+			record["remaining_quota"] != float64(300) ||
+			record["secondary_limit"] != true ||
+			record["retry_after_seconds"] != float64(60) ||
+			record["reset_at"] == nil ||
+			record["retry_at"] == nil ||
+			strings.Contains(logs.String(), "secret") {
+			t.Fatalf("log=%s", logs.String())
+		}
+	})
 	t.Run("Should skip forks and read complete checks for the selected immutable head", func(t *testing.T) {
 		t.Parallel()
 		var calls atomic.Int32
@@ -926,7 +1048,7 @@ func TestProviderGraphQL(t *testing.T) {
 			}
 			_, _ = w.Write(
 				[]byte(
-					`{"data":{"repository":{"pullRequests":{"nodes":[{"number":1,"headRepository":{"nameWithOwner":"fork/repo"}},{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"},"reviewDecision":"APPROVED","mergeable":"MERGEABLE"}],"pageInfo":{"hasNextPage":false}}}}}`,
+					`{"data":{"repository":{"terminalPullRequests":{"nodes":[]},"pullRequests":{"nodes":[{"number":1,"headRepository":{"nameWithOwner":"fork/repo"}},{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"},"reviewDecision":"APPROVED","mergeable":"MERGEABLE"}],"pageInfo":{"hasNextPage":false}}}}}`,
 				),
 			)
 		})
@@ -1170,7 +1292,7 @@ func TestProviderGraphQL(t *testing.T) {
 				t.Error(err)
 				return
 			}
-			body := `{"data":{"repository":{"pullRequests":{"nodes":[{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"MERGED","merged":true,"headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`
+			body := `{"data":{"repository":{"pullRequests":{"nodes":[]},"terminalPullRequests":{"nodes":[{"number":2,"url":"https://github.com/acme/repo/pull/2","state":"MERGED","merged":true,"headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`
 			switch {
 			case strings.Contains(input.Query, "$oid"):
 				body = emptyGraphChecks
@@ -1192,10 +1314,10 @@ func TestProviderGraphQL(t *testing.T) {
 		var calls atomic.Int32
 		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
 			calls.Add(1)
-			_, _ = w.Write(
-				[]byte(
-					`{"data":{"repository":{"pullRequests":{"nodes":[{"number":1,"headRepository":{"nameWithOwner":"fork/repo"}}],"pageInfo":{"hasNextPage":true,"endCursor":"next"}}}}}`,
-				),
+			writeGraphBody(
+				t,
+				w,
+				`{"data":{"repository":{"terminalPullRequests":{"nodes":[]},"pullRequests":{"nodes":[{"number":1,"headRepository":{"nameWithOwner":"fork/repo"}}],"pageInfo":{"hasNextPage":true,"endCursor":"next"}}}}}`,
 			)
 		})
 		defer closeServer()
@@ -1203,7 +1325,7 @@ func TestProviderGraphQL(t *testing.T) {
 			t.Context(),
 			extensioncontract.ForgeStatusRequest{RemoteURLs: []string{"https://github.com/acme/repo"}, Branch: "topic"},
 		)
-		if err != nil || got.PRNumber != nil || got.Selection != "incomplete" || calls.Load() != 4 {
+		if err != nil || got.PRNumber != nil || got.Selection != "incomplete" || calls.Load() != 2 {
 			t.Fatalf("bounded=%#v %v calls=%d", got, err, calls.Load())
 		}
 	})
@@ -1221,7 +1343,7 @@ func TestProviderGraphQL(t *testing.T) {
 			}
 			_, _ = w.Write(
 				[]byte(
-					`{"data":{"repository":{"pullRequests":{"nodes":[{"number":2,"state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`,
+					`{"data":{"repository":{"terminalPullRequests":{"nodes":[]},"pullRequests":{"nodes":[{"number":2,"state":"OPEN","headRefOid":"head-a","headRepository":{"nameWithOwner":"acme/repo"}}],"pageInfo":{"hasNextPage":false}}}}}`,
 				),
 			)
 		})
@@ -1316,7 +1438,7 @@ func testProvider(t *testing.T, handler http.HandlerFunc) (*Provider, func()) {
 		api: githubClient{baseURL: server.URL, client: server.Client()},
 		now: func() time.Time { return time.Date(2026, time.August, 12, 12, 0, 0, 0, time.UTC) },
 	}
-	return provider, server.Close
+	return provider, func() { provider.closeBatches(); server.Close() }
 }
 
 func createRequest() extensioncontract.ForgePRCreateRequest {

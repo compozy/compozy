@@ -29,6 +29,12 @@ and a waiting session with an open PR stays in **Waiting** until its wake arrive
 before review. A **Waiting** card names what it waits on, such as **Monitoring** or **Waiting**.
 Archived sessions never appear in the columns; they live in the **Archive** bar at the bottom.
 
+PR facts refresh in the background for the session rows on the current page, including
+linked work and child rollups. Column counts and hidden pages use cached facts. If a new
+PR has not appeared in **In review**, show its session in the unfiltered list or run
+`compozy session pr <id> --refresh`. A registered pull-request monitor continues to refresh
+its target independently. A rate-limit hold keeps cached facts until GitHub allows another read.
+
 ## Walkthrough: open the board and act on a card
 
 1. Open a session window. In its header, right after the title, you see a **List | Kanban** switch

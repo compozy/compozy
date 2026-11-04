@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -25,6 +26,7 @@ const (
 type githubClient struct {
 	baseURL string
 	client  *http.Client
+	logger  *slog.Logger
 }
 
 type githubAPIError struct {
@@ -82,11 +84,19 @@ func (c githubClient) requestWithHeaders(
 	if requestBody != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}
+	var status int
+	var header http.Header
+	var payload []byte
+	defer func() { c.logCall(ctx, method, path, status, header, payload, resultErr) }()
 	response, err := c.client.Do(request)
 	if err != nil {
 		return fmt.Errorf("github forge: send request: %w", err)
 	}
+	status, header = response.StatusCode, response.Header
 	defer func() {
+		if _, drainErr := io.CopyN(io.Discard, response.Body, 4096); drainErr != nil && !errors.Is(drainErr, io.EOF) {
+			slog.DebugContext(ctx, "forge.response_drain", "failed", true)
+		}
 		if closeErr := response.Body.Close(); closeErr != nil {
 			resultErr = errors.Join(resultErr, fmt.Errorf("github forge: close response: %w", closeErr))
 		}
@@ -95,7 +105,7 @@ func (c githubClient) requestWithHeaders(
 		*headers = response.Header.Clone()
 	}
 	limited := io.LimitReader(response.Body, githubResponseLimit+1)
-	payload, err := io.ReadAll(limited)
+	payload, err = io.ReadAll(limited)
 	if err != nil {
 		return fmt.Errorf("github forge: read response: %w", err)
 	}

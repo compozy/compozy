@@ -148,9 +148,6 @@ func (s *PullRequestService) read(
 		if refresh && entry.Stale {
 			s.RequestRefresh(key)
 		}
-		if !refresh {
-			s.forgetAbsence(key)
-		}
 	}
 	return entries
 }
@@ -351,14 +348,6 @@ func (s *PullRequestService) storedFacts(key PullRequestKey, live *ForgeStatus) 
 		return entry.Facts
 	}
 	return live
-}
-
-// forgetAbsence drops the backoff streak of a key that is only peeked, such as a removed worktree's
-// branch, so the streak map does not grow with branches nobody refreshes.
-func (s *PullRequestService) forgetAbsence(key PullRequestKey) {
-	s.mu.Lock()
-	delete(s.absent, key)
-	s.mu.Unlock()
 }
 
 func (s *PullRequestService) recordAbsence(key PullRequestKey, after PullRequestEntry, err error) {

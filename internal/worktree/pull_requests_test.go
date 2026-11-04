@@ -15,6 +15,27 @@ import (
 // Owner: PullRequestService; this is its canonical suite (new subsystem).
 func TestPullRequestService(t *testing.T) {
 	t.Parallel()
+	// Invariant: passive display reads preserve the no-PR backoff owned by this service.
+	t.Run("Should retain absence backoff across cached reads", func(t *testing.T) {
+		t.Parallel()
+		now := statusTestClock()
+		provider := pullRequestTestForge{
+			status: func(context.Context, ForgeStatusRequest) (*ForgeStatus, error) { return &ForgeStatus{}, nil },
+		}
+		service := NewPullRequestService(t.Context(), newPullRequestMemoryStore(), provider, nil, nil)
+		t.Cleanup(service.Close)
+		service.now = func() time.Time { return now }
+		key := PullRequestKey{"ws", "github.com/acme/repo", "topic"}
+		for range 2 {
+			if _, err := service.Refresh(t.Context(), key); err != nil {
+				t.Fatal(err)
+			}
+		}
+		entry := service.Peek(t.Context(), []PullRequestKey{key})[key]
+		if service.stale(key, entry, now.Add(15*time.Minute)) {
+			t.Fatal("cached read erased the 20 minute absence window")
+		}
+	})
 	t.Run("Should leave the forge alone while a watcher's retry-after holds", func(t *testing.T) {
 		t.Parallel()
 		cache := newPullRequestMemoryStore()

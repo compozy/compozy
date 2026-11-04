@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
@@ -33,6 +34,12 @@ type Provider struct {
 	credentials credentialResolver
 	api         githubClient
 	now         func() time.Time
+	batchMu     sync.Mutex
+	batches     map[pullBatchKey]*pullBatch
+	batchWG     sync.WaitGroup
+	batchCtx    context.Context
+	batchCancel context.CancelFunc
+	batchClosed bool
 }
 
 type repositoryPayload struct {
@@ -67,6 +74,7 @@ func (p *Provider) Capabilities(
 	ctx context.Context,
 	request extensioncontract.ForgeCapabilitiesRequest,
 ) (extensioncontract.ForgeCapabilitiesResponse, error) {
+	ctx = context.WithValue(ctx, forgeSourceKey{}, "forge/capabilities")
 	repo, served := selectRepository(request.RemoteURLs)
 	if !served {
 		return extensioncontract.ForgeCapabilitiesResponse{
@@ -110,6 +118,7 @@ func (p *Provider) Status(
 	ctx context.Context,
 	request extensioncontract.ForgeStatusRequest,
 ) (extensioncontract.ForgeStatusResponse, error) {
+	ctx = context.WithValue(ctx, forgeSourceKey{}, "forge/status")
 	repo, ok := selectRepository(request.RemoteURLs)
 	if !ok {
 		return extensioncontract.ForgeStatusResponse{Cause: extensioncontract.ForgeCauseUnsupportedRemote}, nil
@@ -172,6 +181,7 @@ func (p *Provider) CreatePR(
 	ctx context.Context,
 	request extensioncontract.ForgePRCreateRequest,
 ) (extensioncontract.ForgePRCreateResponse, error) {
+	ctx = context.WithValue(ctx, forgeSourceKey{}, "forge/pr_create")
 	repo, ok := selectRepository(request.RemoteURLs)
 	if !ok {
 		return extensioncontract.ForgePRCreateResponse{Cause: extensioncontract.ForgeCauseUnsupportedRemote}, nil

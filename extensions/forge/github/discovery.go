@@ -25,6 +25,7 @@ const prSearchQuery = `query($query:String!,$first:Int!,$after:String){
 }`
 
 func (p *Provider) SearchPRs(ctx context.Context, request c.ForgePRSearchRequest) (c.ForgePRSearchResponse, error) {
+	ctx = context.WithValue(ctx, forgeSourceKey{}, "forge/pr_search")
 	result := c.ForgePRSearchResponse{Items: []c.ForgePRCandidate{}}
 	repo, ok := selectRepository(request.RemoteURLs)
 	if !ok {
@@ -117,6 +118,7 @@ func searchVariables(repo repository, request c.ForgePRSearchRequest) map[string
 }
 
 func (p *Provider) ReadPR(ctx context.Context, request c.ForgePRReadRequest) (c.ForgePRCandidate, error) {
+	ctx = context.WithValue(ctx, forgeSourceKey{}, "forge/pr_read")
 	repo, ok := selectRepository(request.RemoteURLs)
 	if !ok || request.Number < 1 {
 		return c.ForgePRCandidate{}, errors.New("invalid pull request")
