@@ -53,7 +53,7 @@ export function fleetAlwaysOn(flags: {
       places: [{ scope: "compozy", state: "idle" }],
       activity: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       recap: "No reports yet",
-      lastActive: "Added 8 min ago",
+      lastActive: "Not yet",
       flag: flags.mergeTrain,
     },
     {
