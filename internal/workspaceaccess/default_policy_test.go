@@ -22,13 +22,16 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 	t.Run("Should audit read consent without widening the policy", func(t *testing.T) {
 		t.Parallel()
 		audit := &auditEmitterSpy{}
+		var lastFactsContext context.Context
 		facts := factsSourceFunc(func(ctx context.Context, id string) (SessionFacts, error) {
+			lastFactsContext = ctx
 			if err := ctx.Err(); err != nil {
 				return SessionFacts{}, err
 			}
 			return (&modeSourceStub{mode: ModeApproveReads}).SessionFacts(ctx, id)
 		})
-		policy := newPolicyForTest(t, facts, &consentCacheStub{}, audit, slog.Default())
+		consent := &consentCacheStub{}
+		policy := newPolicyForTest(t, facts, consent, audit, slog.Default())
 		req := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB)
 		req.ReadOnly, req.Seam = true, SeamTool
 		decision, err := policy.Authorize(t.Context(), req)
@@ -38,6 +41,15 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		canceledCtx, cancel := context.WithCancel(t.Context())
 		cancel()
 		policy.RecordToolConsent(canceledCtx, req)
+		if lastFactsContext == nil {
+			t.Fatal("consent facts lookup was skipped")
+		}
+		if _, bounded := lastFactsContext.Deadline(); !bounded {
+			t.Fatal("consent facts lookup has no deadline")
+		}
+		if !errors.Is(lastFactsContext.Err(), context.Canceled) {
+			t.Fatalf("facts lookup context after recording = %v, want canceled", lastFactsContext.Err())
+		}
 		if len(audit.records) != 2 || !audit.records[1].Allowed || audit.records[1].Source != SourceToolConsent ||
 			audit.records[1].TargetID != testWorkspaceB || audit.records[1].ActorProfileID == "" {
 			t.Fatalf("consent audit = %#v, want a scoped granted record", audit.records)
@@ -45,6 +57,16 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 		decision, err = policy.Authorize(t.Context(), req)
 		if err != nil || decision.Allowed || !decision.PromptEligible {
 			t.Fatalf("after audit = %#v, %v, want no policy widening", decision, err)
+		}
+		consent.consent, consent.ok = ConsentAllow, true
+		policy.RecordToolConsent(t.Context(), req)
+		if len(audit.records) != 4 || !audit.records[3].Allowed || audit.records[3].Source != SourceToolConsent {
+			t.Fatalf("cached session consent audit = %#v, want final tool consent", audit.records)
+		}
+		consent.consent = ConsentReject
+		policy.RecordToolConsent(t.Context(), req)
+		if len(audit.records) != 4 {
+			t.Fatalf("rejected session consent emitted a granted record: %#v", audit.records)
 		}
 	})
 

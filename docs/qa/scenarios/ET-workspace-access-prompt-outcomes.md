@@ -101,3 +101,7 @@ Review follow-up: a profile-switch read prompt identifies both the selected prof
 target workspace (or `@user`) in the title and raw input before consent can be remembered.
 Cancel the originating request while its permission is pending, approve it, and confirm the
 final consent audit is retained alongside the durable grant.
+
+Audit review follow-up: consent recording applies its own bounded facts-lookup deadline after
+originating-request cancellation. A read approved with session consent also emits the final
+`tool_consent` granted event; a rejected cached consent emits no granted event.
