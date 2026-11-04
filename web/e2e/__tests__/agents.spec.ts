@@ -300,8 +300,13 @@ async function createAlwaysOnAgent(
   const createRequest = appPage.waitForRequest(
     request => request.method() === "POST" && new URL(request.url()).pathname === "/api/agents"
   );
+  const createResponse = appPage.waitForResponse(
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/agents"
+  );
   await appPage.getByTestId("submit-agent-create").click();
   expect((await createRequest).postDataJSON()).toMatchObject({
+    scope: "global",
     agent: {
       name,
       kind: "always_on",
@@ -310,6 +315,8 @@ async function createAlwaysOnAgent(
       ...(level ? { permissions: level } : {}),
     },
   });
+  const response = await createResponse;
+  expect(response.ok(), await response.text()).toBe(true);
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${name}`);
 }
 
