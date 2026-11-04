@@ -16,6 +16,8 @@ export interface SourceParamField {
   required: boolean;
   /** A string pattern from the schema, checked before saving. */
   pattern?: string;
+  /** A switch's schema default: what the kind does while the file leaves the key out. */
+  default?: boolean;
 }
 
 export type SourceParamValue = string | string[] | boolean;
@@ -24,12 +26,16 @@ export interface SourceDraft {
   id: string;
   /** `kind:<extension>/<kind>` or `script:<name>`; empty until one is picked. */
   ref: string;
-  /** Values for the kind's fields, by key. */
+  /** Values for the kind's fields, by key; a key is absent until the file or the operator sets it. */
   params: Record<string, SourceParamValue>;
+  /** The kind's field values as the file wrote them, so an unchanged one saves exactly as read. */
+  read: Record<string, SourceParamValue>;
   /** A script's `with`, as name and text pairs. */
   pairs: SourceValuePair[];
   /** `with` values the form can't show, written back as they were. */
   kept: Record<string, unknown>;
+  /** The file wrote a `with`, so an empty one stays rather than vanishing. */
+  hasWith: boolean;
 }
 
 /** One name and text value of a script's `with`; `uid` keeps its row while names change. */
@@ -85,6 +91,8 @@ export function sourceParamFields(schema: unknown): SourceParamField[] {
       required: required.has(key),
       pattern:
         type === "string" && typeof property.pattern === "string" ? property.pattern : undefined,
+      default:
+        type === "boolean" && typeof property.default === "boolean" ? property.default : undefined,
     });
   }
   return fields;
@@ -133,14 +141,19 @@ export function suggestSourceId(ref: string, others: readonly string[]) {
 }
 
 export function blankSourceDraft(): SourceDraft {
-  return { id: "", ref: "", params: {}, pairs: [], kept: {} };
+  return { id: "", ref: "", params: {}, read: {}, pairs: [], kept: {}, hasWith: false };
 }
 
 /** The draft for an existing entry; values the form can't show are kept for the save. */
 export function sourceDraftFrom(source: CheckInSource, catalog: Catalog | null): SourceDraft {
   const ref = sourceRef(source);
   const values = isRecord(source.with) ? source.with : {};
-  const draft: SourceDraft = { ...blankSourceDraft(), id: source.id, ref };
+  const draft: SourceDraft = {
+    ...blankSourceDraft(),
+    id: source.id,
+    ref,
+    hasWith: isRecord(source.with),
+  };
   if (source.script) {
     for (const [key, value] of Object.entries(values)) {
       if (typeof value === "string") draft.pairs.push(sourceValuePair(key, value));
@@ -153,9 +166,42 @@ export function sourceDraftFrom(source: CheckInSource, catalog: Catalog | null):
     const field = fields.find(item => item.key === key);
     const shown = field ? fieldValue(field, value) : undefined;
     if (shown === undefined) draft.kept[key] = value;
-    else draft.params[key] = shown;
+    else {
+      draft.params[key] = shown;
+      draft.read[key] = Array.isArray(shown) ? [...shown] : shown;
+    }
   }
   return draft;
+}
+
+/** What a switch shows: its value, or the kind's default while the file leaves it out. */
+export function sourceSwitchOn(field: SourceParamField, value: SourceParamValue | undefined) {
+  return (typeof value === "boolean" ? value : field.default) === true;
+}
+
+function sameValue(a: SourceParamValue, b: SourceParamValue) {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((item, index) => item === b[index]);
+  }
+  return a === b;
+}
+
+/**
+ * A field's value for the file, or `undefined` to leave the key out. A value the file had and
+ * the operator didn't change saves as read, `false`, `""` and `[]` included. A key the file left
+ * out stays out until the operator sets it, except a required switch, which writes what it shows; a
+ * switch they touched is written even at its default. Clearing text or emptying a list removes it.
+ */
+function fieldWith(draft: SourceDraft, field: SourceParamField) {
+  const value = draft.params[field.key];
+  if (value === undefined) {
+    return field.required && field.type === "boolean" ? sourceSwitchOn(field, value) : undefined;
+  }
+  const read = draft.read[field.key];
+  if (read !== undefined && sameValue(value, read)) return value;
+  if (typeof value === "string") return value.trim() === "" ? undefined : value.trim();
+  if (Array.isArray(value) && value.length === 0) return undefined;
+  return value;
 }
 
 function draftWith(draft: SourceDraft, fields: readonly SourceParamField[]) {
@@ -166,15 +212,8 @@ function draftWith(draft: SourceDraft, fields: readonly SourceParamField[]) {
     }
   } else {
     for (const field of fields) {
-      const value = draft.params[field.key];
-      if (value === undefined || value === "" || (Array.isArray(value) && value.length === 0)) {
-        continue;
-      }
-      if (field.type === "boolean" && value === false && !(field.key in draft.kept)) {
-        // An untouched switch writes nothing, so the kind's own default applies.
-        continue;
-      }
-      values[field.key] = typeof value === "string" ? value.trim() : value;
+      const value = fieldWith(draft, field);
+      if (value !== undefined) values[field.key] = value;
     }
   }
   for (const [key, value] of Object.entries(draft.kept)) {
@@ -183,7 +222,7 @@ function draftWith(draft: SourceDraft, fields: readonly SourceParamField[]) {
   return values;
 }
 
-/** The `context.sources` entry the draft saves; `with` is left out when empty. */
+/** The `context.sources` entry the draft saves; an empty `with` only stays when the file had one. */
 export function sourceFromDraft(draft: SourceDraft, catalog: Catalog | null): CheckInSource {
   const fields = sourceParamFields(kindOf(catalog, draft.ref)?.params_schema);
   const values = draftWith(draft, fields);
@@ -194,7 +233,9 @@ export function sourceFromDraft(draft: SourceDraft, catalog: Catalog | null): Ch
   const entry: CheckInSource = { id: draft.id.trim() };
   if (type === "script") entry.script = name;
   else entry.kind = name;
-  if (Object.keys(values).length > 0) entry.with = values as CheckInSource["with"];
+  if (Object.keys(values).length > 0 || draft.hasWith) {
+    entry.with = values as CheckInSource["with"];
+  }
   return entry;
 }
 
@@ -208,9 +249,10 @@ function patternError(field: SourceParamField, value: string) {
 }
 
 function fieldError(field: SourceParamField, value: SourceParamValue | undefined) {
+  // A switch always shows a value, and the save writes it when the kind requires one.
+  if (field.type === "boolean") return undefined;
   const text = typeof value === "string" ? value.trim() : "";
-  const empty =
-    value === undefined || (text === "" && !Array.isArray(value) && typeof value !== "boolean");
+  const empty = value === undefined || (text === "" && !Array.isArray(value));
   if (field.required && (empty || (Array.isArray(value) && value.length === 0))) {
     return "Fill this in.";
   }

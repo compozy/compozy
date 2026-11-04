@@ -34,6 +34,7 @@ import {
   sourceDraftFrom,
   sourceFromDraft,
   sourceParamFields,
+  sourceSwitchOn,
   sourceValuePair,
   suggestSourceId,
   validateSourceDraft,
@@ -82,7 +83,11 @@ function ParamField({
     return (
       <Field orientation="horizontal">
         <FieldLabel htmlFor={id}>{field.label}</FieldLabel>
-        <Switch checked={value === true} id={id} onCheckedChange={checked => onChange(checked)} />
+        <Switch
+          checked={sourceSwitchOn(field, value)}
+          id={id}
+          onCheckedChange={checked => onChange(checked)}
+        />
       </Field>
     );
   }

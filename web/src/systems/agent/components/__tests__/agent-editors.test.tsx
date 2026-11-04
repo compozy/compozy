@@ -22,7 +22,17 @@ import { handlers, resetAgentMockState } from "../../mocks/handlers";
 import { agentInstanceFixture } from "../../mocks/instance-fixtures";
 import { seedAgentInstanceMock } from "../../mocks/instance-handlers";
 import { seedAgentMemoryMock } from "../../mocks/memory-handlers";
-import type { AgentHeartbeatPayload, AgentPayload, AgentSoulPayload } from "../../types";
+import {
+  sourceDraftFrom,
+  sourceFromDraft,
+  type SourceParamValue,
+} from "../../lib/agent-check-in-source-draft";
+import type {
+  AgentHeartbeatPayload,
+  AgentHeartbeatSourceCatalog,
+  AgentPayload,
+  AgentSoulPayload,
+} from "../../types";
 import { AgentCheckInsEditor } from "../agent-editors/agent-check-ins-editor";
 import { AgentMemoryEditor } from "../agent-editors/agent-memory-editor";
 import { AgentPermissionsEditor } from "../agent-editors/agent-permissions-editor";
@@ -805,6 +815,107 @@ describe("Check-ins", () => {
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(bodies).toHaveLength(2));
     expect(bodies[1]).not.toContain("new-issues");
+  });
+
+  const WATCH_KIND = {
+    kind: "x/watch",
+    extension: "x",
+    title: "Watch",
+    params_schema: {
+      type: "object",
+      required: ["strict"],
+      properties: {
+        repo: { type: "string" },
+        labels: { type: "array", items: { type: "string" } },
+        since: { type: "string", format: "duration" },
+        enabled: { type: "boolean", default: true },
+        drafts: { type: "boolean", default: true },
+        bots: { type: "boolean" },
+        strict: { type: "boolean", default: false },
+      },
+    },
+  };
+  const WATCH_CATALOG = {
+    kinds: [WATCH_KIND],
+  } as unknown as AgentHeartbeatSourceCatalog;
+
+  it.each([
+    ["an explicit false over a true default", { enabled: false, strict: false }],
+    ["an explicit true at its default", { enabled: true, strict: false }],
+    [
+      "empty text, an empty list and padded text",
+      { repo: "", labels: [], since: " 24h ", strict: true },
+    ],
+    [
+      "values outside the form",
+      { strict: false, repo: 7, labels: "bug", limit: 20, nested: { a: [1, null] }, on: null },
+    ],
+  ])("Should save %s back exactly as the file wrote it", (_name, values) => {
+    const source = { id: "watch", kind: "x/watch", with: values };
+    const saved = sourceFromDraft(sourceDraftFrom(source, WATCH_CATALOG), WATCH_CATALOG);
+    expect(saved).toEqual(source);
+  });
+
+  it("Should keep an empty with, and a script's values, exactly as written", () => {
+    const empty = { id: "issues", kind: "forge-github/issues", with: {} };
+    const script = { id: "deploys", script: "failed-deploys", with: { env: "", n: 2, ok: false } };
+    for (const source of [empty, script]) {
+      expect(sourceFromDraft(sourceDraftFrom(source, WATCH_CATALOG), WATCH_CATALOG)).toEqual(
+        source
+      );
+    }
+  });
+
+  it("Should write only the settings the operator changed into a file that left them out", () => {
+    const source = { id: "watch", kind: "x/watch", with: { repo: "a/b", strict: false } };
+    const draft = sourceDraftFrom(source, WATCH_CATALOG);
+    const save = (params: Record<string, SourceParamValue>) =>
+      sourceFromDraft({ ...draft, params: { ...draft.params, ...params } }, WATCH_CATALOG).with;
+
+    expect(save({})).toEqual({ repo: "a/b", strict: false });
+    // A switch turned off over a true default, or toggled back to its default, is written.
+    expect(save({ drafts: false, bots: false })).toEqual({
+      repo: "a/b",
+      strict: false,
+      drafts: false,
+      bots: false,
+    });
+    // Cleared text removes the key; new text is trimmed.
+    expect(save({ repo: "  ", since: " 1h " })).toEqual({ strict: false, since: "1h" });
+    // A required switch the file left out is written as it shows.
+    const bare = sourceDraftFrom({ id: "watch", kind: "x/watch" }, WATCH_CATALOG);
+    expect(sourceFromDraft(bare, WATCH_CATALOG).with).toEqual({ strict: false });
+  });
+
+  it("Should keep an explicit false through Edit and Save, and write a switch turned off", async () => {
+    serveHeartbeat(
+      sourcesPayload([{ id: "watch", kind: "x/watch", with: { repo: "a/b", enabled: false } }])
+    );
+    serveSourceCatalog({ kinds: [WATCH_KIND] });
+    seedCheckingInstance();
+    const bodies = captureHeartbeatWrites();
+    const user = userEvent.setup();
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+
+    await user.click(await screen.findByRole("button", { name: "More for Watch" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("switch", { name: "Enabled" })).not.toBeChecked();
+    expect(within(dialog).getByRole("switch", { name: "Drafts" })).toBeChecked();
+    await user.click(within(dialog).getByRole("switch", { name: "Drafts" }));
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toContain(
+      [
+        '      kind: "x/watch"',
+        "      with:",
+        '        repo: "a/b"',
+        "        enabled: false",
+        "        drafts: false",
+        "        strict: false",
+      ].join("\n")
+    );
   });
 
   it("Should approve the hash it showed, and read the script again when it changed", async () => {
