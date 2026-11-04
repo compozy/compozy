@@ -61,7 +61,12 @@ export type TryCheck =
       /** How each declared source's read went; empty when it declares none. */
       sources: readonly AgentInstanceSourceOutcome[];
     }
-  | { phase: "stopped"; sentence: string }
+  | {
+      phase: "stopped";
+      sentence: string;
+      /** A gated dry run still says how each source's read went, so a failed read isn't hidden. */
+      sources?: readonly AgentInstanceSourceOutcome[];
+    }
   | { phase: "sent"; sentence: string }
   | { phase: "unavailable" };
 
@@ -131,7 +136,7 @@ export function useTryCheck(ref: AgentInstanceRef | null) {
       const { gate, digest, sources } = await runAgentInstanceCheck(ref, true);
       put(
         gate && gate !== "would_run"
-          ? { phase: "stopped", sentence: checkInReason(gate) }
+          ? { phase: "stopped", sentence: checkInReason(gate), sources: sources ?? [] }
           : { phase: "result", digest: digest ?? [], sources: sources ?? [] }
       );
     } catch (error) {

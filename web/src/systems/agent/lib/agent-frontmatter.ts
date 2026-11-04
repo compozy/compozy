@@ -102,7 +102,8 @@ function parseBlock(lines: Line[], start: number, indent: number) {
 }
 
 function parseMap(lines: Line[], start: number, indent: number) {
-  const map: Record<string, FrontmatterValue> = {};
+  // No prototype: keys such as `constructor` or `__proto__` are ordinary settings here.
+  const map: Record<string, FrontmatterValue> = Object.create(null);
   let index = start;
   while (index < lines.length) {
     const line = lines[index]!;
@@ -110,7 +111,7 @@ function parseMap(lines: Line[], start: number, indent: number) {
     const match = line.indent === indent ? KEY.exec(line.text) : null;
     if (!match) throw new Unsupported();
     const key = match[1]!;
-    if (key in map) throw new Unsupported();
+    if (Object.hasOwn(map, key)) throw new Unsupported();
     index += 1;
     if (match[2] !== undefined && match[2] !== "") {
       map[key] = parseScalar(match[2]);
