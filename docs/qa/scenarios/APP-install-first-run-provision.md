@@ -58,3 +58,28 @@ scenario's healthy full-product end state and retained no canonical teardown evi
 leg remains blocked pending a fresh isolated re-walk. Evidence:
 docs/qa/reports/2026-09-03-appimage-static-runtime.md. The macOS leg is untouched by the packaging
 change and keeps its prior evidence.
+
+
+QA impact 2026-11-04 — #1257 (macOS command exposure):
+
+- From a desktop-only DMG install in the default home, reach the product, open a fresh
+  terminal, and run `command -v compozy` and `compozy --version`. Check that the link in
+  `/usr/local/bin` (or the already-on-PATH `~/.local/bin` fallback) targets the stable
+  `~/.compozy/bin/compozy`.
+- With an unwritable system directory, decline the first-run install offer. Confirm the
+  app remains usable; use **CompozyOS → Install compozy Command…** to retry, approve the
+  macOS administrator prompt, and verify from a fresh terminal.
+- Repeat with fish as the login shell and zsh as the interactive shell. Shell profiles
+  must remain unchanged. If the installer directories are absent from PATH, follow the
+  reported PATH instruction and retry; do not report success before terminal resolution.
+- Repeat with an existing Homebrew/npm/user `compozy` earlier on PATH and with a conflicting
+  file or dangling link at the destination. Verify it is left unchanged and reported.
+- Upgrade through the app with a running session. Confirm one healthy daemon, an unchanged
+  command link, and the upgraded version in a fresh terminal. Relaunch must not repeat the
+  first-run prompt. Custom `COMPOZY_HOME` labs and E2E builds must not automatically write
+  to host PATH directories.
+
+Focused filesystem/flow checks cover the install decision, idempotency, conflicts, explicit
+administrator consent and atomic runtime replacement. The signed DMG/menu/administrator
+prompt and live-daemon upgrade walks still require a packaged candidate in CI/release QA;
+the focused checks do not establish those results.

@@ -2,12 +2,26 @@ import { app, Menu, type MenuItemConstructorOptions } from "electron";
 
 import type { ProductWindow } from "./product-window";
 
-export function installApplicationMenu(product: () => ProductWindow | null): void {
+export function installApplicationMenu(
+  product: () => ProductWindow | null,
+  installCommandLineTool?: () => void
+): void {
   const template: MenuItemConstructorOptions[] = [];
   if (process.platform === "darwin") {
     template.push({
       label: app.name,
-      submenu: [{ role: "about" }, { type: "separator" }, { role: "hide" }, { role: "quit" }],
+      submenu: [
+        { role: "about" },
+        ...(installCommandLineTool
+          ? [
+              { type: "separator" } as const,
+              { label: "Install compozy Command…", click: installCommandLineTool },
+            ]
+          : []),
+        { type: "separator" },
+        { role: "hide" },
+        { role: "quit" },
+      ],
     });
   }
   template.push({ role: "editMenu" });

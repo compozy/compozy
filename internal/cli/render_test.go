@@ -280,6 +280,17 @@ func TestVersionCommandFormats(t *testing.T) {
 	if !strings.Contains(toonOut, "version{version,commit,build_date}:") {
 		t.Fatalf("version toon output = %q, want TOON object", toonOut)
 	}
+	t.Run("Should expose the same human version through the root flag", func(t *testing.T) {
+		t.Parallel()
+		output, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), "--version")
+		if err != nil {
+			t.Fatalf("version flag error = %v", err)
+		}
+		if output != humanOut {
+			t.Fatalf("version flag = %q, want %q", output, humanOut)
+		}
+	})
+
 }
 
 func newOutputTestCommand(t *testing.T, mode OutputFormat) (*cobra.Command, *bytes.Buffer) {
