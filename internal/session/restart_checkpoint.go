@@ -163,3 +163,24 @@ func (m *Manager) restartEventExists(ctx context.Context, id, turnID, eventType 
 	rows, err := m.Events(ctx, id, store.EventQuery{ID: restartEventID(turnID, eventType), Limit: 1})
 	return len(rows) > 0, err
 }
+
+func (m *Manager) restartTurnCanceled(ctx context.Context, id, turnID string) (bool, error) {
+	var before int64
+	for {
+		rows, err := m.Events(ctx, id, store.EventQuery{TurnID: turnID, Type: events.TranscriptMarkerCreated,
+			Limit: 100, BeforeSequence: before})
+		if err != nil || len(rows) == 0 {
+			return false, err
+		}
+		for _, row := range rows {
+			event, err := transcript.UnmarshalAgentEvent(row.Content)
+			if err != nil {
+				return false, err
+			}
+			if event.Title == transcript.MarkerPromptCancel {
+				return true, nil
+			}
+		}
+		before = rows[len(rows)-1].Sequence
+	}
+}

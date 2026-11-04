@@ -69,3 +69,9 @@ even while its asynchronous restart-skip checkpoint is pending. Hold the skip ap
 must return and the provider turn must quiesce before the append is released. Keep the canonical
 `TestResumeInterruptedSession/Should_not_continue_a_turn_the_user_canceled_during_shutdown`
 assertion unchanged; scoped checks run without local race instrumentation per host policy.
+
+Cancellation-marker query correction 2026-11-04: persisted cancellation markers use the
+`transcript.marker.created` event type; `transcript_marker.prompt_cancel` is the marker kind in
+the payload. Restart recovery pages the matching turn markers and checks that kind, so it
+rejects canceled work while the asynchronous skip write is pending. Slow cancellation and
+restart tests retain their original assertions.
