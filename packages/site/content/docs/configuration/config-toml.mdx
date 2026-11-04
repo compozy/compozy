@@ -53,6 +53,7 @@ CompozyOS archives them on load instead of failing; see
 | `[subagents]`                        | Size cap of the answer a subagent returns to its parent session.                       | `result_max_chars = 60000`                                                                            |
 | `[agents.soul]`                      | Optional `SOUL.md` parsing, body limits, and compact projection budget.                | enabled, 32 KiB body, 2 KiB compact projection                                                        |
 | `[agents.heartbeat]`                 | Optional `HEARTBEAT.md` policy bounds, wake cadence/limits, and health timing.         | enabled, 32 KiB body, 5 min/30 min intervals, 25 wakes per cycle, 168 h retention                     |
+| `[agents.overrides.<agent>]`         | Operator override of an agent's permission level and runtime; keeps its prompt.        | none                                                                                                  |
 | `[permissions]`                      | Default permission mode for tool risk and cross-workspace requests.                    | `mode = "approve-all"`                                                                                |
 | `[worktrees]`                        | Managed placement, per-run branch namespace, bootstrap, and Git discovery freshness.   | `$COMPOZY_HOME/worktrees`, `run/`, no copy/setup, 10m setup, 30s discovery                            |
 | `[tools]`                            | Tool registry lifecycle, hosted MCP enablement, and result budget defaults.            | enabled, hosted MCP enabled, 256 KiB result default                                                   |
@@ -1537,6 +1538,52 @@ these keys, and forbidden operational fields in `SOUL.md` are rejected. See
 Workspace overlay merges scalar fields predictably; setting any key zero-clamps to the validated
 positive value or fails with a typed validation error. Disabling at runtime does not clear stored
 snapshots; managed authoring keeps working so operators can repair a broken file.
+
+## `[agents.overrides.<agent>]`
+
+`[agents.overrides.<agent>]` changes the permission level, and optionally the provider, model,
+reasoning effort, or speed, of the effective agent definition named `<agent>` without copying its
+`AGENT.md`. The prompt body, appearance, tools, skills, MCP servers, and every other field keep
+tracking the source, so a bundled or extension agent still receives package updates.
+
+```toml
+[agents.overrides.orchestrator]
+permissions = "approve-all"
+# provider = "codex"
+# model = "gpt-5.5"
+# reasoning_effort = "high"
+# speed = "fast"
+```
+
+| Field              | Type   | Default | Valid values                                                        | Description                                                                                                                                         |
+| ------------------ | ------ | ------- | ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `permissions`      | string | unset   | `deny-all`, `approve-reads`, `approve-edits`, `auto`, `approve-all` | Replaces the definition's `permissions`. Counts as a level set on the definition, so an always-on instance runs at it.                              |
+| `provider`         | string | unset   | A configured provider name.                                         | Replaces the provider. A different provider also drops the definition's `command`, `model`, and `reasoning_effort` unless this table restates them. |
+| `model`            | string | unset   | A model the provider accepts.                                       | Replaces the model. A different model drops the definition's `reasoning_effort` unless this table sets one.                                         |
+| `reasoning_effort` | string | unset   | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra` | Replaces the reasoning effort.                                                                                                                      |
+| `speed`            | string | unset   | `normal`, `fast`                                                    | Replaces the speed.                                                                                                                                 |
+
+Precedence and scope:
+
+- The override applies to whichever definition wins for that name (workspace, global, extension,
+  or builtin); it is keyed by agent name, not by origin. Unset fields keep the definition's value.
+- Global, profile, and workspace `config.toml` layers merge per agent and per field, so a workspace
+  can change one field of a global override.
+- A session's runtime selection (provider, model, or effort chosen at prompt or start) and a
+  `[roles.<role>]` route still win over the override for the fields they set.
+- Agent reads keep the authored values and report the result in `effective_runtime`, with
+  `sources.<field> = "config_override"`. `compozy agent info <name>` prints the effective
+  permissions and their source.
+
+Authority: only the operator writes this table. Edit the file or run
+`compozy config set agents.overrides.<agent>.permissions <mode>` from your own shell. The native
+`compozy__config_set` and `compozy__config_unset` tools refuse it with `config_trust_root_forbidden`,
+and the CLI refuses it inside an agent session with `agent_override_operator_only`. Extension and
+marketplace packages cannot ship config, so they cannot raise their own level. Descendant sessions
+and delegations still narrow from the effective level as before; a delegation that asks for more
+fails with `permission_escalation_denied`. As with `AGENT.md`, a session that can write a
+`config.toml` file directly can change the level of the next start, so treat write access to those
+files as authority over the level.
 
 ## `[agents.heartbeat]`
 

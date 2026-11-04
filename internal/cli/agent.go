@@ -346,6 +346,7 @@ func renderAgentHuman(item *AgentRecord) string {
 		{Label: "Definition Digest", Value: stringOrDash(item.DefinitionDigest)},
 		{Label: toolOperatorToolsValue, Value: stringOrDash(strings.Join(item.Tools, ", "))},
 		{Label: installPermissionsValue, Value: stringOrDash(item.Permissions)},
+		{Label: "Effective permissions", Value: agentEffectivePermissionsLabel(item)},
 		{Label: "workspace_access", Value: stringOrDash(item.WorkspaceAccess)},
 	})
 
@@ -426,4 +427,16 @@ func agentSkillsLabel(skills *contract.CreateAgentSkillsConfig) string {
 		return ""
 	}
 	return strings.Join(skills.Disabled, ", ")
+}
+
+// agentEffectivePermissionsLabel shows the level a new session starts at and which layer set it.
+func agentEffectivePermissionsLabel(item *AgentRecord) string {
+	if item.EffectiveRuntime == nil || item.EffectiveRuntime.Permissions == "" {
+		return "-"
+	}
+	source := string(item.EffectiveRuntime.Sources.Permissions)
+	if source == "" {
+		return item.EffectiveRuntime.Permissions
+	}
+	return item.EffectiveRuntime.Permissions + " (" + source + ")"
 }

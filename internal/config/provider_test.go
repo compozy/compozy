@@ -1408,6 +1408,7 @@ func TestResolveAgentReasoningEffort(t *testing.T) {
 			Provider:        RuntimeValueSourceProjectDefault,
 			Model:           RuntimeValueSourceProviderDefault,
 			ReasoningEffort: RuntimeValueSourceModelDefault,
+			Permissions:     RuntimeValueSourceProjectDefault,
 		}
 		if got := resolved.RuntimeSources; got != wantSources {
 			t.Fatalf("ResolveAgent() RuntimeSources = %#v, want %#v", got, wantSources)
@@ -4009,6 +4010,143 @@ func TestReviewerModeTrustBoundary(t *testing.T) {
 		overlay.Providers["claude"].Apply(&p)
 		if p.ReviewerMode != "auto" {
 			t.Fatalf("reviewer=%q, want auto", p.ReviewerMode)
+		}
+	})
+}
+
+func TestResolveAgentAppliesOperatorOverride(t *testing.T) {
+	t.Parallel()
+
+	bundled := AgentDef{
+		Name:        "orchestrator",
+		Provider:    "claude",
+		Model:       "agent-model",
+		Permissions: string(PermissionModeAuto),
+		Appearance:  map[string]any{"icon": "compass"},
+		Prompt:      "packaged prompt",
+	}
+	loadWithOverrides := func(t *testing.T, global, workspace string) Config {
+		t.Helper()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, homePaths.ConfigFile, global)
+		workspaceRoot := t.TempDir()
+		if workspace != "" {
+			writeFile(t, filepath.Join(workspaceRoot, ".compozy", "config.toml"), workspace)
+		}
+		cfg, err := LoadForHome(homePaths, WithWorkspaceRoot(workspaceRoot), withoutDotEnv())
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		return cfg
+	}
+
+	t.Run("Should replace the level while the packaged prompt keeps tracking the source", func(t *testing.T) {
+		t.Parallel()
+		cfg := loadWithOverrides(t, "[agents.overrides.orchestrator]\npermissions = \"approve-all\"\n", "")
+		resolved, err := cfg.ResolveAgent(bundled)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.Permissions != string(PermissionModeApproveAll) || !resolved.PermissionsConfigured {
+			t.Fatalf("Permissions = %q configured=%v, want approve-all configured", resolved.Permissions,
+				resolved.PermissionsConfigured)
+		}
+		if resolved.Prompt != bundled.Prompt || resolved.Model != bundled.Model {
+			t.Fatalf("resolved prompt/model = %q/%q, want source values", resolved.Prompt, resolved.Model)
+		}
+		if got := resolved.RuntimeSources.Permissions; got != RuntimeValueSourceConfigOverride {
+			t.Fatalf("Permissions source = %q, want config_override", got)
+		}
+		if got := resolved.RuntimeSources.Model; got != RuntimeValueSourceAgent {
+			t.Fatalf("Model source = %q, want agent", got)
+		}
+		if bundled.Permissions != string(PermissionModeAuto) {
+			t.Fatalf("ResolveAgent() mutated the authored definition: %q", bundled.Permissions)
+		}
+	})
+
+	t.Run("Should merge a workspace layer per field over the global override", func(t *testing.T) {
+		t.Parallel()
+		cfg := loadWithOverrides(t,
+			"[agents.overrides.orchestrator]\npermissions = \"approve-all\"\nmodel = \"override-model\"\n",
+			"[agents.overrides.orchestrator]\npermissions = \"approve-reads\"\n",
+		)
+		resolved, err := cfg.ResolveAgent(bundled)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.Permissions != string(PermissionModeApproveReads) || resolved.Model != "override-model" {
+			t.Fatalf("resolved = %q/%q, want approve-reads/override-model", resolved.Permissions, resolved.Model)
+		}
+	})
+
+	t.Run("Should leave other agents and unset fields unchanged", func(t *testing.T) {
+		t.Parallel()
+		cfg := loadWithOverrides(t, "[agents.overrides.reviewer]\npermissions = \"approve-all\"\n", "")
+		resolved, err := cfg.ResolveAgent(bundled)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.Permissions != string(PermissionModeAuto) ||
+			resolved.RuntimeSources.Permissions != RuntimeValueSourceAgent {
+			t.Fatalf("resolved permissions = %q (%q), want authored auto", resolved.Permissions,
+				resolved.RuntimeSources.Permissions)
+		}
+	})
+
+	t.Run("Should let a session runtime selection outrank the override model", func(t *testing.T) {
+		t.Parallel()
+		cfg := loadWithOverrides(t,
+			"[agents.overrides.orchestrator]\npermissions = \"approve-all\"\nmodel = \"override-model\"\n", "")
+		resolved, err := cfg.ResolveSessionAgentWithRuntime(bundled, RuntimeOverrides{Model: "session-model"})
+		if err != nil {
+			t.Fatalf("ResolveSessionAgentWithRuntime() error = %v", err)
+		}
+		if resolved.Model != "session-model" || resolved.Permissions != string(PermissionModeApproveAll) {
+			t.Fatalf("resolved = %q/%q, want session-model/approve-all", resolved.Model, resolved.Permissions)
+		}
+		if resolved.RuntimeSources.Model == RuntimeValueSourceConfigOverride {
+			t.Fatal("Model source = config_override, want the session selection to own it")
+		}
+	})
+
+	t.Run("Should drop the authored model and command when the override changes provider", func(t *testing.T) {
+		t.Parallel()
+		cfg := loadWithOverrides(t, "[agents.overrides.orchestrator]\nprovider = \"codex\"\n", "")
+		agent := CloneAgentDef(bundled)
+		agent.Command = "claude-code-acp --custom"
+		resolved, err := cfg.ResolveAgent(agent)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if resolved.Provider != "codex" || resolved.Model == bundled.Model || resolved.Command == agent.Command {
+			t.Fatalf("resolved = %q/%q/%q, want codex runtime without claude fields", resolved.Provider,
+				resolved.Model, resolved.Command)
+		}
+		if resolved.RuntimeSources.Provider != RuntimeValueSourceConfigOverride {
+			t.Fatalf("Provider source = %q, want config_override", resolved.RuntimeSources.Provider)
+		}
+	})
+
+	t.Run("Should reject an invalid override level at load", func(t *testing.T) {
+		t.Parallel()
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := EnsureHomeLayout(homePaths); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, homePaths.ConfigFile, "[agents.overrides.orchestrator]\npermissions = \"root\"\n")
+		_, err = LoadForHome(homePaths, withoutDotEnv())
+		if err == nil || !strings.Contains(err.Error(), "agents.overrides.orchestrator.permissions") {
+			t.Fatalf("LoadForHome() error = %v, want override permissions validation", err)
 		}
 	})
 }

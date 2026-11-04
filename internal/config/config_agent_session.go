@@ -10,6 +10,9 @@ type AgentsConfig struct {
 	AlwaysOn  AlwaysOnConfig  `toml:"always_on"`
 	Soul      SoulConfig      `toml:"soul"`
 	Heartbeat HeartbeatConfig `toml:"heartbeat"`
+	// Overrides replaces selected runtime fields of an effective agent definition by name
+	// without forking its prompt. Operator-authored config only; see agent_overrides.go.
+	Overrides map[string]AgentOverride `toml:"overrides,omitempty"`
 }
 
 // SoulConfig controls optional SOUL.md parsing and projection limits.

@@ -107,6 +107,22 @@ deletes target the effective winner. Deleting the workspace winner can therefore
 definition immediately; the delete response reports that transition in `unshadowed_origin`. CompozyOS
 does not merge either definition before or after the delete.
 
+### Override a packaged agent without forking it
+
+To change only the permission level (or provider, model, reasoning effort, or speed) of a bundled,
+extension, or global agent, add an operator override to `config.toml` instead of copying its
+`AGENT.md`:
+
+```toml
+[agents.overrides.orchestrator]
+permissions = "approve-all"
+```
+
+The packaged prompt, appearance, and every field you did not override keep tracking the source,
+so package updates still apply. Only the operator writes this table; agent-authored writes fail.
+See [`[agents.overrides.<agent>]`](/docs/configuration/config-toml#agentsoverridesagent) for the
+fields, layer merge, and authority rules.
+
 ## Browse an agent fleet
 
 Use the catalog when a client needs a bounded fleet view instead of the complete
@@ -187,20 +203,20 @@ The HTTP lifecycle endpoints are `PUT /api/agents/:name`, `DELETE /api/agents/:n
 
 Session creation first resolves the agent name, then resolves the provider and runtime fields.
 
-| Value            | Resolution order                                                                                                                                                                                     | Failure mode                                                                                    |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Agent name       | explicit `--agent` or API `agent_name` -> `defaults.agent`                                                                                                                                           | `agent name is required`; run `compozy install` or set `defaults.agent`                         |
-| Provider         | `agent.provider` -> `defaults.provider`                                                                                                                                                              | `agent provider is required`; run `compozy install` or set `agent.provider`/`defaults.provider` |
-| Command          | `agent.command` -> provider `command`                                                                                                                                                                | `provider "<name>" command is required`                                                         |
-| Model            | session override -> `agent.model` -> `defaults.model` (provider from `defaults.provider` only) -> provider `models.default`                                                                          | Empty is allowed when the provider has no default.                                              |
-| Reasoning effort | session override -> `agent.reasoning_effort` -> `defaults.reasoning_effort` (provider from `defaults.provider`, model not agent-authored) -> curated model default -> empty provider/adapter default | Must be canonical and advertised by the active model before the first prompt.                   |
-| Speed            | prompt override -> durable session selection -> `agent.speed` -> `normal`                                                                                                                            | `fast` must be valid for the selected model and provider strategy.                              |
-| ACP options      | prompt override -> durable session selection -> `agent.acp_options`                                                                                                                                  | Each select or boolean value must be advertised for the selected model.                         |
-| Tools            | `agent.tools`                                                                                                                                                                                        | Must be exact canonical ToolIDs or namespace-prefix wildcards.                                  |
-| Toolsets         | `agent.toolsets`                                                                                                                                                                                     | Must be canonical ToolsetIDs.                                                                   |
-| Deny tools       | `agent.deny_tools`                                                                                                                                                                                   | Same grammar as `tools`; denies narrow later policy evaluation.                                 |
-| Permissions      | `agent.permissions` -> `[permissions].mode`                                                                                                                                                          | Must be one of the supported permission modes.                                                  |
-| Category path    | `agent.category_path`                                                                                                                                                                                | Display-only hierarchy surfaced by CLI/API/Web views; never affects runtime behavior.           |
+| Value            | Resolution order                                                                                                                                                                                                                                   | Failure mode                                                                                    |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Agent name       | explicit `--agent` or API `agent_name` -> `defaults.agent`                                                                                                                                                                                         | `agent name is required`; run `compozy install` or set `defaults.agent`                         |
+| Provider         | session provider -> `agents.overrides.<name>.provider` -> `agent.provider` -> `defaults.provider`                                                                                                                                                  | `agent provider is required`; run `compozy install` or set `agent.provider`/`defaults.provider` |
+| Command          | `agent.command` -> provider `command`                                                                                                                                                                                                              | `provider "<name>" command is required`                                                         |
+| Model            | session override -> `[roles.<role>].model` (role sessions) -> `agents.overrides.<name>.model` -> `agent.model` -> `defaults.model` (provider from `defaults.provider` only) -> provider `models.default`                                           | Empty is allowed when the provider has no default.                                              |
+| Reasoning effort | session override -> `agents.overrides.<name>.reasoning_effort` -> `agent.reasoning_effort` -> `defaults.reasoning_effort` (provider from `defaults.provider`, model not agent-authored) -> curated model default -> empty provider/adapter default | Must be canonical and advertised by the active model before the first prompt.                   |
+| Speed            | prompt override -> durable session selection -> `agents.overrides.<name>.speed` -> `agent.speed` -> `normal`                                                                                                                                       | `fast` must be valid for the selected model and provider strategy.                              |
+| ACP options      | prompt override -> durable session selection -> `agent.acp_options`                                                                                                                                                                                | Each select or boolean value must be advertised for the selected model.                         |
+| Tools            | `agent.tools`                                                                                                                                                                                                                                      | Must be exact canonical ToolIDs or namespace-prefix wildcards.                                  |
+| Toolsets         | `agent.toolsets`                                                                                                                                                                                                                                   | Must be canonical ToolsetIDs.                                                                   |
+| Deny tools       | `agent.deny_tools`                                                                                                                                                                                                                                 | Same grammar as `tools`; denies narrow later policy evaluation.                                 |
+| Permissions      | `agents.overrides.<name>.permissions` -> `agent.permissions` -> `[permissions].mode`                                                                                                                                                               | Must be one of the supported permission modes.                                                  |
+| Category path    | `agent.category_path`                                                                                                                                                                                                                              | Display-only hierarchy surfaced by CLI/API/Web views; never affects runtime behavior.           |
 
 The managed public `general` agent created by daemon boot and `compozy install` intentionally contains
 only `name: general` and a prompt. Its provider and model come from `~/.compozy/config.toml`, and it is

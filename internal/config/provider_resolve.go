@@ -80,8 +80,7 @@ func (c *Config) ResolveProvider(name string) (ProviderConfig, error) {
 	return resolved, nil
 }
 
-// ResolveAgent resolves a parsed agent definition against provider config and global defaults.
-func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
+func (c *Config) resolveAgentDefinition(agent AgentDef, applied agentOverrideFields) (ResolvedAgent, error) {
 	toolPolicyEnforced := len(agent.Tools) > 0 || len(agent.Toolsets) > 0
 	policy, dropped := toolspkg.DropRetiredToolReferences(toolspkg.ToolPolicy{
 		Tools: agent.Tools, Toolsets: agent.Toolsets, DenyTools: agent.DenyTools,
@@ -139,7 +138,9 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		Model:           modelSource,
 		ReasoningEffort: reasoningSource,
 		Speed:           speedSource,
+		Permissions:     permissionsSource(agent.Permissions),
 	}
+	applied.markOverrideSources(&resolved.RuntimeSources)
 	if err := applyProviderFullAccessPreference(&resolved, providerName, provider, permissions); err != nil {
 		return ResolvedAgent{}, err
 	}
@@ -430,18 +431,24 @@ func (c *Config) resolveSessionAgentRuntime(
 	agent AgentDef,
 	overrides RuntimeOverrides,
 ) (ResolvedAgent, error) {
+	agent, applied := c.applyAgentOverride(agent)
 	rawProviderOverride := strings.TrimSpace(overrides.Provider)
 	override := CanonicalProviderName(rawProviderOverride)
 	model := strings.TrimSpace(overrides.Model)
 	reasoningEffort := strings.TrimSpace(overrides.Reasoning)
 	if rawProviderOverride == "" && model == "" && reasoningEffort == "" {
-		return c.ResolveAgent(agent)
+		return c.resolveAgentDefinition(agent, applied)
 	}
 
 	effectiveProvider := CanonicalProviderName(agent.Provider)
 	if effectiveProvider == "" && c != nil {
 		effectiveProvider = CanonicalProviderName(c.Defaults.Provider)
 	}
+	// Session selections outrank the operator override for the fields they replace.
+	providerChanged := rawProviderOverride != "" && override != effectiveProvider
+	applied.provider = applied.provider && !providerChanged
+	applied.model = applied.model && model == "" && !providerChanged
+	applied.reasoningEffort = applied.reasoningEffort && reasoningEffort == "" && model == "" && !providerChanged
 	if rawProviderOverride == "" || override == effectiveProvider {
 		sessionAgent := agent
 		if model != "" {
@@ -453,7 +460,7 @@ func (c *Config) resolveSessionAgentRuntime(
 		if reasoningEffort != "" {
 			sessionAgent.ReasoningEffort = reasoningEffort
 		}
-		return c.ResolveAgent(sessionAgent)
+		return c.resolveAgentDefinition(sessionAgent, applied)
 	}
 
 	// A changed provider owns the complete provider-derived runtime. Clearing
@@ -472,7 +479,7 @@ func (c *Config) resolveSessionAgentRuntime(
 		sessionAgent.ReasoningEffort = reasoningEffort
 	}
 
-	resolved, err := c.ResolveAgent(sessionAgent)
+	resolved, err := c.resolveAgentDefinition(sessionAgent, applied)
 	if err != nil {
 		return ResolvedAgent{}, fmt.Errorf("resolve session agent with provider %q: %w", override, err)
 	}

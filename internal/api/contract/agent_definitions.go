@@ -71,6 +71,8 @@ const (
 	AgentRuntimeValueSourceProjectDefault  AgentRuntimeValueSource = "project_default"
 	AgentRuntimeValueSourceProviderDefault AgentRuntimeValueSource = "provider_default"
 	AgentRuntimeValueSourceModelDefault    AgentRuntimeValueSource = "model_default"
+	// AgentRuntimeValueSourceConfigOverride is an operator [agents.overrides.<name>] value.
+	AgentRuntimeValueSourceConfigOverride AgentRuntimeValueSource = "config_override"
 )
 
 // AgentEffectiveRuntimeSources reports provenance for effective agent runtime values.
@@ -79,6 +81,7 @@ type AgentEffectiveRuntimeSources struct {
 	Model           AgentRuntimeValueSource `json:"model,omitempty"`
 	ReasoningEffort AgentRuntimeValueSource `json:"reasoning_effort,omitempty"`
 	Speed           AgentRuntimeValueSource `json:"speed,omitempty"`
+	Permissions     AgentRuntimeValueSource `json:"permissions,omitempty"`
 }
 
 // AgentEffectiveRuntimePayload is the workspace-scoped runtime projection for
@@ -91,7 +94,9 @@ type AgentEffectiveRuntimePayload struct {
 	ReasoningEffort  ReasoningEffort                           `json:"reasoning_effort,omitempty"`
 	Speed            Speed                                     `json:"speed,omitempty"`
 	ACPOptions       []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
-	Sources          AgentEffectiveRuntimeSources              `json:"sources"`
+	// Permissions is the effective level after the operator override and [permissions].mode.
+	Permissions string                       `json:"permissions,omitempty"`
+	Sources     AgentEffectiveRuntimeSources `json:"sources"`
 }
 
 // AgentDefinitionShadowPayload reports one lower-precedence authored definition.

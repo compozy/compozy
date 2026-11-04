@@ -19,6 +19,7 @@
 - Host load management
 - Stdio MCP server processes
 - Session messaging
+- Agent overrides
 - Retired memory and compaction settings
 - Session attachments
 - Auto-title role
@@ -436,6 +437,16 @@ and enforce nothing: no session ends when they elapse. They stay readable and wr
 - `queue_promote_after` (default `2m`, 10s–24h; `0s` disables): a queued agent message or coalesced
   monitor wake waiting on a target in one turn this long is injected as steer when the provider supports injection and no
   operator input waits. A failed injection returns to after-turn queue delivery; it never interrupts.
+
+## Agent Overrides
+
+`[agents.overrides.<name>]` replaces `permissions`, `provider`, `model`, `reasoning_effort`, or `speed`
+of the effective agent named `<name>` without forking its AGENT.md. Unset fields and the prompt keep
+tracking the source. Global, profile, and workspace layers merge per agent and per field. A changed
+provider drops the definition's `command`, `model`, and `reasoning_effort`; a changed model drops its
+`reasoning_effort`, unless the table restates them. It is a trust root for native config tools
+(`config_trust_root_forbidden`), and `compozy config set` refuses it from an agent session
+(`agent_override_operator_only`); only the operator writes it. See `references/agent-definitions.md`.
 
 ## Retired Memory And Compaction Settings
 

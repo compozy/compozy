@@ -185,11 +185,14 @@ func TestRoleResolver(t *testing.T) {
 		for _, testCase := range []struct {
 			name          string
 			roleModel     string
+			overrideModel string
 			agentModel    string
 			providerModel string
 			want          string
 		}{
 			{name: "role model", roleModel: "role-model", agentModel: "agent-model", providerModel: "provider-model", want: "role-model"},
+			{name: "role model over the operator override", roleModel: "role-model", overrideModel: "override-model", agentModel: "agent-model", want: "role-model"},
+			{name: "operator override model", overrideModel: "override-model", agentModel: "agent-model", providerModel: "provider-model", want: "override-model"},
 			{name: "agent model", agentModel: "agent-model", providerModel: "provider-model", want: "agent-model"},
 			{name: "provider default", providerModel: "provider-model", want: "provider-model"},
 		} {
@@ -204,6 +207,11 @@ func TestRoleResolver(t *testing.T) {
 				}
 				cfg.Roles.Coordinator.Agent = "my-curator"
 				cfg.Roles.Coordinator.Model = testCase.roleModel
+				if testCase.overrideModel != "" {
+					cfg.Agents.Overrides = map[string]compozyconfig.AgentOverride{
+						"my-curator": {Model: testCase.overrideModel},
+					}
+				}
 				resolver := newRoleResolver(&cfg, nil, roleAgentResolverStub{
 					agents: map[string]compozyconfig.AgentDef{
 						"my-curator": {

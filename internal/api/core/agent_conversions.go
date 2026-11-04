@@ -136,11 +136,13 @@ func AgentPayloadFromEntryWithConfig(
 		ReasoningEffort: contract.ReasoningEffort(resolved.ReasoningEffort),
 		Speed:           resolved.SpeedValue(),
 		ACPOptions:      agentACPOptionsToContract(resolved.ACPOptionsValue()),
+		Permissions:     resolved.Permissions,
 		Sources: contract.AgentEffectiveRuntimeSources{
 			Provider:        contract.AgentRuntimeValueSource(resolved.RuntimeSources.Provider.String()),
 			Model:           contract.AgentRuntimeValueSource(resolved.RuntimeSources.Model.String()),
 			ReasoningEffort: contract.AgentRuntimeValueSource(resolved.RuntimeSources.ReasoningEffort.String()),
 			Speed:           contract.AgentRuntimeValueSource(resolved.RuntimeSources.Speed.String()),
+			Permissions:     contract.AgentRuntimeValueSource(resolved.RuntimeSources.Permissions.String()),
 		},
 	}
 	return payload

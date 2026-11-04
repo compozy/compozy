@@ -183,6 +183,7 @@ export type AgentDraftRuntime = {
 export type AgentEffectiveRuntimePayload = {
   acp_options?: Array<AgentACPOptionSelection>;
   model?: string;
+  permissions?: string;
   provider: string;
   reasoning_effort?: string;
   session_env?: {
@@ -195,6 +196,7 @@ export type AgentEffectiveRuntimePayload = {
 
 export type AgentEffectiveRuntimeSources = {
   model?: string;
+  permissions?: string;
   provider: string;
   reasoning_effort?: string;
   speed?: string;

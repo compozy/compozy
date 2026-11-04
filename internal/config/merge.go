@@ -48,9 +48,10 @@ type agentsOverlay struct {
 	AlwaysOn alwaysOnOverlay `toml:"always_on"`
 	// StaysOnAlias decodes the v0.5.0 [agents.stays_on] table. It is applied before AlwaysOn so
 	// per-key new values win within a layer. Removal: v0.5.2.
-	StaysOnAlias alwaysOnOverlay  `toml:"stays_on"`
-	Soul         soulOverlay      `toml:"soul"`
-	Heartbeat    heartbeatOverlay `toml:"heartbeat"`
+	StaysOnAlias alwaysOnOverlay                 `toml:"stays_on"`
+	Soul         soulOverlay                     `toml:"soul"`
+	Heartbeat    heartbeatOverlay                `toml:"heartbeat"`
+	Overrides    map[string]agentOverrideOverlay `toml:"overrides"`
 }
 
 type soulOverlay struct {

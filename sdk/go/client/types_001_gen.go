@@ -227,6 +227,7 @@ type AgentEffectiveRuntimePayload struct {
 	ReasoningEffort  Effort                                    `json:"reasoning_effort,omitempty"`
 	Speed            Speed                                     `json:"speed,omitempty"`
 	ACPOptions       []AgentACPOptionSelection                 `json:"acp_options,omitempty"`
+	Permissions      string                                    `json:"permissions,omitempty"`
 	Sources          AgentEffectiveRuntimeSources              `json:"sources"`
 }
 
@@ -236,6 +237,7 @@ type AgentEffectiveRuntimeSources struct {
 	Model           AgentRuntimeValueSource `json:"model,omitempty"`
 	ReasoningEffort AgentRuntimeValueSource `json:"reasoning_effort,omitempty"`
 	Speed           AgentRuntimeValueSource `json:"speed,omitempty"`
+	Permissions     AgentRuntimeValueSource `json:"permissions,omitempty"`
 }
 
 // AgentFallbackRoutePayload is a daemon API value.
