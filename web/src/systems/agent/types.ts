@@ -51,6 +51,8 @@ export type WakeAgentHeartbeatParams = OperationRequestBody<"wakeAgentHeartbeat"
 export type WakeAgentHeartbeatResponse = OperationResponse<"wakeAgentHeartbeat", 200>;
 /** The kinds and scripts an agent's check-ins can read, with the daemon's limits. */
 export type AgentHeartbeatSourceCatalog = OperationResponse<"getAgentHeartbeatSources", 200>;
+/** The script and hash an approval recorded. */
+export type AgentHeartbeatScriptApproval = OperationResponse<"approveAgentHeartbeatScript", 200>;
 /** One `context.sources` entry as HEARTBEAT.md declares it. */
 export type AgentHeartbeatSourceDecl = NonNullable<
   AgentHeartbeatPayload["frontmatter"]["context"]["sources"]

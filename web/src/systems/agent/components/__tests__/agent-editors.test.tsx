@@ -2,10 +2,11 @@
 // file can't be shown or a route doesn't answer yet; Permissions offers the five levels, marks Auto
 // unavailable from provider data, and saves exceptions and approval reach with the definition.
 // Owner: the agent-editors components, over HTTP; canonical suite for UT-077, UT-078, UT-083,
-// UT-058 (agent editor half) and UT-096.
+// UT-058 (agent editor half), UT-096 and the check-in source rows and Add source dialog
+// (UT-070 to UT-076).
 // HTTP is the mocked boundary; the router blocker has no router here, so it is stubbed.
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
@@ -426,7 +427,7 @@ describe("Check-ins", () => {
     });
   }
 
-  function serveSourceCatalog() {
+  function serveSourceCatalog(overrides: Record<string, unknown> = {}) {
     server.use(
       http.get("*/api/agents/:name/heartbeat/sources", () =>
         HttpResponse.json({
@@ -437,6 +438,7 @@ describe("Check-ins", () => {
             { kind: "forge-github/issues", extension: "forge-github", title: "New GitHub issues" },
           ],
           scripts: [],
+          ...overrides,
         })
       )
     );
@@ -588,6 +590,271 @@ describe("Check-ins", () => {
 
     await user.click(screen.getByRole("button", { name: "Run it for real" }));
     expect(await screen.findByText("A check is already running.")).toBeTruthy();
+  });
+
+  const ISSUES_KIND = {
+    kind: "forge-github/issues",
+    extension: "forge-github",
+    title: "New GitHub issues",
+    params_schema: {
+      type: "object",
+      properties: {
+        repo: { type: "string" },
+        labels: { type: "array", items: { type: "string" } },
+        backfill: { type: "string", format: "duration" },
+      },
+    },
+  };
+  const SCRIPT_SHA = "sha256:7f3a91c0d2b4e6f8a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5e2";
+
+  function captureHeartbeatWrites() {
+    const bodies: string[] = [];
+    server.use(
+      http.put("*/api/agents/:name/heartbeat", async ({ request }) => {
+        const { body } = (await request.json()) as { body: string };
+        bodies.push(body);
+        return HttpResponse.json({ heartbeat: sourcesPayload(SOURCES, "beat-2") });
+      })
+    );
+    return bodies;
+  }
+
+  function seedCheckingInstance() {
+    seedAgentInstanceMock([
+      agentInstanceFixture({ agent_name: agent.name, last_wake_at: new Date().toISOString() }),
+    ]);
+  }
+
+  async function pickReads(user: ReturnType<typeof userEvent.setup>, option: string) {
+    await user.click(await screen.findByRole("combobox", { name: "Reads" }));
+    await user.click(await screen.findByRole("option", { name: option }));
+  }
+
+  it("Should add a kind with its string, list and duration settings, checked before saving [UT-072]", async () => {
+    serveHeartbeat(sourcesPayload([]));
+    serveSourceCatalog({ kinds: [ISSUES_KIND] });
+    seedCheckingInstance();
+    const bodies = captureHeartbeatWrites();
+    const user = userEvent.setup();
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+
+    await user.click(await screen.findByRole("button", { name: "Add source" }));
+    const dialog = await screen.findByRole("dialog");
+    await pickReads(user, "New GitHub issues");
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("issues");
+    await user.type(within(dialog).getByLabelText("Repo"), "compozy/compozy");
+    await user.type(within(dialog).getByLabelText("Labels"), "bug{Enter}needs-triage{Enter}");
+    await user.type(within(dialog).getByLabelText("Backfill"), "soon");
+    await user.clear(within(dialog).getByLabelText("Name"));
+    await user.type(within(dialog).getByLabelText("Name"), "New Issues");
+    await user.click(within(dialog).getByRole("button", { name: "Add source" }));
+
+    expect(within(dialog).getByText("Use a length of time, like 30m or 24h.")).toBeTruthy();
+    expect(
+      within(dialog).getByText("Use lowercase letters, numbers and dashes, starting with a letter.")
+    ).toBeTruthy();
+    expect(bodies).toHaveLength(0);
+
+    await user.clear(within(dialog).getByLabelText("Backfill"));
+    await user.type(within(dialog).getByLabelText("Backfill"), "24h");
+    await user.clear(within(dialog).getByLabelText("Name"));
+    await user.type(within(dialog).getByLabelText("Name"), "new-issues");
+    await user.click(within(dialog).getByRole("button", { name: "Add source" }));
+
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toContain(
+      [
+        "  sources:",
+        '    - id: "new-issues"',
+        '      kind: "forge-github/issues"',
+        "      with:",
+        '        repo: "compozy/compozy"',
+        '        labels: ["bug","needs-triage"]',
+        '        backfill: "24h"',
+      ].join("\n")
+    );
+  });
+
+  it("Should hide Add at the catalog's limit, and offer it below the limit [UT-074]", async () => {
+    const declared = (count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        id: `source-${index + 1}`,
+        kind: "forge-github/issues",
+      }));
+    serveHeartbeat(sourcesPayload(declared(3)));
+    serveSourceCatalog({ limits: { max_per_agent: 3, max_items: 20 } });
+    seedCheckingInstance();
+    const first = renderEditor(<AgentCheckInsEditor {...props()} />);
+    expect(await screen.findAllByTestId("check-in-source-row")).toHaveLength(3);
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Add source" })).toBeNull());
+    first.unmount();
+
+    serveHeartbeat(sourcesPayload(declared(9)));
+    serveSourceCatalog({ limits: { max_per_agent: 16, max_items: 20 } });
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+    expect(await screen.findAllByTestId("check-in-source-row")).toHaveLength(9);
+    expect(await screen.findByRole("button", { name: "Add source" })).toBeTruthy();
+  });
+
+  it("Should add a script with text values it reads by name [UT-076]", async () => {
+    serveHeartbeat(sourcesPayload([]));
+    serveSourceCatalog({
+      kinds: [],
+      scripts: [
+        {
+          name: "failed-deploys",
+          executable: true,
+          sha256: SCRIPT_SHA,
+          approved: false,
+          approved_sha256: null,
+        },
+      ],
+    });
+    seedCheckingInstance();
+    const bodies = captureHeartbeatWrites();
+    const user = userEvent.setup();
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+
+    await user.click(await screen.findByRole("button", { name: "Add source" }));
+    const dialog = await screen.findByRole("dialog");
+    await pickReads(user, "failed-deploys");
+    await user.click(within(dialog).getByRole("button", { name: "Add a value" }));
+    await user.type(within(dialog).getByLabelText("Name 1"), "env");
+    await user.type(within(dialog).getByLabelText("Value 1"), "production");
+    await user.click(within(dialog).getByRole("button", { name: "Add source" }));
+
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toContain(
+      [
+        '    - id: "failed-deploys"',
+        '      script: "failed-deploys"',
+        "      with:",
+        '        env: "production"',
+      ].join("\n")
+    );
+  });
+
+  it("Should say why the dialog has nothing to offer, and hide scripts when they're off", async () => {
+    serveHeartbeat(sourcesPayload([]));
+    serveSourceCatalog({ kinds: [], scripts: [] });
+    seedCheckingInstance();
+    const user = userEvent.setup();
+    const view = renderEditor(<AgentCheckInsEditor {...props()} />);
+    await user.click(await screen.findByRole("button", { name: "Add source" }));
+    const empty = await screen.findByRole("dialog");
+    expect(empty).toHaveTextContent(
+      "No sources installed. Add a script to sources/ or install an extension."
+    );
+    expect(within(empty).getByRole("button", { name: "Add source" })).toBeDisabled();
+    view.unmount();
+
+    serveSourceCatalog({
+      kinds: [ISSUES_KIND],
+      scripts_enabled: false,
+      scripts: [
+        {
+          name: "failed-deploys",
+          executable: true,
+          sha256: SCRIPT_SHA,
+          approved: false,
+          approved_sha256: null,
+        },
+      ],
+    });
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+    await user.click(await screen.findByRole("button", { name: "Add source" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveTextContent(
+      "Scripts are turned off in your settings, so none are listed."
+    );
+    await user.click(await screen.findByRole("combobox", { name: "Reads" }));
+    expect(await screen.findByRole("option", { name: "New GitHub issues" })).toBeTruthy();
+    expect(screen.queryByRole("option", { name: "failed-deploys" })).toBeNull();
+  });
+
+  it("Should edit a source keeping what the form can't show, and remove one until saved", async () => {
+    serveHeartbeat(sourcesPayload());
+    serveSourceCatalog({ kinds: [ISSUES_KIND] });
+    seedCheckingInstance();
+    const bodies = captureHeartbeatWrites();
+    const user = userEvent.setup();
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+
+    await user.click(await screen.findByRole("button", { name: "More for failed-deploys" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Value 1")).toHaveValue("production");
+    expect(dialog).toHaveTextContent("Some of its settings can only be changed in the file.");
+    await user.clear(within(dialog).getByLabelText("Value 1"));
+    await user.type(within(dialog).getByLabelText("Value 1"), "staging");
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(bodies).toHaveLength(1));
+    expect(bodies[0]).toContain(
+      [
+        '      script: "failed-deploys"',
+        "      with:",
+        '        env: "staging"',
+        '        retry: {"max":3}',
+      ].join("\n")
+    );
+
+    await user.click(await screen.findByRole("button", { name: "More for New GitHub issues" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
+    await waitFor(() => expect(screen.getAllByTestId("check-in-source-row")).toHaveLength(1));
+    expect(bodies).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(bodies).toHaveLength(2));
+    expect(bodies[1]).not.toContain("new-issues");
+  });
+
+  it("Should approve the hash it showed, and read the script again when it changed", async () => {
+    serveHeartbeat(sourcesPayload([{ id: "deploys", script: "failed-deploys" }]));
+    let catalogReads = 0;
+    server.use(
+      http.get("*/api/agents/:name/heartbeat/sources", () => {
+        catalogReads += 1;
+        return HttpResponse.json({
+          agent: agent.name,
+          scripts_enabled: true,
+          limits: { max_per_agent: 16, max_items: 20 },
+          kinds: [],
+          scripts: [
+            {
+              name: "failed-deploys",
+              executable: true,
+              sha256: SCRIPT_SHA,
+              approved: false,
+              approved_sha256: null,
+            },
+          ],
+        });
+      })
+    );
+    seedAgentInstanceMock([
+      agentInstanceFixture({
+        agent_name: agent.name,
+        last_wake_at: new Date().toISOString(),
+        sources: [{ id: "deploys", status: "unapproved", failure_streak: 0, last_item_count: 0 }],
+      }),
+    ]);
+    const approvals: string[] = [];
+    server.use(
+      http.post("*/api/agents/:name/heartbeat/scripts/:script/approve", async ({ request }) => {
+        approvals.push(((await request.json()) as { sha256: string }).sha256);
+        return HttpResponse.json(
+          { error: "script contents changed", code: "source_script_changed" },
+          { status: 409 }
+        );
+      })
+    );
+    const user = userEvent.setup();
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+
+    const row = await screen.findByTestId("check-in-source-row");
+    await waitFor(() => expect(row).toHaveTextContent("Waiting for your approval · 7f3a91c0"));
+    await user.click(within(row).getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(approvals).toEqual([SCRIPT_SHA]));
+    await waitFor(() => expect(catalogReads).toBe(2));
   });
 
   it("Should open a custom schedule in Advanced only", async () => {

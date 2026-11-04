@@ -103,6 +103,11 @@ function extensionOf(kind: string | undefined) {
   return kind?.split("/")[0] || "";
 }
 
+/** The first 8 hex digits of a `sha256:<hex>` hash. */
+export function shortHash(hash: string) {
+  return hash.replace(/^sha256:/, "").slice(0, 8);
+}
+
 /** One shared reading for a source's stored status and a dry run's outcome. */
 function statusView(
   status: string,
@@ -121,7 +126,7 @@ function statusView(
     case "unapproved":
       return {
         label: hash
-          ? `Waiting for your approval · ${hash.slice(0, 8)}`
+          ? `Waiting for your approval · ${shortHash(hash)}`
           : "Waiting for your approval",
         tone: "warning",
         code: error?.code,
@@ -141,15 +146,20 @@ function statusView(
 
 /**
  * The source's row status; a source the daemon hasn't read yet is "Not checked yet", never OK.
- * `hash` is the script's current sha256, shown short while it waits for approval.
+ * `script` is the catalog's read of a script source: its current sha256, shown short while it
+ * waits for approval, and whether those bytes are approved since the last check.
  */
 export function checkInSourceStatus(
   source: Pick<CheckInSource, "kind" | "script">,
   state: AgentInstanceSourceStatus | undefined,
   now: number,
-  hash?: string
+  script?: { sha256: string; approved: boolean }
 ): SourceStatusView {
   if (!state) return { label: "Not checked yet", tone: "muted" };
+  if (state.status === "unapproved" && script?.approved) {
+    return { label: "Approved · runs at the next check-in", tone: "muted" };
+  }
+  const hash = script?.sha256;
   const ok = () => {
     const checked = checkedAgo(state.last_success_at || state.last_polled_at, now);
     return state.last_item_count > 0 ? `${checked} · ${state.last_item_count} new` : checked;
