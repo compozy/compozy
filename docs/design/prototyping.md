@@ -46,6 +46,20 @@ Compiler, Tailwind, `@` alias). The first render after a cold start waits for Vi
 optimizer. `bun run proto build` writes a static, read-only gallery to `web/dist-proto/`; the SPA
 build in `web/dist` never includes prototype or gallery code. Prototypes never talk to a daemon.
 
+## Component stories
+
+The Components area (`/?components`) hosts the existing Web and shared UI stories. The `web`
+root uses `web/vite.presentation.ts` and its Storybook preview; the `ui` root uses
+`packages/ui/vite.stories.ts`, its own preview, and an Emojibase static mount. Each root requires
+Storybook and `@storybook/react-vite` at `~10.6` in its package directory. Storybook module mocks
+(`sb.mock`) are inert in proto; the explicit marketplace logo-generator failure depends on one.
+
+Run `bun run proto stories list --json` to inspect the index and
+`bun run proto stories run --root web --theme dark --json` to render it and execute interactions.
+Repeat with `--root ui` and `--theme light` for the other root and theme. The default runner uses
+six concurrent stories and a 30-second deadline per story. Reports name each failure's stage
+(`import`, `load`, `render`, or `play`). Existing prototypes and flows retain their URLs.
+
 ## Two kinds of prototype
 
 - **Component prototypes** live beside the view they render, as

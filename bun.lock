@@ -269,7 +269,7 @@
         "zod": "4.6.7",
       },
       "devDependencies": {
-        "@compozy/proto": "0.1.1",
+        "@compozy/proto": "0.1.5",
         "@modelcontextprotocol/sdk": "1.32.2",
         "@playwright/test": "1.64.1",
         "@rolldown/plugin-babel": "0.2.4",
@@ -477,7 +477,7 @@
 
     "@compozy/lint-plugins": ["@compozy/lint-plugins@workspace:lint-plugins"],
 
-    "@compozy/proto": ["@compozy/proto@0.1.1", "", { "dependencies": { "citty": "0.2.2", "tldts": "7.4.19", "typescript": "6.0.3", "zod": "4.6.7" }, "peerDependencies": { "@modelcontextprotocol/sdk": "^1.32.2", "playwright": "^1.64.0", "postgres": "^3.4.0", "react": "^19.2.0", "react-dom": "^19.2.0", "vite": "^8" }, "optionalPeers": ["@modelcontextprotocol/sdk", "playwright", "postgres"], "bin": { "proto": "src/cli/main.js" } }, "sha512-BYe4b59p3WdUg78DVMip5Dc3vkz8131uP/yal4s5rECn0o/dmAwBNObzhqDGnnKM98xyluueEN1Xqj6MecSFoQ=="],
+    "@compozy/proto": ["@compozy/proto@0.1.5", "", { "dependencies": { "citty": "0.2.2", "tldts": "7.4.19", "typescript": "6.0.3", "zod": "4.6.7" }, "peerDependencies": { "@modelcontextprotocol/sdk": "^1.32.2", "@storybook/react-vite": "~10.6.0", "playwright": "^1.64.0", "postgres": "^3.4.0", "react": "^19.2.0", "react-dom": "^19.2.0", "storybook": "~10.6.0", "vite": "^8" }, "optionalPeers": ["@modelcontextprotocol/sdk", "@storybook/react-vite", "playwright", "postgres", "storybook"], "bin": { "proto": "src/cli/main.js" } }, "sha512-ii5fEDrMQMvXUN0n03ZLBxuO0j6x2I7TMhLMiBwACPGVvIuj6Gi1IEpCUVgSui5yHaZfAAWlupab+Qn/Oym5ZQ=="],
 
     "@compozy/site": ["@compozy/site@workspace:packages/site"],
 
