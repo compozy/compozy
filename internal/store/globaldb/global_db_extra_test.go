@@ -467,6 +467,33 @@ func TestListEventSummariesPreservesHarnessFiltersAndRecentOrdering(t *testing.T
 		aggregate[0].ProfileColor != "#5FBF85" {
 		t.Fatalf("ListEventSummaries(aggregate) = %+v, want owner-labeled foreign event", aggregate)
 	}
+
+	// Invariant: recent profile/error scans satisfy timestamp and sequence ordering
+	// without sorting retained history or scanning unrelated outcomes.
+	// Owner: telemetry indexes. Canonical suite: recent Observe reads above.
+	for _, tc := range []struct {
+		name  string
+		where string
+		index string
+		args  []any
+	}{
+		{
+			name: "profile", where: "profile_id = ?", index: "idx_summaries_profile_timestamp",
+			args: []any{store.DefaultProfileID},
+		},
+		{
+			name: "errors", where: "outcome IN ('failure', 'warning')", index: "idx_summaries_failures_timestamp",
+		},
+	} {
+		t.Run("Should read recent "+tc.name+" through an ordered index", func(t *testing.T) {
+			plan := explainQueryPlan(t, globalDB.telemetry.DB(),
+				"SELECT seq, id FROM event_summaries WHERE "+tc.where+" ORDER BY timestamp DESC, seq DESC LIMIT 100",
+				tc.args...)
+			if !strings.Contains(plan, tc.index) || strings.Contains(plan, "TEMP B-TREE") {
+				t.Fatalf("recent %s plan = %s, want ordered filtered scan", tc.name, plan)
+			}
+		})
+	}
 }
 
 func TestGlobalDBWorkspaceHelperUtilities(t *testing.T) {

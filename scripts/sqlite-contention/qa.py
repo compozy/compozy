@@ -86,7 +86,12 @@ def main():
     finally:
         torn_down = subprocess.run(shlex.split(env["TEARDOWN_COMMAND"]), cwd=repo)
         result = result or torn_down.returncode
-        teardown = json.loads((qa / "teardown.json").read_text())
+        try:
+            teardown = json.loads((qa / "teardown.json").read_text())
+        except (OSError, ValueError):
+            teardown = {"clean": False}
+        if not isinstance(teardown, dict):
+            teardown = {"clean": False}
         if not teardown.get("clean"):
             result = result or 1
         # Receipts stay in the lab; the workflow uploads only these files, never databases or homes.

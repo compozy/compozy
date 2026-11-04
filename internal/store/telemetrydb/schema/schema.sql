@@ -35,7 +35,7 @@ CREATE TABLE event_summaries (
 CREATE INDEX idx_summaries_actor ON event_summaries(actor_kind, actor_id);
 
 
-CREATE INDEX idx_summaries_failures_timestamp ON event_summaries(timestamp DESC) WHERE outcome IN ('failure', 'warning');
+CREATE INDEX idx_summaries_failures_timestamp ON event_summaries(timestamp DESC, seq DESC) WHERE outcome IN ('failure', 'warning');
 
 
 CREATE INDEX idx_summaries_provider_timestamp ON event_summaries(provider, timestamp DESC);
@@ -56,5 +56,5 @@ CREATE INDEX idx_summaries_workspace ON event_summaries(workspace_id);
 
 CREATE INDEX idx_summaries_worktree ON event_summaries(worktree_id);
 
-CREATE INDEX idx_summaries_profile_timestamp ON event_summaries(profile_id, timestamp DESC);
+CREATE INDEX idx_summaries_profile_timestamp ON event_summaries(profile_id, timestamp DESC, seq DESC);
 CREATE INDEX idx_summaries_profile_sequence ON event_summaries(profile_id, seq);

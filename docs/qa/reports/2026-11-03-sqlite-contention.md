@@ -111,8 +111,17 @@ and `queries/observe*.sql`.
 - Avoid a redundant workspace/sequence index: the existing workspace index already orders its
   entries by the integer primary-key sequence. The final telemetry schema has 12 declared indexes
   plus unique ID, compared with the previous 14 plus unique ID.
-- This is a source-based audit, not a measured production query-plan or index-size comparison.
-  The release follow-up must measure selectivity, page count and p99 on representative retained data.
+- The 830,020-row paired fixture measures 1,069,608,960 bytes of table/index pages before relocation
+  and 1,050,152,960 afterward; the table itself remains 681,644,032 bytes. Removing unused indexes
+  is partly offset by the two profile indexes. The full outcome index uses 44,470,272 bytes before
+  replacement, versus 3,756,032 for the partial index. These are synthetic retained-data measurements,
+  not operator-database measurements.
+- The measured query plans exposed a remaining defect: `ErrorOnly` still scanned the full timestamp
+  index, and profile-recent reads needed a temporary sort for sequence ties. Telemetry migration 4
+  adds explicit descending `seq` to both recent indexes, matching the real timestamp/sequence order.
+  The canonical Observe suite now rejects the full-history outcome scan and either temporary sort.
+  The next paired run must report the resulting retained-data plans and page counts. Exact outcome,
+  provider, session, task and run plans remain separately reported; no unmeasured improvement is claimed.
 
 ## Writer ownership inventory
 
@@ -196,13 +205,14 @@ build, unit and E2E delivery evidence belongs to CI on the PR head.
 
 ## Required work still in progress
 
-The following acceptance items remain unverified and are not implied by the focused tests:
+The following acceptance items remain open and are not implied by the focused tests:
 
 1. Same-machine before/after load with approximately 30 streaming sessions: p99 transcript/catalog
    latency, transactions/sec, core bytes/minute, zero interactive failures and no holds over one second.
-2. A production-sized (~1 GB) upgrade, representative index page counts/query plans and startup time.
-3. An isolated real-daemon multi-session QA lab and the SQLite contention acceptance walk in
-   `MS-daemon-host-load-governance`. No operator provider credentials or runtime home were reused.
+2. Re-measure the corrected index ordering on the production-sized fixture. The completed 1 GiB
+   upgrade already preserves every column and the retired cursor, with integrity and Observe parity.
+3. Keep the isolated real-daemon walk green on the final head. Its first complete run passed on
+   `c6037e2a3`, as detailed below; no operator credentials or runtime home were reused.
 4. Measure the remaining large atomic catalog/process operations under the representative load;
    routing coverage is implemented but does not by itself prove the latency target.
 5. Final-head CI plus two CodeRabbit reviews, followed by merge-train handoff; this agent does not merge.
@@ -222,14 +232,14 @@ main's Always-on upgrade suite 8.306 s; focused globaldb/ACP lint zero issues. O
 generation completed. All main migration bytes and checksum entries through version 186 match
 origin/main. The relocation tail is now 187–190, with export at 188 and completion at 189.
 
-### Dedicated acceptance lanes (pending execution)
+### Dedicated acceptance lanes
 
 `scripts/sqlite-contention/` and the `SQLite contention acceptance` workflow own the paired
 baseline/head experiment. The identical Go workload runs against both commits on one Linux
 runner, with sequential alternating trials. It records actual successful write-syscall bytes
 separately from untraced latency; all-column upgrade hashes, Observe results, retired cursors,
-index page counts/plans and startup times accompany the report. No numerical result is claimed
-until the artifacts are inspected. Harness compilation, focused lint and a bounded trace-parser
+index page counts/plans and startup times accompany the report. The failed experiments and their
+numerical results are recorded below. Harness compilation, focused lint and a bounded trace-parser
 check passed locally; no representative load ran on the shared host.
 
 The separate daemon lane uses the existing runtime harness and an `eng-qa-bootstrap` targeted
@@ -381,3 +391,27 @@ selector is now scoped to the existing page-content boundary, and both the windo
 content heading are asserted for Heartbeat and Instructions. No count/visibility assertion is
 relaxed; browser execution remains CI-owned. The runtime E2E lane and Web shards 2/4 and 4/4
 passed on `d36eb473f`; this is historical, not final-head acceptance.
+
+### Real-daemon acceptance: passed on c6037e2a3
+
+[Daemon job 126332046503](https://github.com/compozy/compozy/actions/runs/41755973452/job/126332046503)
+completed all thirty overlapping ACP streams through the public daemon transports. All thirty
+transcripts and the accepted health observations survived a clean restart. The full daemon logs
+contained none of the targeted contention/long-hold failures. The strict API/CLI/runtime evidence
+audit passed with zero blockers and warnings, and manifest teardown reported `clean: true` with
+no survivors. Artifact `13288347365` retains the receipts.
+
+| Public operation during streaming | Successful requests | p99 | Maximum |
+| --- | ---: | ---: | ---: |
+| Transcript | 3,000 | 110.885 ms | 171.194 ms |
+| Session catalog | 199 | 94.757 ms | 110.965 ms |
+| Session rename | 40 | 116.965 ms | 257.857 ms |
+
+This verifies the real daemon/storage/transport path with a scripted ACP peer, not live-provider
+authentication or browser rendering. The separate large-retained-data experiment still owns the
+before/after performance criterion and remains open.
+
+The measured index-plan repair passed the canonical recent Observe suite (0.274 s), telemetry
+fresh/reopen/ahead/schema-equivalence suite (0.034 s), and focused globaldb lint (zero issues).
+The owning generators appended telemetry migration 4; every previous migration/checksum remains
+unchanged. Its large-fixture page counts and query plans will be re-measured in CI.
