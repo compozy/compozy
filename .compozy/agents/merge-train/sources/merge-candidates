@@ -95,10 +95,11 @@ def main():
     # Parallel GETs keep a large batch of open PRs inside the 30s source timeout.
     with ThreadPoolExecutor(max_workers=8) as pool:
         rounds = list(pool.map(coderabbit_rounds, pulls))
-        # Keyed by head SHA with no cursor, so no state and no `more`: the oldest
-        # max_items candidates are reported (merge order) and the rest surface
-        # once those merge.
-        candidates = [(pr, n) for pr, n in zip(pulls, rounds) if n >= min_rounds][:max_items]
+        # The oldest max_items candidates are reported (merge order). Keyed by
+        # head SHA with no cursor, so no state; when more qualify, `more` puts a
+        # "more items remain" entry in the digest and the model scans the rest.
+        qualifying = [(pr, n) for pr, n in zip(pulls, rounds) if n >= min_rounds]
+        candidates = qualifying[:max_items]
         details = list(pool.map(lambda c: gh_one(f"repos/{repo}/pulls/{c[0]['number']}"), candidates))
         publishing = release_publishing(repo) if candidates else False
 
@@ -125,7 +126,10 @@ def main():
             }
         )
 
-    json.dump({"items": items}, sys.stdout)
+    result = {"items": items}
+    if len(qualifying) > len(candidates):
+        result["more"] = True
+    json.dump(result, sys.stdout)
     sys.stdout.write("\n")
 
 
