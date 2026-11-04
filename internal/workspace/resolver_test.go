@@ -27,11 +27,19 @@ func TestResolveErrorLogging(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var logs strings.Builder
-			r := newTestResolver(t, &mockWorkspaceStore{}, WithLogger(slog.New(slog.NewTextHandler(&logs, nil))))
+			r := newTestResolver(
+				t,
+				&mockWorkspaceStore{},
+				WithLogger(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))),
+			)
 			id, hit, resolved := "ws-test", false, ResolvedWorkspace{}
 			r.observeResolve(r.now(), &id, &hit, &resolved, &tc.err)
-			if got := strings.Contains(logs.String(), "workspace.resolve.error"); got != tc.warn {
-				t.Fatalf("warning present = %t, want %t: %s", got, tc.warn, logs.String())
+			level := "level=DEBUG"
+			if tc.warn {
+				level = "level=WARN"
+			}
+			if !strings.Contains(logs.String(), "workspace.resolve.error") || !strings.Contains(logs.String(), level) {
+				t.Fatalf("expected resolution error at %s: %s", level, logs.String())
 			}
 		})
 	}

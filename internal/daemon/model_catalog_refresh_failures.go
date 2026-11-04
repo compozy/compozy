@@ -19,7 +19,10 @@ type modelCatalogFailureCauses struct {
 }
 
 func modelCatalogFailureScope(opts modelcatalog.RefreshOptions) string {
-	return strings.TrimSpace(opts.ProviderID) + "\x00" + strings.TrimSpace(opts.SourceID)
+	return strings.Join([]string{
+		catalogExecutionScopeKey(opts.ExecutionContext),
+		strings.TrimSpace(opts.ProviderID), strings.TrimSpace(opts.SourceID),
+	}, "\x00")
 }
 
 // record stores cause for scope and reports whether it differs from the last one.

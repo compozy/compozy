@@ -2042,6 +2042,17 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if got := strings.Count(logs.String(), "level=WARN"); got != 3 {
 			t.Fatalf("WARN lines after recovery = %d, want 3:\n%s", got, logs.String())
 		}
+		opts.ExecutionContext = modelcatalog.CatalogExecutionContext{
+			Scope:       modelcatalog.ExecutionScopeWorkspace,
+			ProfileID:   "profile-b",
+			WorkspaceID: "workspace-b",
+		}
+		runtime.logRefreshFailure(opts, errors.New("HTTP 503"))
+		runtime.logRefreshFailure(opts, errors.New("HTTP 503"))
+		if got := strings.Count(logs.String(), "level=WARN"); got != 4 {
+			t.Fatalf("WARN lines after a different context = %d, want 4: %s", got, logs.String())
+		}
+
 	})
 
 	t.Run("Should return shutdown deadline when refresh worker does not stop in time", func(t *testing.T) {

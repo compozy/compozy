@@ -3226,6 +3226,65 @@ func waitForManagerCondition(t *testing.T, timeout time.Duration, fn func() bool
 
 func TestManagerReusesUnchangedSkillParses(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reject escaping sidecars before loading a skill", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeCachedSkills(t, root, "alpha")
+		file := cachedSkillFile(t, root, "alpha")
+		outside := filepath.Join(t.TempDir(), "outside.json")
+		writeFile(t, outside, `{}`)
+		if err := os.Symlink(outside, filepath.Join(filepath.Dir(file), "mcp.json")); err != nil {
+			t.Fatal(err)
+		}
+		manager := NewManager(nil)
+		_, err := manager.cachedSkillResource(
+			file,
+			skillspkg.SourceUser,
+			func(string, skillspkg.SkillSource) (*skillspkg.Skill, error) {
+				t.Fatal("escaped sidecar reached loader")
+				return nil, nil
+			},
+		)
+		if err == nil || !strings.Contains(err.Error(), "escapes") {
+			t.Fatalf("cache error = %v", err)
+		}
+	})
+
+	t.Run("Should release deleted and renamed parses when another skill fails loading", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		writeCachedSkills(t, root, "alpha", "beta", "gamma")
+		manager := NewManager(nil)
+		ext := cachedSkillExtension(GlobalInstanceKey("ext-cache"), root, "skills")
+		loadCachedSkills(t, manager, ext)
+		removed, renamed, broken := cachedSkillFile(
+			t,
+			root,
+			"alpha",
+		), cachedSkillFile(
+			t,
+			root,
+			"beta",
+		), cachedSkillFile(
+			t,
+			root,
+			"gamma",
+		)
+		if err := os.Remove(removed); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Rename(renamed, renamed+".old"); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, broken, "---\ninvalid: [\n---\n")
+		if _, err := manager.loadSkillResources(ext); err == nil {
+			t.Fatal("expected malformed skill failure")
+		}
+		if got := cachedSkillFiles(manager); !slices.Equal(got, []string{broken}) {
+			t.Fatalf("cached files = %v, want only existing skill", got)
+		}
+	})
+
 	t.Run("Should reuse skill parses across projections and observe file and sidecar edits", func(t *testing.T) {
 		t.Parallel()
 		root := t.TempDir()

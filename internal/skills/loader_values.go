@@ -160,7 +160,30 @@ func warnCompozyMetadata(skill *Skill, message string, args ...any) {
 	slog.Warn(message, attrs...)
 }
 
-var unknownFieldWarnings sync.Map
+// Warning deduplication retains at most 1024 path/field pairs across transient loaders.
+type unknownFieldWarningCache struct {
+	sync.Mutex
+	seen map[struct{ path, field string }]struct{}
+}
+
+var unknownFieldWarnings unknownFieldWarningCache
+
+func (c *unknownFieldWarningCache) first(path, field string) bool {
+	c.Lock()
+	defer c.Unlock()
+	key := struct{ path, field string }{path, field}
+	if _, seen := c.seen[key]; seen {
+		return false
+	}
+	if len(c.seen) >= 1024 {
+		clear(c.seen)
+	}
+	if c.seen == nil {
+		c.seen = make(map[struct{ path, field string }]struct{})
+	}
+	c.seen[key] = struct{}{}
+	return true
+}
 
 func warnUnknownFields(document *yaml.Node, paths ...string) {
 	if document == nil || len(document.Content) == 0 {
@@ -182,7 +205,7 @@ func warnUnknownFields(document *yaml.Node, paths ...string) {
 		if len(paths) > 0 {
 			path = paths[0]
 		}
-		if _, loaded := unknownFieldWarnings.LoadOrStore(struct{ path, field string }{path, key}, struct{}{}); loaded {
+		if !unknownFieldWarnings.first(path, key) {
 			continue
 		}
 		slog.Warn("skills: unknown frontmatter field", "path", path, "field", key)

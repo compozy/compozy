@@ -979,56 +979,78 @@ func TestAgentSkillSourceSyncerReplacesCanonicalSnapshot(t *testing.T) {
 func TestAgentSkillSourceSyncerIsolatesExtensionProjectionFailures(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should publish healthy declarations and report the isolated failure until it recovers", func(t *testing.T) {
-		t.Parallel()
+	for _, failure := range []string{"none", "sync", "trigger"} {
+		t.Run("Should preserve projection errors with "+failure+" failures", func(t *testing.T) {
+			t.Parallel()
+			laterErr := errors.New("later failure")
 
-		rawStore, agentStore, agentCodec, soulStore, soulCodec, heartbeatStore, heartbeatCodec,
-			skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
-		skillDecl := func(name string) skillPublicationInput {
-			return skillPublicationInput{
-				sourceKey: "test/skill/" + name,
-				scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
-				spec: skillspkg.SkillResourceSpec{
-					Name:        name,
-					Description: name + " skill",
-					Source:      skillspkg.SkillSourceName(skillspkg.SourceUser),
-					Enabled:     true,
-				},
+			rawStore, agentStore, agentCodec, soulStore, soulCodec, heartbeatStore, heartbeatCodec,
+				skillStore, skillCodec, mcpStore, mcpCodec := agentSkillSyncStores(t)
+			skillDecl := func(name string) skillPublicationInput {
+				return skillPublicationInput{
+					sourceKey: "test/skill/" + name,
+					scope:     resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+					spec: skillspkg.SkillResourceSpec{
+						Name:        name,
+						Description: name + " skill",
+						Source:      skillspkg.SkillSourceName(skillspkg.SourceUser),
+						Enabled:     true,
+					},
+				}
 			}
-		}
-		rootErr := errors.New("extension: resolve resource root symlink: missing root")
-		var projectionErr error = &extensionProjectionError{failures: []error{rootErr}}
-		syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
-			raw: rawStore, agentStore: agentStore, agentCodec: agentCodec,
-			agentProjector: newAgentProjector(newResourceCatalog(cloneAgentDef)),
-			soulStore:      soulStore, soulCodec: soulCodec,
-			heartbeatStore: heartbeatStore, heartbeatCodec: heartbeatCodec,
-			skillStore: skillStore, skillCodec: skillCodec,
-			mcpStore: mcpStore, mcpCodec: mcpCodec,
-			actor: agentSkillSyncActor(), logger: discardLogger(),
-			providers: []agentSkillDeclarationProvider{
-				func(context.Context) (agentSkillDeclarations, error) {
-					return agentSkillDeclarations{skills: []skillPublicationInput{skillDecl("healthy-extension")}},
-						projectionErr
+			rootErr := errors.New("extension: resolve resource root symlink: missing root")
+			var projectionErr error = &extensionProjectionError{failures: []error{rootErr}}
+			syncer := newAgentSkillSourceSyncer(agentSkillSourceSyncerDeps{
+				raw: rawStore, agentStore: agentStore, agentCodec: agentCodec,
+				agentProjector: newAgentProjector(newResourceCatalog(cloneAgentDef)),
+				soulStore:      soulStore, soulCodec: soulCodec,
+				heartbeatStore: heartbeatStore, heartbeatCodec: heartbeatCodec,
+				skillStore: skillStore, skillCodec: skillCodec,
+				mcpStore: mcpStore, mcpCodec: mcpCodec,
+				actor: agentSkillSyncActor(), logger: discardLogger(),
+				providers: []agentSkillDeclarationProvider{
+					func(context.Context) (agentSkillDeclarations, error) {
+						return agentSkillDeclarations{skills: []skillPublicationInput{skillDecl("healthy-extension")}},
+							projectionErr
+					},
+					func(context.Context) (agentSkillDeclarations, error) {
+						return agentSkillDeclarations{skills: []skillPublicationInput{skillDecl("global")}}, nil
+					},
 				},
-				func(context.Context) (agentSkillDeclarations, error) {
-					return agentSkillDeclarations{skills: []skillPublicationInput{skillDecl("global")}}, nil
-				},
-			},
+			})
+
+			if failure == "sync" {
+				syncer.agentProjector = &retryingAgentProjector{buildErrors: []error{laterErr, nil}}
+			}
+			if failure == "trigger" {
+				syncer.trigger = func(context.Context, resources.ResourceKind, resources.ReconcileReason) error { return laterErr }
+			}
+
+			err := syncer.Sync(t.Context())
+			if !errors.Is(err, rootErr) || !isExtensionProjectionError(err) {
+				t.Fatalf("Sync() error = %v, want isolated extension projection error", err)
+			}
+			if failure != "none" {
+				if !errors.Is(err, laterErr) {
+					t.Fatalf("Sync() error = %v, want later failure too", err)
+				}
+				syncer.trigger = nil
+				projectionErr = nil
+				if err := syncer.Sync(t.Context()); err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+
+			assertAgentSkillStoreCounts(t, agentStore, skillStore, mcpStore, 0, 2, 0)
+
+			projectionErr = nil
+			if err := syncer.Sync(t.Context()); err != nil {
+				t.Fatalf("Sync() after recovery error = %v", err)
+			}
+			assertAgentSkillStoreCounts(t, agentStore, skillStore, mcpStore, 0, 2, 0)
 		})
-
-		err := syncer.Sync(t.Context())
-		if !errors.Is(err, rootErr) || !isExtensionProjectionError(err) {
-			t.Fatalf("Sync() error = %v, want isolated extension projection error", err)
-		}
-		assertAgentSkillStoreCounts(t, agentStore, skillStore, mcpStore, 0, 2, 0)
-
-		projectionErr = nil
-		if err := syncer.Sync(t.Context()); err != nil {
-			t.Fatalf("Sync() after recovery error = %v", err)
-		}
-		assertAgentSkillStoreCounts(t, agentStore, skillStore, mcpStore, 0, 2, 0)
-	})
+	}
 }
 
 func TestAgentSkillSourceSyncerRetriesAgentProjection(t *testing.T) {

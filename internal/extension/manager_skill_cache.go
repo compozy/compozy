@@ -35,7 +35,7 @@ func (m *Manager) cachedSkillResource(
 	snapshots := make(map[string]filesnap.Snapshot, 2)
 	for _, name := range []string{filepath.Base(file), compozyconfig.MCPJSONName} {
 		path := filepath.Join(filepath.Dir(file), name)
-		snapshot, err := filesnap.FromPath(path)
+		_, err := os.Lstat(path)
 		if errors.Is(err, os.ErrNotExist) && name != filepath.Base(file) {
 			continue
 		}
@@ -43,6 +43,10 @@ func (m *Manager) cachedSkillResource(
 			return nil, err
 		}
 		if _, err := resolveResourcePathWithinRoot(filepath.Dir(file), name, "skill"); err != nil {
+			return nil, err
+		}
+		snapshot, err := filesnap.FromPath(path)
+		if err != nil {
 			return nil, err
 		}
 		snapshots[path] = snapshot
@@ -71,7 +75,7 @@ func (m *Manager) cachedSkillResource(
 }
 
 // retainSkillResources replaces or merges loaded files, pruning unowned and idle parses.
-func (m *Manager) retainSkillResources(owner InstanceKey, files map[string]struct{}, merge bool) {
+func (m *Manager) retainSkillResources(owner InstanceKey, files map[string]struct{}, merge bool, root string) {
 	now := time.Now()
 	if m.now != nil {
 		now = m.now()
@@ -80,7 +84,19 @@ func (m *Manager) retainSkillResources(owner InstanceKey, files map[string]struc
 	defer m.skillResourceCacheMu.Unlock()
 	previous := m.skillResourceOwners[owner].files
 	if merge {
-		maps.Copy(files, previous)
+		canonicalRoot, rootErr := filepath.EvalSymlinks(root)
+		for file := range previous {
+			if rootErr != nil {
+				continue
+			}
+			relative, err := filepath.Rel(canonicalRoot, file)
+			if err != nil {
+				continue
+			}
+			if _, err := resolveResourcePathWithinRoot(canonicalRoot, relative, "skill"); err == nil {
+				files[file] = struct{}{}
+			}
+		}
 	}
 	released := make(map[string]struct{})
 	for file := range previous {
@@ -119,5 +135,5 @@ func (m *Manager) retainSkillResources(owner InstanceKey, files map[string]struc
 
 // releaseSkillResources drops owner's cached parses once its resources unload.
 func (m *Manager) releaseSkillResources(owner InstanceKey) {
-	m.retainSkillResources(owner, nil, false)
+	m.retainSkillResources(owner, nil, false, "")
 }

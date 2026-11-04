@@ -177,7 +177,7 @@ func (s *LiveProviderSource) discoveryTarget(
 	}
 	timeout, err := s.discoveryTimeout(discovery.Timeout)
 	if err != nil {
-		return liveDiscoveryTarget{}, err
+		return liveDiscoveryTarget{}, permanentSourceFailure(err)
 	}
 	if configuredEndpoint != "" {
 		if s.adapter.commandOnly {

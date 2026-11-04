@@ -88,7 +88,7 @@ func (m *Manager) loadDeclarativeResources(
 func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill, error) {
 	retained := make(map[string]struct{})
 	skills, err := m.parseSkillResources(ext, retained)
-	m.retainSkillResources(ext.instanceKey(), retained, err != nil)
+	m.retainSkillResources(ext.instanceKey(), retained, err != nil, ext.rootDir)
 	return skills, err
 }
 

@@ -592,6 +592,73 @@ func TestDiscoverReusesParsedDefinitionsWithoutChange(t *testing.T) {
 		return strings.Count(logs.String(), "skills: verification warning")
 	}
 
+	t.Run("Should isolate unreadable marketplace payloads and discover their repair", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		skillDir := filepath.Join(root, "guarded")
+		writeSkillFile(t, skillDir, skillFileName, guardedSkill("Marketplace guarded"))
+		guide := filepath.Join(skillDir, "references", "guide.md")
+		writeTestFile(t, guide, "Trusted guide")
+		if err := WriteSidecar(
+			skillDir,
+			Provenance{
+				Hash:        skillDirectoryHash(t, skillDir),
+				Registry:    "clawhub",
+				Slug:        "@author/guarded",
+				Version:     "1.0.0",
+				InstalledAt: time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC),
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		healthy := writeSkillFile(
+			t,
+			root,
+			filepath.Join("healthy", skillFileName),
+			"---\nname: healthy\ndescription: first\n---\nBody\n",
+		)
+		registry := NewRegistry(RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(root)})
+		if _, _, err := registry.DiscoverGlobal(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		dir := filepath.Dir(guide)
+		if err := os.Chmod(dir, 0); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := os.Chmod(dir, 0o755); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := os.ReadDir(dir); err == nil {
+			t.Skip("filesystem allows reading mode-000 directory")
+		}
+		rewriteSkillFile(t, healthy, "---\nname: healthy\ndescription: updated\n---\nBody\n")
+		for range 2 {
+			discovered, _, err := registry.DiscoverGlobal(t.Context())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if skill := findSkillByName(discovered, "healthy"); skill == nil || skill.Meta.Description != "updated" {
+				t.Fatalf("healthy discovery = %v", discovered)
+			}
+			if hasSkillNamed(discovered, "guarded") {
+				t.Fatal("unreadable payload published")
+			}
+			watcher := &Watcher{}
+			if _, err := watcher.snapshotRoot(t.Context(), root, false); err != nil {
+				t.Fatalf("watcher snapshot = %v", err)
+			}
+		}
+		if err := os.Chmod(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		discovered, _, err := registry.DiscoverGlobal(t.Context())
+		if err != nil || !hasSkillNamed(discovered, "guarded") {
+			t.Fatalf("repaired discovery = %v, %v", discovered, err)
+		}
+	})
+
 	t.Run("Should not re-parse unchanged global skills across repeated discoveries", func(t *testing.T) {
 		t.Parallel()
 

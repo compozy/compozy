@@ -828,6 +828,25 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
+	t.Run("Should park invalid discovery timeouts until configuration changes", func(t *testing.T) {
+		t.Parallel()
+		for _, timeout := range []string{"invalid", "0s", "-1s"} {
+			t.Run("Should reject "+timeout, func(t *testing.T) {
+				t.Parallel()
+				provider := compozyconfig.BuiltinProviders()["codex"]
+				provider.Models.Discovery.Timeout = timeout
+				source := newLiveSourceForTest(t, "codex", provider, &LiveProviderSourcesConfig{})
+				_, err := source.ListModels(t.Context(), ListOptions{ProviderID: "codex", Now: testTime(0)})
+				if !IsPermanentSourceFailure(err) {
+					t.Fatalf("ListModels() = %v, want permanent failure", err)
+				}
+				if err := source.DiscoveryPreflight(t.Context()); !IsPermanentSourceFailure(err) {
+					t.Fatalf("preflight = %v", err)
+				}
+			})
+		}
+	})
+
 	t.Run("Should classify permanent and transient discovery failures", func(t *testing.T) {
 		t.Parallel()
 
@@ -867,9 +886,12 @@ func TestLiveProviderSources(t *testing.T) {
 				permanent: true,
 			},
 		} {
-			if got := IsPermanentSourceFailure(tc.err); got != tc.permanent {
-				t.Fatalf("IsPermanentSourceFailure(%s) = %t, want %t", tc.name, got, tc.permanent)
-			}
+			t.Run("Should classify "+tc.name, func(t *testing.T) {
+				t.Parallel()
+				if got := IsPermanentSourceFailure(tc.err); got != tc.permanent {
+					t.Fatalf("IsPermanentSourceFailure(%s) = %t, want %t", tc.name, got, tc.permanent)
+				}
+			})
 		}
 	})
 

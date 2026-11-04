@@ -36,9 +36,7 @@ func recordSidecarSnapshots(paths []string, snapshots map[string]filesnap.Snapsh
 			snapshots[sidecarPath] = snapshot
 		}
 		if _, hasProvenance := snapshots[filepath.Join(skillDir, sidecarFileName)]; hasProvenance {
-			if err := recordSkillPayloadSnapshots(skillDir, snapshots); err != nil {
-				return err
-			}
+			recordSkillPayloadSnapshots(skillDir, snapshots)
 		}
 	}
 
@@ -46,22 +44,24 @@ func recordSidecarSnapshots(paths []string, snapshots map[string]filesnap.Snapsh
 }
 
 // Marketplace verification hashes the whole payload, so auxiliary edits must invalidate discovery too.
-func recordSkillPayloadSnapshots(skillDir string, snapshots map[string]filesnap.Snapshot) error {
+func recordSkillPayloadSnapshots(skillDir string, snapshots map[string]filesnap.Snapshot) {
+	// The callback handles entry errors so healthy payloads remain discoverable.
 	err := filepath.WalkDir(skillDir, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			return walkErr
+			snapshots[path] = filesnap.Uncacheable()
+			return nil
 		}
 		info, err := entry.Info()
 		if err != nil {
-			return err
+			snapshots[path] = filesnap.Uncacheable()
+			return nil
 		}
 		snapshots[path] = filesnap.FromInfo(path, info)
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("skills: snapshot marketplace payload %q: %w", skillDir, err)
+		snapshots[skillDir] = filesnap.Uncacheable()
 	}
-	return nil
 }
 
 func hasCriticalWarning(warnings []Warning) bool {

@@ -23,6 +23,11 @@ type Snapshot struct {
 	reusable bool
 }
 
+// Uncacheable forces a fresh scan when an entry could not be inspected.
+func Uncacheable() Snapshot {
+	return Snapshot{captured: true}
+}
+
 // FromPath captures current file metadata and a content fingerprint when OS change metadata is unavailable.
 func FromPath(path string) (Snapshot, error) {
 	info, err := os.Stat(path)

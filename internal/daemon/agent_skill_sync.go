@@ -94,10 +94,10 @@ func (s *agentSkillSourceSyncer) Sync(ctx context.Context) error {
 	}
 	changes, err := s.syncIndexedAgentSkillResources(ctx, desired)
 	if err != nil {
-		return err
+		return errors.Join(err, projectionErr)
 	}
 	if err := s.triggerAgentSkillChanges(ctx, changes); err != nil {
-		return err
+		return errors.Join(err, projectionErr)
 	}
 	return projectionErr
 }

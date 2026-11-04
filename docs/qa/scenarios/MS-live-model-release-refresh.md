@@ -88,3 +88,10 @@ The store suite also exercises more than eight fingerprints through single and b
 with populated and empty failed generations: keep the current partition plus seven most recently
 refreshed siblings, cascade evicted rows, reclaim unused contexts, and preserve other profiles,
 workspaces, and providers. This is automated fixture evidence, not a live-provider/browser re-walk.
+
+Review regression 2026-11-03: configure an invalid, zero, or negative discovery timeout. Discovery
+and preflight must both classify it as permanent, allowing the scheduler to park retries until the
+configuration changes. Identical refresh failures in separate workspace/profile contexts must each
+emit an initial warning; repetitions within one context remain deduplicated. Focused cases in
+`TestLiveProviderSources` and `TestDaemonModelCatalogWiring` own these checks; the public refresh
+journey has not been re-walked for this host-limited review.
