@@ -38,7 +38,7 @@ func daemonShutdownCaptureReason(restart bool) string {
 }
 
 // captureDaemonShutdownTurn records the restart checkpoint of a turn the pump is about to end as
-// cancelled because the daemon is shutting down. The cancelled terminal would otherwise land first
+// canceled because the daemon is shutting down. The canceled terminal would otherwise land first
 // and make the turn look finished to restart capture. Capture is idempotent, so racing the
 // PrepareDaemonShutdown scan is safe.
 func (m *Manager) captureDaemonShutdownTurn(ctx context.Context, session *Session) {
@@ -52,6 +52,16 @@ func (m *Manager) captureDaemonShutdownTurn(ctx context.Context, session *Sessio
 	if err := m.captureRestartInterruption(captureCtx, &meta, daemonShutdownCaptureReason(stop.restart)); err != nil {
 		m.sessionLogger(session).Warn("session: capture daemon shutdown interruption failed", "error", err)
 	}
+}
+
+// DaemonShutdownStop returns the shutdown stop classification recorded by PrepareDaemonShutdown, so
+// the daemon stops sessions with the same restart decision it captured.
+func (m *Manager) DaemonShutdownStop() (StopCause, string, bool) {
+	stop := m.daemonShutdown.Load()
+	if stop == nil {
+		return CauseNone, "", false
+	}
+	return stop.cause, stop.detail, true
 }
 
 // daemonShuttingDown reports that agent runtime loss is the daemon's shutdown, so a prompt ends as interrupted.
@@ -68,10 +78,12 @@ func (m *Manager) classifyDaemonShutdownExit(session *Session, waitErr error) er
 	if stop == nil || !session.reclassifyDaemonShutdownExit(stop.cause, stop.detail) {
 		return waitErr
 	}
-	logArgs := []any{"stop_cause", stop.cause.String()}
 	if waitErr != nil {
-		logArgs = append(logArgs, "exit_error", waitErr.Error())
+		m.sessionLogger(session).Info(
+			"session: agent exit during daemon shutdown classified as interrupted",
+			"stop_cause", stop.cause.String(),
+			"exit_error", waitErr.Error(),
+		)
 	}
-	m.sessionLogger(session).Info("session: agent exit during daemon shutdown classified as interrupted", logArgs...)
 	return nil
 }

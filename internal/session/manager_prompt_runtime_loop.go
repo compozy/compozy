@@ -339,6 +339,11 @@ func (m *Manager) preparePromptPumpEventForDelivery(
 		normalized.Failure != nil && (normalized.Failure.Kind == store.FailureProcess ||
 		normalized.Failure.Kind == store.FailureTransport || normalized.Failure.Kind == store.FailureCanceled) {
 		if !ownsTurnStop {
+			m.sessionLogger(session).Info(
+				"session: prompt runtime loss during daemon shutdown ends the turn as canceled",
+				"turn_id", turnState.turnID,
+				"failure_kind", normalized.Failure.Kind,
+			)
 			m.captureDaemonShutdownTurn(ctx, session)
 		}
 		normalized = m.normalizeEvent(session, turnState.turnID, promptCancellationTerminalEvent())

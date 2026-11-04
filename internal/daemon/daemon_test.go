@@ -4388,6 +4388,37 @@ func TestShutdownRuntimeSessionsQuiescesReplyWatchesFirst(t *testing.T) {
 	}
 }
 
+type preparedShutdownSessionManager struct {
+	*fakeSessionManager
+}
+
+func (preparedShutdownSessionManager) DaemonShutdownStop() (session.StopCause, string, bool) {
+	cause, detail := session.DaemonShutdownStopCause(true)
+	return cause, detail, true
+}
+
+func TestStopSessionsUsesPreparedShutdownCause(t *testing.T) {
+	t.Run("Should stop sessions with the restart decision captured when shutdown was prepared", func(t *testing.T) {
+		d, err := New(WithLogger(discardLogger()))
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		d.restartRequested = false
+
+		manager := preparedShutdownSessionManager{&fakeSessionManager{infos: []*session.Info{{ID: "sess-a"}}}}
+		if err := d.stopSessions(testutil.Context(t), manager); err != nil {
+			t.Fatalf("stopSessions() error = %v", err)
+		}
+		if got := len(manager.stopWithCauseCalls); got != 1 {
+			t.Fatalf("StopWithCause() calls = %d, want 1", got)
+		}
+		if call := manager.stopWithCauseCalls[0]; call.cause != session.CauseShutdown ||
+			call.detail != "Interrupted by daemon restart." {
+			t.Fatalf("StopWithCause() = %v %q, want the prepared restart classification", call.cause, call.detail)
+		}
+	})
+}
+
 func TestStopSessionsUsesShutdownCauseWhenSupported(t *testing.T) {
 	d, err := New(WithLogger(discardLogger()))
 	if err != nil {

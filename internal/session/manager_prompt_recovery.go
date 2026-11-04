@@ -78,6 +78,10 @@ func (m *Manager) attemptPromptRecovery(
 		if err := waitForPromptRecovery(recovery.executionCtx, delay); err != nil {
 			return false, m.settleStoppedPromptRecovery(ctx, session, reason)
 		}
+		// Daemon shutdown may begin during the delay; it must not spawn a replacement runtime.
+		if m.daemonShuttingDown() {
+			return false, m.settleStoppedPromptRecovery(ctx, session, reason)
+		}
 		if !budget.expiresAt.IsZero() && !m.now().Before(budget.expiresAt) {
 			break
 		}

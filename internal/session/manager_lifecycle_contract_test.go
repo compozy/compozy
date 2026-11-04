@@ -690,6 +690,43 @@ func TestDaemonShutdownExitReclassification(t *testing.T) {
 			t.Fatalf("stop cause = %v %q, want user_requested %q", cause, detail, "daemon stopped by user")
 		}
 	})
+
+	t.Run("Should keep an agent exit after the daemon's own shutdown stop interrupted", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			reportSessionStop(t, h, session.ID)
+		})
+		h.manager.markDaemonShutdown(true)
+		cause, _ := DaemonShutdownStopCause(true)
+		session.setStopCause(cause)
+
+		exitErr := errors.New("acp subprocess exited: signal: terminated")
+		if got := h.manager.classifyDaemonShutdownExit(session, exitErr); got != nil {
+			t.Fatalf("classifyDaemonShutdownExit() = %v, want nil", got)
+		}
+		if got, _ := session.stopCauseDetail(); got != CauseShutdown {
+			t.Fatalf("stop cause = %v, want %v", got, CauseShutdown)
+		}
+	})
+
+	t.Run("Should keep an agent exit after a non-shutdown stop a failure", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		session := createSession(t, h)
+		t.Cleanup(func() {
+			reportSessionStop(t, h, session.ID)
+		})
+		session.setStopCause(CauseProcessExited)
+
+		exitErr := errors.New("boom")
+		if got := h.manager.classifyDaemonShutdownExit(session, exitErr); !errors.Is(got, exitErr) {
+			t.Fatalf("classifyDaemonShutdownExit() = %v, want %v while the daemon runs", got, exitErr)
+		}
+	})
 }
 
 func TestStopAndProcessExitFinalizeOnlyOnce(t *testing.T) {
