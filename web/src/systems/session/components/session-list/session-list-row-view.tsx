@@ -183,7 +183,8 @@ function SessionListRowBody({
       <SessionRowEndSlot session={session} actions={actionsVisible ? (rowActions ?? null) : null} />
       <SessionRowMetaLine
         session={session}
-        model={runtime.model ?? ""}
+        // A provider-only runtime names its provider so a pending switch has a left side.
+        model={runtime.model || (runtime.next ? runtime.label : "")}
         nextModel={runtime.next ? runtime.next.model || runtime.next.label : ""}
         badge={badge}
         owner={owner}

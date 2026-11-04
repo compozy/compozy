@@ -1913,6 +1913,23 @@ describe("SessionList provider marks", () => {
       await screen.findByText("Next message: Claude Code · Claude Opus 5.5 medium")
     ).toBeInTheDocument();
 
+    // A cross-provider switch completes once the runtime reports the selected provider.
+    update([
+      {
+        ...pending,
+        runtime: {
+          ...pending.runtime,
+          effective: { provider: "claude", model: "claude-opus-5-5", reasoning_effort: "medium" },
+        },
+      },
+    ]);
+    expect(screen.getByTestId("session-provider-mark-pending")).toHaveAttribute(
+      "data-kind",
+      "claude"
+    );
+    expect(rowButton("pending")).toHaveAccessibleName(/Claude Code · Claude Opus 5\.5 medium/);
+    expect(rowButton("pending")).not.toHaveAccessibleName(/next message/);
+
     // A same-provider effort change applies live: once the runtime reports it, no marker stays.
     const live = {
       ...bound,
@@ -1953,6 +1970,33 @@ describe("SessionList provider marks", () => {
     expect(rowButton("fast")).toHaveAccessibleName(
       /Codex · GPT-6\.1 Sol xhigh, next message: Codex · GPT-6\.1 Sol xhigh Fast/
     );
+  });
+
+  it("draws a pending switch from a provider-only runtime and keeps a refused reset pending", () => {
+    renderList({
+      sessions: [
+        row("bare", {
+          runtime: {
+            ...runtime("claude"),
+            selected: { provider: "codex", model: "gpt-6.1-sol" },
+            selection_revision: 2,
+          },
+        }),
+        row("refused", {
+          runtime: {
+            ...runtime("codex", "gpt-6.1-sol"),
+            selected: { provider: "codex" },
+            failure: "set_config_option refused",
+            selection_revision: 2,
+          },
+        }),
+      ],
+    });
+
+    const bare = rowButton("bare").parentElement!;
+    expect(within(bare).getByText("Claude Code")).toBeInTheDocument();
+    expect(within(bare).getByText("GPT-6.1 Sol")).toBeInTheDocument();
+    expect(rowButton("refused")).toHaveAccessibleName(/Codex · GPT-6\.1 Sol, next message: Codex /);
   });
 
   it("reveals the runtime on keyboard focus, closes on Escape, and adds no tab stop", async () => {
