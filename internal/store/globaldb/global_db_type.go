@@ -46,6 +46,7 @@ type GlobalDB struct {
 	db           *sql.DB
 	readDB       *sql.DB
 	background   *store.BackgroundWriter
+	checkpoint   *store.PassiveCheckpointer
 	telemetry    *telemetrydb.Store
 	healthBuffer *sessionHealthBuffer
 	summaryRetry *eventSummaryRetry

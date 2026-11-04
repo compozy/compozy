@@ -42,11 +42,16 @@ func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*Glo
 	if err != nil {
 		return nil, errors.Join(err, telemetry.Close(ctx), db.Close())
 	}
+	checkpoint, err := store.OpenPassiveCheckpointer(ctx, path)
+	if err != nil {
+		return nil, errors.Join(err, readDB.Close(), telemetry.Close(ctx), db.Close())
+	}
 
 	globalDB := &GlobalDB{
 		db:         db,
 		readDB:     readDB,
 		background: store.NewBackgroundWriter(db),
+		checkpoint: checkpoint,
 		telemetry:  telemetry,
 		path:       strings.TrimSpace(path),
 		now: func() time.Time {
@@ -143,35 +148,42 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 	}
 	readCloseErr := g.readDB.Close()
 	telemetryErr := g.telemetry.Close(ctx)
+	maintenanceErr := g.checkpoint.Close()
 	checkpointErr := store.CheckpointPassive(ctx, g.db)
 	closeErr := g.db.Close()
-	return errors.Join(healthErr, summaryErr, backgroundErr, readCloseErr, telemetryErr, checkpointErr, closeErr)
+	return errors.Join(healthErr, summaryErr, backgroundErr, readCloseErr, telemetryErr,
+		maintenanceErr, checkpointErr, closeErr)
 }
 
 func openGlobalSQLite(ctx context.Context, path string, operatorHomeDir string) (*sql.DB, error) {
 	if err := store.RefuseLegacyDatabaseAtPath(ctx, path, MigrationStream()); err != nil {
 		return nil, err
 	}
-	return store.OpenSQLiteDatabase(ctx, path, func(ctx context.Context, db *sql.DB) error {
-		if err := rejectSessionMetadataWithoutRuntime(ctx, path); err != nil {
-			return err
-		}
-		if err := prepareOperatorHomeMigrationContext(ctx, db, operatorHomeDir); err != nil {
-			return err
-		}
-		if err := prepareUserScopeMigrationContext(ctx, db, filepath.Dir(path), operatorHomeDir); err != nil {
-			return err
-		}
-		before, err := store.Status(ctx, db, MigrationStream())
-		if err != nil {
-			return err
-		}
-		if err := applyGlobalMigrations(ctx, db, path); err != nil {
-			return err
-		}
-		if before.Version < userScopeMigrationVersion {
-			return logUserScopeMigration(ctx, path)
-		}
-		return nil
-	})
+	return store.OpenSQLiteDatabaseWithPragmas(
+		ctx,
+		path,
+		[]string{"wal_autocheckpoint(0)"},
+		func(ctx context.Context, db *sql.DB) error {
+			if err := rejectSessionMetadataWithoutRuntime(ctx, path); err != nil {
+				return err
+			}
+			if err := prepareOperatorHomeMigrationContext(ctx, db, operatorHomeDir); err != nil {
+				return err
+			}
+			if err := prepareUserScopeMigrationContext(ctx, db, filepath.Dir(path), operatorHomeDir); err != nil {
+				return err
+			}
+			before, err := store.Status(ctx, db, MigrationStream())
+			if err != nil {
+				return err
+			}
+			if err := applyGlobalMigrations(ctx, db, path); err != nil {
+				return err
+			}
+			if before.Version < userScopeMigrationVersion {
+				return logUserScopeMigration(ctx, path)
+			}
+			return nil
+		},
+	)
 }

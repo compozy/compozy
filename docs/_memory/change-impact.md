@@ -2,7 +2,7 @@
 
 ## SQLite contention isolation — issue #1227
 
-Owner: `fix/issue-1227-sqlite-contention`; implementation, receipts and explicit release follow-up:
+Owner: `fix/issue-1227-sqlite-contention`; implementation and acceptance receipts:
 `docs/qa/reports/2026-11-03-sqlite-contention.md`.
 
 - Native tools, CLI verbs, HTTP/UDS DTOs, Observe filters/cursors, hooks, extension SDKs and config
@@ -11,14 +11,17 @@ Owner: `fix/issue-1227-sqlite-contention`; implementation, receipts and explicit
 - Global/profile/transcript reads use independent read pools. Background producers batch writes,
   health coalesces dirty observations and flushes on clean shutdown, and transcript reduction runs
   before the publication write lock. Existing profile/workspace read boundaries remain enforced.
+  Core/telemetry PASSIVE checkpoints use owned maintenance connections outside writer admission
+  and are joined before final close; indexed telemetry cleanup is bounded to 64 rows per item.
 - Append-only migrations relocate event summaries into `compozy.db.telemetry.db`, preserving every
   value and cursor with resumable verified copy/acknowledgement. Core outbox events preserve atomic
   lifecycle durability. Deleted scopes are hidden immediately and cleaned in bounded batches.
 - Backup/file-location docs and `skills/compozy/references/runtime-operations.md` name the complete
   database family and missing-file refusal. Web needs no new control or copy.
-- QA owners: `MS-daemon-host-load-governance` and `RT-session-catalog-server-scope`. The operator's
-  host-load restriction leaves the 30-session measurements and production-size upgrade unverified.
-  Writer admission, file identity and supported secondary-client exclusion are inventoried in the report.
+- QA owners: `MS-daemon-host-load-governance` and `RT-session-catalog-server-scope`. CI owns the
+  paired 30-session/1 GiB experiment and isolated real-daemon walk. The upgrade and daemon walk
+  passed; remaining traced-retention failures and their repairs are explicit in the report.
+  Writer admission, file identity and supported secondary-client exclusion are inventoried there.
 
 ## Preserve agent runtime selection across kind changes — 2026-11-03
 

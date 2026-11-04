@@ -53,7 +53,7 @@ The exact historical owner cannot be recovered from this evidence.
 - Event summaries move to `compozy.db.telemetry.db`, with its own writer, reader and migration
   stream. The core writer never attaches this file. Core read connections attach it read-only and
   install a scoped view, retaining Observe responses, metadata, filters and cursors.
-- Retention removes at most 256 rows per table per item. Core retention skips its write transaction
+- Retention removes at most 64 telemetry rows (256 for core tables) per item. Core retention skips its write transaction
   when its read probe finds no expired rows. Profile/workspace deletion records a durable tombstone
   that hides telemetry immediately, then retries bounded physical cleanup. Profile deletion completes its recoverable lifecycle only
   after telemetry cleanup succeeds; a failure remains visible and retryable.
@@ -132,6 +132,7 @@ and `queries/observe*.sql`.
 | Generated global mutations | The inventory found 104 direct repository mutations in 49 files. They now use named write admission. The five extension transfer operations already belonged to a caller-owned transaction and remain there. |
 | Raw global mutations | Marketplace replacement, attention snapshots/mutes, automation deletion, dead-entity state and user-scope reconciliation now use the same transaction owner. Snapshot hashing/JSON and migration schema discovery happen before acquiring the writer. |
 | Background producers | Catalog/process observations, health, token/permission observations, worktree status and bounded admission-claim sweeps use background execution. Authoritative lifecycle/authorization changes retain interactive admission. |
+| WAL maintenance | Core and telemetry each own one maintenance connection, running only PASSIVE checkpoints outside writer admission. Runtime writers disable automatic checkpoints. Maintenance cannot reserve the writer/read pools or acquire the WAL writer lock; close cancels and joins it before the final checkpoint. |
 | Composition-root adapters | Extension registry and config-apply mutations use named admission. Extension, settings, resources and observer task reads receive the independent read pool. |
 | Extension CLI | Calls the daemon while available. The offline fallback acquires the same daemon file lock before opening the store and retains it through close; a running or concurrently starting daemon excludes it. |
 | Provider-auth metadata | Uses a schema-validated read-only vault reader. It cannot migrate, checkpoint, initialize telemetry or recover state; a missing database remains absent. |
@@ -415,3 +416,43 @@ The measured index-plan repair passed the canonical recent Observe suite (0.274 
 fresh/reopen/ahead/schema-equivalence suite (0.034 s), and focused globaldb lint (zero issues).
 The owning generators appended telemetry migration 4; every previous migration/checksum remains
 unchanged. Its large-fixture page counts and query plans will be re-measured in CI.
+
+### Third paired experiment: indexed retention and commit attribution
+
+[Paired job 126332046840](https://github.com/compozy/compozy/actions/runs/41755973452/job/126332046840)
+tested `c6037e2a3`. All three untraced candidate trials had **zero operation errors and zero
+long-hold/contention warnings**, and removed all 43,169 eligible rows. The baseline had 42 errors
+and 32 warnings. Transcript/catalog p99 medians were 57.112/23.174 ms versus 46.601/18.943 ms;
+core commit hooks/s were 63.16 versus 227.65. Upgrade/reopen took 282,318.5/57.4 ms with the same
+830,020 rows, all-column hash, sequence high-water, integrity and Observe parity.
+
+**Acceptance still FAIL:** the traced candidate had 230 operation failures and removed only
+35,328/43,169 eligible rows. All four long transactions belonged to telemetry retention. Their
+callback/commit durations were 1,428/975, 1,763/2,191, 1,496/1,487 and 1,376/192 ms. The traced
+core bytes/min were 481,482,961 before and 45,826,961 after, again without equal completed
+throughput. The raw artifact is `13289155589`; this is not an accepted performance improvement.
+
+The repair bounds indexed deletion to 64 rows per atomic item and moves automatic WAL checkpoint
+work off core/telemetry COMMIT paths. Each store owns an independent one-connection maintenance
+pool, opened with `mode=rw` so it cannot create a missing file. A one-second worker uses PASSIVE
+checkpoints, leaving incomplete work for later ticks and preserving FULL telemetry commit sync.
+It is canceled and joined before final checkpoint/close, including failed-open cleanup. The
+existing embedded SQLite version is 3.54.1; no dependency change is involved. SQLite documents
+the [PASSIVE nonblocking behavior and NOOP progress query](https://www.sqlite.org/pragma.html#pragma_wal_checkpoint).
+
+The canonical checkpoint suite verifies that committed frames reach the database while a live
+transaction reserves the sole writer connection, that maintenance closes without waiting for
+that transaction, and that the transaction still commits afterward. Performance acceptance will
+be rerun; no deadline, failure condition or durability assertion was relaxed.
+
+Focused receipts: checkpoint lifecycle 1.050 s; global opening/read isolation 0.834 s; telemetry
+delivery 1.782 s; retention cutoff 0.377 s; interrupted/family-bound relocation 0.851 s. Focused
+store/globaldb/telemetrydb lint passed with zero issues. No broad local gate ran.
+
+CodeRabbit's GitHub full review exceeded 300 files. Its existing CLI completed a deep review of
+all 115 files in `1f2f7cc94..c6037e2a3`, extending the three completed GitHub reviews (280, 14 and
+145 files). The valid in-scope finding about missing teardown receipts is repaired in `486a7fe2a`.
+The Go 1.26 compatibility finding is contradicted by the current module and CI version, 1.27.3.
+Seven observations concern files identical to current main and are disclosed in PR comment
+`6620645196`; none is claimed as repaired by this issue. Greptile reviewed all 380 files at
+`c6037e2a3` with zero new comments. Final-delta review remains required.

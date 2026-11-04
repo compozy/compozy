@@ -14,13 +14,16 @@ import (
 	"github.com/compozy/compozy/internal/store/telemetrydb/sqlcgen"
 )
 
-const retentionBatchSize = 256
+// Bound indexed cleanup work inside each callback, which cannot be preempted by
+// the background writer's between-item budget.
+const retentionBatchSize = 64
 
 // Store acknowledges telemetry only after its own WAL commits.
 type Store struct {
 	db         *sql.DB
 	readDB     *sql.DB
 	background *store.BackgroundWriter
+	checkpoint *store.PassiveCheckpointer
 	closed     atomic.Bool
 }
 
@@ -30,7 +33,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	db, err := store.OpenSQLiteDatabaseWithPragmas(
 		ctx,
 		path,
-		[]string{"synchronous(FULL)"},
+		[]string{"synchronous(FULL)", "wal_autocheckpoint(0)"},
 		func(ctx context.Context, db *sql.DB) error {
 			return store.Apply(ctx, db, MigrationStream())
 		},
@@ -55,7 +58,13 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	if err != nil {
 		return nil, errors.Join(err, db.Close())
 	}
-	return &Store{db: db, readDB: readDB, background: store.NewBackgroundWriter(db)}, nil
+	checkpoint, err := store.OpenPassiveCheckpointer(ctx, path)
+	if err != nil {
+		return nil, errors.Join(err, readDB.Close(), db.Close())
+	}
+	return &Store{
+		db: db, readDB: readDB, background: store.NewBackgroundWriter(db), checkpoint: checkpoint,
+	}, nil
 }
 
 // DB is reserved for the owning cross-file migration coordinator.
@@ -137,6 +146,7 @@ func (s *Store) Close(ctx context.Context) error {
 	}
 	backgroundErr := s.background.Close(ctx)
 	readErr := s.readDB.Close()
+	maintenanceErr := s.checkpoint.Close()
 	checkpointErr := store.CheckpointPassive(ctx, s.db)
-	return errors.Join(backgroundErr, readErr, checkpointErr, s.db.Close())
+	return errors.Join(backgroundErr, readErr, maintenanceErr, checkpointErr, s.db.Close())
 }
