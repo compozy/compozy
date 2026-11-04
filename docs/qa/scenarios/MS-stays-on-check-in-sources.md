@@ -76,6 +76,11 @@ the transcript is checked in `MS-web-stays-on-reports`.
    status returns to `pending_first_poll` without changing stored cursors. Remove a declaration:
    it disappears immediately from show, before the next real poll. An unreadable or invalid
    policy falls back to stored source rows without failing the instance response.
+4. Repeat instance list/show and observe a live instance stream while editing HEARTBEAT.md.
+   The next read/frame reflects added, edited and removed declarations, including an edit of
+   the same byte length. Session catalog facets retain attention counts and main-session
+   exclusions without loading source policies. Daemon/API regression suites own the assertion
+   that list rows share one parse per definition and facets never hydrate full payloads.
 
 ## 4. Cheap gate (US-003, US-013 AC-4)
 

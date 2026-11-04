@@ -135,13 +135,25 @@ func (r instanceDefinitions) projectInstanceDefinition(
 	if err != nil {
 		return err
 	}
-	agent, err := r.agents.ResolveAgent(instance.AgentName, &resolved)
+	var artifacts *session.AgentArtifacts
+	var agent compozyconfig.AgentDef
+	if resolver, ok := r.agents.(session.AgentArtifactResolver); ok {
+		result, resolveErr := resolver.ResolveAgentArtifacts(instance.AgentName, &resolved)
+		agent, err = result.Agent, resolveErr
+		if errors.Is(resolveErr, workspacepkg.ErrAgentNotAvailable) {
+			agent, err = r.agents.ResolveAgent(instance.AgentName, &resolved)
+		} else {
+			artifacts = &result
+		}
+	} else {
+		agent, err = r.agents.ResolveAgent(instance.AgentName, &resolved)
+	}
 	if errors.Is(err, workspacepkg.ErrAgentNotAvailable) {
 		agent = compozyconfig.AgentDef{Name: instance.AgentName}
 	} else if err != nil {
 		return err
 	}
-	r.projectInstanceSources(ctx, instance, agent, resolved, payload, reader)
+	r.projectInstanceSources(ctx, instance, agent, artifacts, resolved, payload, reader)
 	payload.Label = agent.Label()
 	// An unsupported saved appearance resolves to the default face; the definition read
 	// carries the agent_appearance_invalid diagnostic, so the instance read never fails on it.

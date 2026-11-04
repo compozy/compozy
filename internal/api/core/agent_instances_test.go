@@ -796,6 +796,17 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 				AdmitCreate(t.Context(), agentinstance.Instance{ProfileID: store.DefaultProfileID, AgentName: name, PermissionCeiling: "{}", CreatedByKind: "human"}, 10); err != nil {
 				t.Fatal(err)
 			}
+			if err := db.RegisterSession(t.Context(), new(store.SessionInfo{
+				ProfileID: store.DefaultProfileID, ID: "main-" + name,
+				AgentName: name, Provider: "claude", RuntimeStatus: store.SessionRuntimeUnbound,
+				State: "active",
+			})); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.DB().ExecContext(t.Context(),
+				"UPDATE agent_instances SET main_session_id=? WHERE agent_name=?", "main-"+name, name); err != nil {
+				t.Fatal(err)
+			}
 		}
 		fixture := newHandlerFixture(
 			t,
@@ -818,11 +829,13 @@ func TestAgentInstanceReadFacets(t *testing.T) {
 		)
 		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{
 			Store: db.Instances(),
-			ReadPayload: func(_ context.Context, i agentinstance.Instance) (contract.AgentInstancePayload, error) {
-				p := core.AgentInstancePayload(i)
-				p.NeedsAttention = i.AgentName == "attention"
-				p.MainSessionID = "main-" + i.AgentName
-				return p, nil
+			ReadPayload: func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error) {
+				t.Fatal("facets hydrated the full instance payload")
+				return contract.AgentInstancePayload{}, nil
+			},
+			ReadAttention: func(_ context.Context, id string) (bool, error) {
+				row, err := db.Instances().Get(t.Context(), id)
+				return row.AgentName == "attention", err
 			},
 		}
 		fixture.Engine.GET("/facets", fixture.Handlers.ListSessionFacets)

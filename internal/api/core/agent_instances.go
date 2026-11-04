@@ -33,6 +33,7 @@ type AgentInstanceAPI struct {
 	CountActive         func(context.Context, string) (int64, error)
 	MaxActiveInstances  int
 	FatigueLimit        int
+	ReadAttention       func(context.Context, string) (bool, error)
 	ReadPayload         func(context.Context, agentinstance.Instance) (contract.AgentInstancePayload, error)
 	CheckSettings       AgentInstanceCheckSettings
 	Checks              AgentInstanceChecker

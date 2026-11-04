@@ -36,6 +36,7 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	tools "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 	"github.com/jonboulle/clockwork"
 	"github.com/kballard/go-shellquote"
@@ -1190,10 +1191,11 @@ func newHeartbeatSourceRuntime(t *testing.T, approved, blocked bool) *heartbeatS
 		instances:         h.db.Instances(),
 		sessions:          h.manager,
 		definitions: instanceDefinitions{
-			workspaces: resolver,
-			profiles:   nativeProfileReaderStub{},
-			sessions:   h.manager,
-			agents:     agents,
+			sourceDeclarations: &instanceSourceDeclarations{},
+			workspaces:         resolver,
+			profiles:           nativeProfileReaderStub{},
+			sessions:           h.manager,
+			agents:             agents,
 		},
 	}
 	h.config = heartbeat.CheckConfig{
@@ -1345,6 +1347,81 @@ func (h *heartbeatSourceRuntime) advance(t *testing.T) {
 // follows successful checks, and source fences/provenance reach real triage sessions.
 // Owning layer and canonical suite: daemon heartbeat wake runtime integration.
 func TestHeartbeatSourceRuntime(t *testing.T) {
+	// Invariant: list rows share policy parsing, while edits invalidate the next read.
+	t.Run("Should reuse source declarations across list rows and refresh edits", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		resolver := &countingInstancePolicyResolver{AgentResolver: h.env.definitions.agents}
+		h.env.definitions.agents = resolver
+		for n := range 3 {
+			instance := h.instance
+			instance.AgentName = fmt.Sprintf("alias-%d", n)
+			if _, _, err := h.db.Instances().AdmitCreate(t.Context(), instance, 10); err != nil {
+				t.Fatal(err)
+			}
+		}
+		api := core.AgentInstanceAPI{
+			Store: h.db.Instances(),
+			ReadPayload: func(ctx context.Context, instance agentinstance.Instance) (contract.AgentInstancePayload, error) {
+				return h.env.definitions.instancePayload(ctx, instance, h.db.Instances())
+			},
+		}
+		read := func(want string) {
+			t.Helper()
+			page, err := api.ListPage(t.Context(), agentinstance.ListQuery{
+				ProfileID: h.instance.ProfileID, AllWorkspaces: true, Limit: 10,
+			}, workspaceaccess.ActorRef{Operator: true})
+			if err != nil || len(page.Instances) != 4 {
+				t.Fatalf("page=%+v err=%v", page, err)
+			}
+			for _, payload := range page.Instances {
+				if len(payload.Sources) != 1 || payload.Sources[0].ID != want ||
+					payload.Sources[0].Status != "pending_first_poll" {
+					t.Fatalf("sources=%+v", payload.Sources)
+				}
+			}
+		}
+		read("s")
+		read("s")
+		if got := resolver.reads.Load(); got != 1 {
+			t.Fatalf("policy reads=%d want=1", got)
+		}
+		path := filepath.Join(h.dir, "HEARTBEAT.md")
+		body := "---\nversion: 1\nenabled: true\ncontext:\n  sources:\n    - id: edited\n      script: poll\n---\n"
+		if err := os.WriteFile(path, []byte(body), 0600); err != nil {
+			t.Fatal(err)
+		}
+		read("edited")
+		if got := resolver.reads.Load(); got != 2 {
+			t.Fatalf("policy reads after edit=%d want=2", got)
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(strings.Replace(body, "edited", "newest", 1)), 0600); err != nil {
+			t.Fatal(err)
+		}
+		modified := info.ModTime().Add(time.Second)
+		if err := os.Chtimes(path, modified, modified); err != nil {
+			t.Fatal(err)
+		}
+		read("newest")
+		if got := resolver.reads.Load(); got != 3 {
+			t.Fatalf("policy reads after same-size edit=%d want=3", got)
+		}
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		payload, err := api.Payload(t.Context(), h.instance)
+		if err != nil || len(payload.Sources) != 0 {
+			t.Fatalf("removed policy sources=%+v err=%v", payload.Sources, err)
+		}
+		payload, err = api.Payload(t.Context(), h.instance)
+		if err != nil || len(payload.Sources) != 0 || resolver.reads.Load() != 4 {
+			t.Fatalf("source-free payload=%+v reads=%d err=%v", payload.Sources, resolver.reads.Load(), err)
+		}
+	})
+
 	// Invariant: real instance payloads join declarations with matching persisted refs without mutating rows.
 	t.Run("Should project current declarations through the real payload producer", func(t *testing.T) {
 		h := newHeartbeatSourceRuntime(t, true, false)
@@ -2304,4 +2381,16 @@ func TestNativeHeartbeatSourcesCatalog(t *testing.T) {
 			t.Fatalf("catalog=%s expected=%s", actualJSON, expectedJSON)
 		}
 	})
+}
+
+type countingInstancePolicyResolver struct {
+	session.AgentResolver
+	reads atomic.Int64
+}
+
+func (r *countingInstancePolicyResolver) ResolveHeartbeatPolicy(
+	_ context.Context, _ heartbeat.AuthoringTarget,
+) (heartbeat.ResolvedPolicy, bool, error) {
+	r.reads.Add(1)
+	return heartbeat.ResolvedPolicy{}, false, nil
 }

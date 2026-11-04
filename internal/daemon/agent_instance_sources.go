@@ -9,6 +9,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
 	"github.com/compozy/compozy/internal/heartbeat/source"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -17,6 +18,7 @@ func (r instanceDefinitions) projectInstanceSources(
 	ctx context.Context,
 	instance agentinstance.Instance,
 	agent compozyconfig.AgentDef,
+	artifacts *session.AgentArtifacts,
 	workspace workspacepkg.ResolvedWorkspace,
 	payload *contract.AgentInstancePayload,
 	reader instanceAttentionReader,
@@ -27,8 +29,7 @@ func (r instanceDefinitions) projectInstanceSources(
 	if !ok || agent.SourcePath == "" {
 		return
 	}
-	resolver, _ := r.agents.(heartbeat.PolicyResolver)
-	policy, err := resolveTimerPolicy(ctx, resolver, heartbeat.AuthoringTarget{
+	refs, err := r.sourceDeclarations.resolve(ctx, r.agents, artifacts, heartbeat.AuthoringTarget{
 		ProfileID: instance.ProfileID, ProfileName: workspace.ProfileName,
 		WorkspaceID: instance.WorkspaceID, WorkspaceRoot: workspace.RootDir,
 		AgentName: instance.AgentName, AgentPath: agent.SourcePath, Config: workspace.Config.Agents.Heartbeat,
@@ -36,7 +37,6 @@ func (r instanceDefinitions) projectInstanceSources(
 	if err != nil {
 		return
 	}
-	refs := policy.Preferences.Context.Sources
 	out := make([]heartbeat.SourceStatus, 0, len(refs))
 	if len(refs) == 0 {
 		payload.Sources = out
