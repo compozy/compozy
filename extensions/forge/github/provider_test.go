@@ -938,6 +938,114 @@ func TestProviderGraphQL(t *testing.T) {
 			t.Fatalf("batch=%+v calls=%d", batch, calls.Load())
 		}
 	})
+	// Invariant: concurrent callers share one lookup, and one caller's cancellation leaves its siblings' results intact.
+	t.Run("Should coalesce concurrent callers and isolate a canceled caller", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int32
+		received := make(chan struct{})
+		release := make(chan struct{})
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			var input struct{ Variables map[string]any }
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+				t.Error(err)
+				return
+			}
+			close(received)
+			<-release
+			var pages []string
+			for i := range 3 {
+				number := slices.Index(
+					[]string{"one", "two", "three"},
+					strings.TrimPrefix(fmt.Sprint(input.Variables[fmt.Sprintf("branch%d", i)]), "feature/"),
+				) + 1
+				pages = append(
+					pages,
+					fmt.Sprintf(
+						`"branch%dOpen":{"nodes":[{"number":%d,"state":"OPEN"}]},"branch%dTerminal":{"nodes":[]}`,
+						i,
+						number,
+						i,
+					),
+				)
+			}
+			writeGraphBody(t, w, `{"data":{"repository":{`+strings.Join(pages, ",")+`}}}`)
+		})
+		defer closeServer()
+		repo := repository{owner: "acme", name: "repo"}
+		canceledCtx, cancel := context.WithCancel(t.Context())
+		type outcome struct {
+			branch string
+			pages  [2]graphPage
+			err    error
+		}
+		results := make(chan outcome, 3)
+		provider.batchMu.Lock()
+		for _, branch := range []string{"feature/one", "feature/two", "feature/three"} {
+			ctx := t.Context()
+			if branch == "feature/two" {
+				ctx = canceledCtx
+			}
+			go func() {
+				pages, err := provider.batchedPullPages(ctx, repo, branch, "secret")
+				results <- outcome{branch, pages, err}
+			}()
+		}
+		provider.batchMu.Unlock()
+		<-received
+		cancel()
+		first := <-results
+		if first.branch != "feature/two" || !errors.Is(first.err, context.Canceled) {
+			t.Fatalf("first outcome=%+v, want canceled feature/two", first)
+		}
+		close(release)
+		for range 2 {
+			got := <-results
+			want := map[string]int{"feature/one": 1, "feature/three": 3}[got.branch]
+			if got.err != nil || len(got.pages[0].Nodes) != 1 || got.pages[0].Nodes[0].Number != want {
+				t.Fatalf("sibling outcome=%+v, want PR %d", got, want)
+			}
+		}
+		if calls.Load() != 1 {
+			t.Fatalf("GraphQL calls=%d, want one shared lookup", calls.Load())
+		}
+	})
+	// Invariant: provider shutdown cancels waiting callers, joins batch workers, and rejects later lookups.
+	t.Run("Should cancel waiting callers when the provider closes", func(t *testing.T) {
+		t.Parallel()
+		received := make(chan struct{})
+		provider, closeServer := testProvider(t, func(_ http.ResponseWriter, r *http.Request) {
+			// Drain the body so the server observes the client's cancellation.
+			if _, err := io.Copy(io.Discard, r.Body); err != nil {
+				t.Error(err)
+			}
+			close(received)
+			<-r.Context().Done()
+		})
+		defer closeServer()
+		repo := repository{owner: "acme", name: "repo"}
+		errs := make(chan error, 1)
+		go func() {
+			_, err := provider.batchedPullPages(t.Context(), repo, "feature/one", "secret")
+			errs <- err
+		}()
+		<-received
+		provider.closeBatches()
+		if err := <-errs; err == nil {
+			t.Fatal("waiting caller succeeded after provider shutdown")
+		}
+		if _, err := provider.batchedPullPages(
+			t.Context(),
+			repo,
+			"feature/two",
+			"secret",
+		); !errors.Is(
+			err,
+			context.Canceled,
+		) {
+			t.Fatalf("lookup after shutdown err=%v, want context.Canceled", err)
+		}
+	})
 	t.Run("Should prefer an open PR over a newer terminal PR", func(t *testing.T) {
 		t.Parallel()
 		provider, closeServer := testProvider(t, func(w http.ResponseWriter, r *http.Request) {
