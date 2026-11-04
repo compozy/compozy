@@ -24,12 +24,7 @@ import type {
   ShutdownResponse,
 } from "./types.js";
 import { StdioTransport } from "./transport.js";
-import {
-  PROVIDE_TOOLS_METHOD,
-  TOOL_PROVIDER_CAPABILITY,
-  TOOLS_CALL_METHOD,
-  isToolProviderMethod,
-} from "./capabilities.js";
+import { PROVIDE_TOOLS_METHOD, TOOLS_CALL_METHOD, isToolProviderMethod } from "./capabilities.js";
 import {
   InvalidParamsError,
   MethodNotFoundError,
@@ -39,7 +34,6 @@ import {
 
 import {
   implementedExtensionMethods,
-  normalizeStringList,
   parseShutdownRequest,
   transportMethods,
 } from "./extension-runtime.js";
@@ -52,7 +46,10 @@ import {
   defaultExtensionDescribeProcess,
   runExtensionDescribeMode,
 } from "./extension-describe.js";
-import { buildRegisteredTool } from "./extension-tool-registration.js";
+import {
+  buildRegisteredTool,
+  ensureToolProviderCapability,
+} from "./extension-tool-registration.js";
 import { callRegisteredTool, provideRegisteredTools } from "./extension-tool-dispatch.js";
 import {
   ExtensionProvideSurfaces,
@@ -201,7 +198,7 @@ export class Extension {
       cleanHandler,
       buildRegisteredTool(this.definition.name, cleanHandler, options, toolHandler)
     );
-    this.ensureToolProviderCapability();
+    ensureToolProviderCapability(this.definition);
     this.ensureToolProviderHandlers();
     return this;
   }
@@ -474,15 +471,6 @@ export class Extension {
 
   private logError(message: string, error: unknown): void {
     writeExtensionError(this.stderr, message, error);
-  }
-
-  private ensureToolProviderCapability(): void {
-    const capabilities = this.definition.capabilities ?? {};
-    capabilities.provides = normalizeStringList([
-      ...(capabilities.provides ?? []),
-      TOOL_PROVIDER_CAPABILITY,
-    ]);
-    this.definition.capabilities = capabilities;
   }
 
   private ensureToolProviderHandlers(): void {
