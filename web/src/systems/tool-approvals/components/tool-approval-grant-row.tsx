@@ -21,7 +21,8 @@ function accessScopeLabel(accessScope: string): string {
   const separator = accessScope.lastIndexOf("@");
   const target = separator < 0 ? accessScope : accessScope.slice(0, separator);
   const anyProfile = separator >= 0 && accessScope.slice(separator + 1) === "*";
-  const suffix = anyProfile ? ", any profile" : "";
+  const profile = separator < 0 ? "" : accessScope.slice(separator + 1);
+  const suffix = anyProfile ? ", any profile" : profile ? `, profile ${profile}` : "";
   if (target === "read:user") return `Reads in User scope${suffix}`;
   if (target === "read:all-projects") return `Reads across All projects${suffix}`;
   const workspace = target.replace(/^read:workspace:/, "");

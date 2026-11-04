@@ -19,6 +19,29 @@ const (
 func TestDefaultPolicyAuthorize(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should audit read consent without widening the policy", func(t *testing.T) {
+		t.Parallel()
+		audit := &auditEmitterSpy{}
+		policy := newPolicyForTest(
+			t, &modeSourceStub{mode: ModeApproveReads}, &consentCacheStub{}, audit, slog.Default(),
+		)
+		req := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB)
+		req.ReadOnly, req.Seam = true, SeamTool
+		decision, err := policy.Authorize(t.Context(), req)
+		if err != nil || !decision.PromptEligible || decision.Allowed {
+			t.Fatalf("before consent = %#v, %v", decision, err)
+		}
+		policy.RecordToolConsent(t.Context(), req)
+		if len(audit.records) != 2 || !audit.records[1].Allowed || audit.records[1].Source != SourceToolConsent ||
+			audit.records[1].TargetID != testWorkspaceB || audit.records[1].ActorProfileID == "" {
+			t.Fatalf("consent audit = %#v, want a scoped granted record", audit.records)
+		}
+		decision, err = policy.Authorize(t.Context(), req)
+		if err != nil || decision.Allowed || !decision.PromptEligible {
+			t.Fatalf("after audit = %#v, %v, want no policy widening", decision, err)
+		}
+	})
+
 	t.Run("Should UT-001 allow operators before mode lookup", func(t *testing.T) {
 		t.Parallel()
 		modes := &modeSourceStub{mode: ModeDenyAll}

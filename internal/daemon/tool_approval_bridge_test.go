@@ -472,7 +472,9 @@ func TestWorkspaceAccessPromptBridgeFailurePaths(t *testing.T) {
 		)
 		ctx, cancel := context.WithCancel(t.Context())
 		cancel()
-		allowed, err := bridge.RequestWorkspaceAccess(ctx, scope, call, descriptor, workspaceAccessPrompt{label: "ws-b"})
+		allowed, err := bridge.RequestWorkspaceAccess(
+			ctx, scope, call, descriptor, workspaceAccessPrompt{label: "ws-b"},
+		)
 		if err != nil || !allowed {
 			t.Fatalf("RequestWorkspaceAccess(canceled origin) = %v, %v, want allowed", allowed, err)
 		}

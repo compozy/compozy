@@ -183,6 +183,9 @@ func (b *nativeWorkspaceInputBinder) authorizeAccessTarget(
 			workspaceaccess.Decision{Denial: workspaceaccess.DenialNeedsGrant},
 		)
 	}
+	recordWorkspaceReadConsent(ctx, b.workspaceAccess, workspaceaccess.Request{
+		Actor: actor, Target: target.ref, ReadOnly: descriptor.ReadOnly, Seam: workspaceaccess.SeamTool,
+	})
 	toolspkg.MarkOutsideCallerScope(ctx)
 	return true, nil
 }

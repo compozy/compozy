@@ -248,7 +248,7 @@ the All projects aggregate, `*` for every profile). It is keyed to the agent, it
 profile, the tool and the target scope, not to the session id or the call input, so a later session
 of the same agent reading the same project with the same tool does not ask again. Another tool,
 another target, another agent or any write still asks. The grant appears under Settings → Tool
-approvals and in `compozy tool approvals list`; revoking it brings the prompt back. The permission
+approvals and in `compozy tool approvals list`; revoking it brings the prompt back. User-scope agents also retain these grants; list or revoke them with `--workspace @user`. The approval row names the target profile so grants for different profiles can be distinguished. The permission
 mode still applies first: `deny-all` or a `reject_session` answer denies even with a remembered read.
 An always-on agent answering another session's prompt cannot leave this grant: its `allow-always`
 is narrowed to `allow-once`.

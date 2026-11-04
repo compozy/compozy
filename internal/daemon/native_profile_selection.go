@@ -173,6 +173,11 @@ func (n *daemonNativeTools) authorizeNativeProfileSwitch(
 			return errors.Join(nativeWorkspaceAccessDecisionError(req.ToolID, decision), promptErr)
 		}
 		decision.Allowed = allowed && !decision.NeedsGrantAfterConsent
+		if decision.Allowed {
+			recordWorkspaceReadConsent(ctx, n.deps.WorkspaceAccess, workspaceaccess.Request{
+				Actor: actor, Target: target, ReadOnly: descriptor.ReadOnly, Seam: workspaceaccess.SeamTool,
+			})
+		}
 		switch {
 		case !allowed:
 			decision.Denial = workspaceaccess.DenialConsentRejected

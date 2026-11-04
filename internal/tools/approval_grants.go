@@ -134,7 +134,7 @@ func (k ApprovalGrantKey) Validate() error {
 	if k.ProfileID == "" {
 		return fmt.Errorf("%w: profile_id is required", ErrApprovalGrantInvalid)
 	}
-	if k.WorkspaceID == "" {
+	if k.WorkspaceID == "" && k.AccessScope == "" {
 		return fmt.Errorf("%w: workspace_id is required", ErrApprovalGrantInvalid)
 	}
 	if err := k.ToolID.Validate(); err != nil {

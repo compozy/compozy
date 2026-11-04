@@ -220,6 +220,35 @@ func TestGlobalDBToolApprovalGrants(t *testing.T) {
 		}
 	})
 
+	t.Run("Should persist and revoke User read grants without listing project grants", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db := openTestGlobalDB(t)
+		workspaceID := registerWorkspaceForGlobalTests(t, db, "approval-user-isolation", t.TempDir())
+		projectKey := approvalGrantTestKey(workspaceID, "codex", approvalGrantDigest("project"))
+		putApprovalGrantForTest(t, db, toolspkg.ApprovalGrant{
+			ApprovalGrantKey: projectKey, Decision: toolspkg.ApprovalGrantAllow,
+		})
+		key := approvalGrantTestKey("", "codex", approvalGrantDigest("user-read"))
+		key.AccessScope = "read:workspace:" + workspaceID + "@default"
+		created := putApprovalGrantForTest(t, db, toolspkg.ApprovalGrant{
+			ApprovalGrantKey: key, Decision: toolspkg.ApprovalGrantAllow,
+		})
+		if found, ok, err := db.LookupApprovalGrant(ctx, key); err != nil || !ok || found.ID != created.ID {
+			t.Fatalf("User grant lookup = %#v, %t, %v", found, ok, err)
+		}
+		listed, err := db.ListApprovalGrants(ctx, store.ReadScope{ProfileID: store.DefaultProfileID}, "")
+		if err != nil || len(listed) != 1 || listed[0].ID != created.ID {
+			t.Fatalf("User grants = %#v, %v, want only the User-owned grant", listed, err)
+		}
+		if err := db.RevokeApprovalGrant(ctx, store.DefaultProfileID, "", created.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok, err := db.LookupApprovalGrant(ctx, key); err != nil || ok {
+			t.Fatalf("revoked User grant lookup = %t, %v", ok, err)
+		}
+	})
+
 	t.Run("Should isolate list and revoke by workspace and cascade on workspace deletion", func(t *testing.T) {
 		t.Parallel()
 

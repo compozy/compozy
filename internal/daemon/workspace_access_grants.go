@@ -129,3 +129,11 @@ func (b *workspaceAccessPromptBridge) rememberAllow(ctx context.Context, key too
 	}
 	return nil
 }
+
+func recordWorkspaceReadConsent(ctx context.Context, policy workspaceaccess.Policy, req workspaceaccess.Request) {
+	if auditor, ok := policy.(interface {
+		RecordToolConsent(context.Context, workspaceaccess.Request)
+	}); ok {
+		auditor.RecordToolConsent(ctx, req)
+	}
+}

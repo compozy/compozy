@@ -1241,7 +1241,7 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 		})
 	})
 
-	t.Run("Should reuse allow-session consent within one live session", func(t *testing.T) {
+	t.Run("Should reuse remembered read consent within one live session", func(t *testing.T) {
 		var sessionClient *sdkmcp.ClientSession
 		sessionConsent, sessionClient = newWorkspaceAccessHostedSession(
 			t,
@@ -1267,7 +1267,7 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 		)
 	})
 
-	t.Run("Should keep rejection session-scoped and require consent in a new session", func(t *testing.T) {
+	t.Run("Should reuse read consent in a new session and keep rejection session-scoped", func(t *testing.T) {
 		newSessionConsent, newSessionClient := newWorkspaceAccessHostedSession(
 			t,
 			ctx,
@@ -1275,17 +1275,9 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 			"mock-cross-session",
 			"cross-session-new",
 		)
-		newSessionDenied := callWorkspaceAccessToolWithDecision(
-			t,
-			ctx,
-			harness,
-			newSessionConsent.ID,
-			newSessionClient,
-			"cross-session-new-1",
-			target.ID,
-			"reject-once",
-		)
-		assertWorkspaceAccessDeniedResult(t, newSessionDenied)
+		assertWorkspaceAccessAllowedResult(t,
+			callWorkspaceAccessTool(t, ctx, newSessionClient, "cross-session-new-1", target.ID))
+		assertSessionPermissionEventCount(t, ctx, harness, newSessionConsent.ID, 0)
 
 		rejectSession, rejectClient := newWorkspaceAccessHostedSession(
 			t,
@@ -1332,7 +1324,7 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 		assertWorkspaceAccessSpawnParity(t, ctx, harness, onceSession, approveAllSession, target.ID)
 	})
 
-	t.Run("Should reuse session consent at the task seam", func(t *testing.T) {
+	t.Run("Should keep remembered read consent out of the task seam", func(t *testing.T) {
 		var created compozycontract.TaskResponse
 		if err := harness.UDSJSON(ctx, http.MethodPost, "/api/tasks", compozycontract.CreateTaskRequest{
 			Scope:     taskpkg.ScopeWorkspace,
@@ -1358,10 +1350,10 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 			"-o",
 			"json",
 		)
-		if err != nil {
-			t.Fatalf("cross-seam consent task claim error = %v; stderr=%s", err, claimStderr)
+		if err == nil || !strings.Contains(claimStderr, "permission denied") {
+			t.Fatalf("task claim = %v; stderr=%s, want read grant to leave task claim denied", err, claimStderr)
 		}
-		waitForRuntimeCondition(t, "task seam session consent audit", 5*time.Second, func() bool {
+		waitForRuntimeCondition(t, "task seam denied audit", 5*time.Second, func() bool {
 			return workspaceAccessAuditExists(
 				t,
 				ctx,
@@ -1369,8 +1361,8 @@ func TestDaemonE2EWorkspaceAccessModeAndConsentMatrix(t *testing.T) {
 				sessionConsent.ID,
 				target.ID,
 				workspaceaccess.SeamTask,
-				workspaceaccess.SourceSessionConsent,
-				"workspace.access_granted",
+				workspaceaccess.SourceDenied,
+				"workspace.access_denied",
 			)
 		})
 	})

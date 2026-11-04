@@ -114,11 +114,22 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		"allow-once",
 	)
 	nativeSet := decodeNativeApprovalGrantSet(t, nativeSetResult)
+	targetWorkspace, err := first.ResolveWorkspace(ctx, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	first.WorkspaceID = workspaceID
+	readArguments := map[string]any{"workspace": targetWorkspace.ID}
+	readResult := callApprovalToolWithDecision(t, ctx, first, firstSession.ID, firstClient,
+		toolspkg.ToolIDWorkspaceInfo, "scope-read-bootstrap", readArguments, "allow-always")
+	if readResult == nil || readResult.IsError {
+		t.Fatalf("cross-workspace read = %#v, want operator-approved read", readResult)
+	}
 	if err := firstClient.Close(); err != nil {
 		t.Fatalf("Close(first hosted MCP client) error = %v", err)
 	}
 	beforeRestart := listApprovalGrantsHTTP(t, ctx, first, workspaceID)
-	if got, want := beforeRestart.Total, len(missingIDs)+4; got != want {
+	if got, want := beforeRestart.Total, len(missingIDs)+5; got != want {
 		t.Fatalf("grants before restart total = %d, want %d; grants=%#v", got, want, beforeRestart.Grants)
 	}
 
@@ -168,18 +179,46 @@ func testDaemonE2EToolApprovalGrantsPersistAcrossRestartAndMatchSurfaces(t *test
 		t.Fatalf("post-restart exact revoke result = %#v, want handler not-found without a new prompt", autoApproved)
 	}
 
+	readCtx, readCancel := context.WithTimeout(ctx, 3*time.Second)
+	readResult, err = secondClient.CallTool(readCtx,
+		approvalToolCall(toolspkg.ToolIDWorkspaceInfo, "scope-read-after-restart", readArguments))
+	readCancel()
+	if err != nil || readResult == nil || readResult.IsError {
+		t.Fatalf("remembered read after restart = %#v, %v, want no prompt", readResult, err)
+	}
+
 	httpList := listApprovalGrantsHTTP(t, ctx, second, workspaceID)
 	udsList := listApprovalGrantsUDS(t, ctx, second, workspaceID)
 	cliList := listApprovalGrantsCLI(t, ctx, second, workspaceID)
 	nativeList := listApprovalGrantsNative(t, ctx, secondClient, workspaceID)
 	assertApprovalGrantListsEqual(t, httpList, udsList, cliList, nativeList)
-	if got, want := httpList.Total, len(missingIDs)+4; got != want {
+	if got, want := httpList.Total, len(missingIDs)+5; got != want {
 		t.Fatalf("grants after restart total = %d, want %d; grants=%#v", got, want, httpList.Grants)
 	}
 	assertApprovalGrantSurvivedRestart(t, httpList, httpSet)
 	assertApprovalGrantSurvivedRestart(t, httpList, udsSet)
 	assertApprovalGrantSurvivedRestart(t, httpList, cliSet)
 	assertApprovalGrantSurvivedRestart(t, httpList, nativeSet)
+
+	var readGrantID string
+	for _, grant := range httpList.Grants {
+		if grant.AccessScope != "" {
+			readGrantID = grant.ID
+			if grant.WorkspaceID != workspaceID || grant.ToolID != toolspkg.ToolIDWorkspaceInfo ||
+				grant.AgentName != mockSpec.AgentName {
+				t.Fatalf("read grant = %#v, want caller-owned scoped approval", grant)
+			}
+		}
+	}
+	if readGrantID == "" {
+		t.Fatal("remembered read grant missing from approval surfaces")
+	}
+	deleteApprovalGrantHTTP(t, ctx, second, workspaceID, readGrantID)
+	readResult = callApprovalToolWithDecision(t, ctx, second, secondSession.ID, secondClient,
+		toolspkg.ToolIDWorkspaceInfo, "scope-read-after-revoke", readArguments, "reject-once")
+	if readResult == nil || !readResult.IsError {
+		t.Fatalf("read after revoke = %#v, want a newly prompted rejection", readResult)
+	}
 
 	isolatedWorkspace, err := second.ResolveWorkspace(ctx, t.TempDir())
 	if err != nil {

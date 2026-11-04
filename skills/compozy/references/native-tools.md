@@ -706,9 +706,22 @@ When a native call is allowed outside the caller's own workspace and profile, th
 
 Under `approve-reads`, a call that crosses two axes, such as `all_profiles` on another workspace, asks once per axis: first `Access workspace <id>`, then `Read all profiles` or `Read profile <id>`.
 
-The prompt offers four daemon-computed options: `allow_once` (this call), `allow_session` (this call and every later crossing by this session, at every seam), `reject_once` (this call), and `reject_session` (this call and every later crossing by this session). A `*_session` answer lives only in daemon memory, expires when the session stops or the daemon restarts, and has no list or revoke surface. A prompt timeout, transport failure, or unknown answer denies and stores no session answer.
+Read prompts offer `allow_once` (this call), `allow_always` (remember this read scope),
+`reject_once` (this call), and `reject_session` (deny later crossings by this session). An operator
+`allow_always` persists a tool approval for the acting agent in its own workspace/profile, the tool,
+and the exact target workspace/profile scope. Different session IDs and inputs in that scope reuse
+it across session rotation and daemon restart. List and revoke it through tool approvals; revocation
+restores prompting. User-scope agents own these grants in User; use `--workspace @user` to list or revoke them. It never approves other tools, target scopes, agents, profiles, writes, or
+non-tool seams, and cannot bypass permission ceilings. Always-on agents cannot create durable grants
+by answering approval prompts or using grant management tools.
+
+Write prompts retain `allow_session` instead of `allow_always`. A `*_session` answer lives only in
+daemon memory, applies at every seam, and expires when the session stops or the daemon restarts.
+A prompt timeout, transport failure, or unknown answer denies and stores no answer.
 
 Granted agents may also select any active `profile` for writes, use `all_profiles` on reads, and read aggregate routes regardless of mode. Work a granted agent creates in profile P is owned by P; the acting session's tool-approval grants apply. Tool-risk approvals still follow the session's `permissions` mode. Desktop tools remain restricted to project partitions and the caller profile's `user` partition; `global`, another profile's partitions, presence leases, and notification receipts stay operator-only. The full authority matrix and the operator-only authoring rule are in `references/agent-definitions.md` (Unrestricted Workspace Access). User Scope Work ADR-003 supersedes cross-workspace ADR-007 §1 for this one operator-authored field.
+
+A successful native read admitted by the separate consent gate also records `workspace.access_granted` with source `tool_consent`; the initial policy miss remains attributable.
 
 Each policy evaluation attempts a best-effort `workspace.access_granted` or `workspace.access_denied` audit append with actor/target profiles, target kind/workspace, seam, decision source, and mode. A prompt-eligible miss is a denied policy evaluation even when the operator then allows that one call; later evaluations allowed by `allow_session` are granted. Read persisted events through `compozy__logs`, `compozy__observe_search`, `compozy logs --type <event-type>`, or `GET /api/logs`.
 

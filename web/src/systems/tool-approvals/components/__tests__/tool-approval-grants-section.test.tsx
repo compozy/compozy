@@ -18,7 +18,12 @@ const allowGrant = toolApprovalGrantFixtures[0]!;
 const rejectGrant = toolApprovalGrantFixtures[1]!;
 
 const workspaceMock = vi.hoisted(() => ({
-  value: { runtimeWorkspaceId: "ws_default" as string | null, hasHydrated: true, isLoading: false },
+  value: {
+    dataScope: undefined as { kind: "user" } | undefined,
+    runtimeWorkspaceId: "ws_default" as string | null,
+    hasHydrated: true,
+    isLoading: false,
+  },
 }));
 
 vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
@@ -48,11 +53,51 @@ function renderSection() {
 
 describe("ToolApprovalGrantsSection", () => {
   beforeEach(() => {
-    workspaceMock.value = { runtimeWorkspaceId: WS, hasHydrated: true, isLoading: false };
+    workspaceMock.value = {
+      dataScope: undefined,
+      runtimeWorkspaceId: WS,
+      hasHydrated: true,
+      isLoading: false,
+    };
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("Should list and revoke User-owned read grants in User scope", async () => {
+    workspaceMock.value = {
+      runtimeWorkspaceId: null,
+      dataScope: { kind: "user" },
+      hasHydrated: true,
+      isLoading: false,
+    };
+    const grant = {
+      ...toolApprovalGrantFixtures[3]!,
+      id: "user-grant",
+      workspace_id: "",
+      access_scope: "read:workspace:ws_proto@p-target",
+    };
+    const store = createStatefulMswStore([grant]);
+    let revokeScope: string | null = null;
+    stubFetch([
+      http.get("/api/tool-approval-grants", ({ request }) => {
+        expect(new URL(request.url).searchParams.get("workspace_id")).toBe("@user");
+        return HttpResponse.json({ grants: store.all(), total: store.all().length });
+      }),
+      http.delete("/api/tool-approval-grants/:id", ({ request, params }) => {
+        revokeScope = new URL(request.url).searchParams.get("workspace_id");
+        store.delete(String(params.id));
+        return new HttpResponse(null, { status: 204 });
+      }),
+    ]);
+    renderSection();
+    expect(
+      await screen.findByText("Reads in project ws_proto, profile p-target")
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId(`tool-approval-grant-revoke-${grant.id}`));
+    fireEvent.click(await screen.findByTestId(`${TEST_ID}-revoke-confirm`));
+    await waitFor(() => expect(revokeScope).toBe("@user"));
   });
 
   it("Should keep terminal writes generic while exact exec decisions use terminal copy", async () => {
@@ -145,7 +190,7 @@ describe("ToolApprovalGrantsSection", () => {
     expect(screen.getByText("Every request, any agent")).toBeInTheDocument();
     expect(screen.getByText("Only this exact request")).toBeInTheDocument();
     // A remembered cross-project read names its target, not "this exact request".
-    expect(screen.getByText("Reads in project ws_proto")).toBeInTheDocument();
+    expect(screen.getByText("Reads in project ws_proto, profile default")).toBeInTheDocument();
     expect(
       screen.getByTestId(`tool-approval-grant-last-used-${allowGrant.id}`)
     ).toBeInTheDocument();

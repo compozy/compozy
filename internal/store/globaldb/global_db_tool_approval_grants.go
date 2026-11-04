@@ -191,18 +191,15 @@ func (g *ApprovalGrantRepo) ListApprovalGrants(
 		return nil, err
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
-	if workspaceID == "" {
-		return nil, fmt.Errorf("%w: workspace_id is required", toolspkg.ErrApprovalGrantInvalid)
-	}
-	statement, args := store.BuildWhereQuery(
+	statement, args := store.BuildAndQuery(
 		`SELECT g.id, g.profile_id, g.workspace_id, g.agent_name,
 		g.tool_id, g.input_digest, g.decision, g.created_at, g.last_used_at, g.access_scope,
 		p.name, p.color, COALESCE(p.icon, ''), COALESCE(p.emoji, ''), p.state = 'archived'
-		FROM tool_approval_grants g JOIN profiles p ON p.id = g.profile_id`,
+		FROM tool_approval_grants g JOIN profiles p ON p.id = g.profile_id WHERE g.workspace_id = ?`,
 		` ORDER BY g.created_at DESC, g.id`,
 		store.ReadScopeClause("g.profile_id", readScope),
-		store.StringClause("g.workspace_id", workspaceID),
 	)
+	args = append([]any{workspaceID}, args...)
 	rows, err := g.readDB.QueryContext(ctx, statement, args...)
 	if err != nil {
 		return nil, fmt.Errorf("store: list tool approval grants for %q: %w", workspaceID, err)
@@ -249,8 +246,8 @@ func (g *ApprovalGrantRepo) RevokeApprovalGrant(ctx context.Context, profileID, 
 	profileID = strings.TrimSpace(profileID)
 	workspaceID = strings.TrimSpace(workspaceID)
 	id = strings.TrimSpace(id)
-	if profileID == "" || workspaceID == "" || id == "" {
-		return fmt.Errorf("%w: profile_id, workspace_id and id are required", toolspkg.ErrApprovalGrantInvalid)
+	if profileID == "" || id == "" {
+		return fmt.Errorf("%w: profile_id and id are required", toolspkg.ErrApprovalGrantInvalid)
 	}
 	rows, err := executeWriteQueryResult(
 		ctx,

@@ -66,7 +66,7 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 	sessionsFor := func(mode workspaceaccess.Mode) *apitest.StubSessionManager {
 		return &apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			switch id {
-			case "sess-actor":
+			case "sess-actor", "sess-actor-next":
 				return &session.Info{
 					ID: id, AgentName: "coder", WorkspaceID: homeWorkspace, ProfileID: "p-x",
 					State: session.StateActive, EffectivePermissions: string(mode),
@@ -86,7 +86,7 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 					ID: id, AgentName: "coder", WorkspaceID: homeWorkspace, ProfileID: "p-y",
 					State: session.StateStopped,
 				}, nil
-			case "sess-sibling":
+			case "sess-sibling", "sess-sibling-next":
 				return &session.Info{
 					ID: id, AgentName: "coder", WorkspaceID: foreignWorkspace, ProfileID: "p-x",
 					State: session.StateActive,
@@ -394,7 +394,8 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		}
 		requirePrompts(t, 1)
 		options := requester.requests[0].Options
-		if len(options) < 2 || options[1].OptionId != workspaceAccessAllowAlwaysID || options[1].Name != "Always allow" {
+		if len(options) < 2 || options[1].OptionId != workspaceAccessAllowAlwaysID ||
+			options[1].Name != "Always allow" {
 			t.Fatalf("read prompt options = %#v, want a remembered Always allow", options)
 		}
 		wantScope := "read:workspace:" + foreignWorkspace + "@p-x"
@@ -414,6 +415,20 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		}
 		requirePrompts(t, 1)
 
+		// Recreating the bridge and rotating the actor session must not lose the grant.
+		scope.SessionID = "sess-actor-next"
+		binder.prompter = newWorkspaceAccessPromptBridge(
+			func() sessionPermissionRequester { return requester },
+			time.Second,
+			newWorkspaceAccessConsentCache(),
+			grants,
+			slog.New(slog.DiscardHandler),
+		)
+		if err := call(statusDescriptor, `{"session_id":"sess-sibling-next"}`); err != nil {
+			t.Fatalf("rotated session read error = %v, want the remembered grant", err)
+		}
+		requirePrompts(t, 1)
+
 		// Another target scope and another tool stay outside the grant.
 		err := call(statusDescriptor, `{"session_id":"sess-foreign"}`)
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
@@ -422,14 +437,17 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		err = call(historyDescriptor, `{"session_id":"sess-sibling"}`)
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
 		requirePrompts(t, 3)
+		err = call(statusDescriptor, `{"workspace":"@user"}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		requirePrompts(t, 4)
 
 		// A write to the remembered scope still asks, and offers no durable answer.
 		renameDescriptor := statusDescriptor
 		renameDescriptor.ID, renameDescriptor.ReadOnly = toolspkg.ToolIDSessionRename, false
 		err = call(renameDescriptor, `{"session_id":"sess-sibling"}`)
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
-		requirePrompts(t, 4)
-		if option := requester.requests[3].Options[1]; option.OptionId != workspaceAccessAllowSessionID {
+		requirePrompts(t, 5)
+		if option := requester.requests[4].Options[1]; option.OptionId != workspaceAccessAllowSessionID {
 			t.Fatalf("write prompt allow option = %q, want the per-session answer", option.OptionId)
 		}
 
@@ -439,16 +457,17 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		}
 		err = call(statusDescriptor, `{"session_id":"sess-sibling"}`)
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
-		requirePrompts(t, 5)
+		requirePrompts(t, 6)
 
 		// A missing session asks the same question and leaves nothing behind.
 		requester.response.Outcome = acpsdk.NewRequestPermissionOutcomeSelected(workspaceAccessAllowAlwaysID)
 		if err := call(statusDescriptor, `{"session_id":"sess-missing"}`); err != nil {
 			t.Fatalf("missing-session read error = %v, want the handler to report not found", err)
 		}
-		requirePrompts(t, 6)
-		if requester.requests[5].Options[1].OptionId != workspaceAccessAllowAlwaysID {
-			t.Fatalf("missing-session prompt options = %#v, want the found-session question", requester.requests[5].Options)
+		requirePrompts(t, 7)
+		if requester.requests[6].Options[1].OptionId != workspaceAccessAllowAlwaysID {
+			t.Fatalf("missing-session prompt options = %#v, want the found-session question",
+				requester.requests[6].Options)
 		}
 		if len(grants.grants) != 0 {
 			t.Fatalf("stored grants = %#v, want none for an unresolved target", grants.grants)

@@ -3253,6 +3253,9 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		}
 		addSessionRouteProfileSelectors(t, baseline)
 		addRuntimeRecoveryReason(baseline)
+		if addApprovalAccessScope(baseline) == 0 {
+			t.Fatal("approved access_scope addition: no historical approval grant schemas found")
+		}
 		// #1249: settings provider auth status reports when its sign-in was last verified live.
 		if addSettingsProviderLastProbeAt(baseline) == 0 {
 			t.Fatal("approved settings last_probe_at addition: no historical provider auth status schema found")
@@ -5935,4 +5938,25 @@ func agentKindRequestSchemaForTest() map[string]any {
 		"enum":        []any{"on_demand", "always_on", "stays_on"},
 		"description": agentKindRequestDescription,
 	}
+}
+
+func addApprovalAccessScope(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addApprovalAccessScope(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addApprovalAccessScope(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["tool_id"] != nil && properties["input_digest"] != nil &&
+			properties["last_used_at"] != nil && properties["decision"] != nil {
+			properties["access_scope"] = map[string]any{"type": "string"}
+			count++
+		}
+	}
+	return count
 }
