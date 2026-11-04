@@ -387,6 +387,123 @@ func TestOpenSessionDBCreatesSchemaAndEnablesWAL(t *testing.T) {
 func TestSessionDBPassiveCheckpoint(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: periodic and idle backfill reach the main database without reserving the writer.
+	for _, idle := range []bool{false, true} {
+		name := "Should complete periodic checkpoint I/O after the admission deadline"
+		if idle {
+			name = "Should keep the idle writer independent of passive checkpoint I/O"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			db := openTestSessionDB(t, "sess-checkpoint-budget")
+			db.walMaintenanceDelayOverride.Store(int64(time.Hour))
+			marker := []byte("checkpoint-progress-must-reach-main-database")
+			if _, err := db.db.ExecContext(t.Context(), "CREATE TABLE checkpoint_progress (value BLOB)"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := db.db.ExecContext(t.Context(), "INSERT INTO checkpoint_progress VALUES (?)",
+				bytes.Repeat(marker, 64)); err != nil {
+				t.Fatal(err)
+			}
+			before, err := os.ReadFile(db.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wal, err := os.ReadFile(db.path + "-wal")
+			if err != nil || bytes.Contains(before, marker) || !bytes.Contains(wal, marker) {
+				t.Fatalf("checkpoint fixture is not confined to WAL: %v", err)
+			}
+			blocked := &blockedSessionCheckpointConnector{
+				Connector: db.checkpointDB.Driver().(driver.Connector),
+				entered:   make(chan struct{}), released: make(chan struct{}),
+			}
+			unblock := sync.OnceFunc(func() { close(blocked.released) })
+			defer unblock()
+			if err := db.checkpointDB.Close(); err != nil {
+				t.Fatal(err)
+			}
+			db.checkpointDB = sql.OpenDB(blocked)
+			db.checkpointDB.SetMaxOpenConns(1)
+			db.checkpointDB.SetMaxIdleConns(1)
+			if err := db.checkpointDB.PingContext(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+			completed := make(chan error, 1)
+			go func() {
+				if idle {
+					db.checkpointWAL()
+					completed <- nil
+					return
+				}
+				completed <- db.passiveCheckpoint(db.writerCtx)
+			}()
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			select {
+			case <-blocked.entered:
+			case <-ctx.Done():
+				t.Fatal("checkpoint did not enter I/O")
+			}
+			if idle {
+				select {
+				case <-completed:
+				case <-ctx.Done():
+					t.Fatal("idle writer remained blocked by passive I/O")
+				}
+			}
+			timer := time.NewTimer(2 * sessionWALCheckpointWait)
+			defer timer.Stop()
+			select {
+			case <-timer.C:
+			case <-ctx.Done():
+				t.Fatal("test deadline expired before admission budget")
+			}
+			unblock()
+			if !idle {
+				select {
+				case err := <-completed:
+					if err != nil {
+						t.Fatalf("checkpoint after admission deadline = %v", err)
+					}
+				case <-ctx.Done():
+					t.Fatal("checkpoint did not finish after I/O resumed")
+				}
+			}
+			connection, err := db.checkpointDB.Conn(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := connection.Close(); err != nil {
+				t.Fatal(err)
+			}
+			after, err := os.ReadFile(db.path)
+			if err != nil || !bytes.Contains(after, marker) {
+				t.Fatalf("checkpoint did not backfill committed WAL content: %v", err)
+			}
+		})
+	}
+
+	// Invariant: real PASSIVE I/O errors remain failures through the maintenance entry point.
+	t.Run("Should report PASSIVE checkpoint I/O failures without deferring", func(t *testing.T) {
+		t.Parallel()
+		db := openTestSessionDB(t, "sess-checkpoint-fault")
+		fault := errors.New("checkpoint I/O failure")
+		connector := &blockedSessionCheckpointConnector{
+			Connector: db.checkpointDB.Driver().(driver.Connector), fault: fault,
+		}
+		if err := db.checkpointDB.Close(); err != nil {
+			t.Fatal(err)
+		}
+		db.checkpointDB = sql.OpenDB(connector)
+		if err := db.checkpointDB.PingContext(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		err := db.passiveCheckpoint(t.Context())
+		if !errors.Is(err, fault) || errors.Is(err, errSessionCheckpointDeferred) {
+			t.Fatalf("PASSIVE checkpoint = %v, want original I/O failure", err)
+		}
+	})
+
 	// Invariant: a checkpoint blocked in filesystem I/O cannot reserve the session
 	// writer. Close bounds caller waiting and joins maintenance before releasing the database family.
 	// Owner: SessionDB maintenance lifecycle; canonical passive-checkpoint suite.
@@ -410,6 +527,9 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 			db.checkpointDB = sql.OpenDB(blocked)
 			db.checkpointDB.SetMaxOpenConns(1)
 			db.checkpointDB.SetMaxIdleConns(1)
+			if err := db.checkpointDB.PingContext(t.Context()); err != nil {
+				t.Fatal(err)
+			}
 			db.walMaintenanceDelayOverride.Store(int64(time.Hour))
 			events := make([]SessionEvent, sessionPassiveCheckpointEvery)
 			for i := range events {
@@ -3754,6 +3874,7 @@ func (d *ownerReadFaultDriver) Open(name string) (driver.Conn, error) {
 // The driver boundary blocks only checkpoint I/O; all SQL runs on real SQLite.
 type blockedSessionCheckpointConnector struct {
 	driver.Connector
+	fault    error
 	entered  chan struct{}
 	released chan struct{}
 	once     sync.Once
@@ -3788,6 +3909,9 @@ func (c *blockedSessionCheckpointConnection) ExecContext(
 	ctx context.Context, query string, args []driver.NamedValue,
 ) (driver.Result, error) {
 	if query == "PRAGMA wal_checkpoint(PASSIVE)" {
+		if c.owner.fault != nil {
+			return nil, c.owner.fault
+		}
 		c.owner.once.Do(func() { close(c.owner.entered) })
 		// A filesystem sync already in progress cannot be interrupted by ctx.
 		<-c.owner.released

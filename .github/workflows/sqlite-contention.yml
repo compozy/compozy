@@ -41,6 +41,8 @@ jobs:
           persist-credentials: false
       - name: Set up Go
         uses: ./.github/actions/setup-go
+      - name: Verify acceptance decisions
+        run: python3 -m unittest discover -s scripts/sqlite-contention -p '*_test.py' -v
       - name: Install syscall tracer
         run: |
           apt_sources=(-o Dir::Etc::sourcelist=sources.list.d/ubuntu.sources -o Dir::Etc::sourceparts=-)
