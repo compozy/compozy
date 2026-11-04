@@ -1,6 +1,6 @@
 import { useStore, useSelector } from "@xstate/store-react";
 import { useEffect, useRef } from "react";
-import { useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 
 import {
   applyAgentInstanceUpdate,
@@ -10,9 +10,13 @@ import {
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
-import { useProfileReadScope, type ProfileScopeParams } from "@/systems/profiles";
+import { useProfileReadScope } from "@/systems/profiles";
 
 import { sessionKeys } from "../lib/query-keys";
+import {
+  sessionCatalogStreamStatusOptions,
+  sessionCatalogStreamURL,
+} from "../lib/session-catalog-stream-coverage";
 import { invalidateSessionMonitorsQueries } from "../lib/session-query-invalidation";
 import {
   createCatalogReconciler,
@@ -53,13 +57,6 @@ interface UseSessionCatalogStreamsOptions extends SessionCatalogStreamHandlers {
 }
 
 export type { SessionCatalogStreamStatus } from "./session-catalog-streams-store";
-
-export function sessionCatalogStreamURL(scope: ProfileScopeParams): string {
-  const params = new URLSearchParams({ all_workspaces: "true" });
-  if ("all_profiles" in scope) params.set("all_profiles", "true");
-  else params.set("profile", scope.profile);
-  return `/api/sessions/catalog-stream?${params.toString()}`;
-}
 
 function defaultEventSourceFactory(url: string): SessionCatalogEventSource {
   return createStreamEventSource(url, { transport: "websocket", resumeWithLastEventId: true });
@@ -344,12 +341,18 @@ export function useSessionCatalogStreams({
       return undefined;
     }
 
+    // The covered polls read this scope's status from the query cache. Each socket
+    // writes only its own URL's entry, so a closing socket never marks the new scope live.
+    const statusKey = sessionCatalogStreamStatusOptions(streamUrl).queryKey;
     store.trigger.connectionRequested({
       connect: onStatusChange => {
-        return openSessionCatalogStream(
+        const close = openSessionCatalogStream(
           queryClient,
           eventSourceFactory ?? defaultEventSourceFactory,
-          onStatusChange,
+          status => {
+            onStatusChange(status);
+            queryClient.setQueryData(statusKey, status);
+          },
           {
             onAttentionEdge: edge => handlersRef.current.onAttentionEdge?.(edge),
             onOperatorNotification: notification =>
@@ -357,10 +360,25 @@ export function useSessionCatalogStreams({
           },
           streamUrl
         );
+        return () => {
+          close();
+          queryClient.setQueryData(statusKey, "disabled");
+        };
       },
     });
     return () => store.trigger.connectionDisabled();
   }, [canConnect, eventSourceFactory, queryClient, store, streamUrl]);
 
   return status;
+}
+
+/**
+ * Whether the catalog stream is live for the operator's current profile scope. The
+ * stream spans every workspace, so a covered read in that scope needs no fixed poll;
+ * connecting, stale and disabled streams leave the read on its fallback interval.
+ */
+export function useSessionCatalogStreamLive(): boolean {
+  const streamUrl = sessionCatalogStreamURL(useProfileReadScope().params);
+  const { data } = useQuery(sessionCatalogStreamStatusOptions(streamUrl));
+  return data === "live";
 }

@@ -1,6 +1,8 @@
 import { createStoreLogic, type EnqueueObject } from "@xstate/store";
 
-export type SessionCatalogStreamStatus = "disabled" | "connecting" | "live" | "stale";
+import type { SessionCatalogStreamStatus } from "../lib/session-catalog-stream-coverage";
+
+export type { SessionCatalogStreamStatus };
 
 interface SessionCatalogStreamsState {
   generation: number;

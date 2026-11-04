@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { sessionExpiredInteractionsOptions } from "../lib/query-options";
 import { expiredInteractionsByRequest } from "../lib/session-pending-interactions";
 import type { SessionInteractionRecord } from "../types";
+import { useSessionCatalogStreamLive } from "./use-session-catalog-streams";
 
 const NO_EXPIRED_INTERACTIONS: ReadonlyMap<string, SessionInteractionRecord> = new Map();
 
@@ -18,6 +19,9 @@ export function useSessionExpiredInteractions(
   sessionId: string,
   options: { enabled?: boolean; undecidedRequestIds?: ReadonlySet<string> } = {}
 ): ReadonlyMap<string, SessionInteractionRecord> {
-  const query = useQuery(sessionExpiredInteractionsOptions(workspaceId, sessionId, options));
+  const streamCovered = useSessionCatalogStreamLive();
+  const query = useQuery(
+    sessionExpiredInteractionsOptions(workspaceId, sessionId, { ...options, streamCovered })
+  );
   return query.data ? expiredInteractionsByRequest(query.data) : NO_EXPIRED_INTERACTIONS;
 }

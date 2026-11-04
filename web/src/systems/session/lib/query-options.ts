@@ -195,12 +195,20 @@ export function sessionClarificationsOptions(workspace: string, id: string, enab
  * resolution `failed-by-restart`). Read while the transcript shows an undecided ask; the
  * live control cadence re-reads only while some undecided ask is still unknown to the
  * settled map, so a transcript whose every open ask has a settled row keeps its cached
- * receipts without polling, and a session with nothing undecided never asks.
+ * receipts without polling, and a session with nothing undecided never asks. A restart
+ * expiry changes the session's pending counts, which upserts it on the catalog stream, and
+ * the reconnect after the restart wakes every open read; so while that stream is live for
+ * the read's scope its wakes replace the poll.
  */
 export function sessionExpiredInteractionsOptions(
   workspace: string,
   id: string,
-  options: { enabled?: boolean; undecidedRequestIds?: ReadonlySet<string> } = {}
+  options: {
+    enabled?: boolean;
+    undecidedRequestIds?: ReadonlySet<string>;
+    /** The catalog stream is live for this read's scope; its wakes replace the poll. */
+    streamCovered?: boolean;
+  } = {}
 ) {
   const undecided = options.undecidedRequestIds ?? new Set<string>();
   return queryOptions({
@@ -208,6 +216,7 @@ export function sessionExpiredInteractionsOptions(
     queryFn: ({ signal }) =>
       fetchSessionInteractions(workspace, id, { status: "canceled", signal }),
     refetchInterval: query => {
+      if (options.streamCovered) return false;
       const rows = query.state.data;
       if (!rows) return SESSION_LIVE_REFETCH_INTERVAL_MS;
       const settled = expiredInteractionsByRequest(rows);
@@ -276,6 +285,10 @@ export function sessionInputsOptions(
 }
 
 export { sessionRelayedInteractionsOptions } from "./session-relayed-query-options";
+export {
+  catalogStreamCoveredRefetchInterval,
+  sessionCatalogStreamStatusOptions,
+} from "./session-catalog-stream-coverage";
 
 export { sessionTranscriptOptions } from "./session-transcript-options";
 

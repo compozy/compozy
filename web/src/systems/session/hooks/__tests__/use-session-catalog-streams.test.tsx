@@ -14,7 +14,12 @@ import { resetProfileViews, setProfileView } from "@/systems/profiles";
 
 import { primarySessionFixture } from "../../mocks/fixtures";
 import { sessionKeys } from "../../lib/query-keys";
-import { sessionDetailOptions, sessionTranscriptOptions } from "../../lib/query-options";
+import {
+  sessionDetailOptions,
+  sessionExpiredInteractionsOptions,
+  sessionRelayedInteractionsOptions,
+  sessionTranscriptOptions,
+} from "../../lib/query-options";
 import type { SessionTranscriptData } from "../../lib/session-transcript-query";
 import type {
   NormalizedSessionTranscriptResponse,
@@ -23,6 +28,7 @@ import type {
   SessionState,
 } from "../../types";
 import {
+  useSessionCatalogStreamLive,
   useSessionCatalogStreams,
   type SessionCatalogEventSource,
 } from "../use-session-catalog-streams";
@@ -32,10 +38,17 @@ import { sessionBoardPageOptions, sessionFacetsOptions } from "../../lib/session
 vi.mock("../../adapters/session-api", async importOriginal => ({
   ...(await importOriginal<typeof import("../../adapters/session-api")>()),
   fetchSession: vi.fn(),
+  fetchSessionInteractions: vi.fn(),
+  fetchSessionPendingWithDescendants: vi.fn(),
   fetchSessionTranscript: vi.fn(),
 }));
 
-import { fetchSession, fetchSessionTranscript } from "../../adapters/session-api";
+import {
+  fetchSession,
+  fetchSessionInteractions,
+  fetchSessionPendingWithDescendants,
+  fetchSessionTranscript,
+} from "../../adapters/session-api";
 
 const WORKSPACE_ID = primarySessionFixture.workspace_id ?? "ws_primary";
 const SESSION_ID = primarySessionFixture.id;
@@ -218,6 +231,83 @@ describe("useSessionCatalogStreams", () => {
     act(() => vi.advanceTimersByTime(10_000));
     expect(result.current).toBe("live");
     unmount();
+    client.clear();
+  });
+
+  // Invariant: a poll the catalog stream covers stops while that stream is live for the
+  // read's profile scope, is re-read by the stream's wake, and resumes once it goes stale.
+  it("Should replace covered interaction polls with stream wakes only while the stream is live", async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetchSessionPendingWithDescendants).mockResolvedValue([]);
+    vi.mocked(fetchSessionInteractions).mockResolvedValue([]);
+    const client = createQueryClient();
+    let source: FakeCatalogEventSource | undefined;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { result, unmount } = renderHook(
+      () => {
+        useSessionCatalogStreams({ eventSourceFactory: factory });
+        const streamCovered = useSessionCatalogStreamLive();
+        useQuery(sessionRelayedInteractionsOptions(WORKSPACE_ID, SESSION_ID, true, streamCovered));
+        useQuery(
+          sessionExpiredInteractionsOptions(WORKSPACE_ID, SESSION_ID, {
+            undecidedRequestIds: new Set(["req_open"]),
+            streamCovered,
+          })
+        );
+        return streamCovered;
+      },
+      { wrapper: wrapper(client) }
+    );
+    const relayed = vi.mocked(fetchSessionPendingWithDescendants);
+    const expired = vi.mocked(fetchSessionInteractions);
+    const settle = (ms: number) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)));
+
+    await settle(1);
+    expect(result.current).toBe(false);
+    // Before the stream is live both reads keep their fallback polls.
+    await settle(5_000);
+    expect(expired).toHaveBeenCalledTimes(2);
+
+    act(() => source!.emit("open"));
+    expect(result.current).toBe(true);
+    await settle(5_000);
+    const relayedLive = relayed.mock.calls.length;
+    const expiredLive = expired.mock.calls.length;
+    await settle(60_000);
+    expect(relayed).toHaveBeenCalledTimes(relayedLive);
+    expect(expired).toHaveBeenCalledTimes(expiredLive);
+
+    // A catalog change in the read's workspace re-reads both; another workspace does not.
+    act(() =>
+      source!.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: "ws_other",
+        session_id: "sess_other",
+      })
+    );
+    await settle(5_000);
+    expect(relayed).toHaveBeenCalledTimes(relayedLive);
+    act(() =>
+      source!.emit("session_catalog_changed", {
+        kind: "upserted",
+        workspace_id: WORKSPACE_ID,
+        session_id: "sess_child",
+      })
+    );
+    await settle(5_000);
+    expect(relayed).toHaveBeenCalledTimes(relayedLive + 1);
+    expect(expired).toHaveBeenCalledTimes(expiredLive + 1);
+
+    // Once the stream is lost past its grace the fallback polls return.
+    act(() => source!.emit("error"));
+    await settle(10_000);
+    expect(result.current).toBe(false);
+    await settle(15_000);
+    expect(relayed.mock.calls.length).toBeGreaterThan(relayedLive + 1);
+    expect(expired.mock.calls.length).toBeGreaterThan(expiredLive + 1);
+
+    unmount();
+    expect(client.getQueryData(sessionKeys.catalogStreamStatus(source!.url))).toBe("disabled");
     client.clear();
   });
 
