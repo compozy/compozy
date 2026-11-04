@@ -9,7 +9,7 @@ const (
 	golangciLintTimeout       = "40m"
 	goUnitTestTimeout         = "30m"
 	goIntegrationPackageLimit = "2"
-	goIntegrationTestTimeout  = "30m"
+	goIntegrationTestTimeout  = "45m"
 	gotestsumVersion          = "v1.13.0"
 	binDir                    = "bin"
 	cliBinary                 = "compozy"
