@@ -1166,14 +1166,14 @@ func TestDaemonE2EHeartbeatSourceCatalog(t *testing.T) {
 			"-o",
 			"json",
 		)
-		var instance compozycontract.AgentInstancePayload
+		var instance compozycontract.AgentInstanceResponse
 		run(&instance, "agent", "instance", "create", name, "--workspace", harness.WorkspaceRoot, "-o", "json")
 		run(&instance, "agent", "instance", "checks", "on", name, "--workspace", harness.WorkspaceRoot, "-o", "json")
 		var check map[string]any
 		run(&check, "agent", "instance", "check", name, "--workspace", harness.WorkspaceRoot, "-o", "json")
 		run(&instance, "agent", "instance", "show", name, "--workspace", harness.WorkspaceRoot, "-o", "json")
-		if len(instance.Sources) != 1 || instance.Sources[0].Status != "ok" {
-			t.Fatalf("instance sources=%+v check=%v", instance.Sources, check)
+		if len(instance.Instance.Sources) != 1 || instance.Instance.Sources[0].Status != "ok" {
+			t.Fatalf("instance sources=%+v check=%v", instance.Instance.Sources, check)
 		}
 	})
 }

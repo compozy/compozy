@@ -143,6 +143,9 @@ Focused automation: `_tests.md` UT/IT ids per slice (S1 Go suites, S1w/S4 Vitest
 `TestDaemonE2EHeartbeatSourceCatalog` in CI). Steps 7.4–7.5 match the S4 row controls and add/edit
 dialog and must be walked on the integrated branch.
 
+The CLI instance create/show/checks responses use the `instance` envelope. The source-catalog
+E2E decodes that envelope before checking the persisted source's `ok` status.
+
 ## Corrective boundary checks
 
 - Put a FIFO in `sources/` without a writer. Discovery, approval and polling must return promptly and reject it as a script.
