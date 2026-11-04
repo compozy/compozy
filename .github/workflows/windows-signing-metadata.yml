@@ -28,8 +28,10 @@ jobs:
           dotnet add package Azure.Identity --version 1.21.0
           cat > Program.cs <<'CS'
           using Azure;
+          using Azure.Core;
           using Azure.CodeSigning;
           using Azure.Identity;
+          using System.Net.Http.Headers;
           using System.Security.Cryptography.X509Certificates;
           using System.Text.Json;
           using System.Text.RegularExpressions;
@@ -44,8 +46,40 @@ jobs:
               var credential = new ClientSecretCredential(
                   Required("AZURE_TENANT_ID"), Required("AZURE_CLIENT_ID"),
                   Required("AZURE_CLIENT_SECRET"));
+              using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+              var armToken = await credential.GetTokenAsync(
+                  new TokenRequestContext(new[] { "https://management.azure.com/.default" }), deadline.Token);
+              Console.WriteLine("Existing build credential authentication succeeded.");
+              using var http = new HttpClient();
+              http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", armToken.Token);
+              using var subscriptionResponse = await http.GetAsync(
+                  "https://management.azure.com/subscriptions?api-version=2022-12-01", deadline.Token);
+              Console.WriteLine($"Subscription discovery HTTP {(int)subscriptionResponse.StatusCode}.");
+              if (subscriptionResponse.IsSuccessStatusCode)
+              {
+                  using var subscriptions = JsonDocument.Parse(await subscriptionResponse.Content.ReadAsStringAsync(deadline.Token));
+                  Console.WriteLine($"Visible subscriptions: {subscriptions.RootElement.GetProperty("value").GetArrayLength()}.");
+                  foreach (var subscription in subscriptions.RootElement.GetProperty("value").EnumerateArray())
+                  {
+                      var subscriptionId = subscription.GetProperty("subscriptionId").GetString();
+                      using var accountResponse = await http.GetAsync(
+                          $"https://management.azure.com/subscriptions/{subscriptionId}/providers/Microsoft.CodeSigning/codeSigningAccounts?api-version=2025-10-13", deadline.Token);
+                      Console.WriteLine($"Signing account discovery HTTP {(int)accountResponse.StatusCode}.");
+                      if (!accountResponse.IsSuccessStatusCode) continue;
+                      using var accounts = JsonDocument.Parse(await accountResponse.Content.ReadAsStringAsync(deadline.Token));
+                      foreach (var account in accounts.RootElement.GetProperty("value").EnumerateArray())
+                      {
+                          if (!String.Equals(account.GetProperty("name").GetString(),
+                              Required("AZURE_CODE_SIGNING_ACCOUNT"), StringComparison.OrdinalIgnoreCase)) continue;
+                          var accountUri = new Uri(account.GetProperty("properties").GetProperty("accountUri").GetString()!);
+                          if (accountUri.Scheme != "https" || !accountUri.Host.EndsWith(".codesigning.azure.net", StringComparison.OrdinalIgnoreCase))
+                              throw new InvalidOperationException("Unexpected signing service host");
+                          endpoint = new Uri(accountUri.GetLeftPart(UriPartial.Authority) + "/");
+                          Console.WriteLine("Existing signing account found; endpoint: " + endpoint.AbsoluteUri);
+                      }
+                  }
+              }
               var client = new CertificateProfileClient(credential, endpoint);
-              using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(45));
               var response = await client.GetSignCertificateChainAsync(
                   Required("AZURE_CODE_SIGNING_ACCOUNT"),
                   Required("AZURE_CERTIFICATE_PROFILE"), cancellationToken: deadline.Token);
@@ -86,7 +120,9 @@ jobs:
               // Never print SDK messages, request URLs, tokens, or credential values.
               var aadCode = Regex.Match(error.ToString(), @"AADSTS\d+").Value;
               var status = error is RequestFailedException request ? request.Status : 0;
-              Console.Error.WriteLine($"Signing metadata lookup failed: {error.GetType().Name}; HTTP {status}; {aadCode}");
+              var serviceCode = error is RequestFailedException service &&
+                  Regex.IsMatch(service.ErrorCode ?? "", @"^[A-Za-z0-9_.-]{1,80}$") ? service.ErrorCode : "";
+              Console.Error.WriteLine($"Signing metadata lookup failed: {error.GetType().Name}; HTTP {status}; {serviceCode}; {aadCode}");
               Environment.ExitCode = 1;
           }
           CS
@@ -112,6 +148,9 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 22
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
       - name: Compare PowerShell startup and the production directory boundary
         shell: bash
         run: |
@@ -179,3 +218,26 @@ jobs:
             await rm(home, { recursive: true, force: true });
           }
           JS
+      - name: Compare the production permission helper under Bun
+        if: always()
+        shell: bash
+        run: |
+          bun --eval '
+          import { mkdtemp, rm } from "node:fs/promises";
+          import { tmpdir } from "node:os";
+          import { join } from "node:path";
+          import { protectWindowsDirectory } from "./desktop/src/files/windows-permissions.ts";
+          console.log(JSON.stringify({ node: process.versions.node, bun: process.versions.bun }));
+          const home = await mkdtemp(join(tmpdir(), "compozy-bun-acl-"));
+          const started = Date.now();
+          try {
+            await protectWindowsDirectory(home, true);
+            console.log(JSON.stringify({ check: "bun-directory", ms: Date.now() - started, result: "passed" }));
+          } catch (error) {
+            console.log(JSON.stringify({ check: "bun-directory", ms: Date.now() - started,
+              code: error.code, signal: error.signal, killed: error.killed, stdout: error.stdout, stderr: error.stderr }));
+            process.exitCode = 1;
+          } finally {
+            await rm(home, { recursive: true, force: true });
+          }
+          '
