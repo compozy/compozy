@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"runtime/trace"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +20,26 @@ import (
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/transcript"
 )
+
+// Diagnostics run separately from acceptance timings, only after a failed trial.
+// The trace distinguishes scheduling, GC, Go locks and system-call stalls.
+func traceLoad(g *globaldb.GlobalDB, opts options, m *measurements, openMS float64) (err error) {
+	if opts.runtimeTrace == "" {
+		return load(g, opts, m, openMS)
+	}
+	file, err := os.OpenFile(opts.runtimeTrace, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o600)
+	if err != nil {
+		return errors.Join(err, g.Close(context.Background()))
+	}
+	if err := trace.Start(file); err != nil {
+		return errors.Join(err, file.Close(), g.Close(context.Background()))
+	}
+	defer func() {
+		trace.Stop()
+		err = errors.Join(err, file.Close())
+	}()
+	return load(g, opts, m, openMS)
+}
 
 func load(g *globaldb.GlobalDB, opts options, m *measurements, openMS float64) (err error) {
 	sessions := make([]*sessiondb.SessionDB, 0, opts.sessions)

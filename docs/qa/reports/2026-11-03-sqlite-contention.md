@@ -112,15 +112,15 @@ and `queries/observe*.sql`.
   entries by the integer primary-key sequence. The final telemetry schema has 12 declared indexes
   plus unique ID, compared with the previous 14 plus unique ID.
 - The 830,020-row paired fixture measures 1,069,608,960 bytes of table/index pages before relocation
-  and 1,050,152,960 afterward; the table itself remains 681,644,032 bytes. Removing unused indexes
+  and 1,059,639,296 afterward with the final ordering indexes; the table itself remains 681,644,032 bytes. Removing unused indexes
   is partly offset by the two profile indexes. The full outcome index uses 44,470,272 bytes before
-  replacement, versus 3,756,032 for the partial index. These are synthetic retained-data measurements,
+  replacement, versus 4,096,000 for the partial index. These are synthetic retained-data measurements,
   not operator-database measurements.
-- The measured query plans exposed a remaining defect: `ErrorOnly` still scanned the full timestamp
+- The initial query plans exposed an ordering defect: `ErrorOnly` still scanned the full timestamp
   index, and profile-recent reads needed a temporary sort for sequence ties. Telemetry migration 4
   adds explicit descending `seq` to both recent indexes, matching the real timestamp/sequence order.
   The canonical Observe suite now rejects the full-history outcome scan and either temporary sort.
-  The next paired run must report the resulting retained-data plans and page counts. Exact outcome,
+  The fourth paired run confirms both access paths without temporary sorting. Exact outcome,
   provider, session, task and run plans remain separately reported; no unmeasured improvement is claimed.
 
 ## Writer ownership inventory
@@ -210,13 +210,11 @@ The following acceptance items remain open and are not implied by the focused te
 
 1. Same-machine before/after load with approximately 30 streaming sessions: p99 transcript/catalog
    latency, transactions/sec, core bytes/minute, zero interactive failures and no holds over one second.
-2. Re-measure the corrected index ordering on the production-sized fixture. The completed 1 GiB
-   upgrade already preserves every column and the retired cursor, with integrity and Observe parity.
-3. Keep the isolated real-daemon walk green on the final head. Its first complete run passed on
+2. Keep the isolated real-daemon walk green on the final head. Its first complete run passed on
    `c6037e2a3`, as detailed below; no operator credentials or runtime home were reused.
-4. Measure the remaining large atomic catalog/process operations under the representative load;
+3. Measure the remaining large atomic catalog/process operations under the representative load;
    routing coverage is implemented but does not by itself prove the latency target.
-5. Final-head CI plus two CodeRabbit reviews, followed by merge-train handoff; this agent does not merge.
+4. Final-head CI plus two CodeRabbit reviews, followed by merge-train handoff; this agent does not merge.
 
 ### Complete ownership and review checkpoint
 
@@ -257,8 +255,8 @@ under the operator's CI-only gate rule, after the named focused checks.
 
 | Acceptance walk | Current status | Evidence owner |
 | --- | --- | --- |
-| Paired 30-session store workload and 1 GiB upgrade | Pending | Dedicated CI report and raw artifacts |
-| Real daemon HTTP/SSE/UDS/CLI load and clean restart | Pending | `TestSQLiteContentionDaemonLoad`, bootstrap audit and teardown |
+| Paired 30-session store workload and 1 GiB upgrade | Upgrade passes; load acceptance still fails | Dedicated CI report and raw artifacts |
+| Real daemon HTTP/SSE/UDS/CLI load and clean restart | Passes on `7b941a4ed`; final-head rerun required | `TestSQLiteContentionDaemonLoad`, bootstrap audit and teardown |
 
 ### First paired experiment: failed acceptance, retained evidence
 
@@ -456,3 +454,46 @@ The Go 1.26 compatibility finding is contradicted by the current module and CI v
 Seven observations concern files identical to current main and are disclosed in PR comment
 `6620645196`; none is claimed as repaired by this issue. Greptile reviewed all 380 files at
 `c6037e2a3` with zero new comments. Final-delta review remains required.
+
+### Fourth paired experiment: remaining interactive stall
+
+[Paired job 126342783269](https://github.com/compozy/compozy/actions/runs/41759267689/job/126342783269)
+tested `7b941a4ed`. All three untraced candidate trials completed the 43,169-row sweep with zero
+operation failures, versus 466 baseline failures. One candidate core `update session state`
+transaction still held the lock for 1,026 ms (956 ms callback, 69 ms commit). **Acceptance FAIL.**
+Transcript/catalog p99 medians were 141.673/92.187 ms versus 579.439/42.009 ms; core commit hooks/s
+were 59.60 versus 171.52. The upgrade preserved the same all-column hash, 830,020 rows, cursors,
+integrity and Observe results; open/upgrade/reopen took 34.4/310,043.5/48.2 ms.
+
+The traced candidate had 50 operation failures, removed 31,296/43,169 rows before the one-minute
+sweep deadline, and logged one 1,143 ms telemetry transaction (131 ms callback, 1,011 ms commit).
+Traced core bytes/min were 53,573,276 versus 488,266,218, without equal completed throughput.
+Artifact `13290880455` preserves this failed experiment. The checkpoint/64-row repair removed the
+previous multi-second retention callbacks; it has not yet satisfied the complete load criterion.
+
+The remaining untraced core callback consists of indexed workspace/session checks and a single
+session update; attribution alone does not identify whether the delay is SQLite, I/O or runtime
+contention. A separate diagnostic replay now records Go execution tracing after a failed acceptance
+run. Named workload regions distinguish scheduling, GC, Go locks and syscalls. Diagnostic timing
+does not replace any acceptance sample, and the original failure remains a failing job.
+
+The corrected recent indexes are now measured on the large fixture: profile-recent reads search
+`idx_summaries_profile_timestamp`, and error-only reads scan only the partial
+`idx_summaries_failures_timestamp`, both without a temporary sort. The partial index occupies
+4,096,000 bytes versus the former full outcome index's 44,470,272 bytes. Exact-outcome reads still
+scan the timestamp index, and provider/session/task/run sorts remain explicitly reported; this
+change makes no latency claim for those paths.
+
+[Daemon job 126342783474](https://github.com/compozy/compozy/actions/runs/41759267689/job/126342783474)
+passed again: 30 completed streams and preserved transcripts, strict audit with zero blockers or
+warnings, and clean teardown without survivors. Transcript/catalog/rename p99 were
+100.671/119.854/153.479 ms across 3,000/198/40 successful requests. The complete log scan also
+found zero passive-checkpoint errors; artifact `13289657954` contains the receipts.
+
+CodeRabbit settled the seven main-identical observations as outside this PR and withdrew the Go
+version false positive in comment `6620660789`. Its CLI then reviewed all 13 files in
+`c6037e2a3..7b941a4ed`, finding only that a teardown `clean` value must be a boolean. Commit
+`89a3dff28` fixes that and rejects checkpoint errors in both load verifiers. Six focused receipt
+failure cases passed; the three-file follow-up CodeRabbit review completed with zero findings.
+Tagged harness compilation and focused lint passed with zero issues. Final-head CI/review remains
+required after the unresolved performance cause is repaired.

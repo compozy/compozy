@@ -83,6 +83,7 @@ jobs:
             ${{ runner.temp }}/sqlite-contention/*.log
             ${{ runner.temp }}/sqlite-contention/*.md
             ${{ runner.temp }}/sqlite-contention/*.strace
+            ${{ runner.temp }}/sqlite-contention/*.trace
           retention-days: 14
           if-no-files-found: error
 

@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"runtime/trace"
 	"slices"
 	"strings"
 	"sync"
@@ -69,7 +71,9 @@ func (m *measurements) install() error {
 func (m *measurements) call(name string, fn func() error) {
 	active := m.active.Load()
 	start := time.Now()
+	region := trace.StartRegion(context.Background(), name)
 	err := fn()
+	region.End()
 	elapsed := float64(time.Since(start)) / float64(time.Millisecond)
 	m.mu.Lock()
 	defer m.mu.Unlock()

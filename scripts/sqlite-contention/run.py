@@ -29,8 +29,10 @@ def copy_fixture(source, target):
                 os.fsync(copied.fileno())
 
 
-def run(binary, root, mode, output, name, duration="30s", trace=False):
+def run(binary, root, mode, output, name, duration="30s", trace=False, runtime_trace=False):
     command = [str(binary), "-mode", mode, "-root", str(root), "-duration", duration]
+    if runtime_trace:
+        command += ["-runtime-trace", str(output / (name + ".trace"))]
     trace_file = output / (name + ".strace")
     if trace:
         command = ["strace", "--seccomp-bpf", "-f", "-yy", "-ttt", "-T", "-s", "0", "-e", "trace=write,pwrite64,fsync,fdatasync", "-o", str(trace_file)] + command
@@ -154,6 +156,14 @@ def main():
     incomplete_retention = [r for r in head_runs
                             if r["retention"]["DeletedEventSummaries"] != retention_rows]
     if invalid or incomplete_retention:
+        # Keep failed acceptance unchanged. A separate diagnostic run attributes
+        # time to Go scheduling, GC, locks and syscalls; it never replaces a trial.
+        root = args.output / "diagnostic-data"
+        copy_fixture(upgraded, root)
+        try:
+            run(args.head, root, "load", args.output, "head-diagnostic", runtime_trace=True)
+        finally:
+            shutil.rmtree(root)
         raise RuntimeError("head acceptance failed; inspect results.json and per-trial logs")
     shutil.rmtree(fixture)
     shutil.rmtree(upgraded)

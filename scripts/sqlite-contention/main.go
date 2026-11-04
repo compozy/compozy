@@ -33,6 +33,7 @@ var fixtureTime = time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
 
 type options struct {
 	mode, root       string
+	runtimeTrace     string
 	sessions, turns  int
 	duration, warmup time.Duration
 }
@@ -41,6 +42,7 @@ func main() {
 	var opts options
 	flag.StringVar(&opts.mode, "mode", "load", "seed, inspect, or load")
 	flag.StringVar(&opts.root, "root", "", "isolated database family root")
+	flag.StringVar(&opts.runtimeTrace, "runtime-trace", "", "optional diagnostic Go execution trace")
 	flag.IntVar(&opts.sessions, "sessions", 30, "number of streaming sessions")
 	flag.IntVar(&opts.turns, "turns", 1000, "completed turns per session before measurement")
 	flag.DurationVar(&opts.duration, "duration", 30*time.Second, "measured workload duration")
@@ -83,7 +85,7 @@ func run(opts options) error {
 	case "inspect":
 		result, err = inspect(context.Background(), g, openMS)
 	case "load":
-		return load(g, opts, metrics, openMS)
+		return traceLoad(g, opts, metrics, openMS)
 	default:
 		err = fmt.Errorf("unknown mode %q", opts.mode)
 	}
