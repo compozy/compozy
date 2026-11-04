@@ -4,7 +4,7 @@ Status: implementation and verification are in progress. The operator reaffirmed
 the remaining ownership work, representative upgrade and 30-session measurements are required before
 completion. Focused correctness checks do not establish the performance acceptance criteria.
 
-The implementation baseline is `d35c63c9a`. Main through `1b41d5df4` is integrated. Its version 186 remains byte-for-byte intact;
+The implementation baseline is `d35c63c9a`. Main through `eb865c4f2` is integrated. Its version 186 remains byte-for-byte intact;
 the unreleased branch migration tail was resequenced after it during conflict resolution.
 All work is isolated in `fix/issue-1227-sqlite-contention`. Operator runtime databases, credentials
 and running sessions were not changed. The incident log was read only for sanitized aggregates.
@@ -304,6 +304,14 @@ production fix that preserves an explicit runtime when the destination scope sup
 Integration retains that fix and main's stronger browser assertions: selection before the kind
 change, global scope plus provider/model in the POST, and a successful response before navigation.
 No local reordering workaround remains. Browser execution remains CI-owned.
+
+Integration also exposed the lint failures already present on main's `eb865c4f2` CI run. Repairs
+preserve the existing assertions and behavior: explicit optional-interface checks, a stable
+extension reference before the nested profile loop, consumption of the normalized derive error,
+the equivalent `CutLast` cache-key split, and formatter/modernizer fixes in existing suites.
+The focused extension projection case passed (0.198 s), parked-catalog preflight case (0.179 s),
+HTTP committed-child cancellation case (0.045 s), discovery failure classification (0.018 s),
+and workspace skill rescan (0.015 s). No broad local gate was run.
 
 The same CI run found fresh stores replaying all historical migrations under race instrumentation.
 Fresh initialization now uses the existing declarative bootstrap with an atomic core identity and

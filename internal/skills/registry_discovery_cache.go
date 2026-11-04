@@ -85,9 +85,9 @@ func (r *Registry) evictExpiredDiscoveryLocked(cutoff time.Time) {
 
 // workspaceDiscoveryScope strips the source-config hash that workspaceCacheKey appends.
 func workspaceDiscoveryScope(cacheKey string) (string, bool) {
-	index := strings.LastIndex(cacheKey, workspaceSourceKeyMarker)
-	if index < 0 {
+	scope, _, found := strings.CutLast(cacheKey, workspaceSourceKeyMarker)
+	if !found {
 		return "", false
 	}
-	return cacheKey[:index], true
+	return scope, true
 }

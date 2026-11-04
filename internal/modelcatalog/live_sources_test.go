@@ -870,7 +870,7 @@ func TestLiveProviderSources(t *testing.T) {
 			},
 			{
 				name:      "login required",
-				err:       errors.New("exit status 1: Error: Authentication required. Run 'agent login' first."),
+				err:       errors.New("exit status 1: Error: Authentication required. Run 'agent login' first"),
 				permanent: true,
 			},
 			{

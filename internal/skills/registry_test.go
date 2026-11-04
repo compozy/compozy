@@ -1858,7 +1858,11 @@ func TestRegistryRefreshGlobalSkipsParseWithoutChange(t *testing.T) {
 			}
 		}
 		if got := strings.Count(logs.String(), "skills: verification warning"); got != 1 {
-			t.Fatalf("verification warnings after unchanged refreshes = %d, want 1 (no re-parse); logs=%s", got, logs.String())
+			t.Fatalf(
+				"verification warnings after unchanged refreshes = %d, want 1 (no re-parse); logs=%s",
+				got,
+				logs.String(),
+			)
 		}
 
 		rewriteSkillFile(t, skillPath, strings.Replace(content, "Guarded skill", "Guarded skill edited", 1))

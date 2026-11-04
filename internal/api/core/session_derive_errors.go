@@ -110,9 +110,8 @@ const deriveCommittedFailureMessage = "The new session couldn't start."
 // respondDeriveError writes a continue/fork/preview failure with its derive code and,
 // after the child was committed, its id. The full error chain goes to the log only.
 func (h *BaseHandlers) respondDeriveError(c *gin.Context, status int, err error) {
-	status, _ = requestErrorStatus(c, status, err)
 	err = deriveFailure(err, "")
-	responseErr := err
+	status, responseErr := requestErrorStatus(c, status, err)
 	if status == statusClientClosedRequest {
 		responseErr = context.Canceled
 	}
