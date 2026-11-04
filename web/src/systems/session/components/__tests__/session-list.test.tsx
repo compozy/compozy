@@ -1962,7 +1962,22 @@ describe("SessionList provider marks", () => {
       },
       selection_revision: 2,
     };
-    renderList({ sessions: [row("fast", { state: "stopped", runtime: bound })] });
+    renderList({
+      sessions: [
+        row("fast", { state: "stopped", runtime: bound }),
+        row("bare-fast", {
+          runtime: {
+            ...runtime("claude"),
+            effective: { provider: "claude", speed: "fast" },
+            selected: { provider: "codex" },
+            selection_revision: 2,
+          },
+        }),
+      ],
+    });
+    const bare = rowButton("bare-fast").parentElement!;
+    expect(within(bare).getByText("Claude Code Fast")).toBeInTheDocument();
+    expect(within(bare).getByText("Codex")).toBeInTheDocument();
 
     const line = rowButton("fast").parentElement!;
     expect(within(line).getByText("GPT-6.1 Sol xhigh")).toBeInTheDocument();

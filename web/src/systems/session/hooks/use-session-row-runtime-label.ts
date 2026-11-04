@@ -29,6 +29,7 @@ export function useSessionRowRuntimeLabel(session: SessionPayload): SessionRunti
   return { ...withSpeed(runtime, current.speed), next: withSpeed(pending, next.speed) };
 }
 
+/** Appends `Fast` to a label's names; a provider-only label keeps an empty model so the row shows its provider. */
 function withSpeed<T extends Omit<SessionRuntimeLabel, "next">>(
   label: T,
   speed: string | undefined
@@ -37,6 +38,6 @@ function withSpeed<T extends Omit<SessionRuntimeLabel, "next">>(
   return {
     ...label,
     label: `${label.label} Fast`,
-    model: label.model ? `${label.model} Fast` : "Fast",
+    model: label.model ? `${label.model} Fast` : "",
   };
 }

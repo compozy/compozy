@@ -112,6 +112,7 @@ const MODEL_NAMES: Record<string, string> = { "claude-opus-4-1": "Opus 4.1", "gp
 
 type FixtureRuntime = { provider: string; model?: string; reasoning_effort?: string };
 
+/** One fixture runtime in the words `useSessionRuntimeLabel` builds from the catalog. */
 function fixtureRuntimeLabel(runtime: FixtureRuntime | undefined) {
   const provider = runtime?.provider.trim() || "claude";
   const providerLabel = PROVIDER_NAMES[provider] ?? provider;
