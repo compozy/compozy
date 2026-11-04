@@ -2537,6 +2537,8 @@ func TestWorkspaceCommandsIntegration(t *testing.T) {
 func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 	t.Parallel()
 
+	// Invariant: one source session produces one completed run in both history surfaces.
+	// Owner: CLI integration; filter out the automation session's own stop event.
 	h := newIntegrationHarness(t)
 	mustExecuteRoot(t, h.deps, "daemon", "start", "-o", "json")
 	humanOut, _, err := executeRootCommand(
@@ -2596,6 +2598,7 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 		"--scope", "workspace",
 		"--workspace", "alpha",
 		"--event", "session.stopped",
+		"--filter", "data.session_name=demo",
 		"--agent", "coder",
 		"--prompt", `review {{ index .Data "session_id" }}`,
 		"-o", "json",
@@ -2690,8 +2693,8 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(historyJSON), &triggerRuns); err != nil {
 		t.Fatalf("json.Unmarshal(trigger history) error = %v", err)
 	}
-	if len(triggerRuns.Runs) == 0 || triggerRuns.Runs[0].TriggerID != createdTrigger.ID {
-		t.Fatalf("trigger runs = %#v, want at least one run for trigger %q", triggerRuns, createdTrigger.ID)
+	if len(triggerRuns.Runs) != 1 || triggerRuns.Runs[0].TriggerID != createdTrigger.ID {
+		t.Fatalf("trigger runs = %#v, want exactly one run for trigger %q", triggerRuns, createdTrigger.ID)
 	}
 
 	runsHuman, _, err := executeRootCommand(t, h.deps, "automation", "runs", "-o", "human")
@@ -2710,8 +2713,8 @@ func TestAutomationTriggerHistoryAndRunsIntegration(t *testing.T) {
 	if err := json.Unmarshal([]byte(runsJSON), &allRuns); err != nil {
 		t.Fatalf("json.Unmarshal(automation runs) error = %v", err)
 	}
-	if len(allRuns.Runs) == 0 {
-		t.Fatal("expected at least one automation run in shared history")
+	if len(allRuns.Runs) != 1 {
+		t.Fatalf("shared history has %d runs, want exactly one", len(allRuns.Runs))
 	}
 	found := false
 	for _, run := range allRuns.Runs {
