@@ -112,3 +112,14 @@ Appearance background regression (#1208 review): saving an icon or emoji with an
 but reads fall back to the default face with an `agent_appearance_invalid` warning; writes of a new or changed
 unsupported appearance are rejected with a message naming the optional `plate` rule.
 Repeat for both icon and emoji. Picking a supported face repairs the saved block.
+
+Large telemetry regression (#1283): use an isolated profile with at least 1,000,000 retained
+`event_summaries`, mostly belonging to another agent, and several Always-on members. Open Agents
+in Cards and Rows. Each visible group fetches its members' pulses with one
+`POST /api/agents/activity`, preserving the definition's resolved workspace set. Open a sparse
+agent's profile and revisit/refocus both views. Confirm no status-499 bursts, no sustained daemon
+CPU increase, and p95 below 100 ms for the sparse agent activity read. Switch profile and use
+same-named definitions in different projects: pulses and cost must stay within the authorized
+profile and requested definition scopes. An empty authorized scope returns empty arrays.
+Automated evidence: `TestInstanceActivity`, `TestAgentInstanceActivityReach`, and
+`agent-team-page.test.tsx`; interactive desktop CPU verification remains a separate release walk.

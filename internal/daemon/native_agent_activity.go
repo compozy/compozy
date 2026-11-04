@@ -68,10 +68,10 @@ func (n *daemonNativeTools) nativeAgentActivity(
 	result, err := reader.ReadActivity(
 		ctx,
 		agentinstance.ActivityQuery{
-			ProfileID:   scope.ProfileID,
-			WorkspaceID: workspaceID,
-			AgentName:   input.Agent,
-			Since:       store.LocalDayStart(time.Now(), input.Days-1),
+			ProfileID:    scope.ProfileID,
+			WorkspaceIDs: []string{workspaceID},
+			AgentName:    input.Agent,
+			Since:        store.LocalDayStart(time.Now(), input.Days-1),
 		},
 	)
 	if err != nil {

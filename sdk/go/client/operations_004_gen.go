@@ -9,6 +9,31 @@ import (
 	"strings"
 )
 
+// ClearTaskBlock Clear one typed task block
+func (c *Client) ClearTaskBlock(ctx context.Context, params ClearTaskBlockParams, body ClearTaskBlockRequest) (*TaskBlockResponse, error) {
+	path := "/api/tasks/{id}/blocks/{block_id}/clear"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	path = strings.ReplaceAll(path, "{block_id}", url.PathEscape(params.BlockID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out TaskBlockResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CloseCmdPaletteViewSessionParams carries the path, query, and header parameters.
+type CloseCmdPaletteViewSessionParams struct {
+	Session             string `url:"session"`
+	XCompozyClientToken string `url:"X-Compozy-Client-Token"`
+}
+
 // CloseCmdPaletteViewSession Close one programmable command palette view
 func (c *Client) CloseCmdPaletteViewSession(ctx context.Context, params CloseCmdPaletteViewSessionParams) (*CmdPaletteViewSessionClosed, error) {
 	path := "/api/cmd-palette/view-sessions/{session}"
@@ -415,12 +440,4 @@ func (c *Client) CreateTask(ctx context.Context, params CreateTaskParams, body C
 		return nil, err
 	}
 	return &out, nil
-}
-
-// CreateTerminalParams carries the path, query, and header parameters.
-type CreateTerminalParams struct {
-	WorkspaceID             string  `url:"workspace_id"`
-	XCompozyClientToken     *string `url:"X-Compozy-Client-Token"`
-	XCompozyClientWorkspace *string `url:"X-Compozy-Client-Workspace"`
-	Profile                 *string `url:"profile"`
 }

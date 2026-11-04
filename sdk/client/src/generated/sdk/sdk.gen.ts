@@ -85,6 +85,9 @@ import type {
   AttachTaskRunSessionData,
   AttachTaskRunSessionErrors,
   AttachTaskRunSessionResponses,
+  BatchAgentActivityData,
+  BatchAgentActivityErrors,
+  BatchAgentActivityResponses,
   BeginSettingsMCPAuthData,
   BeginSettingsMCPAuthErrors,
   BeginSettingsMCPAuthResponses,
@@ -2106,6 +2109,28 @@ export class agents extends HeyApiClient {
     >({
       responseStyle: "data",
       url: "/api/agents",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers,
+      },
+    });
+  }
+
+  /**
+   * Read activity for up to 100 agent and workspace selections in request order
+   */
+  public batchAgentActivity<ThrowOnError extends boolean = true>(
+    options: Options<BatchAgentActivityData, ThrowOnError>
+  ): RequestResult<BatchAgentActivityResponses, BatchAgentActivityErrors, ThrowOnError, "data"> {
+    return (options.client ?? this.client).post<
+      BatchAgentActivityResponses,
+      BatchAgentActivityErrors,
+      ThrowOnError,
+      "data"
+    >({
+      responseStyle: "data",
+      url: "/api/agents/activity",
       ...options,
       headers: {
         "Content-Type": "application/json",

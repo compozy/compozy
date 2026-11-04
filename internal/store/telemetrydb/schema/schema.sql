@@ -58,3 +58,5 @@ CREATE INDEX idx_summaries_worktree ON event_summaries(worktree_id);
 
 CREATE INDEX idx_summaries_profile_timestamp ON event_summaries(profile_id, timestamp DESC, seq DESC);
 CREATE INDEX idx_summaries_profile_sequence ON event_summaries(profile_id, seq);
+
+CREATE INDEX idx_summaries_activity ON event_summaries(profile_id, agent_name, workspace_id, timestamp);

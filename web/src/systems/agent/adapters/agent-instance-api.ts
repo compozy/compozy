@@ -2,6 +2,8 @@ import { apiBaseUrl, clientID, runtimeFetch } from "@/lib/api-client";
 
 import type {
   AgentActivityPayload,
+  AgentActivityBatchRequest,
+  AgentActivityBatchPayload,
   AgentInstanceAway,
   AgentInstanceCheckInsResponse,
   AgentInstanceCheckResponse,
@@ -328,4 +330,18 @@ export async function draftAgentInstructions(
     { method: "POST", body: params, signal, fallback: "Failed to write the instructions" }
   );
   return instructions;
+}
+
+export function fetchAgentActivityBatch(
+  input: AgentActivityBatchRequest,
+  profile: string,
+  signal?: AbortSignal
+): Promise<AgentActivityBatchPayload> {
+  const query = new URLSearchParams({ profile });
+  return request<AgentActivityBatchPayload>(`/api/agents/activity?${query}`, {
+    method: "POST",
+    body: input,
+    signal,
+    fallback: "Failed to fetch agent activity",
+  });
 }

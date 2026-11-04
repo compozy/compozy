@@ -2,6 +2,7 @@ import { http, HttpResponse, type HttpHandler } from "msw";
 
 import type {
   AgentActivityPayload,
+  AgentActivityBatchRequest,
   AgentInstanceCheckDigestItem,
   AgentInstanceCheckIn,
   AgentInstancePayload,
@@ -75,6 +76,14 @@ function respond(id: unknown, patch: Partial<AgentInstancePayload>) {
 
 /** `_dx.md`'s instance routes: plain `http` until they join the OpenAPI document. */
 export const instanceHandlers: HttpHandler[] = [
+  http.post("*/api/agents/activity", async ({ request }) => {
+    const input = (await request.json()) as AgentActivityBatchRequest;
+    return HttpResponse.json({
+      activities: input.items.map(
+        () => activityState ?? { reports_by_day: [], cost_by_project: [], busy_by_hour: [] }
+      ),
+    });
+  }),
   http.get("*/api/agents/:name/activity", () =>
     activityState
       ? HttpResponse.json(activityState)

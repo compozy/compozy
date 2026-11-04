@@ -162,3 +162,6 @@ CREATE TABLE heartbeat_source_script_approvals (
     approved_via TEXT NOT NULL CHECK (approved_via IN ('cli', 'web', 'http', 'uds')),
     PRIMARY KEY (profile_id, definition_dir, script_name)
 );
+
+CREATE INDEX idx_agent_instances_activity ON agent_instances(profile_id, agent_name, workspace_id);
+CREATE INDEX idx_agent_wake_events_activity ON agent_heartbeat_wake_events(instance_id, result, created_at);

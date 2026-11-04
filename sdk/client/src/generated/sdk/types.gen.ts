@@ -93,10 +93,24 @@ export type AgentACPOptionSelection = {
   value_id?: string;
 };
 
+export type AgentActivityBatchRequest = {
+  days?: number;
+  items: Array<AgentActivitySelection>;
+};
+
+export type AgentActivityBatchResponse = {
+  activities: Array<AgentActivityResponse>;
+};
+
 export type AgentActivityResponse = {
   busy_by_hour: Array<ActivityHour>;
   cost_by_project: Array<ActivityCost>;
   reports_by_day: Array<ActivityDay>;
+};
+
+export type AgentActivitySelection = {
+  name: string;
+  workspaces: Array<string>;
 };
 
 export type AgentCapabilityPayload = {
@@ -15169,6 +15183,68 @@ export type CreateAgentResponses = {
 };
 
 export type CreateAgentResponse = CreateAgentResponses[keyof CreateAgentResponses];
+
+export type BatchAgentActivityData = {
+  /**
+   * JSON request body
+   */
+  body: AgentActivityBatchRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/activity";
+};
+
+export type BatchAgentActivityErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type BatchAgentActivityError = BatchAgentActivityErrors[keyof BatchAgentActivityErrors];
+
+export type BatchAgentActivityResponses = {
+  /**
+   * Scoped activities in request order
+   */
+  200: AgentActivityBatchResponse;
+};
+
+export type BatchAgentActivityResponse =
+  BatchAgentActivityResponses[keyof BatchAgentActivityResponses];
 
 export type ListAgentsAggregateData = {
   body?: never;
