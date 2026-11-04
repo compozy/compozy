@@ -22,16 +22,22 @@ func TestDefaultPolicyAuthorize(t *testing.T) {
 	t.Run("Should audit read consent without widening the policy", func(t *testing.T) {
 		t.Parallel()
 		audit := &auditEmitterSpy{}
-		policy := newPolicyForTest(
-			t, &modeSourceStub{mode: ModeApproveReads}, &consentCacheStub{}, audit, slog.Default(),
-		)
+		facts := factsSourceFunc(func(ctx context.Context, id string) (SessionFacts, error) {
+			if err := ctx.Err(); err != nil {
+				return SessionFacts{}, err
+			}
+			return (&modeSourceStub{mode: ModeApproveReads}).SessionFacts(ctx, id)
+		})
+		policy := newPolicyForTest(t, facts, &consentCacheStub{}, audit, slog.Default())
 		req := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB)
 		req.ReadOnly, req.Seam = true, SeamTool
 		decision, err := policy.Authorize(t.Context(), req)
 		if err != nil || !decision.PromptEligible || decision.Allowed {
 			t.Fatalf("before consent = %#v, %v", decision, err)
 		}
-		policy.RecordToolConsent(t.Context(), req)
+		canceledCtx, cancel := context.WithCancel(t.Context())
+		cancel()
+		policy.RecordToolConsent(canceledCtx, req)
 		if len(audit.records) != 2 || !audit.records[1].Allowed || audit.records[1].Source != SourceToolConsent ||
 			audit.records[1].TargetID != testWorkspaceB || audit.records[1].ActorProfileID == "" {
 			t.Fatalf("consent audit = %#v, want a scoped granted record", audit.records)

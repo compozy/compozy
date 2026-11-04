@@ -36,9 +36,10 @@ type workspaceAccessPrompter interface {
 // the durable key that answer leaves for the same agent, tool, and target scope. A target that
 // resolves to no owner has no key, yet asks the same question so the prompt reveals nothing.
 type workspaceAccessPrompt struct {
-	label    string
-	remember bool
-	grant    *toolspkg.ApprovalGrantKey
+	targetWorkspace string
+	label           string
+	remember        bool
+	grant           *toolspkg.ApprovalGrantKey
 }
 
 type workspaceAccessPromptBridge struct {
@@ -112,12 +113,18 @@ func (b *workspaceAccessPromptBridge) RequestWorkspaceAccess(
 	detached := context.WithoutCancel(ctx)
 	promptCtx, cancel := context.WithTimeout(detached, timeout)
 	defer cancel()
+	title := workspaceAccessPromptTitle(prompt.label, descriptor.ReadOnly)
+	input := workspaceAccessPromptInput(descriptor.ID, prompt.label)
+	if prompt.targetWorkspace != "" {
+		title += " in workspace " + prompt.targetWorkspace
+		input["target_workspace_id"] = prompt.targetWorkspace
+	}
 	response, err := sessions.RequestPermission(promptCtx, sessionID, acp.RequestPermissionRequest{
 		SessionId: acpsdk.SessionId(sessionID),
 		ToolCall: acpsdk.ToolCallUpdate{
 			ToolCallId: acpsdk.ToolCallId(toolApprovalCallID(call)),
-			Title:      new(workspaceAccessPromptTitle(prompt.label, descriptor.ReadOnly)),
-			RawInput:   workspaceAccessPromptInput(descriptor.ID, prompt.label),
+			Title:      new(title),
+			RawInput:   input,
 			Status:     acpsdk.Ptr(acpsdk.ToolCallStatusPending),
 		},
 		Options: workspaceAccessPromptOptions(remember),

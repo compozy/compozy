@@ -160,8 +160,12 @@ func (n *daemonNativeTools) authorizeNativeProfileSwitch(
 	}
 	if !decision.Allowed && decision.PromptEligible && n.deps.WorkspaceAccessPrompter != nil {
 		prompt := workspaceAccessPrompt{
-			label:    nativeProfilePromptLabel(selection, targetProfile),
-			remember: !decision.NeedsGrantAfterConsent,
+			label:           nativeProfilePromptLabel(selection, targetProfile),
+			remember:        !decision.NeedsGrantAfterConsent,
+			targetWorkspace: targetWorkspace,
+		}
+		if prompt.targetWorkspace == "" {
+			prompt.targetWorkspace = workspaceaccess.UserSelector
 		}
 		if prompt.remember {
 			prompt.grant = workspaceAccessReadGrantKey(scope, req, descriptor, actor, target)

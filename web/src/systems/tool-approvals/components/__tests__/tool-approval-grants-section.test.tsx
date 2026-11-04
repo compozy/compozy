@@ -80,6 +80,7 @@ describe("ToolApprovalGrantsSection", () => {
     };
     const store = createStatefulMswStore([grant]);
     let revokeScope: string | null = null;
+    let revokedID: string | null = null;
     stubFetch([
       http.get("/api/tool-approval-grants", ({ request }) => {
         expect(new URL(request.url).searchParams.get("workspace_id")).toBe("@user");
@@ -87,8 +88,10 @@ describe("ToolApprovalGrantsSection", () => {
       }),
       http.delete("/api/tool-approval-grants/:id", ({ request, params }) => {
         revokeScope = new URL(request.url).searchParams.get("workspace_id");
-        store.delete(String(params.id));
-        return new HttpResponse(null, { status: 204 });
+        revokedID = String(params.id);
+        return store.delete(revokedID)
+          ? new HttpResponse(null, { status: 204 })
+          : HttpResponse.json({ error: "not found" }, { status: 404 });
       }),
     ]);
     renderSection();
@@ -98,6 +101,12 @@ describe("ToolApprovalGrantsSection", () => {
     fireEvent.click(screen.getByTestId(`tool-approval-grant-revoke-${grant.id}`));
     fireEvent.click(await screen.findByTestId(`${TEST_ID}-revoke-confirm`));
     await waitFor(() => expect(revokeScope).toBe("@user"));
+    expect(revokedID).toBe(grant.id);
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId(`tool-approval-grant-decision-${grant.id}`)
+      ).not.toBeInTheDocument()
+    );
   });
 
   it("Should keep terminal writes generic while exact exec decisions use terminal copy", async () => {

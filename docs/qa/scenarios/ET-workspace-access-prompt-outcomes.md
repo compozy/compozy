@@ -96,3 +96,8 @@ revoke with `--workspace @user` and Settings while focused on User; project-owne
 appear in that list. Confirm concrete target profiles are distinguishable in the grant rows.
 After each successful remembered read, confirm a `workspace.access_granted` event with source
 `tool_consent` follows the initial policy miss without authorizing another seam.
+
+Review follow-up: a profile-switch read prompt identifies both the selected profile and its
+target workspace (or `@user`) in the title and raw input before consent can be remembered.
+Cancel the originating request while its permission is pending, approve it, and confirm the
+final consent audit is retained alongside the durable grant.

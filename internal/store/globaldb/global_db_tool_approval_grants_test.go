@@ -189,6 +189,11 @@ func TestGlobalDBToolApprovalGrants(t *testing.T) {
 		if _, ok, err := globalDB.LookupApprovalGrant(ctx, otherScope); err != nil || ok {
 			t.Fatalf("LookupApprovalGrant(other scope) = %t, %v, want miss", ok, err)
 		}
+		sameDigestOtherScope := scopeKey
+		sameDigestOtherScope.AccessScope = otherScope.AccessScope
+		if _, ok, err := globalDB.LookupApprovalGrant(ctx, sameDigestOtherScope); err != nil || ok {
+			t.Fatalf("LookupApprovalGrant(same digest, other scope) = %t, %v, want miss", ok, err)
+		}
 		// And a scope grant never answers the tool approval gate for the same digest.
 		toolKey := scopeKey
 		toolKey.AccessScope = ""

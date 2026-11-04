@@ -180,6 +180,10 @@ func deniedDecisionFor(denial Denial) Decision {
 
 // RecordToolConsent audits a successful native read after its separate operator consent gate.
 func (p *DefaultPolicy) RecordToolConsent(ctx context.Context, req Request) {
+	if ctx == nil {
+		return
+	}
+	ctx = context.WithoutCancel(ctx)
 	req = normalizeRequest(req)
 	record := AccessRecord{Actor: req.Actor, Target: req.Target, TargetID: req.Target.WorkspaceID, Seam: req.Seam}
 	decision, mode, err := p.authorize(ctx, req, &record)
