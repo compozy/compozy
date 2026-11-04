@@ -171,6 +171,16 @@ type SettingsRestartOperation struct {
 	StartedAt          time.Time
 	UpdatedAt          time.Time
 	CompletedAt        *time.Time
+	Progress           *SettingsRestartProgress
+}
+
+// SettingsRestartProgress is the replacement daemon's latest data-migration progress.
+type SettingsRestartProgress struct {
+	Phase     string
+	Stage     string
+	Completed int64
+	Total     int64
+	UpdatedAt time.Time
 }
 
 // SettingsRestartController exposes the daemon-owned restart action and persisted status surface.

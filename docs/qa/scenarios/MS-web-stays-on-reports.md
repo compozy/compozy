@@ -202,6 +202,13 @@ Triage model selection: configure a model under `[agents.heartbeat.triage_models
 for the agent's provider, then run a proactive check and inspect the hidden session's
 runtime model. The main session retains its model. Remove the provider entry to
 restore the agent's default. `TestTriageDispatcher` exercises the TOML-to-launch path.
+With `claude = "claude-haiku-5-5"`, a Claude check must start its hidden session on
+`haiku` and finish `quiet` or `reported`, not `triage_failed`. Then configure a model the
+provider rejects: the check finishes `failed` with reason `triage_config_unavailable`, its
+detail names the rejected model and valid choices, the Heartbeat page leads with "Its heartbeat
+model or runtime options were rejected", and repeated checks leave `failure_streak` unchanged so the
+instance never pauses for fatigue. `TestConfigureRuntime`, `TestTriageDispatcher`, and
+`TestInstanceCheckFatigue` own these invariants.
 
 Fatigue resume: accumulate quiet backoff and enough failed checks to trigger fatigue,
 then resume as operator. Both quiet and failure streaks reset atomically with resume;

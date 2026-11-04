@@ -231,6 +231,7 @@ func (o agentsOverlay) Apply(dst *AgentsConfig) {
 	o.applyAlwaysOn(&dst.AlwaysOn)
 	o.Soul.Apply(&dst.Soul)
 	o.Heartbeat.Apply(&dst.Heartbeat)
+	applyAgentOverrideOverlays(o.Overrides, &dst.Overrides)
 }
 
 func (o soulOverlay) Apply(dst *SoulConfig) {

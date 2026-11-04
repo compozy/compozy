@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseBootstrapEvent } from "../bootstrap-event";
+import { bootstrapLogRecord, parseBootstrapEvent } from "../bootstrap-event";
 
 // Invariant: the local boot page receives only the closed JSONL vocabulary emitted by Go bootstrap.
 // Owner: desktop bootstrap boundary. Canonical suite: bootstrap-event.test.ts.
@@ -26,6 +26,37 @@ describe("bootstrap event parser", () => {
       },
     };
     expect(parseBootstrapEvent(JSON.stringify(event))).toMatchObject(event);
+  });
+
+  it.each([0, 42, 100])("Should accept replacement data-migration progress at %i percent", pct => {
+    const event = {
+      type: "bootstrap",
+      phase: "provision",
+      status: "started",
+      message: `Upgrading CompozyOS data (${pct}%).`,
+      resolution: "provision",
+      stage: "migrate",
+      pct,
+    };
+    expect(parseBootstrapEvent(JSON.stringify(event))).toMatchObject(event);
+  });
+
+  it("Should project data-migration progress into the bootstrap log record", () => {
+    const event = parseBootstrapEvent(
+      '{"type":"bootstrap","phase":"provision","status":"started","message":"Upgrading","resolution":"provision","stage":"migrate","pct":0}'
+    );
+    if (!event) throw new Error("expected a migration event");
+    expect(bootstrapLogRecord(event, "boot-1", new Date("2026-11-04T12:00:00Z"))).toEqual({
+      timestamp: "2026-11-04T12:00:00.000Z",
+      level: "INFO",
+      boot_id: "boot-1",
+      message: "Upgrading",
+      phase: "provision",
+      status: "started",
+      resolution: "provision",
+      stage: "migrate",
+      pct: 0,
+    });
   });
 
   it.each([
@@ -63,6 +94,23 @@ describe("bootstrap event parser", () => {
       status: "completed",
       message: "x",
       resolution: "invented",
+    },
+    { type: "bootstrap", phase: "provision", status: "started", message: "x", stage: "invented" },
+    {
+      type: "bootstrap",
+      phase: "provision",
+      status: "started",
+      message: "x",
+      stage: "migrate",
+      pct: 101,
+    },
+    {
+      type: "bootstrap",
+      phase: "provision",
+      status: "started",
+      message: "x",
+      stage: "migrate",
+      pct: 4.2,
     },
     {
       type: "bootstrap",

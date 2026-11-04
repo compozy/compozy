@@ -129,6 +129,9 @@ func (h *BaseHandlers) resolveToolApprovalGrantWorkspace(c *gin.Context) (string
 		h.respondError(c, http.StatusBadRequest, errors.New("workspace_id query is required"))
 		return "", false
 	}
+	if workspacepkg.ParseRef(workspaceRef).Kind == workspacepkg.RefUser {
+		return "", true
+	}
 	if h.Workspaces == nil {
 		h.respondError(c, http.StatusServiceUnavailable, workspacepkg.ErrWorkspaceResolverUnavailable)
 		return "", false

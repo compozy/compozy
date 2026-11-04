@@ -177,6 +177,7 @@ func toolApprovalGrantListBundle(response ToolApprovalGrantListRecord) outputBun
 			toolOperatorToolIDHeader,
 			cliAgentHeader,
 			"DECISION",
+			"ACCESS SCOPE",
 			"INPUT DIGEST",
 			"LAST USED",
 		},
@@ -187,6 +188,7 @@ func toolApprovalGrantListBundle(response ToolApprovalGrantListRecord) outputBun
 			toolOperatorToolIDKey,
 			installAgentNameKey,
 			loopDecisionKey,
+			"access_scope",
 			"input_digest",
 			"last_used_at",
 		},
@@ -197,6 +199,7 @@ func toolApprovalGrantListBundle(response ToolApprovalGrantListRecord) outputBun
 				grant.ToolID.String(),
 				stringOrDash(grant.AgentName),
 				string(grant.Decision),
+				stringOrDash(grant.AccessScope),
 				stringOrDash(grant.InputDigest),
 				formatTime(grant.LastUsedAt),
 			}
@@ -208,6 +211,7 @@ func toolApprovalGrantListBundle(response ToolApprovalGrantListRecord) outputBun
 				grant.ToolID.String(),
 				grant.AgentName,
 				string(grant.Decision),
+				grant.AccessScope,
 				grant.InputDigest,
 				formatTime(grant.LastUsedAt),
 			}

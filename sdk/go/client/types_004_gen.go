@@ -7,6 +7,24 @@ import (
 	"time"
 )
 
+// Budget is a daemon API value.
+type Budget struct {
+	Tokens       int32          `json:"tokens"`
+	WallClockSec int32          `json:"wall_clock_sec"`
+	OnExceeded   BudgetExceeded `json:"on_exceeded,omitempty"`
+}
+
+// BudgetExceeded is a daemon API value.
+type BudgetExceeded string
+
+// BulkForceTaskRunItemPayload is a daemon API value.
+type BulkForceTaskRunItemPayload struct {
+	RunID string          `json:"run_id"`
+	OK    bool            `json:"ok"`
+	Run   *TaskRunPayload `json:"run,omitzero"`
+	Error *ErrorPayload   `json:"error,omitzero"`
+}
+
 // BulkForceTaskRunRequest is a daemon API value.
 type BulkForceTaskRunRequest struct {
 	RunIDs   []string        `json:"run_ids"`
@@ -429,20 +447,3 @@ type CoordinatorConfigSource string
 
 // CoordinatorMode is a daemon API value.
 type CoordinatorMode string
-
-// CoordinatorProfile is a daemon API value.
-type CoordinatorProfile struct {
-	Mode      CoordinatorMode `json:"mode"`
-	AgentName string          `json:"agent_name,omitempty"`
-	Provider  string          `json:"provider,omitempty"`
-	Model     string          `json:"model,omitempty"`
-	Guidance  string          `json:"guidance,omitempty"`
-}
-
-// CopyEffect is a daemon API value.
-type CopyEffect struct {
-	Content string `json:"content"`
-}
-
-// CostSource is a daemon API value.
-type CostSource string

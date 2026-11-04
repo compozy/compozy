@@ -10,6 +10,14 @@ import (
 	"strings"
 )
 
+// CreateTerminalParams carries the path, query, and header parameters.
+type CreateTerminalParams struct {
+	WorkspaceID             string  `url:"workspace_id"`
+	XCompozyClientToken     *string `url:"X-Compozy-Client-Token"`
+	XCompozyClientWorkspace *string `url:"X-Compozy-Client-Workspace"`
+	Profile                 *string `url:"profile"`
+}
+
 // CreateTerminal Create an interactive terminal
 func (c *Client) CreateTerminal(ctx context.Context, params CreateTerminalParams, body TerminalCreateRequest) (*TerminalResponse, error) {
 	path := "/api/workspaces/{workspace_id}/terminals"
@@ -435,12 +443,4 @@ func (c *Client) DeleteSessionFolder(ctx context.Context, params DeleteSessionFo
 		return nil, err
 	}
 	return &out, nil
-}
-
-// DeleteSettingsHookParams carries the path, query, and header parameters.
-type DeleteSettingsHookParams struct {
-	Name        string  `url:"name"`
-	Scope       *string `url:"scope"`
-	WorkspaceID *string `url:"workspace_id"`
-	Profile     *string `url:"profile"`
 }

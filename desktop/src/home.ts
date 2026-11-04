@@ -7,6 +7,7 @@ export interface DesktopPaths {
   readonly appSocket: string;
   readonly appToken: string;
   readonly bootstrapLog: string;
+  readonly commandLineToolMarker: string;
   readonly desktopLog: string;
   readonly logs: string;
   readonly operation: string;
@@ -33,6 +34,7 @@ export function resolveDesktopPaths(environment: NodeJS.ProcessEnv = process.env
     appSocket: join(home, "app.sock"),
     appToken: join(home, "app.token"),
     bootstrapLog: join(logs, "desktop-bootstrap.jsonl"),
+    commandLineToolMarker: join(home, "desktop-cli-command.json"),
     desktopLog: join(logs, "desktop.log"),
     logs,
     operation: join(home, "update-operation.json"),

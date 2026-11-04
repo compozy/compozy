@@ -13,6 +13,8 @@ function skewSnapshot(event: BootstrapEvent): ShellSnapshot | null {
 }
 
 function failureCode(event: BootstrapEvent): string {
+  // The CLI reports a stalled data upgrade as a start failure and again as the provision failure.
+  if (/data upgrade .* stopped progressing/iu.test(event.message)) return "runtime_upgrade_stalled";
   if (event.phase === "provision") {
     if (/permission|operation not permitted|access denied/iu.test(event.message)) {
       return "provision_permission";
@@ -46,6 +48,13 @@ export function bootstrapSnapshot(
     case "attach":
       return { state: "attaching" };
     case "provision":
+      if (event.stage === "migrate") {
+        return {
+          state: "provisioning",
+          stage: "migrate",
+          ...(event.pct === undefined ? {} : { pct: event.pct }),
+        };
+      }
       return {
         state: "provisioning",
         stage: event.status === "completed" ? "verify" : "install",

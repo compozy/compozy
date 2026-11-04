@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -620,6 +621,157 @@ func (activityReachPolicy) Authorize(_ context.Context, req workspaceaccess.Requ
 }
 
 func TestAgentInstanceActivityReach(t *testing.T) {
+	t.Run("Should preserve internal error masking and reject invalid workspace input", func(t *testing.T) {
+		t.Parallel()
+		for _, kind := range []string{"list", "label", "invalid", "resolve"} {
+			t.Run("Should classify "+kind+" failure", func(t *testing.T) {
+				t.Parallel()
+				db, err := globaldb.OpenGlobalDB(t.Context(), filepath.Join(t.TempDir(), "errors.db"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := db.Close(context.Background()); err != nil {
+						t.Error(err)
+					}
+				})
+				fixture := newHandlerFixture(
+					t,
+					&testutil.StubSessionManager{},
+					testutil.StubObserver{},
+					testutil.StubWorkspaceService{
+						ListFn: func(context.Context) ([]workspacepkg.Workspace, error) {
+							if kind == "list" {
+								return nil, errors.New("private catalog cause")
+							}
+							return []workspacepkg.Workspace{{ID: "allowed"}}, nil
+						},
+						ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+							if kind == "invalid" {
+								return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+							}
+							return workspacepkg.ResolvedWorkspace{}, errors.New("private resolve cause")
+						},
+					},
+				)
+				fixture.Handlers.MaskInternalErrors = true
+				fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances()}
+				fixture.Engine.GET("/activity/:name", fixture.Handlers.GetAgentActivity)
+				fixture.Engine.POST("/activity", fixture.Handlers.BatchAgentActivity)
+				workspace := "allowed"
+				want := 500
+				if kind == "invalid" || kind == "resolve" {
+					workspace = "missing"
+				}
+				if kind == "invalid" {
+					want = 422
+				}
+				for _, method := range []string{"GET", "POST"} {
+					target := "/activity/coder?workspace=" + workspace
+					body := ""
+					if method == "POST" {
+						target = "/activity"
+						body = `{"items":[{"name":"coder","workspaces":["` + workspace + `"]}]}`
+					}
+					request := httptest.NewRequestWithContext(t.Context(), method, target, strings.NewReader(body))
+					request.Header.Set("Content-Type", "application/json")
+					response := httptest.NewRecorder()
+					fixture.Engine.ServeHTTP(response, request)
+					if response.Code != want {
+						t.Fatalf("%s %s status=%d body=%s", kind, method, response.Code, response.Body.String())
+					}
+					if want == 500 &&
+						(!strings.Contains(response.Body.String(), "Internal Server Error") || strings.Contains(response.Body.String(), "private")) {
+						t.Fatalf("unmasked failure: %s", response.Body.String())
+					}
+					if want == 422 && !strings.Contains(response.Body.String(), "invalid activity request") {
+						t.Fatalf("invalid input body=%s", response.Body.String())
+					}
+				}
+			})
+		}
+	})
+
+	t.Run("Should serve sparse activity from a million telemetry events without cancellations", func(t *testing.T) {
+		t.Parallel()
+		ctx := t.Context()
+		db, err := globaldb.OpenGlobalDB(ctx, filepath.Join(t.TempDir(), "million.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := db.Close(context.WithoutCancel(ctx)); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := db.DB().ExecContext(ctx, "ATTACH DATABASE ? AS seed", db.Path()+".telemetry.db"); err != nil {
+			t.Fatal(err)
+		}
+		started := time.Now()
+		if _, err := db.DB().
+			ExecContext(ctx, `WITH RECURSIVE n(x) AS (VALUES(1) UNION ALL SELECT x+1 FROM n WHERE x<1000000)
+          INSERT INTO seed.event_summaries(id,profile_id,workspace_id,agent_name,type,timestamp,content_json)
+          SELECT 'load-'||x, ?, '', CASE WHEN x<=10 THEN 'sparse' ELSE 'busy' END, 'thought', '2026-11-01T12:00:00Z', '{"text":"retained telemetry payload"}' FROM n`, store.DefaultProfileID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(ctx, "DETACH DATABASE seed"); err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("seeded 1000000 events in %s", time.Since(started))
+		fixture := newHandlerFixture(
+			t,
+			&testutil.StubSessionManager{},
+			testutil.StubObserver{},
+			testutil.StubWorkspaceService{},
+		)
+		fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances()}
+		fixture.Handlers.Now = func() time.Time { return time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC) }
+		fixture.Engine.GET("/api/agents/:name/activity", fixture.Handlers.GetAgentActivity)
+		fixture.Engine.POST("/api/agents/activity", fixture.Handlers.BatchAgentActivity)
+		samples := make([]time.Duration, 100)
+		for i := range samples {
+			request := httptest.NewRequestWithContext(ctx, "GET", "/api/agents/sparse/activity", nil)
+			response := httptest.NewRecorder()
+			started := time.Now()
+			fixture.Engine.ServeHTTP(response, request)
+			samples[i] = time.Since(started)
+			if response.Code != 200 {
+				t.Fatalf("read %d status=%d body=%s", i, response.Code, response.Body.String())
+			}
+			var result agentinstance.Activity
+			decodeJSON(t, response.Body.Bytes(), &result)
+			if len(result.BusyByHour) != 1 || result.BusyByHour[0].Events != 10 {
+				t.Fatalf("sparse activity=%+v", result)
+			}
+		}
+		slices.Sort(samples)
+		if samples[94] >= 100*time.Millisecond {
+			t.Fatalf("sparse activity p95=%s, want below 100ms", samples[94])
+		}
+		t.Logf(
+			"GET /api/agents/sparse/activity: n=100 p50=%s p95=%s max=%s status499=0",
+			samples[49],
+			samples[94],
+			samples[99],
+		)
+		for range 20 {
+			request := httptest.NewRequestWithContext(
+				ctx,
+				"POST",
+				"/api/agents/activity",
+				strings.NewReader(
+					`{"days":14,"items":[{"name":"sparse","workspaces":["@user"]},{"name":"quiet-a","workspaces":["@user"]},{"name":"quiet-b","workspaces":["@user"]},{"name":"quiet-c","workspaces":["@user"]}]}`,
+				),
+			)
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+			fixture.Engine.ServeHTTP(response, request)
+			if response.Code != 200 {
+				t.Fatalf("team batch status=%d body=%s", response.Code, response.Body.String())
+			}
+		}
+	})
+
 	t.Run(
 		"Should isolate activity by caller profile and authorized workspace and return empty arrays",
 		func(t *testing.T) {
@@ -660,6 +812,8 @@ func TestAgentInstanceActivityReach(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			lists, resolves := 0, 0
+
 			fixture := newHandlerFixture(
 				t,
 				&testutil.StubSessionManager{StatusFn: func(context.Context, string) (*session.Info, error) {
@@ -675,9 +829,11 @@ func TestAgentInstanceActivityReach(t *testing.T) {
 				testutil.StubObserver{},
 				testutil.StubWorkspaceService{
 					ListFn: func(context.Context) ([]workspacepkg.Workspace, error) {
+						lists++
 						return []workspacepkg.Workspace{{ID: "allowed"}, {ID: "denied"}}, nil
 					},
 					ResolveFn: func(_ context.Context, id string) (workspacepkg.ResolvedWorkspace, error) {
+						resolves++
 						return workspacepkg.ResolvedWorkspace{ID: id, Name: id}, nil
 					},
 				},
@@ -686,6 +842,33 @@ func TestAgentInstanceActivityReach(t *testing.T) {
 			fixture.Handlers.WorkspaceAccess = activityReachPolicy{}
 			fixture.Handlers.AgentInstances = &core.AgentInstanceAPI{Store: db.Instances()}
 			fixture.Engine.GET("/activity/:name", fixture.Handlers.GetAgentActivity)
+			fixture.Engine.POST("/activity", fixture.Handlers.BatchAgentActivity)
+			for _, body := range []string{
+				`{"days":30,"items":[{"name":"coder","workspaces":["allowed","denied","@user"]},{"name":"coder","workspaces":["denied"]},{"name":"empty","workspaces":["allowed"]}]}`,
+			} {
+				req := httptest.NewRequestWithContext(t.Context(), "POST", "/activity", strings.NewReader(body))
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set(agentidentity.HeaderSessionID, "caller")
+				req.Header.Set(agentidentity.HeaderAgent, "coder")
+				response := httptest.NewRecorder()
+				fixture.Engine.ServeHTTP(response, req)
+				var got contract.AgentActivityBatchResponse
+				if response.Code != 200 {
+					t.Fatalf("batch status=%d body=%s", response.Code, response.Body.String())
+				}
+				decodeJSON(t, response.Body.Bytes(), &got)
+				if len(got.Activities) != 3 || len(got.Activities[0].CostByProject) != 1 ||
+					got.Activities[0].CostByProject[0].Tokens != 10 ||
+					len(got.Activities[1].CostByProject) != 0 ||
+					len(got.Activities[2].CostByProject) != 0 {
+					t.Fatalf("batch reach leak: %+v", got)
+				}
+			}
+
+			if lists != 1 || resolves != 1 {
+				t.Fatalf("batch repeated workspace reads: lists=%d resolves=%d", lists, resolves)
+			}
+
 			// Invariant: an explicit workspace restricts the already-authorized activity set.
 			for _, tc := range []struct {
 				name, query  string

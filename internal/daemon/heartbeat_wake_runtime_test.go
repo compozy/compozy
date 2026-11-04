@@ -1196,6 +1196,7 @@ func newHeartbeatSourceRuntime(t *testing.T, approved, blocked bool) *heartbeatS
 			profiles:           nativeProfileReaderStub{},
 			sessions:           h.manager,
 			agents:             agents,
+			scriptsEnabled:     cfg.Agents.Heartbeat.Sources.ScriptsEnabled,
 		},
 	}
 	h.config = heartbeat.CheckConfig{
@@ -1578,6 +1579,63 @@ func TestHeartbeatSourceRuntime(t *testing.T) {
 		payload, err := api.Payload(t.Context(), h.instance)
 		if err != nil || len(payload.Sources) != 0 {
 			t.Fatalf("removed=%+v err=%v", payload.Sources, err)
+		}
+	})
+	// Invariant (#1258): an unapproved script reads as awaiting approval from its bytes alone, so a
+	// new or paused instance that is never polled still asks; approval clears it, an edit asks again,
+	// and the read follows the poller's scripts_enabled and approval key (resolved script path).
+	t.Run("Should project script approval before the first check and while paused", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, false, false)
+		api := core.AgentInstanceAPI{
+			Checks: h.checks,
+			ReadPayload: func(ctx context.Context, instance agentinstance.Instance) (contract.AgentInstancePayload, error) {
+				return h.env.definitions.instancePayload(ctx, instance, h.db.Instances())
+			},
+		}
+		read := func(instance agentinstance.Instance, awaiting bool) heartbeat.HeartbeatSourceStatus {
+			t.Helper()
+			payload, err := api.Payload(t.Context(), instance)
+			if err != nil || len(payload.Sources) != 1 || payload.Sources[0].AwaitingApproval != awaiting ||
+				payload.Sources[0].Status != "pending_first_poll" {
+				t.Fatalf("payload=%+v err=%v", payload.Sources, err)
+			}
+			return payload.Sources[0]
+		}
+		_, hash, err := source.ReadScript(h.dir, "poll")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := read(h.instance, true); got.ScriptSHA256 != hash ||
+			got.ScriptPath != filepath.Join(h.dir, "sources", "poll") {
+			t.Fatalf("hash=%q path=%q want %q", got.ScriptSHA256, got.ScriptPath, hash)
+		}
+		// With scripts off for the poller, nothing would run, so nothing asks.
+		h.env.definitions.scriptsEnabled = false
+		if got := read(h.instance, false); got.ScriptSHA256 != "" {
+			t.Fatalf("disabled hash=%q", got.ScriptSHA256)
+		}
+		h.env.definitions.scriptsEnabled = true
+		result, err := h.db.Instances().Pause(t.Context(), h.instance.ID, "manual")
+		if err != nil {
+			t.Fatal(err)
+		}
+		paused := result.Instance
+		if paused.State != "paused" {
+			t.Fatalf("state=%q", paused.State)
+		}
+		read(paused, true)
+		h.approve(t)
+		read(paused, false)
+		script := filepath.Join(h.dir, "sources", "poll")
+		body, err := os.ReadFile(script)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(script, append(body, []byte("# edited\n")...), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if got := read(paused, true); got.ScriptSHA256 == hash || got.ScriptSHA256 == "" {
+			t.Fatalf("changed hash=%q", got.ScriptSHA256)
 		}
 	})
 	// Invariant: deferred hook exits persist the timer event and resolved cadence.

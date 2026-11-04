@@ -6,10 +6,10 @@ import (
 )
 
 type ActivityQuery struct {
-	ProfileID   string
-	AgentName   string
-	WorkspaceID string
-	Since       time.Time
+	ProfileID    string
+	AgentName    string
+	WorkspaceIDs []string
+	Since        time.Time
 }
 
 type Activity struct {
@@ -40,4 +40,5 @@ type ActivityHour struct {
 
 type ActivityReader interface {
 	ReadActivity(context.Context, ActivityQuery) (Activity, error)
+	ReadActivities(context.Context, []ActivityQuery) ([]Activity, error)
 }

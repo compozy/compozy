@@ -249,8 +249,13 @@ const compactAccepted = compozyApiMock.post(COMPACT_PATH, ({ params }) =>
   )
 );
 
+// Below the inline breakpoint the inspector is a drawer, portaled to the body; the interaction
+// stories open it so the action is reachable at any viewport.
+const compactPlayArgs = { session: compactSessionFixture, drawerOpen: true };
+
 async function clickCompactNow(canvasElement: HTMLElement) {
-  await userEvent.click(await within(canvasElement).findByTestId("session-context-compact-now"));
+  const page = within(canvasElement.ownerDocument.body);
+  await userEvent.click(await page.findByTestId("session-context-compact-now"));
 }
 
 export const CompactNowAvailable: Story = {
@@ -272,7 +277,7 @@ export const CompactNowDisabledWhileRunning: Story = {
 };
 /** The request is in flight: the button holds until the daemon answers. */
 export const CompactNowInFlight: Story = {
-  args: { session: compactSessionFixture },
+  args: compactPlayArgs,
   parameters: storybookMswParameters({
     session: [
       compozyApiMock.post(COMPACT_PATH, async () => {
@@ -284,7 +289,7 @@ export const CompactNowInFlight: Story = {
   play: ({ canvasElement }) => clickCompactNow(canvasElement),
 };
 export const CompactNowBusyRefusal: Story = {
-  args: { session: compactSessionFixture },
+  args: compactPlayArgs,
   parameters: storybookMswParameters({
     session: [
       compozyApiMock.post(COMPACT_PATH, () =>
@@ -298,7 +303,7 @@ export const CompactNowBusyRefusal: Story = {
   play: ({ canvasElement }) => clickCompactNow(canvasElement),
 };
 export const CompactNowUnsupportedRefusal: Story = {
-  args: { session: compactSessionFixture },
+  args: compactPlayArgs,
   parameters: storybookMswParameters({
     session: [
       compozyApiMock.post(COMPACT_PATH, () =>

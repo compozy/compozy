@@ -44,6 +44,8 @@ var (
 	errModelConfigOptionReadOnly = errors.New(
 		"acp: model discovery is read-only; session/set_model is unavailable in the active ACP protocol",
 	)
+	// errConfigOptionUnconfirmed reports that the provider answered without applying the requested value.
+	errConfigOptionUnconfirmed = errors.New("acp: provider did not confirm the requested value")
 	// errProcessConnectionUninitialized reports that the driver received a process without an ACP connection.
 	errProcessConnectionUninitialized = errors.New("acp: process connection is not initialized")
 	// errProcessLifecycleUninitialized reports that the driver received a process without a managed lifecycle.

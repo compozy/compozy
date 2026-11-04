@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -721,6 +722,57 @@ func TestGlobalDBWorktreeStore(t *testing.T) {
 			if err != nil || got != want {
 				t.Fatalf("PathOwnedByAnyWorkspace(%q) = %v, %v; want %v", path, got, err, want)
 			}
+		}
+	})
+
+	// Invariant: refreshing an unchanged pull request publishes no catalog change even though the
+	// store keeps only display fields of the live answer (no reviews, selection, or head ref).
+	// Owner: PullRequestService over the real SQLite repository; canonical worktree store suite.
+	t.Run("Should publish no change for an unchanged pull request read back from SQLite", func(t *testing.T) {
+		t.Parallel()
+		globalDB := openTestGlobalDB(t)
+		workspace := registerWorkspaceForGlobalTests(t, globalDB, "pull-wake", filepath.Join(t.TempDir(), "ws"))
+		var checks atomic.Int32
+		forge := storePullRequestForge(func() *worktreepkg.ForgeStatus {
+			names := []string{"a", "b", "c", "d", "e", "f", "g"}
+			return &worktreepkg.ForgeStatus{
+				Provider:  "github",
+				Title:     "Quota",
+				PRNumber:  new(7),
+				PRState:   new("open"),
+				PRURL:     "https://github.com/acme/repo/pull/7",
+				Merged:    new(false),
+				Draft:     new(false),
+				Head:      "topic",
+				Base:      "main",
+				HeadSHA:   "abc",
+				Selection: "complete",
+				Reviews: &worktreepkg.ForgeReviews{
+					UnresolvedThreads: 1,
+					Threads:           []worktreepkg.ForgeReviewThread{{ID: "t"}},
+				},
+				Checks: &worktreepkg.ForgeChecks{
+					State: "failing", Failed: len(names) + int(checks.Load()), FailedNames: names,
+				},
+			}
+		})
+		var wakes atomic.Int32
+		service := worktreepkg.NewPullRequestService(
+			t.Context(), globalDB.Worktrees, forge, nil, func(string) { wakes.Add(1) },
+		)
+		t.Cleanup(service.Close)
+		key := worktreepkg.PullRequestKey{WorkspaceID: workspace, RepoKey: "github.com/acme/repo", Branch: "topic"}
+		for range 3 {
+			if _, err := service.Refresh(t.Context(), key); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if wakes.Load() != 1 {
+			t.Fatalf("unchanged pull request published %d changes, want 1", wakes.Load())
+		}
+		checks.Store(1)
+		if _, err := service.Refresh(t.Context(), key); err != nil || wakes.Load() != 2 {
+			t.Fatalf("changed checks published %d changes (err %v), want 2", wakes.Load(), err)
 		}
 	})
 
@@ -2138,4 +2190,21 @@ func TestSessionWorkLinkPersistence(t *testing.T) {
 			t.Fatalf("SaveSessionWorkLink(cross-workspace) error = %v, want ownership refusal", err)
 		}
 	})
+}
+
+type storePullRequestForge func() *worktreepkg.ForgeStatus
+
+func (f storePullRequestForge) Status(
+	context.Context,
+	worktreepkg.ForgeStatusRequest,
+) (*worktreepkg.ForgeStatus, error) {
+	return f(), nil
+}
+
+func (storePullRequestForge) Capabilities(context.Context, []string) (*worktreepkg.ForgeCapabilities, error) {
+	return nil, nil
+}
+
+func (storePullRequestForge) CreatePR(context.Context, worktreepkg.ForgePRRequest) (*worktreepkg.ForgePRResult, error) {
+	return nil, nil
 }

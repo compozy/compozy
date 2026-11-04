@@ -19,6 +19,9 @@ type instanceDefinitions struct {
 	profiles           session.ProfileNameResolver
 	agents             session.AgentResolver
 	sessions           *session.Manager
+	// scriptsEnabled is the poller's own `agents.heartbeat.sources.scripts_enabled`, so instance
+	// reads ask for approval exactly where a poll would run the script.
+	scriptsEnabled bool
 }
 
 var _ instanceDefinitionReader = instanceDefinitions{}

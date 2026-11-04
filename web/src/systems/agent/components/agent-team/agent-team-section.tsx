@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { Button, Section, type ListingViewMode } from "@compozy/ui";
 
+import { useAgentPulses } from "../../hooks/use-agent-pulse";
 import type { AgentTeamMember } from "../../lib/agent-team";
 import { FLEET_ROWS_CLASS } from "../agent-fleet-classes";
 import { AgentMark } from "../agent-mark";
@@ -33,6 +34,7 @@ export function AgentTeamSection({
 }) {
   const [limit, setLimit] = useState(pageSize ?? members.length);
   const visible = members.slice(0, pageSize ? limit : members.length);
+  const pulses = useAgentPulses(visible);
   return (
     <div data-testid={GROUP[label].testId}>
       <Section count={members.length} icon={GROUP[label].icon} label={label}>
@@ -40,7 +42,12 @@ export function AgentTeamSection({
           <div className={GRID}>
             {visible.map(member =>
               member.kind === "always_on" ? (
-                <AgentAlwaysOnCard actions={actions} key={member.key} member={member} />
+                <AgentAlwaysOnCard
+                  actions={actions}
+                  key={member.key}
+                  member={member}
+                  pulseRead={pulses.get(member.key)}
+                />
               ) : (
                 <AgentOnDemandCard actions={actions} key={member.key} member={member} />
               )
@@ -49,7 +56,12 @@ export function AgentTeamSection({
         ) : (
           <div className={FLEET_ROWS_CLASS}>
             {visible.map(member => (
-              <AgentTeamRow actions={actions} key={member.key} member={member} />
+              <AgentTeamRow
+                actions={actions}
+                key={member.key}
+                member={member}
+                pulseRead={pulses.get(member.key)}
+              />
             ))}
           </div>
         )}

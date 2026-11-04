@@ -53,6 +53,7 @@ func registerAgentRoutes(api gin.IRouter, handlers *Handlers) {
 		agents.POST("/:name/heartbeat/rollback", handlers.RollbackAgentHeartbeat)
 		agents.GET("/:name/heartbeat/status", handlers.GetAgentHeartbeatStatus)
 		agents.POST("/:name/heartbeat/wake", handlers.WakeAgentHeartbeat)
+		agents.POST("/activity", handlers.BatchAgentActivity)
 		agents.GET("/:name/activity", handlers.GetAgentActivity)
 		agents.GET("/:name", handlers.GetAgent)
 	}

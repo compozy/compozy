@@ -63,6 +63,8 @@ type PullRequestLookup struct {
 	Cause      string
 	ObservedAt time.Time
 	Stale      bool
+	// RetryAfter is when a rate-limited forge accepts lookups again.
+	RetryAfter *time.Time
 }
 
 type BranchKey struct{ WorkspaceID, Branch string }

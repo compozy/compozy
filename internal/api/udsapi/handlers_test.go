@@ -207,6 +207,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/agent-instances/:id/check-ins",
 			"GET /api/agent-instances/:id/occurrences/:occurrence",
 			"GET /api/agents/:name/activity",
+			"POST /api/agents/activity",
 			"GET /api/agents/:name/memory",
 			"GET /api/agents/:name/memory/history",
 			"GET /api/permissions",

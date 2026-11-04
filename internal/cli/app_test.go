@@ -58,6 +58,8 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 		}{
 			{name: "product.json", wantState: "product"},
 			{name: "error.json", wantState: "error"},
+			{name: "upgrade-stalled.json", wantState: "error"},
+			{name: "upgrade-migrating.json", wantState: "provisioning"},
 		} {
 			t.Run("Should read "+fixture.name, func(t *testing.T) {
 				t.Parallel()

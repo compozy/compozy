@@ -1,11 +1,11 @@
 ---
 id: ET-workspace-access-prompt-outcomes
 area: ET
-title: Resolve a cross-workspace prompt and expire its session answer
+title: Resolve a cross-workspace prompt, remember a read, and expire a session answer
 persona: Bruno
 journey: J-cross-workspace-access
-expected: An approve-reads session hitting the native-tool boundary raises one pending permission offering allow_once, allow_session, reject_once, and reject_session; once answers apply to that call only, session answers apply to every seam for the rest of the session, and stopping the session clears the answer so the next crossing prompts again.
-entry_points: compozy__workspace_info; compozy__task_run_claim_next; compozy spawn --workspace; compozy session approve <session-id> --request-id <request-id> --decision <allow-once|allow-always|reject-once|reject-always>; POST /api/workspaces/:workspace_id/sessions/:session_id/approve; compozy logs --type workspace.access_granted; GET /api/logs; compozy__logs; compozy__observe_search; /docs/sessions/permissions#the-prompt-in-approve-reads
+expected: An approve-reads session hitting the native-tool boundary raises one pending permission; a read offers allow_once, allow_always, reject_once, and reject_session, and a write offers allow_once, allow_session, reject_once, and reject_session. Once answers apply to that call only; an operator allow_always on a read stores a revocable tool approval scoped to the agent, tool, and target workspace/profile that later sessions reuse without prompting; session answers apply to every seam for the rest of the session, and stopping the session clears them.
+entry_points: compozy__workspace_info; compozy__session_status; compozy tool approvals list; compozy tool approvals revoke; Settings → Tool approvals; compozy__task_run_claim_next; compozy spawn --workspace; compozy session approve <session-id> --request-id <request-id> --decision <allow-once|allow-always|reject-once|reject-always>; POST /api/workspaces/:workspace_id/sessions/:session_id/approve; compozy logs --type workspace.access_granted; GET /api/logs; compozy__logs; compozy__observe_search; /docs/sessions/permissions#the-prompt-in-approve-reads
 qa_status: skipped
 bug_ids: BUG-20260730-tool-invoke-202-empty-success
 fix_status: fixed
@@ -16,20 +16,24 @@ last_report: docs/qa/reports/2026-10-02-untested.md
 overlaps: ET-workspace-access-mode-matrix; ET-native-tool-approval-grants
 ---
 
-Start an `approve-reads` session in workspace A and call a native tool naming workspace B. Confirm one
-pending permission appears with the four daemon-computed options `allow_once`, `allow_session`,
-`reject_once`, and `reject_session`, labeled Allow once, Allow for this session, Reject once, and
-Reject for this session.
+Start an `approve-reads` session in workspace A and call a native read tool naming workspace B.
+Confirm the prompt offers `allow_once`, `allow_always`, `reject_once`, and `reject_session`, labeled
+Allow once, Always allow, Reject once, and Reject for this session. Writes offer `allow_session`
+(Allow for this session) instead of `allow_always`.
 
 Answer `allow-once` and confirm the call proceeds and the next crossing prompts again. Answer
 `reject-once` and confirm the call is denied with the permission-mode hint while a later crossing
 still prompts.
 
-Answer `allow-always` and confirm it resolves to `allow_session`: later crossings by that session
-succeed with no prompt, and crossings at the task and spawn seams — which never prompt
-— now succeed too. Confirm no approval record appears in any list or revoke surface: the answer is
-daemon memory only. Stop the session, start a new one for the same agent, and confirm the first
-crossing prompts again. Repeat the expiry check across a daemon restart.
+Answer `allow-always` on the read and confirm a scoped record appears in tool approvals. Another
+session read with the same tool in workspace B and the same profile proceeds without a prompt,
+including after actor session rotation and daemon restart. Other tools, workspaces, profiles,
+agents, and writes remain outside that grant. Revoke it and confirm the next read prompts again.
+The grant does not admit task or spawn operations.
+
+For a write, answer `allow-always` and confirm it resolves to `allow_session`: later crossings by
+that session succeed without a prompt, including task and spawn seams where policy permits.
+This session answer creates no durable approval record and expires on stop or daemon restart.
 
 Answer `reject-always` and confirm it resolves to `reject_session` and denies every later crossing by
 that session at every seam.
@@ -75,3 +79,35 @@ A `profile` or `all_profiles` read raises the same four options titled `Read pro
 
 
 QA result 2026-11-03 (#1169): targeted isolated acpmock walk over hosted MCP and HTTP passed for the journeys above; Web and live providers were not walked. Evidence: `docs/qa/evidence/2026-11-03-issue-1169/verification-report.md`.
+
+QA impact 2026-11-04 (#1270): an operator "Always allow" on a read prompt (`allow_always`) now
+persists. Walk: answer `allow-always` on `Read session <id> outside this workspace or profile` from
+an always-on agent, then confirm `compozy tool approvals list --workspace <actor-ws>` shows one
+grant with `ACCESS SCOPE read:workspace:<target-ws>@<profile>` for that agent and tool, and Web
+Settings → Tool approvals labels it `Reads in project <target-ws>`. A later read of another session
+in the same target project — including from a new session of the same agent or after a daemon
+restart — does not prompt. A different tool, target project, profile, or agent, and any write,
+still prompts; writes still offer `allow_session`. Revoke the grant and confirm the next read
+prompts again. An always-on agent answering another session's prompt with `allow-always` leaves no
+grant. A missing session id raises the same read prompt and leaves no grant.
+
+Review follow-up (#1270): repeat the remembered-read walk with the actor in User scope. List and
+revoke with `--workspace @user` and Settings while focused on User; project-owned grants must not
+appear in that list. Confirm concrete target profiles are distinguishable in the grant rows.
+After each successful remembered read, confirm a `workspace.access_granted` event with source
+`tool_consent` follows the initial policy miss without authorizing another seam.
+
+Review follow-up: a profile-switch read prompt identifies both the selected profile and its
+target workspace (or `@user`) in the title and raw input before consent can be remembered.
+Cancel the originating request while its permission is pending, approve it, and confirm the
+final consent audit is retained alongside the durable grant.
+
+Audit review follow-up: consent recording applies its own bounded facts-lookup deadline after
+originating-request cancellation. A read approved with session consent also emits the final
+`tool_consent` granted event; a rejected cached consent emits no granted event.
+
+Fallback review follow-up (#1270): a resolved read without a durable agent identity offers
+`allow_session` and reuses that temporary answer. An unresolved session retains the opaque read
+prompt. User-target profile reads say `in User scope`. The User-owned read integration journey
+creates consent over hosted MCP, compares the `@user` HTTP list with the native list omitting its
+workspace selector, replays without prompting, and revokes through `@user` before a new rejection.

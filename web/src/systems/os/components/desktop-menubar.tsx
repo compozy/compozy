@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 
+import { ScriptApprovalsBellSection } from "@/systems/agent";
 import type { WorktreeRemovalBatch } from "@/systems/workspace";
 import { Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";
 
@@ -8,7 +9,7 @@ import type { OsAttentionModel } from "../hooks/use-os-attention";
 import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
 import { useMenubarActions } from "../hooks/use-menubar-actions";
 import { useProjectPointMenu } from "../hooks/use-project-point-menu";
-import { useMenubarAttentionSelection } from "../hooks/use-menubar-attention-selection";
+import { useMenubarAttention } from "../hooks/use-menubar-attention";
 import { useProviderUsageSurface } from "../hooks/use-provider-usage-surface";
 import { useDesktop } from "../hooks/use-desktop";
 import { useWindowManagerDiagnostic } from "../hooks/use-window-manager-store";
@@ -204,7 +205,10 @@ function DesktopMenubarChrome({
     onOpenChange: (open: boolean) => onOverlayOpenChange(id, open),
   });
 
-  const focusAttentionRow = useMenubarAttentionSelection(onOverlayOpenChange);
+  const { focusAttentionRow, scriptApprovals } = useMenubarAttention(
+    onOverlayOpenChange,
+    activeOverlay === "bell"
+  );
   const usage = useProviderUsageSurface();
   const usageVisible = usage.trayVisible;
   const usageOpen = activeOverlay === "usage";
@@ -237,7 +241,7 @@ function DesktopMenubarChrome({
           state={update.state}
         />
       }
-      notifications={attention.notificationCount}
+      notifications={attention.notificationCount + scriptApprovals.items.length}
       onCommandClick={() => onRunCommand("palette.open")}
       onDesktopsClick={() => onOverlayOpenChange("desktops", activeOverlay !== "desktops")}
       desktopsOpen={activeOverlay === "desktops"}
@@ -334,6 +338,19 @@ function DesktopMenubarChrome({
             data-testid="os-bell-popover"
           >
             <AttentionBell
+              scriptCount={scriptApprovals.items.length}
+              scriptsUnavailable={scriptApprovals.unavailable}
+              scripts={
+                <ScriptApprovalsBellSection
+                  approving={scriptApprovals.approving}
+                  items={scriptApprovals.items}
+                  onApprove={scriptApprovals.approve}
+                  onReview={item => {
+                    onOverlayOpenChange("bell", false);
+                    scriptApprovals.review(item);
+                  }}
+                />
+              }
               sections={attention.sections}
               total={attention.notificationTotal}
               pending={attention.acknowledging}

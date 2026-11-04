@@ -11,6 +11,7 @@ import {
   agentPauseCopy,
   agentInstancesByUrgency,
 } from "../agent-instance";
+import { scriptApprovalsFromInstances } from "../agent-script-approvals";
 import {
   agentSymbolAppearance,
   agentSymbolBackgroundOf,
@@ -209,5 +210,95 @@ describe("agentFromOrphanInstance", () => {
   it("Should give an orphan enough of an agent to explain itself", () => {
     const agent = agentFromOrphanInstance(agentInstanceFixture({ label: "Triage Lead" }));
     expect(agent).toMatchObject({ name: "triage", label: "Triage Lead", kind: "always_on" });
+  });
+});
+
+describe("scriptApprovalsFromInstances", () => {
+  const waiting = {
+    id: "deploys",
+    script: "merge-candidates",
+    status: "pending_first_poll",
+    failure_streak: 0,
+    last_item_count: 0,
+    awaiting_approval: true,
+    script_sha256: "sha256:abc",
+    script_path: "/Users/you/.compozy/agents/merge-train/sources/merge-candidates",
+  };
+
+  it("Should list each waiting script once, from paused and never-checked places alike", () => {
+    const items = scriptApprovalsFromInstances([
+      agentInstanceFixture({
+        id: "a",
+        agent_name: "merge-train",
+        label: "Merge Train",
+        workspace_id: "ws-compozy",
+        state: "paused",
+        sources: [waiting],
+      }),
+      // The same definition placed in User shares the approval, so it doesn't repeat.
+      agentInstanceFixture({
+        id: "b",
+        agent_name: "merge-train",
+        label: "Merge Train",
+        workspace_id: "",
+        sources: [waiting],
+      }),
+      agentInstanceFixture({
+        id: "c",
+        agent_name: "issue-watch",
+        sources: [
+          { ...waiting, awaiting_approval: false },
+          // Unreadable or approved bytes carry no hash to approve by.
+          { ...waiting, id: "other", script_sha256: undefined },
+        ],
+      }),
+    ]);
+
+    expect(items).toEqual([
+      expect.objectContaining({
+        agentName: "merge-train",
+        agentLabel: "Merge Train",
+        script: "merge-candidates",
+        sha256: "sha256:abc",
+        workspace: "ws-compozy",
+      }),
+    ]);
+  });
+
+  it("Should keep copies of a definition in two projects as two approvals", () => {
+    const items = scriptApprovalsFromInstances([
+      agentInstanceFixture({
+        id: "a",
+        agent_name: "merge-train",
+        workspace_id: "ws-compozy",
+        sources: [
+          {
+            ...waiting,
+            script_path: "/compozy/.compozy/agents/merge-train/sources/merge-candidates",
+          },
+        ],
+      }),
+      agentInstanceFixture({
+        id: "b",
+        agent_name: "merge-train",
+        workspace_id: "ws-advos",
+        sources: [
+          {
+            ...waiting,
+            script_path: "/advos/.compozy/agents/merge-train/sources/merge-candidates",
+          },
+        ],
+      }),
+    ]);
+
+    expect(items.map(item => item.workspace)).toEqual(["ws-compozy", "ws-advos"]);
+  });
+
+  it("Should approve User placements through the @user selector", () => {
+    const [item] = scriptApprovalsFromInstances([
+      agentInstanceFixture({ agent_name: "merge-train", workspace_id: "", sources: [waiting] }),
+    ]);
+
+    expect(item?.workspace).toBe("@user");
   });
 });

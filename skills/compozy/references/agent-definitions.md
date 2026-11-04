@@ -21,6 +21,16 @@ Runtime configuration starts from $COMPOZY_HOME/config.toml, then workspace conf
 
 Workspace definitions shadow same-name global definitions; CompozyOS never merges them. Structured reads expose `origin`, `workspace_id`, `skills`, and `definition_digest`, so use the daemon result instead of guessing precedence from paths.
 
+To change only `permissions` (or `provider`, `model`, `reasoning_effort`, `speed`) of a bundled,
+extension, or global agent, the operator adds `[agents.overrides.<name>]` to a `config.toml` layer
+instead of copying its AGENT.md; the prompt, appearance, and other fields keep tracking the source.
+The override applies to whichever definition wins for that name, layers merge per field, and session
+runtime selections and `[roles.<role>]` routes still win for the fields they set. Reads keep the
+authored values and report the result in `effective_runtime` with source `config_override`. The table
+is operator-only: `compozy__config_set`/`compozy__config_unset` refuse it with
+`config_trust_root_forbidden`, and `compozy config set` inside an agent session refuses it with
+`agent_override_operator_only`. Never ask an agent to raise its own level.
+
 ## Minimal AGENT.md
 
     ---
@@ -112,6 +122,9 @@ Authority matrix (HTTP, UDS, and native tools enforce the same rules):
 
 "Permission mode + consent" means `approve-all` allows, `approve-reads` asks the operator at the
 native-tool seam (and honors an `allow_session` answer at every seam), and `deny-all` never crosses.
+An operator's "Always allow" on a read prompt is stored as a revocable tool approval scoped to the
+agent, tool, and target workspace or profile (`access_scope`), so later reads of that scope by the
+agent do not ask again; writes keep the per-session answer, and agents cannot create the grant.
 Since issue #1169 (owner decision 2026-11-03, superseding the part of User Scope Work ADR-003 that
 kept profiles and aggregates out of `approve-all`), an `approve-all` session reads other profiles
 and All projects as the operator would; changing another profile, or writing through an aggregate
@@ -257,6 +270,7 @@ never rendered into a session, and CompozyOS does not rewrite the file.
 - Sessions an instance starts do not inherit its level. Each uses the `permissions` of its own
   definition, or `[permissions].mode`. A delegation that omits `permission_mode` or sets `inherit` gets
   that level; a lower `permission_mode` is kept; a higher one fails with `permission_escalation_denied`.
+- An operator `[agents.overrides.<name>].permissions` counts as the level set on the definition.
 - Only the level comes from the definition. Tool, skill, MCP server, and path ceilings still narrow
   descendants exactly as before. Triage sessions stay read-only at every level.
 - The level is read when a session starts and has no frozen ceiling, unlike `workspace_access`. A session
@@ -411,3 +425,15 @@ Polls run before model work. Empty or unchanged source digests skip the model ev
 Scripts run a private copy of approved bytes with the workspace as cwd. They receive `PATH`, `HOME`, `LANG`, `TMPDIR`, `USER`, `COMPOZY_SOURCE_ID`, `COMPOZY_AGENT`, and explicitly allowed daemon environment variables; they never receive `session_env`. Stdout, state, runtime and stderr are bounded. Upgrade every daemon reading a file before adding `context.sources`; older daemons reject the new key on downgrade.
 
 Healthy, unapproved and disabled sources are eligible on every check that passes the collection gates, including manual and event-pulled checks. `next_poll_at` is only a failing source’s retry backoff. A batch with `more: true` schedules the next timer check at `agents.heartbeat.min_interval` plus jitter, including when triage skips an unchanged digest. Other source-backed checks use the resolved agent cadence without quiet backoff. Reserved `COMPOZY_*` names are rejected in `env_allow`.
+
+### Activity summaries
+
+`GET /api/agents/{name}/activity` reads one profile and aggregates authorized workspaces when
+`workspace` is omitted (`@user` selects User). `days` defaults to 30 and accepts 1–365.
+For team views, `POST /api/agents/activity?profile=<name>` accepts
+`{"days":14,"items":[{"name":"reviewer","workspaces":["@user","project-id"]}]}`.
+It returns `{"activities":[<activity>]}` in request order; each entry keeps the existing
+`reports_by_day`, `cost_by_project` and `busy_by_hour` shape. Use the definition's own resolved
+workspaces for each item. Limits are 100 items, 100 workspace references per item and 5,000
+authorized workspace selections overall. Both HTTP/UDS reads enforce profile/workspace access;
+app tokens cannot call them. No native tool ID, CLI command, hook or configuration key changes.

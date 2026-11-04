@@ -325,5 +325,19 @@ func settingsRestartOperationFromDaemon(operation RestartOperation) core.Setting
 		StartedAt:          operation.StartedAt,
 		UpdatedAt:          operation.UpdatedAt,
 		CompletedAt:        operation.CompletedAt,
+		Progress:           settingsRestartProgressFromDaemon(operation.Progress),
+	}
+}
+
+func settingsRestartProgressFromDaemon(progress *RestartProgress) *core.SettingsRestartProgress {
+	if progress == nil {
+		return nil
+	}
+	return &core.SettingsRestartProgress{
+		Phase:     progress.Phase,
+		Stage:     progress.Stage,
+		Completed: progress.Completed,
+		Total:     progress.Total,
+		UpdatedAt: progress.UpdatedAt,
 	}
 }

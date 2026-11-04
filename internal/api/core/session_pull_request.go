@@ -105,6 +105,9 @@ func pullRequestPayload(
 	if !view.Lookup.ObservedAt.IsZero() {
 		lookup.ObservedAt = &view.Lookup.ObservedAt
 	}
+	if view.Lookup.RetryAfter != nil {
+		lookup.RetryAfter = new(*view.Lookup.RetryAfter)
+	}
 	pr := view.PullRequest
 	if pr == nil {
 		return nil, lookup

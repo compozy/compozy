@@ -44,6 +44,11 @@ export const agentKeys = {
   /** One card per agent for a scope; `""` is every project and User. */
   team: (workspace: string, profile = "default") =>
     [...agentKeys.catalogs(), "@team", workspace, profile] as const,
+  activityBatch: (
+    items: readonly { name: string; workspaces: readonly string[] }[],
+    days: number,
+    profile: string
+  ) => [...agentKeys.all, "activity-batch", profile, days, items] as const,
   activity: (name: string, days: number, workspace?: string | null, profile = "default") =>
     [...agentKeys.all, "activity", name, days, workspace ?? null, profile] as const,
   lists: () => [...agentKeys.all, "list"] as const,

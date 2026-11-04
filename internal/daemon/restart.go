@@ -56,6 +56,37 @@ type RestartOperation struct {
 	StartedAt          time.Time     `json:"started_at"`
 	UpdatedAt          time.Time     `json:"updated_at"`
 	CompletedAt        *time.Time    `json:"completed_at,omitempty"`
+	// Progress reports a replacement daemon's data migration while it cannot serve status yet.
+	Progress *RestartProgress `json:"progress,omitempty"`
+}
+
+// RestartPhaseMigrating marks a replacement daemon that is upgrading persisted data before readiness.
+const RestartPhaseMigrating = "migrating"
+
+// RestartProgress is the replacement daemon's latest data-migration progress.
+type RestartProgress struct {
+	Phase     string    `json:"phase"`
+	Stage     string    `json:"stage"`
+	Completed int64     `json:"completed"`
+	Total     int64     `json:"total"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+func (p *RestartProgress) validate() error {
+	switch {
+	case p == nil:
+		return nil
+	case p.Phase != RestartPhaseMigrating:
+		return fmt.Errorf("daemon: unsupported restart progress phase %q", p.Phase)
+	case strings.TrimSpace(p.Stage) == "":
+		return errors.New("daemon: restart progress stage is required")
+	case p.Completed < 0 || p.Total < 0:
+		return fmt.Errorf("daemon: restart progress must be non-negative: %d/%d", p.Completed, p.Total)
+	case p.UpdatedAt.IsZero():
+		return errors.New("daemon: restart progress updated_at is required")
+	default:
+		return nil
+	}
 }
 
 // Validate ensures the persisted restart operation is structurally usable.
@@ -64,6 +95,9 @@ func (o RestartOperation) Validate() error {
 		return err
 	}
 	if err := o.validateStatus(); err != nil {
+		return err
+	}
+	if err := o.Progress.validate(); err != nil {
 		return err
 	}
 	return o.validateLifecycleFields()
@@ -129,7 +163,7 @@ func (o RestartOperation) validateReadyFields() error {
 	if strings.TrimSpace(o.FailureReason) != "" {
 		return errors.New("daemon: ready restart operation cannot carry failure_reason")
 	}
-	return nil
+	return o.validateTerminalProgress()
 }
 
 func (o RestartOperation) validateFailedFields() error {
@@ -142,7 +176,7 @@ func (o RestartOperation) validateFailedFields() error {
 	if o.NewPID != 0 {
 		return errors.New("daemon: failed restart operation must not set new_pid")
 	}
-	return nil
+	return o.validateTerminalProgress()
 }
 
 func (o RestartOperation) validateInFlightFields() error {
@@ -154,6 +188,13 @@ func (o RestartOperation) validateInFlightFields() error {
 	}
 	if strings.TrimSpace(o.FailureReason) != "" {
 		return errors.New("daemon: non-terminal restart operation must not set failure_reason")
+	}
+	return nil
+}
+
+func (o RestartOperation) validateTerminalProgress() error {
+	if o.Progress != nil {
+		return fmt.Errorf("daemon: %s restart operation must not carry migration progress", o.Status)
 	}
 	return nil
 }

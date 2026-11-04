@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+// CoordinatorProfile is a daemon API value.
+type CoordinatorProfile struct {
+	Mode      CoordinatorMode `json:"mode"`
+	AgentName string          `json:"agent_name,omitempty"`
+	Provider  string          `json:"provider,omitempty"`
+	Model     string          `json:"model,omitempty"`
+	Guidance  string          `json:"guidance,omitempty"`
+}
+
+// CopyEffect is a daemon API value.
+type CopyEffect struct {
+	Content string `json:"content"`
+}
+
+// CostSource is a daemon API value.
+type CostSource string
+
 // CostStatus is a daemon API value.
 type CostStatus string
 
@@ -428,20 +445,4 @@ type DuplicateAgentRequest struct {
 	Scope     AgentCreateScope         `json:"scope,omitempty"`
 	Workspace string                   `json:"workspace,omitempty"`
 	Overrides *DuplicateAgentOverrides `json:"overrides,omitzero"`
-}
-
-// Edge is a daemon API value.
-type Edge struct {
-	From NodeID `json:"from"`
-	To   NodeID `json:"to"`
-}
-
-// Effect is a daemon API value.
-type Effect struct {
-	ID        string           `json:"id"`
-	Toast     *ToastEffect     `json:"toast,omitempty"`
-	Copy      *CopyEffect      `json:"copy,omitempty"`
-	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
-	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
-	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
 }

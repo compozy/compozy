@@ -1,0 +1,85 @@
+package cli
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/compozy/compozy/internal/api/contract"
+)
+
+// defaultRestartMigrationIdleTimeout bounds how long a migrating replacement may report no progress.
+// Progress is written at least once per acknowledged migration batch, so a healthy upgrade advances
+// far more often; there is deliberately no wall-clock cap while progress keeps advancing.
+const defaultRestartMigrationIdleTimeout = 5 * time.Minute
+
+// restartMigrationCountIdleFactor extends the idle window while a stage is still sizing its work.
+const restartMigrationCountIdleFactor = 3
+
+// restartProgressWatch tracks replacement migration progress across restart polling windows.
+type restartProgressWatch struct {
+	idleTimeout time.Duration
+	now         func() time.Time
+	onProgress  func(contract.RestartProgress)
+	last        *contract.RestartProgress
+	lastAdvance time.Time
+}
+
+func newRestartProgressWatch(deps commandDeps, onProgress func(contract.RestartProgress)) *restartProgressWatch {
+	now := deps.now
+	if now == nil {
+		now = time.Now
+	}
+	idle := deps.restartMigrationIdleTimeout
+	if idle <= 0 {
+		idle = defaultRestartMigrationIdleTimeout
+	}
+	return &restartProgressWatch{idleTimeout: idle, now: now, onProgress: onProgress}
+}
+
+// observe reports advancing progress and fails a migration that stopped advancing. The replacement
+// clears progress once the migration and its trailing schema steps finish, so later boot work is
+// never subject to this window. Measuring idleness on the observer's clock keeps a stale journal
+// timestamp from failing a live upgrade.
+func (w *restartProgressWatch) observe(status SettingsRestartStatusRecord) error {
+	if w == nil || status.Progress == nil {
+		return nil
+	}
+	progress := *status.Progress
+	now := w.now()
+	if w.last == nil || progress.Stage != w.last.Stage || progress.Completed != w.last.Completed ||
+		progress.Total != w.last.Total {
+		w.last = &progress
+		w.lastAdvance = now
+		if w.onProgress != nil {
+			w.onProgress(progress)
+		}
+		return nil
+	}
+	idle := w.idleTimeout
+	if progress.Total <= 0 {
+		// Counting a large frozen table publishes no intermediate progress, so it gets a longer bound.
+		idle *= restartMigrationCountIdleFactor
+	}
+	if now.Sub(w.lastAdvance) < idle {
+		return nil
+	}
+	return fmt.Errorf(
+		"cli: daemon data upgrade %q stopped progressing at %d of %d rows for %s",
+		progress.Stage,
+		progress.Completed,
+		progress.Total,
+		idle,
+	)
+}
+
+// restartProgressPercent converts migration progress into a bounded whole percentage; an unknown
+// total (still counting) reads as 0%.
+func restartProgressPercent(progress contract.RestartProgress) int {
+	if progress.Total <= 0 || progress.Completed <= 0 {
+		return 0
+	}
+	if progress.Completed >= progress.Total {
+		return 100
+	}
+	return int(progress.Completed * 100 / progress.Total)
+}

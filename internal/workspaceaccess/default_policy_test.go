@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -18,6 +19,62 @@ const (
 
 func TestDefaultPolicyAuthorize(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should audit read consent without widening the policy", func(t *testing.T) {
+		t.Parallel()
+		audit := &auditEmitterSpy{}
+		var lastFactsContext context.Context
+		facts := factsSourceFunc(func(ctx context.Context, id string) (SessionFacts, error) {
+			lastFactsContext = ctx
+			if err := ctx.Err(); err != nil {
+				return SessionFacts{}, err
+			}
+			return (&modeSourceStub{mode: ModeApproveReads}).SessionFacts(ctx, id)
+		})
+		consent := &consentCacheStub{}
+		policy := newPolicyForTest(t, facts, consent, audit, slog.Default())
+		req := testRequest(ActorAgentSession, testWorkspaceA, testWorkspaceB)
+		req.ReadOnly, req.Seam = true, SeamTool
+		decision, err := policy.Authorize(t.Context(), req)
+		if err != nil || !decision.PromptEligible || decision.Allowed {
+			t.Fatalf("before consent = %#v, %v", decision, err)
+		}
+		canceledCtx, cancel := context.WithCancel(t.Context())
+		cancel()
+		startedAt := time.Now()
+		policy.RecordToolConsent(canceledCtx, req)
+		if lastFactsContext == nil {
+			t.Fatal("consent facts lookup was skipped")
+		}
+		deadline, bounded := lastFactsContext.Deadline()
+		if !bounded {
+			t.Fatal("consent facts lookup has no deadline")
+		}
+		if deadline.After(startedAt.Add(ConsentAuditTimeout + time.Second)) {
+			t.Fatalf("facts lookup deadline = %s, want bounded by %s", deadline, ConsentAuditTimeout)
+		}
+		if !errors.Is(lastFactsContext.Err(), context.Canceled) {
+			t.Fatalf("facts lookup context after recording = %v, want canceled", lastFactsContext.Err())
+		}
+		if len(audit.records) != 2 || !audit.records[1].Allowed || audit.records[1].Source != SourceToolConsent ||
+			audit.records[1].TargetID != testWorkspaceB || audit.records[1].ActorProfileID == "" {
+			t.Fatalf("consent audit = %#v, want a scoped granted record", audit.records)
+		}
+		decision, err = policy.Authorize(t.Context(), req)
+		if err != nil || decision.Allowed || !decision.PromptEligible {
+			t.Fatalf("after audit = %#v, %v, want no policy widening", decision, err)
+		}
+		consent.consent, consent.ok = ConsentAllow, true
+		policy.RecordToolConsent(t.Context(), req)
+		if len(audit.records) != 4 || !audit.records[3].Allowed || audit.records[3].Source != SourceToolConsent {
+			t.Fatalf("cached session consent audit = %#v, want final tool consent", audit.records)
+		}
+		consent.consent = ConsentReject
+		policy.RecordToolConsent(t.Context(), req)
+		if len(audit.records) != 4 {
+			t.Fatalf("rejected session consent emitted a granted record: %#v", audit.records)
+		}
+	})
 
 	t.Run("Should UT-001 allow operators before mode lookup", func(t *testing.T) {
 		t.Parallel()

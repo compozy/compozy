@@ -92,6 +92,7 @@ const ERROR_WORDS: Record<string, string> = {
   source_credential_expired: "its sign-in expired",
   source_rate_limited: "it was asked too often, so it waits",
   source_timeout: "it took too long",
+  source_script_not_executable: "the file isn't executable",
 };
 
 function couldNot(error: AgentInstanceSourceStatus["error"]) {
@@ -113,8 +114,7 @@ function statusView(
   status: string,
   source: Pick<CheckInSource, "kind" | "script">,
   error: AgentInstanceSourceStatus["error"],
-  ok: () => string,
-  hash?: string
+  ok: () => string
 ): SourceStatusView {
   switch (status) {
     case "ok":
@@ -124,13 +124,8 @@ function statusView(
     case "disabled":
       return { label: "Scripts are turned off", tone: "warning", code: error?.code };
     case "unapproved":
-      return {
-        label: hash
-          ? `Waiting for your approval · ${shortHash(hash)}`
-          : "Waiting for your approval",
-        tone: "warning",
-        code: error?.code,
-      };
+      // The page's approval notice carries the details; the row only says it waits.
+      return { label: "Needs your approval", tone: "warning", code: error?.code };
     case "unavailable": {
       const extension = extensionOf(source.kind);
       return {
@@ -144,27 +139,67 @@ function statusView(
   }
 }
 
+/** The catalog's read of a script: its current sha256 and whether those bytes are approved. */
+export interface CheckInScriptRead {
+  sha256: string;
+  approved: boolean;
+  /** A file without the exec bit can't run, so there is nothing to approve yet. */
+  executable: boolean;
+}
+
+/** A script the operator can approve now, whether or not a check has read it yet. */
+export function checkInScriptAwaitsApproval(script: CheckInScriptRead | undefined): boolean {
+  return Boolean(script && script.executable && !script.approved);
+}
+
+/** The declared scripts whose current bytes wait for the operator, in the file's order. */
+export function checkInScriptsAwaitingApproval(
+  sources: readonly Pick<CheckInSource, "script">[],
+  catalog: Pick<AgentHeartbeatSourceCatalog, "scripts" | "scripts_enabled"> | null | undefined
+) {
+  // With scripts off nothing runs, so approving promises nothing: the row says they're off.
+  if (!catalog?.scripts_enabled) return [];
+  const names = sources.flatMap(source => (source.script ? [source.script] : []));
+  return [...new Set(names)].filter(name =>
+    checkInScriptAwaitsApproval(catalog?.scripts.find(item => item.name === name))
+  );
+}
+
 /**
  * The source's row status; a source the daemon hasn't read yet is "Not checked yet", never OK.
- * `script` is the catalog's read of a script source: its current sha256, shown short while it
- * waits for approval, and whether those bytes are approved since the last check.
+ * `script` is the catalog's read of a script source. Its approval leads the poll state: a new or
+ * paused source can't be checked until it's approved, so waiting for a check would never end.
  */
 export function checkInSourceStatus(
   source: Pick<CheckInSource, "kind" | "script">,
   state: AgentInstanceSourceStatus | undefined,
   now: number,
-  script?: { sha256: string; approved: boolean }
+  script?: CheckInScriptRead,
+  /** The catalog's `scripts_enabled`; `undefined` until the catalog answers. */
+  scriptsEnabled?: boolean
 ): SourceStatusView {
+  // Scripts that are turned off say so first; approving them changes nothing until they're on.
+  if (source.script && scriptsEnabled === false) {
+    return statusView("disabled", source, state?.error, () => "");
+  }
+  const unread = !state || state.status === "unapproved" || state.status === "pending_first_poll";
+  // Approval covers bytes only: a file without its exec bit can't run, approved or not.
+  if (unread && script && !script.executable) {
+    return { label: "Can't run: the file isn't executable", tone: "warning" };
+  }
+  // A stored `disabled` predates the catalog's scripts_enabled above, so it can't hide the ask.
+  if (checkInScriptAwaitsApproval(script)) {
+    return statusView("unapproved", source, state?.error, () => "");
+  }
   if (!state) return { label: "Not checked yet", tone: "muted" };
-  if (state.status === "unapproved" && script?.approved) {
+  if (unread && script?.approved) {
     return { label: "Approved · runs at the next check-in", tone: "muted" };
   }
-  const hash = script?.sha256;
   const ok = () => {
     const checked = checkedAgo(state.last_success_at || state.last_polled_at, now);
     return state.last_item_count > 0 ? `${checked} · ${state.last_item_count} new` : checked;
   };
-  return statusView(state.status, source, state.error, ok, hash);
+  return statusView(state.status, source, state.error, ok);
 }
 
 /** A try's read of one source, in the same words as its row. */

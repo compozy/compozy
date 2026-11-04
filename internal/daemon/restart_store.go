@@ -129,6 +129,39 @@ func (s *restartStore) Transition(operationID string, transition restartTransiti
 	return next, nil
 }
 
+// RecordProgress publishes migration progress for a replacement that is still starting;
+// nil progress clears it once the migration finished. It reports false without writing
+// when the operation is no longer awaiting this replacement.
+func (s *restartStore) RecordProgress(operationID string, progress *RestartProgress) (bool, error) {
+	current, err := s.Get(operationID)
+	if err != nil {
+		return false, err
+	}
+	if current.Status != RestartStatusStarting {
+		return false, nil
+	}
+	now := s.now().UTC()
+	if progress != nil {
+		next := *progress
+		next.Phase = RestartPhaseMigrating
+		next.UpdatedAt = now
+		progress = &next
+	}
+	current.Progress = progress
+	current.UpdatedAt = now
+	if err := current.Validate(); err != nil {
+		return false, err
+	}
+	path, err := s.operationPath(operationID)
+	if err != nil {
+		return false, err
+	}
+	if err := s.write(path, current); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (s *restartStore) operationPath(operationID string) (string, error) {
 	cleanID := strings.TrimSpace(operationID)
 	if cleanID == "" {

@@ -2,7 +2,12 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
 import { notifyUser } from "@/lib/user-feedback";
-import { desktopShellBridge, type OpenInEditorResult } from "@/systems/os";
+import {
+  desktopShellBridge,
+  EDITOR_SETTINGS_PATH,
+  reportOpenInEditorResult,
+  type OpenInEditorResult,
+} from "@/systems/os";
 import { workspaceDetailOptions, worktreesListOptions } from "@/systems/workspace";
 
 import { resolveFilePath, type FilePathBase, type FilePathToken } from "../lib/file-path-links";
@@ -10,8 +15,6 @@ import { sessionKeys } from "../lib/query-keys";
 import { sessionDetailOptions } from "../lib/query-options";
 import type { SessionPayload } from "../types";
 import { useSessionRuntimeRenderContext } from "./use-session-runtime-render-context";
-
-export const EDITOR_SETTINGS_PATH = "/settings/general";
 
 export interface OpenInEditor {
   /** Resolves `token` at click time, asks the desktop shell to open it, and reports failures. */
@@ -89,30 +92,6 @@ async function readResolutionBase(queryClient: QueryClient, scope: SessionScope)
     .map(root => root?.trim() ?? "")
     .filter((root, index, all) => root !== "" && all.indexOf(root) === index);
   return { base, roots };
-}
-
-/** Maps a non-success bridge result to its toast; `opened` and `cancelled` stay silent. */
-export function reportOpenInEditorResult(
-  result: OpenInEditorResult,
-  path: string,
-  openSettings: () => void
-): void {
-  if (result.status !== "error") return;
-  const settingsAction = { label: "Open Settings", onClick: openSettings };
-  switch (result.code) {
-    case "not_found":
-      notifyUser({ tone: "error", message: `File not found: ${path}` });
-      return;
-    case "not_a_file":
-      notifyUser({ tone: "error", message: `Not a file: ${path}` });
-      return;
-    case "editor_failed":
-    case "editor_not_configured":
-      notifyUser({ tone: "error", message: result.message, action: settingsAction });
-      return;
-    default:
-      notifyUser({ tone: "error", message: result.message });
-  }
 }
 
 /**

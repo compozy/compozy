@@ -3,6 +3,7 @@ import { fn } from "storybook/test";
 
 import { primaryAgentFixture } from "../../mocks/fixtures";
 import {
+  awaitingApprovalCheckInsModelFixture,
   blankCheckInsModelFixture,
   blankMemoryModelFixture,
   blankSoulDocumentFixture,
@@ -84,6 +85,24 @@ export const WhatItDoesExtensionOwned: Story = {
 
 export const CheckInsFilled: Story = {
   render: () => <AgentCheckInsView agent={agent} model={checkInsModelFixture()} state="idle" />,
+};
+
+/** #1258: a new script waits before the first check; the notice above Sources asks for it. */
+export const CheckInsScriptAwaitingApproval: Story = {
+  render: () => (
+    <AgentCheckInsView agent={agent} model={awaitingApprovalCheckInsModelFixture()} state="idle" />
+  ),
+};
+
+/** #1258: the same script on a paused placement; approving now runs it on resume. */
+export const CheckInsScriptAwaitingApprovalPaused: Story = {
+  render: () => (
+    <AgentCheckInsView
+      agent={agent}
+      model={awaitingApprovalCheckInsModelFixture({ paused: true })}
+      state="paused"
+    />
+  ),
 };
 
 export const CheckInsEmpty: Story = {

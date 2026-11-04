@@ -375,6 +375,68 @@ func TestProvider(t *testing.T) {
 		}
 	})
 
+	// Invariant: a rate-limited discovery or exact delivery read reports the cause and reset the daemon
+	// needs to hold every forge read, not a bare request error or a cause without its reset.
+	t.Run("Should report discovery and delivery rate limits with their reset", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("X-RateLimit-Reset", "1800000000")
+			writeJSON(t, w, http.StatusForbidden, map[string]string{"message": "API rate limit exceeded"})
+		})
+		defer closeServer()
+		remotes := []string{"https://github.com/acme/repo.git"}
+		_, searchErr := provider.SearchPRs(t.Context(), extensioncontract.ForgePRSearchRequest{RemoteURLs: remotes})
+		_, readErr := provider.ReadPR(t.Context(), extensioncontract.ForgePRReadRequest{RemoteURLs: remotes, Number: 7})
+		for _, err := range []error{searchErr, readErr} {
+			rpc, ok := errors.AsType[*compozysdk.RPCError](err)
+			if !ok || !strings.Contains(string(rpc.Data), `"code":"rate_limited"`) ||
+				!strings.Contains(string(rpc.Data), `"retry_after":"2027-01-15T08:00:00Z"`) {
+				t.Fatalf("discovery error = %#v", err)
+			}
+		}
+		got, err := provider.Status(t.Context(), extensioncontract.ForgeStatusRequest{
+			RemoteURLs: remotes, Branch: "topic", Base: "main", HeadSHA: "abc",
+		})
+		if err != nil || got.Cause != extensioncontract.ForgeCauseRateLimited || got.RetryAfter == nil ||
+			got.RetryAfter.Unix() != 1800000000 {
+			t.Fatalf("delivery status = %#v, %v", got, err)
+		}
+	})
+
+	// Invariant: HTTP 200 GraphQL rate limits retain the reset even with partial search results.
+	// Owner: GitHub discovery provider; canonical provider suite.
+	for _, partial := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should preserve GraphQL search quota reset with partial results %t", partial),
+			func(t *testing.T) {
+				t.Parallel()
+				provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("X-RateLimit-Remaining", "0")
+					w.Header().Set("X-RateLimit-Reset", "1800000000")
+					nodes := []any{}
+					if partial {
+						nodes = append(nodes, map[string]any{"number": 7, "headRefName": "topic", "state": "OPEN"})
+					}
+					writeJSON(t, w, http.StatusOK, map[string]any{
+						"data":   map[string]any{"search": map[string]any{"nodes": nodes}},
+						"errors": []any{map[string]string{"type": "RATE_LIMITED"}},
+					})
+				})
+				defer closeServer()
+				_, err := provider.SearchPRs(
+					t.Context(),
+					extensioncontract.ForgePRSearchRequest{RemoteURLs: []string{"https://github.com/acme/repo.git"}},
+				)
+				rpc, ok := errors.AsType[*compozysdk.RPCError](err)
+				if !ok || !strings.Contains(string(rpc.Data), `"code":"rate_limited"`) ||
+					!strings.Contains(string(rpc.Data), `"retry_after":"2027-01-15T08:00:00Z"`) {
+					t.Fatalf("GraphQL search error = %#v", err)
+				}
+			},
+		)
+	}
+
 	for _, scenario := range []string{"open first", "terminal newest", "incomplete", "bounded"} {
 		t.Run("Should preserve REST display selection for "+scenario, func(t *testing.T) {
 			t.Parallel()
@@ -468,20 +530,41 @@ func TestProvider(t *testing.T) {
 		}
 	})
 
+	// Invariant: only a refusal GitHub marks as a rate limit is classified as one, and its reset
+	// travels with the capability answer so the daemon can hold every read until then.
 	for _, testCase := range []struct {
 		name       string
 		statusCode int
+		header     map[string]string
+		message    string
 		cause      string
+		retryAfter int64
 	}{
 		{name: "expired credentials", statusCode: http.StatusUnauthorized, cause: extensioncontract.ForgeCauseCredentialExpired},
-		{name: "rate limiting", statusCode: http.StatusForbidden, cause: extensioncontract.ForgeCauseRateLimited},
+		{
+			name: "an exhausted primary rate limit", statusCode: http.StatusForbidden,
+			header: map[string]string{"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": "1800000000"},
+			cause:  extensioncontract.ForgeCauseRateLimited, retryAfter: 1800000000,
+		},
+		{
+			name: "a secondary rate limit message", statusCode: http.StatusForbidden,
+			message: "You have exceeded a secondary rate limit", cause: extensioncontract.ForgeCauseRateLimited,
+		},
+		{
+			name: "a secondary rate limit with Retry-After", statusCode: http.StatusTooManyRequests,
+			header: map[string]string{"Retry-After": "Fri, 15 Jan 2027 08:00:00 GMT", "X-RateLimit-Reset": "1"},
+			cause:  extensioncontract.ForgeCauseRateLimited, retryAfter: 1800000000,
+		},
 	} {
 		t.Run("Should classify "+testCase.name+" without retrying", func(t *testing.T) {
 			t.Parallel()
 			var calls atomic.Int32
 			provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
 				calls.Add(1)
-				writeJSON(t, w, testCase.statusCode, map[string]string{"message": testCase.name})
+				for key, value := range testCase.header {
+					w.Header().Set(key, value)
+				}
+				writeJSON(t, w, testCase.statusCode, map[string]string{"message": testCase.message})
 			})
 			defer closeServer()
 			got, err := provider.Capabilities(t.Context(), extensioncontract.ForgeCapabilitiesRequest{
@@ -490,8 +573,62 @@ func TestProvider(t *testing.T) {
 			if err != nil || got.Cause != testCase.cause || calls.Load() != 1 {
 				t.Fatalf("Capabilities() = %#v, %v; calls=%d", got, err, calls.Load())
 			}
+			if (testCase.retryAfter == 0) != (got.RetryAfter == nil) ||
+				(got.RetryAfter != nil && got.RetryAfter.Unix() != testCase.retryAfter) {
+				t.Fatalf("RetryAfter = %v, want unix %d", got.RetryAfter, testCase.retryAfter)
+			}
 		})
 	}
+	t.Run("Should not mistake a permission refusal for a rate limit", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "4000")
+			writeJSON(
+				t,
+				w,
+				http.StatusForbidden,
+				map[string]string{"message": "Resource not accessible by integration"},
+			)
+		})
+		defer closeServer()
+		got, err := provider.Capabilities(t.Context(), extensioncontract.ForgeCapabilitiesRequest{
+			RemoteURLs: []string{"https://github.com/acme/repo.git"},
+		})
+		if err == nil || got.Cause != "" {
+			t.Fatalf("Capabilities() = %#v, %v; want an unclassified failure", got, err)
+		}
+	})
+	t.Run("Should choose the reset that GitHub's headers imply", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, time.November, 4, 15, 0, 0, 0, time.UTC)
+		primary := strconv.FormatInt(now.Add(30*time.Minute).Unix(), 10)
+		for _, test := range []struct {
+			name   string
+			header http.Header
+			want   *time.Time
+		}{
+			{"Retry-After seconds", http.Header{"Retry-After": {"90"}}, new(now.Add(90 * time.Second))},
+			{
+				"a later primary reset over a shorter Retry-After",
+				http.Header{"Retry-After": {"90"}, "X-Ratelimit-Remaining": {"0"}, "X-Ratelimit-Reset": {primary}},
+				new(now.Add(30 * time.Minute)),
+			},
+			{
+				"the one-minute fallback for a secondary limit with quota left",
+				http.Header{"X-Ratelimit-Remaining": {"12"}, "X-Ratelimit-Reset": {primary}},
+				nil,
+			},
+		} {
+			failure := classifyGitHubResponse(
+				http.StatusForbidden, test.header, []byte("secondary rate limit"), now,
+			).(*githubAPIError)
+			if failure.cause != extensioncontract.ForgeCauseRateLimited ||
+				(test.want == nil) != (failure.retryAfter == nil) ||
+				(test.want != nil && !failure.retryAfter.Equal(*test.want)) {
+				t.Fatalf("%s: classified = %#v", test.name, failure)
+			}
+		}
+	})
 
 	t.Run("Should return an existing open pull request without creating another", func(t *testing.T) {
 		t.Parallel()
@@ -1493,6 +1630,9 @@ func issueTestProvider(t *testing.T, issues []map[string]any, status int) *Provi
 		if !strings.Contains(query.Query, "issues(states:OPEN") ||
 			!strings.Contains(query.Query, "CROSS_REFERENCED_EVENT") {
 			t.Errorf("unexpected query: %s", query.Query)
+		}
+		if status == http.StatusForbidden {
+			w.Header().Set("X-RateLimit-Remaining", "0")
 		}
 		writeJSON(
 			t,

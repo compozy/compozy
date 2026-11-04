@@ -54,6 +54,7 @@ const (
 	SourceSameWorkspace  DecisionSource = "same_workspace"
 	SourcePermissionMode DecisionSource = "permission_mode"
 	SourceSessionConsent DecisionSource = "session_consent"
+	SourceToolConsent    DecisionSource = "tool_consent"
 	SourceDenied         DecisionSource = "denied"
 )
 

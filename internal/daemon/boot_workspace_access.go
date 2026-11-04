@@ -58,5 +58,7 @@ func nativeWorkspaceAccessPrompterForBoot(state *bootState) *workspaceAccessProm
 		sessionPermissionRequesterProvider(state),
 		state.cfg.Tools.Policy.ApprovalTimeout(),
 		state.accessConsent,
+		state.deps.ApprovalGrants,
+		state.logger,
 	)
 }

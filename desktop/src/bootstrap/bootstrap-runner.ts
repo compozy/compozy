@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import { createInterface } from "node:readline";
 
 import {
+  bootstrapLogRecord,
   parseBootstrapEvent,
   type BootstrapEvent,
   type BootstrapResolution,
@@ -114,16 +115,7 @@ export class BootstrapRunner {
       if (!event) throw new Error("The runtime bootstrap returned an invalid event.");
       await appendFile(
         this.#logPath,
-        `${JSON.stringify({
-          timestamp: new Date().toISOString(),
-          level: event.status === "failed" ? "ERROR" : "INFO",
-          boot_id: this.#bootId,
-          message: event.message,
-          phase: event.phase,
-          status: event.status,
-          ...(event.resolution ? { resolution: event.resolution } : {}),
-          ...(event.daemon ? { daemon: event.daemon } : {}),
-        })}\n`,
+        `${JSON.stringify(bootstrapLogRecord(event, this.#bootId, new Date()))}\n`,
         { encoding: "utf8", mode: 0o600 }
       );
       await onEvent(event);

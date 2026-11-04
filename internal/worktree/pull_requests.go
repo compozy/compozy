@@ -9,7 +9,21 @@ import (
 	"time"
 )
 
-const pullRequestIncomplete = "incomplete"
+const (
+	pullRequestIncomplete  = "incomplete"
+	pullRequestLookupOK    = "ok"
+	pullRequestLookupError = "error"
+)
+
+// Display freshness windows. An open pull request changes often and the UI shows its checks; a
+// branch without one, or with a terminal one, rarely changes, and explicit refreshes (the turn-end
+// check, a refresh click) bypass these windows when a fresh answer matters.
+const (
+	pullRequestOpenTTL     = time.Minute
+	pullRequestTerminalTTL = 30 * time.Minute
+	pullRequestAbsentTTL   = 10 * time.Minute
+	pullRequestAbsentMax   = time.Hour
+)
 
 type PullRequestKey struct{ WorkspaceID, RepoKey, Branch string }
 
@@ -44,16 +58,19 @@ type repoKeyCache struct {
 // PullRequestService is the sole writer of canonical display observations. Exact
 // delivery evidence never enters this cache.
 type PullRequestService struct {
-	store          PullRequestStore
-	forge          ForgeProvider
-	runner         GitRunner
-	ctx            context.Context
-	cancel         context.CancelFunc
-	now            func() time.Time
-	changed        func(string)
-	mu             sync.Mutex
-	flights        map[PullRequestKey]*pullRequestFlight
-	repos          map[string]repoKeyCache
+	store   PullRequestStore
+	forge   ForgeProvider
+	runner  GitRunner
+	ctx     context.Context
+	cancel  context.CancelFunc
+	now     func() time.Time
+	changed func(string)
+	mu      sync.Mutex
+	flights map[PullRequestKey]*pullRequestFlight
+	repos   map[string]repoKeyCache
+	// absent counts consecutive no-PR answers per branch, backing the window off toward an hour.
+	// It is memory only: a restart starts each branch back at the base window.
+	absent         map[PullRequestKey]int
 	defaults       map[string]repoKeyCache
 	running        int
 	explicitQueue  []PullRequestKey
@@ -80,6 +97,7 @@ func NewPullRequestService(
 		changed:  changed,
 		flights:  make(map[PullRequestKey]*pullRequestFlight),
 		repos:    make(map[string]repoKeyCache),
+		absent:   make(map[PullRequestKey]int),
 		defaults: make(map[string]repoKeyCache),
 	}
 }
@@ -100,7 +118,22 @@ func (s *PullRequestService) Close() {
 	s.wg.Wait()
 }
 
+// Read returns cached observations and schedules a background refresh for each stale one.
 func (s *PullRequestService) Read(ctx context.Context, keys []PullRequestKey) map[PullRequestKey]PullRequestEntry {
+	return s.read(ctx, keys, true)
+}
+
+// Peek returns cached observations without contacting the forge, for rows whose pull request no
+// longer changes what the user can do, such as removed worktrees.
+func (s *PullRequestService) Peek(ctx context.Context, keys []PullRequestKey) map[PullRequestKey]PullRequestEntry {
+	return s.read(ctx, keys, false)
+}
+
+func (s *PullRequestService) read(
+	ctx context.Context,
+	keys []PullRequestKey,
+	refresh bool,
+) map[PullRequestKey]PullRequestEntry {
 	entries, err := s.store.ReadPullRequests(ctx, keys)
 	if err != nil {
 		return nil
@@ -110,22 +143,51 @@ func (s *PullRequestService) Read(ctx context.Context, keys []PullRequestKey) ma
 		if !ok {
 			entry = PullRequestEntry{Key: key, LookupState: "pending"}
 		}
-		entry.Stale = pullRequestStale(entry, s.now())
+		entry.Stale = s.stale(key, entry, s.now())
 		entries[key] = entry
-		if entry.Stale {
+		if refresh && entry.Stale {
 			s.RequestRefresh(key)
+		}
+		if !refresh {
+			s.forgetAbsence(key)
 		}
 	}
 	return entries
 }
 
-func pullRequestStale(entry PullRequestEntry, now time.Time) bool {
-	ttl := time.Minute
-	if entry.Facts != nil && entry.Facts.PRState != nil &&
-		(*entry.Facts.PRState == "merged" || *entry.Facts.PRState == "closed") {
-		ttl = 10 * time.Minute
+func (s *PullRequestService) stale(key PullRequestKey, entry PullRequestEntry, now time.Time) bool {
+	s.mu.Lock()
+	absent := s.absent[key]
+	s.mu.Unlock()
+	return pullRequestStale(entry, now, absent)
+}
+
+// pullRequestStale applies the display window for the observed facts; absent is the number of
+// consecutive no-PR answers for the branch.
+func pullRequestStale(entry PullRequestEntry, now time.Time, absent int) bool {
+	if entry.Facts == nil {
+		return true
 	}
-	return entry.Facts == nil || entry.Facts.IsStale(now, ttl)
+	if entry.LookupState == pullRequestLookupError && entry.RetryAfter != nil && !now.Before(*entry.RetryAfter) {
+		return true // A failed lookup is retried once its retry time passes, whatever window its facts have.
+	}
+	ttl := pullRequestOpenTTL
+	switch {
+	case entry.Facts.PRState == nil && entry.LookupState != pullRequestLookupOK:
+		// An incomplete match, or a failed lookup over a no-PR answer, is not confirmed absence.
+	case entry.Facts.PRState == nil:
+		ttl = pullRequestAbsentTTL
+		for range max(absent-1, 0) {
+			if ttl >= pullRequestAbsentMax {
+				break
+			}
+			ttl *= 2
+		}
+		ttl = min(ttl, pullRequestAbsentMax)
+	case *entry.Facts.PRState == "merged" || *entry.Facts.PRState == "closed":
+		ttl = pullRequestTerminalTTL
+	}
+	return entry.Facts.IsStale(now, ttl)
 }
 
 func (s *PullRequestService) RequestRefresh(key PullRequestKey) { s.start(key, false) }
@@ -142,7 +204,7 @@ func (s *PullRequestService) Refresh(ctx context.Context, key PullRequestKey) (P
 	select {
 	case <-ctx.Done():
 		entry := entries[key]
-		entry.Stale = pullRequestStale(entry, s.now())
+		entry.Stale = s.stale(key, entry, s.now())
 		return entry, ctx.Err()
 	case <-flight.done:
 		return flight.entry, flight.err
@@ -157,7 +219,7 @@ func (s *PullRequestService) RefreshDue(ctx context.Context, key PullRequestKey)
 		return PullRequestEntry{}, err
 	}
 	if entry, ok := entries[key]; ok && entry.RetryAfter != nil && s.now().Before(*entry.RetryAfter) {
-		entry.Stale = pullRequestStale(entry, s.now())
+		entry.Stale = s.stale(key, entry, s.now())
 		return entry, nil
 	}
 	return s.Refresh(ctx, key)
@@ -264,23 +326,71 @@ func (s *PullRequestService) refresh(key PullRequestKey, flight *pullRequestFlig
 		facts.PRURL, err = sanitizeForgeWebURL(facts.PRURL)
 	}
 	after := pullRequestAttemptResult(before, facts, err, now)
-	after.Stale = pullRequestStale(after, now)
 	if saveErr := s.store.SavePullRequest(s.ctx, after); saveErr != nil {
 		return before, saveErr
 	}
+	s.recordAbsence(key, after, err)
+	after.Stale = s.stale(key, after, now)
 	if s.changed != nil &&
 		(before.LookupState != after.LookupState || before.LookupCause != after.LookupCause ||
-			!reflect.DeepEqual(before.Facts, after.Facts)) {
+			!pullRequestFactsEqual(before.Facts, s.storedFacts(key, after.Facts))) {
 		s.changed(key.WorkspaceID)
 	}
 	return after, err
+}
+
+// storedFacts returns the facts as the cache keeps them. The store holds only display fields, so
+// comparing a live answer with a cached one would always differ; a failed reread falls back to the
+// live answer, which at worst publishes one extra change.
+func (s *PullRequestService) storedFacts(key PullRequestKey, live *ForgeStatus) *ForgeStatus {
+	entries, err := s.store.ReadPullRequests(s.ctx, []PullRequestKey{key})
+	if err != nil {
+		return live
+	}
+	if entry, ok := entries[key]; ok {
+		return entry.Facts
+	}
+	return live
+}
+
+// forgetAbsence drops the backoff streak of a key that is only peeked, such as a removed worktree's
+// branch, so the streak map does not grow with branches nobody refreshes.
+func (s *PullRequestService) forgetAbsence(key PullRequestKey) {
+	s.mu.Lock()
+	delete(s.absent, key)
+	s.mu.Unlock()
+}
+
+func (s *PullRequestService) recordAbsence(key PullRequestKey, after PullRequestEntry, err error) {
+	if err != nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if after.LookupState == pullRequestLookupOK && after.Facts != nil && after.Facts.PRState == nil {
+		s.absent[key]++
+		return
+	}
+	delete(s.absent, key)
+}
+
+// pullRequestFactsEqual compares what a reader can see, ignoring when it was fetched: a refresh
+// that only moves the timestamp must not publish a catalog change, which would make clients re-read
+// the list and schedule more refreshes.
+func pullRequestFactsEqual(before, after *ForgeStatus) bool {
+	if before == nil || after == nil {
+		return before == after
+	}
+	left, right := *before, *after
+	left.FetchedAt, right.FetchedAt = nil, nil
+	return reflect.DeepEqual(left, right)
 }
 
 func pullRequestAttemptResult(before PullRequestEntry, facts *ForgeStatus, err error, now time.Time) PullRequestEntry {
 	after := before
 	after.AttemptAt = &now
 	if err != nil {
-		after.LookupState = "error"
+		after.LookupState = pullRequestLookupError
 		after.LookupCause = ForgeFailureCause(err)
 		if after.LookupCause == "" {
 			after.LookupCause = "provider_failed"
@@ -296,7 +406,7 @@ func pullRequestAttemptResult(before PullRequestEntry, facts *ForgeStatus, err e
 		}
 		after.RetryAfter = &retry
 	} else {
-		after.LookupState = "ok"
+		after.LookupState = pullRequestLookupOK
 		after.LookupCause = ""
 		after.FailureCount = 0
 		after.RetryAfter = nil
@@ -310,4 +420,17 @@ func pullRequestAttemptResult(before PullRequestEntry, facts *ForgeStatus, err e
 		}
 	}
 	return after
+}
+
+// ForgetAutomatic drops a removed worktree's absence streak and queued display refresh.
+// Explicit readers may still need delivery evidence for the same branch.
+func (s *PullRequestService) ForgetAutomatic(key PullRequestKey) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.absent, key)
+	if flight := s.flights[key]; flight != nil && !flight.started && !flight.explicit.Load() {
+		flight.err = context.Canceled
+		close(flight.done)
+		delete(s.flights, key)
+	}
 }

@@ -207,24 +207,40 @@ func (b *tailOutput) Write(p []byte) (int, error) {
 }
 
 func (s *ScriptRunner) verifiedScript(ctx context.Context, name string) ([]byte, error) {
-	data, hash, err := ReadScript(s.DefinitionDir, name)
-	if err != nil {
-		return nil, err
-	}
-	dir, err := filepath.EvalSymlinks(s.DefinitionDir)
-	if err != nil {
-		return nil, Failure("source_script_invalid", "invalid definition directory")
-	}
 	if s.Approvals == nil {
+		if _, _, err := ReadScript(s.DefinitionDir, name); err != nil {
+			return nil, err
+		}
 		return nil, Failure("source_script_unapproved", "script requires operator approval")
 	}
-	approved, err := s.Approvals.ApprovedHash(ctx, s.ProfileID, dir, name)
+	data, _, approved, err := ApprovedScript(ctx, s.Approvals, s.ProfileID, s.DefinitionDir, name)
 	if err != nil {
 		return nil, err
 	}
-	if approved != hash {
+	if !approved {
 		return nil, Failure("source_script_unapproved", "script requires operator approval")
 	}
-
 	return data, nil
+}
+
+// ApprovedScript reads an executable script and reports whether the operator approved its
+// current bytes, keyed the same way approvals are stored: profile, resolved definition dir, name.
+func ApprovedScript(
+	ctx context.Context,
+	approvals ApprovalReader,
+	profileID, definitionDir, name string,
+) (data []byte, hash string, approved bool, err error) {
+	data, hash, err = ReadScript(definitionDir, name)
+	if err != nil {
+		return nil, "", false, err
+	}
+	dir, err := filepath.EvalSymlinks(definitionDir)
+	if err != nil {
+		return nil, "", false, Failure("source_script_invalid", "invalid definition directory")
+	}
+	stored, err := approvals.ApprovedHash(ctx, profileID, dir, name)
+	if err != nil {
+		return nil, "", false, err
+	}
+	return data, hash, stored == hash, nil
 }

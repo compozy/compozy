@@ -48,7 +48,7 @@ last_digest_at=CASE WHEN sqlc.arg(completed)=1 THEN sqlc.arg(now) ELSE last_dige
 automation_cursor=CASE WHEN sqlc.arg(completed)=1 THEN sqlc.arg(automation_cursor) ELSE automation_cursor END,
 quiet_streak=sqlc.arg(quiet_streak),failure_streak=sqlc.arg(failure_streak),
 next_wake_at=CASE WHEN sqlc.arg(next_wake_at)='' THEN next_wake_at
-WHEN next_wake_at<>'' AND next_wake_at<sqlc.arg(next_wake_at)
+WHEN sqlc.arg(hold_for_events)=1 AND next_wake_at<>'' AND next_wake_at<sqlc.arg(next_wake_at)
 AND EXISTS (SELECT 1 FROM agent_instance_events e WHERE e.instance_id=agent_instance_wake_state.instance_id AND e.consumed_at IS NULL)
 THEN next_wake_at ELSE sqlc.arg(next_wake_at) END
 WHERE agent_instance_wake_state.instance_id=sqlc.arg(instance_id) AND agent_instance_wake_state.occurrence_id=sqlc.arg(occurrence_id);

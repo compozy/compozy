@@ -1,0 +1,24 @@
+{
+    "schema_version": 2,
+    "pid": 4242,
+    "started_at": "2026-08-10T03:00:00Z",
+    "diagnostic_report": {
+        "schema_version": 1,
+        "boot_id": "boot-fixture-upgrade-stalled",
+        "boot_phase": "error",
+        "app_version": "0.4.1",
+        "runtime_version": null,
+        "runtime_owned": null,
+        "current_error": {
+            "code": "runtime_upgrade_stalled",
+            "safe_message": "CompozyOS data upgrade stopped progressing."
+        },
+        "previous_crash": null
+    },
+    "state": "error",
+    "error": {
+        "code": "runtime_upgrade_stalled",
+        "safe_message": "CompozyOS data upgrade stopped progressing.",
+        "log_path": "/tmp/desktop-bootstrap.jsonl"
+    }
+}

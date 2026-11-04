@@ -124,7 +124,8 @@ function useCheckInSources(
   agent: AgentPayload,
   workspace: string | null,
   document: ReturnType<typeof useCheckInsDocument>,
-  enabled: boolean
+  enabled: boolean,
+  openScript: ((path: string) => void) | undefined
 ) {
   const { destination } = useProfileReadScope();
   const query = useHeartbeatSourceCatalogQuery(agent.name, workspace, destination, enabled);
@@ -155,6 +156,8 @@ function useCheckInSources(
       /** The script an approval is on its way for. */
       approving: approve.isPending ? (approve.variables?.script ?? null) : null,
       openExtensions: () => void navigate({ to: "/settings/extensions" }),
+      /** Opens a script in the operator's editor; absent where the shell can't. */
+      openScript,
     },
   };
 }
@@ -166,7 +169,8 @@ export function useCheckInsEditor(
   agent: AgentPayload,
   workspace: string | null,
   payload: AgentHeartbeatPayload,
-  readOnly: boolean
+  readOnly: boolean,
+  openScript?: (path: string) => void
 ) {
   const document = useCheckInsDocument(agent, workspace, payload);
   const sources = useCheckInSources(
@@ -174,7 +178,8 @@ export function useCheckInsEditor(
     workspace,
     document,
     // Titles need it when the file has sources; Add needs its kinds and limit when editable.
-    document.form.sources.length > 0 || !readOnly
+    document.form.sources.length > 0 || !readOnly,
+    openScript
   );
 
   const instances = useAgentDefinitionInstances(agent);

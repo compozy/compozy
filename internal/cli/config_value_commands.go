@@ -78,6 +78,9 @@ func runConfigUnsetCommand(
 	if err != nil {
 		return err
 	}
+	if err := requireOperatorForAgentOverride(deps, path); err != nil {
+		return err
+	}
 	if err := prepareConfigMutationTarget(target, path); err != nil {
 		return err
 	}
@@ -258,6 +261,9 @@ func runConfigSetCommand(
 	}
 	path, kind, redacted, err := configMutationPath(canonicalConfigPathArg(cmd, args[0]))
 	if err != nil {
+		return err
+	}
+	if err := requireOperatorForAgentOverride(deps, path); err != nil {
 		return err
 	}
 	if err := prepareConfigMutationTarget(target, path); err != nil {

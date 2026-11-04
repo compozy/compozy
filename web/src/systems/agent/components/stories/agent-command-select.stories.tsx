@@ -45,6 +45,11 @@ const groupedAgents: AgentPayload[] = [
   ...categorizedAgents,
 ];
 
+/** The trigger lives in the canvas; the popover content is portaled to the document body. */
+function storyScopes(canvasElement: HTMLElement) {
+  return { canvas: within(canvasElement), popover: within(canvasElement.ownerDocument.body) };
+}
+
 interface FrameProps {
   children: React.ReactNode;
 }
@@ -165,15 +170,15 @@ export const Grouped: Story = {
     </Frame>
   ),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByTestId("agent-command-select-trigger"));
+    const { canvas, popover } = storyScopes(canvasElement);
+    await userEvent.click(await canvas.findByTestId("agent-command-select-trigger"));
     await waitFor(() => {
-      expect(canvas.getByTestId("agent-command-group-agents:root")).toHaveTextContent("Agents");
+      expect(popover.getByTestId("agent-command-group-agents:root")).toHaveTextContent("Agents");
       expect(
-        canvas.getByTestId("agent-command-group-category:Engineering/Platform")
+        popover.getByTestId("agent-command-group-category:Engineering/Platform")
       ).toBeInTheDocument();
       expect(
-        canvas.getByTestId("agent-command-group-category:Marketing/Campaigns")
+        popover.getByTestId("agent-command-group-category:Marketing/Campaigns")
       ).toBeInTheDocument();
     });
   },
@@ -195,10 +200,10 @@ export const NoMatch: Story = {
     </Frame>
   ),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByTestId("agent-command-select-trigger"));
-    await userEvent.type(canvas.getByTestId("agent-command-input"), "nonexistent-agent");
-    await waitFor(() => expect(canvas.getByTestId("agent-command-empty")).toBeInTheDocument());
+    const { canvas, popover } = storyScopes(canvasElement);
+    await userEvent.click(await canvas.findByTestId("agent-command-select-trigger"));
+    await userEvent.type(await popover.findByTestId("agent-command-input"), "nonexistent-agent");
+    await waitFor(() => expect(popover.getByTestId("agent-command-empty")).toBeInTheDocument());
   },
 };
 
@@ -254,21 +259,21 @@ export const MultiSelect: StoryObj<typeof AgentCommandMultiSelect> = {
     return <Harness />;
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByTestId("agent-command-multi-trigger"));
+    const { canvas, popover } = storyScopes(canvasElement);
+    await userEvent.click(await canvas.findByTestId("agent-command-multi-trigger"));
     await waitFor(() =>
-      expect(canvas.getByTestId(`agent-command-item-${storyAgentNames.cto}`)).toHaveAttribute(
+      expect(popover.getByTestId(`agent-command-item-${storyAgentNames.cto}`)).toHaveAttribute(
         "data-checked",
         "true"
       )
     );
-    await userEvent.click(canvas.getByTestId(`agent-command-item-${storyAgentNames.cfo}`));
+    await userEvent.click(popover.getByTestId(`agent-command-item-${storyAgentNames.cfo}`));
     await waitFor(() =>
-      expect(canvas.getByTestId(`agent-command-item-${storyAgentNames.cfo}`)).toHaveAttribute(
+      expect(popover.getByTestId(`agent-command-item-${storyAgentNames.cfo}`)).toHaveAttribute(
         "data-checked",
         "true"
       )
     );
-    await expect(canvas.getByTestId("agent-command-input")).toBeInTheDocument();
+    await expect(popover.getByTestId("agent-command-input")).toBeInTheDocument();
   },
 };

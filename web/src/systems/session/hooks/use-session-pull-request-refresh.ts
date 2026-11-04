@@ -34,7 +34,8 @@ export function useSessionPullRequestRefresh(
         merge
       );
       const lookup = result.pull_request_lookup;
-      if (lookup?.state === "error") toast.error(pullRequestCauseText(lookup.cause));
+      if (lookup?.state === "error")
+        toast.error(pullRequestCauseText(lookup.cause, lookup.retry_after));
     },
     onError: error => {
       toast.error(error.message || "Couldn't refresh the pull request.");

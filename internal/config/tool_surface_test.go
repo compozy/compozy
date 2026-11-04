@@ -441,6 +441,11 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			denial: ConfigPathTrustForbidden,
 		},
 		{
+			name:   "Should reject agent mutation of an operator agent permission override",
+			path:   "agents.overrides.orchestrator.permissions",
+			denial: ConfigPathTrustForbidden,
+		},
+		{
 			name:   "Should reject agent mutation of provider full access preference",
 			path:   "permissions.provider_full_access",
 			denial: ConfigPathTrustForbidden,

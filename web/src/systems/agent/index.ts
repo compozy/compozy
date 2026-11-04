@@ -45,6 +45,14 @@ export type {
   WakeAgentHeartbeatResponse,
 } from "./types";
 
+// Script approvals (the shell's bell)
+export {
+  ScriptApprovalsBellSection,
+  type ScriptApprovalsBellSectionProps,
+} from "./components/script-approvals-bell-section";
+export { useScriptApprovals, type UseScriptApprovals } from "./hooks/use-script-approvals";
+export type { ScriptApprovalItem } from "./lib/agent-script-approvals";
+
 // Editors
 export { AgentCheckInsEditor } from "./components/agent-editors/agent-check-ins-editor";
 export { AgentMemoryEditor } from "./components/agent-editors/agent-memory-editor";

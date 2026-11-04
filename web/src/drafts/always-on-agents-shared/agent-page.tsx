@@ -16,7 +16,7 @@ import {
 } from "@compozy/ui";
 
 import { goToAgents, goToProfile } from "../agent-profile/profile-nav";
-import { DraftShell, DraftUnsavedPill } from "./draft-shell";
+import { DraftShell, DraftUnsavedPill, type DraftShellProps } from "./draft-shell";
 import type { DraftAgent } from "./fixtures";
 
 export function KindPill({ agent }: { agent: Pick<DraftAgent, "kind"> }) {
@@ -72,6 +72,8 @@ export interface AgentAppPageProps {
   children: ReactNode;
   width?: string;
   sessionBadge?: number;
+  /** System bar overrides: the bell count and its open popover. */
+  shell?: Pick<DraftShellProps, "notifications" | "wrapBellTrigger">;
 }
 
 /** One location of the Agents window: `Agents / Orchestrator / Heartbeat`. */
@@ -83,6 +85,7 @@ export function AgentAppPage({
   children,
   width = "max-w-3xl",
   sessionBadge,
+  shell,
 }: AgentAppPageProps) {
   const home = hubState === "extension" ? hubState : "always-on";
   const crumbs = [
@@ -98,6 +101,7 @@ export function AgentAppPage({
   };
   return (
     <DraftShell
+      {...shell}
       app="agents"
       glyph={<Users2 />}
       sessionBadge={sessionBadge}

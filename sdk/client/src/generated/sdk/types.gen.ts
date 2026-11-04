@@ -93,10 +93,24 @@ export type AgentACPOptionSelection = {
   value_id?: string;
 };
 
+export type AgentActivityBatchRequest = {
+  days?: number;
+  items: Array<AgentActivitySelection>;
+};
+
+export type AgentActivityBatchResponse = {
+  activities: Array<AgentActivityResponse>;
+};
+
 export type AgentActivityResponse = {
   busy_by_hour: Array<ActivityHour>;
   cost_by_project: Array<ActivityCost>;
   reports_by_day: Array<ActivityDay>;
+};
+
+export type AgentActivitySelection = {
+  name: string;
+  workspaces: Array<string>;
 };
 
 export type AgentCapabilityPayload = {
@@ -183,6 +197,7 @@ export type AgentDraftRuntime = {
 export type AgentEffectiveRuntimePayload = {
   acp_options?: Array<AgentACPOptionSelection>;
   model?: string;
+  permissions?: string;
   provider: string;
   reasoning_effort?: string;
   session_env?: {
@@ -195,6 +210,7 @@ export type AgentEffectiveRuntimePayload = {
 
 export type AgentEffectiveRuntimeSources = {
   model?: string;
+  permissions?: string;
   provider: string;
   reasoning_effort?: string;
   speed?: string;
@@ -3462,10 +3478,12 @@ export type HeartbeatSourceScriptPayload = {
   last_modified?: string | null;
   line_count?: number;
   name: string;
+  path?: string;
   sha256: string;
 };
 
 export type HeartbeatSourceStatus = {
+  awaiting_approval?: boolean;
   error?: Error | null;
   failure_streak: number;
   id: string;
@@ -3475,6 +3493,8 @@ export type HeartbeatSourceStatus = {
   last_success_at?: string;
   next_poll_at?: string;
   script?: string;
+  script_path?: string;
+  script_sha256?: string;
   status: string;
 };
 
@@ -6161,8 +6181,17 @@ export type RestartActionStatus = {
   old_socket_path: string;
   old_started_at: string;
   operation_id: string;
+  progress?: RestartProgress | null;
   started_at: string;
   status: "pending" | "stopping" | "waiting_release" | "starting" | "ready" | "failed";
+  updated_at: string;
+};
+
+export type RestartProgress = {
+  completed: number;
+  phase: "migrating";
+  stage: string;
+  total: number;
   updated_at: string;
 };
 
@@ -7556,6 +7585,7 @@ export type SessionPullRequestErrorPayload = {
 export type SessionPullRequestLookupPayload = {
   cause: string;
   observed_at: string | null;
+  retry_after?: string | null;
   stale: boolean;
   state: "ok" | "pending" | "error" | "incomplete";
 };
@@ -11234,6 +11264,7 @@ export type ToolApprovalGrantListResponse = {
 };
 
 export type ToolApprovalGrantPayload = {
+  access_scope?: string;
   agent_name?: string;
   created_at: string;
   decision: "allow" | "reject";
@@ -15152,6 +15183,68 @@ export type CreateAgentResponses = {
 };
 
 export type CreateAgentResponse = CreateAgentResponses[keyof CreateAgentResponses];
+
+export type BatchAgentActivityData = {
+  /**
+   * JSON request body
+   */
+  body: AgentActivityBatchRequest;
+  path?: never;
+  query?: {
+    /**
+     * Act as this profile by name
+     */
+    profile?: string;
+  };
+  url: "/api/agents/activity";
+};
+
+export type BatchAgentActivityErrors = {
+  /**
+   * Invalid profile selection
+   */
+  400: ProfileErrorPayload;
+  /**
+   * Request failed
+   */
+  403: ErrorPayload;
+  /**
+   * Request failed
+   */
+  404: ErrorPayload;
+  /**
+   * Request failed
+   */
+  409: ErrorPayload;
+  /**
+   * Request failed
+   */
+  422: ErrorPayload;
+  /**
+   * Request failed
+   */
+  429: ErrorPayload;
+  /**
+   * Request failed
+   */
+  500: ErrorPayload;
+  /**
+   * Request failed
+   */
+  503: ErrorPayload;
+};
+
+export type BatchAgentActivityError = BatchAgentActivityErrors[keyof BatchAgentActivityErrors];
+
+export type BatchAgentActivityResponses = {
+  /**
+   * Scoped activities in request order
+   */
+  200: AgentActivityBatchResponse;
+};
+
+export type BatchAgentActivityResponse =
+  BatchAgentActivityResponses[keyof BatchAgentActivityResponses];
 
 export type ListAgentsAggregateData = {
   body?: never;
