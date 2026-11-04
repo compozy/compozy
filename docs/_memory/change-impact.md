@@ -14,7 +14,9 @@ Owner: `fix/issue-1227-sqlite-contention`; implementation and acceptance receipt
   Core/telemetry PASSIVE checkpoints use owned maintenance connections outside writer admission
   and are joined before final close; indexed telemetry cleanup is bounded to 64 rows per item.
   Session periodic checkpoints also run on an owned, guarded maintenance connection outside the
-  event writer queue; close joins maintenance before releasing the database family.
+  event writer queue; successful close joins maintenance before releasing the database family.
+  An expired close returns its deadline error while owned cleanup retains active connections; a
+  later close can join that cleanup. Newly integrated check-in source writes share admission too.
   If a failed callback destroys its transaction/savepoints, healthy queued peers retry separately
   after rollback; ambiguous commit failures are never replayed by this recovery path.
 - Append-only migrations relocate event summaries into `compozy.db.telemetry.db`, preserving every

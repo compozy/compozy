@@ -620,3 +620,26 @@ fresh/reopen/ahead stream suite, not that empty invocation.
 The current fresh/reopen/ahead suite, including replay/bootstrap/declarative equivalence, passed
 in 4.346 s. After the final shared deletion helper and typed-error assertion, source transactions
 passed again in 0.383 s and focused globaldb lint reported zero issues.
+
+
+### Final checkpoint lifecycle review
+
+CodeRabbit completed all ten files in `bc1c46432..118069a5a` and reported three findings.
+The transaction-abort regression now asserts SQLite's constraint result code, confirms the rejected
+item shared the healthy item's initial transaction, and verifies that healthy item was replayed.
+The strengthened canonical `TestBackgroundWrites` function passed in 0.149 s.
+
+Its lifecycle finding was reproduced: a 50 ms close deadline remained blocked behind checkpoint
+I/O for more than five seconds. Close now bounds the caller's wait while a single owned cleanup
+retains the database until both workers exit. A later Close can join cleanup; its shorter waiting
+deadline cannot cancel another caller's shutdown. Queued requests observe an exited writer while
+preserving any already-published committed outcome. No connection closes while its worker is active.
+
+The existing blocked-I/O case now covers both successful joining and expired caller waiting using
+real SQLite behind the same driver boundary. It observes actual connection closure, verifies the
+specific drain/deadline error, and joins cleanup after releasing I/O. The new case failed before
+(5.080 s) and passed after (0.155 s). The normal close assertions remain intact.
+Final focused receipts for this repair: complete passive-checkpoint suite 3.999 s; retained-reader
+close/reopen 0.112 s; internal write lifecycle 0.074 s; existing six-reader/150-write real SQLite
+integration 0.314 s. Focused store/sessiondb lint reports zero issues. Batch-test conventions pass;
+the session file retains the previously documented file-level `t.Setenv` heuristic false positive.

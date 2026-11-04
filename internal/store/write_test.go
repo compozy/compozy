@@ -18,6 +18,7 @@ import (
 
 	"github.com/compozy/compozy/internal/testutil"
 	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 func TestBackgroundWrites(t *testing.T) {
@@ -45,8 +46,14 @@ func TestBackgroundWrites(t *testing.T) {
 			}
 		})
 		items := make([]*backgroundWrite, 3)
+		initialTransactions := make([]*WriteTx, len(items))
+		attempts := make([]int, len(items))
 		for i := range items {
 			item, err := writer.submit(ctx, "record observation", func(ctx context.Context, tx *WriteTx) error {
+				if initialTransactions[i] == nil {
+					initialTransactions[i] = tx
+				}
+				attempts[i]++
 				if i == 1 {
 					// Unlike ABORT, ROLLBACK destroys the surrounding savepoints too,
 					// as an interrupted SQLite write can do under cancellation.
@@ -64,9 +71,22 @@ func TestBackgroundWrites(t *testing.T) {
 		release()
 		for i, item := range items {
 			err := item.wait()
-			if (err != nil) != (i == 1) {
-				t.Errorf("item %d error = %v, want failure only for the rejected item", i, err)
+			if i == 1 {
+				sqliteErr, ok := errors.AsType[*sqlite.Error](err)
+				if !ok || sqliteErr.Code()&sqlitePrimaryResultCodeMask != sqlite3.SQLITE_CONSTRAINT {
+					t.Errorf("rejected item error = %v, want SQLite constraint failure", err)
+				}
+			} else if err != nil {
+				t.Errorf("healthy item %d error = %v", i, err)
 			}
+		}
+		if initialTransactions[0] == nil || initialTransactions[0] != initialTransactions[1] || attempts[0] != 2 {
+			t.Fatalf(
+				"initial transactions = %p, %p; healthy attempts = %d, want shared transaction then replay",
+				initialTransactions[0],
+				initialTransactions[1],
+				attempts[0],
+			)
 		}
 		var count, total int
 		if err := db.QueryRowContext(ctx, `SELECT count(*), coalesce(sum(id), 0) FROM items`).

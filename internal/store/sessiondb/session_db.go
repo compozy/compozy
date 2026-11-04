@@ -63,6 +63,8 @@ type SessionDB struct {
 	writeCh        chan sessionWriteRequest
 	shutdownCh     chan sessionShutdownRequest
 	writerDone     chan struct{}
+	closeDone      chan struct{}
+	closeErr       error // Published before closeDone closes.
 	writerCtx      context.Context
 	cancel         context.CancelFunc
 
@@ -124,6 +126,7 @@ func OpenSessionDB(ctx context.Context, owner store.SessionDBOwner, path string)
 		writeCh:        make(chan sessionWriteRequest, defaultWriteBufferSize),
 		shutdownCh:     make(chan sessionShutdownRequest, 1),
 		writerDone:     make(chan struct{}),
+		closeDone:      make(chan struct{}),
 		drainTimeout:   defaultDrainTimeout,
 		now: func() time.Time {
 			return time.Now().UTC()

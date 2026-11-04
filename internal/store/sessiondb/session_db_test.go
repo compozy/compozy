@@ -388,69 +388,110 @@ func TestSessionDBPassiveCheckpoint(t *testing.T) {
 	t.Parallel()
 
 	// Invariant: a checkpoint blocked in filesystem I/O cannot reserve the session
-	// writer, and Close joins that maintenance before releasing the database family.
+	// writer. Close bounds caller waiting and joins maintenance before releasing the database family.
 	// Owner: SessionDB maintenance lifecycle; canonical passive-checkpoint suite.
-	t.Run("Should persist a foreground event while periodic checkpoint I/O is blocked", func(t *testing.T) {
-		t.Parallel()
-		db := openTestSessionDB(t, "sess-checkpoint-io")
-		blocked := &blockedSessionCheckpointConnector{
-			Connector: db.checkpointDB.Driver().(driver.Connector),
-			entered:   make(chan struct{}), released: make(chan struct{}),
+	for _, expire := range []bool{false, true} {
+		name := "Should persist a foreground event while periodic checkpoint I/O is blocked"
+		if expire {
+			name = "Should bound close while retaining ownership of blocked checkpoint I/O"
 		}
-		unblock := sync.OnceFunc(func() { close(blocked.released) })
-		defer unblock()
-		if err := db.checkpointDB.Close(); err != nil {
-			t.Fatal(err)
-		}
-		db.checkpointDB = sql.OpenDB(blocked)
-		db.checkpointDB.SetMaxOpenConns(1)
-		db.checkpointDB.SetMaxIdleConns(1)
-		db.walMaintenanceDelayOverride.Store(int64(time.Hour))
-		events := make([]SessionEvent, sessionPassiveCheckpointEvery)
-		for i := range events {
-			events[i] = SessionEvent{
-				TurnID:    "checkpoint",
-				Type:      "session.stop_escalated",
-				AgentName: "coder",
-				Content:   `{}`,
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			db := openTestSessionDB(t, "sess-checkpoint-io")
+			blocked := &blockedSessionCheckpointConnector{
+				Connector: db.checkpointDB.Driver().(driver.Connector),
+				entered:   make(chan struct{}), released: make(chan struct{}),
 			}
-		}
-		if _, err := db.RecordPersistedBatch(t.Context(), events); err != nil {
-			t.Fatal(err)
-		}
-		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-		defer cancel()
-		select {
-		case <-blocked.entered:
-		case <-ctx.Done():
-			t.Fatal("periodic checkpoint did not reach filesystem I/O")
-		}
-		if err := db.Record(ctx, SessionEvent{
-			TurnID: "checkpoint", Type: "session_stopped", AgentName: "coder", Content: `{}`,
-		}); err != nil {
-			t.Fatalf("foreground write waited behind checkpoint I/O: %v", err)
-		}
-		rows, err := db.Query(ctx, EventQuery{Type: "session_stopped"})
-		if err != nil || len(rows) != 1 {
-			t.Fatalf("durable foreground event: rows=%d, error=%v", len(rows), err)
-		}
-		closed := make(chan error, 1)
-		go func() { closed <- db.Close(testutil.Context(t)) }()
-		select {
-		case <-db.writerDone:
-		case <-ctx.Done():
-			t.Fatal("writer did not drain independently of maintenance")
-		}
-		select {
-		case err := <-closed:
-			t.Fatalf("Close returned before checkpoint I/O ended: %v", err)
-		default:
-		}
-		unblock()
-		if err := <-closed; err != nil {
-			t.Fatal(err)
-		}
-	})
+			unblock := sync.OnceFunc(func() { close(blocked.released) })
+			defer unblock()
+			if err := db.checkpointDB.Close(); err != nil {
+				t.Fatal(err)
+			}
+			db.checkpointDB = sql.OpenDB(blocked)
+			db.checkpointDB.SetMaxOpenConns(1)
+			db.checkpointDB.SetMaxIdleConns(1)
+			db.walMaintenanceDelayOverride.Store(int64(time.Hour))
+			events := make([]SessionEvent, sessionPassiveCheckpointEvery)
+			for i := range events {
+				events[i] = SessionEvent{
+					TurnID:    "checkpoint",
+					Type:      "session.stop_escalated",
+					AgentName: "coder",
+					Content:   `{}`,
+				}
+			}
+			if _, err := db.RecordPersistedBatch(t.Context(), events); err != nil {
+				t.Fatal(err)
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			select {
+			case <-blocked.entered:
+			case <-ctx.Done():
+				t.Fatal("periodic checkpoint did not reach filesystem I/O")
+			}
+			if err := db.Record(ctx, SessionEvent{
+				TurnID: "checkpoint", Type: "session_stopped", AgentName: "coder", Content: `{}`,
+			}); err != nil {
+				t.Fatalf("foreground write waited behind checkpoint I/O: %v", err)
+			}
+			rows, err := db.Query(ctx, EventQuery{Type: "session_stopped"})
+			if err != nil || len(rows) != 1 {
+				t.Fatalf("durable foreground event: rows=%d, error=%v", len(rows), err)
+			}
+			closeCtx := testutil.Context(t)
+			if expire {
+				var stop context.CancelFunc
+				closeCtx, stop = context.WithTimeout(closeCtx, 50*time.Millisecond)
+				defer stop()
+			}
+			closed := make(chan error, 1)
+			closeReturned := make(chan struct{})
+			go func() {
+				defer close(closeReturned)
+				closed <- db.Close(closeCtx)
+			}()
+			defer func() {
+				unblock()
+				<-closeReturned
+			}()
+			select {
+			case <-db.writerDone:
+			case <-ctx.Done():
+				t.Fatal("writer did not drain independently of maintenance")
+			}
+			if expire {
+				select {
+				case err := <-closed:
+					if !errors.Is(err, store.ErrDrainTimeout) || !errors.Is(err, context.DeadlineExceeded) {
+						t.Fatalf("expired Close = %v, want drain deadline", err)
+					}
+				case <-ctx.Done():
+					t.Fatal("Close ignored its deadline while checkpoint I/O remained blocked")
+				}
+			} else {
+				select {
+				case err := <-closed:
+					t.Fatalf("Close returned before checkpoint I/O ended: %v", err)
+				default:
+				}
+			}
+			if blocked.closed.Load() {
+				t.Fatal("checkpoint connection closed while I/O was still active")
+			}
+			unblock()
+			if expire {
+				if err := db.Close(testutil.Context(t)); err != nil && !errors.Is(err, context.DeadlineExceeded) {
+					t.Fatalf("join timed-out cleanup = %v", err)
+				}
+			} else if err := <-closed; err != nil {
+				t.Fatal(err)
+			}
+			if !blocked.closed.Load() {
+				t.Fatal("checkpoint connection remains open after cleanup joined")
+			}
+		})
+	}
 
 	// Invariant: background WAL maintenance cannot starve an already-open foreground writer.
 	// Owner: SessionDB writer scheduling; canonical passive-checkpoint suite.
@@ -3697,6 +3738,7 @@ type blockedSessionCheckpointConnector struct {
 	entered  chan struct{}
 	released chan struct{}
 	once     sync.Once
+	closed   atomic.Bool
 }
 
 func (c *blockedSessionCheckpointConnector) Connect(ctx context.Context) (driver.Conn, error) {
@@ -3715,6 +3757,12 @@ type blockedSessionCheckpointConnection struct {
 	driver.Conn
 	sqlite.ExecQuerierContext
 	owner *blockedSessionCheckpointConnector
+}
+
+func (c *blockedSessionCheckpointConnection) Close() error {
+	err := c.Conn.Close()
+	c.owner.closed.Store(true)
+	return err
 }
 
 func (c *blockedSessionCheckpointConnection) ExecContext(
