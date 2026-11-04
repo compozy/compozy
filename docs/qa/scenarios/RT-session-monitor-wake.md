@@ -203,7 +203,11 @@ introduce another conflict and verify a second wake. A changed head alone does n
 clear the conflict. While another wake is held for admission, observe a conflict
 then push a new head: the undelivered conflict must survive. Repeat with a known
 clearance before admission: omit stale rebase guidance while preserving any other
-queued check/review changes. REST retargets must name the base from the detail read.
+queued check/review changes. A known clearance without a head must also cancel the
+queued conflict without resetting known check results. A same-head retarget updates
+the named base; a push with no base retains the last known base. REST retargets must
+name the base from the detail read, and closed or mismatched-head details must not
+introduce a conflict.
 Merge queue removal is not currently observable independently.
 
 Backend coverage: `TestDetectPullRequest` and `TestServicePullRequestMonitorRestart`

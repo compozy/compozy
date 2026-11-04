@@ -106,7 +106,8 @@ func (p *Provider) restPullMergeability(
 	}
 	response.Mergeable = graphChecksUnknown
 	response.Base = detail.Base.Ref
-	if detail.Head.SHA == selected.Head.SHA && detail.Mergeable != nil && detail.MergeableState != graphChecksUnknown {
+	if detail.State == prStateOpen && detail.Head.SHA == selected.Head.SHA &&
+		detail.Mergeable != nil && detail.MergeableState != graphChecksUnknown {
 		if !*detail.Mergeable || detail.MergeableState == "dirty" {
 			response.Mergeable = "conflicting"
 		} else if *detail.Mergeable {

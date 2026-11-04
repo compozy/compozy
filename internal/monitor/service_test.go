@@ -3029,7 +3029,7 @@ func TestServicePullRequestMonitorRestart(t *testing.T) {
 		}
 		return after
 	}
-	for _, scenario := range []string{"push", "clear", "clear with other changes"} {
+	for _, scenario := range []string{"push", "push without base", "retarget", "clear", "headless clear", "clear with other changes"} {
 		t.Run("Should reconcile a queued conflict after "+scenario, func(t *testing.T) {
 			t.Parallel()
 			synctest.Test(t, func(t *testing.T) {
@@ -3051,11 +3051,21 @@ func TestServicePullRequestMonitorRestart(t *testing.T) {
 				}
 				forge.set(obs)
 				poll(2)
-				if scenario == "push" {
+				isPush := strings.HasPrefix(scenario, "push")
+				switch {
+				case isPush:
 					obs.Head, obs.Mergeable = "head-b", "unknown"
 					obs.Checks = pending(1, 3)
-				} else {
+					if scenario == "push without base" {
+						obs.Base = ""
+					}
+				case scenario == "retarget":
+					obs.Base = "release"
+				default:
 					obs.Mergeable = "mergeable"
+					if scenario == "headless clear" {
+						obs.Head = ""
+					}
 				}
 				forge.set(obs)
 				poll(2)
@@ -3065,14 +3075,23 @@ func TestServicePullRequestMonitorRestart(t *testing.T) {
 				poll(1)
 				got := waker.notifications()
 				want := 2
-				if scenario == "clear" {
+				if scenario == "clear" || scenario == "headless clear" {
 					want = 1
 				}
 				if len(got) != want {
 					t.Fatalf("wakes = %+v", got)
 				}
-				if want == 2 && got[1].PullRequest.Conflict != (scenario == "push") {
+				if want == 2 && got[1].PullRequest.Conflict != (isPush || scenario == "retarget") {
 					t.Fatalf("queued wake = %+v", got[1].PullRequest)
+				}
+				if want == 2 && got[1].PullRequest.Conflict {
+					base := "main"
+					if scenario == "retarget" {
+						base = "release"
+					}
+					if got[1].PullRequest.Base != base {
+						t.Fatalf("queued base = %+v", got[1].PullRequest)
+					}
 				}
 				if scenario == "clear with other changes" && !slices.Contains(got[1].PullRequest.NewlyFailed, "test") {
 					t.Fatalf("lost check failure = %+v", got[1].PullRequest)
@@ -3081,7 +3100,7 @@ func TestServicePullRequestMonitorRestart(t *testing.T) {
 				forge.set(obs)
 				poll(2)
 				expected := want
-				if scenario != "push" {
+				if !isPush && scenario != "retarget" {
 					expected++
 				}
 				if got := waker.notifications(); len(got) != expected {

@@ -73,7 +73,7 @@ func detectOutage(cur prCursor, obs PullRequestObservation, now time.Time) (Pull
 // resetForNewPullRequest drops what belongs to a superseded head. A new head does not wake by itself, and
 // a different pull request on the branch also starts a new review baseline.
 func resetForNewPullRequest(next prCursor, obs PullRequestObservation) prCursor {
-	if next.Number == obs.Number && next.Head == obs.Head {
+	if next.Number == obs.Number && (obs.Head == "" || next.Head == obs.Head) {
 		return next
 	}
 	if next.Number != obs.Number {
@@ -303,7 +303,7 @@ func mergeReviewActivity(first, second, into PullRequestChanges) PullRequestChan
 }
 
 func reconcileQueuedConflict(carry, later PullRequestChanges) (PullRequestChanges, PullRequestChanges) {
-	if !carry.Conflict || carry.Number != later.Number || later.Head == "" {
+	if !carry.Conflict || carry.Number != later.Number {
 		return carry, later
 	}
 	if later.ConflictCleared {
@@ -311,8 +311,13 @@ func reconcileQueuedConflict(carry, later PullRequestChanges) (PullRequestChange
 		carry.Wake = len(carry.NewlyFailed) > 0 || carry.FailureRose || carry.AllFinished ||
 			len(carry.Reviews) > 0 || carry.NewThreads > 0 || carry.Terminal != "" ||
 			carry.ForgeDown || carry.ReviewsDown || carry.TimedOut || carry.FireCapHit
-	} else if carry.Head != later.Head {
+	} else if later.Head != "" && carry.Head != later.Head {
+		if later.Base == "" {
+			later.Base = carry.Base
+		}
 		later.Conflict, later.Wake = true, true
+	} else if later.Base != "" {
+		carry.Base = later.Base
 	}
 	return carry, later
 }

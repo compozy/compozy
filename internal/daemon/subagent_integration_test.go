@@ -488,6 +488,14 @@ func newSubagentDaemonWithSetup(
 						},
 					},
 					{
+						Name: "conflict-wake",
+						Match: acpmock.TurnMatch{
+							TurnSource:       acp.PromptTurnSourceSynthetic,
+							UserTextContains: "PR #7 now conflicts with main; rebase",
+						},
+						Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "conflict wake received"}},
+					},
+					{
 						Name:  "wake",
 						Match: acpmock.TurnMatch{TurnSource: acp.PromptTurnSourceSynthetic},
 						Steps: []acpmock.Step{{Kind: acpmock.StepKindAssistant, Text: "wake received"}},
@@ -5696,7 +5704,7 @@ func TestMonitorIdleReleaseIntegration(t *testing.T) {
 				return false
 			}
 			for _, row := range rows {
-				if strings.Contains(row.Content, "wake received") {
+				if strings.Contains(row.Content, "conflict wake received") {
 					return true
 				}
 			}

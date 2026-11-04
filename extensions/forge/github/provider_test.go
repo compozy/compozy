@@ -316,6 +316,8 @@ func TestProvider(t *testing.T) {
 		{"retarget", "dirty", new(false), "conflicting"},
 		{"unknown", "unknown", new(false), "unknown"},
 		{"null", "dirty", nil, "unknown"},
+		{"head mismatch", "dirty", new(false), "unknown"},
+		{"closed detail", "dirty", new(false), "unknown"},
 	} {
 		t.Run("Should map REST mergeability "+tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -332,6 +334,12 @@ func TestProvider(t *testing.T) {
 				if r.URL.Path == "/repos/acme/repo/pulls/7" {
 					details.Add(1)
 					pull.Mergeable, pull.MergeableState = tc.mergeable, tc.state
+					if tc.name == "head mismatch" {
+						pull.Head.SHA = "b"
+					}
+					if tc.name == "closed detail" {
+						pull.State = "closed"
+					}
 					if tc.name == "retarget" {
 						pull.Base.Ref = "release"
 					}
@@ -498,7 +506,8 @@ func TestProvider(t *testing.T) {
 						t.Error("unexpected detail lookup")
 					}
 					writeJSON(t, w, http.StatusOK, pullPayload{
-						Number: 3, Head: pullRef{SHA: "abc"}, Mergeable: new(false), MergeableState: "dirty",
+						Number: 3, State: "open", Head: pullRef{SHA: "abc"},
+						Mergeable: new(false), MergeableState: "dirty",
 					})
 					return
 				}
