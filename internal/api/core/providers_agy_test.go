@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -71,6 +72,71 @@ func agyProbeTestRouter(
 // success. Owner: shared provider handlers (IT-005).
 func TestProviderAGYACPProbe(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should not record ACP probe verdicts that hit a deadline or cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		authRequired := errors.New("ACP session/new failed: not authenticated")
+		for _, tc := range []struct {
+			name     string
+			probeErr error
+			want     authproviders.ProviderAuthState
+		}{
+			{"joined deadline", errors.Join(authRequired, context.DeadlineExceeded), authproviders.ProviderAuthStateAuthenticated},
+			{"joined cancellation", errors.Join(authRequired, context.Canceled), authproviders.ProviderAuthStateAuthenticated},
+			{"plain auth required", authRequired, authproviders.ProviderAuthStateNeedsLogin},
+		} {
+			t.Run("Should handle "+tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				cfg := agyProbeTestConfig(t)
+				agy, err := cfg.ResolveProvider("agy")
+				if err != nil {
+					t.Fatalf("ResolveProvider(agy) error = %v", err)
+				}
+				verdicts := authproviders.NewAuthVerdicts()
+				var probeEnv []string
+				handlers := NewBaseHandlers(&BaseHandlerConfig{
+					Config: cfg,
+					ProviderAuthCommandResolver: func(_ context.Context, command string, _ []string, _ string) (string, error) {
+						return "/test/bin/" + command, nil
+					},
+					ProviderACPProbe: func(_ context.Context, req acp.SessionInspectionRequest) error {
+						probeEnv = req.Env
+						return tc.probeErr
+					},
+					ProviderAuthVerdicts: verdicts,
+				})
+				router := gin.New()
+				router.POST("/providers/:provider_id/auth/probe", handlers.ProbeProviderAuth)
+				post := func() {
+					t.Helper()
+					response := httptest.NewRecorder()
+					router.ServeHTTP(response, httptest.NewRequestWithContext(
+						testutil.Context(t), http.MethodPost, "/providers/agy/auth/probe", http.NoBody,
+					))
+					if response.Code != http.StatusOK {
+						t.Fatalf("status = %d body = %s, want 200", response.Code, response.Body.String())
+					}
+				}
+				// The first probe captures the daemon probe env; an older seeded verdict never wins.
+				post()
+				verdicts.Record("agy", agy, probeEnv, authproviders.Classification{
+					State: authproviders.ProviderAuthStateAuthenticated,
+				}, time.Unix(0, 0))
+				before, _ := verdicts.Lookup("agy", agy, probeEnv)
+
+				post()
+				after, ok := verdicts.Lookup("agy", agy, probeEnv)
+				if !ok || after.Classification.State != tc.want {
+					t.Fatalf("stored verdict = %#v (found %v), want %q", after, ok, tc.want)
+				}
+				if tc.want == authproviders.ProviderAuthStateAuthenticated && !after.CheckedAt.Equal(before.CheckedAt) {
+					t.Fatalf("CheckedAt = %v, want unchanged %v", after.CheckedAt, before.CheckedAt)
+				}
+			})
+		}
+	})
 
 	t.Run("Should report ACP readiness without a probe object", func(t *testing.T) {
 		t.Parallel()

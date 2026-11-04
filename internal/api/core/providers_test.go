@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -189,9 +190,14 @@ func TestProviderAuthHandlers(t *testing.T) {
 		t.Parallel()
 
 		verdicts := authproviders.NewAuthVerdicts()
+		var resolverErr error
+		cfg := providerAuthTestConfig(t)
 		handlers := NewBaseHandlers(&BaseHandlerConfig{
-			Config: providerAuthTestConfig(t),
+			Config: cfg,
 			ProviderAuthCommandResolver: func(context.Context, string, []string, string) (string, error) {
+				if resolverErr != nil {
+					return "", resolverErr
+				}
 				return "/test/bin/provider-cli", nil
 			},
 			ProviderAuthRunner: func(context.Context, authproviders.ProviderAuthCommandSpec) (authproviders.ProviderAuthCommandResult, error) {
@@ -218,6 +224,17 @@ func TestProviderAuthHandlers(t *testing.T) {
 			before.AuthStatus.LastProbeAt != nil {
 			t.Fatalf("auth status before probe = %#v, want unverified", before.AuthStatus)
 		}
+		native, err := cfg.ResolveProvider("native")
+		if err != nil {
+			t.Fatalf("ResolveProvider(native) error = %v", err)
+		}
+		verdicts.Record("native", native, []string{"HOME=/session-seat"}, authproviders.Classification{
+			State: authproviders.ProviderAuthStateAuthenticated,
+		}, time.Now())
+		if foreign := read(); foreign.AuthStatus.State != contract.ProviderAuthStateUnknown ||
+			foreign.AuthStatus.LastProbeAt != nil {
+			t.Fatalf("auth status for another auth home = %#v, want unverified", foreign.AuthStatus)
+		}
 
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, httptest.NewRequestWithContext(
@@ -230,6 +247,16 @@ func TestProviderAuthHandlers(t *testing.T) {
 		after := read()
 		if after.AuthStatus.State != contract.ProviderAuthStateAuthenticated || after.AuthStatus.LastProbeAt == nil {
 			t.Fatalf("auth status after probe = %#v, want authenticated with a check time", after.AuthStatus)
+		}
+
+		resolverErr = errors.New("open /test/bin/provider-cli: permission denied")
+		failed := read()
+		if failed.AuthStatus.State != contract.ProviderAuthStateUnknown || failed.AuthStatus.LastProbeAt != nil ||
+			!strings.Contains(failed.AuthStatus.Message, "permission denied") {
+			t.Fatalf(
+				"auth status after resolver failure = %#v, want the declared error without a check time",
+				failed.AuthStatus,
+			)
 		}
 	})
 
