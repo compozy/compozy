@@ -107,8 +107,14 @@ func (b *GitHubBackend) Commit(ctx context.Context, request CommitRequest) (stri
 	if err := b.get(ctx, "/repos/"+b.repository+"/git/commits/"+baseCommit, &parent); err != nil {
 		return "", err
 	}
-	treeEntries := make([]map[string]string, 0, len(request.Files))
+	treeEntries := make([]map[string]any, 0, len(request.Files))
 	for filePath, contents := range request.Files {
+		if contents == nil {
+			treeEntries = append(treeEntries, map[string]any{
+				"path": filePath, "mode": "100644", "type": "blob", githubObjectSHAKey: nil,
+			})
+			continue
+		}
 		var blob struct {
 			SHA string `json:"sha"`
 		}
@@ -117,7 +123,7 @@ func (b *GitHubBackend) Commit(ctx context.Context, request CommitRequest) (stri
 		}, &blob); err != nil {
 			return "", err
 		}
-		treeEntries = append(treeEntries, map[string]string{
+		treeEntries = append(treeEntries, map[string]any{
 			"path": filePath, "mode": "100644", "type": "blob", githubObjectSHAKey: blob.SHA,
 		})
 	}
@@ -237,9 +243,13 @@ func (b *GitHubBackend) VerifyAsset(ctx context.Context, version string, artifac
 }
 
 func (b *GitHubBackend) ReadCommit(ctx context.Context, sha string) (ChannelCommit, error) {
-	files := make(map[string][]byte, 3)
-	for _, name := range []string{ManifestMac, ManifestLinux, GenerationFile} {
+	files := make(map[string][]byte, 4)
+	for _, name := range []string{ManifestMac, ManifestLinux, ManifestWindows, GenerationFile} {
 		contents, err := b.readContents(ctx, path.Join(ChannelDirectory, name), sha)
+		// Older channel generations predate Windows; keep their rollback history readable.
+		if name == ManifestWindows && isGitHubStatus(err, http.StatusNotFound) {
+			continue
+		}
 		if err != nil {
 			return ChannelCommit{}, err
 		}

@@ -100,7 +100,7 @@ func callAppControl(ctx context.Context, socketPath string, method string, param
 	timeout := appControlTimeoutForMethod(method)
 	callCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	connection, err := (&net.Dialer{}).DialContext(callCtx, "unix", socketPath)
+	connection, err := dialAppControl(callCtx, socketPath)
 	if err != nil {
 		return nil, newAppCommandError(
 			appControlUnavailableCode,

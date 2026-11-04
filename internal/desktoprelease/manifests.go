@@ -31,8 +31,8 @@ type updateManifest struct {
 }
 
 func LoadChannelFiles(dir string) (map[string][]byte, error) {
-	files := make(map[string][]byte, 3)
-	for _, name := range []string{ManifestMac, ManifestLinux, GenerationFile} {
+	files := make(map[string][]byte, 4)
+	for _, name := range []string{ManifestMac, ManifestLinux, ManifestWindows, GenerationFile} {
 		contents, err := os.ReadFile(filepath.Join(dir, name))
 		if err != nil {
 			return nil, fmt.Errorf("desktop release: read channel file %s: %w", name, err)
@@ -45,7 +45,7 @@ func LoadChannelFiles(dir string) (map[string][]byte, error) {
 				return nil, err
 			}
 		}
-		files[filepath.Join(ChannelDirectory, name)] = contents
+		files[path.Join(ChannelDirectory, name)] = contents
 	}
 	return files, nil
 }
@@ -145,8 +145,9 @@ func inspectManifestIntegrity(filePath string) (string, int64, error) {
 func manifestArtifactNames(version string, manifestName string) ([]string, error) {
 	all := DesktopArtifactNames(version)
 	wantedSuffixes := map[string][]string{
-		ManifestMac:   {"-mac-arm64.zip", "-mac-x64.zip"},
-		ManifestLinux: {"-linux-x64.AppImage"},
+		ManifestMac:     {"-mac-arm64.zip", "-mac-x64.zip"},
+		ManifestLinux:   {"-linux-x64.AppImage"},
+		ManifestWindows: {"-win-x64.exe"},
 	}
 	suffixes, ok := wantedSuffixes[manifestName]
 	if !ok {

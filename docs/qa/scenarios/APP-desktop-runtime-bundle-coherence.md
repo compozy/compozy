@@ -37,3 +37,17 @@ then kept under the Chromium 256 MiB limit (allowing eviction slack). Seed and r
 localStorage, cookies and persisted window/layout state across both launches. Cleanup uses only
 `Session.clearCache()`. Code Cache (64 MB in the incident) and GPU caches (under 12 MB combined)
 remain Chromium-managed and are outside this HTTP-only budget. Daemon response headers are unchanged.
+
+## Windows desktop acceptance (2026-11-04)
+
+Run on Windows x64 with an isolated `COMPOZY_HOME` and install directory containing spaces and
+non-ASCII characters. Install the signed NSIS baseline without administrator elevation. Confirm
+offline bundled-runtime provisioning, product readiness and the existing `app status`, `app open`,
+`app retry` and diagnostic export commands over the authenticated local named pipe. A second
+launch must retain one shell and deliver the requested deep link.
+
+Stage a verified next-version installer through the existing update journal. Observe actual NSIS
+installation, relaunch on the new app version, matching owned-runtime version and archived
+`updated` outcome. The original configuration and workspace data must remain readable. Uninstall
+the app and verify those files still exist. The native `Desktop (Windows install and update)` CI
+lane owns this acceptance; pending CI is not a passing Windows receipt.

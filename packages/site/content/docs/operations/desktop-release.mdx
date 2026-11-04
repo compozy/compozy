@@ -21,9 +21,9 @@ branch. Set `GITHUB_REPOSITORY` to `owner/name`.
 
 A publish workspace contains:
 
-- an authority directory with the six exact platform packages, `compat.json`, and
+- an authority directory with the eight exact desktop artifacts, `compat.json`, and
   `checksums.txt`;
-- a channel directory with `latest-mac.yml`, `latest-linux.yml`, and `generation.json`.
+- a channel directory with `latest-mac.yml`, `latest-linux.yml`, `latest.yml` (Windows), and `generation.json`.
 
 The authority directory must contain these exact versioned names:
 
@@ -33,6 +33,36 @@ The authority directory must contain these exact versioned names:
 - `CompozyOS-<version>-mac-x64.zip`
 - `CompozyOS-<version>-linux-x64.AppImage`
 - `CompozyOS-<version>-linux-x64.deb`
+- `CompozyOS-<version>-win-x64.exe`
+- `CompozyOS-<version>-win-x64.exe.blockmap`
+
+## Windows signing and validation
+
+Windows releases are built on `windows-latest` with the repository-pinned Electron and
+`electron-builder`. Configure `WINDOWS_CERTIFICATE` (an electron-builder-compatible PFX value or
+URL) and `WINDOWS_CERTIFICATE_PASSWORD` in GitHub Actions. The release job requires both and
+verifies Authenticode on the installer, Electron executable and bundled `compozy.exe` before
+publishing. Never use the ephemeral CI test certificate for a public release.
+
+After signing the runtime, the packaging hook regenerates its bundled SHA-256 manifest. The
+channel publishes `latest.yml`; the exact installer and its blockmap join the existing checksum
+catalog and immutable release assets. Reading historical channel commits tolerates an absent
+Windows manifest, while new publications require it.
+
+PR CI installs signed baseline and next-version NSIS fixtures with an ephemeral trusted certificate,
+then exercises real Electron startup, named-pipe CLI control, native update and retained data.
+Release and dry-run smoke jobs install the transferred artifact on a fresh Windows runner.
+
+For a local Windows build, install the repository-pinned Go, Bun and Git tools, then run:
+
+```powershell
+bun install --frozen-lockfile
+bunx turbo run build --filter=compozy-web
+bun run --cwd desktop build
+```
+
+Local packages are unsigned unless signing credentials are supplied. The production release job
+requires signing; it does not silently publish an unsigned Windows package.
 
 ## Publish a generation
 
@@ -48,7 +78,7 @@ go run ./cmd/compozy-desktop-release publish \
 ```
 
 Publish verifies the exact local inventory and checksum catalog, uploads or verifies every immutable
-release asset, creates one commit containing both platform manifests and `generation.json`, then
+release asset, creates one commit containing all three platform manifests and `generation.json`, then
 moves `channel-<channel>`. The JSON result contains `operation`, `channel_ref_before`,
 `channel_ref_after`, `verified_inventory`, `audit_commit`, and `outcome`.
 
@@ -135,9 +165,10 @@ git rev-parse origin/channel-stable origin/channel-beta
 git show origin/channel-stable:desktop/generation.json
 git show origin/channel-stable:desktop/latest-mac.yml
 git show origin/channel-stable:desktop/latest-linux.yml
+git show origin/channel-stable:desktop/latest.yml
 ```
 
-The branch SHA must equal the command's `channel_ref_after` and `audit_commit`. The two manifests
+The branch SHA must equal the command's `channel_ref_after` and `audit_commit`. The three manifests
 must name one version and point only to immutable
 `https://github.com/<owner>/<repo>/releases/download/v<version>/...` assets.
 

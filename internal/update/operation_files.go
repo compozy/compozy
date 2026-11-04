@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/compozy/compozy/internal/fileutil"
 )
 
 func (s *OperationStore) publishNewUnlocked(operation *Operation) (returnErr error) {
@@ -74,15 +76,8 @@ func writeOperationTemp(targetPath string, operation *Operation) (path string, r
 	return path, nil
 }
 
-func syncDirectory(path string) (returnErr error) {
-	directory, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("update: open journal directory for sync: %w", err)
-	}
-	defer func() {
-		returnErr = errors.Join(returnErr, directory.Close())
-	}()
-	if err := directory.Sync(); err != nil {
+func syncDirectory(path string) error {
+	if err := fileutil.SyncDir(path); err != nil {
 		return fmt.Errorf("update: sync journal directory: %w", err)
 	}
 	return nil

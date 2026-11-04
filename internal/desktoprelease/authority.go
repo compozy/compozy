@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
 	"path/filepath"
 )
 
@@ -23,7 +24,7 @@ func (a *Authority) Publish(ctx context.Context, request PublishRequest) (Operat
 		if err := validateExistingOperation(existing, operationPublish, request.Version); err != nil {
 			return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 		}
-		verified, verifyErr := a.verifyRemoteInventory(ctx, existing.Generation.Version)
+		verified, verifyErr := a.verifyRemoteInventory(ctx, *existing)
 		if verifyErr != nil {
 			return OperatorResult{}, verifyErr
 		}
@@ -33,8 +34,8 @@ func (a *Authority) Publish(ctx context.Context, request PublishRequest) (Operat
 	if err != nil {
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 	}
-	if previous.Version != "" {
-		if err := AssertStrictlyGreater(request.Version, previous.Version); err != nil {
+	if previous.Generation.Version != "" {
+		if err := AssertStrictlyGreater(request.Version, previous.Generation.Version); err != nil {
 			return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 		}
 	}
@@ -52,8 +53,8 @@ func (a *Authority) Publish(ctx context.Context, request PublishRequest) (Operat
 			),
 		)
 	}
-	if previous.Version != "" {
-		if err := AssertCompatibleWithPrevious(compatibility.MinAppVersion, previous.Version); err != nil {
+	if previous.Generation.Version != "" {
+		if err := AssertCompatibleWithPrevious(compatibility.MinAppVersion, previous.Generation.Version); err != nil {
 			return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 		}
 	}
@@ -101,13 +102,13 @@ func (a *Authority) Repair(ctx context.Context, request RepairRequest) (Operator
 		if err := validateExistingOperation(existing, operationRepair, request.Version); err != nil {
 			return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 		}
-		verified, verifyErr := a.verifyRemoteInventory(ctx, existing.Generation.Version)
+		verified, verifyErr := a.verifyRemoteInventory(ctx, *existing)
 		if verifyErr != nil {
 			return OperatorResult{}, verifyErr
 		}
 		return resultFromExisting(operationRepair, existing, verified), nil
 	}
-	before, _, err := a.channelState(ctx, branch)
+	before, current, err := a.channelState(ctx, branch)
 	if err != nil {
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 	}
@@ -115,7 +116,7 @@ func (a *Authority) Repair(ctx context.Context, request RepairRequest) (Operator
 	if err != nil {
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 	}
-	verified, err := a.verifyRemoteInventory(ctx, knownGood.Generation.Version)
+	verified, err := a.verifyRemoteInventory(ctx, knownGood)
 	if err != nil {
 		return OperatorResult{}, err
 	}
@@ -125,11 +126,18 @@ func (a *Authority) Repair(ctx context.Context, request RepairRequest) (Operator
 	generation.PublishedAt = request.PublishedAt.UTC()
 	generation.SourceCommit = knownGood.SHA
 	files := cloneFiles(knownGood.Files)
+	windowsManifest := path.Join(ChannelDirectory, ManifestWindows)
+	if _, restored := files[windowsManifest]; !restored {
+		if _, present := current.Files[windowsManifest]; present {
+			// A pre-Windows rollback must not retain a feed from the replaced generation.
+			files[windowsManifest] = nil
+		}
+	}
 	generationBytes, err := canonicalJSON(generation)
 	if err != nil {
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)
 	}
-	files[filepath.Join(ChannelDirectory, GenerationFile)] = generationBytes
+	files[path.Join(ChannelDirectory, GenerationFile)] = generationBytes
 	auditCommit, err := a.backend.Commit(ctx, CommitRequest{ParentSHA: before, Generation: generation, Files: files})
 	if err != nil {
 		return OperatorResult{}, errorWithCode(ErrorVerificationFailed, err)

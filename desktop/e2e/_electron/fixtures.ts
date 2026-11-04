@@ -255,7 +255,7 @@ async function waitForPathRemoval(path: string): Promise<void> {
   throw new Error(`Desktop E2E path ${basename(path)} was not removed within 5 seconds.`);
 }
 
-async function terminateRestartedDesktop(home: string): Promise<void> {
+export async function terminateRestartedDesktop(home: string): Promise<void> {
   let record: unknown;
   try {
     record = JSON.parse(await readFile(join(home, "app.json"), "utf8"));
@@ -268,7 +268,8 @@ async function terminateRestartedDesktop(home: string): Promise<void> {
   try {
     process.kill(Number(pid), "SIGTERM");
     await waitForProcessExit(Number(pid));
-    await waitForPathRemoval(join(home, "app.sock"));
+    // Windows forced termination leaves the private discovery file, not a live pipe.
+    if (process.platform !== "win32") await waitForPathRemoval(join(home, "app.sock"));
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ESRCH") return;
     const desktopLog = await readDiagnosticFile(join(home, "logs", "desktop.log")).catch(

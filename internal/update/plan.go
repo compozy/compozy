@@ -227,6 +227,14 @@ func (m *Manager) resolveAppReleaseAsset(ctx context.Context, release *Release) 
 			)
 		}
 		name = "CompozyOS-" + version + "-linux-x64.AppImage"
+	case runtimeOSWindows:
+		if m.runtimeArch != runtimeArchAMD64 {
+			return ReleaseAsset{}, fmt.Errorf(
+				"update: desktop app auto-update is unsupported on windows/%s",
+				m.runtimeArch,
+			)
+		}
+		name = "CompozyOS-" + version + "-win-x64.exe"
 	default:
 		return ReleaseAsset{}, fmt.Errorf("update: desktop app auto-update is unsupported on %s", m.runtimeOS)
 	}

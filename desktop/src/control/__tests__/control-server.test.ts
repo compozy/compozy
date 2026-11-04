@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { getuid } from "node:process";
 import { chmod, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { createConnection } from "node:net";
@@ -6,6 +7,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { ControlServer } from "../control-server";
+import { controlEndpoint } from "../control-endpoint";
 import { deleteControlToken, rotateControlToken, tokenMatches } from "../control-token";
 
 interface WireResponse {
@@ -16,8 +18,9 @@ interface WireResponse {
 }
 
 async function sendRawRequest(path: string, payload: string): Promise<string> {
+  const endpoint = await controlEndpoint(path);
   return await new Promise((resolve, reject) => {
-    const socket = createConnection(path);
+    const socket = createConnection(endpoint);
     let response = "";
     socket.setEncoding("utf8");
     socket.once("error", reject);
@@ -74,10 +77,47 @@ describe("control server", () => {
           candidate === undefined ? "app_control_invalid_request" : "app_control_unavailable"
         );
       }
-      expect((await stat(tokenPath)).mode & 0o777).toBe(0o600);
-      expect((await stat(socketPath)).mode & 0o777).toBe(0o600);
-      expect((await stat(home)).mode & 0o777).toBe(0o700);
-      if (getuid) expect((await stat(socketPath)).uid).toBe(getuid());
+      if (process.platform === "win32") {
+        const permissions = JSON.parse(
+          execFileSync(
+            join(
+              process.env.SystemRoot || "C:\\Windows",
+              "System32",
+              "WindowsPowerShell",
+              "v1.0",
+              "powershell.exe"
+            ),
+            [
+              "-NoProfile",
+              "-NonInteractive",
+              "-Command",
+              [
+                "$ErrorActionPreference = 'Stop'",
+                "$user = [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value",
+                "$acl = Get-Acl -LiteralPath $env:COMPOZY_PRIVATE_DIRECTORY",
+                "$rules = $acl.GetAccessRules($true, $true, [System.Security.Principal.SecurityIdentifier])",
+                "@{ user = $user; owner = $acl.GetOwner([System.Security.Principal.SecurityIdentifier]).Value; protected = $acl.AreAccessRulesProtected; allowed = @($rules | ForEach-Object { $_.IdentityReference.Value }) } | ConvertTo-Json -Compress",
+              ].join("; "),
+            ],
+            {
+              encoding: "utf8",
+              env: { ...process.env, COMPOZY_PRIVATE_DIRECTORY: home },
+              timeout: 10_000,
+              windowsHide: true,
+            }
+          )
+        ) as { user: string; owner: string; protected: boolean; allowed: string[] };
+        expect(permissions.owner).toBe(permissions.user);
+        expect(permissions.protected).toBe(true);
+        expect(permissions.allowed.sort()).toEqual(
+          [permissions.user, "S-1-5-18", "S-1-5-32-544"].sort()
+        );
+      } else {
+        expect((await stat(tokenPath)).mode & 0o777).toBe(0o600);
+        expect((await stat(socketPath)).mode & 0o777).toBe(0o600);
+        expect((await stat(home)).mode & 0o777).toBe(0o700);
+        if (getuid) expect((await stat(socketPath)).uid).toBe(getuid());
+      }
       expect(errors).toEqual([]);
     } finally {
       if (server) await server.close();
@@ -160,20 +200,23 @@ describe("control server", () => {
     expect(tokenMatches("abc", null)).toBe(false);
   });
 
-  it("Should refuse an insecure control directory before binding", async () => {
-    const home = await mkdtemp(join(tmpdir(), "compozy-control-mode-"));
-    await chmod(home, 0o755);
-    try {
-      await expect(
-        ControlServer.start(
-          join(home, "app.sock"),
-          "token",
-          async () => ({}),
-          () => undefined
-        )
-      ).rejects.toThrow("0700");
-    } finally {
-      await rm(home, { recursive: true, force: true });
+  it.skipIf(process.platform === "win32")(
+    "Should refuse an insecure control directory before binding",
+    async () => {
+      const home = await mkdtemp(join(tmpdir(), "compozy-control-mode-"));
+      await chmod(home, 0o755);
+      try {
+        await expect(
+          ControlServer.start(
+            join(home, "app.sock"),
+            "token",
+            async () => ({}),
+            () => undefined
+          )
+        ).rejects.toThrow("0700");
+      } finally {
+        await rm(home, { recursive: true, force: true });
+      }
     }
-  });
+  );
 });
