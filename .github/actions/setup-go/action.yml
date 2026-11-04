@@ -15,15 +15,28 @@ inputs:
     required: false
     default: "false"
   cache:
-    description: "Cache Go modules and build outputs"
+    description: "Restore the Go module cache"
     required: false
     default: "true"
+  build-cache:
+    description: "Restore (and, with save-cache, save) the Go build cache"
+    required: false
+    default: "true"
+  build-cache-job:
+    description: "Job whose build cache to restore; defaults to the calling job. Lets consumers reuse a producer's cache without saving their own"
+    required: false
+    default: ""
   cache-key-suffix:
     description: "Job-specific cache-key suffix, including a leading dash when set"
     required: false
     default: ""
-  save-build-cache:
-    description: "Save the Go build cache at job end; keep false outside main so pull requests stay restore-only"
+  save-cache:
+    description: >-
+      Save caches at job end. Keep true only on main pushes, so pull requests
+      and merge groups stay restore-only. A saving job builds from a cold build
+      cache and stores exactly its working set, which keeps every entry small;
+      it saves the module cache only when it downloaded the full module graph
+      (verify-modules) or runs outside Linux, where no Linux job provides one.
     required: false
     default: "false"
   verify-modules:
@@ -47,15 +60,15 @@ runs:
         cache: "false"
 
     - name: Resolve Go cache paths
-      if: inputs.cache == 'true'
+      if: inputs.cache == 'true' || inputs.build-cache == 'true'
       id: go-cache-paths
       shell: bash
       run: |
         echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
         echo "modules=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
 
-    - name: Cache Go modules
-      if: inputs.cache == 'true'
+    - name: Restore and save Go modules
+      if: inputs.cache == 'true' && inputs.save-cache == 'true' && (inputs.verify-modules == 'true' || runner.os != 'Linux')
       uses: actions/cache@v6
       with:
         path: ${{ steps.go-cache-paths.outputs.modules }}
@@ -63,25 +76,33 @@ runs:
         restore-keys: |
           ${{ runner.os }}-${{ runner.arch }}-gomod-
 
+    - name: Restore Go modules
+      if: inputs.cache == 'true' && !(inputs.save-cache == 'true' && (inputs.verify-modules == 'true' || runner.os != 'Linux'))
+      uses: actions/cache/restore@v6
+      with:
+        path: ${{ steps.go-cache-paths.outputs.modules }}
+        key: ${{ runner.os }}-${{ runner.arch }}-gomod-${{ hashFiles('go.sum', 'sdk/go/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ runner.arch }}-gomod-
+
     - name: Restore Go build cache
-      if: inputs.cache == 'true' && inputs.save-build-cache != 'true'
+      if: inputs.build-cache == 'true' && inputs.save-cache != 'true'
       uses: actions/cache/restore@v6
       with:
         path: ${{ steps.go-cache-paths.outputs.build }}
-        key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-${{ github.job }}${{ inputs.cache-key-suffix }}-${{ github.run_id }}
+        key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-${{ inputs.build-cache-job || github.job }}${{ inputs.cache-key-suffix }}-${{ github.run_id }}
         restore-keys: |
-          ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-${{ github.job }}${{ inputs.cache-key-suffix }}-
-          ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-
+          ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-${{ inputs.build-cache-job || github.job }}${{ inputs.cache-key-suffix }}-
 
-    - name: Restore and save Go build cache
-      if: inputs.cache == 'true' && inputs.save-build-cache == 'true'
+    # No restore-keys: the run-scoped key never matches, so the saving job
+    # starts cold and stores only what it compiled, instead of growing the
+    # entry it restored.
+    - name: Save Go build cache
+      if: inputs.build-cache == 'true' && inputs.save-cache == 'true'
       uses: actions/cache@v6
       with:
         path: ${{ steps.go-cache-paths.outputs.build }}
         key: ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-${{ github.job }}${{ inputs.cache-key-suffix }}-${{ github.run_id }}
-        restore-keys: |
-          ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-${{ github.job }}${{ inputs.cache-key-suffix }}-
-          ${{ runner.os }}-${{ runner.arch }}-gobuild-${{ steps.setup-go.outputs.go-version }}-
 
     - name: Download Go modules
       if: inputs.verify-modules == 'true'
