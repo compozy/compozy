@@ -20,14 +20,17 @@ func (g *WorkspaceRepo) InsertWorkspace(ctx context.Context, ws compozyworkspace
 	if err != nil {
 		return err
 	}
-	deleted, err := g.readQueries.HasWorkspaceTelemetryTombstone(ctx, normalized.ID)
-	if err != nil {
-		return fmt.Errorf("store: read workspace telemetry tombstone: %w", err)
-	}
-	if deleted != 0 {
-		// Purge the previous registration without holding the core writer across telemetry batches.
-		if _, err := g.telemetry.DeleteScope(ctx, "workspace", normalized.ID); err != nil {
-			return fmt.Errorf("store: purge previous workspace telemetry: %w", err)
+	var deleted int64
+	if g.telemetry != nil {
+		deleted, err = g.readQueries.HasWorkspaceTelemetryTombstone(ctx, normalized.ID)
+		if err != nil {
+			return fmt.Errorf("store: read workspace telemetry tombstone: %w", err)
+		}
+		if deleted != 0 {
+			// Purge the previous registration without holding the core writer across telemetry batches.
+			if _, err := g.telemetry.DeleteScope(ctx, "workspace", normalized.ID); err != nil {
+				return fmt.Errorf("store: purge previous workspace telemetry: %w", err)
+			}
 		}
 	}
 
@@ -47,6 +50,9 @@ func (g *WorkspaceRepo) InsertWorkspace(ctx context.Context, ws compozyworkspace
 				UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
 			}); err != nil {
 				return err
+			}
+			if g.telemetry == nil {
+				return nil
 			}
 			removed, err := queries.DeleteWorkspaceTelemetryTombstone(ctx, normalized.ID)
 			if err != nil || removed == 0 {

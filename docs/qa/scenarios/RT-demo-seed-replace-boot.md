@@ -27,3 +27,6 @@ Re-registration must purge telemetry from the deleted registration before removi
 so new summaries remain writable and visible without reviving deleted summaries. The real SQLite
 `TestSeed/Should_persist_one_coherent_scenario_and_replace_it_without_duplication` suite verifies
 successive replacements. The live-daemon walk remains owned by CI under the host-load restriction.
+Historical migration-prefix repositories have no telemetry store: workspace registration must still
+work before the telemetry schema exists. `TestGlobalDBSessionPromptAdmissionMigration` owns that
+upgrade fixture path; current-schema replacement retains the telemetry ownership checks above.
