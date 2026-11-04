@@ -464,8 +464,9 @@ Display names allow 80 characters after trimming; descriptions allow 280. Blank 
 the humanized slug. Appearance supports `generated` (seed and generation), `icon` (a Lucide slug),
 or `emoji` (one emoji), with a `#rrggbb` color. An icon or emoji sits on a tinted plate unless
 `background: none` draws it alone in its color. Omitted appearance resolves from the slug at read time,
-except the built-in `general` agent, which draws a gray `sparkles` icon without a plate. The agents that
-ship with CompozyOS's built-in extensions use gray icons without a plate too:
+except the built-in `general` agent, which draws a gray `sparkles` icon without a plate. The on-demand agents
+that ship with CompozyOS's built-in extensions use gray icons without a plate too; always-on agents,
+bundled or not, keep their generated face:
 
 ```yaml
 appearance:
