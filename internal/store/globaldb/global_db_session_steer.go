@@ -162,3 +162,19 @@ func (g *SessionRepo) CancelPendingSessionSteer(ctx context.Context, sessionID, 
 	}
 	return nil
 }
+
+func supersedeBoundarySteersForInterrupt(
+	ctx context.Context,
+	exec globalSQLExecutor,
+	req store.SessionInputQueueInsert,
+) ([]string, error) {
+	if !store.IsHumanSessionInputOriginClass(req.OriginClass) {
+		return nil, nil
+	}
+	return sqlcgen.New(exec).SupersedeBoundarySteersForInterrupt(ctx, sqlcgen.SupersedeBoundarySteersForInterruptParams{
+		SessionID:         req.SessionID,
+		TargetTurnID:      req.TargetTurnID,
+		SessionGeneration: req.SessionGeneration,
+		Now:               nullableSessionTime(req.Now),
+	})
+}

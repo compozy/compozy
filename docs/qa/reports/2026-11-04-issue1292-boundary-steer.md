@@ -15,8 +15,7 @@ attribute those historical sessions to a stale cache or adapter. The disposable 
 initialization did drop `_meta`; it now preserves the announcement, with a regression at that owner.
 The ordinary startup regression also explicitly exercises the Claude provider identity.
 
-Live probe evidence is retained by the supervised terminal `term-84ece0d2b9dd`; the raw initialize
-capture and lab manifest remain in the isolated QA output. No credentials or account metadata are
+The supervised live probe, raw initialize capture and lab manifest remain in the isolated QA output. No credentials or account metadata are
 included in this report.
 
 ## Boundary behavior
@@ -40,7 +39,7 @@ zero timeout when their invariant is immediate cancellation; their assertions re
 - PASS: focused session race tests for boundary behavior, legacy immediate fallback and promotion replay.
 - PASS: real ACP subprocess fallback integration with race, including kill/rebind and input ordering.
 - PASS: canonical migration sequence, integrity and schema-equivalence checks.
-- PASS: root Turbo Web typecheck; 15 Web busy-input/provenance tests; changed-file Web lint.
+- PASS: root Turbo Web typecheck; 16 Web busy-input/provenance tests; changed-file Web lint.
 - PASS: `make codegen` and the root Turbo `codegen-check` dependency.
 
 Two earlier overbroad local race selections exceeded their command timeouts on this shared host.
@@ -48,9 +47,8 @@ They are not passing receipts. The final bounded selections use anchored test na
 parallelism. The first codegen attempt encountered an uninstalled dependency patch; a frozen Bun
 install restored the lockfile's patch and subsequent codegen passed.
 
-The migration-row preservation rerun and focused Go lint both passed. Delivery still requires
-the requested Claude Opus 5.5/high review and all current-head PR checks and external reviews. Broad gates and E2E
-remain CI-owned. No interactive browser walk is claimed; Web state presentation has typecheck,
+The migration-row preservation rerun and focused Go lint both passed. Claude Opus 5.5/high reviewed the implementation and its corrective changes. Delivery still requires
+all current-head PR checks and external reviews. Broad gates and E2E remain CI-owned. No interactive browser walk is claimed; Web state presentation has typecheck,
 read-model tests, and scoped lint evidence.
 
 The targeted provider QA auditor passed, and owned-lab teardown reported `TEARDOWN_ALL_CLEAN=true`.
@@ -67,9 +65,12 @@ The expanded boundary suite and native descriptor suite passed with race.
 Tool events still bypass the 25 ms chunk coalescer to preserve the requested immediate boundary.
 Fallback protection also applies when native injection is refused or unavailable for a particular
 message; prediction reflects the advertised capability, while the acceptance receipt remains
-final delivery truth. Explicit interrupt cancels immediately and supersedes older pending-boundary steering so its
-replacement text runs next, while ordinary queued input is retained. The expanded manager suite
-covers this overlap. All eight boundary cases and the affected fallback/promotion suites passed
+final delivery truth. Explicit interrupt cancels immediately and atomically supersedes older pending-boundary or released
+fallback steering in the replacement admission transaction, while ordinary queued input is retained.
+Both admission paths share that transaction; an insert failure rolls back the supersession. Terminal
+markers are emitted even when the target turn ends before activation, and superseded Web provenance
+remains terminal when an older delivery marker arrives late. The expanded manager suite
+covers this overlap. The boundary cases and the affected fallback/promotion suites passed
 with race after that correction (23.182s).
 The existing no-tool-events browser fixture now requires `after_turn` and the corresponding inline
 feedback, rather than accepting an open-ended delivery list. Its E2E execution is CI-owned.
@@ -78,6 +79,7 @@ Final local commands (all PASS on the reviewed source):
 
 ```sh
 CGO_ENABLED=1 go test -race ./internal/session -parallel=4 -run '^(TestManagerLiveSteerDelivery|TestManagerBoundarySteer|TestManagerBusyInputActivationCleanup|TestManagerPendingInputPromotionReplay)$' -count=1 -timeout=60s
+CGO_ENABLED=1 go test -race ./internal/store/globaldb -parallel=2 -run '^TestGlobalDBSessionInputQueueGeneration$/^Should_atomically_supersede_undelivered_steering_when_admitting_an_interrupt$' -count=1 -timeout=60s
 CGO_ENABLED=1 go test -race ./internal/tools/builtin -run '^TestBuiltinNativeDescriptors$' -count=1 -timeout=60s
 CGO_ENABLED=1 go test -race ./internal/acp ./internal/config -parallel=4 -run 'Test(AuthenticationSteerCapability|StartCapturesSteerCapability|SessionBusyInputConfigDefaultsAndValidation|SteerCapabilityResolution)' -count=1 -timeout=60s
 CGO_ENABLED=1 go test -race -tags=integration ./internal/session -run TestManagerIntegrationSteerFallback -count=1 -timeout=90s
@@ -93,6 +95,6 @@ Changed-file Oxlint passed for the Web consumers and E2E contract. The test-shap
 new diagnostics against the base version; preexisting whole-file diagnostics were left outside scope.
 The temporary provider probe was removed from the checkout after its source was retained in the lab.
 
-The second review identified and corrected this interrupt/parked-steer ordering gap plus stale
-delivery-table and configuration-lifecycle prose. The documented `after_turn` ordering remains
+Review follow-ups corrected interrupt/parked-steer ordering, atomicity, completed-turn markers, and
+stale delivery-table and configuration-lifecycle prose. The documented `after_turn` ordering remains
 queue-like, as requested; newer steering may supersede undelivered guidance.

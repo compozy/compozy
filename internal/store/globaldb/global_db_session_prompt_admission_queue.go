@@ -84,14 +84,19 @@ func enqueueAdmittedSessionInputInTransaction(
 	if err != nil || replayed {
 		return err
 	}
+	var superseded []string
 	if queueReq.Mode == store.SessionInputQueueModeInterrupt {
 		queueReq, err = prepareInterruptSessionInput(ctx, exec, queueReq)
 		if err != nil {
 			return err
 		}
+		superseded, err = supersedeBoundarySteersForInterrupt(ctx, exec, queueReq)
+		if err != nil {
+			return err
+		}
+		result.canceled = len(superseded)
 	}
 	bound := bindQueueAdmission(queueReq, claimed).Normalize()
-	var superseded []string
 	if queueReq.Mode == store.SessionInputQueueModeQueue {
 		superseded, err = cancelSupersededAgentSessionInputs(ctx, exec, bound, admissionReq.Now)
 		if err != nil {

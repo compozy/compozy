@@ -1667,6 +1667,51 @@ func (q *Queries) SettlePendingSessionSteer(ctx context.Context, arg SettlePendi
 	return result.RowsAffected()
 }
 
+const supersedeBoundarySteersForInterrupt = `-- name: SupersedeBoundarySteersForInterrupt :many
+UPDATE session_input_queue
+SET status = 'canceled', dispatchable = 0, canceled_at = ?1, updated_at = ?1
+WHERE session_id = ?2 AND target_turn_id = ?3
+  AND session_generation = ?4
+  AND status = 'queued' AND mode = 'steer' AND origin_class = 'human'
+  AND steer_delivery IN ('pending_boundary', 'interrupt_fallback')
+RETURNING id
+`
+
+type SupersedeBoundarySteersForInterruptParams struct {
+	Now               sql.NullString `json:"now"`
+	SessionID         string         `json:"session_id"`
+	TargetTurnID      string         `json:"target_turn_id"`
+	SessionGeneration int64          `json:"session_generation"`
+}
+
+func (q *Queries) SupersedeBoundarySteersForInterrupt(ctx context.Context, arg SupersedeBoundarySteersForInterruptParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, supersedeBoundarySteersForInterrupt,
+		arg.Now,
+		arg.SessionID,
+		arg.TargetTurnID,
+		arg.SessionGeneration,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const syntheticSessionInputAdmitted = `-- name: SyntheticSessionInputAdmitted :one
 SELECT EXISTS(
   SELECT 1 FROM session_input_queue

@@ -6739,6 +6739,40 @@ func TestQueuedAgentCommandDelivery(t *testing.T) {
 
 func TestManagerBoundarySteer(t *testing.T) {
 	t.Parallel()
+	t.Run("Should mark superseded steering when the target turn has already ended", func(t *testing.T) {
+		t.Parallel()
+		database := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(database))
+		registerManagerInputQueueWorkspace(t, database, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, database, h, sess)
+		t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+		if _, _, err := database.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "parked-steer", SessionID: sess.ID, Text: "older guidance",
+			Mode: store.SessionInputQueueModeSteer, SteerDelivery: store.SteerDeliveryPendingBoundary,
+			TargetTurnID: "ended-turn", Delivery: store.SessionInputDeliveryInterruptThenPrompt, QueueCap: 10,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		replacement, _, err := database.EnqueueInterruptSessionInput(ctx, store.SessionInputQueueInsert{
+			ID: "replacement", SessionID: sess.ID, Text: "replacement", TargetTurnID: "ended-turn", QueueCap: 10,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := h.manager.activateInterruptingInput(ctx, sess, &replacement); err != nil {
+			t.Fatal(err)
+		}
+		marker := requireTranscriptMarker(t, h.manager, sess.ID, transcript.MarkerPromptSuperseded)
+		if marker.Evidence["queue_entry_id"] != "parked-steer" || marker.Evidence["authored_text"] != "older guidance" {
+			t.Fatalf("superseded marker=%#v", marker.Evidence)
+		}
+		if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+			t.Fatal(err)
+		}
+	})
 	for _, tc := range []struct {
 		name             string
 		tools            bool
@@ -6843,7 +6877,16 @@ func TestManagerBoundarySteer(t *testing.T) {
 				}
 				parkedID = parked.QueueEntryID
 			}
-			result, err := h.manager.SendPrompt(ctx, sess.ID, SendPromptOpts{Message: "replacement", Mode: tc.mode})
+			result, err := h.manager.SendPrompt(
+				ctx,
+				sess.ID,
+				SendPromptOpts{
+					Message:        "replacement",
+					Mode:           tc.mode,
+					MessageID:      "boundary-replacement",
+					IdempotencyKey: "boundary-replacement",
+				},
+			)
 			if err != nil {
 				t.Fatal(err)
 			}

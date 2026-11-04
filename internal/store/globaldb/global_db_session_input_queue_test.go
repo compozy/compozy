@@ -23,6 +23,75 @@ import (
 )
 
 func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
+	t.Run("Should atomically supersede undelivered steering when admitting an interrupt", func(t *testing.T) {
+		t.Parallel()
+		for _, delivery := range []store.SteerDeliveryMode{store.SteerDeliveryPendingBoundary, store.SteerDeliveryInterruptFallback} {
+			for _, rollback := range []bool{false, true} {
+				t.Run(
+					fmt.Sprintf("Should preserve atomic supersede for %s rollback %t", delivery, rollback),
+					func(t *testing.T) {
+						t.Parallel()
+						ctx := t.Context()
+						db := openTestGlobalDB(t)
+						sessionID := registerInputQueueSession(t, db)
+						now := time.Date(2026, 11, 4, 22, 0, 0, 0, time.UTC)
+						for _, entry := range []store.SessionInputQueueInsert{
+							{ID: "queued", SessionID: sessionID, Text: "ordinary queue", QueueCap: 10, Now: now},
+							{ID: "old-steer", SessionID: sessionID, Text: "guidance", Mode: store.SessionInputQueueModeSteer, SteerDelivery: delivery, TargetTurnID: "active-turn", Delivery: store.SessionInputDeliveryInterruptThenPrompt, QueueCap: 10, Now: now},
+						} {
+							if _, _, err := db.EnqueueSessionInput(ctx, entry); err != nil {
+								t.Fatal(err)
+							}
+						}
+						id := "interrupt"
+						if rollback {
+							id = "queued"
+						}
+						replacement, canceled, err := db.EnqueueInterruptSessionInput(
+							ctx,
+							store.SessionInputQueueInsert{
+								ID:           id,
+								SessionID:    sessionID,
+								Text:         "replacement",
+								TargetTurnID: "active-turn",
+								QueueCap:     10,
+								Now:          now.Add(time.Second),
+							},
+						)
+						if rollback {
+							if err == nil {
+								t.Fatal("duplicate interrupt unexpectedly admitted")
+							}
+						} else if err != nil || canceled != 1 || !slices.Equal(replacement.SupersededIDs, []string{"old-steer"}) {
+							t.Fatalf("interrupt=%#v/%d/%v", replacement, canceled, err)
+						}
+						old, err := db.GetSessionInputQueueEntry(ctx, sessionID, "old-steer")
+						if err != nil {
+							t.Fatal(err)
+						}
+						want := store.SessionInputQueueStatusCanceled
+						if rollback {
+							want = store.SessionInputQueueStatusQueued
+						}
+						if old.Status != want {
+							t.Fatalf("old steering status=%s, want %s", old.Status, want)
+						}
+						queued, err := db.GetSessionInputQueueEntry(ctx, sessionID, "queued")
+						if err != nil || queued.Status != store.SessionInputQueueStatusQueued {
+							t.Fatalf("ordinary queue=%#v/%v", queued, err)
+						}
+						if !rollback {
+							claimed, ok, err := db.ClaimNextSessionInput(ctx, sessionID, now.Add(2*time.Second))
+							if err != nil || !ok || claimed.ID != "interrupt" {
+								t.Fatalf("next input=%#v/%t/%v", claimed, ok, err)
+							}
+						}
+					},
+				)
+			}
+		}
+	})
+
 	t.Run("Should preserve a bounded Goal input batch across new arrivals and reopen", func(t *testing.T) {
 		t.Parallel()
 		ctx := t.Context()

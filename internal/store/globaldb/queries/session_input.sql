@@ -433,3 +433,12 @@ SELECT EXISTS (SELECT 1 FROM session_input_queue AS queued WHERE queued.session_
  AND queued.turn_id = sqlc.arg(turn_id) AND queued.origin_class = 'human' AND queued.status IN ('dispatching','sent')
  UNION ALL SELECT 1 FROM session_prompt_admissions AS admitted WHERE admitted.session_id = sqlc.arg(session_id)
  AND admitted.turn_id = sqlc.arg(turn_id) AND admitted.human_ingress = 1 AND admitted.dispatch_committed_at IS NOT NULL);
+
+-- name: SupersedeBoundarySteersForInterrupt :many
+UPDATE session_input_queue
+SET status = 'canceled', dispatchable = 0, canceled_at = sqlc.arg(now), updated_at = sqlc.arg(now)
+WHERE session_id = sqlc.arg(session_id) AND target_turn_id = sqlc.arg(target_turn_id)
+  AND session_generation = sqlc.arg(session_generation)
+  AND status = 'queued' AND mode = 'steer' AND origin_class = 'human'
+  AND steer_delivery IN ('pending_boundary', 'interrupt_fallback')
+RETURNING id;

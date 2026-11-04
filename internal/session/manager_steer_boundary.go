@@ -146,29 +146,20 @@ func (s *Session) openToolCallCountLocked() int {
 	return count
 }
 
-func (m *Manager) supersedeBoundarySteers(
+func (m *Manager) emitInterruptSupersededSteers(
 	ctx context.Context,
 	session *Session,
 	replacement *store.SessionInputQueueEntry,
-) error {
-	entries, err := m.inputQueue.List(ctx, session.ID)
-	if err != nil {
-		return err
-	}
-	for index := range entries {
-		entry := &entries[index]
-		if entry.ID == replacement.ID || entry.TargetTurnID != replacement.TargetTurnID ||
-			entry.SteerDelivery != store.SteerDeliveryPendingBoundary ||
-			!store.IsHumanSessionInputOriginClass(entry.OriginClass) {
-			continue
+) {
+	for _, id := range replacement.SupersededIDs {
+		evidence := map[string]any{promptEvidenceQueueEntryIDKey: id, "replacement_entry_id": replacement.ID}
+		entry, err := m.inputQueue.Get(ctx, session.ID, id)
+		if err != nil {
+			m.sessionLogger(session).Warn("session: read superseded steering failed", "entry_id", id, "error", err)
+		} else {
+			addSteerAuthoredEvidence(evidence, &entry)
 		}
-		if _, err := m.inputQueue.Cancel(ctx, session.ID, entry.ID); err != nil {
-			return err
-		}
-		evidence := map[string]any{promptEvidenceQueueEntryIDKey: entry.ID, "replacement_entry_id": replacement.ID}
-		addSteerAuthoredEvidence(evidence, entry)
-		m.emitTranscriptMarker(ctx, session, entry.TargetTurnID, transcript.MarkerPromptSuperseded,
+		m.emitTranscriptMarker(ctx, session, replacement.TargetTurnID, transcript.MarkerPromptSuperseded,
 			"Undelivered steering replaced by an explicit interrupt.", evidence)
 	}
-	return nil
 }

@@ -34,6 +34,9 @@ func (m *Manager) activateInterruptingInput(
 	if session == nil {
 		return errors.New("session: session is required")
 	}
+	if entry.Mode == store.SessionInputQueueModeInterrupt && store.IsHumanSessionInputOriginClass(entry.OriginClass) {
+		m.emitInterruptSupersededSteers(ctx, session, entry)
+	}
 	if !session.IsPrompting() {
 		m.startNextQueuedInputPrompt(session.ID)
 		return nil
@@ -46,11 +49,6 @@ func (m *Manager) activateInterruptingInput(
 			entry.TargetTurnID,
 			activeTurnID,
 		)
-	}
-	if entry.Mode == store.SessionInputQueueModeInterrupt && store.IsHumanSessionInputOriginClass(entry.OriginClass) {
-		if err := m.supersedeBoundarySteers(ctx, session, entry); err != nil {
-			return err
-		}
 	}
 	if err := m.CancelTurn(ctx, session.ID, entry.TargetTurnID, CauseUserRequested); err != nil {
 		return err
