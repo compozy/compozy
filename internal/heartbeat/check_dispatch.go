@@ -2,6 +2,7 @@ package heartbeat
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -77,6 +78,32 @@ func (s *CheckService) dispatch(
 		s.mu.Lock()
 		s.pending[occurrence] = req
 		s.mu.Unlock()
+	}
+}
+
+// ReasonTriageConfigUnavailable marks a check whose provider rejected the configured
+// triage model or runtime options. It is a configuration diagnostic, not a check failure,
+// so it never advances the failure streak that pauses an instance.
+const ReasonTriageConfigUnavailable = "triage_config_unavailable"
+
+// ConfigUnavailableTriage reports a provider configuration rejection with its diagnostic.
+func ConfigUnavailableTriage(detail string) TriageOutcome {
+	detail = strings.TrimSpace(detail)
+	if detail == "" {
+		detail = "The provider rejected the heartbeat model or runtime options."
+	}
+	payload, err := json.Marshal(struct {
+		Reason string `json:"reason"`
+		Detail string `json:"detail"`
+	}{Reason: ReasonTriageConfigUnavailable, Detail: detail})
+	if err != nil {
+		return failedTriage("triage_failed")
+	}
+	return TriageOutcome{
+		Result: "failed",
+		Reason: ReasonTriageConfigUnavailable,
+		Detail: detail,
+		Report: &agentinstance.ReportInput{Kind: "failure", Payload: payload},
 	}
 }
 

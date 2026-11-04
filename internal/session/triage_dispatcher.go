@@ -93,6 +93,9 @@ func (d *TriageDispatcher) Dispatch(
 				},
 			}, nil
 		}
+		if negotiationErr, ok := errors.AsType[*acp.NegotiationError](err); ok {
+			return heartbeat.ConfigUnavailableTriage(negotiationErr.Error()), nil
+		}
 		return outcome, err
 	}
 	// Cleanup cannot invalidate a completed triage result.

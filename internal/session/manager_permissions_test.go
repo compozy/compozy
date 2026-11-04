@@ -797,6 +797,32 @@ func TestTriageDispatcher(t *testing.T) {
 			t.Fatalf("directories=%v error=%v", entries, err)
 		}
 	})
+	// Invariant: a rejected triage model is a configuration diagnostic, not an ordinary failure.
+	t.Run("Should classify a rejected triage model as a configuration diagnostic", func(t *testing.T) {
+		t.Parallel()
+		h := newDeriveHarness(t).harness
+		h.driver.startHook = func(acp.StartOpts, int) (*fakeProcess, error) {
+			return nil, &acp.AcceptedStartError{SessionID: "acp-triage", Cause: fmt.Errorf(
+				"acp: set session model: %w",
+				&acp.NegotiationError{Code: acp.NegotiationCodeModelUnavailable, Stage: "model", Requested: "haiku"},
+			)}
+		}
+		dispatcher := &TriageDispatcher{
+			Manager: h.manager, Reports: triageTestReports{}, MaxProposals: 2, StopTimeout: time.Second,
+		}
+		outcome, err := dispatcher.Dispatch(
+			t.Context(),
+			&heartbeat.CheckTarget{Instance: agentinstance.Instance{
+				ID: "config-instance", AgentName: "coder", WorkspaceID: h.workspaceID,
+			}},
+			heartbeat.CheckDigest{},
+			func(string) error { t.Error("failed start bound a session"); return nil },
+		)
+		if err != nil || outcome.Result != "failed" || outcome.Reason != heartbeat.ReasonTriageConfigUnavailable ||
+			!strings.Contains(outcome.Detail, `model "haiku" is unavailable`) || outcome.Report == nil {
+			t.Fatalf("outcome=%+v error=%v, want configuration diagnostic", outcome, err)
+		}
+	})
 	t.Run("Should archive recovered triage and expire only retained triage", func(t *testing.T) {
 		t.Parallel()
 		h := newDeriveHarness(t).harness

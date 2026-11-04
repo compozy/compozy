@@ -3184,6 +3184,52 @@ func TestInstanceProposalDedupe(t *testing.T) {
 }
 
 func TestInstanceCheckFatigue(t *testing.T) {
+	// Invariant: a provider configuration rejection never advances the fatigue streak.
+	t.Run("Should keep configuration rejections out of the failure streak", func(t *testing.T) {
+		t.Parallel()
+		db := openTestGlobalDB(t)
+		workspace, main := registerHeartbeatWorkspaceAndSession(t, db, "wake-config", "sess-config-main")
+		repo := db.Instances()
+		instance, err := repo.Adopt(t.Context(), agentinstance.Instance{
+			ProfileID: store.DefaultProfileID, AgentName: "coder", WorkspaceID: workspace,
+			PermissionCeiling: "{}", CreatedByKind: "human",
+		}, main, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		now := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+		finish := func(occurrence string, outcome heartbeat.TriageOutcome) {
+			t.Helper()
+			if ok, err := repo.Admit(t.Context(), heartbeat.AdmitRequest{
+				InstanceID: instance.ID, OccurrenceID: occurrence, Now: now, ManualCheck: true, MaxConcurrent: 1,
+			}); err != nil || !ok {
+				t.Fatalf("admit=%v %v", ok, err)
+			}
+			if ok, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
+				InstanceID: instance.ID, OccurrenceID: occurrence, Source: "instance_check",
+				Result: outcome.Result, Reason: outcome.Reason, Detail: outcome.Detail, Report: outcome.Report,
+				Now: now, ExpiresAt: now.Add(time.Hour), FatigueLimit: 2,
+			}); err != nil || !ok.Changed {
+				t.Fatalf("finish=%v %v", ok, err)
+			}
+		}
+		finish("occ-ordinary", heartbeat.TriageOutcome{Result: "failed", Reason: "triage_failed"})
+		for i := range 3 {
+			finish(fmt.Sprintf("occ-config-%d", i), heartbeat.ConfigUnavailableTriage(`model "haiku" is unavailable`))
+		}
+		state, err := repo.WakeState(t.Context(), instance.ID)
+		if err != nil || state.FailureStreak != 1 {
+			t.Fatalf("failure streak=%+v err=%v, want only the ordinary failure", state, err)
+		}
+		current, err := repo.Get(t.Context(), instance.ID)
+		if err != nil || current.State != "active" {
+			t.Fatalf("instance=%+v err=%v, want active after configuration rejections", current, err)
+		}
+		finished, err := repo.Occurrence(t.Context(), instance.ID, "occ-config-2")
+		if err != nil || finished.Result != "failed" || finished.Reason != heartbeat.ReasonTriageConfigUnavailable {
+			t.Fatalf("occurrence=%+v err=%v, want configuration diagnostic", finished, err)
+		}
+	})
 	t.Run("Should pause at the failure limit and persist one fatigue report on retry", func(t *testing.T) {
 		t.Parallel()
 		db := openTestGlobalDB(t)

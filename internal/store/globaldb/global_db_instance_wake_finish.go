@@ -44,7 +44,7 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 			if err := deduplicateInstanceProposals(ctx, q, &req); err != nil {
 				return err
 			}
-			completed, quiet, failures, err := instanceWakeStreaks(req.Result, row.QuietStreak, row.FailureStreak)
+			completed, quiet, failures, err := instanceWakeStreaks(&req, row.QuietStreak, row.FailureStreak)
 			if err != nil {
 				return err
 			}
@@ -105,8 +105,11 @@ func validateInstanceWakeFinish(req *heartbeat.FinishRequest) error {
 	return nil
 }
 
-func instanceWakeStreaks(result string, quiet, failures int64) (int, int64, int64, error) {
-	switch result {
+func instanceWakeStreaks(req *heartbeat.FinishRequest, quiet, failures int64) (int, int64, int64, error) {
+	if req.Result == loopNodeOutputFailed && !countsAsCheckFailure(req) {
+		return 0, quiet, failures, nil
+	}
+	switch req.Result {
 	case instanceWakeQuietResult:
 		return 1, quiet + 1, 0, nil
 	case instanceWakeReportedResult:
@@ -183,7 +186,7 @@ func pauseFatiguedInstance(
 	req *heartbeat.FinishRequest,
 	failures int64,
 ) error {
-	if req.Result == loopNodeOutputFailed && req.FatigueLimit > 0 && failures >= req.FatigueLimit {
+	if countsAsCheckFailure(req) && req.FatigueLimit > 0 && failures >= req.FatigueLimit {
 		if changed, err := q.PauseAgentInstance(ctx, sqlcgen.PauseAgentInstanceParams{
 			ID: req.InstanceID, PauseReason: "fatigue", UpdatedAt: store.FormatTimestamp(req.Now),
 		}); err != nil {
@@ -245,9 +248,15 @@ func recordFinishedWakeEvent(ctx context.Context, q *sqlcgen.Queries, req *heart
 const instanceWakeReportedResult = "reported"
 
 func countFinishedCheck(ctx context.Context, q *sqlcgen.Queries, req *heartbeat.FinishRequest) error {
-	if req.Result != instanceWakeReportedResult && req.Result != loopNodeOutputFailed {
+	if req.Result != instanceWakeReportedResult && !countsAsCheckFailure(req) {
 		return nil
 	}
 	_, err := advanceInstanceUnattended(ctx, q, req.InstanceID, req.OccurrenceID, req.UnattendedTurnLimit, req.Now)
 	return err
+}
+
+// countsAsCheckFailure excludes provider configuration rejections: the triage turn never ran,
+// so the rejection must not advance the failure streak, fatigue pause, or unattended budget.
+func countsAsCheckFailure(req *heartbeat.FinishRequest) bool {
+	return req.Result == loopNodeOutputFailed && req.Reason != heartbeat.ReasonTriageConfigUnavailable
 }
