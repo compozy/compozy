@@ -155,3 +155,9 @@ Focused regression receipt 2026-11-04: the real SQLite/ACP
 that spelled the persisted reason as `hook_canceled`. The runtime and pre-existing source
 contract retain `hook_cancelled`; restore that exact expectation rather than rename stored data.
 This fixture correction preserves the assertion and the public reason contract.
+
+CI fixture alignment 2026-11-04: IT-011 verifies the documented post-poll policy-change skip
+(`heartbeat_invalid`) as a second wake event while retaining all stale-state generation and
+null-cursor assertions. The catalog E2E creates an explicit always-on agent and writes its source
+script beside the profile-owned definition created by the CLI, rather than the old shared agent
+folder. The real browser/runtime E2E remains CI-only under the shared-host restriction.

@@ -1114,6 +1114,8 @@ func TestDaemonE2EHeartbeatSourceCatalog(t *testing.T) {
 			name,
 			"--workspace",
 			harness.WorkspaceRoot,
+			"--kind",
+			"always_on",
 			"--provider",
 			acpmock.ProviderName,
 			"--model",
@@ -1123,7 +1125,8 @@ func TestDaemonE2EHeartbeatSourceCatalog(t *testing.T) {
 			"-o",
 			"json",
 		)
-		dir := filepath.Join(harness.WorkspaceRoot, ".compozy", "agents", name)
+		dir := filepath.Join(harness.WorkspaceRoot, compozyconfig.DirName, compozyconfig.ProfilesDirName,
+			"default", compozyconfig.AgentsDirName, name)
 		if err := os.MkdirAll(filepath.Join(dir, "sources"), 0700); err != nil {
 			t.Fatal(err)
 		}

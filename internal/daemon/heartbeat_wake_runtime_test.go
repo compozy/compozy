@@ -2024,7 +2024,16 @@ func TestHeartbeatSourceRetention(t *testing.T) {
 			"late batch discarded",
 			func() bool { return h.checks.SourceMetrics()["heartbeat_source_collections_inflight"] == 0 },
 		)
-		h.waitIdle(t, 1)
+		h.waitIdle(t, 2)
+		var reason string
+		if err := h.db.DB().QueryRowContext(t.Context(),
+			"SELECT reason FROM agent_heartbeat_wake_events WHERE instance_id=? ORDER BY created_at DESC LIMIT 1",
+			h.instance.ID).Scan(&reason); err != nil {
+			t.Fatal(err)
+		}
+		if reason != "heartbeat_invalid" {
+			t.Fatalf("late batch reason = %q, want heartbeat_invalid", reason)
+		}
 		after := h.states(t)[0]
 		if after.Generation != reset[0].Generation || len(after.State) != 0 {
 			t.Fatalf("late batch committed: %+v", after)
