@@ -24,23 +24,24 @@ func (e *bootstrapLockOwnerBusy) Error() string {
 
 func (e *bootstrapLockOwnerBusy) Unwrap() error { return e.cause }
 
-// classifyBootstrapLockOwner turns a failed child start into lock contention when another live
-// process holds the daemon lock. A dead or absent owner keeps the original launch failure, so
-// stale locks recover through the normal start retries.
+// classifyBootstrapLockOwner turns a failed child start into lock contention only when the daemon
+// lock is actually held and its recorded holder is alive. A free lock (stale file, possibly with a
+// recycled PID), an unrecorded holder, or a dead owner keeps the original launch failure, so those
+// cases recover or fail through the normal start retries.
 func classifyBootstrapLockOwner(
 	deps commandDeps,
 	homePaths compozyconfig.HomePaths,
 	childPID int,
 	startErr error,
 ) error {
-	ownerPID, err := deps.readDaemonLockOwner(homePaths.DaemonLock)
+	owner, err := deps.inspectDaemonLock(homePaths.DaemonLock)
 	if err != nil {
 		return errors.Join(startErr, fmt.Errorf("cli: inspect daemon lock owner: %w", err))
 	}
-	if ownerPID <= 0 || ownerPID == childPID || !deps.processAlive(ownerPID) {
+	if !owner.Held || owner.PID <= 0 || owner.PID == childPID || !deps.processAlive(owner.PID) {
 		return startErr
 	}
-	return &bootstrapLockOwnerBusy{pid: ownerPID, cause: startErr}
+	return &bootstrapLockOwnerBusy{pid: owner.PID, cause: startErr}
 }
 
 // attachBootingOwner waits for the live lock owner instead of launching competing daemons.

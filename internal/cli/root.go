@@ -83,7 +83,7 @@ type commandDeps struct {
 	processAlive                func(pid int) bool
 	processMatchesStartTime     func(pid int, startedAt time.Time) bool
 	processOwnsFileLock         func(pid int, path string) (bool, error)
-	readDaemonLockOwner         func(path string) (int, error)
+	inspectDaemonLock           func(path string) (compozydaemon.LockOwner, error)
 	executable                  func() (string, error)
 	getwd                       func() (string, error)
 	getenv                      func(string) string

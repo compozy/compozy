@@ -156,8 +156,8 @@ func (d commandDeps) withDaemonRuntimeDefaults() commandDeps {
 }
 
 func (d commandDeps) withBootstrapDefaults() commandDeps {
-	if d.readDaemonLockOwner == nil {
-		d.readDaemonLockOwner = compozydaemon.LockOwnerPID
+	if d.inspectDaemonLock == nil {
+		d.inspectDaemonLock = compozydaemon.InspectLockOwner
 	}
 	if d.spawnBootstrapRuntime == nil {
 		d.spawnBootstrapRuntime = func(

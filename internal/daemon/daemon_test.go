@@ -229,8 +229,8 @@ func TestAcquireLockFailsWhenAnotherDaemonHoldsTheLock(t *testing.T) {
 	if !errors.Is(err, ErrAlreadyRunning) {
 		t.Fatalf("AcquireLock(second) error = %v, want ErrAlreadyRunning", err)
 	}
-	if ownerPID, err := LockOwnerPID(lockPath); err != nil || ownerPID != os.Getpid() {
-		t.Fatalf("LockOwnerPID() = %d, %v; want holder pid %d", ownerPID, err, os.Getpid())
+	if owner, err := InspectLockOwner(lockPath); err != nil || owner != (LockOwner{PID: os.Getpid(), Held: true}) {
+		t.Fatalf("InspectLockOwner(held) = %#v, %v; want held by pid %d", owner, err, os.Getpid())
 	}
 }
 
@@ -238,6 +238,9 @@ func TestAcquireLockReclaimsStalePID(t *testing.T) {
 	lockPath := filepath.Join(t.TempDir(), "daemon.lock")
 	if err := os.WriteFile(lockPath, []byte("999999\n"), 0o644); err != nil {
 		t.Fatalf("os.WriteFile(lock) error = %v", err)
+	}
+	if owner, err := InspectLockOwner(lockPath); err != nil || owner.Held {
+		t.Fatalf("InspectLockOwner(stale) = %#v, %v; want a free lock", owner, err)
 	}
 
 	lock, err := acquireLock(lockPath, 1234, lockDeps{

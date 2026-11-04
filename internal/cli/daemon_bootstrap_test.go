@@ -895,6 +895,7 @@ type bootstrapLockOwnerFixture struct {
 	homePaths  compozyconfig.HomePaths
 	ownerPID   int
 	ownerAlive bool
+	lockHeld   bool
 	// bootAfterProbes publishes the owner's daemon record after this many post-spawn probes; 0 never boots.
 	bootAfterProbes int
 	// recoverOnSpawn makes this spawn attempt (1-based) a healthy child; 0 never recovers.
@@ -905,7 +906,7 @@ type bootstrapLockOwnerFixture struct {
 
 func newBootstrapLockOwnerFixture(t *testing.T) *bootstrapLockOwnerFixture {
 	t.Helper()
-	fixture := &bootstrapLockOwnerFixture{ownerPID: 777, ownerAlive: true}
+	fixture := &bootstrapLockOwnerFixture{ownerPID: 777, ownerAlive: true, lockHeld: true}
 	startedAt := time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
 	var socketPath string
 	statusFor := func(pid int) DaemonStatus {
@@ -940,11 +941,11 @@ func newBootstrapLockOwnerFixture(t *testing.T) *bootstrapLockOwnerFixture {
 	deps.executable = os.Executable
 	deps.pollInterval = time.Millisecond
 	deps.startTimeout = time.Second
-	deps.readDaemonLockOwner = func(path string) (int, error) {
+	deps.inspectDaemonLock = func(path string) (compozydaemon.LockOwner, error) {
 		if path != homePaths.DaemonLock {
-			t.Fatalf("readDaemonLockOwner(%q), want %q", path, homePaths.DaemonLock)
+			t.Fatalf("inspectDaemonLock(%q), want %q", path, homePaths.DaemonLock)
 		}
-		return fixture.ownerPID, nil
+		return compozydaemon.LockOwner{PID: fixture.ownerPID, Held: fixture.lockHeld}, nil
 	}
 	deps.processAlive = func(pid int) bool {
 		if pid == fixture.ownerPID {
@@ -1028,9 +1029,9 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 		}
 	})
 
-	t.Run("Should recover a stale lock through the start path", func(t *testing.T) {
+	t.Run("Should recover a stale lock whose recorded pid was recycled through the start path", func(t *testing.T) {
 		fixture := newBootstrapLockOwnerFixture(t)
-		fixture.ownerAlive = false
+		fixture.lockHeld = false
 		fixture.recoverOnSpawn = 2
 
 		events, err := fixture.run(t)
@@ -1038,7 +1039,7 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 			t.Fatalf("bootstrap error = %v; events=%#v", err, events)
 		}
 		if got := countBootstrapEvents(events, bootstrapPhaseAttach, bootstrapStatusStarted); got != 0 {
-			t.Fatalf("attach started events = %d, want none for a dead lock owner; events=%#v", got, events)
+			t.Fatalf("attach started events = %d, want none for a free lock; events=%#v", got, events)
 		}
 		if got := countBootstrapEvents(events, bootstrapPhaseStart, bootstrapStatusRetrying); got != 1 {
 			t.Fatalf("retrying events = %d, want 1 failed launch before recovery; events=%#v", got, events)
