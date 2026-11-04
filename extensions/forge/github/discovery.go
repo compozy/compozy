@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	c "github.com/compozy/compozy/internal/extension/contract"
+	compozysdk "github.com/compozy/compozy/sdk/go"
 )
 
 const prSearchQueryKey = "query"
@@ -78,7 +80,7 @@ func (p *Provider) SearchPRs(ctx context.Context, request c.ForgePRSearchRequest
 		map[string]any{prSearchQueryKey: prSearchQuery, "variables": variables},
 		&response,
 	); err != nil {
-		return result, err
+		return result, discoveryError(err)
 	}
 	for _, node := range response.Data.Search.Nodes {
 		if node.Number < 1 || node.HeadRefName == "" {
@@ -102,7 +104,7 @@ func (p *Provider) SearchPRs(ctx context.Context, request c.ForgePRSearchRequest
 	}
 	result.HasMore = response.Data.Search.PageInfo.HasNextPage
 	if len(response.Errors) > 0 && len(result.Items) == 0 {
-		return result, errors.New("forge pull request search failed")
+		return result, searchError(response.Errors)
 	}
 	return result, nil
 }
@@ -128,7 +130,7 @@ func (p *Provider) ReadPR(ctx context.Context, request c.ForgePRReadRequest) (c.
 		nil,
 		&pull,
 	); err != nil {
-		return c.ForgePRCandidate{}, err
+		return c.ForgePRCandidate{}, discoveryError(err)
 	}
 	state := pull.State
 	if pull.MergedAt != nil {
@@ -146,4 +148,28 @@ func (p *Provider) ReadPR(ctx context.Context, request c.ForgePRReadRequest) (c.
 		Branch:         pull.Head.Ref,
 		State:          state,
 	}, nil
+}
+
+// searchError reports a search that returned only errors, keeping a GraphQL rate limit distinct.
+func searchError(failures []graphError) error {
+	for i := range failures {
+		if failures[i].Type == "RATE_LIMITED" {
+			return discoveryError(&githubAPIError{cause: c.ForgeCauseRateLimited, status: http.StatusTooManyRequests})
+		}
+	}
+	return errors.New("forge pull request search failed")
+}
+
+// discoveryError reports a rate limit as JSON-RPC error data the daemon reads, so a refused search
+// or read pauses every forge read until the reset like a refused status does.
+func discoveryError(err error) error {
+	apiErr, ok := errors.AsType[*githubAPIError](err)
+	if !ok || apiErr.cause != c.ForgeCauseRateLimited {
+		return err
+	}
+	data := map[string]any{"code": c.ForgeCauseRateLimited}
+	if apiErr.retryAfter != nil {
+		data["retry_after"] = apiErr.retryAfter.UTC().Format(time.RFC3339)
+	}
+	return compozysdk.NewRPCError(-32000, "GitHub rate limit reached; retry later", data)
 }

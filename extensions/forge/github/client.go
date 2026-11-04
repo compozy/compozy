@@ -136,21 +136,29 @@ func githubRateLimitSignalled(header http.Header, payload []byte) bool {
 		strings.Contains(strings.ToLower(string(payload)), "rate limit")
 }
 
-// githubRetryAfter prefers Retry-After, which secondary limits send, over the primary-limit reset.
-// Nil leaves the wait to the daemon's fallback.
+// githubRetryAfter returns when GitHub accepts requests again. Retry-After, which secondary limits send,
+// applies; while the primary quota is exhausted the later of it and X-RateLimit-Reset wins, so a short
+// Retry-After never reopens reads early. A secondary limit with quota left uses only Retry-After, and nil
+// leaves the wait to the daemon's one-minute fallback, as GitHub advises.
 func githubRetryAfter(header http.Header, now time.Time) *time.Time {
+	var retryAt *time.Time
 	if value := strings.TrimSpace(header.Get("Retry-After")); value != "" {
 		if seconds, err := strconv.Atoi(value); err == nil && seconds >= 0 {
-			return new(now.Add(time.Duration(seconds) * time.Second).UTC())
-		}
-		if at, err := http.ParseTime(value); err == nil {
-			return new(at.UTC())
+			retryAt = new(now.Add(time.Duration(seconds) * time.Second).UTC())
+		} else if at, err := http.ParseTime(value); err == nil {
+			retryAt = new(at.UTC())
 		}
 	}
-	if reset, err := strconv.ParseInt(header.Get("X-RateLimit-Reset"), 10, 64); err == nil && reset > 0 {
-		return new(time.Unix(reset, 0).UTC())
+	remaining := strings.TrimSpace(header.Get("X-RateLimit-Remaining"))
+	reset, err := strconv.ParseInt(header.Get("X-RateLimit-Reset"), 10, 64)
+	if err != nil || reset <= 0 || (remaining != "" && remaining != "0") {
+		return retryAt
 	}
-	return nil
+	resetAt := time.Unix(reset, 0).UTC()
+	if retryAt == nil || resetAt.After(*retryAt) {
+		return &resetAt
+	}
+	return retryAt
 }
 
 func repositoryAPIPath(repo repository, suffix string) string {

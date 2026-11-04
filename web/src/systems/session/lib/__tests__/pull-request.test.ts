@@ -228,7 +228,7 @@ describe("pullRequestChipModel", () => {
       })
     );
     expect(failed).toMatchObject({ stale: true, causeText: "Rate limited by GitHub" });
-    const retryAfter = "2026-11-04T16:05:00Z";
+    const retryAfter = new Date(Date.now() + 60 * 60 * 1000).toISOString();
     const limited = prChip(
       facts(DX_PR, {
         state: "error",
@@ -241,6 +241,17 @@ describe("pullRequestChipModel", () => {
     expect(limited.causeText).toBe(
       `Rate limited by GitHub until ${formatMessageTimestamp(Date.parse(retryAfter))}`
     );
+    expect(limited.causeText).toMatch(/until .+\S$/);
+    const elapsed = prChip(
+      facts(DX_PR, {
+        state: "error",
+        cause: "rate_limited",
+        observed_at: OK.observed_at,
+        stale: true,
+        retry_after: new Date(Date.now() - 60 * 1000).toISOString(),
+      })
+    );
+    expect(elapsed.causeText).toBe("Rate limited by GitHub");
     expect(failed.signals.every(signal => signal.tone === null)).toBe(true);
     // An unknown draft flag never assembles Ready, whatever the daemon flag says.
     expect(prChip(facts({ ...READY_PR, draft: null })).signals[0]?.id).not.toBe("ready");

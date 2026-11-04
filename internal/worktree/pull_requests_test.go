@@ -101,6 +101,70 @@ func TestPullRequestService(t *testing.T) {
 		}
 	})
 
+	// Invariant: a removed branch never spends quota on a queued automatic refresh.
+	// Owner: PullRequestService admission; canonical service suite.
+	t.Run("Should discard queued automatic refreshes on removal", func(t *testing.T) {
+		t.Parallel()
+		entered := make(chan struct{}, 4)
+		release := make(chan struct{})
+		var removedCalls atomic.Int32
+		provider := pullRequestTestForge{status: func(ctx context.Context, request ForgeStatusRequest) (*ForgeStatus, error) {
+			if request.Branch == "removed" {
+				removedCalls.Add(1)
+				return &ForgeStatus{}, nil
+			}
+			entered <- struct{}{}
+			select {
+			case <-release:
+				return &ForgeStatus{}, nil
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			}
+		}}
+		service := NewPullRequestService(t.Context(), newPullRequestMemoryStore(), provider, nil, nil)
+		t.Cleanup(service.Close)
+		for i := range 4 {
+			service.RequestRefresh(PullRequestKey{"ws", "github.com/acme/repo", fmt.Sprint(i)})
+		}
+		for range 4 {
+			<-entered
+		}
+		key := PullRequestKey{"ws", "github.com/acme/repo", "removed"}
+		service.RequestRefresh(key)
+		service.ForgetAutomatic(key)
+		close(release)
+		service.Close()
+		if removedCalls.Load() != 0 {
+			t.Fatal("removed branch reached the forge")
+		}
+	})
+	// Invariant: incomplete matches do not inherit confirmed absence backoff.
+	// Owner: PullRequestService refresh; canonical service suite.
+	t.Run("Should clear absence after an incomplete match", func(t *testing.T) {
+		t.Parallel()
+		incomplete := false
+		provider := pullRequestTestForge{status: func(context.Context, ForgeStatusRequest) (*ForgeStatus, error) {
+			if incomplete {
+				return &ForgeStatus{Selection: pullRequestIncomplete}, nil
+			}
+			return &ForgeStatus{}, nil
+		}}
+		service := NewPullRequestService(t.Context(), newPullRequestMemoryStore(), provider, nil, nil)
+		t.Cleanup(service.Close)
+		key := PullRequestKey{"ws", "github.com/acme/repo", "topic"}
+		if _, err := service.Refresh(t.Context(), key); err != nil {
+			t.Fatal(err)
+		}
+		incomplete = true
+		entry, err := service.Refresh(t.Context(), key)
+		if err != nil || entry.LookupState != pullRequestIncomplete || entry.Facts.PRState != nil {
+			t.Fatalf("incomplete entry = %+v, %v", entry, err)
+		}
+		if !service.stale(key, entry, entry.Facts.FetchedAt.Add(time.Minute)) {
+			t.Fatal("incomplete match inherited absence window")
+		}
+	})
+
 	// Invariant: explicit requests take the next free slot, including promoted automatic flights.
 	t.Run("Should prioritize explicit refreshes over automatic backlog", func(t *testing.T) {
 		t.Parallel()
@@ -397,7 +461,19 @@ func TestPullRequestService(t *testing.T) {
 		if !pullRequestStale(entry, observed.Add(30*time.Minute), 0) {
 			t.Fatal("terminal cache remained fresh")
 		}
+		retry := observed.Add(5 * time.Minute)
+		failed := PullRequestEntry{LookupState: "error", RetryAfter: &retry, Facts: entry.Facts}
+		if pullRequestStale(failed, retry.Add(-time.Second), 0) || !pullRequestStale(failed, retry, 0) {
+			t.Fatal("a failed lookup over terminal facts was not retried at its retry time")
+		}
 		entry.Facts.PRState = nil
+		for _, state := range []string{pullRequestIncomplete, "error"} {
+			entry.LookupState = state
+			if !pullRequestStale(entry, observed.Add(time.Minute), 3) {
+				t.Fatalf("a %s lookup took the confirmed no-PR window", state)
+			}
+		}
+		entry.LookupState = "ok"
 		for absent, window := range []time.Duration{
 			10 * time.Minute, 10 * time.Minute, 20 * time.Minute, 40 * time.Minute, time.Hour, time.Hour,
 		} {

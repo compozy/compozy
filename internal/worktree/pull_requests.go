@@ -9,7 +9,11 @@ import (
 	"time"
 )
 
-const pullRequestIncomplete = "incomplete"
+const (
+	pullRequestIncomplete  = "incomplete"
+	pullRequestLookupOK    = "ok"
+	pullRequestLookupError = "error"
+)
 
 // Display freshness windows. An open pull request changes often and the UI shows its checks; a
 // branch without one, or with a terminal one, rarely changes, and explicit refreshes (the turn-end
@@ -144,6 +148,9 @@ func (s *PullRequestService) read(
 		if refresh && entry.Stale {
 			s.RequestRefresh(key)
 		}
+		if !refresh {
+			s.forgetAbsence(key)
+		}
 	}
 	return entries
 }
@@ -161,8 +168,13 @@ func pullRequestStale(entry PullRequestEntry, now time.Time, absent int) bool {
 	if entry.Facts == nil {
 		return true
 	}
+	if entry.LookupState == pullRequestLookupError && entry.RetryAfter != nil && !now.Before(*entry.RetryAfter) {
+		return true // A failed lookup is retried once its retry time passes, whatever window its facts have.
+	}
 	ttl := pullRequestOpenTTL
 	switch {
+	case entry.Facts.PRState == nil && entry.LookupState != pullRequestLookupOK:
+		// An incomplete match, or a failed lookup over a no-PR answer, is not confirmed absence.
 	case entry.Facts.PRState == nil:
 		ttl = pullRequestAbsentTTL
 		for range max(absent-1, 0) {
@@ -321,10 +333,32 @@ func (s *PullRequestService) refresh(key PullRequestKey, flight *pullRequestFlig
 	after.Stale = s.stale(key, after, now)
 	if s.changed != nil &&
 		(before.LookupState != after.LookupState || before.LookupCause != after.LookupCause ||
-			!pullRequestFactsEqual(before.Facts, after.Facts)) {
+			!pullRequestFactsEqual(before.Facts, s.storedFacts(key, after.Facts))) {
 		s.changed(key.WorkspaceID)
 	}
 	return after, err
+}
+
+// storedFacts returns the facts as the cache keeps them. The store holds only display fields, so
+// comparing a live answer with a cached one would always differ; a failed reread falls back to the
+// live answer, which at worst publishes one extra change.
+func (s *PullRequestService) storedFacts(key PullRequestKey, live *ForgeStatus) *ForgeStatus {
+	entries, err := s.store.ReadPullRequests(s.ctx, []PullRequestKey{key})
+	if err != nil {
+		return live
+	}
+	if entry, ok := entries[key]; ok {
+		return entry.Facts
+	}
+	return live
+}
+
+// forgetAbsence drops the backoff streak of a key that is only peeked, such as a removed worktree's
+// branch, so the streak map does not grow with branches nobody refreshes.
+func (s *PullRequestService) forgetAbsence(key PullRequestKey) {
+	s.mu.Lock()
+	delete(s.absent, key)
+	s.mu.Unlock()
 }
 
 func (s *PullRequestService) recordAbsence(key PullRequestKey, after PullRequestEntry, err error) {
@@ -333,7 +367,7 @@ func (s *PullRequestService) recordAbsence(key PullRequestKey, after PullRequest
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if after.LookupState == "ok" && after.Facts != nil && after.Facts.PRState == nil {
+	if after.LookupState == pullRequestLookupOK && after.Facts != nil && after.Facts.PRState == nil {
 		s.absent[key]++
 		return
 	}
@@ -356,7 +390,7 @@ func pullRequestAttemptResult(before PullRequestEntry, facts *ForgeStatus, err e
 	after := before
 	after.AttemptAt = &now
 	if err != nil {
-		after.LookupState = "error"
+		after.LookupState = pullRequestLookupError
 		after.LookupCause = ForgeFailureCause(err)
 		if after.LookupCause == "" {
 			after.LookupCause = "provider_failed"
@@ -372,7 +406,7 @@ func pullRequestAttemptResult(before PullRequestEntry, facts *ForgeStatus, err e
 		}
 		after.RetryAfter = &retry
 	} else {
-		after.LookupState = "ok"
+		after.LookupState = pullRequestLookupOK
 		after.LookupCause = ""
 		after.FailureCount = 0
 		after.RetryAfter = nil
@@ -386,4 +420,17 @@ func pullRequestAttemptResult(before PullRequestEntry, facts *ForgeStatus, err e
 		}
 	}
 	return after
+}
+
+// ForgetAutomatic drops a removed worktree's absence streak and queued display refresh.
+// Explicit readers may still need delivery evidence for the same branch.
+func (s *PullRequestService) ForgetAutomatic(key PullRequestKey) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.absent, key)
+	if flight := s.flights[key]; flight != nil && !flight.started && !flight.explicit.Load() {
+		flight.err = context.Canceled
+		close(flight.done)
+		delete(s.flights, key)
+	}
 }

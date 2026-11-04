@@ -75,8 +75,17 @@ func (m *Manager) ForgeCapabilities(
 		return extensioncontract.ForgeCapabilitiesResponse{}, err
 	}
 	key := forgeCapabilitiesKey(generation, remotes)
+	release, err := m.forgeQuota.acquireCapabilities(ctx, key)
+	if err != nil {
+		return extensioncontract.ForgeCapabilitiesResponse{}, err
+	}
+	defer release()
 	if cached, ok := m.forgeQuota.cachedCapabilities(key, m.now()); ok {
-		return cached, nil
+		// A limited winner falls through to the provider loop, which reports the limit, so callers such
+		// as the exit plan do not offer forge actions the provider would refuse.
+		if _, limited := m.forgeQuota.limitedUntil(cached.Winner, m.now()); !limited {
+			return cached, nil
+		}
 	}
 	var providerErrors error
 	for _, name := range names {

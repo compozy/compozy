@@ -31,7 +31,7 @@ func (s *Service) StatusDetails(
 		return nil, ErrForgeUnavailable
 	}
 	var facts *ForgeStatus
-	if refreshForge && s.pullRequests != nil && item.Branch != "" {
+	if refreshForge && s.pullRequests != nil && item.Branch != "" && displayRefreshes(item.State) {
 		key, keyErr := s.displayPullRequestKey(ctx, *item)
 		if keyErr != nil {
 			return nil, keyErr

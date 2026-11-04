@@ -375,6 +375,35 @@ func TestProvider(t *testing.T) {
 		}
 	})
 
+	// Invariant: a rate-limited discovery or exact delivery read reports the cause and reset the daemon
+	// needs to hold every forge read, not a bare request error or a cause without its reset.
+	t.Run("Should report discovery and delivery rate limits with their reset", func(t *testing.T) {
+		t.Parallel()
+		provider, closeServer := testProvider(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("X-RateLimit-Remaining", "0")
+			w.Header().Set("X-RateLimit-Reset", "1800000000")
+			writeJSON(t, w, http.StatusForbidden, map[string]string{"message": "API rate limit exceeded"})
+		})
+		defer closeServer()
+		remotes := []string{"https://github.com/acme/repo.git"}
+		_, searchErr := provider.SearchPRs(t.Context(), extensioncontract.ForgePRSearchRequest{RemoteURLs: remotes})
+		_, readErr := provider.ReadPR(t.Context(), extensioncontract.ForgePRReadRequest{RemoteURLs: remotes, Number: 7})
+		for _, err := range []error{searchErr, readErr} {
+			rpc, ok := errors.AsType[*compozysdk.RPCError](err)
+			if !ok || !strings.Contains(string(rpc.Data), `"code":"rate_limited"`) ||
+				!strings.Contains(string(rpc.Data), `"retry_after":"2027-01-15T08:00:00Z"`) {
+				t.Fatalf("discovery error = %#v", err)
+			}
+		}
+		got, err := provider.Status(t.Context(), extensioncontract.ForgeStatusRequest{
+			RemoteURLs: remotes, Branch: "topic", Base: "main", HeadSHA: "abc",
+		})
+		if err != nil || got.Cause != extensioncontract.ForgeCauseRateLimited || got.RetryAfter == nil ||
+			got.RetryAfter.Unix() != 1800000000 {
+			t.Fatalf("delivery status = %#v, %v", got, err)
+		}
+	})
+
 	for _, scenario := range []string{"open first", "terminal newest", "incomplete", "bounded"} {
 		t.Run("Should preserve REST display selection for "+scenario, func(t *testing.T) {
 			t.Parallel()
@@ -536,15 +565,35 @@ func TestProvider(t *testing.T) {
 			t.Fatalf("Capabilities() = %#v, %v; want an unclassified failure", got, err)
 		}
 	})
-	t.Run("Should read a Retry-After delay in seconds from now", func(t *testing.T) {
+	t.Run("Should choose the reset that GitHub's headers imply", func(t *testing.T) {
 		t.Parallel()
 		now := time.Date(2026, time.November, 4, 15, 0, 0, 0, time.UTC)
-		failure := classifyGitHubResponse(
-			http.StatusForbidden, http.Header{"Retry-After": []string{"90"}}, nil, now,
-		).(*githubAPIError)
-		if failure.cause != extensioncontract.ForgeCauseRateLimited || failure.retryAfter == nil ||
-			!failure.retryAfter.Equal(now.Add(90*time.Second)) {
-			t.Fatalf("classified = %#v", failure)
+		primary := strconv.FormatInt(now.Add(30*time.Minute).Unix(), 10)
+		for _, test := range []struct {
+			name   string
+			header http.Header
+			want   *time.Time
+		}{
+			{"Retry-After seconds", http.Header{"Retry-After": {"90"}}, new(now.Add(90 * time.Second))},
+			{
+				"a later primary reset over a shorter Retry-After",
+				http.Header{"Retry-After": {"90"}, "X-Ratelimit-Remaining": {"0"}, "X-Ratelimit-Reset": {primary}},
+				new(now.Add(30 * time.Minute)),
+			},
+			{
+				"the one-minute fallback for a secondary limit with quota left",
+				http.Header{"X-Ratelimit-Remaining": {"12"}, "X-Ratelimit-Reset": {primary}},
+				nil,
+			},
+		} {
+			failure := classifyGitHubResponse(
+				http.StatusForbidden, test.header, []byte("secondary rate limit"), now,
+			).(*githubAPIError)
+			if failure.cause != extensioncontract.ForgeCauseRateLimited ||
+				(test.want == nil) != (failure.retryAfter == nil) ||
+				(test.want != nil && !failure.retryAfter.Equal(*test.want)) {
+				t.Fatalf("%s: classified = %#v", test.name, failure)
+			}
 		}
 	})
 

@@ -137,7 +137,11 @@ func (p *Provider) Status(
 	pulls, err := p.listPulls(ctx, repo, request.Branch, stateFilter, credential.token)
 	if err != nil {
 		if cause := githubErrorCause(err); cause != "" {
-			return extensioncontract.ForgeStatusResponse{Cause: cause}, nil
+			response := extensioncontract.ForgeStatusResponse{Cause: cause}
+			if apiErr, ok := errors.AsType[*githubAPIError](err); ok {
+				response.RetryAfter = apiErr.retryAfter
+			}
+			return response, nil
 		}
 		return extensioncontract.ForgeStatusResponse{}, err
 	}

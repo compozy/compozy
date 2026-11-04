@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,6 +25,7 @@ type forgeQuota struct {
 	mu           sync.Mutex
 	capabilities map[string]forgeCapabilitiesEntry
 	limited      map[string]time.Time
+	lookups      map[string]chan struct{}
 }
 
 type forgeCapabilitiesEntry struct {
@@ -118,4 +120,33 @@ func cloneForgeCapabilities(
 		response.RetryAfter = new(*response.RetryAfter)
 	}
 	return response
+}
+
+// acquireCapabilities serializes misses for one key. Waiters retain their own cancellation;
+// after admission they recheck the cache populated by the preceding caller.
+func (q *forgeQuota) acquireCapabilities(ctx context.Context, key string) (func(), error) {
+	for {
+		q.mu.Lock()
+		if q.lookups == nil {
+			q.lookups = make(map[string]chan struct{})
+		}
+		pending, busy := q.lookups[key]
+		if !busy {
+			pending = make(chan struct{})
+			q.lookups[key] = pending
+			q.mu.Unlock()
+			return func() {
+				q.mu.Lock()
+				delete(q.lookups, key)
+				close(pending)
+				q.mu.Unlock()
+			}, nil
+		}
+		q.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-pending:
+		}
+	}
 }

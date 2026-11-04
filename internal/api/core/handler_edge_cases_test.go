@@ -2123,6 +2123,7 @@ func dialEventStream(t *testing.T, origin, path string) *websocket.Conn {
 func TestBaseHandlersRefreshSessionPullRequest(t *testing.T) {
 	t.Parallel()
 	observed := time.Now().UTC()
+	retry := observed.Add(time.Hour).Truncate(time.Second)
 	for _, testCase := range []struct {
 		name   string
 		query  string
@@ -2133,7 +2134,7 @@ func TestBaseHandlersRefreshSessionPullRequest(t *testing.T) {
 	}{
 		{name: "no branch", status: http.StatusConflict, code: "session_branch_unavailable"},
 		{name: "provider failure", view: session.PullRequestProjection{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "rate_limited"}}}, err: errors.New("provider failed"), status: http.StatusBadGateway, code: "forge_unavailable"},
-		{name: "cached failure", view: session.PullRequestProjection{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "rate_limited", ObservedAt: observed, Stale: true}, PullRequest: &session.PullRequest{Number: 42, State: session.PullRequestOpen}}}, err: errors.New("provider failed"), status: http.StatusOK},
+		{name: "cached failure", view: session.PullRequestProjection{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{State: session.LookupError, Cause: "rate_limited", ObservedAt: observed, Stale: true, RetryAfter: &retry}, PullRequest: &session.PullRequest{Number: 42, State: session.PullRequestOpen}}}, err: errors.New("provider failed"), status: http.StatusOK},
 		// The refresh is a write: the read-only aggregate lens cannot reach it (#1193).
 		{name: "the read-only lens refusal for an aggregate refresh", query: "?all_profiles=true", view: session.PullRequestProjection{Branch: "topic", PullRequestView: session.PullRequestView{Lookup: session.PullRequestLookup{ObservedAt: observed}, PullRequest: &session.PullRequest{Number: 42, State: session.PullRequestOpen}}}, status: http.StatusBadRequest},
 	} {
@@ -2180,6 +2181,12 @@ func TestBaseHandlersRefreshSessionPullRequest(t *testing.T) {
 			testutil.DecodeJSONResponse(t, response, &body)
 			if testCase.code != "" && body["code"] != testCase.code {
 				t.Fatalf("body=%#v", body)
+			}
+			if testCase.name == "cached failure" {
+				lookup, ok := body["pull_request_lookup"].(map[string]any)
+				if !ok || lookup["retry_after"] != retry.Format(time.RFC3339) {
+					t.Fatalf("reset missing from response: %#v", body)
+				}
 			}
 			if testCase.status == 200 && body["pull_request"] == nil {
 				t.Fatalf("cached facts lost: %#v", body)

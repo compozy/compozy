@@ -133,7 +133,10 @@ export function pullRequestCauseText(
 ): string {
   const text = (cause && LOOKUP_CAUSE_TEXT[cause]) || "Couldn't look up the pull request";
   const resumesAt = retryAfter ? Date.parse(retryAfter) : Number.NaN;
-  if (cause !== "rate_limited" || !Number.isFinite(resumesAt)) return text;
+  // A reset already past says nothing useful until the next lookup replaces the cached error.
+  if (cause !== "rate_limited" || !Number.isFinite(resumesAt) || resumesAt <= Date.now()) {
+    return text;
+  }
   return `${text} until ${formatMessageTimestamp(resumesAt)}`;
 }
 

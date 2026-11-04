@@ -53,3 +53,12 @@ looked up again after 10 minutes, backing off to an hour; removed worktrees show
 cached PR without a lookup. Focused evidence: `TestManagerForgeQuota`,
 `TestPullRequestService`, `TestServiceStatus` (400 removed + 3 active worktrees make 3
 forge calls per list read), and `lib/__tests__/pull-request.test.ts`.
+
+Review follow-up (#1263): an incomplete match keeps the one-minute retry window,
+and a failed lookup becomes due at its retry time even over terminal cached facts.
+A removed row sharing a branch name with an active row in another repository must
+retain its own cached PR without a forge call. A queued automatic display refresh
+is discarded on removal; explicit delivery evidence remains separately readable.
+Primary quota exhaustion uses the later valid reset; a secondary limit with quota
+remaining and no Retry-After uses the one-minute fallback. Search/read RPC failures
+carry the same rate-limit cause and reset into the shared gate.
