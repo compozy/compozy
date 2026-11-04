@@ -1,0 +1,129 @@
+#!/usr/bin/env python3
+"""Session Supervisor check-in source: stalled sessions in the orchestrator's tree.
+
+Walks `compozy session list --parent <root>` recursively and emits only
+sessions that look stalled, judged from the daemon's own badge and
+supervision work signals:
+
+- badge hung, unhealthy, needs-attention, waiting-for-auth, or failed
+  (an unseen terminal failure); or
+- an active session whose turn settled (badge idle, done, or waiting) with no
+  armed work signal: no monitor, child, scheduled wait, pending reply, held
+  permission, running tool, task lease, or Loop run.
+
+Sessions waiting for operator input (badge waiting-for-input) are left alone.
+The key is `<session-id>@<updated_at>`: an item stays while its stall lasts
+and the digest changes only when a stall starts or the session moves on.
+Read-only.
+Contract: CompozyOS check-in source v1 (JSON on stdin, {"items": [...]} on stdout).
+"""
+
+import json
+import os
+import subprocess
+import sys
+
+DEFAULT_ROOT = "sess-e142e42803a2c0cf"
+ALWAYS_STALLED = {"hung", "unhealthy", "needs-attention", "waiting-for-auth", "failed"}
+SETTLED = {"idle", "done", "waiting"}
+ARMED = {
+    "active_monitor",
+    "active_child",
+    "scheduled_wait",
+    "awaiting_reply",
+    "held_permission",
+    "tool_running",
+    "task_lease",
+    "loop_run",
+}
+
+
+def list_children(parent):
+    sessions, cursor = [], ""
+    while True:
+        cmd = [
+            "compozy", "session", "list", "--parent", parent, "--all",
+            "--include-health", "--limit", "100", "-o", "json",
+        ]
+        if cursor:
+            cmd += ["--cursor", cursor]
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        if proc.returncode != 0:
+            raise RuntimeError(f"session list --parent {parent}: {proc.stderr.strip()[:500]}")
+        page = json.loads(proc.stdout or "{}")
+        sessions += page.get("sessions") or []
+        info = page.get("page") or {}
+        cursor = info.get("next_cursor") or ""
+        if not info.get("has_more") or not cursor:
+            return sessions
+
+
+def armed_signals(session):
+    sources = (session.get("supervision") or {}).get("sources") or []
+    return sorted({s.get("kind") for s in sources if s.get("state") == "present"} & ARMED)
+
+
+def stall_reason(session):
+    """Stable stall class: a badge flip such as done -> idle is not a new stall."""
+    badge = session.get("badge") or ""
+    if badge in ALWAYS_STALLED:
+        return badge
+    if session.get("state") == "active" and badge in SETTLED and not armed_signals(session):
+        return "settled, nothing armed"
+    return ""
+
+
+def main():
+    raw = sys.stdin.read()
+    request = json.loads(raw) if raw.strip() else {}
+    params = request.get("params") or {}
+    max_items = int((request.get("limits") or {}).get("max_items") or 20)
+    root = params.get("root", DEFAULT_ROOT)
+
+    home = os.environ.get("HOME", "")
+    extra = [f"{home}/.compozy/bin", "/opt/homebrew/bin", "/usr/local/bin"]
+    os.environ["PATH"] = os.pathsep.join([os.environ.get("PATH", "")] + extra)
+
+    stalled, seen, queue = [], {root}, [root]
+    while queue:
+        for session in list_children(queue.pop(0)):
+            sid = session.get("id") or ""
+            if not sid or sid in seen:
+                continue
+            seen.add(sid)
+            queue.append(sid)
+            reason = stall_reason(session)
+            if reason:
+                stalled.append((session, reason))
+
+    # Newest first: a settled session the model already judged finished keeps
+    # its key, so older entries must never crowd a fresh stall out of max_items.
+    stalled.sort(key=lambda pair: pair[0].get("updated_at") or "", reverse=True)
+    items = []
+    for session, reason in stalled[:max_items]:
+        sid = session["id"]
+        # Attributes are part of the digest, so only the key's session and the
+        # stall class go here; health and badge drift while one stall lasts.
+        items.append(
+            {
+                "key": f"{sid}@{session.get('updated_at') or 'unknown'}",
+                "title": (session.get("name") or sid)[:200],
+                "summary": f"{sid} ({session.get('agent_name') or 'unknown agent'}): {reason}",
+                "attributes": {
+                    "session_id": sid,
+                    "agent": session.get("agent_name") or "",
+                    "stall": reason,
+                },
+            }
+        )
+
+    json.dump({"items": items}, sys.stdout)
+    sys.stdout.write("\n")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:  # report a real failure to the daemon
+        print(f"stalled-sessions: {exc}", file=sys.stderr)
+        sys.exit(1)

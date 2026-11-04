@@ -1,0 +1,226 @@
+#!/usr/bin/env python3
+"""Merge Train check-in source: pull requests ready for a merge attempt.
+
+Emits one item per open, non-draft pull request to main authored by the
+configured author whose head branch is not release/*, and that has CodeRabbit
+reviews on at least the configured number of distinct commits, or a CodeRabbit
+fallback review comment (eng-delivery "Reviewers") by the author while
+CodeRabbit refuses the pull request. Attributes
+also report how heavy the latest CodeRabbit round was and whether CodeRabbit
+refused to review (file limit, rate limit, already-reviewed head), so the model
+can apply the round-3 and fallback rules. The item key
+binds the head SHA, so a new head or a new candidate changes the digest and
+an unchanged candidate set skips the model. Attributes also carry the facts
+that unblock a skipped candidate (PR updated_at, which moves on new reviews,
+comments and thread replies; whether it conflicts; whether a release is
+publishing), so a candidate is reconsidered when one of them changes.
+Unresolved review threads are only visible through GraphQL, so resolving a
+thread without a reply or push does not wake the model by itself.
+
+Read-only: GitHub REST GETs through the operator's authenticated `gh` CLI.
+Contract: CompozyOS check-in source v1 (JSON on stdin, {"items": [...]} on stdout).
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+from concurrent.futures import ThreadPoolExecutor
+
+CODERABBIT = "coderabbitai[bot]"
+FALLBACK_HEADING = "## CodeRabbit fallback review"
+# Severity badges: inline comments render "<picture>..</picture> Major**",
+# review-body follow-ups render "**🟠 Major**". Trivial/nitpick badges are not
+# actionable. CodeRabbit no longer posts an "Actionable comments posted" header.
+SEVERITY = re.compile(
+    r"(?:</picture>|[\U0001F534\U0001F7E0\U0001F7E1]\uFE0F?)\s*(?:</?\w+>\s*)*(Critical|Major|Minor)\b"
+)
+UNAVAILABLE = (
+    ("file_limit", re.compile(r"Too many files!|files exceed the limit of 300")),
+    ("rate_limited", re.compile(r"Rate limit exceeded")),
+    ("no_rereview", re.compile(r"does not re-review already reviewed commits")),
+)
+
+
+def gh_list(path):
+    """GET a paginated REST list with gh; returns the concatenated entries."""
+    proc = subprocess.run(
+        ["gh", "api", "--paginate", "--slurp", path],
+        capture_output=True,
+        text=True,
+        timeout=25,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"gh api {path}: {proc.stderr.strip()[:500]}")
+    return [entry for page in json.loads(proc.stdout or "[]") for entry in page]
+
+
+def gh_one(path):
+    proc = subprocess.run(["gh", "api", path], capture_output=True, text=True, timeout=25)
+    if proc.returncode != 0:
+        raise RuntimeError(f"gh api {path}: {proc.stderr.strip()[:500]}")
+    return json.loads(proc.stdout)
+
+
+def is_coderabbit(entry):
+    return (entry.get("user") or {}).get("login") == CODERABBIT
+
+
+def latest_round(reviews, comments):
+    """Actionable count and heaviness of CodeRabbit's newest reviewed commit.
+
+    Counts Critical/Major/Minor badges in that commit's top-level inline
+    comments and review bodies (follow-up and outside-diff findings). Thread
+    replies are excluded.
+    """
+    ours = [r for r in reviews if is_coderabbit(r) and r.get("commit_id")]
+    if not ours:
+        return 0, False
+    commit = max(ours, key=lambda r: r.get("submitted_at") or "")["commit_id"]
+    round_reviews = [r for r in ours if r["commit_id"] == commit]
+    ids = {r["id"] for r in round_reviews}
+    inline = [
+        c.get("body") or ""
+        for c in comments
+        if is_coderabbit(c)
+        and c.get("pull_request_review_id") in ids
+        and not c.get("in_reply_to_id")
+    ]
+    bodies = [r.get("body") or "" for r in round_reviews]
+    severities = [m for text in inline + bodies for m in SEVERITY.findall(text)]
+    return len(severities), len(severities) >= 5 or bool({"Critical", "Major"} & set(severities))
+
+
+def release_publishing(repo):
+    """True while a Release run on main publishes a release (release PR merge)."""
+    runs = gh_one(
+        f"repos/{repo}/actions/workflows/release.yml/runs?branch=main&status=in_progress&per_page=10"
+    ).get("workflow_runs") or []
+    for run in runs:
+        subject = ((run.get("head_commit") or {}).get("message") or "").split("\n", 1)[0]
+        if subject.startswith(("build: release ", "build: prepare release ")):
+            return True
+    return False
+
+
+def main():
+    raw = sys.stdin.read()
+    request = json.loads(raw) if raw.strip() else {}
+    params = request.get("params") or {}
+    limits = request.get("limits") or {}
+    max_items = int(limits.get("max_items") or 20)
+
+    repo = params.get("repo", "compozy/compozy")
+    base = params.get("base", "main")
+    author = params.get("author", "pedronauck")
+    min_rounds = int(params.get("min_coderabbit_rounds", 2))
+
+    home = os.environ.get("HOME", "")
+    extra = [p for p in ("/opt/homebrew/bin", "/usr/local/bin", f"{home}/.local/bin") if p]
+    os.environ["PATH"] = os.pathsep.join([os.environ.get("PATH", "")] + extra)
+
+    pulls = [
+        pr
+        for pr in sorted(gh_list(f"repos/{repo}/pulls?state=open&base={base}&per_page=100"),
+                         key=lambda p: p["number"])
+        if not pr.get("draft")
+        and (pr.get("user") or {}).get("login") == author
+        and not str((pr.get("head") or {}).get("ref", "")).startswith("release/")
+    ]
+
+    def review_facts(pr):
+        number = pr["number"]
+        reviews = gh_list(f"repos/{repo}/pulls/{number}/reviews?per_page=100")
+        notes = gh_list(f"repos/{repo}/issues/{number}/comments?per_page=100")
+        ours = [r for r in reviews if is_coderabbit(r) and r.get("commit_id")]
+        last_review = max((r.get("submitted_at") or "" for r in ours), default="")
+        # Only refusals newer than CodeRabbit's last review count, so an old
+        # rate-limit notice does not stick after CodeRabbit reviews again.
+        refusals = "\n".join(
+            c.get("body") or ""
+            for c in notes
+            if is_coderabbit(c) and (c.get("updated_at") or c.get("created_at") or "") > last_review
+        )
+        rounds = len({r["commit_id"] for r in ours})
+        fallback = any(
+            (c.get("user") or {}).get("login") == author
+            and (c.get("body") or "").lstrip().startswith(FALLBACK_HEADING)
+            for c in notes
+        )
+        unavailable = next((name for name, rx in UNAVAILABLE if rx.search(refusals)), "")
+        # CodeRabbit may skip a >300-file PR without a refusal comment; only a
+        # fallback PR that could not qualify otherwise pays for this GET.
+        if fallback and not unavailable and rounds < min_rounds:
+            if (gh_one(f"repos/{repo}/pulls/{number}").get("changed_files") or 0) > 300:
+                unavailable = "file_limit"
+        return {"reviews": reviews, "rounds": rounds, "fallback": fallback, "unavailable": unavailable}
+
+    def candidate_facts(candidate):
+        pr, facts = candidate
+        number = pr["number"]
+        detail = gh_one(f"repos/{repo}/pulls/{number}")
+        comments = gh_list(f"repos/{repo}/pulls/{number}/comments?per_page=100")
+        return detail, latest_round(facts["reviews"], comments)
+
+    # Parallel GETs keep a large batch of open PRs inside the 30s source timeout.
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        publishing_future = pool.submit(release_publishing, repo)
+        facts = list(pool.map(review_facts, pulls))
+        # The oldest max_items candidates are reported (merge order). Keyed by
+        # head SHA with no cursor, so no state; when more qualify, `more` puts a
+        # "more items remain" entry in the digest and the model scans the rest.
+        # A fallback review admits a PR only while CodeRabbit refuses it.
+        qualifying = [
+            (pr, f)
+            for pr, f in zip(pulls, facts)
+            if f["rounds"] >= min_rounds or (f["fallback"] and f["unavailable"])
+        ]
+        candidates = qualifying[:max_items]
+        per_candidate = list(pool.map(candidate_facts, candidates))
+        publishing = publishing_future.result() if candidates else False
+
+    items = []
+    for (pr, f), (detail, (actionable, heavy)) in zip(candidates, per_candidate):
+        number = pr["number"]
+        sha = pr["head"]["sha"]
+        items.append(
+            {
+                "key": f"pr-{number}@{sha[:12]}",
+                "title": (pr.get("title") or f"#{number}")[:200],
+                "url": pr.get("html_url", ""),
+                "attributes": {
+                    "number": number,
+                    "head_sha": sha,
+                    # Only the stable conflict fact: the raw mergeable_state moves
+                    # through unknown/unstable/blocked/clean while CI runs and
+                    # would wake the model several times per head.
+                    "conflicting": detail.get("mergeable_state") == "dirty",
+                    "coderabbit_rounds": f["rounds"],
+                    "latest_round_actionable": actionable,
+                    "heavy_last_round": heavy,
+                    # "" or why CodeRabbit refuses since its last review:
+                    # file_limit, rate_limited, no_rereview; >300 changed files
+                    # counts as file_limit even before CodeRabbit comments.
+                    "coderabbit_unavailable": f["unavailable"]
+                    or ("file_limit" if (detail.get("changed_files") or 0) > 300 else ""),
+                    "fallback_review": f["fallback"],
+                    "updated_at": detail.get("updated_at") or pr.get("updated_at") or "",
+                    "release_publishing": publishing,
+                },
+            }
+        )
+
+    result = {"items": items}
+    if len(qualifying) > len(candidates):
+        result["more"] = True
+    json.dump(result, sys.stdout)
+    sys.stdout.write("\n")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as exc:  # report a real failure to the daemon
+        print(f"merge-candidates: {exc}", file=sys.stderr)
+        sys.exit(1)
