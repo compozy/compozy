@@ -1,6 +1,6 @@
 ---
 name: proto-apply-comments
-description: Apply @compozy/proto gallery review comments to the code that renders them, verify the reviewed state and answer each thread. Use for a comment id such as `login-form-7` or `flow-checkout-2`, a gallery link with `comment=`, or a request to address open prototype review comments. For authoring prototypes or setting up proto, use the proto skill.
+description: Apply @compozy/proto gallery review comments to the code that renders them, verify the reviewed state and answer each thread. Use for a comment id such as `login-form-7` or `flow-checkout-2` or `story--ui-button-3`, a gallery link with `comment=`, or a request to address open prototype review comments. For authoring prototypes or setting up proto, use the proto skill.
 ---
 
 # Apply prototype review comments
@@ -87,3 +87,18 @@ a reply that says what is needed. Approval stays with the reviewer.
 - `--author` defaults to `agent`. Never post as `reviewer`.
 - `comments add` on a prototype key needs `--selector` (`selector is required`); flow keys do
   not. Agents add comments only when a person asks for one.
+
+## Component story comments
+
+A `story--<component slug>` key addresses a CSF file; `context.state` is its story id.
+Use `proto stories list --filter '<component slug>--*' --json` to find that file and
+`proto stories url <context.state>` to reopen the story. Apply theme and viewport from the
+comment in the gallery. Fix the owning component or its fixtures as appropriate, preserving
+CSF and preview setup. Verify with `proto stories run --filter '<story-id>' --json` plus the
+project's checks and a visual review in `proto dev`; prototype screenshot/evidence commands
+are not story capture commands. Reply/resolve with the ordinary comment commands.
+
+Read threads with `proto comments list --slug story--<slug> --json`. Adding a component comment
+requires `--state <story-id>` belonging to the component (`invalid_input` if absent/invalid),
+with the normal `--note` and `--selector`. Existing `story-*` prototype slugs remain prototypes.
+Story review is local; do not pass `--remote`. Agents never approve component reviews.

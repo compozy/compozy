@@ -1,6 +1,6 @@
 ---
 name: proto
-description: Author, set up and debug @compozy/proto prototypes, drafts, flows and the canvas. Use when editing `*.proto.tsx`, `src/drafts/`, `*.flow.ts`, `proto.canvas.tsx` or `proto.config.ts` and its Vite, Storybook or Vitest guards, when running the `proto` CLI or MCP tools, or when `proto check`, `proto dev` or a capture fails. Not for UI edits that touch no prototype, nor for gallery review comments (proto-apply-comments).
+description: Author, set up and debug @compozy/proto prototypes, drafts, flows, existing Storybook stories and the canvas. Use when editing `*.proto.tsx`, `src/drafts/`, `*.flow.ts`, `proto.canvas.tsx` or `proto.config.ts` and its Vite, Storybook or Vitest guards, when running the `proto` CLI or MCP tools, or when `proto check`, `proto dev` or a capture fails. Not for UI edits that touch no prototype, nor for gallery review comments (proto-apply-comments).
 ---
 
 # proto
@@ -28,7 +28,7 @@ project rules (which views exist, where fixtures live, which specs to use) in th
   `export const flow = defineFlow({...})`) is read from the syntax tree and never executed. Only
   string, boolean, array and object literals are allowed: no variables, numbers, spreads,
   template strings or computed values.
-- **Two origins.** The shell (gallery and review API) runs on `127.0.0.1:<dev.port>` (4400 by
+- **Base origins.** The shell (gallery and review API) runs on `127.0.0.1:<dev.port>` (4400 by
   default). It is prebuilt and never imports app code. Prototypes render on the render origin,
   `port + 1`, compiled by the app's own `vite.config.ts` in the `proto-render` mode, one state
   per iframe document. The two talk only through a validated `postMessage` protocol. App CSS
@@ -36,6 +36,11 @@ project rules (which views exist, where fixtures live, which specs to use) in th
 - **Canvas and Frame.** `proto.canvas.tsx` exports `Canvas` (providers around every state; it
   receives `theme` and `role`) and an optional `Frame` (production chrome around component
   prototypes that are not `standalone`).
+- **Temporary sharing.** `proto share` sends a scoped built snapshot through Cloudflare Access.
+  Use CLI-only `share connect`, `share <slug> --approver <email>` (or `--flow` / `--all`),
+  `share status`, `share refresh`, `share stop`, and `share disconnect`; all accept `--json`.
+  Start runs until stopped, and approvers require a clean committed tree. Agents never approve.
+  See `references/cli.md` for invitations and output.
 - **Review store.** `proto/review/<key>.json` per prototype (key = slug) or flow
   (key = `flow-<id>`), committed with the code. Comment ids are `<key>-<n>`. Each key is
   `in_review` or `approved`; approval records the commit and is a human act. A new comment on an
@@ -51,8 +56,8 @@ project rules (which views exist, where fixtures live, which specs to use) in th
 - **Proto**: screens and journeys that people review and approve: states of a real view inside
   the app chrome, flows across states, comments anchored to source, evidence for a spec.
 - **Storybook**: the component catalog, args and controls, per-component interaction and a11y
-  tests. Proto does not replace it. Both render views from fixtures, and both sit behind the
-  same network guard.
+  tests. Proto can host its existing CSF stories for browsing and review; addon panels and
+  addon-vitest stay in Storybook. Root guards are explicitly configured per story root.
 - **Neither**: a UI change with no prototype to update. Edit the view and run its own checks.
 
 ## Hard rules
@@ -105,3 +110,38 @@ Read only the one you need:
 
 For gallery review comments (a comment id like `login-form-7`), use the `proto-apply-comments`
 skill.
+
+## Existing Storybook stories
+
+Add `stories.roots` to `proto.config.ts`: each root requires `id`, `stories` globs, `preview`
+and `vite`; optional `dir` defaults to `.`, `title` to id, `themeGlobal` to `theme`, `static`
+and `guards.forbidRuntimeImports` to empty. Paths are relative to `dir`. The root Vite config
+installs React, CSS and aliases without `proto()`; `.storybook/main.ts` is never executed.
+Install `storybook` and `@storybook/react-vite` at `~10.6.0` in each root. Never rewrite CSF.
+The two base origins are joined by one origin per root at `port + 2 + index`; clear old MSW
+workers/site data after reordering roots. Stories use their preview, not `proto.canvas.tsx`.
+`sb.mock` is inert (`story_mock_unsupported`); do not claim module mocking works.
+
+- `proto stories list --root <id> --filter '<story-id-glob>' --json` returns roots and files.
+  No config returns empty arrays (human: `No stories configured.`), exit 0.
+- `proto stories run --root <id> --filter '<glob>' --theme dark --json` runs selected roots only.
+  Options: `--concurrency` (6), `--timeout` ms (30000, clamped 1000–120000), `--port`.
+  JSON: `summary` and `stories` rows (`id`, `root`, `stage`, `status`, `hasPlay`, `durationMs`,
+  `error`). Registry problems do not prevent selected stories running, but exit 1.
+  Exit 0 all pass, 1 failure/empty filter, 3 missing Playwright. Existing servers must match
+  `projectId`; interrupt closes only owned resources without a partial report.
+- `proto stories url <id>` links `/?c=<component>&story=<id>`.
+- MCP: `proto_stories_list`, `proto_stories_run` (requires root or filter), `proto_stories_url`.
+- `check` validates story config/index only. Guards run in the story server/runner, without
+  inheriting the app prototype guard. Local builds include lazy story roots under
+  `__stories/<root>/`, including local `story--` review snapshots when requested; story problems
+  and missing/unsupported peers fail them. MSW needs a base-aware worker URL and scope confined
+  to that root (see the package README). Remote builds omit stories with `stories_not_built`;
+  story problems/missing peers do not fail remote builds.
+  Reference `static` mounts and `publicDir` assets base-relative (e.g. via `import.meta.env.BASE_URL`) so they work in local static builds.
+- Component comments use `story--<slug>`; `comments add` requires `--state <story-id>` from that
+  component plus `--note` and `--selector`. Remote review does not accept story keys.
+
+Errors: `invalid_input` exit 2 (unknown root, missing/invalid state); `story_not_found` exit 1;
+`project_mismatch` exit 1 (pass another `--port`); `storybook_missing` / `storybook_unsupported`
+exit 3 (install supported peers); `playwright_missing` exit 3 (install Chromium).

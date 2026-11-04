@@ -326,7 +326,8 @@ Changing it through update returns `agent_kind_immutable`. PUT preserves omitted
 `label` and `resolved_appearance`. `GET /api/agents/catalog?group=agent` groups identical slug and digest
 across authorized scopes, with `items`, `scopes`, `active`, and `next_cursor`; label search uses `q`.
 Extension AGENT.md files use the same keys; installing an extension never creates an instance.
-Bundled built-in agents ship a bare gray Lucide icon (`background:"none"`, color `#8a8f98`), and the bootstrap
+Bundled on-demand built-in agents ship a bare gray Lucide icon (`background:"none"`, color `#8a8f98`); bundled
+always-on agents ship no `appearance` and keep their generated face, like every always-on agent. The bootstrap
 `general` agent resolves the same kind of icon (`sparkles`) while its AGENT.md has no `appearance`, so an existing
 install changes face without its file being rewritten. The CLI sets the plate with `--appearance-background none|plate`.
 

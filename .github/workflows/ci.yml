@@ -1,15 +1,28 @@
 name: CI
 
+# Lanes:
+# - Fast lane (preflight, lint, typecheck, unit, build) gates every pull request
+#   through `Verify (fmt, lint, unit, build)`, limited to the changed areas.
+# - Heavy lane (Go integration contracts, Windows, runtime/web/desktop E2E) gates
+#   through `E2E (combined lane)`. With the repository variable CI_MERGE_QUEUE
+#   set to `true`, pull requests defer it to the merge queue (`merge_group`)
+#   unless they carry the `ci:full` label or change the CI pipeline itself.
+# - The nightly schedule runs every lane on main.
 on:
   pull_request:
+  merge_group:
   push:
     branches:
       - main
+  schedule:
+    - cron: "17 6 * * *"
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Pull requests keep only their newest run; every main, merge-queue and
+  # scheduled commit finishes, so main stays verified and seeds the caches.
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || format('{0}-{1}', github.event_name, github.sha) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   CGO_ENABLED: 0
@@ -20,7 +33,9 @@ env:
   # exchange and stay local-only.
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
   TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
-  TURBO_CACHE: ${{ github.event_name == 'pull_request' && 'local:rw,remote:r' || 'local:rw,remote:rw' }}
+  TURBO_CACHE: ${{ (github.event_name == 'pull_request' || github.event_name == 'merge_group') && 'local:rw,remote:r' || 'local:rw,remote:rw' }}
+  # Only main saves GitHub caches; pull requests and merge groups restore them.
+  SAVE_CACHE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -63,101 +78,79 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       web: ${{ steps.filter.outputs.web }}
       desktop: ${{ steps.filter.outputs.desktop }}
-      relevant: ${{ steps.filter.outputs.backend == 'true' || steps.filter.outputs.web == 'true' || steps.filter.outputs.desktop == 'true' }}
+      heavy: ${{ steps.filter.outputs.heavy }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
+      - name: Verify change classification
+        run: scripts/ci-changes.sh --self-test
+
       - name: Filter paths
         id: filter
         env:
           EVENT_NAME: ${{ github.event_name }}
+          MERGE_QUEUE: ${{ vars.CI_MERGE_QUEUE == 'true' }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+          GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
           CURRENT_SHA: ${{ github.sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          backend=false
-          web=false
-          desktop=false
           zero_sha='0000000000000000000000000000000000000000'
+          base_sha=""
+          head_sha=""
+          case "$EVENT_NAME" in
+            pull_request) base_sha="$PR_BASE_SHA"; head_sha="$PR_HEAD_SHA" ;;
+            merge_group) base_sha="$GROUP_BASE_SHA"; head_sha="$GROUP_HEAD_SHA" ;;
+            push) base_sha="$PUSH_BEFORE_SHA"; head_sha="$CURRENT_SHA" ;;
+          esac
 
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            backend=true
-            web=true
-            desktop=true
+          if [[ "$EVENT_NAME" == "schedule" || "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            areas=$'backend=true\nweb=true\ndesktop=true\nci_infra=false'
+          elif [[ -n "$base_sha" && "$base_sha" != "$zero_sha" && -n "$head_sha" ]] &&
+            git fetch --no-tags --depth=1 origin "$base_sha" "$head_sha"; then
+            areas=$(git diff --name-only "$base_sha" "$head_sha" | scripts/ci-changes.sh)
           else
-            if [[ "$EVENT_NAME" == "pull_request" && -n "$PR_BASE_SHA" && -n "$PR_HEAD_SHA" ]]; then
-              git fetch --no-tags --depth=1 origin "$PR_BASE_SHA" "$PR_HEAD_SHA"
-              changed_files=$(git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA")
-            elif [[ -n "${PUSH_BEFORE_SHA:-}" && "$PUSH_BEFORE_SHA" != "$zero_sha" ]]; then
-              if git cat-file -e "${PUSH_BEFORE_SHA}^{commit}" 2>/dev/null ||
-                git fetch --no-tags --depth=1 origin "$PUSH_BEFORE_SHA"; then
-                changed_files=$(git diff --name-only "$PUSH_BEFORE_SHA" "$CURRENT_SHA")
-              else
-                echo "Base push SHA $PUSH_BEFORE_SHA is unavailable; treating current tree as changed."
-                changed_files=$(git ls-tree -r --name-only "$CURRENT_SHA")
-              fi
-            else
-              changed_files=$(git ls-tree -r --name-only "$CURRENT_SHA")
-            fi
-
-            while IFS= read -r file; do
-              [[ -z "$file" ]] && continue
-
-              case "$file" in
-                *.go|go.mod|go.sum|*/go.mod|*/go.sum|Makefile|.golangci.yml|.goreleaser.yml|.pr-release|cliff.toml|RELEASE_BODY.md|RELEASE_NOTES.md)
-                  backend=true
-                  ;;
-              esac
-
-              case "$file" in
-                .agents/*|.github/*|.release-notes/*|cmd/*|extensions/*|internal/*|magefiles/*|openapi/*|skills/*|CLAUDE.md|AGENTS.md|config.toml)
-                  backend=true
-                  ;;
-              esac
-
-              case "$file" in
-                .bun-version|.oxfmtrc.json|.oxlintrc.json|bun.lock|package.json|tsconfig.json|tsconfig.base.json|turbo.json|vitest.config.ts)
-                  web=true
-                  ;;
-              esac
-
-              case "$file" in
-                web/*|packages/*|scripts/*|sdk/*|lint-plugins/*|catalog/icons/*)
-                  web=true
-                  ;;
-              esac
-
-              case "$file" in
-                desktop/*|Makefile|.github/workflows/ci.yml)
-                  desktop=true
-                  ;;
-              esac
-            done <<< "$changed_files"
+            echo "Base commit $base_sha is unavailable; treating every area as changed."
+            areas=$'backend=true\nweb=true\ndesktop=true\nci_infra=false'
           fi
 
-          relevant=false
-          if [[ "$backend" == "true" || "$web" == "true" || "$desktop" == "true" ]]; then
-            relevant=true
+          # The heavy lane runs everywhere except pull requests in merge-queue
+          # mode, where the merge group runs it once before main. A pull request
+          # opts back in with the `ci:full` label (read live, so a re-run sees a
+          # label added after the push) or by changing the CI pipeline itself.
+          heavy=true
+          if [[ "$MERGE_QUEUE" == "true" ]]; then
+            case "$EVENT_NAME" in
+              pull_request)
+                heavy=false
+                if grep -qx 'ci_infra=true' <<<"$areas"; then
+                  heavy=true
+                elif gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/labels" --jq '.[].name' | grep -qx 'ci:full'; then
+                  heavy=true
+                fi
+                ;;
+              push) heavy=false ;;
+            esac
           fi
 
           {
-            echo "backend=$backend"
-            echo "web=$web"
-            echo "desktop=$desktop"
-            echo "relevant=$relevant"
-          } >> "$GITHUB_OUTPUT"
+            grep -E '^(backend|web|desktop)=' <<<"$areas"
+            echo "heavy=$heavy"
+          } | tee -a "$GITHUB_OUTPUT"
 
   preflight:
     name: Preflight (codegen, installer, product language)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
     steps:
       - uses: actions/checkout@v7
 
@@ -176,7 +169,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           verify-modules: "true"
-          save-build-cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          save-cache: ${{ env.SAVE_CACHE }}
 
       - name: Set up Bun
         uses: ./.github/actions/setup-bun
@@ -197,7 +190,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: needs.changes.outputs.web == 'true'
     steps:
       - uses: actions/checkout@v7
 
@@ -205,6 +198,7 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
+          build-cache: "false"
 
       - name: Set up Bun
         uses: ./.github/actions/setup-bun
@@ -269,7 +263,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v7
 
@@ -278,7 +272,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           install-golangci-lint: "true"
-          save-build-cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          save-cache: ${{ env.SAVE_CACHE }}
 
       - name: Restore golangci-lint cache
         uses: actions/cache/restore@v6
@@ -332,7 +326,7 @@ jobs:
       COMPOZY_GO_TEST_SHARD_TOTAL: "8"
       COMPOZY_GO_TEST_JSONFILE_DIR: /tmp/gotest-json
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v7
 
@@ -342,7 +336,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           install-gotestsum: "true"
           cache-key-suffix: -${{ matrix.shard_index }}
-          save-build-cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          save-cache: ${{ env.SAVE_CACHE }}
 
       - name: Build ACP mock fixture driver
         timeout-minutes: 5
@@ -374,58 +368,8 @@ jobs:
           zsh -fc 'autoload -Uz compaudit; compaudit'
           zsh --version
 
-      - name: Verify zsh startup contracts
-        if: matrix.shard_index == '0'
-        env:
-          CGO_ENABLED: "1"
-        run: go test -race -count=1 -timeout=2m -v ./internal/terminal/pty -run '^TestShellIntegrationContract$'
-
-      - name: Verify background role configuration through CLI HTTP and UDS
-        if: matrix.shard_index == '0'
-        env:
-          CGO_ENABLED: "1"
-        run: |
-          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/role_status_test.go
-          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/role_resolver_integration_test.go
-          go test -race -tags=integration -count=1 -timeout=5m -v ./internal/daemon -run '^TestRoleResolverIntegration$'
-
       - name: Run Go runtime verification
         run: make test
-
-      - name: Verify overlay catalog with ACP subprocesses and SQLite
-        if: matrix.shard_index == '0'
-        env:
-          CGO_ENABLED: "1"
-        run: go test -race -tags=integration -count=1 -timeout=5m ./internal/modelcatalog
-
-      - name: Verify Marketplace publication and acquisition with real SQLite
-        if: matrix.shard_index == '0'
-        env:
-          CGO_ENABLED: "1"
-        run: >-
-          go test -race -tags=integration -count=1 -timeout=5m
-          ./internal/daemon ./internal/extension
-          -run '^(TestHookBindingResourceReconcileFiresToolHookThroughSessionNotifier|TestAgentSkillPublicationAndBootRebuild|TestToolMCPStaticPublicationAndBootRebuild|TestPluginCatalogInstallability|TestClientPluginManagedInstall|TestPluginMarketplaceAcquisitionLifecycle|TestManagedAgentPluginDataLifecycle|TestManagerDevelopmentLifecycle|TestVerifyDevGeneration)$'
-
-      - name: Verify Goal cancellation and stopped-session deletion with real SQLite
-        if: matrix.shard_index == '1'
-        env:
-          CGO_ENABLED: "1"
-        run: |
-          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/store/globaldb/global_db_goal_turn_runtime_integration_test.go
-          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/loop_goal_managed_runtime_integration_test.go
-          go test -race -tags=integration -count=1 -timeout=5m \
-            ./internal/store/globaldb ./internal/daemon \
-            -run '^(TestGoalTurnRuntimeLifecycleIntegration|TestGoalSessionOutboxIntegration|TestLoopGoalManagedRuntimeIntegration)$'
-
-      - name: Verify managed delivery recovery with real Git and forge HTTP
-        if: matrix.shard_index == '2'
-        env:
-          CGO_ENABLED: "1"
-        run: >-
-          go test -race -tags=integration -count=1 -timeout=5m -v
-          ./internal/worktree
-          -run '^(TestWorktreeLifecycleIntegration|TestWorktreeManagedDeliveryIntegration)$'
 
       - name: Upload gotestsum timing data
         if: always()
@@ -436,17 +380,78 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  supervised-recovery:
-    name: Supervised work recovery (integration)
+  go-integration:
+    # Fixed integration contracts run beside the duration-balanced unit shards
+    # instead of stretching the shards they used to ride on.
+    name: Go integration contracts
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: needs.changes.outputs.heavy == 'true' && needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup-go
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
+          save-cache: ${{ env.SAVE_CACHE }}
+
+      - name: Build ACP mock fixture driver
+        timeout-minutes: 5
+        env:
+          CGO_ENABLED: "1"
+          COMPOZY_TEST_ACPMOCK_DRIVER_BIN: ${{ runner.temp }}/acpmock-driver
+        run: |
+          go build -o "$COMPOZY_TEST_ACPMOCK_DRIVER_BIN" ./internal/testutil/acpmock/cmd/acpmock-driver
+          printf 'COMPOZY_TEST_ACPMOCK_DRIVER_BIN=%s\n' "$COMPOZY_TEST_ACPMOCK_DRIVER_BIN" >> "$GITHUB_ENV"
+
+      - *install-terminal-scenario-shell
+
+      - name: Verify zsh startup contracts
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race -count=1 -timeout=2m -v ./internal/terminal/pty -run '^TestShellIntegrationContract$'
+
+      - name: Verify background role configuration through CLI HTTP and UDS
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/role_status_test.go
+          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/role_resolver_integration_test.go
+          go test -race -tags=integration -count=1 -timeout=5m -v ./internal/daemon -run '^TestRoleResolverIntegration$'
+
+      - name: Verify overlay catalog with ACP subprocesses and SQLite
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race -tags=integration -count=1 -timeout=5m ./internal/modelcatalog
+
+      - name: Verify Marketplace publication and acquisition with real SQLite
+        env:
+          CGO_ENABLED: "1"
+        run: >-
+          go test -race -tags=integration -count=1 -timeout=5m
+          ./internal/daemon ./internal/extension
+          -run '^(TestHookBindingResourceReconcileFiresToolHookThroughSessionNotifier|TestAgentSkillPublicationAndBootRebuild|TestToolMCPStaticPublicationAndBootRebuild|TestPluginCatalogInstallability|TestClientPluginManagedInstall|TestPluginMarketplaceAcquisitionLifecycle|TestManagedAgentPluginDataLifecycle|TestManagerDevelopmentLifecycle|TestVerifyDevGeneration)$'
+
+      - name: Verify Goal cancellation and stopped-session deletion with real SQLite
+        env:
+          CGO_ENABLED: "1"
+        run: |
+          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/store/globaldb/global_db_goal_turn_runtime_integration_test.go
+          python3 .agents/skills/eng/eng-test-conventions/scripts/check-test-conventions.py internal/daemon/loop_goal_managed_runtime_integration_test.go
+          go test -race -tags=integration -count=1 -timeout=5m \
+            ./internal/store/globaldb ./internal/daemon \
+            -run '^(TestGoalTurnRuntimeLifecycleIntegration|TestGoalSessionOutboxIntegration|TestLoopGoalManagedRuntimeIntegration)$'
+
+      - name: Verify managed delivery recovery with real Git and forge HTTP
+        env:
+          CGO_ENABLED: "1"
+        run: >-
+          go test -race -tags=integration -count=1 -timeout=5m -v
+          ./internal/worktree
+          -run '^(TestWorktreeLifecycleIntegration|TestWorktreeManagedDeliveryIntegration)$'
+
       - name: Verify disposable frozen executor recovery
         env:
           CGO_ENABLED: "1"
@@ -457,7 +462,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v7
 
@@ -465,6 +470,7 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
+          save-cache: ${{ env.SAVE_CACHE }}
 
       - name: Run Go SDK verification once
         run: |
@@ -479,7 +485,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v7
 
@@ -487,7 +493,7 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
-          save-build-cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          save-cache: ${{ env.SAVE_CACHE }}
 
       - name: Run Go build and boundary verification
         run: |
@@ -499,7 +505,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 10
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v7
 
@@ -507,7 +513,7 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
-          save-build-cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          save-cache: ${{ env.SAVE_CACHE }}
 
       - name: Verify Darwin hosted MCP peer identity
         run: go test ./internal/mcp -run '^TestPeerInfoFromUnixConnIdentifiesLocalPeer$' -count=1
@@ -519,7 +525,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     needs: [changes, preflight]
-    if: needs.changes.outputs.relevant == 'true'
+    if: needs.changes.outputs.heavy == 'true' && needs.changes.outputs.backend == 'true'
     steps:
       - uses: actions/checkout@v7
 
@@ -543,6 +549,7 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
+          save-cache: ${{ env.SAVE_CACHE }}
 
       - name: Verify Windows hosted MCP peer identity
         run: >-
@@ -608,7 +615,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: needs.changes.outputs.desktop == 'true' || needs.changes.outputs.web == 'true'
     steps:
       - uses: actions/checkout@v7
 
@@ -616,7 +623,7 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
-          save-build-cache: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          save-cache: ${{ env.SAVE_CACHE }}
 
       - name: Set up Bun
         uses: ./.github/actions/setup-bun
@@ -664,42 +671,35 @@ jobs:
         frontend,
         go-static,
         go-test,
-        supervised-recovery,
         sdk-go-test,
         go-build,
         go-peer-darwin,
-        go-terminal-windows,
         desktop,
       ]
-    if: always() && needs.changes.outputs.relevant == 'true'
+    if: always()
     steps:
-      - name: Require every verification lane
+      - name: Require every fast lane the change needs
         env:
-          PREFLIGHT_RESULT: ${{ needs.preflight.result }}
-          FRONTEND_RESULT: ${{ needs.frontend.result }}
-          GO_STATIC_RESULT: ${{ needs.go-static.result }}
-          GO_TEST_RESULT: ${{ needs.go-test.result }}
-          SUPERVISED_RECOVERY_RESULT: ${{ needs.supervised-recovery.result }}
-          SDK_GO_TEST_RESULT: ${{ needs.sdk-go-test.result }}
-          GO_BUILD_RESULT: ${{ needs.go-build.result }}
-          GO_PEER_DARWIN_RESULT: ${{ needs.go-peer-darwin.result }}
-          GO_TERMINAL_WINDOWS_RESULT: ${{ needs.go-terminal-windows.result }}
-          DESKTOP_RESULT: ${{ needs.desktop.result }}
-        run: |
+          RESULTS: ${{ toJSON(needs) }}
+        run: &require-lanes |
           set -euo pipefail
-          for result in "$PREFLIGHT_RESULT" "$FRONTEND_RESULT" "$GO_STATIC_RESULT" "$GO_TEST_RESULT" "$SUPERVISED_RECOVERY_RESULT" "$SDK_GO_TEST_RESULT" "$GO_BUILD_RESULT" "$GO_PEER_DARWIN_RESULT" "$GO_TERMINAL_WINDOWS_RESULT" "$DESKTOP_RESULT"; do
-            if [[ "$result" != "success" ]]; then
-              echo "Verification lane finished with result: $result"
-              exit 1
-            fi
-          done
+          # Detect changes and preflight always run. A lane may skip only
+          # because its area or the heavy lane was not selected; failed and
+          # cancelled lanes fail the gate.
+          jq -e '.changes.result == "success"' <<<"$RESULTS" >/dev/null || {
+            echo "Detect changes did not succeed"; exit 1; }
+          failed=$(jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key): \(.value.result)"' <<<"$RESULTS")
+          if [[ -n "$failed" ]]; then
+            echo "Lanes did not succeed:"; echo "$failed"; exit 1
+          fi
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$RESULTS"
 
   e2e-runtime:
     name: E2E runtime
     runs-on: ubuntu-latest
     timeout-minutes: 45
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: needs.changes.outputs.heavy == 'true' && (needs.changes.outputs.backend == 'true' || needs.changes.outputs.web == 'true')
     steps:
       - uses: actions/checkout@v7
 
@@ -708,6 +708,7 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           install-gotestsum: "true"
+          build-cache-job: go-build
 
       - name: Set up Bun (runtime build dependencies)
         uses: ./.github/actions/setup-bun
@@ -750,15 +751,15 @@ jobs:
           retention-days: 7
 
   e2e-web:
-    name: E2E web (shard ${{ matrix.shard }}/4)
+    name: E2E web (shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: needs.changes.outputs.heavy == 'true' && (needs.changes.outputs.backend == 'true' || needs.changes.outputs.web == 'true')
     steps:
       - uses: actions/checkout@v7
 
@@ -766,6 +767,7 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
+          build-cache-job: go-build
 
       - name: Set up Bun (web deps + Playwright)
         uses: ./.github/actions/setup-bun
@@ -796,7 +798,7 @@ jobs:
         env:
           CGO_ENABLED: 0
           CI: "true"
-          COMPOZY_E2E_WEB_SHARD: ${{ matrix.shard }}/4
+          COMPOZY_E2E_WEB_SHARD: ${{ matrix.shard }}/6
 
       - name: Upload session lifecycle QA evidence
         if: always()
@@ -859,7 +861,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     needs: changes
-    if: needs.changes.outputs.relevant == 'true'
+    if: needs.changes.outputs.heavy == 'true' && (needs.changes.outputs.backend == 'true' || needs.changes.outputs.web == 'true' || needs.changes.outputs.desktop == 'true')
     steps:
       - uses: actions/checkout@v7
 
@@ -867,6 +869,7 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
+          build-cache-job: go-build
 
       - name: Preserve Go caches across isolated desktop homes
         run: |
@@ -919,22 +922,20 @@ jobs:
           retention-days: 7
 
   e2e-combined:
+    # Gates the heavy lane. It succeeds without running heavy jobs when the
+    # pull request defers them to the merge queue.
     name: E2E (combined lane)
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [changes, e2e-runtime, e2e-web, e2e-desktop]
-    if: always() && needs.changes.outputs.relevant == 'true'
+    needs:
+      [changes, preflight, go-integration, go-terminal-windows, e2e-runtime, e2e-web, e2e-desktop]
+    if: always()
     steps:
-      - name: Require every E2E lane
+      - name: Require every heavy lane the change needs
         env:
-          RUNTIME_RESULT: ${{ needs.e2e-runtime.result }}
-          WEB_RESULT: ${{ needs.e2e-web.result }}
-          DESKTOP_RESULT: ${{ needs.e2e-desktop.result }}
-        run: |
-          set -euo pipefail
-          for result in "$RUNTIME_RESULT" "$WEB_RESULT" "$DESKTOP_RESULT"; do
-            if [[ "$result" != "success" ]]; then
-              echo "E2E lane finished with result: $result"
-              exit 1
-            fi
-          done
+          RESULTS: ${{ toJSON(needs) }}
+        run: *require-lanes
+
+      - name: Note a deferred heavy lane
+        if: needs.changes.outputs.heavy != 'true'
+        run: echo "::notice title=Heavy lane deferred::Integration, Windows and E2E lanes run in the merge queue. Add the ci:full label and re-run to run them here."

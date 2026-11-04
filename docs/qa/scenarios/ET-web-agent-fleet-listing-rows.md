@@ -43,3 +43,10 @@ by the team list and the agent's home. See `ET-web-agents-team-profile`; old `?t
 ran for this scenario.
 
 QA impact 2026-11-03 (#1199 vocabulary, v0.5.1): the agents page sections read Always-on and On-demand. Not walked; S4 walks it on the integration head.
+
+Walk 2026-11-04 (#1259, isolated lab, real daemon, upgrade path): on v0.5.1 the Cards view drew the bundled
+always-on Orchestrator as a gray `workflow` icon. Booting the branch binary on the same home refreshed the
+spec-cycle bundle: Orchestrator wears its generated face, while General, Code implementer, Reviewer and Spec
+conductor keep their gray icons without a plate, in dark and light. An emoji appearance saved on the bundled
+Orchestrator through `compozy agent update` survived a daemon restart. Only these faces were walked; the rest of
+this scenario stays `untested`.

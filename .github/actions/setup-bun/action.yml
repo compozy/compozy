@@ -32,9 +32,11 @@ runs:
       with:
         bun-version-file: .bun-version
 
-    - name: Cache Bun dependencies
+    # Only main pushes save; pull requests and merge groups restore, so their
+    # entries never evict the shared main caches.
+    - name: Restore Bun dependencies
       id: bun-cache
-      uses: actions/cache@v6
+      uses: actions/cache/restore@v6
       with:
         path: ~/.bun/install/cache
         key: ${{ runner.os }}-bun-${{ steps.setup-bun.outputs.bun-version }}-${{
@@ -51,10 +53,19 @@ runs:
         echo "Installing workspace dependencies with Bun..."
         bun install --frozen-lockfile
 
-    - name: Cache Playwright browsers
+    - name: Save Bun dependencies
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.bun-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ~/.bun/install/cache
+        key: ${{ runner.os }}-bun-${{ steps.setup-bun.outputs.bun-version }}-${{
+          hashFiles('bun.lock', '**/package.json', '.bun-version') }}${{
+          inputs.cache-key-suffix }}
+
+    - name: Restore Playwright browsers
       if: inputs.install-playwright == 'true'
       id: playwright-cache
-      uses: actions/cache@v6
+      uses: actions/cache/restore@v6
       with:
         path: ~/.cache/ms-playwright
         key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock', '**/package.json', '.bun-version') }}
@@ -80,6 +91,13 @@ runs:
       run: |
         echo "Installing Playwright (chromium) with system deps..."
         bunx playwright install --with-deps chromium
+
+    - name: Save Playwright browsers
+      if: inputs.install-playwright == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.playwright-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v6
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ hashFiles('bun.lock', '**/package.json', '.bun-version') }}
 
     - name: Report setup status
       shell: bash

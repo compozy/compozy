@@ -2,7 +2,7 @@ import type { MouseEvent } from "react";
 
 import { StateGlyph, cn } from "@compozy/ui";
 
-import { useAgentIdentityView } from "@/systems/agent";
+import { useAgentIdentityView } from "@/systems/agent/hooks/use-agent-identity-view";
 
 import { useSubagentDrawerSelected } from "../../hooks/use-subagent-drawer-selected";
 import { SESSION_TONE_WORD_CLASS } from "../../lib/session-badge-classes";

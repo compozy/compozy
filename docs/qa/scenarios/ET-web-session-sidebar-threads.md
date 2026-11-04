@@ -193,8 +193,9 @@ and stay in the row's accessible name. The agent's name is no longer written; re
 face for 700 ms shows it in a tooltip, and the provider mark's tooltip waits the same. Rows no longer
 carry the linked-work count or the always-on creator face. Subagent rows on a parent's branch follow the
 same grammar: elapsed clock at the end of line 1, face, provider mark and model on line 2, and only
-"Waiting for you" or "Failed" written in the model's place. Built-in agents (General and the agents of
-the bundled extensions) wear a gray icon without a plate. The rail's default width is 360 px. Reset to
+"Waiting for you" or "Failed" written in the model's place. On-demand built-in agents (General and the
+on-demand agents of the bundled extensions) wear a gray icon without a plate; always-on agents, bundled
+or not, keep their generated face (#1259). The rail's default width is 360 px. Reset to
 `untested` for a walk that proves each of these on a live rail in light and dark.
 
 Walk 2026-11-03 (#1191, isolated `targeted` lab, branch fix/issue-1191-session-list-declutter, real daemon
