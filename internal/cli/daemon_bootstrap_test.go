@@ -896,8 +896,9 @@ type bootstrapLockOwnerFixture struct {
 	ownerPID   int
 	ownerAlive bool
 	lockHeld   bool
-	// staleRecordedPID is reported by the first staleInspections lock inspections before the holder
-	// records ownerPID; 0 reports ownerPID from the start.
+	// staleRecordedPID is reported by the classification inspection; later inspections up to
+	// staleInspections report a held lock with no recorded PID before the holder records ownerPID.
+	// 0 reports ownerPID from the start.
 	staleRecordedPID int
 	staleInspections int
 	inspections      int
@@ -951,8 +952,11 @@ func newBootstrapLockOwnerFixture(t *testing.T) *bootstrapLockOwnerFixture {
 			t.Fatalf("inspectDaemonLock(%q), want %q", path, homePaths.DaemonLock)
 		}
 		fixture.inspections++
-		if fixture.staleRecordedPID > 0 && fixture.inspections <= fixture.staleInspections {
+		if fixture.staleRecordedPID > 0 && fixture.inspections == 1 {
 			return compozydaemon.LockOwner{PID: fixture.staleRecordedPID, Held: fixture.lockHeld}, nil
+		}
+		if fixture.staleRecordedPID > 0 && fixture.inspections <= fixture.staleInspections {
+			return compozydaemon.LockOwner{Held: fixture.lockHeld}, nil
 		}
 		return compozydaemon.LockOwner{PID: fixture.ownerPID, Held: fixture.lockHeld}, nil
 	}
@@ -1042,10 +1046,10 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep waiting for the lock holder after a stale recorded pid exits", func(t *testing.T) {
+	t.Run("Should keep waiting for an unrecorded lock holder after a stale recorded pid exits", func(t *testing.T) {
 		fixture := newBootstrapLockOwnerFixture(t)
 		fixture.staleRecordedPID = 666
-		fixture.staleInspections = 2
+		fixture.staleInspections = 3
 		fixture.bootAfterProbes = 4
 
 		events, err := fixture.run(t)
