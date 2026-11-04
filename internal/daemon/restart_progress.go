@@ -60,6 +60,10 @@ func (r *restartProgressRecorder) record(progress globaldb.MigrationProgress) {
 		journal = &RestartProgress{Stage: progress.Stage, Completed: progress.Completed, Total: progress.Total}
 	}
 	recorded, err := r.store.RecordProgress(r.operationID, journal)
+	if err != nil && progress.Done {
+		// A stale completed record would keep the observer's idle window running; retry the clear once.
+		recorded, err = r.store.RecordProgress(r.operationID, journal)
+	}
 	if err != nil {
 		slog.Warn(
 			"daemon: record restart migration progress",

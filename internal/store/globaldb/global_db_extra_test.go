@@ -837,10 +837,26 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 			t.Fatal(err)
 		}
 		var reported []MigrationProgress
+		var versionAtDone int64
 		if err := applyTelemetryRelocation(ctx, source, path, 185, func(progress MigrationProgress) {
 			reported = append(reported, progress)
+			if progress.Done {
+				status, err := store.Status(ctx, source, MigrationStream())
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				versionAtDone = status.Version
+			}
 		}); err != nil {
 			t.Fatal(err)
+		}
+		if versionAtDone < telemetryMovedVersion {
+			t.Fatalf(
+				"schema version when Done was reported = %d, want at least %d",
+				versionAtDone,
+				telemetryMovedVersion,
+			)
 		}
 		wantProgress := []MigrationProgress{
 			{Stage: MigrationStageTelemetryRelocation},

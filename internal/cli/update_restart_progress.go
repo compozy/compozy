@@ -12,6 +12,9 @@ import (
 // far more often; there is deliberately no wall-clock cap while progress keeps advancing.
 const defaultRestartMigrationIdleTimeout = 5 * time.Minute
 
+// restartMigrationCountIdleFactor extends the idle window while a stage is still sizing its work.
+const restartMigrationCountIdleFactor = 3
+
 // restartProgressWatch tracks replacement migration progress across restart polling windows.
 type restartProgressWatch struct {
 	idleTimeout time.Duration
@@ -52,7 +55,12 @@ func (w *restartProgressWatch) observe(status SettingsRestartStatusRecord) error
 		}
 		return nil
 	}
-	if now.Sub(w.lastAdvance) < w.idleTimeout {
+	idle := w.idleTimeout
+	if progress.Total <= 0 {
+		// Counting a large frozen table publishes no intermediate progress, so it gets a longer bound.
+		idle *= restartMigrationCountIdleFactor
+	}
+	if now.Sub(w.lastAdvance) < idle {
 		return nil
 	}
 	return fmt.Errorf(
@@ -60,7 +68,7 @@ func (w *restartProgressWatch) observe(status SettingsRestartStatusRecord) error
 		progress.Stage,
 		progress.Completed,
 		progress.Total,
-		w.idleTimeout,
+		idle,
 	)
 }
 
