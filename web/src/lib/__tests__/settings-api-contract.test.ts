@@ -224,6 +224,7 @@ describe("settings openapi contract", () => {
           code?: string;
           env_policy: string;
           home_policy: string;
+          last_probe_at?: string | null;
           login: {
             configured: boolean;
             executable?: string;
