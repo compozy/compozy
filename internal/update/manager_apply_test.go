@@ -662,7 +662,7 @@ func TestManagerRestore(t *testing.T) {
 			RuntimeArch:   runtimeArchAMD64,
 			BinaryApplier: applier,
 		})
-		brokenMode := os.FileMode(0o644)
+		brokenMode := os.FileMode(0o400)
 		if runtime.GOOS == runtimeOSWindows {
 			// Windows chmod represents only the read-only attribute, not POSIX execute bits.
 			brokenMode = 0o444
