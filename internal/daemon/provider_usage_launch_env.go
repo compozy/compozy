@@ -1,6 +1,7 @@
 package daemon
 
 import (
+	"errors"
 	"path/filepath"
 	"strings"
 
@@ -16,21 +17,24 @@ const envUtility = "env"
 // process sees it: leading NAME=value assignments, then an `env` utility prefix
 // (`env [-i] [-u NAME] [-C DIR] [-S STRING] NAME=value... command`) such as the one a second Claude account uses
 // to point at its own CLAUDE_CONFIG_DIR. Usage collection must read that account's files.
-func applyLaunchEnvironment(env []string, parsed config.LaunchCommand) []string {
+func applyLaunchEnvironment(env []string, parsed config.LaunchCommand) ([]string, error) {
 	for _, entry := range parsed.Environment {
 		key, value, _ := strings.Cut(entry, "=")
 		env = providerenv.SetEnvValue(env, key, value)
 	}
 	if filepath.Base(parsed.Executable) != envUtility {
-		return env
+		return env, nil
 	}
 	args := parsed.Args
 	for i := 0; i < len(args); i++ {
 		if split, ok, rest := envSplitString(args, i); ok {
-			// `env -S` packs further options, assignments, and the command into one argument.
+			// GNU env escape semantics differ from shell quoting; ambiguous routes must not collect.
+			if strings.ContainsAny(split, `\$`) {
+				return nil, errors.New("usage collection does not support escapes or expansion in env split strings")
+			}
 			words, err := shellquote.Split(split)
 			if err != nil {
-				return env
+				return nil, err
 			}
 			args = append(words, args[rest:]...)
 			i = -1
@@ -42,11 +46,11 @@ func applyLaunchEnvironment(env []string, parsed config.LaunchCommand) []string 
 		}
 		key, value, ok := strings.Cut(args[i], "=")
 		if !ok || key == "" {
-			return env // the command starts here
+			return env, nil // the command starts here
 		}
 		env = providerenv.SetEnvValue(env, key, value)
 	}
-	return env
+	return env, nil
 }
 
 // applyEnvOption applies one `env` option at index i and returns the index of its last argument.

@@ -161,3 +161,14 @@ expiry were not part of this targeted walk.
 
 Targeted evidence: [issue-1023 report](../reports/2026-10-29-issue-1023.md). The broader scenario
 retains its existing status; unrelated transports and packaged-desktop journeys are not claimed.
+
+## Alias split-string safety (#1250)
+
+Configure a disposable Claude alias with `env -S` and a quoted
+`CLAUDE_CONFIG_DIR` containing `\_`, then refresh usage. Collection must report
+provider unavailable instead of reading the default account or an incorrectly
+decoded path. Split strings with `$` expansion also report unavailable; plain
+split strings continue to select the alias account.
+
+Validation: covered by the focused resolver suite; live account walk not run in
+the overloaded-host repair scope.

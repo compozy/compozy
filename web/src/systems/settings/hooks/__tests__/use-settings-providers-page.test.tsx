@@ -257,6 +257,43 @@ describe("useSettingsProvidersPage", () => {
     );
   });
 
+  it("Should edit and save the refetched provider settings", async () => {
+    const { queryClient, wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsProvidersPage(), { wrapper });
+    await waitFor(() => expect(result.current.providers).toHaveLength(2));
+    act(() => result.current.openInspect(claudeEntry));
+    const updated = {
+      ...claudeEntry,
+      settings: {
+        ...claudeEntry.settings,
+        command: "updated-acp",
+        auth_acp_method: "updated-method",
+      },
+    };
+    vi.mocked(listSettingsProviders).mockResolvedValue({
+      ...collection,
+      providers: [updated, codexEntry],
+    });
+    await act(() => queryClient.invalidateQueries());
+    await waitFor(() => expect(result.current.providers[0]).toEqual(updated));
+    act(() => result.current.switchToEdit());
+    expect(result.current.inspector).toMatchObject({
+      mode: "edit",
+      entry: updated,
+      draft: { command: "updated-acp", auth_acp_method: "updated-method" },
+    });
+    act(() => result.current.updateDraft(draft => ({ ...draft, auth_acp_method: "" })));
+    act(() => result.current.saveInspector());
+    await waitFor(() =>
+      expect(putSettingsProvider).toHaveBeenCalledWith(
+        "claude",
+        expect.objectContaining({
+          settings: expect.objectContaining({ command: "updated-acp", auth_acp_method: "" }),
+        })
+      )
+    );
+  });
+
   it("opens edit editor seeded from the entry and keeps the selected item", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsProvidersPage(), { wrapper });

@@ -147,7 +147,12 @@ func (r *providerUsageResolver) route(
 		)
 	}
 	// Session startup applies the home policy first and the launch command's environment last.
-	env = applyLaunchEnvironment(env, parsed)
+	env, err = applyLaunchEnvironment(env, parsed)
+	if err != nil {
+		usageErr := providerusage.NewUsageError(providerusage.ErrorCodeProviderUnavailable, id)
+		usageErr.Message = err.Error()
+		return providerusage.ResolvedRoute{}, "", usageErr
+	}
 	// Declared credentials never remain in the general child environment.
 	for _, slot := range provider.EffectiveCredentialSlots() {
 		env = slices.DeleteFunc(env, func(entry string) bool { return strings.HasPrefix(entry, slot.TargetEnv+"=") })

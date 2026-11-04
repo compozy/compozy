@@ -87,9 +87,12 @@ export function useSettingsProvidersPage() {
     inspectorStore.trigger.createOpened({ draft: emptyProviderDraft() });
   };
   const switchToEdit = () => {
-    const inspector = inspectorFlow.inspector;
+    const inspector = withLiveInspectedEntry(inspectorFlow.inspector, providers);
     if (inspector.mode === "inspect") {
-      inspectorStore.trigger.switchToEdit({ draft: providerDraftFromEntry(inspector.entry) });
+      inspectorStore.trigger.switchToEdit({
+        draft: providerDraftFromEntry(inspector.entry),
+        entry: inspector.entry,
+      });
     }
   };
   const cancelEdit = () => {

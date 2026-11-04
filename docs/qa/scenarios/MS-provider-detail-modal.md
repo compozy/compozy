@@ -48,3 +48,13 @@ optional absent `env:SSH_AUTH_SOCK` declaration. Seed only a disposable test sec
 
 Validation status: focused backend and Web component tests cover these contracts; the isolated
 rendered application walk remains pending.
+
+## Refetched settings when entering Configure (#1250)
+
+Open a provider Overview, update its command and ACP authentication method from
+another settings client, and refresh the collection. Enter Configure: both
+fields must show the refreshed values. Clear the authentication method and save;
+the request must explicitly clear the current method rather than preserve it.
+
+Validation: covered by the existing provider-page hook suite; rendered application
+walk not run in the overloaded-host repair scope.

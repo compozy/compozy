@@ -3395,6 +3395,12 @@ func TestProviderUsageResolver(t *testing.T) {
 		cfg.Providers["claude-split"] = claudeAlias(
 			"env -S 'CLAUDE_CONFIG_DIR=" + accountDir + " npx -y claude-agent-acp'",
 		)
+		cfg.Providers["claude-split-escaped"] = claudeAlias(
+			`env -S 'CLAUDE_CONFIG_DIR="/accounts/work\_account" npx claude-agent-acp'`,
+		)
+		cfg.Providers["claude-split-expansion"] = claudeAlias(
+			`env --split-string='CLAUDE_CONFIG_DIR=${HOME}/work npx claude-agent-acp'`,
+		)
 		isolated := claudeAlias("env HOME=" + accountDir + " npx -y claude-agent-acp")
 		isolated.HomePolicy = compozyconfig.ProviderHomePolicyIsolated
 		cfg.Providers["claude-isolated"] = isolated
@@ -3419,14 +3425,24 @@ func TestProviderUsageResolver(t *testing.T) {
 		for _, target := range targets {
 			byID[target.ProviderID] = target
 		}
-		if slices.ContainsFunc(byID["claude-unset"].Route.Env, func(entry string) bool {
+		unset := byID["claude-unset"]
+		if unset.Error != nil || slices.ContainsFunc(unset.Route.Env, func(entry string) bool {
 			return strings.HasPrefix(entry, "CLAUDE_CONFIG_DIR=")
 		}) {
 			t.Fatal("env -u left the inherited CLAUDE_CONFIG_DIR in the alias route")
 		}
+		if !slices.ContainsFunc(unset.Route.Env, func(entry string) bool { return strings.HasPrefix(entry, "HOME=") }) {
+			t.Fatal("env -u dropped unrelated variables from the alias route")
+		}
 		for _, id := range []string{"claude-chdir", "claude-split"} {
 			if !slices.Contains(byID[id].Route.Env, "CLAUDE_CONFIG_DIR="+accountDir) {
 				t.Fatalf("%s route lost its own CLAUDE_CONFIG_DIR", id)
+			}
+		}
+		for _, id := range []string{"claude-split-escaped", "claude-split-expansion"} {
+			if escaped := byID[id]; escaped.Error == nil ||
+				escaped.Error.Code != providerusage.ErrorCodeProviderUnavailable || len(escaped.Route.Env) != 0 {
+				t.Fatal("ambiguous split string must fail explicitly without collecting from another account")
 			}
 		}
 		// Session startup applies the home policy first, then the command's own environment.

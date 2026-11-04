@@ -215,7 +215,7 @@ export const settingsProvidersInspectorLogic = createStoreLogic({
         saveError: null,
       };
     },
-    switchToEdit: (context, event: { draft: ProviderDraft }) => {
+    switchToEdit: (context, event: { draft: ProviderDraft; entry: SettingsProviderEntry }) => {
       if (context.inspector.mode !== "inspect") return;
       return {
         ...context,
@@ -223,7 +223,7 @@ export const settingsProvidersInspectorLogic = createStoreLogic({
         inspector: {
           cameFrom: "inspect",
           draft: event.draft,
-          entry: context.inspector.entry,
+          entry: event.entry,
           mode: "edit",
         },
         saveError: null,
