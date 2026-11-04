@@ -484,6 +484,25 @@ func TestContinueSessionHandler(t *testing.T) {
 		})
 	}
 
+	t.Run("Should preserve a committed child and safe message after cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		manager := continueTestManager(t, "ws-workspace",
+			func(context.Context, session.ContinueSessionOpts) (session.DeriveResult, error) {
+				return continuedResult(false), deriveFirstMessageStartFailure(context.Canceled)
+			})
+		engine := newTestRouter(t, newTestHandlers(t, manager, stubObserver{}, newTestHomePaths(t)))
+		recorder := performRequest(t, engine, http.MethodPost, continuePath,
+			[]byte(`{"agent_name":"b","message":"go","idempotency_key":"k"}`))
+		var payload contract.SessionDeriveErrorPayload
+		decodeJSONResponse(t, recorder, &payload)
+		if recorder.Code != 499 || payload.ChildSessionID != "sess-child" ||
+			payload.Error != "The new session couldn't start." {
+			t.Fatalf("status = %d payload = %#v, want 499 with committed child and safe failure message",
+				recorder.Code, payload)
+		}
+	})
+
 	t.Run("Should return the committed child id when activation fails after the commit", func(t *testing.T) {
 		t.Parallel()
 

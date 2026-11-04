@@ -39,6 +39,10 @@ type Watcher struct {
 	roots    []string
 	logger   *slog.Logger
 
+	callbackPending    bool
+	callbackRetryAt    time.Time
+	callbackBackoff    time.Duration
+	lastPollFailure    string
 	afterRefresh       func(context.Context) error
 	rootsProvider      func(context.Context) ([]string, error)
 	agentRoots         []string
@@ -97,8 +101,7 @@ func newWatcher(registry globalRefresher, interval time.Duration, roots []string
 	}
 }
 
-// SetAfterRefresh installs an optional callback that runs after a successful
-// registry refresh and before watcher snapshots are committed.
+// SetAfterRefresh installs a callback retried independently after snapshots are committed.
 func (w *Watcher) SetAfterRefresh(callback func(context.Context) error) {
 	if w == nil {
 		return
@@ -126,12 +129,11 @@ func (w *Watcher) Start(ctx context.Context) {
 	}
 
 	w.logger.Info("skills: watcher started", "roots", w.roots, "interval", w.interval)
-	if err := w.pollOnce(
-		ctx,
-	); err != nil && !errors.Is(err, context.Canceled) &&
-		!errors.Is(err, context.DeadlineExceeded) {
-		w.logger.Warn("skills: watcher poll failed", "error", err)
+	err := w.pollOnce(ctx)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return
 	}
+	w.reportPollResult(err)
 
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
@@ -141,12 +143,11 @@ func (w *Watcher) Start(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			if err := w.pollOnce(ctx); err != nil {
-				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-					return
-				}
-				w.logger.Warn("skills: watcher poll failed", "error", err)
+			err := w.pollOnce(ctx)
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return
 			}
+			w.reportPollResult(err)
 		}
 	}
 }
@@ -157,7 +158,7 @@ func (w *Watcher) pollOnce(ctx context.Context) error {
 		return err
 	}
 	if !changed {
-		return nil
+		return w.retryCallback(ctx)
 	}
 
 	for _, change := range changes {
@@ -175,16 +176,47 @@ func (w *Watcher) pollOnce(ctx context.Context) error {
 	if err := checkRegistryContext(ctx); err != nil {
 		return err
 	}
-	if w.afterRefresh != nil {
-		if err := w.afterRefresh(ctx); err != nil {
-			return fmt.Errorf("skills: run watcher refresh callback: %w", err)
+	w.commitSnapshots(snapshots)
+	w.callbackRetryAt, w.callbackBackoff = time.Time{}, 0
+	w.callbackPending = w.afterRefresh != nil
+	return w.retryCallback(ctx)
+}
+
+// A repeated cause keeps its first warning until recovery.
+func (w *Watcher) reportPollResult(err error) {
+	if err == nil {
+		if !w.callbackPending {
+			w.lastPollFailure = ""
 		}
+		return
+	}
+	cause := err.Error()
+	if cause == w.lastPollFailure {
+		w.logger.Debug("skills: watcher poll still failing", "error", err)
+		return
+	}
+	w.lastPollFailure = cause
+	w.logger.Warn("skills: watcher poll failed", "error", err)
+}
+
+func (w *Watcher) retryCallback(ctx context.Context) error {
+	if !w.callbackPending || time.Now().Before(w.callbackRetryAt) {
+		return nil
 	}
 	if err := checkRegistryContext(ctx); err != nil {
 		return err
 	}
-
-	w.commitSnapshots(snapshots)
+	if err := w.afterRefresh(ctx); err != nil {
+		if w.callbackBackoff == 0 {
+			w.callbackBackoff = watcherInterval(w.interval)
+		}
+		w.callbackBackoff = min(w.callbackBackoff*2, time.Minute)
+		w.callbackRetryAt = time.Now().Add(w.callbackBackoff)
+		return fmt.Errorf("skills: run watcher refresh callback: %w", err)
+	}
+	w.callbackPending = false
+	w.callbackBackoff = 0
+	w.callbackRetryAt = time.Time{}
 	return nil
 }
 

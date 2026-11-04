@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 
 	"github.com/compozy/compozy/internal/store"
@@ -56,12 +57,14 @@ type Registry struct {
 	resourceWorkspaceProfileCommandCandidates map[string][]*Skill
 	globalLoaded                              bool
 	globalSnapshots                           map[string]filesnap.Snapshot
+	globalSnapshotRoots                       []compozyconfig.SkillRootSpec
 	globalDiagnostics                         []SkillDiagnostic
 	resourceWorkspaceDiagnostics              map[string][]SkillDiagnostic
 	workspaceDisabled                         map[string][]string
 	profileDisabled                           map[string][]string
 	workspaceProfileDisabled                  map[string][]string
 	wsCache                                   map[string]*wsCache
+	discoveryCache                            map[string]*discoveryCacheEntry
 
 	globalVersion    atomic.Int64
 	configGeneration atomic.Int64
@@ -127,6 +130,7 @@ func NewRegistry(cfg RegistryConfig, opts ...Option) *Registry {
 		profileDisabled:                           make(map[string][]string),
 		workspaceProfileDisabled:                  make(map[string][]string),
 		wsCache:                                   make(map[string]*wsCache),
+		discoveryCache:                            make(map[string]*discoveryCacheEntry),
 		pendingWorkspaceDiagnostics:               make(map[string][]SkillDiagnostic),
 		cfg:                                       cfg,
 		logger:                                    slog.Default(),

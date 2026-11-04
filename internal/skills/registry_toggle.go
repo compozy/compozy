@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
+	"slices"
 	"strings"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/filesnap"
 	"github.com/compozy/compozy/internal/store"
 
@@ -74,8 +75,15 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	}
 
 	cfg := r.registryConfigSnapshot(ctx)
+	scans, snapshots, err := r.scanConfiguredGlobalRoots(ctx, cfg.GlobalSkillRoots)
+	if err != nil {
+		return err
+	}
+	if r.globalScanCurrent(cfg.GlobalSkillRoots, snapshots) {
+		return r.evictExpiredWorkspaces(ctx)
+	}
 	disabledSkills := append([]string(nil), cfg.DisabledSkills...)
-	loaded, snapshots, diagnostics, commandCandidates, err := r.loadGlobalSkills(ctx, disabledSkills, cfg)
+	loaded, diagnostics, commandCandidates, err := r.parseGlobalSkills(ctx, disabledSkills, cfg, scans)
 	if err != nil {
 		return err
 	}
@@ -90,12 +98,13 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	}
 
 	r.evictExpiredWorkspaceLocked(r.now())
-	if r.globalLoaded && filesnap.Equal(r.globalSnapshots, snapshots) {
+	if r.globalScanCurrentLocked(cfg.GlobalSkillRoots, snapshots) {
 		r.mu.Unlock()
 		return nil
 	}
 
 	r.globalSnapshots = filesnap.Clone(snapshots)
+	r.globalSnapshotRoots = slices.Clone(cfg.GlobalSkillRoots)
 	r.globalDiagnostics = cloneDiagnostics(diagnostics)
 	r.globalLoaded = true
 	r.globalSkills = loaded
@@ -108,5 +117,33 @@ func (r *Registry) reloadGlobal(ctx context.Context) error {
 	r.mu.Unlock()
 	r.emitEventSummaries(ctx, shadowEvents)
 
+	return nil
+}
+
+func (r *Registry) globalScanCurrent(
+	roots []compozyconfig.SkillRootSpec,
+	snapshots map[string]filesnap.Snapshot,
+) bool {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.globalScanCurrentLocked(roots, snapshots)
+}
+
+func (r *Registry) globalScanCurrentLocked(
+	roots []compozyconfig.SkillRootSpec,
+	snapshots map[string]filesnap.Snapshot,
+) bool {
+	return r.globalLoaded &&
+		slices.Equal(r.globalSnapshotRoots, roots) &&
+		filesnap.Equal(r.globalSnapshots, snapshots)
+}
+
+func (r *Registry) evictExpiredWorkspaces(ctx context.Context) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if err := checkRegistryContext(ctx); err != nil {
+		return err
+	}
+	r.evictExpiredWorkspaceLocked(r.now())
 	return nil
 }

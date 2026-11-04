@@ -298,11 +298,12 @@ telemetry delivery 1.773 s; physical session-owner guards 0.146 s; heartbeat sna
 config MCP resource round trip 0.081 s; bundled Tailscale install 0.105 s; failed MCP probe stderr
 0.473 s. Focused store/globaldb/sessiondb/harness lint reports zero issues.
 
-Two browser failures were fixture ordering errors after main's Always-on integration: the test
-selected a workspace runtime before changing the definition to global scope, which intentionally
-clears scope-specific overrides. The existing browser scenario now selects the global runtime
-after that change and additionally checks provider/model in the POST. All final vocabulary,
-permission and navigation assertions remain. Browser execution remains CI-owned.
+The browser traces showed that changing from On-demand to Always-on cleared the selected
+provider/model and produced HTTP 400. While this branch was being repaired, main shipped a
+production fix that preserves an explicit runtime when the destination scope supports its provider.
+Integration retains that fix and main's stronger browser assertions: selection before the kind
+change, global scope plus provider/model in the POST, and a successful response before navigation.
+No local reordering workaround remains. Browser execution remains CI-owned.
 
 The same CI run found fresh stores replaying all historical migrations under race instrumentation.
 Fresh initialization now uses the existing declarative bootstrap with an atomic core identity and

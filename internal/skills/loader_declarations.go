@@ -15,13 +15,13 @@ import (
 	yaml "gopkg.in/yaml.v3"
 )
 
-func parseSkillContent(content []byte) (SkillMeta, string, error) {
+func parseSkillContent(content []byte, paths ...string) (SkillMeta, string, error) {
 	parts, err := frontmatter.Split(content)
 	if err != nil {
 		return SkillMeta{}, "", err
 	}
 
-	meta, err := decodeSkillMeta(string(parts.Metadata))
+	meta, err := decodeSkillMeta(string(parts.Metadata), paths...)
 	if err != nil {
 		return SkillMeta{}, "", fmt.Errorf("decode YAML frontmatter: %w", err)
 	}

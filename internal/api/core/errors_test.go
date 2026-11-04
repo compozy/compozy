@@ -1,9 +1,12 @@
 package core
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -22,6 +25,61 @@ import (
 	"github.com/compozy/compozy/internal/worktree"
 	"github.com/gin-gonic/gin"
 )
+
+func TestRespondErrorCancellation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		err           error
+		canceled      bool
+		requestStatus int
+		status        int
+	}{
+		{"Should classify wrapped cancellation", fmt.Errorf("read: %w", context.Canceled), false, 500, 499},
+		{"Should classify canceled read commits", sql.ErrTxDone, true, 500, 499},
+		{"Should preserve live double commit errors", sql.ErrTxDone, false, 500, 500},
+		{"Should preserve request deadlines", context.DeadlineExceeded, false, 500, 500},
+		{"Should preserve database lock failures", errors.New("database is locked"), false, 500, 500},
+		{"Should retain server failures after the client disconnects", errors.New("database is locked"), true, 500, 499},
+		{"Should avoid server warnings for disconnected client errors", errors.New("unknown session"), true, 404, 499},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithCancel(t.Context())
+			defer cancel()
+			if tc.canceled {
+				cancel()
+			}
+			var logs strings.Builder
+			h := &BaseHandlers{Logger: slog.New(slog.NewTextHandler(&logs, nil)), MaskInternalErrors: true}
+			response := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(response)
+			c.Request = httptest.NewRequestWithContext(ctx, http.MethodGet, "/api/sessions", http.NoBody)
+			h.respondError(c, tc.requestStatus, tc.err)
+			if response.Code != tc.status {
+				t.Fatalf("status = %d, want %d", response.Code, tc.status)
+			}
+			var payload contract.ErrorPayload
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if tc.status == 499 {
+				if payload.Error != context.Canceled.Error() || strings.Contains(logs.String(), "level=ERROR") {
+					t.Fatalf("cancellation = %s, logs = %s", response.Body.String(), logs.String())
+				}
+				if errors.Is(tc.err, context.Canceled) || tc.requestStatus < 500 {
+					if logs.Len() != 0 {
+						t.Fatalf("ordinary cancellation logged a server cause: %s", logs.String())
+					}
+				} else if !strings.Contains(logs.String(), "level=WARN") || !strings.Contains(logs.String(), tc.err.Error()) || !strings.Contains(logs.String(), "original_status=500") {
+					t.Fatalf("disconnected server failure lost its cause: %s", logs.String())
+				}
+			} else if payload.Error != http.StatusText(http.StatusInternalServerError) || !strings.Contains(logs.String(), tc.err.Error()) {
+				t.Fatalf("failure = %s, logs = %s", response.Body.String(), logs.String())
+			}
+		})
+	}
+}
 
 func TestTaskErrorHelpers(t *testing.T) {
 	t.Parallel()

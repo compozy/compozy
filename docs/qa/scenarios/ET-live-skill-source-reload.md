@@ -22,3 +22,14 @@ QA plan 2026-08-25 (skill sources cycle): re-pointed from the `J-layer-profile-r
 
 
 QA impact 2026-10-11 (verification in progress): On native Windows, scan a skill tree with at least 64 entries and immediately resolve it repeatedly. Discovery must remain reusable. Edit, rename, add, and remove definitions and retarget links; each real change must invalidate the prior discovery. Evidence and exact verification scope: [startup/cache/notification report](../reports/2026-10-11-startup-cache-notifications.md).
+
+QA impact 2026-11-03 (#1230, unverified): In an isolated daemon lab with two installed extensions, make one extension resource root unresolvable, then add, edit, and remove a separate skill. Confirm registry snapshots advance despite callback failure, unchanged ticks neither re-parse global skills (no repeated `skills: verification warning` or unknown-frontmatter lines) nor repeat registry refreshes, and callback retries back off to at most once per minute. Confirm the healthy extension's agents and skills stay published while the broken extension's resources are withdrawn and the poll-failure line names only the broken extension and profile. Repair the root without another skill edit and confirm the next callback retry republishes the repaired extension. Count unknown-frontmatter warnings with Python: each skill path and field must warn once per process and include the path. Unknown fields remain tolerated metadata with no added runtime semantics. Historical root cause of the incident's missing Compozy-home ancestor remains unproven: only the `open-design` extension projected for the `open-design` profile failed (its default-profile projection succeeded in the same pass), the failing ancestor moved from `~/.compozy` (8 ticks) to `~/.compozy/extensions` (84 ticks) while other home-dir work kept succeeding, and both directories exist now with no symlinks under the extension root.
+
+The extension manager also reuses parsed skill definitions across profile projections when the
+SKILL.md and MCP sidecar snapshots are unchanged. Path containment is rechecked before cache reuse;
+real edits and sidecar addition/removal invalidate the entry.
+
+Marketplace verification also tracks the complete skill payload. In the isolated lab, corrupt then
+repair a nested reference file without editing SKILL.md or the provenance sidecar. The skill must
+be withdrawn while its payload hash differs and republished after repair; unchanged discoveries
+must continue to reuse the parsed definition.

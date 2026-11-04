@@ -38,24 +38,27 @@ type indexedAgentSkillResources struct {
 	mcpServers map[string]desiredMCPServerResource
 }
 
+// Isolated extension errors retain the complete healthy publication set.
 func (s *agentSkillSourceSyncer) desiredResources(ctx context.Context) (indexedAgentSkillResources, error) {
 	desired := newIndexedAgentSkillResources()
 	agentIDsBySourceKey := make(map[string]string)
+	var projectionErr error
 
 	for _, provider := range s.providers {
 		if provider == nil {
 			continue
 		}
 		items, err := provider(ctx)
-		if err != nil {
+		if err != nil && !isExtensionProjectionError(err) {
 			return desired, err
 		}
+		projectionErr = joinExtensionProjectionErrors(projectionErr, err)
 		if err := s.appendDesiredResources(ctx, &desired, agentIDsBySourceKey, items); err != nil {
 			return desired, err
 		}
 	}
 
-	return desired, nil
+	return desired, projectionErr
 }
 
 func newIndexedAgentSkillResources() indexedAgentSkillResources {

@@ -62,7 +62,15 @@ async function withStore<T>(
   if (database === null) return null;
   try {
     const transaction = database.transaction(STORE_NAME, mode);
-    return await run(transaction.objectStore(STORE_NAME));
+    const completed = new Promise<void>((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onabort = () =>
+        reject(transaction.error ?? new Error("IndexedDB transaction aborted"));
+      transaction.onerror = () =>
+        reject(transaction.error ?? new Error("IndexedDB transaction failed"));
+    });
+    const [result] = await Promise.all([run(transaction.objectStore(STORE_NAME)), completed]);
+    return result;
   } finally {
     database.close();
   }
@@ -104,9 +112,12 @@ export async function writeCatalogRecord(record: CmdPaletteCatalogRecord): Promi
   const profile = record.profileKey.trim();
   if (workspace === "" || profile === "") return;
   try {
-    await withStore("readwrite", store =>
-      requestResult(store.put(record, recordKey(workspace, profile)))
-    );
+    await withStore("readwrite", async store => {
+      const key = recordKey(workspace, profile);
+      const stored = await requestResult(store.get(key));
+      if (JSON.stringify(stored) === JSON.stringify(record)) return;
+      await requestResult(store.put(record, key));
+    });
   } catch {
     // Persisting is an optimisation for the next open; failing it must never
     // fail the hydration that already succeeded.

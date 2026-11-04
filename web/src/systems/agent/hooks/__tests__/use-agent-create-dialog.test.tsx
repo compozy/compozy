@@ -355,10 +355,37 @@ describe("useAgentCreateDialog", () => {
     });
   });
 
-  it("Should create no instance for Decide later", async () => {
+  it("Should preserve the selected runtime when switching to Always-on and Decide later", async () => {
+    mockSettingsProviders.data = {
+      providers: [
+        {
+          name: "codex",
+          settings: { display_name: "Codex", harness: "acp", runtime_provider: "codex" },
+        },
+      ],
+    };
     const { result } = renderAgentCreateDialog();
-
-    fillAlwaysOn(result, "later");
+    act(() => result.current.openDialog());
+    act(() => {
+      result.current.onDraftChange({
+        ...result.current.draft,
+        name: "release-captain",
+        provider: "codex",
+        model: "gpt-5.4",
+        reasoningEffort: "high",
+        prompt: "Own release readiness.",
+      });
+    });
+    act(() => {
+      result.current.onDraftChange({ ...result.current.draft, kind: "always_on", place: "later" });
+    });
+    expect(result.current.draft).toMatchObject({
+      scope: "global",
+      provider: "codex",
+      model: "gpt-5.4",
+      reasoningEffort: "high",
+    });
+    act(() => result.current.onSubmit());
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith({
@@ -368,6 +395,36 @@ describe("useAgentCreateDialog", () => {
       });
     });
     expect(mockCreateInstance).not.toHaveBeenCalled();
+    expect(mockCreateAgent.mock.calls[0]?.[0].params).toMatchObject({
+      scope: "global",
+      agent: { kind: "always_on", provider: "codex", model: "gpt-5.4", reasoning_effort: "high" },
+    });
+  });
+
+  it("Should clear the runtime when the destination scope lacks its provider", () => {
+    const { result } = renderAgentCreateDialog();
+    act(() => result.current.openDialog());
+    act(() => {
+      result.current.onDraftChange({
+        ...result.current.draft,
+        provider: "codex",
+        model: "gpt-5.4",
+        reasoningEffort: "high",
+        speed: "fast",
+        acpOptions: [{ id: "mode", value_id: "fast" }],
+      });
+    });
+    act(() => {
+      result.current.onDraftChange({ ...result.current.draft, kind: "always_on" });
+    });
+    expect(result.current.draft).toMatchObject({
+      scope: "global",
+      provider: "",
+      model: "",
+      reasoningEffort: "",
+      speed: "",
+      acpOptions: undefined,
+    });
   });
 
   it("Should create the agent unstarted at the limit", async () => {

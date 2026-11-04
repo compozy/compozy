@@ -279,7 +279,14 @@ function useAgentCreateProviders(
       scoped.scope === "workspace" ? workspaceProviders : (globalProviderEntries ?? []);
     const providerKnown = sourceProviders.some(provider => provider.name === scoped.provider);
     return scoped.provider.length > 0 && !providerKnown
-      ? { ...scoped, provider: "", model: "", reasoningEffort: "" as const }
+      ? {
+          ...scoped,
+          provider: "",
+          model: "",
+          reasoningEffort: "" as const,
+          speed: "" as const,
+          acpOptions: undefined,
+        }
       : scoped;
   };
   const { scope } = resolveDraft(storedDraft);

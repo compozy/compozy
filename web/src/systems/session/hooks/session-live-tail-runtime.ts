@@ -149,7 +149,7 @@ export function createSessionLiveTailRuntime({
   queryClient,
   sessionId,
   workspaceId,
-  catalogDeltaRefreshMs = 0,
+  catalogDeltaRefreshMs = SESSION_BOARD_DRAWER_CATALOG_REFRESH_MS,
 }: CreateSessionLiveTailRuntimeOptions): SessionLiveTailRuntime {
   let catalogRefreshedAt = Number.NEGATIVE_INFINITY;
   const transcriptQueryKey = sessionKeys.transcript(workspaceId, sessionId);

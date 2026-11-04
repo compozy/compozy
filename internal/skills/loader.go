@@ -124,7 +124,7 @@ func readSkillFile(path string) (string, []byte, error) {
 }
 
 func parseSkillDocument(filePath string, dir string, content []byte, source SkillSource) (*Skill, string, error) {
-	meta, body, err := parseSkillContent(content)
+	meta, body, err := parseSkillContent(content, filePath)
 	if err != nil {
 		return nil, "", fmt.Errorf("skills: parse %q: %w: %w", filePath, ErrInvalidDefinition, err)
 	}
@@ -164,13 +164,13 @@ func scanDirectoryWithSnapshots(dir string) ([]string, map[string]filesnap.Snaps
 	return result.Paths, result.Snapshots, nil
 }
 
-func decodeSkillMeta(frontmatter string) (SkillMeta, error) {
+func decodeSkillMeta(frontmatter string, paths ...string) (SkillMeta, error) {
 	var document yaml.Node
 	if err := yaml.Unmarshal([]byte(frontmatter), &document); err != nil {
 		return SkillMeta{}, err
 	}
 
-	warnUnknownFields(&document)
+	warnUnknownFields(&document, paths...)
 
 	var meta SkillMeta
 	if err := document.Decode(&meta); err != nil {

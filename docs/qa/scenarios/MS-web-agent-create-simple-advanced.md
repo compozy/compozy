@@ -66,3 +66,9 @@ The consequence Alert under the cards is gone; each card's description carries i
 QA 2026-11-03 (always-on hardening, soh/qa 583415ef5): Not walked in this pass. The shared five-level cards were exercised on the Permissions page instead (see `MS-web-agent-permissions`).
 
 QA impact 2026-11-03 (#1199 vocabulary, v0.5.1): the kind choice reads On-demand and Always-on, and Advanced's permission cards read Accept edits, Auto-review and Full access; an always-on agent with nothing chosen shows Accept edits marked Default and the request still omits `permissions`. Not walked; S4 walks it on the integration head.
+
+Runtime scope regression: choose an explicit model on On-demand in a project, then switch to
+Always-on and Decide later. When that provider exists globally, keep the model and reasoning
+selection and create the global definition without starting an instance. If the provider is absent
+globally, clear the runtime overrides and require a valid destination selection. The owning hook
+suite covers both cases; `agents.spec.ts` always-on vocabulary journeys own the real browser walk.

@@ -27,6 +27,7 @@ import (
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/store"
 	sessionschema "github.com/compozy/compozy/internal/store/sessiondb/schema"
+	"github.com/compozy/compozy/internal/store/sessiondb/sqlcgen"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
 	"modernc.org/sqlite"
@@ -1788,6 +1789,33 @@ func sessionMigrationPrefixBefore(t *testing.T, excludedMigration string) store.
 }
 
 func TestSessionDBTranscriptProjection(t *testing.T) {
+	t.Run("Should preserve cancellation between navigation read and commit", func(t *testing.T) {
+		t.Parallel()
+		db := openTestSessionDB(t, "sess-canceled-navigation")
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		err := readTranscriptNavigation(ctx, db.db, func(*sqlcgen.Queries) error {
+			cancel()
+			return nil
+		})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("navigation read = %v, want context.Canceled", err)
+		}
+	})
+	t.Run("Should preserve double commit errors on a live context", func(t *testing.T) {
+		t.Parallel()
+		db := openTestSessionDB(t, "sess-double-commit")
+		tx, err := db.db.BeginTx(t.Context(), &sql.TxOptions{ReadOnly: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := tx.Rollback(); err != nil {
+			t.Fatal(err)
+		}
+		if err := commitTranscriptRead(t.Context(), tx); !errors.Is(err, sql.ErrTxDone) {
+			t.Fatalf("commit = %v, want sql.ErrTxDone", err)
+		}
+	})
 	t.Parallel()
 
 	// Invariant: preparation and transcript reads do not need the writer; a
