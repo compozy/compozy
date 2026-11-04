@@ -2173,9 +2173,9 @@ func TestOverlayEditorKeepsSessionRuntimeDefaultsWithTheirProvider(t *testing.T)
 	}
 }
 
-// TestEditConfigOverlayRetiredAlwaysOnTable owns the UT-008 unset rows: since v0.5.2 an overlay
-// file that still has [agents.stays_on] is not edited. Setting or unsetting either spelling fails
-// with the removed-key error that names [agents.always_on], and the file keeps its bytes.
+// TestEditConfigOverlayRetiredAlwaysOnTable owns the UT-008 unset rows: an edit of an overlay file
+// that still has [agents.stays_on] migrates the table into [agents.always_on] in the same write, so
+// a set or unset of the new path acts on the migrated value and the old table never resurfaces.
 func TestEditConfigOverlayRetiredAlwaysOnTable(t *testing.T) {
 	t.Parallel()
 
@@ -2183,18 +2183,21 @@ func TestEditConfigOverlayRetiredAlwaysOnTable(t *testing.T) {
 	for _, tc := range []struct {
 		name string
 		edit func(*OverlayEditor) error
+		want int
 	}{
 		{
-			name: "Should refuse a set on the new path",
+			name: "Should set the new path over the migrated value",
 			edit: func(editor *OverlayEditor) error {
 				return editor.SetValue([]string{"agents", "always_on", "max_proposals"}, int64(3))
 			},
+			want: 3,
 		},
 		{
-			name: "Should refuse an unset of the old path",
+			name: "Should unset the migrated value through the new path",
 			edit: func(editor *OverlayEditor) error {
-				return editor.Delete([]string{"agents", "stays_on", "max_proposals"})
+				return editor.Delete([]string{"agents", "always_on", "max_proposals"})
 			},
+			want: 2,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -2209,18 +2212,21 @@ func TestEditConfigOverlayRetiredAlwaysOnTable(t *testing.T) {
 				t.Fatal(err)
 			}
 			writeFile(t, homePaths.ConfigFile, body)
-			_, err = EditConfigOverlay(homePaths, "", target, tc.edit)
-			want := `removed config key "agents.stays_on"`
-			if err == nil || !strings.Contains(err.Error(), want) ||
-				!strings.Contains(err.Error(), `use "agents.always_on"`) {
-				t.Fatalf("EditConfigOverlay() error = %v, want %s naming agents.always_on", err, want)
+			cfg, err := EditConfigOverlay(homePaths, "", target, tc.edit)
+			if err != nil {
+				t.Fatalf("EditConfigOverlay() error = %v", err)
+			}
+			if cfg.Agents.AlwaysOn.MaxProposals != tc.want {
+				t.Fatalf("MaxProposals = %d, want %d", cfg.Agents.AlwaysOn.MaxProposals, tc.want)
 			}
 			contents, err := os.ReadFile(homePaths.ConfigFile)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if string(contents) != body {
-				t.Fatalf("config after refused edit = %q, want unchanged %q", contents, body)
+			for line := range strings.SplitSeq(string(contents), "\n") {
+				if strings.Contains(line, "stays_on") && !strings.HasPrefix(strings.TrimSpace(line), "#") {
+					t.Fatalf("config after edit = %q, want the old table only in the archive comment", contents)
+				}
 			}
 		})
 	}

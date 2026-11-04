@@ -2,7 +2,6 @@ package config
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -676,9 +675,11 @@ func TestSupervisionTimingCompatibility(t *testing.T) {
 	}
 }
 
-// TestRetiredAlwaysOnConfigTable owns UT-006, UT-007 and UT-009: since v0.5.2 [agents.stays_on]
-// fails config load as a removed key that names its [agents.always_on] replacement, also next to
-// the new table, while [agents.always_on] validation keeps naming the new path.
+// TestRetiredAlwaysOnConfigTable owns UT-006, UT-007 and UT-009: a persisted [agents.stays_on]
+// table migrates into [agents.always_on] on load with always_on winning per key, the old values are
+// archived as an inactive comment, a second load is a no-op, raw overlay bytes that still carry the
+// table are rejected with a removed-key error naming the replacement, and validation names the new
+// path.
 func TestRetiredAlwaysOnConfigTable(t *testing.T) {
 	t.Parallel()
 
@@ -694,36 +695,87 @@ func TestRetiredAlwaysOnConfigTable(t *testing.T) {
 		err = ApplyConfigOverlayFile(path, &cfg)
 		return cfg, path, err
 	}
+	readActiveLines := func(t *testing.T, path string) (string, string) {
+		t.Helper()
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var active strings.Builder
+		for line := range strings.SplitSeq(string(contents), "\n") {
+			if !strings.HasPrefix(strings.TrimSpace(line), "#") {
+				active.WriteString(line + "\n")
+			}
+		}
+		return string(contents), active.String()
+	}
 
-	const oldTable, newTable = "agents.stays_on", "agents.always_on"
-	for _, tc := range []struct{ name, body, removed, replacement string }{
+	for _, tc := range []struct {
+		name, body    string
+		want          func(AlwaysOnConfig) bool
+		wantArchive   bool
+		wantActiveKey string
+	}{
 		{
-			name:    "Should reject the old table",
-			body:    "[agents.stays_on]\napproval_timeout = \"2h\"\n",
-			removed: oldTable, replacement: newTable,
+			name:          "Should move a key of the old table into always_on",
+			body:          "[agents.stays_on]\napproval_timeout = \"2h\"\n",
+			want:          func(c AlwaysOnConfig) bool { return c.ApprovalTimeout == 2*time.Hour },
+			wantArchive:   true,
+			wantActiveKey: "approval_timeout",
 		},
 		{
-			name:    "Should reject the old table next to the new one",
-			body:    "[agents.stays_on]\nmax_proposals = 5\n\n[agents.always_on]\nmax_proposals = 3\n",
-			removed: oldTable, replacement: newTable,
+			name:          "Should keep the always_on value when both tables set a key",
+			body:          "[agents.stays_on]\nmax_proposals = 5\n\n[agents.always_on]\nmax_proposals = 3\n",
+			want:          func(c AlwaysOnConfig) bool { return c.MaxProposals == 3 },
+			wantArchive:   true,
+			wantActiveKey: "max_proposals = 3",
 		},
-		{name: "Should reject an empty old table", body: "[agents.stays_on]\n", removed: oldTable, replacement: newTable},
 		{
-			name:    "Should reject a dotted old key",
-			body:    "[agents]\nstays_on.max_proposals = 5\n",
-			removed: oldTable + ".max_proposals", replacement: newTable + ".max_proposals",
+			name:          "Should move a dotted old key",
+			body:          "[agents]\nstays_on.max_proposals = 5\n",
+			want:          func(c AlwaysOnConfig) bool { return c.MaxProposals == 5 },
+			wantArchive:   true,
+			wantActiveKey: "max_proposals",
+		},
+		{
+			name: "Should drop an empty old table",
+			body: "[agents.stays_on]\n",
+			want: func(c AlwaysOnConfig) bool { return c.MaxProposals == 2 },
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, path, err := load(t, tc.body)
-			want := fmt.Sprintf("removed config key %q in %q: use %q", tc.removed, path, tc.replacement)
-			if _, ok := errors.AsType[*UnknownKeysError](err); !ok || err.Error() != want {
-				t.Fatalf("ApplyConfigOverlayFile() error = %v, want UnknownKeysError %q", err, want)
+			cfg, path, err := load(t, tc.body)
+			if err != nil {
+				t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+			}
+			if !tc.want(cfg.Agents.AlwaysOn) {
+				t.Fatalf("AlwaysOn = %+v, want the migrated values", cfg.Agents.AlwaysOn)
+			}
+			contents, active := readActiveLines(t, path)
+			if strings.Contains(active, "stays_on") || !strings.Contains(active, tc.wantActiveKey) {
+				t.Fatalf("config after migration = %q, want no active stays_on and %q", contents, tc.wantActiveKey)
+			}
+			if strings.Contains(contents, "# Archived [agents.stays_on] table") != tc.wantArchive {
+				t.Fatalf("config after migration = %q, want archive comment = %v", contents, tc.wantArchive)
+			}
+			again, _, err := load(t, contents)
+			if err != nil || again.Agents.AlwaysOn != cfg.Agents.AlwaysOn {
+				t.Fatalf("second load = %+v, %v; want the same values", again.Agents.AlwaysOn, err)
 			}
 		})
 	}
+
+	t.Run("Should reject raw overlay bytes that still carry the old table", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := loadConfigOverlayBytes([]byte("[agents.stays_on]\nmax_proposals = 5\n"), "rendered.toml")
+		want := `removed config key "agents.stays_on" in "rendered.toml": use "agents.always_on"`
+		if _, ok := errors.AsType[*UnknownKeysError](err); !ok || err.Error() != want {
+			t.Fatalf("loadConfigOverlayBytes() error = %v, want UnknownKeysError %q", err, want)
+		}
+	})
 
 	t.Run("Should name the new path in validation errors", func(t *testing.T) {
 		t.Parallel()

@@ -93,8 +93,8 @@ The API uses ` + "`Compozy.connect()` and `Compozy.start()`" + `.
 	}
 }
 
-// TestProductLanguageGuardAgentKind owns UT-020: since v0.5.2 Rule A keeps stays_on out of
-// production Go except the rejection-message file, the former alias files included, and Rule B
+// TestProductLanguageGuardAgentKind owns UT-020: Rule A keeps stays_on out of production Go except
+// the user-state migration and rejection-message files, the former alias files included, and Rule B
 // keeps the retired word off public surfaces. Each fixture is classified as the repository-relative
 // path it stands for.
 func TestProductLanguageGuardAgentKind(t *testing.T) {
@@ -109,6 +109,8 @@ func TestProductLanguageGuardAgentKind(t *testing.T) {
 			content: "package daemon\n\nfunc f(v string) { config.CanonicalAgentKind(v) }\n"},
 		{name: "Should allow the retired spelling in the rejection file", as: "internal/config/agent_kind_retired.go",
 			allowed: true, content: "package config\n\nconst retiredAgentKind = \"stays_on\"\n"},
+		{name: "Should allow the retired spelling in the AGENT.md migration", as: "internal/config/agent_kind_rewrite.go",
+			allowed: true, content: "package config\n\nconst pattern = \"stays_on\"\n"},
 		{name: "Should reject the alias in the former identity alias file", as: "internal/config/agent_identity.go",
 			content: "package config\n\nconst alias = \"stays_on\"\n\nfunc CanonicalAgentKind(raw string) {}\n"},
 		{name: "Should reject stays_on in the former config table alias file", as: "internal/config/merge.go",

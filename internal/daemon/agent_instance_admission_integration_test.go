@@ -1787,18 +1787,20 @@ func requireSessionPromptOutputSchemaAccepts(t *testing.T, structured []byte) {
 	t.Fatal("session_prompt descriptor is missing")
 }
 
-// Invariant (IT-002): since v0.5.2 boot no longer rewrites agent definitions, so a daemon-owned or
-// workspace AGENT.md that still says stays_on keeps its bytes. The workspace agent is left out of
-// the agent list and reported in the workspace agent diagnostics with the agent_kind_invalid
-// message. Owning layer: daemon boot, workspace resolution and the native agent list.
+// Invariant (IT-002): the retired agent-kind migration rewrites stays_on to always_on in
+// daemon-owned roots at boot, including profiles that are not selected, and in workspace roots when
+// the workspace resolves, so those agents load as always_on. A file the migration cannot edit
+// safely keeps its bytes, is left out of the agent list, and reports the agent_kind_invalid message
+// in the workspace agent diagnostics. Owning layer: daemon boot, workspace resolution and the
+// native agent list.
 func TestAgentKindRetiredSpellingBootIntegration(t *testing.T) {
-	t.Run("Should leave stays_on files untouched and report the workspace agent diagnostic", func(t *testing.T) {
-		writeAgent := func(path, name string) string {
+	t.Run("Should migrate daemon and workspace definitions and report the ones it cannot edit", func(t *testing.T) {
+		writeAgent := func(path, name, kindLine string) string {
 			t.Helper()
 			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			body := "---\nname: " + name + "\nprovider: " + acpmock.ProviderName + "\nkind: stays_on\n---\nWatch.\n"
+			body := "---\nname: " + name + "\nprovider: " + acpmock.ProviderName + "\n" + kindLine + "\n---\nWatch.\n"
 			if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 				t.Fatal(err)
 			}
@@ -1807,21 +1809,33 @@ func TestAgentKindRetiredSpellingBootIntegration(t *testing.T) {
 		var profileAgent, profileBody string
 		d, _, _ := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
 			profileAgent = filepath.Join(d.homePaths.ProfilesDir, "archived", "agents", "p2", "AGENT.md")
-			profileBody = writeAgent(profileAgent, "p2")
+			profileBody = writeAgent(profileAgent, "p2", "kind: stays_on")
 		})
 		root, err := filepath.EvalSymlinks(t.TempDir())
 		if err != nil {
 			t.Fatal(err)
 		}
 		workspaceAgent := filepath.Join(root, ".compozy", "agents", "triage", "AGENT.md")
-		workspaceBody := writeAgent(workspaceAgent, "triage")
+		workspaceBody := writeAgent(workspaceAgent, "triage", "kind: stays_on")
+		anchoredAgent := filepath.Join(root, ".compozy", "agents", "anchored", "AGENT.md")
+		anchoredBody := writeAgent(anchoredAgent, "anchored", "kind: &k stays_on")
 		resolved, err := d.workspaceResolver.ResolveOrRegister(t.Context(), root)
 		if err != nil {
 			t.Fatal(err)
 		}
 
+		for path, before := range map[string]string{profileAgent: profileBody, workspaceAgent: workspaceBody} {
+			want := strings.Replace(before, "kind: stays_on", "kind: always_on", 1)
+			body, err := os.ReadFile(path)
+			if err != nil || string(body) != want {
+				t.Fatalf("%s = %q %v, want only the kind value rewritten: %q", path, body, err, want)
+			}
+		}
+		if body, err := os.ReadFile(anchoredAgent); err != nil || string(body) != anchoredBody {
+			t.Fatalf("%s = %q %v, want the unsupported form untouched", anchoredAgent, body, err)
+		}
 		diagnostic := slices.IndexFunc(resolved.AgentDiagnostics, func(diagnostic workspacepkg.AgentDiagnostic) bool {
-			return diagnostic.Path == workspaceAgent
+			return diagnostic.Path == anchoredAgent
 		})
 		if diagnostic < 0 || !strings.Contains(
 			resolved.AgentDiagnostics[diagnostic].Message,
@@ -1830,7 +1844,7 @@ func TestAgentKindRetiredSpellingBootIntegration(t *testing.T) {
 			t.Fatalf(
 				"agent diagnostics = %+v, want the stays_on rename for %s",
 				resolved.AgentDiagnostics,
-				workspaceAgent,
+				anchoredAgent,
 			)
 		}
 		listed, err := d.toolRegistry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
@@ -1840,14 +1854,22 @@ func TestAgentKindRetiredSpellingBootIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("agent list error = %v", err)
 		}
-		if strings.Contains(string(listed.Structured), `"triage"`) {
-			t.Fatalf("agent list = %s, want the stays_on workspace agent left out", listed.Structured)
+		var payload struct {
+			Agents []contract.AgentPayload `json:"agents"`
 		}
-		for path, want := range map[string]string{profileAgent: profileBody, workspaceAgent: workspaceBody} {
-			body, err := os.ReadFile(path)
-			if err != nil || string(body) != want {
-				t.Fatalf("%s = %q %v, want untouched %q", path, body, err, want)
-			}
+		if err := json.Unmarshal(listed.Structured, &payload); err != nil {
+			t.Fatal(err)
+		}
+		triage := slices.IndexFunc(
+			payload.Agents,
+			func(agent contract.AgentPayload) bool { return agent.Name == "triage" },
+		)
+		anchored := slices.IndexFunc(
+			payload.Agents,
+			func(agent contract.AgentPayload) bool { return agent.Name == "anchored" },
+		)
+		if triage < 0 || payload.Agents[triage].Kind != "always_on" || anchored >= 0 {
+			t.Fatalf("agent list = %s, want triage as always_on and anchored left out", listed.Structured)
 		}
 	})
 }

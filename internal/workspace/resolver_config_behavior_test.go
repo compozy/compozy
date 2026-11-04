@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -434,6 +435,64 @@ func TestResolveRecordsMalformedAgentDiagnostics(t *testing.T) {
 	if !maps.Equal(kinds, wantKinds) {
 		t.Fatalf("diagnostic kinds = %#v, want %#v", kinds, wantKinds)
 	}
+}
+
+// TestResolveMigratesRetiredAgentKind owns the workspace rows of the #1239 user-state migration:
+// resolution rewrites kind stays_on to always_on in workspace and additional roots before strict
+// loading, and leaves daemon-owned home roots to the boot migration.
+func TestResolveMigratesRetiredAgentKind(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should migrate workspace and additional roots and leave the home root to boot", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := newTestHomePaths(t)
+		root, additional := t.TempDir(), t.TempDir()
+		const retired = "---\nname: %s\nkind: stays_on\n---\nPrompt."
+		paths := map[string]string{
+			"triage": filepath.Join(
+				root,
+				compozyconfig.DirName,
+				compozyconfig.AgentsDirName,
+				"triage",
+				agentDefinitionFile,
+			),
+			"extra": filepath.Join(
+				additional, compozyconfig.DirName, compozyconfig.AgentsDirName, "extra", agentDefinitionFile,
+			),
+			"home": filepath.Join(homePaths.AgentsDir, "home", agentDefinitionFile),
+		}
+		for name, path := range paths {
+			writeFile(t, path, fmt.Sprintf(retired, name))
+		}
+		store := newMockWorkspaceStore(Workspace{
+			ID: "ws_retired_kind", RootDir: root, Name: "repo", AdditionalDirs: []string{additional},
+		})
+		loader := &countingConfigLoader{cfg: validConfig(homePaths)}
+		resolver := newTestResolver(t, store, WithHomePaths(homePaths), WithConfigLoader(loader.Load))
+
+		resolved, err := resolver.Resolve(t.Context(), "ws_retired_kind")
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		for _, name := range []string{"triage", "extra"} {
+			index := slices.IndexFunc(
+				resolved.Agents,
+				func(agent compozyconfig.AgentDef) bool { return agent.Name == name },
+			)
+			if index < 0 || resolved.Agents[index].Kind != compozyconfig.AgentKindAlwaysOn {
+				t.Fatalf("agents = %#v, want %s loaded as always_on", resolved.Agents, name)
+			}
+			body, err := os.ReadFile(paths[name])
+			if err != nil || !strings.Contains(string(body), "kind: always_on") {
+				t.Fatalf("%s = %q %v, want kind: always_on", paths[name], body, err)
+			}
+		}
+		body, err := os.ReadFile(paths["home"])
+		if err != nil || string(body) != fmt.Sprintf(retired, "home") {
+			t.Fatalf("%s = %q %v, want the home root untouched by resolution", paths["home"], body, err)
+		}
+	})
 }
 
 func TestResolveRejectsReservedAgentIdentities(t *testing.T) {

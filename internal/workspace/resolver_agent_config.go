@@ -3,6 +3,7 @@ package workspace
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"slices"
 	"strings"
 	"time"
@@ -109,11 +110,33 @@ func (r *Resolver) scanAgentConfig(ctx context.Context, ws Workspace, profileNam
 		if err := checkContext(ctx); err != nil {
 			return workspaceScan{}, err
 		}
+		r.migrateRetiredAgentKinds(root)
 		if err := scanAgentSource(root, scan.snapshots, &scan.agents); err != nil {
 			return workspaceScan{}, err
 		}
 	}
 	return scan, nil
+}
+
+// migrateRetiredAgentKinds migrates the retired agent kind in user-owned roots before they are
+// scanned and strictly loaded. Daemon-owned home roots migrate at daemon boot. A failure is logged
+// and never blocks resolution; the unmigrated file then reports its load error as a diagnostic.
+func (r *Resolver) migrateRetiredAgentKinds(root compozyconfig.WorkspaceDiscoveryRoot) {
+	switch root.Source {
+	case compozyconfig.WorkspaceDiscoverySourceWorkspace,
+		compozyconfig.WorkspaceDiscoverySourceWorkspaceProfile,
+		compozyconfig.WorkspaceDiscoverySourceAdditional:
+	default:
+		return
+	}
+	if _, _, err := compozyconfig.MigrateRetiredAgentKinds(root.AgentsDir(), r.logger); err != nil {
+		logger := r.logger
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.Warn("agent kind rewrite skipped", "reason", string(compozyconfig.AgentKindRewriteSkipIO),
+			"path", root.AgentsDir(), "error", err)
+	}
 }
 
 // buildWorkspaceAgentState applies the workspace default and validates discovered agent definitions.

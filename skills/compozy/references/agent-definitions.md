@@ -342,13 +342,19 @@ always-on agents ship no `appearance` and keep their generated face, like every 
 `general` agent resolves the same kind of icon (`sparkles`) while its AGENT.md has no `appearance`, so an existing
 install changes face without its file being rewritten. The CLI sets the plate with `--appearance-background none|plate`.
 
-`stays_on` was the v0.5.0 spelling of `always_on`. v0.5.1 accepted it with a warning; since v0.5.2 every
-input rejects it. AGENT.md `kind`, `--kind`, and HTTP/UDS create, update and duplicate fail with
-`agent_kind_invalid`: "agent kind must be on_demand or always_on (stays_on was renamed to always_on in
-v0.5.1)". The `compozy__agent_create` input schema lists only `on_demand` and `always_on`, so `stays_on`
-fails input validation on `$.kind`. An AGENT.md that still says `stays_on` stops loading, and
-the daemon no longer rewrites files at boot, so write `always_on`. In config, `[agents.stays_on]` fails
-config load as a removed key that names `[agents.always_on]`, and `compozy config get|set|unset` and
+`stays_on` was the v0.5.0 spelling of `always_on`. v0.5.1 accepted it with a warning; since v0.5.2 no
+input accepts it. `--kind` and HTTP/UDS create, update and duplicate fail with `agent_kind_invalid`:
+"agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)". The
+`compozy__agent_create` input schema lists only `on_demand` and `always_on`, so `stays_on` fails input
+validation on `$.kind`. Persisted files migrate instead: the daemon rewrites `kind: stays_on` to
+`kind: always_on` in AGENT.md files under `$COMPOZY_HOME` at boot and in repository, workspace-profile and
+additional-root files when their workspace resolves. Extension files are never rewritten. A file the
+migration skips (read-only, a symlink, or a form such as `kind: &k stays_on`) is logged as `agent kind
+rewrite skipped`, stops loading, and reports the message above in the workspace agent diagnostics; edit
+it to `always_on`. Always write `always_on`.
+
+In config, a persisted `[agents.stays_on]` table migrates on load into `[agents.always_on]` (a key already
+set there wins, and the old values stay as an inactive comment). `compozy config get|set|unset` and
 `compozy__config_*` reject `agents.stays_on.*` paths and name the `agents.always_on.*` replacement.
 
 ## Always-on approval authority

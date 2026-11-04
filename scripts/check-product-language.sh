@@ -84,9 +84,9 @@ else
 fi
 
 # Retired agent-kind vocabulary (#1199). The space form "stays on" is ordinary English and is not
-# matched. v0.5.2 removed the v0.5.1 stays_on aliases (#1239). Rule A keeps the retired word out of
-# production Go except the one file that names it to explain rejections; Rule B keeps it off public
-# surfaces.
+# matched. The v0.5.1 stays_on aliases are removed (#1239). Rule A keeps the retired word out of
+# production Go except the files that migrate persisted user state or explain rejections; Rule B
+# keeps it off public surfaces.
 retired_kind='(?i)stays[-_]?on'
 # Rule B skips immutable history identifiers only: the shipped stays-on-hardening spec, its branch,
 # reports and artifacts, dated reports, and content-addressed QA scenario, charter and bug IDs.
@@ -98,9 +98,11 @@ history_refs='(?x:
 )'
 rule_b_pattern="${history_refs}(*SKIP)(*F)|${retired_kind}"
 
-# Production Go files that may name stays_on: the v0.5.2 rejection messages that point at always_on.
+# Production Go files that may name stays_on: the user-state migrations and the rejection messages
+# that point at always_on.
 rule_a_allowed=(
   internal/config/agent_kind_retired.go
+  internal/config/agent_kind_rewrite.go
 )
 
 rule_a_in_scope() {
@@ -196,7 +198,7 @@ done <<<"$rule_b_files"
 
 if ((${#kind_findings[@]} > 0)); then
   printf '%s\n' "${kind_findings[@]}" >&2
-  echo "Retired agent-kind vocabulary found. Use always_on / Always-on; stays_on stays only in the v0.5.2 rejection messages." >&2
+  echo "Retired agent-kind vocabulary found. Use always_on / Always-on; stays_on stays only in the user-state migrations and rejection messages." >&2
   failed=1
 fi
 

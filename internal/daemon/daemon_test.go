@@ -4680,11 +4680,11 @@ func TestBootConfigEnsuresManagedAgents(t *testing.T) {
 	})
 }
 
-// TestBootConfigRejectsRetiredAlwaysOnTable owns FR-006: since v0.5.2 a global config that still
-// has [agents.stays_on] stops the daemon's first config load with the removed-key error that names
-// [agents.always_on], instead of booting with a warning.
-func TestBootConfigRejectsRetiredAlwaysOnTable(t *testing.T) {
-	t.Run("Should stop the first config load naming agents.always_on", func(t *testing.T) {
+// TestBootConfigMigratesRetiredAlwaysOnTable owns FR-006: a global config that still has
+// [agents.stays_on] is migrated by the daemon's first config load, so boot succeeds with the value
+// under agents.always_on and the file keeps the old table only as an inactive archive comment.
+func TestBootConfigMigratesRetiredAlwaysOnTable(t *testing.T) {
+	t.Run("Should boot with the table migrated into agents.always_on", func(t *testing.T) {
 		homePaths := testHomePaths(t)
 		if err := os.WriteFile(
 			homePaths.ConfigFile,
@@ -4697,11 +4697,19 @@ func TestBootConfigRejectsRetiredAlwaysOnTable(t *testing.T) {
 		d.loadConfig = func() (compozyconfig.Config, error) { return loadConfigFromHome(homePaths, d.getenv) }
 
 		state := &bootState{}
-		err := d.bootConfig(state, &bootCleanup{})
-		if _, ok := errors.AsType[*compozyconfig.UnknownKeysError](err); !ok ||
-			!strings.Contains(err.Error(), `removed config key "agents.stays_on"`) ||
-			!strings.Contains(err.Error(), `use "agents.always_on"`) {
-			t.Fatalf("bootConfig() error = %v, want the removed agents.stays_on key naming agents.always_on", err)
+		if err := d.bootConfig(state, &bootCleanup{}); err != nil {
+			t.Fatalf("bootConfig() error = %v", err)
+		}
+		if state.cfg.Agents.AlwaysOn.ApprovalTimeout != 2*time.Hour {
+			t.Fatalf("ApprovalTimeout = %v, want 2h", state.cfg.Agents.AlwaysOn.ApprovalTimeout)
+		}
+		contents, err := os.ReadFile(homePaths.ConfigFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(contents), "[agents.always_on]") ||
+			!strings.Contains(string(contents), "# Archived [agents.stays_on] table") {
+			t.Fatalf("config after boot = %q, want agents.always_on and the archive comment", contents)
 		}
 	})
 }

@@ -682,9 +682,9 @@ on window-manager surfaces it always means the reserved partition. `@user` alway
 Proactive checks use `[agents.heartbeat]` limits: `max_concurrent_triage = 2` and
 `max_interval = "24h"` (at least `quiet_backoff_cap`). `[agents.always_on]` retains
 `max_proposals = 2` and `triage_timeout = "10m"`.
-`[agents.always_on]` was renamed in v0.5.1. Since v0.5.2 its v0.5.0 table name fails config load, and its
-config paths are rejected, with errors that name `agents.always_on`; see "Identity and kind" in
-`references/agent-definitions.md`. Validation messages name `agents.always_on.*`.
+`[agents.always_on]` was renamed in v0.5.1. Since v0.5.2 a persisted v0.5.0 table migrates into it on
+load, and its old config paths are rejected with errors that name `agents.always_on`; see "Identity and
+kind" in `references/agent-definitions.md`. Validation messages name `agents.always_on.*`.
 All must be positive; `max_proposals` cannot exceed 20. Changes take effect after daemon
 restart. Cadence, enabled state and event retention use the existing `[agents.heartbeat]`
 settings. Boot settles interrupted checks before scheduler timer traffic starts.

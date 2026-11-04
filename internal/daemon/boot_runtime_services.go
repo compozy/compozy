@@ -26,6 +26,7 @@ func (d *Daemon) bootRuntimeServices(
 	if err := recoverProfiles(ctx, state); err != nil {
 		return err
 	}
+	migrateDaemonAgentKinds(d.homePaths, state.logger)
 	providerVault, err := d.buildProviderVault(state)
 	if err != nil {
 		return err

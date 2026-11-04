@@ -18,22 +18,26 @@ Back up your global and workspace `.compozy/` directories before changing instal
 
 ## The stays_on aliases are removed (v0.5.2)
 
-v0.5.2 removes the v0.5.1 compatibility layer for the `stays_on` spelling. Only `on_demand` and
-`always_on` are accepted, and the daemon no longer rewrites AGENT.md files at boot. Stored rows need
-nothing, because the v0.5.1 migration already moved them.
+The v0.5.1 compatibility layer for the `stays_on` spelling is removed. Requests, flags, native tools
+and config paths accept only `on_demand` and `always_on`. Files you already have are migrated in
+place, and stored rows need nothing, because the v0.5.1 migration already moved them.
 
-| Input that still says `stays_on`                                                | v0.5.2 result                                                                                                     |
-| ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| AGENT.md `kind: stays_on` in any root                                           | The file stops loading: `agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)` |
-| `[agents.stays_on]` in `config.toml`                                            | Config load fails: `removed config key "agents.stays_on" in "<file>": use "agents.always_on"`                     |
-| `agents.stays_on.*` in `compozy config get\|set\|unset` and `compozy__config_*` | Rejected: `config: removed config path "agents.stays_on.<key>": use "agents.always_on.<key>"`                     |
-| `--kind stays_on`, request `kind: "stays_on"`                                   | Fails with `agent_kind_invalid` and the AGENT.md message above                                                    |
-| `compozy__agent_create` with `kind: "stays_on"`                                 | Fails input validation: `"$.kind": value is not allowed` (the schema lists `on_demand` and `always_on`)           |
+| What still says `stays_on`                                                      | Result                                                                                                                                           |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `[agents.stays_on]` in a global, profile or workspace `config.toml`             | Migrated on load into `[agents.always_on]`; a key already set there wins. The original values stay as an inactive comment at the end of the file |
+| AGENT.md under `$COMPOZY_HOME/agents` or `$COMPOZY_HOME/profiles/<p>/agents`    | Rewritten to `kind: always_on` at boot                                                                                                           |
+| AGENT.md in a repository, a workspace profile or an additional root             | Rewritten to `kind: always_on` when the workspace resolves                                                                                       |
+| AGENT.md in an extension                                                        | Never rewritten; the extension author must ship `always_on`                                                                                      |
+| An AGENT.md the migration skips                                                 | Stops loading: `agent kind must be on_demand or always_on (stays_on was renamed to always_on in v0.5.1)` in the workspace agent diagnostics      |
+| `agents.stays_on.*` in `compozy config get\|set\|unset` and `compozy__config_*` | Rejected: `config: removed config path "agents.stays_on.<key>": use "agents.always_on.<key>"`                                                    |
+| `--kind stays_on`, request `kind: "stays_on"`                                   | Fails with `agent_kind_invalid` and the AGENT.md message above                                                                                   |
+| `compozy__agent_create` with `kind: "stays_on"`                                 | Fails input validation: `"$.kind": value is not allowed` (the schema lists `on_demand` and `always_on`)                                          |
 
-If you ran v0.5.1, edit only the AGENT.md files in a repository, a workspace profile, an additional
-root, or an extension, plus any `[agents.stays_on]` table. If you upgrade straight from v0.5.0, also
-edit the files under `$COMPOZY_HOME/agents` and `$COMPOZY_HOME/profiles/<profile>/agents`, or start
-v0.5.1 once first so its boot rewrite runs.
+The AGENT.md migration skips a read-only file, a symbolic link, a file that changes during the
+rewrite, an unreadable file, and a form it cannot edit safely, such as `kind: &k stays_on`. It logs
+each skip as `agent kind rewrite skipped` with the reason and path. v0.5.1 skipped the same files,
+so check for leftovers even if you ran it: search your agent roots for `stays_on` and edit what
+remains to `kind: always_on`.
 
 <a id="always-on-vocabulary"></a>
 
