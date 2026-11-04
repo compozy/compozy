@@ -21,3 +21,9 @@ This scenario owns the cross-surface seed contract. It covers repeatable fixture
 The 2026-08-22 targeted walk confirmed stable IDs and counts across replace, zero live Loop aggregates after daemon boot, read-only historical controls, preserved unowned files, and the populated Goal, worktree, memory, notification, automation, task, and transcript surfaces.
 
 QA impact 2026-10-07 (memory removal): the demo seed no longer seeds memory, so the "memory" surface in the 2026-08-22 walk above is historical; every other seeded surface is unchanged. No verdict change.
+
+Telemetry isolation follow-up (2026-11-04): replacing a seeded workspace reuses its identity.
+Re-registration must purge telemetry from the deleted registration before removing its tombstone,
+so new summaries remain writable and visible without reviving deleted summaries. The real SQLite
+`TestSeed/Should_persist_one_coherent_scenario_and_replace_it_without_duplication` suite verifies
+successive replacements. The live-daemon walk remains owned by CI under the host-load restriction.

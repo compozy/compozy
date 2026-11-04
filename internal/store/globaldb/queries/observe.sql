@@ -105,3 +105,9 @@ FROM profiles WHERE profiles.id = sqlc.arg(profile_id);
 
 -- name: ListTelemetryDeletedScopes :many
 SELECT kind, scope_id FROM telemetry_deleted_scopes ORDER BY kind, scope_id;
+
+-- name: DeleteWorkspaceTelemetryTombstone :execrows
+DELETE FROM telemetry_deleted_scopes WHERE kind = 'workspace' AND scope_id = ?;
+
+-- name: HasWorkspaceTelemetryTombstone :one
+SELECT CAST(EXISTS(SELECT 1 FROM telemetry_deleted_scopes WHERE kind = 'workspace' AND scope_id = ?) AS INTEGER);

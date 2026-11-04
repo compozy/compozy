@@ -48,6 +48,18 @@ func (q *Queries) DeleteTokenStatsBefore(ctx context.Context, arg DeleteTokenSta
 	return result.RowsAffected()
 }
 
+const deleteWorkspaceTelemetryTombstone = `-- name: DeleteWorkspaceTelemetryTombstone :execrows
+DELETE FROM telemetry_deleted_scopes WHERE kind = 'workspace' AND scope_id = ?
+`
+
+func (q *Queries) DeleteWorkspaceTelemetryTombstone(ctx context.Context, scopeID string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteWorkspaceTelemetryTombstone, scopeID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const getEventSummarySessionProjection = `-- name: GetEventSummarySessionProjection :one
 SELECT workspace_id, provider, worktree_id FROM sessions WHERE id = ?1
 `
@@ -105,6 +117,17 @@ type HasExpiredObservabilityParams struct {
 
 func (q *Queries) HasExpiredObservability(ctx context.Context, arg HasExpiredObservabilityParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, hasExpiredObservability, arg.Cutoff, arg.CutoffDay)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const hasWorkspaceTelemetryTombstone = `-- name: HasWorkspaceTelemetryTombstone :one
+SELECT CAST(EXISTS(SELECT 1 FROM telemetry_deleted_scopes WHERE kind = 'workspace' AND scope_id = ?) AS INTEGER)
+`
+
+func (q *Queries) HasWorkspaceTelemetryTombstone(ctx context.Context, scopeID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, hasWorkspaceTelemetryTombstone, scopeID)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err

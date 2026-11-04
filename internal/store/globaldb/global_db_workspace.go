@@ -17,44 +17,6 @@ import (
 	compozyworkspace "github.com/compozy/compozy/internal/workspace"
 )
 
-// InsertWorkspace creates a new persisted workspace registration row.
-func (g *WorkspaceRepo) InsertWorkspace(ctx context.Context, ws compozyworkspace.Workspace) error {
-	if err := g.checkReady(ctx, "insert workspace"); err != nil {
-		return err
-	}
-
-	normalized, addDirsJSON, err := g.normalizeWorkspaceForInsert(ws)
-	if err != nil {
-		return err
-	}
-
-	if err := g.executeWriteQuery(
-		ctx,
-		"globaldb.InsertWorkspace",
-		func(ctx context.Context, queries *sqlcgen.Queries) error {
-			return queries.InsertWorkspace(ctx, sqlcgen.InsertWorkspaceParams{
-				ID:           normalized.ID,
-				RootDir:      normalized.RootDir,
-				AddDirs:      addDirsJSON,
-				Name:         normalized.Name,
-				DefaultAgent: nullableWorkspaceString(normalized.DefaultAgent),
-				CreatedAt: store.FormatTimestamp(
-					normalized.CreatedAt,
-				),
-				UpdatedAt: store.FormatTimestamp(normalized.UpdatedAt),
-			})
-		},
-	); err != nil {
-		return fmt.Errorf(
-			"store: insert workspace %q: %w",
-			normalized.ID,
-			mapWorkspaceWriteConstraintError(ctx, g.readDB, normalized, err),
-		)
-	}
-
-	return nil
-}
-
 // UpdateWorkspace updates an existing persisted workspace registration row.
 func (g *WorkspaceRepo) UpdateWorkspace(ctx context.Context, ws compozyworkspace.Workspace) error {
 	if err := g.checkReady(ctx, "update workspace"); err != nil {
