@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.2 - 2026-11-04
+
+### Bug Fixes
+
+- Keep generated avatars for bundled always-on agents (#1260)
+- Bump next to 16.4.5 (November 2026 security release)
+- Stop CompozyOS PR display polling from exhausting the GitHub quota (#1268)
+- Attach CompozyOS desktop bootstrap to a live, still-booting daemon (#1255)
+- Expose CompozyOS CLI after macOS desktop installation (#1261)
+- Remember cross-workspace read consent for always-on agents (#1274)
+- Allow script source approval before the first check-in (#1262)
+- Show CompozyOS data upgrade progress during coordinated restarts (#1256)
+- Make SQLite contention acceptance measure untraced work (#1285)
+- Confirm Claude triage models and report configuration rejections (#1276)
+
+### Features
+
+- Override bundled agent permissions without forking its prompt (#1273)
+
+### Performance Improvements
+
+- Bound agent activity reads and batch team pulses (#1288)
+
+### Testing
+
+- Fix loop editor, agent select, inspector and context menu story debt (#1277)
+
 ## 0.5.1 - 2026-11-04
 
 ### Bug Fixes
@@ -1224,6 +1251,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - _(repo)_ Many improvements
 - _(repo)_ Add cy prefix for skills and memory system
 
+[0.5.2]: https://github.com/compozy/compozy/compare/v0.5.1...v0.5.2
 [0.5.1]: https://github.com/compozy/compozy/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/compozy/compozy/compare/v0.4.8...v0.5.0
 [0.4.8]: https://github.com/compozy/compozy/compare/v0.4.7...v0.4.8
