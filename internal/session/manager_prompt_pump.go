@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/compozy/compozy/internal/profiling"
+
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -140,21 +142,53 @@ func (m *Manager) flushPromptPumpRun(
 	loop *promptPumpLoopState,
 	coalescer *promptChunkCoalescer,
 ) bool {
-	failure, errorText, stop := m.flushPromptChunkCoalescer(
-		run.lifecycleCtx,
-		run.deliveryCtx,
-		run.session,
-		run.turnState,
-		run.out,
-		loop,
-		coalescer,
-		run.fatal,
-	)
-	run.fatal.capture(failure, errorText)
-	return stop
+	if !coalescer.hasPending() {
+		return false
+	}
+	return m.profilePromptPumpRun(run, func(run *promptPumpRun) bool {
+		failure, errorText, stop := m.flushPromptChunkCoalescer(
+			run.lifecycleCtx,
+			run.deliveryCtx,
+			run.session,
+			run.turnState,
+			run.out,
+			loop,
+			coalescer,
+			run.fatal,
+		)
+		run.fatal.capture(failure, errorText)
+		return stop
+	})
 }
 
 func (m *Manager) handlePromptPumpRun(
+	run *promptPumpRun,
+	loop *promptPumpLoopState,
+	event acp.AgentEvent,
+	runtimeEvent bool,
+) bool {
+	return m.profilePromptPumpRun(run, func(run *promptPumpRun) bool {
+		return m.handleLabeledPromptPumpRun(run, loop, event, runtimeEvent)
+	})
+}
+
+func (m *Manager) profilePromptPumpRun(run *promptPumpRun, consume func(*promptPumpRun) bool) bool {
+	if !profiling.Enabled() {
+		return consume(run)
+	}
+	run.session.mu.RLock()
+	sessionID, provider := run.session.ID, run.session.Provider
+	run.session.mu.RUnlock()
+	var stop bool
+	profiling.Do(run.lifecycleCtx, func(ctx context.Context) {
+		labeled := *run
+		labeled.lifecycleCtx = ctx
+		stop = consume(&labeled)
+	}, "session_id", sessionID, "provider", provider)
+	return stop
+}
+
+func (m *Manager) handleLabeledPromptPumpRun(
 	run *promptPumpRun,
 	loop *promptPumpLoopState,
 	event acp.AgentEvent,

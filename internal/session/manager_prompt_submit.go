@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/profiling"
+
 	"github.com/compozy/compozy/internal/acp"
 	commandpkg "github.com/compozy/compozy/internal/command"
 	"github.com/compozy/compozy/internal/mention"
@@ -48,6 +50,24 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	if err != nil {
 		return nil, err
 	}
+
+	var events <-chan acp.AgentEvent
+	profiling.Do(
+		ctx,
+		func(ctx context.Context) { events, err = m.submitProfiledPromptRequest(ctx, req, session) },
+		"session_id",
+		session.ID,
+		"operation",
+		"session_turn",
+	)
+	return events, err
+}
+
+func (m *Manager) submitProfiledPromptRequest(
+	ctx context.Context,
+	req promptRequest,
+	session *Session,
+) (<-chan acp.AgentEvent, error) {
 	if req.deliveryCtx == nil {
 		req.deliveryCtx = ctx
 	}

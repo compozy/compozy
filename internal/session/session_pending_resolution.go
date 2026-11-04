@@ -107,13 +107,13 @@ func (m *Manager) ApprovePermission(
 
 // bindApprovalActor validates the request and makes a trusted acting session the decision's actor on every
 // transport; an empty actor would otherwise be recorded as operator engagement and reset the lineage's
-// unattended counter. A stays-on actor's "always" answer is narrowed to once so it leaves no durable grant.
+// unattended counter. An always-on actor's "always" answer is narrowed to once so it leaves no durable grant.
 func (m *Manager) bindApprovalActor(ctx context.Context, req acp.ApproveRequest) (acp.ApproveRequest, error) {
 	if err := req.Validate(); err != nil {
 		return acp.ApproveRequest{}, err
 	}
 	req.ResolvedBy = resolvedByFromContext(ctx, req.ResolvedBy)
-	decision, err := StaysOnApprovalDecision(ctx, actingSessionID(ctx), req.Decision, m.Status)
+	decision, err := AlwaysOnApprovalDecision(ctx, actingSessionID(ctx), req.Decision, m.Status)
 	if err != nil {
 		return acp.ApproveRequest{}, err
 	}

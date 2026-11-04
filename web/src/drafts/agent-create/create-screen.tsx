@@ -16,8 +16,8 @@ import {
 
 import { protoHref } from "@compozy/proto";
 
-import { goToState } from "../stays-on-agents-shared/go-to-state";
-import type { AgentState } from "../stays-on-agents-shared/agent-state";
+import { goToState } from "../always-on-agents-shared/go-to-state";
+import type { AgentState } from "../always-on-agents-shared/agent-state";
 
 import { AgentPreview } from "./agent-preview";
 import type { FillPreset } from "./fill-with-ai";
@@ -71,7 +71,7 @@ function Notice({ notice }: { notice: ScreenNotice }) {
 }
 
 function submit(_draft: Draft) {
-  window.location.assign(protoHref("stays-on-sessions", "sidebar-rows"));
+  window.location.assign(protoHref("always-on-sessions", "sidebar-rows"));
 }
 
 function hasEntries(draft: Draft) {

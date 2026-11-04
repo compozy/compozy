@@ -398,7 +398,7 @@ func TestAgentMemoryRoutes(t *testing.T) {
 			listForWorkspace: func(*workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error) {
 				return []core.AgentCatalogEntry{
 					{
-						Def:          compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn},
+						Def:          compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindAlwaysOn},
 						MemoryOrigin: "user",
 					},
 				}, nil
@@ -431,7 +431,7 @@ func TestAgentMemoryRoutes(t *testing.T) {
 
 	t.Run("Should take ownership from the catalog when the workspace scan found the agent first", func(t *testing.T) {
 		t.Parallel()
-		def := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn}
+		def := compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindAlwaysOn}
 		resolve := func(context.Context, string, string) (workspacepkg.ResolvedWorkspace, error) {
 			return workspacepkg.ResolvedWorkspace{
 				ID:     "ws-one",
@@ -486,7 +486,7 @@ func TestAgentMemoryRoutes(t *testing.T) {
 			listForWorkspace: func(*workspacepkg.ResolvedWorkspace) ([]core.AgentCatalogEntry, error) {
 				return []core.AgentCatalogEntry{
 					{
-						Def:          compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindStaysOn},
+						Def:          compozyconfig.AgentDef{Name: "triage", Kind: compozyconfig.AgentKindAlwaysOn},
 						MemoryOrigin: "user",
 					},
 					{Def: compozyconfig.AgentDef{Name: "ordinary"}, MemoryOrigin: "user"},
@@ -509,7 +509,7 @@ func TestAgentMemoryRoutes(t *testing.T) {
 			{"GET", "/agents/triage/memory/history", "", 200, "revisions"},
 			{"POST", "/agents/triage/memory/validate", `{"content":"valid"}`, 200, `"valid":true`},
 			{"DELETE", "/agents/triage/memory/entries", `{"match":"production"}`, 200, `"removed":1`},
-			{"GET", "/agents/ordinary/memory", "", 422, "agent_not_stays_on"},
+			{"GET", "/agents/ordinary/memory", "", 422, "agent_not_always_on"},
 			{"GET", "/agents/missing/memory", "", 404, "error"},
 		} {
 			response := testutil.PerformRequest(t, fixture.Engine, tc.method, tc.path, []byte(tc.body))

@@ -125,7 +125,7 @@ function WhatItDoesForm({
     <div className="grid grid-cols-[minmax(0,1fr)_21rem] items-start gap-5">
       <div className="flex min-w-0 flex-col gap-4">
         <MarkdownEditor
-          aria-label="What it does"
+          aria-label="Instructions"
           autoFocus={baseline.missing === true && !readOnly}
           className="bg-card"
           contentClassName="min-h-96 px-4 py-3 text-body leading-relaxed"
@@ -165,7 +165,7 @@ export function AgentWhatItDoesView({
   const label = agent.label || agent.name;
   return (
     <div className="flex flex-col gap-6 py-2">
-      <EditorHead agent={agent} state={state} subtitle={agent.description} title="What it does" />
+      <EditorHead agent={agent} state={state} subtitle={agent.description} title="Instructions" />
       {readOnly ? <ReadOnlyNotice agent={agent} /> : null}
       <WhatItDoesConflict document={document} label={label} />
       {block ? (

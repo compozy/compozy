@@ -5,10 +5,10 @@ import type {
   RuntimeSelectorValue,
 } from "@/systems/runtime/components/runtime-selector";
 
-import type { AgentAppearance } from "../stays-on-agents-shared/agent-state";
-import { ON_DEMAND_AGENTS, STAYS_ON_AGENTS } from "../stays-on-agents-shared/fixtures";
+import type { AgentAppearance } from "../always-on-agents-shared/agent-state";
+import { ON_DEMAND_AGENTS, ALWAYS_ON_AGENTS } from "../always-on-agents-shared/fixtures";
 
-export type AgentMode = "on-demand" | "stays-on";
+export type AgentMode = "on-demand" | "always-on";
 /** A project name, `@user` for Global, or `later` for no place yet. */
 export type Place = string;
 
@@ -103,7 +103,7 @@ export const EMPTY_DRAFT: Draft = {
   runtime: DEFAULT_MODEL,
 };
 
-const TAKEN = new Set([...STAYS_ON_AGENTS, ...ON_DEMAND_AGENTS].map(agent => agent.name));
+const TAKEN = new Set([...ALWAYS_ON_AGENTS, ...ON_DEMAND_AGENTS].map(agent => agent.name));
 
 export function shortNameFor(name: string) {
   return name

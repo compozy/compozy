@@ -18,7 +18,7 @@ const OPTIONS: RadioCardGroupOption<Level>[] = [
   { value: "read", title: "Ask before changes", description: "Reading is automatic.", icon: Eye },
   {
     value: "edit",
-    title: "Edit on its own",
+    title: "Accept edits",
     description: "Riskier actions still ask.",
     icon: PencilLine,
     badge: (
@@ -29,7 +29,7 @@ const OPTIONS: RadioCardGroupOption<Level>[] = [
   },
   {
     value: "all",
-    title: "Never ask",
+    title: "Full access",
     description: "Acts without asking.",
     icon: Zap,
     disabled: true,
@@ -86,7 +86,7 @@ export const KeyboardNavigation: Story = {
   render: () => <Group />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole("radio", { name: /Edit on its own/ }));
+    await userEvent.click(canvas.getByRole("radio", { name: /Accept edits/ }));
     await userEvent.keyboard("{ArrowDown}");
     await expect(canvas.getByRole("radio", { name: /Ask before every action/ })).toHaveAttribute(
       "aria-checked",

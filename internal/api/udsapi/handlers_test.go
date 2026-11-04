@@ -1,19 +1,28 @@
 package udsapi
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
+	"runtime/pprof"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/api/httpapi"
+	"github.com/gin-gonic/gin"
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
@@ -176,6 +185,7 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"GET /api/settings/marketplace",
 			"PATCH /api/settings/marketplace",
 			"GET /api/status",
+			"GET /api/daemon/profile/:kind",
 			"GET /api/status/identity",
 			"POST /api/undrain",
 			"GET /api/onboarding",
@@ -3243,4 +3253,126 @@ func TestCompactSessionHandler(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDaemonProfiles(t *testing.T) {
+	t.Parallel()
+	t.Run("Should capture runtime profiles exclusively over UDS with bounded sampling", func(t *testing.T) {
+		t.Parallel()
+		engine := gin.New()
+		RegisterRoutes(engine, &Handlers{BaseHandlers: core.NewBaseHandlers(nil)})
+		request := func(ctx context.Context, path string) *httptest.ResponseRecorder {
+			t.Helper()
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, httptest.NewRequestWithContext(ctx, http.MethodGet, path, nil))
+			return response
+		}
+		for _, kind := range []string{"cpu", "heap", "allocs", "goroutine", "mutex", "block", "threadcreate"} {
+			path := "/api/daemon/profile/" + kind
+			if kind == "cpu" || kind == "mutex" || kind == "block" {
+				path += "?seconds=1"
+			}
+			response := request(t.Context(), path)
+			if response.Code != http.StatusOK {
+				t.Fatalf("%s: status=%d body=%s", kind, response.Code, response.Body)
+			}
+			reader, err := gzip.NewReader(bytes.NewReader(response.Body.Bytes()))
+			if err != nil {
+				t.Fatalf("%s: %v", kind, err)
+			}
+			data, err := io.ReadAll(reader)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := reader.Close(); err != nil {
+				t.Fatal(err)
+			}
+			if len(data) == 0 {
+				t.Fatalf("%s: empty profile", kind)
+			}
+			file := filepath.Join(t.TempDir(), kind+".pprof")
+			if err := os.WriteFile(file, response.Body.Bytes(), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			if output, err := exec.CommandContext(t.Context(), "go", "tool", "pprof", "-raw", "-symbolize=none", file).
+				CombinedOutput(); err != nil {
+				t.Fatalf("%s: invalid pprof: %v: %s", kind, err, output)
+			}
+		}
+		if rate := runtime.SetMutexProfileFraction(-1); rate != 0 {
+			t.Fatalf("mutex sampling left enabled: %d", rate)
+		}
+		for _, path := range []string{"cpu?seconds=0", "cpu?seconds=121", "cpu?seconds=abc", "heap?seconds=1", "unknown"} {
+			response := request(t.Context(), "/api/daemon/profile/"+path)
+			if response.Code != http.StatusBadRequest ||
+				!strings.Contains(response.Body.String(), "daemon_profile_invalid") {
+				t.Fatalf("%s: %d %s", path, response.Code, response.Body)
+			}
+		}
+		if err := pprof.StartCPUProfile(io.Discard); err != nil {
+			t.Fatal(err)
+		}
+		response := request(t.Context(), "/api/daemon/profile/cpu?seconds=1")
+		pprof.StopCPUProfile()
+		if response.Code != http.StatusConflict || !strings.Contains(response.Body.String(), "profile_busy") {
+			t.Fatalf("concurrent cpu: %d %s", response.Code, response.Body)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		active := &cancelSamplingContext{Context: ctx, cancel: cancel}
+		response = request(active, "/api/daemon/profile/mutex?seconds=120")
+		if active.observedRate != 1 {
+			t.Fatalf("capture never enabled mutex sampling: %d", active.observedRate)
+		}
+		if response.Code != http.StatusInternalServerError || !strings.Contains(response.Body.String(), "canceled") {
+			t.Fatalf("cancel: %d %s", response.Code, response.Body)
+		}
+		if rate := runtime.SetMutexProfileFraction(-1); rate != 0 {
+			t.Fatalf("cancellation left sampling enabled: %d", rate)
+		}
+		response = request(t.Context(), "/api/daemon/profile/mutex?seconds=1")
+		if response.Code != http.StatusOK {
+			t.Fatalf("capture after cancellation: %d %s", response.Code, response.Body)
+		}
+		if rate := runtime.SetMutexProfileFraction(-1); rate != 0 {
+			t.Fatalf("repeated capture left sampling enabled: %d", rate)
+		}
+		for _, surface := range []httpapi.SurfaceSet{httpapi.SurfaceSetLocal, httpapi.SurfaceSetPrivate, httpapi.SurfaceSetPublicIngress, httpapi.SurfaceSetPublicOperator, httpapi.SurfaceSetPublicCombined} {
+			httpEngine := gin.New()
+			httpapi.RegisterSurfaceRoutes(
+				httpEngine,
+				&httpapi.Handlers{BaseHandlers: core.NewBaseHandlers(nil)},
+				surface,
+			)
+			for _, route := range httpEngine.Routes() {
+				if strings.Contains(route.Path, "/daemon/profile") {
+					t.Fatalf("profile exposed on HTTP surface %s", surface)
+				}
+			}
+			response := httptest.NewRecorder()
+			httpEngine.ServeHTTP(
+				response,
+				httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/api/daemon/profile/heap", nil),
+			)
+			if response.Code == http.StatusOK && response.Header().Get("Content-Type") == "application/octet-stream" {
+				t.Fatalf("profile served on HTTP surface %s", surface)
+			}
+		}
+	})
+}
+
+type cancelSamplingContext struct {
+	context.Context
+	cancel       context.CancelFunc
+	observedRate int
+}
+
+var _ context.Context = (*cancelSamplingContext)(nil)
+
+func (c *cancelSamplingContext) Done() <-chan struct{} {
+	if c.Err() == nil {
+		c.observedRate = runtime.SetMutexProfileFraction(-1)
+		c.cancel()
+	}
+	return c.Context.Done()
 }

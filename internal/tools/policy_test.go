@@ -472,7 +472,7 @@ func TestCoordinationPermissionLevels(t *testing.T) {
 					d.ReadOnly = false
 					d.Risk = RiskMutating
 					e, err := NewEffectivePolicyEvaluator(PolicyInputs{
-						SystemPermissionMode: mode, StaysOnLineage: lineage, ApprovalAvailable: true,
+						SystemPermissionMode: mode, AlwaysOnLineage: lineage, ApprovalAvailable: true,
 					}, ToolsetCatalog{}, []ToolID{id})
 					if err != nil {
 						t.Fatal(err)
@@ -530,7 +530,7 @@ func TestCoordinationPermissionLevels(t *testing.T) {
 			}
 			for _, tc := range cases {
 				e, err := NewEffectivePolicyEvaluator(PolicyInputs{
-					SystemPermissionMode: mode, StaysOnLineage: true, ApprovalAvailable: true,
+					SystemPermissionMode: mode, AlwaysOnLineage: true, ApprovalAvailable: true,
 					ExternalDefault: ExternalDefaultEnabled,
 				}, ToolsetCatalog{}, []ToolID{tc.descriptor.ID})
 				if err != nil {

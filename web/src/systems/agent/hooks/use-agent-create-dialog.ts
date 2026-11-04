@@ -65,7 +65,7 @@ export interface AgentCreateDialogState {
 }
 
 export interface AgentCreateOpenOptions {
-  /** Opens on Stays on with this place chosen: a workspace id or `@user`. */
+  /** Opens on Always-on with this place chosen: a workspace id or `@user`. */
   place?: string;
 }
 
@@ -188,7 +188,7 @@ export function useAgentCreateDialog({
   const openDialog = (options: AgentCreateOpenOptions = {}) => {
     const draft = defaultDraft();
     dialogStore.trigger.createOpened({
-      draft: options.place ? { ...draft, kind: "stays_on", place: options.place } : draft,
+      draft: options.place ? { ...draft, kind: "always_on", place: options.place } : draft,
     });
   };
 
@@ -269,7 +269,7 @@ function useAgentCreateProviders(
   const workspaceProviderOptions: RuntimeProviderOption[] =
     workspaceProviders.map(workspaceProviderToOption);
 
-  /** The menubar owns an On demand agent's scope; a Stays on agent lives at the user level. */
+  /** The menubar owns an on-demand agent's scope; an always-on agent lives at the user level. */
   const resolveDraft = (stored: AgentCreateDialogDraft): AgentCreateDialogDraft => {
     const scoped = updateAgentCreateScope(
       stored,

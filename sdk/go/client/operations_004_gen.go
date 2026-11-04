@@ -9,6 +9,32 @@ import (
 	"strings"
 )
 
+// CompactSession Request advertised native agent compaction (experimental) Experimental: pin the exact SDK version.
+func (c *Client) CompactSession(ctx context.Context, params CompactSessionParams, body SessionCompactRequest) (*SessionCompactResponse, error) {
+	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/compact"
+	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
+	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SessionCompactResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CompleteAgentTaskRunParams carries the path, query, and header parameters.
+type CompleteAgentTaskRunParams struct {
+	XCompozySessionID string `url:"X-Compozy-Session-ID"`
+	XCompozyAgent     string `url:"X-Compozy-Agent"`
+	RunID             string `url:"run_id"`
+}
+
 // CompleteAgentTaskRun Complete a claimed task run for the calling agent
 func (c *Client) CompleteAgentTaskRun(ctx context.Context, params CompleteAgentTaskRunParams, body AgentTaskCompleteRequest) (*AgentTaskLeaseResponse, error) {
 	path := "/api/agent/tasks/{run_id}/complete"
@@ -164,7 +190,7 @@ type CreateAgentInstanceParams struct {
 	Profile *string `url:"profile"`
 }
 
-// CreateAgentInstance Create a stays-on agent instance
+// CreateAgentInstance Create an always-on agent instance
 func (c *Client) CreateAgentInstance(ctx context.Context, params CreateAgentInstanceParams, body AgentInstanceCreateRequest) (*AgentInstanceResponse, error) {
 	path := "/api/agent-instances"
 	query := url.Values{}
@@ -407,38 +433,5 @@ func (c *Client) CreateTerminal(ctx context.Context, params CreateTerminalParams
 // CreateToolApprovalParams carries the path, query, and header parameters.
 type CreateToolApprovalParams struct {
 	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
-}
-
-// CreateToolApproval Mint a local single-use approval token for one tool invocation
-func (c *Client) CreateToolApproval(ctx context.Context, params CreateToolApprovalParams, body ToolApprovalRequest) (*ToolApprovalResponse, error) {
-	path := "/api/tools/{id}/approvals"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out ToolApprovalResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateWorkspace Register a workspace
-func (c *Client) CreateWorkspace(ctx context.Context, body CreateWorkspaceRequest) (*WorkspaceResponse, error) {
-	path := "/api/workspaces"
-	var out WorkspaceResponse
-	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateWorkspaceFolderParams carries the path, query, and header parameters.
-type CreateWorkspaceFolderParams struct {
 	Profile *string `url:"profile"`
 }

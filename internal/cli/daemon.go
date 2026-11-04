@@ -52,6 +52,7 @@ func newDaemonCommand(deps commandDeps) *cobra.Command {
 	}
 	configureMachineProfileFlag(cmd, true)
 
+	cmd.AddCommand(newDaemonProfileCommand(deps))
 	cmd.AddCommand(newDaemonStartCommand(deps))
 	cmd.AddCommand(newDaemonBootstrapCommand(deps))
 	cmd.AddCommand(newDaemonRelaunchCommand(deps))

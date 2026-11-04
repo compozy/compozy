@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/profiling"
 )
 
 type dispatchTarget struct {
@@ -38,7 +40,11 @@ func (r *RuntimeRegistry) dispatch(ctx context.Context, scope Scope, req CallReq
 		}
 		return ToolResult{}, r.failDispatch(ctx, &target, req, started, err, ToolCallFailed)
 	}
-	return r.executeDispatchTarget(ctx, scope, req, &target, started)
+	var result ToolResult
+	profiling.Do(ctx, func(ctx context.Context) {
+		result, err = r.executeDispatchTarget(ctx, scope, req, &target, started)
+	}, "tool", string(target.descriptor.ID), "session_id", scope.SessionID)
+	return result, err
 }
 
 func (r *RuntimeRegistry) executeDispatchTarget(

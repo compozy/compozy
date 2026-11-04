@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	identityTimeout = 5 * time.Second
-	requestTimeout  = 30 * time.Second
+	identityTimeout       = 5 * time.Second
+	requestTimeout        = 30 * time.Second
+	profileRequestTimeout = 130 * time.Second
 )
 
 // Client connects an app to a CompozyOS daemon.

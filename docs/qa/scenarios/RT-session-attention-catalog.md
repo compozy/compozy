@@ -89,7 +89,7 @@ Finished count. The unchanged prioritized-wake case in
 `TestSubagentDaemonIntegration` verifies this against the real daemon/store;
 see the merge-train v0.4.0 report for the scoped result.
 
-B4 supervision impact: hold a permission on a Stays on session beyond the quiet
+B4 supervision impact: hold a permission on an always-on session beyond the quiet
 warning/stop interval. Confirm the supervision payload includes `held_permission`,
 the session remains active without an inactivity warning, and answering removes
 that signal. Orphaned permissions after restart must not count as live work.

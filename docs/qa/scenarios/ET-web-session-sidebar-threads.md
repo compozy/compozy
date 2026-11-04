@@ -191,7 +191,7 @@ the words that say why ("Needs your answer", "Needs your approval", "Needs atten
 model's place. Other state words (Working, Waiting on sessions, Monitoring, Done) are left to the glyph
 and stay in the row's accessible name. The agent's name is no longer written; resting the pointer on its
 face for 700 ms shows it in a tooltip, and the provider mark's tooltip waits the same. Rows no longer
-carry the linked-work count or the stays-on creator face. Subagent rows on a parent's branch follow the
+carry the linked-work count or the always-on creator face. Subagent rows on a parent's branch follow the
 same grammar: elapsed clock at the end of line 1, face, provider mark and model on line 2, and only
 "Waiting for you" or "Failed" written in the model's place. Built-in agents (General and the agents of
 the bundled extensions) wear a gray icon without a plate. The rail's default width is 360 px. Reset to

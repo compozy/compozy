@@ -53,7 +53,7 @@ choices conflict. Aggregate rows include `profile_name`, and JSONL output starts
 `profile_resolution` frame even when no rows match.
 
 A scoped detail read of work owned by another profile returns not found. An aggregate detail read may
-return it with its owner label. Stays-on agent instance lists and details accept the aggregate and carry
+return it with its owner label. Always-on agent instance lists and details accept the aggregate and carry
 `profile_name`; their aggregate `active_count` sums every owner because the cap applies per profile.
 Reads that belong to one profile refuse `all_profiles=true` with `profile_selection_conflict` instead of
 ignoring it: agent definitions (`compozy__agent_list`), agent activity, skill reviews, and terminal

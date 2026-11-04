@@ -64,7 +64,7 @@ export function AgentPermissionsEditor({ agent, workspace, readOnly }: AgentEdit
         saving={page.phase === "saving"}
         sessionApproval={draft.sessionApproval}
         settingsLevel={
-          agent.kind === "stays_on" ? undefined : settings.data?.config.permissions.mode
+          agent.kind === "always_on" ? undefined : settings.data?.config.permissions.mode
         }
       />
       {page.unsavedGuardDialog}

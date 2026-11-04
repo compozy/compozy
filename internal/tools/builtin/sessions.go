@@ -295,7 +295,7 @@ const sessionPromptInputSchema = `{
 		"workspace":{"type":"string"},
 		"session_id":{"type":"string","minLength":1},
  "agent":{"type":"string","minLength":1,
- "description":"Stays-on agent name in the selected workspace, resolved to its current main when admitted. ` +
+ "description":"Always-on agent name in the selected workspace, resolved to its current main when admitted. ` +
 	`Use instead of session_id."},
 		"message":{"type":"string"},
 		"attachments":{"type":"array","items":{"type":"string","minLength":1}},

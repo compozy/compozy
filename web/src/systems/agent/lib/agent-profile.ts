@@ -18,10 +18,10 @@ export const AGENT_EDITOR_PAGES = [
 export type AgentEditorPage = (typeof AGENT_EDITOR_PAGES)[number];
 
 export function agentCanResume(reason: AgentTeamPlace["pauseReason"]) {
-  return reason !== "definition_missing" && reason !== "definition_not_stays_on";
+  return reason !== "definition_missing" && reason !== "definition_not_always_on";
 }
 
-/** The freshest check-in across places, in plain words. */
+/** The freshest heartbeat across places, in plain words. */
 export function agentLastCheckIn(places: readonly AgentTeamPlace[], now = Date.now()) {
   const stamps = places.flatMap(place => {
     const at = Date.parse(place.instance.last_wake_at);
@@ -32,13 +32,13 @@ export function agentLastCheckIn(places: readonly AgentTeamPlace[], now = Date.n
 }
 
 export function agentHeadline(input: {
-  staysOn: boolean;
+  alwaysOn: boolean;
   active: number;
   places: readonly AgentTeamPlace[];
   state: AgentAvatarState;
 }) {
-  const { staysOn, active, places, state } = input;
-  if (!staysOn) return state === "working" ? `${active} running now` : "Starts when you ask";
+  const { alwaysOn, active, places, state } = input;
+  if (!alwaysOn) return state === "working" ? `${active} running now` : "Starts when you ask";
   if (places.length === 0) return "Waiting for its first project";
   const place = places.find(entry => entry.state === state);
   const where = place?.label ?? "";
@@ -71,14 +71,14 @@ export function agentPlaceStatus(place: AgentTeamPlace) {
   if (place.pauseReason) return agentPauseShort(place.instance);
   if (place.instance.state === "paused") return "You paused it";
   if (place.now) return place.now;
-  return place.state === "working" ? "Working" : "Resting until its next check-in";
+  return place.state === "working" ? "Working" : "Resting until its next heartbeat";
 }
 
 export function agentPlaceTimes(place: AgentTeamPlace, now = Date.now()) {
   const last = formatRelativeClock(place.instance.last_wake_at, now);
   if (place.instance.state === "paused") return `Last checked in ${last ?? "never"}`;
   const next = formatRelativeClock(place.instance.next_wake_at, now);
-  return `${last ? `Checked in ${last}` : "No check-ins yet"}${next ? ` · next ${next}` : ""}`;
+  return `${last ? `Checked in ${last}` : "No heartbeats yet"}${next ? ` · next ${next}` : ""}`;
 }
 
 function dayLabel(day: string) {

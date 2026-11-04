@@ -275,7 +275,7 @@ func (n *daemonNativeTools) nativeApprovalTarget(ctx context.Context, scope tool
 			return "", nil, err
 		}
 		if caller != nil && caller.EffectiveSessionApproval == resourceScopeWorkspaceKind {
-			lineage, err := session.IsStaysOnLineage(ctx, scope.SessionID, n.deps.Sessions.Status)
+			lineage, err := session.IsAlwaysOnLineage(ctx, scope.SessionID, n.deps.Sessions.Status)
 			if err != nil {
 				return "", nil, err
 			}

@@ -410,7 +410,7 @@ describe("GeneralSettingsPage", () => {
         value => `settings-page-general-permissions-group-${value}`
       )
     );
-    expect(screen.getByRole("radio", { name: /Never ask/ })).toBeChecked();
+    expect(screen.getByRole("radio", { name: /Full access/ })).toBeChecked();
     // S15 shares the S5 card style: every level shows its glyph.
     for (const radio of permissions.querySelectorAll('[role="radio"]')) {
       expect(radio.querySelector('[data-slot="radio-card-icon-well"]')).not.toBeNull();

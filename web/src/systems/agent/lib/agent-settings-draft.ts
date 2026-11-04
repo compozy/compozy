@@ -32,7 +32,7 @@ export type AgentSettingsFallbackRoute = NonNullable<
   UpdateAgentParams["agent"]["fallback_chain"]
 >[number];
 
-/** Whose requests a stays-on agent can answer; `""` keeps the daemon default (`children`). */
+/** Whose requests an always-on agent can answer; `""` keeps the daemon default (`children`). */
 export type AgentSessionApproval = "" | "children" | "workspace";
 
 export interface AgentSettingsDraft {

@@ -34,7 +34,7 @@ export function AgentTeamRow({
   member: AgentTeamMember;
   actions: AgentTeamActions;
 }) {
-  const staysOn = member.kind === "stays_on";
+  const alwaysOn = member.kind === "always_on";
   const preload = useIntentPreload(() => actions.onPreload?.(member), Boolean(actions.onPreload));
   return (
     <ListingRow data-testid={`agent-row-${member.name}`}>
@@ -66,7 +66,7 @@ export function AgentTeamRow({
             <AgentFlags member={member} />
           </ListingRow.Name>
           <ListingRow.Meta>
-            {staysOn ? (
+            {alwaysOn ? (
               <AgentNowLine lastCheckIn={agentLastCheckIn(member.places)} member={member} />
             ) : (
               <span className="min-w-0 truncate text-small-body text-muted-foreground">
@@ -77,7 +77,7 @@ export function AgentTeamRow({
         </ListingRow.Main>
       </ListingRow.Link>
       <ListingRow.Trail className="gap-4">
-        {staysOn ? (
+        {alwaysOn ? (
           <>
             <AgentPlaceChips member={member} />
             <RowPulse member={member} />

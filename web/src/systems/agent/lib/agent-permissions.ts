@@ -29,27 +29,27 @@ export const AGENT_PERMISSION_LEVELS: readonly AgentPermissionLevelOption[] = [
   },
   {
     value: "approve-edits",
-    label: "Edit on its own",
+    label: "Accept edits",
     description:
       "Edits files and runs its own coordination. Commands, deletions and settings changes still ask.",
     icon: PencilLine,
   },
   {
     value: "auto",
-    label: "Let a reviewer decide",
+    label: "Auto-review",
     description: "The provider's AI reviewer approves routine work and stops risky actions.",
     icon: ShieldCheck,
   },
   {
     value: "approve-all",
-    label: "Never ask",
+    label: "Full access",
     description: "Acts without asking. For agents you trust.",
     icon: Zap,
   },
 ];
 
-/** What a stays-on agent with no `permissions` runs at. */
-export const STAYS_ON_DEFAULT_PERMISSION: AgentPermissionLevel = "approve-edits";
+/** What an always-on agent with no `permissions` runs at. */
+export const ALWAYS_ON_DEFAULT_PERMISSION: AgentPermissionLevel = "approve-edits";
 
 /** On-demand agents can leave the level to Settings by omitting `permissions`. */
 export const FOLLOW_SETTINGS_LABEL = "Follow Settings";
@@ -78,8 +78,8 @@ export function permissionLabel(value: string | null | undefined): string {
 export function agentPermissionSummary(agent: Pick<AgentPayload, "kind" | "permissions">): string {
   const stored = agent.permissions?.trim() ?? "";
   if (stored) return permissionLabel(stored);
-  return agent.kind === "stays_on"
-    ? permissionLabel(STAYS_ON_DEFAULT_PERMISSION)
+  return agent.kind === "always_on"
+    ? permissionLabel(ALWAYS_ON_DEFAULT_PERMISSION)
     : FOLLOW_SETTINGS_LABEL;
 }
 

@@ -8,7 +8,7 @@ import { useSessionDecisionMessages } from "../hooks/use-session-transcript-thre
 import { derivePendingPermissions } from "../lib/pending-permissions";
 import { ClarificationDock } from "./clarification-dock";
 import { PermissionDock } from "./permission-dock";
-import { RelayedApprovalDock } from "./stays-on/reports/relayed-approvals";
+import { RelayedApprovalDock } from "./always-on/reports/relayed-approvals";
 
 export interface SessionDecisionDockProps {
   enabled?: boolean;

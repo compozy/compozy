@@ -85,7 +85,7 @@ export interface SessionSentMessagePart {
   /** The message id this send answers (`in_reply_to`); absent when it answers nothing. */
   inReplyTo?: string;
   state: SessionSentCallState;
-  /** The target is a paused stays-on agent: the message waits and arrives on resume (S12). */
+  /** The target is a paused always-on agent: the message waits and arrives on resume (S12). */
   held: boolean;
 }
 

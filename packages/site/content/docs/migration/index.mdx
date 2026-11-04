@@ -7,6 +7,7 @@ description: Breaking-change migration guidance for current CompozyOS releases a
 
 v0.4.0 is the first stable CompozyOS release. It follows the v0.3.0 beta line, and Homebrew and npm `latest` move from v0.2.15 to v0.4.0.
 
+- **From v0.5.0:** update in place, then follow [Stays on is now Always-on](#always-on-vocabulary) before v0.5.2.
 - **From any v0.3.0 beta:** update in place from the app's Update action or with `compozy update`; no reinstall is needed. The first start applies [User scope and All projects](#user-scope-and-all-projects). Before that, follow [Memory removal](#memory-removal), then [Networks, Bridges, and Sandbox removal](#networks-bridges-and-sandbox-removal), if you are upgrading from a beta that predates them.
 - **From v0.2:** v0.2 has reached end of life and receives no further releases. The numbered sections below describe the v0.2.15 clean-state transition.
 
@@ -17,6 +18,33 @@ extension contracts, and review behavior do not carry forward automatically.
 
 This guide uses v0.2.15 (`8f8908afd70c731b815e20282bacad05aa026827`) as the legacy baseline.
 Back up your global and workspace `.compozy/` directories before changing installations.
+
+<a id="always-on-vocabulary"></a>
+
+## Stays on is now Always-on (v0.5.1)
+
+v0.5.1 upgrades in place. The agent kind `stays_on` is now `always_on`, and the app reads
+"Always-on" and "On-demand". Every v0.5.0 file, config table, request value, and stored row keeps
+working through v0.5.1; readers of emitted `kind`, reason, and error values must update now. Update
+the inputs before v0.5.2, which removes every alias below. Update the daemon and the
+CLI together: a v0.5.1 CLI sends `always_on`, which a v0.5.0 daemon rejects.
+
+| v0.5.0                                                        | v0.5.1                                     | Through v0.5.1                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| AGENT.md `kind: stays_on`                                     | `kind: always_on`                          | Accepted with a daemon warning. Files under `$COMPOZY_HOME/agents` and `$COMPOZY_HOME/profiles/<p>/agents` are rewritten at boot                                                                                                                       |
+| `[agents.stays_on]` and `agents.stays_on.*` config paths      | `[agents.always_on]`, `agents.always_on.*` | Read with a warning; `agents.always_on` wins per key                                                                                                                                                                                                   |
+| `--kind stays_on`, request `kind: "stays_on"`                 | `always_on`                                | Accepted with a warning                                                                                                                                                                                                                                |
+| Emitted `kind: "stays_on"` in responses, events, and the SDKs | `kind: "always_on"`                        | Changed at once. Readers that compare `stays_on` break                                                                                                                                                                                                 |
+| Reason `definition_not_stays_on`                              | `definition_not_always_on`                 | Changed at once in the instance `pause_reason`, the instance check `gate` (`compozy agent instance check`, `compozy__agent_instance_check`), the check-in history `reason`, and the `agent.instance.*` hook payload `reason`; stored rows are migrated |
+| Error `agent_not_stays_on`                                    | `agent_not_always_on`                      | Changed at once. The experimental memory routes have no window                                                                                                                                                                                         |
+| Startup section `stays_on_doctrine`                           | `always_on_doctrine`                       | Changed at once                                                                                                                                                                                                                                        |
+
+AGENT.md files in a repository, a workspace profile, or an extension are never rewritten. Change
+`kind: stays_on` to `kind: always_on` in them yourself; the daemon log names each file it reads
+through the alias.
+
+The permission labels in the app also changed. The values did not, so nothing needs editing:
+**Accept edits** (`approve-edits`), **Auto-review** (`auto`), and **Full access** (`approve-all`).
 
 <a id="spec-cycle-simplification"></a>
 
@@ -46,7 +74,7 @@ compozy session new --agent spec_conductor --workspace acme --name "Deliver bill
 compozy session prompt <session-id> "Deliver .compozy/tasks/billing-export"
 ```
 
-Hand small work to the stays-on `orchestrator`:
+Hand small work to the always-on `orchestrator`:
 
 ```bash
 compozy agent instance create orchestrator --workspace acme
@@ -61,7 +89,7 @@ compozy session prompt <main-session-id> "Fix the login redirect on expired sess
 - **Loop overrides stay.** A stored override for a removed Loop is kept and never read.
 - **Removed Loop runs stop.** A run of a removed Loop that is active during the upgrade fails at its first removed step with a clear error. Its history stays, and other runs are unaffected.
 - **Same-name workspace Loops keep working.** Only the bundled definitions left.
-- **Stays-on instances pause.** An instance of a removed agent pauses as `definition_missing`.
+- **Always-on instances pause.** An instance of a removed agent pauses as `definition_missing`.
 - **Batuta leaves the catalog.** An installed copy keeps loading, and only `batuta-deliver` fails when
   run.
 

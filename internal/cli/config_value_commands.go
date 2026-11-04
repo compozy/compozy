@@ -30,6 +30,16 @@ func newConfigCommand(deps commandDeps) *cobra.Command {
 	return cmd
 }
 
+// canonicalConfigPathArg maps a deprecated config path to its replacement and warns on stderr.
+// Removal: v0.5.2.
+func canonicalConfigPathArg(cmd *cobra.Command, raw string) string {
+	canonical, deprecated := compozyconfig.CanonicalDottedConfigPath(raw)
+	if deprecated {
+		fmt.Fprintln(cmd.ErrOrStderr(), "warning: "+compozyconfig.ConfigPathAliasWarning)
+	}
+	return canonical
+}
+
 func newConfigUnsetCommand(deps commandDeps) *cobra.Command {
 	var (
 		scopeRaw      string
@@ -64,7 +74,7 @@ func runConfigUnsetCommand(
 	if err != nil {
 		return err
 	}
-	path, _, _, err := configMutationPath(rawPath)
+	path, _, _, err := configMutationPath(canonicalConfigPathArg(cmd, rawPath))
 	if err != nil {
 		return err
 	}
@@ -181,7 +191,7 @@ func newConfigGetCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			path := strings.TrimSpace(args[0])
+			path := strings.TrimSpace(canonicalConfigPathArg(cmd, args[0]))
 			if path == configWindowManagerKey {
 				discovery, discoveryErr := windowManagerConfigDiscovery(cfg.WindowManager)
 				if discoveryErr != nil {
@@ -246,7 +256,7 @@ func runConfigSetCommand(
 	if err != nil {
 		return err
 	}
-	path, kind, redacted, err := configMutationPath(args[0])
+	path, kind, redacted, err := configMutationPath(canonicalConfigPathArg(cmd, args[0]))
 	if err != nil {
 		return err
 	}

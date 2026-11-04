@@ -19,7 +19,7 @@ import {
   agentPausePlain,
   agentPauseShort,
   agentPulse,
-  agentStaysOn,
+  agentAlwaysOn,
   agentUsageLine,
   agentsByAttention,
   buildAgentTeam,
@@ -46,9 +46,9 @@ describe("agentPausePlain", () => {
   it("Should state the configured fatigue limit, not a fixed one", () => {
     const instance = agentInstanceFixture({ pause_reason: "fatigue", fatigue_limit: 3 });
     expect(agentPausePlain(instance)).toBe(
-      "It stopped itself after 3 check-ins in a row went wrong."
+      "It stopped itself after 3 heartbeats in a row went wrong."
     );
-    expect(agentPauseShort(instance)).toBe("Stopped after 3 failed check-ins");
+    expect(agentPauseShort(instance)).toBe("Stopped after 3 failed heartbeats");
   });
 
   it("Should say it took the configured steps without you [UT-057]", () => {
@@ -103,7 +103,7 @@ describe("buildAgentTeam", () => {
       [agentInstanceFixture({ state: "paused", pause_reason: "definition_missing" })]
     );
     expect(team).toHaveLength(1);
-    expect(team[0]).toMatchObject({ agent: null, kind: "stays_on" });
+    expect(team[0]).toMatchObject({ agent: null, kind: "always_on" });
     expect(agentNowLine(team[0]!, null).text).toBe("Its setup was deleted");
   });
 
@@ -120,17 +120,17 @@ describe("buildAgentTeam", () => {
       ]
     );
     expect(agentNowLine(team[0]!, null)).toEqual({
-      text: "Stopped after 10 failed check-ins",
+      text: "Stopped after 10 failed heartbeats",
       tone: "paused",
     });
   });
 
-  it("Should keep the section of a definition that stopped being stays-on", () => {
+  it("Should keep the section of a definition that stopped being always-on", () => {
     const team = build(
       [teamItemFixture({ kind: "on_demand" })],
-      [agentInstanceFixture({ state: "paused", pause_reason: "definition_not_stays_on" })]
+      [agentInstanceFixture({ state: "paused", pause_reason: "definition_not_always_on" })]
     );
-    expect(agentStaysOn(team[0]!)).toBe(true);
+    expect(agentAlwaysOn(team[0]!)).toBe(true);
   });
 
   it("Should name who owns an extension's agent", () => {
@@ -158,7 +158,7 @@ describe("agent state across places", () => {
   });
 
   it("Should sort whoever needs you first", () => {
-    const sorted = build().filter(agentStaysOn).sort(agentsByAttention);
+    const sorted = build().filter(agentAlwaysOn).sort(agentsByAttention);
     expect(sorted[0]?.name).toBe("orchestrator");
   });
 });

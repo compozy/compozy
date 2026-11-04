@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/gateway"
 	"github.com/gin-gonic/gin"
 )
@@ -10,6 +11,7 @@ func RegisterSurfaceRoutes(router gin.IRouter, handlers *Handlers, surfaceSet Su
 	if handlers == nil {
 		return
 	}
+	router.Use(core.ProfileLabels)
 	switch surfaceSet {
 	case SurfaceSetLocal:
 		registerLocalRoutes(router, handlers)

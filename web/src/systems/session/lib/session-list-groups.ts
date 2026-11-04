@@ -45,7 +45,7 @@ export interface SessionListGroupSpec {
   total: number;
   working: number;
   needsYou: number;
-  /** Stays-on agents of this group waiting on the operator; main sessions stay out of `needsYou`. */
+  /** Always-on agents of this group waiting on the operator; main sessions stay out of `needsYou`. */
   instancesNeedingAttention: number;
   /** The group's own data scope. */
   scope: DataScope;
@@ -124,7 +124,7 @@ export function projectSessionGroup(
 
 const EMPTY_GROUP_FACETS: GroupFacets = { all: 0, working: 0, needs_you: 0 };
 
-/** Adds an empty project group for each workspace that holds a stays-on agent and no session. */
+/** Adds an empty project group for each workspace that holds an always-on agent and no session. */
 export function withInstanceProjectGroups(
   groups: SessionListGroupSpec[],
   workspaceIds: readonly string[],

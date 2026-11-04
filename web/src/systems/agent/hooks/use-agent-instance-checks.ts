@@ -22,7 +22,7 @@ import { applyAgentInstanceUpdate } from "./use-agent-instances";
 
 const NO_INSTANCE: AgentInstanceRef = { id: "", profile_name: "" };
 
-/** Today's check-ins; `null` means no route answers yet, which isn't the same as none. */
+/** Today's heartbeats; `null` means no route answers yet, which isn't the same as none. */
 export function useAgentInstanceDayCheckIns(ref: AgentInstanceRef | null) {
   const { data, error } = useQuery({
     ...agentInstanceDayCheckInsOptions(ref ?? NO_INSTANCE),
@@ -41,7 +41,7 @@ export function useSetAgentInstanceChecks() {
     onError: error =>
       notifyUser({
         message: isAgentInstanceRouteMissing(error)
-          ? "Check-ins can't be changed here yet."
+          ? "Heartbeat can't be changed here yet."
           : error.message,
         tone: "error",
       }),

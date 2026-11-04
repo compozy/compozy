@@ -216,7 +216,7 @@ function PickerFrame({
   );
 }
 
-/** One cell per agent staying on: the limit is a full bar, not a sentence. */
+/** One cell per always-on agent that is active: the limit is a full bar, not a sentence. */
 export function AgentLimitMeter({ capacity }: { capacity: AgentInstanceCapacity }) {
   return (
     <span aria-label={agentLimitLine(capacity)} className="flex items-center gap-1" role="img">
@@ -296,7 +296,7 @@ function CreateNewRow({ disabled, onCreateNew }: { disabled: boolean; onCreateNe
 export interface AgentPickerProps extends PickerOpenState {
   /** The project the picker adds to. */
   name: string;
-  /** Stays-on agents not yet running there. */
+  /** Always-on agents not yet running there. */
   agents: readonly AgentGroupedCatalogItem[];
   capacity?: AgentInstanceCapacity;
   /** Provider ids that aren't signed in, with their names; their agents can't start. */
@@ -344,7 +344,7 @@ export function AgentPicker({
           }
           title={`Add to ${name}`}
         >
-          All your stays-on agents already work here.
+          All your always-on agents already work here.
         </NothingLeft>
       ) : (
         <CommandList className="max-h-72">

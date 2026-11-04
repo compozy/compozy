@@ -10,14 +10,14 @@ import {
 } from "../automation-choice-cards";
 import { AutomationFormSection } from "../automation-form-section";
 import { AgentTarget } from "./agent-target";
-import { StaysOnTarget } from "./stays-on-target";
+import { AlwaysOnTarget } from "./always-on-target";
 import { TaskTarget } from "./task-target";
 import type { AgentPayload } from "@/systems/agent";
 import { LoopTargetFields } from "@/systems/loops";
 
 const TASK_SCHEDULE_ONLY = "Only scheduled automations can create tasks";
 const FROM_LOOP_PAGE = "Chosen from the Loop page";
-const STAYS_ON_TRIGGER_ONLY = "Only events and links can reach a stays-on agent";
+const ALWAYS_ON_TRIGGER_ONLY = "Only events and links can reach an always-on agent";
 
 const DOES_CHOICES: readonly AutomationChoice<AutomationDoes>[] = [
   {
@@ -27,9 +27,9 @@ const DOES_CHOICES: readonly AutomationChoice<AutomationDoes>[] = [
     description: "Send a message to an agent in a new session.",
   },
   {
-    value: "stays-on",
+    value: "always-on",
     icon: Radar,
-    title: "Tell a stays-on agent",
+    title: "Tell an always-on agent",
     description: "Its next check reads the event and proposes what to do.",
   },
   {
@@ -48,7 +48,7 @@ const DOES_CHOICES: readonly AutomationChoice<AutomationDoes>[] = [
 
 /** What the fixed target is, with a lock: `summarizer 🔒`. */
 function fixedTargetName(draft: AutomationFormDraft, does: AutomationDoes): string | null {
-  if (does === "agent" || does === "stays-on") return draft.agent_name.trim() || null;
+  if (does === "agent" || does === "always-on") return draft.agent_name.trim() || null;
   if (does === "loop") return draft.loop_target?.loop_name.trim() || null;
   return null;
 }
@@ -92,8 +92,8 @@ export function DoesSection({
     if (choice.value === "task" && draft.start !== "schedule") {
       return { ...choice, lockedReason: TASK_SCHEDULE_ONLY };
     }
-    if (choice.value === "stays-on" && draft.start === "schedule") {
-      return { ...choice, lockedReason: STAYS_ON_TRIGGER_ONLY };
+    if (choice.value === "always-on" && draft.start === "schedule") {
+      return { ...choice, lockedReason: ALWAYS_ON_TRIGGER_ONLY };
     }
     return choice;
   });
@@ -134,8 +134,8 @@ export function DoesSection({
             start={draft.start}
           />
         ) : null}
-        {form.does === "stays-on" ? (
-          <StaysOnTarget
+        {form.does === "always-on" ? (
+          <AlwaysOnTarget
             agent={draft.agent_name}
             form={form}
             locked={mode === "edit"}

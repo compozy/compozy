@@ -108,7 +108,7 @@ async function fetchProfileInstances(profile: string, signal?: AbortSignal) {
     if (cursor) query.set("cursor", cursor);
     page = await request<AgentInstancesResponse>(`/api/agent-instances?${query}`, {
       signal,
-      fallback: "Failed to fetch stays-on agents",
+      fallback: "Failed to fetch always-on agents",
     });
     instances.push(...page.instances.map(instance => owned(instance, profile)));
     cursor = page.next_cursor;
@@ -207,7 +207,7 @@ export async function setAgentInstanceChecks(ref: AgentInstanceRef, checksEnable
   const { instance } = await request<{ instance: AgentInstanceWirePayload }>(instancePath(ref), {
     method: "PATCH",
     body: { checks_enabled: checksEnabled },
-    fallback: "Failed to change check-ins",
+    fallback: "Failed to change heartbeat",
   });
   return owned(instance, ref.profile_name);
 }
@@ -261,7 +261,7 @@ export async function fetchAgentInstanceCheckIns(
     if (cursor) query.cursor = cursor;
     const page = await request<AgentInstanceCheckInsResponse>(
       instancePath(ref, "/check-ins", query),
-      { signal, fallback: "Failed to fetch check-ins" }
+      { signal, fallback: "Failed to fetch heartbeats" }
     );
     check_ins.push(...page.check_ins);
     cursor = page.next_cursor;

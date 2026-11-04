@@ -222,7 +222,7 @@ func TestInstanceCatalogReconciliation(t *testing.T) {
 			state.agentCatalog.Replace(
 				1,
 				[]resources.Record[compozyconfig.AgentDef]{
-					{ID: "coder", Spec: compozyconfig.AgentDef{Name: "coder", Kind: "stays_on"}},
+					{ID: "coder", Spec: compozyconfig.AgentDef{Name: "coder", Kind: "always_on"}},
 				},
 			)
 			if calls != 1 || state.toolProjectionEpoch.Current() <= before {

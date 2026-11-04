@@ -1,6 +1,6 @@
 # Agent memory (experimental)
 
-Use this reference when saving or retrieving durable notes for a stays-on agent. Load `references/tools-and-skills.md` and `references/native-tools.md` before operational calls, then discover the live descriptors for `compozy__agent_memory_add`, `compozy__agent_memory_replace`, `compozy__agent_memory_remove`, and `compozy__agent_memory_search`.
+Use this reference when saving or retrieving durable notes for an always-on agent. Load `references/tools-and-skills.md` and `references/native-tools.md` before operational calls, then discover the live descriptors for `compozy__agent_memory_add`, `compozy__agent_memory_replace`, `compozy__agent_memory_remove`, and `compozy__agent_memory_search`.
 
 Memory tools derive the profile, definition origin, and agent from the calling session. They accept no target agent, profile, or workspace selector. On-demand agents cannot use them. User-level and extension agents share notes across instances; repository definitions have separate notes per workspace, even when they reuse another agent's name.
 

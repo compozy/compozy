@@ -214,7 +214,7 @@ export function deriveAwayDigest(
     headline,
     summary,
     paused: Boolean(pause),
-    stripLabel: `Check-ins while you were away: ${needing.length} needs you, ${worth.length} worth knowing, ${wrong.length} went wrong, ${away.quiet_check_ins} with nothing to report`,
+    stripLabel: `Heartbeats while you were away: ${needing.length} needs you, ${worth.length} worth knowing, ${wrong.length} went wrong, ${away.quiet_check_ins} with nothing to report`,
     beats,
     hours: hourLabels(start, now),
     key: [

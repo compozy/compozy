@@ -293,7 +293,7 @@ export function ActivityPageView({
         {model.total === 0 ? (
           <Panel>
             <Empty
-              description="When a check-in, automation or extension does something on its own, it shows up here."
+              description="When a heartbeat, automation or extension does something on its own, it shows up here."
               icon={MoonStar}
               title="Nothing ran on its own yet"
             />

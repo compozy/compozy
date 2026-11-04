@@ -29,7 +29,7 @@ export function useAgentMemorySummary(agent: { name: string; kind?: string | nul
   const { workspace } = useAgentWindowScope();
   const { data } = useQuery({
     ...agentMemoryOptions(agent.name, workspace, destination),
-    enabled: agent.kind === "stays_on",
+    enabled: agent.kind === "always_on",
   });
   if (!data) return "Nothing yet";
   const notes = data.content.split("\n").filter(line => line.trim() !== "").length;

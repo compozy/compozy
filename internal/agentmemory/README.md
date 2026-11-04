@@ -1,6 +1,6 @@
 # Agent memory store
 
-The daemon owns one `Store` and shares it across transports. Callers resolve the immutable profile ID, definition origin (`user`, `extension-<id>`, or `workspace-<id>`) and agent slug before calling the store. Stays-on eligibility and caller authorization belong to the transport-independent service boundary, not the file format.
+The daemon owns one `Store` and shares it across transports. Callers resolve the immutable profile ID, definition origin (`user`, `extension-<id>`, or `workspace-<id>`) and agent slug before calling the store. Always-on eligibility and caller authorization belong to the transport-independent service boundary, not the file format.
 
 `Read` returns the editable file and its digest. `Write` requires that digest; `Add`, `Replace`, `Remove`, and `Rollback` serialize with it per key. Replacements enforce the 1,000-character limit on each resulting note, excluding its date, scope, and valid expiry metadata. Repeated matches cannot multiply a short replacement past the limit; rejection leaves the document unchanged. Writes redact secrets before persistence. `Load` returns a bounded startup snapshot, archiving dated overflow first. When undated content alone exceeds the budget, loading truncates without changing disk and entry mutations fail; an operator can repair the file with a digest-checked write.
 

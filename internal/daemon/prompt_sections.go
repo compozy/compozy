@@ -82,8 +82,8 @@ func defaultStartupPromptSectionDescriptors(
 	situationProvider startupPromptSectionProvider,
 ) []PromptSectionDescriptor {
 	descriptors := []PromptSectionDescriptor{{
-		Name: "stays_on_doctrine", Position: PromptSectionPositionPrepend, Order: 20,
-		Provider: staysOnDoctrineProvider{}, StartupPredicate: startupHasInstanceDoctrine,
+		Name: "always_on_doctrine", Position: PromptSectionPositionPrepend, Order: 20,
+		Provider: alwaysOnDoctrineProvider{}, StartupPredicate: startupHasInstanceDoctrine,
 	}}
 
 	descriptors = append(descriptors, PromptSectionDescriptor{
@@ -240,9 +240,9 @@ func startupHasInstanceDoctrine(startup session.StartupPromptContext) bool {
 		startup.AncestorInstanceID != ""
 }
 
-type staysOnDoctrineProvider struct{}
+type alwaysOnDoctrineProvider struct{}
 
-func (staysOnDoctrineProvider) PromptStartupSection(
+func (alwaysOnDoctrineProvider) PromptStartupSection(
 	_ context.Context,
 	startup session.StartupPromptContext,
 	_ compozyconfig.AgentDef,
@@ -251,7 +251,7 @@ func (staysOnDoctrineProvider) PromptStartupSection(
 	if !startupHasInstanceDoctrine(startup) {
 		return "", nil
 	}
-	text := `<compozy-stays-on-doctrine>
+	text := `<compozy-always-on-doctrine>
 Persistence never broadens authorization.
 Close known open loops rather than inventing work. Before a follow-up, know its outcome and stopping condition.
 Use monitors for in-flight work and automations for recurring schedules.
@@ -267,5 +267,5 @@ A repeated procedure may be proposed as a skill for operator approval.`
 	if startup.InstanceID != "" && startup.SessionType == session.SessionTypeUser {
 		text += "\nDo not start a Goal on this main session; use another session."
 	}
-	return text + "\n</compozy-stays-on-doctrine>", nil
+	return text + "\n</compozy-always-on-doctrine>", nil
 }

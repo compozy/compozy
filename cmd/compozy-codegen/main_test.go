@@ -726,9 +726,18 @@ func TestAppSDKArtifacts(t *testing.T) {
 			if sample.Resource == "" || sample.Resource != sdkResourceName(operation) {
 				t.Fatalf("sample %s resource disagrees with registry: %q", operation.OperationID, sample.Resource)
 			}
-			if sample.Kind != "websocket" &&
-				(!strings.Contains(sample.Go, "client.New(ctx") || !strings.Contains(sample.TypeScript, "Compozy.connect()")) {
-				t.Fatalf("sample %s omits an SDK call", operation.OperationID)
+			if sample.Kind == "websocket" {
+				continue
+			}
+			if !strings.Contains(sample.Go, "client.New(ctx") {
+				t.Fatalf("sample %s omits a Go SDK call", operation.OperationID)
+			}
+			if slices.Contains(operation.Transports, spec.TransportHTTP) {
+				if !strings.Contains(sample.TypeScript, "Compozy.connect()") {
+					t.Fatalf("sample %s omits a TypeScript SDK call", operation.OperationID)
+				}
+			} else if sample.TypeScript != "" {
+				t.Fatalf("sample %s advertises an HTTP SDK call for a UDS-only operation", operation.OperationID)
 			}
 		}
 		for id, snippets := range map[string][]string{

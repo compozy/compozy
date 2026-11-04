@@ -14,7 +14,7 @@ export function sessionListShelfFilters(
   SessionListFilters,
   "archive" | "exclude_finished_automation" | "exclude_instance_main" | "later"
 > {
-  // A stays-on agent's main session lives in its avatar, never in a row.
+  // An always-on agent's main session lives in its avatar, never in a row.
   const population = { exclude_instance_main: true };
   if (shelf === "archive") return { ...population, archive: "only" };
   if (shelf === "later") return { ...population, later: "only" };

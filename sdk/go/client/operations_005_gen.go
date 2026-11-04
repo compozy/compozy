@@ -9,6 +9,39 @@ import (
 	"strings"
 )
 
+// CreateToolApproval Mint a local single-use approval token for one tool invocation
+func (c *Client) CreateToolApproval(ctx context.Context, params CreateToolApprovalParams, body ToolApprovalRequest) (*ToolApprovalResponse, error) {
+	path := "/api/tools/{id}/approvals"
+	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
+	query := url.Values{}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out ToolApprovalResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateWorkspace Register a workspace
+func (c *Client) CreateWorkspace(ctx context.Context, body CreateWorkspaceRequest) (*WorkspaceResponse, error) {
+	path := "/api/workspaces"
+	var out WorkspaceResponse
+	if err := c.doContent(ctx, "POST", path, nil, body, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CreateWorkspaceFolderParams carries the path, query, and header parameters.
+type CreateWorkspaceFolderParams struct {
+	Profile *string `url:"profile"`
+}
+
 // CreateWorkspaceFolder Create a root workspace folder
 func (c *Client) CreateWorkspaceFolder(ctx context.Context, params CreateWorkspaceFolderParams, body CreateWorkspaceFolderRequest) (*WorkspaceFolderResponse, error) {
 	path := "/api/workspace-folders"
@@ -412,39 +445,4 @@ type DeleteSettingsMCPServerParams struct {
 	Profile     *string `url:"profile"`
 	Owner       *string `url:"owner"`
 	Target      *string `url:"target"`
-}
-
-// DeleteSettingsMCPServer Delete a manual MCP server or reset its extension override
-func (c *Client) DeleteSettingsMCPServer(ctx context.Context, params DeleteSettingsMCPServerParams) (*SettingsApplyResponse, error) {
-	path := "/api/settings/mcp-servers/{name}"
-	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.WorkspaceID != nil {
-		query.Set("workspace_id", *params.WorkspaceID)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.Owner != nil {
-		query.Set("owner", *params.Owner)
-	}
-	if params.Target != nil {
-		query.Set("target", *params.Target)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SettingsApplyResponse
-	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DeleteSettingsProviderParams carries the path, query, and header parameters.
-type DeleteSettingsProviderParams struct {
-	Name string `url:"name"`
 }

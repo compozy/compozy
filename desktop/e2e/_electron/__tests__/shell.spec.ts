@@ -976,6 +976,14 @@ async function prepareOpenPathsDesktop(context: {
             provider: "claude",
             permissions: "approve-reads",
             prompt: "Name the changed file.",
+            config_options: [
+              {
+                id: "model",
+                name: "Model",
+                current: "qa-browser-model",
+                values: [{ value: "qa-browser-model", label: "QA Browser Model" }],
+              },
+            ],
             turns: [
               {
                 name: "mention-file",

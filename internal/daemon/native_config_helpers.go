@@ -77,6 +77,9 @@ func nativeConfigPathPolicy(id toolspkg.ToolID, raw string) (compozyconfig.PathP
 		)
 	}
 	if policy.Denial == compozyconfig.ConfigPathAllowed {
+		if policy.DeprecatedAlias {
+			compozyconfig.LogConfigPathAlias(policy.Segments)
+		}
 		return policy, nil
 	}
 	return compozyconfig.PathPolicy{}, toolspkg.NewToolError(

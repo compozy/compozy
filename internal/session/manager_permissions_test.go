@@ -1328,7 +1328,7 @@ func TestSessionApprovalWorkspaceBoundary(t *testing.T) {
 
 func TestToolApprovalGrantAuthority(t *testing.T) {
 	t.Parallel()
-	t.Run("Should refuse grant mutation throughout a stays-on lineage", func(t *testing.T) {
+	t.Run("Should refuse grant mutation throughout an always-on lineage", func(t *testing.T) {
 		t.Parallel()
 		infos := map[string]*Info{
 			"main":       {ID: "main", InstanceID: "instance"},

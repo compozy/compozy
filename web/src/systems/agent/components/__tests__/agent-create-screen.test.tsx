@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -159,6 +159,10 @@ describe("AgentCreateScreen", () => {
     expect(screen.getByTestId("agent-create-description")).toBeInTheDocument();
     expect(screen.getByTestId("agent-create-runtime")).toBeInTheDocument();
     expect(screen.getByText("How it works")).toBeInTheDocument();
+    const kinds = screen.getByRole("radiogroup", { name: "How it works" });
+    expect(within(kinds).getByRole("radio", { name: /^On-demand/ })).toBeInTheDocument();
+    expect(within(kinds).getByRole("radio", { name: /^Always-on/ })).toBeInTheDocument();
+    expect(screen.queryByText(/Stays on/)).toBeNull();
     expect(screen.getByTestId("agent-create-preview")).toHaveTextContent("Your agent");
     expect(screen.queryByTestId("agent-create-mode-advanced")).toBeNull();
     expect(screen.queryByTestId("agent-create-category-path")).toBeNull();
@@ -245,7 +249,7 @@ describe("AgentCreateScreen", () => {
 
     const edits: Partial<AgentCreateDialogDraft>[] = [
       { prompt: "Changed" },
-      { kind: "stays_on" },
+      { kind: "always_on" },
       { place: "@user" },
       { provider: "claude" },
       { model: "gpt-5.5" },
@@ -266,14 +270,14 @@ describe("AgentCreateScreen", () => {
     }
   });
 
-  it("Should show Where it works only for Stays on, and say what the primary will do", async () => {
+  it("Should show Where it works only for Always-on, and say what the primary will do", async () => {
     const user = userEvent.setup();
     renderScreen({ draft: validDraft() });
 
     expect(screen.queryByTestId("agent-create-where")).toBeNull();
     expect(screen.getByTestId("submit-agent-create")).toHaveTextContent("Create agent");
 
-    await user.click(screen.getByTestId("agent-create-kind-stays-on"));
+    await user.click(screen.getByTestId("agent-create-kind-always-on"));
 
     expect(screen.getByTestId("agent-create-where")).toHaveTextContent("alpha");
     expect(screen.getByTestId("submit-agent-create")).toHaveTextContent("Create and start");
@@ -281,7 +285,7 @@ describe("AgentCreateScreen", () => {
 
   it("Should find a project in Where it works and offer Global and Decide later", async () => {
     const user = userEvent.setup();
-    renderScreen({ draft: validDraft({ kind: "stays_on" }) });
+    renderScreen({ draft: validDraft({ kind: "always_on" }) });
 
     await user.click(screen.getByTestId("agent-create-where"));
     expect(await screen.findByText("Global")).toBeInTheDocument();
@@ -295,11 +299,11 @@ describe("AgentCreateScreen", () => {
   it("Should show the limit before submit and create the agent unstarted", () => {
     renderScreen({
       instanceCapacity: { limit: 10, active: 10, reached: true },
-      draft: validDraft({ kind: "stays_on" }),
+      draft: validDraft({ kind: "always_on" }),
     });
 
     expect(screen.getByTestId("agent-create-limit")).toHaveTextContent(
-      "10 of 10 agents are staying on."
+      "10 of 10 always-on agents are active."
     );
     expect(screen.queryByTestId("agent-create-where")).toBeNull();
     expect(screen.getByTestId("submit-agent-create")).toHaveTextContent("Create agent");
@@ -310,7 +314,7 @@ describe("AgentCreateScreen", () => {
     const onOpenProviderSettings = vi.fn();
     const user = userEvent.setup();
     renderScreen({
-      draft: validDraft({ kind: "stays_on" }),
+      draft: validDraft({ kind: "always_on" }),
       onOpenProviderSettings,
       providerOptions: [{ ...providers[0]!, needs_auth: true }],
     });
@@ -326,7 +330,7 @@ describe("AgentCreateScreen", () => {
     const onSubmit = vi.fn();
     const user = userEvent.setup();
     renderScreen({
-      draft: validDraft({ kind: "stays_on" }),
+      draft: validDraft({ kind: "always_on" }),
       onOpenCreatedAgent,
       onSubmit,
       startFailure: "This agent can't reach that workspace.",
@@ -344,7 +348,7 @@ describe("AgentCreateScreen", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
-  it("Should name an On demand agent's destination in the footer", () => {
+  it("Should name an on-demand agent's destination in the footer", () => {
     const { unmount } = renderScreen({ draft: validDraft({ scope: "workspace" }) });
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent("Creates in alpha");
     unmount();
@@ -498,9 +502,9 @@ describe("AgentCreateScreen", () => {
     );
   });
 
-  it("Should show nothing set on a stays-on agent as the Edit on its own default", async () => {
+  it("Should show nothing set on an always-on agent as the Accept edits default", async () => {
     const user = userEvent.setup();
-    renderScreen({ draft: validDraft({ kind: "stays_on" }) });
+    renderScreen({ draft: validDraft({ kind: "always_on" }) });
 
     await user.click(advancedToggle());
 

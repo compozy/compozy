@@ -1081,7 +1081,7 @@ func startSubagentIntegrationParent(
 // IT-023: permission waiting belongs to the child and does not return prematurely from wait mode.
 func TestSubagentPermissionDaemonIntegration(t *testing.T) {
 	t.Run("Should wait through child approval", func(t *testing.T) {
-		// The adopted instance needs a stays-on definition, or reconcile pauses it as definition_not_stays_on.
+		// The adopted instance needs an always-on definition, or reconcile pauses it as definition_not_always_on.
 		d, manager, workspace := newSubagentDaemonWithSetup(t, nil, "", func(d *Daemon) {
 			configureInstancePermissionFixture(t, d, "approve-all", "", func(*acpmock.AgentFixture) {})
 		})
@@ -4743,7 +4743,7 @@ func TestInstanceNativeCreateJourney(t *testing.T) {
 					t.Fatal(err)
 				}
 				body = []byte(
-					strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: stays_on\n", 1),
+					strings.Replace(string(body), "name: subagent-test\n", "name: subagent-test\nkind: always_on\n", 1),
 				)
 				if err := os.WriteFile(path, body, 0600); err != nil {
 					t.Fatal(err)
@@ -5185,7 +5185,7 @@ func TestWorkLogCollectorIntegration(t *testing.T) {
 					raw = bytes.Replace(
 						raw,
 						[]byte("name: subagent-test\n"),
-						[]byte("name: subagent-test\nkind: stays_on\n"),
+						[]byte("name: subagent-test\nkind: always_on\n"),
 						1,
 					)
 					if err := os.WriteFile(agentPath, raw, 0600); err != nil {

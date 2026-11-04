@@ -37,8 +37,8 @@ func (r instanceDefinitions) InstanceDefinition(
 	if err != nil {
 		return instanceDefinition{}, err
 	}
-	if agent.Kind != compozyconfig.AgentKindStaysOn {
-		return instanceDefinition{}, agentinstance.ErrNotStaysOn
+	if agent.Kind != compozyconfig.AgentKindAlwaysOn {
+		return instanceDefinition{}, agentinstance.ErrNotAlwaysOn
 	}
 	runtime, err := resolved.Config.ResolveAgent(agent)
 	if err != nil {

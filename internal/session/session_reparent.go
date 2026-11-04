@@ -194,10 +194,10 @@ func (m *Manager) requireReparentInputs(ctx context.Context) error {
 	return nil
 }
 
-// requireReparentActor keeps moving sessions into or out of a stays-on lineage an operator act. An adopted
+// requireReparentActor keeps moving sessions into or out of an always-on lineage an operator act. An adopted
 // session becomes a descendant whose permissions and clarifications the lineage may answer, so any agent
-// caller is refused when it is itself in a stays-on lineage, when the session's own lineage (its current
-// parent chain, for detach) is stays-on, or when the new parent's lineage (adopt) is stays-on.
+// caller is refused when it is itself in an always-on lineage, when the session's own lineage (its current
+// parent chain, for detach) is always-on, or when the new parent's lineage (adopt) is always-on.
 func (m *Manager) requireReparentActor(ctx context.Context, sessionID, parentID string) error {
 	actorID := actingSessionID(ctx)
 	if actorID == "" {
@@ -207,14 +207,14 @@ func (m *Manager) requireReparentActor(ctx context.Context, sessionID, parentID 
 		if id == "" {
 			continue
 		}
-		staysOn, err := IsStaysOnLineage(ctx, id, m.Status)
+		alwaysOn, err := IsAlwaysOnLineage(ctx, id, m.Status)
 		if err != nil {
 			return err
 		}
-		if staysOn {
+		if alwaysOn {
 			return reparentRefusal(
 				ReparentRefusalOperatorRequired, sessionID,
-				"only the operator can move sessions into or out of a stays-on lineage",
+				"only the operator can move sessions into or out of an always-on lineage",
 			)
 		}
 	}

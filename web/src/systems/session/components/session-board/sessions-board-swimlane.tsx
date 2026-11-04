@@ -16,7 +16,7 @@ import {
   SessionListGroupSignal,
 } from "../session-list/session-list-group-header";
 import { SessionListGroupProjectMenu } from "../session-list/session-list-group-project-menu";
-import { StaysOnProjectRow } from "../stays-on/stays-on-signals";
+import { AlwaysOnProjectRow } from "../always-on/always-on-signals";
 import {
   SessionsBoardColumnsRow,
   type SessionsBoardColumnsRowProps,
@@ -54,7 +54,7 @@ export function SessionsBoardSwimlane({
   const columns = useSessionsBoardColumns(lane.filters, open);
   const name = laneName(lane);
   const testId = `sessions-board-lane-${lane.group.key}`;
-  const staysOnScope =
+  const alwaysOnScope =
     lane.group.kind === "project" ? sessionListGroupTarget(lane.group).workspaceId : null;
   // The lane's select-all covers the cards its columns show; a folded column shows none.
   const shownIds = open
@@ -74,15 +74,15 @@ export function SessionsBoardSwimlane({
           <span className={SESSIONS_BOARD_LANE_SELECT_SLOT} />
         </SessionsBoardSelectAll>
         <SessionsBoardLaneToggle lane={lane} name={name} testId={testId} />
-        {staysOnScope ? (
-          <StaysOnProjectRow
+        {alwaysOnScope ? (
+          <AlwaysOnProjectRow
             className="flex-1 pl-2"
             currentSessionId={props.currentSessionId}
             limit={BOARD_ROW_LIMIT}
             name={name}
             onOpenSession={session => props.onOpen(session as SessionBoardPayload)}
             surface="ring-canvas"
-            workspaceId={staysOnScope}
+            workspaceId={alwaysOnScope}
           />
         ) : null}
       </div>

@@ -30,17 +30,17 @@ const REASON: Record<string, string> = {
   wake_sent: "It told you in its main chat.",
   cancelled: "This check was stopped.",
   hook_cancelled: "A hook stopped this check.",
-  policy_disabled: "Check-ins are off in its settings.",
-  heartbeat_disabled: "Check-ins are off in its settings.",
-  heartbeat_invalid: "Its check-in settings have a mistake.",
-  heartbeat_no_policy: "It has no check-in settings yet.",
+  policy_disabled: "Heartbeat is off in its settings.",
+  heartbeat_disabled: "Heartbeat is off in its settings.",
+  heartbeat_invalid: "Its heartbeat settings have a mistake.",
+  heartbeat_no_policy: "It has no heartbeat settings yet.",
   heartbeat_rate_limited: "It checked in very recently, so it waited.",
   heartbeat_no_eligible_session: "It had no chat to check in from.",
-  definition_not_stays_on: "This agent no longer stays on.",
+  definition_not_always_on: "This agent is no longer always-on.",
   definition_missing: "This agent's definition is gone.",
   no_slot: "Too many checks were running, so this one waited.",
   duplicate_suppressed: "It already told you this recently.",
-  triage_unsupported: "Its model can't do check-ins.",
+  triage_unsupported: "Its model can't run heartbeats.",
   triage_output_invalid: "It gave an answer it couldn't use.",
   triage_timeout: "It ran out of time.",
   triage_interrupted: "It was interrupted partway through.",
@@ -112,7 +112,7 @@ function quietRun(run: readonly AgentInstanceCheckIn[]): RecentCheckIn {
   return {
     key: newest.id,
     time: `${clockAt(oldest.created_at)} to ${clockAt(newest.created_at)}`,
-    title: `${run.length} quiet check-ins`,
+    title: `${run.length} quiet heartbeats`,
   };
 }
 

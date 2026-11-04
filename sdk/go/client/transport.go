@@ -37,8 +37,12 @@ func (c *Client) doContent(
 	requestContentType, responseContentType string,
 ) (err error) {
 	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		timeout := requestTimeout
+		if method == http.MethodGet && strings.HasPrefix(path, "/api/daemon/profile/") {
+			timeout = profileRequestTimeout
+		}
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, requestTimeout)
+		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
 	headers = headers.Clone()

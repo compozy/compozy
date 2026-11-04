@@ -330,6 +330,7 @@ func TestAppAccessPolicy(t *testing.T) {
 			"disableSkill",
 			"dismissWorktree",
 			"downloadSupportBundle",
+			"captureDaemonProfile",
 			"downloadTerminalArtifact",
 			"downloadTerminalRecording",
 			"drainDaemon",

@@ -4,7 +4,8 @@ Status: implementation and verification are in progress. The operator reaffirmed
 the remaining ownership work, representative upgrade and 30-session measurements are required before
 completion. Focused correctness checks do not establish the performance acceptance criteria.
 
-The implementation baseline is `d35c63c9a`. Main through `30da9b257` is integrated (merge `64c4a4f8e`).
+The implementation baseline is `d35c63c9a`. Main through `1b41d5df4` is integrated. Its version 186 remains byte-for-byte intact;
+the unreleased branch migration tail was resequenced after it during conflict resolution.
 All work is isolated in `fix/issue-1227-sqlite-contention`. Operator runtime databases, credentials
 and running sessions were not changed. The incident log was read only for sanitized aggregates.
 
@@ -71,8 +72,8 @@ The exact historical owner cannot be recovered from this evidence.
 
 ## Upgrade and compatibility
 
-The published migration through main's `00185_schema.sql` and every prior checksum are unchanged.
-The branch's unpublished relocation migrations follow it at versions 186–189. The migration owner
+The published migration through main's `00186_schema.sql` and every prior checksum are unchanged.
+The branch's unpublished relocation migrations follow it at versions 187–190. The migration owner
 freezes the old summary ledger, copies 128 rows per batch, verifies every column and sequence, and
 commits the destination with `synchronous=FULL` before deleting each source batch. An interrupted
 acknowledgement resumes without duplicate events. A conflicting destination preserves the source
@@ -82,7 +83,7 @@ Before freezing the source, the coordinator commits a random family identity in 
 and the auxiliary identity table (telemetry migration 3). A crash between these commits resumes
 before export. Every acknowledged batch and every relocated reopen verifies that identity.
 Startup refuses missing, uninitialized, unbound or mismatched destinations as soon as export can
-acknowledge source rows, including an interrupted version-187 upgrade. A schema-valid empty
+acknowledge source rows, including an interrupted version-188 upgrade. A schema-valid empty
 replacement and a file from another core cannot silently replace already acknowledged events. Older home-workspace upgrades read their migration
 inventory through the relocated read owner. Backups and restores must preserve both databases and
 all sidecars. The old core file can retain reusable free pages; this change does not run a large
@@ -212,3 +213,11 @@ Focused lint across the 12 affected Go packages passed with zero issues (bounded
 serialized against other lint runners). The catalog store suite passed in 10.090 s, including
 preparation with the sole writer connection occupied and invalidation by another database handle.
 No performance conclusion is inferred from those correctness checks.
+
+The batch catalog regression also passed (4.315 s): an earlier replacement that prunes a sibling
+cannot reuse that sibling's prepared comparison. Scoped globaldb lint passed with zero issues.
+
+Main integration receipts: relocation suite 7.555 s; all production migration streams 5.387 s;
+main's Always-on upgrade suite 8.306 s; focused globaldb/ACP lint zero issues. Owning Atlas/sqlc
+generation completed. All main migration bytes and checksum entries through version 186 match
+origin/main. The relocation tail is now 187–190, with export at 188 and completion at 189.

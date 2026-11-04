@@ -474,7 +474,7 @@ describe("SessionsBoard", () => {
   });
 });
 
-describe("SessionsBoard stays-on agents", () => {
+describe("SessionsBoard always-on agents", () => {
   const global = agentInstanceFixture({
     id: "ainst-global",
     label: "Release Captain",
@@ -490,7 +490,7 @@ describe("SessionsBoard stays-on agents", () => {
     renderBoard(board());
 
     await screen.findByTestId("sessions-board");
-    expect(screen.queryByTestId("stays-on-row")).toBeNull();
+    expect(screen.queryByTestId("always-on-row")).toBeNull();
   });
 
   it("Should sit the row above the columns, with the triangle on whoever needs you", async () => {
@@ -506,7 +506,7 @@ describe("SessionsBoard stays-on agents", () => {
     mockInstances.mockResolvedValue([global]);
     renderBoard({ ...board(), focusedWorkspaceId: "@user" }, onOpen);
 
-    fireEvent.click(await screen.findByTestId("stays-on-seat-ainst-global"));
+    fireEvent.click(await screen.findByTestId("always-on-seat-ainst-global"));
 
     await waitFor(() =>
       expect(onOpen).toHaveBeenCalledWith(expect.objectContaining({ id: "sess-main-global" }))

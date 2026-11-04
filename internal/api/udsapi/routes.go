@@ -1,11 +1,16 @@
 package udsapi
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/compozy/compozy/internal/api/core"
+	"github.com/gin-gonic/gin"
+)
 
 // RegisterRoutes registers the shared Compozy API routes on the supplied Gin router.
 func RegisterRoutes(router gin.IRouter, handlers *Handlers) {
 	api := router.Group("/api")
 	api.Use(handlers.WorkspaceReferenceGuard)
+	api.Use(core.ProfileLabels)
+	api.GET("/daemon/profile/:kind", handlers.CaptureDaemonProfile)
 
 	registerAppSDKRoutes(api, handlers)
 	registerStatusRoutes(api, handlers)
