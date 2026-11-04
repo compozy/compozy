@@ -12,8 +12,9 @@ supervision work signals:
   permission, running tool, task lease, or Loop run.
 
 Sessions waiting for operator input (badge waiting-for-input) are left alone.
-The key is `<session-id>@<updated_at>`, so one stall is reported once and a
-session that moves on drops out of the digest. Read-only.
+The key is `<session-id>@<updated_at>`: an item stays while its stall lasts
+and the digest changes only when a stall starts or the session moves on.
+Read-only.
 Contract: CompozyOS check-in source v1 (JSON on stdin, {"items": [...]} on stdout).
 """
 
@@ -63,11 +64,12 @@ def armed_signals(session):
 
 
 def stall_reason(session):
+    """Stable stall class: a badge flip such as done -> idle is not a new stall."""
     badge = session.get("badge") or ""
     if badge in ALWAYS_STALLED:
         return badge
     if session.get("state") == "active" and badge in SETTLED and not armed_signals(session):
-        return f"{badge}, nothing armed"
+        return "settled, nothing armed"
     return ""
 
 
@@ -94,11 +96,14 @@ def main():
             if reason:
                 stalled.append((session, reason))
 
-    stalled.sort(key=lambda pair: pair[0].get("updated_at") or "")
+    # Newest first: a settled session the model already judged finished keeps
+    # its key, so older entries must never crowd a fresh stall out of max_items.
+    stalled.sort(key=lambda pair: pair[0].get("updated_at") or "", reverse=True)
     items = []
     for session, reason in stalled[:max_items]:
         sid = session["id"]
-        health = session.get("health") or {}
+        # Attributes are part of the digest, so only the key's session and the
+        # stall class go here; health and badge drift while one stall lasts.
         items.append(
             {
                 "key": f"{sid}@{session.get('updated_at') or 'unknown'}",
@@ -107,12 +112,7 @@ def main():
                 "attributes": {
                     "session_id": sid,
                     "agent": session.get("agent_name") or "",
-                    "state": session.get("state") or "",
-                    "badge": session.get("badge") or "",
-                    "health": health.get("health") or "",
-                    "health_state": health.get("state") or "",
-                    "armed": armed_signals(session),
-                    "updated_at": session.get("updated_at") or "",
+                    "stall": reason,
                 },
             }
         )
