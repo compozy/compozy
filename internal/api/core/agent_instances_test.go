@@ -1779,3 +1779,20 @@ func TestAgentInstanceAllProfilesReads(t *testing.T) {
 		}
 	})
 }
+
+type failingSourceStatuses struct{ instanceCheckStub }
+
+func (*failingSourceStatuses) SourceStatuses(context.Context, string) ([]heartbeat.SourceStatus, error) {
+	return nil, errors.New("source store unavailable")
+}
+
+func TestAgentInstanceSourceStatuses(t *testing.T) {
+	t.Run("Should preserve an instance payload when source statuses fail", func(t *testing.T) {
+		t.Parallel()
+		api := core.AgentInstanceAPI{Checks: &failingSourceStatuses{}}
+		payload, err := api.Payload(t.Context(), agentinstance.Instance{ID: "instance", State: "paused"})
+		if err != nil || payload.ID != "instance" || len(payload.Sources) != 0 {
+			t.Fatalf("payload=%+v err=%v", payload, err)
+		}
+	})
+}

@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -90,44 +89,18 @@ func (s *CheckService) collectSources(
 }
 
 func (s *CheckService) SourceStatuses(ctx context.Context, id string) ([]SourceStatus, error) {
-	target, err := s.environment.ResolveCheck(ctx, id)
-	if err != nil {
-		return nil, err
-	}
 	storage, ok := s.store.(interface {
-		SourceStates(context.Context, string, []source.Ref, bool, time.Time) ([]SourceState, error)
+		SourceStatuses(context.Context, string) ([]SourceStatus, error)
 	})
 	if !ok {
 		return []SourceStatus{}, nil
 	}
-	refs := target.Policy.Preferences.Context.Sources
-	states, err := storage.SourceStates(ctx, id, refs, true, s.now())
+	statuses, err := storage.SourceStatuses(ctx, id)
 	if err != nil {
-		return nil, err
+		slog.Warn("heartbeat source statuses unavailable", "instance_id", id, "error", err)
+		return []SourceStatus{}, nil
 	}
-	out := make([]SourceStatus, 0, len(refs))
-	for i, ref := range refs {
-		state := states[i]
-		status := SourceStatus{
-			ID:            ref.ID,
-			Kind:          ref.Kind,
-			Script:        ref.Script,
-			Status:        "pending_first_poll",
-			LastPolledAt:  state.LastPolledAt,
-			LastSuccessAt: state.LastSuccessAt,
-			LastItemCount: state.LastItemCount,
-			FailureStreak: state.FailureStreak,
-			Error:         state.Error,
-		}
-		if state.LastPolledAt != "" {
-			status.Status = SourceResultStatus(state.Error)
-		}
-		if !state.NextPollAt.IsZero() {
-			status.NextPollAt = store.FormatTimestamp(state.NextPollAt)
-		}
-		out = append(out, status)
-	}
-	return out, nil
+	return statuses, nil
 }
 
 func (s *CheckService) recordSourceMetrics(batch PollBatch) {
@@ -167,12 +140,52 @@ func (s *CheckService) pollSourceTarget(
 	target *CheckTarget,
 	manual, dry bool,
 ) (CheckResult, error) {
+	if !dry {
+		source := checkTimerSource
+		if manual {
+			source = checkManualSource
+		}
+		reason, err := s.environment.BeforeCheck(ctx, target, source)
+		if err != nil {
+			return CheckResult{}, s.rescheduleCheckFailure(
+				ctx,
+				state,
+				manual,
+				s.checkInterval(&target.Policy),
+				true,
+				err,
+			)
+		}
+		if reason != "" {
+			_, err := s.store.Skip(
+				ctx,
+				SkipRequest{
+					ManualCheck: manual,
+					InstanceID:  state.InstanceID,
+					ExpectedDue: state.NextWakeAt,
+					Reason:      checkHookCancelled,
+					Detail:      reason,
+					Now:         s.now(),
+					NextWakeAt:  NextCheckTime(s.now(), s.checkInterval(&target.Policy), state.InstanceID),
+					ExpiresAt:   s.now().Add(s.config.Retention),
+				},
+			)
+			return CheckResult{Gate: checkHookCancelled}, err
+		}
+	}
 	batch, err := env.PollSources(ctx, target, dry)
 	if !dry {
 		s.recordSourceMetrics(batch)
 	}
 	if err != nil {
-		return CheckResult{}, err
+		return CheckResult{}, s.rescheduleCheckFailure(
+			ctx,
+			state,
+			manual || dry,
+			s.checkInterval(&target.Policy),
+			true,
+			err,
+		)
 	}
 	if err := ctx.Err(); err != nil {
 		return CheckResult{}, err
@@ -190,4 +203,12 @@ func (s *CheckService) pollSourceTarget(
 	result, err := s.collectTarget(ctx, state, &current, manual, dry, batch)
 	result.Sources = batch.Outcomes()
 	return result, err
+}
+
+func (s *CheckService) hasSourcesAfterResolveFailure(ctx context.Context, target *CheckTarget) bool {
+	if len(target.Policy.Preferences.Context.Sources) > 0 {
+		return true
+	}
+	statuses, err := s.SourceStatuses(ctx, target.Instance.ID)
+	return err == nil && len(statuses) > 0
 }

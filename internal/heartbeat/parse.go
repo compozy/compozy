@@ -81,14 +81,7 @@ func parseDocument(
 	}
 	if cfg.Sources.MaxPerAgent > 0 && len(parsedFront.Context.Sources) > cfg.Sources.MaxPerAgent {
 		return Frontmatter{}, "", 1, []Diagnostic{
-			{
-				Code:       "heartbeat_source_limit_exceeded",
-				Severity:   diagnosticError,
-				Message:    "too many sources",
-				SourcePath: sourcePath,
-				Line:       2,
-				Column:     1,
-			},
+			sourceLimitDiagnostic(parts.Metadata, parsedFront.Context.Sources, cfg.Sources.MaxPerAgent, sourcePath),
 		}
 	}
 	return parsedFront, body, bodyStartLine(parts.Metadata), nil
@@ -125,6 +118,9 @@ func parseFrontmatter(metadata []byte, sourcePath string) (Frontmatter, []Diagno
 			continue
 		}
 		if err := assignAllowedField(&front, key, value); err != nil {
+			if entry, ok := errors.AsType[*sourceDeclError](err); ok {
+				locationLine, locationColumn = sourceEntryLocation(metadata, entry.index)
+			}
 			diagnosticsList = append(diagnosticsList, Diagnostic{
 				Code:       sourceDiagnosticCode(err),
 				Severity:   diagnosticError,

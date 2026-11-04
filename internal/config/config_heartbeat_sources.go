@@ -50,7 +50,7 @@ func (c HeartbeatSourcesConfig) Validate() error {
 		}
 	}
 	for _, name := range c.EnvAllow {
-		if name == "" || strings.ContainsAny(name, "=\x00") {
+		if name == "" || strings.HasPrefix(name, "COMPOZY_") || strings.ContainsAny(name, "=\x00") {
 			return fmt.Errorf("agents.heartbeat.sources.env_allow contains an invalid environment name")
 		}
 	}

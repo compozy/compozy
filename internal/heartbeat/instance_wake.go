@@ -30,7 +30,8 @@ type FinishResult struct {
 }
 
 type FinishRequest struct {
-	HasSources                                               bool
+	HasSources, SourceMore                                   bool
+	MinInterval                                              time.Duration
 	UnattendedTurnLimit                                      int64
 	QuietBackoffCap                                          time.Duration
 	FatigueLimit                                             int64

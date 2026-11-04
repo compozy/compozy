@@ -165,19 +165,11 @@ func issueBatch(
 		excerpt := []rune(issue.Body)
 		excerpt = excerpt[:min(400, len(excerpt))]
 		summary := string(excerpt)
-		if len(summary) > budget {
-			summary = summary[:budget]
-			for !utf8.ValidString(summary) {
-				summary = summary[:len(summary)-1]
-			}
-		}
+		summary = issueBoundBytes(summary, min(budget, 1024))
 		budget -= len(summary)
-		attributes, err := json.Marshal(map[string]any{
-			"number": issue.Number, "author": issue.Author.Login, "labels": issue.labelNames(),
-			"body_excerpt": string(excerpt), "linked_open_prs": issue.linkedPRs(),
-		})
+		attributes, err := issueAttributes(issue, string(excerpt))
 		if err != nil {
-			return compozysdk.HeartbeatSourceResult{}, fmt.Errorf("github issues: encode attributes: %w", err)
+			return compozysdk.HeartbeatSourceResult{}, err
 		}
 		result.Items = append(result.Items, compozysdk.HeartbeatSourceItem{
 			Key: fmt.Sprintf(
@@ -186,7 +178,7 @@ func issueBatch(
 				repo.name,
 				issue.Number,
 			),
-			Title:      issue.Title,
+			Title:      string([]rune(issue.Title)[:min(200, utf8.RuneCountInString(issue.Title))]),
 			Summary:    summary,
 			URL:        issue.URL,
 			Attributes: attributes,
@@ -210,4 +202,47 @@ func issueMatchesLabels(issue graphIssue, params issuesParams) bool {
 		}
 	}
 	return true
+}
+
+func issueBoundBytes(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	text = text[:limit]
+	for !utf8.ValidString(text) {
+		text = text[:len(text)-1]
+	}
+	return text
+}
+
+func issueAttributes(issue graphIssue, excerpt string) ([]byte, error) {
+	labels, prs := issue.labelNames(), issue.linkedPRs()
+	omitted := 0
+	for {
+		attrs := map[string]any{
+			"number":          issue.Number,
+			"author":          issueBoundBytes(issue.Author.Login, 200),
+			"labels":          labels,
+			"body_excerpt":    excerpt,
+			"linked_open_prs": prs,
+			"omitted":         omitted,
+		}
+		data, err := json.Marshal(attrs, json.Deterministic(true))
+		if err != nil {
+			return nil, fmt.Errorf("github issues: encode attributes: %w", err)
+		}
+		if len(data) <= 2048 {
+			return data, nil
+		}
+		switch {
+		case len(prs) > 0:
+			prs = prs[:len(prs)-1]
+			omitted++
+		case len(labels) > 0:
+			labels = labels[:len(labels)-1]
+			omitted++
+		default:
+			excerpt = issueBoundBytes(excerpt, len(excerpt)/2)
+		}
+	}
 }

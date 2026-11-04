@@ -51,6 +51,8 @@ func (s *CheckService) dispatch(
 	now := s.now()
 	req := FinishRequest{
 		HasSources:          len(target.Policy.Preferences.Context.Sources) > 0,
+		SourceMore:          digest.SourceMore,
+		MinInterval:         s.config.MinInterval,
 		UnattendedTurnLimit: s.config.UnattendedTurnLimit,
 		QuietBackoffCap:     s.config.QuietBackoffCap,
 		FatigueLimit:        int64(s.config.FatigueLimit),

@@ -60,3 +60,7 @@ func (e *instanceCheckEnvironment) BeforeCheck(
 ) (string, error) {
 	return beforeInstanceCheck(ctx, e.hooks, target, source)
 }
+
+func (e *instanceCheckEnvironment) ReconcileSourcePolicy(ctx context.Context, target *heartbeat.CheckTarget) error {
+	return e.instances.ClearRemovedSources(ctx, target.Instance.ID)
+}

@@ -182,7 +182,9 @@ func TestManagerHeartbeatSource(t *testing.T) {
 	for _, tc := range []struct {
 		name, workspace, kind, params, code string
 		fail                                error
+		cap                                 int
 	}{
+		{name: "Should enforce extension encoded result bytes", kind: "ext/issues", params: `{"repo":"a/b"}`, cap: 10, code: "source_output_too_large"},
 		{name: "Should poll a namespaced kind", kind: "ext/issues", params: `{"repo":"a/b"}`},
 		{name: "Should reject invalid params before polling", kind: "ext/issues", params: `{"repo":3}`, code: "source_params_invalid"},
 		{name: "Should reject unregistered kinds", kind: "other/issues", params: `{}`, code: "source_kind_unavailable"},
@@ -194,6 +196,17 @@ func TestManagerHeartbeatSource(t *testing.T) {
 		{name: "Should preserve typed rate limit causes", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: &subprocess.RPCError{Code: -32000, Data: json.RawMessage(`{"code":"provider_failed","cause":"rate_limited"}`)}, code: "source_rate_limited"},
 		{name: "Should map typed rate limits", kind: "ext/issues", params: `{"repo":"a/b"}`, fail: &subprocess.RPCError{Code: -32000, Data: json.RawMessage(`{"code":"rate_limited"}`)}, code: "source_rate_limited"},
 	} {
+		t.Run("Should not start profile runtimes without a declared source capability", func(t *testing.T) {
+			t.Parallel()
+			m := newWatchSourceManagerForTest("ext", []string{"heartbeat.source"}, nil, nil, newFakeProcess(9209))
+			m.extensions["ext"].manifest = &Manifest{}
+			resolver := &sourceCatalogProfileResolver{}
+			m.profileNames = resolver
+			kinds, err := m.SourceKinds(t.Context(), source.CatalogScope{ProfileID: "other-profile"})
+			if err != nil || len(kinds) != 0 || resolver.calls != 0 {
+				t.Fatalf("kinds=%v calls=%d err=%v", kinds, resolver.calls, err)
+			}
+		})
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			process := newFakeProcess(9201)
@@ -236,7 +249,10 @@ func TestManagerHeartbeatSource(t *testing.T) {
 				t.Context(),
 				source.CatalogScope{},
 				tc.kind,
-				source.Request{Params: []byte(tc.params), Limits: source.Limits{MaxItems: 20, MaxStateBytes: 16384}},
+				source.Request{
+					Params: []byte(tc.params),
+					Limits: source.Limits{MaxItems: 20, MaxStateBytes: 16384, MaxOutputBytes: tc.cap},
+				},
 			)
 			if tc.code != "" {
 				failure, ok := errors.AsType[*source.Error](err)
@@ -334,4 +350,11 @@ func TestManagerHeartbeatSource(t *testing.T) {
 			}
 		}
 	})
+}
+
+type sourceCatalogProfileResolver struct{ calls int }
+
+func (r *sourceCatalogProfileResolver) ProfileName(context.Context, string) (string, error) {
+	r.calls++
+	return "test", nil
 }

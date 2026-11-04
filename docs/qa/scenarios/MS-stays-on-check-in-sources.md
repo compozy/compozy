@@ -77,8 +77,14 @@ the transcript is checked in `MS-web-stays-on-reports`.
 1. With no new issue, let several scheduled checks pass. `agent instance check-ins -o json` shows
    `skipped` with `digest_empty` (or `digest_unchanged` for a repeated batch); no triage session is
    created and no provider turn is recorded, although HEARTBEAT.md has standing guidance.
-2. Confirm cadence: `next_poll_at` and the instance's next check advance by the configured
-   interval after each skip; source-backed checks never stretch into the quiet backoff.
+2. Confirm cadence: the instance's next check advances by the configured interval after each skip;
+   healthy sources leave `next_poll_at` empty. Source-backed checks never stretch into quiet backoff.
+   Immediately run a real manual check after a timer check and confirm it polls again.
+3. Return `more: true`: after either a completed triage or an unchanged-digest skip, the next timer
+   wake uses `agents.heartbeat.min_interval` plus jitter, rather than the agent cadence.
+4. Use a GitHub issue with a 256-character title, a Unicode body and many labels/linked PRs.
+   Confirm the bounded item reaches triage without blocking later issues; overflow attributes
+   are dropped deterministically and counted in `omitted`.
 
 ## 5. Failing source after the threshold (US-006)
 

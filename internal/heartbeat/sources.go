@@ -123,7 +123,7 @@ func (b PollBatch) DigestItems(threshold int) []DigestItem {
 			out = append(
 				out,
 				DigestItem{
-					Key: prefix + item.Key,
+					Key: prefix + source.SanitizeText(item.Key, 200),
 					Summary: fmt.Sprintf(
 						"<untrusted_source_item source=%q>\n%s\n</untrusted_source_item>",
 						p.Ref.ID,
@@ -133,7 +133,7 @@ func (b PollBatch) DigestItems(threshold int) []DigestItem {
 						Kind:      itemSourceKind,
 						SourceID:  p.Ref.ID,
 						SourceRef: ref,
-						ItemKey:   item.Key,
+						ItemKey:   source.SanitizeText(item.Key, 200),
 						URL:       source.SanitizeText(item.URL, 2048),
 					},
 				},
@@ -146,6 +146,7 @@ func (b PollBatch) DigestItems(threshold int) []DigestItem {
 	return out
 }
 func AppendSourceDigest(digest *CheckDigest, batch PollBatch, threshold int) error {
+	digest.SourceMore = batch.HasMore()
 	digest.Items = append(digest.Items, batch.DigestItems(threshold)...)
 	slices.SortFunc(digest.Items, func(a, b DigestItem) int { return strings.Compare(a.Key, b.Key) })
 	data, err := json.Marshal(struct {
@@ -176,9 +177,14 @@ func WarnUntrustedScripts(policy *ResolvedPolicy) {
 }
 
 const (
+	checkHookCancelled      = "hook_cancelled" //nolint:misspell // Persisted wake reason.
 	checkTimerSource        = "timer"
 	checkManualSource       = "instance_check"
 	checkNoSlot             = "no_slot"
 	checkSourcePollInFlight = "source_poll_in_flight"
 	itemSourceKind          = "source"
 )
+
+func (b PollBatch) HasMore() bool {
+	return slices.ContainsFunc(b.Sources, func(p PolledSource) bool { return p.Err == nil && p.Result.More })
+}

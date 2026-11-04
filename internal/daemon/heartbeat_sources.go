@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/diagnostics"
@@ -48,28 +49,47 @@ func (e *instanceCheckEnvironment) PollSources(
 		EnvAllow:       cfg.EnvAllow,
 		Approvals:      e.instances,
 	}
+	batch.Sources = make([]heartbeat.PolledSource, len(states))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, max(1, cfg.MaxPerAgent))
 	for i, ref := range target.Policy.Preferences.Context.Sources {
-		state := states[i]
-		p := heartbeat.PolledSource{
-			Ref:           ref,
-			RefDigest:     state.RefDigest,
-			Generation:    state.Generation,
-			FailureStreak: state.FailureStreak,
-		}
-		if !dry && now.Before(state.NextPollAt) {
-			p.Err = state.Error
-			batch.Sources = append(batch.Sources, p)
+		wg.Go(func() {
+			state := states[i]
+			p := heartbeat.PolledSource{
+				Ref:           ref,
+				RefDigest:     state.RefDigest,
+				Generation:    state.Generation,
+				FailureStreak: state.FailureStreak,
+			}
+			defer func() { batch.Sources[i] = p }()
+			if !dry && state.FailureStreak > 0 && now.Before(state.NextPollAt) {
+				p.Err = state.Error
+				return
+			}
+			select {
+			case sem <- struct{}{}:
+			case <-ctx.Done():
+				return
+			}
+			defer func() { <-sem }()
+			e.pollHeartbeatSource(ctx, target, state, runner, &p, now, dry)
+		})
+	}
+	wg.Wait()
+	if err := ctx.Err(); err != nil {
+		return heartbeat.PollBatch{}, err
+	}
+	for i := range batch.Sources {
+		p := &batch.Sources[i]
+		if !p.Polled {
 			continue
 		}
-		e.pollHeartbeatSource(ctx, target, state, runner, &p, now, dry)
 		if !dry {
-			if err := e.updateHeartbeatSourceStatus(ctx, target, state, &p, now); err != nil {
+			if err := e.updateHeartbeatSourceStatus(ctx, target, states[i], p, now); err != nil {
 				return heartbeat.PollBatch{}, err
 			}
 		}
-
-		logHeartbeatSourcePoll(target, p, token)
-		batch.Sources = append(batch.Sources, p)
+		logHeartbeatSourcePoll(target, *p, token)
 	}
 	return batch, nil
 }
@@ -94,6 +114,7 @@ func (e *instanceCheckEnvironment) pollHeartbeatSource(
 		State:    state.State,
 		Limits: source.Limits{
 			MaxItems:        cfg.MaxItems,
+			MaxOutputBytes:  cfg.MaxOutputBytes,
 			MaxSummaryBytes: source.SummaryBytes,
 			MaxStateBytes:   cfg.MaxStateBytes,
 		},
@@ -140,7 +161,7 @@ func (e *instanceCheckEnvironment) updateHeartbeatSourceStatus(
 	now time.Time,
 ) error {
 	cadence := target.Policy.Preferences.MinInterval
-	next := now.Add(heartbeat.CheckBackoff(cadence, cadence, p.FailureStreak))
+	var next time.Time
 	if p.FailureStreak > 0 {
 		next = now.Add(heartbeat.CheckBackoff(cadence, e.sourceMaxInterval, p.FailureStreak-1))
 	}

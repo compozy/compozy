@@ -1198,6 +1198,7 @@ func newHeartbeatSourceRuntime(t *testing.T, approved, blocked bool) *heartbeatS
 	h.config = heartbeat.CheckConfig{
 		Enabled:       true,
 		Interval:      time.Hour,
+		MinInterval:   cfg.Agents.Heartbeat.MinInterval,
 		MaxInterval:   24 * time.Hour,
 		Retention:     24 * time.Hour,
 		Timeout:       30 * time.Second,
@@ -1343,6 +1344,121 @@ func (h *heartbeatSourceRuntime) advance(t *testing.T) {
 // follows successful checks, and source fences/provenance reach real triage sessions.
 // Owning layer and canonical suite: daemon heartbeat wake runtime integration.
 func TestHeartbeatSourceRuntime(t *testing.T) {
+	t.Run("Should reconcile removed sources only on a real check", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		h.tick(t, 1)
+		if err := os.WriteFile(
+			filepath.Join(h.dir, "HEARTBEAT.md"),
+			[]byte("---\nenabled: true\ncontext:\n  include: []\n---\n"),
+			0600,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := h.checks.Check(t.Context(), h.instance.ID, true); err != nil {
+			t.Fatal(err)
+		}
+		statuses, err := h.db.Instances().SourceStatuses(t.Context(), h.instance.ID)
+		if err != nil || len(statuses) != 1 {
+			t.Fatalf("dry run changed rows: %+v %v", statuses, err)
+		}
+		if _, err := h.checks.Check(t.Context(), h.instance.ID, false); err != nil {
+			t.Fatal(err)
+		}
+		statuses, err = h.db.Instances().SourceStatuses(t.Context(), h.instance.ID)
+		if err != nil || len(statuses) != 0 {
+			t.Fatalf("stale rows: %+v %v", statuses, err)
+		}
+	})
+	t.Run("Should avoid quiet backoff after a source policy resolution failure", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		h.tick(t, 1)
+		h.advance(t)
+		if _, err := h.db.DB().
+			ExecContext(t.Context(), `UPDATE agent_instance_wake_state SET quiet_streak=9 WHERE instance_id=?`, h.instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		h.env.definitions.agents = stubSessionCommandAgentResolver(
+			func(string, *workspacepkg.ResolvedWorkspace) (compozyconfig.AgentDef, error) {
+				return compozyconfig.AgentDef{}, errors.New("definition unavailable")
+			},
+		)
+		if err := h.checks.Tick(t.Context()); err == nil {
+			t.Fatal("expected preparation failure")
+		}
+		wake, err := h.db.Instances().WakeState(t.Context(), h.instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if wake.NextWakeAt != store.FormatTimestamp(heartbeat.NextCheckTime(h.now(), time.Hour, h.instance.ID)) {
+			t.Fatalf("next=%s", wake.NextWakeAt)
+		}
+	})
+	t.Run("Should poll two approved scripts concurrently within one instance", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		release := h.blockPoll(t)
+		target, err := h.env.ResolveCheck(t.Context(), h.instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		target.Policy.Preferences.Context.Sources = []heartbeat.SourceDecl{
+			{ID: "one", Script: "poll"},
+			{ID: "two", Script: "poll"},
+		}
+		done := make(chan error, 1)
+		go func() { _, err := h.env.PollSources(t.Context(), &target, true); done <- err }()
+		waitForCondition(t, "both scripts entered before release", func() bool { return len(h.inputs(t)) == 2 })
+		release()
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("Should schedule an unchanged more batch at the daemon floor", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		h.writeReply(t, source.Result{Items: []source.Item{{Key: "1", Title: "same"}}, More: true})
+		h.tick(t, 1)
+		h.advance(t)
+		h.tick(t, 2)
+		wake, err := h.db.Instances().WakeState(t.Context(), h.instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if wake.NextWakeAt != store.FormatTimestamp(
+			heartbeat.NextCheckTime(h.now(), h.config.MinInterval, h.instance.ID),
+		) {
+			t.Fatalf("next=%s", wake.NextWakeAt)
+		}
+		var reason string
+		if err := h.db.DB().
+			QueryRowContext(t.Context(), `SELECT reason FROM agent_heartbeat_wake_events WHERE instance_id=? ORDER BY created_at DESC LIMIT 1`, h.instance.ID).
+			Scan(&reason); err != nil ||
+			reason != "digest_unchanged" {
+			t.Fatalf("reason=%s err=%v", reason, err)
+		}
+	})
+	t.Run("Should poll a healthy source on a real check immediately after a timer", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, true, false)
+		h.tick(t, 1)
+		if !h.states(t)[0].NextPollAt.IsZero() {
+			t.Fatal("healthy source has failure backoff")
+		}
+		h.writeReply(
+			t,
+			source.Result{Items: []source.Item{{Key: "new", Title: "New item"}}, State: []byte(`{"cursor":1}`)},
+		)
+		result, err := h.checks.Check(t.Context(), h.instance.ID, false)
+		if err != nil || result.OccurrenceID == "" {
+			t.Fatalf("result=%+v err=%v", result, err)
+		}
+		h.waitIdle(t, 2)
+		if len(h.inputs(t)) != 2 || string(h.states(t)[0].State) != `{"cursor":1}` {
+			t.Fatalf("source did not poll: %+v", h.states(t))
+		}
+		h.env.definitions = instanceDefinitions{}
+		statuses, err := h.checks.SourceStatuses(t.Context(), h.instance.ID)
+		if err != nil || len(statuses) != 1 || statuses[0].ID != "s" || statuses[0].Status != "ok" {
+			t.Fatalf("statuses=%+v err=%v", statuses, err)
+		}
+	})
 	t.Run("Should commit empty results on three timer ticks without triage [IT-001]", func(t *testing.T) {
 		h := newHeartbeatSourceRuntime(t, true, false)
 		for i := 1; i <= 3; i++ {
@@ -1434,7 +1550,11 @@ func TestHeartbeatSourceRuntime(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !next.Equal(heartbeat.NextCheckTime(h.now(), time.Hour, h.instance.ID)) {
+			interval := time.Hour
+			if page == 0 {
+				interval = h.config.MinInterval
+			}
+			if !next.Equal(heartbeat.NextCheckTime(h.now(), interval, h.instance.ID)) {
 				t.Fatalf("page cadence=%v", next.Sub(h.now()))
 			}
 			h.advance(t)

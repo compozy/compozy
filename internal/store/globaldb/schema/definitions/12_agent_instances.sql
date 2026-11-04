@@ -154,7 +154,7 @@ CREATE TABLE agent_instance_source_states (
 );
 
 CREATE TABLE heartbeat_source_script_approvals (
-    profile_id TEXT NOT NULL REFERENCES profiles(id),
+    profile_id TEXT NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
     definition_dir TEXT NOT NULL,
     script_name TEXT NOT NULL,
     sha256 TEXT NOT NULL,

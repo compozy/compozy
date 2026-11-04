@@ -64,6 +64,7 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 		FatigueLimit:        hb.FatigueLimit,
 		Enabled:             hb.Enabled,
 		Interval:            hb.DefaultInterval,
+		MinInterval:         hb.MinInterval,
 		MaxInterval:         hb.MaxInterval,
 		Retention:           hb.WakeEventRetention,
 		Timeout:             cfg.TriageTimeout,

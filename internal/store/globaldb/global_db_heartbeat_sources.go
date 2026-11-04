@@ -127,6 +127,10 @@ func (r *InstanceRepo) SourcePollStatus(
 	p heartbeat.PolledSource,
 	now, next time.Time,
 ) error {
+	nextPoll := sql.NullString{}
+	if !next.IsZero() {
+		nextPoll = sourceText(store.FormatTimestamp(next))
+	}
 	code, detail := "", ""
 	if p.Err != nil {
 		code, detail = string(p.Err.Code), p.Err.Detail
@@ -142,7 +146,7 @@ func (r *InstanceRepo) SourcePollStatus(
 			ErrorDetail: sourceText(detail),
 			ItemCount:   int64(len(p.Result.Items)),
 			Streak:      p.FailureStreak,
-			NextPoll:    sourceText(store.FormatTimestamp(next)),
+			NextPoll:    nextPoll,
 		},
 	)
 }
@@ -228,5 +232,43 @@ func finishHeartbeatSources(ctx context.Context, q *sqlcgen.Queries, req heartbe
 			Completed:  completed,
 			Now:        store.FormatTimestamp(req.Now),
 		},
+	)
+}
+
+func (r *InstanceRepo) SourceStatuses(ctx context.Context, id string) ([]heartbeat.SourceStatus, error) {
+	rows, err := r.queries.ListHeartbeatSources(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]heartbeat.SourceStatus, 0, len(rows))
+	for _, row := range rows {
+		status := heartbeat.SourceStatus{
+			ID:            row.SourceID,
+			Status:        "pending_first_poll",
+			LastPolledAt:  row.LastPolledAt.String,
+			LastSuccessAt: row.LastSuccessAt.String,
+			LastItemCount: row.LastItemCount,
+			FailureStreak: row.FailureStreak,
+			NextPollAt:    row.NextPollAt.String,
+		}
+		if row.LastErrorCode.String != "" {
+			status.Error = source.Failure(row.LastErrorCode.String, row.LastErrorDetail.String)
+		}
+		if status.LastPolledAt != "" {
+			status.Status = heartbeat.SourceResultStatus(status.Error)
+		}
+		out = append(out, status)
+	}
+	return out, nil
+}
+
+func (r *InstanceRepo) ClearRemovedSources(ctx context.Context, id string) error {
+	rows, err := r.queries.ListHeartbeatSources(ctx, id)
+	if err != nil || len(rows) == 0 {
+		return err
+	}
+	return r.queries.DeleteRemovedHeartbeatSources(
+		ctx,
+		sqlcgen.DeleteRemovedHeartbeatSourcesParams{InstanceID: id, SourceIds: "[]"},
 	)
 }

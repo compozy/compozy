@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/agentinstance"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/testutil"
@@ -581,6 +582,28 @@ func (r triageTestReports) RecentReports(
 
 func TestTriagePromptStatesProposalLimits(t *testing.T) {
 	t.Parallel()
+	t.Run("Should keep source URLs only inside the untrusted item fence", func(t *testing.T) {
+		t.Parallel()
+		items := heartbeat.PollBatch{
+			Sources: []heartbeat.PolledSource{
+				{
+					Ref: heartbeat.SourceDecl{ID: "s", Script: "poll"},
+					Result: source.Result{
+						Items: []source.Item{{Key: "1", Title: "Issue", URL: "https://example.com/untrusted-url"}},
+					},
+				},
+			},
+		}.DigestItems(
+			3,
+		)
+		prompt, err := triagePrompt(items, nil, "")
+		if err != nil || strings.Count(prompt, "https://example.com/untrusted-url") != 1 {
+			t.Fatalf("prompt=%s err=%v", prompt, err)
+		}
+		if items[0].Source.URL != "https://example.com/untrusted-url" {
+			t.Fatal("caller provenance mutated")
+		}
+	})
 	t.Run("Should separate authored trigger instructions from untrusted event contents", func(t *testing.T) {
 		t.Parallel()
 		items := []heartbeat.DigestItem{

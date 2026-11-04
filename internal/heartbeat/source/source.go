@@ -21,6 +21,7 @@ type Ref struct {
 	With   jsontext.Value `json:"with,omitempty"`
 }
 type Limits struct {
+	MaxOutputBytes  int `json:"-"`
 	MaxItems        int `json:"max_items"`
 	MaxSummaryBytes int `json:"max_summary_bytes"`
 	MaxStateBytes   int `json:"max_state_bytes"`
@@ -81,19 +82,23 @@ type ExtensionPoller interface {
 
 var idPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
 var filePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
+var itemKeyPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/#@+-]{0,199}$`)
 var kindPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+$`)
 
 func ValidScript(name string) bool { return filePattern.MatchString(name) }
 func (r Ref) Validate() error {
 	if !idPattern.MatchString(r.ID) {
-		return Failure("heartbeat_source_invalid_id", "invalid source id")
+		return Failure("heartbeat_source_invalid_id", fmt.Sprintf("source %q: invalid source id", r.ID))
 	}
 	if (r.Kind == "") == (r.Script == "") || r.Script != "" && !ValidScript(r.Script) ||
 		r.Kind != "" && !kindPattern.MatchString(r.Kind) {
-		return Failure("heartbeat_source_ref_invalid", "set exactly one valid kind or script")
+		return Failure(
+			"heartbeat_source_ref_invalid",
+			fmt.Sprintf("source %q: set exactly one valid kind or script", r.ID),
+		)
 	}
 	if len(r.With) > 0 && (r.With[0] != '{' || !r.With.IsValid()) {
-		return Failure("heartbeat_source_ref_invalid", "with must be an object")
+		return Failure("heartbeat_source_ref_invalid", fmt.Sprintf("source %q: with must be an object", r.ID))
 	}
 	if len(r.With) > 4096 {
 		return Failure("heartbeat_source_params_too_large", "source parameters exceed 4096 bytes")
@@ -116,6 +121,15 @@ func (r Ref) Digest() (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 func ValidateResult(r Result, l Limits) error {
+	if l.MaxOutputBytes > 0 {
+		data, err := json.Marshal(r)
+		if err != nil {
+			return Failure("source_output_invalid", err.Error())
+		}
+		if len(data) > l.MaxOutputBytes {
+			return Failure("source_output_too_large", "source result exceeds output limit")
+		}
+	}
 	if len(r.Items) > l.MaxItems {
 		return Failure("source_output_invalid", fmt.Sprintf("returned %d items, limit %d", len(r.Items), l.MaxItems))
 	}
@@ -123,10 +137,12 @@ func ValidateResult(r Result, l Limits) error {
 		return Failure("source_state_too_large", "source state exceeds limit")
 	}
 	seen := map[string]bool{}
-	for _, item := range r.Items {
-		if item.Key == "" || len(item.Key) > 200 || seen[item.Key] || item.Title == "" ||
+	for i := range r.Items {
+		item := &r.Items[i]
+		item.Summary = boundUTF8(item.Summary, 1024)
+		if !itemKeyPattern.MatchString(item.Key) || seen[item.Key] || item.Title == "" ||
 			utf8.RuneCountInString(item.Title) > 200 ||
-			len(item.Summary) > 1024 ||
+			len(item.URL) > 2048 ||
 			len(item.Attributes) > 2048 {
 			return Failure("source_output_invalid", "invalid or duplicate item")
 		}
@@ -144,3 +160,14 @@ func SanitizeText(text string, limit int) string {
 }
 
 const SummaryBytes = 8 << 10
+
+func boundUTF8(text string, limit int) string {
+	if len(text) <= limit {
+		return text
+	}
+	text = text[:limit]
+	for !utf8.ValidString(text) {
+		text = text[:len(text)-1]
+	}
+	return text
+}

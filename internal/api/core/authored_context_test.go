@@ -2102,6 +2102,25 @@ func TestHeartbeatSourceCatalogAndApproval(t *testing.T) {
 			if approved.Code != 200 || !strings.Contains(approved.Body.String(), catalog.Scripts[0].SHA256) {
 				t.Fatalf("approved=%d %s", approved.Code, approved.Body)
 			}
+			for _, client := range []struct{ header, value, via string }{{"User-Agent", "compozy-cli", "cli"}, {"X-Compozy-Client-ID", "web-test", "web"}} {
+				req := httptest.NewRequestWithContext(
+					t.Context(),
+					http.MethodPost,
+					endpoint,
+					strings.NewReader(`{"sha256":"`+catalog.Scripts[0].SHA256+`"}`),
+				)
+				req.Header.Set(client.header, client.value)
+				req.Header.Set("Content-Type", "application/json")
+				recorder := httptest.NewRecorder()
+				engine.ServeHTTP(recorder, req)
+				var via string
+				if err := db.DB().
+					QueryRowContext(t.Context(), `SELECT approved_via FROM heartbeat_source_script_approvals WHERE profile_id=? AND definition_dir=? AND script_name='poll'`, store.DefaultProfileID, dir).
+					Scan(&via); err != nil || via != client.via ||
+					recorder.Code != 200 {
+					t.Fatalf("via=%s status=%d err=%v", via, recorder.Code, err)
+				}
+			}
 			current, err := db.Instances().ApprovedHash(t.Context(), store.DefaultProfileID, dir, "poll")
 			if err != nil || current != catalog.Scripts[0].SHA256 {
 				t.Fatalf("hash=%s err=%v", current, err)

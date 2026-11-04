@@ -4,12 +4,14 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"regexp"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/compozy/compozy/sdk/go/contracts"
 )
+
+var heartbeatSourceKindPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
 const CapabilityProvideHeartbeatSource = "heartbeat.source"
 const ExtensionServiceMethodHeartbeatSourcePoll = "heartbeat/source_poll"
@@ -60,8 +62,7 @@ func (e *Extension) HeartbeatSource(
 ) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	kind = strings.TrimSpace(kind)
-	if e.initialized || kind == "" || strings.Contains(kind, "/") || handler == nil {
+	if e.initialized || !heartbeatSourceKindPattern.MatchString(kind) || handler == nil {
 		return NewInvalidParamsError("invalid heartbeat source registration", nil)
 	}
 	if _, ok := e.heartbeatHandlers[kind]; ok {

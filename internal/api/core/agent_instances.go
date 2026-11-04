@@ -271,7 +271,7 @@ func (api *AgentInstanceAPI) payloadWithOwners(
 		var err error
 		payload.Sources, err = reader.SourceStatuses(ctx, i.ID)
 		if err != nil {
-			return payload, err
+			payload.Sources = []heartbeat.SourceStatus{}
 		}
 	}
 	payload.FatigueLimit = api.FatigueLimit

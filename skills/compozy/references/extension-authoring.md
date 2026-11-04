@@ -349,6 +349,8 @@ in describe and initialize results and negotiate `heartbeat/source_poll`.
 Each kind declares `kind`, `title`, optional `description`, and `params_schema`.
 The catalog prefixes the local kind with the extension name, for example `example/issues`.
 
+Each item requires a unique stable `key` matching `[A-Za-z0-9][A-Za-z0-9._:/#@+-]{0,199}` (ASCII, at most 200 bytes) and a nonempty `title` of at most 200 Unicode characters. `summary` is at most 1 KiB; the daemon shortens longer summaries at a UTF-8 boundary. `attributes` JSON is at most 2 KiB, and `url` is at most 2 KiB of UTF-8. Invalid keys, titles, attributes or URLs fail the poll with `source_output_invalid`. `[agents.heartbeat.sources].max_output_bytes` caps script stdout and the encoded extension result before summary shortening (`source_output_too_large`); `max_state_bytes` bounds opaque state. Item text is redacted and fenced as untrusted input before triage.
+
 The daemon validates `context.sources[].with` against `params_schema` before polling.
 The request contains `version: 1`, `source_id`, the local `kind`, `params`, committed `state`,
 `limits` (`max_items`, `max_summary_bytes`, `max_state_bytes`), `workspace` (`id`, `root_dir`),

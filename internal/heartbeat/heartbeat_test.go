@@ -1524,6 +1524,28 @@ func TestWorkLogDigest(t *testing.T) {
 }
 
 func TestCheckInSourceDeclarations(t *testing.T) {
+	t.Run("Should locate the invalid source entry and name its id", func(t *testing.T) {
+		t.Parallel()
+		root, path := heartbeatWorkspace(t)
+		result, err := Parse(
+			t.Context(),
+			ParseRequest{
+				SourcePath:    path,
+				WorkspaceRoot: root,
+				Content: []byte(
+					"---\ncontext:\n  include: []\n  sources:\n    - id: first\n      script: poll\n    - id: broken\n      kind: wrong\n---\n",
+				),
+				Config: compozyconfig.DefaultHeartbeatConfig(),
+			},
+		)
+		if err == nil || len(result.Diagnostics) == 0 {
+			t.Fatalf("err=%v", err)
+		}
+		d := result.Diagnostics[0]
+		if d.Line != 7 || d.Column != 7 || !strings.Contains(d.Message, `source "broken"`) {
+			t.Fatalf("diagnostic=%+v", d)
+		}
+	})
 	many := []string{}
 	for i := range 9 {
 		many = append(many, fmt.Sprintf("{id: s%d, script: poll}", i))

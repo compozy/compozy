@@ -1199,6 +1199,10 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
+		if _, err := database.DB().
+			ExecContext(ctx, `INSERT INTO heartbeat_source_script_approvals VALUES (?, '/definition', 'poll', 'hash', '2026-11-03', 'cli')`, created.ID); err != nil {
+			t.Fatal(err)
+		}
 		memoryDir := filepath.Join(home.HomeDir, "agent-memory", created.ID, "user", "coder")
 		if err := os.MkdirAll(memoryDir, 0o700); err != nil {
 			t.Fatal(err)
@@ -1333,6 +1337,13 @@ auth = { registration = "pre_registered", issuer_url = "https://example.com", cl
 		deleted, err := manager.Delete(ctx, "growth", deletePlan.Revision)
 		if err != nil {
 			t.Fatalf("Delete() error = %v", err)
+		}
+		var approvals int
+		if err := database.DB().
+			QueryRowContext(ctx, `SELECT count(*) FROM heartbeat_source_script_approvals WHERE profile_id = ?`, created.ID).
+			Scan(&approvals); err != nil ||
+			approvals != 0 {
+			t.Fatalf("approvals=%d err=%v", approvals, err)
 		}
 		if _, err := os.Stat(memoryDir); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("profile memory remains: %v", err)

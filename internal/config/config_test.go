@@ -3495,6 +3495,14 @@ func TestHeartbeatSourceConfig(t *testing.T) {
 			}
 		})
 	}
+	t.Run("Should reject reserved runtime environment names", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultHeartbeatSourcesConfig()
+		cfg.EnvAllow = []string{"COMPOZY_SESSION_ID"}
+		if err := cfg.Validate(); err == nil {
+			t.Fatal("accepted runtime identity variable")
+		}
+	})
 	t.Run("Should reject out of bounds source limits", func(t *testing.T) {
 		t.Parallel()
 		if err := (HeartbeatSourcesConfig{}).Validate(); err == nil {

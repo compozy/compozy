@@ -1305,6 +1305,21 @@ func writeText(t *testing.T, path string, content string) {
 
 func TestStdioRuntimeHeartbeatSource(t *testing.T) {
 	t.Parallel()
+	t.Run("Should reject kinds that the daemon cannot declare", func(t *testing.T) {
+		t.Parallel()
+		extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{Name: "kind-test", Version: "0.1.0"})
+		for _, kind := range []string{"my.kind", "a/b", "space kind", " issues "} {
+			if err := extension.HeartbeatSource(
+				kind,
+				compozysdk.HeartbeatSourceKind{},
+				func(context.Context, compozysdk.HeartbeatSourceRequest) (compozysdk.HeartbeatSourceResult, error) {
+					return compozysdk.HeartbeatSourceResult{}, nil
+				},
+			); err == nil {
+				t.Fatalf("accepted %q", kind)
+			}
+		}
+	})
 	t.Run("Should describe initialize and poll heartbeat sources", func(t *testing.T) {
 		t.Parallel()
 		runtime := newRuntimeHarness(t)

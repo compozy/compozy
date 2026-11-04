@@ -17,6 +17,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
+
+	"github.com/compozy/compozy/internal/heartbeat/source"
 
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	compozysdk "github.com/compozy/compozy/sdk/go"
@@ -1198,6 +1201,59 @@ func writeJSON(t *testing.T, w http.ResponseWriter, status int, value any) {
 // Invariants: issue delivery advances only through the consumed batch; GitHub I/O stays in the provider.
 func TestProviderIssues(t *testing.T) {
 	t.Parallel()
+	t.Run("Should bound titles and count deterministic attribute overflow", func(t *testing.T) {
+		t.Parallel()
+		issue := graphIssue{Number: 1, Title: strings.Repeat("界", 256), Body: strings.Repeat("界", 450)}
+		for i := range 15 {
+			issue.ClosedByPullRequestsReferences.Nodes = append(
+				issue.ClosedByPullRequestsReferences.Nodes,
+				issuePull{
+					Number: i + 1,
+					Title:  strings.Repeat("界", 200),
+					URL:    fmt.Sprintf("https://example.com/pr/%d", i),
+					State:  "OPEN",
+				},
+			)
+		}
+		for range 100 {
+			issue.Labels.Nodes = append(issue.Labels.Nodes, struct{ Name string }{Name: strings.Repeat("label", 50)})
+		}
+		var first []byte
+		for range 2 {
+			result, err := issueBatch(
+				[]graphIssue{issue},
+				issuesParams{},
+				repository{owner: "a", name: "b"},
+				issuesState{},
+				compozysdk.HeartbeatSourceLimits{MaxItems: 20, MaxSummaryBytes: 8192},
+			)
+			if err != nil || len(result.Items) != 1 {
+				t.Fatalf("result=%+v err=%v", result, err)
+			}
+			item := result.Items[0]
+			if utf8.RuneCountInString(item.Title) != 200 || len(item.Attributes) > 2048 {
+				t.Fatalf("item=%+v", item)
+			}
+			var attrs struct {
+				Omitted int `json:"omitted"`
+			}
+			if err := json.Unmarshal(item.Attributes, &attrs); err != nil || attrs.Omitted == 0 {
+				t.Fatalf("attrs=%s err=%v", item.Attributes, err)
+			}
+			var canonical map[string]any
+			if err := json.Unmarshal(item.Attributes, &canonical); err != nil {
+				t.Fatal(err)
+			}
+			data, err := json.Marshal(canonical)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if first != nil && !slices.Equal(data, first) {
+				t.Fatal("nondeterministic overflow")
+			}
+			first = data
+		}
+	})
 	t.Run("Should baseline without delivering old issues UT050", func(t *testing.T) {
 		t.Parallel()
 		provider := issueTestProvider(t, []map[string]any{issueFixture(1201), issueFixture(1202)}, http.StatusOK)
@@ -1218,6 +1274,17 @@ func TestProviderIssues(t *testing.T) {
 		if err != nil || len(result.Items) != 1 {
 			t.Fatalf("result=%+v err=%v", result, err)
 		}
+		data, err := json.Marshal(result)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var validated source.Result
+		if err := json.Unmarshal(data, &validated); err != nil {
+			t.Fatal(err)
+		}
+		if err := source.ValidateResult(validated, source.Limits{MaxItems: 20, MaxStateBytes: 16384}); err != nil {
+			t.Fatal(err)
+		}
 		item := result.Items[0]
 		var attrs struct {
 			Author      string
@@ -1232,7 +1299,7 @@ func TestProviderIssues(t *testing.T) {
 			attrs.Author != "pedro" ||
 			!slices.Equal(attrs.Labels, []string{"bug"}) ||
 			len([]rune(attrs.BodyExcerpt)) != 400 ||
-			len([]rune(item.Summary)) != 400 ||
+			len(item.Summary) > 1024 || !utf8.ValidString(item.Summary) ||
 			string(result.State) != `{"max_number":1201}` {
 			t.Fatalf("item=%+v attrs=%+v state=%s", item, attrs, result.State)
 		}

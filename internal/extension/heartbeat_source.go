@@ -20,6 +20,25 @@ func (m *Manager) heartbeatSourceRuntime(
 	scope source.CatalogScope,
 	name string,
 ) (processHandle, []protocol.HeartbeatSourceKind, error) {
+	view := ProfileInstanceKey(name, scope.ProfileID, scope.WorkspaceID)
+	sourceKey, _, err := m.readInstanceSource(ctx, view)
+	if err != nil {
+		return nil, nil, source.Failure("source_kind_unavailable", err.Error())
+	}
+	m.mu.RLock()
+	candidate := m.readInstanceLocked(view, sourceKey)
+	provides := []string(nil)
+	if candidate != nil {
+		provides = candidate.info.Capabilities.Provides
+		if candidate.manifest != nil {
+			provides = candidate.manifest.Capabilities.Provides
+		}
+	}
+	allowed := slices.Contains(provides, protocol.CapabilityProvideHeartbeatSource)
+	m.mu.RUnlock()
+	if !allowed {
+		return nil, nil, source.Failure("source_kind_unavailable", "extension does not provide heartbeat.source")
+	}
 	key, err := m.ensureProfileRuntime(ctx, ProfileInstanceKey(name, scope.ProfileID, scope.WorkspaceID))
 	if err != nil {
 		return nil, nil, source.Failure("source_kind_unavailable", err.Error())
@@ -35,7 +54,7 @@ func (m *Manager) heartbeatSourceRuntime(
 		) {
 		return nil, nil, source.Failure("source_kind_unavailable", "extension is not enabled in this scope")
 	}
-	provides := ext.info.Capabilities.Provides
+	provides = ext.info.Capabilities.Provides
 	if ext.manifest != nil {
 		provides = ext.manifest.Capabilities.Provides
 	}
@@ -63,6 +82,9 @@ func (m *Manager) SourceKinds(ctx context.Context, scope source.CatalogScope) ([
 	infos := m.ListForWorkspace(scope.WorkspaceID)
 	for i := range infos {
 		info := &infos[i]
+		if !slices.Contains(info.Capabilities.Provides, protocol.CapabilityProvideHeartbeatSource) {
+			continue
+		}
 		_, kinds, err := m.heartbeatSourceRuntime(ctx, scope, info.Name)
 		if err != nil {
 			if ctx.Err() != nil {
