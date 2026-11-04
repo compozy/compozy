@@ -149,3 +149,9 @@ dialog and must be walked on the integrated branch.
 - Poll multiple sources across simultaneous instances, including dry runs: active source calls never exceed `max_concurrent_polls` in total.
 - Start a main-session prompt or edit the policy while a timer poll is blocked. Release it and verify the batch is discarded, a skip is recorded, and the next wake uses the resolved cadence rather than the temporary polling deadline.
 - A source approval notice must neither consume nor extend the ordinary session-notification rate window.
+
+Focused regression receipt 2026-11-04: the real SQLite/ACP
+`TestHeartbeatSourceRuntime/Should_persist_source_hook_cancellation` exposed a test expectation
+that spelled the persisted reason as `hook_canceled`. The runtime and pre-existing source
+contract retain `hook_cancelled`; restore that exact expectation rather than rename stored data.
+This fixture correction preserves the assertion and the public reason contract.

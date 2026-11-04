@@ -1585,7 +1585,7 @@ func TestHeartbeatSourceRuntime(t *testing.T) {
 		name, reason string
 		failure      error
 	}{
-		{"Should persist source hook cancellation", "hook_canceled", hookspkg.ErrHeartbeatWakeCancelled},
+		{"Should persist source hook cancellation", "hook_cancelled", hookspkg.ErrHeartbeatWakeCancelled}, //nolint:misspell // Persisted wake reason.
 		{"Should persist source hook error", "triage_failed", errors.New("hook unavailable")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
