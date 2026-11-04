@@ -71,6 +71,7 @@ type graphResponse struct {
 	Data struct {
 		Repository *struct {
 			PullRequests graphPage
+			Issues       *graphIssuesPage
 			Object       *struct {
 				OID               string
 				StatusCheckRollup *struct{ Contexts graphContexts }

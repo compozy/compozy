@@ -9,6 +9,26 @@ import (
 	"strings"
 )
 
+// CloseCmdPaletteViewSession Close one programmable command palette view
+func (c *Client) CloseCmdPaletteViewSession(ctx context.Context, params CloseCmdPaletteViewSessionParams) (*CmdPaletteViewSessionClosed, error) {
+	path := "/api/cmd-palette/view-sessions/{session}"
+	path = strings.ReplaceAll(path, "{session}", url.PathEscape(params.Session))
+	headers := http.Header{}
+	headers.Set("X-Compozy-Client-Token", params.XCompozyClientToken)
+	var out CmdPaletteViewSessionClosed
+	if err := c.doContent(ctx, "DELETE", path, headers, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// CompactSessionParams carries the path, query, and header parameters.
+type CompactSessionParams struct {
+	WorkspaceID string  `url:"workspace_id"`
+	SessionID   string  `url:"session_id"`
+	Profile     *string `url:"profile"`
+}
+
 // CompactSession Request advertised native agent compaction (experimental) Experimental: pin the exact SDK version.
 func (c *Client) CompactSession(ctx context.Context, params CompactSessionParams, body SessionCompactRequest) (*SessionCompactResponse, error) {
 	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/compact"
@@ -403,35 +423,4 @@ type CreateTerminalParams struct {
 	XCompozyClientToken     *string `url:"X-Compozy-Client-Token"`
 	XCompozyClientWorkspace *string `url:"X-Compozy-Client-Workspace"`
 	Profile                 *string `url:"profile"`
-}
-
-// CreateTerminal Create an interactive terminal
-func (c *Client) CreateTerminal(ctx context.Context, params CreateTerminalParams, body TerminalCreateRequest) (*TerminalResponse, error) {
-	path := "/api/workspaces/{workspace_id}/terminals"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	headers := http.Header{}
-	if params.XCompozyClientToken != nil {
-		headers.Set("X-Compozy-Client-Token", *params.XCompozyClientToken)
-	}
-	if params.XCompozyClientWorkspace != nil {
-		headers.Set("X-Compozy-Client-Workspace", *params.XCompozyClientWorkspace)
-	}
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TerminalResponse
-	if err := c.doContent(ctx, "POST", path, headers, body, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// CreateToolApprovalParams carries the path, query, and header parameters.
-type CreateToolApprovalParams struct {
-	ID      string  `url:"id"`
-	Profile *string `url:"profile"`
 }

@@ -774,6 +774,19 @@
           "key": {
             "type": "string"
           },
+          "source": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AgentInstanceProposalSource"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
           "summary": {
             "type": "string"
           }
@@ -853,6 +866,12 @@
           },
           "occurrence_id": {
             "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceOutcome"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -1032,6 +1051,12 @@
           "scope": {
             "type": "string"
           },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/HeartbeatSourceStatus"
+            },
+            "type": "array"
+          },
           "state": {
             "type": "string"
           },
@@ -1074,6 +1099,7 @@
           "quiet_streak",
           "resolved_appearance",
           "scope",
+          "sources",
           "state",
           "unattended_turn_limit",
           "unattended_turns",
@@ -1138,6 +1164,9 @@
           "event_id": {
             "type": "string"
           },
+          "item_key": {
+            "type": "string"
+          },
           "kind": {
             "type": "string"
           },
@@ -1147,7 +1176,16 @@
           "run_id": {
             "type": "string"
           },
+          "source_id": {
+            "type": "string"
+          },
+          "source_ref": {
+            "type": "string"
+          },
           "trigger_id": {
+            "type": "string"
+          },
+          "url": {
             "type": "string"
           }
         },
@@ -1238,13 +1276,25 @@
           "event": {
             "type": "string"
           },
+          "item_key": {
+            "type": "string"
+          },
           "kind": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "source_ref": {
             "type": "string"
           },
           "summary": {
             "type": "string"
           },
           "trigger_name": {
+            "type": "string"
+          },
+          "url": {
             "type": "string"
           }
         },
@@ -4322,7 +4372,7 @@
           },
           "sources": {
             "items": {
-              "$ref": "#/components/schemas/SourceStatus"
+              "$ref": "#/components/schemas/CmdpaletteSourceStatus"
             },
             "type": "array"
           }
@@ -4705,6 +4755,24 @@
           "profile_lens",
           "stream_token",
           "view_session"
+        ],
+        "type": "object"
+      },
+      "CmdpaletteSourceStatus": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "status"
         ],
         "type": "object"
       },
@@ -7625,6 +7693,21 @@
           "message",
           "sequence",
           "start_sequence"
+        ],
+        "type": "object"
+      },
+      "Error": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "detail"
         ],
         "type": "object"
       },
@@ -11852,6 +11935,12 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/Ref"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -12208,6 +12297,174 @@
         ],
         "type": "object"
       },
+      "HeartbeatScriptApprovalPayload": {
+        "properties": {
+          "approved_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "script": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "approved_at",
+          "script",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "HeartbeatScriptApprovalRequest": {
+        "properties": {
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "HeartbeatSourceCatalogPayload": {
+        "properties": {
+          "agent": {
+            "type": "string"
+          },
+          "kinds": {
+            "items": {
+              "$ref": "#/components/schemas/KindDescriptor"
+            },
+            "type": "array"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/HeartbeatSourceLimitsPayload"
+          },
+          "scripts": {
+            "items": {
+              "$ref": "#/components/schemas/HeartbeatSourceScriptPayload"
+            },
+            "type": "array"
+          },
+          "scripts_enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "agent",
+          "kinds",
+          "limits",
+          "scripts",
+          "scripts_enabled"
+        ],
+        "type": "object"
+      },
+      "HeartbeatSourceLimitsPayload": {
+        "properties": {
+          "max_items": {
+            "type": "integer"
+          },
+          "max_per_agent": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_items",
+          "max_per_agent"
+        ],
+        "type": "object"
+      },
+      "HeartbeatSourceScriptPayload": {
+        "properties": {
+          "approved": {
+            "type": "boolean"
+          },
+          "approved_sha256": {
+            "nullable": true,
+            "type": "string"
+          },
+          "executable": {
+            "type": "boolean"
+          },
+          "last_modified": {
+            "format": "date-time",
+            "nullable": true,
+            "type": "string"
+          },
+          "line_count": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "approved",
+          "approved_sha256",
+          "executable",
+          "name",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "HeartbeatSourceStatus": {
+        "properties": {
+          "error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "failure_streak": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "last_item_count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "last_polled_at": {
+            "type": "string"
+          },
+          "last_success_at": {
+            "type": "string"
+          },
+          "next_poll_at": {
+            "type": "string"
+          },
+          "script": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "failure_streak",
+          "id",
+          "last_item_count",
+          "status"
+        ],
+        "type": "object"
+      },
       "HeartbeatStatusResponse": {
         "properties": {
           "active": {
@@ -12386,6 +12643,7 @@
           },
           "reason": {
             "enum": [
+              "source_poll_in_flight",
               "wake_sent",
               "heartbeat_disabled",
               "heartbeat_invalid",
@@ -12451,6 +12709,7 @@
           },
           "reason": {
             "enum": [
+              "source_poll_in_flight",
               "wake_sent",
               "heartbeat_disabled",
               "heartbeat_invalid",
@@ -12528,6 +12787,7 @@
           },
           "last_reason": {
             "enum": [
+              "source_poll_in_flight",
               "wake_sent",
               "heartbeat_disabled",
               "heartbeat_invalid",
@@ -13177,6 +13437,29 @@
         "required": [
           "jobs",
           "page"
+        ],
+        "type": "object"
+      },
+      "KindDescriptor": {
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "extension": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "params_schema": {},
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "extension",
+          "kind",
+          "title"
         ],
         "type": "object"
       },
@@ -21092,6 +21375,24 @@
         "required": [
           "path",
           "reason"
+        ],
+        "type": "object"
+      },
+      "Ref": {
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "script": {
+            "type": "string"
+          },
+          "with": {}
+        },
+        "required": [
+          "id"
         ],
         "type": "object"
       },
@@ -34193,21 +34494,44 @@
         ],
         "type": "object"
       },
-      "SourceStatus": {
+      "SourceOutcome": {
         "properties": {
-          "reason": {
+          "duration_ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Error"
+              },
+              {
+                "enum": [
+                  null
+                ],
+                "nullable": true
+              }
+            ]
+          },
+          "id": {
             "type": "string"
           },
-          "source": {
-            "type": "string"
+          "items": {
+            "type": "integer"
           },
-          "status": {
+          "more": {
+            "type": "boolean"
+          },
+          "result": {
             "type": "string"
           }
         },
         "required": [
-          "source",
-          "status"
+          "duration_ms",
+          "id",
+          "items",
+          "more",
+          "result"
         ],
         "type": "object"
       },
@@ -53295,6 +53619,225 @@
           "agents"
         ],
         "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/agents/{name}/heartbeat/scripts/{script}/approve": {
+      "delete": {
+        "operationId": "revokeAgentHeartbeatScript",
+        "parameters": [
+          {
+            "description": "Agent name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Script name",
+            "in": "path",
+            "name": "script",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace id",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Script approval revoked"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Operator required"
+          }
+        },
+        "summary": "Revoke a source script approval (operator only)",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      },
+      "post": {
+        "operationId": "approveAgentHeartbeatScript",
+        "parameters": [
+          {
+            "description": "Agent name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Script name",
+            "in": "path",
+            "name": "script",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace id",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HeartbeatScriptApprovalRequest"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeartbeatScriptApprovalPayload"
+                }
+              }
+            },
+            "description": "Approved"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Operator required"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Script changed"
+          }
+        },
+        "summary": "Approve exact source script bytes (operator only)",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "denied",
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/agents/{name}/heartbeat/sources": {
+      "get": {
+        "operationId": "getAgentHeartbeatSources",
+        "parameters": [
+          {
+            "description": "Agent name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Workspace id",
+            "in": "query",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HeartbeatSourceCatalogPayload"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorPayload"
+                }
+              }
+            },
+            "description": "Agent not found"
+          }
+        },
+        "summary": "List check-in source kinds, scripts and effective limits",
+        "tags": [
+          "agents"
+        ],
+        "x-compozy-app-access": "allowed",
         "x-compozy-transports": [
           "http",
           "uds"

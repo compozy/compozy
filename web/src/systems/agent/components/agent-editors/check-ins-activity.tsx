@@ -20,9 +20,19 @@ import {
 import type { CheckInsEditorModel } from "../../hooks/use-check-ins-editor";
 import type { TryCheck } from "../../hooks/use-agent-instance-checks";
 import { gapLabel } from "../../lib/agent-check-in-activity";
+import {
+  checkInSourceOutcome,
+  checkInSourceTitle,
+  type CheckInSource,
+} from "../../lib/agent-check-in-sources";
 import { dayCells, type NextCheckIn } from "../../lib/agent-check-in-form";
 import { agentScopeLabel } from "../../lib/agent-instance";
-import type { AgentInstancePayload } from "../../types";
+import type {
+  AgentHeartbeatSourceCatalog,
+  AgentInstancePayload,
+  AgentInstanceSourceOutcome,
+} from "../../types";
+import { CheckInSourceStatus } from "./check-in-source-row";
 import { DayStrip, DayStripKey, EditorCard } from "./rich-controls";
 
 function PlacePicker({
@@ -82,12 +92,44 @@ function thingsHeading(count: number) {
   return `It would look into ${count} ${count === 1 ? "thing" : "things"}`;
 }
 
+/** S5: what each source's read returned, in the same words as its row. */
+function TrySources({
+  outcomes,
+  sources,
+  catalog,
+}: {
+  outcomes: readonly AgentInstanceSourceOutcome[];
+  sources: readonly CheckInSource[];
+  catalog: AgentHeartbeatSourceCatalog | null;
+}) {
+  if (outcomes.length === 0) return null;
+  return (
+    <ul aria-label="Sources" className="flex flex-col gap-1">
+      {outcomes.map(outcome => {
+        const source = sources.find(item => item.id === outcome.id) ?? { id: outcome.id };
+        return (
+          <li className="flex items-center justify-between gap-2" key={outcome.id}>
+            <span className="min-w-0 truncate text-small-body text-fg-2">
+              {checkInSourceTitle(source, catalog)}
+            </span>
+            <CheckInSourceStatus status={checkInSourceOutcome(source, outcome)} />
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function TryResult({
   state,
+  sources,
+  catalog,
   onRunForReal,
   onClose,
 }: {
   state: Exclude<TryCheck, { phase: "idle" }>;
+  sources: readonly CheckInSource[];
+  catalog: AgentHeartbeatSourceCatalog | null;
   onRunForReal: () => void;
   onClose: () => void;
 }) {
@@ -129,6 +171,7 @@ function TryResult({
           <X aria-hidden="true" />
         </Button>
       </div>
+      <TrySources catalog={catalog} outcomes={state.sources} sources={sources} />
       {state.digest.length > 0 ? (
         <ul className="flex list-disc flex-col gap-1 ps-4 text-small-body text-fg-2">
           {state.digest.map(item => (
@@ -250,8 +293,10 @@ export function NextCard({ model }: { model: CheckInsEditorModel }) {
         </Button>
       ) : (
         <TryResult
+          catalog={model.catalog}
           onClose={tryCheck.reset}
           onRunForReal={() => void tryCheck.runForReal()}
+          sources={settings.sources}
           state={tryCheck.state}
         />
       )}

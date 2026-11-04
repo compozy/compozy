@@ -173,6 +173,10 @@ func cloneInitializeResponse(src *subprocess.InitializeResponse) *subprocess.Ini
 	cloned.ImplementedMethods = slices.Clone(src.ImplementedMethods)
 	cloned.SupportedHookEvents = slices.Clone(src.SupportedHookEvents)
 	cloned.WatchSourceKinds = slices.Clone(src.WatchSourceKinds)
+	cloned.HeartbeatSourceKinds = slices.Clone(src.HeartbeatSourceKinds)
+	for i := range cloned.HeartbeatSourceKinds {
+		cloned.HeartbeatSourceKinds[i].ParamsSchema = cloneRawMessage(src.HeartbeatSourceKinds[i].ParamsSchema)
+	}
 	cloned.AcceptedCapabilities.Provides = slices.Clone(src.AcceptedCapabilities.Provides)
 	cloned.AcceptedCapabilities.Permissions = slices.Clone(src.AcceptedCapabilities.Permissions)
 	return &cloned

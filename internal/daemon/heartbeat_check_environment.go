@@ -2,8 +2,12 @@ package daemon
 
 import (
 	"context"
+	"time"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -12,6 +16,10 @@ type checkWorkspaceReader interface {
 }
 
 type instanceCheckEnvironment struct {
+	sourceExtensions  source.ExtensionPoller
+	sourceConfig      compozyconfig.HeartbeatSourcesConfig
+	sourceNow         func() time.Time
+	sourceMaxInterval time.Duration
 	instanceDigestCollector
 	definitions instanceDefinitions
 	policies    heartbeat.PolicyResolver
@@ -51,4 +59,8 @@ func (e *instanceCheckEnvironment) BeforeCheck(
 	source string,
 ) (string, error) {
 	return beforeInstanceCheck(ctx, e.hooks, target, source)
+}
+
+func (e *instanceCheckEnvironment) ReconcileSourcePolicy(ctx context.Context, target *heartbeat.CheckTarget) error {
+	return e.instances.ClearRemovedSources(ctx, target.Instance.ID)
 }

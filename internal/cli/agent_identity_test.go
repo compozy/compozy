@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -231,4 +232,27 @@ func TestAgentCommandErrorRendering(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestHeartbeatScriptAgentRejection(t *testing.T) {
+	for _, revoke := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should refuse script approval from an agent revoke=%t [UT-063]", revoke),
+			func(t *testing.T) {
+				t.Parallel()
+				deps := newTestDeps(t, &stubClient{})
+				deps.getenv = func(key string) string {
+					if key == agentidentity.EnvSessionID {
+						return "sess-agent"
+					}
+					return ""
+				}
+				cmd := newHeartbeatScriptApprovalCommand(deps, revoke)
+				cmd.SetArgs([]string{"coder", "poll", "--yes"})
+				if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "source_approval_operator_only") {
+					t.Fatalf("error=%v", err)
+				}
+			},
+		)
+	}
 }

@@ -170,7 +170,7 @@ func instanceText(instance contract.AgentInstancePayload) string {
 		instance.UnattendedTurns,
 		instance.UnattendedTurnLimit,
 		instance.HeldWakes,
-	)
+	) + instanceSourcesText(instance)
 }
 func instanceListText(page contract.AgentInstanceListResponse) string {
 	var text strings.Builder
@@ -226,7 +226,7 @@ func (options agentInstanceOptions) run(cmd *cobra.Command, deps commandDeps, ac
 	}
 
 	if action == agentInstanceCheckAction || action == "on" || action == agentInstanceChecksOff {
-		return options.check(cmd, base, action, id)
+		return options.check(cmd, base, action, id, target)
 	}
 	if action == agentInstanceAwayAction || action == agentInstanceMarkSeenAction ||
 		action == agentInstanceCheckInsAction {
@@ -277,7 +277,7 @@ func (options agentInstanceOptions) query(
 	return query, nil
 }
 
-func (options agentInstanceOptions) check(cmd *cobra.Command, base any, action, id string) error {
+func (options agentInstanceOptions) check(cmd *cobra.Command, base any, action, id, target string) error {
 	checks, ok := base.(agentInstanceChecksClient)
 	if !ok {
 		return errors.New("cli: instance checks unavailable")
@@ -294,7 +294,25 @@ func (options agentInstanceOptions) check(cmd *cobra.Command, base any, action, 
 			}
 			return waitInstanceOccurrence(cmd, reader, id, result.OccurrenceID, defaultPollInterval)
 		}
-		return writeInstanceOutput(cmd, result, fmt.Sprintf("%s%s\n", result.Gate, result.OccurrenceID))
+		return writeCommandOutput(cmd, outputBundle{
+			jsonValue: result,
+			json:      func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, result) },
+			jsonl:     func(cmd *cobra.Command) error { return writeJSONLineWithoutWorkspaceResolution(cmd, result) },
+			human: func() (string, error) {
+				if len(result.Sources) == 0 {
+					return instanceCheckText(result, target, nil), nil
+				}
+				instanceClient, ok := base.(agentInstancesClient)
+				if !ok {
+					return "", errors.New("cli: agent instances unavailable")
+				}
+				instance, err := instanceClient.MutateAgentInstance(cmd.Context(), id, "show")
+				if err != nil {
+					return "", err
+				}
+				return instanceCheckText(result, target, instance.Instance.Sources), nil
+			},
+		})
 	}
 	result, err := checks.SetAgentInstanceChecks(cmd.Context(), id, action == "on")
 	if err != nil {

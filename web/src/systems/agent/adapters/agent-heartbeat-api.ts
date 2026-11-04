@@ -1,5 +1,6 @@
 import {
   apiClient,
+  apiErrorCode,
   apiRequestFailed,
   defaultApiErrorMessage,
   requireResponseData,
@@ -7,6 +8,8 @@ import {
 
 import type {
   AgentHeartbeatHistoryResponse,
+  AgentHeartbeatScriptApproval,
+  AgentHeartbeatSourceCatalog,
   AgentHeartbeatPayload,
   AgentHeartbeatStatusPayload,
   DeleteAgentHeartbeatParams,
@@ -224,4 +227,72 @@ export async function wakeAgentHeartbeat(
     );
   }
   return requireResponseData(data, response, `Failed to wake heartbeat for "${name}"`);
+}
+
+/** The source kinds and scripts the agent's check-ins can read, and the daemon's limits. */
+export async function fetchAgentHeartbeatSources(
+  name: string,
+  workspaceId?: string | null,
+  signal?: AbortSignal,
+  profile?: string
+): Promise<AgentHeartbeatSourceCatalog> {
+  const { data, error, response } = await apiClient.GET("/api/agents/{name}/heartbeat/sources", {
+    params: {
+      path: { name },
+      query: { ...workspaceIdQuery(workspaceId), ...(profile ? { profile } : {}) },
+    },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    throw new AgentApiError(
+      defaultApiErrorMessage(`Failed to fetch check-in sources for "${name}"`, response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, `Failed to fetch check-in sources for "${name}"`);
+}
+
+/** A refused script approval with the daemon's code, e.g. `source_script_changed`. */
+export class AgentHeartbeatScriptApprovalError extends AgentApiError {
+  readonly code: string;
+
+  constructor(message: string, status: number, code = "") {
+    super(message, status);
+    this.name = "AgentHeartbeatScriptApprovalError";
+    this.code = code;
+  }
+}
+
+/**
+ * Approves the exact script bytes the operator saw, named by their sha256. The daemon refuses
+ * with 409 `source_script_changed` when the file changed since, and 403 for agent callers.
+ */
+export async function approveAgentHeartbeatScript(
+  name: string,
+  script: string,
+  sha256: string,
+  workspaceId?: string | null,
+  signal?: AbortSignal,
+  profile?: string
+): Promise<AgentHeartbeatScriptApproval> {
+  const { data, error, response } = await apiClient.POST(
+    "/api/agents/{name}/heartbeat/scripts/{script}/approve",
+    {
+      params: {
+        path: { name, script },
+        query: { ...workspaceIdQuery(workspaceId), ...(profile ? { profile } : {}) },
+      },
+      body: { sha256 },
+      signal,
+    }
+  );
+  const fallback = `Failed to approve script "${script}" for "${name}"`;
+  if (apiRequestFailed(response, error)) {
+    throw new AgentHeartbeatScriptApprovalError(
+      defaultApiErrorMessage(fallback, response, error),
+      response.status,
+      apiErrorCode(error) ?? ""
+    );
+  }
+  return requireResponseData(data, response, fallback);
 }

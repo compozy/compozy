@@ -4,6 +4,8 @@ import { expectFetchRequest, mockJsonResponse } from "@/test/fetch-test-utils";
 
 import { AgentDigestConflictError, isAgentDigestConflict } from "../agent-api";
 import {
+  AgentHeartbeatScriptApprovalError,
+  approveAgentHeartbeatScript,
   deleteAgentHeartbeat,
   fetchAgentHeartbeat,
   fetchAgentHeartbeatHistory,
@@ -208,6 +210,41 @@ describe("agent-heartbeat-api", () => {
       });
     }
   );
+
+  it("Should approve the script hash it was given and keep the daemon's refusal code", async () => {
+    const sha256 = `sha256:${"7f".repeat(32)}`;
+    mockJsonResponse({ script: "failed-deploys", sha256, approved_at: "2026-11-03T12:00:00Z" });
+
+    const approval = await approveAgentHeartbeatScript(
+      "issue-watch",
+      "failed-deploys",
+      sha256,
+      "ws_alpha",
+      undefined,
+      "open-design"
+    );
+
+    expect(approval.sha256).toBe(sha256);
+    await expectFetchRequest({
+      path: "/api/agents/issue-watch/heartbeat/scripts/failed-deploys/approve?workspace_id=ws_alpha&profile=open-design",
+      method: "POST",
+      body: { sha256 },
+    });
+
+    vi.mocked(globalThis.fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: "script contents changed", code: "source_script_changed" }),
+        { status: 409, headers: { "Content-Type": "application/json" } }
+      )
+    );
+    const refused = await approveAgentHeartbeatScript(
+      "issue-watch",
+      "failed-deploys",
+      sha256
+    ).catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(AgentHeartbeatScriptApprovalError);
+    expect(refused).toMatchObject({ status: 409, code: "source_script_changed" });
+  });
 
   it("Should throw generic errors for non-conflict failures", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response(null, { status: 500 }));

@@ -7,6 +7,18 @@ import (
 	"time"
 )
 
+type LoopGenerationOrigin string
+
+const (
+	LoopGenerationOriginInitial            LoopGenerationOrigin = "initial"
+	LoopGenerationOriginStopWhen           LoopGenerationOrigin = "stop_when"
+	LoopGenerationOriginReattempt          LoopGenerationOrigin = "reattempt"
+	LoopGenerationOriginGateRevise         LoopGenerationOrigin = "gate_revise"
+	LoopGenerationOriginGateNextGeneration LoopGenerationOrigin = "gate_next_generation"
+	LoopGenerationOriginDodRetry           LoopGenerationOrigin = "dod_retry"
+	LoopGenerationOriginRatchetRestore     LoopGenerationOrigin = "ratchet_restore"
+)
+
 type LoopGenerationPostPayload struct {
 	Event           HookEvent `json:"event"`
 	Timestamp       time.Time `json:"timestamp"`
@@ -380,10 +392,4 @@ type ModelCatalogSourceStatusPayload struct {
 	RefreshState  string `json:"refresh_state"`
 	RowCount      int    `json:"row_count"`
 	Stale         bool   `json:"stale"`
-}
-
-type ModelSourceListParams struct {
-	ProviderID   string `json:"provider_id,omitempty"`
-	Refresh      bool   `json:"refresh,omitempty"`
-	IncludeStale bool   `json:"include_stale,omitempty"`
 }

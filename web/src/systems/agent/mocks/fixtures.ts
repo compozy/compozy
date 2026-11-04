@@ -1,4 +1,4 @@
-import type { AgentPayload } from "../types";
+import type { AgentHeartbeatSourceCatalog, AgentPayload } from "../types";
 import { storyAgentNames } from "@/storybook/fintech-scenario";
 
 /** Stable 64-char hex stand-in for AgentDefinitionDigest (not a real hash). */
@@ -200,3 +200,43 @@ export const agentFixtures: AgentPayload[] = [
 ];
 
 export const primaryAgentFixture: AgentPayload = agentFixtures[0];
+
+/** The kinds and scripts a fixture agent's check-ins can read: GitHub issues and one script. */
+export function heartbeatSourceCatalogFixture(
+  agent: string,
+  approved: ReadonlySet<string> = new Set()
+): AgentHeartbeatSourceCatalog {
+  const sha256 = "sha256:7f3a91c0d2b4e6f8a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5e2";
+  return {
+    agent,
+    scripts_enabled: true,
+    limits: { max_per_agent: 8, max_items: 20 },
+    kinds: [
+      {
+        kind: "forge-github/issues",
+        extension: "forge-github",
+        title: "New GitHub issues",
+        description: "Open issues created since the last check, with linked open pull requests.",
+        params_schema: {
+          type: "object",
+          properties: {
+            repo: { type: "string", pattern: "^[\\w.-]+/[\\w.-]+$" },
+            labels: { type: "array", items: { type: "string" } },
+            exclude_labels: { type: "array", items: { type: "string" } },
+            backfill: { type: "string", format: "duration" },
+          },
+          additionalProperties: false,
+        },
+      },
+    ],
+    scripts: [
+      {
+        name: "failed-deploys",
+        executable: true,
+        sha256,
+        approved: approved.has("failed-deploys"),
+        approved_sha256: approved.has("failed-deploys") ? sha256 : null,
+      },
+    ],
+  };
+}

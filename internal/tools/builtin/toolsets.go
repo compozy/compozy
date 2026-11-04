@@ -114,6 +114,7 @@ var builtinToolsets = []toolspkg.Toolset{
 		Tools: []string{
 			toolspkg.ToolIDSessionHealth.String(),
 			toolspkg.ToolIDAgentHeartbeatStatus.String(),
+			toolspkg.ToolIDAgentHeartbeatSources.String(),
 			toolspkg.ToolIDAgentHeartbeatWake.String(),
 			toolspkg.ToolIDAgentInstanceCheck.String(),
 			toolspkg.ToolIDAgentInstanceChecks.String(),

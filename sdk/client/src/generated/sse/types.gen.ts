@@ -53,6 +53,7 @@ export type AgentInstancePayload = {
     [key: string]: unknown;
   };
   scope: string;
+  sources: Array<HeartbeatSourceStatus>;
   state: string;
   unattended_turn_limit: number;
   unattended_turns: number;
@@ -148,6 +149,11 @@ export type Entry = {
   start_sequence: number;
 };
 
+export type Error = {
+  code: string;
+  detail: string;
+};
+
 export type ErrorPayload = {
   blockers?: Array<WorkspaceArchiveBlocker>;
   code?: string;
@@ -225,6 +231,19 @@ export type GridTile = {
     [key: string]: string;
   };
   title: string;
+};
+
+export type HeartbeatSourceStatus = {
+  error?: Error | null;
+  failure_streak: number;
+  id: string;
+  kind?: string;
+  last_item_count: number;
+  last_polled_at?: string;
+  last_success_at?: string;
+  next_poll_at?: string;
+  script?: string;
+  status: string;
 };
 
 export type Image = {

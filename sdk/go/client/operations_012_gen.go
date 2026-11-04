@@ -4,10 +4,47 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"net/url"
 	"strconv"
 	"strings"
 )
+
+var _ json.Unmarshaler = (*GetProfileSelectionsFrame)(nil)
+
+var _ json.Marshaler = GetProfileSelectionsFrame{}
+
+// UnmarshalJSON retains the complete event payload.
+func (f *GetProfileSelectionsFrame) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &f.Raw)
+}
+
+// MarshalJSON returns the original event payload.
+func (f GetProfileSelectionsFrame) MarshalJSON() ([]byte, error) {
+	return json.Marshal(f.Raw)
+}
+
+func (f *GetProfileSelectionsFrame) setResponseStatus(status int) {
+	f.StatusCode = status
+}
+
+// AsVariant1 decodes this payload as Variant1.
+func (f GetProfileSelectionsFrame) AsVariant1() (*[]ProfileSelection, error) {
+	var out []ProfileSelection
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// AsProfileSelection decodes this payload as ProfileSelection.
+func (f GetProfileSelectionsFrame) AsProfileSelection() (*ProfileSelection, error) {
+	var out ProfileSelection
+	if err := json.Unmarshal(f.Raw, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
 
 // GetProfileSelections Read profile selections
 func (c *Client) GetProfileSelections(ctx context.Context, params GetProfileSelectionsParams) (*GetProfileSelectionsFrame, error) {
@@ -370,75 +407,4 @@ type GetSessionHistoryParams struct {
 	Archive       *string `url:"archive"`
 	Profile       *string `url:"profile"`
 	AllProfiles   *bool   `url:"all_profiles"`
-}
-
-// GetSessionHistory List grouped session turn history
-func (c *Client) GetSessionHistory(ctx context.Context, params GetSessionHistoryParams) (*SessionHistoryResponse, error) {
-	path := "/api/workspaces/{workspace_id}/sessions/{session_id}/history"
-	path = strings.ReplaceAll(path, "{workspace_id}", url.PathEscape(params.WorkspaceID))
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Since != nil {
-		query.Set("since", *params.Since)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.AfterSequence != nil {
-		query.Set("after_sequence", strconv.FormatInt(*params.AfterSequence, 10))
-	}
-	if params.Type != nil {
-		query.Set("type", *params.Type)
-	}
-	if params.AgentName != nil {
-		query.Set("agent_name", *params.AgentName)
-	}
-	if params.TurnID != nil {
-		query.Set("turn_id", *params.TurnID)
-	}
-	if params.Archive != nil {
-		query.Set("archive", *params.Archive)
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionHistoryResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetSessionOwnerParams carries the path, query, and header parameters.
-type GetSessionOwnerParams struct {
-	SessionID   string  `url:"session_id"`
-	Profile     *string `url:"profile"`
-	AllProfiles *bool   `url:"all_profiles"`
-}
-
-// GetSessionOwner Get a session owner; Global history has an empty workspace id
-func (c *Client) GetSessionOwner(ctx context.Context, params GetSessionOwnerParams) (*SessionOwner, error) {
-	path := "/api/sessions/{session_id}/owner"
-	path = strings.ReplaceAll(path, "{session_id}", url.PathEscape(params.SessionID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out SessionOwner
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
 }

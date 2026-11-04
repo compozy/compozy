@@ -21,6 +21,7 @@ interface ExtensionDescribeInput {
   tools: ExtensionToolRuntimeDescriptor[];
   commandGroups: ExtensionCommandGroupSpec[];
   watchSourceKinds: string[];
+  heartbeatSourceKinds?: import("./types.js").HeartbeatSourceKind[];
   sdkVersion: string;
 }
 
@@ -107,6 +108,7 @@ export function buildExtensionDescribePayload(input: ExtensionDescribeInput): De
     command_groups: input.commandGroups.map(group => ({ ...group })),
     hook_events: normalizeDescribeHookEvents(input.definition.supported_hook_events),
     watch_source_kinds: input.watchSourceKinds,
+    heartbeat_source_kinds: input.heartbeatSourceKinds,
     ...(viewIDs.length === 0 ? {} : { cmd_palette_views: viewIDs }),
     sdk: {
       name: SDK_NAME,

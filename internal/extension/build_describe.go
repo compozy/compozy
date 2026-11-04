@@ -344,6 +344,10 @@ func validateDescribeCapabilityCoverage(payload *extensioncontract.DescribePaylo
 	if len(payload.Tools) > 0 && !slices.Contains(payload.Provides, extensionprotocol.CapabilityToolProvider) {
 		return errors.New("extension: described tools require tool.provider")
 	}
+	if len(payload.HeartbeatSourceKinds) > 0 &&
+		!slices.Contains(payload.Provides, extensionprotocol.CapabilityProvideHeartbeatSource) {
+		return errors.New("extension: described heartbeat sources require heartbeat.source")
+	}
 	if len(payload.WatchSourceKinds) > 0 &&
 		!slices.Contains(payload.Provides, extensionprotocol.CapabilityProvideWatchSource) {
 		return errors.New("extension: described watch sources require loop.watch_source")

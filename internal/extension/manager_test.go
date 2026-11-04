@@ -2602,6 +2602,17 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 			return h.writeRaw("api_key=sk-connectivity-secret\n")
 		}
 		response := fakeInitializeResponse(params)
+		if h.scenario == "heartbeat_source" {
+			response.HeartbeatSourceKinds = []extensionprotocol.HeartbeatSourceKind{
+				{
+					Kind:  "issues",
+					Title: "Issues",
+					ParamsSchema: json.RawMessage(
+						`{"type":"object","required":["repo"],"properties":{"repo":{"type":"string"}}}`,
+					),
+				},
+			}
+		}
 		if h.scenario == "connectivity_unimplemented" {
 			response.ImplementedMethods = slices.DeleteFunc(response.ImplementedMethods, func(method string) bool {
 				return method == string(extensionprotocol.ExtensionServiceMethodConnectivityTeardown)
@@ -2675,6 +2686,14 @@ func (h *extensionHelperServer) handleRequest(req helperRequest) error {
 		}
 		return nil
 
+	case "heartbeat/source_poll":
+		return h.sendResult(
+			req.ID,
+			map[string]any{
+				"items": []map[string]string{{"key": "issue:1", "title": "New issue"}},
+				"state": map[string]int{"cursor": 1},
+			},
+		)
 	case "models/list":
 		var params extensioncontract.ModelSourceListParams
 		if err := json.Unmarshal(req.Params, &params); err != nil {

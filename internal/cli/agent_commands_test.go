@@ -1568,6 +1568,98 @@ func TestResolveInstanceIDShouldRefuseAnAgentNameOwnedBySeveralProfiles(t *testi
 	}
 }
 
+func TestAgentInstanceSourceOutput(t *testing.T) {
+	t.Parallel()
+	// Invariant: human source results follow the public CLI contract; JSON and legacy checks keep their shape.
+	// Owner and canonical suite: agent instance commands at the CLI HTTP boundary.
+	sources := `[{"id":"new-issues","kind":"forge-github/issues","status":"ok","last_item_count":1,"last_polled_at":"2026-11-03T15:00:02Z"},{"id":"deploys","script":"failed-deploys","status":"failing","failure_streak":2,"error":{"code":"source_exit_nonzero","detail":"exit 1: gh: authentication required"}},{"id":"pending","kind":"forge-github/issues","status":"pending_first_poll"},{"id":"disabled","script":"off","status":"disabled","error":{"code":"source_scripts_disabled","detail":"scripts are disabled"}},{"id":"linear","kind":"linear/issues","status":"unavailable","error":{"code":"source_kind_unavailable","detail":"extension linear is not enabled in compozy"}},{"id":"unapproved","script":"new","status":"unapproved","error":{"code":"source_script_unapproved","detail":"review first"}}]`
+	for _, tc := range []struct {
+		name, action, body, want string
+		json, dry                bool
+	}{
+		{name: "Should show all source statuses", action: "show", want: "Sources\n  new-issues  forge-github/issues  ok  1 item  polled 15:00\n  deploys  script failed-deploys  failing  source_exit_nonzero: exit 1: gh: authentication required (2 in a row)\n  pending  forge-github/issues  pending_first_poll\n  disabled  script off  disabled  source_scripts_disabled: scripts are disabled\n  linear  linear/issues  unavailable  source_kind_unavailable: extension linear is not enabled in compozy\n  unapproved  script new  unapproved  source_script_unapproved: review first\n"},
+		{name: "Should preserve source status JSON", action: "show", json: true, want: `"status":"pending_first_poll"`},
+		{name: "Should preview source items and digest", action: "check", dry: true, body: `{"gate":"would_run","sources":[{"id":"new-issues","result":"ok","items":1,"duration_ms":412},{"id":"deploys","result":"ok","items":2,"duration_ms":5}],"digest":[{"key":"source:new-issues:repo#1201","summary":"#1201 Terminal"}]}`, want: "Would run: yes\nSources:\n  new-issues  forge-github/issues  ok  1 item  (412 ms)\n  deploys  script failed-deploys  ok  2 items  (5 ms)\nDigest:\n  source:new-issues:repo#1201  #1201 Terminal\n"},
+		{name: "Should explain an empty source gate", action: "check", body: `{"gate":"digest_empty","sources":[{"id":"new-issues","result":"ok","items":0,"duration_ms":1}],"digest":[]}`, want: "Would run: no\nSources:\n  new-issues  forge-github/issues  ok  0 items  (1 ms)\nDigest:\n"},
+		{name: "Should show source errors", action: "check", dry: true, body: `{"gate":"digest_empty","sources":[{"id":"deploys","result":"failing","items":0,"error":{"code":"source_timeout","detail":"timed out"}}],"digest":[]}`, want: "Would run: no\nSources:\n  deploys  script failed-deploys  failing  0 items  (0 ms)\n    source_timeout: timed out\nDigest:\n"},
+		{name: "Should explain an in flight check", action: "check", body: `{"gate":"source_poll_in_flight"}`, want: "Not started: a source check is already running for triage (source_poll_in_flight)\n"},
+		{name: "Should preserve legacy check wording", action: "check", dry: true, body: `{"gate":"digest_empty","digest":[]}`, want: "digest_empty\n"},
+		{name: "Should preserve source check JSON", action: "check", dry: true, json: true, body: `{"gate":"would_run","sources":[{"id":"new-issues","result":"ok","items":1,"more":false,"duration_ms":412}],"digest":[]}`, want: `"duration_ms":412`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				body := `{"instance":{"agent_name":"triage","sources":` + sources + `}}`
+				switch r.URL.Path {
+				case "/api/agent-instances":
+					body = `{"instances":[{"id":"ainst-test","agent_name":"triage"}]}`
+				case "/api/agent-instances/ainst-test":
+					if tc.json && tc.action == "check" {
+						t.Error("JSON check fetched instance status")
+					}
+				case "/api/agent-instances/ainst-test/check":
+					var req contract.AgentInstanceCheckRequest
+					if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+						t.Error(err)
+					}
+					if req.DryRun != tc.dry {
+						t.Errorf("dry_run=%v", req.DryRun)
+					}
+					body = tc.body
+				default:
+					t.Errorf("unexpected request %s", r.URL.Path)
+					w.WriteHeader(404)
+					return
+				}
+				if _, err := io.WriteString(w, body); err != nil {
+					t.Error(err)
+				}
+			}))
+			t.Cleanup(server.Close)
+			target, err := url.Parse(server.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			client := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
+				httpClient: &http.Client{Transport: roundTripperFunc(func(r *http.Request) (*http.Response, error) {
+					r.URL.Scheme, r.URL.Host = target.Scheme, target.Host
+					return server.Client().Transport.RoundTrip(r)
+				})},
+			}
+			args := []string{"agent", "instance", tc.action, "triage", "--global"}
+			if tc.action == "show" {
+				args = append(args, "--all-profiles")
+			}
+			if tc.dry {
+				args = append(args, "--dry-run")
+			}
+			if tc.json {
+				args = append(args, "-o", "json")
+			}
+			stdout, _, err := executeRootCommand(t, newWorkspaceTestDeps(t, client), args...)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.json {
+				var value any
+				if err := json.Unmarshal([]byte(stdout), &value); err != nil {
+					t.Fatal(err)
+				}
+				compact, err := json.Marshal(value)
+				if err != nil {
+					t.Fatal(err)
+				}
+				stdout = string(compact)
+			}
+			if !strings.Contains(stdout, tc.want) {
+				t.Fatalf("output=%q, want %q", stdout, tc.want)
+			}
+		})
+	}
+}
+
 // TestAgentKindFlagAlias owns UT-010, UT-011 and the UT-012 help text: --kind stays_on is sent as
 // always_on with a stderr warning, never trips the immutability check, and help names always_on.
 func TestAgentKindFlagAlias(t *testing.T) {

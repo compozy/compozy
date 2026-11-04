@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/internal/heartbeat"
+	"github.com/compozy/compozy/internal/heartbeat/source"
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -31,6 +32,7 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 	}
 	cfg, hb := state.cfg.Agents.AlwaysOn, state.cfg.Agents.Heartbeat
 	environment := &instanceCheckEnvironment{
+		sourceConfig: hb.Sources, sourceNow: d.now, sourceMaxInterval: hb.MaxInterval,
 		instanceDigestCollector: instanceDigestCollector{
 			instances: provider.Instances(), sessions: manager, monitors: state.sessionMonitors,
 			workspaces: state.workspaceResolver, logger: state.logger,
@@ -45,6 +47,10 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 		hooks:      state.notifier,
 		workspaces: workspaces,
 	}
+	if poller, ok := state.extensions.(source.ExtensionPoller); ok {
+		environment.sourceExtensions = poller
+		state.agentInstances.SourceExtensions = poller
+	}
 	dispatcher := &session.TriageDispatcher{
 		Manager:      manager,
 		Reports:      provider.InstanceReports(),
@@ -52,11 +58,13 @@ func (d *Daemon) bootProactiveChecks(ctx context.Context, state *bootState, clea
 		StopTimeout:  state.cfg.Session.Supervision.StopGrace,
 	}
 	service, err := heartbeat.NewCheckService(ctx, provider.Instances(), environment, dispatcher, heartbeat.CheckConfig{
+		Sources:             hb.Sources,
 		UnattendedTurnLimit: cfg.UnattendedTurnLimit,
 		QuietBackoffCap:     hb.QuietBackoffCap,
 		FatigueLimit:        hb.FatigueLimit,
 		Enabled:             hb.Enabled,
 		Interval:            hb.DefaultInterval,
+		MinInterval:         hb.MinInterval,
 		MaxInterval:         hb.MaxInterval,
 		Retention:           hb.WakeEventRetention,
 		Timeout:             cfg.TriageTimeout,

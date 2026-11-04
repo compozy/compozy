@@ -217,7 +217,7 @@ export function lintArtifact(rawHtml: unknown): LintFinding[] {
     // commented-out by the browser but the rule-shaped regex below
     // would otherwise match it and emit a P1 finding for CSS that has
     // no rendered effect.
-    const css = (styleBlock[1] ?? "").replace(/\/\*[\s\S]*?\*\//g, "");
+    const styleBlockCSS = (styleBlock[1] ?? "").replace(/\/\*[\s\S]*?\*\//g, "");
     // Match a CSS rule body containing text-transform: uppercase.
     // Capture the selector + body so we can inspect tracking. The body
     // alternation is `[^{}]*` (not `[^}]*`) so the regex matches only
@@ -234,7 +234,7 @@ export function lintArtifact(rawHtml: unknown): LintFinding[] {
     // directly.
     const upperRe = /([^{}]*)\{([^{}]*text-transform\s*:\s*uppercase[^{}]*)\}/gi;
     let m;
-    while ((m = upperRe.exec(css)) !== null) {
+    while ((m = upperRe.exec(styleBlockCSS)) !== null) {
       const selector = (m[1] ?? "").trim();
       const body = m[2] ?? "";
       if (!hasAdequateUppercaseTracking(body, tokenScopes)) {

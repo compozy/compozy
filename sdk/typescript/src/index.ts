@@ -332,3 +332,5 @@ export type {
   ViewPatch,
 } from "./types.js";
 export type { State as SessionState } from "./types.js";
+
+export * from "./heartbeat-source.js";

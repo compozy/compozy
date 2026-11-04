@@ -945,6 +945,7 @@ func TestScaffoldExtension(t *testing.T) {
 	expectedTemplates := []ScaffoldTemplate{
 		ScaffoldTemplateConnectivityProviderGo,
 		ScaffoldTemplateConnectivityProviderTS,
+		ScaffoldTemplateHeartbeatSourceGo,
 		ScaffoldTemplateLoopWatchSourceGo,
 		ScaffoldTemplateToolProviderGo,
 		ScaffoldTemplateToolProviderTS,

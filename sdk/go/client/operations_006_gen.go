@@ -10,6 +10,40 @@ import (
 	"strings"
 )
 
+// DeleteSettingsHook Delete one settings-backed hook declaration
+func (c *Client) DeleteSettingsHook(ctx context.Context, params DeleteSettingsHookParams) (*SettingsApplyResponse, error) {
+	path := "/api/settings/hooks/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsApplyResponse
+	if err := c.doContent(ctx, "DELETE", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteSettingsMCPServerParams carries the path, query, and header parameters.
+type DeleteSettingsMCPServerParams struct {
+	Name        string  `url:"name"`
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+	Owner       *string `url:"owner"`
+	Target      *string `url:"target"`
+}
+
 // DeleteSettingsMCPServer Delete a manual MCP server or reset its extension override
 func (c *Client) DeleteSettingsMCPServer(ctx context.Context, params DeleteSettingsMCPServerParams) (*SettingsApplyResponse, error) {
 	path := "/api/settings/mcp-servers/{name}"
@@ -404,31 +438,4 @@ func (c *Client) DismissAutomationSuggestion(ctx context.Context, params Dismiss
 type DismissTaskParams struct {
 	ID      string  `url:"id"`
 	Profile *string `url:"profile"`
-}
-
-// DismissTask Dismiss one task inbox item
-func (c *Client) DismissTask(ctx context.Context, params DismissTaskParams) (*TaskTriageStateResponse, error) {
-	path := "/api/tasks/{id}/triage/dismiss"
-	path = strings.ReplaceAll(path, "{id}", url.PathEscape(params.ID))
-	query := url.Values{}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskTriageStateResponse
-	if err := c.doContent(ctx, "POST", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// DismissWorktreeParams carries the path, query, and header parameters.
-type DismissWorktreeParams struct {
-	WorkspaceID  string  `url:"workspace_id"`
-	WorktreeID   string  `url:"worktree_id"`
-	DeleteBranch *bool   `url:"delete_branch"`
-	Force        *bool   `url:"force"`
-	Profile      *string `url:"profile"`
 }

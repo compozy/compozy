@@ -204,6 +204,10 @@ func Boundaries() error {
 		importer string
 		allowed  map[string]struct{}
 	}{
+		{importer: "internal/heartbeat/source", allowed: map[string]struct{}{
+			"github.com/compozy/compozy/internal/diagnostics": {},
+			"github.com/compozy/compozy/internal/procutil":    {},
+		}},
 		{importer: "internal/redact", allowed: map[string]struct{}{}},
 		{importer: "internal/extensionprotocol", allowed: map[string]struct{}{}},
 		{importer: "internal/mcppolicy", allowed: map[string]struct{}{}},

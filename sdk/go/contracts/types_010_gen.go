@@ -2,7 +2,10 @@
 
 package contracts
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type HeartbeatRevisionPayload struct {
 	ID             string                     `json:"id"`
@@ -23,6 +26,13 @@ type HeartbeatRollbackRequest struct {
 	TargetDigest   string `json:"target_digest,omitempty"`
 	ExpectedDigest string `json:"expected_digest"`
 	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+type HeartbeatSourceKind struct {
+	Kind         string          `json:"kind"`
+	Title        string          `json:"title"`
+	Description  string          `json:"description,omitempty"`
+	ParamsSchema json.RawMessage `json:"params_schema,omitempty"`
 }
 
 type HeartbeatStatusRequest struct {
@@ -178,11 +188,4 @@ type Image struct {
 	URL   string `json:"url,omitempty"`
 	Token string `json:"token,omitempty"`
 	Emoji string `json:"emoji,omitempty"`
-}
-
-type InitializeCapabilities struct {
-	Provides              []string        `json:"provides"`
-	GrantedPermissions    []HostAPIMethod `json:"granted_permissions"`
-	GrantedResourceKinds  []string        `json:"granted_resource_kinds"`
-	GrantedResourceScopes []string        `json:"granted_resource_scopes"`
 }

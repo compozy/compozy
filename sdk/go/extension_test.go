@@ -1302,3 +1302,92 @@ func writeText(t *testing.T, path string, content string) {
 		t.Fatalf("os.WriteFile(%s) error = %v", path, err)
 	}
 }
+
+func TestStdioRuntimeHeartbeatSource(t *testing.T) {
+	t.Parallel()
+	t.Run("Should reject kinds that the daemon cannot declare", func(t *testing.T) {
+		t.Parallel()
+		extension := compozysdk.NewExtension(compozysdk.ExtensionDefinition{Name: "kind-test", Version: "0.1.0"})
+		for _, kind := range []string{"my.kind", "a/b", "space kind", " issues "} {
+			if err := extension.HeartbeatSource(
+				kind,
+				compozysdk.HeartbeatSourceKind{},
+				func(context.Context, compozysdk.HeartbeatSourceRequest) (compozysdk.HeartbeatSourceResult, error) {
+					return compozysdk.HeartbeatSourceResult{}, nil
+				},
+			); err == nil {
+				t.Fatalf("accepted %q", kind)
+			}
+		}
+	})
+	t.Run("Should describe initialize and poll heartbeat sources", func(t *testing.T) {
+		t.Parallel()
+		runtime := newRuntimeHarness(t)
+		extension := compozysdk.NewExtension(
+			compozysdk.ExtensionDefinition{
+				Name:       "Go Heartbeat",
+				Version:    "0.1.0",
+				Subprocess: compozysdk.DescribeSubprocess{Command: "./bin"},
+			},
+			compozysdk.WithStdio(runtime.extensionInput, runtime.extensionOutput),
+			compozysdk.WithStderr(io.Discard),
+		)
+		if err := extension.HeartbeatSource(
+			"issues",
+			compozysdk.HeartbeatSourceKind{Title: "Issues"},
+			func(_ context.Context, req compozysdk.HeartbeatSourceRequest) (compozysdk.HeartbeatSourceResult, error) {
+				return compozysdk.HeartbeatSourceResult{
+					Items: []compozysdk.HeartbeatSourceItem{{Key: "1", Title: req.SourceID}},
+					State: req.State,
+				}, nil
+			},
+		); err != nil {
+			t.Fatal(err)
+		}
+		described, err := extension.Describe()
+		if err != nil || len(described.HeartbeatSourceKinds) != 1 {
+			t.Fatalf("describe=%+v err=%v", described, err)
+		}
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		done := make(chan error, 1)
+		go func() { done <- extension.Run(ctx) }()
+		t.Cleanup(func() {
+			cancel()
+			if err := runtime.closeInput(); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+				t.Error(err)
+			}
+			select {
+			case <-done:
+			case <-time.After(time.Second):
+				t.Error("runtime did not stop")
+			}
+		})
+		params := initializeParams("Go Heartbeat")
+		params["capabilities"].(map[string]any)["provides"] = []string{"heartbeat.source"}
+		params["methods"].(map[string]any)["extension_services"] = []string{"heartbeat/source_poll"}
+		init := runtime.call(t, 1, "initialize", params)
+		if init.Error != nil {
+			t.Fatal(init.Error)
+		}
+		var initialized compozysdk.InitializeResponse
+		decodeResult(t, init.Result, &initialized)
+		if len(initialized.HeartbeatSourceKinds) != 1 {
+			t.Fatalf("initialize=%+v", initialized)
+		}
+		poll := runtime.call(
+			t,
+			2,
+			"heartbeat/source_poll",
+			map[string]any{"kind": "issues", "source_id": "incoming", "state": map[string]int{"cursor": 1}},
+		)
+		if poll.Error != nil {
+			t.Fatal(poll.Error)
+		}
+		var result compozysdk.HeartbeatSourceResult
+		decodeResult(t, poll.Result, &result)
+		if len(result.Items) != 1 || result.Items[0].Title != "incoming" || string(result.State) != `{"cursor":1}` {
+			t.Fatalf("result=%+v", result)
+		}
+	})
+}

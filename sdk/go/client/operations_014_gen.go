@@ -9,6 +9,78 @@ import (
 	"strings"
 )
 
+// GetSettingsPersonaParams carries the path, query, and header parameters.
+type GetSettingsPersonaParams struct {
+	Scope       *string `url:"scope"`
+	WorkspaceID *string `url:"workspace_id"`
+	Profile     *string `url:"profile"`
+}
+
+// GetSettingsPersona Read profile-layerable persona defaults
+func (c *Client) GetSettingsPersona(ctx context.Context, params GetSettingsPersonaParams) (*SettingsPersonaResponse, error) {
+	path := "/api/settings/persona"
+	query := url.Values{}
+	if params.Scope != nil {
+		query.Set("scope", *params.Scope)
+	}
+	if params.WorkspaceID != nil {
+		query.Set("workspace_id", *params.WorkspaceID)
+	}
+	if params.Profile != nil {
+		query.Set("profile", *params.Profile)
+	}
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var out SettingsPersonaResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsProviderParams carries the path, query, and header parameters.
+type GetSettingsProviderParams struct {
+	Name string `url:"name"`
+}
+
+// GetSettingsProvider Read one settings-backed provider
+func (c *Client) GetSettingsProvider(ctx context.Context, params GetSettingsProviderParams) (*SettingsProviderResponse, error) {
+	path := "/api/settings/providers/{name}"
+	path = strings.ReplaceAll(path, "{name}", url.PathEscape(params.Name))
+	var out SettingsProviderResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsProviderUsage Read the provider usage settings section
+func (c *Client) GetSettingsProviderUsage(ctx context.Context) (*SettingsProviderUsageResponse, error) {
+	path := "/api/settings/provider-usage"
+	var out SettingsProviderUsageResponse
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// GetSettingsRestartStatusParams carries the path, query, and header parameters.
+type GetSettingsRestartStatusParams struct {
+	OperationID string `url:"operation_id"`
+}
+
+// GetSettingsRestartStatus Get the persisted status for one daemon restart operation
+func (c *Client) GetSettingsRestartStatus(ctx context.Context, params GetSettingsRestartStatusParams) (*RestartActionStatus, error) {
+	path := "/api/settings/actions/restart/{operation_id}"
+	path = strings.ReplaceAll(path, "{operation_id}", url.PathEscape(params.OperationID))
+	var out RestartActionStatus
+	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 // GetSettingsRoles Read the background-role routing settings section
 func (c *Client) GetSettingsRoles(ctx context.Context) (*SettingsRolesResponse, error) {
 	path := "/api/settings/roles"
@@ -357,90 +429,6 @@ func (c *Client) GetTaskExecutionProfile(ctx context.Context, params GetTaskExec
 		path += "?" + query.Encode()
 	}
 	var out TaskExecutionProfileResponse
-	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-// GetTaskInboxParams carries the path, query, and header parameters.
-type GetTaskInboxParams struct {
-	Scope         *string   `url:"scope"`
-	Workspace     *string   `url:"workspace"`
-	AllWorkspaces *bool     `url:"all_workspaces"`
-	WorkspaceIds  *[]string `url:"workspace_ids"`
-	Worktree      *string   `url:"worktree"`
-	OwnerKind     *string   `url:"owner_kind"`
-	OwnerRef      *string   `url:"owner_ref"`
-	Lane          *string   `url:"lane"`
-	Status        *string   `url:"status"`
-	Priority      *string   `url:"priority"`
-	Unread        *bool     `url:"unread"`
-	Query         *string   `url:"query"`
-	Cursor        *string   `url:"cursor"`
-	Limit         *int      `url:"limit"`
-	Profile       *string   `url:"profile"`
-	AllProfiles   *bool     `url:"all_profiles"`
-}
-
-// GetTaskInbox Get the observer-backed task inbox
-func (c *Client) GetTaskInbox(ctx context.Context, params GetTaskInboxParams) (*TaskInboxResponse, error) {
-	path := "/api/observe/tasks/inbox"
-	query := url.Values{}
-	if params.Scope != nil {
-		query.Set("scope", *params.Scope)
-	}
-	if params.Workspace != nil {
-		query.Set("workspace", *params.Workspace)
-	}
-	if params.AllWorkspaces != nil {
-		query.Set("all_workspaces", strconv.FormatBool(*params.AllWorkspaces))
-	}
-	if params.WorkspaceIds != nil {
-		for _, value := range *params.WorkspaceIds {
-			query.Add("workspace_ids", value)
-		}
-	}
-	if params.Worktree != nil {
-		query.Set("worktree", *params.Worktree)
-	}
-	if params.OwnerKind != nil {
-		query.Set("owner_kind", *params.OwnerKind)
-	}
-	if params.OwnerRef != nil {
-		query.Set("owner_ref", *params.OwnerRef)
-	}
-	if params.Lane != nil {
-		query.Set("lane", *params.Lane)
-	}
-	if params.Status != nil {
-		query.Set("status", *params.Status)
-	}
-	if params.Priority != nil {
-		query.Set("priority", *params.Priority)
-	}
-	if params.Unread != nil {
-		query.Set("unread", strconv.FormatBool(*params.Unread))
-	}
-	if params.Query != nil {
-		query.Set("query", *params.Query)
-	}
-	if params.Cursor != nil {
-		query.Set("cursor", *params.Cursor)
-	}
-	if params.Limit != nil {
-		query.Set("limit", strconv.Itoa(*params.Limit))
-	}
-	if params.Profile != nil {
-		query.Set("profile", *params.Profile)
-	}
-	if params.AllProfiles != nil {
-		query.Set("all_profiles", strconv.FormatBool(*params.AllProfiles))
-	}
-	if len(query) > 0 {
-		path += "?" + query.Encode()
-	}
-	var out TaskInboxResponse
 	if err := c.doContent(ctx, "GET", path, nil, nil, &out, "", ""); err != nil {
 		return nil, err
 	}

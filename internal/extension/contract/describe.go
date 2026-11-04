@@ -1,28 +1,30 @@
 package contract
 
 import (
+	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 // DescribePayload is the build-time contract emitted by an SDK describe process.
 type DescribePayload struct {
-	Name             string                                    `json:"name"`
-	Version          string                                    `json:"version"`
-	Description      string                                    `json:"description,omitempty"`
-	Provides         []string                                  `json:"provides"`
-	Permissions      []string                                  `json:"permissions"`
-	RequiresEnv      []string                                  `json:"requires_env,omitempty"`
-	Profiles         []DescribeProfile                         `json:"profiles,omitempty"`
-	Resources        DescribeResources                         `json:"resources"`
-	Subprocess       DescribeSubprocess                        `json:"subprocess"`
-	Gateway          *DescribeGatewayRequirement               `json:"gateway,omitempty"`
-	Tools            []toolspkg.ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
-	HookEvents       []DescribeHookEvent                       `json:"hook_events,omitempty"`
-	WatchSourceKinds []string                                  `json:"watch_source_kinds,omitempty"`
-	CmdPaletteViews  []string                                  `json:"cmd_palette_views,omitempty"`
-	CommandGroups    []ExtensionCommandGroupSpec               `json:"command_groups,omitempty"`
-	SDK              DescribeSDKInfo                           `json:"sdk"`
+	Name                 string                                    `json:"name"`
+	Version              string                                    `json:"version"`
+	Description          string                                    `json:"description,omitempty"`
+	Provides             []string                                  `json:"provides"`
+	Permissions          []string                                  `json:"permissions"`
+	RequiresEnv          []string                                  `json:"requires_env,omitempty"`
+	Profiles             []DescribeProfile                         `json:"profiles,omitempty"`
+	Resources            DescribeResources                         `json:"resources"`
+	Subprocess           DescribeSubprocess                        `json:"subprocess"`
+	Gateway              *DescribeGatewayRequirement               `json:"gateway,omitempty"`
+	Tools                []toolspkg.ExtensionToolRuntimeDescriptor `json:"tools,omitempty"`
+	HookEvents           []DescribeHookEvent                       `json:"hook_events,omitempty"`
+	HeartbeatSourceKinds []extensionprotocol.HeartbeatSourceKind   `json:"heartbeat_source_kinds,omitempty"`
+	WatchSourceKinds     []string                                  `json:"watch_source_kinds,omitempty"`
+	CmdPaletteViews      []string                                  `json:"cmd_palette_views,omitempty"`
+	CommandGroups        []ExtensionCommandGroupSpec               `json:"command_groups,omitempty"`
+	SDK                  DescribeSDKInfo                           `json:"sdk"`
 }
 
 // DescribeProfile declares one profile seeded when an SDK-built extension is installed.

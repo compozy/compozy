@@ -272,8 +272,9 @@ type AgentInstanceAwayResponse struct {
 
 // AgentInstanceCheckDigest is a daemon API value.
 type AgentInstanceCheckDigest struct {
-	Key     string `json:"key"`
-	Summary string `json:"summary"`
+	Source  *AgentInstanceProposalSource `json:"source,omitempty"`
+	Key     string                       `json:"key"`
+	Summary string                       `json:"summary"`
 }
 
 // AgentInstanceCheckInPayload is a daemon API value.
@@ -298,6 +299,7 @@ type AgentInstanceCheckRequest struct {
 
 // AgentInstanceCheckResponse is a daemon API value.
 type AgentInstanceCheckResponse struct {
+	Sources      []SourceOutcome            `json:"sources,omitempty"`
 	Gate         string                     `json:"gate,omitempty"`
 	OccurrenceID string                     `json:"occurrence_id,omitempty"`
 	Digest       []AgentInstanceCheckDigest `json:"digest"`
@@ -335,6 +337,7 @@ type AgentInstanceOccurrenceResponse struct {
 
 // AgentInstancePayload is a daemon API value.
 type AgentInstancePayload struct {
+	Sources             []SourceStatus         `json:"sources"`
 	UnattendedTurns     int64                  `json:"unattended_turns"`
 	UnattendedTurnLimit int64                  `json:"unattended_turn_limit"`
 	HeldWakes           int64                  `json:"held_wakes"`
@@ -383,6 +386,10 @@ type AgentInstanceProposal struct {
 
 // AgentInstanceProposalSource is a daemon API value.
 type AgentInstanceProposalSource struct {
+	SourceID   string `json:"source_id,omitempty"`
+	SourceRef  string `json:"source_ref,omitempty"`
+	ItemKey    string `json:"item_key,omitempty"`
+	URL        string `json:"url,omitempty"`
 	Kind       string `json:"kind"`
 	EventID    string `json:"event_id"`
 	TriggerID  string `json:"trigger_id"`
@@ -412,6 +419,10 @@ type AgentInstanceReportPayload struct {
 
 // AgentInstanceReportSource is a daemon API value.
 type AgentInstanceReportSource struct {
+	SourceID    string `json:"source_id,omitempty"`
+	SourceRef   string `json:"source_ref,omitempty"`
+	ItemKey     string `json:"item_key,omitempty"`
+	URL         string `json:"url,omitempty"`
 	Kind        string `json:"kind"`
 	TriggerName string `json:"trigger_name"`
 	Event       string `json:"event"`
@@ -432,9 +443,4 @@ type AgentInstanceResponse struct {
 // AgentInstanceSeenResponse is a daemon API value.
 type AgentInstanceSeenResponse struct {
 	LastSeenAt time.Time `json:"last_seen_at"`
-}
-
-// AgentInstanceUpdateRequest is a daemon API value.
-type AgentInstanceUpdateRequest struct {
-	ChecksEnabled *bool `json:"checks_enabled"`
 }
