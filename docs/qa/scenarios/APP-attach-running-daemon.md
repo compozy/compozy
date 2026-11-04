@@ -31,3 +31,17 @@ QA impact 2026-08-11: the startup resolver now waits for a live recorded daemon 
 automatic repair to verified desktop-owned processes. The isolated macOS walk reopened the app,
 kept daemon PID `89043`, and retained one listener. Browser/session parity and the shipping OS
 matrix remain blocked for artifact verification.
+
+Issue 1252 — relaunch the app while the daemon is still booting: start the runtime (or let an
+update relaunch it) so it holds `daemon.lock` but has not yet published `daemon.json` or opened its
+listener — a slow boot migration on a large database is the natural trigger. Open the app or press
+"Retry operation" during that window. Expected: the bootstrap stream shows one `start` attempt,
+then `attach started` naming the booting pid, then `Attached to the running CompozyOS runtime.`
+with that same pid once it is ready. There is no "could not start" screen, no `retrying` burst, and
+exactly one daemon process for the home. If the booting daemon exits, or stays unready past the
+attach deadline, the failure names the running daemon pid, not "detached daemon exited before
+readiness". A dead lock owner (stale lock) still recovers through normal start retries.
+Evidence 2026-11-04 (isolated `COMPOZY_HOME`, macOS, working-tree build): three runs of a
+foreground `daemon start` with `daemon bootstrap` launched while the daemon held the lock without
+`daemon.json` all ended `ready completed attach <same pid>` with one daemon process. A lock holder
+killed mid-wait ended `attach failed` naming its pid.

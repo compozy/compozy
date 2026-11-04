@@ -888,3 +888,182 @@ func TestBootstrapRuntimeVersionPolicy(t *testing.T) {
 		})
 	}
 }
+
+// bootstrapLockOwnerFixture drives bootstrap while another daemon process may own the singleton lock.
+type bootstrapLockOwnerFixture struct {
+	deps       commandDeps
+	homePaths  compozyconfig.HomePaths
+	ownerPID   int
+	ownerAlive bool
+	// bootAfterProbes publishes the owner's daemon record after this many post-spawn probes; 0 never boots.
+	bootAfterProbes int
+	// recoverOnSpawn makes this spawn attempt (1-based) a healthy child; 0 never recovers.
+	recoverOnSpawn int
+	spawns         int
+	probes         int
+}
+
+func newBootstrapLockOwnerFixture(t *testing.T) *bootstrapLockOwnerFixture {
+	t.Helper()
+	fixture := &bootstrapLockOwnerFixture{ownerPID: 777, ownerAlive: true}
+	startedAt := time.Date(2026, 11, 4, 12, 0, 0, 0, time.UTC)
+	var socketPath string
+	statusFor := func(pid int) DaemonStatus {
+		return DaemonStatus{
+			Status: daemonRunningStatus, PID: pid, Version: "v1.2.0", StartedAt: startedAt,
+			Socket: socketPath, HTTPHost: "127.0.0.1", HTTPPort: 2123,
+		}
+	}
+	readyPID := func() int {
+		switch {
+		case fixture.recoverOnSpawn > 0 && fixture.spawns >= fixture.recoverOnSpawn:
+			return 42
+		case fixture.bootAfterProbes > 0 && fixture.probes >= fixture.bootAfterProbes:
+			return fixture.ownerPID
+		default:
+			return 0
+		}
+	}
+	client := &stubClient{daemonStatusFn: func(context.Context) (DaemonStatus, error) {
+		if pid := readyPID(); pid > 0 {
+			return statusFor(pid), nil
+		}
+		return DaemonStatus{}, errors.New("injected: daemon socket is not listening yet")
+	}}
+	deps := newTestDeps(t, client)
+	homePaths, err := deps.resolveHome()
+	if err != nil {
+		t.Fatal(err)
+	}
+	socketPath = homePaths.DaemonSocket
+	writeFile(t, bootstrapRuntimePath(homePaths), "operator runtime")
+	deps.executable = os.Executable
+	deps.pollInterval = time.Millisecond
+	deps.startTimeout = time.Second
+	deps.readDaemonLockOwner = func(path string) (int, error) {
+		if path != homePaths.DaemonLock {
+			t.Fatalf("readDaemonLockOwner(%q), want %q", path, homePaths.DaemonLock)
+		}
+		return fixture.ownerPID, nil
+	}
+	deps.processAlive = func(pid int) bool {
+		if pid == fixture.ownerPID {
+			return fixture.ownerAlive
+		}
+		return pid == 42 && fixture.recoverOnSpawn > 0 && fixture.spawns >= fixture.recoverOnSpawn
+	}
+	deps.readDaemonInfo = func(string) (compozydaemon.Info, error) {
+		if fixture.spawns > 0 {
+			fixture.probes++
+		}
+		if pid := readyPID(); pid > 0 {
+			return compozydaemon.Info{PID: pid, Port: 2123, StartedAt: startedAt}, nil
+		}
+		return compozydaemon.Info{}, os.ErrNotExist
+	}
+	deps.spawnBootstrapRuntime = func(context.Context, compozyconfig.HomePaths, string) (daemonProcess, error) {
+		fixture.spawns++
+		child := &timeoutDaemonProcess{done: make(chan struct{})}
+		if fixture.recoverOnSpawn == 0 || fixture.spawns < fixture.recoverOnSpawn {
+			child.complete(fmt.Errorf(
+				"exit status 1: stderr=error: daemon: already running with pid %d", fixture.ownerPID,
+			))
+		}
+		return child, nil
+	}
+	fixture.deps = deps
+	fixture.homePaths = homePaths
+	return fixture
+}
+
+func (f *bootstrapLockOwnerFixture) run(t *testing.T) ([]bootstrapEvent, error) {
+	t.Helper()
+	stdout, _, err := executeRootCommand(t, f.deps, "daemon", "bootstrap", "-o", "jsonl")
+	var events []bootstrapEvent
+	for line := range strings.SplitSeq(strings.TrimSpace(stdout), "\n") {
+		var event bootstrapEvent
+		if decodeErr := json.Unmarshal([]byte(line), &event); decodeErr != nil {
+			t.Fatalf("json.Unmarshal(%q) error = %v", line, decodeErr)
+		}
+		events = append(events, event)
+	}
+	return events, err
+}
+
+func countBootstrapEvents(events []bootstrapEvent, phase bootstrapPhase, status string) int {
+	count := 0
+	for _, event := range events {
+		if event.Phase == phase && event.Status == status {
+			count++
+		}
+	}
+	return count
+}
+
+// TestDaemonBootstrapLockOwner verifies bootstrap attaches to a live booting lock owner instead of
+// burning start attempts, while stale locks still recover through start.
+func TestDaemonBootstrapLockOwner(t *testing.T) {
+	t.Run("Should attach once a live booting lock owner becomes ready", func(t *testing.T) {
+		fixture := newBootstrapLockOwnerFixture(t)
+		fixture.bootAfterProbes = 3
+
+		events, err := fixture.run(t)
+		if err != nil {
+			t.Fatalf("bootstrap error = %v; events=%#v", err, events)
+		}
+		if fixture.spawns != 1 {
+			t.Fatalf("spawned children = %d, want one lock-contended start before attach", fixture.spawns)
+		}
+		if got := countBootstrapEvents(events, bootstrapPhaseStart, bootstrapStatusRetrying); got != 0 {
+			t.Fatalf("retrying events = %d, want none while a live owner boots; events=%#v", got, events)
+		}
+		if got := countBootstrapEvents(events, bootstrapPhaseAttach, bootstrapStatusStarted); got != 1 {
+			t.Fatalf("attach started events = %d, want 1; events=%#v", got, events)
+		}
+		ready := events[len(events)-1]
+		if ready.Phase != bootstrapPhaseReady || ready.Resolution != bootstrapResolutionAttach ||
+			ready.Message != "Attached to the running CompozyOS runtime." ||
+			ready.Daemon == nil || ready.Daemon.PID != fixture.ownerPID || ready.Daemon.Owned {
+			t.Fatalf("final event = %#v, want attach to lock owner pid %d", ready, fixture.ownerPID)
+		}
+	})
+
+	t.Run("Should recover a stale lock through the start path", func(t *testing.T) {
+		fixture := newBootstrapLockOwnerFixture(t)
+		fixture.ownerAlive = false
+		fixture.recoverOnSpawn = 2
+
+		events, err := fixture.run(t)
+		if err != nil {
+			t.Fatalf("bootstrap error = %v; events=%#v", err, events)
+		}
+		if got := countBootstrapEvents(events, bootstrapPhaseAttach, bootstrapStatusStarted); got != 0 {
+			t.Fatalf("attach started events = %d, want none for a dead lock owner; events=%#v", got, events)
+		}
+		if got := countBootstrapEvents(events, bootstrapPhaseStart, bootstrapStatusRetrying); got != 1 {
+			t.Fatalf("retrying events = %d, want 1 failed launch before recovery; events=%#v", got, events)
+		}
+		ready := events[len(events)-1]
+		if ready.Phase != bootstrapPhaseReady || ready.Resolution != bootstrapResolutionStart ||
+			ready.Daemon == nil || ready.Daemon.PID != 42 {
+			t.Fatalf("final event = %#v, want started child pid 42", ready)
+		}
+	})
+
+	t.Run("Should fail naming the running daemon when the lock owner stays unready", func(t *testing.T) {
+		fixture := newBootstrapLockOwnerFixture(t)
+		fixture.deps.bootstrapAttachTimeout = 20 * time.Millisecond
+
+		events, err := fixture.run(t)
+		assertErrorContains(t, err, "the running CompozyOS daemon pid=777 did not become ready")
+		if fixture.spawns != 1 {
+			t.Fatalf("spawned children = %d, want 1", fixture.spawns)
+		}
+		failed := events[len(events)-1]
+		if failed.Phase != bootstrapPhaseAttach || failed.Status != bootstrapStatusFailed ||
+			failed.Classification == bootstrapProbeListeningUnhealthy ||
+			strings.Contains(failed.Message, "detached daemon exited before readiness") {
+			t.Fatalf("failure event = %#v, want attach failure naming the running daemon", failed)
+		}
+	})
+}

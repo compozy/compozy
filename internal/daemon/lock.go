@@ -148,6 +148,16 @@ func (l *Lock) Release() error {
 	return errors.Join(errs...)
 }
 
+// LockOwnerPID reports the PID recorded by the current or last holder of the daemon lock.
+// It never takes the lock, so callers must confirm liveness and contention separately.
+func LockOwnerPID(path string) (int, error) {
+	cleanPath := strings.TrimSpace(path)
+	if cleanPath == "" {
+		return 0, errors.New("daemon: lock path is required")
+	}
+	return readLockPID(lockPIDPath(cleanPath))
+}
+
 func readLockPID(path string) (int, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

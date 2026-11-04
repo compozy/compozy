@@ -83,6 +83,7 @@ type commandDeps struct {
 	processAlive                func(pid int) bool
 	processMatchesStartTime     func(pid int, startedAt time.Time) bool
 	processOwnsFileLock         func(pid int, path string) (bool, error)
+	readDaemonLockOwner         func(path string) (int, error)
 	executable                  func() (string, error)
 	getwd                       func() (string, error)
 	getenv                      func(string) string
@@ -96,6 +97,8 @@ type commandDeps struct {
 	startTimeout                time.Duration
 	stopTimeout                 time.Duration
 	spawnDetached               func(context.Context, compozyconfig.HomePaths) (daemonProcess, error)
+	spawnBootstrapRuntime       func(context.Context, compozyconfig.HomePaths, string) (daemonProcess, error)
+	bootstrapAttachTimeout      time.Duration
 	newUpdateManager            func(compozyconfig.HomePaths) (updateManager, error)
 	runProviderAuthCommand      providerAuthCommandRunner
 	runProviderAuthLoginCommand providerAuthCommandRunner
