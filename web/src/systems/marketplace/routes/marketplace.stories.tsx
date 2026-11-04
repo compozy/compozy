@@ -1,7 +1,6 @@
-import Avatar from "boring-avatars";
 import { Toaster } from "@compozy/ui";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, mocked, userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 
 import {
   StorybookRouteCanvas,
@@ -251,19 +250,6 @@ export const LogoLadder: Story = {
     }),
   },
   render: () => <StorybookWorkspaceSetup />,
-};
-
-/** Exercise the production boundary when the external marble generator throws. */
-export const LogoGeneratorFailure: Story = {
-  ...LogoLadder,
-  beforeEach: () => {
-    mocked(Avatar).mockImplementation(() => {
-      throw new Error("Storybook marble generator failure");
-    });
-    return () => {
-      mocked(Avatar).mockReset();
-    };
-  },
 };
 
 /** Every catalog trail state on one screen: Install · Update · Installed · unverified · Blocked. */

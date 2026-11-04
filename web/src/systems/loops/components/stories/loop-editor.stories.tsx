@@ -22,6 +22,7 @@ import {
 } from "../../mocks/fixtures";
 import type { LoopDetail } from "../../types";
 import {
+  ENVIRONMENT_NODE_ID,
   nodeEnvironmentDetail,
   RETIRED_CWD_ISSUES,
   retiredCwdDetail,
@@ -176,6 +177,16 @@ async function revealFolds(canvasElement: HTMLElement, labels: string[], scrollO
   }
 }
 
+/**
+ * Opens a calm-default-closed rail (palette or inspector) through its toolbar toggle. The loading
+ * skeleton renders the same toolbar inert, so wait for the loaded editor before clicking.
+ */
+async function openRail(canvasElement: HTMLElement, toggleTestId: string) {
+  const editor = within(await within(canvasElement).findByTestId("loop-editor"));
+  const toggle = editor.getByTestId(toggleTestId);
+  if (toggle.getAttribute("aria-pressed") !== "true") await userEvent.click(toggle);
+}
+
 function selectNode(id: string, folds: string[] = [], scrollOffset = 0) {
   return async ({ canvasElement }: { canvasElement: HTMLElement }) => {
     const canvas = within(canvasElement);
@@ -195,6 +206,7 @@ export const DirtyCustom: Story = {
   parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await openRail(canvasElement, "loop-editor-palette-toggle");
     await userEvent.click(await canvas.findByTestId("loop-palette-item-collect"));
   },
 };
@@ -210,6 +222,7 @@ export const ContractTerminals: Story = {
   parameters: { msw: { handlers: editorHandlers(fullLifecycleDetail) } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await openRail(canvasElement, "loop-editor-inspector-toggle");
     await canvas.findByTestId("loop-editor-contract-terminals");
     await revealFolds(canvasElement, ["Terminal reactions"]);
   },
@@ -261,23 +274,24 @@ export const ReadOnlySource: Story = {
   parameters: { msw: { handlers: editorHandlers(readOnlySourceDetail) } },
 };
 
+/** The daemon rejects an unedited publish (422): every issue lands in the strip and dock. */
 export const PublishRejected: Story = {
-  args: { workspaceId: WS, name: "implement-tasks" },
+  args: { workspaceId: WS, name: "quality-gate-demo" },
   parameters: {
     msw: {
       handlers: [
         compozyApiMock.patch("/api/workspaces/{workspace_id}/loops/{name}", () =>
           HttpResponse.json({ valid: false, errors: PUBLISH_REJECTED_ISSUES }, { status: 422 })
         ),
-        ...editorHandlers(delivery),
+        ...editorHandlers(loopDetailByName.get("quality-gate-demo")!),
       ],
     },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(await canvas.findByTestId("loop-palette-item-collect"));
-    const publish = await canvas.findByTestId("loop-editor-publish");
-    await userEvent.click(publish);
+    await canvas.findByTestId("loop-editor");
+    await waitFor(() => expect(canvas.getByTestId("loop-editor-publish")).not.toBeDisabled());
+    await userEvent.click(canvas.getByTestId("loop-editor-publish"));
     await canvas.findByTestId("loop-editor-publish-error");
   },
 };
@@ -377,7 +391,7 @@ export const RetiredCwdRejected: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await canvas.findByTestId("loop-linter-error-count");
-    await selectNode("execute_task")({ canvasElement });
+    await selectNode(ENVIRONMENT_NODE_ID)({ canvasElement });
     await userEvent.click(canvas.getByTestId("loop-linter-toggle"));
   },
 };

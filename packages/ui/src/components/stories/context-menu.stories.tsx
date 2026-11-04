@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogTitle } from "../dialog";
 import {
   ContextMenu,
   ContextMenuContent,
+  ContextMenuGroup,
   ContextMenuItem,
   ContextMenuLabel,
   ContextMenuSeparator,
@@ -61,7 +62,7 @@ export const InsideDialog: Story = {
 async function openContextMenu(
   canvasElement: HTMLElement,
   triggerText: string,
-  expectedItem: string
+  expectedItem: string | RegExp
 ): Promise<void> {
   const trigger = within(canvasElement).getByText(triggerText);
   trigger.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
@@ -95,7 +96,8 @@ export const TabMenu: Story = {
     </ContextMenu>
   ),
   play: async ({ canvasElement }) => {
-    await openContextMenu(canvasElement, "Right-click a tab", "Close tab");
+    // The shortcut hint is part of the item's accessible name.
+    await openContextMenu(canvasElement, "Right-click a tab", /^Close tab\s*⌘W$/);
   },
 };
 
@@ -109,17 +111,19 @@ export const DestinationMenu: Story = {
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuLabel>Open Tasks</ContextMenuLabel>
-        <ContextMenuItem>Open in new tab</ContextMenuItem>
-        <ContextMenuItem>
-          Open in split
-          <ContextMenuShortcut>⌥ click</ContextMenuShortcut>
-        </ContextMenuItem>
-        <ContextMenuItem>Open in new window</ContextMenuItem>
-        <ContextMenuItem>
-          Open in new desktop
-          <ContextMenuShortcut>⇧ click</ContextMenuShortcut>
-        </ContextMenuItem>
+        <ContextMenuGroup>
+          <ContextMenuLabel>Open Tasks</ContextMenuLabel>
+          <ContextMenuItem>Open in new tab</ContextMenuItem>
+          <ContextMenuItem>
+            Open in split
+            <ContextMenuShortcut>⌥ click</ContextMenuShortcut>
+          </ContextMenuItem>
+          <ContextMenuItem>Open in new window</ContextMenuItem>
+          <ContextMenuItem>
+            Open in new desktop
+            <ContextMenuShortcut>⇧ click</ContextMenuShortcut>
+          </ContextMenuItem>
+        </ContextMenuGroup>
         <ContextMenuSeparator />
         <ContextMenuSub>
           <ContextMenuSubTrigger>Go to tab</ContextMenuSubTrigger>

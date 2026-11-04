@@ -1,5 +1,5 @@
 import Avatar from "boring-avatars";
-import { Component, useState, type ReactNode } from "react";
+import { Component, createContext, use, useState, type ReactNode } from "react";
 
 import { cn, KindIcon } from "@compozy/ui";
 import { marketplaceIconURL } from "../lib/marketplace-icon";
@@ -48,6 +48,29 @@ const MONOGRAM_CLASS: Record<MarketplaceEntryLogoSize, string> = {
   md: "text-card-title",
   lg: "text-detail-h1",
 };
+
+interface MarketplaceMarbleProps {
+  name: string;
+  size: number;
+}
+
+type MarketplaceMarbleRenderer = (props: MarketplaceMarbleProps) => ReactNode;
+
+function renderBoringMarble({ name, size }: MarketplaceMarbleProps): ReactNode {
+  return <Avatar name={name} size={size} square variant="marble" />;
+}
+
+/**
+ * The rung-4 marble generator. Production always uses Boring Avatars; a story can provide a
+ * generator that throws to exercise the monogram fallback without mocking the module.
+ */
+const MarketplaceMarbleContext = createContext<MarketplaceMarbleRenderer>(renderBoringMarble);
+const MarketplaceMarbleProvider = MarketplaceMarbleContext.Provider;
+
+/** Renders the generator inside the logo boundary, so a throw falls back to the monogram. */
+function MarketplaceMarble(props: MarketplaceMarbleProps) {
+  return use(MarketplaceMarbleContext)(props);
+}
 
 const MARBLE_PIXELS: Record<MarketplaceEntryLogoSize, number> = { sm: 24, md: 40, lg: 56 };
 
@@ -161,11 +184,17 @@ function MarketplaceEntryLogo({ entry, size = "md", className }: MarketplaceEntr
         data-rung="marble"
         data-slot="marketplace-entry-logo"
       >
-        <Avatar name={entry.entry_id} size={MARBLE_PIXELS[size]} square variant="marble" />
+        <MarketplaceMarble name={entry.entry_id} size={MARBLE_PIXELS[size]} />
       </span>
     </MarketplaceLogoBoundary>
   );
 }
 
-export { MarketplaceEntryLogo };
-export type { MarketplaceEntryLogoEntry, MarketplaceEntryLogoProps, MarketplaceEntryLogoSize };
+export { MarketplaceEntryLogo, MarketplaceMarbleProvider };
+export type {
+  MarketplaceEntryLogoEntry,
+  MarketplaceEntryLogoProps,
+  MarketplaceEntryLogoSize,
+  MarketplaceMarbleProps,
+  MarketplaceMarbleRenderer,
+};
