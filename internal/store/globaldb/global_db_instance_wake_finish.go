@@ -71,16 +71,7 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 				return err
 			}
 
-			next := ""
-			if !req.NextWakeAt.IsZero() {
-				next = store.FormatTimestamp(req.NextWakeAt)
-			}
-			count, err := q.FinishInstanceWake(ctx, sqlcgen.FinishInstanceWakeParams{
-				InstanceID: req.InstanceID, OccurrenceID: req.OccurrenceID, Now: store.FormatTimestamp(req.Now),
-				Completed: completed, Digest: req.Digest, AutomationCursor: req.AutomationCursor,
-				QuietStreak: quiet, FailureStreak: failures, NextWakeAt: next,
-				HoldForEvents: holdForPendingEvents(&req),
-			})
+			count, err := finishInstanceWakeState(ctx, q, &req, completed, quiet, failures)
 			result.Changed = count == 1
 			if err != nil {
 				return err
@@ -264,6 +255,26 @@ func countFinishedCheck(ctx context.Context, q *sqlcgen.Queries, req *heartbeat.
 // so the rejection must not advance the failure streak, fatigue pause, or unattended budget.
 func countsAsCheckFailure(req *heartbeat.FinishRequest) bool {
 	return req.Result == loopNodeOutputFailed && req.Reason != heartbeat.ReasonTriageConfigUnavailable
+}
+
+// finishInstanceWakeState clears the occurrence and persists streaks and the next deadline.
+func finishInstanceWakeState(
+	ctx context.Context,
+	q *sqlcgen.Queries,
+	req *heartbeat.FinishRequest,
+	completed int,
+	quiet, failures int64,
+) (int64, error) {
+	next := ""
+	if !req.NextWakeAt.IsZero() {
+		next = store.FormatTimestamp(req.NextWakeAt)
+	}
+	return q.FinishInstanceWake(ctx, sqlcgen.FinishInstanceWakeParams{
+		InstanceID: req.InstanceID, OccurrenceID: req.OccurrenceID, Now: store.FormatTimestamp(req.Now),
+		Completed: completed, Digest: req.Digest, AutomationCursor: req.AutomationCursor,
+		QuietStreak: quiet, FailureStreak: failures, NextWakeAt: next,
+		HoldForEvents: holdForPendingEvents(req),
+	})
 }
 
 // holdForPendingEvents keeps an earlier deadline owed to unconsumed events, except after a
