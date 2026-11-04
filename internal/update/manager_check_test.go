@@ -326,10 +326,14 @@ func TestManagerCheck(t *testing.T) {
 
 	t.Run("Should refresh stale cache entries and persist the new latest release", func(t *testing.T) {
 		t.Parallel()
+		// Invariant: cache refresh preserves update availability for a supported direct-binary platform.
+		// Owner: Manager.Check; canonical suite: TestManagerCheck.
 
 		now := time.Date(2026, 5, 3, 22, 0, 0, 0, time.UTC)
 		var requests atomic.Int32
 		manager, _ := newManagerWithExecutable(t, &Config{
+			RuntimeOS:   runtimeOSLinux,
+			RuntimeArch: runtimeArchAMD64,
 			Now: func() time.Time {
 				return now
 			},
@@ -387,6 +391,8 @@ func TestManagerCheck(t *testing.T) {
 
 			now := time.Date(2026, 5, 3, 23, 0, 0, 0, time.UTC)
 			manager, _ := newManagerWithExecutable(t, &Config{
+				RuntimeOS:   runtimeOSLinux,
+				RuntimeArch: runtimeArchAMD64,
 				Now: func() time.Time {
 					return now
 				},
@@ -505,6 +511,8 @@ func TestManagerCheck(t *testing.T) {
 
 		now := time.Date(2026, 7, 27, 9, 0, 0, 0, time.UTC)
 		manager, _ := newManagerWithExecutable(t, &Config{
+			RuntimeOS:      runtimeOSLinux,
+			RuntimeArch:    runtimeArchAMD64,
 			CurrentVersion: "v0.3.0-beta.1",
 			Now:            func() time.Time { return now },
 			HTTPClient: &http.Client{
@@ -566,6 +574,8 @@ func TestManagerCheck(t *testing.T) {
 
 		now := time.Date(2026, 10, 23, 9, 0, 0, 0, time.UTC)
 		manager, _ := newManagerWithExecutable(t, &Config{
+			RuntimeOS:      runtimeOSLinux,
+			RuntimeArch:    runtimeArchAMD64,
 			CurrentVersion: "v0.3.0-beta.38",
 			Now:            func() time.Time { return now },
 			HTTPClient: &http.Client{
