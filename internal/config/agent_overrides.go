@@ -154,6 +154,17 @@ func (c *Config) applyAgentOverride(agent AgentDef) (AgentDef, agentOverrideFiel
 	return agent, applied
 }
 
+// withoutSessionSelections drops attribution for fields a session runtime selection replaced,
+// because session selections outrank the operator override.
+func (applied agentOverrideFields) withoutSessionSelections(
+	providerChanged, model, reasoningEffort bool,
+) agentOverrideFields {
+	applied.provider = applied.provider && !providerChanged
+	applied.model = applied.model && !model && !providerChanged
+	applied.reasoningEffort = applied.reasoningEffort && !reasoningEffort && !model && !providerChanged
+	return applied
+}
+
 // markOverrideSources attributes the overridden effective values to the operator override.
 func (applied agentOverrideFields) markOverrideSources(sources *ResolvedRuntimeSources) {
 	mark := func(set bool, source *RuntimeValueSource) {

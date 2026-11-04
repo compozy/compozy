@@ -444,11 +444,9 @@ func (c *Config) resolveSessionAgentRuntime(
 	if effectiveProvider == "" && c != nil {
 		effectiveProvider = CanonicalProviderName(c.Defaults.Provider)
 	}
-	// Session selections outrank the operator override for the fields they replace.
-	providerChanged := rawProviderOverride != "" && override != effectiveProvider
-	applied.provider = applied.provider && !providerChanged
-	applied.model = applied.model && model == "" && !providerChanged
-	applied.reasoningEffort = applied.reasoningEffort && reasoningEffort == "" && model == "" && !providerChanged
+	applied = applied.withoutSessionSelections(
+		rawProviderOverride != "" && override != effectiveProvider, model != "", reasoningEffort != "",
+	)
 	if rawProviderOverride == "" || override == effectiveProvider {
 		sessionAgent := agent
 		if model != "" {
