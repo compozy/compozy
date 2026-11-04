@@ -27,6 +27,8 @@ const (
 	sessionWALMaintenanceMaxDelay = 30 * time.Second
 )
 
+var errSessionCheckpointDeferred = errors.New("store: session checkpoint admission deferred")
+
 func (s *SessionDB) writerLoop() {
 	writesSinceCheckpoint := 0
 	var pending *sessionWriteRequest
@@ -40,8 +42,9 @@ func (s *SessionDB) writerLoop() {
 	for {
 		if writesSinceCheckpoint >= sessionPassiveCheckpointEvery {
 			writesSinceCheckpoint = 0
-			if err := s.passiveCheckpoint(s.writerCtx); err != nil {
-				slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed", "error", err)
+			select {
+			case s.checkpointWake <- struct{}{}:
+			default:
 			}
 		}
 		if pending != nil {
@@ -75,6 +78,25 @@ func (s *SessionDB) writerLoop() {
 			return
 		case <-s.writerCtx.Done():
 			return
+		}
+	}
+}
+
+func (s *SessionDB) passiveCheckpointLoop() {
+	defer close(s.checkpointDone)
+	for {
+		select {
+		case <-s.writerCtx.Done():
+			return
+		case <-s.checkpointWake:
+			if err := s.passiveCheckpoint(s.writerCtx); err != nil && s.writerCtx.Err() == nil {
+				if errors.Is(err, errSessionCheckpointDeferred) {
+					slog.Default().
+						DebugContext(s.writerCtx, "store: passive session wal checkpoint deferred by a family guard")
+					continue
+				}
+				slog.Default().WarnContext(s.writerCtx, "store: passive session wal checkpoint failed", "error", err)
+			}
 		}
 	}
 }
@@ -167,7 +189,7 @@ func (s *SessionDB) passiveCheckpoint(ctx context.Context) error {
 // outlasted the bounded wait.
 func (s *SessionDB) checkpointWAL() bool {
 	if err := s.passiveCheckpoint(s.writerCtx); err != nil {
-		if errors.Is(err, context.DeadlineExceeded) {
+		if errors.Is(err, errSessionCheckpointDeferred) {
 			slog.Default().DebugContext(s.writerCtx, "store: passive session wal checkpoint deferred by a family guard")
 			return true
 		}
@@ -214,8 +236,14 @@ func (s *SessionDB) checkpointWithLease(
 ) (err error) {
 	// Acquire the connection before the family lease: opening a pool connection
 	// itself takes that lease to verify the immutable database identity.
-	connection, err := s.db.Conn(ctx)
+	// Maintenance has its own already-verified connection. Borrowing the writer's
+	// last idle connection would force a foreground write to reopen under the
+	// family lease held by this checkpoint's potentially slow filesystem sync.
+	connection, err := s.checkpointDB.Conn(ctx)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = errors.Join(errSessionCheckpointDeferred, err)
+		}
 		return fmt.Errorf("store: acquire session checkpoint connection: %w", err)
 	}
 	defer func() {
@@ -225,6 +253,9 @@ func (s *SessionDB) checkpointWithLease(
 	}()
 	lease, err := AcquireFamilyLease(ctx, s.path)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = errors.Join(errSessionCheckpointDeferred, err)
+		}
 		return err
 	}
 	defer lease.Release()

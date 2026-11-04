@@ -456,6 +456,8 @@ func assertContentionLogFile(t *testing.T, path string) {
 		if strings.Contains(line, "contention exhausted bounded retry") ||
 			strings.Contains(line, "held for at least one second") ||
 			strings.Contains(line, "sqlite passive checkpoint failed") ||
+			strings.Contains(line, "passive session wal checkpoint failed") ||
+			strings.Contains(line, "truncate session wal failed") ||
 			strings.Contains(line, "SQLITE_BUSY") {
 			t.Errorf("SQLite contention in daemon log: %s", line)
 		}

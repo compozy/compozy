@@ -44,6 +44,9 @@ The exact historical owner cannot be recovered from this evidence.
   clean shutdown reports flush failures rather than claiming persistence.
 - Request reads in global repositories and the profile manager use a separate `mode=ro`,
   `query_only` pool. Transcript reads and preparation use a separate guarded session pool.
+  Periodic session checkpoints use a dedicated guarded connection and joined worker, so filesystem
+  sync cannot occupy the event writer queue or borrow its last idle connection. Idle truncation
+  retains its existing delay, size bound and family lease; checkpoint deadlines remain unchanged.
 - Transcript event assignment, fold reduction and JSON encoding run in a read snapshot. The short
   publication transaction validates projection state and the next sequence before committing the
   canonical ledger and projection together. Concurrent append/archive/clear/rewind invalidates
@@ -540,3 +543,53 @@ or warnings, clean teardown and no survivors. Transcript/catalog/rename p99 were
 126.319/83.395/246.742 ms across 3,000/196/40 successful requests. All six log files contained zero
 long-hold, retry-exhaustion, passive-checkpoint or completed/rolled-back transaction errors.
 Artifact `13290493945` preserves this run. Paired-load acceptance and final-head CI remain open.
+
+### Fifth paired experiment: session checkpoint I/O
+
+[Paired job 126353808947](https://github.com/compozy/compozy/actions/runs/41762695929/job/126353808947)
+tested `bc1c46432`. The three untraced candidate trials had three transcript-write completion
+timeouts and two long transactions: a session COMMIT at 1,132 ms (1,131 ms in commit) and a
+telemetry transaction at 1,254 ms (723 ms callback, 530 ms commit). All 43,169 expired rows were
+removed in each untraced trial. Baseline failures/warnings were 695/603. **Acceptance FAIL.**
+Transcript/catalog p99 medians were 276.222/128.108 ms versus 448.376/97.330 ms, and core commit
+hooks/s were 56.63 versus 144.74. The 830,020-row upgrade again preserved every column, cursor,
+integrity result and Observe response; open/upgrade/reopen took 35.6/364,493.2/51.3 ms.
+
+The traced candidate had 144 operation failures and removed 26,816/43,169 rows. Core bytes/min
+were 36,147,529 versus 464,825,470, without equal completed throughput. Artifact `13291886710`
+includes the failed trials and a separate 60.8 MB Go execution trace; no diagnostic sample replaces
+acceptance. That replay also failed (nine state and 28 summary operations), making its wait paths
+observable rather than relying on an unrelated passing run.
+
+The execution trace attributes 89.52 aggregate seconds of syscall delay to
+`sessiondb.(*SessionDB).writerLoop -> passiveCheckpoint -> checkpointWithLease`, 40.83% of the
+219.27 seconds across all goroutines. Overall filesystem sync accounts for 109.78 seconds.
+This identifies another foreground queue owner: every 128 events the session writer performed
+PASSIVE checkpoint I/O before accepting the next event. The new worker coalesces checkpoint wakes,
+uses its own pre-opened guarded connection, and is canceled/joined before database close. Keeping
+that connection separate also prevents a foreground connection open from waiting on the checkpoint's
+family lease. Idle truncation behavior, WAL size bound and checkpoint deadlines remain unchanged.
+Maintenance errors are now checked explicitly for session databases in both acceptance verifiers.
+
+The canonical checkpoint suite reproduces blocked filesystem I/O through the driver boundary,
+with all SQL still executed by real SQLite. Before the repair, a foreground event timed out after
+five seconds; afterward it persisted and was readable before the checkpoint was released. The
+same case verifies that close drains the writer but does not return while maintenance is still
+active. New-case receipt: 0.044 s; existing checkpoint suite: 2.467 s; retained-reader close/reopen:
+0.068 s; opening/identity/schema lifecycle: 0.315 s. Scoped session-store lint passed with zero
+issues. The file-level convention heuristic conflates a separate serial `t.Setenv` case with
+parallel cases; no `t.Setenv` case runs in parallel. Two existing discarded errors in the touched
+checkpoint suite now fail explicitly for unexpected read/close failures.
+The strengthened checkpoint suite passed again in 2.693 s. The existing real-SQLite integration
+function with six concurrent readers and 150 committed events passed in 0.152 s; scoped lint
+remained at zero issues after the final test changes. Broad local gates were not run.
+
+All four Web E2E shards passed on `bc1c46432`, confirming the skill-apply readiness repair.
+Runtime E2E still has an unresolved retry-action timeout: the scripted ACP log confirms selection
+of the immediate `retry-healed` response, but the action exceeded its original two-second deadline.
+No timeout or assertion was relaxed. Its failed log/artifact is preserved in job `126353914685`
+and artifact `13290868844`; subsequent CI must re-exercise this path.
+
+CodeRabbit completed all 51 files in `89a3dff28..bc1c46432`. The diagnostic failure-path finding
+is repaired in `a4d72aa69`. It confirmed the two main-identical observations as outside this PR in
+comment `6621380712`. The next CLI request was rate-limited, not counted as a completed review.

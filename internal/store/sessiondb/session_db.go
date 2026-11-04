@@ -53,15 +53,18 @@ type sessionShutdownRequest struct {
 
 // SessionDB owns a per-session SQLite database and its dedicated writer loop.
 type SessionDB struct {
-	db         *sql.DB
-	readDB     *sql.DB
-	path       string
-	owner      store.SessionDBOwner
-	writeCh    chan sessionWriteRequest
-	shutdownCh chan sessionShutdownRequest
-	writerDone chan struct{}
-	writerCtx  context.Context
-	cancel     context.CancelFunc
+	db             *sql.DB
+	readDB         *sql.DB
+	checkpointDB   *sql.DB
+	checkpointWake chan struct{}
+	checkpointDone chan struct{}
+	path           string
+	owner          store.SessionDBOwner
+	writeCh        chan sessionWriteRequest
+	shutdownCh     chan sessionShutdownRequest
+	writerDone     chan struct{}
+	writerCtx      context.Context
+	cancel         context.CancelFunc
 
 	acceptMu sync.RWMutex
 	state    atomic.Int32
@@ -103,22 +106,32 @@ func OpenSessionDB(ctx context.Context, owner store.SessionDBOwner, path string)
 	}
 	readDB.SetMaxOpenConns(4)
 	readDB.SetMaxIdleConns(4)
+	checkpointDB, err := openGuardedSessionSQLite(ctx, normalizedOwner, path, false)
+	if err != nil {
+		return nil, errors.Join(err, readDB.Close(), db.Close())
+	}
+	checkpointDB.SetMaxOpenConns(1)
+	checkpointDB.SetMaxIdleConns(1)
 
 	sessionDB := &SessionDB{
-		db:           db,
-		readDB:       readDB,
-		path:         strings.TrimSpace(path),
-		owner:        normalizedOwner,
-		writeCh:      make(chan sessionWriteRequest, defaultWriteBufferSize),
-		shutdownCh:   make(chan sessionShutdownRequest, 1),
-		writerDone:   make(chan struct{}),
-		drainTimeout: defaultDrainTimeout,
+		db:             db,
+		readDB:         readDB,
+		checkpointDB:   checkpointDB,
+		checkpointWake: make(chan struct{}, 1),
+		checkpointDone: make(chan struct{}),
+		path:           strings.TrimSpace(path),
+		owner:          normalizedOwner,
+		writeCh:        make(chan sessionWriteRequest, defaultWriteBufferSize),
+		shutdownCh:     make(chan sessionShutdownRequest, 1),
+		writerDone:     make(chan struct{}),
+		drainTimeout:   defaultDrainTimeout,
 		now: func() time.Time {
 			return time.Now().UTC()
 		},
 	}
 	sessionDB.writerCtx, sessionDB.cancel = context.WithCancel(context.Background())
 	sessionDB.state.Store(sessionStateOpen)
+	go sessionDB.passiveCheckpointLoop()
 
 	go func() {
 		defer close(sessionDB.writerDone)

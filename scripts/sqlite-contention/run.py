@@ -66,7 +66,8 @@ def run(binary, root, mode, output, name, duration="30s", trace=False, runtime_t
                 stamp = datetime.fromisoformat(record["time"].replace("Z", "+00:00"))
             except (ValueError, KeyError):
                 continue
-            failures = ("held for at least one second", "contention exhausted", "sqlite passive checkpoint failed")
+            failures = ("held for at least one second", "contention exhausted", "sqlite passive checkpoint failed",
+                        "passive session wal checkpoint failed", "truncate session wal failed")
             if warmup_start <= stamp <= end and any(message in record.get("msg", "") for message in failures):
                 warnings.append(record)
         result["contention_diagnostics"] = warnings
