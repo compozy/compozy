@@ -311,6 +311,58 @@ describe("useSessionCatalogStreams", () => {
     client.clear();
   });
 
+  // Invariant: with its poll stopped, a covered read still observes a change that arrives
+  // during an older read, and a failed read keeps a bounded retry while the stream is live.
+  it("Should trail an in-flight covered read and retry a failed one while the stream is live", async () => {
+    vi.useFakeTimers();
+    let release: (rows: []) => void = () => {};
+    const relayed = vi.mocked(fetchSessionPendingWithDescendants);
+    relayed.mockResolvedValue([]);
+    const client = createQueryClient();
+    let source: FakeCatalogEventSource | undefined;
+    const factory = (url: string) => (source = new FakeCatalogEventSource(url));
+    const { unmount } = renderHook(
+      () => {
+        useSessionCatalogStreams({ eventSourceFactory: factory });
+        const streamCovered = useSessionCatalogStreamLive();
+        useQuery(sessionRelayedInteractionsOptions(WORKSPACE_ID, SESSION_ID, true, streamCovered));
+      },
+      { wrapper: wrapper(client) }
+    );
+    const settle = (ms: number) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)));
+    act(() => source!.emit("open"));
+    await settle(5_000);
+    const baseline = relayed.mock.calls.length;
+
+    // A wake joins the read already in flight, then reads once more after it settles.
+    relayed.mockImplementationOnce(() => new Promise(resolve => (release = resolve)));
+    act(() => {
+      void client.refetchQueries({
+        queryKey: sessionKeys.interactions(WORKSPACE_ID, SESSION_ID, "descendants"),
+      });
+    });
+    const upsert = { kind: "upserted", workspace_id: WORKSPACE_ID, session_id: "sess_child" };
+    act(() => source!.emit("session_catalog_changed", upsert));
+    await settle(5_000);
+    expect(relayed).toHaveBeenCalledTimes(baseline + 1);
+    await act(async () => release([]));
+    await settle(5_000);
+    expect(relayed).toHaveBeenCalledTimes(baseline + 2);
+
+    // A failed read retries on the bounded error cadence, then stops once healthy.
+    relayed.mockRejectedValueOnce(new Error("relayed unavailable"));
+    act(() => source!.emit("session_catalog_changed", upsert));
+    await settle(5_000);
+    expect(relayed).toHaveBeenCalledTimes(baseline + 3);
+    await settle(30_000);
+    expect(relayed).toHaveBeenCalledTimes(baseline + 4);
+    await settle(60_000);
+    expect(relayed).toHaveBeenCalledTimes(baseline + 4);
+
+    unmount();
+    client.clear();
+  });
+
   it("Should keep late source status events behind the current connection generation", () => {
     const store = sessionCatalogStreamsLogic.createStore();
     const [connecting] = store.transition(store.getInitialSnapshot(), {

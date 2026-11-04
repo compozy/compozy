@@ -21,10 +21,12 @@ export function sessionRelayedInteractionsOptions(
     queryKey: sessionKeys.interactions(workspace, id, "descendants"),
     queryFn: ({ signal }) => fetchSessionPendingWithDescendants(workspace, id, signal),
     enabled,
-    refetchInterval: catalogStreamCoveredRefetchInterval(
-      streamCovered,
-      RELAYED_INTERACTIONS_REFETCH_INTERVAL_MS
-    ),
+    refetchInterval: query =>
+      catalogStreamCoveredRefetchInterval(
+        streamCovered,
+        query.state.status === "error",
+        RELAYED_INTERACTIONS_REFETCH_INTERVAL_MS
+      ),
     retry: false,
   });
 }

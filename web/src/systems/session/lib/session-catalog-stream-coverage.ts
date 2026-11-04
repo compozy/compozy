@@ -29,15 +29,21 @@ export function sessionCatalogStreamStatusOptions(streamUrl: string) {
   });
 }
 
+/** A failed covered read keeps a bounded retry: no stream wake may arrive to repair it. */
+export const CATALOG_STREAM_COVERED_ERROR_REFETCH_INTERVAL_MS = 30_000;
+
 /**
  * Cadence of a poll the catalog stream covers: none while that stream is live for the
- * read's scope (its wakes re-read the poll's source), the fallback interval otherwise.
- * Only reads whose every change the catalog stream wakes may use it; task, loop,
- * terminal-input and cross-profile notification reads keep their own polls.
+ * read's scope and the last read succeeded (its wakes re-read the poll's source), a
+ * bounded retry after a failure, and the fallback interval otherwise. Only reads whose
+ * every change the catalog stream wakes may use it; task, loop, terminal-input and
+ * cross-profile notification reads keep their own polls.
  */
 export function catalogStreamCoveredRefetchInterval(
   streamCovered: boolean,
+  failed: boolean,
   fallbackMs: number
 ): number | false {
-  return streamCovered ? false : fallbackMs;
+  if (!streamCovered) return fallbackMs;
+  return failed ? CATALOG_STREAM_COVERED_ERROR_REFETCH_INTERVAL_MS : false;
 }

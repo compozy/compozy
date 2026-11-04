@@ -26,6 +26,7 @@ import { fetchSessionOwner } from "../adapters/session-owner-api";
 import { fetchToolArtifactPage } from "../adapters/tool-artifact-api";
 import type { FetchSessionEventsParams } from "../adapters/session-api";
 import type { SessionListFilters, SessionPayload, SessionState } from "../types";
+import { catalogStreamCoveredRefetchInterval } from "./session-catalog-stream-coverage";
 import { withPullRequestReread } from "./session-pull-request";
 import { sessionKeys } from "./query-keys";
 import { normalizeSessionListFilters, sessionListRequest } from "./session-list-query";
@@ -216,7 +217,13 @@ export function sessionExpiredInteractionsOptions(
     queryFn: ({ signal }) =>
       fetchSessionInteractions(workspace, id, { status: "canceled", signal }),
     refetchInterval: query => {
-      if (options.streamCovered) return false;
+      if (options.streamCovered) {
+        return catalogStreamCoveredRefetchInterval(
+          true,
+          query.state.status === "error",
+          SESSION_LIVE_REFETCH_INTERVAL_MS
+        );
+      }
       const rows = query.state.data;
       if (!rows) return SESSION_LIVE_REFETCH_INTERVAL_MS;
       const settled = expiredInteractionsByRequest(rows);

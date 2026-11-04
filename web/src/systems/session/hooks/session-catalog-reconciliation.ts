@@ -212,14 +212,11 @@ export function createCatalogReconciler(queryClient: QueryClient) {
     const wokeEveryWorkspace = everyWorkspace;
     everyWorkspace = false;
     workspaces.clear();
-    if (wokenWorkspaces.size > 0) {
-      void queryClient.invalidateQueries(
-        {
-          predicate: ({ queryKey }) =>
-            isStreamCoveredInteractionRead(queryKey, wokenWorkspaces, wokeEveryWorkspace),
-        },
-        { cancelRefetch: false }
-      );
+    const coveredInteraction = ({ queryKey }: { queryKey: QueryKey }) =>
+      wokenWorkspaces.size > 0 &&
+      isStreamCoveredInteractionRead(queryKey, wokenWorkspaces, wokeEveryWorkspace);
+    for (const query of queryClient.getQueryCache().findAll({ predicate: coveredInteraction })) {
+      hashes.delete(query.queryHash);
     }
     for (const queryKey of prefixes) {
       for (const query of queryClient.getQueryCache().findAll({ queryKey })) {
@@ -245,6 +242,12 @@ export function createCatalogReconciler(queryClient: QueryClient) {
         { cancelRefetch: false }
       );
     }
+    // A covered interaction read has no poll while the stream is live, so one in flight
+    // (it may predate this change) or recently failed is retained for a trailing read.
+    void queryClient.invalidateQueries(
+      { predicate: query => coveredInteraction(query) && predicate(query) },
+      { cancelRefetch: false }
+    );
     if (hashes.size > 0) {
       void queryClient.invalidateQueries(
         { predicate: query => hashes.has(query.queryHash) && predicate(query) },
