@@ -62,8 +62,9 @@ that fallback is already on your shell's `PATH`. The link points to the stable
 `~/.compozy/bin/compozy`, so desktop runtime upgrades keep the command usable.
 
 You can retry from **CompozyOS → Install compozy Command…**. If `/usr/local/bin` needs
-administrator access, CompozyOS asks before macOS displays its password prompt. Declining
-leaves the app usable. An existing `compozy` command is reported and left unchanged.
+administrator access, the first launch offers installation before macOS displays its password
+prompt. Choosing the menu action requests that macOS prompt directly. Declining leaves the app
+usable. An existing `compozy` command is reported and left unchanged.
 No shell profiles are edited; if neither installer directory is on your `PATH`, add
 `~/.local/bin` using your shell's configuration, then retry the menu action. This also
 applies when your login shell and interactive shell differ, such as fish and zsh.

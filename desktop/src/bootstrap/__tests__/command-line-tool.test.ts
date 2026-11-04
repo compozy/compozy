@@ -270,7 +270,7 @@ describe("desktop command installation", () => {
     expect(deps.fs.symlink).not.toHaveBeenCalled();
   });
 
-  it.each([null, "/usr/bin:/bin"])(
+  it.each(["/usr/bin:/bin"])(
     "Should report an unavailable installer PATH (%s) without writes",
     async path => {
       const deps = dependencies({ loginShellPath: async () => path });
@@ -278,6 +278,22 @@ describe("desktop command installation", () => {
       expect(deps.fs.symlink).not.toHaveBeenCalled();
     }
   );
+
+  it("Should report an unreadable login-shell PATH without claiming an installer directory is missing", async () => {
+    const deps = dependencies({ loginShellPath: async () => null });
+    const attempt = flow();
+    vi.mocked(attempt.ensure).mockImplementation(async () => await ensureCommandLineTool(deps));
+    await exposeCommandLineToolOnFirstRun(attempt);
+    expect(attempt.recordAttempt).toHaveBeenCalledWith({ status: "install_failed" });
+    expect(attempt.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "warning", message: "The compozy command was not installed" })
+    );
+    expect(attempt.log).toHaveBeenCalledWith("check compozy command", {
+      error: expect.stringContaining("Could not read the login-shell PATH"),
+    });
+    expect(deps.fs.symlink).not.toHaveBeenCalled();
+    expect(attempt.linkWithAdministratorPrivileges).not.toHaveBeenCalled();
+  });
 
   it("Should leave an external runtime installation alone", async () => {
     const deps = dependencies();

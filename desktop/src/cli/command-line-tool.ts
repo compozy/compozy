@@ -83,7 +83,13 @@ export async function ensureCommandLineTool(
   deps: CommandLineToolDeps
 ): Promise<CommandLineToolState> {
   if (!(await deps.fs.isFile(deps.runtime))) return { status: "no_runtime" };
-  const directories = pathDirectories(await deps.loginShellPath());
+  const loginPath = await deps.loginShellPath();
+  if (loginPath === null) {
+    throw new Error(
+      "Could not read the login-shell PATH. Check your shell startup, then retry Install compozy Command."
+    );
+  }
+  const directories = pathDirectories(loginPath);
   const found = await firstCommandOnPath(deps, directories);
   if (found) return found;
 

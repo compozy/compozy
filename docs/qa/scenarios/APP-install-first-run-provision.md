@@ -72,6 +72,9 @@ QA impact 2026-11-04 — #1257 (macOS command exposure):
 - Cancel or fail the macOS administrator prompt. Confirm the result states that installation
   failed or was cancelled and points to the desktop log, rather than asking for the same
   access without acknowledging the failed attempt.
+- Make login-shell PATH resolution fail or exceed its timeout. Confirm the warning reports
+  failed installation and the desktop log identifies shell startup, rather than instructing
+  the user to add an installer directory that may already be on PATH.
 - Force an unexpected command-link failure during the automatic attempt. Confirm a warning
   appears, the error is logged, and a failed-attempt marker prevents silent retries on
   relaunch. The menu action remains available for an explicit retry.
