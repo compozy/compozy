@@ -22,5 +22,21 @@ export function useSessionRowRuntimeLabel(session: SessionPayload): SessionRunti
   const runtime = useSessionRuntimeLabel(current ?? defaults.data);
   const pending = useSessionRuntimeLabel(next);
   if (!runtime) return { provider: "unknown", label: "Runtime not selected" };
-  return pending ? { ...runtime, next: pending } : runtime;
+  if (!pending || !current || !next) return runtime;
+  // Labels leave speed out; a pending speed change names it on both sides so they differ.
+  if ((current.speed ?? "normal") === (next.speed ?? "normal"))
+    return { ...runtime, next: pending };
+  return { ...withSpeed(runtime, current.speed), next: withSpeed(pending, next.speed) };
+}
+
+function withSpeed<T extends Omit<SessionRuntimeLabel, "next">>(
+  label: T,
+  speed: string | undefined
+): T {
+  if (speed !== "fast") return label;
+  return {
+    ...label,
+    label: `${label.label} Fast`,
+    model: label.model ? `${label.model} Fast` : "Fast",
+  };
 }

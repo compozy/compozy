@@ -1933,6 +1933,28 @@ describe("SessionList provider marks", () => {
     expect(within(line).queryByText("→", { exact: false })).not.toBeInTheDocument();
   });
 
+  it("names the speed on both sides of a pending speed-only switch", () => {
+    const bound = {
+      ...runtime("codex", "gpt-6.1-sol"),
+      effective: { provider: "codex", model: "gpt-6.1-sol", reasoning_effort: "xhigh" },
+      selected: {
+        provider: "codex",
+        model: "gpt-6.1-sol",
+        reasoning_effort: "xhigh",
+        speed: "fast" as const,
+      },
+      selection_revision: 2,
+    };
+    renderList({ sessions: [row("fast", { state: "stopped", runtime: bound })] });
+
+    const line = rowButton("fast").parentElement!;
+    expect(within(line).getByText("GPT-6.1 Sol xhigh")).toBeInTheDocument();
+    expect(within(line).getByText("GPT-6.1 Sol xhigh Fast")).toBeInTheDocument();
+    expect(rowButton("fast")).toHaveAccessibleName(
+      /Codex · GPT-6\.1 Sol xhigh, next message: Codex · GPT-6\.1 Sol xhigh Fast/
+    );
+  });
+
   it("reveals the runtime on keyboard focus, closes on Escape, and adds no tab stop", async () => {
     const user = userEvent.setup();
     renderList({ sessions: [row("keyed", { runtime: runtime("codex", "gpt-6.1-sol") })] });
