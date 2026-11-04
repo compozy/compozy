@@ -14,7 +14,7 @@ import {
 } from "@compozy/ui/icons";
 import { useState, type ReactNode } from "react";
 
-import { Button, cn, Eyebrow, Icon, Pill, Time } from "@compozy/ui";
+import { Button, CodeBlock, cn, Eyebrow, Icon, Time } from "@compozy/ui";
 
 import { shortHash } from "@/systems/agent/lib/agent-check-in-sources";
 import {
@@ -34,7 +34,7 @@ function Mark({ icon }: { icon: LucideIcon }) {
   return (
     <span
       aria-hidden="true"
-      className="mt-0.5 grid size-4.5 shrink-0 place-items-center rounded-full bg-brand-tint text-brand"
+      className="grid size-4.5 shrink-0 place-items-center rounded-full bg-brand-tint text-brand"
     >
       <Icon as={icon} size="xs" />
     </span>
@@ -66,8 +66,9 @@ function QuestionRow() {
   );
 }
 
+/** Why it's in the bell, in the agent's words; the hash stays in the script. */
 function reason(notice: ScriptApprovalNotice) {
-  return notice.changed ? "changed since you approved" : "waiting for your approval";
+  return notice.changed ? "changed a script" : "wants to run a new script";
 }
 
 function Hash({ notice }: { notice: ScriptApprovalNotice }) {
@@ -76,84 +77,87 @@ function Hash({ notice }: { notice: ScriptApprovalNotice }) {
   );
 }
 
-/** A: the row says whose script it is, shows the hash, and approves in one click. */
+/** The production row's button: the whole row opens the script on Heartbeat. */
+const ROW_BUTTON = cn(
+  ROW,
+  "items-center py-2 text-left transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 focus-visible:shadow-focus-ring focus-visible:outline-none"
+);
+
+/** The production row's two lines: what, then who and why. */
+function RowLines({ notice }: { notice: ScriptApprovalNotice }) {
+  return (
+    <span className="flex min-w-0 flex-col gap-px">
+      <span className="truncate text-small-body font-medium text-fg-strong">
+        {notice.script.name}
+      </span>
+      <span className="truncate text-eyebrow text-subtle">
+        {notice.agentLabel} {reason(notice)}
+      </span>
+    </span>
+  );
+}
+
+/** A: the bell's own row, with Approve where the row's trailing control sits. */
 function InlineRow({ notice }: { notice: ScriptApprovalNotice }) {
   return (
-    <div className="grid w-full grid-cols-[--spacing(4.5)_minmax(0,1fr)] gap-2.5 rounded-md px-2.5 py-2">
-      <Mark icon={SquareTerminal} />
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="flex min-w-0 items-baseline justify-between gap-2">
-          <span className="truncate text-small-body font-medium text-fg-strong">
-            {notice.script.name}
-          </span>
-          <span className="shrink-0 text-eyebrow text-subtle tabular-nums">
-            <Time iso={notice.since} />
-          </span>
+    <div className="flex min-w-0 items-center gap-1 pr-1">
+      <button
+        aria-label={`Review ${notice.script.name} on Heartbeat`}
+        className={ROW_BUTTON}
+        type="button"
+      >
+        <Mark icon={SquareTerminal} />
+        <RowLines notice={notice} />
+        <span className="text-eyebrow text-subtle tabular-nums">
+          <Time iso={notice.since} />
         </span>
-        <span className="truncate text-eyebrow text-subtle">
-          {notice.agentLabel} — {reason(notice)}
-        </span>
-        <span className="mt-1 flex items-center gap-1.5">
-          <Hash notice={notice} />
-          {notice.paused ? (
-            <Pill form="plain" tone="neutral">
-              Paused
-            </Pill>
-          ) : null}
-          <span className="ml-auto flex items-center gap-1">
-            <Button size="xs" type="button" variant="quiet">
-              Review
-            </Button>
-            <Button size="xs" type="button" variant="neutral">
-              Approve
-            </Button>
-          </span>
-        </span>
-      </span>
+      </button>
+      <Button size="xs" type="button" variant="secondary">
+        Approve
+      </Button>
     </div>
   );
 }
 
-/** B: the row opens a peek at the script before anyone approves it. */
+/** B: the same row opens onto the first lines of the script, then asks. */
 function PeekRow({ notice, defaultOpen }: { notice: ScriptApprovalNotice; defaultOpen: boolean }) {
   const [expanded, setExpanded] = useState(defaultOpen);
   return (
     <div className={cn("flex flex-col rounded-md", expanded && "bg-surface-2")}>
       <button
         aria-expanded={expanded}
-        className={cn(ROW, "items-center py-1.5 text-left hover:bg-surface-2")}
+        className={ROW_BUTTON}
         onClick={() => setExpanded(value => !value)}
         type="button"
       >
         <Mark icon={SquareTerminal} />
-        <span className="flex min-w-0 flex-col gap-px">
-          <span className="truncate text-small-body font-medium text-fg-strong">
-            {notice.script.name}
-          </span>
-          <span className="truncate text-eyebrow text-subtle">
-            {notice.agentLabel} — {reason(notice)}
-          </span>
-        </span>
+        <RowLines notice={notice} />
         <Icon as={expanded ? ChevronDown : ChevronRight} className="text-subtle" size="sm" />
       </button>
       {expanded ? (
-        <div className="flex flex-col gap-2 px-2.5 pb-2.5 pl-9">
-          <pre className="overflow-hidden rounded-md bg-card px-2.5 py-2 font-mono text-micro leading-relaxed text-muted-foreground">
-            {scriptPeekFixture}
-          </pre>
-          <span className="font-mono text-eyebrow text-faint">
-            {shortHash(notice.script.sha256)} · {notice.script.line_count} lines
-            {notice.paused ? " · agent paused" : ""}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Button size="sm" type="button" variant="secondary">
-              Approve
-            </Button>
-            <Button size="sm" type="button" variant="quiet">
-              <FileCode aria-hidden="true" data-icon="inline-start" />
-              Open script
-            </Button>
-          </span>
+        <div className="flex flex-col gap-3 px-2.5 pb-3">
+          <CodeBlock
+            code={scriptPeekFixture}
+            copyable={false}
+            density="compact"
+            language="bash"
+            truncateLines={5}
+            wrapLines
+          />
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-eyebrow text-subtle tabular-nums">
+              {notice.script.line_count} lines · changed <Time iso={notice.since} />
+            </span>
+            <span className="flex items-center gap-1">
+              <Button size="xs" type="button" variant="ghost">
+                <FileCode aria-hidden="true" data-icon="inline-start" />
+                Open
+              </Button>
+              <Button size="xs" type="button" variant="secondary">
+                Approve
+              </Button>
+            </span>
+          </div>
         </div>
       ) : null}
     </div>

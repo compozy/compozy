@@ -76,6 +76,7 @@ function SettingsCard({
           onChange={setLunch}
         />
       </SettingRow>
+      <ScriptSourcesBlock variant={variant} which={which} />
       <SettingRow title="What it looks at">
         <div className="flex flex-col divide-y divide-line-soft">
           {LOOKS_AT.map(item => (
@@ -88,9 +89,6 @@ function SettingsCard({
               onChange={() => undefined}
             />
           ))}
-        </div>
-        <div className="flex flex-col gap-3 pt-3">
-          <ScriptSourcesBlock variant={variant} which={which} />
         </div>
       </SettingRow>
     </EditorCard>

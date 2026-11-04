@@ -1,12 +1,20 @@
 /** Heartbeat › Sources with a script that waits for approval: two ways to ask for it. */
-import { FileCode } from "@compozy/ui/icons";
+import { FileCode, SquareTerminal } from "@compozy/ui/icons";
 
-import { Alert, AlertDescription, AlertTitle, Button, Eyebrow, Time } from "@compozy/ui";
+import {
+  Alert,
+  AlertActions,
+  AlertDescription,
+  AlertMeta,
+  AlertTitle,
+  Button,
+  Time,
+} from "@compozy/ui";
 
 import { CheckInSourceRow } from "@/systems/agent/components/agent-editors/check-in-source-row";
 import { EditorHead } from "@/systems/agent/components/agent-editors/editor-head";
-import { EditorCard } from "@/systems/agent/components/agent-editors/rich-controls";
-import { shortHash, type SourceStatusView } from "@/systems/agent/lib/agent-check-in-sources";
+import { EditorCard, SettingRow } from "@/systems/agent/components/agent-editors/rich-controls";
+import type { SourceStatusView } from "@/systems/agent/lib/agent-check-in-sources";
 import {
   approvedScriptFixture,
   changedScriptFixture,
@@ -15,7 +23,7 @@ import {
 
 import { MERGE_TRAIN_PAYLOAD } from "./fleet-fixtures";
 
-/** `inline`: the row carries the hash and Approve. `callout`: a card above the list asks first. */
+/** `inline`: the waiting row asks for itself. `callout`: a notice above the list asks first. */
 export type SourcesVariant = "inline" | "callout";
 /** Before the first check, on a paused place, after an edit, and once approved. */
 export type SourcesCase = "first" | "paused" | "changed" | "approved";
@@ -26,48 +34,88 @@ function scriptOf(which: SourcesCase) {
   return pendingScriptFixture;
 }
 
-function scriptStatus(which: SourcesCase, variant: SourcesVariant): SourceStatusView {
-  const script = scriptOf(which);
+/** What the source row says on its own; the hash lives in the script, not the default read. */
+function scriptStatus(which: SourcesCase): SourceStatusView {
   if (which === "approved") return { label: "Approved · runs at the next check-in", tone: "muted" };
-  const hash = variant === "inline" ? ` · ${shortHash(script.sha256)}` : "";
-  if (which === "changed") return { label: `Changed since you approved${hash}`, tone: "warning" };
-  return { label: `Waiting for your approval${hash}`, tone: "warning" };
+  if (which === "changed") return { label: "Changed since you approved it", tone: "warning" };
+  return { label: "Needs your approval", tone: "warning" };
 }
 
+/** One plain sentence on why it waits and what approving does. */
+function waitingCopy(which: SourcesCase) {
+  if (which === "changed") {
+    return "The file changed since you approved it, so Heartbeat stopped running it. Approve the new version to bring it back.";
+  }
+  if (which === "paused") {
+    return "Heartbeat runs it on this computer at each check-in. Approve it now and it runs as soon as you resume Merge Train.";
+  }
+  return "Heartbeat runs it on this computer at each check-in. It stays off until you approve this version.";
+}
+
+function OpenScript() {
+  return (
+    <Button size="sm" type="button" variant="ghost">
+      <FileCode aria-hidden="true" data-icon="inline-start" />
+      Open script
+    </Button>
+  );
+}
+
+/** B: a notice above the list, built from the Alert's own title, meta and actions slots. */
 function ApproveCallout({ which }: { which: SourcesCase }) {
   const script = scriptOf(which);
   return (
-    <Alert variant="warning">
+    <Alert aria-label={`${script.name} needs your approval`} role="region">
+      <SquareTerminal aria-hidden="true" className="text-warning" />
       <AlertTitle>
         {which === "changed"
-          ? `${script.name} changed since you approved it`
-          : `${script.name} needs your approval to run`}
+          ? `Approve the new version of ${script.name}`
+          : `Approve ${script.name} to let it run`}
       </AlertTitle>
-      <AlertDescription>
-        <p>
-          Heartbeat runs it on this computer.{" "}
-          {which === "paused" ? "You can approve it while the agent is paused. " : null}
-          Check what it does, then approve this exact version.
-        </p>
-        <p className="mt-1 font-mono text-eyebrow text-subtle">
-          {shortHash(script.sha256)} · {script.line_count} lines · changed{" "}
-          <Time iso={script.last_modified ?? ""} />
-        </p>
-        <div className="mt-2 flex gap-2">
-          <Button size="sm" type="button" variant="secondary">
-            Approve
-          </Button>
-          <Button size="sm" type="button" variant="quiet">
-            <FileCode aria-hidden="true" data-icon="inline-start" />
-            Open script
-          </Button>
-        </div>
-      </AlertDescription>
+      <AlertDescription>{waitingCopy(which)}</AlertDescription>
+      <AlertMeta>
+        <span>{script.line_count} lines</span>
+        <span>
+          Changed <Time iso={script.last_modified ?? ""} />
+        </span>
+      </AlertMeta>
+      <AlertActions>
+        <OpenScript />
+        <Button size="sm" type="button">
+          Approve
+        </Button>
+      </AlertActions>
     </Alert>
   );
 }
 
-/** Heartbeat's Sources list with the waiting script, and the callout above it in variant B. */
+/** A: the waiting row lifts out of the list's rhythm and asks in its own words. */
+function WaitingScriptRow({ which }: { which: SourcesCase }) {
+  const script = scriptOf(which);
+  return (
+    <div className="-mx-3 my-1 flex items-start gap-3 rounded-lg bg-surface-2 p-3">
+      <SquareTerminal aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
+      <div className="flex min-w-0 flex-1 flex-col gap-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-small-body font-medium text-fg">
+            {which === "changed" ? `${script.name} changed` : `${script.name} needs your approval`}
+          </span>
+          <span className="text-small-body text-muted-foreground text-pretty">
+            {waitingCopy(which)}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Button size="sm" type="button">
+            Approve
+          </Button>
+          <OpenScript />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Heartbeat's Sources section with the waiting script, in either variation. */
 export function ScriptSourcesBlock({
   variant,
   which,
@@ -78,32 +126,22 @@ export function ScriptSourcesBlock({
   const script = scriptOf(which);
   const waiting = which !== "approved";
   return (
-    <>
+    <SettingRow title="Sources" value={waiting ? "1 needs your approval" : undefined}>
       {variant === "callout" && waiting ? <ApproveCallout which={which} /> : null}
-      <div className="flex flex-col">
-        <Eyebrow className="text-subtle">Sources</Eyebrow>
-        <div className="flex flex-col divide-y divide-line-soft">
-          <CheckInSourceRow
-            params="compozy/compozy"
-            script={false}
-            status={{ label: "Checked 12 min ago · 2 new", tone: "neutral" }}
-            title="New GitHub issues"
-          />
-          <CheckInSourceRow
-            actions={
-              variant === "inline" && waiting ? (
-                <Button size="sm" type="button" variant="neutral">
-                  Approve
-                </Button>
-              ) : null
-            }
-            script
-            status={scriptStatus(which, variant)}
-            title={script.name}
-          />
-        </div>
+      <div className="flex flex-col divide-y divide-line-soft">
+        <CheckInSourceRow
+          params="compozy/compozy"
+          script={false}
+          status={{ label: "Checked 12 min ago · 2 new", tone: "neutral" }}
+          title="New GitHub issues"
+        />
+        {variant === "inline" && waiting ? (
+          <WaitingScriptRow which={which} />
+        ) : (
+          <CheckInSourceRow script status={scriptStatus(which)} title={script.name} />
+        )}
       </div>
-    </>
+    </SettingRow>
   );
 }
 
