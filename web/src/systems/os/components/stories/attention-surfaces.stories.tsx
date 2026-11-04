@@ -8,6 +8,7 @@ import type {
   SessionListViewModel,
   SessionPayload,
 } from "@/systems/session";
+import { agentInstanceFixture, seedAgentInstanceMock } from "@/systems/agent/mocks";
 import { sessionListViewFixture } from "@/systems/session/mocks";
 import type { WorkspacePayload } from "@/systems/workspace";
 
@@ -281,6 +282,54 @@ export const BellPopulated: Story = {
     disconnected: false,
     onNewSession: fn(),
     sessionActions: SESSION_ACTIONS,
+  },
+  render: () => <BellFixture />,
+};
+
+const WAITING_SCRIPT = {
+  status: "pending_first_poll",
+  failure_streak: 0,
+  last_item_count: 0,
+  awaiting_approval: true,
+};
+
+/**
+ * #1258: scripts that wait for approval group above Needs you, from never-checked and paused
+ * placements alike, and add to the bell's count.
+ */
+export const BellScriptsToApprove: Story = {
+  args: BellPopulated.args,
+  beforeEach: () => {
+    seedAgentInstanceMock([
+      agentInstanceFixture({
+        id: "ainst-merge-train",
+        agent_name: "merge-train",
+        label: "Merge Train",
+        sources: [
+          {
+            ...WAITING_SCRIPT,
+            id: "merges",
+            script: "merge-candidates",
+            script_sha256: "sha256:7f3a91c0",
+          },
+        ],
+      }),
+      agentInstanceFixture({
+        id: "ainst-supervisor",
+        agent_name: "session-supervisor",
+        label: "Session Supervisor",
+        state: "paused",
+        pause_reason: "manual",
+        sources: [
+          {
+            ...WAITING_SCRIPT,
+            id: "stalled",
+            script: "stalled-sessions",
+            script_sha256: "sha256:9c2e14ab",
+          },
+        ],
+      }),
+    ]);
   },
   render: () => <BellFixture />,
 };

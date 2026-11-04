@@ -12387,6 +12387,9 @@
           "name": {
             "type": "string"
           },
+          "path": {
+            "type": "string"
+          },
           "sha256": {
             "type": "string"
           }
@@ -12402,6 +12405,9 @@
       },
       "HeartbeatSourceStatus": {
         "properties": {
+          "awaiting_approval": {
+            "type": "boolean"
+          },
           "error": {
             "oneOf": [
               {
@@ -12439,6 +12445,12 @@
             "type": "string"
           },
           "script": {
+            "type": "string"
+          },
+          "script_path": {
+            "type": "string"
+          },
+          "script_sha256": {
             "type": "string"
           },
           "status": {

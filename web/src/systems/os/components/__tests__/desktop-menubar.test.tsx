@@ -754,11 +754,15 @@ describe("DesktopMenubar provider usage control", () => {
     await user.click(await within(popover).findByRole("button", { name: "Claude, Needs access" }));
     await user.click(await within(popover).findByRole("button", { name: "Allow" }));
 
+    // Reads that pass a URL string carry their method in `init`; only writes count here.
     const requests = () =>
       vi
         .mocked(globalThis.fetch)
-        .mock.calls.map(([input]) => input as Request)
-        .filter(request => request.method !== "GET");
+        .mock.calls.filter(
+          ([input, init]) =>
+            (input instanceof Request ? input.method : (init?.method ?? "GET")) !== "GET"
+        )
+        .map(([input]) => input as Request);
     await waitFor(() => expect(requests()).toHaveLength(1));
     const [save] = requests();
     expect(save?.method).toBe("PATCH");

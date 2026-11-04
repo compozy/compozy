@@ -34,6 +34,7 @@ export {
   windowManagerSnapshotOptions,
 } from "./lib/window-manager-query";
 export { desktopShellBridge, isDesktopShell } from "./lib/desktop-shell-bridge";
+export { EDITOR_SETTINGS_PATH, reportOpenInEditorResult } from "./lib/open-in-editor-report";
 export type {
   OpenInEditorErrorCode,
   OpenInEditorParams,
