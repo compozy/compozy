@@ -18,6 +18,15 @@ overlaps: ET-web-desktop-shell-lifecycle; ET-web-window-routing-lifecycle; ET-pa
 
 story: As a keyboard operator, I can discover and execute every global desktop action without losing the session runtime shortcut or trapping focus in stale overlays.
 
+2026-11-03 performance retest: count IndexedDB `catalog` puts while refetching an unchanged
+catalog, changing several revisions within 250 ms, and reloading. Unchanged persisted structure
+must produce zero additional puts; a revision burst persists only its final record. Repeat under
+another workspace/profile and confirm instant hydration remains isolated. Attach a client within
+250 ms of the last served catalog, then stall or fail that client's catalog read; the pending
+record must still persist while the palette remains mounted. The cache regression suite verifies
+atomic comparison across concurrent writers; live Electron disk-write attribution
+and the next macOS resource-report window remain separate measurements.
+
 qa-impact: OS Shell Task 04 moved ⌘/Ctrl+K ownership to the global palette, rebound the runtime selector, and added the shell shortcut set. 2026-07-22 — Toggle sessions opens the global Sessions modal overlay instead of a persisted rail. 2026-07-24 — the palette's window/layout/desktop surface moved into the shared `useOsWindowCommands` model that the menubar's Window menu also consumes (same coordinator dispatch, same predicates), and the Help menu's raw shortcut list became a real dialog (`ET-web-shell-shortcuts-about-dialogs`). No chord changed. Flag only; the next QA cycle owns live retesting.
 
 2026-08-12 qa-impact: ⇧⌘G toggles Global scope; palette actions turn Global on/off. Reset to untested.

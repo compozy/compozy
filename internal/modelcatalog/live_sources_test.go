@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"slices"
@@ -561,6 +563,313 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 		if got, want := requireSingleRow(t, rows).ModelID, "llama3:latest"; got != want {
 			t.Fatalf("ModelID = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("Should classify blocked discovery as permanent and preflight it without probing", func(t *testing.T) {
+		t.Parallel()
+
+		var requests atomic.Int32
+		server := liveJSONServer(t, func(_ *http.Request) string {
+			requests.Add(1)
+			return `{"data":[]}`
+		})
+		openRouter := boundSecretProvider("OPENROUTER_API_KEY", "env:OPENROUTER_API_KEY")
+		openRouter.Models.Discovery.Endpoint = server.URL
+		missingSecret := newLiveSourceForTest(t, "openrouter", openRouter, &LiveProviderSourcesConfig{
+			BaseEnv:        []string{"PATH=/bin"},
+			SecretResolver: mapSecretResolver{},
+		})
+		_, err := missingSecret.ListModels(testutil.Context(t), ListOptions{ProviderID: "openrouter", Now: testTime(0)})
+		if !IsPermanentSourceFailure(err) {
+			t.Fatalf("missing secret ListModels() error = %v, want permanent failure", err)
+		}
+		if err := missingSecret.DiscoveryPreflight(testutil.Context(t)); !errors.Is(err, vault.ErrMissingSecret) {
+			t.Fatalf("missing secret DiscoveryPreflight() error = %v, want vault.ErrMissingSecret", err)
+		}
+		withSecret := newLiveSourceForTest(t, "openrouter", openRouter, &LiveProviderSourcesConfig{
+			BaseEnv:        []string{"PATH=/bin"},
+			SecretResolver: mapSecretResolver{"env:OPENROUTER_API_KEY": "sk-router"},
+		})
+		if err := withSecret.DiscoveryPreflight(testutil.Context(t)); err != nil {
+			t.Fatalf("bound secret DiscoveryPreflight() error = %v, want nil", err)
+		}
+		if got := requests.Load(); got != 0 {
+			t.Fatalf("discovery requests during preflight = %d, want 0", got)
+		}
+
+		unconfigured := newLiveSourceForTest(t, "pi", compozyconfig.ProviderConfig{}, &LiveProviderSourcesConfig{
+			BaseEnv: []string{"PATH=/bin"},
+		})
+		_, err = unconfigured.ListModels(testutil.Context(t), ListOptions{ProviderID: "pi", Now: testTime(0)})
+		if !IsPermanentSourceFailure(err) || !strings.Contains(err.Error(), "no configured model discovery path") {
+			t.Fatalf("unconfigured ListModels() error = %v, want permanent missing discovery path", err)
+		}
+		if err := unconfigured.DiscoveryPreflight(testutil.Context(t)); !IsPermanentSourceFailure(err) {
+			t.Fatalf("unconfigured DiscoveryPreflight() error = %v, want permanent failure", err)
+		}
+
+		if runtime.GOOS == "windows" {
+			return
+		}
+		binDir := t.TempDir()
+		executor := &fakeDiscoveryExecutor{}
+		commandProvider := compozyconfig.ProviderConfig{}
+		commandProvider.Models.Discovery.Command = "compozy-discovery-fixture --json"
+		missingBinary := newLiveSourceForTest(t, "ollama", commandProvider, &LiveProviderSourcesConfig{
+			BaseEnv:         []string{"PATH=" + binDir},
+			CommandExecutor: executor,
+		})
+		err = missingBinary.DiscoveryPreflight(testutil.Context(t))
+		if !errors.Is(err, exec.ErrNotFound) || !IsPermanentSourceFailure(err) {
+			t.Fatalf("missing binary DiscoveryPreflight() error = %v, want permanent exec.ErrNotFound", err)
+		}
+		if err := os.WriteFile(
+			filepath.Join(binDir, "compozy-discovery-fixture"),
+			[]byte("#!/bin/sh\n"),
+			0o755,
+		); err != nil {
+			t.Fatalf("WriteFile(discovery fixture) error = %v", err)
+		}
+		if err := missingBinary.DiscoveryPreflight(testutil.Context(t)); err != nil {
+			t.Fatalf("installed binary DiscoveryPreflight() error = %v, want nil", err)
+		}
+		if got := len(executor.requests); got != 0 {
+			t.Fatalf("discovery commands during preflight = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should preflight the native CLI that ACP discovery resolves without probing", func(t *testing.T) {
+		t.Parallel()
+
+		if runtime.GOOS == "windows" {
+			t.Skip("executable fixtures require Unix semantics")
+		}
+		install := func(t *testing.T, dir string, name string) {
+			t.Helper()
+			if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"), 0o755); err != nil {
+				t.Fatalf("WriteFile(%s fixture) error = %v", name, err)
+			}
+		}
+
+		// Claude bridges through the npx launcher, which also needs the native CLI.
+		claudeBin := t.TempDir()
+		install(t, claudeBin, "npx")
+		acpProbe := &fakeACPModelProbe{}
+		claude := newLiveSourceForTest(t, "claude", compozyconfig.ProviderConfig{
+			Command: "npx -y @agentclientprotocol/claude-agent-acp@latest",
+		}, &LiveProviderSourcesConfig{
+			BaseEnv: []string{"PATH=" + claudeBin, "HOME=" + t.TempDir()}, ACPProbe: acpProbe,
+		})
+		err := claude.DiscoveryPreflight(testutil.Context(t))
+		if !errors.Is(err, exec.ErrNotFound) || !IsPermanentSourceFailure(err) {
+			t.Fatalf("missing claude DiscoveryPreflight() error = %v, want permanent exec.ErrNotFound", err)
+		}
+		_, listErr := claude.ListModels(testutil.Context(t), ListOptions{ProviderID: "claude", Now: testTime(0)})
+		if listErr == nil || listErr.Error() != err.Error() {
+			t.Fatalf("ListModels() error = %v, want the preflight cause %v", listErr, err)
+		}
+		install(t, claudeBin, "claude")
+		if err := claude.DiscoveryPreflight(testutil.Context(t)); err != nil {
+			t.Fatalf("installed claude DiscoveryPreflight() error = %v, want nil", err)
+		}
+
+		// Native Codex discovery runs the CLI directly, so the unused npx launcher is not required.
+		codexBin := t.TempDir()
+		codexProbe := &recordingCodexProbe{}
+		codex := newLiveSourceForTest(t, "codex", compozyconfig.BuiltinProviders()["codex"], &LiveProviderSourcesConfig{
+			BaseEnv: []string{"PATH=" + codexBin, "HOME=" + t.TempDir()}, CodexProbe: codexProbe,
+		})
+		err = codex.DiscoveryPreflight(testutil.Context(t))
+		if !errors.Is(err, exec.ErrNotFound) || !IsPermanentSourceFailure(err) {
+			t.Fatalf("missing codex DiscoveryPreflight() error = %v, want permanent exec.ErrNotFound", err)
+		}
+		install(t, codexBin, "codex")
+		if err := codex.DiscoveryPreflight(testutil.Context(t)); err != nil {
+			t.Fatalf("installed codex DiscoveryPreflight() error = %v, want nil without npx", err)
+		}
+
+		if got := len(acpProbe.requests); got != 0 {
+			t.Fatalf("ACP probes = %d, want 0", got)
+		}
+		if got := codexProbe.calls.Load(); got != 0 {
+			t.Fatalf("Codex probes = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should recover HTTP discovery at the next transient backoff", func(t *testing.T) {
+		t.Parallel()
+
+		var healthy atomic.Bool
+		var requests atomic.Int32
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			requests.Add(1)
+			if !healthy.Load() {
+				w.WriteHeader(http.StatusServiceUnavailable)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			if _, err := fmt.Fprint(w, `{"data":[{"id":"gpt-fixture"}]}`); err != nil {
+				t.Errorf("Fprint(response) error = %v", err)
+			}
+		}))
+		t.Cleanup(server.Close)
+		provider := boundSecretProvider("OPENAI_API_KEY", "env:OPENAI_API_KEY")
+		provider.Models.Discovery.Endpoint = server.URL
+		source := newLiveSourceForTest(t, "openai", provider, &LiveProviderSourcesConfig{
+			BaseEnv: []string{"PATH=/bin"}, SecretResolver: mapSecretResolver{"env:OPENAI_API_KEY": "fixture-token"},
+		})
+		service := newTestService(t, newMemoryStore(), []Source{source})
+		opts := RefreshOptions{ProviderID: "openai", SourceID: source.ID(), Now: testTime(0)}
+		statuses, err := service.Refresh(testutil.Context(t), opts)
+		if !errors.Is(err, ErrAllSourcesFailed) {
+			t.Fatalf("Refresh(HTTP 503) error = %v, want ErrAllSourcesFailed", err)
+		}
+		failed := requireStatus(t, statuses, source.ID())
+		if failed.PermanentFailureHeld() || !failed.NextRefresh.Equal(opts.Now.Add(source.TTL())) {
+			t.Fatalf("failed status = %#v, want transient retry at TTL", failed)
+		}
+		healthy.Store(true)
+		opts.Now = failed.NextRefresh.Add(-time.Second)
+		if _, err := service.Refresh(testutil.Context(t), opts); err != nil {
+			t.Fatalf("Refresh(inside backoff) error = %v", err)
+		}
+		if got := requests.Load(); got != 1 {
+			t.Fatalf("HTTP requests during backoff = %d, want 1", got)
+		}
+		opts.Now = failed.NextRefresh
+		statuses, err = service.Refresh(testutil.Context(t), opts)
+		if err != nil {
+			t.Fatalf("Refresh(recovered HTTP) error = %v", err)
+		}
+		if got := requireStatus(
+			t,
+			statuses,
+			source.ID(),
+		); got.RefreshState != RefreshStateSucceeded ||
+			got.RowCount != 1 {
+			t.Fatalf("recovered status = %#v, want one successful model row", got)
+		}
+		if got := requests.Load(); got != 2 {
+			t.Fatalf("HTTP requests after recovery = %d, want 2", got)
+		}
+	})
+
+	t.Run("Should keep a missing command failure identical between preflight and real execution", func(t *testing.T) {
+		t.Parallel()
+		provider := compozyconfig.ProviderConfig{}
+		provider.Models.Discovery.Command = filepath.Join(t.TempDir(), "missing-discovery") + " --json"
+		source := newLiveSourceForTest(
+			t,
+			"ollama",
+			provider,
+			&LiveProviderSourcesConfig{BaseEnv: []string{"PATH=/bin"}},
+		)
+		preflightErr := source.DiscoveryPreflight(testutil.Context(t))
+		if !errors.Is(preflightErr, exec.ErrNotFound) {
+			t.Fatalf("DiscoveryPreflight() error = %v, want exec.ErrNotFound", preflightErr)
+		}
+		_, discoveryErr := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "ollama", Now: testTime(0)})
+		if !errors.Is(discoveryErr, exec.ErrNotFound) || !IsPermanentSourceFailure(discoveryErr) {
+			t.Fatalf("ListModels() error = %v, want permanent exec.ErrNotFound", discoveryErr)
+		}
+		service := newTestService(t, newMemoryStore(), []Source{source})
+		statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{
+			ProviderID: "ollama", SourceID: source.ID(), Now: testTime(0),
+		})
+		if !errors.Is(err, ErrAllSourcesFailed) {
+			t.Fatalf("Refresh() error = %v, want ErrAllSourcesFailed", err)
+		}
+		status := requireStatus(t, statuses, source.ID())
+		if !status.PermanentFailureHeld() || !status.HeldCauseUnchanged(preflightErr) {
+			t.Fatalf("status = %#v, want the unchanged real launch failure held by preflight", status)
+		}
+	})
+
+	t.Run("Should back off a launch failure when the executable itself exists", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			t.Skip("requires a script interpreter fixture")
+		}
+		root := t.TempDir()
+		command := filepath.Join(root, "discovery")
+		if err := os.WriteFile(
+			command,
+			[]byte("#!"+filepath.Join(root, "missing-interpreter")+"\n"),
+			0o755,
+		); err != nil {
+			t.Fatal(err)
+		}
+		provider := compozyconfig.ProviderConfig{}
+		provider.Models.Discovery.Command = command
+		source := newLiveSourceForTest(
+			t,
+			"ollama",
+			provider,
+			&LiveProviderSourcesConfig{BaseEnv: []string{"PATH=/bin"}},
+		)
+		if err := source.DiscoveryPreflight(testutil.Context(t)); err != nil {
+			t.Fatalf("DiscoveryPreflight() error = %v, want existing executable", err)
+		}
+		_, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "ollama", Now: testTime(0)})
+		if err == nil || !errors.Is(err, fs.ErrNotExist) || IsPermanentSourceFailure(err) {
+			t.Fatalf("ListModels() error = %v, want transient missing-interpreter launch failure", err)
+		}
+		service := newTestService(t, newMemoryStore(), []Source{source})
+		statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{
+			ProviderID: "ollama", SourceID: source.ID(), Now: testTime(0),
+		})
+		if !errors.Is(err, ErrAllSourcesFailed) {
+			t.Fatalf("Refresh() error = %v, want ErrAllSourcesFailed", err)
+		}
+		if status := requireStatus(t, statuses, source.ID()); status.PermanentFailureHeld() ||
+			!status.NextRefresh.Equal(testTime(0).Add(source.TTL())) {
+			t.Fatalf("launch failure status = %#v, want transient backoff instead of a permanent hold", status)
+		}
+	})
+
+	t.Run("Should classify permanent and transient discovery failures", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name      string
+			err       error
+			permanent bool
+		}{
+			{name: "HTTP 503", err: errors.New(`model catalog: live discovery for "opencode" returned HTTP 503`)},
+			{name: "exit with 503 output", err: errors.New("exit status 1: HTTP 503 Service Unavailable")},
+			{name: "timeout", err: fmt.Errorf("live discovery timed out: %w", context.DeadlineExceeded)},
+			{name: "process crash", err: errors.New("signal: killed")},
+			{name: "connection refused", err: errors.New("dial tcp 127.0.0.1:11434: connect: connection refused")},
+			{name: "HTTP 403", err: errors.New(`model catalog: live discovery for "openai" returned HTTP 403`)},
+			{name: "generic permission denied", err: errors.New("exit status 1: permission denied")},
+			{
+				name: "filesystem permission denied",
+				err: fmt.Errorf("model catalog: read discovery cache: %w", &fs.PathError{
+					Op: "open", Path: "/tmp/compozy-discovery-cache", Err: fs.ErrPermission,
+				}),
+			},
+			{
+				name:      "login required",
+				err:       errors.New("exit status 1: Error: Authentication required. Run 'agent login' first."),
+				permanent: true,
+			},
+			{
+				name:      "executable not on PATH",
+				err:       fmt.Errorf(`acp: start agent "compozy-model-catalog" subprocess: %w`, exec.ErrNotFound),
+				permanent: true,
+			},
+			{
+				name: "absolute executable missing",
+				err: fmt.Errorf("acp: start: %w", &os.PathError{
+					Op: "fork/exec", Path: filepath.Join(t.TempDir(), "missing-acp"), Err: os.ErrNotExist,
+				}),
+				permanent: true,
+			},
+		} {
+			if got := IsPermanentSourceFailure(tc.err); got != tc.permanent {
+				t.Fatalf("IsPermanentSourceFailure(%s) = %t, want %t", tc.name, got, tc.permanent)
+			}
 		}
 	})
 
@@ -2965,6 +3274,17 @@ func TestCodexCatalogProtocol(t *testing.T) {
 			t.Fatalf("listModels() = %#v, %v", models, err)
 		}
 	})
+}
+
+// recordingCodexProbe counts native Codex discovery starts at the process boundary.
+type recordingCodexProbe struct{ calls atomic.Int32 }
+
+func (p *recordingCodexProbe) InspectCodexModels(
+	context.Context,
+	DiscoveryCommandRequest,
+) ([]CodexModelMetadata, error) {
+	p.calls.Add(1)
+	return nil, errors.New("codex probe fixture")
 }
 
 type fixedCodexProbe struct{ models []CodexModelMetadata }

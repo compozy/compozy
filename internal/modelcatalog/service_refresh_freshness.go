@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-// maxFailureRefreshBackoff caps how far consecutive source failures defer the next refresh.
-const maxFailureRefreshBackoff = time.Hour
+// maxFailureRefreshBackoff caps exponential retries for transient failures; permanent failures stay parked.
+const maxFailureRefreshBackoff = 2 * time.Hour
 
 // freshSelectedSource answers a non-forced single-source refresh from stored status
 // before any row ownership lookup when that source's TTL has not elapsed.
@@ -84,15 +84,14 @@ func filterStatusesBySource(statuses []SourceStatus, sourceID string) []SourceSt
 	return filtered
 }
 
-// carryPriorFailureState keeps the prior last-success time on a failed status and
-// doubles the refresh deferral after consecutive failures, capped at
-// maxFailureRefreshBackoff, so failing probes stop retrying every TTL.
+// carryPriorFailureState preserves last success and either parks the source or backs off a transient failure.
 func (s *CatalogService) carryPriorFailureState(
 	ctx context.Context,
 	providerID string,
 	executionContext CatalogExecutionContext,
 	status *SourceStatus,
-) error {
+	permanent bool,
+) (SourceStatus, error) {
 	statuses, err := s.store.ListSourceStatus(ctx, StatusOptions{
 		ProviderID:       providerID,
 		ExecutionContext: executionContext,
@@ -101,25 +100,48 @@ func (s *CatalogService) carryPriorFailureState(
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("model catalog: list prior source status for %q/%q: %w", status.SourceID, providerID, err)
+		return SourceStatus{}, fmt.Errorf(
+			"model catalog: list prior source status for %q/%q: %w",
+			status.SourceID,
+			providerID,
+			err,
+		)
 	}
-	for _, previous := range statuses {
-		if previous.SourceID == status.SourceID {
-			status.LastSuccess = previous.LastSuccess
-			status.NextRefresh = failureBackoffNextRefresh(previous, *status)
-			return nil
+	var previous SourceStatus
+	for _, candidate := range statuses {
+		if candidate.SourceID == status.SourceID {
+			previous = candidate
+			status.LastSuccess = candidate.LastSuccess
+			break
 		}
 	}
-	return nil
+	status.NextRefresh = failureNextRefresh(previous, *status, permanent)
+	return previous, nil
 }
 
-func failureBackoffNextRefresh(previous SourceStatus, current SourceStatus) time.Time {
-	if current.NextRefresh.IsZero() || current.LastRefresh.IsZero() ||
-		previous.RefreshState != RefreshStateFailed ||
+// unchangedPermanentFailure avoids writing the same parked status again.
+func unchangedPermanentFailure(previous SourceStatus, current SourceStatus) bool {
+	return previous.PermanentFailureHeld() && current.PermanentFailureHeld() &&
+		previous.SourceKind == current.SourceKind &&
+		previous.Priority == current.Priority &&
+		previous.LastError == current.LastError &&
+		previous.RowCount == current.RowCount &&
+		previous.Stale == current.Stale
+}
+
+func failureNextRefresh(previous SourceStatus, current SourceStatus, permanent bool) time.Time {
+	if current.NextRefresh.IsZero() || current.LastRefresh.IsZero() {
+		return current.NextRefresh
+	}
+	if permanent {
+		return time.Time{}
+	}
+	ttl := current.NextRefresh.Sub(current.LastRefresh)
+	// A transient failure after a permanent hold restarts the doubling from the TTL.
+	if previous.RefreshState != RefreshStateFailed || previous.PermanentFailureHeld() ||
 		previous.NextRefresh.IsZero() || previous.LastRefresh.IsZero() {
 		return current.NextRefresh
 	}
-	ttl := current.NextRefresh.Sub(current.LastRefresh)
 	interval := min(2*previous.NextRefresh.Sub(previous.LastRefresh), max(ttl, maxFailureRefreshBackoff))
 	if interval <= ttl {
 		return current.NextRefresh

@@ -86,6 +86,16 @@ func (m *Manager) loadDeclarativeResources(
 }
 
 func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill, error) {
+	retained := make(map[string]struct{})
+	skills, err := m.parseSkillResources(ext, retained)
+	m.retainSkillResources(ext.instanceKey(), retained, err != nil)
+	return skills, err
+}
+
+func (m *Manager) parseSkillResources(
+	ext *managedExtension,
+	retained map[string]struct{},
+) ([]*skillspkg.Skill, error) {
 	if ext.manifest == nil || len(ext.manifest.Resources.Skills) == 0 {
 		return nil, nil
 	}
@@ -102,10 +112,11 @@ func (m *Manager) loadSkillResources(ext *managedExtension) ([]*skillspkg.Skill,
 			return nil, err
 		}
 		for _, file := range files {
-			skill, err := skillspkg.ParseSkillFileWithSource(file, source)
+			skill, err := m.cachedSkillResource(file, source, skillspkg.ParseSkillFileWithSource)
 			if err != nil {
 				return nil, err
 			}
+			retained[file] = struct{}{}
 			skill.InstalledFromExtension = extensionSkillInstalledFrom(&ext.info)
 			loaded[skill.Meta.Name] = skill
 		}

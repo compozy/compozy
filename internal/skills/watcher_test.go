@@ -1,6 +1,7 @@
 package skills
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -866,4 +867,103 @@ func (c *cancelAfterContext) cancelLocked() {
 	}
 	c.canceled = true
 	close(c.done)
+}
+
+func TestWatcherCallbackRecovery(t *testing.T) {
+	t.Run("Should publish a genuine skill edit immediately during callback backoff", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		spy := newRefreshSpy()
+		watcher := newTestWatcher(spy, time.Second, root)
+		if err := watcher.pollOnce(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		calls := 0
+		failed := true
+		watcher.SetAfterRefresh(func(context.Context) error {
+			calls++
+			if failed {
+				return errors.New("projection unavailable")
+			}
+			return nil
+		})
+		path := writeSkillFile(t, root, filepath.Join("edited", skillFileName), skillWithDescription("edited", "Initial"))
+		if err := watcher.pollOnce(t.Context()); err == nil {
+			t.Fatal("expected callback failure")
+		}
+		failed = false
+		rewriteSkillFile(t, path, skillWithDescription("edited", "Updated description"))
+		if err := watcher.pollOnce(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if spy.calls() != 2 || calls != 2 {
+			t.Fatalf("refresh=%d callback=%d, want 2 each", spy.calls(), calls)
+		}
+	})
+	t.Run("Should warn once per failure cause while callback retries keep failing", func(t *testing.T) {
+		t.Parallel()
+		var logs bytes.Buffer
+		watcher := newTestWatcher(newRefreshSpy(), time.Second, t.TempDir())
+		watcher.logger = slog.New(slog.NewTextHandler(&logs, nil))
+		watcher.callbackPending = true
+		projectionErr := errors.New("projection unavailable")
+		for range 5 {
+			watcher.reportPollResult(projectionErr)
+			watcher.reportPollResult(nil)
+		}
+		watcher.reportPollResult(errors.New("projection root missing"))
+		watcher.callbackPending = false
+		watcher.reportPollResult(nil)
+		watcher.reportPollResult(projectionErr)
+		if got := strings.Count(logs.String(), "skills: watcher poll failed"); got != 3 {
+			t.Fatalf("poll failure warnings = %d, want 3 (initial, changed cause, after recovery); logs=%s", got, logs.String())
+		}
+	})
+	t.Run("Should retry the callback independently of committed skill changes", func(t *testing.T) {
+		t.Parallel()
+		root := t.TempDir()
+		spy := newRefreshSpy()
+		watcher := newTestWatcher(spy, time.Second, root)
+		if err := watcher.pollOnce(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		calls := 0
+		failed := true
+		watcher.SetAfterRefresh(func(context.Context) error {
+			calls++
+			if failed {
+				return errors.New("projection unavailable")
+			}
+			return nil
+		})
+		path := writeSkillFile(t, root, filepath.Join("added", skillFileName), skillWithDescription("added", "Added"))
+		if err := watcher.pollOnce(t.Context()); err == nil {
+			t.Fatal("expected callback failure")
+		}
+		for range 10 {
+			if err := watcher.pollOnce(t.Context()); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if spy.calls() != 1 || calls != 1 {
+			t.Fatalf("refresh=%d callback=%d", spy.calls(), calls)
+		}
+		failed = false
+		watcher.callbackRetryAt = time.Time{}
+		if err := watcher.pollOnce(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if spy.calls() != 1 || calls != 2 {
+			t.Fatalf("refresh=%d callback=%d", spy.calls(), calls)
+		}
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		if err := watcher.pollOnce(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if spy.calls() != 2 || calls != 3 {
+			t.Fatalf("refresh=%d callback=%d", spy.calls(), calls)
+		}
+	})
 }

@@ -1207,10 +1207,10 @@ describe("useSessionLiveTail", () => {
   });
 
   it.each([
-    ["window", true],
+    ["window", false],
     ["board-drawer", false],
   ] as const)(
-    "Should reread the catalogs after every delta burst only when shown in a %s",
+    "Should bound catalog rereads to the freshness window in a %s",
     async (presentation, everyBurst) => {
       vi.mocked(fetchSessionTranscript).mockResolvedValue(
         transcriptResponse([textMessage("m1", "hi")])
@@ -1244,8 +1244,7 @@ describe("useSessionLiveTail", () => {
         return queryClient.getQueryState(boardKey)?.isInvalidated;
       };
 
-      // The first burst always repairs the catalogs; over the board, later ones are spaced out
-      // to one reread per interval.
+      // Both presentations keep catalog work at the shared freshness cadence.
       const now = vi.spyOn(Date, "now");
       now.mockReturnValue(1_000_000);
       expect(await burst(2)).toBe(true);

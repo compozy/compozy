@@ -186,3 +186,35 @@ catalog or favorites, reopen, and exercise browse, search, exact-ID entry, keybo
 Escape focus restoration against the latest data. The existing runtime-selector component suite
 owns focused coverage; the new check includes catalog updates while closed. This note does not
 claim a fresh live-provider/browser walk; integrated runtime evidence belongs to the audit QA tail.
+
+QA impact 2026-11-03, issue #1235 (verification pending): background discovery now parks a
+`provider_live` source whose failure needs an operator change. Missing credentials, absent
+discovery configuration, a discovery executable missing from PATH, and required login are stored
+as `failed` with their reason and no next refresh, and the sweep never retries them on a timer.
+Each 30-second sweep runs only a process-free preflight (credential lookup, discovery config, and
+PATH resolution of the executables discovery would start, including the native CLI behind a bridged
+ACP launcher) for parked sources. Every sweep compares that preflight with the persisted reason in
+each execution context, so a changed cause is retried until a refresh stores a new status, also
+after a refresh deadline or a daemon restart, and an unchanged cause is not. Generic permission
+denials (filesystem EACCES, HTTP 403) are transient, not parked. Transient failures (HTTP 5xx,
+timeouts, crashes) keep doubling from the 5-minute TTL to a 2-hour cap per execution context.
+Repeating an identical permanent failure does not rewrite its status row.
+
+Use an isolated daemon with unconfigured OpenRouter, Vercel AI Gateway, Gemini and Pi, a
+nonexistent ACP command, and an unauthenticated Cursor. Advance at least one hour, then restart the
+daemon and advance again. Count `daemon.model_catalog.refresh_failed` WARN lines with python: each
+source/cause should log one WARN and the restart should add none for unchanged causes. Repeats of
+the same cause log only at DEBUG. `compozy provider models status` should keep each source failed
+with its reason. Bind the missing secret, or install the binary on the discovery PATH (for Claude or Codex, the
+native `claude`/`codex` CLI with `npx` already present); within one sweep the source should refresh
+without a manual step. Repeat with the daemon stopped and confirm
+the first sweep after start refreshes it. A plain `compozy provider models refresh` (no `--force`)
+and a provider config change should attempt a parked source immediately. A login cannot be
+detected without starting the provider, so after `agent login` (or another provider login) run
+`compozy provider models refresh` for that provider. A fake endpoint returning 503 and then 200 must
+recover at its next backoff attempt.
+
+For a discovery script whose executable exists but whose shebang interpreter is missing, confirm
+the launch error schedules transient backoff. It must not create an unobservable permanent hold
+or a refresh on every 30-second sweep. Restore the interpreter and verify the next due refresh
+(or an explicit manual refresh) recovers. The focused real-launch fixture owns this regression.

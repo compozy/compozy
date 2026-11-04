@@ -1697,6 +1697,353 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 	})
 
+	t.Run("Should park permanently failed targets until their preflight cause changes", func(t *testing.T) {
+		t.Parallel()
+
+		start := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+		var nowMu sync.Mutex
+		now := start
+		service := newCatalogReadRefreshService()
+		// Parked statuses persisted by an earlier daemon process: the runtime below
+		// starts with no in-memory state, as after a cold restart.
+		parked := func(sourceID string, lastError string) modelcatalog.SourceStatus {
+			return modelcatalog.SourceStatus{
+				SourceID: sourceID, ProviderID: strings.TrimPrefix(sourceID, "extension/"),
+				RefreshState: modelcatalog.RefreshStateFailed,
+				LastRefresh:  start.Add(-time.Hour),
+				LastError:    lastError,
+			}
+		}
+		service.statuses = []modelcatalog.SourceStatus{
+			parked("extension/held", "resolve provider credential: vault: secret value missing"),
+			parked("extension/login", "exit status 1: Error: Authentication required. Run 'agent login' first."),
+			parked("extension/fixed", "resolve provider credential: vault: secret value missing"),
+			{
+				SourceID: "extension/transient", ProviderID: "transient",
+				RefreshState: modelcatalog.RefreshStateFailed,
+				LastRefresh:  start.Add(-10 * time.Minute),
+				NextRefresh:  start.Add(30 * time.Minute),
+				LastError:    "HTTP 503",
+			},
+		}
+		runtime, err := newModelCatalogRuntime(
+			testutil.Context(t),
+			service,
+			discardLogger(),
+			func() time.Time {
+				nowMu.Lock()
+				defer nowMu.Unlock()
+				return now
+			},
+			5*time.Second,
+		)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+		held := &catalogPreflightSource{
+			catalogDynamicSource: catalogDynamicSource{id: "extension/held"},
+			outcome:              errors.New("vault: secret value missing"),
+		}
+		login := &catalogPreflightSource{catalogDynamicSource: catalogDynamicSource{id: "extension/login"}}
+		// The secret was bound while the daemon was down: preflight now passes.
+		fixed := &catalogPreflightSource{catalogDynamicSource: catalogDynamicSource{id: "extension/fixed"}}
+		transient := &catalogPreflightSource{
+			catalogDynamicSource: catalogDynamicSource{id: "extension/transient"},
+			outcome:              errors.New("upstream unavailable"),
+		}
+		runtime.dynamicSources = map[string]modelcatalog.Source{
+			held.ID(): held, login.ID(): login, fixed.ID(): fixed, transient.ID(): transient,
+		}
+		targets := runtime.dynamicRefreshTargets()
+		if _, err := runtime.resolveCatalogExecutionContext(
+			modelcatalog.CatalogExecutionContext{ProfileID: "other-profile"},
+		); err != nil {
+			t.Fatal(err)
+		}
+		executionContexts := runtime.catalogExecutionContexts()
+		if len(executionContexts) == 0 {
+			t.Fatal("catalogExecutionContexts() is empty, want the default context")
+		}
+		// Preflight is shared, but persisted causes remain local to each context.
+		sweep := func() []string {
+			holds := runtime.newHoldSweep()
+			var due []string
+			for _, executionContext := range executionContexts {
+				for _, target := range runtime.dueRefreshTargets(executionContext, targets, holds) {
+					due = append(due, target.sourceID)
+				}
+			}
+			return due
+		}
+		// persistSuccess records the refresh outcome the service stores once discovery recovers.
+		persistSuccess := func(sourceID string) {
+			service.updateStatus(sourceID, func(status *modelcatalog.SourceStatus) {
+				status.RefreshState = modelcatalog.RefreshStateSucceeded
+				status.LastError = ""
+				status.LastSuccess = start
+				status.LastRefresh = start
+				// A healthy TTL far past the simulated weeks keeps the recovered target out of the sweep.
+				status.NextRefresh = start.Add(365 * 24 * time.Hour)
+			})
+		}
+		if due := sweep(); !slices.Equal(due, []string{fixed.ID(), fixed.ID()}) {
+			t.Fatalf("first sweep due = %#v, want only the target fixed since its persisted failure", due)
+		}
+		persistSuccess(fixed.ID())
+		// Weeks pass: a parked target never comes due by time, and the recovered target
+		// follows its persisted TTL. Only the transient target returns, once its backoff elapses.
+		for index, elapsed := range []time.Duration{time.Minute, 48 * time.Hour, 21 * 24 * time.Hour} {
+			nowMu.Lock()
+			now = start.Add(elapsed)
+			nowMu.Unlock()
+			want := []string(nil)
+			if elapsed > 30*time.Minute {
+				want = []string{transient.ID(), transient.ID()}
+			}
+			if due := sweep(); !slices.Equal(due, want) {
+				t.Fatalf("sweep %d due = %#v, want %#v with parked targets skipped", index, due, want)
+			}
+		}
+		if got := held.preflightCalls(); got != 4 {
+			t.Fatalf("held preflight calls = %d, want one per sweep", got)
+		}
+		if got := transient.preflightCalls(); got != 0 {
+			t.Fatalf("transient preflight calls = %d, want backoff targets never preflighted", got)
+		}
+
+		held.setOutcome(nil)
+		wantChanged := []string{held.ID(), transient.ID(), held.ID(), transient.ID()}
+		if due := sweep(); !slices.Equal(due, wantChanged) {
+			t.Fatalf("sweep after cause change due = %#v, want %#v", due, wantChanged)
+		}
+		persistSuccess(held.ID())
+		wantSettled := []string{transient.ID(), transient.ID()}
+		if due := sweep(); !slices.Equal(due, wantSettled) {
+			t.Fatalf("sweep after acting on the change due = %#v, want %#v", due, wantSettled)
+		}
+
+		runtime.refreshDynamicSourcesInBackground()
+		refresh := service.waitForRefresh(t)
+		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		if refresh.SourceID != transient.ID() || refresh.Force {
+			t.Fatalf("background refresh = %#v, want only the transient target once its backoff elapsed", refresh)
+		}
+		if got := len(service.refreshes); got != len(executionContexts)-1 {
+			t.Fatalf("extra refreshes = %d, want parked targets left alone", got)
+		}
+	})
+
+	t.Run("Should keep a real missing command parked across sweeps and restart", func(t *testing.T) {
+		t.Parallel()
+		now := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+		provider := compozyconfig.ProviderConfig{}
+		provider.Models.Discovery.Command = filepath.Join(t.TempDir(), "missing-discovery") + " --json"
+		source, err := modelcatalog.NewLiveProviderSource("ollama", provider, &modelcatalog.LiveProviderSourcesConfig{
+			BaseEnv: []string{"PATH=/bin"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, discoveryErr := source.ListModels(
+			testutil.Context(t),
+			modelcatalog.ListOptions{ProviderID: "ollama", Now: now},
+		)
+		if discoveryErr == nil || !modelcatalog.IsPermanentSourceFailure(discoveryErr) {
+			t.Fatalf("ListModels() error = %v, want missing executable", discoveryErr)
+		}
+		service := newCatalogReadRefreshService()
+		service.statuses = []modelcatalog.SourceStatus{{
+			SourceID: source.ID(), ProviderID: "ollama", RefreshState: modelcatalog.RefreshStateFailed,
+			LastRefresh: now, LastError: modelcatalog.RedactString(discoveryErr.Error()),
+		}}
+		for restart := range 2 {
+			runtime, err := newModelCatalogRuntime(testutil.Context(t), service, discardLogger(), func() time.Time {
+				return now.Add(24 * time.Hour)
+			}, time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime.dynamicSources = map[string]modelcatalog.Source{source.ID(): source}
+			for sweep := range 2 {
+				due := runtime.dueRefreshTargets(
+					runtime.catalogExecutionContexts()[0],
+					runtime.dynamicRefreshTargets(),
+					runtime.newHoldSweep(),
+				)
+				if len(due) != 0 {
+					t.Fatalf(
+						"restart %d sweep %d due = %#v, want the unchanged real launch failure held",
+						restart,
+						sweep,
+						due,
+					)
+				}
+			}
+			if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := len(service.refreshes); got != 0 {
+			t.Fatalf("refresh attempts = %d, want none for an unchanged missing executable", got)
+		}
+	})
+
+	t.Run("Should evaluate parked causes separately across execution contexts", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+		service := newCatalogReadRefreshService()
+		runtime, err := newModelCatalogRuntime(testutil.Context(t), service, discardLogger(), func() time.Time {
+			return now
+		}, time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		first := runtime.catalogExecutionContexts()[0]
+		second, err := runtime.resolveCatalogExecutionContext(modelcatalog.CatalogExecutionContext{
+			ProfileID: "other-profile", WorkspaceID: "other-workspace",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		source := &catalogPreflightSource{catalogDynamicSource: catalogDynamicSource{id: "extension/held"}}
+		runtime.dynamicSources = map[string]modelcatalog.Source{source.ID(): source}
+		status := modelcatalog.SourceStatus{
+			SourceID: source.ID(), RefreshState: modelcatalog.RefreshStateFailed,
+			LastRefresh: now.Add(-time.Hour), LastError: "Authentication required. Run 'agent login' first.",
+		}
+		fixed := status
+		fixed.LastError = "vault: secret value missing"
+		service.statusesByContext = map[modelcatalog.CatalogExecutionContext][]modelcatalog.SourceStatus{
+			first: {status}, second: {fixed},
+		}
+		targets := runtime.dynamicRefreshTargets()
+		for sweep := range 2 {
+			holds := runtime.newHoldSweep()
+			if due := runtime.dueRefreshTargets(first, targets, holds); len(due) != 0 {
+				t.Fatalf("login context due = %#v, want explicit refresh required", due)
+			}
+			due := runtime.dueRefreshTargets(second, targets, holds)
+			want := 0
+			if sweep == 0 {
+				want = 1
+			}
+			if len(due) != want {
+				t.Fatalf("fixed context due on sweep %d = %#v, want %d", sweep, due, want)
+			}
+			// The fixed context's refresh persists success; the login context stays parked.
+			recovered := fixed
+			recovered.RefreshState = modelcatalog.RefreshStateSucceeded
+			recovered.LastError = ""
+			recovered.NextRefresh = now.Add(time.Hour)
+			service.setContextStatuses(second, []modelcatalog.SourceStatus{recovered})
+		}
+		if got := source.preflightCalls(); got != 2 {
+			t.Fatalf("preflight calls = %d, want once per sweep across contexts", got)
+		}
+		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("Should retry a changed parked cause until a refresh persists its outcome", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, 5, 7, 12, 0, 0, 0, time.UTC)
+		service := newCatalogReadRefreshService()
+		service.refreshErr = context.DeadlineExceeded
+		service.statuses = []modelcatalog.SourceStatus{{
+			SourceID: "extension/held", ProviderID: "held",
+			RefreshState: modelcatalog.RefreshStateFailed,
+			LastRefresh:  now.Add(-time.Hour),
+			LastError:    "resolve provider credential: vault: secret value missing",
+		}}
+		source := &catalogPreflightSource{
+			catalogDynamicSource: catalogDynamicSource{id: "extension/held"},
+			outcome:              errors.New("vault: secret value missing"),
+		}
+		newRuntime := func() *modelCatalogRuntime {
+			runtime, err := newModelCatalogRuntime(testutil.Context(t), service, discardLogger(), func() time.Time {
+				return now
+			}, time.Second)
+			if err != nil {
+				t.Fatal(err)
+			}
+			runtime.dynamicSources = map[string]modelcatalog.Source{source.ID(): source}
+			return runtime
+		}
+		runtime := newRuntime()
+		executionContext := runtime.catalogExecutionContexts()[0]
+		due := func(runtime *modelCatalogRuntime) []modelCatalogRefreshTarget {
+			return runtime.dueRefreshTargets(executionContext, runtime.dynamicRefreshTargets(), runtime.newHoldSweep())
+		}
+		if got := due(runtime); len(got) != 0 {
+			t.Fatalf("unchanged cause due = %#v, want parked", got)
+		}
+
+		// The secret is bound, but the refresh hits its deadline before persisting any status.
+		source.setOutcome(nil)
+		for attempt := range 2 {
+			targets := due(runtime)
+			if len(targets) != 1 || targets[0].sourceID != source.ID() {
+				t.Fatalf("attempt %d due = %#v, want the changed target retried", attempt, targets)
+			}
+			if _, err := runtime.Refresh(testutil.Context(t), modelcatalog.RefreshOptions{
+				SourceID: source.ID(), ProviderID: targets[0].providerID, ExecutionContext: executionContext,
+			}); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("attempt %d Refresh() error = %v, want deadline", attempt, err)
+			}
+			service.waitForRefresh(t)
+		}
+		// A cold restart sees the same unpublished change.
+		restarted := newRuntime()
+		if got := due(restarted); len(got) != 1 {
+			t.Fatalf("restarted due = %#v, want the changed target still retried", got)
+		}
+
+		// Recovery: the next refresh persists success, so the target leaves the hold.
+		service.updateStatus(source.ID(), func(status *modelcatalog.SourceStatus) {
+			status.RefreshState = modelcatalog.RefreshStateSucceeded
+			status.LastError = ""
+			status.LastSuccess = now
+			status.LastRefresh = now
+			status.NextRefresh = now.Add(5 * time.Minute)
+		})
+		if got := due(restarted); len(got) != 0 {
+			t.Fatalf("recovered due = %#v, want fresh until its TTL", got)
+		}
+		for _, current := range []*modelCatalogRuntime{runtime, restarted} {
+			if err := current.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+		}
+	})
+
+	t.Run("Should warn once per refresh failure cause", func(t *testing.T) {
+		t.Parallel()
+
+		var logs bytes.Buffer
+		runtime := &modelCatalogRuntime{logger: slog.New(slog.NewTextHandler(&logs, nil))}
+		opts := modelcatalog.RefreshOptions{ProviderID: "openrouter", SourceID: "provider_live:openrouter"}
+		missing := errors.New("vault: secret value missing")
+		runtime.logRefreshFailure(opts, missing)
+		runtime.logRefreshFailure(opts, missing)
+		if got := strings.Count(logs.String(), "level=WARN"); got != 1 {
+			t.Fatalf("WARN lines after repeated cause = %d, want 1:\n%s", got, logs.String())
+		}
+		runtime.logRefreshFailure(opts, errors.New("HTTP 503"))
+		if got := strings.Count(logs.String(), "level=WARN"); got != 2 {
+			t.Fatalf("WARN lines after changed cause = %d, want 2:\n%s", got, logs.String())
+		}
+		runtime.failureCauses.clear(modelCatalogFailureScope(opts))
+		runtime.logRefreshFailure(opts, errors.New("HTTP 503"))
+		if got := strings.Count(logs.String(), "level=WARN"); got != 3 {
+			t.Fatalf("WARN lines after recovery = %d, want 3:\n%s", got, logs.String())
+		}
+	})
+
 	t.Run("Should return shutdown deadline when refresh worker does not stop in time", func(t *testing.T) {
 		t.Parallel()
 
@@ -2278,8 +2625,11 @@ type recordingModelCatalogService struct {
 }
 
 type catalogReadRefreshService struct {
-	refreshes chan modelcatalog.RefreshOptions
-	statuses  []modelcatalog.SourceStatus
+	refreshes         chan modelcatalog.RefreshOptions
+	refreshErr        error
+	mu                sync.Mutex
+	statuses          []modelcatalog.SourceStatus
+	statusesByContext map[modelcatalog.CatalogExecutionContext][]modelcatalog.SourceStatus
 }
 
 type blockingCatalogReadRefreshService struct {
@@ -2306,6 +2656,33 @@ func (catalogDynamicSource) ListModels(
 	modelcatalog.ListOptions,
 ) ([]modelcatalog.ModelRow, error) {
 	return nil, nil
+}
+
+// catalogPreflightSource reports a mutable discovery precondition at the preflight boundary.
+type catalogPreflightSource struct {
+	catalogDynamicSource
+	mu      sync.Mutex
+	outcome error
+	calls   int
+}
+
+func (s *catalogPreflightSource) DiscoveryPreflight(context.Context) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls++
+	return s.outcome
+}
+
+func (s *catalogPreflightSource) setOutcome(outcome error) {
+	s.mu.Lock()
+	s.outcome = outcome
+	s.mu.Unlock()
+}
+
+func (s *catalogPreflightSource) preflightCalls() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.calls
 }
 
 type manualModelCatalogRefreshTicker struct {
@@ -2391,13 +2768,38 @@ func (s *catalogReadRefreshService) Refresh(
 	opts modelcatalog.RefreshOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	s.refreshes <- opts
-	return nil, nil
+	return nil, s.refreshErr
+}
+
+// updateStatus simulates the persisted outcome of a refresh for every execution context.
+func (s *catalogReadRefreshService) updateStatus(sourceID string, update func(*modelcatalog.SourceStatus)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for index := range s.statuses {
+		if s.statuses[index].SourceID == sourceID {
+			update(&s.statuses[index])
+		}
+	}
+}
+
+func (s *catalogReadRefreshService) setContextStatuses(
+	executionContext modelcatalog.CatalogExecutionContext,
+	statuses []modelcatalog.SourceStatus,
+) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.statusesByContext[executionContext] = statuses
 }
 
 func (s *catalogReadRefreshService) ListSourceStatus(
-	context.Context,
-	modelcatalog.StatusOptions,
+	_ context.Context,
+	opts modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.statusesByContext != nil {
+		return slices.Clone(s.statusesByContext[opts.ExecutionContext]), nil
+	}
 	return slices.Clone(s.statuses), nil
 }
 
