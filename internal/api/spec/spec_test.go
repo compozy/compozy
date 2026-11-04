@@ -3264,6 +3264,11 @@ func TestDocumentPreservesSchemaSemantics(t *testing.T) {
 		if addAgentEffectivePermissions(baseline) == 0 {
 			t.Fatal("approved effective_runtime permissions addition: no historical agent runtime schema found")
 		}
+		// #1251: restart status reports a replacement daemon's data-migration progress.
+		addRestartProgressComponent(baseline)
+		if addRestartMigrationProgress(baseline) == 0 {
+			t.Fatal("approved restart progress addition: no historical restart status schema found")
+		}
 		doc, err := Document()
 		if err != nil {
 			t.Fatalf("Document: %v", err)
@@ -5683,6 +5688,46 @@ func addAgentEffectivePermissions(value any) int {
 			properties["reasoning_effort"] != nil && properties["speed"] != nil
 		if runtime || sources {
 			properties["permissions"] = map[string]any{"type": "string"}
+			count++
+		}
+	}
+	return count
+}
+
+func addRestartProgressComponent(baseline map[string]any) {
+	components := baseline["components"].(map[string]any)["schemas"].(map[string]any)
+	integer := func() map[string]any { return map[string]any{"type": "integer", "format": "int64"} }
+	components["RestartProgress"] = map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"phase":      map[string]any{"type": "string", "enum": []any{"migrating"}},
+			"stage":      map[string]any{"type": "string"},
+			"completed":  integer(),
+			"total":      integer(),
+			"updated_at": map[string]any{"type": "string", "format": "date-time"},
+		},
+		"required": []any{"completed", "phase", "stage", "total", "updated_at"},
+	}
+}
+
+func addRestartMigrationProgress(value any) int {
+	count := 0
+	switch node := value.(type) {
+	case []any:
+		for _, child := range node {
+			count += addRestartMigrationProgress(child)
+		}
+	case map[string]any:
+		for child := range maps.Values(node) {
+			count += addRestartMigrationProgress(child)
+		}
+		properties, ok := node["properties"].(map[string]any)
+		if ok && properties["old_socket_path"] != nil && properties["active_session_count"] != nil &&
+			properties["progress"] == nil {
+			properties["progress"] = map[string]any{"oneOf": []any{
+				map[string]any{"$ref": "#/components/schemas/RestartProgress"},
+				map[string]any{"enum": []any{nil}, "nullable": true},
+			}}
 			count++
 		}
 	}

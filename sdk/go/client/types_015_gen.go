@@ -174,10 +174,23 @@ type RestartActionStatus struct {
 	StartedAt          time.Time              `json:"started_at"`
 	UpdatedAt          time.Time              `json:"updated_at"`
 	CompletedAt        *time.Time             `json:"completed_at,omitempty"`
+	Progress           *RestartProgress       `json:"progress,omitempty"`
 }
 
 // RestartOperationStatus is a daemon API value.
 type RestartOperationStatus string
+
+// RestartProgress is a daemon API value.
+type RestartProgress struct {
+	Phase     RestartProgressPhase `json:"phase"`
+	Stage     string               `json:"stage"`
+	Completed int64                `json:"completed"`
+	Total     int64                `json:"total"`
+	UpdatedAt time.Time            `json:"updated_at"`
+}
+
+// RestartProgressPhase is a daemon API value.
+type RestartProgressPhase string
 
 // ResultContract is a daemon API value.
 type ResultContract struct {

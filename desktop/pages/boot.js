@@ -18,6 +18,7 @@ import { publicSafeText } from "./public-safe-text.js";
     download: "Downloading runtime",
     verify: "Verifying runtime",
     install: "Installing runtime",
+    migrate: "Upgrading data…",
     start: "Starting runtime",
     ready: "Runtime ready",
   });
@@ -78,9 +79,16 @@ import { publicSafeText } from "./public-safe-text.js";
     progressLabel.textContent = labelText;
     progressAttempt.textContent = attempt === null ? "" : `Attempt ${attempt}`;
     progressAttempt.hidden = attempt === null;
+    const percent =
+      Number.isInteger(input.pct) && input.pct >= 0 && input.pct <= 100 ? input.pct : null;
     progressBar.hidden = stage === "ready";
-    progressBar.setAttribute("aria-valuetext", labelText);
-    progressBar.removeAttribute("value");
+    if (percent === null) {
+      progressBar.setAttribute("aria-valuetext", labelText);
+      progressBar.removeAttribute("value");
+    } else {
+      progressBar.setAttribute("aria-valuetext", `${labelText} ${percent}%`);
+      progressBar.value = percent;
+    }
   };
 
   const addDiagnostic = (label, value) => {

@@ -26,7 +26,7 @@ func OpenGlobalDB(ctx context.Context, path string, options ...OpenOption) (*Glo
 	}
 
 	config := newOpenConfig(options)
-	db, err := openGlobalSQLite(ctx, path, config.operatorHomeDir)
+	db, err := openGlobalSQLite(ctx, path, config.operatorHomeDir, config.migrationProgress)
 	if err != nil {
 		return nil, err
 	}
@@ -153,7 +153,12 @@ func (g *GlobalDB) Close(ctx context.Context) error {
 		closeErr)
 }
 
-func openGlobalSQLite(ctx context.Context, path string, operatorHomeDir string) (*sql.DB, error) {
+func openGlobalSQLite(
+	ctx context.Context,
+	path string,
+	operatorHomeDir string,
+	progress MigrationProgressFunc,
+) (*sql.DB, error) {
 	if err := store.RefuseLegacyDatabaseAtPath(ctx, path, MigrationStream()); err != nil {
 		return nil, err
 	}
@@ -175,7 +180,7 @@ func openGlobalSQLite(ctx context.Context, path string, operatorHomeDir string) 
 			if err != nil {
 				return err
 			}
-			if err := applyGlobalMigrations(ctx, db, path); err != nil {
+			if err := applyGlobalMigrations(ctx, db, path, progress); err != nil {
 				return err
 			}
 			if before.Version < userScopeMigrationVersion {

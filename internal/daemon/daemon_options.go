@@ -183,6 +183,7 @@ func (d *Daemon) applyCoreDefaults() {
 				ctx,
 				path,
 				globaldb.WithOperatorHomeDir(operatorHome),
+				globaldb.WithMigrationProgress(d.migrationProgressReporter()),
 				globaldb.WithSessionEventMetadataOpener(
 					sessiondb.NewEventMetadataOpener(d.homePaths.SessionsDir),
 				),

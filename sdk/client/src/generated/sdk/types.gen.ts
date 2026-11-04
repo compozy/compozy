@@ -6167,8 +6167,17 @@ export type RestartActionStatus = {
   old_socket_path: string;
   old_started_at: string;
   operation_id: string;
+  progress?: RestartProgress | null;
   started_at: string;
   status: "pending" | "stopping" | "waiting_release" | "starting" | "ready" | "failed";
+  updated_at: string;
+};
+
+export type RestartProgress = {
+  completed: number;
+  phase: "migrating";
+  stage: string;
+  total: number;
   updated_at: string;
 };
 

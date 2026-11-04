@@ -183,6 +183,14 @@ const (
 	RestartOperationFailed         RestartOperationStatus = "failed"
 )
 
+// RestartProgressPhase names a replacement daemon's pre-readiness phase. It may gain values;
+// clients should treat an unknown phase as generic in-progress work.
+type RestartProgressPhase string
+
+const (
+	RestartProgressMigrating RestartProgressPhase = "migrating"
+)
+
 type SettingsStreamTransport string
 
 const (

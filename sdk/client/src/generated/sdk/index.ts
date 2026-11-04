@@ -2911,6 +2911,7 @@ export type {
   RespondLoopRequestResponses,
   RestartActionResponse,
   RestartActionStatus,
+  RestartProgress,
   ResumeAgentInstanceData,
   ResumeAgentInstanceError,
   ResumeAgentInstanceErrors,

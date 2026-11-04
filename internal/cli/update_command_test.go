@@ -712,6 +712,12 @@ func TestLocalRestartStatusDuringBoot(t *testing.T) {
 				StartedAt:     fixedTestNow,
 				UpdatedAt:     fixedTestNow,
 			}
+			if phase == compozydaemon.RestartStatusStarting {
+				record.Progress = &compozydaemon.RestartProgress{
+					Phase: compozydaemon.RestartPhaseMigrating, Stage: "telemetry_relocation",
+					Completed: 1024, Total: 2048, UpdatedAt: fixedTestNow,
+				}
+			}
 			if phase == compozydaemon.RestartStatusFailed {
 				record.FailureReason = "replacement exited"
 				record.CompletedAt = new(fixedTestNow)
@@ -736,6 +742,19 @@ func TestLocalRestartStatusDuringBoot(t *testing.T) {
 			if err != nil || string(got.Status) != string(phase) || got.FailureReason != record.FailureReason ||
 				got.NewPID != record.NewPID {
 				t.Fatalf("local restart status = %#v, %v", got, err)
+			}
+			if record.Progress == nil {
+				if got.Progress != nil {
+					t.Fatalf("local restart progress = %#v, want none", got.Progress)
+				}
+				return
+			}
+			want := contract.RestartProgress{
+				Phase: contract.RestartProgressMigrating, Stage: "telemetry_relocation",
+				Completed: 1024, Total: 2048, UpdatedAt: fixedTestNow,
+			}
+			if got.Progress == nil || *got.Progress != want {
+				t.Fatalf("local restart progress = %#v, want %#v", got.Progress, want)
 			}
 		})
 	}

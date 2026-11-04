@@ -14,6 +14,7 @@ type openConfig struct {
 	healthFlushInterval      time.Duration
 	openSessionEventMetadata store.SessionEventMetadataOpener
 	operatorHomeDir          string
+	migrationProgress        MigrationProgressFunc
 }
 
 // WithSessionEventMetadataOpener supplies the per-session replay reader used by watch-events.
@@ -27,6 +28,13 @@ func WithSessionEventMetadataOpener(opener store.SessionEventMetadataOpener) Ope
 func WithOperatorHomeDir(operatorHomeDir string) OpenOption {
 	return func(config *openConfig) {
 		config.operatorHomeDir = strings.TrimSpace(operatorHomeDir)
+	}
+}
+
+// WithMigrationProgress observes data-volume-dependent migrations while the database opens.
+func WithMigrationProgress(report MigrationProgressFunc) OpenOption {
+	return func(config *openConfig) {
+		config.migrationProgress = report
 	}
 }
 

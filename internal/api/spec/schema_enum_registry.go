@@ -238,6 +238,7 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[contract.SettingsPermissionMode]():      settingsPermissionModeValues(),
 		reflect.TypeFor[contract.SettingsSourceKind]():          settingsSourceKindValues(),
 		reflect.TypeFor[contract.RestartOperationStatus]():      restartOperationStatusValues(),
+		reflect.TypeFor[contract.RestartProgressPhase]():        {string(contract.RestartProgressMigrating)},
 		reflect.TypeFor[contract.SettingsStreamTransport]():     settingsStreamTransportValues(),
 		reflect.TypeFor[contract.SettingsUpdateStatusKind]():    settingsUpdateStatusValues(),
 		reflect.TypeFor[contract.SettingsUpdateTarget]():        settingsUpdateTargetValues(),
