@@ -33,8 +33,10 @@ func newRestartProgressWatch(deps commandDeps, onProgress func(contract.RestartP
 	return &restartProgressWatch{idleTimeout: idle, now: now, onProgress: onProgress}
 }
 
-// observe reports advancing progress and fails only a migration that stopped advancing before completion.
-// Measuring idleness on the observer's clock keeps a stale journal timestamp from failing a live upgrade.
+// observe reports advancing progress and fails a migration that stopped advancing. The replacement
+// clears progress once the migration and its trailing schema steps finish, so later boot work is
+// never subject to this window. Measuring idleness on the observer's clock keeps a stale journal
+// timestamp from failing a live upgrade.
 func (w *restartProgressWatch) observe(status SettingsRestartStatusRecord) error {
 	if w == nil || status.Progress == nil {
 		return nil
@@ -50,7 +52,7 @@ func (w *restartProgressWatch) observe(status SettingsRestartStatusRecord) error
 		}
 		return nil
 	}
-	if progress.Completed >= progress.Total || now.Sub(w.lastAdvance) < w.idleTimeout {
+	if now.Sub(w.lastAdvance) < w.idleTimeout {
 		return nil
 	}
 	return fmt.Errorf(
@@ -62,13 +64,14 @@ func (w *restartProgressWatch) observe(status SettingsRestartStatusRecord) error
 	)
 }
 
-// restartProgressPercent converts migration progress into a bounded whole percentage.
+// restartProgressPercent converts migration progress into a bounded whole percentage; an unknown
+// total (still counting) reads as 0%.
 func restartProgressPercent(progress contract.RestartProgress) int {
-	if progress.Total <= 0 || progress.Completed >= progress.Total {
-		return 100
-	}
-	if progress.Completed <= 0 {
+	if progress.Total <= 0 || progress.Completed <= 0 {
 		return 0
+	}
+	if progress.Completed >= progress.Total {
+		return 100
 	}
 	return int(progress.Completed * 100 / progress.Total)
 }

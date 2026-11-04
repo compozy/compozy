@@ -18,19 +18,26 @@ const (
 	// Each batch costs two FULL-synchronous commits; larger batches bound fsyncs
 	// on large histories while keeping every acknowledged batch resumable.
 	telemetryExportBatch = 1024
+	// telemetryExportBatchBytes bounds the payload one batch holds in memory; a
+	// batch always takes at least one row so an oversized row still advances.
+	telemetryExportBatchBytes = 8 << 20
 
 	// MigrationStageTelemetryRelocation names the #1241 telemetry relocation progress stage.
 	MigrationStageTelemetryRelocation = "telemetry_relocation"
 )
 
 // MigrationProgress reports rows completed by one data-volume-dependent migration stage.
+// Total is zero until the stage knows its size. Done marks the stage, including its
+// trailing schema steps, as finished.
 type MigrationProgress struct {
 	Stage     string
 	Completed int64
 	Total     int64
+	Done      bool
 }
 
-// MigrationProgressFunc observes migration progress; it must not block the migration.
+// MigrationProgressFunc observes migration progress. It runs synchronously on the
+// migration goroutine between batches, so implementations must return promptly.
 type MigrationProgressFunc func(MigrationProgress)
 
 // applyTelemetryRelocation is the migration owner for the two SQLite files.
@@ -98,7 +105,13 @@ func applyTelemetryRelocation(
 	}
 	// The SQL boundary refuses to drop a nonempty source, including when a
 	// caller tries to apply the stream without this cross-file coordinator.
-	return store.Apply(ctx, db, MigrationStream())
+	if err := store.Apply(ctx, db, MigrationStream()); err != nil {
+		return err
+	}
+	if progress != nil {
+		progress(MigrationProgress{Stage: MigrationStageTelemetryRelocation, Done: true})
+	}
+	return nil
 }
 
 // The destination exists before the source freeze commits. Once export can have
@@ -120,21 +133,23 @@ func requireTelemetryDestination(ctx context.Context, source *sql.DB, path strin
 }
 
 func exportTelemetry(ctx context.Context, source, target *sql.DB, progress MigrationProgressFunc) error {
+	report := func(completed, total int64) {
+		if progress != nil {
+			progress(MigrationProgress{Stage: MigrationStageTelemetryRelocation, Completed: completed, Total: total})
+		}
+	}
+	// Announce the stage before counting: counting a large frozen table is itself slow.
+	report(0, 0)
 	// The export table is frozen at telemetryExportVersion, so its remaining rows bound the work.
 	var total int64
 	if err := source.QueryRowContext(ctx, "SELECT COUNT(*) FROM event_summary_export").Scan(&total); err != nil {
 		return fmt.Errorf("store: count telemetry export: %w", err)
 	}
 	slog.InfoContext(ctx, "store: relocating telemetry", "rows", total)
-	report := func(completed int64) {
-		if progress != nil {
-			progress(MigrationProgress{Stage: MigrationStageTelemetryRelocation, Completed: completed, Total: total})
-		}
-	}
-	report(0)
+	report(0, total)
 	var completed int64
 	for {
-		columns, rows, err := readTelemetryExportBatch(ctx, source)
+		columns, rows, err := readTelemetryExportBatch(ctx, source, telemetryExportBatchBytes)
 		if err != nil {
 			return err
 		}
@@ -142,7 +157,7 @@ func exportTelemetry(ctx context.Context, source, target *sql.DB, progress Migra
 			if err := preserveTelemetrySequence(ctx, source, target); err != nil {
 				return err
 			}
-			report(total)
+			report(total, total)
 			slog.InfoContext(ctx, "store: relocated telemetry", "rows", completed)
 			return nil
 		}
@@ -170,7 +185,7 @@ func exportTelemetry(ctx context.Context, source, target *sql.DB, progress Migra
 			return err
 		}
 		completed += int64(len(rows))
-		report(min(completed, total))
+		report(min(completed, total), total)
 	}
 }
 
@@ -207,7 +222,12 @@ func preserveTelemetrySequence(ctx context.Context, source, target *sql.DB) erro
 	)
 }
 
-func readTelemetryExportBatch(ctx context.Context, db *sql.DB) (columns []string, values [][]any, err error) {
+// readTelemetryExportBatch reads up to telemetryExportBatch rows in seq order, stopping early at the byte budget.
+func readTelemetryExportBatch(
+	ctx context.Context,
+	db *sql.DB,
+	byteBudget int,
+) (columns []string, values [][]any, err error) {
 	rows, err := db.QueryContext(ctx, "SELECT * FROM event_summary_export ORDER BY seq LIMIT ?", telemetryExportBatch)
 	if err != nil {
 		return nil, nil, fmt.Errorf("store: read telemetry export: %w", err)
@@ -220,7 +240,8 @@ func readTelemetryExportBatch(ctx context.Context, db *sql.DB) (columns []string
 	if len(columns) == 0 || columns[0] != "seq" {
 		return nil, nil, errors.New("store: telemetry export lacks its sequence identity")
 	}
-	for rows.Next() {
+	retained := 0
+	for retained < byteBudget && rows.Next() {
 		row := make([]any, len(columns))
 		destinations := make([]any, len(columns))
 		for i := range row {
@@ -230,8 +251,24 @@ func readTelemetryExportBatch(ctx context.Context, db *sql.DB) (columns []string
 			return nil, nil, err
 		}
 		values = append(values, row)
+		retained += telemetryRowBytes(row)
 	}
 	return columns, values, rows.Err()
+}
+
+func telemetryRowBytes(row []any) int {
+	size := 0
+	for _, value := range row {
+		switch typed := value.(type) {
+		case []byte:
+			size += len(typed)
+		case string:
+			size += len(typed)
+		default:
+			size += 8
+		}
+	}
+	return size
 }
 
 func commitTelemetryExportBatch(ctx context.Context, target *sql.DB, columns []string, rows [][]any) error {

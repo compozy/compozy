@@ -28,20 +28,20 @@ describe("bootstrap event parser", () => {
     expect(parseBootstrapEvent(JSON.stringify(event))).toMatchObject(event);
   });
 
-  it("Should accept replacement data-migration progress", () => {
+  it.each([0, 42, 100])("Should accept replacement data-migration progress at %i percent", pct => {
     const event = {
       type: "bootstrap",
       phase: "provision",
       status: "started",
-      message: "Upgrading CompozyOS data (42%).",
+      message: `Upgrading CompozyOS data (${pct}%).`,
       resolution: "provision",
       stage: "migrate",
-      pct: 42,
+      pct,
     };
     expect(parseBootstrapEvent(JSON.stringify(event))).toMatchObject(event);
   });
 
-  it("Should persist data-migration progress in the bootstrap log record", () => {
+  it("Should project data-migration progress into the bootstrap log record", () => {
     const event = parseBootstrapEvent(
       '{"type":"bootstrap","phase":"provision","status":"started","message":"Upgrading","resolution":"provision","stage":"migrate","pct":0}'
     );

@@ -743,7 +743,7 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 		); err != nil {
 			t.Fatal(err)
 		}
-		columns, expected, err := readTelemetryExportBatch(ctx, source)
+		columns, expected, err := readTelemetryExportBatch(ctx, source, telemetryExportBatchBytes)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -820,6 +820,79 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 			t.Fatalf("resumed cursor = %#v, %v", rows, err)
 		}
 	})
+	t.Run("Should report completion only after the relocation schema steps", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00189_schema.sql"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := source.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := source.ExecContext(ctx, `INSERT INTO event_summaries(seq,id,profile_id,type,timestamp)
+			VALUES (1,'a',?,'settings.changed','2026-11-03T19:00:00Z'),
+			(2,'b',?,'settings.changed','2026-11-03T19:00:00Z')`, store.DefaultProfileID, store.DefaultProfileID); err != nil {
+			t.Fatal(err)
+		}
+		var reported []MigrationProgress
+		if err := applyTelemetryRelocation(ctx, source, path, 185, func(progress MigrationProgress) {
+			reported = append(reported, progress)
+		}); err != nil {
+			t.Fatal(err)
+		}
+		wantProgress := []MigrationProgress{
+			{Stage: MigrationStageTelemetryRelocation},
+			{Stage: MigrationStageTelemetryRelocation, Completed: 0, Total: 2},
+			{Stage: MigrationStageTelemetryRelocation, Completed: 2, Total: 2},
+			{Stage: MigrationStageTelemetryRelocation, Completed: 2, Total: 2},
+			{Stage: MigrationStageTelemetryRelocation, Done: true},
+		}
+		if !reflect.DeepEqual(reported, wantProgress) {
+			t.Fatalf("relocation progress = %#v, want %#v", reported, wantProgress)
+		}
+		status, err := store.Status(ctx, source, MigrationStream())
+		if err != nil || status.Version < telemetryMovedVersion {
+			t.Fatalf("schema after reported completion = %#v, %v", status, err)
+		}
+	})
+	t.Run("Should bound each export batch by payload bytes while always advancing", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		source, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00191_telemetry_export_complete.sql"),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := source.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		if _, err := source.ExecContext(ctx, `WITH RECURSIVE rows(n) AS (
+			SELECT 1 UNION ALL SELECT n+1 FROM rows WHERE n<4
+		) INSERT INTO event_summary_export(seq,id,profile_id,type,summary,timestamp)
+		SELECT n,'large-'||n,?,'settings.changed',hex(randomblob(4096)),'2026-11-03T19:00:00Z' FROM rows`,
+			store.DefaultProfileID); err != nil {
+			t.Fatal(err)
+		}
+		_, oversized, err := readTelemetryExportBatch(ctx, source, 1024)
+		if err != nil || len(oversized) != 1 {
+			t.Fatalf("oversized row batch = %d rows, %v; want exactly one", len(oversized), err)
+		}
+		_, bounded, err := readTelemetryExportBatch(ctx, source, 3*8192)
+		if err != nil || len(bounded) != 3 {
+			t.Fatalf("budgeted batch = %d rows, %v; want 3 rows of 8 KiB summaries", len(bounded), err)
+		}
+		for i, row := range bounded {
+			if got, want := row[0], int64(i+1); got != want {
+				t.Fatalf("budgeted batch row %d seq = %v, want %d", i, got, want)
+			}
+		}
+	})
 	t.Run("Should refuse a lost destination after acknowledging an export batch", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		source, err := openGlobalMigrationPrefixDatabase(t, path, globalMigrationPrefixBefore(t, "00189_schema.sql"))
@@ -854,6 +927,7 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 		}
 		// Progress counts only acknowledged batches, so an interrupted export never reports completion.
 		wantProgress := []MigrationProgress{
+			{Stage: MigrationStageTelemetryRelocation},
 			{Stage: MigrationStageTelemetryRelocation, Completed: 0, Total: telemetryExportBatch + 1},
 			{
 				Stage:     MigrationStageTelemetryRelocation,

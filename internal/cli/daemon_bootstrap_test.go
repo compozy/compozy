@@ -368,7 +368,7 @@ func TestDesktopRuntimeBootstrapReplacement(t *testing.T) {
 				t.Fatalf("successful replacement left recovery copies %v, %v", copies, err)
 			}
 			if test.migration == "advancing" {
-				assertBootstrapMigrationEvents(t, events.String(), []int{0, 50})
+				assertBootstrapMigrationEvents(t, events.String(), []int{0, 0, 50, 100})
 			}
 			if execution.restartRejectingDesktopRuntime(test.status, true) {
 				t.Fatal("restartRejectingDesktopRuntime() after replacement = true, want no second restart")
@@ -1207,20 +1207,25 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 
 // bootstrapRestartStatuses scripts the restart journal a replacement publishes while it migrates data.
 func bootstrapRestartStatuses(migration string) []SettingsRestartStatusRecord {
-	migrating := func(completed int64) SettingsRestartStatusRecord {
+	migratingOf := func(completed, total int64) SettingsRestartStatusRecord {
 		return SettingsRestartStatusRecord{
 			OperationID: "bootstrap-restart",
 			Status:      contract.RestartOperationStarting,
 			Progress: &contract.RestartProgress{
 				Phase: contract.RestartProgressMigrating, Stage: "telemetry_relocation",
-				Completed: completed, Total: 2048,
+				Completed: completed, Total: total,
 			},
 		}
 	}
+	migrating := func(completed int64) SettingsRestartStatusRecord { return migratingOf(completed, 2048) }
 	ready := SettingsRestartStatusRecord{OperationID: "bootstrap-restart", Status: "ready", NewPID: 4343}
 	switch migration {
 	case "advancing":
-		return []SettingsRestartStatusRecord{migrating(0), migrating(0), migrating(1024), migrating(1024), ready}
+		statuses := []SettingsRestartStatusRecord{migratingOf(0, 0)}
+		for completed := range int64(20) {
+			statuses = append(statuses, migrating(completed/10*1024))
+		}
+		return append(statuses, migrating(2048), ready)
 	case "stalled":
 		return []SettingsRestartStatusRecord{migrating(1024)}
 	default:

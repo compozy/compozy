@@ -144,7 +144,7 @@ func TestRestartMigrationProgress(t *testing.T) {
 		}
 	}
 
-	t.Run("Should publish throttled progress while starting and clear it at readiness", func(t *testing.T) {
+	t.Run("Should publish throttled progress while starting and clear it when finished", func(t *testing.T) {
 		t.Parallel()
 		homePaths := testHomePaths(t)
 		clock := time.Date(2026, 11, 4, 13, 1, 0, 0, time.UTC)
@@ -187,6 +187,18 @@ func TestRestartMigrationProgress(t *testing.T) {
 			t.Fatalf("completed progress = %#v, want an unthrottled 3000/3000 report", got)
 		}
 
+		clock = clock.Add(time.Millisecond)
+		report(globaldb.MigrationProgress{Stage: globaldb.MigrationStageTelemetryRelocation, Done: true})
+		if operation, err := store.Get("restart-migrating"); err != nil || operation.Progress != nil ||
+			operation.Status != RestartStatusStarting {
+			t.Fatalf("finished migration = %#v, %v; want progress cleared while still starting", operation, err)
+		}
+
+		if _, err := store.RecordProgress("restart-migrating", &RestartProgress{
+			Stage: globaldb.MigrationStageTelemetryRelocation, Completed: 1, Total: 2,
+		}); err != nil {
+			t.Fatal(err)
+		}
 		ready, err := store.Transition("restart-migrating", restartTransition{status: RestartStatusReady, newPID: 99})
 		if err != nil || ready.Progress != nil {
 			t.Fatalf("ready transition = %#v, %v; want progress cleared", ready.Progress, err)

@@ -42,6 +42,7 @@ func (d *Daemon) migrationProgressReporter() globaldb.MigrationProgressFunc {
 }
 
 // record never fails the migration: the journal is an observation channel, not migration state.
+// Writes are throttled, including after a failed write, because the migration goroutine waits on them.
 func (r *restartProgressRecorder) record(progress globaldb.MigrationProgress) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -49,15 +50,16 @@ func (r *restartProgressRecorder) record(progress globaldb.MigrationProgress) {
 		return
 	}
 	now := r.now()
-	finished := progress.Completed >= progress.Total
-	if !r.lastWrite.IsZero() && !finished && now.Sub(r.lastWrite) < restartProgressWriteInterval {
+	final := progress.Done || (progress.Total > 0 && progress.Completed >= progress.Total)
+	if !r.lastWrite.IsZero() && !final && now.Sub(r.lastWrite) < restartProgressWriteInterval {
 		return
 	}
-	recorded, err := r.store.RecordProgress(r.operationID, RestartProgress{
-		Stage:     progress.Stage,
-		Completed: progress.Completed,
-		Total:     progress.Total,
-	})
+	r.lastWrite = now
+	var journal *RestartProgress
+	if !progress.Done {
+		journal = &RestartProgress{Stage: progress.Stage, Completed: progress.Completed, Total: progress.Total}
+	}
+	recorded, err := r.store.RecordProgress(r.operationID, journal)
 	if err != nil {
 		slog.Warn(
 			"daemon: record restart migration progress",
@@ -70,7 +72,5 @@ func (r *restartProgressRecorder) record(progress globaldb.MigrationProgress) {
 	if !recorded {
 		// The operation is terminal or superseded; nobody is observing this replacement anymore.
 		r.disabled = true
-		return
 	}
-	r.lastWrite = now
 }
