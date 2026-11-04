@@ -408,10 +408,11 @@ func TestManagerForgeQuota(t *testing.T) {
 			t.Fatal(err)
 		}
 		manager.forgeQuota.limit("github-provider", nil, manager.now())
-		if _, err := manager.ForgeCapabilities(t.Context(), remotes); ForgeProviderErrorCause(err) != extensioncontract.ForgeCauseRateLimited {
+		_, err := manager.ForgeCapabilities(t.Context(), remotes)
+		if ForgeProviderErrorCause(err) != extensioncontract.ForgeCauseRateLimited {
 			t.Fatalf("read hold = %v", err)
 		}
-		_, err := manager.ForgeCreatePR(t.Context(), extensioncontract.ForgePRCreateRequest{
+		_, err = manager.ForgeCreatePR(t.Context(), extensioncontract.ForgePRCreateRequest{
 			RemoteURLs: remotes, Head: "topic", Base: "main", Title: "Quota",
 		})
 		if err != nil || creates.Load() != 1 {

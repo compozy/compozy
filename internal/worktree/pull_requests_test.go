@@ -108,19 +108,21 @@ func TestPullRequestService(t *testing.T) {
 		entered := make(chan struct{}, 4)
 		release := make(chan struct{})
 		var removedCalls atomic.Int32
-		provider := pullRequestTestForge{status: func(ctx context.Context, request ForgeStatusRequest) (*ForgeStatus, error) {
-			if request.Branch == "removed" {
-				removedCalls.Add(1)
-				return &ForgeStatus{}, nil
-			}
-			entered <- struct{}{}
-			select {
-			case <-release:
-				return &ForgeStatus{}, nil
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-		}}
+		provider := pullRequestTestForge{
+			status: func(ctx context.Context, request ForgeStatusRequest) (*ForgeStatus, error) {
+				if request.Branch == "removed" {
+					removedCalls.Add(1)
+					return &ForgeStatus{}, nil
+				}
+				entered <- struct{}{}
+				select {
+				case <-release:
+					return &ForgeStatus{}, nil
+				case <-ctx.Done():
+					return nil, ctx.Err()
+				}
+			},
+		}
 		service := NewPullRequestService(t.Context(), newPullRequestMemoryStore(), provider, nil, nil)
 		t.Cleanup(service.Close)
 		for i := range 4 {

@@ -326,12 +326,20 @@ func TestServiceStatus(t *testing.T) {
 		if facts := inspections[403].ForgeStatus; facts == nil || facts.PRNumber == nil || *facts.PRNumber != 99 {
 			t.Fatalf("other repository lost cached facts: %#v", facts)
 		}
-		t.Logf("one list hydration: 400 inactive + 3 active + 1 removed in another repository; forge calls = %d", calls.Load())
+		t.Logf(
+			"one list hydration: 400 inactive + 3 active + 1 removed in another repository; forge calls = %d",
+			calls.Load(),
+		)
 		if got := calls.Load(); got != 3 {
 			t.Fatalf("one list read made %d forge calls for 400 inactive + 3 active worktrees, want 3", got)
 		}
 		slices.Sort(requested)
-		if want := []string{"https://github.com/acme/repo.git#live/400", "https://github.com/acme/repo.git#live/401", "https://github.com/acme/repo.git#shared/feature"}; !slices.Equal(requested, want) {
+		want := []string{
+			"https://github.com/acme/repo.git#live/400",
+			"https://github.com/acme/repo.git#live/401",
+			"https://github.com/acme/repo.git#shared/feature",
+		}
+		if !slices.Equal(requested, want) {
 			t.Fatalf("refreshed branches = %v, want %v", requested, want)
 		}
 		if facts := inspections[0].ForgeStatus; facts == nil || facts.PRNumber == nil || *facts.PRNumber != 9 {
