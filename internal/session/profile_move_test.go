@@ -411,6 +411,77 @@ func TestManagerMoveToProfile(t *testing.T) {
 		},
 	)
 
+	t.Run("Should move with archived descendants while preserving their profile and lineage", func(t *testing.T) {
+		t.Parallel()
+
+		h := newProfileMoveHarness(t)
+		source := h.stoppedSource(t, "", "")
+		child := h.stoppedSource(t, "", source.ID)
+		grandchild := h.stoppedSource(t, "", child.ID)
+		for _, descendant := range []*Info{grandchild, child} {
+			if _, err := h.manager.Archive(t.Context(), h.workspaceID, descendant.ID); err != nil {
+				t.Fatalf("Archive(descendant) error = %v", err)
+			}
+		}
+		result, err := h.move(t.Context(), source.ID)
+		if err != nil {
+			t.Fatalf("MoveToProfile() error = %v", err)
+		}
+		if result.Copy.ProfileID != profileMoveTargetID || !h.archivedAt(t, source.ID) {
+			t.Fatalf("move result = %#v; want target copy and archived original", result)
+		}
+		for _, original := range []*Info{child, grandchild} {
+			persisted, err := h.manager.Status(t.Context(), original.ID)
+			if err != nil {
+				t.Fatalf("Status(descendant) error = %v", err)
+			}
+			if !h.archivedAt(t, original.ID) || persisted.ProfileID != store.DefaultProfileID ||
+				persisted.State != StateStopped || persisted.Lineage.ParentSessionID != original.Lineage.ParentSessionID {
+				t.Fatalf("descendant changed after move: %#v", persisted)
+			}
+		}
+	})
+
+	for _, live := range []bool{false, true} {
+		t.Run(
+			fmt.Sprintf("Should refuse an unarchived descendant with live=%t and count only blockers", live),
+			func(t *testing.T) {
+				t.Parallel()
+
+				h := newProfileMoveHarness(t)
+				source := h.stoppedSource(t, "", "")
+				archived := h.stoppedSource(t, "", source.ID)
+				if _, err := h.manager.Archive(t.Context(), h.workspaceID, archived.ID); err != nil {
+					t.Fatalf("Archive(child) error = %v", err)
+				}
+				if live {
+					created, err := h.manager.Create(t.Context(), &CreateOpts{
+						AgentName: "coder", Workspace: h.workspaceID,
+						Lineage: &store.SessionLineage{ParentSessionID: source.ID},
+					})
+					if err != nil {
+						t.Fatalf("Create(child) error = %v", err)
+					}
+					t.Cleanup(func() { reportSessionStop(t, h.harness, created.ID) })
+				} else {
+					h.stoppedSource(t, "", archived.ID)
+				}
+				_, err := h.move(t.Context(), source.ID)
+				refusal, ok := errors.AsType[*ProfileMoveError](err)
+				want := fmt.Sprintf(
+					"session %s has 1 live or unarchived descendant session(s); stop and archive them first",
+					source.ID,
+				)
+				if !ok || refusal.Reason != ProfileMoveRefusalHasChildren || refusal.Message != want {
+					t.Fatalf("MoveToProfile() error = %v, want has_children with %q", err, want)
+				}
+				if h.archivedAt(t, source.ID) || !h.archivedAt(t, archived.ID) {
+					t.Fatal("refused move changed archive state")
+				}
+			},
+		)
+	}
+
 	t.Run("Should refuse a move that breaks a rule before changing anything", func(t *testing.T) {
 		t.Parallel()
 

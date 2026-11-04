@@ -342,7 +342,7 @@ owned by the target profile. The copy runs in that new worktree.
 The move is refused, with the reason in the dialog, when the session:
 
 - is running (stop it first)
-- has child sessions (make them top-level first)
+- has live or unarchived descendants (stop and archive them first)
 - is archived, nested under another session (make it top-level first), or is a subagent or spawned worker
 - has a worktree with uncommitted changes, a worktree another unarchived session still uses, a
   detached checkout, or a worktree that belongs to a task run
@@ -355,6 +355,10 @@ session and the branch are never deleted, and the rollback is retried the next t
 session or the daemon starts. If the daemon stops in the middle of a move, it settles the move when
 it starts again: a move whose copy was already created is completed, and any other is undone, so the
 original ends up unarchived and bound to a checkout of its branch.
+
+Archived, stopped descendants stay in the source profile with their lineage pointing to the
+archived original. The `session_move_to_profile_has_children` refusal counts only descendants
+that still need to be stopped or archived.
 
 Archived sessions that shared the moved worktree keep their history but lose that checkout; bind
 them to another worktree after unarchiving them.

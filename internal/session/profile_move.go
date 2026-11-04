@@ -235,6 +235,10 @@ func (m *Manager) refuseProfileMoveSource(ctx context.Context, opts MoveToProfil
 		}
 		return err
 	}
+	return m.refuseProfileMoveDescendants(ctx, meta)
+}
+
+func (m *Manager) refuseProfileMoveDescendants(ctx context.Context, meta *store.SessionMeta) error {
 	tree, err := m.sessionTreeStore()
 	if err != nil {
 		return err
@@ -243,10 +247,21 @@ func (m *Manager) refuseProfileMoveSource(ctx context.Context, opts MoveToProfil
 	if err != nil {
 		return fmt.Errorf("session: list children of %q: %w", meta.ID, err)
 	}
-	if len(children) > 0 {
+	blocking := 0
+	for i := range children {
+		child := &children[i]
+		_, live := m.Get(child.ID)
+		if child.ArchivedAt == nil || child.State != string(StateStopped) || live ||
+			m.isPending(child.ID) || m.sessionStartRun(child.ID) != nil {
+			blocking++
+		}
+	}
+	if blocking > 0 {
 		return profileMoveRefused(
-			ProfileMoveRefusalHasChildren, "session %s has %d child session(s); move it without children", meta.ID,
-			len(children),
+			ProfileMoveRefusalHasChildren,
+			"session %s has %d live or unarchived descendant session(s); stop and archive them first",
+			meta.ID,
+			blocking,
 		)
 	}
 	return nil
