@@ -77,10 +77,17 @@ Diagnose finished failures while other jobs run. Wait through a monitor, never a
 
 ## Reviewers
 
-CodeRabbit, Greptile and React Doctor must all finish on the final changes. Confirm each from its review or check on that head; elapsed time, a score or silence proves nothing. Do not install or configure a reviewer. If one cannot run, report the blocker and leave delivery open.
+CodeRabbit, Greptile and React Doctor must all finish on the final changes. Confirm each from its review or check on that head; elapsed time, a score or silence proves nothing. Do not install or configure a reviewer. If one cannot run, report the blocker and leave delivery open, except for the CodeRabbit fallback below.
 
 - CodeRabbit allows 8 reviews per hour across the repository, so parallel PRs stall on it. Stagger pushes, and do not request a re-review of an unchanged head.
 - CodeRabbit pauses after several pushed commits and its check shows `skipping`. Comment `@coderabbitai review` before claiming coverage.
+- **CodeRabbit fallback.** When CodeRabbit blocks the PR because it is rate-limited, refuses to re-review an already-reviewed head, or skips a PR over its 300-file limit, replace it:
+  1. Run a Claude Opus 5.5 reviewer subagent on the full PR diff. Use a plain reviewer brief, not `deep-review`. For the file limit only, an earlier external agent review of the same change, such as spec peer-review rounds, replaces this pass.
+  2. Post one PR comment that starts with `## CodeRabbit fallback review` and names the reviewed head, the trigger, and each finding, or links the earlier review. `merge-train` accepts only this heading from `pedronauck`.
+  3. Fix or answer every finding like any other reviewer's.
+  4. Dismiss a stale CodeRabbit `CHANGES_REQUESTED` review with a message linking that comment.
+
+  Greptile, React Doctor and CI still apply.
 
 Collect every page of reviews, inline threads and PR comments, including collapsed sections. Address every actionable finding at any severity, including human feedback and findings marked outdated or outside changed lines.
 

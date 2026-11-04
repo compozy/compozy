@@ -3,7 +3,11 @@
 
 Emits one item per open, non-draft pull request to main authored by the
 configured author whose head branch is not release/*, and that has CodeRabbit
-reviews on at least the configured number of distinct commits. The item key
+reviews on at least the configured number of distinct commits or a CodeRabbit
+fallback review comment (eng-delivery "Reviewers") by the author. Attributes
+also report how heavy the latest CodeRabbit round was and whether CodeRabbit
+refused to review (file limit, rate limit, already-reviewed head), so the model
+can apply the round-3 and fallback rules. The item key
 binds the head SHA, so a new head or a new candidate changes the digest and
 an unchanged candidate set skips the model. Attributes also carry the facts
 that unblock a skipped candidate (PR updated_at, which moves on new reviews,
@@ -18,11 +22,22 @@ Contract: CompozyOS check-in source v1 (JSON on stdin, {"items": [...]} on stdou
 
 import json
 import os
+import re
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
 CODERABBIT = "coderabbitai[bot]"
+FALLBACK_HEADING = "## CodeRabbit fallback review"
+# Severity badges: inline comments render "<picture>..</picture> Major**",
+# review-body follow-ups render "**🟠 Major**".
+SEVERITY = re.compile(r"(?:</picture>|[\U0001F534\U0001F7E0\U0001F7E1])\s*(Critical|Major|Minor)\*\*")
+ACTIONABLE = re.compile(r"Actionable comments posted:\s*(\d+)")
+UNAVAILABLE = (
+    ("file_limit", re.compile(r"Too many files!|files exceed the limit of 300")),
+    ("rate_limited", re.compile(r"Rate limit exceeded")),
+    ("no_rereview", re.compile(r"does not re-review already reviewed commits")),
+)
 
 
 def gh_list(path):
@@ -43,6 +58,33 @@ def gh_one(path):
     if proc.returncode != 0:
         raise RuntimeError(f"gh api {path}: {proc.stderr.strip()[:500]}")
     return json.loads(proc.stdout)
+
+
+def latest_round(reviews, comments):
+    """Actionable count and heaviness of CodeRabbit's newest reviewed commit.
+
+    The count is the review's "Actionable comments posted: N" header when
+    present, else top-level inline findings plus severity badges in the review
+    bodies (follow-up and outside-diff findings). Thread replies are excluded.
+    """
+    ours = [r for r in reviews if (r.get("user") or {}).get("login") == CODERABBIT and r.get("commit_id")]
+    if not ours:
+        return 0, False
+    commit = max(ours, key=lambda r: r.get("submitted_at") or "")["commit_id"]
+    round_reviews = [r for r in ours if r["commit_id"] == commit]
+    ids = {r["id"] for r in round_reviews}
+    inline = [
+        c.get("body") or ""
+        for c in comments
+        if (c.get("user") or {}).get("login") == CODERABBIT
+        and c.get("pull_request_review_id") in ids
+        and not c.get("in_reply_to_id")
+    ]
+    bodies = [r.get("body") or "" for r in round_reviews]
+    severities = [m for text in inline + bodies for m in SEVERITY.findall(text)]
+    headers = [int(n) for body in bodies for n in ACTIONABLE.findall(body)]
+    actionable = max(headers) if headers else len(inline) + sum(len(SEVERITY.findall(b)) for b in bodies)
+    return actionable, actionable >= 5 or any(s in ("Critical", "Major") for s in severities)
 
 
 def release_publishing(repo):
@@ -82,29 +124,49 @@ def main():
         and not str((pr.get("head") or {}).get("ref", "")).startswith("release/")
     ]
 
-    def coderabbit_rounds(pr):
-        reviews = gh_list(f"repos/{repo}/pulls/{pr['number']}/reviews?per_page=100")
-        return len(
+    def review_facts(pr):
+        number = pr["number"]
+        reviews = gh_list(f"repos/{repo}/pulls/{number}/reviews?per_page=100")
+        notes = gh_list(f"repos/{repo}/issues/{number}/comments?per_page=100")
+        rounds = len(
             {
                 r.get("commit_id")
                 for r in reviews
                 if (r.get("user") or {}).get("login") == CODERABBIT and r.get("commit_id")
             }
         )
+        fallback = any(
+            (c.get("user") or {}).get("login") == author
+            and (c.get("body") or "").lstrip().startswith(FALLBACK_HEADING)
+            for c in notes
+        )
+        coderabbit_text = "\n".join(
+            c.get("body") or "" for c in notes if (c.get("user") or {}).get("login") == CODERABBIT
+        )
+        unavailable = next((name for name, rx in UNAVAILABLE if rx.search(coderabbit_text)), "")
+        return reviews, rounds, fallback, unavailable
+
+    def round_facts(candidate):
+        pr, (reviews, _, _, _) = candidate
+        comments = gh_list(f"repos/{repo}/pulls/{pr['number']}/comments?per_page=100")
+        return latest_round(reviews, comments)
 
     # Parallel GETs keep a large batch of open PRs inside the 30s source timeout.
     with ThreadPoolExecutor(max_workers=8) as pool:
-        rounds = list(pool.map(coderabbit_rounds, pulls))
+        facts = list(pool.map(review_facts, pulls))
         # The oldest max_items candidates are reported (merge order). Keyed by
         # head SHA with no cursor, so no state; when more qualify, `more` puts a
         # "more items remain" entry in the digest and the model scans the rest.
-        qualifying = [(pr, n) for pr, n in zip(pulls, rounds) if n >= min_rounds]
+        qualifying = [(pr, f) for pr, f in zip(pulls, facts) if f[1] >= min_rounds or f[2]]
         candidates = qualifying[:max_items]
         details = list(pool.map(lambda c: gh_one(f"repos/{repo}/pulls/{c[0]['number']}"), candidates))
+        heaviness = list(pool.map(round_facts, candidates))
         publishing = release_publishing(repo) if candidates else False
 
     items = []
-    for (pr, n), detail in zip(candidates, details):
+    for (pr, (_, n, fallback, unavailable)), detail, (actionable, heavy) in zip(
+        candidates, details, heaviness
+    ):
         number = pr["number"]
         sha = pr["head"]["sha"]
         items.append(
@@ -120,6 +182,14 @@ def main():
                     # would wake the model several times per head.
                     "conflicting": detail.get("mergeable_state") == "dirty",
                     "coderabbit_rounds": n,
+                    "latest_round_actionable": actionable,
+                    "heavy_last_round": heavy,
+                    # "" or why CodeRabbit refused: file_limit, rate_limited,
+                    # no_rereview (from its PR comments); >300 changed files
+                    # counts as file_limit even before CodeRabbit comments.
+                    "coderabbit_unavailable": unavailable
+                    or ("file_limit" if (detail.get("changed_files") or 0) > 300 else ""),
+                    "fallback_review": fallback,
                     "updated_at": detail.get("updated_at") or pr.get("updated_at") or "",
                     "release_publishing": publishing,
                 },
