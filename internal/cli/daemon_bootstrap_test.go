@@ -1065,6 +1065,12 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 		if err != nil {
 			t.Fatalf("bootstrap error = %v; events=%#v", err, events)
 		}
+		if fixture.spawns != 1 {
+			t.Fatalf("spawned children = %d, want one lock-contended start before attach", fixture.spawns)
+		}
+		if got := countBootstrapEvents(events, bootstrapPhaseStart, bootstrapStatusRetrying); got != 0 {
+			t.Fatalf("retrying events = %d, want none while a live owner boots; events=%#v", got, events)
+		}
 		ready := events[len(events)-1]
 		if ready.Phase != bootstrapPhaseReady || ready.Resolution != bootstrapResolutionAttach ||
 			ready.Daemon == nil || ready.Daemon.PID != fixture.ownerPID {
