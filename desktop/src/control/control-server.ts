@@ -13,9 +13,10 @@ import {
   ControlMethodError,
 } from "./control-contract";
 import { tokenMatches } from "./control-token";
-import { controlEndpoint } from "./control-endpoint";
+import { controlEndpoint, InvalidControlEndpointError } from "./control-endpoint";
 import { writeFileAtomic } from "../files/atomic-write";
 import { ensurePrivateDirectory } from "../files/private-directory";
+import { protectWindowsPipe } from "../files/windows-permissions";
 
 const MAXIMUM_REQUEST_BYTES = 64 * 1024;
 const MAXIMUM_CONNECTIONS = 64;
@@ -181,7 +182,15 @@ async function removeStaleSocket(path: string): Promise<void> {
   if (process.getuid && metadata.uid !== process.getuid()) {
     throw new Error("The stale app control socket is not owned by this user.");
   }
-  if (await socketIsLive(await controlEndpoint(path))) {
+  let endpoint: string;
+  try {
+    endpoint = await controlEndpoint(path);
+  } catch (error) {
+    if (!(error instanceof InvalidControlEndpointError)) throw error;
+    await rm(path);
+    return;
+  }
+  if (await socketIsLive(endpoint)) {
     throw new Error("Another app control server is already listening.");
   }
   await rm(path);
@@ -223,9 +232,10 @@ export class ControlServer {
       });
     });
     try {
-      if (process.platform === "win32")
+      if (process.platform === "win32") {
+        await protectWindowsPipe(endpoint);
         await writeFileAtomic(canonicalPath, `${endpoint}\n`, 0o600);
-      else await chmod(canonicalPath, 0o600);
+      } else await chmod(canonicalPath, 0o600);
     } catch (error) {
       await new Promise<void>(resolveClose => server.close(() => resolveClose()));
       throw error;

@@ -668,6 +668,18 @@ test("Windows desktop: signed NSIS install, authenticated control, update and un
     await terminateRestartedDesktop(desktop.home);
     const uninstalled = await runCommand(join(installation, "Uninstall CompozyOS.exe"), ["/S"]);
     expect(uninstalled.exitCode, uninstalled.stderr).toBe(0);
+    await expect
+      .poll(
+        () =>
+          access(packaged.executablePath).then(
+            () => true,
+            () => false
+          ),
+        {
+          timeout: 60_000,
+        }
+      )
+      .toBe(false);
     expect(await readFile(preserved, "utf8")).toBe(
       "User data survives install, update and uninstall.\n"
     );

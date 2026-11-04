@@ -69,6 +69,9 @@ func (a *Authority) verifyRemoteInventory(ctx context.Context, commit ChannelCom
 		}
 		artifacts = append(artifacts, artifact)
 	}
+	if err := bindWindowsManifestIntegrity(artifacts, commit, a.backend.Repository()); err != nil {
+		return nil, errorWithCode(ErrorVerificationFailed, err)
+	}
 	return a.verifyArtifacts(ctx, version, artifacts)
 }
 

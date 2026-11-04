@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -235,7 +236,9 @@ func (b *GitHubBackend) VerifyAsset(ctx context.Context, version string, artifac
 			if !strings.EqualFold(digest, artifact.SHA256) {
 				return fmt.Errorf("desktop release: %s digest does not match", artifact.Name)
 			}
-			return nil
+			if artifact.expectedSHA512 == "" {
+				return nil
+			}
 		}
 		return b.verifyDownloadedAsset(ctx, asset.ID, artifact)
 	}
@@ -307,12 +310,17 @@ func (b *GitHubBackend) verifyDownloadedAsset(
 		return decodeGitHubError(response)
 	}
 	digest := sha256.New()
-	size, err := io.Copy(digest, response.Body)
+	manifestDigest := sha512.New()
+	size, err := io.Copy(io.MultiWriter(digest, manifestDigest), response.Body)
 	if err != nil {
 		return fmt.Errorf("desktop release: hash downloaded %s: %w", artifact.Name, err)
 	}
 	if size != artifact.Size || hex.EncodeToString(digest.Sum(nil)) != artifact.SHA256 {
 		return fmt.Errorf("desktop release: downloaded %s failed digest verification", artifact.Name)
+	}
+	if artifact.expectedSHA512 != "" &&
+		base64.StdEncoding.EncodeToString(manifestDigest.Sum(nil)) != artifact.expectedSHA512 {
+		return fmt.Errorf("desktop release: downloaded %s does not match the channel manifest digest", artifact.Name)
 	}
 	return nil
 }

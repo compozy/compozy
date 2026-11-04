@@ -68,6 +68,11 @@ try {
         if (Test-Path $uninstaller) {
             $removed = Start-Process -FilePath $uninstaller -ArgumentList '/S' -Wait -PassThru
             if ($removed.ExitCode -ne 0) { throw 'The smoke installation did not uninstall cleanly.' }
+            $deadline = [DateTime]::UtcNow.AddSeconds(60)
+            while ((Test-Path $executable) -and [DateTime]::UtcNow -lt $deadline) {
+                Start-Sleep -Milliseconds 250
+            }
+            if (Test-Path $executable) { throw 'The smoke installation left CompozyOS.exe after uninstall.' }
         }
         if ((Get-Content -Raw (Join-Path $runtimeHome 'config.toml')).Trim() -ne $config.Trim()) {
             throw 'Uninstall changed the CompozyOS configuration.'

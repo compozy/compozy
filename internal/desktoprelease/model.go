@@ -29,6 +29,9 @@ type Artifact struct {
 	Name   string `json:"name"`
 	SHA256 string `json:"sha256"`
 	Size   int64  `json:"size"`
+
+	// expectedSHA512 pins remote bytes to a previously published update manifest.
+	expectedSHA512 string
 }
 
 type Generation struct {

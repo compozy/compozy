@@ -8,12 +8,15 @@ import (
 	"encoding/json/v2"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/tailscale/go-winio"
+	"golang.org/x/sys/windows"
 )
 
 // Invariant: Windows control authenticates over a same-user local pipe and rejects remote discovery.
@@ -21,7 +24,7 @@ func TestAppControlWindows(t *testing.T) {
 	t.Parallel()
 	t.Run("Should exchange authenticated CLI requests over a real named pipe", func(t *testing.T) {
 		t.Parallel()
-		directory := t.TempDir()
+		directory := appControlWindowsTestDirectory(t)
 		address := fmt.Sprintf(`\\.\pipe\compozyos-%x`, sha256.Sum256([]byte(directory)))
 		listener, err := winio.ListenPipe(address, nil)
 		if err != nil {
@@ -53,10 +56,65 @@ func TestAppControlWindows(t *testing.T) {
 			t.Fatalf("pipe server error = %v", err)
 		}
 	})
+	t.Run("Should close a different owner's pipe before sending request bytes", func(t *testing.T) {
+		t.Parallel()
+		directory := appControlWindowsTestDirectory(t)
+		address := fmt.Sprintf(`\\.\pipe\compozyos-%x`, sha256.Sum256([]byte(directory)))
+		listener, err := winio.ListenPipe(address, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				t.Error(err)
+			}
+		})
+		path := filepath.Join(directory, "app.sock")
+		if err := os.WriteFile(path, []byte(address), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		served := make(chan error, 1)
+		go func() {
+			connection, err := listener.Accept()
+			if err != nil {
+				served <- err
+				return
+			}
+			bytes, readErr := io.ReadAll(connection)
+			closeErr := connection.Close()
+			if len(bytes) != 0 {
+				readErr = errors.Join(readErr, errors.New("untrusted pipe received request bytes"))
+			}
+			served <- errors.Join(readErr, closeErr)
+		}()
+		connection, err := dialAppControlWithProcessInspector(
+			t.Context(),
+			path,
+			func(pid uint32) (string, string, error) {
+				if pid != uint32(os.Getpid()) {
+					return "", "", fmt.Errorf("unexpected pipe server process: %d", pid)
+				}
+				return "S-1-0-0", "", nil
+			},
+		)
+		if connection != nil {
+			if closeErr := connection.Close(); closeErr != nil {
+				t.Error(closeErr)
+			}
+			t.Fatal("untrusted pipe remained connected")
+		}
+		if err == nil || !strings.Contains(err.Error(), "pipe server belongs to another user") {
+			t.Fatalf("dialAppControlWithProcessInspector() = %v, want owner rejection", err)
+		}
+		if err := <-served; err != nil {
+			t.Fatal(err)
+		}
+	})
 	t.Run("Should reject remote and unrelated pipe addresses before transmitting credentials", func(t *testing.T) {
 		t.Parallel()
-		for _, address := range []string{`\\remote\pipe\compozyos-foo`, `\\.\pipe\another-app`, "127.0.0.1:1234"} {
-			path := filepath.Join(t.TempDir(), "app.sock")
+		remoteAddress := `\\remote\pipe\compozyos-` + strings.Repeat("a", 64)
+		for _, address := range []string{remoteAddress, `\\.\pipe\another-app`, "127.0.0.1:1234"} {
+			path := filepath.Join(appControlWindowsTestDirectory(t), "app.sock")
 			if err := os.WriteFile(path, []byte(address), 0o600); err != nil {
 				t.Fatalf("WriteFile() error = %v", err)
 			}
@@ -65,9 +123,36 @@ func TestAppControlWindows(t *testing.T) {
 					t.Errorf("Close() error = %v", closeErr)
 				}
 				t.Fatal("dialAppControl() accepted an invalid local pipe address")
+			} else if !strings.Contains(err.Error(), "invalid local pipe address") {
+				t.Fatalf("dialAppControl() rejected discovery for the wrong reason: %v", err)
 			}
 		}
 	})
+}
+
+func appControlWindowsTestDirectory(t *testing.T) string {
+	t.Helper()
+	directory := t.TempDir()
+	operator, err := windows.GetCurrentProcessToken().GetTokenUser()
+	if err != nil {
+		t.Fatal(err)
+	}
+	security, err := windows.SecurityDescriptorFromString(
+		fmt.Sprintf("D:P(A;OICI;FA;;;%s)(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)", operator.User.Sid.String()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dacl, _, err := security.DACL()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := windows.SetNamedSecurityInfo(directory, windows.SE_FILE_OBJECT,
+		windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION,
+		nil, nil, dacl, nil); err != nil {
+		t.Fatal(err)
+	}
+	return directory
 }
 
 func exchangeWindowsAppControl(listener net.Listener) (err error) {

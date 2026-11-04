@@ -15,7 +15,11 @@ import {
   rewriteUpdateManifestURLs,
   selectUpdateManifestFiles,
 } from "../mac-manifest";
-import { buildReleaseConfig, validateReleaseConfig } from "../release-config";
+import {
+  buildReleaseConfig,
+  validateReleaseConfig,
+  windowsAzureSigningFromEnvironment,
+} from "../release-config";
 import { parseBooleanFlag, parseReleaseScriptFlags } from "../release-script-flags";
 import { resolveDesktopBuildChannel } from "../build-channel";
 
@@ -99,6 +103,56 @@ describe("desktop release policy", () => {
         size: 10,
       },
     ]);
+  });
+
+  // Invariant: release packaging pins the Azure publisher without persisting authentication credentials.
+  // Owner: release configuration. Canonical suite: release.test.ts.
+  it("Should reuse Azure signing metadata without embedding runner credentials", () => {
+    const environment = {
+      AZURE_SIGNING_ENDPOINT: "https://wus2.codesigning.azure.net/",
+      AZURE_PUBLISHER_NAME: "Example Company",
+      AZURE_CODE_SIGNING_ACCOUNT: "example-account",
+      AZURE_CERTIFICATE_PROFILE: "public-profile",
+      AZURE_CLIENT_SECRET: "must-stay-in-the-runner",
+    };
+    const signing = windowsAzureSigningFromEnvironment(environment);
+    if (!signing) throw new Error("Expected the complete Azure signing configuration.");
+    expect(signing).toEqual({
+      endpoint: environment.AZURE_SIGNING_ENDPOINT,
+      publisherName: environment.AZURE_PUBLISHER_NAME,
+      codeSigningAccountName: environment.AZURE_CODE_SIGNING_ACCOUNT,
+      certificateProfileName: environment.AZURE_CERTIFICATE_PROFILE,
+    });
+    const config = buildReleaseConfig({
+      arch: "x64",
+      platform: "win",
+      channel: "stable",
+      notarize: false,
+      version: "1.2.0",
+      windowsAzureSigning: signing,
+    });
+    expect(config).toMatchObject({ win: { azureSignOptions: signing } });
+    expect(JSON.stringify(config)).not.toContain(environment.AZURE_CLIENT_SECRET);
+    expect(windowsAzureSigningFromEnvironment({})).toBeUndefined();
+    expect(() =>
+      windowsAzureSigningFromEnvironment({ ...environment, AZURE_PUBLISHER_NAME: "" })
+    ).toThrow("AZURE_PUBLISHER_NAME");
+    expect(() =>
+      windowsAzureSigningFromEnvironment({
+        ...environment,
+        AZURE_SIGNING_ENDPOINT: "http://example.test",
+      })
+    ).toThrow("HTTPS service endpoint");
+    expect(() =>
+      buildReleaseConfig({
+        arch: "x64",
+        platform: "linux",
+        channel: "stable",
+        notarize: false,
+        version: "1.2.0",
+        windowsAzureSigning: signing,
+      })
+    ).toThrow("only to Windows");
   });
 
   it("Should produce Linux targets and reject invalid release matrices", () => {
