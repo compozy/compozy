@@ -62,8 +62,10 @@ func (m *Manager) requestTurnStop(ctx context.Context, id, expectedTurn string, 
 		run.cancel()
 	}
 	m.emitPromptCancelMarker(ctx, session, run.turnID)
-	m.skipDaemonShutdownResume(ctx, session, run.turnID)
 	m.startTrackedPromptTask(func() { m.executeTurnStop(context.WithoutCancel(ctx), run, cause) })
+	if m.daemonShuttingDown() {
+		m.startTrackedPromptTask(func() { m.skipDaemonShutdownResume(ctx, session, run.turnID) })
+	}
 	return run, nil
 }
 
