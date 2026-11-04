@@ -203,7 +203,7 @@ func (g *AutomationRepo) ResolveSuggestion(
 		if err != nil {
 			return automation.Suggestion{}, err
 		}
-		finishPublication := g.summaryPublications.begin()
+		finishPublication := g.summaryPublications.begin(observation.ProfileID, observation.WorkspaceID)
 		defer finishPublication()
 	}
 	err = store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
@@ -216,18 +216,7 @@ func (g *AutomationRepo) ResolveSuggestion(
 			return fmt.Errorf("store: resolve automation suggestion %q: %w", id, updateErr)
 		}
 		if affected == 0 {
-			_, lookupErr := queries.GetAutomationSuggestion(ctx, sqlcgen.GetAutomationSuggestionParams{
-				ProfileID:   profileID,
-				WorkspaceID: nullableAutomationString(workspaceID),
-				ID:          id,
-			})
-			if errors.Is(lookupErr, sql.ErrNoRows) {
-				return automation.ErrSuggestionNotFound
-			}
-			if lookupErr != nil {
-				return fmt.Errorf("store: verify automation suggestion resolution %q: %w", id, lookupErr)
-			}
-			return automation.ErrSuggestionResolved
+			return suggestionResolutionConflict(ctx, queries, profileID, workspaceID, id)
 		}
 		row, lookupErr := queries.GetAutomationSuggestion(ctx, sqlcgen.GetAutomationSuggestionParams{
 			ProfileID:   profileID,
@@ -254,6 +243,23 @@ func (g *AutomationRepo) ResolveSuggestion(
 		g.drainCommittedEventSummaries(ctx, observation)
 	}
 	return resolved, nil
+}
+
+func suggestionResolutionConflict(
+	ctx context.Context,
+	queries *sqlcgen.Queries,
+	profileID, workspaceID, id string,
+) error {
+	_, err := queries.GetAutomationSuggestion(ctx, sqlcgen.GetAutomationSuggestionParams{
+		ProfileID: profileID, WorkspaceID: nullableAutomationString(workspaceID), ID: id,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return automation.ErrSuggestionNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("store: verify automation suggestion resolution %q: %w", id, err)
+	}
+	return automation.ErrSuggestionResolved
 }
 
 func (g *AutomationRepo) RollbackSuggestionAcceptance(

@@ -16,7 +16,7 @@ func (g *WatchEventsRepo) readObserveWatchEventsCursor(
 	if len(query.kinds) == 0 {
 		return 0, nil
 	}
-	if err := g.summaryPublications.wait(ctx); err != nil {
+	if err := g.summaryPublications.wait(ctx, query.readScope, query.workspaceID); err != nil {
 		return 0, err
 	}
 	// dynamic-sql: caller-selected observability event kinds require a variable-width IN list.
@@ -46,7 +46,7 @@ func (g *WatchEventsRepo) readObserveWatchEvents(
 	if len(query.kinds) == 0 {
 		return nil, nil
 	}
-	if err := g.summaryPublications.wait(ctx); err != nil {
+	if err := g.summaryPublications.wait(ctx, query.readScope, query.workspaceID); err != nil {
 		return nil, err
 	}
 	// dynamic-sql: caller-selected observability event kinds require a variable-width IN list.

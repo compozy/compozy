@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 
 	automation "github.com/compozy/compozy/internal/automation/model"
+	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	"github.com/compozy/compozy/internal/store/telemetrydb"
@@ -610,6 +611,80 @@ func TestUserEventSummarySelection(t *testing.T) {
 // mark across a failed acknowledgement. Owner: global migration/open suite.
 func TestGlobalDBTelemetryRelocation(t *testing.T) {
 	ctx := t.Context()
+	// Fresh bootstrap and cross-file recovery share this migration/open owner.
+	for _, stage := range []string{"before sibling creation", "after sibling binding", "with a foreign sibling"} {
+		t.Run("Should resume fresh telemetry initialization "+stage, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			source, err := store.OpenSQLiteDatabase(ctx, path, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := source.Close(); err != nil {
+					t.Error(err)
+				}
+			})
+			bootstrapped, err := bootstrapGlobalTelemetry(ctx, source)
+			if err != nil || !bootstrapped {
+				t.Fatalf("fresh bootstrap = %v, %v", bootstrapped, err)
+			}
+			if pending, err := pendingTelemetryInitialization(ctx, source); err != nil || !pending {
+				t.Fatalf("pending fresh initialization = %v, %v", pending, err)
+			}
+			if stage != "before sibling creation" {
+				target, err := telemetrydb.Open(ctx, telemetrydb.Path(path))
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() {
+					if err := target.Close(context.WithoutCancel(ctx)); err != nil {
+						t.Error(err)
+					}
+				})
+				if stage == "after sibling binding" {
+					err = bindTelemetryDestination(ctx, source, target.DB())
+				} else {
+					_, err = target.DB().
+						ExecContext(ctx, "INSERT INTO telemetry_identity(singleton, identity) VALUES (1, 'foreign-family')")
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := target.Close(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := source.Close(); err != nil {
+				t.Fatal(err)
+			}
+			opened, err := OpenGlobalDB(ctx, path)
+			if stage == "with a foreign sibling" {
+				if opened != nil {
+					if closeErr := opened.Close(ctx); closeErr != nil {
+						t.Error(closeErr)
+					}
+				}
+				if err == nil || !strings.Contains(err.Error(), "does not match the core") {
+					t.Fatalf("foreign fresh destination = %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := opened.Close(context.WithoutCancel(ctx)); err != nil {
+					t.Error(err)
+				}
+			})
+			if pending, err := pendingTelemetryInitialization(ctx, opened.DB()); err != nil || pending {
+				t.Fatalf("completed fresh initialization = %v, %v", pending, err)
+			}
+			if err := verifyTelemetryIdentity(ctx, opened.DB(), opened.telemetry.DB()); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 	t.Run("Should resume committed copies without loss or duplicate cursors", func(t *testing.T) {
 		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
 		source, err := openGlobalMigrationPrefixDatabase(
@@ -1062,6 +1137,61 @@ func TestGlobalDBTelemetryRelocation(t *testing.T) {
 // Invariant: core contention cannot stall telemetry; committed lifecycle events
 // survive failed delivery and replay once. Owner: global observation store.
 func TestGlobalDBTelemetryDelivery(t *testing.T) {
+	t.Run("Should wait only for publication attempts visible to the reader scope", func(t *testing.T) {
+		db := openTestGlobalDB(t)
+		workspaceA := registerWorkspaceForGlobalTests(t, db, "publication-a", t.TempDir())
+		workspaceB := registerWorkspaceForGlobalTests(t, db, "publication-b", t.TempDir())
+		summary := store.EventSummary{ID: "unrelated-publication", ProfileID: store.DefaultProfileID,
+			WorkspaceID: workspaceB, Type: "settings.changed"}
+		summary.SetContent([]byte(`{}`))
+		if err := db.WriteEventSummary(t.Context(), summary); err != nil {
+			t.Fatal(err)
+		}
+		// Hold the real publication barrier at the core-commit/auxiliary-commit
+		// boundary. Public readers must not inherit another scope's pending work.
+		finish := db.ObserveRepo.summaryPublications.begin(store.DefaultProfileID, workspaceA)
+		defer finish()
+		for _, query := range []store.EventSummaryQuery{
+			{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: workspaceB},
+			{ReadScope: store.ReadScope{AllProfiles: true}, WorkspaceID: workspaceB},
+			{ReadScope: store.ReadScope{ProfileID: "unrelated-profile"}},
+		} {
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			rows, err := db.ListEventSummaries(ctx, query)
+			cancel()
+			if err != nil {
+				t.Fatalf("unrelated scope blocked: %#v: %v", query, err)
+			}
+			if query.WorkspaceID == workspaceB && (len(rows) != 1 || rows[0].ID != summary.ID) {
+				t.Fatalf("unrelated scope lost committed rows: %#v", rows)
+			}
+		}
+		watch := looppkg.WatchEventsQuery{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			WorkspaceID: workspaceB, Streams: map[string]int64{looppkg.WatchEventsObserveStream: 0},
+			Kinds: []string{summary.Type}, Limit: 10}
+		ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		cursors, err := db.ReadCursors(ctx, watch)
+		if err != nil || cursors[looppkg.WatchEventsObserveStream] == 0 {
+			t.Fatalf("unrelated watch cursor = %#v, %v", cursors, err)
+		}
+		matches, err := db.ReadMatches(ctx, watch)
+		if err != nil || len(matches) != 1 {
+			t.Fatalf("unrelated watch events = %#v, %v", matches, err)
+		}
+		for _, query := range []store.EventSummaryQuery{
+			{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}, WorkspaceID: workspaceA},
+			{ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID}},
+			{ReadScope: store.ReadScope{AllProfiles: true}},
+		} {
+			waiting, stop := context.WithTimeout(t.Context(), 20*time.Millisecond)
+			_, err := db.ListEventSummaries(waiting, query)
+			stop()
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("matching scope bypassed publication or cancellation: %v", err)
+			}
+		}
+	})
 	t.Run("Should read and append events while the entire core writer pool is reserved", func(t *testing.T) {
 		db := openTestGlobalDB(t)
 		db.db.SetMaxOpenConns(1)
@@ -1379,5 +1509,4 @@ func TestGlobalDBTelemetryDelivery(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
-
 }

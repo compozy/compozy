@@ -52,26 +52,13 @@ func (g *HeartbeatRepo) UpsertHeartbeatSnapshot(
 		return existing, nil
 	}
 
+	params := heartbeatSnapshotInsertParams(normalized)
 	affected, err := executeWriteQueryResult(
 		ctx,
 		g.repoBase,
 		"globaldb.InsertHeartbeatSnapshot",
 		func(ctx context.Context, queries *sqlcgen.Queries) (int64, error) {
-			return queries.InsertHeartbeatSnapshot(ctx, sqlcgen.InsertHeartbeatSnapshotParams{
-				ID:              normalized.ID,
-				WorkspaceID:     normalized.WorkspaceID,
-				ProfileID:       normalized.ProfileID,
-				AgentName:       normalized.AgentName,
-				SourcePath:      normalized.SourcePath,
-				SchemaVersion:   int64(normalized.SchemaVersion),
-				Digest:          normalized.Digest,
-				ConfigDigest:    normalized.ConfigDigest,
-				Body:            normalized.Body,
-				FrontmatterJson: string(normalized.FrontmatterJSON),
-				ResolvedJson:    string(normalized.ResolvedJSON),
-				DiagnosticsJson: string(normalized.DiagnosticsJSON),
-				CreatedAt:       store.FormatTimestamp(normalized.CreatedAt),
-			})
+			return queries.InsertHeartbeatSnapshot(ctx, params)
 		},
 	)
 	if err != nil {
@@ -98,6 +85,16 @@ func (g *HeartbeatRepo) UpsertHeartbeatSnapshot(
 		return existing, nil
 	}
 	return normalized, nil
+}
+
+func heartbeatSnapshotInsertParams(snapshot heartbeat.Snapshot) sqlcgen.InsertHeartbeatSnapshotParams {
+	return sqlcgen.InsertHeartbeatSnapshotParams{
+		ID: snapshot.ID, WorkspaceID: snapshot.WorkspaceID, ProfileID: snapshot.ProfileID,
+		AgentName: snapshot.AgentName, SourcePath: snapshot.SourcePath, SchemaVersion: int64(snapshot.SchemaVersion),
+		Digest: snapshot.Digest, ConfigDigest: snapshot.ConfigDigest, Body: snapshot.Body,
+		FrontmatterJson: string(snapshot.FrontmatterJSON), ResolvedJson: string(snapshot.ResolvedJSON),
+		DiagnosticsJson: string(snapshot.DiagnosticsJSON), CreatedAt: store.FormatTimestamp(snapshot.CreatedAt),
+	}
 }
 
 // GetHeartbeatSnapshot returns a persisted Heartbeat snapshot by id.

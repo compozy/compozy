@@ -2,7 +2,10 @@ package globaldb
 
 import (
 	"context"
+	"strings"
 	"sync"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 // eventSummaryPublications bridges a lifecycle commit and its immediate
@@ -11,16 +14,20 @@ import (
 // A failed attempt remains durable in the outbox for the owned retry worker.
 type eventSummaryPublications struct {
 	mu      sync.Mutex
-	pending map[chan struct{}]struct{}
+	pending map[chan struct{}]eventSummaryPublicationScope
 }
 
-func (p *eventSummaryPublications) begin() func() {
+type eventSummaryPublicationScope struct {
+	profileID, workspaceID string
+}
+
+func (p *eventSummaryPublications) begin(profileID, workspaceID string) func() {
 	done := make(chan struct{})
 	p.mu.Lock()
 	if p.pending == nil {
-		p.pending = make(map[chan struct{}]struct{})
+		p.pending = make(map[chan struct{}]eventSummaryPublicationScope)
 	}
-	p.pending[done] = struct{}{}
+	p.pending[done] = eventSummaryPublicationScope{profileID: profileID, workspaceID: workspaceID}
 	p.mu.Unlock()
 	return func() {
 		p.mu.Lock()
@@ -30,11 +37,14 @@ func (p *eventSummaryPublications) begin() func() {
 	}
 }
 
-func (p *eventSummaryPublications) wait(ctx context.Context) error {
+func (p *eventSummaryPublications) wait(ctx context.Context, scope store.ReadScope, workspaceID string) error {
+	workspaceID = strings.TrimSpace(workspaceID)
 	p.mu.Lock()
 	pending := make([]<-chan struct{}, 0, len(p.pending))
-	for done := range p.pending {
-		pending = append(pending, done)
+	for done, owner := range p.pending {
+		if scope.Matches(owner.profileID) && (workspaceID == "" || workspaceID == owner.workspaceID) {
+			pending = append(pending, done)
+		}
 	}
 	p.mu.Unlock()
 	for _, done := range pending {

@@ -21,6 +21,27 @@ const (
 // Source rows are removed only after a FULL-synchronous target commit and exact
 // value verification. An interruption at either commit resumes idempotently.
 func applyTelemetryRelocation(ctx context.Context, db *sql.DB, path string, version int64) (retErr error) {
+	if version == 0 {
+		if _, err := bootstrapGlobalTelemetry(ctx, db); err != nil {
+			return err
+		}
+		status, err := store.Status(ctx, db, MigrationStream())
+		if err != nil {
+			return err
+		}
+		version = status.Version
+	}
+	if version >= telemetryMovedVersion {
+		pending, err := pendingTelemetryInitialization(ctx, db)
+		if err != nil {
+			return err
+		}
+		if pending {
+			if err := completeTelemetryInitialization(ctx, db, path); err != nil {
+				return err
+			}
+		}
+	}
 	targetPath := telemetrydb.Path(path)
 	if version >= telemetryExportVersion {
 		if err := requireTelemetryDestination(ctx, db, targetPath); err != nil {

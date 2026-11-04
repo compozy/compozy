@@ -97,7 +97,7 @@ func (g *ObserveRepo) ListEventSummaries(
 	if err := g.validateEventSummaryQuery(ctx, query); err != nil {
 		return nil, err
 	}
-	if err := g.summaryPublications.wait(ctx); err != nil {
+	if err := g.summaryPublications.wait(ctx, query.ReadScope, query.WorkspaceID); err != nil {
 		return nil, err
 	}
 

@@ -1695,6 +1695,7 @@ func TestOpenSessionDBRejectsDifferentOwnerIdentity(t *testing.T) {
 		before := readOnlySessionDatabaseFamilyDigest(t, foreignPath)
 
 		expectedDB.db.SetMaxIdleConns(0)
+		expectedDB.readDB.SetMaxIdleConns(0)
 		if err := os.Rename(expectedDir, filepath.Join(root, "expected-before-substitution")); err != nil {
 			t.Fatalf("os.Rename(expected backup) error = %v", err)
 		}
@@ -1708,6 +1709,17 @@ func TestOpenSessionDBRejectsDifferentOwnerIdentity(t *testing.T) {
 		}
 		if len(events) != 0 {
 			t.Fatalf("Query(substituted writable connection) events = %#v, want empty", events)
+		}
+		// Query now uses the independent reader. Exercise the writable connector
+		// explicitly as well, preserving the original physical-open invariant.
+		connection, err := expectedDB.db.Conn(ctx)
+		if connection != nil {
+			if closeErr := connection.Close(); closeErr != nil {
+				t.Error(closeErr)
+			}
+		}
+		if !errors.Is(err, ErrSessionDBOwnerMismatch) {
+			t.Fatalf("Conn(substituted writer) error = %v, want ErrSessionDBOwnerMismatch", err)
 		}
 		assertReadOnlySessionDatabaseUnchanged(t, expectedPath, before)
 	})

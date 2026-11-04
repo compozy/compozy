@@ -310,7 +310,7 @@ func (r *ExtensionMCPRepo) RetireTargets(
 	if err := observe.prepareEventSummary(ctx, &summary); err != nil {
 		return err
 	}
-	finishPublication := r.summaryPublications.begin()
+	finishPublication := r.summaryPublications.begin(summary.ProfileID, summary.WorkspaceID)
 	defer finishPublication()
 	err := store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
@@ -359,7 +359,7 @@ func (r *ExtensionMCPRepo) RetireWorkspace(
 	if err := observe.prepareEventSummary(ctx, &summary); err != nil {
 		return err
 	}
-	finishPublication := r.summaryPublications.begin()
+	finishPublication := r.summaryPublications.begin(summary.ProfileID, summary.WorkspaceID)
 	defer finishPublication()
 	err := store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
 		queries := sqlcgen.New(tx)
