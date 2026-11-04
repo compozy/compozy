@@ -67,8 +67,10 @@ The expanded boundary suite and native descriptor suite passed with race.
 Tool events still bypass the 25 ms chunk coalescer to preserve the requested immediate boundary.
 Fallback protection also applies when native injection is refused or unavailable for a particular
 message; prediction reflects the advertised capability, while the acceptance receipt remains
-final delivery truth. Explicit interrupt cancels immediately and preserves existing parked-input
-ordering, as the queue owner already specifies; this change does not discard earlier guidance.
+final delivery truth. Explicit interrupt cancels immediately and supersedes older pending-boundary steering so its
+replacement text runs next, while ordinary queued input is retained. The expanded manager suite
+covers this overlap. All eight boundary cases and the affected fallback/promotion suites passed
+with race after that correction (23.182s).
 The existing no-tool-events browser fixture now requires `after_turn` and the corresponding inline
 feedback, rather than accepting an open-ended delivery list. Its E2E execution is CI-owned.
 
@@ -90,3 +92,7 @@ bunx turbo run test --filter=./web -- src/systems/session/lib/__tests__/session-
 Changed-file Oxlint passed for the Web consumers and E2E contract. The test-shape checker found no
 new diagnostics against the base version; preexisting whole-file diagnostics were left outside scope.
 The temporary provider probe was removed from the checkout after its source was retained in the lab.
+
+The second review identified and corrected this interrupt/parked-steer ordering gap plus stale
+delivery-table and configuration-lifecycle prose. The documented `after_turn` ordering remains
+queue-like, as requested; newer steering may supersede undelivered guidance.

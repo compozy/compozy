@@ -58,3 +58,8 @@ race cases verify boundary wait, overlapping tools, timeout, no-event queue, zer
 explicit interrupt. Root Turbo Web checks cover the new delivery read models; no interactive
 browser walk is claimed. See `docs/qa/reports/2026-11-04-issue1292-boundary-steer.md` for exact
 scope, the historical-detection limitation, and delivery checks still pending.
+
+When a boundary steer is parked, explicitly interrupt with different text: the parked guidance must
+be superseded and the interrupt text must run next, with ordinary queued messages retained.
+An `after_turn` steer follows queue ordering behind earlier operator messages; a newer steer may
+replace that undelivered guidance. A boundary steer retains replacement priority on natural turn end.

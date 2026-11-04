@@ -47,6 +47,11 @@ func (m *Manager) activateInterruptingInput(
 			activeTurnID,
 		)
 	}
+	if entry.Mode == store.SessionInputQueueModeInterrupt && store.IsHumanSessionInputOriginClass(entry.OriginClass) {
+		if err := m.supersedeBoundarySteers(ctx, session, entry); err != nil {
+			return err
+		}
+	}
 	if err := m.CancelTurn(ctx, session.ID, entry.TargetTurnID, CauseUserRequested); err != nil {
 		return err
 	}

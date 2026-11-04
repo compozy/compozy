@@ -20,14 +20,21 @@ compozy session prompt sess_1234 "Change direction." --steer --expected-turn tur
 ```
 
 Steering uses the live agent's advertised capability. A successful injection preserves the active
-turn. If injection is unavailable or refused, CompozyOS records `interrupt_fallback` before canceling
-the current turn and dispatching the accepted replacement.
+turn. If injection is unavailable or refused, delivery follows the boundary and timeout rules above.
+`interrupt_fallback` records the replacement when CompozyOS activates cancellation.
 
 | `steer_delivery`     | Meaning                                                      |
 | -------------------- | ------------------------------------------------------------ |
 | `injected`           | Guidance was delivered into the active turn.                 |
 | `pending_injection`  | The agent accepted guidance and is waiting to inject it.     |
+| `pending_boundary` | Waiting for active tools or the timeout before interrupting. |
+| `after_turn` | No tool events observed from this runtime; queued until the turn ends. |
 | `interrupt_fallback` | CompozyOS accepted a replacement through the interrupt path. |
+
+An `after_turn` steer follows ordinary queued-input ordering, behind earlier queued operator messages.
+It remains undelivered guidance: a newer steer can supersede it. A `pending_boundary` steer keeps
+replacement priority if its turn ends naturally. An explicit operator interrupt supersedes older
+pending-boundary guidance so the interrupt text runs next; ordinary queued messages are retained.
 
 Confirmed live steering persists one authored message with its original identity in the active
 turn. Pending and superseded guidance retain their authored text and identity in durable delivery

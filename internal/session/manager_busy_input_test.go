@@ -6740,22 +6740,24 @@ func TestQueuedAgentCommandDelivery(t *testing.T) {
 func TestManagerBoundarySteer(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		name         string
-		tools        bool
-		timeout      time.Duration
-		mode         BusyInputMode
-		boundary     bool
-		want         store.SteerDeliveryMode
-		knownTools   bool
-		failBoundary bool
+		name             string
+		tools            bool
+		timeout          time.Duration
+		mode             BusyInputMode
+		boundary         bool
+		want             store.SteerDeliveryMode
+		knownTools       bool
+		failBoundary     bool
+		interruptPending bool
 	}{
-		{"Should wait for all open tools before canceling and reprompting", true, time.Minute, BusyInputModeSteer, true, store.SteerDeliveryPendingBoundary, false, false},
-		{"Should cancel at the boundary timeout", true, 30 * time.Millisecond, BusyInputModeSteer, false, store.SteerDeliveryPendingBoundary, false, false},
-		{"Should queue guidance when no tool events are available", false, time.Minute, BusyInputModeSteer, false, store.SteerDeliveryAfterTurn, false, false},
-		{"Should preserve immediate cancellation when the timeout is zero", false, 0, BusyInputModeSteer, false, store.SteerDeliveryInterruptFallback, false, false},
-		{"Should interrupt immediately even while tools are open", true, time.Minute, BusyInputModeInterrupt, false, "", false, false},
-		{"Should retain tool-event support across turns", false, time.Minute, BusyInputModeSteer, false, store.SteerDeliveryInterruptFallback, true, false},
-		{"Should preserve the turn after a transient boundary queue failure", true, time.Second, BusyInputModeSteer, true, store.SteerDeliveryPendingBoundary, false, true},
+		{"Should wait for all open tools before canceling and reprompting", true, time.Minute, BusyInputModeSteer, true, store.SteerDeliveryPendingBoundary, false, false, false},
+		{"Should cancel at the boundary timeout", true, 30 * time.Millisecond, BusyInputModeSteer, false, store.SteerDeliveryPendingBoundary, false, false, false},
+		{"Should queue guidance when no tool events are available", false, time.Minute, BusyInputModeSteer, false, store.SteerDeliveryAfterTurn, false, false, false},
+		{"Should preserve immediate cancellation when the timeout is zero", false, 0, BusyInputModeSteer, false, store.SteerDeliveryInterruptFallback, false, false, false},
+		{"Should interrupt immediately even while tools are open", true, time.Minute, BusyInputModeInterrupt, false, "", false, false, false},
+		{"Should retain tool-event support across turns", false, time.Minute, BusyInputModeSteer, false, store.SteerDeliveryInterruptFallback, true, false, false},
+		{"Should preserve the turn after a transient boundary queue failure", true, time.Second, BusyInputModeSteer, true, store.SteerDeliveryPendingBoundary, false, true, false},
+		{"Should supersede a parked steer when explicitly interrupting", true, time.Minute, BusyInputModeInterrupt, false, "", false, false, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -6829,6 +6831,18 @@ func TestManagerBoundarySteer(t *testing.T) {
 					func() bool { sess.mu.RLock(); defer sess.mu.RUnlock(); return sess.openToolCallCountLocked() == 2 },
 				)
 			}
+			var parkedID string
+			if tc.interruptPending {
+				parked, err := h.manager.SendPrompt(
+					ctx,
+					sess.ID,
+					SendPromptOpts{Message: "older guidance", Mode: BusyInputModeSteer},
+				)
+				if err != nil || parked.SteerDelivery != store.SteerDeliveryPendingBoundary {
+					t.Fatalf("parked steer=%#v, %v", parked, err)
+				}
+				parkedID = parked.QueueEntryID
+			}
 			result, err := h.manager.SendPrompt(ctx, sess.ID, SendPromptOpts{Message: "replacement", Mode: tc.mode})
 			if err != nil {
 				t.Fatal(err)
@@ -6885,6 +6899,12 @@ func TestManagerBoundarySteer(t *testing.T) {
 			}
 			if err := h.manager.WaitForPromptDrains(ctx); err != nil {
 				t.Fatal(err)
+			}
+			if parkedID != "" {
+				parked, err := database.GetSessionInputQueueEntry(ctx, sess.ID, parkedID)
+				if err != nil || parked.Status != store.SessionInputQueueStatusCanceled {
+					t.Fatalf("parked steer=%#v, %v", parked, err)
+				}
 			}
 			calls := managerPromptCalls(h)
 			wantCalls := 2
