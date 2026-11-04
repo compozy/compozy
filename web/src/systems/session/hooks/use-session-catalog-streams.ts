@@ -10,7 +10,7 @@ import {
 
 import { createStreamEventSource } from "@/lib/ticketed-event-source";
 
-import { useProfileReadScope } from "@/systems/profiles";
+import { useProfileReadScope, useProfileReadScopeParams } from "@/systems/profiles";
 
 import { sessionKeys } from "../lib/query-keys";
 import {
@@ -373,12 +373,14 @@ export function useSessionCatalogStreams({
 }
 
 /**
- * Whether the catalog stream is live for the operator's current profile scope. The
- * stream spans every workspace, so a covered read in that scope needs no fixed poll;
- * connecting, stale and disabled streams leave the read on its fallback interval.
+ * Whether the catalog stream is live and carries `ownerProfile`'s sessions. The stream
+ * follows the operator's profile read scope and spans every workspace, so a covered read
+ * of a session in that scope needs no fast poll. A session of another profile, an unknown
+ * owner, or a connecting, stale or disabled stream leaves the read on its fallback poll.
  */
-export function useSessionCatalogStreamLive(): boolean {
-  const streamUrl = sessionCatalogStreamURL(useProfileReadScope().params);
-  const { data } = useQuery(sessionCatalogStreamStatusOptions(streamUrl));
-  return data === "live";
+export function useSessionCatalogStreamLive(ownerProfile: string | undefined): boolean {
+  const params = useProfileReadScopeParams();
+  const { data } = useQuery(sessionCatalogStreamStatusOptions(sessionCatalogStreamURL(params)));
+  if (data !== "live" || !ownerProfile) return false;
+  return "all_profiles" in params || params.profile === ownerProfile;
 }

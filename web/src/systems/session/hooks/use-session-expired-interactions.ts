@@ -17,11 +17,17 @@ const NO_EXPIRED_INTERACTIONS: ReadonlyMap<string, SessionInteractionRecord> = n
 export function useSessionExpiredInteractions(
   workspaceId: string,
   sessionId: string,
-  options: { enabled?: boolean; undecidedRequestIds?: ReadonlySet<string> } = {}
+  options: {
+    enabled?: boolean;
+    undecidedRequestIds?: ReadonlySet<string>;
+    /** The session's owner profile; the catalog stream covers only its own scope. */
+    profileName?: string;
+  } = {}
 ): ReadonlyMap<string, SessionInteractionRecord> {
-  const streamCovered = useSessionCatalogStreamLive();
+  const { profileName, ...readOptions } = options;
+  const streamCovered = useSessionCatalogStreamLive(profileName);
   const query = useQuery(
-    sessionExpiredInteractionsOptions(workspaceId, sessionId, { ...options, streamCovered })
+    sessionExpiredInteractionsOptions(workspaceId, sessionId, { ...readOptions, streamCovered })
   );
   return query.data ? expiredInteractionsByRequest(query.data) : NO_EXPIRED_INTERACTIONS;
 }

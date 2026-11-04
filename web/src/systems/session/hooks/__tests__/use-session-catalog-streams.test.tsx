@@ -247,7 +247,9 @@ describe("useSessionCatalogStreams", () => {
     const { result, unmount } = renderHook(
       () => {
         useSessionCatalogStreams({ eventSourceFactory: factory });
-        const streamCovered = useSessionCatalogStreamLive();
+        const streamCovered = useSessionCatalogStreamLive("default");
+        // A session of another profile is outside this stream's scope.
+        const foreignCovered = useSessionCatalogStreamLive("other");
         useQuery(sessionRelayedInteractionsOptions(WORKSPACE_ID, SESSION_ID, true, streamCovered));
         useQuery(
           sessionExpiredInteractionsOptions(WORKSPACE_ID, SESSION_ID, {
@@ -255,7 +257,7 @@ describe("useSessionCatalogStreams", () => {
             streamCovered,
           })
         );
-        return streamCovered;
+        return { streamCovered, foreignCovered };
       },
       { wrapper: wrapper(client) }
     );
@@ -264,20 +266,26 @@ describe("useSessionCatalogStreams", () => {
     const settle = (ms: number) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)));
 
     await settle(1);
-    expect(result.current).toBe(false);
+    expect(result.current.streamCovered).toBe(false);
     // Before the stream is live both reads keep their fallback polls.
     await settle(5_000);
     expect(expired).toHaveBeenCalledTimes(2);
 
     act(() => source!.emit("open"));
-    expect(result.current).toBe(true);
+    expect(result.current).toEqual({ streamCovered: true, foreignCovered: false });
     await settle(5_000);
-    const relayedLive = relayed.mock.calls.length;
-    const expiredLive = expired.mock.calls.length;
+    let relayedLive = relayed.mock.calls.length;
+    let expiredLive = expired.mock.calls.length;
     // Only the 30s safety cadence remains, so neither 5s nor 15s fallback poll fires.
     await settle(15_000);
     expect(relayed).toHaveBeenCalledTimes(relayedLive);
     expect(expired).toHaveBeenCalledTimes(expiredLive);
+    // The safety cadence still re-reads both covered reads while the stream stays live.
+    await settle(15_000);
+    expect(relayed).toHaveBeenCalledTimes(relayedLive + 1);
+    expect(expired).toHaveBeenCalledTimes(expiredLive + 1);
+    relayedLive = relayed.mock.calls.length;
+    expiredLive = expired.mock.calls.length;
 
     // A catalog change in the read's workspace re-reads both; another workspace does not.
     act(() =>
@@ -303,7 +311,7 @@ describe("useSessionCatalogStreams", () => {
     // Once the stream is lost past its grace the fallback polls return.
     act(() => source!.emit("error"));
     await settle(10_000);
-    expect(result.current).toBe(false);
+    expect(result.current.streamCovered).toBe(false);
     await settle(15_000);
     expect(relayed.mock.calls.length).toBeGreaterThan(relayedLive + 1);
     expect(expired.mock.calls.length).toBeGreaterThan(expiredLive + 1);
@@ -326,7 +334,7 @@ describe("useSessionCatalogStreams", () => {
     const { unmount } = renderHook(
       () => {
         useSessionCatalogStreams({ eventSourceFactory: factory });
-        const streamCovered = useSessionCatalogStreamLive();
+        const streamCovered = useSessionCatalogStreamLive("default");
         useQuery(sessionRelayedInteractionsOptions(WORKSPACE_ID, SESSION_ID, true, streamCovered));
       },
       { wrapper: wrapper(client) }
@@ -347,9 +355,16 @@ describe("useSessionCatalogStreams", () => {
     act(() => source!.emit("session_catalog_changed", upsert));
     await settle(5_000);
     expect(relayed).toHaveBeenCalledTimes(baseline + 1);
+    const trailing = [{ id: "ask_trailing" }] as unknown as Awaited<
+      ReturnType<typeof fetchSessionPendingWithDescendants>
+    >;
+    relayed.mockResolvedValueOnce(trailing);
     await act(async () => release([]));
     await settle(5_000);
     expect(relayed).toHaveBeenCalledTimes(baseline + 2);
+    expect(
+      client.getQueryData(sessionKeys.interactions(WORKSPACE_ID, SESSION_ID, "descendants"))
+    ).toEqual(trailing);
 
     // A failed read is repaired by the bounded safety cadence without another wake.
     relayed.mockRejectedValueOnce(new Error("relayed unavailable"));

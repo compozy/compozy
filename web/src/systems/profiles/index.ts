@@ -158,6 +158,7 @@ export {
 export {
   useAggregateDestination,
   useProfileReadScope,
+  useProfileReadScopeParams,
   type ProfileReadScope,
 } from "./hooks/use-profile-read-scope";
 export {

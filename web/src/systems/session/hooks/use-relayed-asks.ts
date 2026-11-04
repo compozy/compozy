@@ -10,7 +10,7 @@ import { useSessionCatalogStreamLive } from "./use-session-catalog-streams";
 export function useRelayedAsks(sessionId: string, workspaceId: string) {
   const instances = useAgentInstances();
   const instance = instances.find(candidate => candidate.main_session_id === sessionId);
-  const streamLive = useSessionCatalogStreamLive();
+  const streamLive = useSessionCatalogStreamLive(instance?.profile_name);
   const { data } = useQuery(
     sessionRelayedInteractionsOptions(workspaceId, sessionId, Boolean(instance), streamLive)
   );
