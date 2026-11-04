@@ -71,7 +71,7 @@ The `main` ruleset requires no status checks, so `gh pr checks --required` repor
 - `Verify (fmt, lint, unit, build)`, `E2E (combined lane)`, `PR title`, `React Doctor`
 - Every other reported check except CodeRabbit, which [Reviewers](#reviewers) owns, is successful or legitimately skipped
 
-`Verify` and `E2E (combined lane)` may skip only when `Detect changes` succeeded and found no relevant change. Pending, cancelled or missing is not green, and success on an earlier head does not count.
+Both gates always run and fail when `Detect changes` fails. A lane inside them may skip only because the change does not touch its area. When the repository variable `CI_MERGE_QUEUE` is `true`, pull requests defer the heavy lane (integration, Windows and E2E) to the merge queue, and `E2E (combined lane)` passes with a "Heavy lane deferred" notice. Add the `ci:full` label and re-run CI to run the heavy lane on the pull request, for example after an E2E fix. Pending, cancelled or missing is not green, and success on an earlier head does not count.
 
 Diagnose finished failures while other jobs run. Wait through a monitor, never a shell loop. A watch command can exit non-zero on a network error, so read the real conclusion with `gh run view`.
 
@@ -79,7 +79,8 @@ Diagnose finished failures while other jobs run. Wait through a monitor, never a
 
 CodeRabbit, Greptile and React Doctor must all finish on the final changes. Confirm each from its review or check on that head; elapsed time, a score or silence proves nothing. Do not install or configure a reviewer. If one cannot run, report the blocker and leave delivery open, except for the CodeRabbit fallback below.
 
-- CodeRabbit allows 8 reviews per hour across the repository, so parallel PRs stall on it. Stagger pushes, and do not request a re-review of an unchanged head.
+- Every push restarts CI and the reviewers, so remediation works in rounds: one push per round, never one per finding.
+- CodeRabbit allows 8 reviews per hour across the repository, so parallel PRs stall on it. Do not request a re-review of an unchanged head.
 - CodeRabbit pauses after several pushed commits and its check shows `skipping`. Comment `@coderabbitai review` before claiming coverage.
 - **CodeRabbit fallback.** When CodeRabbit blocks the PR because it is rate-limited, refuses to re-review an already-reviewed head, or skips a PR over its 300-file limit, replace it:
   1. Run a Claude Opus 5.5 reviewer subagent on the full PR diff. Use a plain reviewer brief, not `deep-review`. For the file limit only, an earlier external agent review of the same change, such as spec peer-review rounds, replaces this pass.
@@ -89,14 +90,14 @@ CodeRabbit, Greptile and React Doctor must all finish on the final changes. Conf
 
   Greptile, React Doctor and CI still apply.
 
-Collect every page of reviews, inline threads and PR comments, including collapsed sections. Address every actionable finding at any severity, including human feedback and findings marked outdated or outside changed lines.
+A round starts when CI and every reviewer have finished on the current head; a failed check may start it earlier, and the round still folds in every finding already posted. Collect every page of reviews, inline threads and PR comments, including collapsed sections, and address every actionable finding at any severity, including human feedback and findings marked outdated or outside changed lines.
 
-1. Validate the finding against the current code and the contract.
-2. Fix it if valid and in scope, then verify and push.
-3. Reply with the commit or evidence, then resolve the thread. For a false positive, give a concrete rationale.
+1. Validate each finding against the current code and the contract.
+2. Fix every valid, in-scope finding and every failed check locally, with focused tests and lint for what changed, then push once. The `pre-push` hook rejects format and lint failures before they reach CI.
+3. Reply to each thread with that pushed commit or other evidence, then resolve it. For a false positive, give a concrete rationale.
 4. For a disputed or materially out-of-scope finding, reply with the rationale and escalate it. Resolve the thread once the operator or reviewer settles it; until then delivery stays open, because `merge-train` and the `main` ruleset both require every thread resolved.
 
-Repeat after each relevant push until nothing actionable remains.
+Start the next round on the new head until nothing actionable remains.
 
 ## Handoff
 
