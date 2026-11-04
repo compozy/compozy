@@ -209,7 +209,7 @@ describe("control server", () => {
 
   // Owner: control startup and private file boundary; canonical suite: control-server.test.ts.
   it.skipIf(process.platform !== "win32")(
-    "Should repair a recreated directory and invalid pipe discovery",
+    "Should repair recreated or exposed directories and invalid pipe discovery",
     async () => {
       const home = await mkdtemp(join(tmpdir(), "compozy-control-recreated-"));
       const tokenPath = join(home, "app.token");
@@ -218,12 +218,26 @@ describe("control server", () => {
       try {
         await rotateControlToken(tokenPath);
         await rm(home, { recursive: true });
-        const token = await rotateControlToken(tokenPath);
+        await rotateControlToken(tokenPath);
         const permissions = await windowsPermissions(home);
         expect(permissions.protected).toBe(true);
         expect(permissions.allowed.sort()).toEqual(
           [permissions.user, "S-1-5-18", "S-1-5-32-544"].sort()
         );
+        // Invariant: token rotation removes inherited access granted after initial protection.
+        await promisify(execFile)(
+          join(process.env.SystemRoot || "C:\\Windows", "System32", "icacls.exe"),
+          [home, "/grant", "*S-1-1-0:(OI)(CI)R"],
+          { timeout: 10_000, windowsHide: true }
+        );
+        expect((await windowsPermissions(home)).allowed).toContain("S-1-1-0");
+        const token = await rotateControlToken(tokenPath);
+        for (const path of [home, tokenPath]) {
+          const repaired = await windowsPermissions(path);
+          expect(repaired.allowed.sort()).toEqual(
+            [repaired.user, "S-1-5-18", "S-1-5-32-544"].sort()
+          );
+        }
         await writeFile(socketPath, "corrupted discovery");
         server = await ControlServer.start(
           socketPath,
@@ -250,7 +264,8 @@ describe("control server", () => {
         await server?.close();
         await rm(home, { recursive: true, force: true });
       }
-    }
+    },
+    30_000
   );
 
   it("Should compare token bytes without accepting length or content differences", () => {

@@ -315,7 +315,7 @@ func (b *GitHubBackend) verifyDownloadedAsset(
 	if err != nil {
 		return fmt.Errorf("desktop release: hash downloaded %s: %w", artifact.Name, err)
 	}
-	if size != artifact.Size || hex.EncodeToString(digest.Sum(nil)) != artifact.SHA256 {
+	if size != artifact.Size || !strings.EqualFold(hex.EncodeToString(digest.Sum(nil)), artifact.SHA256) {
 		return fmt.Errorf("desktop release: downloaded %s failed digest verification", artifact.Name)
 	}
 	if artifact.expectedSHA512 != "" &&
