@@ -189,7 +189,7 @@ func (p *DefaultPolicy) RecordToolConsent(ctx context.Context, req Request) {
 	record := AccessRecord{Actor: req.Actor, Target: req.Target, TargetID: req.Target.WorkspaceID, Seam: req.Seam}
 	decision, mode, err := p.authorize(ctx, req, &record)
 	if err != nil || !req.ReadOnly || req.Seam != SeamTool ||
-		(!decision.PromptEligible && !(decision.Allowed && decision.Source == SourceSessionConsent)) {
+		(!decision.PromptEligible && (!decision.Allowed || decision.Source != SourceSessionConsent)) {
 		return
 	}
 	record.Allowed, record.Source, record.Mode = true, SourceToolConsent, mode
