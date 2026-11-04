@@ -17,6 +17,7 @@ export type CommandLineToolState =
   | { readonly status: "linked"; readonly path: string }
   | { readonly status: "current"; readonly path: string }
   | { readonly status: "existing"; readonly path: string }
+  | { readonly status: "conflict"; readonly path: string }
   | { readonly status: "needs_admin"; readonly path: string }
   | { readonly status: "path_required"; readonly path: string }
   | { readonly status: "no_runtime" };
@@ -93,12 +94,16 @@ export async function ensureCommandLineTool(
   ) {
     target = SYSTEM_BIN_DIRECTORY;
   } else if (directories.includes(userDirectory)) {
-    await deps.fs.mkdir(userDirectory);
-    if (await deps.fs.isWritableDirectory(userDirectory)) target = userDirectory;
+    try {
+      await deps.fs.mkdir(userDirectory);
+      if (await deps.fs.isWritableDirectory(userDirectory)) target = userDirectory;
+    } catch (error) {
+      if (!directories.includes(SYSTEM_BIN_DIRECTORY)) throw error;
+    }
   }
   if (!target) {
     if (directories.includes(SYSTEM_BIN_DIRECTORY) && (await deps.fs.exists(systemLink))) {
-      return { status: "existing", path: systemLink };
+      return { status: "conflict", path: systemLink };
     }
     return directories.includes(SYSTEM_BIN_DIRECTORY)
       ? { status: "needs_admin", path: systemLink }
@@ -109,9 +114,7 @@ export async function ensureCommandLineTool(
     await deps.fs.symlink(deps.runtime, link);
   } catch (error) {
     if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
-    return (await sameFile(deps, link, deps.runtime))
-      ? { status: "current", path: link }
-      : { status: "existing", path: link };
+    return (await firstCommandOnPath(deps, [target])) ?? { status: "conflict", path: link };
   }
   return { status: "linked", path: link };
 }

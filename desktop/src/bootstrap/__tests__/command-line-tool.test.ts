@@ -91,7 +91,7 @@ describe("desktop command installation", () => {
     deps.fs.symlink = async () => {
       throw Object.assign(new Error("exists"), { code: "EEXIST" });
     };
-    expect((await ensureCommandLineTool(deps)).status).toBe("existing");
+    expect((await ensureCommandLineTool(deps)).status).toBe("conflict");
   });
 
   it("Should report a conflicting destination before asking for administrator access", async () => {
@@ -99,9 +99,43 @@ describe("desktop command installation", () => {
     deps.fs.isWritableDirectory = async () => false;
     deps.fs.exists = async () => true;
     expect(await ensureCommandLineTool(deps)).toEqual({
-      status: "existing",
+      status: "conflict",
       path: "/usr/local/bin/compozy",
     });
+  });
+
+  it.each(["EACCES", "ENOTDIR"])(
+    "Should offer administrator installation when the user fallback fails with %s",
+    async code => {
+      const deps = dependencies({
+        loginShellPath: async () => "/usr/local/bin:/home/test/.local/bin:/usr/bin:/bin",
+      });
+      deps.fs.isWritableDirectory = async () => false;
+      deps.fs.mkdir = async () => {
+        throw Object.assign(new Error("cannot create fallback"), { code });
+      };
+      expect(await ensureCommandLineTool(deps)).toEqual({
+        status: "needs_admin",
+        path: "/usr/local/bin/compozy",
+      });
+      expect(deps.fs.symlink).not.toHaveBeenCalled();
+    }
+  );
+
+  it("Should report a blocked command without claiming the terminal can run it", async () => {
+    const deps = flow();
+    vi.mocked(deps.ensure).mockResolvedValue({
+      status: "conflict",
+      path: "/usr/local/bin/compozy",
+    });
+    await exposeCommandLineToolOnFirstRun(deps);
+    expect(deps.linkWithAdministratorPrivileges).not.toHaveBeenCalled();
+    expect(deps.showMessageBox).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "warning",
+        message: "An existing file blocks the compozy command",
+      })
+    );
   });
 
   it("Should request explicit elevation only for a system directory on PATH", async () => {
@@ -200,7 +234,7 @@ describe("desktop command installation", () => {
       expect(await readlink(join(bin, "compozy"))).toBe(runtime);
       expect((await ensureCommandLineTool(deps)).status).toBe("current");
       const run = async () =>
-        await runBoundedCommand("/bin/zsh", ["-fc", "compozy --version"], {
+        await runBoundedCommand("/bin/sh", ["-c", "compozy --version"], {
           env: { HOME: home, PATH: `${bin}:/usr/bin:/bin` },
           timeoutMs: 2000,
           maxBytes: 1024,
@@ -209,6 +243,13 @@ describe("desktop command installation", () => {
       await writeFile(`${runtime}.new`, "#!/bin/sh\necho runtime-v2\n", { mode: 0o755 });
       await rename(`${runtime}.new`, runtime);
       expect(await run()).toBe("runtime-v2\n");
+      await rm(join(bin, "compozy"));
+      await symlink(join(home, "missing-runtime"), join(bin, "compozy"));
+      expect((await ensureCommandLineTool(deps)).status).toBe("conflict");
+      expect(await readlink(join(bin, "compozy"))).toBe(join(home, "missing-runtime"));
+      await rm(join(bin, "compozy"));
+      await writeFile(join(bin, "compozy"), "user-owned file", { mode: 0o600 });
+      expect((await ensureCommandLineTool(deps)).status).toBe("conflict");
     } finally {
       await rm(home, { recursive: true, force: true });
     }

@@ -32,6 +32,12 @@ function resultDialog(state: CommandLineToolState): MessageBoxOptions {
         message: "A compozy command is already installed",
         detail: `Your terminal runs ${state.path}. CompozyOS left it unchanged.`,
       };
+    case "conflict":
+      return {
+        type: "warning",
+        message: "An existing file blocks the compozy command",
+        detail: `${state.path} is not an executable command. CompozyOS left it unchanged. Move or repair that file, then choose Install compozy Command again.`,
+      };
     case "needs_admin":
       return {
         type: "warning",
@@ -88,7 +94,11 @@ export async function exposeCommandLineToolOnFirstRun(
   deps.log("expose compozy command on first run", { status: state.status });
   if (state.status === "no_runtime") return;
   await deps.recordAttempt(state);
-  if (state.status === "path_required" || state.status === "existing") {
+  if (
+    state.status === "path_required" ||
+    state.status === "existing" ||
+    state.status === "conflict"
+  ) {
     await deps.showMessageBox(resultDialog(state));
     return;
   }
