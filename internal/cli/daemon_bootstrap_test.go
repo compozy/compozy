@@ -961,7 +961,8 @@ func newBootstrapLockOwnerFixture(t *testing.T) *bootstrapLockOwnerFixture {
 			return fixture.ownerAlive
 		}
 		if pid == fixture.staleRecordedPID {
-			return true
+			// The stale PID is alive at classification, then exits while the holder keeps the lock.
+			return fixture.inspections <= 1
 		}
 		return pid == 42 && fixture.recoverOnSpawn > 0 && fixture.spawns >= fixture.recoverOnSpawn
 	}
@@ -1041,7 +1042,7 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 		}
 	})
 
-	t.Run("Should follow the lock holder once it records its pid over a stale live pid", func(t *testing.T) {
+	t.Run("Should keep waiting for the lock holder after a stale recorded pid exits", func(t *testing.T) {
 		fixture := newBootstrapLockOwnerFixture(t)
 		fixture.staleRecordedPID = 666
 		fixture.staleInspections = 2

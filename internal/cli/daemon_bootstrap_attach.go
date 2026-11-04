@@ -73,14 +73,16 @@ func (e *bootstrapExecution) waitForLockOwnerReady(ownerPID int) (DaemonStatus, 
 	ticker := time.NewTicker(e.deps.pollInterval)
 	defer ticker.Stop()
 	for {
-		ownerPID = e.currentLockOwner(ownerPID)
-		// Probe errors are expected while the owner boots without a listener; liveness and the
-		// deadline decide failure.
+		var lockHeld bool
+		ownerPID, lockHeld = e.currentLockOwner(ownerPID)
+		// Probe errors are expected while the owner boots without a listener; lock state, liveness,
+		// and the deadline decide failure.
 		status, running, probeErr := probeBootstrapDaemon(ctx, e.deps, e.homePaths)
 		if probeErr == nil && running && daemonReadyAs(status, ownerPID) {
 			return status, nil
 		}
-		if !e.deps.processAlive(ownerPID) {
+		// A held lock always has a live holder, even one that has not recorded its PID yet.
+		if !lockHeld && !e.deps.processAlive(ownerPID) {
 			return DaemonStatus{}, fmt.Errorf(
 				"cli: the running CompozyOS daemon pid=%d exited before it became ready; inspect the runtime log",
 				ownerPID,
@@ -104,14 +106,18 @@ func (e *bootstrapExecution) waitForLockOwnerReady(ownerPID int) (DaemonStatus, 
 	}
 }
 
-// currentLockOwner returns the PID recorded by the current lock holder, keeping the last known
-// owner when the lock is free, unrecorded, or unreadable so liveness decides the outcome.
-func (e *bootstrapExecution) currentLockOwner(lastPID int) int {
+// currentLockOwner returns the PID recorded by the current lock holder and whether the lock is
+// held. It keeps the last known owner when the lock is free, unrecorded, or unreadable; an
+// unreadable lock reports not held so liveness decides the outcome.
+func (e *bootstrapExecution) currentLockOwner(lastPID int) (int, bool) {
 	owner, err := e.deps.inspectDaemonLock(e.homePaths.DaemonLock)
-	if err != nil || !owner.Held || owner.PID <= 0 {
-		return lastPID
+	if err != nil {
+		return lastPID, false
 	}
-	return owner.PID
+	if !owner.Held || owner.PID <= 0 {
+		return lastPID, owner.Held
+	}
+	return owner.PID, true
 }
 
 // attachRunning attaches to a healthy daemon, replacing it first when it is an outdated desktop runtime.
