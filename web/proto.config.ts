@@ -45,6 +45,24 @@ function compozySpecs(webRoot: string) {
 export default defineProtoConfig({
   title: "CompozyOS",
   specs: compozySpecs,
+  stories: {
+    roots: [
+      {
+        id: "web",
+        stories: "src/**/*.stories.tsx",
+        preview: ".storybook/preview.ts",
+        vite: "vite.presentation.ts",
+      },
+      {
+        id: "ui",
+        dir: "../packages/ui",
+        stories: "src/**/*.stories.tsx",
+        preview: ".storybook/preview.ts",
+        vite: "vite.stories.ts",
+        static: [{ from: "node_modules/emojibase-data", to: "/vendor/emojibase" }],
+      },
+    ],
+  },
   guards: {
     // Prototypes and drafts render views from fixtures; they never reach the daemon network layer.
     forbidRuntimeImports: [
