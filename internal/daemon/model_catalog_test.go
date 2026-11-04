@@ -3395,6 +3395,9 @@ func TestProviderUsageResolver(t *testing.T) {
 		cfg.Providers["claude-split"] = claudeAlias(
 			"env -S 'CLAUDE_CONFIG_DIR=" + accountDir + " npx -y claude-agent-acp'",
 		)
+		isolated := claudeAlias("env HOME=" + accountDir + " npx -y claude-agent-acp")
+		isolated.HomePolicy = compozyconfig.ProviderHomePolicyIsolated
+		cfg.Providers["claude-isolated"] = isolated
 		cfg.Providers["openrouter-team"] = compozyconfig.ProviderConfig{
 			Command:         "pi-acp",
 			Harness:         compozyconfig.ProviderHarnessPiACP,
@@ -3425,6 +3428,10 @@ func TestProviderUsageResolver(t *testing.T) {
 			if !slices.Contains(byID[id].Route.Env, "CLAUDE_CONFIG_DIR="+accountDir) {
 				t.Fatalf("%s route lost its own CLAUDE_CONFIG_DIR", id)
 			}
+		}
+		// Session startup applies the home policy first, then the command's own environment.
+		if !slices.Contains(byID["claude-isolated"].Route.Env, "HOME="+accountDir) {
+			t.Fatal("isolated home policy replaced the launch command's HOME")
 		}
 		if team := byID["openrouter-team"]; team.CollectorID != "openrouter-team" || team.Error == nil ||
 			team.Error.Code != providerusage.ErrorCodeNoCollector {

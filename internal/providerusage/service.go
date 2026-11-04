@@ -172,6 +172,10 @@ func (s *Manager) applyTargetsLocked(p *profileState, profile string, targets []
 	}
 	for id := range p.targets {
 		if !seen[id] {
+			removed := p.targets[id].target
+			if cache, ok := s.options.Collectors[removed.Collector()].(TargetCredentialCache); ok {
+				cache.ForgetTarget(removed)
+			}
 			if f := p.targets[id].flight; f != nil {
 				f.cancel()
 				canceled = append(canceled, f)

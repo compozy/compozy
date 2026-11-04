@@ -92,6 +92,11 @@ type PublicationValidator interface {
 	ValidateIdentity(ctx context.Context, t Target, captured CredentialIdentity) error
 }
 
+// TargetCredentialCache evicts the cached credential of one target that left the catalog.
+type TargetCredentialCache interface {
+	ForgetTarget(t Target)
+}
+
 type CredentialCache interface {
 	// An empty profile ID clears every cached profile.
 	ClearCredentials(profileID string)

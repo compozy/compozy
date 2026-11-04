@@ -51,6 +51,17 @@ function firstMissingRequiredSlot(provider: SettingsProviderEntry): string | nul
   return missing?.target_env || missing?.name || null;
 }
 
+/**
+ * A live check needs a status command or an ACP sign-in method; without either the daemon
+ * cannot probe, so the action opens the editor where one can be configured.
+ */
+function signInCheckCta(provider: SettingsProviderEntry): ProviderStateView["cta"] {
+  const checkable =
+    Boolean(provider.settings.auth_status_command?.trim()) ||
+    Boolean(provider.settings.auth_acp_method?.trim());
+  return { label: "Check sign-in", intent: checkable ? "check" : "edit" };
+}
+
 export function getProviderStateView(provider: SettingsProviderEntry): ProviderStateView {
   const label = deriveProviderStateLabel(provider);
   switch (label) {
@@ -96,7 +107,7 @@ export function getProviderStateView(provider: SettingsProviderEntry): ProviderS
         display: "Sign-in unverified",
         hint:
           provider.auth_status?.message?.trim() || "CompozyOS couldn't confirm you're signed in.",
-        cta: { label: "Check sign-in", intent: "check" },
+        cta: signInCheckCta(provider),
       };
     case "auth-unavailable":
       return {
@@ -104,7 +115,7 @@ export function getProviderStateView(provider: SettingsProviderEntry): ProviderS
         label,
         display: "Sign-in unavailable",
         hint: provider.auth_status?.message?.trim() || "CompozyOS couldn't check the sign-in.",
-        cta: { label: "Check sign-in", intent: "check" },
+        cta: signInCheckCta(provider),
       };
   }
 }

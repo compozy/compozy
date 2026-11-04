@@ -557,6 +557,10 @@ func TestClaudeIsolation(t *testing.T) {
 		requireNoError(t, err)
 		requireEqual(t, float64(7), *primarySnapshot.Windows[0].UsedPercent)
 		requireNoError(t, c.ValidateIdentity(t.Context(), primary, first))
+		c.ForgetTarget(alias)
+		err = c.ValidateIdentity(t.Context(), alias, second)
+		requireEqual(t, ErrorCodeAuthMissing, AsUsageError(err, "Claude").Code)
+		requireNoError(t, c.ValidateIdentity(t.Context(), primary, first))
 	})
 	t.Run("Should resolve exact secure storage service and account", func(t *testing.T) {
 		t.Parallel()

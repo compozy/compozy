@@ -98,6 +98,14 @@ func (c *ClaudeCollector) clearProfileLocked(profileID string) {
 		}
 	}
 }
+
+// ForgetTarget drops a removed provider's cached token, such as a deleted Claude alias.
+func (c *ClaudeCollector) ForgetTarget(target Target) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.clearLocked(claudeKeyOf(target))
+}
+
 func (c *ClaudeCollector) clearLocked(key claudeKey) {
 	if pending := c.pending[key]; pending != nil {
 		pending.cancel()

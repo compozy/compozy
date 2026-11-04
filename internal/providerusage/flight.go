@@ -8,11 +8,8 @@ import (
 func (s *Manager) runFlight(ctx context.Context, profile, id string, state *targetState, f *flight) {
 	defer s.wg.Done()
 	defer func() { s.mu.Lock(); defer s.mu.Unlock(); s.finishFlightLocked(profile, state, f) }()
-	s.mu.Lock()
-	family := state.target.Collector()
-	s.mu.Unlock()
 	timeout := 30 * time.Second
-	if family == codexProviderID || family == claudeProviderID {
+	if family := s.targetFamily(state); family == codexProviderID || family == claudeProviderID {
 		timeout = 60 * time.Second
 	}
 	defer f.cancel()
@@ -25,7 +22,8 @@ func (s *Manager) runFlight(ctx context.Context, profile, id string, state *targ
 			continue
 		}
 		s.mu.Lock()
-		follow := intent == IntentBackground && f.explicit && explicitRecovery(family, outcome)
+		// A retried flight may now collect through another family after a target change.
+		follow := intent == IntentBackground && f.explicit && explicitRecovery(state.target.Collector(), outcome)
 		if follow {
 			intent = IntentExplicit
 			f.intent = IntentExplicit
@@ -38,6 +36,12 @@ func (s *Manager) runFlight(ctx context.Context, profile, id string, state *targ
 			return
 		}
 	}
+}
+
+func (s *Manager) targetFamily(state *targetState) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return state.target.Collector()
 }
 
 func explicitRecovery(family string, e *UsageError) bool {
