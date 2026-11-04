@@ -219,40 +219,42 @@ type Session struct {
 	Lineage                   *store.SessionLineage
 	State                     State
 	stopCause                 StopCause
-	stopEscalated             bool
-	stopVerificationFailed    bool
-	stopReason                store.StopReason
-	stopDetail                string
-	failure                   *store.SessionFailure
-	ACPSessionID              string
-	ACPCaps                   acp.Caps
-	ACPCapsKnown              bool
-	AdvertisedCommands        []store.SessionAdvertisedCommand
-	Liveness                  *store.SessionLivenessMeta
-	SoulSnapshotID            string
-	SoulDigest                string
-	ParentSoulDigest          string
-	AttachedTo                string
-	AttachExpiresAt           *time.Time
-	TranscriptEpoch           int64
-	PendingPermissionCount    int
-	PendingClarifyCount       int
-	AttentionRevision         int64
-	LastSettledRevision       int64
-	LastSeenRevision          int64
-	LastSeenAt                *time.Time
-	AttentionChangedAt        *time.Time
-	EndedEarlyTurnID          string
-	FailureSeenAt             *time.Time
-	PendingInteractions       []store.PendingInteraction
-	CreatedAt                 time.Time
-	UpdatedAt                 time.Time
-	creationProfile           *store.SessionCreationProfile
-	creationOptions           *store.SessionCreationOptions
-	creationIdentity          *store.SessionCreationIdentity
-	providerRoute             compozyconfig.ResolvedAgent
-	acceptedRoute             *store.SessionAcceptedRoute
-	restartBoundary           *store.SessionRestartCheckpoint
+	// daemonShutdownExit keeps a reclassified shutdown exit interrupted across finalization retries.
+	daemonShutdownExit     bool
+	stopEscalated          bool
+	stopVerificationFailed bool
+	stopReason             store.StopReason
+	stopDetail             string
+	failure                *store.SessionFailure
+	ACPSessionID           string
+	ACPCaps                acp.Caps
+	ACPCapsKnown           bool
+	AdvertisedCommands     []store.SessionAdvertisedCommand
+	Liveness               *store.SessionLivenessMeta
+	SoulSnapshotID         string
+	SoulDigest             string
+	ParentSoulDigest       string
+	AttachedTo             string
+	AttachExpiresAt        *time.Time
+	TranscriptEpoch        int64
+	PendingPermissionCount int
+	PendingClarifyCount    int
+	AttentionRevision      int64
+	LastSettledRevision    int64
+	LastSeenRevision       int64
+	LastSeenAt             *time.Time
+	AttentionChangedAt     *time.Time
+	EndedEarlyTurnID       string
+	FailureSeenAt          *time.Time
+	PendingInteractions    []store.PendingInteraction
+	CreatedAt              time.Time
+	UpdatedAt              time.Time
+	creationProfile        *store.SessionCreationProfile
+	creationOptions        *store.SessionCreationOptions
+	creationIdentity       *store.SessionCreationIdentity
+	providerRoute          compozyconfig.ResolvedAgent
+	acceptedRoute          *store.SessionAcceptedRoute
+	restartBoundary        *store.SessionRestartCheckpoint
 	// derivation and importedContext exist only on continued or forked children.
 	derivation          *store.SessionDerivation
 	importedContext     *store.SessionImportedContext

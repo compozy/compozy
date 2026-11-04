@@ -260,3 +260,16 @@ the same ACP session on the next prompt. The process-stopped hook has a separate
 Existing idle-release regressions, the real ACP subprocess suite and the daemon late-reply
 integration pass. This is not a fresh live-Codex timing or browser walk; see
 [focused verification](../reports/2026-10-23-harness-dogfood.md).
+
+QA impact 2026-11-03 (#1243): an agent subprocess that dies from the same signal that stops the
+daemon (OS logout or shutdown, desktop app quit) is a daemon-stop interruption, not a crash. Start a
+long turn, then send the daemon SIGTERM together with its agent (for example by ending the desktop
+app scope or killing the process group). After restart the session reads `stopped` with
+`stop_reason: "user_canceled"` and detail `daemon stopped by user`, the same as when the daemon
+stops it first; a daemon restart reads `stop_reason: "shutdown"`. There is no `process_exit`
+failure, crash bundle, `agent.crashed` hook, automatic runtime recovery, or `reason: failed` wake to
+a spawn creator, and the session resumes normally. An agent that dies while the daemon keeps running
+is still `agent_crashed` with a process failure and crash bundle. Focused verification:
+`TestAgentExitClassification` and the daemon-shutdown branch of
+`TestPromptFatalProcessFailureStopsSessionAndPreservesReadOnlyHistory` in `internal/session`.
+A live logout/shutdown walk on Linux has not been repeated.

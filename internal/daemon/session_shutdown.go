@@ -13,6 +13,11 @@ type shutdownStopper interface {
 	StopWithCause(ctx context.Context, id string, cause session.StopCause, detail string) error
 }
 
+// daemonShutdownStopReader exposes the classification captured when shutdown was prepared.
+type daemonShutdownStopReader interface {
+	DaemonShutdownStop() (session.StopCause, string, bool)
+}
+
 type finalizationWaiter interface {
 	WaitForFinalizations(ctx context.Context) error
 }
@@ -28,11 +33,13 @@ func (d *Daemon) stopSessions(ctx context.Context, sessions SessionManager) erro
 
 	infos := sessions.List()
 	d.mu.Lock()
-	cause, detail := session.CauseUserRequested, "daemon stopped by user"
-	if d.restartRequested {
-		cause, detail = session.CauseShutdown, "Interrupted by daemon restart."
-	}
+	cause, detail := session.DaemonShutdownStopCause(d.restartRequested)
 	d.mu.Unlock()
+	if recorded, ok := sessions.(daemonShutdownStopReader); ok {
+		if recordedCause, recordedDetail, prepared := recorded.DaemonShutdownStop(); prepared {
+			cause, detail = recordedCause, recordedDetail
+		}
+	}
 	errs := make([]error, len(infos))
 	var workers sync.WaitGroup
 	for index, info := range infos {

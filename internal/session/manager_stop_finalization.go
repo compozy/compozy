@@ -74,6 +74,7 @@ func (m *Manager) finalizeStoppedOwned(
 	if session.pendingStopState() {
 		classificationErr = m.restoreActiveStopClassification(session)
 	} else {
+		waitErr = m.classifyDaemonShutdownExit(session, waitErr)
 		classificationErr = m.persistStopClassification(ctx, session, waitErr)
 	}
 	errs = appendLifecycleErr(errs, classificationErr)
