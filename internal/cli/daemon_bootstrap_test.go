@@ -1140,7 +1140,10 @@ func TestDaemonBootstrapLockOwner(t *testing.T) {
 		events, err := fixture.run(t)
 		assertErrorContains(t, err, "the running CompozyOS daemon pid=777 did not become ready")
 		if !deadlineObserved || !errors.Is(err, context.DeadlineExceeded) {
-			t.Fatalf("deadline observed = %t, error = %v; want cancellation during status request", deadlineObserved, err)
+			t.Fatalf(
+				"deadline observed = %t, error = %v; want cancellation during status request",
+				deadlineObserved, err,
+			)
 		}
 		failed := events[len(events)-1]
 		if failed.Phase != bootstrapPhaseAttach || failed.Status != bootstrapStatusFailed {
