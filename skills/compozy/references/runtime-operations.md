@@ -1221,7 +1221,9 @@ exit `0` even when rows fail and `1` for request errors (`invalid_request`, `pro
 repeated; `--max-age` only raises that floor.
 
 Collectors exist for `codex`, `claude`, `openrouter`, `vercel-ai-gateway`, `zai`, `moonshot`,
-`kimi-cli`, `cursor`, and `gemini`; every other provider reports `unsupported` (`no_collector`). They
+`kimi-cli`, `cursor`, and `gemini`. A custom provider whose own ID has no collector collects through
+its `runtime_provider`'s collector with its own launch environment (for example its own
+`CLAUDE_CONFIG_DIR`) and bound secrets; every other provider reports `unsupported` (`no_collector`). They
 use only the credentials the profile's route resolves and never write credential files (the Codex CLI
 may renew its own login). Codex runs only with its file credential store; `keyring`/`auto` report
 `unsupported` (`auth_store_unsupported`) and CompozyOS never changes that setting.

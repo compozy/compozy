@@ -72,6 +72,9 @@ and the real-daemon CLI journey E2E-005 in `web/e2e/__tests__/provider-usage.spe
   unreadable credentials, and a Codex auth-store change; cache reads never touch the Keychain; scheduled collection may silently reacquire consented credentials.
 - Override a native-login provider with bound-secret auth, or a key provider with native auth.
   Its row is `unsupported` with `no_collector`; no credential from the other auth mode is read.
+- Add a second Claude account as a custom provider (`runtime_provider = "claude"`, `native_cli`, launch
+  `command` prefixed with `env CLAUDE_CONFIG_DIR=<its dir>`) and sign it in. `compozy provider usage list`
+  shows its own row with its own windows; the built-in `claude` row keeps the default account's values.
 - Delete a custom provider with a saved usage toggle. The same config write removes its usage override.
 - When Cursor returns only auto/API percentages, the monthly total remains unknown, including 100/0.
 - Reload settings or change another section after enabling Claude Keychain access in config.

@@ -22,14 +22,22 @@ type KeychainReader interface {
 
 type ClaudeOption func(*ClaudeCollector)
 
+// claudeKey isolates cached credentials per account: every provider in a profile that collects
+// through Claude (built-in or alias with its own CLAUDE_CONFIG_DIR) keeps its own token.
+type claudeKey struct{ profile, provider string }
+
+func claudeKeyOf(target Target) claudeKey {
+	return claudeKey{profile: target.ProfileID, provider: target.ProviderID}
+}
+
 type ClaudeCollector struct {
 	mu       sync.Mutex
 	now      func() time.Time
 	http     *HTTPClient
 	keychain KeychainReader
 	platform string
-	records  map[string]*claudeCredential
-	pending  map[string]*claudeRead
+	records  map[claudeKey]*claudeCredential
+	pending  map[claudeKey]*claudeRead
 	closed   bool
 }
 
@@ -41,8 +49,8 @@ func NewClaudeCollector(options ...ClaudeOption) *ClaudeCollector {
 		now:      time.Now,
 		keychain: defaultClaudeKeychain(),
 		platform: runtime.GOOS,
-		records:  make(map[string]*claudeCredential),
-		pending:  make(map[string]*claudeRead),
+		records:  make(map[claudeKey]*claudeCredential),
+		pending:  make(map[claudeKey]*claudeRead),
 	}
 	for _, option := range options {
 		option(c)
@@ -74,38 +82,38 @@ func (*ClaudeCollector) ProviderID() string { return claudeProviderID }
 func (c *ClaudeCollector) ClearCredentials(profileID string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if profileID == "" {
-		for profile := range c.records {
-			c.clearLocked(profile)
-		}
-		for profile := range c.pending {
-			c.clearLocked(profile)
-		}
-		return
-	}
-	c.clearLocked(profileID)
+	c.clearProfileLocked(profileID)
 }
-func (c *ClaudeCollector) clearLocked(profileID string) {
-	if pending := c.pending[profileID]; pending != nil {
-		pending.cancel()
-		delete(c.pending, profileID)
+
+// clearProfileLocked clears every cached account in a profile; an empty ID clears all profiles.
+func (c *ClaudeCollector) clearProfileLocked(profileID string) {
+	for key := range c.records {
+		if profileID == "" || key.profile == profileID {
+			c.clearLocked(key)
+		}
 	}
-	if record := c.records[profileID]; record != nil {
+	for key := range c.pending {
+		if profileID == "" || key.profile == profileID {
+			c.clearLocked(key)
+		}
+	}
+}
+func (c *ClaudeCollector) clearLocked(key claudeKey) {
+	if pending := c.pending[key]; pending != nil {
+		pending.cancel()
+		delete(c.pending, key)
+	}
+	if record := c.records[key]; record != nil {
 		clear(record.token)
 		record.token = nil
 	}
-	delete(c.records, profileID)
+	delete(c.records, key)
 }
 func (c *ClaudeCollector) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.closed = true
-	for profile := range c.records {
-		c.clearLocked(profile)
-	}
-	for profile := range c.pending {
-		c.clearLocked(profile)
-	}
+	c.clearProfileLocked("")
 	return nil
 }
 
@@ -173,7 +181,7 @@ func (c *ClaudeCollector) Collect(
 		return Snapshot{}, err
 	}
 	now := c.now()
-	snapshot.ProviderID, snapshot.ProviderName = "claude", target.ProviderName
+	snapshot.ProviderID, snapshot.ProviderName = target.ProviderID, target.ProviderName
 	snapshot.Status, snapshot.Confidence = StatusOK, ConfidencePercentOnly
 	snapshot.Source = &Source{Kind: SourceKindOAuthHTTP, Label: "Claude Code OAuth"}
 	snapshot.Account = &Account{Plan: plan}
@@ -195,7 +203,7 @@ func (c *ClaudeCollector) forCollection(
 	if err := c.validateLocked(target, identity); err != nil {
 		return nil, err
 	}
-	record := c.records[target.ProfileID]
+	record := c.records[claudeKeyOf(target)]
 	if record.expired || !c.now().Before(record.expires) || len(record.token) == 0 {
 		record.expire()
 		return nil, claudeExpiryError()
@@ -204,12 +212,12 @@ func (c *ClaudeCollector) forCollection(
 }
 
 func (c *ClaudeCollector) validateLocked(target Target, identity CredentialIdentity) error {
-	record := c.records[target.ProfileID]
+	record := c.records[claudeKeyOf(target)]
 	if c.closed || record == nil || record.identity != identity {
 		return NewUsageError(ErrorCodeAuthMissing, "Claude")
 	}
 	if record.route != target.RouteFingerprint {
-		c.clearLocked(target.ProfileID)
+		c.clearLocked(claudeKeyOf(target))
 		if record.keychain {
 			return NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
 		}
@@ -218,26 +226,26 @@ func (c *ClaudeCollector) validateLocked(target Target, identity CredentialIdent
 	if record.keychain {
 		path, account := claudeAccountEvidence(target)
 		if !target.Route.KeychainAccess || path != record.evidencePath || account != record.evidenceAccount {
-			c.clearLocked(target.ProfileID)
+			c.clearLocked(claudeKeyOf(target))
 			return NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
 		}
 		// A newly created credential file changes the authoritative source, even for the same account.
 		fileData, fileErr := readCredentialFile(claudeCredentialPath(target), "Claude")
 		clear(fileData)
 		if !isClaudeFileAbsent(fileErr) {
-			c.clearLocked(target.ProfileID)
+			c.clearLocked(claudeKeyOf(target))
 			return NewUsageError(ErrorCodeKeychainTokenExpired, "Claude")
 		}
 		return nil
 	}
 	fresh, err := loadClaudeFile(target, c.now())
 	if fresh == nil {
-		c.clearLocked(target.ProfileID)
+		c.clearLocked(claudeKeyOf(target))
 		return err
 	}
 	defer clear(fresh.token)
 	if fresh.identity != identity {
-		c.clearLocked(target.ProfileID)
+		c.clearLocked(claudeKeyOf(target))
 		return NewUsageError(ErrorCodeAuthMissing, "Claude")
 	}
 	return nil

@@ -3317,6 +3317,62 @@ func TestProviderUsageResolver(t *testing.T) {
 			t.Fatal("missing configured provider")
 		}
 	})
+	t.Run("Should collect an alias through its runtime provider with its own config dir", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+		aliasDir := filepath.Join(t.TempDir(), ".claude-mm1")
+		cfg.Providers["claude-mm1"] = compozyconfig.ProviderConfig{
+			DisplayName:     "Claude (mm1)",
+			Harness:         compozyconfig.ProviderHarnessACP,
+			RuntimeProvider: "claude",
+			AuthMode:        compozyconfig.ProviderAuthModeNativeCLI,
+			HomePolicy:      compozyconfig.ProviderHomePolicyOperator,
+			Command:         "env -u ARGV0 CLAUDE_CONFIG_DIR=" + aliasDir + " npx -y claude-agent-acp",
+		}
+		cfg.Providers["claude-unsupported"] = compozyconfig.ProviderConfig{
+			Command:         "claude-agent-acp",
+			RuntimeProvider: "claude",
+			AuthMode:        compozyconfig.ProviderAuthModeNone,
+		}
+		resolver := &providerUsageResolver{cfg: cfg, home: home,
+			baseEnv:    []string{"HOME=" + t.TempDir()},
+			collectors: providerusage.DefaultRegistry(providerusage.RegistryOptions{}),
+		}
+		targets, err := resolver.Targets(t.Context(), store.DefaultProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		byID := make(map[string]providerusage.Target, len(targets))
+		for _, target := range targets {
+			byID[target.ProviderID] = target
+		}
+		alias := byID["claude-mm1"]
+		if alias.Status != "" || alias.Error != nil || alias.CollectorID != "claude" {
+			t.Fatalf(
+				"alias not routed to the Claude collector: status=%s collector=%s",
+				alias.Status,
+				alias.CollectorID,
+			)
+		}
+		if !slices.Contains(alias.Route.Env, "CLAUDE_CONFIG_DIR="+aliasDir) {
+			t.Fatal("alias route lost its own CLAUDE_CONFIG_DIR")
+		}
+		if alias.RouteFingerprint == "" || alias.RouteFingerprint == byID["claude"].RouteFingerprint {
+			t.Fatal("alias shares the built-in Claude route")
+		}
+		if got := byID["claude"].CollectorID; got != "claude" {
+			t.Fatalf("built-in Claude collector = %q", got)
+		}
+		if got := byID["moonshot"].CollectorID; got != "moonshot" {
+			t.Fatalf("own collector must win over runtime_provider: %q", got)
+		}
+		if unsupported := byID["claude-unsupported"]; unsupported.Error == nil ||
+			unsupported.Error.Code != providerusage.ErrorCodeNoCollector {
+			t.Fatalf("unsupported auth alias accepted: status=%s", unsupported.Status)
+		}
+	})
 	t.Run("Should report disabled providers", func(t *testing.T) {
 		t.Parallel()
 		home := testHomePaths(t)

@@ -255,6 +255,12 @@ CompozyOS reads usage for these providers. Every other provider appears with
 | `cursor`            | Monthly included usage, extra usage                   | The `cursor-agent` login (`~/.config/cursor/auth.json`, or under `XDG_CONFIG_HOME`).                                                              |
 | `gemini`            | Per-model quotas                                      | The Gemini CLI login (`~/.gemini/oauth_creds.json`).                                                                                              |
 
+A custom provider without a collector of its own reads usage through the collector of its
+`runtime_provider`, for example a second Claude account configured with `runtime_provider = "claude"`
+and its own `CLAUDE_CONFIG_DIR` in the launch `command` (bare `NAME=value` or an `env` prefix). Each
+such provider reads only the login in its own config directory or its own bound key, and appears as
+its own row; accounts never merge. A provider whose own ID has a collector always keeps it.
+
 API-key providers use the key you already configured for the provider; see
 [wrapped API-key providers](/docs/agents/providers#configure-wrapped-api-key-providers). CompozyOS
 uses only the login or key that the profile's provider route resolves: it never borrows another

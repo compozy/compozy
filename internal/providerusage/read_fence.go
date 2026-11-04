@@ -42,7 +42,7 @@ func (s *Manager) fenceReadCheck(ctx context.Context, profile string, check cred
 			return
 		}
 		mismatch, err := validatePublication(
-			ctx, s.options.Collectors[check.target.ProviderID], check.target, check.identity,
+			ctx, s.options.Collectors[check.target.Collector()], check.target, check.identity,
 		)
 		fence := check.fence
 		if cacheable && err == nil && !mismatch {
@@ -102,7 +102,7 @@ func (s *Manager) applyCredentialReadCheck(
 		return false
 	}
 	state.epoch++
-	state.snapshot = initialSnapshot(state.target, s.options.Collectors[id])
+	state.snapshot = initialSnapshot(state.target, s.options.Collectors[state.target.Collector()])
 	state.hasIdentity = false
 	state.readFence = nil
 	state.lastSuccess = time.Time{}
@@ -147,14 +147,14 @@ func sameCredentialFiles(a, b []os.FileInfo) bool {
 }
 
 func credentialEvidencePaths(target Target) []string {
-	switch target.ProviderID {
-	case "codex":
+	switch target.Collector() {
+	case codexProviderID:
 		home := codexHome(target)
 		if home == "" {
 			return nil
 		}
 		return []string{filepath.Join(home, "auth.json"), filepath.Join(home, "config.toml")}
-	case "claude":
+	case claudeProviderID:
 		legacy, modern := claudeAccountPaths(target)
 		return []string{claudeCredentialPath(target), legacy, modern}
 	case "cursor":
