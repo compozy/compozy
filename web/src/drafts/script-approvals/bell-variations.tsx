@@ -68,7 +68,7 @@ function QuestionRow() {
 
 /** Why it's in the bell, in the agent's words; the hash stays in the script. */
 function reason(notice: ScriptApprovalNotice) {
-  return notice.changed ? "changed a script" : "wants to run a new script";
+  return notice.changed ? "script changed" : "new script";
 }
 
 function Hash({ notice }: { notice: ScriptApprovalNotice }) {
@@ -91,13 +91,13 @@ function RowLines({ notice }: { notice: ScriptApprovalNotice }) {
         {notice.script.name}
       </span>
       <span className="truncate text-eyebrow text-subtle">
-        {notice.agentLabel} {reason(notice)}
+        {notice.agentLabel} — {reason(notice)}
       </span>
     </span>
   );
 }
 
-/** A: the bell's own row, with Approve where the row's trailing control sits. */
+/** A: the bell's own row, with Approve in the trailing slot so the reason reads in full. */
 function InlineRow({ notice }: { notice: ScriptApprovalNotice }) {
   return (
     <div className="flex min-w-0 items-center gap-1 pr-1">
@@ -108,9 +108,7 @@ function InlineRow({ notice }: { notice: ScriptApprovalNotice }) {
       >
         <Mark icon={SquareTerminal} />
         <RowLines notice={notice} />
-        <span className="text-eyebrow text-subtle tabular-nums">
-          <Time iso={notice.since} />
-        </span>
+        <span />
       </button>
       <Button size="xs" type="button" variant="secondary">
         Approve
