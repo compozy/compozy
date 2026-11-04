@@ -28,3 +28,8 @@ QA impact 2026-11-03 (#1230, unverified): In an isolated daemon lab with two ins
 The extension manager also reuses parsed skill definitions across profile projections when the
 SKILL.md and MCP sidecar snapshots are unchanged. Path containment is rechecked before cache reuse;
 real edits and sidecar addition/removal invalidate the entry.
+
+Marketplace verification also tracks the complete skill payload. In the isolated lab, corrupt then
+repair a nested reference file without editing SKILL.md or the provenance sidecar. The skill must
+be withdrawn while its payload hash differs and republished after repair; unchanged discoveries
+must continue to reuse the parsed definition.

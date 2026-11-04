@@ -642,6 +642,42 @@ func TestDiscoverReusesParsedDefinitionsWithoutChange(t *testing.T) {
 		}
 	})
 
+	t.Run("Should reverify marketplace payload edits without changing the definition or sidecar", func(t *testing.T) {
+		t.Parallel()
+
+		userDir := t.TempDir()
+		skillDir := filepath.Join(userDir, "guarded")
+		writeSkillFile(t, skillDir, skillFileName, guardedSkill("Marketplace guarded"))
+		guide := filepath.Join(skillDir, "references", "guide.md")
+		writeTestFile(t, guide, "Trusted guide")
+		if err := WriteSidecar(skillDir, Provenance{
+			Hash: skillDirectoryHash(t, skillDir), Registry: "clawhub", Slug: "@author/guarded", Version: "1.0.0",
+			InstalledAt: time.Date(2026, 11, 3, 12, 0, 0, 0, time.UTC),
+		}); err != nil {
+			t.Fatalf("WriteSidecar() error = %v", err)
+		}
+		var logs bytes.Buffer
+		registry := NewRegistry(
+			RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(userDir)},
+			WithLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+		)
+		for index, content := range []string{"Altered guide", "Trusted guide", "Altered guide", "Trusted guide"} {
+			rewriteSkillFile(t, guide, content)
+			for range 2 {
+				discovered, _, err := registry.DiscoverGlobal(t.Context())
+				if err != nil {
+					t.Fatalf("DiscoverGlobal() error = %v", err)
+				}
+				if got, want := hasSkillNamed(discovered, "guarded"), content == "Trusted guide"; got != want {
+					t.Fatalf("published after payload %q = %v, want %v", content, got, want)
+				}
+			}
+			if got, want := parseCount(&logs), index+1; got != want {
+				t.Fatalf("parses after payload edit = %d, want %d; logs=%s", got, want, logs.String())
+			}
+		}
+	})
+
 	t.Run("Should not re-parse unchanged workspace skills and publish genuine edits", func(t *testing.T) {
 		t.Parallel()
 
