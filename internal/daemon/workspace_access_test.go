@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	acpsdk "github.com/coder/acp-go-sdk"
 	core "github.com/compozy/compozy/internal/api/core"
 	apitest "github.com/compozy/compozy/internal/api/testutil"
 	profilepkg "github.com/compozy/compozy/internal/profile"
@@ -65,7 +66,7 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 	sessionsFor := func(mode workspaceaccess.Mode) *apitest.StubSessionManager {
 		return &apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
 			switch id {
-			case "sess-actor":
+			case "sess-actor", "sess-actor-next":
 				return &session.Info{
 					ID: id, AgentName: "coder", WorkspaceID: homeWorkspace, ProfileID: "p-x",
 					State: session.StateActive, EffectivePermissions: string(mode),
@@ -85,7 +86,7 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 					ID: id, AgentName: "coder", WorkspaceID: homeWorkspace, ProfileID: "p-y",
 					State: session.StateStopped,
 				}, nil
-			case "sess-sibling":
+			case "sess-sibling", "sess-sibling-next":
 				return &session.Info{
 					ID: id, AgentName: "coder", WorkspaceID: foreignWorkspace, ProfileID: "p-x",
 					State: session.StateActive,
@@ -312,6 +313,8 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 				func() sessionPermissionRequester { return requester },
 				time.Second,
 				newWorkspaceAccessConsentCache(),
+				nil,
+				nil,
 			),
 		)
 		_, foreignErr := authorize(t, binder, `{"session_id":"sess-foreign"}`)
@@ -348,6 +351,135 @@ func TestNativeSessionTargetAccess(t *testing.T) {
 		}
 		if title := *requester.requests[2].ToolCall.Title; !strings.HasPrefix(title, "Change session sess-sibling") {
 			t.Fatalf("write prompt title = %q, want the change named, not a read", title)
+		}
+	})
+
+	t.Run("Should remember an operator Always allow for later reads of the same scope", func(t *testing.T) {
+		t.Parallel()
+		sessions := sessionsFor(workspaceaccess.ModeAuto)
+		grants := &recordingApprovalGrantStore{}
+		requester := selectedPermissionRequester(workspaceAccessAllowAlwaysID)
+		binder := newNativeWorkspaceInputBinder(
+			nativeTestWorkspaceService(t),
+			sessions,
+			newPolicy(t, sessions),
+			newWorkspaceAccessPromptBridge(
+				func() sessionPermissionRequester { return requester },
+				time.Second,
+				newWorkspaceAccessConsentCache(),
+				grants,
+				slog.New(slog.DiscardHandler),
+			),
+		)
+		scope := actorScope
+		scope.ProfileID = "p-x"
+		call := func(descriptor toolspkg.Descriptor, input string) error {
+			bound, err := binder.BindCallInput(t.Context(), scope, descriptor, json.RawMessage(input))
+			if err != nil {
+				return err
+			}
+			return binder.AuthorizeCallInput(t.Context(), scope, descriptor, toolspkg.CallRequest{
+				ToolID: descriptor.ID, SessionID: scope.SessionID, Input: bound,
+			})
+		}
+		requirePrompts := func(t *testing.T, want int) {
+			t.Helper()
+			if len(requester.requests) != want {
+				t.Fatalf("permission requests = %d, want %d", len(requester.requests), want)
+			}
+		}
+
+		if err := call(statusDescriptor, `{"session_id":"sess-sibling"}`); err != nil {
+			t.Fatalf("first read error = %v, want the operator answer to admit it", err)
+		}
+		requirePrompts(t, 1)
+		options := requester.requests[0].Options
+		if len(options) < 2 || options[1].OptionId != workspaceAccessAllowAlwaysID ||
+			options[1].Name != "Always allow" {
+			t.Fatalf("read prompt options = %#v, want a remembered Always allow", options)
+		}
+		wantScope := "read:workspace:" + foreignWorkspace + "@p-x"
+		if len(grants.grants) != 1 || grants.grants[0].AccessScope != wantScope ||
+			grants.grants[0].AgentName != "coder" || grants.grants[0].ToolID != statusDescriptor.ID ||
+			grants.grants[0].WorkspaceID != homeWorkspace || grants.grants[0].ProfileID != "p-x" {
+			t.Fatalf("stored grants = %#v, want one %s grant for coder in its own workspace", grants.grants, wantScope)
+		}
+
+		toolInput, err := json.Marshal(map[string]string{"access_scope": wantScope})
+		if err != nil {
+			t.Fatal(err)
+		}
+		toolDigest, err := toolspkg.ApprovalInputDigest(toolInput, "")
+		if err != nil || toolDigest == grants.grants[0].InputDigest {
+			t.Fatalf("tool input digest = %q, %v, want a separate read-grant namespace", toolDigest, err)
+		}
+
+		// The same tool reading the same scope through a different input asks nobody.
+		requester.response.Outcome = acpsdk.NewRequestPermissionOutcomeSelected(workspaceAccessRejectOnceID)
+		if err := call(statusDescriptor, `{"session_id":"sess-sibling"}`); err != nil {
+			t.Fatalf("repeat read error = %v, want the remembered grant", err)
+		}
+		if err := call(statusDescriptor, `{"workspace":"`+foreignWorkspace+`"}`); err != nil {
+			t.Fatalf("workspace read error = %v, want the remembered grant", err)
+		}
+		requirePrompts(t, 1)
+
+		// Recreating the bridge and rotating the actor session must not lose the grant.
+		scope.SessionID = "sess-actor-next"
+		binder.prompter = newWorkspaceAccessPromptBridge(
+			func() sessionPermissionRequester { return requester },
+			time.Second,
+			newWorkspaceAccessConsentCache(),
+			grants,
+			slog.New(slog.DiscardHandler),
+		)
+		if err := call(statusDescriptor, `{"session_id":"sess-sibling-next"}`); err != nil {
+			t.Fatalf("rotated session read error = %v, want the remembered grant", err)
+		}
+		requirePrompts(t, 1)
+
+		// Another target scope and another tool stay outside the grant.
+		err = call(statusDescriptor, `{"session_id":"sess-foreign"}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		historyDescriptor := statusDescriptor
+		historyDescriptor.ID = toolspkg.ToolIDSessionHistory
+		err = call(historyDescriptor, `{"session_id":"sess-sibling"}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		requirePrompts(t, 3)
+		err = call(statusDescriptor, `{"workspace":"@user"}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		requirePrompts(t, 4)
+
+		// A write to the remembered scope still asks, and offers no durable answer.
+		renameDescriptor := statusDescriptor
+		renameDescriptor.ID, renameDescriptor.ReadOnly = toolspkg.ToolIDSessionRename, false
+		err = call(renameDescriptor, `{"session_id":"sess-sibling"}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		requirePrompts(t, 5)
+		if option := requester.requests[4].Options[1]; option.OptionId != workspaceAccessAllowSessionID {
+			t.Fatalf("write prompt allow option = %q, want the per-session answer", option.OptionId)
+		}
+
+		// Revocation restores the prompt.
+		if err := grants.RevokeApprovalGrant(t.Context(), "p-x", homeWorkspace, grants.grants[0].ID); err != nil {
+			t.Fatalf("RevokeApprovalGrant() error = %v", err)
+		}
+		err = call(statusDescriptor, `{"session_id":"sess-sibling"}`)
+		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonWorkspaceAccessDenied)
+		requirePrompts(t, 6)
+
+		// A missing session asks the same question and leaves nothing behind.
+		requester.response.Outcome = acpsdk.NewRequestPermissionOutcomeSelected(workspaceAccessAllowAlwaysID)
+		if err := call(statusDescriptor, `{"session_id":"sess-missing"}`); err != nil {
+			t.Fatalf("missing-session read error = %v, want the handler to report not found", err)
+		}
+		requirePrompts(t, 7)
+		if requester.requests[6].Options[1].OptionId != workspaceAccessAllowAlwaysID {
+			t.Fatalf("missing-session prompt options = %#v, want the found-session question",
+				requester.requests[6].Options)
+		}
+		if len(grants.grants) != 0 {
+			t.Fatalf("stored grants = %#v, want none for an unresolved target", grants.grants)
 		}
 	})
 

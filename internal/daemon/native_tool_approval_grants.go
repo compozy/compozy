@@ -9,6 +9,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 type toolApprovalsListInput struct {
@@ -187,6 +188,9 @@ func nativeToolApprovalWorkspace(
 ) (string, error) {
 	scoped = strings.TrimSpace(scoped)
 	requested = strings.TrimSpace(requested)
+	if requested == workspaceaccess.UserSelector && (scoped == "" || scoped == workspaceaccess.UserSelector) {
+		return "", nil
+	}
 	if scoped != "" && requested != "" && scoped != requested {
 		return "", toolspkg.NewToolError(
 			toolspkg.ErrorCodeDenied,
@@ -200,7 +204,7 @@ func nativeToolApprovalWorkspace(
 	if workspaceID == "" {
 		workspaceID = requested
 	}
-	if workspaceID == "" {
+	if workspaceID == "" && id != toolspkg.ToolIDToolApprovalsList && id != toolspkg.ToolIDToolApprovalsRevoke {
 		return "", nativeToolApprovalValidationError(
 			id,
 			nativeWorkspaceInputKey,

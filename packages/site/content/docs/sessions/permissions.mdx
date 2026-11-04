@@ -222,21 +222,36 @@ cross-workspace access is denied by this session's permission mode; ask the oper
 In `approve-reads`, `approve-edits` or `auto`, a cross-workspace native tool call from a running session becomes a pending
 permission request instead of an immediate denial. CompozyOS computes the option set:
 
-| Option ID        | Label                   | Effect                                                                           |
-| ---------------- | ----------------------- | -------------------------------------------------------------------------------- |
-| `allow_once`     | Allow once              | Allows this request only. The next crossing asks again.                          |
-| `allow_session`  | Allow for this session  | Allows this request and every later crossing by that session, at every boundary. |
-| `reject_once`    | Reject once             | Denies this request only. The next crossing asks again.                          |
-| `reject_session` | Reject for this session | Denies this request and every later crossing by that session, at every boundary. |
+| Option ID        | Label                   | Effect                                                                                                                                             |
+| ---------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allow_once`     | Allow once              | Allows this request only. The next crossing asks again.                                                                                            |
+| `allow_always`   | Always allow            | Reads only. Allows this read and remembers it for the same agent, tool and target project or profile, in every later session, until you revoke it. |
+| `allow_session`  | Allow for this session  | Writes only. Allows this request and every later crossing by that session, at every boundary.                                                      |
+| `reject_once`    | Reject once             | Denies this request only. The next crossing asks again.                                                                                            |
+| `reject_session` | Reject for this session | Denies this request and every later crossing by that session, at every boundary.                                                                   |
 
+A read prompt offers `allow_always` in place of `allow_session`; a write prompt keeps `allow_session`.
 Answer it like any other pending permission — the approvals bell in Web, `compozy session approve`,
 or the approve route. The `allow-once`, `allow-always`, `reject-once`, and `reject-always` decisions
-map onto the four options above in that order. The wait is bounded by
+map onto the four options of the prompt in that order. The wait is bounded by
 `[tools.policy] approval_timeout_seconds`; a timeout, a transport failure, or an answer outside the
-option set denies the request and stores no session answer.
+option set denies the request and stores no answer.
 
 Crossings at every other boundary are denied outright in `approve-reads` — they never raise a
 prompt. Once a session has answered `allow_session`, those boundaries start allowing.
+
+### Remembered reads
+
+An **Always allow** answer to a read prompt is stored as a tool approval with an access scope such as
+`read:workspace:<project-id>@<profile-id>` (`read:user@…` for User scope, `read:all-projects@…` for
+the All projects aggregate, `*` for every profile). It is keyed to the agent, its own project and
+profile, the tool and the target scope, not to the session id or the call input, so a later session
+of the same agent reading the same project with the same tool does not ask again. Another tool,
+another target, another agent or any write still asks. The grant appears under Settings → Tool
+approvals and in `compozy tool approvals list`; revoking it brings the prompt back. User-scope agents also retain these grants; list or revoke them with `--workspace @user`. The approval row names the target profile so grants for different profiles can be distinguished. The permission
+mode still applies first: `deny-all` or a `reject_session` answer denies even with a remembered read.
+An always-on agent answering another session's prompt cannot leave this grant: its `allow-always`
+is narrowed to `allow-once`.
 
 ### Session answers do not outlive the session
 

@@ -4471,6 +4471,8 @@ func TestDaemonNativeTools(t *testing.T) {
 				func() sessionPermissionRequester { return requester },
 				time.Second,
 				cache,
+				nil,
+				nil,
 			),
 		)
 		for attempt := range 2 {

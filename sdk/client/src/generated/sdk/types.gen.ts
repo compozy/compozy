@@ -11237,6 +11237,7 @@ export type ToolApprovalGrantListResponse = {
 };
 
 export type ToolApprovalGrantPayload = {
+  access_scope?: string;
   agent_name?: string;
   created_at: string;
   decision: "allow" | "reject";
