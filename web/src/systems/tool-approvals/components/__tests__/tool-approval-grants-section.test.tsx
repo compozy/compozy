@@ -233,7 +233,12 @@ describe("ToolApprovalGrantsSection", () => {
   });
 
   it("Should render the empty state without fetching when there is no runtime workspace", async () => {
-    workspaceMock.value = { runtimeWorkspaceId: null, hasHydrated: true, isLoading: false };
+    workspaceMock.value = {
+      dataScope: undefined,
+      runtimeWorkspaceId: null,
+      hasHydrated: true,
+      isLoading: false,
+    };
     stubFetch([listHandler(toolApprovalGrantFixtures)]);
     renderSection();
 
