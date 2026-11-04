@@ -100,6 +100,7 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		h.respondProviderAuthStatus(c, providerName, provider, classification, &env)
 		return
 	}
+	startedAt := h.nowUTC()
 	result, err := env.Normalize().RunCommand(c.Request.Context(), commandSpec)
 	if err != nil {
 		RespondError(c, http.StatusInternalServerError, err, h.MaskInternalErrors)
@@ -115,7 +116,7 @@ func (h *BaseHandlers) ProbeProviderAuth(c *gin.Context) {
 		},
 		&env,
 	)
-	h.observeProviderAuthProbe(c.Request.Context(), providerName, provider, classification)
+	h.observeProviderAuthProbe(c.Request.Context(), providerName, provider, classification, startedAt)
 	authStatus, err := providerAuthStatusPayload(
 		c.Request.Context(), provider, classification, &env, h.nowUTC(),
 	)
@@ -174,6 +175,7 @@ func (h *BaseHandlers) probeProviderACPAuth(
 	if probe == nil {
 		probe = acp.ProbeAuthentication
 	}
+	startedAt := h.nowUTC()
 	probeErr := probe(c.Request.Context(), acp.SessionInspectionRequest{
 		AgentName: providerName,
 		Command:   strings.TrimSpace(provider.Command),
@@ -188,7 +190,7 @@ func (h *BaseHandlers) probeProviderACPAuth(
 		return
 	}
 	classification := acp.ClassifyProbeError(providerName, probeErr)
-	h.observeProviderAuthProbe(c.Request.Context(), providerName, provider, classification)
+	h.observeProviderAuthProbe(c.Request.Context(), providerName, provider, classification, startedAt)
 	h.respondProviderAuthStatus(c, providerName, provider, classification, &env)
 }
 
@@ -199,11 +201,12 @@ func (h *BaseHandlers) observeProviderAuthProbe(
 	providerName string,
 	provider compozyconfig.ProviderConfig,
 	classification authproviders.Classification,
+	startedAt time.Time,
 ) {
 	if ctx.Err() != nil {
 		return
 	}
-	h.ProviderAuthVerdicts.Record(providerName, provider, classification)
+	h.ProviderAuthVerdicts.Record(providerName, provider, classification, startedAt)
 	if classification.State == authproviders.ProviderAuthStateAuthenticated && h.OnProviderAuthSuccess != nil {
 		h.OnProviderAuthSuccess()
 	}

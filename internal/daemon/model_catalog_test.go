@@ -3373,6 +3373,64 @@ func TestProviderUsageResolver(t *testing.T) {
 			t.Fatalf("unsupported auth alias accepted: status=%s", unsupported.Status)
 		}
 	})
+	t.Run("Should apply env utility options to an alias route", func(t *testing.T) {
+		t.Parallel()
+		home := testHomePaths(t)
+		cfg := testConfig(t, home)
+		cfg.ProviderUsage = compozyconfig.DefaultProviderUsageConfig()
+		accountDir := filepath.Join(t.TempDir(), ".claude-work")
+		claudeAlias := func(command string) compozyconfig.ProviderConfig {
+			return compozyconfig.ProviderConfig{
+				Harness:         compozyconfig.ProviderHarnessACP,
+				RuntimeProvider: "claude",
+				AuthMode:        compozyconfig.ProviderAuthModeNativeCLI,
+				HomePolicy:      compozyconfig.ProviderHomePolicyOperator,
+				Command:         command,
+			}
+		}
+		cfg.Providers["claude-unset"] = claudeAlias("env -u CLAUDE_CONFIG_DIR npx -y claude-agent-acp")
+		cfg.Providers["claude-chdir"] = claudeAlias(
+			"env -C /tmp CLAUDE_CONFIG_DIR=" + accountDir + " npx -y claude-agent-acp",
+		)
+		cfg.Providers["claude-split"] = claudeAlias(
+			"env -S 'CLAUDE_CONFIG_DIR=" + accountDir + " npx -y claude-agent-acp'",
+		)
+		cfg.Providers["openrouter-team"] = compozyconfig.ProviderConfig{
+			Command:         "pi-acp",
+			Harness:         compozyconfig.ProviderHarnessPiACP,
+			RuntimeProvider: "openrouter",
+			AuthMode:        compozyconfig.ProviderAuthModeBoundSecret,
+			CredentialSlots: []compozyconfig.ProviderCredentialSlot{{
+				Name: "token", TargetEnv: "OPENROUTER_API_KEY", SecretRef: "env:TEAM_KEY", Required: true,
+			}},
+		}
+		resolver := &providerUsageResolver{cfg: cfg, home: home,
+			baseEnv:    []string{"HOME=" + t.TempDir(), "CLAUDE_CONFIG_DIR=/inherited/.claude"},
+			collectors: providerusage.DefaultRegistry(providerusage.RegistryOptions{}),
+		}
+		targets, err := resolver.Targets(t.Context(), store.DefaultProfileID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		byID := make(map[string]providerusage.Target, len(targets))
+		for _, target := range targets {
+			byID[target.ProviderID] = target
+		}
+		if slices.ContainsFunc(byID["claude-unset"].Route.Env, func(entry string) bool {
+			return strings.HasPrefix(entry, "CLAUDE_CONFIG_DIR=")
+		}) {
+			t.Fatal("env -u left the inherited CLAUDE_CONFIG_DIR in the alias route")
+		}
+		for _, id := range []string{"claude-chdir", "claude-split"} {
+			if !slices.Contains(byID[id].Route.Env, "CLAUDE_CONFIG_DIR="+accountDir) {
+				t.Fatalf("%s route lost its own CLAUDE_CONFIG_DIR", id)
+			}
+		}
+		if team := byID["openrouter-team"]; team.CollectorID != "openrouter-team" || team.Error == nil ||
+			team.Error.Code != providerusage.ErrorCodeNoCollector {
+			t.Fatalf("bound-secret alias without an api_key slot collected: collector=%s", team.CollectorID)
+		}
+	})
 	t.Run("Should report disabled providers", func(t *testing.T) {
 		t.Parallel()
 		home := testHomePaths(t)

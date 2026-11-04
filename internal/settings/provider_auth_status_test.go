@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
@@ -132,7 +133,7 @@ func TestProviderAuthStatusDiagnostics(t *testing.T) {
 		verdicts.Record("local", provider, authproviders.Classification{
 			State:   authproviders.ProviderAuthStateAuthenticated,
 			Message: "Provider status command completed successfully.",
-		})
+		}, time.Now())
 
 		local := list()
 		if got, want := local.AuthStatus.State, "authenticated"; got != want {

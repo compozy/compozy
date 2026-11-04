@@ -108,12 +108,22 @@ func (r *providerUsageResolver) collectorFamily(id string, provider config.Provi
 		return id
 	}
 	runtime := strings.TrimSpace(provider.RuntimeProvider)
-	if runtime != "" && r.collectors[runtime] != nil &&
-		providerUsageAuthSupported(runtime, provider.EffectiveAuthMode()) {
-		return runtime
+	if runtime == "" || r.collectors[runtime] == nil ||
+		!providerUsageAuthSupported(runtime, provider.EffectiveAuthMode()) {
+		return id
 	}
-	return id
+	// Key-based collectors read the bound `api_key` slot; an alias without it cannot collect.
+	if provider.EffectiveAuthMode() == config.ProviderAuthModeBoundSecret &&
+		!slices.ContainsFunc(provider.EffectiveCredentialSlots(), func(slot config.ProviderCredentialSlot) bool {
+			return slot.Name == providerUsageAPIKeySlot
+		}) {
+		return id
+	}
+	return runtime
 }
+
+// providerUsageAPIKeySlot is the bound credential slot key-based usage collectors read.
+const providerUsageAPIKeySlot = "api_key"
 
 func (r *providerUsageResolver) route(
 	ctx context.Context, profileName, id, collectorID string, provider config.ProviderConfig, keychain bool,

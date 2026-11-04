@@ -535,6 +535,10 @@ func TestClaudeIsolation(t *testing.T) {
 			0o600,
 		))
 		server := fixtureServer(t, func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Authorization") == "Bearer synthetic-secret" {
+				claudeResponse(t, w, `{"five_hour":{"utilization":7}}`)
+				return
+			}
 			requireEqual(t, "Bearer alias-secret", r.Header.Get("Authorization"))
 			claudeResponse(t, w, `{"five_hour":{"utilization":12}}`)
 		})
@@ -548,6 +552,10 @@ func TestClaudeIsolation(t *testing.T) {
 		snapshot, err := c.Collect(t.Context(), alias, IntentBackground, second)
 		requireNoError(t, err)
 		requireEqual(t, "claude-mm1", snapshot.ProviderID)
+		requireEqual(t, float64(12), *snapshot.Windows[0].UsedPercent)
+		primarySnapshot, err := c.Collect(t.Context(), primary, IntentBackground, first)
+		requireNoError(t, err)
+		requireEqual(t, float64(7), *primarySnapshot.Windows[0].UsedPercent)
 		requireNoError(t, c.ValidateIdentity(t.Context(), primary, first))
 	})
 	t.Run("Should resolve exact secure storage service and account", func(t *testing.T) {

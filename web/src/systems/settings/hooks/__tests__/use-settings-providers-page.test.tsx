@@ -223,6 +223,40 @@ describe("useSettingsProvidersPage", () => {
     expect(result.current.inspectorIsValid).toBe(false);
   });
 
+  it("Should show the refetched provider in an open overview", async () => {
+    // Invariant: the overview reads the inspected provider from the live collection, so a
+    // sign-in check's refetch updates the open dialog without reopening it.
+    const { queryClient, wrapper } = createWrapper();
+    const { result } = renderHook(() => useSettingsProvidersPage(), { wrapper });
+    await waitFor(() => expect(result.current.providers).toHaveLength(2));
+
+    act(() => {
+      result.current.openInspect(codexEntry);
+    });
+    const verified = {
+      ...codexEntry,
+      auth_status: {
+        ...codexEntry.auth_status!,
+        state: "authenticated",
+        last_probe_at: "2026-11-04T03:00:00Z",
+      },
+    };
+    vi.mocked(listSettingsProviders).mockResolvedValue({
+      ...collection,
+      providers: [claudeEntry, verified],
+    });
+    await act(() => queryClient.invalidateQueries());
+
+    await waitFor(() =>
+      expect(result.current.inspector).toMatchObject({
+        mode: "inspect",
+        entry: expect.objectContaining({
+          auth_status: expect.objectContaining({ state: "authenticated" }),
+        }),
+      })
+    );
+  });
+
   it("opens edit editor seeded from the entry and keeps the selected item", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSettingsProvidersPage(), { wrapper });

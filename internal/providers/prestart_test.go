@@ -211,7 +211,10 @@ func TestPreStarter(t *testing.T) {
 			t.Fatalf("Apply(before probe) = %q at %v, want unverified", got.State, checkedAt)
 		}
 
-		report := NewPreStarter(WithAuthVerdicts(verdicts)).PreStart(testutil.Context(t), provider, &ProbeEnv{
+		// A session start prepares the launch command with its resolved executable.
+		prepared := provider
+		prepared.Command = "/bin/acme acp"
+		report := NewPreStarter(WithAuthVerdicts(verdicts)).PreStart(testutil.Context(t), prepared, &ProbeEnv{
 			ProviderName: "acme",
 			LookPath:     func(string) (string, error) { return "/bin/acme", nil },
 			RunCommand: func(context.Context, ProviderAuthCommandSpec) (ProviderAuthCommandResult, error) {
@@ -223,6 +226,10 @@ func TestPreStarter(t *testing.T) {
 		got, checkedAt := verdicts.Apply("acme", provider, declared)
 		if got.State != ProviderAuthStateAuthenticated || checkedAt.IsZero() {
 			t.Fatalf("Apply(after probe) = %q at %v, want authenticated with a check time", got.State, checkedAt)
+		}
+		verdicts.Record("acme", provider, Classification{State: ProviderAuthStateNeedsLogin}, time.Unix(0, 0))
+		if got, _ := verdicts.Apply("acme", provider, declared); got.State != ProviderAuthStateAuthenticated {
+			t.Fatalf("Apply(after an older probe finished) = %q, want the newer verdict kept", got.State)
 		}
 		missing := Classification{State: ProviderAuthStateMissingCLI}
 		if got, _ := verdicts.Apply("acme", provider, missing); got.State != ProviderAuthStateMissingCLI {
