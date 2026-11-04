@@ -990,7 +990,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs:
-      [changes, preflight, go-integration, go-terminal-windows, desktop-windows, e2e-runtime, e2e-web, e2e-desktop]
+      [
+        changes,
+        preflight,
+        go-integration,
+        go-terminal-windows,
+        desktop-windows,
+        e2e-runtime,
+        e2e-web,
+        e2e-desktop,
+      ]
     if: always()
     steps:
       - name: Require every heavy lane the change needs
