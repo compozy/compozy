@@ -59,7 +59,8 @@ which can repeatedly interrupt backfill before progress is published. Periodic
 maintenance now retains the 200 ms admission limit and runs I/O under its owned
 worker lifetime on the dedicated connection. Foreground writes remain independent;
 shutdown cancels and joins maintenance before releasing the database family.
-Idle maintenance keeps its existing deadline, and no I/O error is downgraded.
+Idle maintenance schedules PASSIVE on that same worker; only TRUNCATE remains
+on the writer with its existing 200 ms deadline. No I/O error is downgraded.
 The canonical real SQLite suite holds periodic I/O beyond the admission deadline,
 releases it and requires success; existing cases prove foreground progress and
 bounded close during stalled I/O.
@@ -98,6 +99,25 @@ all errors retained; incomplete byte comparisons print `n/a (incomplete)`.
 Untraced trials own zero-error/deadline acceptance, the explicit retention
 duration ceiling, and paired throughput. The 1 GiB fixture, preservation checks
 and real daemon exercise remain in place.
+
+The first revised head `169251403` reached the real-daemon CI walk in run
+[41890831652](https://github.com/compozy/compozy/actions/runs/41890831652), artifact
+`13354066115`. It exposed five remaining PASSIVE deadline warnings at 18:52:30
+UTC, without the periodic worker's `session_id` field: these came from idle
+maintenance still running on the writer. All route/preservation assertions ran,
+and teardown was clean, but the strict log check correctly failed. Idle
+maintenance now schedules PASSIVE on the dedicated worker too, retaining bounded
+TRUNCATE and its backoff. Oversized WALs attempt TRUNCATE first to avoid competing
+with a newly enqueued PASSIVE. Below-limit idle PASSIVE admission deferred by a
+family guard retries on later activity or close; the WAL stays within its bound. The owning blocked-I/O suite additionally proves idle
+maintenance returns while PASSIVE is still stalled. The new head must re-run the
+real daemon walk; the failed head is not passing acceptance evidence.
+
+Greptile follow-up: traced-process/JSON/write-accounting failures are captured as
+diagnostic errors rather than aborting normal acceptance. Eight Python tests
+cover these exceptions and cleanup. The real SQLite test seeds committed WAL-only
+content and requires that content to reach the main database after the stalled
+checkpoint resumes, proving backfill rather than just a nil return.
 
 Historical artifact analysis is not a passing run of the revised gate. Exact-head
 CI supplies that acceptance evidence; no local load, full Go/race suite or E2E was

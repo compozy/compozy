@@ -87,6 +87,21 @@ def operation_rates(result):
             for name, sample in result["latency"].items()}
 
 
+def trace_diagnostic(binary, source, output, label):
+    root = output / (label + "-trace-data")
+    try:
+        try:
+            copy_fixture(source, root)
+            return run(binary, root, "load", output, label + "-writes", duration="15s", trace=True)
+        finally:
+            if root.exists():
+                shutil.rmtree(root)
+    except (OSError, subprocess.SubprocessError, ValueError, RuntimeError) as error:
+        result = {"diagnostic_error": {"error": str(error), "type": type(error).__name__}}
+        save(output / (label + "-writes-error.json"), result)
+        return result
+
+
 def throughput_comparison(baseline, head):
     if len(baseline) != len(head) or not baseline:
         raise ValueError("throughput requires nonempty paired trials")
@@ -169,12 +184,7 @@ def main():
                 shutil.rmtree(root)
     traced = {}
     for label, source in (("baseline", fixture), ("head", upgraded)):
-        root = args.output / "trial-data"
-        copy_fixture(source, root)
-        try:
-            traced[label] = run(getattr(args, label), root, "load", args.output, f"{label}-writes", duration="15s", trace=True)
-        finally:
-            shutil.rmtree(root)
+        traced[label] = trace_diagnostic(getattr(args, label), source, args.output, label)
     environment = {"platform": platform.platform(), "cpu_count": os.cpu_count(), "baseline": args.baseline_sha,
                    "head": args.head_sha, "python_sqlite": __import__("sqlite3").sqlite_version,
                    "go": subprocess.check_output(["go", "version"], text=True).strip(),
@@ -189,7 +199,8 @@ def main():
     result["throughput_regressions"] = regressions
     result["invalid_head_trials"] = invalid
     result["max_retention_seconds"] = MAX_RETENTION_SECONDS
-    result["trace_comparable"] = not any(load_failed(run, retention_rows) for run in traced.values())
+    result["trace_comparable"] = all("diagnostic_error" not in run and not load_failed(run, retention_rows)
+                                     for run in traced.values())
     save(args.output / "results.json", result)
     lines = ["# SQLite contention paired experiment", "", f"Baseline `{args.baseline_sha}`; head `{args.head_sha}`.", "",
              "30 sessions; 1,000 completed turns each; 20 Hz transcript chunks, 5 Hz transcript reads,",
@@ -220,7 +231,9 @@ def main():
     lines += ["", "Throughput regressions (median of untraced paired ratios): " + json.dumps(regressions),
               "Paired ratios by operation: " + json.dumps(comparison),
               f"Traced byte comparison valid (both runs error-free, retention complete): {result['trace_comparable']}. "
-              "If false, byte rates describe incomplete work and must not support an efficiency claim.", ""]
+              "If false, byte rates describe incomplete work and must not support an efficiency claim.",
+              "Traced diagnostic errors: " + json.dumps({label: run["diagnostic_error"] for label, run in traced.items()
+                                                        if "diagnostic_error" in run}), ""]
     for label, runs in trials.items():
         lines += ["", f"{label}: {sum(sum(map(len,r['failures'].values())) for r in runs)} operation failures; {sum(len(r['contention_diagnostics']) for r in runs)} long-hold/contention warnings."]
         lines += [f"Retention rows removed: {[r['retention']['DeletedEventSummaries'] for r in runs]}."]

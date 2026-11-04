@@ -32,11 +32,14 @@ SQLite's first commit. The stop
 boundary stops admission and waits for requests, health flush and checkpoints;
 it never cancels accepted work to manufacture clean latency results. Each
 request has a two-second deadline. Failed operations and long-lock/contention
-messages remain in the output and fail untraced head acceptance. The periodic checkpoint worker retains a 200 ms admission budget, but its
+messages remain in the output and fail untraced head acceptance. The checkpoint worker retains a 200 ms admission budget, but its
 I/O runs under the owned worker lifetime so it can advance the WAL backfill
 pointer. It has a dedicated connection and never reserves the foreground writer.
-Shutdown cancels and joins it; genuine I/O errors remain warnings. Idle writer
-maintenance keeps its existing 200 ms I/O budget. Foreground deadlines and
+Shutdown cancels and joins it; genuine I/O errors remain warnings. Idle maintenance also schedules PASSIVE backfill on this worker; only its
+TRUNCATE attempt stays on the writer with the existing 200 ms I/O budget. Oversized WALs
+attempt TRUNCATE first (which also backfills), scheduling PASSIVE only on deferral.
+A below-limit idle PASSIVE deferred by a family guard retries on the next activity
+or close; no data or size guarantee depends on a new timer. Foreground deadlines and
 one-second write holds remain failures.
 
 The modernc commit hook counts write commit attempts by core and telemetry
@@ -50,6 +53,8 @@ excludes shared-memory mmap dirtying and filesystem/device amplification.
 Traced runs are diagnostics only: ptrace changes scheduling and I/O enough to
 exhaust deadlines in this workload. They cannot measure production throughput or
 deadline compliance. Raw failures and retention counts remain in the artifact;
+Diagnostic process, JSON and write-accounting failures are recorded separately
+in `*-writes-error.json` and `results.json`, preserving normal acceptance.
 `trace_comparable=false` marks byte rates for incomplete work as unsuitable for
 efficiency comparisons. Untraced acceptance requires every operation's median
 paired head/baseline rate ratio to be at least 0.95. Missing head

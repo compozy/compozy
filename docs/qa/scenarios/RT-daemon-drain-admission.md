@@ -65,6 +65,8 @@ QA impact 2026-11-04 (SQLite acceptance): while 30 sessions stream, periodic
 checkpoint I/O may outlive its 200 ms admission budget on its dedicated connection.
 Verify it completes after a delayed sync, foreground persistence continues,
 errors remain visible, and close cancels/joins maintenance before releasing files.
+Idle maintenance must also return while passive I/O is stalled; only its TRUNCATE
+attempt uses the writer with the bounded reader wait.
 `TestSessionDBPassiveCheckpoint/Should_complete_periodic` covers real SQLite I/O
 beyond admission expiry; the existing blocked-I/O cases own writer/shutdown
 isolation. The paired-load and thirty-session daemon jobs own the CI walk.

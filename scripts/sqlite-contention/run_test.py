@@ -1,8 +1,13 @@
 """Acceptance invariants owned by the paired experiment runner."""
 import unittest
+from unittest.mock import patch
+from pathlib import Path
+import json
+import subprocess
+import tempfile
 
 from run import (MAX_RETENTION_SECONDS, MIN_THROUGHPUT_RATIO,
-                 acceptance_failures, load_failed, throughput_comparison)
+                 acceptance_failures, load_failed, throughput_comparison, trace_diagnostic)
 
 
 def trial(count=100, seconds=30):
@@ -68,6 +73,23 @@ class AcceptanceTests(unittest.TestCase):
         self.assertEqual(comparison["read"]["pair_count"], 4)
         self.assertFalse(comparison["read"]["baseline_complete"])
         self.assertIn("read", regressions)
+
+    def test_trace_failures_preserve_normal_acceptance_and_diagnostics(self):
+        for error in (subprocess.CalledProcessError(1, "strace"),
+                      RuntimeError("incomplete write accounting"), ValueError("invalid trace result")):
+            with self.subTest(error=error), tempfile.TemporaryDirectory() as directory:
+                output = Path(directory)
+                source = output / "fixture"
+                source.mkdir()
+                with patch("run.run", side_effect=error):
+                    result = trace_diagnostic(Path("binary"), source, output, "head")
+                saved = json.loads((output / "head-writes-error.json").read_text())
+                self.assertEqual(saved, result)
+                self.assertEqual(result["diagnostic_error"]["type"], type(error).__name__)
+                self.assertFalse((output / "head-trace-data").exists())
+                trials = {"baseline": [trial() for _ in range(4)],
+                          "head": [trial() for _ in range(4)], "traced": {"head": result}}
+                self.assertEqual(acceptance_failures(trials, 20000)[1:], ({}, []))
 
 
 if __name__ == "__main__":
