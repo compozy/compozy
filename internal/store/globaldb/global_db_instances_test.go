@@ -3225,13 +3225,39 @@ func TestInstanceCheckFatigue(t *testing.T) {
 		if err != nil || current.State != "active" {
 			t.Fatalf("instance=%+v err=%v, want active after configuration rejections", current, err)
 		}
+		// A timer rejection waits max_interval even while an automation event stays pending.
+		due := store.FormatTimestamp(now)
+		if _, err := db.DB().ExecContext(t.Context(),
+			"UPDATE agent_instance_wake_state SET next_wake_at=? WHERE instance_id=?", due, instance.ID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB().ExecContext(t.Context(), `INSERT INTO agent_instance_events
+			(id,instance_id,trigger_id,run_id,summary,received_at) VALUES ('pending',?,'trigger','run','Event',?)`,
+			instance.ID, due); err != nil {
+			t.Fatal(err)
+		}
+		if ok, err := repo.Admit(t.Context(), heartbeat.AdmitRequest{
+			InstanceID: instance.ID, OccurrenceID: "occ-config-timer", ExpectedDue: due, Now: now,
+			NextWakeAt: now.Add(time.Hour), MaxConcurrent: 1,
+		}); err != nil || !ok {
+			t.Fatalf("timer admit=%v %v", ok, err)
+		}
 		retry := heartbeat.ConfigUnavailableTriage("rejected")
-		next := nextInstanceWake(&heartbeat.FinishRequest{
-			InstanceID: instance.ID, Source: "timer", Result: retry.Result, Reason: retry.Reason,
-			Now: now, Interval: time.Hour, MaxInterval: 24 * time.Hour,
-		}, 0, 0)
-		if next.Before(now.Add(24 * time.Hour)) {
-			t.Fatalf("next wake=%v, want a retry no sooner than max_interval", next)
+		if ok, err := repo.Finish(t.Context(), heartbeat.FinishRequest{
+			InstanceID: instance.ID, OccurrenceID: "occ-config-timer", Source: "timer",
+			Result: retry.Result, Reason: retry.Reason, Detail: retry.Detail, Report: retry.Report,
+			Now: now, ExpiresAt: now.Add(time.Hour), Interval: time.Hour, MaxInterval: 24 * time.Hour,
+			FatigueLimit: 2, UnattendedTurnLimit: 2,
+		}); err != nil || !ok.Changed {
+			t.Fatalf("timer finish=%v %v", ok, err)
+		}
+		timerState, err := repo.WakeState(t.Context(), instance.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		next, err := store.ParseTimestamp(timerState.NextWakeAt)
+		if err != nil || next.Before(now.Add(24*time.Hour)) {
+			t.Fatalf("next wake=%q err=%v, want a retry no sooner than max_interval", timerState.NextWakeAt, err)
 		}
 		finished, err := repo.Occurrence(t.Context(), instance.ID, "occ-config-2")
 		if err != nil || finished.Result != "failed" || finished.Reason != heartbeat.ReasonTriageConfigUnavailable {

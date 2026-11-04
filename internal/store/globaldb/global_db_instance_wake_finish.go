@@ -79,6 +79,7 @@ func (r *InstanceRepo) Finish(ctx context.Context, req heartbeat.FinishRequest) 
 				InstanceID: req.InstanceID, OccurrenceID: req.OccurrenceID, Now: store.FormatTimestamp(req.Now),
 				Completed: completed, Digest: req.Digest, AutomationCursor: req.AutomationCursor,
 				QuietStreak: quiet, FailureStreak: failures, NextWakeAt: next,
+				HoldForEvents: holdForPendingEvents(&req),
 			})
 			result.Changed = count == 1
 			if err != nil {
@@ -263,4 +264,14 @@ func countFinishedCheck(ctx context.Context, q *sqlcgen.Queries, req *heartbeat.
 // so the rejection must not advance the failure streak, fatigue pause, or unattended budget.
 func countsAsCheckFailure(req *heartbeat.FinishRequest) bool {
 	return req.Result == loopNodeOutputFailed && req.Reason != heartbeat.ReasonTriageConfigUnavailable
+}
+
+// holdForPendingEvents keeps an earlier deadline owed to unconsumed events, except after a
+// configuration rejection: it fails the same way until the operator fixes it, so its
+// max_interval retry must not be pulled back by events the rejected check left pending.
+func holdForPendingEvents(req *heartbeat.FinishRequest) int64 {
+	if req.Result == loopNodeOutputFailed && !countsAsCheckFailure(req) {
+		return 0
+	}
+	return 1
 }

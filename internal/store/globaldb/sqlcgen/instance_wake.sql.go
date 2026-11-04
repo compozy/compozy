@@ -116,10 +116,10 @@ last_digest_at=CASE WHEN ?2=1 THEN ?1 ELSE last_digest_at END,
 automation_cursor=CASE WHEN ?2=1 THEN ?4 ELSE automation_cursor END,
 quiet_streak=?5,failure_streak=?6,
 next_wake_at=CASE WHEN ?7='' THEN next_wake_at
-WHEN next_wake_at<>'' AND next_wake_at<?7
+WHEN ?8=1 AND next_wake_at<>'' AND next_wake_at<?7
 AND EXISTS (SELECT 1 FROM agent_instance_events e WHERE e.instance_id=agent_instance_wake_state.instance_id AND e.consumed_at IS NULL)
 THEN next_wake_at ELSE ?7 END
-WHERE agent_instance_wake_state.instance_id=?8 AND agent_instance_wake_state.occurrence_id=?9
+WHERE agent_instance_wake_state.instance_id=?9 AND agent_instance_wake_state.occurrence_id=?10
 `
 
 type FinishInstanceWakeParams struct {
@@ -130,6 +130,7 @@ type FinishInstanceWakeParams struct {
 	QuietStreak      int64  `json:"quiet_streak"`
 	FailureStreak    int64  `json:"failure_streak"`
 	NextWakeAt       any    `json:"next_wake_at"`
+	HoldForEvents    any    `json:"hold_for_events"`
 	InstanceID       string `json:"instance_id"`
 	OccurrenceID     string `json:"occurrence_id"`
 }
@@ -143,6 +144,7 @@ func (q *Queries) FinishInstanceWake(ctx context.Context, arg FinishInstanceWake
 		arg.QuietStreak,
 		arg.FailureStreak,
 		arg.NextWakeAt,
+		arg.HoldForEvents,
 		arg.InstanceID,
 		arg.OccurrenceID,
 	)
