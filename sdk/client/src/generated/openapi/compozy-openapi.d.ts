@@ -8838,7 +8838,12 @@ export interface components {
       /** @enum {string} */
       steer_capability: "steer_ext" | "concurrent_prompt" | "none";
       /** @enum {string} */
-      steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+      steer_delivery?:
+        | "injected"
+        | "pending_injection"
+        | "pending_boundary"
+        | "after_turn"
+        | "interrupt_fallback";
     };
     CancelTaskRequest: {
       metadata?: unknown;
@@ -14549,7 +14554,12 @@ export interface components {
       reply_watch?: components["schemas"]["ReplyWatchRefPayload"] | null;
       status: string;
       /** @enum {string} */
-      steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+      steer_delivery?:
+        | "injected"
+        | "pending_injection"
+        | "pending_boundary"
+        | "after_turn"
+        | "interrupt_fallback";
       target_session_id?: string;
       target_workspace_id?: string;
       turn_id?: string;
@@ -15159,7 +15169,12 @@ export interface components {
       /** @enum {string} */
       status: "queued" | "dispatching" | "sent" | "failed" | "canceled";
       /** @enum {string} */
-      steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+      steer_delivery?:
+        | "injected"
+        | "pending_injection"
+        | "pending_boundary"
+        | "after_turn"
+        | "interrupt_fallback";
       target_turn_id?: string;
       text: string;
     };

@@ -155,7 +155,7 @@ WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_qu
 UPDATE session_input_queue
 SET status = sqlc.arg(status), steer_delivery = sqlc.arg(steer_delivery),
     dispatchable = CASE WHEN sqlc.arg(status) = 'queued' THEN 1 ELSE 0 END,
-    delivery = CASE WHEN sqlc.arg(status) = 'queued' AND origin_class <> 'human' THEN 'after_turn' ELSE delivery END,
+    delivery = CASE WHEN sqlc.arg(status) = 'queued' AND (origin_class <> 'human' OR sqlc.arg(steer_delivery) = 'after_turn') THEN 'after_turn' ELSE delivery END,
     turn_id = CASE WHEN sqlc.arg(status) = 'sent' THEN target_turn_id ELSE turn_id END,
     sent_at = sqlc.narg(sent_at), dispatch_started_at = NULL, updated_at = sqlc.arg(now)
 WHERE session_id = sqlc.arg(session_id) AND id = sqlc.arg(id)
@@ -178,7 +178,8 @@ SET steer_delivery = sqlc.arg(steer_delivery), updated_at = sqlc.arg(now),
     sent_at = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN NULL ELSE sent_at END,
     turn_id = CASE WHEN sqlc.arg(steer_delivery) = 'interrupt_fallback' THEN sqlc.arg(fallback_turn_id) ELSE turn_id END
 WHERE session_input_queue.session_id = sqlc.arg(session_id) AND session_input_queue.id = sqlc.arg(id)
-  AND mode = 'steer' AND status = 'sent' AND steer_delivery = 'pending_injection'
+  AND mode = 'steer' AND ((status = 'sent' AND steer_delivery = 'pending_injection')
+    OR (status = 'queued' AND steer_delivery = 'pending_boundary' AND sqlc.arg(steer_delivery) = 'interrupt_fallback'))
   AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = sqlc.arg(session_id));
 

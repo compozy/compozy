@@ -29,6 +29,7 @@ func (s *Session) beginExclusivePromptSetupForRequest(
 		return nil, err
 	}
 	s.currentTurnID = turnID
+	s.openToolCalls = make(map[string]bool)
 	s.currentTurnSource = turnSource
 	s.currentPromptMessage = strings.TrimSpace(req.authoredMessage)
 	s.currentPromptDelivery = req.delivery

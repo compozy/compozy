@@ -65,7 +65,8 @@ func (g *SessionRepo) ResolveSessionSteer(
 		nowRaw := store.FormatTimestamp(now)
 		status := store.SessionInputQueueStatusSent
 		sentAt := sql.NullString{String: nowRaw, Valid: true}
-		if delivery == store.SteerDeliveryInterruptFallback {
+		if delivery == store.SteerDeliveryInterruptFallback || delivery == store.SteerDeliveryPendingBoundary ||
+			delivery == store.SteerDeliveryAfterTurn {
 			status = store.SessionInputQueueStatusQueued
 			sentAt = sql.NullString{}
 		}

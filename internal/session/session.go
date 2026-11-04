@@ -168,6 +168,7 @@ type Session struct {
 	postStopOnce            sync.Once
 	followUpMode            func() string
 	steerDelivery           store.SteerDeliveryMode
+	steerBoundaryTimeout    time.Duration
 	mu                      sync.RWMutex
 	persistMu               sync.Mutex
 	// runtimeApplySlot serializes live runtime reconfiguration with prompt runtime admission;
@@ -284,6 +285,9 @@ type Session struct {
 	promptSetupCount           int
 	promptSetupDone            chan struct{}
 	currentTurnID              string
+	openToolCalls              map[string]bool
+	toolEventsObserved         bool
+	hasBoundarySteer           bool
 	currentTurnSource          TurnSource
 	currentPromptMessage       string
 	currentPromptDelivery      PromptDelivery

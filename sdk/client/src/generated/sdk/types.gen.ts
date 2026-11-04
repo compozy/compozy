@@ -1139,7 +1139,12 @@ export type BulkForceTaskRunResponse = {
 export type BusyInputState = {
   default_mode: string;
   steer_capability: "steer_ext" | "concurrent_prompt" | "none";
-  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+  steer_delivery?:
+    | "injected"
+    | "pending_injection"
+    | "pending_boundary"
+    | "after_turn"
+    | "interrupt_fallback";
 };
 
 export type CancelTaskRequest = {
@@ -6704,7 +6709,12 @@ export type SendPromptResultPayload = {
   replayed: boolean;
   reply_watch?: ReplyWatchRefPayload | null;
   status: string;
-  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+  steer_delivery?:
+    | "injected"
+    | "pending_injection"
+    | "pending_boundary"
+    | "after_turn"
+    | "interrupt_fallback";
   target_session_id?: string;
   target_workspace_id?: string;
   turn_id?: string;
@@ -7253,7 +7263,12 @@ export type SessionInputPayload = {
   session_id: string;
   skill_invocations?: Array<SessionSkillInvocationPayload>;
   status: "queued" | "dispatching" | "sent" | "failed" | "canceled";
-  steer_delivery?: "injected" | "pending_injection" | "interrupt_fallback";
+  steer_delivery?:
+    | "injected"
+    | "pending_injection"
+    | "pending_boundary"
+    | "after_turn"
+    | "interrupt_fallback";
   target_turn_id?: string;
   text: string;
 };

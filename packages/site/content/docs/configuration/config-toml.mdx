@@ -325,6 +325,8 @@ timeout = "0s"
 default_mode = "steer"
 queue_cap = 10
 max_text_bytes = 65536
+# Wait for running tools before fallback steering cancels the turn. Zero cancels immediately.
+steer_boundary_timeout = "45s"
 
 [session.messaging]
 # Agent-to-agent messages (compozy__session_prompt) one sender session may send to one target per window.
@@ -2820,6 +2822,10 @@ See the [Gateway section](/docs/gateway) for setup, tutorials, and operations, a
 ### Follow-up behavior and steering capability
 
 `session.busy_input.default_mode` defaults to `steer`; choose `queue` to defer busy follow-ups.
+For providers without native steering, `steer_boundary_timeout` waits up to `45s` for all active
+tools to finish before canceling and reprompting. Set it to `"0s"` for immediate cancellation.
+Negative durations are rejected. Without tool events, steering queues until the turn ends.
+Explicit interrupt always cancels immediately. This setting takes effect after a daemon restart.
 Changes through General Settings apply to subsequent admissions without a daemon restart.
 The historical `interrupt` default remains accepted with a warning through v0.4 and is scheduled
 for removal in v0.5.0. Interrupt remains an explicit per-send action.

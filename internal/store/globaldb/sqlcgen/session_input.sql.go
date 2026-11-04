@@ -1570,7 +1570,7 @@ const resolveSessionSteer = `-- name: ResolveSessionSteer :execrows
 UPDATE session_input_queue
 SET status = ?1, steer_delivery = ?2,
     dispatchable = CASE WHEN ?1 = 'queued' THEN 1 ELSE 0 END,
-    delivery = CASE WHEN ?1 = 'queued' AND origin_class <> 'human' THEN 'after_turn' ELSE delivery END,
+    delivery = CASE WHEN ?1 = 'queued' AND (origin_class <> 'human' OR ?2 = 'after_turn') THEN 'after_turn' ELSE delivery END,
     turn_id = CASE WHEN ?1 = 'sent' THEN target_turn_id ELSE turn_id END,
     sent_at = ?3, dispatch_started_at = NULL, updated_at = ?4
 WHERE session_id = ?5 AND id = ?6
@@ -1639,7 +1639,8 @@ SET steer_delivery = ?1, updated_at = ?2,
     sent_at = CASE WHEN ?1 = 'interrupt_fallback' THEN NULL ELSE sent_at END,
     turn_id = CASE WHEN ?1 = 'interrupt_fallback' THEN ?3 ELSE turn_id END
 WHERE session_input_queue.session_id = ?4 AND session_input_queue.id = ?5
-  AND mode = 'steer' AND status = 'sent' AND steer_delivery = 'pending_injection'
+  AND mode = 'steer' AND ((status = 'sent' AND steer_delivery = 'pending_injection')
+    OR (status = 'queued' AND steer_delivery = 'pending_boundary' AND ?1 = 'interrupt_fallback'))
   AND (owner_kind IS NULL OR owner_kind = 'synthetic')
   AND session_generation = (SELECT input_generation FROM sessions WHERE sessions.id = ?4)
 `

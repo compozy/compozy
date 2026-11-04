@@ -71,6 +71,9 @@ func (m *Manager) activateSteeringInputText(
 	if err != nil {
 		return err
 	}
+	if delivery == store.SteerDeliveryInterruptFallback {
+		delivery = m.boundarySteerDelivery(session, entry)
+	}
 	entry.SteerDelivery = delivery
 	resolved, err := m.persistSteerDelivery(session, entry, completion)
 	if err != nil {
@@ -138,6 +141,14 @@ func (m *Manager) injectSteeringInput(
 func (m *Manager) activateSteerFallback(
 	ctx context.Context, session *Session, entry *store.SessionInputQueueEntry,
 ) error {
+	if entry.SteerDelivery == store.SteerDeliveryAfterTurn {
+		m.startNextQueuedInputPrompt(session.ID)
+		return nil
+	}
+	if entry.SteerDelivery == store.SteerDeliveryPendingBoundary {
+		m.watchSteerBoundary(session, entry)
+		return nil
+	}
 	if entry.SteerDelivery != store.SteerDeliveryInterruptFallback {
 		return nil
 	}
@@ -212,6 +223,10 @@ func (m *Manager) emitSteerMarker(ctx context.Context, session *Session, entry *
 	switch {
 	case entry.SteerDelivery == store.SteerDeliveryInjected:
 		message = "Steering delivered into the live turn."
+	case entry.SteerDelivery == store.SteerDeliveryPendingBoundary:
+		message = "Steering is waiting for the active tool to finish."
+	case entry.SteerDelivery == store.SteerDeliveryAfterTurn:
+		message = "Steering will be delivered after the active turn."
 	case entry.SteerDelivery == store.SteerDeliveryPendingInjection:
 		message = "Steering is waiting for the active tool to finish."
 	case steerFallbackWaitsForTurn(entry):
@@ -229,7 +244,9 @@ func (m *Manager) persistSteerDelivery(
 	session *Session, entry *store.SessionInputQueueEntry, completion <-chan error,
 ) (store.SessionInputQueueEntry, error) {
 	ctx := m.fallbackLifecycleContext()
-	if entry.SteerDelivery == store.SteerDeliveryInterruptFallback {
+	if entry.SteerDelivery == store.SteerDeliveryInterruptFallback ||
+		entry.SteerDelivery == store.SteerDeliveryPendingBoundary ||
+		entry.SteerDelivery == store.SteerDeliveryAfterTurn {
 		return m.inputQueue.ResolveSteer(ctx, session.ID, entry.ID, entry.SteerDelivery)
 	}
 	var resolved store.SessionInputQueueEntry

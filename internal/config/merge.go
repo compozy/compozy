@@ -120,9 +120,10 @@ type sessionSupervisionOverlay struct {
 }
 
 type sessionBusyInputOverlay struct {
-	DefaultMode  *string `toml:"default_mode"`
-	QueueCap     *int    `toml:"queue_cap"`
-	MaxTextBytes *int    `toml:"max_text_bytes"`
+	SteerBoundaryTimeout *time.Duration `toml:"steer_boundary_timeout"`
+	DefaultMode          *string        `toml:"default_mode"`
+	QueueCap             *int           `toml:"queue_cap"`
+	MaxTextBytes         *int           `toml:"max_text_bytes"`
 }
 
 type permissionsOverlay struct {

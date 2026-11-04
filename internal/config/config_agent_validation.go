@@ -238,9 +238,10 @@ func DefaultSessionSupervisionConfig() SessionSupervisionConfig {
 // DefaultSessionBusyInputConfig returns the default busy-input behavior.
 func DefaultSessionBusyInputConfig() SessionBusyInputConfig {
 	return SessionBusyInputConfig{
-		DefaultMode:  "steer",
-		QueueCap:     10,
-		MaxTextBytes: 64 << 10,
+		DefaultMode:          "steer",
+		SteerBoundaryTimeout: 45 * time.Second,
+		QueueCap:             10,
+		MaxTextBytes:         64 << 10,
 	}
 }
 
@@ -264,6 +265,10 @@ func (c SessionBusyInputConfig) Normalize() SessionBusyInputConfig {
 // Validate ensures busy-input controls are internally consistent.
 func (c SessionBusyInputConfig) Validate() error {
 	normalized := c.Normalize()
+	if normalized.SteerBoundaryTimeout < 0 {
+		return errors.New("session.busy_input.steer_boundary_timeout must be zero or positive")
+	}
+
 	switch strings.TrimSpace(normalized.DefaultMode) {
 	case "queue", "interrupt", "steer":
 	case "":

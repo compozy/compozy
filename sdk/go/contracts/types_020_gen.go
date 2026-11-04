@@ -72,6 +72,8 @@ type SteerDeliveryMode string
 const (
 	SteerDeliveryModeInjected          SteerDeliveryMode = "injected"
 	SteerDeliveryModePendingInjection  SteerDeliveryMode = "pending_injection"
+	SteerDeliveryModePendingBoundary   SteerDeliveryMode = "pending_boundary"
+	SteerDeliveryModeAfterTurn         SteerDeliveryMode = "after_turn"
 	SteerDeliveryModeInterruptFallback SteerDeliveryMode = "interrupt_fallback"
 )
 

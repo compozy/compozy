@@ -22,6 +22,14 @@ func (s *Session) busyInputStateLocked(caps acp.Caps) *BusyInputState {
 		capability = config.SteerCapabilityNone
 	}
 	delivery := s.steerDelivery
+	if capability == config.SteerCapabilityNone && s.steerBoundaryTimeout > 0 {
+		delivery = store.SteerDeliveryInterruptFallback
+		if s.openToolCallCountLocked() > 0 {
+			delivery = store.SteerDeliveryPendingBoundary
+		} else if !s.toolEventsObserved {
+			delivery = store.SteerDeliveryAfterTurn
+		}
+	}
 	if delivery == "" {
 		delivery = store.SteerDeliveryInterruptFallback
 		if capability == config.SteerCapabilityExtension || capability == config.SteerCapabilityConcurrentPrompt {

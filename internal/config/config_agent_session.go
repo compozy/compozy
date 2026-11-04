@@ -108,9 +108,10 @@ type SessionSupervisionConfig struct {
 
 // SessionBusyInputConfig controls operator input submitted while a turn is active.
 type SessionBusyInputConfig struct {
-	DefaultMode  string `toml:"default_mode,omitempty"`
-	QueueCap     int    `toml:"queue_cap,omitempty"`
-	MaxTextBytes int    `toml:"max_text_bytes,omitempty"`
+	SteerBoundaryTimeout time.Duration `toml:"steer_boundary_timeout"`
+	DefaultMode          string        `toml:"default_mode,omitempty"`
+	QueueCap             int           `toml:"queue_cap,omitempty"`
+	MaxTextBytes         int           `toml:"max_text_bytes,omitempty"`
 }
 
 const (

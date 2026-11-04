@@ -7,6 +7,12 @@ A prompt sent while a session is working follows `session.busy_input.default_mod
 to `steer`. An idle session starts a normal turn. Explicit `--queue`, `--steer`, and `--interrupt`
 flags override the busy default for one send.
 
+Without native steering, a steer reports `pending_boundary` while active tools finish.
+Cancellation follows the last tool result or `session.busy_input.steer_boundary_timeout`
+(default `45s`), whichever comes first. A provider emitting no tool events reports `after_turn`
+and queues the guidance. A timeout of `"0s"` restores immediate fallback cancellation.
+Use explicit interrupt to cancel immediately.
+
 ```bash
 compozy session prompt sess_1234 "Prefer the smaller patch."
 compozy session prompt sess_1234 "Run the next check." --queue

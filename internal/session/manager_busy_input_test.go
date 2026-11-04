@@ -152,7 +152,7 @@ func TestManagerBusyInputQueue(t *testing.T) {
 			return nil
 		}
 		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-			if req.Message != "active" {
+			if !promptRequestEndsWith(req.Message, "active") {
 				return completedSyntheticPromptEvents(req.TurnID), nil
 			}
 			events := make(chan acp.AgentEvent, 1)
@@ -1086,7 +1086,11 @@ func TestManagerBusyInputActivationCleanup(t *testing.T) {
 			t.Parallel()
 
 			queueStore := openManagerInputQueueStore(t)
-			h := newHarness(t, WithSessionInputQueueStore(queueStore))
+			h := newHarness(
+				t,
+				WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{SteerBoundaryTimeout: 0}),
+				WithSessionInputQueueStore(queueStore),
+			)
 			registerManagerInputQueueWorkspace(t, queueStore, h)
 			sess := createSession(t, h)
 			registerManagerInputQueueSession(t, queueStore, h, sess)
@@ -1168,7 +1172,11 @@ func TestManagerBusyInputActivationCleanup(t *testing.T) {
 		t.Parallel()
 
 		queueStore := openManagerInputQueueStore(t)
-		h := newHarness(t, WithSessionInputQueueStore(queueStore))
+		h := newHarness(
+			t,
+			WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{SteerBoundaryTimeout: 0}),
+			WithSessionInputQueueStore(queueStore),
+		)
 		registerManagerInputQueueWorkspace(t, queueStore, h)
 		sess := createSession(t, h)
 		registerManagerInputQueueSession(t, queueStore, h, sess)
@@ -3504,7 +3512,11 @@ func TestManagerPendingInputPromotionReplay(t *testing.T) {
 			t.Parallel()
 
 			queueStore := openManagerInputQueueStore(t)
-			h := newHarness(t, WithSessionInputQueueStore(queueStore))
+			h := newHarness(
+				t,
+				WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{SteerBoundaryTimeout: 0}),
+				WithSessionInputQueueStore(queueStore),
+			)
 			registerManagerInputQueueWorkspace(t, queueStore, h)
 			sess := createSession(t, h)
 			registerManagerInputQueueSession(t, queueStore, h, sess)
@@ -3598,7 +3610,11 @@ func TestManagerPendingInputPromotionReplay(t *testing.T) {
 		t.Parallel()
 
 		queueStore := openManagerInputQueueStore(t)
-		h := newHarness(t, WithSessionInputQueueStore(queueStore))
+		h := newHarness(
+			t,
+			WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{SteerBoundaryTimeout: 0}),
+			WithSessionInputQueueStore(queueStore),
+		)
 		registerManagerInputQueueWorkspace(t, queueStore, h)
 		sess := createSession(t, h)
 		registerManagerInputQueueSession(t, queueStore, h, sess)
@@ -4225,8 +4241,12 @@ func TestManagerLiveSteerDelivery(t *testing.T) {
 	t.Run("Should kill and rebind before dispatching fallback steer ahead of queued input", func(t *testing.T) {
 		t.Parallel()
 		queueStore := openManagerInputQueueStore(t)
-		h := newHarness(t, WithSessionInputQueueStore(queueStore),
-			WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: 20 * time.Millisecond}))
+		h := newHarness(
+			t,
+			WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{SteerBoundaryTimeout: 0}),
+			WithSessionInputQueueStore(queueStore),
+			WithSessionStopConfig(compozyconfig.SessionStopConfig{CooperativeGrace: 20 * time.Millisecond}),
+		)
 		registerManagerInputQueueWorkspace(t, queueStore, h)
 		h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
 			proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("fallback-%d", sequence))
@@ -4338,7 +4358,12 @@ func TestManagerLiveSteerDelivery(t *testing.T) {
 					t, attachmentID, "steer.png", "image/png", data,
 				)},
 			}
-			h := newHarness(t, WithSessionInputQueueStore(queueStore), WithAttachmentOpener(opener))
+			h := newHarness(
+				t,
+				WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{SteerBoundaryTimeout: 0}),
+				WithSessionInputQueueStore(queueStore),
+				WithAttachmentOpener(opener),
+			)
 			registerManagerInputQueueWorkspace(t, queueStore, h)
 			h.driver.startHook = func(opts acp.StartOpts, sequence int) (*fakeProcess, error) {
 				proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, fmt.Sprintf("acp-%d", sequence))
@@ -6589,7 +6614,7 @@ func holdMentionActiveTurn(t *testing.T, h *harness) func() {
 		return nil
 	}
 	h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
-		if req.Message != "active" {
+		if !promptRequestEndsWith(req.Message, "active") {
 			return completedSyntheticPromptEvents(req.TurnID), nil
 		}
 		events := make(chan acp.AgentEvent, 1)
@@ -6710,4 +6735,192 @@ func TestQueuedAgentCommandDelivery(t *testing.T) {
 			t.Fatalf("queued command = %#v", request)
 		}
 	})
+}
+
+func TestManagerBoundarySteer(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		tools        bool
+		timeout      time.Duration
+		mode         BusyInputMode
+		boundary     bool
+		want         store.SteerDeliveryMode
+		knownTools   bool
+		failBoundary bool
+	}{
+		{"Should wait for all open tools before canceling and reprompting", true, time.Minute, BusyInputModeSteer, true, store.SteerDeliveryPendingBoundary, false, false},
+		{"Should cancel at the boundary timeout", true, 30 * time.Millisecond, BusyInputModeSteer, false, store.SteerDeliveryPendingBoundary, false, false},
+		{"Should queue guidance when no tool events are available", false, time.Minute, BusyInputModeSteer, false, store.SteerDeliveryAfterTurn, false, false},
+		{"Should preserve immediate cancellation when the timeout is zero", false, 0, BusyInputModeSteer, false, store.SteerDeliveryInterruptFallback, false, false},
+		{"Should interrupt immediately even while tools are open", true, time.Minute, BusyInputModeInterrupt, false, "", false, false},
+		{"Should retain tool-event support across turns", false, time.Minute, BusyInputModeSteer, false, store.SteerDeliveryInterruptFallback, true, false},
+		{"Should preserve the turn after a transient boundary queue failure", true, time.Second, BusyInputModeSteer, true, store.SteerDeliveryPendingBoundary, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			database := openManagerInputQueueStore(t)
+			cfg := compozyconfig.DefaultSessionBusyInputConfig()
+			cfg.SteerBoundaryTimeout = tc.timeout
+			queueStore := &boundaryInputQueueFaultStore{GlobalDB: database, failed: make(chan struct{}, 1)}
+			h := newHarness(t, WithSessionInputQueueStore(queueStore), WithSessionBusyInputConfig(cfg))
+			registerManagerInputQueueWorkspace(t, database, h)
+			sess := createSession(t, h)
+			registerManagerInputQueueSession(t, database, h, sess)
+			source := make(chan acp.AgentEvent, 8)
+			release := make(chan struct{})
+			unblock := sync.OnceFunc(func() { close(release) })
+			canceled := make(chan struct{}, 1)
+			t.Cleanup(func() { unblock(); reportSessionStop(t, h, sess.ID) })
+			h.driver.cancelHook = func(*fakeProcess) error { canceled <- struct{}{}; unblock(); return nil }
+			h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+				if req.Message == "prior tool turn" {
+					events := make(chan acp.AgentEvent, 4)
+					events <- acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "prior-tool", TurnID: req.TurnID}
+					events <- acp.AgentEvent{Type: acp.EventTypeToolResult, ToolCallID: "prior-tool", TurnID: req.TurnID}
+					emitDonePromptEvents(events, sess.ID, req.TurnID)
+					close(events)
+					return events, nil
+				}
+				if !promptRequestEndsWith(req.Message, "active") {
+					events := make(chan acp.AgentEvent, 2)
+					emitDonePromptEvents(events, sess.ID, req.TurnID)
+					close(events)
+					return events, nil
+				}
+				go func() { <-release; emitDonePromptEvents(source, sess.ID, req.TurnID); close(source) }()
+				return source, nil
+			}
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			if tc.knownTools {
+				prior, err := h.manager.SendPrompt(ctx, sess.ID, SendPromptOpts{Message: "prior tool turn"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				collectEvents(t, prior.Events)
+				if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+					t.Fatal(err)
+				}
+			}
+			active, err := h.manager.SendPrompt(ctx, sess.ID, SendPromptOpts{Message: "active"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var streamFailed atomic.Bool
+			drained := make(chan struct{})
+			go func() {
+				for event := range active.Events {
+					if event.Type == acp.EventTypeError {
+						streamFailed.Store(true)
+					}
+				}
+				close(drained)
+			}()
+			waitForCondition(t, "active turn bound", func() bool { return sess.CurrentTurnID() != "" })
+			turn := sess.CurrentTurnID()
+			if tc.tools {
+				for _, id := range []string{"one", "one", "two"} {
+					source <- acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: id, TurnID: turn}
+				}
+				waitForCondition(
+					t,
+					"tools observed",
+					func() bool { sess.mu.RLock(); defer sess.mu.RUnlock(); return sess.openToolCallCountLocked() == 2 },
+				)
+			}
+			result, err := h.manager.SendPrompt(ctx, sess.ID, SendPromptOpts{Message: "replacement", Mode: tc.mode})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.SteerDelivery != tc.want {
+				t.Fatalf("delivery=%s, want %s", result.SteerDelivery, tc.want)
+			}
+			if tc.want == store.SteerDeliveryAfterTurn || tc.boundary {
+				sess.mu.RLock()
+				stopping := sess.turnStopPending
+				sess.mu.RUnlock()
+				if stopping {
+					t.Fatal("steer canceled before boundary")
+				}
+			}
+			if tc.boundary {
+				source <- acp.AgentEvent{Type: acp.EventTypeToolResult, ToolCallID: "one", TurnID: turn}
+				waitForCondition(
+					t,
+					"first tool finished",
+					func() bool { sess.mu.RLock(); defer sess.mu.RUnlock(); return sess.openToolCallCountLocked() == 1 },
+				)
+				select {
+				case <-canceled:
+					t.Fatal("canceled while second tool remained open")
+				default:
+				}
+				source <- acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "one", TurnID: turn}
+				if tc.failBoundary {
+					queueStore.failNext.Store(true)
+				}
+				source <- (acp.AgentEvent{Type: acp.EventTypeToolCall, ToolCallID: "two", TurnID: turn}).WithProviderToolMetadata("", "", "failed")
+				if tc.failBoundary {
+					select {
+					case <-queueStore.failed:
+					case <-ctx.Done():
+						t.Fatal("queue fault was not exercised")
+					}
+				}
+			}
+			if tc.want == store.SteerDeliveryAfterTurn {
+				unblock()
+			} else {
+				select {
+				case <-canceled:
+				case <-ctx.Done():
+					t.Fatal("no cancellation at boundary or timeout")
+				}
+			}
+			select {
+			case <-drained:
+			case <-ctx.Done():
+				t.Fatal("active stream did not finish")
+			}
+			if err := h.manager.WaitForPromptDrains(ctx); err != nil {
+				t.Fatal(err)
+			}
+			calls := managerPromptCalls(h)
+			wantCalls := 2
+			if tc.knownTools {
+				wantCalls++
+			}
+			if streamFailed.Load() {
+				t.Fatal("queue boundary error failed the active turn")
+			}
+			if len(calls) != wantCalls || !promptRequestEndsWith(calls[len(calls)-1].Message, "replacement") {
+				t.Fatalf("prompt calls=%#v", calls)
+			}
+			if tc.want == store.SteerDeliveryAfterTurn {
+				select {
+				case <-canceled:
+					t.Fatal("queue degradation canceled the turn")
+				default:
+				}
+			}
+		})
+	}
+}
+
+type boundaryInputQueueFaultStore struct {
+	*globaldb.GlobalDB
+	failNext atomic.Bool
+	failed   chan struct{}
+}
+
+func (s *boundaryInputQueueFaultStore) ListPendingSessionInputs(
+	ctx context.Context,
+	id string,
+) ([]store.SessionInputQueueEntry, error) {
+	if s.failNext.Swap(false) {
+		s.failed <- struct{}{}
+		return nil, errors.New("transient queue read failure")
+	}
+	return s.GlobalDB.ListPendingSessionInputs(ctx, id)
 }

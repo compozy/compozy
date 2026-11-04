@@ -3090,6 +3090,23 @@ func TestSessionAuthRecoveryConfig(t *testing.T) {
 
 func TestSessionBusyInputConfigDefaultsAndValidation(t *testing.T) {
 	t.Parallel()
+	t.Run("Should default boundary waits and preserve an explicit zero overlay", func(t *testing.T) {
+		t.Parallel()
+		cfg := DefaultSessionBusyInputConfig()
+		if cfg.SteerBoundaryTimeout != 45*time.Second {
+			t.Fatalf("default boundary timeout=%s", cfg.SteerBoundaryTimeout)
+		}
+		zero := time.Duration(0)
+		sessionBusyInputOverlay{SteerBoundaryTimeout: &zero}.Apply(&cfg)
+		if cfg.Normalize().SteerBoundaryTimeout != 0 {
+			t.Fatal("zero timeout was defaulted")
+		}
+		cfg.SteerBoundaryTimeout = -time.Second
+		if err := cfg.Validate(); err == nil || !strings.Contains(err.Error(), "steer_boundary_timeout") {
+			t.Fatalf("Validate()=%v", err)
+		}
+	})
+
 	for _, tc := range []struct {
 		name    string
 		value   string

@@ -367,6 +367,11 @@ modes so operators and agents do not have to guess what happens when a prompt is
 `session.busy_input.default_mode` defaults to `steer`; `session.busy_input.queue_cap` bounds
 operator input in the persisted queue, and agent messages hold a separate pool of the same size.
 Monitor wakes merge into one row per session, so they never refuse the operator.
+Without native steering, operator guidance waits for active tools (`pending_boundary`)
+for up to `session.busy_input.steer_boundary_timeout` (`45s`). When all tools finish, or the
+timeout expires, the turn is canceled and the replacement runs. With no tool events, guidance
+queues after the turn (`after_turn`). `"0s"` restores immediate fallback; explicit interrupt
+is always immediate.
 
 The Web composer is available for active and eligible stopped `user`, `system`, `coordinator`, and
 `spawned` sessions. While one of these sessions is busy, the Web controls can queue a prompt, steer

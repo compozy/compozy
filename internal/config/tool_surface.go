@@ -122,6 +122,7 @@ var (
 		"session.supervision.idle_release_after":                   ConfigValueDuration,
 		"session.supervision.timeout_cancel_grace":                 ConfigValueDuration,
 		"session.busy_input.default_mode":                          ConfigValueString,
+		"session.busy_input.steer_boundary_timeout":                ConfigValueDuration,
 		"session.busy_input.queue_cap":                             ConfigValueInt,
 		"session.busy_input.max_text_bytes":                        ConfigValueInt,
 		"session.messaging.rate_limit_messages":                    ConfigValueInt,

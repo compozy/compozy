@@ -2363,7 +2363,7 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 	})
 	t.Run("Should reserve steering once and replay its resolved delivery atomically", func(t *testing.T) {
 		t.Parallel()
-		for _, delivery := range []store.SteerDeliveryMode{store.SteerDeliveryInjected, store.SteerDeliveryPendingInjection, store.SteerDeliveryInterruptFallback} {
+		for _, delivery := range []store.SteerDeliveryMode{store.SteerDeliveryInjected, store.SteerDeliveryPendingInjection, store.SteerDeliveryInterruptFallback, store.SteerDeliveryPendingBoundary, store.SteerDeliveryAfterTurn} {
 			t.Run("Should resolve "+string(delivery), func(t *testing.T) {
 				t.Parallel()
 				ctx := t.Context()
@@ -2407,7 +2407,8 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 				if resolved.SteerDelivery != delivery {
 					t.Fatalf("resolved delivery = %q", resolved.SteerDelivery)
 				}
-				if delivery == store.SteerDeliveryInterruptFallback {
+				if delivery == store.SteerDeliveryInterruptFallback || delivery == store.SteerDeliveryPendingBoundary ||
+					delivery == store.SteerDeliveryAfterTurn {
 					if resolved.Status != store.SessionInputQueueStatusQueued {
 						t.Fatalf("fallback status = %q", resolved.Status)
 					}
@@ -2420,7 +2421,8 @@ func TestGlobalDBSessionPromptAdmission(t *testing.T) {
 							claimErr,
 						)
 					}
-				} else if resolved.Status != store.SessionInputQueueStatusSent || resolved.TurnID != "original-turn" {
+				} else if resolved.Status != store.SessionInputQueueStatusSent ||
+					resolved.TurnID != "original-turn" {
 					t.Fatalf("injected input lost its original turn: %#v", resolved)
 				}
 				replay, found, err := db.ReplaySessionPromptAdmission(ctx, req)
