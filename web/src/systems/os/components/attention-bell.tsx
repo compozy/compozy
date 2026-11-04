@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { Bell, Check, CircleAlert } from "@compozy/ui/icons";
 
 import { Button, cn, Empty, Eyebrow, Icon, SkeletonRegion } from "@compozy/ui";
@@ -63,6 +63,9 @@ export interface AttentionBellProps extends Omit<ComponentProps<"div">, "onSelec
   loopRequestsDisconnected?: boolean;
   loading: boolean;
   onSelect: (row: OsAttentionRow) => void;
+  /** Scripts waiting for approval, grouped above Needs you; they never mark notifications read. */
+  scripts?: ReactNode;
+  scriptCount?: number;
 }
 
 /** Acknowledgement removes notifications while source actions remain available in their owning app. */
@@ -77,12 +80,15 @@ export function AttentionBell({
   loopRequestsDisconnected = false,
   loading,
   onSelect,
+  scripts,
+  scriptCount = 0,
   className,
   ...props
 }: AttentionBellProps) {
   const disconnected = sessionsDisconnected || tasksDisconnected || loopRequestsDisconnected;
   const shown = sections.needsYou.length + sections.finished.length;
   const empty = shown === 0;
+  const quiet = empty && scriptCount === 0;
 
   return (
     <div
@@ -109,6 +115,7 @@ export function AttentionBell({
         loopRequestsDisconnected={loopRequestsDisconnected}
       />
       <div className="-mx-1 flex max-h-96 min-h-0 flex-col overflow-y-auto">
+        {scripts}
         <BellSection
           label="Needs you"
           rows={sections.needsYou}
@@ -125,7 +132,7 @@ export function AttentionBell({
           disabled={pending || disconnected}
           testId="os-bell-finished"
         />
-        {!loading && empty && !disconnected ? (
+        {!loading && quiet && !disconnected ? (
           <Empty
             data-testid="os-bell-empty"
             icon={Bell}
@@ -136,7 +143,7 @@ export function AttentionBell({
             description="No unread notifications."
           />
         ) : null}
-        {loading && empty ? (
+        {loading && quiet ? (
           <SkeletonRegion label="Loading notifications">
             <AttentionBellRowSkeleton />
             <AttentionBellRowSkeleton />

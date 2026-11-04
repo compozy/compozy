@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"path/filepath"
 	"time"
 
 	"github.com/compozy/compozy/internal/agentinstance"
@@ -37,6 +38,7 @@ func (r instanceDefinitions) projectInstanceSources(
 	if err != nil {
 		return
 	}
+	scripts := newInstanceScriptApprovals(instance, agent, artifacts, workspace, reader)
 	out := make([]heartbeat.HeartbeatSourceStatus, 0, len(refs))
 	if len(refs) == 0 {
 		payload.Sources = out
@@ -59,7 +61,53 @@ func (r instanceDefinitions) projectInstanceSources(
 		if !state.NextPollAt.IsZero() {
 			status.NextPollAt = store.FormatTimestamp(state.NextPollAt)
 		}
+		if scripts.ready && ref.Script != "" {
+			projectScriptApproval(ctx, scripts, ref.Script, &status)
+		}
 		out = append(out, status)
 	}
 	payload.Sources = out
+}
+
+// instanceScriptApprovals is what an instance read needs to tell whether a script waits for the
+// operator: approvals keyed like the poller's, and only where the poller would run the script.
+type instanceScriptApprovals struct {
+	approvals source.ApprovalReader
+	profileID string
+	dir       string
+	ready     bool
+}
+
+func newInstanceScriptApprovals(
+	instance agentinstance.Instance,
+	agent compozyconfig.AgentDef,
+	artifacts *session.AgentArtifacts,
+	workspace *workspacepkg.ResolvedWorkspace,
+	reader instanceAttentionReader,
+) instanceScriptApprovals {
+	approvals, ok := reader.(source.ApprovalReader)
+	packageOwned := artifacts != nil && artifacts.PackageOwned
+	return instanceScriptApprovals{
+		approvals: approvals,
+		profileID: instance.ProfileID,
+		dir:       filepath.Dir(agent.SourcePath),
+		ready:     ok && !packageOwned && workspace.Config.Agents.Heartbeat.Sources.ScriptsEnabled,
+	}
+}
+
+// projectScriptApproval reads the script's bytes without running it, so approval shows before the
+// first check and on a paused instance. A script that can't run (missing, not executable) has
+// nothing to approve; its poll status says why.
+func projectScriptApproval(
+	ctx context.Context,
+	scripts instanceScriptApprovals,
+	name string,
+	status *heartbeat.HeartbeatSourceStatus,
+) {
+	_, hash, approved, err := source.ApprovedScript(ctx, scripts.approvals, scripts.profileID, scripts.dir, name)
+	if err != nil {
+		return
+	}
+	status.ScriptSHA256 = hash
+	status.AwaitingApproval = !approved
 }

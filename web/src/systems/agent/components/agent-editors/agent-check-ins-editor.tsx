@@ -10,7 +10,13 @@ function LoadedEditor({
   payload,
   ...props
 }: AgentEditorProps & { payload: AgentHeartbeatPayload }) {
-  const model = useCheckInsEditor(props.agent, props.workspace, payload, props.readOnly);
+  const model = useCheckInsEditor(
+    props.agent,
+    props.workspace,
+    payload,
+    props.readOnly,
+    props.onOpenScript
+  );
   const guard = useUnsavedGuard({ dirty: model.document.changes > 0, entityName: "Heartbeat" });
   return (
     <>

@@ -1046,7 +1046,10 @@ describe("Heartbeat", () => {
               executable: true,
               sha256: SCRIPT_SHA,
               approved: false,
-              approved_sha256: null,
+              // Approved once, then edited: the notice asks for the new version.
+              approved_sha256:
+                "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+              line_count: 42,
             },
           ],
         });
@@ -1072,11 +1075,88 @@ describe("Heartbeat", () => {
     const user = userEvent.setup();
     renderEditor(<AgentCheckInsEditor {...props()} />);
 
-    const row = await screen.findByTestId("check-in-source-row");
-    await waitFor(() => expect(row).toHaveTextContent("Waiting for your approval · 7f3a91c0"));
-    await user.click(within(row).getByRole("button", { name: "Approve" }));
+    const notice = await screen.findByTestId("check-in-script-approval");
+    expect(notice).toHaveTextContent("Approve the new version of failed-deploys");
+    expect(notice).toHaveTextContent("42 lines");
+    expect(screen.getByTestId("check-in-source-row")).toHaveTextContent("Needs your approval");
+    await user.click(within(notice).getByRole("button", { name: "Approve" }));
     await waitFor(() => expect(approvals).toEqual([SCRIPT_SHA]));
     await waitFor(() => expect(catalogReads).toBe(2));
+  });
+
+  it("Should ask for approval above Sources before the first check, even on a paused place", async () => {
+    serveHeartbeat(
+      sourcesPayload([
+        { id: "deploys", script: "failed-deploys" },
+        { id: "draft", script: "draft-deploys" },
+      ])
+    );
+    let approved = false;
+    server.use(
+      http.get("*/api/agents/:name/heartbeat/sources", () =>
+        HttpResponse.json({
+          agent: agent.name,
+          scripts_enabled: true,
+          limits: { max_per_agent: 16, max_items: 20 },
+          kinds: [],
+          scripts: [
+            {
+              name: "failed-deploys",
+              executable: true,
+              sha256: SCRIPT_SHA,
+              approved,
+              approved_sha256: approved ? SCRIPT_SHA : null,
+            },
+            // Without the exec bit it can't run, so there is nothing to approve yet.
+            {
+              name: "draft-deploys",
+              executable: false,
+              sha256: SCRIPT_SHA,
+              approved: false,
+              approved_sha256: null,
+            },
+          ],
+        })
+      ),
+      http.post("*/api/agents/:name/heartbeat/scripts/:script/approve", () => {
+        approved = true;
+        return HttpResponse.json({
+          script: "failed-deploys",
+          sha256: SCRIPT_SHA,
+          approved_at: new Date().toISOString(),
+        });
+      })
+    );
+    const pending = { status: "pending_first_poll", failure_streak: 0, last_item_count: 0 };
+    seedAgentInstanceMock([
+      agentInstanceFixture({
+        agent_name: agent.name,
+        state: "paused",
+        pause_reason: "manual",
+        sources: [
+          { ...pending, id: "deploys" },
+          { ...pending, id: "draft" },
+        ],
+      }),
+    ]);
+    const user = userEvent.setup();
+    renderEditor(<AgentCheckInsEditor {...props()} />);
+
+    // One notice, for the script that can run; the paused place can still approve it.
+    const notice = await screen.findByTestId("check-in-script-approval");
+    expect(notice).toHaveTextContent("Approve failed-deploys to let it run");
+    expect(notice).toHaveTextContent("Approve it now and it runs as soon as you resume");
+    expect(screen.getAllByTestId("check-in-script-approval")).toHaveLength(1);
+    expect(screen.getByText("1 needs your approval")).toBeInTheDocument();
+    const [row, draft] = screen.getAllByTestId("check-in-source-row");
+    expect(row).toHaveTextContent("Needs your approval");
+    expect(draft).toHaveTextContent("Not checked yet");
+    // Rows only report; the notice owns Approve.
+    expect(within(row!).queryByRole("button", { name: "Approve" })).toBeNull();
+
+    await user.click(within(notice).getByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(row).toHaveTextContent("Approved · runs at the next check-in"));
+    expect(screen.queryByTestId("check-in-script-approval")).toBeNull();
   });
 
   it("Should open a custom schedule in Advanced only", async () => {

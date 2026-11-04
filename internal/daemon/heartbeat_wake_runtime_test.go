@@ -1580,6 +1580,55 @@ func TestHeartbeatSourceRuntime(t *testing.T) {
 			t.Fatalf("removed=%+v err=%v", payload.Sources, err)
 		}
 	})
+	// Invariant (#1258): an unapproved script reads as awaiting approval from its bytes alone, so a
+	// new or paused instance that is never polled still asks; approval clears it, an edit asks again.
+	t.Run("Should project script approval before the first check and while paused", func(t *testing.T) {
+		h := newHeartbeatSourceRuntime(t, false, false)
+		api := core.AgentInstanceAPI{
+			Checks: h.checks,
+			ReadPayload: func(ctx context.Context, instance agentinstance.Instance) (contract.AgentInstancePayload, error) {
+				return h.env.definitions.instancePayload(ctx, instance, h.db.Instances())
+			},
+		}
+		read := func(instance agentinstance.Instance, awaiting bool) heartbeat.HeartbeatSourceStatus {
+			t.Helper()
+			payload, err := api.Payload(t.Context(), instance)
+			if err != nil || len(payload.Sources) != 1 || payload.Sources[0].AwaitingApproval != awaiting ||
+				payload.Sources[0].Status != "pending_first_poll" {
+				t.Fatalf("payload=%+v err=%v", payload.Sources, err)
+			}
+			return payload.Sources[0]
+		}
+		_, hash, err := source.ReadScript(h.dir, "poll")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := read(h.instance, true); got.ScriptSHA256 != hash {
+			t.Fatalf("hash=%q want %q", got.ScriptSHA256, hash)
+		}
+		result, err := h.db.Instances().Pause(t.Context(), h.instance.ID, "manual")
+		if err != nil {
+			t.Fatal(err)
+		}
+		paused := result.Instance
+		if paused.State != "paused" {
+			t.Fatalf("state=%q", paused.State)
+		}
+		read(paused, true)
+		h.approve(t)
+		read(paused, false)
+		script := filepath.Join(h.dir, "sources", "poll")
+		body, err := os.ReadFile(script)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(script, append(body, []byte("# edited\n")...), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if got := read(paused, true); got.ScriptSHA256 == hash || got.ScriptSHA256 == "" {
+			t.Fatalf("changed hash=%q", got.ScriptSHA256)
+		}
+	})
 	// Invariant: deferred hook exits persist the timer event and resolved cadence.
 	for _, tc := range []struct {
 		name, reason string

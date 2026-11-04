@@ -234,6 +234,7 @@ export type GridTile = {
 };
 
 export type HeartbeatSourceStatus = {
+  awaiting_approval?: boolean;
   error?: Error | null;
   failure_streak: number;
   id: string;
@@ -243,6 +244,7 @@ export type HeartbeatSourceStatus = {
   last_success_at?: string;
   next_poll_at?: string;
   script?: string;
+  script_sha256?: string;
   status: string;
 };
 

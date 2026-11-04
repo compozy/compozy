@@ -6,6 +6,7 @@ import {
   AgentHeartbeatScriptApprovalError,
   approveAgentHeartbeatScript,
 } from "../adapters/agent-heartbeat-api";
+import type { ScriptApprovalItem } from "../lib/agent-script-approvals";
 import { agentKeys } from "../lib/query-keys";
 import { agentHeartbeatSourcesOptions } from "../lib/query-options";
 
@@ -66,5 +67,37 @@ export function useApproveHeartbeatScript(name: string, workspace: string | null
       queryClient.invalidateQueries({
         queryKey: agentKeys.heartbeatSources(name, workspace, profile),
       }),
+  });
+}
+
+/**
+ * Approves a waiting script from outside its Heartbeat page (the shell's bell) with the same
+ * hash-checked call. Afterwards every view of that agent's scripts reads again: the always-on
+ * list that feeds the bell, and any open Heartbeat catalog for the agent.
+ */
+export function useApproveWaitingScript() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (item: ScriptApprovalItem) =>
+      approveAgentHeartbeatScript(
+        item.agentName,
+        item.script,
+        item.sha256,
+        item.workspace,
+        undefined,
+        item.profile
+      ),
+    onSuccess: approval => {
+      toast.message(`Approved ${approval.script}. It runs at the next check-in.`);
+    },
+    onError: error => toast.error(approvalProblem(error)),
+    onSettled: (_approval, _error, item) =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: agentKeys.instanceLists() }),
+        queryClient.invalidateQueries({
+          predicate: query =>
+            query.queryKey.includes(item.agentName) && query.queryKey.at(-1) === "sources",
+        }),
+      ]),
   });
 }

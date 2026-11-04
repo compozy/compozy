@@ -121,11 +121,12 @@ the transcript is checked in `MS-web-stays-on-reports`.
 
 ## 7. Web Check-ins (US-001, US-002, US-011; `_uiux.md` S1–S5)
 
-1. Open the agent's Check-ins page. "What it looks at" shows one row per source with its title
-   (kind title or script name), parameter summary and status: "Not checked yet" before the first
-   check, "Checked N min ago · K new" when ok, "Couldn't check: …" in the danger tone when failing,
-   "Scripts are turned off", "Extension forge-github is off", and "Waiting for your approval ·
-   <short hash>" for an unapproved script.
+1. Open the agent's Heartbeat page. "Sources" is its own section, between "When" and "What it
+   looks at", with one row per source: title (kind title or script name), parameter summary and
+   status. Statuses are "Not checked yet" before the first check, "Checked N min ago · K new"
+   when ok, "Couldn't check: …" in the danger tone when failing, "Scripts are turned off",
+   "Extension forge-github is off", and "Needs your approval" for an unapproved script. Rows only
+   report: none of them carries Approve.
 2. The HEARTBEAT editor keeps a file with `context.sources` in the form view and round-trips source
    order and `with` values the form does not show.
 3. Try it now lists each source's outcome ("Nothing new", "1 new", or the error) above the items.
@@ -134,14 +135,41 @@ the transcript is checked in `MS-web-stays-on-reports`.
    `limits.max_per_agent`. The row's More menu offers Edit and Remove. Edit locks the Reads
    selection and changes the source name and settings; Remove deletes it; both save through the
    same write and survive reload.
-5. In an editable operator view, the Approve button on an unapproved row approves the current
-   script hash from the catalog; the row then reads ok after the next check.
-   A stale hash returns `source_script_changed`; verify the error is shown and the catalog refreshes
-   before reviewing and approving again.
+5. Approval notice (#1258). In an editable operator view, every declared executable script the
+   catalog reports unapproved gets a notice above the Sources rows. The section value reads "1 needs
+   your approval". The notice title is "Approve <script> to let it run", or "Approve the new
+   version of <script>" after an edit. It carries one sentence, "<n> lines · Changed <ago>", and
+   Approve. On the desktop app it also has Open script, which opens the file in the configured
+   editor. Approve sends the hash the catalog showed; the notice leaves and the row reads
+   "Approved · runs at the next check-in". A stale hash returns `source_script_changed`: verify
+   the error is shown and the catalog refreshes before reviewing and approving again. A read-only
+   (extension) agent shows no notice.
+6. Approve before the first check (#1258). Add a script source to a placement that has never
+   checked in, with Heartbeat on or off. Without waiting for a check, the notice is already there
+   and the row reads "Needs your approval", not "Not checked yet". Approve it, then Try it now or
+   wait for the first check: the source runs and reads ok.
+7. Paused placement (#1258). Pause the placement (`compozy agent instance pause <id>`), then edit
+   the script so its hash changes. The notice asks for the new version and says it runs as soon as
+   you resume. Approve while still paused; after Resume the next check runs the script without
+   asking again.
+8. From the bell (#1258). With a script waiting in any project, open the menubar bell. A "Scripts
+   to approve" group sits above Needs you, with one line per script (script name, agent) and
+   Approve, plus "Review in Heartbeat". The bell count includes it. The group lists waiting scripts
+   on paused and never-checked placements too, and shows a definition placed in several projects
+   once. Approve sends the same hash-checked call: the line leaves, the bell count drops, and an
+   open Heartbeat page shows the script approved. A file edit after the bell read returns
+   `source_script_changed` with the same toast, and the line comes back with the new version on
+   the next read. "Review in Heartbeat" (or clicking the line) closes the bell and opens that
+   agent's Heartbeat page in the script's project. Approving never marks notifications read.
 
 Focused automation: `_tests.md` UT/IT ids per slice (S1 Go suites, S1w/S4 Vitest files,
 `TestDaemonE2EHeartbeatSourceCatalog` in CI). Steps 7.4–7.5 match the S4 row controls and add/edit
-dialog and must be walked on the integrated branch.
+dialog and must be walked on the integrated branch. Steps 7.5–7.8 (#1258) are covered by
+`TestHeartbeatSourceRuntime/Should_project_script_approval_before_the_first_check_and_while_paused`
+(daemon instance read: `sources[].awaiting_approval` and `script_sha256`),
+`TestHeartbeatSourceCatalogAndApproval` (catalog `scripts[].path`), the Heartbeat cases in
+`agent-editors.test.tsx`, `scriptApprovalsFromInstances` in `agent-instance.test.ts`, and the
+scripts group in `attention-bell.test.tsx`.
 
 The CLI instance create/show/checks responses use the `instance` envelope. The source-catalog
 E2E decodes that envelope before checking the persisted source's `ok` status.

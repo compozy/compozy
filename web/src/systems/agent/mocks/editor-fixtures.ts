@@ -138,6 +138,7 @@ export function checkInsModelFixture(
       approve: fn(),
       approving: null,
       openExtensions: fn(),
+      openScript: fn(),
     },
     now: new Date("2026-11-01T14:12:00Z"),
     turnOn: fn(),
