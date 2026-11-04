@@ -66,6 +66,9 @@ func RespondError(c *gin.Context, status int, err error, maskInternalErrors bool
 }
 
 func requestErrorStatus(c *gin.Context, status int, err error) (int, error) {
+	if errors.Is(err, gateway.ErrDeviceRevoked) {
+		return status, err
+	}
 	if errors.Is(err, context.Canceled) ||
 		(c != nil && c.Request != nil && errors.Is(c.Request.Context().Err(), context.Canceled)) {
 		return statusClientClosedRequest, context.Canceled

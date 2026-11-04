@@ -23,3 +23,9 @@ and the empty inventory. The local daemon remains the recovery root after every 
 QA walk 2026-08-07: local pairing, rename, revoke, empty inventory, and replacement pairing passed
 through product surfaces. The remote tier admission and live-stream cancellation leg remains
 blocked without an authorized provider address and a second remote device.
+
+QA regression 2026-11-03: `TestGatewayRevocationFencesInflightMutationIntegration` passed
+against real HTTP and SQLite without race instrumentation. Both device and app-token revocation
+roll back the in-flight mutation and return HTTP 401 with `gateway_device_revoked` or
+`app_token_revoked`, even though revocation cancels the mutation context. This focused receipt
+does not complete the remote-device walk above.
